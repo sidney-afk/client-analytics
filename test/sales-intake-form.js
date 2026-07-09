@@ -36,6 +36,14 @@ function grabConst(name) {
 }
 
 const src = [
+  `function _obEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }`,
   grabConst('SI_STRIPE_LINKS'),
   grabConst('SI_PRICES'),
   grabConst('SI_REGULAR_TERMINATION'),
@@ -55,6 +63,8 @@ const src = [
   grabFunc('_siResolvePaymentLink'),
   grabFunc('_siValidate'),
   grabFunc('_siBuildSubmission'),
+  grabFunc('_siAgreementFingerprint'),
+  grabFunc('_siBuildEmailHtml'),
 ].join('\n');
 // eslint-disable-next-line no-new-func
 const api = new Function(src + `
@@ -62,7 +72,7 @@ const api = new Function(src + `
     _siIsStandardBilling, _siAllowsCustomAmount, _siRequiresCadence, _siResolveBillingCadence,
     _siLinkChoiceForBilling, _siAmountForBilling, _siParseUsd, _siPlainUsd, _siFmtUsd,
     _siContractDateWords, _siDisplayFields, _siResolvePaymentLink,
-    _siValidate, _siBuildSubmission };
+    _siValidate, _siBuildSubmission, _siAgreementFingerprint, _siBuildEmailHtml };
 `)();
 
 let pass = 0, fail = 0;
@@ -174,6 +184,28 @@ ok('one-time deal with pasted link + custom clause passes',
   ok('custom recurring billing label includes cadence', s.billing_display_label === 'Custom recurring - Every 4 weeks', s.billing_display_label);
   ok('custom recurring billing line previews the actual cadence', s.billing_line === 'custom recurring, billed every 4 weeks', s.billing_line);
   ok('custom recurring contract period matches cadence', s.billing_period_words === 'per four (4) week period', s.billing_period_words);
+}
+
+// 6) Email preview link behavior.
+{
+  const s = api._siBuildSubmission(valid());
+  const noAgreement = api._siBuildEmailHtml(s);
+  ok('agreement button is disabled before a generated preview link exists',
+    noAgreement.indexOf('si-email-btn sign disabled') > -1, noAgreement);
+  ok('invoice button opens the actual Stripe link in a new tab',
+    noAgreement.indexOf('href="' + api.SI_STRIPE_LINKS.quarterly + '" target="_blank" rel="noopener"') > -1, noAgreement);
+  const withAgreement = api._siBuildEmailHtml(s, 'https://esignatures.com/sign/abc');
+  ok('agreement button opens the generated sign link in a new tab',
+    withAgreement.indexOf('href="https://esignatures.com/sign/abc" target="_blank" rel="noopener"') > -1, withAgreement);
+}
+{
+  const s = api._siBuildSubmission(valid());
+  const sameContractInputs = Object.assign({}, s, { created_at: '2099-01-01T00:00:00.000Z' });
+  const differentContractInputs = Object.assign({}, s, { deliverables: 'Changed scope' });
+  ok('agreement preview fingerprint ignores created_at noise',
+    api._siAgreementFingerprint(s) === api._siAgreementFingerprint(sameContractInputs));
+  ok('agreement preview fingerprint changes when contract content changes',
+    api._siAgreementFingerprint(s) !== api._siAgreementFingerprint(differentContractInputs));
 }
 
 console.log(fail ? `\n${fail} failed, ${pass} passed ❌` : `\nAll ${pass} checks passed ✅`);

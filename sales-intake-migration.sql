@@ -33,7 +33,7 @@ create table if not exists public.sales_intakes (
   termination_clause_text   text,                     -- the clause text as sent (regular text travels in the payload)
   referred_by               text,
   esign_contract_id         text,                     -- eSignatures.com contract id once created
-  status                    text default 'submitted', -- submitted | contract_created | email_sent | failed
+  status                    text default 'submitted', -- submitted | preview_requested | preview_created | contract_created | email_sent | failed
   raw                       jsonb,                    -- full submission payload as received; custom_recurring cadence lives in raw.billing_cadence
   primary key (id)
 );

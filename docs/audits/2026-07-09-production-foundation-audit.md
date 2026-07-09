@@ -47,7 +47,8 @@ Final Production gates after the fix:
 | Gate | Result |
 |---|---:|
 | `node docs/syncview-design/tests/behav-wired.js` | pass, 156/156 guard-mode assertions |
-| `node docs/syncview-design/tests/prod-interaction-inventory.js` | pass: sampled unique controls across list/detail/board/project states, right-click menus, hover tips, scroll reset, breadcrumb context, pointer cursor, and no writes/errors |
+| `node docs/syncview-design/tests/prod-interaction-inventory.js` | pass: sampled unique controls across list/detail/board/project states, right-click menus, hover tips, scroll reset, breadcrumb/body context, pointer cursor, guarded add-sub-issue affordance, and no writes/errors |
+| `node docs/syncview-design/tests/prod-structure-subset.js` | pass: structural detail coverage includes compact activity rows, title-first sub-issue rows with project metadata, child `Sub-issue of` context, and leaf add-sub-issue affordance |
 | `node docs/syncview-design/tests/pixel-wired.js` | pass in light and dark |
 | `node qa/master.js --profile=fast --no-server` with a local static server | pass/fail lanes green: unit, parity, probes, scenarios, visual capture |
 | focused human/vision screenshot review | pass after mobile header and detail-crumb fixes |
@@ -129,6 +130,31 @@ and current title, but did not label which segment was the parent issue versus t
 
 Fix: the detail breadcrumb now labels parent segments as `Issue` and current child segments as
 `Sub-issue`; standalone issues remain labeled `Issue`.
+
+### P2: Detail body still lacked Linear issue-page hierarchy polish
+
+User-visible paths:
+
+1. Open a parent issue with sub-issues.
+2. Open one of its child sub-issues.
+3. Compare the issue body, sub-issue section, and activity feed with Linear's issue detail.
+
+Expected behavior: the main issue body is centered in the available detail pane, child details
+show an inline `Sub-issue of` relationship near the title, parent sub-issue rows prioritize the
+child title and show project metadata, add-sub-issue affordances are visible but guarded in the
+read-only preview, and activity events are compact one-line rows.
+
+Actual behavior before this pass: the detail body was left-weighted, child issue context lived
+mostly in the breadcrumb/right panel, parent sub-issue rows repeated child issue IDs, the
+add-sub-issue affordance was missing from the wired preview, and activity events rendered as
+larger two-line blocks.
+
+Fix: Production issue details now center the main column, child details add a body-level
+`Sub-issue of` row with parent progress and project context, parent sub-issue rows are title-first
+with project/due/assignee metadata, add-sub-issue controls are present and routed to the
+read-only guard, and activity rows render as subtle one-line entries.
+
+No data, flags, backend code, n8n workflows, or Supabase objects were touched.
 
 ### P1: Mobile header and detail breadcrumb looked unfinished
 

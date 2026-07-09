@@ -3514,6 +3514,14 @@
         .cal-kebab-item:hover { background: var(--bg); }
         .cal-kebab-sep { height: 1px; margin: 5px 8px; background: var(--border); }
         .cal-kebab-item svg { width: 15px; height: 15px; color: var(--text-secondary); flex-shrink: 0; }
+        .cal-kebab-import-panel { display: none; padding: 0 0 2px; }
+        .cal-kebab-import-panel.is-open { display: block; }
+        .cal-kebab-import-toggle .cal-kebab-label { flex: 1 1 auto; }
+        .cal-kebab-import-toggle[aria-expanded="true"] .cal-kebab-chevron { transform: rotate(180deg); }
+        .cal-kebab-chevron { width: 13px; height: 13px; margin-left: auto; transition: transform 0.14s ease; }
+        .cal-kebab-subitem { padding-left: 33px; color: var(--text-secondary); font-size: 0.76rem; font-weight: 600; }
+        .cal-kebab-subitem:hover { color: var(--text-primary); }
+        .cal-kebab-subitem svg { width: 13px; height: 13px; opacity: 0.8; }
         .cal-kebab-item.cal-kebab-toggle { gap: 8px; }
         .cal-kebab-item .cal-kebab-label { flex: 1 1 auto; }
         .cal-kebab-info-wrap { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; }
@@ -21301,14 +21309,18 @@
                     <div class="cal-kebab-menu" id="calKebabMenu" hidden>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();calCopyShareLink()" title="Copy a client-facing link to this calendar"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg>Share with client</button>
                         <div class="cal-kebab-sep" role="separator"></div>
-                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalImport()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>Import from Excel</button>
-                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalLinearImport()"><svg viewBox="0 0 100 100" fill="currentColor"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Import from Linear</button>
-                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalBulkLinearSync()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5L4.5 10.5a2.12 2.12 0 1 1-3-3L3.5 5.5"/><path d="M9.5 7.5l2-2a2.12 2.12 0 1 1 3 3l-2 2"/><path d="M6 10l4-4"/></svg>Bulk Linear sync</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_calOpenCaptionPromptModal()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>Edit caption prompt</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalPlatformsEditor()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Edit platforms</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_ccOpenModal(calState.client)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>Client credentials</button>
                         <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleCollabMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="11" cy="7" r="1.8"/><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"/><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-wrap" data-no-tip onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does Collaborative mode do?">i</span><span class="cal-kebab-info-tip">Lets your client see what you're working on and suggest new posts of their own. With this off, they only see what's finished.</span></span><span class="cal-kebab-switch${_calIsCollabOn() ? ' is-on' : ''}" id="calCollabSwitch"></span></button>
                         <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleTitleReviewMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3.5" width="13" height="9" rx="2.5"/><path d="M6.6 6.2l3.1 1.8-3.1 1.8z" fill="currentColor" stroke="none"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-info-wrap" data-no-tip onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does YouTube title review do?">i</span><span class="cal-kebab-info-tip">Adds a title sign-off step on YouTube cards — the SMM sends the title to Kasper, then the client, with its own status and notes. It never affects the card's overall status.</span></span><span class="cal-kebab-switch${_calIsTitleReviewOn() ? ' is-on' : ''}" id="calTitleReviewSwitch"></span></button>
+                        <div class="cal-kebab-sep" role="separator"></div>
+                        <button class="cal-kebab-item cal-kebab-import-toggle" id="calImportToggle" type="button" onclick="_calToggleImportActions(event)" aria-expanded="false" aria-controls="calImportPanel"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+                        <div class="cal-kebab-import-panel" id="calImportPanel">
+                            <button class="cal-kebab-item cal-kebab-subitem" type="button" onclick="_calCloseKebab();openCalImport()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>Import from Excel</button>
+                            <button class="cal-kebab-item cal-kebab-subitem" type="button" onclick="_calCloseKebab();openCalLinearImport()"><svg viewBox="0 0 100 100" fill="currentColor"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Import from Linear</button>
+                            <button class="cal-kebab-item cal-kebab-subitem" type="button" onclick="_calCloseKebab();openCalBulkLinearSync()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5L4.5 10.5a2.12 2.12 0 1 1-3-3L3.5 5.5"/><path d="M9.5 7.5l2-2a2.12 2.12 0 1 1 3 3l-2 2"/><path d="M6 10l4-4"/></svg>Bulk Linear sync</button>
+                        </div>
                     </div>
                 </div>`
             : '';
@@ -21428,7 +21440,21 @@
     function _calCloseKebab() {
         const menu = document.getElementById('calKebabMenu');
         if (menu) menu.hidden = true;
+        _calSetImportActionsOpen(false);
         document.removeEventListener('mousedown', _calKebabOutside);
+    }
+    function _calSetImportActionsOpen(open) {
+        const panel = document.getElementById('calImportPanel');
+        const btn = document.getElementById('calImportToggle');
+        if (!panel || !btn) return;
+        panel.classList.toggle('is-open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    function _calToggleImportActions(e) {
+        if (e) e.stopPropagation();
+        const panel = document.getElementById('calImportPanel');
+        if (!panel) return;
+        _calSetImportActionsOpen(!panel.classList.contains('is-open'));
     }
     function _calKebabOutside(e) {
         if (!e.target.closest('.cal-kebab-wrap')) _calCloseKebab();

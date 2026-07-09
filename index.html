@@ -1629,6 +1629,67 @@
         .spinner { width: 26px; height: 26px; border: 2px solid var(--border); border-top-color: var(--sv-border-777); border-radius: 50%; animation: spin 0.75s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading-text { font-size: 0.83rem; color: var(--text-muted); }
+        .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+        .sv-skeleton { --sv-skel-base: var(--bg); --sv-skel-sheen: var(--border-light); background: linear-gradient(90deg, var(--sv-skel-base) 0%, var(--sv-skel-sheen) 48%, var(--sv-skel-base) 100%); background-size: 220% 100%; border-radius: 8px; animation: sv-shimmer 1.35s ease-in-out infinite; }
+        html[data-theme="dark"] .sv-skeleton, html[data-theme="dark"] .tpl-skeleton { --sv-skel-base: var(--surface-subtle); --sv-skel-sheen: var(--field-bg-hover); }
+        @keyframes sv-shimmer { 0% { background-position: 220% 0; } 100% { background-position: -220% 0; } }
+        .sv-skeleton-pill { border-radius: 999px; }
+        .sv-skeleton-line { height: 14px; border-radius: 6px; }
+        .sv-skeleton-dot { width: 18px; height: 18px; border-radius: 50%; flex: none; }
+        .sv-skeleton-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; box-shadow: 0 1px 5px var(--sv-shadow-rgba-0-0-0-0_04); }
+        .sv-skeleton-stack { display: flex; flex-direction: column; gap: 12px; }
+        .sv-skeleton-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .sv-skeleton-grid { display: grid; gap: 12px; }
+        .boot-skeleton { width: min(780px, calc(100vw - 48px)); align-items: stretch; padding-top: 56px; }
+        .boot-skeleton .sv-skeleton-card { padding: 22px; }
+        .boot-skeleton-row { display: grid; grid-template-columns: 1fr 0.85fr 0.7fr; gap: 12px; }
+        @media (max-width: 700px) { .boot-skeleton-row { grid-template-columns: 1fr; } }
+        .analytics-skeleton { max-width: 980px; margin: 0 auto; }
+        .analytics-skeleton .detail-hero { margin-bottom: 20px; }
+        .analytics-skel-actions { display: flex; gap: 8px; align-items: center; }
+        .analytics-skel-platform { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px 20px; margin-bottom: 11px; }
+        .analytics-skel-platform-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 16px; }
+        .analytics-skel-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+        .analytics-skel-metric { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+        .analytics-skel-chart { height: 240px; display: flex; flex-direction: column; gap: 18px; }
+        .analytics-skel-chart-bars { flex: 1; display: grid; grid-template-columns: repeat(9, 1fr); align-items: end; gap: 9px; border-bottom: 1px solid var(--border-light); padding-top: 12px; }
+        .analytics-skel-chart-bars .sv-skeleton { width: 100%; border-radius: 6px 6px 0 0; }
+        @media (max-width: 720px) { .analytics-skel-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .analytics-skel-actions { width: 100%; } }
+        .cs-skeleton { display: flex; flex-direction: column; gap: 9px; }
+        .linear-search-skeleton { padding: 6px 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+        .linear-plan-skeleton { width: 62%; height: 16px; }
+        .wl-search-loading { padding: 9px 12px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+        .workload-skeleton-grid { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: grid; gap: 4px; }
+        .workload-skeleton-grid.month { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+        .workload-skeleton-grid.week { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        .workload-skeleton-day { min-height: 140px; background: var(--bg); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 9px; }
+        .workload-skeleton-grid.week .workload-skeleton-day { min-height: 420px; }
+        .workload-skeleton-card { background: var(--white); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 7px; }
+        .cal-skeleton-loader { align-items: stretch; justify-content: flex-start; padding: 20px 0; min-height: 220px; }
+        .cal-skeleton-strip { display: flex; gap: 14px; overflow: hidden; padding: 2px 2px 8px; }
+        .cal-skeleton-card { flex: 0 0 var(--cal-card-w, 320px); background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+        .cal-skeleton-thumb { height: var(--cal-thumb-h, 220px); border-radius: 10px; }
+        .cal-skeleton-review { display: flex; flex-direction: column; gap: 12px; }
+        .cal-skeleton-review-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 14px; align-items: center; }
+        .cal-skeleton-review-thumb { width: 96px; height: 96px; border-radius: 10px; }
+        @media (max-width: 760px) { .cal-skeleton-review-card { grid-template-columns: 76px minmax(0, 1fr); } .cal-skeleton-review-thumb { width: 76px; height: 76px; } }
+        .sm-skeleton-strip { display: flex; gap: 14px; overflow: hidden; padding: 18px 0; }
+        .sm-skeleton-card { flex: 0 0 var(--sm-card-w, 296px); background: var(--white); border: 1px solid var(--border); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+        .sm-skeleton-thumb { aspect-ratio: 9 / 14; border-radius: 12px; }
+        .table-skeleton { width: min(920px, 100%); margin: 0 auto; display: flex; flex-direction: column; gap: 8px; padding: 12px 0; }
+        .table-skeleton-row { background: var(--white); border: 1px solid var(--border-light); border-radius: 10px; padding: 12px 14px; display: grid; grid-template-columns: 1.2fr 1fr 1fr 80px; gap: 10px; align-items: center; }
+        @media (max-width: 760px) { .table-skeleton-row { grid-template-columns: 1fr; } }
+        .onboarding-skeleton { display: flex; flex-direction: column; gap: 12px; padding: 10px 0; }
+        .onboarding-skeleton-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+        .kasper-skeleton-list { display: flex; flex-direction: column; gap: 12px; padding: 8px 0; }
+        .kasper-skeleton-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 12px; display: grid; grid-template-columns: 96px minmax(0, 1fr) 120px; gap: 14px; align-items: center; }
+        .kasper-skeleton-thumb { width: 96px; height: 96px; border-radius: 10px; }
+        @media (max-width: 760px) { .kasper-skeleton-card { grid-template-columns: 80px minmax(0, 1fr); } .kasper-skeleton-thumb { width: 80px; height: 80px; } }
+        .prod-skeleton { --sv-skel-base: var(--prod-column); --sv-skel-sheen: var(--prod-hover); background: linear-gradient(90deg, var(--sv-skel-base) 0%, var(--sv-skel-sheen) 48%, var(--sv-skel-base) 100%); background-size: 220% 100%; border-radius: 6px; animation: sv-shimmer 1.35s ease-in-out infinite; }
+        .prod-loading-skeleton { flex: 1; min-width: 0; display: flex; width: 100%; min-height: 0; }
+        .prod-loading-list { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+        .prod-loading-row { height: 44px; border-bottom: 1px solid var(--prod-divider); display: grid; grid-template-columns: 16px 76px minmax(0, 1fr) 140px 96px; gap: 8px; align-items: center; padding: 0 12px; }
+        .prod-loading-detail { width: 286px; flex: 0 0 286px; border-left: 1px solid var(--prod-divider); padding: 18px 14px; display: flex; flex-direction: column; gap: 14px; }
         .error-state { background: var(--white); border: 1px solid var(--sv-border-fecaca); border-radius: 12px; padding: 32px; text-align: center; color: var(--dn); font-size: 0.88rem; }
         @media (max-width: 700px) { .video-card-tt { flex: 0 0 200px; } }
 
@@ -3125,11 +3186,10 @@
         .tpl-view-links { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 
         /* Skeleton (loading) */
-        .tpl-skeleton { background: linear-gradient(90deg, var(--bg) 0%, var(--sv-bg-ededea) 50%, var(--bg) 100%); background-size: 200% 100%; border-radius: 8px; animation: tpl-shimmer 1.4s ease-in-out infinite; }
+        .tpl-skeleton { --sv-skel-base: var(--bg); --sv-skel-sheen: var(--border-light); background: linear-gradient(90deg, var(--sv-skel-base) 0%, var(--sv-skel-sheen) 48%, var(--sv-skel-base) 100%); background-size: 220% 100%; border-radius: 8px; animation: sv-shimmer 1.35s ease-in-out infinite; }
         .tpl-skeleton-pill { border-radius: 99px; }
         .tpl-skeleton-line { height: 14px; border-radius: 6px; }
         .tpl-skeleton-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 22px; margin-bottom: 14px; }
-        @keyframes tpl-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
         /* Color sets — edit mode */
         .tpl-subsection { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-light); }
@@ -6090,9 +6150,22 @@
         <div class="pins-area" id="pinsArea"><div class="pins-row" id="pinsRow"></div><div class="pins-add-row" id="pinsAddRow"></div></div>
     </div>
     <div id="content">
-        <div class="loading-state">
-            <div class="spinner"></div>
-            <span class="loading-text" id="bootLoadingText">Loading…</span>
+        <div class="loading-state boot-skeleton" role="status" aria-live="polite" aria-label="Loading">
+            <span class="sr-only" id="bootLoadingText">Loading...</span>
+            <div class="sv-skeleton sv-skeleton-pill" style="width:180px;height:22px;"></div>
+            <div class="sv-skeleton-card">
+                <div class="sv-skeleton sv-skeleton-line" style="width:42%;"></div>
+                <div class="boot-skeleton-row" style="margin-top:18px;">
+                    <div class="sv-skeleton sv-skeleton-pill" style="height:42px;"></div>
+                    <div class="sv-skeleton sv-skeleton-pill" style="height:42px;"></div>
+                    <div class="sv-skeleton sv-skeleton-pill" style="height:42px;"></div>
+                </div>
+            </div>
+            <div class="sv-skeleton-card">
+                <div class="sv-skeleton sv-skeleton-line" style="width:32%;"></div>
+                <div class="sv-skeleton sv-skeleton-line" style="width:86%;margin-top:14px;"></div>
+                <div class="sv-skeleton sv-skeleton-line" style="width:68%;margin-top:10px;"></div>
+            </div>
         </div>
     </div>
 </main>
@@ -8544,8 +8617,12 @@
             // User can refresh the page to re-attempt.
             inner=`<div class="cs-error" style="opacity:0.7;font-size:0.78rem;">${state.error}</div>`;
         }else if(!hasData){
-            // Either generation is in flight or about to be (auto-trigger above) — show the spinner.
-            inner=`<div class="cs-loading"><span class="cs-spinner"></span>Downloading transcripts &amp; analysing what's working… <span style="font-weight:400;opacity:0.7;">(~1-2 min)</span></div>`;
+            // Either generation is in flight or about to be (auto-trigger above).
+            inner=`<div class="cs-skeleton" role="status" aria-label="Loading">
+                ${_svSkel('sv-skeleton-line', 'width:92%;')}
+                ${_svSkel('sv-skeleton-line', 'width:84%;')}
+                ${_svSkel('sv-skeleton-line', 'width:68%;')}
+            </div>`;
         }else{
             const raw=state.data.bullets||'';
             // Render markdown-style bullet points
@@ -9616,7 +9693,7 @@
     }
     function _obvRenderStandalone(){
       const wrap = document.getElementById('obvStandaloneWrap'); if(!wrap) return;
-      if (_obvSubs === null) { wrap.innerHTML = `<div class="obv-empty">Loading onboarding…</div>`; return; }
+      if (_obvSubs === null) { wrap.innerHTML = _svLoadingSkeletonHtml('onboarding'); return; }
       const sub = (_obvSubs||[]).find(s => (s.slug||'') === _obvStandaloneSlug);
       if (!sub) { wrap.innerHTML = `<div class="obv-empty">No onboarding form on file for this client.</div>`; return; }
       wrap.innerHTML = _obvDetail(sub, { contact:false, creds:false }).replace(/<button class="obv-back"[\s\S]*?<\/button>/, '');
@@ -9684,7 +9761,7 @@
         return top + (sub ? _obvDetail(sub, { contact:true, creds: _obvMode==='full' }) : `<div class="obv-empty">Submission not found.</div>`) + `</div>`;
       }
       let body;
-      if (_obvSubs === null) body = `<div class="obv-empty">Loading submissions…</div>`;
+      if (_obvSubs === null) body = _svLoadingSkeletonHtml('onboarding');
       else if (_obvError && !_obvSubs.length) body = `<div class="obv-empty">Couldn't load submissions (${_obvEsc(_obvError)}).<br><small>If a list webhook isn't active yet, activate it in n8n.</small></div>`;
       else if (!_obvSubs.length) body = `<div class="obv-empty">No onboarding submissions yet.</div>`;
       else {
@@ -11308,7 +11385,7 @@
                 </span>
             </div>
             <div id="wlBody">
-                <div class="workload-empty"><span class="spinner" style="display:inline-block;vertical-align:middle;"></span> Loading workload…</div>
+                ${_svLoadingSkeletonHtml('workload')}
             </div>
             <div id="wlUnassigned" class="workload-needs-assignment empty">
                 <div class="workload-section-label">Needs assignment</div>
@@ -11830,7 +11907,7 @@
             // still usable — picking a client is harmless before data
             // arrives — but the spinner makes the wait visible.
             const loadingRow = (wlState.loading && !wlState.fetchedAt)
-                ? '<div class="wl-client-search-result loading"><span class="spinner"></span> Loading workload…</div>'
+                ? '<div class="wl-search-loading">' + _svLoadingSkeletonHtml('linear-search') + '</div>'
                 : '';
             if (!list.length) {
                 results.innerHTML = loadingRow + '<div class="wl-client-search-result empty">No clients match</div>';
@@ -11953,7 +12030,7 @@
             }
         }
         if (freshEl) {
-            if (wlState.loading && !wlState.fetchedAt) freshEl.textContent = 'Loading…';
+            if (wlState.loading && !wlState.fetchedAt) freshEl.innerHTML = _svSkel('sv-skeleton-pill', 'width:74px;height:12px;');
             else if (wlState.fetchedAt) {
                 const d = new Date(wlState.fetchedAt);
                 const hh = String(d.getHours()).padStart(2, '0');
@@ -11978,7 +12055,7 @@
             return;
         }
         if (wlState.loading && !hasAnyData) {
-            bodyEl.innerHTML = '<div class="workload-empty"><span class="spinner" style="display:inline-block;vertical-align:middle;"></span> Loading workload…</div>';
+            bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
             return;
         }
 
@@ -12601,7 +12678,7 @@
             // A sub-issue sitting in "Tweak Needed" gets a comment preview
             // box under its row — filled asynchronously below from Linear.
             const tweakBox = wlIsTweaksNeeded(s)
-                ? `<div class="wl-tweak-comments" data-wl-comments-for="${wlEscape(s.id)}"><div class="wl-tweak-comments-status">Loading tweak comments…</div></div>`
+                ? `<div class="wl-tweak-comments" data-wl-comments-for="${wlEscape(s.id)}"><div class="wl-tweak-comments-status" role="status" aria-label="Loading">${_svSkel('sv-skeleton-line', 'width:72%;height:10px;')}</div></div>`
                 : '';
             return `<div class="workload-popover-item">
                 <a class="workload-popover-item-main" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer">
@@ -12957,7 +13034,7 @@
     function renderLinearSearchResults(q) {
         const el = document.getElementById('linearSearchResults');
         if (!el) return;
-        if (linearProjectsLoading) { el.innerHTML = '<div class="linear-search-loading">Loading clients…</div>'; return; }
+        if (linearProjectsLoading) { el.innerHTML = _svLoadingSkeletonHtml('linear-search'); return; }
         if (!linearProjects.length) { el.innerHTML = '<div class="linear-search-empty">No projects loaded</div>'; return; }
         const q2 = q.trim().toLowerCase();
         if (!q2) {
@@ -13038,7 +13115,7 @@
             return;
         }
         if (!_linearPlanMap) {
-            el.textContent = 'Loading filming plan…';
+            el.innerHTML = _svSkel('linear-plan-skeleton');
             el.classList.add('empty'); el.classList.remove('warn');
             loadLinearPlanMap();
             return;
@@ -13495,7 +13572,7 @@
 
     /* ---- entry points ---- */
     function renderSamplesView(){ return `<div class="samples-view" id="smView">${_smLoaderHtml()}</div>`; }
-    function _smLoaderHtml(){ return `<div class="sm-loader"><svg width="26" height="26" viewBox="0 0 28 28" fill="none" style="animation:spin 0.9s linear infinite;opacity:0.4"><circle cx="14" cy="14" r="11" stroke="currentColor" stroke-width="2.5" stroke-dasharray="50 20"/></svg><span>Loading samples…</span></div>`; }
+    function _smLoaderHtml(){ return _svLoadingSkeletonHtml('samples', { label: 'Loading samples' }); }
 
     function mountSamplesView(){
         document.body.classList.remove('sm-modal-open');
@@ -16848,14 +16925,184 @@
     /* Modern animated loader — a single rotating ring with a subtle label.
        The visible arc is drawn as a short stroke-dasharray segment so the
        spinning motion stays smooth across browsers. */
-    function _calLoaderHtml(label) {
-        return `<div class="cal-loader" role="status" aria-label="Loading">
-            <svg class="cal-loader-svg" viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">
-                <circle class="track" cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="3"/>
-                <circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="44 100" stroke-dashoffset="0"/>
-            </svg>
-            <div class="cal-loader-text">${_calEsc(label || 'Loading your calendar')}</div>
+    function _svSkel(cls, style) {
+        return `<div class="sv-skeleton${cls ? ' ' + cls : ''}"${style ? ` style="${style}"` : ''}></div>`;
+    }
+    function _svTableSkeletonHtml(rows) {
+        rows = rows || 5;
+        return `<div class="table-skeleton" role="status" aria-label="Loading">${Array.from({ length: rows }, (_, i) => `
+            <div class="table-skeleton-row">
+                ${_svSkel('sv-skeleton-line', 'width:' + (i % 2 ? '72%' : '84%') + ';')}
+                ${_svSkel('sv-skeleton-line', 'width:62%;')}
+                ${_svSkel('sv-skeleton-line', 'width:78%;')}
+                ${_svSkel('sv-skeleton-pill', 'height:24px;width:70px;')}
+            </div>`).join('')}</div>`;
+    }
+    function _svCalendarSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-skeleton-strip">
+                ${[0, 1, 2].map(i => `<div class="cal-skeleton-card">
+                    ${_svSkel('cal-skeleton-thumb')}
+                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '72%' : '86%') + ';')}
+                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 2 ? '48%' : '64%') + ';')}
+                    <div class="sv-skeleton-row">
+                        ${_svSkel('sv-skeleton-pill', 'width:58px;height:22px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:72px;height:22px;')}
+                    </div>
+                </div>`).join('')}
+            </div>
         </div>`;
+    }
+    function _svReviewSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-skeleton-review">
+                ${[0, 1, 2].map(i => `<div class="cal-skeleton-review-card">
+                    ${_svSkel('cal-skeleton-review-thumb')}
+                    <div class="sv-skeleton-stack">
+                        ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '56%' : '72%') + ';')}
+                        ${_svSkel('sv-skeleton-line', 'width:88%;')}
+                        ${_svSkel('sv-skeleton-line', 'width:' + (i === 2 ? '48%' : '64%') + ';')}
+                    </div>
+                    ${_svSkel('sv-skeleton-pill', 'width:96px;height:30px;')}
+                </div>`).join('')}
+            </div>
+        </div>`;
+    }
+    function _svSamplesSkeletonHtml(label) {
+        return `<div class="sm-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="sm-skeleton-strip">
+                ${[0, 1, 2].map(i => `<div class="sm-skeleton-card">
+                    ${_svSkel('sm-skeleton-thumb')}
+                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '62%' : '78%') + ';')}
+                    ${_svSkel('sv-skeleton-line', 'width:46%;')}
+                </div>`).join('')}
+            </div>
+        </div>`;
+    }
+    function _svKasperSkeletonHtml(label) {
+        return `<div class="kasper-skeleton-list" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            ${[0, 1, 2].map(i => `<div class="kasper-skeleton-card">
+                ${_svSkel('kasper-skeleton-thumb')}
+                <div class="sv-skeleton-stack">
+                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '64%' : '80%') + ';')}
+                    ${_svSkel('sv-skeleton-line', 'width:92%;')}
+                    ${_svSkel('sv-skeleton-line', 'width:58%;')}
+                </div>
+                ${_svSkel('sv-skeleton-pill', 'width:96px;height:30px;')}
+            </div>`).join('')}
+        </div>`;
+    }
+    function _svWorkloadSkeletonHtml() {
+        const mode = (typeof wlState !== 'undefined' && wlState && wlState.viewMode === 'week') ? 'week' : 'month';
+        const cells = mode === 'week' ? 5 : 28;
+        return `<div class="workload-skeleton-grid ${mode}" role="status" aria-label="Loading">${Array.from({ length: cells }, (_, i) => `
+            <div class="workload-skeleton-day">
+                ${_svSkel('sv-skeleton-pill', 'width:34px;height:14px;')}
+                ${(i % 3 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:72%;')}${_svSkel('sv-skeleton-line', 'width:54%;')}</div>` : ''}
+                ${(i % 5 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:58%;')}${_svSkel('sv-skeleton-line', 'width:42%;')}</div>` : ''}
+            </div>`).join('')}</div>`;
+    }
+    function _svAnalyticsSkeletonHtml(name) {
+        const heading = name ? _calEsc(name) : '';
+        return `<div class="client-view analytics-skeleton" role="status" aria-label="Loading">
+            <div class="view-tab-toggle">
+                ${_svSkel('sv-skeleton-pill', 'width:86px;height:31px;')}
+                ${_svSkel('sv-skeleton-pill', 'width:126px;height:31px;')}
+                ${_svSkel('sv-skeleton-pill', 'width:70px;height:31px;')}
+            </div>
+            <div class="detail-hero">
+                <div class="sv-skeleton-stack">
+                    ${heading ? `<div class="detail-name">${heading}</div>` : _svSkel('sv-skeleton-line', 'width:220px;height:28px;')}
+                    ${_svSkel('sv-skeleton-line', 'width:340px;')}
+                </div>
+                <div class="analytics-skel-actions">
+                    ${_svSkel('sv-skeleton-pill', 'width:114px;height:32px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:92px;height:32px;')}
+                </div>
+            </div>
+            ${[0, 1, 2].map(i => `<div class="analytics-skel-platform">
+                <div class="analytics-skel-platform-head">
+                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 0 ? '120px' : i === 1 ? '88px' : '96px') + ';')}
+                    ${_svSkel('sv-skeleton-pill', 'width:108px;height:22px;')}
+                </div>
+                <div class="analytics-skel-metrics">
+                    ${[0, 1, 2, 3].map(j => `<div class="analytics-skel-metric">
+                        ${_svSkel('sv-skeleton-line', 'width:' + (j % 2 ? '58%' : '72%') + ';height:10px;')}
+                        ${_svSkel('sv-skeleton-line', 'width:' + (j % 2 ? '66%' : '48%') + ';height:24px;')}
+                    </div>`).join('')}
+                </div>
+            </div>`).join('')}
+            <div class="chart-section analytics-skel-chart">
+                <div class="chart-top">
+                    ${_svSkel('sv-skeleton-line', 'width:190px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:220px;height:28px;')}
+                </div>
+                <div class="analytics-skel-chart-bars">
+                    ${[42, 68, 52, 84, 58, 74, 46, 66, 56].map(h => _svSkel('', 'height:' + h + '%;')).join('')}
+                </div>
+            </div>
+        </div>`;
+    }
+    function _svOnboardingSkeletonHtml() {
+        return `<div class="onboarding-skeleton" role="status" aria-label="Loading">
+            ${[0, 1, 2].map(i => `<div class="onboarding-skeleton-card">
+                <div class="sv-skeleton-row">
+                    ${_svSkel('sv-skeleton-dot')}
+                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '44%' : '58%') + ';')}
+                </div>
+                ${_svSkel('sv-skeleton-line', 'width:88%;')}
+                ${_svSkel('sv-skeleton-line', 'width:64%;')}
+            </div>`).join('')}
+        </div>`;
+    }
+    function _svLinearSearchSkeletonHtml() {
+        return `<div class="linear-search-skeleton" role="status" aria-label="Loading">
+            ${[0, 1, 2].map(i => `<div class="sv-skeleton-row">
+                ${_svSkel('sv-skeleton-dot', 'width:16px;height:16px;')}
+                ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '58%' : '76%') + ';')}
+            </div>`).join('')}
+        </div>`;
+    }
+    function _prodSkeletonHtml() {
+        const rows = Array.from({ length: 9 }, (_, i) => `<div class="prod-loading-row">
+            <span class="prod-skeleton" style="width:13px;height:13px;border-radius:50%;"></span>
+            <span class="prod-skeleton" style="height:13px;width:54px;"></span>
+            <span class="prod-skeleton" style="height:13px;width:${i % 2 ? '64%' : '82%'};"></span>
+            <span class="prod-skeleton" style="height:22px;width:118px;border-radius:999px;"></span>
+            <span class="prod-skeleton" style="height:22px;width:72px;border-radius:999px;"></span>
+        </div>`).join('');
+        return `<div class="prod-loading-skeleton" role="status" aria-label="Loading">
+            <div class="prod-loading-list">${rows}</div>
+            <aside class="prod-loading-detail">
+                <span class="prod-skeleton" style="height:24px;width:70%;"></span>
+                <span class="prod-skeleton" style="height:14px;width:86%;"></span>
+                <span class="prod-skeleton" style="height:14px;width:64%;"></span>
+                <span class="prod-skeleton" style="height:32px;width:100%;margin-top:12px;"></span>
+                <span class="prod-skeleton" style="height:32px;width:100%;"></span>
+                <span class="prod-skeleton" style="height:32px;width:82%;"></span>
+            </aside>
+        </div>`;
+    }
+    function _svLoadingSkeletonHtml(kind, opts) {
+        opts = opts || {};
+        if (kind === 'analytics') return _svAnalyticsSkeletonHtml(opts.name || '');
+        if (kind === 'workload') return _svWorkloadSkeletonHtml();
+        if (kind === 'samples') return _svSamplesSkeletonHtml(opts.label);
+        if (kind === 'review') return _svReviewSkeletonHtml(opts.label);
+        if (kind === 'table') return _svTableSkeletonHtml(opts.rows || 5);
+        if (kind === 'onboarding') return _svOnboardingSkeletonHtml();
+        if (kind === 'linear-search') return _svLinearSearchSkeletonHtml();
+        if (kind === 'kasper') return _svKasperSkeletonHtml(opts.label);
+        if (kind === 'production') return _prodSkeletonHtml();
+        return _svCalendarSkeletonHtml(opts.label);
+    }
+    function _calLoaderHtml(label) {
+        const raw = String(label || 'Loading your calendar');
+        const t = raw.toLowerCase();
+        if (t.includes('credential') || t.includes('history')) return _svLoadingSkeletonHtml('table', { label: raw });
+        if (t.includes('sample') || t.includes('review')) return _svLoadingSkeletonHtml('review', { label: raw });
+        if (t.includes('kasper') || t.includes('filming') || t.includes('linear') || t.includes('message')) return _svLoadingSkeletonHtml('kasper', { label: raw });
+        return _svLoadingSkeletonHtml('calendar', { label: raw });
     }
 
     function _calLoadPrefs() { try { return JSON.parse(localStorage.getItem(CAL_PREFS_KEY) || '{}'); } catch { return {}; } }
@@ -29637,7 +29884,7 @@
             if (_prodState.cardAnchor && !cardVisible.has(_prodState.cardAnchor)) _prodState.cardAnchor = '';
         }
         function renderProductionView() {
-            return '<div class="prod-view" id="prodRoot"><div class="prod-loading">Loading Production preview...</div></div>';
+            return '<div class="prod-view" id="prodRoot">' + _svLoadingSkeletonHtml('production') + '</div>';
         }
         function mountProductionView() {
             const nav = document.getElementById('navProd');
@@ -30212,9 +30459,9 @@
                 + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>' + _calEsc(d ? _prodIssueLabel(d) : 'Batch') + '</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-issue" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodBody() {
-            if (_prodState.loading) return '<div class="prod-loading">Loading migrated production data...</div>';
+            if (_prodState.loading) return _svLoadingSkeletonHtml('production');
             if (_prodState.error) return '<div class="prod-error"><strong>Production preview could not load.</strong><br>' + _calEsc(_prodState.error) + '<br><button class="prod-tab" type="button" onclick="_prodRefresh()">Retry</button></div>';
-            if (!_prodState.loaded) return '<div class="prod-loading">Loading Production preview...</div>';
+            if (!_prodState.loaded) return _svLoadingSkeletonHtml('production');
             if (_prodState.view === 'board') return _prodBoard();
             if (_prodState.view === 'detail') return _prodDetail();
             if (_prodState.view === 'batch') return _prodBatchDetail();
@@ -30408,7 +30655,9 @@
                 + '</div>';
         }
         function _prodActivity(events) {
-            if (events === null || events === undefined) return '<div style="color:var(--prod-faint);font-size:12.5px;margin-bottom:12px">Loading activity...</div>';
+            if (events === null || events === undefined) return '<div class="sv-skeleton-stack" role="status" aria-label="Loading" style="margin-bottom:12px;">'
+                + '<span class="prod-skeleton" style="height:13px;width:48%;"></span>'
+                + '<span class="prod-skeleton" style="height:13px;width:72%;"></span></div>';
             if (!events.length) return '<div style="color:var(--prod-faint);font-size:12.5px;margin-bottom:12px">No activity events on this migrated row yet.</div>';
             return events.slice(0, 12).map(e => {
                 const actor = e.actor || e.role || e.source || 'system';
@@ -31028,12 +31277,10 @@
             document.getElementById('pageTop').style.display='none';
             const _clientLoaderV = new URLSearchParams(location.search).get('v');
             const _clientLoaderText = _clientLoaderV === 'calendar'
-                ? 'Loading content calendar…'
-                : (_clientLoaderV === 'samples' ? 'Loading content samples…' : 'Loading your analytics…');
-            document.getElementById('content').innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px;">
-                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style="animation:spin 0.9s linear infinite;flex-shrink:0;opacity:0.35"><circle cx="14" cy="14" r="11" stroke="var(--sv-fg-111)" stroke-width="2.5" stroke-dasharray="50 20"/></svg>
-                <span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:0.88rem;color:var(--sv-fg-aaa);font-weight:500;">${_clientLoaderText}</span>
-            </div>`;
+                ? 'Loading content calendar...'
+                : (_clientLoaderV === 'samples' ? 'Loading content samples...' : 'Loading your analytics...');
+            const _clientLoaderKind = _clientLoaderV === 'calendar' ? 'calendar' : (_clientLoaderV === 'samples' ? 'samples' : 'analytics');
+            document.getElementById('content').innerHTML = _svLoadingSkeletonHtml(_clientLoaderKind, { label: _clientLoaderText });
             // The inline hides above now own the chrome; drop the boot gate's
             // pre-paint class so the popstate handler can re-show #pageTop
             // for client profiles exactly as before.
@@ -34457,7 +34704,7 @@
         if (!_sxrKasperState.loaded && !_sxrKasperState.loading) { _sxrKasperLoadQueue(); }
         const st = _sxrKasperState;
         const head = `<div class="kasper-samples-head" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px;gap:12px;"><div class="kasper-sub" style="margin:0;">Samples waiting on your review — all clients.</div><button class="cal-link" type="button" onclick="_sxrKasperLoadQueue(true)">Refresh</button></div>`;
-        if (st.loading && !st.items.length) { host.innerHTML = head + `<div class="kasper-loading">${_sxrLoaderHtml('Loading samples for review')}</div>`; return; }
+        if (st.loading && !st.items.length) { host.innerHTML = head + _svLoadingSkeletonHtml('review', { label: 'Loading samples for review' }); return; }
         if (st.error && !st.items.length) { host.innerHTML = head + `<div class="cal-empty cal-error">Couldn't load samples — <button class="cal-link" onclick="_sxrKasperLoadQueue(true)">try again</button>.</div>`; return; }
         const { waiting, tweaks } = _sxrKasperPartitionItems(st.items);
         // Waiting bucket (collapsible head matches Tweaks-pending / history so the
@@ -36442,7 +36689,7 @@
             const privacyChosen = opts.privacy_level && privOpts.includes(opts.privacy_level);
             let privacyInner;
             if (ttpState.creatorInfoLoading) {
-                privacyInner = `<div class="ttp-help">Loading the creator's allowed options from TikTok…</div>`;
+                privacyInner = `<div class="ttp-help" role="status" aria-label="Loading">${_svSkel('sv-skeleton-line', 'width:72%;height:12px;')}</div>`;
             } else if (ttpState.creatorInfoError) {
                 privacyInner = `<div class="ttp-error">${_ttpEscape(ttpState.creatorInfoError)}</div><button class="ttp-mini-btn" style="margin-top:8px" onclick="_ttpFetchCreatorInfo(${JSON.stringify(ttpState.client).replace(/"/g,'&quot;')})">Retry</button>`;
             } else if (!ci) {
@@ -38541,7 +38788,7 @@
                 <p><strong>The alert</strong> only goes red/amber when content is running low <em>and</em> there's no filming plan for the upcoming month. Click a client to see which months already have a plan, and open the Doc.</p>
                 <p class="ked-info-note">Plan links live in the <strong>FilmingPlans</strong> sheet tab. Month coverage is read from each Doc's tabs when the tabs webhook is configured; otherwise from an optional <code>plan_months</code> column.</p>
             </div>
-            <div id="kfilmBody"><div class="kasper-loading"><div class="spinner"></div>Loading filming plans…</div></div>`;
+            <div id="kfilmBody">${_svLoadingSkeletonHtml('kasper', { label: 'Loading filming plans' })}</div>`;
         const fresh = _kasperState.filmingData && (Date.now() - _kasperState.filmingLoadedAt < KASPER_FILMING_CACHE_MAX_AGE_MS);
         if (fresh) { _filmsPaint(); return; }
         await _kasperLoadFilming(false);
@@ -38575,7 +38822,7 @@
         }
 
         if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
-        if (body && (forceRefresh || !_kasperState.filmingData)) body.innerHTML = `<div class="kasper-loading"><div class="spinner"></div>${forceRefresh ? 'Refreshing' : 'Loading filming plans'}…</div>`;
+        if (body && (forceRefresh || !_kasperState.filmingData)) body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: forceRefresh ? 'Refreshing filming plans' : 'Loading filming plans' });
         _kasperState.filmingLoading = true;
         _kasperState.filmingError = null;
         try {
@@ -38775,7 +39022,7 @@
             String(_calLatestMsgCreatedAt(b.post) || '').localeCompare(String(_calLatestMsgCreatedAt(a.post) || '')));
         if (!list.length) {
             const loadingNote = _kasperState.loading && !_kasperState.lastLoaded
-                ? `<div class="kasper-loading"><div class="spinner"></div>Checking for messages…</div>`
+                ? _svLoadingSkeletonHtml('kasper', { label: 'Checking for messages' })
                 : `<div class="kasper-empty">
                     <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg></div>
                     <div class="kasper-empty-title">No new messages</div>
@@ -38933,7 +39180,7 @@
             <span id="kasperReviewCount" hidden></span>
             <div id="kasperReviewBody">${hasCached
                 ? '' /* paint cached state right after the toolbar */
-                : `<div class="kasper-loading"><div class="spinner"></div>Pulling cards waiting on Kasper…</div>`}</div>`;
+                : _svLoadingSkeletonHtml('kasper', { label: 'Loading Kasper review' })}</div>`;
         if (hasCached) _kasperPaintReview();
         // Always force-refresh on entry. The 5-minute per-client cache
         // is fine for in-session navigation but on the initial Kasper
@@ -38954,7 +39201,7 @@
         // sliding in over the toolbar) so the affordance is consistent
         // across the app — plus the spinning Refresh button.
         const hasContent = _kasperState.items.length > 0 || _kasperState.history.length > 0;
-        if (!hasContent && body) body.innerHTML = `<div class="kasper-loading"><div class="spinner"></div>Pulling cards waiting on Kasper…</div>`;
+        if (!hasContent && body) body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: 'Loading Kasper review' });
         else { const pill = document.getElementById('kasperReviewRefreshPill'); if (pill) pill.hidden = false; }
 
         _kasperState.loading = true;
@@ -40652,7 +40899,7 @@
                 </ul>
                 <p class="ked-info-note">Hover any notch or band for the status name.</p>
             </div>
-            <div id="kedBody"><div class="kasper-loading"><div class="spinner"></div>Pulling last week's work from Linear…</div></div>`;
+            <div id="kedBody">${_svLoadingSkeletonHtml('kasper', { label: "Loading last week's work from Linear" })}</div>`;
         const fresh = _kasperState.editorsData && (Date.now() - _kasperState.editorsLoadedAt < 10 * 60 * 1000);
         if (fresh) { _kedPaint(); return; }
         await _kasperLoadEditors(false);
@@ -40722,7 +40969,7 @@
         }
 
         if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
-        if (body && (forceRefresh || !_kasperState.editorsData)) body.innerHTML = `<div class="kasper-loading"><div class="spinner"></div>${forceRefresh ? 'Refreshing' : "Pulling last week's work from Linear"}…</div>`;
+        if (body && (forceRefresh || !_kasperState.editorsData)) body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: forceRefresh ? 'Refreshing editor work' : "Loading last week's work from Linear" });
         _kasperState.editorsLoading = true;
         _kasperState.editorsError = null;
         try {

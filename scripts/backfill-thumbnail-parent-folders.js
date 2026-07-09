@@ -7,6 +7,8 @@
  *   1. the thumbnail parent-folder columns migration is applied
  *   2. the thumbnail-folder-resolve Edge Function is deployed
  *   3. GOOGLE_DRIVE_API_KEY is set as an Edge Function secret
+ *      For parent folders that Google hides from API-key responses, also set
+ *      GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY.
  *
  * Dry run:
  *   node scripts/backfill-thumbnail-parent-folders.js
@@ -157,7 +159,8 @@ async function mapLimit(items, limit, fn) {
     return;
   }
 
-  let ok = 0;
+  let resolved = 0;
+  let noParent = 0;
   let failed = 0;
   const results = await mapLimit(limited, CONCURRENCY, async (item) => {
     const json = await resolveOne(item.surface, item.row);
@@ -167,17 +170,22 @@ async function mapLimit(items, limit, fn) {
   results.forEach((result, i) => {
     const item = limited[i];
     if (result && result.ok) {
-      ok++;
       const fields = result.value.json.fields || {};
-      const folder = fields.thumbnail_folder_url || '(none)';
-      console.log(`ok\t${item.surface}\t${item.row.client}\t${item.row.id}\t${folder}`);
+      const folder = String(fields.thumbnail_folder_url || '').trim();
+      if (folder) {
+        resolved++;
+        console.log(`resolved\t${item.surface}\t${item.row.client}\t${item.row.id}\t${folder}`);
+      } else {
+        noParent++;
+        console.log(`no-parent\t${item.surface}\t${item.row.client}\t${item.row.id}`);
+      }
     } else {
       failed++;
       console.log(`fail\t${item.surface}\t${item.row.client}\t${item.row.id}\t${result.error.message}`);
     }
   });
 
-  console.log(`Done. ok=${ok} failed=${failed}`);
+  console.log(`Done. resolved=${resolved} no_parent=${noParent} failed=${failed}`);
   if (failed) process.exitCode = 1;
 })().catch(err => {
   console.error(err && err.stack || err);

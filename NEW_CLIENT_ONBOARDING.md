@@ -56,7 +56,7 @@
 **Finish**
 - [ ] Verify on the live dashboard (calendar loads, samples strip, filming plan opens from the main tab/Templates/Kasper, weekly Slack target, metrics next morning). → [§6i](#6i-verify)
 
-> Rough sequence that mirrors how it's actually done: **Slack channel + Linear project → research/keywords → Sheets rows → frontend allowlist → filming Doc in the Drive folder → Filming Plans tab link → (samples/calendar fill in as work starts).**
+> Rough sequence that mirrors how it's actually done: **Slack channel + Linear project → research/keywords → Sheets rows → client goes live in the dashboard → filming Doc in the Drive folder → Filming Plans tab link → (samples/calendar fill in as work starts).**
 
 ---
 
@@ -97,13 +97,13 @@ This is the part that's easy to forget the *method* for. You're producing three 
 ## 4. "Clients Info" row (the big one)
 
 **Where:** SYNCVIEW sheet (`10QQ…QqAU8`) → tab **`Clients Info`**.
-**Key:** `client_name` — must match the frontend allowlist name **exactly** (see the slug rule below).
+**Key:** `client_name` — must use the canonical display spelling **exactly** (see the slug rule below).
 
 **Columns (verified header), in order:**
 
 | Column | What to put | Notes / can be blank? |
 |---|---|---|
-| `client_name` | Display name, e.g. `Terrin Ammar` | **Required.** Must equal the `WL_CLIENT_NAMES` entry. |
+| `client_name` | Display name, e.g. `Terrin Ammar` | **Required.** This is what makes the client appear in the dashboard and derives the slug. |
 | `email` | Client email | Low‑stakes. |
 | `competitors` | Comma‑sep competitor **IG handles** | Drives competitor/market research. |
 | `keywords` | Broad topic list (15–20) | See [§3](#3-research-keywords--content-description). |
@@ -165,7 +165,7 @@ This is what makes the SMM's name/avatar and Slack DM appear on the Kasper revie
 4. In SyncView, open **Filming Plans**, search the client, and add/update the Doc URL. Changing this link requires the onboarding staff passphrase, so only Sidney/Kasper should do it.
 5. Verify the same Doc opens from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. *(If you skip the per-month tabs, you can hand-set `plan_months` like `2026-07,2026-08` as a fallback.)*
 
-During rollout only: the old SYNCVIEW Google Sheet tab **`FilmingPlans`** (`client_name | doc_url | notes | plan_months`) remains the fallback source if Supabase is not deployed yet. Keep it synced until the `filming_plans` table and Edge Function are live.
+Now that Supabase and the Edge Function are live, the old SYNCVIEW Google Sheet tab **`FilmingPlans`** (`client_name | doc_url | notes | plan_months`) is no longer an onboarding step. Treat it as a historical/emergency fallback only; do not use it as the source of truth or keep it manually in sync unless we deliberately roll back Supabase.
 
 The operational source-of-truth UI is the main **Filming Plans** tab. Kasper's **Filming Plans** sub-tab reads that same source and combines it with the client's `calendar_posts` runway.
 
@@ -224,6 +224,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 
 ### 6i. Verify
 - Open the dashboard, switch to the new client: calendar and samples load (empty is fine).
+- Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
 - Next morning, check that **CLIENTS METRICS** / **TOP VIDEOS** produced rows (confirms handles are right). A client with no metrics row still appears via a placeholder, so absence of data ≠ broken.
 
@@ -249,7 +250,7 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 
 ## Gotchas & drift to watch
 
-1. **Name spelling must be identical** across `WL_CLIENT_NAMES`, Clients Info, Social Media Managers, the Filming Plans tab, and the Linear project. The slug is unforgiving (see the slug rule).
+1. **Name spelling must be identical** across Clients Info, Social Media Managers, the Filming Plans tab, and the Linear project. The slug is unforgiving (see the slug rule). The hardcoded `WL_CLIENT_NAMES` list is only an offline fallback seed now.
 2. **The dashboard allowlist is now the Clients Info sheet** (folded in at load by `wlMergeClientsFromSheet`). The only remaining hardcoded slug lists are the **n8n "Provision Missing Tabs" `SLUGS` arrays** — legacy/optional mirror only; update them just if you want the Sheet mirror + Drive backups to stay complete.
 3. **Filming plan links are not just a URL.** The linked master Doc should live inside that client's folder in the shared **Client Filming Plans** Drive. If a correct-looking Doc lives elsewhere, move it into the client folder before treating the link as healthy.
 4. **Stale doc:** root `README.md` describes an old Instaloader pipeline that no longer exists — don't follow it. (The old `index.html` "provision the tab" comment was corrected in this PR.)
@@ -261,7 +262,7 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 ## 7. Reference appendix
 
 **IDs & locations**
-- SYNCVIEW Google Sheet: `10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8` — tabs: `Clients Info`, `Social Media Managers`, `Templates`, `CaptionPrompts`, `Video Editors`, `Monthly Checkup`, + data tabs (Metrics, TopVideos, Competitor/Market Research, ContentSummaries). The old `FilmingPlans` tab is rollout fallback only.
+- SYNCVIEW Google Sheet: `10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8` — tabs: `Clients Info`, `Social Media Managers`, `Templates`, `CaptionPrompts`, `Video Editors`, `Monthly Checkup`, + data tabs (Metrics, TopVideos, Competitor/Market Research, ContentSummaries). The old `FilmingPlans` tab is historical/emergency fallback only; the app source of truth is Supabase via the main Filming Plans tab.
 - SyncView Calendar Google Sheet (legacy mirror): `1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps` — `Calendar_<slug>`, `Samples_<slug>`, `TikTokUploads`.
 - Supabase project: `uzltbbrjidmjwwfakwve` — tables `filming_plans` (master Doc links), `calendar_posts`, `content_samples` (PK `(client, id)` for calendar/samples).
 - Frontend: `index.html` → `WL_CLIENT_NAMES` (~`8032`), `wlNormalizeClient` (`8014`). Live at `syncview.synchrosocial.com`.

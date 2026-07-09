@@ -11,8 +11,9 @@
  *  1. THUMBNAIL: _calThumbSrcBase (extracted verbatim) strips the per-save _cb
  *     (updated_at) token so two srcs differing only by _cb compare EQUAL — a save
  *     that bumps updated_at no longer re-decodes the <img>. It KEEPS the _r rev
- *     (bumped only on a real link write) so a link change compares DIFFERENT and
- *     the strip reloads the picture automatically, with no hard refresh.
+ *     (bumped only on a real link write or a graphic leaving Tweaks Needed) so a
+ *     real thumbnail revision compares DIFFERENT and the strip reloads the
+ *     picture automatically, with no hard refresh.
  *
  *  2. REORDER GUARD: _calRecordReorderOptimistic (extracted verbatim) + a
  *     faithful copy of the loadCalendarPosts merge-pin and the error-clear must
@@ -20,7 +21,7 @@
  *     expire after the window, and let a superseding drag win.
  *
  *  3. WIRING: assert the shipped index.html still carries the fixes (echo
- *     suppression in persistCalReorder, the merge pin, the link-gated thumb
+ *     suppression in persistCalReorder, the merge pin, the bump-gated thumb
  *     refresh) and does NOT re-introduce the toolbar-shifting header badge.
  */
 const fs = require('fs');
@@ -146,8 +147,9 @@ ok(/_calReorderOptimistic\.get\(fp\.id\)/.test(INDEX) && /winner\.order_index = 
    'loadCalendarPosts merge pins order_index from the optimistic guard');
 ok(/_calRecordReorderOptimistic\(items\)/.test(INDEX),
    'the drag-drop handler records the optimistic order');
-ok(/if \('thumbnail_url' in edits \|\| 'asset_url' in edits\) _calRefreshCardThumb/.test(INDEX),
-   'the thumbnail refresh is gated on a real media-link edit');
+ok(/const bumpThumbRev = \('thumbnail_url' in edits \|\| 'asset_url' in edits\)[\s\S]*_calShouldBumpThumbRevForGraphicStatus\(edits, prevSnapshot, post\)/.test(INDEX)
+   && /if \(bumpThumbRev\) _calRefreshCardThumb\(realId\);/.test(INDEX),
+   'the thumbnail refresh is gated on an intentional thumb_rev bump');
 ok(/_calThumbSrcBase\(existing\.getAttribute\('src'\)\) === _calThumbSrcBase\(info\.url\)/.test(INDEX),
    '_calRefreshCardThumb compares src with the cache-buster-agnostic guard');
 ok(/map\.set\(pid \+ '\|' \+ _calThumbSrcBase\(src\), img\)/.test(INDEX),

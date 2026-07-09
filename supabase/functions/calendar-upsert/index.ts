@@ -13,7 +13,7 @@
 //   SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
-import { captureGraphicTweakBaseline } from "../_shared/thumbnail-revisions.ts";
+import { captureGraphicTweakBaseline, scanGraphicTweakResolution } from "../_shared/thumbnail-revisions.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -445,6 +445,17 @@ Deno.serve(async (req: Request) => {
     await writeCalendarRow(supabase, client, post, existsAlready);
 
     waitUntil(captureGraphicTweakBaseline({
+      supabase,
+      surface: "calendar",
+      client,
+      sourceId: id,
+      incoming: post,
+      patch: built.row,
+      existing: existingRead.row,
+      actor,
+      now: isoNow(),
+    }));
+    waitUntil(scanGraphicTweakResolution({
       supabase,
       surface: "calendar",
       client,

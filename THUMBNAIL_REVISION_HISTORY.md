@@ -27,6 +27,10 @@ The first version is backend-only and additive.
 5. The scheduled/manual `thumbnail-revision-scan` Edge Function checks pending
    rows. When Drive's revision metadata changes, it captures the new snapshot and
    marks the row `changed`.
+6. When the graphic leaves `Tweaks Needed`, the Calendar/Samples writer also
+   scans that card's pending baseline. The frontend sends a fresh `thumb_rev` on
+   the same status save, so open tabs reload the current image without a hard
+   refresh even when the Drive link did not change.
 
 Snapshots live in the private Supabase Storage bucket
 `syncview-thumbnail-revisions`. Postgres stores metadata and storage paths only.
@@ -42,8 +46,12 @@ Snapshots live in the private Supabase Storage bucket
   - Shared Drive metadata, snapshot, baseline capture, and scan logic.
 - `supabase/functions/calendar-upsert/index.ts`
   - Captures a baseline when Calendar `graphic_status` enters `Tweaks Needed`.
+  - Scans the pending baseline when Calendar `graphic_status` leaves
+    `Tweaks Needed`.
 - `supabase/functions/sample-review-upsert/index.ts`
   - Captures a baseline when Samples `graphic_status` enters `Tweaks Needed`.
+  - Scans the pending baseline when Samples `graphic_status` leaves
+    `Tweaks Needed`.
 - `supabase/functions/thumbnail-revision-scan/index.ts`
   - Scans pending baselines and records the changed revision.
 - `test/thumbnail-revision-history.js`

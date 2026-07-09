@@ -10986,6 +10986,7 @@
         cleanRows.sort((a, b) => a.clientName.localeCompare(b.clientName));
         cleanRows.forEach(row => bySlug.set(row.clientSlug, row));
         filmingPlansData = { rows: cleanRows, bySlug, source: source || 'supabase', loadedAt: Date.now() };
+        try { if (typeof _linearInvalidatePlanMap === 'function') _linearInvalidatePlanMap(); } catch (e) {}
         return filmingPlansData;
     }
     async function _fpLoadFromSupabase() {
@@ -13685,6 +13686,10 @@
     let _linearPlanMap = null;          // normalized client name -> doc_url
     let _linearPlanMapLoading = false;
     let _linearResolvedPlanUrl = '';
+
+    function _linearInvalidatePlanMap() {
+        _linearPlanMap = null;
+    }
 
     function _normLinearName(s) {
         return String(s || '').toLowerCase()

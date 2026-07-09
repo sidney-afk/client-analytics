@@ -56,6 +56,11 @@ ok(/var FAST = \[[^\]]*'filming-plans'/.test(INDEX), 'prepaint boot router must 
 ok(/FILMING_PLANS_EF_URL/.test(INDEX), 'app must call the filming-plans Edge Function for writes');
 ok(/\/rest\/v1\/filming_plans/.test(INDEX), 'app must read filming_plans from Supabase REST');
 ok(/function renderFilmingPlansView/.test(INDEX), 'main Filming Plans view must exist');
+ok(/function _linearInvalidatePlanMap/.test(INDEX), 'Linear filming-plan cache invalidator must exist');
+
+const setData = grabFunc('_fpSetData');
+ok(/_linearInvalidatePlanMap/.test(setData),
+  'refreshing shared filming plans must invalidate the Linear derived plan map');
 
 const renderTemplate = grabFunc('renderClientTemplate');
 ok(!/_tplFieldLink\(name, 'filming_plans_link'/.test(renderTemplate),

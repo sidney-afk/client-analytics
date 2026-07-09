@@ -73,7 +73,8 @@
             if (st && st.client) return; // client-profile restore keeps #pageTop
             var hash = location.hash.replace('#', '');
             try { hash = decodeURIComponent(hash); } catch (e) {}
-            var seg = hash.split('/')[0];
+            var hashParts = hash.split('/');
+            var seg = hashParts[0];
             var FAST = ['linear', 'workload', 'calendar', 'samples', 'templates', 'tiktok-upload'];
             var ses = function (k) { try { return sessionStorage.getItem(k) === 'ok'; } catch (e) { return false; } };
             var kasperOk = function () { return q.get('Kasper') === '1' || ses('syncview_kasper_unlocked'); };
@@ -111,7 +112,16 @@
                 if (FAST.indexOf(nav) >= 0) target = nav;
                 else if (st && st.nav && ((saved === 'kasper' && kasperOk()) || (saved === 'tiktok-pilot' && ttpOk()))) target = saved;
             }
-            if (target) de.setAttribute('data-boot-nav', target);
+            if (target) {
+                de.setAttribute('data-boot-nav', target);
+                if (target === 'kasper') {
+                    var ksub = (seg === 'kasper' && hashParts.length > 1) ? hashParts[1] : '';
+                    if (!ksub) {
+                        try { ksub = localStorage.getItem('syncview_kasper_subtab_v1') || ''; } catch (e) {}
+                    }
+                    if (ksub) de.setAttribute('data-boot-subtab', ksub);
+                }
+            }
         } catch (e) {}
     })();
     </script>
@@ -1644,6 +1654,29 @@
         .boot-skeleton .sv-skeleton-card { padding: 22px; }
         .boot-skeleton-row { display: grid; grid-template-columns: 1fr 0.85fr 0.7fr; gap: 12px; }
         @media (max-width: 700px) { .boot-skeleton-row { grid-template-columns: 1fr; } }
+        .boot-skeleton-variant { display: none; }
+        html:not([data-boot-nav]) .boot-skeleton-analytics,
+        html[data-boot-nav="analytics"] .boot-skeleton-analytics,
+        html[data-boot-nav="linear"] .boot-skeleton-linear,
+        html[data-boot-nav="workload"] .boot-skeleton-workload,
+        html[data-boot-nav="calendar"] .boot-skeleton-calendar,
+        html[data-boot-nav="samples"] .boot-skeleton-samples,
+        html[data-boot-nav="sample-reviews"] .boot-skeleton-review,
+        html[data-boot-nav="templates"] .boot-skeleton-templates,
+        html[data-boot-nav="tiktok-upload"] .boot-skeleton-tiktok,
+        html[data-boot-nav="tiktok-pilot"] .boot-skeleton-tiktok,
+        html[data-boot-nav="kasper"]:not([data-boot-subtab="sales-intake"]) .boot-skeleton-kasper,
+        html[data-boot-nav="kasper"][data-boot-subtab="sales-intake"] .boot-skeleton-sales-intake { display: block; }
+        .boot-page-skeleton { width: min(1080px, calc(100vw - 48px)); margin: 42px auto 0; }
+        .boot-shell-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+        .boot-tab-skeleton-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+        .boot-form-skeleton .si-card { max-width: 720px; }
+        .boot-form-skeleton .si-grid { align-items: start; }
+        .boot-input-skeleton { height: 39px; border-radius: 9px; }
+        .boot-radio-skeleton { height: 33px; border-radius: 99px; }
+        .boot-template-skeleton .tpl-section { min-height: 88px; }
+        .boot-tiktok-skeleton .si-card { max-width: 760px; }
+        @media (max-width: 760px) { .boot-page-skeleton { width: calc(100vw - 28px); margin-top: 28px; } }
         .analytics-overview-skeleton { width: min(1280px, 100%); margin: 128px auto 0; }
         .analytics-overview-skeleton .overview-controls { padding-bottom: 12px; }
         .analytics-overview-skeleton .controls-left { display: flex; gap: 6px; }
@@ -6168,8 +6201,9 @@
         <div class="pins-area" id="pinsArea"><div class="pins-row" id="pinsRow"></div><div class="pins-add-row" id="pinsAddRow"></div></div>
     </div>
     <div id="content">
+        <span class="sr-only" id="bootLoadingText">Loading...</span>
+        <div class="boot-skeleton-variant boot-skeleton-analytics">
         <div class="overview-wrap analytics-overview-skeleton" role="status" aria-live="polite" aria-label="Loading">
-            <span class="sr-only" id="bootLoadingText">Loading...</span>
             <div class="overview-controls">
                 <div class="controls-left">
                     <div class="sv-skeleton sv-skeleton-pill" style="width:96px;height:30px;"></div>
@@ -6200,6 +6234,148 @@
                     <tr><td><div class="cell-inner"><span class="client-view-btn"></span><div class="sv-skeleton sv-skeleton-line" style="width:104px;"></div></div></td><td><div class="sv-skeleton sv-skeleton-line" style="width:52px;"></div></td><td class="col-ig main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:54px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-pill" style="width:42px;height:18px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-line" style="width:52px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-pill" style="width:36px;height:18px;"></div></td><td class="col-tt main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:48px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-pill" style="width:44px;height:18px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-line" style="width:62px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-pill" style="width:40px;height:18px;"></div></td><td class="col-yt main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:62px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-pill" style="width:42px;height:18px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-line" style="width:52px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-pill" style="width:40px;height:18px;"></div></td></tr>
                 </tbody>
             </table>
+        </div>
+        </div>
+        <div class="boot-skeleton-variant boot-skeleton-linear">
+            <div class="boot-page-skeleton" role="status" aria-label="Loading">
+                <div class="boot-shell-head">
+                    <div class="sv-skeleton sv-skeleton-line" style="width:180px;height:26px;"></div>
+                    <div class="sv-skeleton sv-skeleton-line" style="width:320px;"></div>
+                </div>
+                <div class="table-skeleton">
+                    <div class="table-skeleton-row"><div class="sv-skeleton sv-skeleton-line" style="width:82%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:68%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:74%;"></div><div class="sv-skeleton sv-skeleton-pill" style="height:22px;width:72px;"></div></div>
+                    <div class="table-skeleton-row"><div class="sv-skeleton sv-skeleton-line" style="width:74%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:78%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:58%;"></div><div class="sv-skeleton sv-skeleton-pill" style="height:22px;width:82px;"></div></div>
+                    <div class="table-skeleton-row"><div class="sv-skeleton sv-skeleton-line" style="width:88%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:62%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:70%;"></div><div class="sv-skeleton sv-skeleton-pill" style="height:22px;width:64px;"></div></div>
+                    <div class="table-skeleton-row"><div class="sv-skeleton sv-skeleton-line" style="width:69%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:72%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:82%;"></div><div class="sv-skeleton sv-skeleton-pill" style="height:22px;width:78px;"></div></div>
+                </div>
+            </div>
+        </div>
+        <div class="boot-skeleton-variant boot-skeleton-workload">
+            <div class="boot-page-skeleton" role="status" aria-label="Loading">
+                <div class="boot-shell-head">
+                    <div class="sv-skeleton sv-skeleton-line" style="width:210px;height:26px;"></div>
+                    <div class="sv-skeleton sv-skeleton-line" style="width:360px;"></div>
+                </div>
+                <div class="workload-skeleton-grid month">
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div><div class="workload-skeleton-card"><div class="sv-skeleton sv-skeleton-line" style="width:72%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:54%;"></div></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div><div class="workload-skeleton-card"><div class="sv-skeleton sv-skeleton-line" style="width:58%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:42%;"></div></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div><div class="workload-skeleton-card"><div class="sv-skeleton sv-skeleton-line" style="width:70%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:48%;"></div></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div><div class="workload-skeleton-card"><div class="sv-skeleton sv-skeleton-line" style="width:66%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:50%;"></div></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div><div class="workload-skeleton-card"><div class="sv-skeleton sv-skeleton-line" style="width:62%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:44%;"></div></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div><div class="workload-skeleton-card"><div class="sv-skeleton sv-skeleton-line" style="width:76%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:52%;"></div></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div><div class="workload-skeleton-card"><div class="sv-skeleton sv-skeleton-line" style="width:60%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:46%;"></div></div></div>
+                    <div class="workload-skeleton-day"><div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:14px;"></div></div>
+                </div>
+            </div>
+        </div>
+        <div class="boot-skeleton-variant boot-skeleton-calendar">
+            <div class="boot-page-skeleton cal-loader cal-skeleton-loader" role="status" aria-label="Loading">
+                <div class="cal-month-wrap">
+                    <div class="cal-month-header">
+                        <div class="sv-skeleton sv-skeleton-pill" style="width:30px;height:30px;"></div>
+                        <div class="sv-skeleton sv-skeleton-line" style="width:176px;height:18px;"></div>
+                        <div class="sv-skeleton sv-skeleton-pill" style="width:68px;height:30px;"></div>
+                        <div class="sv-skeleton sv-skeleton-pill" style="width:30px;height:30px;"></div>
+                    </div>
+                    <div class="cal-month-grid">
+                        <div class="cal-month-head">MON</div><div class="cal-month-head">TUE</div><div class="cal-month-head">WED</div><div class="cal-month-head">THU</div><div class="cal-month-head">FRI</div><div class="cal-month-head">SAT</div><div class="cal-month-head">SUN</div>
+                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:82%;height:24px;"></div></div>
+                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div></div>
+                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:72%;height:24px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:64%;height:24px;"></div></div>
+                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div></div>
+                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:86%;height:24px;"></div></div>
+                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div></div>
+                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:70%;height:24px;"></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="boot-skeleton-variant boot-skeleton-samples">
+            <div class="boot-page-skeleton sm-loader" role="status" aria-label="Loading">
+                <div class="sm-skeleton-strip">
+                    <div class="sm-skeleton-card"><div class="sv-skeleton sm-skeleton-thumb"></div><div class="sv-skeleton sv-skeleton-line" style="width:78%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:46%;"></div></div>
+                    <div class="sm-skeleton-card"><div class="sv-skeleton sm-skeleton-thumb"></div><div class="sv-skeleton sv-skeleton-line" style="width:62%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:46%;"></div></div>
+                    <div class="sm-skeleton-card"><div class="sv-skeleton sm-skeleton-thumb"></div><div class="sv-skeleton sv-skeleton-line" style="width:78%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:46%;"></div></div>
+                </div>
+            </div>
+        </div>
+        <div class="boot-skeleton-variant boot-skeleton-review">
+            <div class="boot-page-skeleton cal-loader cal-skeleton-loader" role="status" aria-label="Loading">
+                <div class="cal-skeleton-review">
+                    <div class="cal-skeleton-review-card"><div class="sv-skeleton cal-skeleton-review-thumb"></div><div class="sv-skeleton-stack"><div class="sv-skeleton sv-skeleton-line" style="width:76%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:92%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:54%;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:88px;height:30px;"></div></div>
+                    <div class="cal-skeleton-review-card"><div class="sv-skeleton cal-skeleton-review-thumb"></div><div class="sv-skeleton-stack"><div class="sv-skeleton sv-skeleton-line" style="width:64%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:88%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:58%;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:88px;height:30px;"></div></div>
+                </div>
+            </div>
+        </div>
+        <div class="boot-skeleton-variant boot-skeleton-templates">
+            <div class="boot-page-skeleton boot-template-skeleton tpl-view" role="status" aria-label="Loading">
+                <div class="tpl-client-head">
+                    <div class="sv-skeleton sv-skeleton-line" style="width:210px;height:28px;"></div>
+                    <div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:32px;"></div>
+                </div>
+                <div class="tpl-toggle-row"><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:32px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:120px;height:32px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:96px;height:32px;"></div></div>
+                <div class="tpl-section"><div class="sv-skeleton sv-skeleton-line" style="width:120px;"></div><div class="tpl-view-grid" style="margin-top:18px;"><div class="sv-skeleton sv-skeleton-line" style="width:82%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:64%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:74%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:58%;"></div></div></div>
+                <div class="tpl-section"><div class="sv-skeleton sv-skeleton-line" style="width:148px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:86%;margin-top:18px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:68%;margin-top:12px;"></div></div>
+            </div>
+        </div>
+        <div class="boot-skeleton-variant boot-skeleton-tiktok">
+            <div class="boot-page-skeleton boot-tiktok-skeleton boot-form-skeleton" role="status" aria-label="Loading">
+                <div class="boot-shell-head">
+                    <div class="sv-skeleton sv-skeleton-line" style="width:220px;height:26px;"></div>
+                    <div class="sv-skeleton sv-skeleton-line" style="width:380px;"></div>
+                </div>
+                <div class="si-card"><div class="si-grid">
+                    <div class="si-q"><div class="sv-skeleton sv-skeleton-line" style="width:90px;height:11px;"></div><div class="sv-skeleton boot-input-skeleton"></div></div>
+                    <div class="si-q"><div class="sv-skeleton sv-skeleton-line" style="width:110px;height:11px;"></div><div class="sv-skeleton boot-input-skeleton"></div></div>
+                    <div class="si-q si-full"><div class="sv-skeleton sv-skeleton-line" style="width:126px;height:11px;"></div><div class="sv-skeleton boot-input-skeleton"></div></div>
+                    <div class="si-q si-full"><div class="sv-skeleton sv-skeleton-line" style="width:136px;height:11px;"></div><div class="sv-skeleton" style="height:92px;border-radius:9px;"></div></div>
+                </div></div>
+            </div>
+        </div>
+        <div class="boot-skeleton-variant boot-skeleton-kasper">
+            <div class="boot-page-skeleton kasper-wrap" role="status" aria-label="Loading">
+                <div class="kasper-head">
+                    <div class="sv-skeleton sv-skeleton-line" style="width:118px;height:28px;"></div>
+                    <div class="sv-skeleton sv-skeleton-line" style="width:240px;"></div>
+                </div>
+                <div class="boot-tab-skeleton-row"><div class="sv-skeleton sv-skeleton-pill" style="width:128px;height:32px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:106px;height:32px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:32px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:116px;height:32px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:112px;height:32px;"></div></div>
+                <div class="kasper-skeleton-list">
+                    <div class="kasper-skeleton-card"><div class="sv-skeleton kasper-skeleton-thumb"></div><div class="sv-skeleton-stack"><div class="sv-skeleton sv-skeleton-line" style="width:80%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:92%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:58%;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:96px;height:30px;"></div></div>
+                    <div class="kasper-skeleton-card"><div class="sv-skeleton kasper-skeleton-thumb"></div><div class="sv-skeleton-stack"><div class="sv-skeleton sv-skeleton-line" style="width:64%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:92%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:58%;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:96px;height:30px;"></div></div>
+                    <div class="kasper-skeleton-card"><div class="sv-skeleton kasper-skeleton-thumb"></div><div class="sv-skeleton-stack"><div class="sv-skeleton sv-skeleton-line" style="width:80%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:92%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:58%;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:96px;height:30px;"></div></div>
+                </div>
+            </div>
+        </div>
+        <div class="boot-skeleton-variant boot-skeleton-sales-intake">
+            <div class="boot-page-skeleton kasper-wrap boot-form-skeleton" role="status" aria-label="Loading">
+                <div class="kasper-head">
+                    <div class="sv-skeleton sv-skeleton-line" style="width:118px;height:28px;"></div>
+                    <div class="sv-skeleton sv-skeleton-line" style="width:240px;"></div>
+                </div>
+                <div class="boot-tab-skeleton-row"><div class="sv-skeleton sv-skeleton-pill" style="width:128px;height:32px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:106px;height:32px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:32px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:116px;height:32px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:112px;height:32px;"></div></div>
+                <div class="si-wrap si-skeleton">
+                    <div class="si-head"><div class="sv-skeleton sv-skeleton-line" style="width:260px;height:20px;"></div><div class="sv-skeleton sv-skeleton-line" style="width:520px;"></div></div>
+                    <div class="si-card">
+                        <div class="si-grid">
+                            <div class="si-q"><div class="sv-skeleton sv-skeleton-line" style="width:88px;height:11px;"></div><div class="sv-skeleton boot-input-skeleton"></div></div>
+                            <div class="si-q"><div class="sv-skeleton sv-skeleton-line" style="width:76px;height:11px;"></div><div class="sv-skeleton boot-input-skeleton"></div></div>
+                            <div class="si-q"><div class="sv-skeleton sv-skeleton-line" style="width:100px;height:11px;"></div><div class="sv-skeleton boot-input-skeleton"></div></div>
+                            <div class="si-q"><div class="sv-skeleton sv-skeleton-line" style="width:84px;height:11px;"></div><div class="sv-skeleton boot-input-skeleton"></div></div>
+                            <div class="si-q si-full"><div class="sv-skeleton sv-skeleton-line" style="width:92px;height:11px;"></div><div class="si-radios"><div class="sv-skeleton boot-radio-skeleton" style="width:170px;"></div><div class="sv-skeleton boot-radio-skeleton" style="width:188px;"></div><div class="sv-skeleton boot-radio-skeleton" style="width:150px;"></div></div></div>
+                            <div class="si-q si-full"><div class="sv-skeleton sv-skeleton-line" style="width:126px;height:11px;"></div><div class="si-radios"><div class="sv-skeleton boot-radio-skeleton" style="width:140px;"></div><div class="sv-skeleton boot-radio-skeleton" style="width:152px;"></div><div class="sv-skeleton boot-radio-skeleton" style="width:118px;"></div></div></div>
+                            <div class="si-q si-full"><div class="sv-skeleton sv-skeleton-line" style="width:148px;height:11px;"></div><div class="sv-skeleton" style="height:74px;border-radius:9px;"></div></div>
+                        </div>
+                        <div class="si-preview"><div class="sv-skeleton sv-skeleton-line" style="width:124px;height:12px;"></div><div class="sv-skeleton" style="height:116px;border-radius:10px;margin-top:12px;"></div></div>
+                        <div class="si-actions"><div class="sv-skeleton sv-skeleton-pill" style="width:174px;height:42px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:92px;height:34px;"></div></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </main>
@@ -9005,6 +9181,7 @@
         // data-boot-nav, but lift it here anyway so a future render()-first
         // path can't strand the gate (see the <head> boot script).
         document.documentElement.removeAttribute('data-boot-nav');
+        document.documentElement.removeAttribute('data-boot-subtab');
         const content=document.getElementById('content'),pageTitle=document.getElementById('pageTitle'),pageSub=document.getElementById('pageSub'),selectorWrap=document.getElementById('selectorWrap'),titleRow=document.getElementById('titleRow'),pageTop=document.getElementById('pageTop');
         const existingBack=titleRow.querySelector('.back-btn');
         if(sel!=='all'&&!clientOnly){
@@ -14200,6 +14377,7 @@
         // Routing has decided: hand off from the pre-paint boot gate (the
         // <head> boot script's data-boot-nav tag) to the real nav toggles below.
         document.documentElement.removeAttribute('data-boot-nav');
+        document.documentElement.removeAttribute('data-boot-subtab');
         if (page === 'production' && !_prodEnabled()) page = 'home';
         currentNav = page;
         // Guarded: on a FULL localStorage (a heavy user whose caches filled the
@@ -31295,6 +31473,7 @@
             // navTo()/render() could, and the error card should show on the
             // normal chrome, not a half-gated one.
             document.documentElement.removeAttribute('data-boot-nav');
+            document.documentElement.removeAttribute('data-boot-subtab');
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:var(--sv-fg-aaa)">${err.message}</small></div>`;
         }
     }

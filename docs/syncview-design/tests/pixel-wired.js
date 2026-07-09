@@ -737,7 +737,8 @@ async function runTheme(port, browser, theme) {
     });
     await artifact.waitForSelector('.detail.project-detail');
     await wired.waitForSelector('.prod-project-detail');
-    await requirePair(gaps, 'project detail inventory', artifact, wired, '[data-projecttab]', '[data-prod-project-tab]');
+    const wiredProjectTabs = await wired.locator('[data-prod-project-tab]').count();
+    if (wiredProjectTabs) gaps.push({ rank: 1, state: 'project detail tabs', message: 'wired project detail should not render Open/Closed/All issues tabs' });
     await requirePair(gaps, 'project detail inventory', artifact, wired, '[data-projectdetails]', '[data-prod-project-details-toggle]');
     await requirePair(gaps, 'project detail inventory', artifact, wired, '#filterbtn', '#prodFilterBtn');
     await requirePair(gaps, 'project detail inventory', artifact, wired, '#groupbtn', '#prodGroupBtn');

@@ -118,9 +118,9 @@ async function assertNoWriteRequests(requests) {
     if (!(await text(page, '.prod-brand')).includes('SyncView')) throw new Error('Sidebar brand missing');
     await expectCount(page, '.prod-brand[data-prod-brandmenu] .prod-brand-caret', 1, 'brand workspace caret/menu trigger');
     await page.locator('.prod-brand[data-prod-brandmenu]').click();
-    await expectCount(page, '.prod-pop [data-prod-brand-action]', 1, 'brand workspace menu rows');
+    await expectExactCount(page, '.prod-pop [data-prod-brand-action]', 3, 'brand workspace menu rows');
     const brandRows = await page.locator('.prod-pop [data-prod-brand-action]').evaluateAll(nodes => nodes.map(n => (n.textContent || '').trim()));
-    if (brandRows.join('|') !== 'Settings|Invite members|Log out') throw new Error('Brand menu should not include workspace-switch chrome');
+    if (brandRows.join('|') !== 'All issues|All projects|Copy current link') throw new Error('Brand menu should expose only preview-relevant actions');
     await page.keyboard.press('Escape');
     if (!(await text(page, '.prod-preview-chip')).includes('Preview - read-only')) throw new Error('Preview chip missing');
     if (!(await page.locator('.prod-search-btn[title*="Search"]').count())) throw new Error('Search command button missing');
@@ -377,10 +377,29 @@ async function assertNoWriteRequests(requests) {
     await card.click();
     await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
     await expectCount(page, '[data-prod-project-subbar]', 1, 'project detail issue-list toolbar');
-    await expectCount(page, '[data-prod-project-tab]', 3, 'project detail open/closed/all tabs');
+    await expectExactCount(page, '[data-prod-project-tab]', 0, 'project detail status tabs removed');
     await expectCount(page, '[data-prod-project-details-toggle]', 1, 'project details visibility toggle');
     await expectCount(page, '#prodFilterBtn', 1, 'project detail filter control');
     await expectCount(page, '#prodGroupBtn', 1, 'project detail display control');
+    const projectToolbarOrderOk = await page.evaluate(() => {
+      const subbar = document.querySelector('[data-prod-project-subbar]');
+      const buttons = subbar ? [...subbar.querySelectorAll('button')].map(el => el.id || (el.hasAttribute('data-prod-project-details-toggle') ? 'details' : '')) : [];
+      return buttons.indexOf('details') === buttons.indexOf('prodFilterBtn') + 1;
+    });
+    if (!projectToolbarOrderOk) throw new Error('Project details control should sit next to the Filter button');
+    await page.locator('#prodGroupBtn').click();
+    await page.locator('#prodLayer [data-prod-grp="assignee"]').click();
+    await page.waitForSelector('[data-prod-project-groups="assignee"]', { timeout: 5000 });
+    if (!(await page.evaluate(() => _prodState.groupBy === 'assignee' && document.querySelectorAll('[data-prod-project-group]').length > 0))) {
+      throw new Error('Project Display group-by option did not regroup project rows');
+    }
+    const childRowsBeforeToggle = await page.locator('[data-prod-project-parent]:not([data-prod-project-parent=""])').count();
+    await page.locator('#prodGroupBtn').click();
+    await page.locator('#prodLayer [data-prod-show-subissues]').click();
+    await page.waitForTimeout(120);
+    if (childRowsBeforeToggle && await page.locator('[data-prod-project-parent]:not([data-prod-project-parent=""])').count()) {
+      throw new Error('Project Display Show sub-issues toggle did not hide project child rows');
+    }
     const projectRowShapeOk = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('[data-prod-project-issue]')];
       return rows.length === 0 || rows.every(row => row.querySelector('.prod-status[data-st]') && row.querySelector('.prod-id') && row.querySelector('.prod-title') && row.querySelector('.prod-due') && row.querySelector('[data-prod-assign]'));

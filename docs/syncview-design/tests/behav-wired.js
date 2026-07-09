@@ -110,7 +110,6 @@ async function txt(page, sel) {
       _prodState.openId = '';
       _prodState.openBatchId = '';
       _prodState.openProjectId = '';
-      _prodState.projectTab = 'open';
       _prodState.projectDetailsOpen = true;
       _prodState.tab = 'active';
       _prodState.groupBy = 'status';
@@ -175,13 +174,18 @@ async function txt(page, sel) {
       if (!slug) return true;
       await page.waitForSelector('[data-prod-project-detail]', { timeout: 5000 });
       return await page.evaluate(projectId => {
-        const tabs = [...document.querySelectorAll('[data-prod-project-tab]')].map(el => el.textContent.trim()).join('|');
-        const projectScoped = _prodCurIssuesUnfiltered().every(i => i.project === projectId && !i.parent);
+        const subbar = document.querySelector('[data-prod-project-subbar]');
+        const controls = subbar ? [...subbar.querySelectorAll('button')].map(el => el.id || Object.keys(el.dataset).find(k => k === 'prodProjectDetailsToggle') || '') : [];
+        const filterIndex = controls.indexOf('prodFilterBtn');
+        const detailsIndex = controls.indexOf('prodProjectDetailsToggle');
+        const projectScoped = _prodCurIssuesUnfiltered().every(i => i.project === projectId);
         return !!document.querySelector('[data-prod-project-subbar]')
-          && tabs === 'Open|Closed|All issues'
+          && !document.querySelector('[data-prod-project-tab]')
           && !!document.querySelector('#prodFilterBtn')
           && !!document.querySelector('#prodGroupBtn')
           && !!document.querySelector('[data-prod-project-details-toggle]')
+          && filterIndex > -1
+          && detailsIndex === filterIndex + 1
           && projectScoped;
       }, slug);
     }); await reset();
@@ -221,19 +225,29 @@ async function txt(page, sel) {
       await page.locator('[data-prod-project-details-toggle]').click();
       return filterOpen && displayOpen && await page.evaluate(() => !document.querySelector('.prod-right') && new URL(location.href).searchParams.get('pdetails') === '0');
     }); await reset();
-    await ok('projectTabsDeepLink', async () => {
+    await ok('projectDisplayGroupingAndSubissues', async () => {
       const opened = await page.evaluate(() => {
-        const id = Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent)) || '';
-        if (id) _prodOpenProject(id);
-        return id;
+        const rows = _prodIssues();
+        const id = Object.keys(_prodProjects()).find(k => rows.some(i => i.project === k && i.parent)) || Object.keys(_prodProjects()).find(k => rows.some(i => i.project === k)) || '';
+        if (id) {
+          _prodState.showSubIssues = true;
+          _prodState.groupBy = 'status';
+          _prodOpenProject(id);
+        }
+        return { id, childCount: rows.filter(i => i.project === id && i.parent).length };
       });
-      if (!opened) return true;
+      if (!opened.id || !opened.childCount) return true;
       await page.waitForSelector('[data-prod-project-detail]', { timeout: 5000 });
-      await page.locator('[data-prod-project-tab="closed"]').click();
-      const before = await page.evaluate(() => _prodState.projectTab === 'closed' && new URL(location.href).searchParams.get('ptab') === 'closed');
-      await page.reload({ waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
-      return before && await page.evaluate(id => _prodState.view === 'project' && _prodState.openProjectId === id && _prodState.projectTab === 'closed', opened);
+      const before = await page.locator('[data-prod-project-parent]:not([data-prod-project-parent=""])').count();
+      await page.locator('#prodGroupBtn').click();
+      await page.locator('#prodLayer [data-prod-grp="assignee"]').click();
+      await page.waitForSelector('[data-prod-project-groups="assignee"]', { timeout: 5000 });
+      const grouped = await page.evaluate(() => _prodState.groupBy === 'assignee' && document.querySelectorAll('[data-prod-project-group]').length > 0);
+      await page.locator('#prodGroupBtn').click();
+      await page.locator('#prodLayer [data-prod-show-subissues]').click();
+      await page.waitForTimeout(120);
+      const after = await page.locator('[data-prod-project-parent]:not([data-prod-project-parent=""])').count();
+      return before > 0 && grouped && after === 0 && await page.evaluate(() => _prodState.showSubIssues === false && !new URL(location.href).searchParams.has('ptab'));
     }); await reset();
     await ok('due', async () => {
       await page.locator('.prod-row .prod-due').first().click();
@@ -538,7 +552,7 @@ async function txt(page, sel) {
       await page.locator('.prod-group-title.navp[data-prod-project]').first().click();
       return await page.evaluate(k => {
         const rows = [...document.querySelectorAll('[data-prod-project-issue]')].map(el => _prodIssue(el.getAttribute('data-prod-project-issue')));
-        return _prodState.view === 'project' && _prodState.openProjectId === k && !_prodState.clientSlug && rows.every(r => r && r.project === k && !r.parent);
+        return _prodState.view === 'project' && _prodState.openProjectId === k && !_prodState.clientSlug && rows.every(r => r && r.project === k);
       }, key);
     }); await reset();
     await ok('topCrumbsAreClickableControls', async () => {
@@ -1239,9 +1253,19 @@ async function txt(page, sel) {
     await ok('brand', async () => {
       await page.locator('.prod-brand[data-prod-brandmenu]').click();
       const rows = await page.locator('#prodLayer [data-prod-brand-action]').evaluateAll(nodes => nodes.map(n => (n.textContent || '').trim()));
-      const ok = rows.join('|') === 'Settings|Invite members|Log out';
-      await page.keyboard.press('Escape');
-      return ok;
+      const labelsOk = rows.join('|') === 'All issues|All projects|Copy current link';
+      await page.locator('#prodLayer [data-prod-brand-action="projects"]').click();
+      const projectsOk = await page.evaluate(() => _prodState.view === 'board' && _prodState.team === 'all');
+      await page.locator('.prod-brand[data-prod-brandmenu]').click();
+      await page.locator('#prodLayer [data-prod-brand-action="issues"]').click();
+      const issuesOk = await page.evaluate(() => _prodState.view === 'list' && _prodState.team === 'all');
+      await page.locator('.prod-brand[data-prod-brandmenu]').click();
+      await page.locator('#prodLayer [data-prod-brand-action="copy"]').click();
+      const copyOk = await page.evaluate(() => {
+        const copied = String(window.__prodLastCopied || '');
+        return copied.includes('prod=1') && copied.endsWith('#production');
+      });
+      return labelsOk && projectsOk && issuesOk && copyOk;
     }); await reset();
     await ok('boardCardCmdSelect', async () => await page.evaluate(() => {
       _prodState.view = 'board';

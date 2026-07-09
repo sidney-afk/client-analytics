@@ -2726,6 +2726,7 @@
         .prod-preview-chip { white-space: nowrap; flex: none; }
         .prod-search-btn, .prod-icon-btn { width: 25px; height: 25px; border: 0; border-radius: 6px; display: grid; place-items: center; color: var(--prod-muted); background: transparent; font: inherit; cursor: pointer; }
         .prod-search-btn:hover, .prod-icon-btn:hover { background: var(--prod-hover); color: var(--prod-text); }
+        .prod-search-btn.active, .prod-icon-btn.active { background: var(--prod-hover); color: var(--prod-text); }
         .prod-icon-btn[data-prod-disabled] { color: var(--prod-faint); }
         .prod-side-scroll { flex: 1; min-height: 0; overflow: auto; padding-top: 2px; }
         .prod-nav { display: flex; flex-direction: column; gap: 1px; }
@@ -2812,6 +2813,11 @@
         .prod-file-line { margin: 14px 0 0; color: var(--prod-strong); font-size: 13px; }
         .prod-file-line b { font-weight: 600; }
         .prod-subrow .prod-title { flex: 1; }
+        .prod-project-groups { margin-top: 4px; }
+        .prod-project-groups .prod-group { position: static; border-bottom: 0; border-radius: 6px; margin-top: 10px; background: var(--prod-hover); }
+        .prod-project-groups .prod-group:first-child { margin-top: 0; }
+        .prod-project-groups .prod-subrow { padding-left: 24px; }
+        .prod-project-groups .prod-subrow:hover { margin-left: -8px; margin-right: -8px; padding-left: 32px; padding-right: 8px; }
         .prod-actionbar { position: fixed; left: calc(50% + 122px); bottom: 20px; transform: translateX(-50%); z-index: 2000; height: 44px; border: 1px solid var(--prod-border-soft); border-radius: 12px; background: var(--prod-surface); display: inline-flex; align-items: center; gap: 3px; padding: 5px; color: var(--prod-strong); font-size: 12px; box-shadow: var(--prod-shadow-pop); }
         .prod-actionbar .cnt { color: var(--prod-dim); padding: 0 8px 0 9px; white-space: nowrap; }
         .prod-actionbar .abtn { height: 28px; border: 0; border-radius: 7px; background: var(--prod-hover); color: var(--prod-strong); display: inline-flex; align-items: center; gap: 6px; font: inherit; cursor: pointer; padding: 0 10px; }
@@ -29026,7 +29032,6 @@
             openId: '',
             openBatchId: '',
             openProjectId: '',
-            projectTab: 'open',
             projectDetailsOpen: true,
             tab: 'active',
             groupBy: 'status',
@@ -29402,8 +29407,7 @@
         }
         function _prodCurIssuesUnfiltered() {
             if (_prodState.view === 'project' && _prodState.openProjectId) {
-                return _prodIssues().filter(d => d.project === _prodState.openProjectId && !d.parent)
-                    .filter(_prodProjectTabAllows);
+                return _prodApplySubIssueVisibility(_prodIssues().filter(d => d.project === _prodState.openProjectId));
             }
             return _prodIssues().filter(d => _prodState.team === 'all' || d.team === _prodState.team)
                 .filter(d => !_prodState.clientSlug || d.project === _prodState.clientSlug)
@@ -30055,6 +30059,20 @@
                 fail();
             }
         }
+        function _prodCopyCurrentLink() {
+            const q = new URLSearchParams(location.search || '');
+            q.set('prod', '1');
+            const url = location.origin + location.pathname + '?' + q.toString() + '#production';
+            try { window.__prodLastCopied = url; } catch (e) {}
+            const done = () => _prodToast('Link copied');
+            const fail = () => _prodToast('Copy failed');
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, fail);
+                else done();
+            } catch (e) {
+                fail();
+            }
+        }
         function _prodReadonlyGuard() {
             _prodToast(_prodPreviewText());
             return false;
@@ -30106,14 +30124,26 @@
                 ev.preventDefault();
                 ev.stopPropagation();
             }
-            const items = ['Settings', 'Invite members', 'Log out'];
+            const items = [
+                { action: 'issues', icon: _prodIcon('issues'), label: 'All issues' },
+                { action: 'projects', icon: _prodIcon('project'), label: 'All projects' },
+                { action: 'copy', icon: _prodIcon('copy'), label: 'Copy current link' }
+            ];
             const p = _prodLayerPop('<div class="prod-pop-hd">SynchroSocial</div><div class="prod-pop-list">'
-                + items.map(label => '<div class="prod-mi" data-prod-brand-action="' + _calEscAttr(label) + '"><span class="mlbl">' + _calEsc(label) + '</span></div>').join('')
+                + items.map(item => '<div class="prod-mi" data-prod-brand-action="' + _calEscAttr(item.action) + '"><span class="mic">' + item.icon + '</span><span class="mlbl">' + _calEsc(item.label) + '</span></div>').join('')
                 + '</div>', ev ? ev.clientX : 220, ev ? ev.clientY : 72);
             p.querySelectorAll('[data-prod-brand-action]').forEach(el => el.addEventListener('click', e => {
                 e.preventDefault();
                 e.stopPropagation();
-                _prodReadonlyGuard();
+                const action = el.getAttribute('data-prod-brand-action');
+                _prodClearLayer();
+                if (action === 'projects') {
+                    _prodOpenTeamView('all', 'board');
+                } else if (action === 'copy') {
+                    _prodCopyCurrentLink();
+                } else {
+                    _prodOpenTeamView('all', 'list');
+                }
             }));
             _prodWirePlainMenu(p);
             return false;
@@ -30748,20 +30778,10 @@
             return rows
                 .sort(_prodIssueOrderCompare);
         }
-        function _prodProjectIssueClosed(d) {
-            return ['approved','posted','canceled','duplicate'].includes(_prodArtifactStatus(d && d.status));
-        }
-        function _prodProjectTabAllows(d) {
-            if (_prodState.projectTab === 'all') return true;
-            if (_prodState.projectTab === 'closed') return _prodProjectIssueClosed(d);
-            return !_prodProjectIssueClosed(d);
-        }
         function _prodProjectRows(project) {
             const id = String(project && project.id || '');
             if (!id) return [];
-            return _prodIssues()
-                .filter(d => d.project === id && !d.parent)
-                .filter(_prodProjectTabAllows)
+            return _prodApplySubIssueVisibility(_prodIssues().filter(d => d.project === id))
                 .filter(_prodMatchFilters)
                 .sort(_prodIssueOrderCompare);
         }
@@ -30885,8 +30905,6 @@
                 if (view === 'my' || view === 'board' || view === 'list' || view === 'project') _prodState.view = view === 'board' ? 'board' : view === 'my' ? 'my' : view === 'project' ? 'project' : 'list';
                 const tab = q.get('issues');
                 if (tab === 'active' || tab === 'backlog' || tab === 'all') _prodState.tab = tab;
-                const ptab = q.get('ptab');
-                if (ptab === 'open' || ptab === 'closed' || ptab === 'all') _prodState.projectTab = ptab;
                 const pdetails = q.get('pdetails');
                 if (pdetails === '0' || pdetails === 'false') _prodState.projectDetailsOpen = false;
                 else if (pdetails === '1' || pdetails === 'true') _prodState.projectDetailsOpen = true;
@@ -30928,7 +30946,6 @@
                 if (_prodState.view === 'board') q.set('view', 'board');
                 if (_prodState.view === 'project') q.set('view', 'project');
                 if (_prodState.tab !== 'active' && (_prodState.view === 'list' || _prodState.view === 'my')) q.set('issues', _prodState.tab);
-                if (_prodState.view === 'project' && _prodState.projectTab !== 'open') q.set('ptab', _prodState.projectTab);
                 if (_prodState.view === 'project' && _prodState.projectDetailsOpen === false) q.set('pdetails', '0');
                 if ((_prodState.groupBy || 'status') !== 'status') q.set('group', _prodState.groupBy);
                 if ((_prodState.orderBy || 'due') !== 'due') q.set('order', _prodState.orderBy);
@@ -31037,14 +31054,6 @@
             _prodState.openId = '';
             _prodState.openBatchId = '';
             _prodState.openProjectId = '';
-            _prodReconcileSelection();
-            _prodSetQuery({}, true);
-            _prodRender();
-        }
-        function _prodSetProjectTab(tab) {
-            _prodState.projectTab = tab === 'closed' ? 'closed' : tab === 'all' ? 'all' : 'open';
-            _prodState.openId = '';
-            _prodState.openBatchId = '';
             _prodReconcileSelection();
             _prodSetQuery({}, true);
             _prodRender();
@@ -31299,7 +31308,6 @@
             _prodState.openId = '';
             _prodState.openBatchId = '';
             _prodState.clientSlug = '';
-            _prodState.projectTab = 'open';
             _prodState.projectDetailsOpen = true;
             _prodState.view = 'project';
             _prodState.selected.clear();
@@ -31421,10 +31429,8 @@
             const c = _prodClient(_prodState.openProjectId);
             const title = c ? (c.name || c.id) : 'Project';
             const team = c ? c.team : _prodState.team;
-            const ptab = _prodState.projectTab === 'closed' ? 'closed' : _prodState.projectTab === 'all' ? 'all' : 'open';
-            const tabs = '<div class="prod-tabs"><button class="prod-tab' + (ptab === 'open' ? ' active' : '') + '" type="button" data-prod-project-tab="open" onclick="_prodSetProjectTab(' + _jsAttrArg('open') + ')">Open</button><button class="prod-tab' + (ptab === 'closed' ? ' active' : '') + '" type="button" data-prod-project-tab="closed" onclick="_prodSetProjectTab(' + _jsAttrArg('closed') + ')">Closed</button><button class="prod-tab' + (ptab === 'all' ? ' active' : '') + '" type="button" data-prod-project-tab="all" onclick="_prodSetProjectTab(' + _jsAttrArg('all') + ')">All issues</button></div>';
-            const detailPill = '<button class="prod-filter-pill prod-scope-pill" type="button" data-prod-project-details-toggle="1" onclick="_prodToggleProjectDetails()" data-prod-tip="Toggle project details">' + _prodIcon('display') + '<span>Project details</span></button>';
-            const subbar = '<div class="prod-subbar" data-prod-project-subbar="1">' + tabs + '<div class="prod-filter-pills">' + _prodPillsHTML() + detailPill + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" data-prod-tip="Filter">' + _prodIcon('filter') + '</button><button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
+            const detailBtn = '<button class="prod-icon-btn' + (_prodState.projectDetailsOpen === false ? '' : ' active') + '" type="button" data-prod-project-details-toggle="1" onclick="_prodToggleProjectDetails()" title="Project details" data-prod-tip="Project details">' + _prodIcon('project') + '</button>';
+            const subbar = '<div class="prod-subbar" data-prod-project-subbar="1"><div class="prod-filter-pills">' + _prodPillsHTML() + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" data-prod-tip="Filter">' + _prodIcon('filter') + '</button>' + detailBtn + '<button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
             return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><button class="prod-crumb-link" type="button" data-prod-crumb-root="1" onclick="_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Production">Production</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-team="' + _calEscAttr(team || 'all') + '" onclick="_prodOpenTeamView(' + _jsAttrArg(team || 'all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Open team projects">' + _calEsc(_prodTeamLabel(team)) + '</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>Project</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-project" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c ? c.id : '') + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>' + subbar;
         }
         function _prodDetailTopbar() {
@@ -31604,6 +31610,29 @@
             }
             return '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead"><span class="prod-subhead-title">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></span><span class="prod-spacer"></span>' + _prodAddSubIssueButtonHTML(true) + '</div>' + kids.map(_prodSubIssueRowHTML).join('') + '</div>';
         }
+        function _prodProjectIssueRowHTML(d) {
+            const assignee = _prodMember(d.assignee);
+            const parent = d.parent ? _prodIssue(d.parent) : null;
+            const title = d.title || 'Untitled issue';
+            return '<div class="prod-subrow prod-project-issue-row" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
+                + _prodStatusIcon(d.status, d.id)
+                + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
+                + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
+                + '<span class="prod-spacer"></span>'
+                + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + '</span>')
+                + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '" onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="' + _calEscAttr(assignee ? ('Assignee: ' + assignee.name) : 'Unassigned') + '">' + _prodAvatar(assignee, 18) + '</span>'
+                + '<span class="prod-created optional">' + _calEsc(d.created) + '</span></div>';
+        }
+        function _prodProjectGroupHTML(group) {
+            const items = group.items || [];
+            const collapsed = _prodState.collapsed.has(group.key);
+            return '<div class="prod-group prod-project-group' + (collapsed ? ' collapsed' : '') + '" data-prod-project-group="' + _calEscAttr(group.key) + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-ico prod-status">' + group.icon + '</span><span class="prod-group-title">' + _calEsc(group.title) + '</span><span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-project-issue" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div>'
+                + (collapsed ? '' : items.map(_prodProjectIssueRowHTML).join(''));
+        }
+        function _prodProjectRowsHTML(rows, empty) {
+            if (!rows.length) return '<div class="prod-empty" style="margin:0;padding:16px;text-align:left;">' + _calEsc(empty) + '</div>';
+            return '<div class="prod-project-groups" data-prod-project-groups="' + _calEscAttr(_prodState.groupBy || 'status') + '">' + _prodGroupsFor(rows).map(_prodProjectGroupHTML).join('') + '</div>';
+        }
         // PORT-DELTA: renderDetail uses live event reads and disables composer/write controls.
         function _prodDetail() {
             const d = _prodIssue(_prodState.openId);
@@ -31628,11 +31657,11 @@
             const c = _prodClient(_prodState.openProjectId);
             if (!c) return '<div class="prod-empty">Project not found.</div>';
             const lead = _prodMember(c.lead);
-            const allRows = _prodIssues().filter(i => i.project === c.id && !i.parent);
+            const allRows = _prodIssues().filter(i => i.project === c.id);
             const rows = _prodProjectRows(c);
             const desc = c.desc || 'No project description on this migrated row.';
             const empty = (_prodState.filters || []).length ? 'No issues match your filters.' : 'No issues in this view yet.';
-            const rowHTML = rows.length ? rows.map(d => { const assignee = _prodMember(d.assignee); return '<div class="prod-subrow prod-project-issue-row" data-prod-project-issue="' + _calEscAttr(d.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-spacer"></span>' + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + '</span>') + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '" onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="' + _calEscAttr(assignee ? ('Assignee: ' + assignee.name) : 'Unassigned') + '">' + _prodAvatar(assignee, 18) + '</span></div>'; }).join('') : '<div class="prod-empty" style="margin:0;padding:16px;text-align:left;">' + _calEsc(empty) + '</div>';
+            const rowHTML = _prodProjectRowsHTML(rows, empty);
             const side = _prodState.projectDetailsOpen === false ? '' : '<aside class="prod-right"><div class="prod-props">'
                 + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
                 + '<div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-pstatus="' + _calEscAttr(c.id) + '" data-pstatus="' + _calEscAttr(c.id) + '" data-prod-tip="Status: ' + _calEscAttr(_prodBoardLabel(c.status)) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(c.id) + ')">' + _prodProjectStatusIcon(c.status) + '<span>' + _calEsc(_prodBoardLabel(c.status)) + '</span></button></div>'

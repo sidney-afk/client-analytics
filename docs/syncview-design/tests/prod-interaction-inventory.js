@@ -128,6 +128,7 @@ async function reset(page, stateName) {
     _prodRender();
   }, stateName);
   await page.waitForTimeout(80);
+  await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {});
 }
 
 async function snapshot(page) {
@@ -355,6 +356,39 @@ async function selectionChecks(page) {
     const opened = await page.evaluate(expected => _prodState.openProjectId === expected || _prodState.clientSlug === expected, slug);
     if (!opened) failures.push('row client chip did not open the project/client path');
   }
+  await reset(page, 'list');
+  const parentWithChild = await page.evaluate(() => {
+    const rows = _prodIssues();
+    const row = rows.find(d => rows.some(k => k.parent === d.id));
+    return row ? row.id : '';
+  });
+  if (parentWithChild) {
+    await page.evaluate(id => _prodOpenDeliverable(id), parentWithChild);
+    await page.waitForSelector('#prodRoot .prod-subrow', { timeout: 5000 });
+    await page.evaluate(() => {
+      const main = document.querySelector('#prodRoot .prod-detail-main');
+      if (main) main.scrollTop = main.scrollHeight;
+      window.scrollTo(0, document.body.scrollHeight);
+    });
+    await page.locator('#prodRoot .prod-subrow').first().click({ timeout: 2500, force: true });
+    await page.waitForTimeout(180);
+    const subDetail = await page.evaluate(() => {
+      const main = document.querySelector('#prodRoot .prod-detail-main');
+      const crumb = document.querySelector('#prodRoot .prod-detail-crumb');
+      return {
+        scrollTop: main ? main.scrollTop : -1,
+        bodyTop: window.scrollY,
+        crumbText: crumb ? crumb.textContent.replace(/\s+/g, ' ').trim() : '',
+      };
+    });
+    if (subDetail.scrollTop > 2) failures.push('sub-issue detail did not reset its internal scroll to the top');
+    if (!/Issue/.test(subDetail.crumbText) || !/Sub-issue/.test(subDetail.crumbText)) {
+      failures.push('sub-issue breadcrumb did not expose Issue/Sub-issue context');
+    }
+  }
+  await reset(page, 'board');
+  const cardCursor = await page.locator('#prodRoot .prod-card[data-prod-client-card]').first().evaluate(el => getComputedStyle(el).cursor).catch(() => '');
+  if (cardCursor !== 'pointer') failures.push(`project card cursor should be pointer, got ${cardCursor || 'empty'}`);
   return failures;
 }
 

@@ -50,11 +50,12 @@ inside SyncView.
 | 4 | Client email | email | yes | Where the agreement + invoice email goes. |
 | 5 | Contract start date | date | yes | The day the deal closed. Default to today. |
 | 6 | Deliverables for client | textarea | yes | Kasper writes these himself, free text. Fills the deliverables placeholder. |
-| 7 | Billing type | radio | yes | Three options — see pricing below. Drives the invoice amount AND the agreement's billing-period wording. |
-| 8 | Invoice amount | number (USD) | yes | Auto-filled from billing type ($2,997 monthly / $7,991 quarterly), editable; free entry when One-time is picked. |
-| 9 | Payment link | radio + url | yes | **Monthly** → fixed 4-week Stripe link, **Quarterly** → fixed 12-week link (URLs below), **Custom** → a url input appears and Kasper pastes the link he created in Stripe (always the case for one-time fees). |
-| 10 | Termination clause | radio | yes | **Regular** → the standard clause (verbatim text below; also to be hosted on synchrosocial.com, not Notion). **Custom** → a textarea appears and Kasper pastes the clause. Both options show for every billing type — Kasper picks per deal ("just have two options, either regular … and then custom"); the regular text is minimum-commitment (quarterly) wording, so one-time deals will typically use Custom. |
-| 11 | Referred by | text | no | From the reference form; the only optional field on it. |
+| 7 | Billing type | radio | yes | Four options: Monthly standard, Quarterly standard, Custom recurring, One-time project fee. Drives the invoice amount, Stripe link behavior, and agreement billing-period wording. |
+| 8 | Recurring cadence | radio | conditional | Only shown/required for Custom recurring. Kasper picks every 4 weeks or every 12 weeks so the agreement and email use the right recurring wording. |
+| 9 | Invoice amount | text currency (USD) | yes | Locked for Monthly standard ($2,997) and Quarterly standard ($7,991). Free entry for Custom recurring and One-time project fee. |
+| 10 | Payment link | locked radio + url | yes | Monthly standard is locked to the fixed 4-week Stripe link, Quarterly standard is locked to the fixed 12-week Stripe link. Custom recurring and One-time require a pasted custom Stripe link that matches the custom amount. |
+| 11 | Termination clause | radio | yes | **Regular** → the standard clause (verbatim text below; also to be hosted on synchrosocial.com, not Notion). **Custom** → a textarea appears and Kasper pastes the clause. Both options show for every billing type. |
+| 12 | Referred by | text | no | From the reference form; the only optional field on it. |
 
 **Dropped:** the ACH-vs-credit-card payment-method option from call 2 — Kasper said
 to forget it (follow-up, 2026-07-02). No payment-method field, no card-fee link
@@ -78,6 +79,9 @@ not auto-couple the clause to the billing type.
 - **Monthly subscription** — **$2,997 per 4-week period**, renews every 4 weeks.
 - **Quarterly** — **$7,991 per 12-week period**, renews every 12 weeks. Kasper: "most
   of our clients sign quarterly commitments."
+- **Custom recurring** — custom amount and custom Stripe link, with Kasper selecting
+  either every 4 weeks or every 12 weeks for the agreement/email wording. Use this
+  for discounted or premium recurring packages.
 - **One-time project fee** — custom amount, fixed set of deliverables, no renewal
   (e.g. the client Kasper closed the day of the call).
 
@@ -93,7 +97,8 @@ on — "…ao80gEdited 1:11 PM" — the clean URL above is the real one.)
 
 (On call 2 Kasper floated separate ACH vs credit-card links plus a card-processing-fee
 product, but he has since dropped the idea — these two links are final. Monthly →
-4-week link, Quarterly → 12-week link, one-time → Kasper pastes a custom link.)
+4-week link, Quarterly → 12-week link. Custom recurring and one-time both require
+Kasper to paste the custom Stripe link he created for that exact amount.)
 
 ## Submit flow
 
@@ -119,6 +124,10 @@ email with both the agreement and the invoice link.
 
 - Autosave a draft to localStorage while typing; clear on successful submit; on webhook
   failure keep the draft and show retry (same behaviour as the onboarding form).
+- Show a live email preview before submit. The preview uses the same computed
+  billing rules/helper field names that the published n8n workflow recomputes for
+  the actual combined email; the only unknown value before submit is the
+  eSignatures signing URL, which is inserted after contract creation.
 - Success state should show what was created (client, amount, which link was sent) so
   Kasper can eyeball it.
 
@@ -132,9 +141,13 @@ it back for v1).
 
 Suggested columns: `id`, `created_at`, `closed_by`, `client_name`, `client_email`,
 `instagram`, `contract_start_date`, `deliverables`, `billing_type`
-(`monthly|quarterly|one_time`), `invoice_amount`,
+(`monthly|quarterly|custom_recurring|one_time`), `invoice_amount`,
 `payment_link`, `termination_clause_type` (`regular|custom`),
 `termination_clause_text`, `referred_by`, `esign_contract_id`, `status`, `raw jsonb`.
+Custom recurring cadence (`four_week|twelve_week`) is carried in `raw.billing_cadence`
+and in the n8n/email helper fields; the live table does not need a new top-level
+column because `sales_intakes.billing_type` is plain text and `raw` stores the full
+submission payload.
 
 ### n8n workflow
 

@@ -26,7 +26,7 @@ create table if not exists public.sales_intakes (
   instagram                 text,
   contract_start_date       text,                     -- YYYY-MM-DD, the day the deal closed
   deliverables              text,                     -- free text, goes into the agreement
-  billing_type              text,                     -- 'monthly' | 'quarterly' | 'one_time'
+  billing_type              text,                     -- 'monthly' | 'quarterly' | 'custom_recurring' | 'one_time'
   invoice_amount            numeric,                  -- USD
   payment_link              text,                     -- the Stripe URL actually emailed
   termination_clause_type   text,                     -- 'regular' | 'custom'
@@ -34,7 +34,7 @@ create table if not exists public.sales_intakes (
   referred_by               text,
   esign_contract_id         text,                     -- eSignatures.com contract id once created
   status                    text default 'submitted', -- submitted | contract_created | email_sent | failed
-  raw                       jsonb,                    -- full submission payload as received
+  raw                       jsonb,                    -- full submission payload as received; custom_recurring cadence lives in raw.billing_cadence
   primary key (id)
 );
 

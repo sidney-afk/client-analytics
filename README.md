@@ -13,6 +13,8 @@ onboarding, and keeping everything in sync with Linear.
   (video / graphic / caption / title), drag-reorder, threaded comments, and live
   realtime updates.
 - **Sample & thumbnail review** — Kasper and client approval flows for content samples.
+- **Thumbnail revision history** — Drive-backed thumbnail change baselines for
+  graphics sent to Tweaks Needed; see `THUMBNAIL_REVISION_HISTORY.md`.
 - **YouTube title review** — title status plus tweak-round tracking.
 - **Client onboarding** — in-app onboarding form and inbox (standard and AI funnels).
 - **Sales intake** — subtab of the Kasper tab, filled right after a deal closes;

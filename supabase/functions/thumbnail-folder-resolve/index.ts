@@ -10,7 +10,9 @@
 //   SUPABASE_SERVICE_ROLE_KEY
 //   GOOGLE_DRIVE_API_KEY
 //
-// Optional env fallback for non-public Drive files:
+// Optional env fallback for authenticated Drive metadata. API keys can read
+// public file metadata, but Google can omit parent folders from unauthenticated
+// responses.
 //   GOOGLE_SERVICE_ACCOUNT_JSON
 //   or GOOGLE_CLIENT_EMAIL + GOOGLE_PRIVATE_KEY
 
@@ -184,7 +186,8 @@ async function fetchDriveParents(fileId: string): Promise<string[]> {
 
   if (apiKey) {
     try {
-      return await requestParents(baseUrl + "&key=" + encodeURIComponent(apiKey), { Accept: "application/json" });
+      const parents = await requestParents(baseUrl + "&key=" + encodeURIComponent(apiKey), { Accept: "application/json" });
+      if (parents.length || !serviceAccountConfigured()) return parents;
     } catch (e) {
       if (!serviceAccountConfigured()) throw e;
     }

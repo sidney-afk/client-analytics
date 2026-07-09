@@ -271,6 +271,19 @@ async function clickInventory(page, stateName) {
 }
 
 async function rightClickChecks(page) {
+  const failures = [];
+  await reset(page, 'list');
+  const group = page.locator('.prod-group').first();
+  if (await group.count()) {
+    const prevented = await group.evaluate(el => {
+      const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, view: window });
+      el.dispatchEvent(ev);
+      return ev.defaultPrevented;
+    });
+    if (!prevented) failures.push('list group right-click did not suppress the browser context menu');
+    await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
+  }
+
   const checks = [
     ['list', '.prod-row'],
     ['board', '.prod-card[data-prod-client-card]'],
@@ -278,7 +291,6 @@ async function rightClickChecks(page) {
     ['detail', '.prod-subrow'],
     ['project', '[data-prod-project-issue]'],
   ];
-  const failures = [];
   for (const [stateName, sel] of checks) {
     await reset(page, stateName);
     const loc = page.locator(sel).first();

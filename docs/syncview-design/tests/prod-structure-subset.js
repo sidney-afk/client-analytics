@@ -64,6 +64,15 @@ async function assertNoWriteRequests(requests) {
 }
 
 (async () => {
+  const indexSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  if (!indexSource.includes("q.get('prod') === '1') target = 'production'")) {
+    throw new Error('Production query route is not mapped to the Production boot skeleton');
+  }
+  if (!indexSource.includes('html[data-boot-nav="production"] .boot-skeleton-production')
+    || !indexSource.includes('boot-skeleton-variant boot-skeleton-production')) {
+    throw new Error('Production boot skeleton is missing from the pre-paint skeleton set');
+  }
+
   const server = await serve();
   const port = server.address().port;
   const browser = await chromium.launch({ headless: true });
@@ -116,12 +125,10 @@ async function assertNoWriteRequests(requests) {
     if (adapterFixture.editorInit !== 'MS' || !/^#[0-9a-f]{6}$/i.test(adapterFixture.editorColor)) throw new Error('Adapter did not produce artifact editor initials/color');
 
     if (!(await text(page, '.prod-brand')).includes('SyncView')) throw new Error('Sidebar brand missing');
-    await expectCount(page, '.prod-brand[data-prod-brandmenu] .prod-brand-caret', 1, 'brand workspace caret/menu trigger');
-    await page.locator('.prod-brand[data-prod-brandmenu]').click();
-    await expectExactCount(page, '.prod-pop [data-prod-brand-action]', 3, 'brand workspace menu rows');
-    const brandRows = await page.locator('.prod-pop [data-prod-brand-action]').evaluateAll(nodes => nodes.map(n => (n.textContent || '').trim()));
-    if (brandRows.join('|') !== 'All issues|All projects|Copy current link') throw new Error('Brand menu should expose only preview-relevant actions');
-    await page.keyboard.press('Escape');
+    await expectExactCount(page, '.prod-brand[data-prod-brandmenu]', 0, 'brand workspace menu trigger removed');
+    await expectExactCount(page, '.prod-brand .prod-brand-caret', 0, 'brand workspace caret removed');
+    await page.locator('.prod-brand').click();
+    await expectExactCount(page, '.prod-pop [data-prod-brand-action]', 0, 'brand workspace menu removed');
     if (!(await text(page, '.prod-preview-chip')).includes('Preview - read-only')) throw new Error('Preview chip missing');
     if (!(await page.locator('.prod-search-btn[title*="Search"]').count())) throw new Error('Search command button missing');
     await page.keyboard.press('Slash');
@@ -138,6 +145,12 @@ async function assertNoWriteRequests(requests) {
 
     await expectCount(page, '.prod-group .prod-status svg', 1, 'status-group glyphs');
     await expectCount(page, '.prod-group [data-prod-disabled="add-deliverable"][title="Preview - read-only"]', 1, 'disabled group add controls');
+    const groupContextPrevented = await page.locator('.prod-group').first().evaluate(el => {
+      const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, view: window });
+      el.dispatchEvent(ev);
+      return ev.defaultPrevented;
+    });
+    if (!groupContextPrevented) throw new Error('Production group header did not suppress the browser context menu');
     const beforeCollapse = await page.locator('.prod-row').count();
     await page.locator('.prod-group').first().click();
     const afterCollapse = await page.locator('.prod-row').count();

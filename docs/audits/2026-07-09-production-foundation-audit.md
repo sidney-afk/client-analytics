@@ -48,7 +48,7 @@ Final Production gates after the fix:
 |---|---:|
 | `node docs/syncview-design/tests/behav-wired.js` | pass, 156/156 guard-mode assertions |
 | `node docs/syncview-design/tests/prod-interaction-inventory.js` | pass: sampled unique controls across list/detail/board/project states, right-click menus, hover tips, scroll reset, breadcrumb/body context, project toolbar display grouping/show-sub-issues behavior, pointer cursor, guarded add-sub-issue affordance, and no writes/errors |
-| `node docs/syncview-design/tests/prod-structure-subset.js` | pass: structural detail coverage includes compact activity rows, title-first sub-issue rows with project metadata, child `Sub-issue of` context, leaf add-sub-issue affordance, project-detail tab removal, project toolbar order, project Display grouping, Show sub-issues, and workspace-menu cleanup |
+| `node docs/syncview-design/tests/prod-structure-subset.js` | pass: structural detail coverage includes compact activity rows, title-first sub-issue rows with project metadata, child `Sub-issue of` context, leaf add-sub-issue affordance, project-detail tab removal, project toolbar order, project Display grouping, Show sub-issues, Production boot skeleton wiring, removed workspace menu, and native context-menu suppression |
 | `node docs/syncview-design/tests/pixel-wired.js` | pass in light and dark |
 | `node qa/master.js --profile=fast --no-server` with a local static server | pass/fail lanes green: unit, parity, probes, scenarios, visual capture |
 | focused human/vision screenshot review | pass after mobile header and detail-crumb fixes |
@@ -69,8 +69,9 @@ top bar kept to one line with ellipsis.
 
 Additional interaction inventory: `prod-interaction-inventory.js` sampled unique visible controls
 across list, selected list, filtered empty, detail, board, selected board, and project states. It
-also checks right-click context zones, hover tooltips, real pointer clicks for row open/checkbox/status/
-due/assignee/client-chip controls, browser errors, and write-like requests.
+also checks right-click context zones, group-header native context-menu suppression, hover tooltips,
+real pointer clicks for row open/checkbox/status/due/assignee/client-chip controls, browser errors,
+and write-like requests.
 
 ## Finding fixed
 
@@ -185,22 +186,48 @@ User-visible paths:
 1. Open a Production project detail.
 2. Use the Open / Closed / All issues tabs.
 3. Use the Display menu's `Group by` and `Show sub-issues` controls.
-4. Open the sidebar workspace menu.
+4. Inspect the sidebar workspace brand.
 
 Expected behavior: every visible project-detail control either changes the visible issue map,
-opens a useful local preview menu, or is removed. Workspace-level actions should match this
+opens a useful local preview menu, or is removed. Workspace-level chrome should match this
 read-only Production preview, not account/admin chrome copied from Linear.
 
 Actual behavior before this pass: the project detail exposed Open / Closed / All issues tabs
 that were unclear in this app, while project Display controls did not fully regroup or hide/show
 project child rows. The Project details toggle was separated from the Filter/Display toolbar,
-and the workspace menu exposed irrelevant Settings, Invite members, and Log out actions.
+and the workspace menu exposed irrelevant Settings, Invite members, Log out, and later preview
+actions that still did not need to exist in this app.
 
 Fix: project details now show one coherent issue list. The unclear status tabs are removed,
 Project details sits as an icon control next to Filter, Display regrouping works for Status,
 Client, and Assignee, and `Show sub-issues` hides/shows child issue rows in the project view.
-The workspace menu now contains only preview-relevant actions: All issues, All projects, and
-Copy current link.
+The Production workspace menu is removed entirely; the sidebar brand is static.
+
+No data, flags, backend code, n8n workflows, or Supabase objects were touched.
+
+### P2: Refresh, hover, breadcrumb, and context-menu polish still had loose edges
+
+User-visible paths:
+
+1. Refresh the Production tab.
+2. Hover grouped project issue rows.
+3. Open a sub-issue from a parent and use the parent link.
+4. Right-click a Production group header.
+
+Expected behavior: Production should boot with Production-shaped loading chrome, grouped row
+hover bands should align with their section headers, tooltips should disappear on navigation,
+sub-issue breadcrumbs should name the sub-issue without repeating its ID, and right-clicking
+inside Production should not show the browser menu.
+
+Actual behavior before this pass: `?prod=1` could flash the Analytics skeleton on refresh,
+project grouped-row hover bands were wider than their headers, the `Open parent` tooltip could
+stick after navigation, sub-issue breadcrumbs showed both `Sub-issue` and the child issue ID,
+and right-clicking inert group headers opened the browser context menu.
+
+Fix: the pre-paint router now maps `?prod=1` to a Production skeleton, grouped project hover
+rows use the same width as their headers, `_prodRender()` clears stale tooltips before drawing
+the next view, child breadcrumbs omit the current child ID, and a Production-scoped
+`contextmenu` guard prevents browser menus where the app has no custom context menu.
 
 No data, flags, backend code, n8n workflows, or Supabase objects were touched.
 
@@ -208,7 +235,7 @@ No data, flags, backend code, n8n workflows, or Supabase objects were touched.
 
 ### Works as live read-only navigation/local UI
 
-- Sidebar workspace/team navigation and preview-relevant workspace menu actions
+- Sidebar workspace/team navigation with a static workspace brand
 - My issues, team issues, and Projects board navigation
 - Client/project chips and project group headers
 - Detail, batch, and project deep links

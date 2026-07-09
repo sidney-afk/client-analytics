@@ -779,16 +779,24 @@ async function txt(page, sel) {
     await ok('goParent', async () => {
       const child = await page.evaluate(() => {
         const row = _prodIssues().find(i => i.parent && _prodIssue(i.parent));
-        return row ? { id: row.id, parent: row.parent } : null;
+        return row ? { id: row.id, parent: row.parent, label: _prodIssueLabel(row) } : null;
       });
       if (!child) return true;
       await page.evaluate(id => _prodOpenDeliverable(id), child.id);
       await page.waitForSelector('.prod-detail');
+      const crumbOk = await page.evaluate(label => {
+        const crumb = document.querySelector('.prod-detail-crumb');
+        return crumb && crumb.textContent.includes('Sub-issue') && !crumb.textContent.includes(label);
+      }, child.label);
+      await page.locator('.prod-parent-link').hover();
+      await page.waitForTimeout(460);
       await page.locator('.prod-parent-link').click();
-      return await page.evaluate(parent => _prodState.openId === parent, child.parent);
+      const tipGone = await page.locator('#prodTip.show').count() === 0;
+      return crumbOk && tipGone && await page.evaluate(parent => _prodState.openId === parent, child.parent);
     }); await reset();
-    await ok('brandCaret', async () => await page.locator('.prod-brand[data-prod-brandmenu] .prod-brand-caret').count() === 1
-      && (await page.locator('.prod-brand[data-prod-brandmenu]').getAttribute('data-prod-tip')) === 'Workspace menu'); await reset();
+    await ok('brandStatic', async () => await page.locator('.prod-brand').count() === 1
+      && await page.locator('.prod-brand[data-prod-brandmenu]').count() === 0
+      && await page.locator('.prod-brand .prod-brand-caret').count() === 0); await reset();
     await ok('kbFocusOverHover', async () => {
       await page.keyboard.press('j');
       const focused = await page.evaluate(() => _prodState.focusRow);
@@ -1250,22 +1258,10 @@ async function txt(page, sel) {
         && !!document.querySelector('[data-prod-plead]')
         && !!document.querySelector('[data-prod-ptarget]');
     })); await reset();
-    await ok('brand', async () => {
-      await page.locator('.prod-brand[data-prod-brandmenu]').click();
-      const rows = await page.locator('#prodLayer [data-prod-brand-action]').evaluateAll(nodes => nodes.map(n => (n.textContent || '').trim()));
-      const labelsOk = rows.join('|') === 'All issues|All projects|Copy current link';
-      await page.locator('#prodLayer [data-prod-brand-action="projects"]').click();
-      const projectsOk = await page.evaluate(() => _prodState.view === 'board' && _prodState.team === 'all');
-      await page.locator('.prod-brand[data-prod-brandmenu]').click();
-      await page.locator('#prodLayer [data-prod-brand-action="issues"]').click();
-      const issuesOk = await page.evaluate(() => _prodState.view === 'list' && _prodState.team === 'all');
-      await page.locator('.prod-brand[data-prod-brandmenu]').click();
-      await page.locator('#prodLayer [data-prod-brand-action="copy"]').click();
-      const copyOk = await page.evaluate(() => {
-        const copied = String(window.__prodLastCopied || '');
-        return copied.includes('prod=1') && copied.endsWith('#production');
-      });
-      return labelsOk && projectsOk && issuesOk && copyOk;
+    await ok('brandNoMenu', async () => {
+      await page.locator('.prod-brand').click();
+      return await page.locator('#prodLayer [data-prod-brand-action]').count() === 0
+        && await page.locator('.prod-brand[data-prod-brandmenu], .prod-brand .prod-brand-caret').count() === 0;
     }); await reset();
     await ok('boardCardCmdSelect', async () => await page.evaluate(() => {
       _prodState.view = 'board';

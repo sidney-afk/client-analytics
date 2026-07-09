@@ -26,7 +26,7 @@ Full report: `docs/audits/2026-07-09-production-foundation-audit.md`.
 | Project detail tabs removed | owner project screenshot feedback after PR #757 | ported | The unclear project Open/Closed/All issues tabs are removed from the wired preview; stale `ptab` query params no longer silently filter project rows. |
 | Project toolbar order | owner project screenshot feedback after PR #757 | ported | The Project details toggle is a right-side icon control placed immediately after Filter and before Display. |
 | Project Display grouping/show sub-issues | owner project screenshot feedback after PR #757 | ported | Project detail rows now regroup by Status, Client, or Assignee, and the Display menu's Show sub-issues toggle hides/shows child rows in the project issue list. |
-| Production workspace menu cleanup | owner project screenshot feedback after PR #757 | ported | The sidebar workspace menu no longer exposes Settings, Invite members, or Log out; it contains preview-relevant All issues, All projects, and Copy current link actions. |
+| Production workspace menu removed | owner project screenshot feedback after PR #757 | ported | The sidebar workspace brand is static; no workspace dropdown, account/admin rows, preview shortcuts, or copy-link action is exposed. |
 | Existing behavioral gate | `docs/syncview-design/tests/behav-wired.js` | ported | After the Escape fix, guard-mode coverage is green at `156/156`; mutation-only behaviors remain explicitly reported as `deferred-B3`. |
 | Finished-surface inventory gate | `docs/syncview-design/tests/prod-interaction-inventory.js` | ported | Samples unique visible controls across list/detail/board/project states, right-click context zones, hover tips, row open/checkbox/status/due/assignee/client-chip pointer controls, sub-issue body context, guarded add-sub-issue affordances, and the no-write/no-error invariant. |
 | Existing visual gate | `docs/syncview-design/tests/pixel-wired.js` | ported | Light and dark wired pixel/parity checks pass; screenshots remain local/private under `.codex-tmp/prod-pixel-wired`. |
@@ -80,7 +80,7 @@ This ledger supersedes `docs/audits/2026-07-06-prod-parity-gaps.md` for ongoing 
 | Read-only multi-select visuals | `flatOrder`, keyboard shortcuts, actionbar | ported | Ctrl+A selects visible rows, shows a count/action bar, and bulk actions open guarded pickers. |
 | Guarded favorite/composer affordances | `renderList`, `renderDetail` | ported | Favorite and composer controls keep `Preview - read-only` title/tooltip and now give the same guard toast on click. |
 | Project detail side panel | `renderPDetail` / `S.projectOpen` | ported | Ported in Round 4: board cards now open read-only project detail with guarded properties. |
-| Brand workspace menu | `renderSidebar` `data-brandmenu` | ported | Ported in Round 3/4 as read-only chrome while retaining the Preview chip. |
+| Static Production workspace brand | owner feedback over `renderSidebar` `data-brandmenu` | ported | The wired Production preview intentionally removes the artifact workspace menu and keeps only a static SyncView brand plus Preview chip. |
 | Comment edit/delete/send mutations | `renderDetail`, comment handlers | deferred-B3 | B2 composer and comment mutation surfaces are guarded; full activity mutation behavior waits for write authority. |
 
 ## 2026-07-06 Parity Coverage Round 2
@@ -113,7 +113,7 @@ This ledger supersedes `docs/audits/2026-07-06-prod-parity-gaps.md` for ongoing 
 | Read-only group checkbox hit | `groupCheckHit` | ported | Group checkbox clicks keep collapse state unchanged and route to the read-only guard. |
 | Palette command clears selection | `paletteCmdClearSel` | ported | Command palette navigation clears selected rows while switching views, with live-data-tolerant command lookup. |
 | Parent navigation | `goParent` | ported | Child detail parent side-card opens the parent issue without creating selection side effects. |
-| Brand workspace caret/menu | `brandCaret` | ported | Artifact brand caret/menu is present as read-only chrome while retaining the Preview chip. |
+| Static Production workspace brand | `brandStatic` | ported | Owner feedback removed the brand caret/menu; the wired preview keeps the SyncView brand and Preview chip without opening workspace actions. |
 | Keyboard focus beats hover | `kbFocusOverHover` | ported | `_prodState.hoverRow` is separate from keyboard `focusRow`, so shortcuts stay on the focused row. |
 | Clear filters and markdown underscore handling | `clearFilters`, `underscoreMd` | ported | Empty-state Clear filters works; `_prodLinkify()` handles `_italic_`/`__bold__` without styling filename underscores. |
 | Project card right-click and subrow click safety | `pcardRightClick`, `subRowNoSelect` | ported | Project card context opens without navigation; shifted subrow clicks do not create list selections. |
@@ -134,7 +134,7 @@ This ledger supersedes `docs/audits/2026-07-06-prod-parity-gaps.md` for ongoing 
 | Row range selection and title tooltips | `toggleSel`, `rowHTML` title attributes | ported | Ctrl/Cmd row title toggles, Shift range selection, Shift+Arrow ranges, and long row/card/crumb titles get artifact `title` behavior. |
 | Filter and picker no-results states | `openFilterSub`, picker search | ported | Filter submenus and status pickers render `No results` on empty searches. |
 | Detail scroll preservation | `renderDetail` | ported | Issue detail scroll position survives read-only re-renders and child/parent navigation. |
-| Brand workspace menu | `renderSidebar` `data-brandmenu` | ported | Current wired preview exposes only preview-relevant workspace actions and retains the Preview chip; account/admin rows are intentionally omitted after owner feedback. |
+| Static Production workspace brand | `renderSidebar` `data-brandmenu` | ported | Current wired preview removes the workspace menu entirely and retains the Preview chip; account/admin and preview shortcut rows are intentionally omitted after owner feedback. |
 | Comment/issue/project write mutations | `commentEdit`, `commentEditCancel`, `commentDelete`, `delCount`, `delUndo`, `delUndoOrder`, `ctrlZUndo`, `nowLabel`, `activityLogged`, `childActivityLogged`, `boardDrag`, `moveNoop`, `addSubKeepOpen`, `draftPersist`, `editedMarker`, `composerTextarea`, favorites | deferred-B3 | These assertions require mutating comments, issues, projects, favorites, drafts, or the undo stack. B2 keeps the matching chrome guarded with `Preview - read-only`. |
 
 ## 2026-07-06 Pixel-Parity Foundation
@@ -296,3 +296,14 @@ Owner-accepted wired-exceeds-artifact divergences:
 
 1. The wired Projects board filter is live and local while the artifact board filter remains a toast stub.
 2. The wired tab keeps filters across sidebar navigation while the artifact clears them.
+
+## 2026-07-09 Owner Feedback Follow-Up
+
+Owner-feedback refinements applied on top of the read-only wired tab:
+
+1. `?prod=1` now maps to a Production-specific pre-paint skeleton instead of briefly showing the Analytics loading surface on refresh.
+2. The Production workspace menu is removed entirely; `.prod-brand` is static and `brandNoMenu`/structure tests reject `data-prod-brandmenu`.
+3. Project-detail grouped issue hover bands now align with group headers, and the Display menu remains responsible for real Status/Client/Assignee regrouping plus Show sub-issues.
+4. `_prodRender()` clears stale tooltips before navigation draws the next view, covering the parent-link `Open parent` tooltip.
+5. Sub-issue breadcrumbs label `Sub-issue` but omit the child issue ID; the title remains visible after the label.
+6. Production-scoped `contextmenu` handling suppresses the browser menu for inert areas such as group headers while preserving app context menus for rows/cards/detail surfaces.

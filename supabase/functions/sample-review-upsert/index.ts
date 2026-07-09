@@ -10,6 +10,7 @@
 //   SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
+import { captureGraphicTweakBaseline } from "../_shared/thumbnail-revisions.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -443,6 +444,18 @@ Deno.serve(async (req: Request) => {
     const sample = stripPrivate(guarded);
     const existsAlready = !!(existingRead.row && existingRead.row.id);
     await writeSampleRow(supabase, client, sample, existsAlready);
+
+    waitUntil(captureGraphicTweakBaseline({
+      supabase,
+      surface: "samples",
+      client,
+      sourceId: id,
+      incoming: sample,
+      patch: built.row,
+      existing: existingRead.row,
+      actor: { actor: clean(built.row.kasper_approved_by) || null, role: null, source: "ui" },
+      now: isoNow(),
+    }));
 
     const events = buildEvents(client, sample, built.row, existingRead.row, isoNow());
     waitUntil(insertEvents(supabase, events));

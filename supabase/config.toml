@@ -49,6 +49,11 @@ verify_jwt = false
 [functions.thumbnail-folder-resolve]
 verify_jwt = false
 
+# Manual/scheduled scanner for pending thumbnail revision baselines. If the
+# THUMBNAIL_REVISION_SCAN_KEY secret is set, callers must send X-Syncview-Key.
+[functions.thumbnail-revision-scan]
+verify_jwt = false
+
 # Track B B0 auth verifiers. Both are callable from the static browser app and
 # enforce/log with the service role internally; JWT verification stays off.
 [functions.client-token-verify]

@@ -26,6 +26,12 @@ const importPanelIndex = menu.indexOf('id="calImportPanel"');
 ok(titleReviewIndex >= 0, 'Calendar kebab menu is missing YouTube title review.');
 ok(importToggleIndex > titleReviewIndex, 'Import toggle must sit after YouTube title review.');
 ok(importPanelIndex > importToggleIndex, 'Import actions must live below the Import toggle.');
+ok(menu.includes('>Caption prompt</button>'), 'Calendar kebab should label the caption prompt action without Edit.');
+ok(menu.includes('>Platform</button>'), 'Calendar kebab should label the platform action without Edit.');
+ok(!menu.includes('>Edit caption prompt</button>'), 'Calendar kebab should not say Edit caption prompt.');
+ok(!menu.includes('>Edit platforms</button>'), 'Calendar kebab should not say Edit platforms.');
+ok(source.includes('<h3>Platform</h3>'), 'Platform modal title should match the simplified menu label.');
+ok(!source.includes('<h3>Edit platforms</h3>'), 'Platform modal title should not say Edit platforms.');
 ok(menu.includes('<span class="cal-kebab-label">Import</span>'), 'Import toggle should be labeled Import.');
 ok(menu.includes('onclick="_calToggleImportActions(event)"'), 'Import toggle should expand in place.');
 

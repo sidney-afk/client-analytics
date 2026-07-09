@@ -78,7 +78,6 @@ async function reset(page, stateName) {
     _prodState.openBatchId = '';
     _prodState.openProjectId = '';
     _prodState.tab = 'active';
-    _prodState.projectTab = 'open';
     _prodState.projectDetailsOpen = true;
     _prodState.groupBy = 'status';
     _prodState.orderBy = 'due';
@@ -146,7 +145,6 @@ async function snapshot(page) {
       openBatchId: _prodState.openBatchId,
       openProjectId: _prodState.openProjectId,
       tab: _prodState.tab,
-      projectTab: _prodState.projectTab,
       secOpen: JSON.stringify(_prodState.secOpen || {}),
       filters: JSON.stringify(_prodState.filters || []),
       groupBy: _prodState.groupBy,

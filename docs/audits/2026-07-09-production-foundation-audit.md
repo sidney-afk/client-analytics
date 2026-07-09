@@ -47,8 +47,8 @@ Final Production gates after the fix:
 | Gate | Result |
 |---|---:|
 | `node docs/syncview-design/tests/behav-wired.js` | pass, 156/156 guard-mode assertions |
-| `node docs/syncview-design/tests/prod-interaction-inventory.js` | pass: sampled unique controls across list/detail/board/project states, right-click menus, hover tips, scroll reset, breadcrumb/body context, pointer cursor, guarded add-sub-issue affordance, and no writes/errors |
-| `node docs/syncview-design/tests/prod-structure-subset.js` | pass: structural detail coverage includes compact activity rows, title-first sub-issue rows with project metadata, child `Sub-issue of` context, and leaf add-sub-issue affordance |
+| `node docs/syncview-design/tests/prod-interaction-inventory.js` | pass: sampled unique controls across list/detail/board/project states, right-click menus, hover tips, scroll reset, breadcrumb/body context, project toolbar display grouping/show-sub-issues behavior, pointer cursor, guarded add-sub-issue affordance, and no writes/errors |
+| `node docs/syncview-design/tests/prod-structure-subset.js` | pass: structural detail coverage includes compact activity rows, title-first sub-issue rows with project metadata, child `Sub-issue of` context, leaf add-sub-issue affordance, project-detail tab removal, project toolbar order, project Display grouping, Show sub-issues, and workspace-menu cleanup |
 | `node docs/syncview-design/tests/pixel-wired.js` | pass in light and dark |
 | `node qa/master.js --profile=fast --no-server` with a local static server | pass/fail lanes green: unit, parity, probes, scenarios, visual capture |
 | focused human/vision screenshot review | pass after mobile header and detail-crumb fixes |
@@ -178,17 +178,44 @@ ID/project label on one line and truncates the trailing title instead.
 
 No data, flags, backend code, n8n workflows, or Supabase objects were touched.
 
+### P2: Project detail toolbar kept copied controls without coherent behavior
+
+User-visible paths:
+
+1. Open a Production project detail.
+2. Use the Open / Closed / All issues tabs.
+3. Use the Display menu's `Group by` and `Show sub-issues` controls.
+4. Open the sidebar workspace menu.
+
+Expected behavior: every visible project-detail control either changes the visible issue map,
+opens a useful local preview menu, or is removed. Workspace-level actions should match this
+read-only Production preview, not account/admin chrome copied from Linear.
+
+Actual behavior before this pass: the project detail exposed Open / Closed / All issues tabs
+that were unclear in this app, while project Display controls did not fully regroup or hide/show
+project child rows. The Project details toggle was separated from the Filter/Display toolbar,
+and the workspace menu exposed irrelevant Settings, Invite members, and Log out actions.
+
+Fix: project details now show one coherent issue list. The unclear status tabs are removed,
+Project details sits as an icon control next to Filter, Display regrouping works for Status,
+Client, and Assignee, and `Show sub-issues` hides/shows child issue rows in the project view.
+The workspace menu now contains only preview-relevant actions: All issues, All projects, and
+Copy current link.
+
+No data, flags, backend code, n8n workflows, or Supabase objects were touched.
+
 ## Current interaction map
 
 ### Works as live read-only navigation/local UI
 
-- Sidebar workspace/team navigation
+- Sidebar workspace/team navigation and preview-relevant workspace menu actions
 - My issues, team issues, and Projects board navigation
 - Client/project chips and project group headers
 - Detail, batch, and project deep links
 - Browser back/forward and refresh restoration
-- Project detail tabs: Open, Closed, All issues
-- Project details side-panel toggle
+- Project detail issue grouping by Status, Client, or Assignee
+- Project detail Show sub-issues toggle
+- Project details side-panel toggle next to Filter
 - Search button, Slash, and Cmd/Ctrl+K command palette
 - Filter menu, filter value search, filter pills, remove/clear filters
 - Display menu grouping/order/show-sub-issues controls
@@ -247,6 +274,7 @@ This pass is reversible by reverting the July 9 Production hardening PR or the s
 
 - the `index.html` Escape propagation fix;
 - the mobile app-header and Production detail-crumb polish rules;
+- the project toolbar/display/menu cleanup;
 - this audit report;
 - the parity/doc ledger updates.
 

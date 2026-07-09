@@ -39,6 +39,11 @@ verify_jwt = false
 [functions.caption-prompts-save]
 verify_jwt = false
 
+# Filming plan source of truth. Browser reads use anon RLS; writes are public
+# HTTP calls gated inside the function by ONBOARDING_STAFF_KEY.
+[functions.filming-plans]
+verify_jwt = false
+
 # Track B B0 auth verifiers. Both are callable from the static browser app and
 # enforce/log with the service role internally; JWT verification stays off.
 [functions.client-token-verify]

@@ -44,6 +44,11 @@ verify_jwt = false
 [functions.filming-plans]
 verify_jwt = false
 
+# Browser-triggered resolver for Google Drive thumbnail parent folders. It
+# verifies the target row's thumbnail_url before updating derived folder fields.
+[functions.thumbnail-folder-resolve]
+verify_jwt = false
+
 # Track B B0 auth verifiers. Both are callable from the static browser app and
 # enforce/log with the service role internally; JWT verification stays off.
 [functions.client-token-verify]

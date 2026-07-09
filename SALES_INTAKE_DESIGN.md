@@ -52,8 +52,8 @@ inside SyncView.
 | 6 | Deliverables for client | textarea | yes | Kasper writes these himself, free text. Fills the deliverables placeholder. |
 | 7 | Billing type | radio | yes | Four options: Monthly standard, Quarterly standard, Custom recurring, One-time project fee. Drives the invoice amount, Stripe link behavior, and agreement billing-period wording. |
 | 8 | Recurring cadence | radio | conditional | Only shown/required for Custom recurring. Kasper picks every 4 weeks or every 12 weeks so the agreement and email use the right recurring wording. |
-| 9 | Invoice amount | text currency (USD) | yes | Locked for Monthly standard ($2,997) and Quarterly standard ($7,991). Free entry for Custom recurring and One-time project fee. |
-| 10 | Payment link | locked radio + url | yes | Monthly standard is locked to the fixed 4-week Stripe link, Quarterly standard is locked to the fixed 12-week Stripe link. Custom recurring and One-time require a pasted custom Stripe link that matches the custom amount. |
+| 9 | Invoice amount | text currency (USD) | yes | Monthly standard ($2,997) and Quarterly standard ($7,991) show a fixed summary only. Free entry appears only for Custom recurring and One-time project fee. |
+| 10 | Payment link | fixed summary or url | yes | Monthly standard shows the fixed 4-week Stripe link, Quarterly standard shows the fixed 12-week Stripe link. Custom recurring and One-time show only a pasted custom Stripe link field. The internal link-choice value remains hidden so the n8n payload stays compatible. |
 | 11 | Termination clause | radio | yes | **Regular** → the standard clause (verbatim text below; also to be hosted on synchrosocial.com, not Notion). **Custom** → a textarea appears and Kasper pastes the clause. Both options show for every billing type. |
 | 12 | Referred by | text | no | From the reference form; the only optional field on it. |
 
@@ -105,14 +105,26 @@ Kasper to paste the custom Stripe link he created for that exact amount.)
 Follow the app's standard write path (browser never calls third parties directly):
 
 ```
-Sales Intake tab ─POST {submission}─▶ n8n `sales-intake-submit`
-    ├─▶ Supabase `sales_intakes` insert  (audit log / status)
-    ├─▶ eSignatures.com API — create contract from the Sales & Service
-    │    Agreement template, placeholder_fields from the form,
-    │    signer = client email
-    ├─▶ ONE combined email to the client: agreement signing link + the
-    │    Stripe payment link together (decision: Sidney, 2026-07-02)
-    └─▶ Slack DM confirmation (mirror the onboarding-submit pattern)
+Sales Intake tab ─POST {action, submission}─▶ n8n `sales-intake-submit`
+    ├─▶ action `preview_contract`
+    │   ├─▶ Supabase `sales_intakes` insert  (status: preview_requested)
+    │   ├─▶ eSignatures.com API — create contract from the Sales & Service
+    │   │    Agreement template, placeholder_fields from the form,
+    │   │    signer = client email
+    │   ├─▶ Supabase update (status: preview_created, contract id)
+    │   └─▶ respond with signing URL; no client email is sent
+    ├─▶ action `send_existing_contract`
+    │   ├─▶ Supabase update existing preview row (status: contract_created)
+    │   ├─▶ respond with the same preview signing URL
+    │   ├─▶ Gmail sends ONE combined email to the client with that signing
+    │   │    URL + the Stripe payment link
+    │   └─▶ Slack DM confirmation
+    └─▶ default submit
+        ├─▶ Supabase `sales_intakes` insert  (audit log / status)
+        ├─▶ eSignatures.com API create contract
+        ├─▶ respond with signing URL
+        ├─▶ Gmail sends ONE combined email to the client
+        └─▶ Slack DM confirmation (mirror the onboarding-submit pattern)
 
 **Combined email — two ways to implement, pick whichever the eSignatures API
 supports more cleanly:** (a) customize the eSignatures signing-request email so its
@@ -124,10 +136,16 @@ email with both the agreement and the invoice link.
 
 - Autosave a draft to localStorage while typing; clear on successful submit; on webhook
   failure keep the draft and show retry (same behaviour as the onboarding form).
-- Show a live email preview before submit. The preview uses the same computed
-  billing rules/helper field names that the published n8n workflow recomputes for
-  the actual combined email; the only unknown value before submit is the
-  eSignatures signing URL, which is inserted after contract creation.
+- Show a live email preview before submit. The Stripe button opens the actual
+  Stripe link in a new tab. The agreement button is disabled-looking until Kasper
+  clicks **Generate agreement preview**.
+- **Generate agreement preview** creates the eSignatures agreement but does not
+  send the client email. The returned signing URL turns the preview agreement
+  button into a real link. If Kasper edits any form value afterward, the preview
+  is invalidated so the final send cannot reuse stale agreement content.
+- **Create agreement & send** reuses the generated preview agreement when it still
+  matches the current form. If Kasper skips preview, the old one-click path still
+  creates the agreement and sends the combined email.
 - Success state should show what was created (client, amount, which link was sent) so
   Kasper can eyeball it.
 
@@ -151,7 +169,15 @@ submission payload.
 
 ### n8n workflow
 
-New workflow `sales-intake-submit` (webhook POST), built like `onboarding-submit`
+Action modes:
+
+- omitted/default: create the agreement and send the client email in one run.
+- `preview_contract`: create the agreement and return the signing URL without
+  sending Gmail.
+- `send_existing_contract`: send the combined email using the previously returned
+  preview signing URL and contract id.
+
+Workflow `sales-intake-submit` (webhook POST), built like `onboarding-submit`
 (webhook → build row → Supabase insert → Slack), plus two HTTP Request nodes:
 
 - **eSignatures.com** — create contract from template. Secrets stay in n8n

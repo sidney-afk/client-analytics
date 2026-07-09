@@ -5952,11 +5952,15 @@
         .si-pill input:checked + span { border-color: var(--sv-border-5e6ad2); background: var(--sv-bg-rgba-94-106-210-_08); color: var(--sv-fg-4a54b8); }
         .si-pill input:disabled + span { cursor: default; opacity: 0.7; }
         .si-pill input:disabled:not(:checked) + span { background: var(--bg); }
+        .si-locked-value { border: 1px solid var(--border-light); border-radius: 9px; background: var(--bg); padding: 9px 11px; color: var(--text-secondary); font-size: 0.82rem; line-height: 1.45; word-break: break-word; }
+        .si-locked-value a { color: var(--sv-fg-4a54b8); font-weight: 700; text-decoration: none; }
+        .si-locked-value a:hover { text-decoration: underline; }
         .si-linkprev { font-size: 0.72rem; color: var(--text-muted); word-break: break-all; }
         .si-linkprev b { color: var(--text-secondary); font-weight: 700; }
         .si-clause { font-size: 0.74rem; color: var(--text-secondary); line-height: 1.55; background: var(--bg); border: 1px solid var(--border-light); border-radius: 9px; padding: 10px 12px; }
         .si-preview { border-top: 1px solid var(--border-light); margin-top: 18px; padding-top: 18px; }
-        .si-preview-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+        .si-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+        .si-preview-head-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
         .si-preview-title { font-size: 0.78rem; font-weight: 800; color: var(--text-primary); }
         .si-preview-subject { font-size: 0.72rem; color: var(--text-muted); text-align: right; }
         .si-email-preview { border: 1px solid var(--border-light); border-radius: 10px; background: var(--white); padding: 16px; color: var(--text-primary); font-family: Arial, sans-serif; font-size: 0.8rem; line-height: 1.45; }
@@ -5965,6 +5969,7 @@
         .si-email-preview .si-email-divider { padding-bottom: 12px; border-bottom: 1px solid var(--border-light); margin-bottom: 14px; }
         .si-email-preview .si-email-btn { display: inline-block; border-radius: 8px; padding: 10px 14px; color: var(--sv-fg-fff); font-weight: 700; text-decoration: none; }
         .si-email-preview .si-email-btn.sign { background: var(--sv-bg-a020f0); }
+        .si-email-preview .si-email-btn.sign.disabled { background: var(--sv-bg-ede9fe); color: var(--sv-fg-5b21b6); cursor: default; pointer-events: none; }
         .si-email-preview .si-email-btn.pay { background: var(--sv-bg-111); }
         .si-email-preview .si-email-signature { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
         .si-email-preview .si-email-signature img { width: 34px; height: 34px; border-radius: 8px; }
@@ -5978,6 +5983,9 @@
         .si-btn:disabled { opacity: 0.55; cursor: default; }
         .si-btn-ghost { border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.78rem; font-weight: 600; padding: 8px 14px; border-radius: 9px; cursor: pointer; }
         .si-btn-ghost:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
+        .si-btn-ghost:disabled { opacity: 0.55; cursor: default; }
+        .si-btn-link { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.78rem; font-weight: 700; padding: 8px 14px; border-radius: 9px; cursor: pointer; text-decoration: none; }
+        .si-btn-link:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
         .si-done { background: var(--white); border: 1px solid var(--border-light); border-radius: 14px; padding: 34px 30px; text-align: center; box-shadow: 0 2px 10px var(--sv-shadow-rgba-0-0-0-0_04); }
         .si-done-ico { width: 46px; height: 46px; border-radius: 50%; background: var(--sv-bg-dcfce7); color: var(--sv-fg-16a34a); font-size: 1.4rem; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
         .si-done h2 { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 6px; }
@@ -37142,6 +37150,7 @@
     const SI_BILLING_LABELS = { monthly: 'Monthly - $2,997 / 4 weeks', quarterly: 'Quarterly - $7,991 / 12 weeks', custom_recurring: 'Custom recurring', one_time: 'One-time project fee' };
     const SI_CADENCE_LABELS = { four_week: 'Every 4 weeks', twelve_week: 'Every 12 weeks' };
     const SI_LINK_LABELS = { monthly: '4-week Stripe link', quarterly: '12-week Stripe link', custom: 'Custom link' };
+    let _siAgreementPreview = null;
 
     // ---- pure helpers (unit-tested in test/sales-intake-form.js) ----
     function _siIsStandardBilling(billing) {
@@ -37272,17 +37281,28 @@
             billing_schedule_words: display.billing_schedule_words
         };
     }
+    function _siAgreementFingerprint(s) {
+        const keys = ['client_name', 'client_email', 'instagram', 'contract_start_date', 'deliverables', 'billing_type', 'billing_cadence', 'invoice_amount', 'payment_link', 'termination_clause_type', 'termination_clause_text', 'referred_by'];
+        return JSON.stringify(keys.map(k => [k, s[k] == null ? '' : String(s[k])]));
+    }
+    function _siCurrentAgreementPreview(s) {
+        const p = _siAgreementPreview;
+        return p && p.fingerprint === _siAgreementFingerprint(s) ? p : null;
+    }
     function _siEmailSubject(s) { return (s.first_name || 'there') + ', your Synchro Social agreement + first invoice'; }
     function _siBuildEmailHtml(s, signUrl) {
-        const signHref = signUrl || '#agreement-link-after-submit';
+        const signHref = String(signUrl || '').trim();
         const payHref = s.payment_link || '#payment-link';
+        const signClass = signHref ? 'si-email-btn sign' : 'si-email-btn sign disabled';
+        const signAttrs = signHref ? ' href="' + _obEsc(signHref) + '" target="_blank" rel="noopener"' : ' href="#" aria-disabled="true"';
+        const payAttrs = /^https?:\/\//i.test(payHref) ? ' href="' + _obEsc(payHref) + '" target="_blank" rel="noopener"' : ' href="#" aria-disabled="true"';
         return '<div class="si-email-divider"><img class="si-email-logo" src="https://synchrosocial.com/images/logo.png" alt="Synchro Social"></div>' +
             '<p>Hi ' + _obEsc(s.first_name || 'there') + ',</p>' +
             '<p>It was great talking with you — welcome aboard. Here&#39;s everything to make it official. Two quick steps and we get to work:</p>' +
             '<p><strong>Step 1 — Review and sign your agreement.</strong> It takes about two minutes:</p>' +
-            '<p><a class="si-email-btn sign" href="' + _obEsc(signHref) + '">Review &amp; sign the agreement</a></p>' +
+            '<p><a class="' + signClass + '"' + signAttrs + '>Review &amp; sign the agreement</a></p>' +
             '<p><strong>Step 2 — Take care of your first invoice</strong> — ' + _obEsc(s.amount_fmt) + ' (' + _obEsc(s.billing_line) + '):</p>' +
-            '<p><a class="si-email-btn pay" href="' + _obEsc(payHref) + '">Pay the invoice</a></p>' +
+            '<p><a class="si-email-btn pay"' + payAttrs + '>Pay the invoice</a></p>' +
             '<p>Once both are done, your onboarding email lands in your inbox and the team gets moving on your content. If anything looks off, just reply to this email.</p>' +
             '<p>Warmly,</p>' +
             '<div class="si-email-signature"><img src="https://synchrosocial.com/images/logo.png" alt="Synchro Social"><div class="si-email-sig-text"><strong>Kasper</strong><br><a href="https://www.synchrosocial.com">synchrosocial.com</a></div></div>';
@@ -37315,11 +37335,11 @@
             _siField({ id: 'deliverables', label: 'Deliverables for client', type: 'textarea', full: true, placeholder: 'What the client gets - free text, goes straight into the agreement.' }) +
             _siField({ id: 'billing_type', label: 'Billing type', type: 'radio', full: true, options: [['monthly', SI_BILLING_LABELS.monthly], ['quarterly', SI_BILLING_LABELS.quarterly], ['custom_recurring', SI_BILLING_LABELS.custom_recurring], ['one_time', SI_BILLING_LABELS.one_time]] }) +
             _siField({ id: 'billing_cadence', label: 'Recurring cadence', type: 'radio', full: true, options: [['four_week', SI_CADENCE_LABELS.four_week], ['twelve_week', SI_CADENCE_LABELS.twelve_week]], help: 'Required only for custom recurring packages.' }) +
-            _siField({ id: 'invoice_amount', label: 'Invoice amount (USD)', type: 'text', inputmode: 'decimal', placeholder: '0.00', help: 'Standard packages are fixed. Custom recurring and one-time deals use a custom amount.' }) +
+            _siField({ id: 'invoice_amount', label: 'Invoice amount (USD)', type: 'text', inputmode: 'decimal', placeholder: '0.00', help: 'Custom recurring and one-time deals use a custom amount.', after: '<div class="si-locked-value" id="siAmountSummary" style="display:none"></div>' }) +
             _siField({
                 id: 'payment_link_choice', label: 'Payment link', type: 'radio',
                 options: [['monthly', SI_LINK_LABELS.monthly], ['quarterly', SI_LINK_LABELS.quarterly], ['custom', SI_LINK_LABELS.custom]],
-                help: 'Locked by billing type. Custom recurring and one-time deals require a custom Stripe link.',
+                help: 'Custom recurring and one-time deals require the Stripe link created for that exact amount.',
                 after: '<input class="si-input" type="url" data-si="payment_link_custom" placeholder="https://buy.stripe.com/..." style="display:none;margin-top:6px">' +
                     '<div class="si-linkprev" id="siLinkPrev"></div>'
             }) +
@@ -37356,17 +37376,27 @@
     function _siSyncBillingControls(resetAmount) {
         const d = _siSerialize();
         const amount = document.querySelector('[data-si="invoice_amount"]');
+        const amountSummary = document.getElementById('siAmountSummary');
         const standardAmount = _siAmountForBilling(d.billing_type);
         if (amount) {
             const customAmount = _siAllowsCustomAmount(d.billing_type);
             amount.readOnly = !customAmount;
+            amount.style.display = customAmount ? '' : 'none';
             if (_siIsStandardBilling(d.billing_type)) amount.value = standardAmount;
             else if (resetAmount) amount.value = '';
+        }
+        if (amountSummary) {
+            const showSummary = _siIsStandardBilling(d.billing_type);
+            amountSummary.style.display = showSummary ? '' : 'none';
+            amountSummary.textContent = showSummary ? _siFmtUsd(standardAmount) + ' fixed package amount' : '';
         }
         const expectedLink = _siLinkChoiceForBilling(d.billing_type);
         if (expectedLink) _siSetRadio('payment_link_choice', expectedLink);
         const linkGroup = document.querySelector('[data-si-radio="payment_link_choice"]');
-        if (linkGroup) linkGroup.querySelectorAll('input').forEach(i => { i.disabled = !!expectedLink; });
+        if (linkGroup) {
+            linkGroup.style.display = 'none';
+            linkGroup.querySelectorAll('input').forEach(i => { i.disabled = !!expectedLink; });
+        }
         const cadenceQ = document.querySelector('[data-si-q="billing_cadence"]');
         if (cadenceQ) cadenceQ.style.display = _siRequiresCadence(d.billing_type) ? '' : 'none';
         if (!_siRequiresCadence(d.billing_type)) _siSetRadio('billing_cadence', '');
@@ -37375,9 +37405,12 @@
         const box = document.getElementById('siEmailPreview');
         if (!box) return;
         const s = _siBuildSubmission(_siSerialize());
-        box.innerHTML = '<div class="si-preview-head"><div class="si-preview-title">Email preview</div>' +
+        const preview = _siCurrentAgreementPreview(s);
+        const btnText = preview ? 'Agreement preview ready' : 'Generate agreement preview';
+        box.innerHTML = '<div class="si-preview-head"><div class="si-preview-head-main"><div class="si-preview-title">Email preview</div>' +
             '<div class="si-preview-subject">' + _obEsc(_siEmailSubject(s)) + '</div></div>' +
-            '<div class="si-email-preview">' + _siBuildEmailHtml(s) + '</div>';
+            '<button type="button" class="si-btn-ghost" id="siPreviewAgreementBtn" onclick="_siGenerateAgreementPreview()" ' + (preview ? 'disabled' : '') + '>' + btnText + '</button></div>' +
+            '<div class="si-email-preview">' + _siBuildEmailHtml(s, preview && preview.sign_url) + '</div>';
     }
     // Reflect current picks into the dependent controls: custom-link input,
     // link preview, clause preview/textarea, and the email preview.
@@ -37385,11 +37418,14 @@
         _siSyncBillingControls(false);
         const d = _siSerialize();
         const customUrl = document.querySelector('[data-si="payment_link_custom"]');
-        if (customUrl) customUrl.style.display = d.payment_link_choice === 'custom' ? '' : 'none';
+        const customPayment = _siLinkChoiceForBilling(d.billing_type) === 'custom';
+        if (customUrl) customUrl.style.display = customPayment ? '' : 'none';
         const prev = document.getElementById('siLinkPrev');
         if (prev) {
             const url = _siResolvePaymentLink(d);
-            prev.innerHTML = url ? '<b>Sends:</b> ' + _obEsc(url) : (d.payment_link_choice === 'custom' ? 'Paste the Stripe link Kasper created for this deal.' : '');
+            if (_siIsStandardBilling(d.billing_type) && url) prev.innerHTML = '<div class="si-locked-value"><b>Stripe link:</b> <a href="' + _obEsc(url) + '" target="_blank" rel="noopener">' + _obEsc(url) + '</a></div>';
+            else if (customPayment && url) prev.innerHTML = '<b>Stripe link:</b> <a href="' + _obEsc(url) + '" target="_blank" rel="noopener">Open pasted Stripe link</a>';
+            else prev.innerHTML = customPayment ? 'Paste the Stripe link Kasper created for this deal.' : '';
         }
         const clausePrev = document.getElementById('siClausePrev');
         if (clausePrev) clausePrev.style.display = d.termination_clause_type === 'regular' ? '' : 'none';
@@ -37415,8 +37451,28 @@
         form.querySelectorAll('[data-si-radio]').forEach(g => { const v = d[g.getAttribute('data-si-radio')]; if (v) { const i = g.querySelector('input[value="' + v + '"]'); if (i) i.checked = true; } });
     }
     function _siClearForm() {
+        _siAgreementPreview = null;
         try { localStorage.removeItem(SI_DRAFT_KEY); } catch (e) {}
         _kasperRenderSalesIntake();
+    }
+
+    function _siInvalidateAgreementPreview() {
+        if (_siAgreementPreview) _siAgreementPreview = null;
+    }
+
+    function _siShowMissing(miss, message) {
+        const err = document.getElementById('siErr');
+        document.querySelectorAll('.si-q.si-missing').forEach(q => q.classList.remove('si-missing'));
+        if (err) {
+            err.style.display = 'block';
+            err.textContent = message || ('Please fill the highlighted fields (' + miss.length + ' left).');
+        }
+        let first = null;
+        miss.forEach(k => {
+            const q = document.querySelector('[data-si-q="' + k + '"]') || document.querySelector('[data-si-q="' + k.replace(/_custom$/, '_choice') + '"]') || document.querySelector('[data-si-q="' + k.replace(/_custom$/, '_type') + '"]');
+            if (q) { q.classList.add('si-missing'); if (!first) first = q; }
+        });
+        if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
     function mountSalesIntakeView() {
@@ -37428,9 +37484,10 @@
         const d = _siSerialize();
         if (!d.closed_by) _siSetRadio('closed_by', 'Kasper'); // only closer today
         _siSyncVisibility();
-        form.addEventListener('input', () => { _siSyncVisibility(); _siSaveDraftDebounced(); });
+        form.addEventListener('input', () => { _siInvalidateAgreementPreview(); _siSyncVisibility(); _siSaveDraftDebounced(); });
         form.addEventListener('change', e => {
             const t = e.target;
+            _siInvalidateAgreementPreview();
             if (t && t.name === 'si_billing_type') _siBillingChanged();
             else if (t && (t.name === 'si_payment_link_choice' || t.name === 'si_billing_cadence' || t.name === 'si_termination_clause_type')) _siSyncVisibility();
             _siSaveDraftDebounced();
@@ -37440,17 +37497,45 @@
         if (cu) cu.addEventListener('input', _siSyncVisibility);
     }
 
+    function _siGenerateAgreementPreview() {
+        const err = document.getElementById('siErr');
+        const d = _siSerialize();
+        const miss = _siValidate(d);
+        if (miss.length) {
+            _siShowMissing(miss, 'Fill the highlighted fields before generating the agreement preview.');
+            return;
+        }
+        if (err) err.style.display = 'none';
+        const btn = document.getElementById('siPreviewAgreementBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Generating agreement...'; }
+        const submission = _siBuildSubmission(d);
+        _obPost(SALES_INTAKE_SUBMIT_URL, { action: 'preview_contract', submission }, 45000)
+            .then(resp => {
+                if (!resp || !resp.sign_url || !resp.contract_id || !resp.id) throw new Error('preview_missing_sign_url');
+                _siAgreementPreview = {
+                    id: String(resp.id),
+                    contract_id: String(resp.contract_id),
+                    sign_url: String(resp.sign_url),
+                    fingerprint: _siAgreementFingerprint(submission)
+                };
+                if (err) err.style.display = 'none';
+                _siRenderEmailPreview();
+            })
+            .catch(e => {
+                if (btn) { btn.disabled = false; btn.textContent = 'Generate agreement preview'; }
+                if (err) {
+                    err.style.display = 'block';
+                    err.textContent = 'Could not generate the agreement preview (' + ((e && e.message) || 'network error') + '). Your form draft is still saved.';
+                }
+            });
+    }
+
     function _siSubmit() {
         const err = document.getElementById('siErr');
         const d = _siSerialize();
         const miss = _siValidate(d);
-        document.querySelectorAll('.si-q.si-missing').forEach(q => q.classList.remove('si-missing'));
         if (miss.length) {
-            err.style.display = 'block';
-            err.textContent = 'Please fill the highlighted fields (' + miss.length + ' left).';
-            let first = null;
-            miss.forEach(k => { const q = document.querySelector('[data-si-q="' + k + '"]') || document.querySelector('[data-si-q="' + k.replace(/_custom$/, '_choice') + '"]') || document.querySelector('[data-si-q="' + k.replace(/_custom$/, '_type') + '"]'); if (q) { q.classList.add('si-missing'); if (!first) first = q; } });
-            if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            _siShowMissing(miss);
             return;
         }
         err.style.display = 'none';
@@ -37459,8 +37544,19 @@
         const submission = _siBuildSubmission(d);
         // Draft is only cleared on success — a failed webhook keeps everything
         // typed so Kasper can just hit the button again (onboarding-form rule).
-        _obPost(SALES_INTAKE_SUBMIT_URL, { submission }, 45000)
+        const preview = _siCurrentAgreementPreview(submission);
+        const payload = preview ? {
+            action: 'send_existing_contract',
+            submission: Object.assign({}, submission, {
+                preview_id: preview.id,
+                preview_contract_id: preview.contract_id,
+                preview_sign_url: preview.sign_url
+            })
+        } : { submission };
+        if (preview) btn.textContent = 'Sending agreement...';
+        _obPost(SALES_INTAKE_SUBMIT_URL, payload, 45000)
             .then(resp => {
+                _siAgreementPreview = null;
                 try { localStorage.removeItem(SI_DRAFT_KEY); } catch (e) {}
                 _siShowDone(submission, resp || {});
             })
@@ -37474,6 +37570,10 @@
     function _siShowDone(s, resp) {
         const card = document.getElementById('siCard'); if (!card) return;
         const row = (k, v) => '<div class="si-done-row"><span class="k">' + k + '</span><span class="v">' + v + '</span></div>';
+        const signUrl = resp && resp.sign_url ? String(resp.sign_url) : '';
+        const actionLinks = (signUrl ? '<a class="si-btn-link" href="' + _obEsc(signUrl) + '" target="_blank" rel="noopener">Open agreement</a>' : '') +
+            (s.payment_link ? '<a class="si-btn-link" href="' + _obEsc(s.payment_link) + '" target="_blank" rel="noopener">Open invoice</a>' : '') +
+            '<button type="button" class="si-btn" onclick="_siClearForm()">New intake</button>';
         card.className = 'si-done';
         card.innerHTML = '<div class="si-done-ico">✓</div><h2>Intake sent</h2>' +
             '<p>The agreement is being created and ' + _obEsc(s.client_email) + ' gets one email with the signing link and the invoice.</p>' +
@@ -37485,7 +37585,7 @@
             row('Termination clause', s.termination_clause_type === 'regular' ? 'Regular' : 'Custom') +
             (resp && resp.contract_id ? row('Contract', _obEsc(String(resp.contract_id))) : '') +
             '</div>' +
-            '<button type="button" class="si-btn" onclick="_siClearForm()">New intake</button>';
+            '<div class="si-actions" style="justify-content:center">' + actionLinks + '</div>';
         window.scrollTo({ top: 0, behavior: 'instant' });
     }
 

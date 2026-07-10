@@ -1,0 +1,65 @@
+name: Production polish task
+description: Turn rough Production tab feedback into an AI-ready, testable improvement.
+title: "[Production polish] "
+labels:
+  - production
+  - polish
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for anything that feels unfinished in the Production tab: layout, hover, click, right-click, keyboard, filter/display menus, routing, scroll position, loading skeletons, or Linear-style parity.
+  - type: input
+    id: route
+    attributes:
+      label: Where does it happen?
+      description: Paste the URL, route, or describe the Production view.
+      placeholder: "?prod=1&team=video&view=list, project detail, sub-issue detail..."
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What feels wrong?
+      description: Write it naturally. Mention hover, left-click, right-click, keyboard, scroll, refresh, selection, filter, display, or mobile if relevant.
+      placeholder: "When I select a project card and then deselect it, the blue border stays visible."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen instead?
+      placeholder: "It should behave like a finished Linear-style app: no stuck border, no clipped metadata, no visual jump."
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or recording
+      description: Drag screenshots here. Add arrows/notes if useful.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - List / Issues
+        - Project board
+        - Project detail
+        - Issue detail
+        - Sub-issue detail
+        - Menus / command palette
+        - Loading / refresh
+        - Mobile / narrow viewport
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: done
+    attributes:
+      label: Done means
+      options:
+        - label: The interaction is fixed in light and dark mode where relevant.
+        - label: Hover/focus/selection states clean up after click, Escape, and navigation.
+        - label: Text and metadata are not clipped at desktop, compact desktop, or mobile widths.
+        - label: The fix is covered by `npm run test:prod-polish` or a targeted Production test.
+        - label: Docs/rollback notes are updated when behavior or testing changes.

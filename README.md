@@ -79,6 +79,7 @@ No build step. Open `index.html` in a browser, or serve the folder statically.
 npm install        # installs Playwright (only needed for the E2E probes)
 npm test           # offline unit/wiring suite — no network; run before every commit
 npm run test:e2e   # headless end-to-end probes (these hit the live backend)
+npm run test:prod-polish  # full Production polish gate for ?prod=1 UI work
 ```
 
 ## Deployment

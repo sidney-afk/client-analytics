@@ -131,6 +131,7 @@ async function assertNoWriteRequests(requests) {
     await expectExactCount(page, '.prod-pop [data-prod-brand-action]', 0, 'brand workspace menu removed');
     if (!(await text(page, '.prod-preview-chip')).includes('Preview - read-only')) throw new Error('Preview chip missing');
     if (!(await page.locator('.prod-search-btn[title*="Search"]').count())) throw new Error('Search command button missing');
+    await expectExactCount(page, '.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]', 0, 'fake topbar favorite/notification controls');
     await page.keyboard.press('Slash');
     await expectCount(page, '.prod-cmd .prod-cmd-input', 1, 'Slash opens command palette');
     await page.keyboard.press('Escape');
@@ -144,7 +145,7 @@ async function assertNoWriteRequests(requests) {
     if (removedNav) throw new Error('Removed prototype navigation item leaked into sidebar');
 
     await expectCount(page, '.prod-group .prod-status svg', 1, 'status-group glyphs');
-    await expectCount(page, '.prod-group [data-prod-disabled="add-deliverable"][title="Preview - read-only"]', 1, 'disabled group add controls');
+    await expectExactCount(page, '.prod-listwrap .prod-group [data-prod-disabled="add-deliverable"]', 0, 'issue-list group add controls');
     const groupContextPrevented = await page.locator('.prod-group').first().evaluate(el => {
       const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, view: window });
       el.dispatchEvent(ev);
@@ -221,7 +222,7 @@ async function assertNoWriteRequests(requests) {
     await page.locator('#prodBulkActions').click();
     await expectCount(page, '#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', 1, 'bulk command menu search');
     const bulkLabels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
-    if (bulkLabels !== 'Assign to...|Change status...|Move to project...|Copy issue ID|Change due date...|Delete issue') throw new Error('Unexpected bulk command menu: ' + bulkLabels);
+    if (bulkLabels !== 'Assign to...|Change status...|Move to project...|Copy issue IDs|Change due date...|Delete issues') throw new Error('Unexpected bulk command menu: ' + bulkLabels);
     await page.evaluate(() => document.querySelector('#prodLayer [data-prod-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
     await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'bulk status guard picker');
     await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
@@ -261,12 +262,12 @@ async function assertNoWriteRequests(requests) {
     for (const tab of ['Active', 'Backlog', 'All issues']) {
       if (!(await page.locator('.prod-tab', { hasText: tab }).count())) throw new Error('Issue tab missing: ' + tab);
     }
-    if (!(await page.locator('.prod-icon-btn[title="Preview - read-only"]').count())) throw new Error('Topbar inert controls missing');
+    await expectExactCount(page, '.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]', 0, 'fake topbar favorite/notification controls');
 
     await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
     await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
-    const linkified = await page.evaluate(() => _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com'));
-    if (!linkified.includes('<strong>bold</strong>') || !linkified.includes('<code>code</code>') || !linkified.includes('<a href="https://ex.com"')) {
+    const linkified = await page.evaluate(() => _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com\n---\n## Client Resources\n**Instagram: [theopenposturedoc](<https://www.instagram.com/theopenposturedoc/#>)**\n**Brand Guidelines:** **[Document](<https://docs.google.com/document/d/abc/edit>)\n****Personal Pictures:** [**Folder**](<https://drive.google.com/drive/folders/abc>)'));
+    if (!linkified.includes('<strong>bold</strong>') || !linkified.includes('<code>code</code>') || !linkified.includes('<a href="https://ex.com"') || !linkified.includes('prod-md-heading') || !linkified.includes('prod-md-rule') || !linkified.includes('<strong>Instagram: <a href="https://www.instagram.com/theopenposturedoc/#"') || !linkified.includes('<strong>Brand Guidelines:</strong> <a href="https://docs.google.com/document/d/abc/edit"') || !linkified.includes('<strong>Personal Pictures:</strong> <a href="https://drive.google.com/drive/folders/abc"') || linkified.includes('****')) {
       throw new Error('Production markdown/link renderer does not match artifact shape');
     }
     await expectCount(page, '[data-prod-crumb-client]', 1, 'clickable client crumb');
@@ -299,6 +300,7 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '[data-prod-detail-card="properties"]', 1, 'Properties detail card');
     await expectCount(page, '[data-prod-detail-card="project"]', 1, 'Project detail card');
     if (!(await text(page, '.prod-activity')).includes('Activity')) throw new Error('Activity section missing');
+    if (await page.locator('.prod-activity .prod-skeleton').count()) throw new Error('Activity should not show unresolved skeleton bars in the read-only preview');
     const activityLinesAreCompact = await page.evaluate(() => {
       const act = document.querySelector('.prod-act');
       return !act || (!!act.querySelector('.prod-act-text') && !act.querySelector('.prod-act-meta'));
@@ -308,7 +310,7 @@ async function assertNoWriteRequests(requests) {
     await page.locator('[data-prod-disabled="composer"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     if (!(await text(page, '#prodToast')).includes('Preview - read-only')) throw new Error('Composer did not route to read-only guard');
-    if (!(await page.locator('[data-prod-disabled="detail-controls"][title="Preview - read-only"]:disabled').count())) throw new Error('Disabled detail controls missing');
+    await expectExactCount(page, '[data-prod-disabled="detail-controls"], .prod-disabled-pill', 0, 'detail disabled scaffold controls');
     await page.locator('[data-prod-prop="due"]').first().click();
     await expectCount(page, '.prod-duepop .prod-cal, .prod-duepop [data-prod-set="__custom__"]', 1, 'detail due property opens due popover');
     await page.locator('.prod-duepop [data-prod-set="__custom__"]').first().click().catch(() => {});
@@ -327,6 +329,9 @@ async function assertNoWriteRequests(requests) {
       await page.evaluate(id => window._prodOpenDeliverable(id), parentWithChild);
       await page.waitForSelector('[data-prod-section="subissues"] .prod-subrow', { timeout: 10000 });
       await expectCount(page, '[data-prod-disabled="add-subissue"][title="Preview - read-only"]', 1, 'guarded add sub-issue affordance');
+      if (!(await text(page, '[data-prod-section="subissues"] [data-prod-disabled="add-subissue"]')).includes('Add sub-issues')) {
+        throw new Error('Parent sub-issue affordance should use visible Add sub-issues text');
+      }
       const parentSubIssueShape = await page.evaluate(() => {
         const row = document.querySelector('[data-prod-section="subissues"] .prod-subrow');
         const id = row ? row.getAttribute('data-prod-subrow') : '';
@@ -372,7 +377,16 @@ async function assertNoWriteRequests(requests) {
     await page.locator('[data-prod-pcolcollapse]').first().click();
     await expectCount(page, '.prod-col.collapsed .prod-col-rail', 1, 'collapsed board column rail');
     await page.locator('[data-prod-pcolcollapse]').first().click();
-    await expectCount(page, '.prod-col-head [data-prod-disabled="add-client-board-card"][title="Preview - read-only"]', 1, 'disabled board add controls');
+    await expectCount(page, '.prod-col-head [data-prod-disabled="add-client-board-card"], .prod-col-head [data-prod-disabled="board-column-options"]', 0, 'fake board column add/options controls');
+    const emptyColumnsStatic = await page.evaluate(() => {
+      const emptyCols = [...document.querySelectorAll('.prod-col.is-empty')];
+      const cardCols = [...document.querySelectorAll('.prod-col.has-cards')];
+      return emptyCols.length > 0
+        && cardCols.length > 0
+        && emptyCols.every(col => !col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]'))
+        && cardCols.every(col => !col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]'));
+    });
+    if (!emptyColumnsStatic) throw new Error('Project-board columns should not show fake header add/options controls');
     await expectCount(page, '[data-prod-client-card]', 1, 'project cards');
     const card = page.locator('[data-prod-client-card]').first();
     for (const sel of ['.prod-card-check', '.prod-card-ico', '.prod-card-title', '.prod-card-status svg', '.prod-avatar']) {
@@ -413,17 +427,29 @@ async function assertNoWriteRequests(requests) {
     await page.locator('#prodGroupBtn').click();
     await page.locator('#prodLayer [data-prod-show-subissues]').click();
     await page.waitForTimeout(120);
-    if (childRowsBeforeToggle && await page.locator('[data-prod-project-parent]:not([data-prod-project-parent=""])').count()) {
+    const childRowsAfterToggle = await page.locator('[data-prod-project-parent]:not([data-prod-project-parent=""])').count();
+    if (childRowsBeforeToggle && childRowsAfterToggle) {
       throw new Error('Project Display Show sub-issues toggle did not hide project child rows');
     }
+    const projectSideCountTracksVisible = await page.evaluate(() => {
+      const visible = document.querySelectorAll('[data-prod-project-issue]').length;
+      const sideText = (document.querySelector('[data-prod-detail-card="project-issues"] .prod-side-row')?.textContent || '').trim();
+      return sideText === String(visible) + ' issue' + (visible === 1 ? '' : 's');
+    });
+    if (!projectSideCountTracksVisible) throw new Error('Project side issue count should track visible project rows');
     const projectRowShapeOk = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('[data-prod-project-issue]')];
-      return rows.length === 0 || rows.every(row => row.querySelector('.prod-status[data-st]') && row.querySelector('.prod-id') && row.querySelector('.prod-title') && row.querySelector('.prod-due') && row.querySelector('[data-prod-assign]'));
+      const emptyDuePills = [...document.querySelectorAll('[data-prod-project-issue] .prod-due.optional')];
+      const emptyDueLabel = pill => (pill.querySelector(':scope > span:last-child')?.textContent || '').trim();
+      return (rows.length === 0 || rows.every(row => row.querySelector('.prod-status[data-st]') && row.querySelector('.prod-id') && row.querySelector('.prod-title') && row.querySelector('.prod-due') && row.querySelector('[data-prod-assign]')))
+        && emptyDuePills.every(pill => emptyDueLabel(pill) === 'Add date');
     });
-    if (!projectRowShapeOk) throw new Error('Project issue rows are missing issue-list metadata controls');
+    if (!projectRowShapeOk) throw new Error('Project issue rows are missing issue-list metadata controls or readable empty due labels');
+    await expectExactCount(page, '.prod-project-groups .prod-project-group [data-prod-disabled="add-project-issue"]', 0, 'project-detail group add controls');
     await expectCount(page, '[data-prod-pstatus]', 1, 'project detail status property');
     await expectCount(page, '[data-prod-plead]', 1, 'project detail lead property');
     await expectCount(page, '[data-prod-ptarget]', 1, 'project detail target property');
+    await expectExactCount(page, '[data-prod-disabled="project-controls"], .prod-disabled-pill', 0, 'project detail disabled scaffold controls');
     await page.locator('[data-prod-pstatus]').first().click();
     await expectCount(page, '#prodLayer .prod-pop [data-prod-ppick]', 1, 'project detail guarded status picker');
     await page.keyboard.press('Escape');
@@ -432,7 +458,14 @@ async function assertNoWriteRequests(requests) {
     if (cardIconBadFallback) throw new Error('Project card icon fell back to the letter S instead of the artifact project glyph');
     await card.click({ button: 'right' });
     await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'project card context Copy link item');
-    await expectCount(page, '.prod-pop [data-prod-disabled^="context-"][title="Preview - read-only"]', 1, 'project card context disabled mutation items');
+    await expectCount(page, '.prod-pop [data-prod-pctx="pstatus"]', 1, 'project card context status action');
+    await expectCount(page, '.prod-pop [data-prod-pctx="plead"]', 1, 'project card context lead action');
+    await expectCount(page, '.prod-pop [data-prod-pctx="ptarget"]', 1, 'project card context target action');
+    await expectExactCount(page, '.prod-pop [data-prod-disabled^="context-change-status"], .prod-pop [data-prod-disabled^="context-set-lead"], .prod-pop [data-prod-disabled^="context-set-target"]', 0, 'project card context disabled mutation items');
+    await page.locator('.prod-pop [data-prod-pctx="pstatus"]').click();
+    await expectCount(page, '#prodLayer .prod-pop [data-prod-ppick]', 1, 'project context guarded status picker');
+    await page.keyboard.press('Escape');
+    await card.click({ button: 'right' });
     await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     const copiedProjectLink = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');

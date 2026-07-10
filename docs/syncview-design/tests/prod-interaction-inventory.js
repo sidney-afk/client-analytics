@@ -232,7 +232,7 @@ function allowedNoop(c) {
     || /\bprod-preview-chip\b/.test(cls)
     || /\bprod-created\b/.test(cls)
     || (c.attrs && c.attrs.oncontextmenu && !c.attrs.onclick)
-    || (c.tag === 'BUTTON' && !attrs.onclick && /^All projects$|^Open$|^Active$/.test(text));
+    || (c.tag === 'BUTTON' && !attrs.onclick && /^Open$|^Active$/.test(text));
 }
 
 function sameCandidate(a, b) {
@@ -299,6 +299,11 @@ async function rightClickChecks(page) {
     await page.waitForTimeout(150);
     const ok = await page.locator('#prodLayer .prod-pop [data-prod-ctx="copy"], #prodLayer .prod-pop [data-prod-ctx="status"]').count();
     if (!ok) failures.push(`${stateName} right-click did not open a Production context menu for ${sel}`);
+    if (stateName === 'board') {
+      const activeProjectActions = await page.locator('#prodLayer .prod-pop [data-prod-pctx="pstatus"], #prodLayer .prod-pop [data-prod-pctx="plead"], #prodLayer .prod-pop [data-prod-pctx="ptarget"]').count();
+      const fakeProjectActions = await page.locator('#prodLayer .prod-pop [data-prod-disabled^="context-change-status"], #prodLayer .prod-pop [data-prod-disabled^="context-set-lead"], #prodLayer .prod-pop [data-prod-disabled^="context-set-target"]').count();
+      if (activeProjectActions !== 3 || fakeProjectActions) failures.push('board project right-click menu did not expose active status/lead/target pickers');
+    }
     await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
   }
   return failures;
@@ -397,7 +402,14 @@ async function selectionChecks(page) {
       if (main) main.scrollTop = main.scrollHeight;
       window.scrollTo(0, document.body.scrollHeight);
     });
-    await page.locator('#prodRoot .prod-subrow').first().click({ timeout: 2500, force: true });
+    const clickedSubrow = await page.evaluate(() => {
+      const row = document.querySelector('#prodRoot .prod-subrow');
+      if (!row) return false;
+      row.scrollIntoView({ block: 'center', inline: 'nearest' });
+      row.click();
+      return true;
+    });
+    if (!clickedSubrow) failures.push('parent detail lost its sub-issue row before navigation');
     await page.waitForTimeout(180);
     const subDetail = await page.evaluate(() => {
       const main = document.querySelector('#prodRoot .prod-detail-main');
@@ -420,6 +432,13 @@ async function selectionChecks(page) {
   await reset(page, 'board');
   const cardCursor = await page.locator('#prodRoot .prod-card[data-prod-client-card]').first().evaluate(el => getComputedStyle(el).cursor).catch(() => '');
   if (cardCursor !== 'pointer') failures.push(`project card cursor should be pointer, got ${cardCursor || 'empty'}`);
+  const topbarFakeControls = await page.locator('#prodRoot .prod-topbar [data-prod-disabled="favorite-view"], #prodRoot .prod-topbar [data-prod-disabled="favorite-issue"], #prodRoot .prod-topbar [data-prod-disabled="favorite-project"], #prodRoot .prod-topbar [data-prod-disabled="notifications"]').count();
+  if (topbarFakeControls) failures.push(`Production topbars exposed ${topbarFakeControls} fake favorite/notification control(s)`);
+  const emptyColumnActions = await page.evaluate(() => {
+    const cols = [...document.querySelectorAll('#prodRoot .prod-col')];
+    return cols.filter(col => col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]')).length;
+  });
+  if (emptyColumnActions) failures.push(`project board column headers exposed ${emptyColumnActions} fake add/options control set(s)`);
   return failures;
 }
 

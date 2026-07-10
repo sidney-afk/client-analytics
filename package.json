@@ -8,10 +8,19 @@
     "test:unit": "node test/run-all.js",
     "test:e2e": "node qa/run-probes.js",
     "test:prod-pixel": "node docs/syncview-design/tests/pixel-wired.js",
+    "test:prod-polish": "node docs/syncview-design/tests/prod-polish-gate.js",
+    "test:prod-a11y": "node docs/syncview-design/tests/prod-a11y-focus.js",
+    "test:prod-boot": "node docs/syncview-design/tests/prod-boot-budget.js",
+    "test:prod-layout": "node docs/syncview-design/tests/prod-layout-polish.js",
+    "test:prod-review": "node docs/syncview-design/tests/prod-review-packet.js",
+    "test:prod-review:validate": "node docs/syncview-design/tests/prod-review-packet-validate.js",
+    "test:prod-argos:prepare": "node docs/syncview-design/tests/prod-argos-export.js",
     "test:master": "node qa/master.js",
     "test:master:full": "node qa/master.js --profile=full"
   },
   "devDependencies": {
+    "@argos-ci/cli": "6.1.4",
+    "@axe-core/playwright": "4.12.1",
     "playwright": "1.56.1"
   }
 }

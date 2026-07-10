@@ -9,7 +9,7 @@
  *   - migrated B1 rows render in the list
  *   - team filters, project-board filters, detail, batch links, and deep links work
  *   - the projects board renders all locked columns
- *   - visible write affordances remain disabled
+ *   - visible write affordances remain guarded or explicitly disabled
  *   - the preview makes no non-GET/HEAD/OPTIONS browser requests
  *   - a mobile viewport can open list and detail without errors
  *   - no console/page errors fire
@@ -198,7 +198,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
 
     await assertNoWriteRequests(requests);
     if (errors.length) throw new Error('Browser errors: ' + errors.slice(0, 3).join(' | '));
-    console.log('prod-readonly-smoke: list, team filter, client filter, detail, deep link, batch link, projects board, mobile, disabled controls, no-write requests, and console checks passed');
+    console.log('prod-readonly-smoke: list, team filter, client filter, detail, deep link, batch link, projects board, mobile, guarded controls, no-write requests, and console checks passed');
   } finally {
     await browser.close().catch(() => {});
     server.close();

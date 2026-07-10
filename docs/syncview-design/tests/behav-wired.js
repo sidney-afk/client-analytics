@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 158;
+const TOTAL = 165;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -189,6 +189,79 @@ async function txt(page, sel) {
           && projectScoped;
       }, slug);
     }); await reset();
+    await ok('projectDetailKeepsTeamScope', async () => {
+      const opened = await page.evaluate(() => {
+        _prodState.view = 'board';
+        _prodState.team = 'video';
+        _prodState.filters = [];
+        _prodState.clientSlug = '';
+        _prodState.groupBy = 'status';
+        _prodState.showSubIssues = true;
+        _prodState.collapsed = new Set();
+        _prodRender();
+        const projects = _prodProjects();
+        const scopedRows = key => _prodUniqueRows(_prodApplySubIssueVisibility(_prodIssues().filter(i => i.project === key && i.team === 'video')))
+          .filter(_prodMatchFilters)
+          .sort(_prodIssueOrderCompare);
+        const candidates = Object.keys(projects).map(key => {
+          const all = _prodIssues().filter(i => i.project === key);
+          const rows = scopedRows(key);
+          return {
+            id: key,
+            ids: rows.map(row => row.id),
+            mixed: all.some(i => i.team === 'video') && all.some(i => i.team === 'graphics')
+          };
+        }).filter(c => c.ids.length);
+        const picked = candidates.find(c => c.mixed) || candidates[0] || { id: '', ids: [] };
+        const id = picked.id;
+        if (!id) return { id: '', expectedIds: [] };
+        _prodOpenProject(id);
+        return { id, expectedIds: picked.ids, mixed: !!picked.mixed };
+      });
+      if (!opened.id) return true;
+      await page.waitForSelector('[data-prod-project-detail]', { timeout: 5000 });
+      return await page.evaluate(({ id, expectedIds, mixed }) => {
+        const rows = [...document.querySelectorAll('[data-prod-project-issue]')];
+        const rowModels = rows.map(row => _prodIssue(row.getAttribute('data-prod-project-issue'))).filter(Boolean);
+        const rowIds = rowModels.map(row => row.id);
+        const scopedAll = _prodProjectAllRows(_prodClient(id));
+        const curUnfiltered = _prodCurIssuesUnfiltered();
+        const crumbTeam = (document.querySelector('.prod-detail-crumb [data-prod-crumb-team]')?.textContent || '').trim();
+        const detailScope = (document.querySelector('.prod-detail-id')?.textContent || '').trim();
+        const groupCount = (document.querySelector('.prod-subhead .prod-group-count')?.textContent || '').trim();
+        const sideText = (document.querySelector('[data-prod-detail-card="project-issues"] .prod-side-row')?.textContent || '').trim();
+        const expected = expectedIds.length;
+        const checks = {
+          view: _prodState.view === 'project',
+          team: _prodState.team === 'video',
+          openProject: _prodState.openProjectId === id,
+          rowCount: rows.length === expected,
+          modelCount: rowModels.length === expected,
+          rowIds: rowIds.join('|') === expectedIds.join('|'),
+          rowsScoped: rowModels.every(row => row.team === 'video' && row.project === id),
+          allRowsScoped: scopedAll.every(row => row.team === 'video' && row.project === id),
+          curScoped: curUnfiltered.every(row => row.team === 'video' && row.project === id),
+          crumbTeam: crumbTeam === 'Video',
+          detailScope: detailScope === 'Video project',
+          groupCount: groupCount === String(expected),
+          sideText: sideText === String(expected) + ' issue' + (expected === 1 ? '' : 's')
+        };
+        return Object.values(checks).every(Boolean) || {
+          id,
+          mixed,
+          expectedIds,
+          rowIds,
+          scopedAllIds: scopedAll.map(row => row.id),
+          curUnfilteredIds: curUnfiltered.map(row => row.id),
+          crumbTeam,
+          detailScope,
+          groupCount,
+          sideText,
+          state: { view: _prodState.view, team: _prodState.team, openProjectId: _prodState.openProjectId },
+          checks
+        };
+      }, opened);
+    }); await reset();
     await ok('projectRowsUseIssueListMetadataAndWidth', async () => {
       const opened = await page.evaluate(() => {
         const id = Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent)) || '';
@@ -202,8 +275,11 @@ async function txt(page, sel) {
         if (!row) return true;
         const main = document.querySelector('.prod-detail-main');
         const inner = document.querySelector('.prod-detail-inner');
+        const emptyDuePills = [...document.querySelectorAll('[data-prod-project-issue] .prod-due.optional')];
+        const emptyDueLabel = pill => (pill.querySelector(':scope > span:last-child')?.textContent || '').trim();
         return !!row.querySelector('[data-prod-assign]')
           && !!row.querySelector('.prod-due')
+          && emptyDuePills.every(pill => emptyDueLabel(pill) === 'Add date')
           && row.getBoundingClientRect().width >= main.getBoundingClientRect().width * 0.8
           && inner.getBoundingClientRect().width >= main.getBoundingClientRect().width * 0.95;
       });
@@ -247,7 +323,13 @@ async function txt(page, sel) {
       await page.locator('#prodLayer [data-prod-show-subissues]').click();
       await page.waitForTimeout(120);
       const after = await page.locator('[data-prod-project-parent]:not([data-prod-project-parent=""])').count();
-      return before > 0 && grouped && after === 0 && await page.evaluate(() => _prodState.showSubIssues === false && !new URL(location.href).searchParams.has('ptab'));
+      return before > 0 && grouped && after === 0 && await page.evaluate(() => {
+        const visible = document.querySelectorAll('[data-prod-project-issue]').length;
+        const sideText = (document.querySelector('[data-prod-detail-card="project-issues"] .prod-side-row')?.textContent || '').trim();
+        return _prodState.showSubIssues === false
+          && !new URL(location.href).searchParams.has('ptab')
+          && sideText === String(visible) + ' issue' + (visible === 1 ? '' : 's');
+      });
     }); await reset();
     await ok('due', async () => {
       await page.locator('.prod-row .prod-due').first().click();
@@ -321,12 +403,18 @@ async function txt(page, sel) {
       const graphics = await page.locator('.prod-card').count();
       return video >= 0 && graphics >= 0 && await page.locator('.prod-col').count() >= 6;
     }); await reset();
-    await ok('star', async () => {
+    await ok('topbarNoFakeFavorites', async () => {
+      const listClean = await page.locator('.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="notifications"]').count() === 0;
       await page.locator('.prod-row').first().click();
       await page.waitForSelector('.prod-detail');
-      await page.locator('[data-prod-disabled="favorite-issue"]').click();
-      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-      return (await txt(page, '#prodToast')).includes('Preview - read-only');
+      const detailClean = await page.locator('.prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="notifications"]').count() === 0;
+      await page.evaluate(() => {
+        const id = Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent)) || '';
+        if (id) _prodOpenProject(id);
+      });
+      await page.waitForSelector('[data-prod-project-detail]', { timeout: 5000 });
+      const projectClean = await page.locator('.prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]').count() === 0;
+      return listClean && detailClean && projectClean;
     }); await reset();
     await ok('chevron', async () => {
       const key = await page.locator('.prod-group').first().getAttribute('data-prod-group');
@@ -340,6 +428,18 @@ async function txt(page, sel) {
       return await page.locator('#prodLayer .prod-pop [data-prod-ppick]').count() > 0 && await page.locator('.prod-detail').count() === 0;
     }); await reset();
     await ok('tabs', async () => (await page.locator('.prod-tabs .prod-tab').allTextContents()).join(',') === 'Active,Backlog,All issues'); await reset();
+    await ok('boardScopeLabelStatic', async () => {
+      await page.evaluate(() => _prodOpenTeamView('all', 'board'));
+      await page.waitForSelector('[data-prod-static-scope="projects"]');
+      return await page.evaluate(() => {
+        const label = document.querySelector('[data-prod-static-scope="projects"]');
+        return !!label
+          && label.tagName === 'SPAN'
+          && label.textContent.trim() === 'All projects'
+          && !label.hasAttribute('onclick')
+          && label.tabIndex < 0;
+      });
+    }); await reset();
     await ok('my', async () => {
       await page.locator('.prod-nav-btn', { hasText: 'My issues' }).click();
       return await page.evaluate(() => _prodState.view === 'my');
@@ -466,14 +566,35 @@ async function txt(page, sel) {
       _prodRender();
       return ok;
     })); await reset();
+    await ok('emptyBoardColumnsStayStatic', async () => await page.evaluate(() => {
+      _prodState.view = 'board';
+      _prodState.team = 'video';
+      _prodState.openId = '';
+      _prodState.openBatchId = '';
+      _prodState.clientSlug = '';
+      _prodState.filters = [];
+      _prodRender();
+      const emptyCols = [...document.querySelectorAll('.prod-col.is-empty')];
+      const cardCols = [...document.querySelectorAll('.prod-col.has-cards')];
+      return emptyCols.length > 0
+        && cardCols.length > 0
+        && emptyCols.every(col => !col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]'))
+        && cardCols.every(col => !col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]'));
+    })); await reset();
     await ok('markdown', async () => await page.evaluate(() => {
-      const h = _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com - VID-12586');
+      const h = _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com - VID-12586\n---\n## Client Resources\n**Instagram: [theopenposturedoc](<https://www.instagram.com/theopenposturedoc/#>)**\n**Brand Guidelines:** **[Document](<https://docs.google.com/document/d/abc/edit>)\n****Personal Pictures:** [**Folder**](<https://drive.google.com/drive/folders/abc>)');
       return h.includes('<strong>bold</strong>')
         && h.includes('<code>code</code>')
         && h.includes('<a href="https://ex.com" target="_blank" rel="noopener">docs</a>')
         && h.includes('<a href="https://y.com"')
+        && h.includes('prod-md-rule')
+        && h.includes('prod-md-heading')
+        && h.includes('<strong>Instagram: <a href="https://www.instagram.com/theopenposturedoc/#" target="_blank" rel="noopener">theopenposturedoc</a></strong>')
+        && h.includes('<strong>Brand Guidelines:</strong> <a href="https://docs.google.com/document/d/abc/edit" target="_blank" rel="noopener">Document</a>')
+        && h.includes('<strong>Personal Pictures:</strong> <a href="https://drive.google.com/drive/folders/abc" target="_blank" rel="noopener"><strong>Folder</strong></a>')
         && h.includes('12586')
-        && !h.includes('XMDTOK');
+        && !h.includes('XMDTOK')
+        && !h.includes('****');
     })); await reset();
     await ok('paletteCommand', async () => {
       await page.locator('.prod-search-btn').click();
@@ -619,7 +740,7 @@ async function txt(page, sel) {
         const c = slug ? _prodClient(slug) : null;
         if (!slug || !c) return '';
         _prodOpenProject(slug);
-        return c.team || 'all';
+        return _prodProjectScopeTeam(c);
       });
       if (!team) return true;
       await page.locator('.prod-detail-crumb [data-prod-crumb-team]').click();
@@ -687,6 +808,52 @@ async function txt(page, sel) {
         return shown === real + ' issue' + (real === 1 ? '' : 's');
       });
     }); await reset();
+    await ok('boardFilteredCountCopy', async () => {
+      await page.evaluate(() => {
+        const row = _prodIssues().find(i => i.team === 'video' && i.project && _prodTabAllows(i.status));
+        _prodState.view = 'board';
+        _prodState.team = 'video';
+        _prodState.clientSlug = '';
+        _prodState.openId = '';
+        _prodState.openProjectId = '';
+        _prodState.filters = row ? [
+          { field: 'status', values: [_prodArtifactStatus(row.status)] },
+          { field: 'client', values: [row.project] },
+        ] : [];
+        _prodRender();
+      });
+      await page.waitForSelector('.prod-board');
+      return await page.evaluate(() => {
+        const card = document.querySelector('.prod-card[data-prod-client-card]');
+        if (!card) return true;
+        const count = card.querySelector('[data-prod-card-count]');
+        const empty = [...document.querySelectorAll('[data-prod-board-empty="filtered"]')];
+        return !!count
+          && /matching issue/.test(count.textContent || '')
+          && empty.length === 0
+          && [...document.querySelectorAll('.prod-col')].every(col => col.querySelector('.prod-card[data-prod-client-card]'));
+      });
+    }); await reset();
+    await ok('boardFilteredNoMatchEmptyCopy', async () => {
+      await page.evaluate(() => {
+        _prodState.view = 'board';
+        _prodState.team = 'video';
+        _prodState.clientSlug = '';
+        _prodState.openId = '';
+        _prodState.openProjectId = '';
+        _prodState.filters = [
+          { field: 'status', values: ['status-that-does-not-exist'] },
+          { field: 'client', values: ['client-that-does-not-exist'] },
+        ];
+        _prodRender();
+      });
+      await page.waitForSelector('.prod-board');
+      return await page.evaluate(() => {
+        const cards = document.querySelectorAll('.prod-card[data-prod-client-card]').length;
+        const empty = [...document.querySelectorAll('[data-prod-board-empty="filtered"]')];
+        return cards === 0 && empty.length > 0 && empty.every(el => (el.textContent || '').trim() === 'No matching projects');
+      });
+    }); await reset();
     await ok('subLeafNoHeader', async () => {
       const leafParent = await page.evaluate(() => {
         const leaf = _prodIssues().find(i => _prodChildrenOf(i.id).length === 0);
@@ -705,9 +872,11 @@ async function txt(page, sel) {
       await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
       await page.waitForSelector('.prod-board');
       await page.locator('.prod-card').first().click({ button: 'right' });
-      const hasItems = await page.locator('.prod-pop .mlbl', { hasText: 'Change status' }).count() > 0
+      const hasItems = await page.locator('.prod-pop [data-prod-pctx="pstatus"] .mlbl', { hasText: 'Change status' }).count() > 0
         && await page.locator('.prod-pop .mlbl', { hasText: 'Copy link' }).count() > 0;
-      await page.locator('.prod-pop .prod-mi', { hasText: 'Change status' }).click();
+      await page.locator('.prod-pop [data-prod-pctx="pstatus"]').click();
+      await page.waitForSelector('.prod-pop [data-prod-ppick]', { timeout: 3000 });
+      await page.locator('.prod-pop [data-prod-ppick]').first().click();
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
       return hasItems && (await txt(page, '#prodToast')).includes('Preview - read-only');
     }); await reset();
@@ -930,6 +1099,39 @@ async function txt(page, sel) {
         const ok = !!cs && cs.whiteSpace === 'nowrap' && cs.textOverflow === 'ellipsis' && cs.overflow === 'hidden';
         host.remove();
         return ok;
+      });
+    }); await reset();
+    await ok('activityMissingDataNotSkeleton', async () => {
+      const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
+      await page.evaluate(rowId => {
+        _prodState.events.delete(rowId);
+        _prodOpenDeliverable(rowId);
+      }, id);
+      await page.waitForSelector('.prod-detail');
+      return await page.evaluate(() => {
+        const activity = document.querySelector('.prod-activity');
+        return !!activity
+          && !activity.querySelector('.prod-skeleton')
+          && !!activity.querySelector('.prod-act-empty')
+          && /No activity events/i.test(activity.textContent || '');
+      });
+    }); await reset();
+    await ok('detailFileLinkLabel', async () => {
+      const id = await page.evaluate(() => {
+        const row = _prodIssues().find(i => i.file);
+        if (row) _prodOpenDeliverable(row.id);
+        return row ? row.id : '';
+      });
+      if (!id) return true;
+      await page.waitForSelector('[data-prod-file-link]');
+      return await page.evaluate(() => {
+        const a = document.querySelector('[data-prod-file-link]');
+        if (!a) return false;
+        const text = (a.textContent || '').trim();
+        const href = a.getAttribute('href') || '';
+        return /^Open /.test(text)
+          && !/^https?:\/\//i.test(text)
+          && /^https?:\/\//i.test(href);
       });
     }); await reset();
     await ok('boardJK', async () => {
@@ -1231,7 +1433,7 @@ async function txt(page, sel) {
       await page.locator('#prodBulkActions').click();
       await page.waitForSelector('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', { timeout: 5000 });
       const labels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
-      if (labels !== 'Assign to...|Change status...|Move to project...|Copy issue ID|Change due date...|Delete issue') return false;
+      if (labels !== 'Assign to...|Change status...|Move to project...|Copy issue IDs|Change due date...|Delete issues') return false;
       await page.fill('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', 'status');
       const visibleLabels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx]').evaluateAll(els => els.filter(el => el.style.display !== 'none').map(el => el.textContent.trim()).join('|'));
       if (!visibleLabels.includes('Change status...') || visibleLabels.includes('Assign to...')) return false;
@@ -1647,8 +1849,21 @@ async function txt(page, sel) {
       await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
       await page.waitForSelector('.prod-board');
       await page.locator('.prod-card').first().click({ button: 'right' });
+      const projectActions = await page.locator('.prod-pop [data-prod-pctx] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
+      const fakeDisabled = await page.locator('.prod-pop [data-prod-disabled^="context-change-status"], .prod-pop [data-prod-disabled^="context-set-lead"], .prod-pop [data-prod-disabled^="context-set-target"]').count();
       const lead = page.locator('.prod-pop .prod-mi', { hasText: 'Set lead' }).first();
-      return await lead.locator('.mic svg path[d*="M4 12"]').count() > 0;
+      const leadIcon = await lead.locator('.mic svg path[d*="M4 12"]').count() > 0;
+      await lead.click();
+      await page.waitForSelector('.prod-pop [data-prod-ppick]', { timeout: 3000 });
+      const pickerOpened = await page.locator('.prod-pop [data-prod-ppick]').count() > 0;
+      await page.locator('.prod-pop [data-prod-ppick]').first().click();
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const toast = await txt(page, '#prodToast');
+      return projectActions === 'Change status|Set lead|Set target'
+        && fakeDisabled === 0
+        && leadIcon
+        && pickerOpened
+        && toast === 'Preview - read-only';
     }); await reset();
     await page.evaluate(() => localStorage.setItem('syncview_theme', 'dark'));
     await page.reload({ waitUntil: 'domcontentloaded' });

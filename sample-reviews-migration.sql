@@ -60,6 +60,10 @@ create table if not exists public.sample_reviews (
   thumb_rev                    text,                     -- thumbnail cache-bust token
   video_status_at              timestamptz,              -- server-stamped exact change moment
   graphic_status_at            timestamptz,              -- server-stamped exact change moment
+  video_urgent_pinged_at       timestamptz,              -- last successful URGENT Slack ping
+  video_urgent_status_at       timestamptz,              -- video_status_at for that tweak lifecycle
+  video_urgent_issue           text,                     -- Linear issue pinged
+  video_urgent_editor          text,                     -- editor returned by the ping workflow
   created_at                   text,
   updated_at                   text,
   primary key (client, id)

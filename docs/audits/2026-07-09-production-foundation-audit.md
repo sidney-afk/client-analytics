@@ -46,7 +46,7 @@ Final Production gates after the fix:
 
 | Gate | Result |
 |---|---:|
-| `node docs/syncview-design/tests/behav-wired.js` | pass, 156/156 guard-mode assertions |
+| `node docs/syncview-design/tests/behav-wired.js` | pass, 158/158 guard-mode assertions |
 | `node docs/syncview-design/tests/prod-interaction-inventory.js` | pass: sampled unique controls across list/detail/board/project states, right-click menus, hover tips, scroll reset, breadcrumb/body context, project toolbar display grouping/show-sub-issues behavior, pointer cursor, guarded add-sub-issue affordance, and no writes/errors |
 | `node docs/syncview-design/tests/prod-structure-subset.js` | pass: structural detail coverage includes compact activity rows, title-first sub-issue rows with project metadata, child `Sub-issue of` context, leaf add-sub-issue affordance, project-detail tab removal, project toolbar order, project Display grouping, Show sub-issues, Production boot skeleton wiring, removed workspace menu, and native context-menu suppression |
 | `node docs/syncview-design/tests/pixel-wired.js` | pass in light and dark |
@@ -73,6 +73,11 @@ also checks right-click context zones, group-header native context-menu suppress
 real pointer clicks for row open/checkbox/status/due/assignee/client-chip controls, browser errors,
 and write-like requests.
 
+Latest owner-feedback follow-up on PR #763 also passed `prod-structure-subset.js`,
+`behav-wired.js` at 158/158, `prod-interaction-inventory.js`, and `pixel-wired.js` light/dark.
+Targeted screenshots reviewed selected/deselected project cards, the selected-issue command menu,
+and combined status/client filters.
+
 ## Finding fixed
 
 ### P1: Escape inside a Production popover could also navigate the page
@@ -92,6 +97,34 @@ Fix: the Production popover Escape handler now stops propagation after closing t
 1. close active overlay;
 2. if no overlay is open, clear selection/actionbar;
 3. if still no transient state is active, navigate back from detail/project.
+
+No data, flags, backend code, n8n workflows, or Supabase objects were touched.
+
+### P2: Selection, filter, and selected-action polish still had loose edges
+
+User-visible paths:
+
+1. Select and then deselect a project card on the Projects board.
+2. Hover project-detail issue rows with due dates and assignee chips.
+3. Select multiple issue rows and open Actions.
+4. Apply combined status/client filters in the team issue list.
+
+Expected behavior: card selection should not leave clipped or stale focus borders, project-row
+metadata should stay visible on hover, bulk actions should open a searchable command menu with
+only useful read-only commands, and combined filters should stay compact without duplicate-looking
+rows.
+
+Actual behavior before this pass: mouse selection reused keyboard focus styling, project-row
+metadata could be squeezed at the right edge, the bulk Actions button reused the row context menu,
+and combined filters could produce cramped pills and repeated visible issue IDs when live preview
+data contained duplicate rows.
+
+Fix: mouse selection now clears transient keyboard focus while keyboard selection keeps it;
+project rows let title text shrink before due/avatar/created metadata; selected-issue Actions
+opens a Linear-style searchable command menu with Assign to, Change status, Move to project,
+Copy issue ID, Change due date, and Delete issue; Copy issue ID writes the selected issue labels
+to the clipboard; filter pills have compact ellipsis rules; visible lists dedupe by issue ID.
+The composer remains intentionally guarded read-only in this preview.
 
 No data, flags, backend code, n8n workflows, or Supabase objects were touched.
 
@@ -302,6 +335,7 @@ This pass is reversible by reverting the July 9 Production hardening PR or the s
 - the `index.html` Escape propagation fix;
 - the mobile app-header and Production detail-crumb polish rules;
 - the project toolbar/display/menu cleanup;
+- the project-card selection, project-row metadata, selected-action command menu, filter-pill, and row-dedupe cleanup;
 - this audit report;
 - the parity/doc ledger updates.
 

@@ -29905,7 +29905,10 @@
             batches: [],
             deliverables: [],
             adapter: null,
-            events: new Map()
+            events: new Map(),
+            linearRaw: new Map(),
+            briefsLoaded: false,
+            briefsLoading: false
         };
         function _prodEnabled() {
             try { return new URLSearchParams(location.search).get('prod') === '1'; }
@@ -29937,24 +29940,54 @@
         function _prodHeaders() {
             return { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
         }
+        function _prodSleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        async function _prodRestPage(url, table, page) {
+            let lastErr = null;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const resp = await fetch(url, { headers: _prodHeaders() });
+                    if (resp.ok) return resp.json();
+                    const retryable = resp.status === 429 || resp.status >= 500;
+                    lastErr = new Error(table + ' read failed: HTTP ' + resp.status);
+                    if (!retryable || attempt === 2) throw lastErr;
+                } catch (e) {
+                    lastErr = e;
+                    if (attempt === 2) throw lastErr;
+                }
+                await _prodSleep(250 * Math.pow(2, attempt) + Math.min(250, page * 25));
+            }
+            throw lastErr || new Error(table + ' read failed');
+        }
         async function _prodRestRows(table, select, params, pageSize, maxPages) {
             if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase is not configured');
             const rows = [];
             const limit = Math.max(1, Math.min(1000, Number(pageSize || 1000)));
             const cap = Math.max(1, Number(maxPages || 100));
             const cleanParams = String(params || '').split('&').filter(p => p && !/^limit=|^offset=/.test(p)).join('&');
-            for (let page = 0, offset = 0; page < cap; page++, offset += limit) {
-                const url = CAL_SUPABASE_URL + '/rest/v1/' + table
+            const pageUrl = page => {
+                const offset = page * limit;
+                return CAL_SUPABASE_URL + '/rest/v1/' + table
                     + '?select=' + encodeURIComponent(select)
                     + '&limit=' + limit
                     + '&offset=' + offset
                     + (cleanParams ? '&' + cleanParams : '');
-                const resp = await fetch(url, { headers: _prodHeaders() });
-                if (!resp.ok) throw new Error(table + ' read failed: HTTP ' + resp.status);
-                const batch = await resp.json();
-                rows.push(...batch);
-                if (!Array.isArray(batch) || batch.length < limit) break;
-                if (page === cap - 1) throw new Error(table + ' read exceeded pagination cap');
+            };
+            let page = 0;
+            while (page < cap) {
+                const width = page === 0 ? 1 : Math.min(4, cap - page);
+                const pages = await Promise.all(Array.from({ length: width }, (_, i) => {
+                    const p = page + i;
+                    return _prodRestPage(pageUrl(p), table, p).then(batch => ({ page: p, batch }));
+                }));
+                for (const item of pages) {
+                    const batch = item.batch;
+                    rows.push(...batch);
+                    if (!Array.isArray(batch) || batch.length < limit) return rows;
+                    if (item.page === cap - 1) throw new Error(table + ' read exceeded pagination cap');
+                }
+                page += width;
             }
             return rows;
         }
@@ -30002,11 +30035,23 @@
             }
             return false;
         }
+        function _prodRawMarkerTruthy(v) {
+            if (v === true || v === 1) return true;
+            const s = String(v == null ? '' : v).trim().toLowerCase();
+            return !!s && s !== 'false' && s !== '0' && s !== 'null';
+        }
         function _prodDeliverableLive(d) {
             const raw = _prodLinearRaw(d && d.linear_raw);
             if (_prodNormKey(d && d.status) === 'archived') return false;
             if (_prodRawHasAny(raw, ['webhook_delete', 'deleted', 'delete', 'removed', 'archived'])) return false;
             if (raw.issue && (raw.issue.archivedAt || raw.issue.canceledAt)) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_issue_archived_at)) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_issue_canceled_at)) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_webhook_delete)) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_deleted)) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_delete)) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_removed)) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_archived)) return false;
             return true;
         }
         function _prodAdapter(input) {
@@ -30632,6 +30677,7 @@
         function _prodOpenPalette() {
             _prodEnsureOverlays();
             _prodClearLayer();
+            _prodLoadBriefs({ silent: true });
             const bd = document.createElement('div');
             bd.className = 'prod-cmd-bd';
             bd.innerHTML = '<div class="prod-cmd"><input class="prod-cmd-input" placeholder="Search issues, projects, people…" spellcheck="false"><div class="prod-cmd-list"></div></div>';
@@ -31900,13 +31946,15 @@
             const silent = !!(opts && opts.silent && _prodState.loaded);
             _prodState.loading = !silent;
             _prodState.error = '';
+            _prodState.briefsLoaded = false;
+            _prodState.briefsLoading = false;
             if (!silent) _prodRender();
             try {
                 const [clients, members, batches, deliverables] = await Promise.all([
                     _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,updated_at', 'order=display_name.asc', 1000, 10),
                     _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
                     _prodRestRows('batches', 'id,client_slug,team,name,description,filming_doc_url,footage_folder_url,delivery_folder_url,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids', 'order=created_at.desc', 1000, 25),
-                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,brief,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_identifier,linear_issue_url,linear_raw', 'order=team.asc,status.asc,due_date.asc', 1000, 50)
+                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_identifier,linear_issue_url,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived', 'order=team.asc,status.asc,due_date.asc', 1000, 50)
                 ]);
                 _prodState.clients = clients;
                 _prodState.members = members;
@@ -31928,6 +31976,7 @@
                     _prodState.view = 'list';
                 }
                 _prodRender();
+                setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
             } catch (e) {
                 _prodState.loading = false;
                 if (silent) {
@@ -31949,6 +31998,44 @@
                 _prodState.events.set(id, []);
             }
             _prodRender();
+        }
+        async function _prodLoadLinearRawFor(id) {
+            if (!id || _prodState.linearRaw.has(id)) return;
+            _prodState.linearRaw.set(id, null);
+            try {
+                const rows = await _prodRestRows('deliverables', 'id,brief,linear_raw', 'id=eq.' + encodeURIComponent(id), 1, 1);
+                const raw = rows && rows[0] ? _prodLinearRaw(rows[0].linear_raw) : {};
+                _prodState.linearRaw.set(id, raw);
+                const row = (_prodState.deliverables || []).find(d => String(d && d.id || '') === String(id));
+                if (row) {
+                    row.linear_raw = raw;
+                    if (rows[0] && Object.prototype.hasOwnProperty.call(rows[0], 'brief')) row.brief = rows[0].brief || '';
+                    _prodState.adapter = null;
+                    if (_prodState.openId === id) _prodRender();
+                }
+            } catch (e) {
+                console.warn('[Production] deliverable raw read failed', e);
+                _prodState.linearRaw.delete(id);
+            }
+        }
+        async function _prodLoadBriefs(opts) {
+            if (_prodState.briefsLoaded || _prodState.briefsLoading || !_prodState.loaded) return;
+            _prodState.briefsLoading = true;
+            try {
+                const rows = await _prodRestRows('deliverables', 'id,brief', 'order=id.asc', 1000, 50);
+                const byId = new Map(rows.map(r => [String(r && r.id || ''), r && r.brief || '']).filter(([id]) => id));
+                (_prodState.deliverables || []).forEach(row => {
+                    const id = String(row && row.id || '');
+                    if (byId.has(id)) row.brief = byId.get(id);
+                });
+                _prodState.briefsLoaded = true;
+                _prodState.adapter = null;
+                if (!opts || !opts.silent || _prodState.view === 'detail') _prodRender();
+            } catch (e) {
+                console.warn('[Production] deliverable brief read failed', e);
+            } finally {
+                _prodState.briefsLoading = false;
+            }
         }
         function _prodSetTeam(team) {
             _prodCaptureListScroll();
@@ -32227,6 +32314,7 @@
             _prodRender();
             _prodScrollDetailToTop();
             _prodLoadEventsFor(id);
+            _prodLoadLinearRawFor(id);
         }
         function _prodOpenBatch(id) {
             _prodState.openBatchId = id;
@@ -44428,6 +44516,7 @@
     // Only meaningful when served over HTTP from the deploy host. Skip file://
     // (local opens) so unit/e2e harnesses and offline opens never poll or nudge.
     if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+    if (new URLSearchParams(location.search).get('prod') === '1') return;
     var POLL_MS = 5 * 60 * 1000;          // re-check every 5 min (and on tab focus)
     var baseline = null;                   // the version token this tab is running
     function tokenOf(resp){ return resp.headers.get('etag') || resp.headers.get('last-modified') || ''; }

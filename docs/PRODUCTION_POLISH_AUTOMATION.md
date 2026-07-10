@@ -34,6 +34,16 @@ The workflow uploads two visual artifacts:
 
 The workflow also appends the review-packet manifest to the GitHub job summary, so reviewers can see the screenshot map before downloading the artifact. Open `index.html` from the artifact for a browsable gallery.
 
+The live SyncView app is already served from GitHub Pages (`main` at `syncview.synchrosocial.com`), so this workflow deliberately does not publish temporary review packets through Pages. The artifact gallery gives reviewers the same single-page scan without changing the production Pages source.
+
+## Optional Argos Visual Diff
+
+The workflow has a no-op Argos upload hook. It uploads `.codex-tmp/prod-review-packet` with `npm exec -- argos upload` only when the repository secret `ARGOS_TOKEN` is configured; otherwise it writes a skip note to the job summary and continues. To activate PR visual diffs:
+
+1. Create/import the `sidney-afk/client-analytics` project in Argos.
+2. Add the project token as the GitHub Actions secret `ARGOS_TOKEN`.
+3. Run the Production polish workflow on `main` once so Argos has a reference build.
+
 ## Pull Request Checklist
 
 `.github/pull_request_template.md` includes a Production-specific checklist. For any PR touching `?prod=1`, `_prod*`, or `docs/syncview-design/**`, keep the checklist honest: the preview should remain read-only unless a writable milestone is explicit, and visible UI changes should include `npm run test:prod-polish` plus review of the `production-review-packet` gallery artifact.

@@ -34,6 +34,20 @@ jobs:
           else
             echo "Production review packet manifest was not generated." >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Upload Production screenshots to Argos
+        if: always()
+        env:
+          ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
+        run: |
+          if [ ! -d .codex-tmp/prod-review-packet ]; then
+            echo "Production review packet was not generated; skipping Argos visual upload." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ -z "$ARGOS_TOKEN" ]; then
+            echo "ARGOS_TOKEN is not configured; skipping Argos visual upload." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          npm exec -- argos upload .codex-tmp/prod-review-packet
       - name: Upload Production polish screenshots
         if: always()
         uses: actions/upload-artifact@v4

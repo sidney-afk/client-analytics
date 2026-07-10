@@ -17,6 +17,7 @@
     "test:master:full": "node qa/master.js --profile=full"
   },
   "devDependencies": {
+    "@argos-ci/cli": "6.1.4",
     "@axe-core/playwright": "4.12.1",
     "playwright": "1.56.1"
   }

@@ -21,7 +21,7 @@ For reviewer screenshots, run:
 npm run test:prod-review
 ```
 
-That writes `.codex-tmp/prod-review-packet/manifest.md` plus named desktop, dark, and mobile PNGs for the core Production surfaces. The GitHub workflow uploads this folder as `production-review-packet`.
+That writes `.codex-tmp/prod-review-packet/index.html`, `manifest.md`, plus named desktop, dark, and mobile PNGs for the core Production surfaces. The GitHub workflow uploads this folder as `production-review-packet`.
 
 ## GitHub Workflow
 
@@ -30,7 +30,13 @@ That writes `.codex-tmp/prod-review-packet/manifest.md` plus named desktop, dark
 The workflow uploads two visual artifacts:
 
 - `production-polish-screenshots`: the side-by-side pixel/parity screenshots from `.codex-tmp/prod-pixel-wired`;
-- `production-review-packet`: a compact reviewer packet with `manifest.md` and named screenshots from `.codex-tmp/prod-review-packet`.
+- `production-review-packet`: a compact reviewer packet with `index.html`, `manifest.md`, and named screenshots from `.codex-tmp/prod-review-packet`.
+
+The workflow also appends the review-packet manifest to the GitHub job summary, so reviewers can see the screenshot map before downloading the artifact. Open `index.html` from the artifact for a browsable gallery.
+
+## Pull Request Checklist
+
+`.github/pull_request_template.md` includes a Production-specific checklist. For any PR touching `?prod=1`, `_prod*`, or `docs/syncview-design/**`, keep the checklist honest: the preview should remain read-only unless a writable milestone is explicit, and visible UI changes should include `npm run test:prod-polish` plus review of the `production-review-packet` gallery artifact.
 
 ## Turning Feedback Into Work
 

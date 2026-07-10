@@ -26,6 +26,14 @@ jobs:
         run: npm run test:prod-polish
       - name: Build Production review packet
         run: npm run test:prod-review
+      - name: Summarize Production review packet
+        if: always()
+        run: |
+          if [ -f .codex-tmp/prod-review-packet/manifest.md ]; then
+            cat .codex-tmp/prod-review-packet/manifest.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Production review packet manifest was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Upload Production polish screenshots
         if: always()
         uses: actions/upload-artifact@v4

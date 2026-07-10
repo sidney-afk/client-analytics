@@ -6284,6 +6284,7 @@
         .srp-toolbar { display: grid; grid-template-columns: minmax(190px, 1.1fr) minmax(150px, 0.8fr) minmax(180px, 1fr) minmax(170px, 0.9fr) auto; align-items: center; gap: 10px; padding: 12px; background: var(--white); border: 1px solid var(--border-light); border-radius: 12px; margin-bottom: 14px; }
         .srp-toolbar .srp-input, .srp-toolbar .srp-select-wrap { width: 100%; min-width: 0; }
         .srp-toolbar .srp-btn { white-space: nowrap; min-height: 41px; }
+        .srp-filter-field { position: relative; min-width: 0; width: 100%; }
         .srp-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
         .srp-metric { background: var(--white); border: 1px solid var(--border-light); border-radius: 10px; padding: 12px; min-width: 0; }
         .srp-metric strong { display: block; font-size: 1.2rem; color: var(--text-primary); line-height: 1; }
@@ -16582,37 +16583,63 @@
         if (search && results) {
             search.addEventListener('input', () => { document.getElementById('srpClientName').value = ''; document.getElementById('srpClientSlug').value = ''; _srpPaintClientResults(search.value); });
             search.addEventListener('focus', () => _srpPaintClientResults(search.value));
+            search.addEventListener('keydown', e => {
+                if (e.key !== 'Enter') return;
+                const name = _srpFirstClientMatch(search.value);
+                if (!name) return;
+                e.preventDefault();
+                _srpPickFormClient(name);
+            });
             results.addEventListener('click', e => {
                 const btn = e.target.closest('[data-client-name]');
                 if (!btn) return;
-                const name = btn.getAttribute('data-client-name') || '';
-                search.value = name;
-                document.getElementById('srpClientName').value = name;
-                document.getElementById('srpClientSlug').value = _srpSlug(name);
-                results.style.display = 'none';
-                const fld = document.querySelector('[data-field="client_name"]');
-                if (fld) fld.classList.remove('srp-missing');
+                _srpPickFormClient(btn.getAttribute('data-client-name') || '');
             });
         }
-        if (!document._srpClientOutsideWired) {
-            document._srpClientOutsideWired = true;
-            document.addEventListener('click', e => {
-                const box = document.getElementById('srpClientField');
-                const res = document.getElementById('srpClientResults');
+        _srpEnsureClientOutsideWired();
+    }
+    function _srpEnsureClientOutsideWired() {
+        if (document._srpClientOutsideWired) return;
+        document._srpClientOutsideWired = true;
+        document.addEventListener('click', e => {
+            [
+                ['srpClientField', 'srpClientResults'],
+                ['srpClientFilterField', 'srpClientFilterResults']
+            ].forEach(([boxId, resId]) => {
+                const box = document.getElementById(boxId);
+                const res = document.getElementById(resId);
                 if (box && res && !box.contains(e.target)) res.style.display = 'none';
             });
-        }
+        });
     }
-    function _srpPaintClientResults(query) {
-        const results = document.getElementById('srpClientResults');
-        if (!results) return;
+    function _srpClientMatches(query) {
         const q = String(query || '').trim().toLowerCase();
         const roster = _srpClientRoster();
-        const matches = q ? roster.filter(n => n.toLowerCase().includes(q)).slice(0, 10) : roster.slice(0, 10);
+        return q ? roster.filter(n => n.toLowerCase().includes(q)).slice(0, 10) : roster.slice(0, 10);
+    }
+    function _srpFirstClientMatch(query) {
+        const matches = _srpClientMatches(query);
+        return matches.length ? matches[0] : '';
+    }
+    function _srpPaintClientResults(query, resultsId) {
+        const results = document.getElementById(resultsId || 'srpClientResults');
+        if (!results) return;
+        const matches = _srpClientMatches(query);
         results.innerHTML = matches.length
             ? matches.map(n => `<button type="button" class="srp-search-option" data-client-name="${_srpEsc(n)}">${_srpEsc(n)}</button>`).join('')
             : '<div class="srp-search-option empty">No clients found</div>';
         results.style.display = 'block';
+    }
+    function _srpPickFormClient(name) {
+        const search = document.getElementById('srpClientSearch');
+        const results = document.getElementById('srpClientResults');
+        if (!name || !search) return;
+        search.value = name;
+        document.getElementById('srpClientName').value = name;
+        document.getElementById('srpClientSlug').value = _srpSlug(name);
+        if (results) results.style.display = 'none';
+        const fld = document.querySelector('[data-field="client_name"]');
+        if (fld) fld.classList.remove('srp-missing');
     }
     function _srpSetFormError(message) {
         const el = document.getElementById('srpFormError');
@@ -16765,7 +16792,7 @@
             <div class="srp-toolbar">
                 ${_srpSelectHtml('srpWeekFilter', '', weekItems, f.week || currentWeek, 'Current week')}
                 ${_srpSelectHtml('srpSmmFilter', '', smmItems, f.smm, 'All SMMs')}
-                <input class="srp-input" id="srpClientFilter" value="${_srpEsc(f.client)}" placeholder="Filter client">
+                <div class="srp-filter-field" id="srpClientFilterField"><input class="srp-input" id="srpClientFilter" type="search" value="${_srpEsc(f.client)}" placeholder="Filter client" autocomplete="off"><div class="srp-search-results" id="srpClientFilterResults" style="display:none;"></div></div>
                 ${_srpSelectHtml('srpStatusFilter', '', statusItems, f.status, 'All statuses')}
                 <button class="srp-btn secondary" type="button" id="srpRefreshReports">Refresh</button>
             </div>
@@ -16819,9 +16846,36 @@
         };
         if (week) week.addEventListener('change', () => { _srpState.filters.week = week.value; updateHash(); _srpLoadReports(); });
         if (smm) smm.addEventListener('change', () => { _srpState.filters.smm = smm.value; updateHash(); _srpLoadReports(); });
-        if (client) client.addEventListener('input', () => { _srpState.filters.client = client.value; updateHash(); _srpPaintReportResults(); });
+        if (client) {
+            client.addEventListener('input', () => { _srpState.filters.client = client.value; updateHash(); _srpPaintReportResults(); _srpPaintClientResults(client.value, 'srpClientFilterResults'); });
+            client.addEventListener('focus', () => _srpPaintClientResults(client.value, 'srpClientFilterResults'));
+            client.addEventListener('keydown', e => {
+                if (e.key !== 'Enter') return;
+                const name = _srpFirstClientMatch(client.value);
+                if (!name) return;
+                e.preventDefault();
+                _srpPickReportClientFilter(name, updateHash);
+            });
+            const filterResults = document.getElementById('srpClientFilterResults');
+            if (filterResults) filterResults.addEventListener('click', e => {
+                const btn = e.target.closest('[data-client-name]');
+                if (!btn) return;
+                _srpPickReportClientFilter(btn.getAttribute('data-client-name') || '', updateHash);
+            });
+        }
         if (status) status.addEventListener('change', () => { _srpState.filters.status = status.value; updateHash(); _srpPaintReportResults(); });
         if (refresh) refresh.addEventListener('click', () => _srpLoadReports());
+        _srpEnsureClientOutsideWired();
+    }
+    function _srpPickReportClientFilter(name, updateHash) {
+        const client = document.getElementById('srpClientFilter');
+        const results = document.getElementById('srpClientFilterResults');
+        if (!name || !client) return;
+        client.value = name;
+        _srpState.filters.client = name;
+        if (typeof updateHash === 'function') updateHash();
+        _srpPaintReportResults();
+        if (results) results.style.display = 'none';
     }
 
     const CAL_V2_LS_KEY         = 'syncview_calendar_v2';

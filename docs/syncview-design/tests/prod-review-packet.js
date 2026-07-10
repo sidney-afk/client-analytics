@@ -76,6 +76,7 @@ async function collectParentDetailEvidence(page) {
       detailId: detail ? detail.getAttribute('data-prod-detail') || '' : '',
       subIssueRows: document.querySelectorAll('.prod-subissue-row').length,
       hasGuardedAddSubIssue: !!document.querySelector('[data-prod-disabled="add-subissue"]'),
+      addSubIssueText: (document.querySelector('[data-prod-section="subissues"] [data-prod-disabled="add-subissue"]')?.textContent || '').replace(/\s+/g, ' ').trim(),
       hasActivity: !!activity,
       subIssueSectionVisible: visible(subSection),
       activityVisible: visible(activity),

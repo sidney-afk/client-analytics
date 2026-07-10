@@ -329,6 +329,9 @@ async function assertNoWriteRequests(requests) {
       await page.evaluate(id => window._prodOpenDeliverable(id), parentWithChild);
       await page.waitForSelector('[data-prod-section="subissues"] .prod-subrow', { timeout: 10000 });
       await expectCount(page, '[data-prod-disabled="add-subissue"][title="Preview - read-only"]', 1, 'guarded add sub-issue affordance');
+      if (!(await text(page, '[data-prod-section="subissues"] [data-prod-disabled="add-subissue"]')).includes('Add sub-issues')) {
+        throw new Error('Parent sub-issue affordance should use visible Add sub-issues text');
+      }
       const parentSubIssueShape = await page.evaluate(() => {
         const row = document.querySelector('[data-prod-section="subissues"] .prod-subrow');
         const id = row ? row.getAttribute('data-prod-subrow') : '';

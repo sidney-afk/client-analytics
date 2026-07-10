@@ -2707,7 +2707,7 @@
         .prod-subsection { margin-top: 24px; }
         .prod-subhead { display: flex; align-items: center; gap: 8px; min-height: 26px; margin-bottom: 4px; color: var(--prod-muted); font-size: 12px; font-weight: 500; }
         .prod-subhead-title { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
-        .prod-sub-add-btn { width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-faint); display: grid; place-items: center; cursor: pointer; }
+        .prod-sub-add-btn { min-height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-muted); display: inline-flex; align-items: center; gap: 6px; padding: 0 7px; font: inherit; font-size: 12px; cursor: pointer; }
         .prod-sub-add-btn:hover, .prod-add-sub-inline:hover { background: var(--prod-hover); color: var(--prod-strong); }
         .prod-add-sub-inline { min-height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-muted); display: inline-flex; align-items: center; gap: 7px; padding: 0 7px; font: inherit; font-size: 13px; cursor: pointer; }
         .prod-subrow { min-height: 34px; border-top: 1px solid var(--prod-divider); display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; }
@@ -31842,7 +31842,7 @@
         }
         function _prodAddSubIssueButtonHTML(compact) {
             return compact
-                ? '<button class="prod-sub-add-btn" type="button" data-prod-disabled="add-subissue" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button>'
+                ? '<button class="prod-sub-add-btn" type="button" data-prod-disabled="add-subissue" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('plus') + '<span>Add sub-issues</span></button>'
                 : '<button class="prod-add-sub-inline" type="button" data-prod-disabled="add-subissue" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('plus') + '<span>Add sub-issues</span></button>';
         }
         function _prodSubIssueContextHTML(d, parent) {

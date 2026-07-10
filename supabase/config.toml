@@ -44,6 +44,12 @@ verify_jwt = false
 [functions.filming-plans]
 verify_jwt = false
 
+# Public hidden SMM weekly report form + Kasper viewer. Security is intentionally
+# permissive for v1; the function validates payloads and the table unique index
+# prevents duplicate SMM/client/week submissions.
+[functions.smm-weekly-reports]
+verify_jwt = false
+
 # Browser-triggered resolver for Google Drive thumbnail parent folders. It
 # verifies the target row's thumbnail_url before updating derived folder fields.
 [functions.thumbnail-folder-resolve]

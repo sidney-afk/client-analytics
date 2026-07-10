@@ -21,6 +21,8 @@ onboarding, and keeping everything in sync with Linear.
   submitting logs the intake to Supabase, creates the Sales & Service Agreement
   on eSignatures.com, and sends the client one combined email with the signing
   link + Stripe payment link. See `SALES_INTAKE_DESIGN.md`.
+- **SMM weekly reports** — hidden weekly form for social media managers and a
+  read-only Kasper viewer grouped by week and SMM. See `SMM_WEEKLY_REPORTS.md`.
 - **Workload view** — derived per-person workload, rebuilt from Linear.
 - **Linear sync** — two-way status sync between the calendar and Linear issues.
 - **Analytics** — follower/engagement metrics, top videos, and competitor /
@@ -38,12 +40,13 @@ like the body classes they anticipate). The app talks to three backends.
 
 1. **Supabase** (Postgres + realtime) — the live operational store for everything that
    changes frequently: the content calendar, samples, onboarding, Kasper review state,
-   title review, the workload cache, and the TikTok pilot. Reads come straight from the
+   SMM weekly reports, title review, the workload cache, and the TikTok pilot. Reads come straight from the
    Supabase REST API; updates arrive over realtime channels (no polling — an idle tab
    makes no calls). The browser uses a committed publishable (anon) key; row-level
-   security permits anonymous `SELECT` only — all writes go through n8n.
+   security permits anonymous `SELECT` only — writes go through n8n or
+   Supabase Edge Functions using service-role credentials.
 2. **n8n** (`synchrosocial.app.n8n.cloud`) — the write / integration layer. Webhooks
-   handle saves, reorders, onboarding submissions, and the Linear ⇄ Supabase sync.
+   handle saves, reorders, onboarding submissions, SMM roster sync/reminders, and the Linear ⇄ Supabase sync.
    Writers also dual-write to Google Sheets, so the Sheet stays a human-readable mirror
    and a lossless rollback path.
 3. **Google Sheets** (via the `gviz` CSV endpoint) — still the source of truth for the
@@ -62,6 +65,7 @@ like the body classes they anticipate). The app talks to three backends.
 | Path | What it is |
 |---|---|
 | `index.html` | The entire application. |
+| `SMM_WEEKLY_REPORTS.md` | SQL, Edge Function, and n8n setup notes for the hidden SMM weekly report flow. |
 | `test/` | Fast, offline unit/wiring tests that extract and exercise pieces of the inline script. Run with `npm test`. |
 | `qa/` | Headless (Playwright) end-to-end probes against the live backend. Run with `npm run test:e2e`. |
 | `scripts/` | The Linear ⇄ calendar reconcile job (`linear-sync-reconcile.js`). |

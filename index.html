@@ -2832,6 +2832,11 @@
         .prod-project-groups .prod-subrow { padding-left: 24px; padding-right: 12px; border-radius: 6px; box-sizing: border-box; }
         .prod-project-groups .prod-subrow:hover { margin-left: 0; margin-right: 0; padding-left: 24px; padding-right: 12px; }
         .prod-project-groups .prod-subrow .prod-title, .prod-subrow .prod-title { min-width: 0; }
+        .prod-project-groups .prod-project-issue-row { min-height: 40px; }
+        .prod-project-groups .prod-project-issue-title { flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; line-height: 16px; }
+        .prod-project-title-main { max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--prod-text); }
+        .prod-project-title-main b { font-weight: 500; }
+        .prod-project-groups .prod-project-issue-title .prod-parent-title { max-width: 100%; margin-left: 0; font-size: 12px; line-height: 15px; }
         .prod-project-groups .prod-subrow .prod-spacer { min-width: 8px; }
         .prod-project-groups .prod-subrow .prod-due, .prod-project-groups .prod-subrow .prod-assign-hot, .prod-project-groups .prod-subrow .prod-created { flex: none; }
         .prod-actionbar { position: fixed; left: calc(50% + 122px); bottom: 20px; transform: translateX(-50%); z-index: 2000; height: 44px; border: 1px solid var(--prod-border-soft); border-radius: 12px; background: var(--prod-surface); display: inline-flex; align-items: center; gap: 3px; padding: 5px; color: var(--prod-strong); font-size: 12px; box-shadow: var(--prod-shadow-pop); }
@@ -31862,7 +31867,7 @@
             return '<div class="prod-subrow prod-project-issue-row" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
-                + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
+                + '<span class="prod-title prod-project-issue-title"' + _prodTitleAttrs(title) + '><span class="prod-project-title-main"><b>' + _calEsc(title) + '</b></span>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
                 + '<span class="prod-spacer"></span>'
                 + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + '</span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '" onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="' + _calEscAttr(assignee ? ('Assignee: ' + assignee.name) : 'Unassigned') + '">' + _prodAvatar(assignee, 18) + '</span>'

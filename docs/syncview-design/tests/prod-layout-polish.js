@@ -94,6 +94,22 @@ async function collectLayoutFailures(page, label) {
         await page.evaluate(id => _prodOpenProject(id), projectId);
         await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
         failures.push(...await collectLayoutFailures(page, `${vp.name} project detail`));
+        const projectIssueTitleHierarchy = await page.evaluate(() => {
+          const row = document.querySelector('[data-prod-project-parent]:not([data-prod-project-parent=""])');
+          if (!row) return true;
+          const title = row.querySelector('.prod-project-title-main');
+          const parent = row.querySelector('.prod-parent-title');
+          if (!title || !parent) return false;
+          const rowRect = row.getBoundingClientRect();
+          const titleRect = title.getBoundingClientRect();
+          const parentRect = parent.getBoundingClientRect();
+          return parentRect.top >= titleRect.bottom - 2
+            && titleRect.left >= rowRect.left - 1
+            && parentRect.left >= rowRect.left - 1
+            && titleRect.right <= rowRect.right + 1
+            && parentRect.right <= rowRect.right + 1;
+        });
+        if (!projectIssueTitleHierarchy) failures.push(`${vp.name} project detail parent issue trail should render as a secondary line inside the row`);
         const projectFilterEmptyExplained = await page.evaluate(() => {
           const filterCount = (_prodState.filters || []).length;
           const id = _prodState.openProjectId || '';

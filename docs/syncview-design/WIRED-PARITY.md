@@ -334,3 +334,7 @@ Owner-feedback refinements applied on top of the read-only wired tab:
 21. Detail activity no longer renders unresolved skeleton bars for migrated rows without events; missing activity data shows a subtle empty-state line until real event rows arrive.
 22. Delivered-file links on issue detail pages keep the original migrated URL as the destination, but the visible body text is a concise resource label such as `Open folder` instead of a raw Drive/Dropbox/Frame URL.
 23. The Projects board `All projects` marker is a static active-scope label, not a button with no action, so every visible button still works, opens guarded chrome, navigates, or is clearly disabled.
+
+## 2026-07-10 Desktop Project-Detail Row Polish
+
+1. Project-detail issue rows now render parent issue context as a secondary line under the primary issue title instead of squeezing both into one row. `prod-layout-polish.js` guards that parent trails stay inside the row and remain visually subordinate to the title.

@@ -3,6 +3,8 @@
 -- Idempotent. The app-facing source of truth is Supabase; n8n syncs the
 -- temporary Google Sheet "Social Media Managers" tab into social_media_managers.
 
+create extension if not exists pgcrypto with schema extensions;
+
 create table if not exists public.social_media_managers (
   slug text primary key,
   name text not null,

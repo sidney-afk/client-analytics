@@ -61,6 +61,13 @@
                     de.removeAttribute('data-status-palette');
                 }
             } catch (e) {}
+            var smmHash = location.hash.replace('#', '');
+            try { smmHash = decodeURIComponent(smmHash); } catch (e) {}
+            var smmSeg = smmHash.split('/')[0].split('?')[0];
+            if (smmSeg === 'smm-weekly-report' || smmSeg === 'smm-weekly-reports') {
+                de.setAttribute('data-boot-nav', smmSeg);
+                return;
+            }
             var authed = false;
             try { authed = localStorage.getItem('syncview_auth_v1') === 'ok'; } catch (e) {}
             if (!authed) { de.classList.add('boot-password'); return; }
@@ -74,8 +81,12 @@
             var hash = location.hash.replace('#', '');
             try { hash = decodeURIComponent(hash); } catch (e) {}
             var hashParts = hash.split('/');
-            var seg = hashParts[0];
-            var FAST = ['linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload'];
+            var seg = hashParts[0].split('?')[0];
+            if (seg === 'smm-weekly-report' || seg === 'smm-weekly-reports') {
+                de.setAttribute('data-boot-nav', seg);
+                return;
+            }
+            var FAST = ['linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'smm-weekly-report', 'smm-weekly-reports'];
             var ses = function (k) { try { return sessionStorage.getItem(k) === 'ok'; } catch (e) { return false; } };
             var kasperOk = function () { return q.get('Kasper') === '1' || ses('syncview_kasper_unlocked'); };
             var ttpOk = function () { return q.get('ttpilot') === '1' || ses('syncview_ttpilot_unlocked'); };
@@ -1668,6 +1679,8 @@
         html[data-boot-nav="filming-plans"] .boot-skeleton-filming,
         html[data-boot-nav="tiktok-upload"] .boot-skeleton-tiktok,
         html[data-boot-nav="tiktok-pilot"] .boot-skeleton-tiktok,
+        html[data-boot-nav="smm-weekly-report"] .boot-skeleton-sales-intake,
+        html[data-boot-nav="smm-weekly-reports"] .boot-skeleton-kasper,
         html[data-boot-nav="kasper"]:not([data-boot-subtab="sales-intake"]) .boot-skeleton-kasper,
         html[data-boot-nav="kasper"][data-boot-subtab="sales-intake"] .boot-skeleton-sales-intake { display: block; }
         .boot-page-skeleton { width: min(1080px, calc(100vw - 48px)); margin: 42px auto 0; }
@@ -6171,6 +6184,73 @@
         .si-done-row .k { color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
         .si-done-row .v { color: var(--text-primary); font-weight: 600; text-align: right; word-break: break-all; }
         @media (max-width: 640px) { .si-grid { grid-template-columns: 1fr; } .si-card { padding: 20px 16px 22px; } .si-preview-head { align-items: flex-start; flex-direction: column; } .si-preview-subject { text-align: left; } }
+
+        /* ===== SMM weekly reports (hidden form + Kasper viewer) ===== */
+        body.smm-weekly-mode .header, body.smm-weekly-mode #pageTop { display: none !important; }
+        html[data-boot-nav="smm-weekly-report"] .header,
+        html[data-boot-nav="smm-weekly-reports"] .header,
+        html[data-boot-nav="smm-weekly-report"] #pageTop,
+        html[data-boot-nav="smm-weekly-reports"] #pageTop { display: none !important; }
+        .srp-wrap { width: min(1120px, calc(100vw - 48px)); margin: 34px auto 56px; }
+        .srp-wrap.form { max-width: 760px; }
+        .srp-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+        .srp-kicker { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 800; margin-bottom: 5px; }
+        .srp-title { font-size: 1.55rem; line-height: 1.1; letter-spacing: -0.025em; font-weight: 800; color: var(--text-primary); }
+        .srp-sub { font-size: 0.84rem; color: var(--text-secondary); margin-top: 5px; max-width: 620px; line-height: 1.45; }
+        .srp-card { background: var(--white); border: 1px solid var(--border-light); border-radius: 14px; padding: 24px 26px 26px; box-shadow: 0 2px 10px var(--sv-shadow-rgba-0-0-0-0_04); }
+        .srp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 18px; }
+        .srp-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; position: relative; }
+        .srp-field.full { grid-column: 1 / -1; }
+        .srp-label { font-size: 0.78rem; font-weight: 800; color: var(--text-primary); }
+        .srp-help { font-size: 0.72rem; color: var(--text-muted); line-height: 1.4; }
+        .srp-input, .srp-select { width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 0.85rem; color: var(--text-primary); background: var(--white); box-sizing: border-box; }
+        .srp-input:focus, .srp-select:focus { outline: none; border-color: var(--sv-border-9aa3f0); box-shadow: 0 0 0 2px var(--sv-shadow-rgba-94-106-210-_12); }
+        .srp-input[readonly] { background: var(--bg); color: var(--text-secondary); }
+        .srp-radios { display: flex; flex-wrap: wrap; gap: 8px; }
+        .srp-pill { position: relative; }
+        .srp-pill input { position: absolute; opacity: 0; pointer-events: none; }
+        .srp-pill span { display: inline-flex; align-items: center; min-height: 31px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 99px; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; transition: all 0.12s; user-select: none; box-sizing: border-box; }
+        .srp-pill span:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); }
+        .srp-pill input:checked + span { border-color: var(--sv-border-5e6ad2); background: var(--sv-bg-rgba-94-106-210-_08); color: var(--sv-fg-4a54b8); }
+        .srp-search-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--white); border: 1px solid var(--border-light); border-radius: 12px; box-shadow: 0 10px 30px var(--sv-shadow-rgba-0-0-0-0_12); padding: 6px; z-index: 40; max-height: 260px; overflow-y: auto; }
+        .srp-search-option { display: block; width: 100%; padding: 8px 11px; border: 0; background: transparent; border-radius: 8px; text-align: left; font: inherit; font-size: 0.8rem; font-weight: 650; color: var(--text-secondary); cursor: pointer; }
+        .srp-search-option:hover { background: var(--bg); color: var(--text-primary); }
+        .srp-search-option.empty { color: var(--text-muted); cursor: default; font-style: italic; }
+        .srp-field.srp-missing .srp-input, .srp-field.srp-missing .srp-select, .srp-field.srp-missing .srp-pill span { border-color: var(--sv-border-fecaca); }
+        .srp-field.srp-missing .srp-label { color: var(--sv-fg-b91c1c); }
+        .srp-error { display: none; font-size: 0.78rem; font-weight: 650; color: var(--sv-fg-b91c1c); background: var(--sv-bg-fef2f2); border: 1px solid var(--sv-border-fecaca); border-radius: 9px; padding: 10px 12px; margin-top: 16px; }
+        .srp-actions { display: flex; align-items: center; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+        .srp-btn { border: none; background: var(--sv-bg-5e6ad2); color: var(--sv-fg-fff); font: inherit; font-size: 0.85rem; font-weight: 800; padding: 11px 20px; border-radius: 10px; cursor: pointer; transition: background 0.12s; }
+        .srp-btn:hover { background: var(--sv-bg-4a54b8); }
+        .srp-btn:disabled { opacity: 0.55; cursor: default; }
+        .srp-btn.secondary { background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); padding: 10px 15px; }
+        .srp-btn.secondary:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); background: var(--white); }
+        .srp-done { text-align: center; padding: 36px 28px; }
+        .srp-done-icon { width: 46px; height: 46px; border-radius: 50%; background: var(--sv-bg-dcfce7); color: var(--sv-fg-16a34a); display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.82rem; margin-bottom: 14px; }
+        .srp-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px; background: var(--white); border: 1px solid var(--border-light); border-radius: 12px; margin-bottom: 14px; }
+        .srp-toolbar .srp-input, .srp-toolbar .srp-select { width: auto; min-width: 150px; }
+        .srp-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .srp-metric { background: var(--white); border: 1px solid var(--border-light); border-radius: 10px; padding: 12px; min-width: 0; }
+        .srp-metric strong { display: block; font-size: 1.2rem; color: var(--text-primary); line-height: 1; }
+        .srp-metric span { display: block; margin-top: 5px; font-size: 0.7rem; color: var(--text-muted); font-weight: 750; text-transform: uppercase; letter-spacing: 0.04em; }
+        .srp-group { margin-bottom: 18px; }
+        .srp-group-title { font-size: 0.78rem; font-weight: 850; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin: 18px 0 8px; }
+        .srp-report-list { display: grid; gap: 10px; }
+        .srp-report { background: var(--white); border: 1px solid var(--border-light); border-radius: 12px; padding: 14px 16px; }
+        .srp-report-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+        .srp-report-client { font-size: 0.96rem; font-weight: 800; color: var(--text-primary); }
+        .srp-report-meta { font-size: 0.73rem; color: var(--text-muted); margin-top: 2px; }
+        .srp-status { display: inline-flex; align-items: center; border-radius: 99px; padding: 4px 9px; font-size: 0.68rem; font-weight: 850; white-space: nowrap; background: var(--bg); color: var(--text-secondary); }
+        .srp-status.alert { background: var(--sv-bg-fef2f2); color: var(--sv-fg-b91c1c); }
+        .srp-status.warn { background: var(--sv-bg-fff7ed); color: var(--sv-fg-9a3412); }
+        .srp-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 16px; }
+        .srp-answer { min-width: 0; }
+        .srp-answer.full { grid-column: 1 / -1; }
+        .srp-answer .k { display: block; font-size: 0.67rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.035em; margin-bottom: 2px; }
+        .srp-answer .v { font-size: 0.8rem; color: var(--text-primary); line-height: 1.45; word-break: break-word; }
+        .srp-empty { text-align: center; padding: 56px 20px; color: var(--text-secondary); background: var(--white); border: 1px solid var(--border-light); border-radius: 12px; }
+        @media (max-width: 880px) { .srp-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } .srp-detail-grid { grid-template-columns: 1fr; } .srp-answer.full { grid-column: auto; } }
+        @media (max-width: 640px) { .srp-wrap { width: calc(100vw - 28px); margin-top: 22px; } .srp-head { align-items: flex-start; flex-direction: column; } .srp-grid, .srp-summary { grid-template-columns: 1fr; } .srp-card { padding: 20px 16px 22px; } .srp-toolbar .srp-input, .srp-toolbar .srp-select { width: 100%; } }
     </style>
 </head>
 <body>
@@ -14947,6 +15027,7 @@
         // (and the toolbar margins) for this page only — see body.cal-page CSS.
         document.body.classList.toggle('cal-page', page === 'calendar');
         if (page === 'sample-reviews') document.body.classList.add('cal-page'); // SXR_LINE
+        document.body.classList.toggle('smm-weekly-mode', page === 'smm-weekly-report' || page === 'smm-weekly-reports');
 
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
@@ -15042,6 +15123,16 @@
             pageTop.style.display = 'none';
             content.innerHTML = renderTiktokPilotView();
             mountTiktokPilotView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'smm-weekly-report') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderSmmWeeklyReportFormView();
+            mountSmmWeeklyReportFormView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'smm-weekly-reports') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderSmmWeeklyReportsView();
+            mountSmmWeeklyReportsView();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'kasper') {
             pageTop.style.display = 'none';
@@ -16169,6 +16260,386 @@
     const CAL_SUPABASE_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; // UMD → window.supabase
     const CLIENT_TOKEN_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/client-token-verify';
     const THUMBNAIL_FOLDER_RESOLVE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/thumbnail-folder-resolve';
+    const SMM_WEEKLY_REPORTS_URL = CAL_SUPABASE_URL + '/functions/v1/smm-weekly-reports';
+
+    const SRP_OVERALL = ['On track', 'Minor friction', 'Needs your attention', 'Blocked'];
+    const SRP_OBSTACLE = ['Handling it', 'Need your input', 'Need you to act'];
+    const SRP_MOOD = ['Great', 'Fine', 'Cooling', 'Concerned'];
+    const SRP_SCHEDULE = ['Ahead', 'On track', 'Slightly behind', 'At risk'];
+    const SRP_PERFORMANCE = ['Numbers up', 'Flat', 'Down', 'Too early to tell'];
+    const _srpState = { managers: [], currentWeek: '', lastSubmitted: null, reports: [], weeks: [], filters: { week: '', smm: '', client: '', status: '' }, loadError: '' };
+
+    function _srpEsc(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+    function _srpSlug(value) {
+        try { if (typeof wlNormalizeClient === 'function') return wlNormalizeClient(String(value || '')); } catch (e) {}
+        return String(value || '').toLowerCase().replace(/[^a-z0-9&]+/g, '');
+    }
+    function _srpDateISO(date) {
+        const d = date instanceof Date ? date : new Date(date);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
+    }
+    function _srpWeekStartISO(value) {
+        const d = value ? new Date(String(value).slice(0, 10) + 'T12:00:00') : new Date();
+        const day = d.getDay();
+        const diff = day === 0 ? -6 : 1 - day;
+        d.setDate(d.getDate() + diff);
+        return _srpDateISO(d);
+    }
+    function _srpWeekLabel(iso) {
+        if (!iso) return 'Current week';
+        const start = new Date(iso + 'T12:00:00');
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        const fmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+        const endFmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        return fmt.format(start) + ' - ' + endFmt.format(end);
+    }
+    function _srpDateTimeLabel(value) {
+        if (!value) return '';
+        try { return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value)); } catch (e) { return String(value); }
+    }
+    function _srpClientRoster() {
+        try {
+            if (typeof getClientRoster === 'function') return getClientRoster();
+            if (Array.isArray(WL_CLIENT_NAMES)) return [...new Set(WL_CLIENT_NAMES)].sort((a, b) => a.localeCompare(b));
+        } catch (e) {}
+        return [];
+    }
+    async function _srpApi(params, options) {
+        const opts = options || {};
+        const method = (opts.method || 'GET').toUpperCase();
+        let url = SMM_WEEKLY_REPORTS_URL;
+        if (method === 'GET') {
+            const qs = new URLSearchParams();
+            Object.entries(params || {}).forEach(([k, v]) => { if (v != null && v !== '') qs.set(k, v); });
+            const s = qs.toString();
+            if (s) url += '?' + s;
+        }
+        const headers = Object.assign({
+            Accept: 'application/json',
+            apikey: CAL_SUPABASE_ANON_KEY,
+            Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY
+        }, opts.headers || {});
+        if (method !== 'GET') headers['Content-Type'] = 'application/json';
+        const resp = await fetch(url, Object.assign({}, opts, { method, headers }));
+        let data = null;
+        try { data = await resp.json(); } catch (e) {}
+        if (!resp.ok) {
+            const err = new Error((data && (data.message || data.error)) || ('HTTP ' + resp.status));
+            err.status = resp.status;
+            err.payload = data;
+            throw err;
+        }
+        return data || {};
+    }
+    async function _srpLoadOptions() {
+        const data = await _srpApi({ action: 'options' });
+        _srpState.managers = Array.isArray(data.managers) ? data.managers : [];
+        _srpState.currentWeek = data.current_week_start || _srpWeekStartISO();
+        return data;
+    }
+    function _srpRadioGroup(name, values, selected) {
+        return `<div class="srp-radios">${values.map((v, i) => `<label class="srp-pill"><input type="radio" name="${_srpEsc(name)}" value="${_srpEsc(v)}"${(selected || (!selected && i === 0)) === v ? ' checked' : ''}><span>${_srpEsc(v)}</span></label>`).join('')}</div>`;
+    }
+    function renderSmmWeeklyReportFormView() {
+        return `<main class="srp-wrap form" id="smmWeeklyReportMount">
+            <div class="srp-head"><div><div class="srp-kicker">SyncView</div><h1 class="srp-title">Weekly client report</h1><p class="srp-sub">Submit one report per client for the current Monday-Sunday week.</p></div></div>
+            <div class="srp-card"><div class="srp-empty">Loading form...</div></div>
+        </main>`;
+    }
+    async function mountSmmWeeklyReportFormView() {
+        _srpState.lastSubmitted = null;
+        _srpState.loadError = '';
+        _srpPaintFormShell('Loading form...');
+        try {
+            await _srpLoadOptions();
+            _srpPaintForm();
+        } catch (e) {
+            _srpState.loadError = e.message || 'Could not load the form.';
+            _srpPaintForm();
+        }
+    }
+    function _srpPaintFormShell(text) {
+        const mount = document.getElementById('smmWeeklyReportMount');
+        if (!mount) return;
+        mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">SyncView</div><h1 class="srp-title">Weekly client report</h1><p class="srp-sub">Submit one report per client for the current Monday-Sunday week.</p></div></div><div class="srp-card"><div class="srp-empty">${_srpEsc(text)}</div></div>`;
+    }
+    function _srpPaintForm() {
+        const mount = document.getElementById('smmWeeklyReportMount');
+        if (!mount) return;
+        if (_srpState.lastSubmitted) {
+            const r = _srpState.lastSubmitted;
+            mount.innerHTML = `<div class="srp-card srp-done"><div class="srp-done-icon">OK</div><h1 class="srp-title">Report submitted</h1><p class="srp-sub" style="margin-left:auto;margin-right:auto;">${_srpEsc(r.smm_name)} submitted ${_srpEsc(r.client_name)} for ${_srpEsc(_srpWeekLabel(r.week_start_date))}.</p><div class="srp-actions" style="justify-content:center;"><button class="srp-btn secondary" type="button" id="srpAnother">Submit another client</button></div></div>`;
+            const btn = document.getElementById('srpAnother');
+            if (btn) btn.addEventListener('click', () => { _srpState.lastSubmitted = null; _srpPaintForm(); });
+            return;
+        }
+        const managers = _srpState.managers || [];
+        const week = _srpState.currentWeek || _srpWeekStartISO();
+        const managerOptions = managers.length
+            ? managers.map(m => `<option value="${_srpEsc(m.slug || _srpSlug(m.name))}" data-name="${_srpEsc(m.name || '')}">${_srpEsc(m.name || m.slug)}</option>`).join('')
+            : '<option value="">No SMMs synced yet</option>';
+        mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">SyncView</div><h1 class="srp-title">Weekly client report</h1><p class="srp-sub">Submit one report per client for ${_srpEsc(_srpWeekLabel(week))}.</p></div></div>
+            <form class="srp-card" id="srpForm" autocomplete="off">
+                <input type="hidden" name="week_start_date" value="${_srpEsc(week)}">
+                <input type="hidden" name="client_name" id="srpClientName">
+                <input type="hidden" name="client_slug" id="srpClientSlug">
+                <div class="srp-grid">
+                    <div class="srp-field" data-field="smm_slug"><label class="srp-label" for="srpSmm">Name</label><select class="srp-select" id="srpSmm" name="smm_slug" ${managers.length ? '' : 'disabled'}><option value="">Select SMM</option>${managerOptions}</select></div>
+                    <div class="srp-field" data-field="week_start_date"><label class="srp-label">Week</label><input class="srp-input" readonly value="${_srpEsc(_srpWeekLabel(week))}"></div>
+                    <div class="srp-field full" data-field="client_name" id="srpClientField"><label class="srp-label" for="srpClientSearch">Client name</label><input class="srp-input" id="srpClientSearch" type="search" placeholder="Search client" autocomplete="off"><div class="srp-search-results" id="srpClientResults" style="display:none;"></div></div>
+                    <div class="srp-field full" data-field="overall_status"><span class="srp-label">Overall status this week</span>${_srpRadioGroup('overall_status', SRP_OVERALL, 'On track')}</div>
+                    <div class="srp-field full" data-field="what_done"><label class="srp-label" for="srpWhatDone">What got done this week?</label><input class="srp-input" id="srpWhatDone" name="what_done" maxlength="240" placeholder="Filmed 3 reels, scheduled week's posts"></div>
+                    <div class="srp-field" data-field="content_count"><label class="srp-label" for="srpContentCount">Content shipped this week</label><input class="srp-input" id="srpContentCount" name="content_count" type="number" min="0" step="1" placeholder="0"></div>
+                    <div class="srp-field" data-field="biggest_win"><label class="srp-label" for="srpBiggestWin">Biggest win this week</label><input class="srp-input" id="srpBiggestWin" name="biggest_win" maxlength="240"></div>
+                    <div class="srp-field full" data-field="biggest_obstacle"><label class="srp-label" for="srpBiggestObstacle">Biggest obstacle or risk this week</label><input class="srp-input" id="srpBiggestObstacle" name="biggest_obstacle" maxlength="240" placeholder="None"></div>
+                    <div class="srp-field full" data-field="obstacle_support"><span class="srp-label">Is the obstacle something you can solve, or do you need me?</span>${_srpRadioGroup('obstacle_support', SRP_OBSTACLE, 'Handling it')}</div>
+                    <div class="srp-field full" data-field="client_mood"><span class="srp-label">Client mood/relationship temperature</span>${_srpRadioGroup('client_mood', SRP_MOOD, 'Fine')}</div>
+                    <div class="srp-field full" data-field="client_requests"><label class="srp-label" for="srpClientRequests">Any client requests or asks that came in this week?</label><input class="srp-input" id="srpClientRequests" name="client_requests" maxlength="240" placeholder="None"></div>
+                    <div class="srp-field full" data-field="deliverables_schedule"><span class="srp-label">Are we on schedule for this client's deliverables this week?</span>${_srpRadioGroup('deliverables_schedule', SRP_SCHEDULE, 'On track')}</div>
+                    <div class="srp-field" data-field="performance_signal"><span class="srp-label">Performance signal</span>${_srpRadioGroup('performance_signal', SRP_PERFORMANCE, 'Too early to tell')}</div>
+                    <div class="srp-field"><label class="srp-label" for="srpPerformanceContext">Performance context</label><input class="srp-input" id="srpPerformanceContext" name="performance_context" maxlength="240" placeholder="Reel hit 40K, above avg"></div>
+                    <div class="srp-field full" data-field="anything_else"><label class="srp-label" for="srpAnythingElse">Anything I should know that isn't captured above?</label><input class="srp-input" id="srpAnythingElse" name="anything_else" maxlength="300" placeholder="Nothing"></div>
+                </div>
+                ${_srpState.loadError ? `<div class="srp-error" style="display:block;">${_srpEsc(_srpState.loadError)}</div>` : '<div class="srp-error" id="srpFormError"></div>'}
+                <div class="srp-actions"><button class="srp-btn" type="submit" ${managers.length && !_srpState.loadError ? '' : 'disabled'}>Submit report</button></div>
+            </form>`;
+        _srpWireForm();
+    }
+    function _srpWireForm() {
+        const form = document.getElementById('srpForm');
+        const search = document.getElementById('srpClientSearch');
+        const results = document.getElementById('srpClientResults');
+        if (!form) return;
+        form.addEventListener('submit', _srpSubmitReport);
+        form.addEventListener('input', e => { const f = e.target && e.target.closest ? e.target.closest('.srp-field') : null; if (f) f.classList.remove('srp-missing'); _srpSetFormError(''); });
+        form.addEventListener('change', e => { const f = e.target && e.target.closest ? e.target.closest('.srp-field') : null; if (f) f.classList.remove('srp-missing'); _srpSetFormError(''); });
+        if (search && results) {
+            search.addEventListener('input', () => { document.getElementById('srpClientName').value = ''; document.getElementById('srpClientSlug').value = ''; _srpPaintClientResults(search.value); });
+            search.addEventListener('focus', () => _srpPaintClientResults(search.value));
+            results.addEventListener('click', e => {
+                const btn = e.target.closest('[data-client-name]');
+                if (!btn) return;
+                const name = btn.getAttribute('data-client-name') || '';
+                search.value = name;
+                document.getElementById('srpClientName').value = name;
+                document.getElementById('srpClientSlug').value = _srpSlug(name);
+                results.style.display = 'none';
+                const fld = document.querySelector('[data-field="client_name"]');
+                if (fld) fld.classList.remove('srp-missing');
+            });
+        }
+        if (!document._srpClientOutsideWired) {
+            document._srpClientOutsideWired = true;
+            document.addEventListener('click', e => {
+                const box = document.getElementById('srpClientField');
+                const res = document.getElementById('srpClientResults');
+                if (box && res && !box.contains(e.target)) res.style.display = 'none';
+            });
+        }
+    }
+    function _srpPaintClientResults(query) {
+        const results = document.getElementById('srpClientResults');
+        if (!results) return;
+        const q = String(query || '').trim().toLowerCase();
+        const roster = _srpClientRoster();
+        const matches = q ? roster.filter(n => n.toLowerCase().includes(q)).slice(0, 10) : roster.slice(0, 10);
+        results.innerHTML = matches.length
+            ? matches.map(n => `<button type="button" class="srp-search-option" data-client-name="${_srpEsc(n)}">${_srpEsc(n)}</button>`).join('')
+            : '<div class="srp-search-option empty">No clients found</div>';
+        results.style.display = 'block';
+    }
+    function _srpSetFormError(message) {
+        const el = document.getElementById('srpFormError');
+        if (!el) return;
+        el.textContent = message || '';
+        el.style.display = message ? 'block' : 'none';
+    }
+    async function _srpSubmitReport(event) {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const data = new FormData(form);
+        const managerSelect = document.getElementById('srpSmm');
+        const managerOption = managerSelect && managerSelect.selectedOptions ? managerSelect.selectedOptions[0] : null;
+        const payload = {
+            week_start_date: data.get('week_start_date'),
+            smm_slug: data.get('smm_slug'),
+            smm_name: managerOption ? (managerOption.getAttribute('data-name') || managerOption.textContent || '') : '',
+            client_name: data.get('client_name'),
+            client_slug: data.get('client_slug'),
+            overall_status: data.get('overall_status'),
+            what_done: String(data.get('what_done') || '').trim(),
+            content_count: data.get('content_count') === '' ? null : Number(data.get('content_count')),
+            biggest_win: String(data.get('biggest_win') || '').trim(),
+            biggest_obstacle: String(data.get('biggest_obstacle') || '').trim(),
+            obstacle_support: data.get('obstacle_support'),
+            client_mood: data.get('client_mood'),
+            client_requests: String(data.get('client_requests') || '').trim(),
+            deliverables_schedule: data.get('deliverables_schedule'),
+            performance_signal: data.get('performance_signal'),
+            performance_context: String(data.get('performance_context') || '').trim(),
+            anything_else: String(data.get('anything_else') || '').trim()
+        };
+        const required = ['smm_slug', 'client_name', 'overall_status', 'what_done', 'content_count', 'biggest_win', 'biggest_obstacle', 'obstacle_support', 'client_mood', 'client_requests', 'deliverables_schedule', 'performance_signal', 'anything_else'];
+        let missing = false;
+        form.querySelectorAll('.srp-missing').forEach(el => el.classList.remove('srp-missing'));
+        required.forEach(k => {
+            const v = payload[k];
+            const bad = v == null || v === '' || (k === 'content_count' && (!Number.isFinite(v) || v < 0));
+            if (bad) {
+                missing = true;
+                const field = form.querySelector('[data-field="' + k + '"]');
+                if (field) field.classList.add('srp-missing');
+            }
+        });
+        if (missing) { _srpSetFormError('Please fill in every required field.'); return; }
+        const submit = form.querySelector('button[type="submit"]');
+        if (submit) { submit.disabled = true; submit.textContent = 'Submitting...'; }
+        try {
+            const resp = await _srpApi(null, { method: 'POST', body: JSON.stringify({ action: 'submit', report: payload }) });
+            _srpState.lastSubmitted = resp.report || payload;
+            _srpPaintForm();
+        } catch (e) {
+            const duplicate = e.status === 409 || (e.payload && e.payload.error === 'already_submitted');
+            _srpSetFormError(duplicate ? 'This SMM already submitted a report for this client this week.' : (e.message || 'Could not submit the report.'));
+        } finally {
+            if (submit) { submit.disabled = false; submit.textContent = 'Submit report'; }
+        }
+    }
+    function renderSmmWeeklyReportsView() {
+        return `<main class="srp-wrap" id="smmWeeklyReportsMount">
+            <div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1><p class="srp-sub">Review reports by week, social media manager, and client.</p></div></div>
+            <div class="srp-empty">Loading reports...</div>
+        </main>`;
+    }
+    async function mountSmmWeeklyReportsView() {
+        const params = _srpHashParams();
+        _srpState.filters.week = params.get('week') || _srpState.currentWeek || _srpWeekStartISO();
+        _srpState.filters.smm = params.get('smm') || '';
+        _srpState.filters.client = params.get('client') || '';
+        _srpState.filters.status = params.get('status') || '';
+        await _srpLoadReports();
+    }
+    function _srpHashParams() {
+        const raw = String(location.hash || '').replace(/^#/, '');
+        const i = raw.indexOf('?');
+        return new URLSearchParams(i >= 0 ? raw.slice(i + 1) : '');
+    }
+    async function _srpLoadReports() {
+        const mount = document.getElementById('smmWeeklyReportsMount');
+        if (mount) mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1><p class="srp-sub">Review reports by week, social media manager, and client.</p></div></div><div class="srp-empty">Loading reports...</div>`;
+        try {
+            const [options, data] = await Promise.all([
+                _srpLoadOptions().catch(() => ({})),
+                _srpApi({ action: 'reports', week: _srpState.filters.week, smm: _srpState.filters.smm })
+            ]);
+            if (!_srpState.filters.week) _srpState.filters.week = (options && options.current_week_start) || _srpWeekStartISO();
+            _srpState.reports = Array.isArray(data.reports) ? data.reports : [];
+            _srpState.weeks = Array.isArray(data.weeks) ? data.weeks : [];
+            _srpPaintReports();
+        } catch (e) {
+            if (mount) mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1></div></div><div class="srp-empty">Could not load reports: ${_srpEsc(e.message || e)}</div>`;
+        }
+    }
+    function _srpPaintReports() {
+        const mount = document.getElementById('smmWeeklyReportsMount');
+        if (!mount) return;
+        const f = _srpState.filters;
+        const currentWeek = _srpState.currentWeek || _srpWeekStartISO();
+        const weekList = [...new Set([currentWeek, f.week, ...(_srpState.weeks || [])].filter(Boolean))].sort((a, b) => b.localeCompare(a));
+        const managers = _srpState.managers || [];
+        const q = String(f.client || '').trim().toLowerCase();
+        const rows = (_srpState.reports || []).filter(r => {
+            if (f.status && r.overall_status !== f.status) return false;
+            if (q && String(r.client_name || '').toLowerCase().indexOf(q) === -1) return false;
+            return true;
+        });
+        const uniqueManagers = new Set(rows.map(r => r.smm_slug || r.smm_name).filter(Boolean)).size;
+        const uniqueClients = new Set(rows.map(r => r.client_slug || r.client_name).filter(Boolean)).size;
+        const shipped = rows.reduce((sum, r) => sum + (Number(r.content_count) || 0), 0);
+        const attention = rows.filter(r => r.overall_status === 'Needs your attention' || r.overall_status === 'Blocked').length;
+        const needsKasper = rows.filter(r => r.obstacle_support === 'Need your input' || r.obstacle_support === 'Need you to act').length;
+        const groups = new Map();
+        rows.forEach(r => {
+            const key = r.smm_name || r.smm_slug || 'Unassigned';
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(r);
+        });
+        mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1><p class="srp-sub">${_srpEsc(_srpWeekLabel(f.week || currentWeek))}</p></div></div>
+            <div class="srp-toolbar">
+                <select class="srp-select" id="srpWeekFilter">${weekList.map(w => `<option value="${_srpEsc(w)}"${w === f.week ? ' selected' : ''}>${_srpEsc(_srpWeekLabel(w))}</option>`).join('')}</select>
+                <select class="srp-select" id="srpSmmFilter"><option value="">All SMMs</option>${managers.map(m => `<option value="${_srpEsc(m.slug || _srpSlug(m.name))}"${(m.slug || _srpSlug(m.name)) === f.smm ? ' selected' : ''}>${_srpEsc(m.name || m.slug)}</option>`).join('')}</select>
+                <input class="srp-input" id="srpClientFilter" value="${_srpEsc(f.client)}" placeholder="Filter client">
+                <select class="srp-select" id="srpStatusFilter"><option value="">All statuses</option>${SRP_OVERALL.map(s => `<option value="${_srpEsc(s)}"${s === f.status ? ' selected' : ''}>${_srpEsc(s)}</option>`).join('')}</select>
+                <button class="srp-btn secondary" type="button" id="srpRefreshReports">Refresh</button>
+            </div>
+            <div class="srp-summary">
+                <div class="srp-metric"><strong>${rows.length}</strong><span>Reports</span></div>
+                <div class="srp-metric"><strong>${uniqueManagers}</strong><span>SMMs</span></div>
+                <div class="srp-metric"><strong>${uniqueClients}</strong><span>Clients</span></div>
+                <div class="srp-metric"><strong>${shipped}</strong><span>Shipped</span></div>
+                <div class="srp-metric"><strong>${attention}</strong><span>Attention</span></div>
+                <div class="srp-metric"><strong>${needsKasper}</strong><span>Need Kasper</span></div>
+            </div>
+            ${rows.length ? Array.from(groups.entries()).map(([name, items]) => _srpReportGroup(name, items)).join('') : '<div class="srp-empty">No reports match these filters.</div>'}`;
+        _srpWireReports();
+    }
+    function _srpReportGroup(name, items) {
+        items.sort((a, b) => String(a.client_name || '').localeCompare(String(b.client_name || '')));
+        return `<section class="srp-group"><h2 class="srp-group-title">${_srpEsc(name)}</h2><div class="srp-report-list">${items.map(_srpReportCard).join('')}</div></section>`;
+    }
+    function _srpStatusClass(status) {
+        if (status === 'Blocked' || status === 'Needs your attention') return ' alert';
+        if (status === 'Minor friction') return ' warn';
+        return '';
+    }
+    function _srpDetail(label, value, full) {
+        return `<div class="srp-answer${full ? ' full' : ''}"><span class="k">${_srpEsc(label)}</span><span class="v">${_srpEsc(value || '-')}</span></div>`;
+    }
+    function _srpReportCard(r) {
+        const performance = [r.performance_signal, r.performance_context].filter(Boolean).join(' - ');
+        return `<article class="srp-report">
+            <div class="srp-report-top"><div><div class="srp-report-client">${_srpEsc(r.client_name || r.client_slug)}</div><div class="srp-report-meta">Submitted ${_srpEsc(_srpDateTimeLabel(r.submitted_at))}</div></div><span class="srp-status${_srpStatusClass(r.overall_status)}">${_srpEsc(r.overall_status)}</span></div>
+            <div class="srp-detail-grid">
+                ${_srpDetail('Done', r.what_done, true)}
+                ${_srpDetail('Content shipped', r.content_count)}
+                ${_srpDetail('Biggest win', r.biggest_win)}
+                ${_srpDetail('Obstacle / risk', r.biggest_obstacle, true)}
+                ${_srpDetail('Support needed', r.obstacle_support)}
+                ${_srpDetail('Client mood', r.client_mood)}
+                ${_srpDetail('Client requests', r.client_requests, true)}
+                ${_srpDetail('Schedule', r.deliverables_schedule)}
+                ${_srpDetail('Performance', performance)}
+                ${_srpDetail('Other notes', r.anything_else, true)}
+            </div>
+        </article>`;
+    }
+    function _srpWireReports() {
+        const week = document.getElementById('srpWeekFilter');
+        const smm = document.getElementById('srpSmmFilter');
+        const client = document.getElementById('srpClientFilter');
+        const status = document.getElementById('srpStatusFilter');
+        const refresh = document.getElementById('srpRefreshReports');
+        const updateHash = () => {
+            const qs = new URLSearchParams();
+            if (_srpState.filters.week) qs.set('week', _srpState.filters.week);
+            if (_srpState.filters.smm) qs.set('smm', _srpState.filters.smm);
+            if (_srpState.filters.client) qs.set('client', _srpState.filters.client);
+            if (_srpState.filters.status) qs.set('status', _srpState.filters.status);
+            history.replaceState(null, '', '#smm-weekly-reports' + (qs.toString() ? '?' + qs.toString() : ''));
+        };
+        if (week) week.addEventListener('change', () => { _srpState.filters.week = week.value; updateHash(); _srpLoadReports(); });
+        if (smm) smm.addEventListener('change', () => { _srpState.filters.smm = smm.value; updateHash(); _srpLoadReports(); });
+        if (client) client.addEventListener('input', () => { _srpState.filters.client = client.value; updateHash(); _srpPaintReports(); });
+        if (status) status.addEventListener('change', () => { _srpState.filters.status = status.value; updateHash(); _srpPaintReports(); });
+        if (refresh) refresh.addEventListener('click', () => _srpLoadReports());
+    }
+
     const CAL_V2_LS_KEY         = 'syncview_calendar_v2';
     const CAL_V2_KILL_KEY       = 'syncview_calendar_v2_off'; // Phase 3: ?v2=0 sets this (sticky opt-out); v2 is now the default
     const CAL_V2_RT_DEBOUNCE_MS = 350;
@@ -29017,7 +29488,7 @@
         // refreshes (or arrives) directly on one of these we kick off
         // fetchAll in the background so the page paints immediately instead
         // of blocking on the analytics roundtrip.
-        const FAST_TABS = ['linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload'];
+        const FAST_TABS = ['linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'smm-weekly-report', 'smm-weekly-reports'];
 
         function _applyAllDataDependentChrome() {
             try { renderPins(); } catch {}
@@ -31936,6 +32407,7 @@
             }, 8000);
             const qp = new URLSearchParams(location.search);
             const hashRaw = decodeURIComponent(location.hash.replace('#',''));
+            const hashRoute = hashRaw.split('?')[0];
             // >>> SXR_BEGIN
             // Samples (Review) refresh/deep-link landing. Its own backend (no
             // analytics dependency), so route immediately and skip the analytics
@@ -31954,6 +32426,7 @@
             const stateNav = history.state && history.state.nav;
             const stateClient = history.state && history.state.client;
             const hashIsFastTab = FAST_TABS.includes(hashRaw)
+                || FAST_TABS.includes(hashRoute)
                 || hashRaw.startsWith('calendar/')
                 || hashRaw.startsWith('samples/')
                 || hashRaw.startsWith('templates/');
@@ -32249,6 +32722,8 @@
                             _templatesSelected = null; navTo('templates', false);
                         }
                     });
+                } else if (hashRoute === 'smm-weekly-report' || hashRoute === 'smm-weekly-reports') {
+                    navTo(hashRoute, false);
                 } else if (hashRaw === 'kasper' || hashRaw.startsWith('kasper/')) {
                     // Already unlocked for this session (gated by _kasperHashLanding).
                     if (hashRaw.startsWith('kasper/')) {
@@ -32358,6 +32833,8 @@
             if(hash==='filming-plans'){navTo(hash,false);return;}
             if(hash==='tiktok-upload'){navTo(hash,false);return;}
             if(hash==='tiktok-pilot' && _ttpUnlocked){navTo('tiktok-pilot',false);return;}
+            if(hashRoute==='smm-weekly-report'){navTo('smm-weekly-report',false);return;}
+            if(hashRoute==='smm-weekly-reports'){navTo('smm-weekly-reports',false);return;}
             if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
             if(hash.startsWith('kasper/') && _kasperUnlocked){
                 const sub=hash.slice('kasper/'.length);
@@ -32465,6 +32942,8 @@
     }
     const _isClientLink=!!new URLSearchParams(location.search).get('c');
     const _isIntake=(new URLSearchParams(location.search).get('intake')==='1');
+    const _entryHash=(()=>{try{return decodeURIComponent(location.hash.replace('#','')).split('/')[0].split('?')[0];}catch(e){return location.hash.replace('#','').split('/')[0].split('?')[0];}})();
+    const _isSmmWeeklyEntry=(_entryHash==='smm-weekly-report'||_entryHash==='smm-weekly-reports');
     const _obParam=new URLSearchParams(location.search).get('onboarding');
     // AI funnel lives at /ai_onboarding_form (or ?onboarding=ai); the standard
     // funnel at /onboarding_form (or ?onboarding=<anything-else>). The /ai_ path
@@ -32475,6 +32954,7 @@
     const _isOnboardingView=!!new URLSearchParams(location.search).get('onboarding_view');
     if(_isIntake){document.body.classList.add('intake-mode');}
     if(_isOnboarding){document.body.classList.add('onboarding-mode');}
+    if(_isSmmWeeklyEntry){document.body.classList.add('smm-weekly-mode');}
     if(_isOnboarding){
         // Standalone onboarding form (?onboarding=…): no staff password and no
         // dashboard data load. Hide all workspace chrome and mount only the
@@ -32511,7 +32991,13 @@
         const _hV=document.querySelector('header.header'); if(_hV) _hV.style.display='none';
         const _ptV=document.getElementById('pageTop'); if(_ptV) _ptV.style.display='none';
         setTimeout(function(){ try{ _obvMountStandalone(new URLSearchParams(location.search).get('onboarding_view')); }catch(e){ console.error('[onboarding_view] mount failed', e); } }, 0);
-    } else if(_isIntake||_isClientLink||localStorage.getItem(_AUTH_KEY)==='ok'){
+    } else if(_isSmmWeeklyEntry||_isIntake||_isClientLink||localStorage.getItem(_AUTH_KEY)==='ok'){
+        if(_isSmmWeeklyEntry){
+            document.documentElement.classList.remove('boot-password');
+            const _pwS=document.getElementById('passwordOverlay'); if(_pwS) _pwS.style.display='none';
+            const _hS=document.querySelector('header.header'); if(_hS) _hS.style.display='none';
+            const _ptS=document.getElementById('pageTop'); if(_ptS) _ptS.style.display='none';
+        }
         if(_isIntake){
             // Client intake link (?intake=1): expose ONLY the Linear submission
             // flow. Bypass the staff password, hide all workspace chrome, and

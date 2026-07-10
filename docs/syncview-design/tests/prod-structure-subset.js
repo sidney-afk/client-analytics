@@ -439,9 +439,12 @@ async function assertNoWriteRequests(requests) {
     if (!projectSideCountTracksVisible) throw new Error('Project side issue count should track visible project rows');
     const projectRowShapeOk = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('[data-prod-project-issue]')];
-      return rows.length === 0 || rows.every(row => row.querySelector('.prod-status[data-st]') && row.querySelector('.prod-id') && row.querySelector('.prod-title') && row.querySelector('.prod-due') && row.querySelector('[data-prod-assign]'));
+      const emptyDuePills = [...document.querySelectorAll('[data-prod-project-issue] .prod-due.optional')];
+      const emptyDueLabel = pill => (pill.querySelector(':scope > span:last-child')?.textContent || '').trim();
+      return (rows.length === 0 || rows.every(row => row.querySelector('.prod-status[data-st]') && row.querySelector('.prod-id') && row.querySelector('.prod-title') && row.querySelector('.prod-due') && row.querySelector('[data-prod-assign]')))
+        && emptyDuePills.every(pill => emptyDueLabel(pill) === 'Add date');
     });
-    if (!projectRowShapeOk) throw new Error('Project issue rows are missing issue-list metadata controls');
+    if (!projectRowShapeOk) throw new Error('Project issue rows are missing issue-list metadata controls or readable empty due labels');
     await expectExactCount(page, '.prod-project-groups .prod-project-group [data-prod-disabled="add-project-issue"]', 0, 'project-detail group add controls');
     await expectCount(page, '[data-prod-pstatus]', 1, 'project detail status property');
     await expectCount(page, '[data-prod-plead]', 1, 'project detail lead property');

@@ -200,6 +200,13 @@ function validatePacket(dir = packetDir) {
     if (projectDetail.evidence.topbarFakeControls !== 0) {
       failures.push(`project-detail still exposes ${projectDetail.evidence.topbarFakeControls} fake favorite/notification topbar control(s)`);
     }
+    if (projectDetail.evidence.emptyDueIconOnly !== 0) {
+      failures.push(`project-detail still exposes ${projectDetail.evidence.emptyDueIconOnly} icon-only empty due control(s)`);
+    }
+    const emptyDueLabels = Array.isArray(projectDetail.evidence.emptyDueLabels) ? projectDetail.evidence.emptyDueLabels : [];
+    if (emptyDueLabels.some(label => label !== 'Add date')) {
+      failures.push(`project-detail empty due labels changed: ${emptyDueLabels.join('|') || '(missing)'}`);
+    }
   }
   const parentDetail = byName('parent-detail');
   if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.subIssueRows < 1 || !parentDetail.evidence.hasGuardedAddSubIssue || !parentDetail.evidence.subIssueSectionVisible || !parentDetail.evidence.activityVisible) {

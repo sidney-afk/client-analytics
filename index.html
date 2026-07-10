@@ -31890,7 +31890,7 @@
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + '<span class="prod-title prod-project-issue-title"' + _prodTitleAttrs(title) + '><span class="prod-project-title-main"><b>' + _calEsc(title) + '</b></span>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
                 + '<span class="prod-spacer"></span>'
-                + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + '</span>')
+                + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" data-prod-empty-due="label" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Add due date">' + _prodIcon('cal') + '<span>Add date</span></span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '" onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="' + _calEscAttr(assignee ? ('Assignee: ' + assignee.name) : 'Unassigned') + '">' + _prodAvatar(assignee, 18) + '</span>'
                 + '<span class="prod-created optional">' + _calEsc(d.created) + '</span></div>';
         }

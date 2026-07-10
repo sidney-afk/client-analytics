@@ -161,6 +161,8 @@ async function collectProjectDetailEvidence(page) {
     const crumbTeam = document.querySelector('.prod-detail-crumb [data-prod-crumb-team]');
     const groupCount = document.querySelector('.prod-subhead .prod-group-count');
     const sideCount = document.querySelector('[data-prod-detail-card="project-issues"] .prod-side-row');
+    const emptyDuePills = rows.flatMap(row => [...row.querySelectorAll('.prod-due.optional')]);
+    const emptyDueLabel = pill => (pill.querySelector(':scope > span:last-child')?.textContent || '').trim();
     return {
       stateTeam: _prodState.team || '',
       openProjectId: _prodState.openProjectId || '',
@@ -170,6 +172,8 @@ async function collectProjectDetailEvidence(page) {
       rowTeams: [...new Set(rowTeams)].sort(),
       groupCountText: groupCount ? groupCount.textContent.trim() : '',
       sideIssuesText: sideCount ? sideCount.textContent.trim() : '',
+      emptyDueLabels: emptyDuePills.map(emptyDueLabel),
+      emptyDueIconOnly: emptyDuePills.filter(pill => !emptyDueLabel(pill)).length,
       groupAddControls: document.querySelectorAll('.prod-project-groups .prod-project-group [data-prod-disabled="add-project-issue"], .prod-project-groups .prod-project-group .prod-group-add').length,
       topbarFakeControls: document.querySelectorAll('.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]').length,
     };

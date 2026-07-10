@@ -275,8 +275,11 @@ async function txt(page, sel) {
         if (!row) return true;
         const main = document.querySelector('.prod-detail-main');
         const inner = document.querySelector('.prod-detail-inner');
+        const emptyDuePills = [...document.querySelectorAll('[data-prod-project-issue] .prod-due.optional')];
+        const emptyDueLabel = pill => (pill.querySelector(':scope > span:last-child')?.textContent || '').trim();
         return !!row.querySelector('[data-prod-assign]')
           && !!row.querySelector('.prod-due')
+          && emptyDuePills.every(pill => emptyDueLabel(pill) === 'Add date')
           && row.getBoundingClientRect().width >= main.getBoundingClientRect().width * 0.8
           && inner.getBoundingClientRect().width >= main.getBoundingClientRect().width * 0.95;
       });

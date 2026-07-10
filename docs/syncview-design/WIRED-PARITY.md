@@ -351,3 +351,4 @@ Owner-feedback refinements applied on top of the read-only wired tab:
 12. Selected issue command menus now match the selected count. With multiple issues selected, the menu says `Copy issue IDs` and `Delete issues`; the single-selection path keeps singular copy.
 13. Project-card context menus now match visible project controls. `Change status`, `Set lead`, and `Set target` open guarded read-only project pickers instead of rendering as fake disabled mutation rows; `Copy link` remains the active deep-link action.
 14. Detail Properties cards no longer show literal `Controls disabled` scaffold pills. The status, assignee, due, project, lead, and target rows remain the visible controls; selecting a guarded value still shows the read-only preview guard.
+15. Project-detail issue rows no longer show icon-only empty due controls. Rows with no due date render a readable `Add date` pill that still opens the guarded due-date picker.

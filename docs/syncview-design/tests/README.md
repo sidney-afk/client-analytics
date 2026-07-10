@@ -17,11 +17,16 @@ session re-runs against the wired Production tab (spec §10.6/§12, decision D-1
 | `prod-review-packet.js` | Reviewer artifact generator. Captures named desktop, dark, and mobile screenshots plus a `manifest.md` so GitHub Actions can upload a compact visual packet for Production PR review. | `npm run test:prod-review` |
 | `prod-argos-export.js` | Argos visual-diff export. Validates the review packet, then writes desktop/dark Production PNGs plus companion `.argos.json` metadata to `.codex-tmp/prod-argos-snapshots` for the guarded CI upload. | `npm run test:prod-argos:prepare` |
 | `pixel-wired.js` | Wired-tab visual/placement parity pass for light and dark mode. Checks list, icons, palette, selection/actionbar, selected-action picker anchoring, status picker inventory, context menus, due popover, filter pill, filtered empty state, board drag/scroll, project detail toolbar tab removal, detail, and browser-history parity. | `node docs/syncview-design/tests/pixel-wired.js` |
-| `behav.js` | The primary behavioral regression suite — **138 assertions**, one per shipped interaction (list/board/detail/pickers/palette/keyboard/multi-select/undo). Prints `ALL N BEHAVIORS PASS` + `JS ERRORS: 0`. | `node behav.js` (needs Playwright + a built prototype) |
-| `qa-features.js` | Self-verify harness — drives every feature + menu regression sweep, asserts zero page/console errors. Prints `ALL GREEN`. | `node qa-features.js` |
-| `sweep.js` | Interaction fuzz sweep — hovers/clicks every interactive element on all 6 surfaces, asserts 0 JS errors. Prints `SWEEP CLEAN`. | `node sweep.js` |
-| `build.js` | Builds the prototype: injects the Inter font into the source (`__INTER_B64__` placeholder) → emits `out/SyncView.html` + `out/_sv.html`. | `node build.js` |
-| `syncview-parity-audit.js` | The re-launchable 5-agent adversarial parity audit (Claude Workflow script). | `Workflow({scriptPath: ...})` |
+| `design-machine-originals/behav.js` | The primary behavioral regression suite — **138 assertions**, one per shipped interaction (list/board/detail/pickers/palette/keyboard/multi-select/undo). Prints `ALL N BEHAVIORS PASS` + `JS ERRORS: 0`. | `node behav.js` (needs Playwright + a built prototype) |
+| `design-machine-originals/qa-features.js` | Self-verify harness — drives every feature + menu regression sweep, asserts zero page/console errors. Prints `ALL GREEN`. | `node qa-features.js` |
+| `design-machine-originals/sweep.js` | Interaction fuzz sweep — hovers/clicks every interactive element on all 6 surfaces, asserts 0 JS errors. Prints `SWEEP CLEAN`. | `node sweep.js` |
+| `design-machine-originals/build.js` | Builds the prototype: injects the Inter font into the source (`__INTER_B64__` placeholder) → emits `out/SyncView.html` + `out/_sv.html`. | `node build.js` |
+| `design-machine-originals/syncview-parity-audit.js` | The re-launchable 5-agent adversarial parity audit (Claude Workflow script). | `Workflow({scriptPath: ...})` |
+
+> The five `design-machine-originals/` files are the prototype-era suites copied verbatim from
+> the design machine. They hardcode `C:/Users/Sidney/...` paths and are **not runnable in this
+> repo** — they are kept as the reference the wired `prod-*`/`behav-wired` suites were adapted
+> from, and become relevant again only when B3/B4 enables writes.
 
 **Path adaptation required before running here:** the scripts hardcode
 `C:/Users/Sidney/linear-design-probe/out` as the build/output dir. In this repo the equivalents

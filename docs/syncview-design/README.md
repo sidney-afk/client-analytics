@@ -31,13 +31,13 @@ dark mode is a later whole-site effort.
    Live version: https://claude.ai/code/artifact/50e256f7-1438-45df-a808-bc2f312327e6
 6. `PARITY-LOOP.md` — the behavioral changelog / "brain" (every interaction audit + fix).
 7. `syncview-app.src.html` — survivable copy of the prototype source (has the `__INTER_B64__`
-   font placeholder). `*.json` files are the raw pixel measurements from the probe.
+   font placeholder). `probe-data/*.json` are the raw pixel measurements from the probe.
 
 ## What's intentionally NOT committed here
 The design session's **~19 MB of raw Linear reference screenshots** (`*.png`) are left out to
 keep this public repo lean — they are reproducible from the probe and live in Sidney's local
 `linear-design-probe/out/` folder. The measured values that matter are captured in
-`linear-design-tokens.md` and the `*.json` measurement files.
+`linear-design-tokens.md` and the `probe-data/*.json` measurement files.
 
 > **Note:** `SyncView.html` contains mock/sample data, including one example Google Drive folder
 > link. It is placeholder content, not a live integration.

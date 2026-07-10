@@ -397,8 +397,14 @@ async function selectionChecks(page) {
       if (main) main.scrollTop = main.scrollHeight;
       window.scrollTo(0, document.body.scrollHeight);
     });
-    await page.locator('#prodRoot .prod-subrow').first().scrollIntoViewIfNeeded({ timeout: 2500 });
-    await page.locator('#prodRoot .prod-subrow').first().click({ timeout: 2500, force: true });
+    const clickedSubrow = await page.evaluate(() => {
+      const row = document.querySelector('#prodRoot .prod-subrow');
+      if (!row) return false;
+      row.scrollIntoView({ block: 'center', inline: 'nearest' });
+      row.click();
+      return true;
+    });
+    if (!clickedSubrow) failures.push('parent detail lost its sub-issue row before navigation');
     await page.waitForTimeout(180);
     const subDetail = await page.evaluate(() => {
       const main = document.querySelector('#prodRoot .prod-detail-main');

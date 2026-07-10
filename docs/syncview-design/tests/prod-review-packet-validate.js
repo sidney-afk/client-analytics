@@ -169,8 +169,8 @@ function validatePacket(dir = packetDir) {
   if (!projectBoard || !projectBoard.state || projectBoard.state.view !== 'board' || projectBoard.state.filters !== 0) {
     failures.push('project-board screenshot must be an unfiltered board baseline in review-manifest.json');
   }
-  if (!projectBoard || !projectBoard.evidence || projectBoard.evidence.emptyColumns < 1 || projectBoard.evidence.populatedColumns < 1 || projectBoard.evidence.emptyColumnsWithActionControls !== 0) {
-    failures.push('project-board screenshot must record static empty-column evidence with no add/options controls in review-manifest.json');
+  if (!projectBoard || !projectBoard.evidence || projectBoard.evidence.emptyColumns < 1 || projectBoard.evidence.populatedColumns < 1 || projectBoard.evidence.totalColumnsWithActionControls !== 0) {
+    failures.push('project-board screenshot must record board-column evidence with zero fake add/options controls in review-manifest.json');
   }
   const projectDetail = byName('project-detail');
   if (!projectDetail || !projectDetail.state || projectDetail.state.view !== 'project' || projectDetail.state.team !== 'video' || projectDetail.state.filters !== 0) {

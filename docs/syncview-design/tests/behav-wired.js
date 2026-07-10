@@ -541,7 +541,7 @@ async function txt(page, sel) {
       return emptyCols.length > 0
         && cardCols.length > 0
         && emptyCols.every(col => !col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]'))
-        && cardCols.every(col => col.querySelector('[data-prod-disabled="add-client-board-card"]') && col.querySelector('[data-prod-disabled="board-column-options"]'));
+        && cardCols.every(col => !col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]'));
     })); await reset();
     await ok('markdown', async () => await page.evaluate(() => {
       const h = _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com - VID-12586\n---\n## Client Resources\n**Instagram: [theopenposturedoc](<https://www.instagram.com/theopenposturedoc/#>)**\n**Brand Guidelines:** **[Document](<https://docs.google.com/document/d/abc/edit>)\n****Personal Pictures:** [**Folder**](<https://drive.google.com/drive/folders/abc>)');

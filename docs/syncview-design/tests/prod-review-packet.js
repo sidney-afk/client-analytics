@@ -142,6 +142,7 @@ async function collectProjectBoardEvidence(page) {
       populatedColumns: cardCols.length,
       emptyColumnsWithActionControls: emptyCols.filter(hasAddOrOptions).length,
       populatedColumnsWithActionControls: cardCols.filter(hasAddOrOptions).length,
+      totalColumnsWithActionControls: [...document.querySelectorAll('.prod-col')].filter(hasAddOrOptions).length,
     };
   });
 }

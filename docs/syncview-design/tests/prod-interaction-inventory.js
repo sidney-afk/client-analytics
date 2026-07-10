@@ -428,10 +428,10 @@ async function selectionChecks(page) {
   const cardCursor = await page.locator('#prodRoot .prod-card[data-prod-client-card]').first().evaluate(el => getComputedStyle(el).cursor).catch(() => '');
   if (cardCursor !== 'pointer') failures.push(`project card cursor should be pointer, got ${cardCursor || 'empty'}`);
   const emptyColumnActions = await page.evaluate(() => {
-    const emptyCols = [...document.querySelectorAll('#prodRoot .prod-col.is-empty')];
-    return emptyCols.filter(col => col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]')).length;
+    const cols = [...document.querySelectorAll('#prodRoot .prod-col')];
+    return cols.filter(col => col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]')).length;
   });
-  if (emptyColumnActions) failures.push(`empty project board columns exposed ${emptyColumnActions} fake add/options control set(s)`);
+  if (emptyColumnActions) failures.push(`project board column headers exposed ${emptyColumnActions} fake add/options control set(s)`);
   return failures;
 }
 

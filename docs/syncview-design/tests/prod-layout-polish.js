@@ -161,9 +161,9 @@ async function collectLayoutFailures(page, label) {
           return emptyCols.length > 0
             && cardCols.length > 0
             && emptyCols.every(col => !col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]'))
-            && cardCols.every(col => col.querySelector('[data-prod-disabled="add-client-board-card"]') && col.querySelector('[data-prod-disabled="board-column-options"]'));
+            && cardCols.every(col => !col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]'));
         });
-        if (!emptyColumnChrome) failures.push('empty project board columns should not show fake add/options controls');
+        if (!emptyColumnChrome) failures.push('project board columns should not show fake header add/options controls');
       }
       if (await page.locator('.prod-card[data-prod-client-card]').count()) {
         await page.locator('.prod-card[data-prod-client-card] [data-prod-cardcheck]').first().click({ force: true });

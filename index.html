@@ -2827,6 +2827,10 @@
         .prod-card-ico { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-muted); font-size: 13px; }
         .prod-card-status { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
         .prod-card-status[data-prod-pstatus], .prod-card-lead, .prod-card-target, .prod-chip-client, .prod-assign-hot { cursor: pointer; }
+        .prod-card-target { min-width: 20px; height: 20px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; color: var(--prod-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .prod-card-target:hover { background: var(--prod-hover); color: var(--prod-strong); }
+        .prod-card-target.is-empty { justify-content: center; color: var(--prod-faint); opacity: .72; }
+        .prod-card-target.is-empty:hover { opacity: 1; }
         .prod-detail-top { border-bottom: 1px solid var(--prod-divider); }
         .prod-detail-crumb { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 500; color: var(--prod-strong); }
         .prod-detail-crumb span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -32604,8 +32608,11 @@
             const filtered = !!((_prodState.filters || []).length);
             const countLabel = count + (filtered ? ' matching issue' : ' issue') + (count === 1 ? '' : 's');
             const titleAttrs = ' data-fulltitle="' + _calEscAttr(title) + '"' + (String(title || '').length > 120 ? ' title="' + _calEscAttr(title) + '"' : '');
+            const targetHtml = c.target
+                ? '<span class="prod-card-target" data-prod-ptarget="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Target: ' + _calEscAttr(c.target) + '">' + _prodIcon('cal') + '<span>' + _calEsc(c.target) + '</span></span>'
+                : '<span class="prod-card-target is-empty" data-prod-ptarget="' + _calEscAttr(id) + '" data-prod-target-empty="true" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Set target" aria-label="Set target">' + _prodIcon('cal') + '</span>';
             return '<article class="prod-card pcard' + (focused ? ' pcard-kfocus' : '') + (selected ? ' pcard-sel' : '') + '" draggable="true" data-prod-client-card="' + _calEscAttr(id) + '" data-project="' + _calEscAttr(id) + '" onclick="return _prodCardClick(event,' + _jsAttrArg(id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')"><div class="prod-card-head"><span class="prod-card-check pcard-check' + (selected ? ' on' : '') + '" data-prod-cardcheck="' + _calEscAttr(id) + '" data-cardcheck="' + _calEscAttr(id) + '" onclick="event.stopPropagation(); _prodToggleCardSelection(' + _jsAttrArg(id) + ',false)" aria-hidden="true"></span><span class="prod-card-ico pcard-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title pcard-nm" data-prod-card-title="' + _calEscAttr(id) + '"' + titleAttrs + '>' + _calEsc(title) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
-                + '<div class="prod-card-meta"><span data-prod-card-count="' + _calEscAttr(id) + '">' + _calEsc(countLabel) + '</span><span class="prod-spacer"></span><span class="prod-card-target" data-prod-ptarget="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Set target">' + (c.target ? _prodIcon('cal') + ' ' + _calEsc(c.target) : 'No target') + '</span></div></article>';
+                + '<div class="prod-card-meta"><span data-prod-card-count="' + _calEscAttr(id) + '">' + _calEsc(countLabel) + '</span><span class="prod-spacer"></span>' + targetHtml + '</div></article>';
         }
         function _prodProjectChipHTML(project) {
             const label = _prodDisplayClient(project);

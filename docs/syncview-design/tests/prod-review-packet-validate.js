@@ -189,6 +189,12 @@ function validatePacket(dir = packetDir) {
     if (minWidth < 250 || maxWidth - minWidth > 8) {
       failures.push(`project-board columns must use equal readable lane widths, saw ${minWidth}-${maxWidth}px`);
     }
+    const emptyTargetControls = Number(projectBoard.evidence.emptyTargetControls || 0);
+    const emptyTargetIconOnly = Number(projectBoard.evidence.emptyTargetIconOnly || 0);
+    const emptyTargetLabels = Array.isArray(projectBoard.evidence.emptyTargetLabels) ? projectBoard.evidence.emptyTargetLabels : [];
+    if (emptyTargetControls < 1 || emptyTargetIconOnly !== emptyTargetControls || emptyTargetLabels.length) {
+      failures.push('project-board empty target controls must stay compact and icon-only instead of repeating "No target" labels');
+    }
   }
   const projectDetail = byName('project-detail');
   if (!projectDetail || !projectDetail.state || projectDetail.state.view !== 'project' || projectDetail.state.team !== 'video' || projectDetail.state.filters !== 0) {

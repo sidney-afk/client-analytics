@@ -82,7 +82,9 @@ Automation follow-up after the owner asked to reduce manual polishing overhead a
 `npm run test:prod-polish` command and GitHub Actions workflow. The gate passed locally in
 315.5s and covers boot/loading, structure, interaction inventory, accessibility/focus, layout
 clipping, wired behavior, and pixel parity. New focused checks also passed individually:
-`prod-boot-budget.js`, `prod-a11y-focus.js`, and `prod-layout-polish.js`.
+`prod-boot-budget.js`, `prod-a11y-focus.js`, and `prod-layout-polish.js`. A reviewer packet
+generator now writes `.codex-tmp/prod-review-packet/manifest.md` plus 10 named screenshots
+for desktop, dark, and mobile Production review.
 
 ## Finding fixed
 
@@ -155,7 +157,9 @@ Fix: added `npm run test:prod-polish`, `.github/workflows/production-polish-gate
 `docs/PRODUCTION_POLISH_AUTOMATION.md`, `.github/ISSUE_TEMPLATE/production-polish.yml`,
 `.github/copilot-instructions.md`, and `AGENTS.md`. The new gate also found and fixed a real
 keyboard accessibility gap: the Production global keyboard handler no longer steals Enter/Space
-from focused buttons, and icon-only Filter/Display controls now have accessible names.
+from focused buttons, and icon-only Filter/Display controls now have accessible names. Added
+`prod-review-packet.js` so CI also uploads a compact visual review packet with a manifest and
+named screenshots.
 
 No data, flags, backend code, n8n workflows, or Supabase objects were touched.
 

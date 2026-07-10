@@ -24,10 +24,19 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run Production polish gate
         run: npm run test:prod-polish
+      - name: Build Production review packet
+        run: npm run test:prod-review
       - name: Upload Production polish screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: production-polish-screenshots
           path: .codex-tmp/prod-pixel-wired
+          if-no-files-found: ignore
+      - name: Upload Production review packet
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-review-packet
+          path: .codex-tmp/prod-review-packet
           if-no-files-found: ignore

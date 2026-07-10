@@ -15,11 +15,22 @@ It runs the checks that matter for making the Production tab feel finished:
 - layout clipping checks across desktop, compact desktop, and mobile viewports;
 - existing behavior and pixel parity suites.
 
+For reviewer screenshots, run:
+
+```bash
+npm run test:prod-review
+```
+
+That writes `.codex-tmp/prod-review-packet/manifest.md` plus named desktop, dark, and mobile PNGs for the core Production surfaces. The GitHub workflow uploads this folder as `production-review-packet`.
+
 ## GitHub Workflow
 
 `.github/workflows/production-polish-gate.yml` runs this gate on pull requests that touch Production UI/test files, and can also be started manually from GitHub Actions.
 
-The workflow uploads the generated Production screenshots from `.codex-tmp/prod-pixel-wired` so a reviewer can inspect visual drift without reproducing the run locally.
+The workflow uploads two visual artifacts:
+
+- `production-polish-screenshots`: the side-by-side pixel/parity screenshots from `.codex-tmp/prod-pixel-wired`;
+- `production-review-packet`: a compact reviewer packet with `manifest.md` and named screenshots from `.codex-tmp/prod-review-packet`.
 
 ## Turning Feedback Into Work
 
@@ -43,4 +54,5 @@ For AI-agent PRs, keep the issue text natural, but include the route and screens
    - `prod-boot-budget.js` for refresh/loading/skeleton problems;
    - `prod-interaction-inventory.js` or `behav-wired.js` for clicks, hovers, menus, routing, or state changes.
 3. Run `npm run test:prod-polish`.
-4. Update the Production parity docs and rollback notes with what the new check protects.
+4. Run `npm run test:prod-review` when the reviewer needs fresh screenshots.
+5. Update the Production parity docs and rollback notes with what the new check protects.

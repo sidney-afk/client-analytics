@@ -1432,6 +1432,7 @@ async function txt(page, sel) {
       if (await page.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count()) return false;
       await page.locator('#prodBulkActions').click();
       await page.waitForSelector('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', { timeout: 5000 });
+      if (await page.locator('[data-prod-actionbar].menu-open').count() !== 1) return false;
       const labels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
       if (labels !== 'Assign to...|Change status...|Move to project...|Copy issue IDs|Change due date...|Delete issues') return false;
       await page.fill('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', 'status');
@@ -1443,7 +1444,7 @@ async function txt(page, sel) {
       await page.locator('#prodLayer [data-prod-pick]').first().click();
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
       const after = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.status])));
-      return isStatus && before === after && (await txt(page, '#prodToast')).includes('Preview - read-only');
+      return isStatus && before === after && (await txt(page, '#prodToast')).includes('Preview - read-only') && await page.locator('[data-prod-actionbar].menu-open').count() === 0;
     }); await reset();
     await ok('bulkCopyIssueId', async () => {
       const expected = await page.evaluate(() => {

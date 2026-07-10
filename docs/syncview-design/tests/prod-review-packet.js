@@ -105,6 +105,7 @@ async function collectBulkActionEvidence(page) {
     };
     return {
       actionBarVisible: visible(actionBar),
+      actionBarReceded: !!(actionBar && actionBar.classList.contains('menu-open')),
       menuVisible: visible(menu),
       searchVisible: visible(search),
       selectedRows: _prodState.selected && typeof _prodState.selected.size === 'number' ? _prodState.selected.size : 0,

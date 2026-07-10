@@ -2852,6 +2852,7 @@
         .prod-project-groups .prod-subrow .prod-spacer { min-width: 8px; }
         .prod-project-groups .prod-subrow .prod-due, .prod-project-groups .prod-subrow .prod-assign-hot, .prod-project-groups .prod-subrow .prod-created { flex: none; }
         .prod-actionbar { position: fixed; left: calc(50% + 122px); bottom: 20px; transform: translateX(-50%); z-index: 2000; height: 44px; border: 1px solid var(--prod-border-soft); border-radius: 12px; background: var(--prod-surface); display: inline-flex; align-items: center; gap: 3px; padding: 5px; color: var(--prod-strong); font-size: 12px; box-shadow: var(--prod-shadow-pop); }
+        .prod-actionbar.menu-open { opacity: .34; }
         .prod-actionbar .cnt { color: var(--prod-dim); padding: 0 8px 0 9px; white-space: nowrap; }
         .prod-actionbar .abtn { height: 28px; border: 0; border-radius: 7px; background: var(--prod-hover); color: var(--prod-strong); display: inline-flex; align-items: center; gap: 6px; font: inherit; cursor: pointer; padding: 0 10px; }
         .prod-actionbar .abtn:hover, .prod-actionbar .ax:hover { background: var(--prod-hover); color: var(--prod-text); }
@@ -30790,7 +30791,7 @@
             }
             document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
             _prodState.paletteOpen = false;
-            document.querySelectorAll('#prodFilterBtn.menu-open, #prodGroupBtn.menu-open').forEach(el => el.classList.remove('menu-open'));
+            document.querySelectorAll('#prodFilterBtn.menu-open, #prodGroupBtn.menu-open, .prod-actionbar.menu-open').forEach(el => el.classList.remove('menu-open'));
             _prodSubPop = null;
             _prodHideTip();
         }
@@ -32417,6 +32418,7 @@
             }
             const bar = ev && ev.currentTarget && ev.currentTarget.closest ? ev.currentTarget.closest('.prod-actionbar') : null;
             const r = bar ? bar.getBoundingClientRect() : null;
+            if (bar) bar.classList.add('menu-open');
             const ids = _prodTargetIds(id);
             const count = ids.length || 1;
             const plural = count !== 1;

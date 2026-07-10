@@ -155,6 +155,8 @@ function validatePacket(dir = packetDir) {
   }
   if (!selectedActions || !selectedActions.evidence || !selectedActions.evidence.actionBarVisible || !selectedActions.evidence.menuVisible || !selectedActions.evidence.searchVisible || selectedActions.evidence.selectedRows < 2) {
     failures.push('selected-actions-menu screenshot must record visible action bar, searchable menu, and selected-row evidence in review-manifest.json');
+  } else if (selectedActions.evidence.actionBarReceded !== true) {
+    failures.push('selected-actions-menu screenshot must record a receded action bar while the command menu is open');
   } else {
     const labels = Array.isArray(selectedActions.evidence.commandLabels) ? selectedActions.evidence.commandLabels : [];
     if (labels.join('|') !== expectedBulkLabels.join('|')) {

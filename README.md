@@ -62,18 +62,26 @@ like the body classes they anticipate). The app talks to three backends.
 
 ## Repository layout
 
+The full annotated map lives in **`REPO_MAP.md`** (enforced by
+`test/repo-map-sync.js`, so it cannot go stale). The short version:
+
 | Path | What it is |
 |---|---|
 | `index.html` | The entire application. |
-| `docs/features/SMM_WEEKLY_REPORTS.md` | SQL, Edge Function, and n8n setup notes for the hidden SMM weekly report flow. |
 | `test/` | Fast, offline unit/wiring tests that extract and exercise pieces of the inline script. Run with `npm test`. |
 | `qa/` | Headless (Playwright) end-to-end probes against the live backend. Run with `npm run test:e2e`. |
-| `scripts/` | The Linear ⇄ calendar reconcile job (`linear-sync-reconcile.js`). |
-| `.github/workflows/` | CI: unit tests on every push, nightly E2E, and the 10-minute Linear reconcile cron. |
+| `scripts/` | CI reconcile jobs (Linear ⇄ calendar/samples) and tested one-shot ops tools. |
+| `.github/workflows/` | CI: unit tests on every push, nightly E2E, the Production polish gate, and reconcile crons. |
 | `migrations/` | One-time, **manually applied** Supabase SQL-editor migrations, kept for provenance — there is no auto-runner. See `migrations/README.md`. |
+| `supabase/` | Supabase CLI config + Edge Function sources (path-triggered deploys). |
 | `n8n-backups/` | Point-in-time snapshots of the n8n workflows (rollback anchors). |
-| `docs/` | Test catalogs, the headless-testing guide, and archived handoff/incident notes under `docs/archive/`. |
-| Top-level `*_DESIGN.md` / `*_MIGRATION.md` | Design specs and runbooks for individual features. |
+| `docs/features/` | Living design/spec doc for each shipped feature. |
+| `docs/ops/` | Runbooks: new-client onboarding, reconcile safety net, monitoring. |
+| `docs/independence/` | The active independence program (Track A/B specs and plan). |
+| `docs/testing/` | Test catalog, headless-testing guide, prod-polish automation. |
+| `docs/archive/` | Completed migrations, superseded plans, old audits and QA reports. |
+| `docs/syncview-design/` | The locked Production-tab design kit + its wired test gates. |
+| `ROLLBACK.md`, `EXECUTION_LOG.md` | The rollback doctrine and the running execution log — kept at root on purpose. |
 
 ## Development
 

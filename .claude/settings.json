@@ -7,6 +7,11 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/readme-sync-reminder.sh\"",
             "statusMessage": "Checking README is in sync with the app…"
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/repo-map-reminder.sh\"",
+            "statusMessage": "Checking REPO_MAP is in sync with the tree…"
           }
         ]
       }

@@ -21,7 +21,7 @@ For reviewer screenshots, run:
 npm run test:prod-review
 ```
 
-That writes `.codex-tmp/prod-review-packet/index.html`, `manifest.md`, plus named desktop, dark, and mobile PNGs for the core Production surfaces. The GitHub workflow uploads this folder as `production-review-packet`.
+That writes `.codex-tmp/prod-review-packet/index.html`, `manifest.md`, `review-manifest.json`, plus named desktop, dark, and mobile PNGs for the core Production surfaces. The GitHub workflow uploads this folder as `production-review-packet`.
 
 ## GitHub Workflow
 
@@ -30,9 +30,9 @@ That writes `.codex-tmp/prod-review-packet/index.html`, `manifest.md`, plus name
 The workflow uploads two visual artifacts:
 
 - `production-polish-screenshots`: the side-by-side pixel/parity screenshots from `.codex-tmp/prod-pixel-wired`;
-- `production-review-packet`: a compact reviewer packet with `index.html`, `manifest.md`, and named screenshots from `.codex-tmp/prod-review-packet`.
+- `production-review-packet`: a compact reviewer packet with `index.html`, `manifest.md`, `review-manifest.json`, and named screenshots from `.codex-tmp/prod-review-packet`.
 
-The workflow also appends the review-packet manifest to the GitHub job summary, so reviewers can see the screenshot map before downloading the artifact. Open `index.html` from the artifact for a browsable gallery.
+The workflow also appends the review-packet manifest to the GitHub job summary, so reviewers can see the screenshot map before downloading the artifact. Open `index.html` from the artifact for a browsable gallery. Use `review-manifest.json` when another automation agent needs screenshot names, routes, viewport sizes, themes, inspection notes, or the read-only invariant result without parsing Markdown.
 
 The live SyncView app is already served from GitHub Pages (`main` at `syncview.synchrosocial.com`), so this workflow deliberately does not publish temporary review packets through Pages. The artifact gallery gives reviewers the same single-page scan without changing the production Pages source.
 

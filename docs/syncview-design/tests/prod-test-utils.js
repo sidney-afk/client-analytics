@@ -73,13 +73,40 @@ async function installProductionInit(page) {
 }
 
 async function openProduction(page, port, pathSuffix = '/?prod=1') {
-  await page.goto(`http://127.0.0.1:${port}${pathSuffix}`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('.prod-view, .prod-error', { timeout: 30000 });
+  const url = `http://127.0.0.1:${port}${pathSuffix}`;
+  const contentSelector = '.prod-row, .prod-empty-state, .prod-empty, .prod-board, .prod-detail, .prod-loading';
+  const waitForContent = timeout => page.waitForSelector(contentSelector, { timeout });
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('.prod-view, .prod-error', { timeout: 45000 });
   if (await page.locator('.prod-error').count()) {
     const msg = (await page.locator('.prod-error').first().innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
     throw new Error('Production preview rendered an error card: ' + msg);
   }
-  await page.waitForSelector('.prod-row, .prod-empty-state, .prod-board, .prod-detail, .prod-loading', { timeout: 30000 });
+  try {
+    await waitForContent(45000);
+  } catch (firstErr) {
+    const state = await page.evaluate(() => ({
+      href: location.href,
+      boot: document.documentElement.getAttribute('data-boot-nav') || '',
+      hasRoot: !!document.getElementById('prodRoot'),
+      view: window._prodState && window._prodState.view,
+      rows: document.querySelectorAll('.prod-row').length,
+      empty: document.querySelectorAll('.prod-empty-state, .prod-empty').length,
+      errors: document.querySelectorAll('.prod-error').length,
+    })).catch(() => null);
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.prod-view, .prod-error', { timeout: 45000 });
+    if (await page.locator('.prod-error').count()) {
+      const msg = (await page.locator('.prod-error').first().innerText().catch(() => '')).replace(/\s+/g, ' ').trim();
+      throw new Error('Production preview rendered an error card after retry: ' + msg);
+    }
+    try {
+      await waitForContent(60000);
+    } catch (secondErr) {
+      throw new Error('Production preview shell loaded without content after retry. Before retry: '
+        + JSON.stringify(state) + '. Last error: ' + secondErr.message);
+    }
+  }
 }
 
 function formatFailures(title, failures) {

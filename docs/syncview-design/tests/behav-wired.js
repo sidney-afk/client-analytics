@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 158;
+const TOTAL = 159;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -691,6 +691,32 @@ async function txt(page, sel) {
         const real = _prodIssueRows().filter(x => x.project === slug && !x.parent).length;
         const shown = card.querySelector('.prod-card-meta span').textContent;
         return shown === real + ' issue' + (real === 1 ? '' : 's');
+      });
+    }); await reset();
+    await ok('boardFilteredCountCopy', async () => {
+      await page.evaluate(() => {
+        const row = _prodIssues().find(i => i.team === 'video' && i.project && _prodTabAllows(i.status));
+        _prodState.view = 'board';
+        _prodState.team = 'video';
+        _prodState.clientSlug = '';
+        _prodState.openId = '';
+        _prodState.openProjectId = '';
+        _prodState.filters = row ? [
+          { field: 'status', values: [_prodArtifactStatus(row.status)] },
+          { field: 'client', values: [row.project] },
+        ] : [];
+        _prodRender();
+      });
+      await page.waitForSelector('.prod-board');
+      return await page.evaluate(() => {
+        const card = document.querySelector('.prod-card[data-prod-client-card]');
+        if (!card) return true;
+        const count = card.querySelector('[data-prod-card-count]');
+        const empty = [...document.querySelectorAll('[data-prod-board-empty="filtered"]')];
+        return !!count
+          && /matching issue/.test(count.textContent || '')
+          && empty.length > 0
+          && empty.every(el => (el.textContent || '').trim() === 'No matching projects');
       });
     }); await reset();
     await ok('subLeafNoHeader', async () => {

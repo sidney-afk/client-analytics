@@ -330,3 +330,4 @@ Owner-feedback refinements applied on top of the read-only wired tab:
 17. The Production polish workflow now has a weekday scheduled run on `main` plus per-ref concurrency cancellation, so this protection continues after merge without stacking stale runs.
 18. Project detail no longer reads as truly empty when filters hide its issues: the issue header shows visible vs total count (`0 of N`), the inline empty state names the active filter cause, and `Clear filters` restores the rows.
 19. Issue detail descriptions render common migrated Linear Markdown instead of raw authoring syntax: headings, horizontal rules, bullets, bold labels, code spans, and resource links are formatted while malformed imported resource-link markers are normalized.
+20. Filtered project boards label project-card counts as matching issue(s), and filtered empty columns say `No matching projects`, so board copy reflects active issue filters instead of reading as total project size.

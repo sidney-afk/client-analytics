@@ -22,8 +22,8 @@ npm run test:prod-review
 npm run test:prod-review:validate
 ```
 
-That writes `.codex-tmp/prod-review-packet/index.html`, `manifest.md`, `review-manifest.json`, plus named desktop, dark, and mobile PNGs for the core Production surfaces. The GitHub workflow uploads this folder as `production-review-packet`.
-The validator checks that the gallery, Markdown manifest, JSON manifest, PNG screenshots, required surfaces, viewport metadata, themes, routes, inspection notes, and read-only invariant are all present.
+That writes `.codex-tmp/prod-review-packet/index.html`, `manifest.md`, `review-checklist.md`, `review-manifest.json`, plus named desktop, dark, and mobile PNGs for the core Production surfaces. The GitHub workflow uploads this folder as `production-review-packet`.
+The validator checks that the gallery, Markdown manifest, review checklist, JSON manifest, PNG screenshots, required surfaces, viewport metadata, themes, routes, inspection notes, and read-only invariant are all present.
 
 ## GitHub Workflow
 
@@ -32,9 +32,9 @@ The validator checks that the gallery, Markdown manifest, JSON manifest, PNG scr
 The workflow uploads two visual artifacts:
 
 - `production-polish-screenshots`: the side-by-side pixel/parity screenshots from `.codex-tmp/prod-pixel-wired`;
-- `production-review-packet`: a compact reviewer packet with `index.html`, `manifest.md`, `review-manifest.json`, and named screenshots from `.codex-tmp/prod-review-packet`, validated before upload.
+- `production-review-packet`: a compact reviewer packet with `index.html`, `manifest.md`, `review-checklist.md`, `review-manifest.json`, and named screenshots from `.codex-tmp/prod-review-packet`, validated before upload.
 
-The workflow also appends the review-packet manifest to the GitHub job summary, so reviewers can see the screenshot map before downloading the artifact. Open `index.html` from the artifact for a browsable gallery. Use `review-manifest.json` when another automation agent needs screenshot names, routes, viewport sizes, themes, inspection notes, or the read-only invariant result without parsing Markdown.
+The workflow also appends the review-packet manifest and checklist to the GitHub job summary, so reviewers can see the screenshot map and inspectable items before downloading the artifact. Open `index.html` from the artifact for a browsable gallery. Use `review-manifest.json` when another automation agent needs screenshot names, routes, viewport sizes, themes, inspection notes, or the read-only invariant result without parsing Markdown.
 
 The live SyncView app is already served from GitHub Pages (`main` at `syncview.synchrosocial.com`), so this workflow deliberately does not publish temporary review packets through Pages. The artifact gallery gives reviewers the same single-page scan without changing the production Pages source.
 

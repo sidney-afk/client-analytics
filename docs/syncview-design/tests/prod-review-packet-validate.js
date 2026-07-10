@@ -69,6 +69,7 @@ function validatePacket(dir = packetDir) {
 
   const manifest = readJson(dir, 'review-manifest.json', failures);
   const markdown = readText(dir, 'manifest.md', failures);
+  const checklist = readText(dir, 'review-checklist.md', failures);
   const gallery = readText(dir, 'index.html', failures);
   if (!manifest) return failures;
 
@@ -87,8 +88,8 @@ function validatePacket(dir = packetDir) {
   if (manifest.readOnlyInvariant && manifest.readOnlyInvariant.pageOrConsoleErrors !== 0) {
     failures.push(`Expected 0 page/console errors, saw ${manifest.readOnlyInvariant.pageOrConsoleErrors}`);
   }
-  if (!manifest.files || manifest.files.gallery !== 'index.html' || manifest.files.markdown !== 'manifest.md') {
-    failures.push('review-manifest.json must point to index.html and manifest.md');
+  if (!manifest.files || manifest.files.gallery !== 'index.html' || manifest.files.markdown !== 'manifest.md' || manifest.files.checklist !== 'review-checklist.md') {
+    failures.push('review-manifest.json must point to index.html, manifest.md, and review-checklist.md');
   }
 
   const shots = Array.isArray(manifest.screenshots) ? manifest.screenshots : [];
@@ -133,6 +134,7 @@ function validatePacket(dir = packetDir) {
         }
       }
       if (markdown && !markdown.includes(shot.file)) failures.push(`manifest.md does not reference ${shot.file}`);
+      if (checklist && !checklist.includes(shot.file)) failures.push(`review-checklist.md does not reference ${shot.file}`);
       if (gallery && !gallery.includes(shot.file)) failures.push(`index.html does not reference ${shot.file}`);
     }
   });
@@ -143,6 +145,10 @@ function validatePacket(dir = packetDir) {
   if (darkShots.length < 1) failures.push('Expected at least one dark theme screenshot');
   if (!gallery.includes('Production Review Packet')) failures.push('index.html missing gallery heading');
   if (!markdown.includes('Production Review Packet')) failures.push('manifest.md missing heading');
+  if (!checklist.includes('Production Review Checklist')) failures.push('review-checklist.md missing heading');
+  if ((checklist.match(/- \[ \]/g) || []).length < shots.length + 5) {
+    failures.push('review-checklist.md does not include enough checklist items');
+  }
 
   return failures;
 }
@@ -153,7 +159,7 @@ if (require.main === module) {
     console.error(formatFailures('prod-review-packet-validate failures', failures));
     process.exit(1);
   }
-  console.log(`prod-review-packet-validate: ${requiredNames.length} screenshots, JSON manifest, gallery, and Markdown manifest passed`);
+  console.log(`prod-review-packet-validate: ${requiredNames.length} screenshots, JSON manifest, gallery, Markdown manifest, and checklist passed`);
 }
 
 module.exports = { validatePacket };

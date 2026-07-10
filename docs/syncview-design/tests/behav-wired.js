@@ -467,13 +467,19 @@ async function txt(page, sel) {
       return ok;
     })); await reset();
     await ok('markdown', async () => await page.evaluate(() => {
-      const h = _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com - VID-12586');
+      const h = _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com - VID-12586\n---\n## Client Resources\n**Instagram: [theopenposturedoc](<https://www.instagram.com/theopenposturedoc/#>)**\n**Brand Guidelines:** **[Document](<https://docs.google.com/document/d/abc/edit>)\n****Personal Pictures:** [**Folder**](<https://drive.google.com/drive/folders/abc>)');
       return h.includes('<strong>bold</strong>')
         && h.includes('<code>code</code>')
         && h.includes('<a href="https://ex.com" target="_blank" rel="noopener">docs</a>')
         && h.includes('<a href="https://y.com"')
+        && h.includes('prod-md-rule')
+        && h.includes('prod-md-heading')
+        && h.includes('<strong>Instagram: <a href="https://www.instagram.com/theopenposturedoc/#" target="_blank" rel="noopener">theopenposturedoc</a></strong>')
+        && h.includes('<strong>Brand Guidelines:</strong> <a href="https://docs.google.com/document/d/abc/edit" target="_blank" rel="noopener">Document</a>')
+        && h.includes('<strong>Personal Pictures:</strong> <a href="https://drive.google.com/drive/folders/abc" target="_blank" rel="noopener"><strong>Folder</strong></a>')
         && h.includes('12586')
-        && !h.includes('XMDTOK');
+        && !h.includes('XMDTOK')
+        && !h.includes('****');
     })); await reset();
     await ok('paletteCommand', async () => {
       await page.locator('.prod-search-btn').click();

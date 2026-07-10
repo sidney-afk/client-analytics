@@ -2691,6 +2691,12 @@
         .prod-detail-context-link:hover, .prod-context-project:hover { background: var(--prod-hover); }
         .prod-detail-context-link b { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .prod-desc { font-size: 15px; line-height: 24px; color: var(--prod-strong); white-space: pre-wrap; overflow-wrap: anywhere; }
+        .prod-desc .prod-md-heading { display: block; margin: 14px 0 2px; color: var(--prod-text); font-size: 14px; line-height: 22px; font-weight: 650; }
+        .prod-desc .prod-md-rule { border: 0; border-top: 1px solid var(--prod-divider); margin: 14px 0; }
+        .prod-desc .prod-md-bullet { display: flex; align-items: flex-start; gap: 8px; }
+        .prod-desc .prod-md-bullet-mark { flex: none; color: var(--prod-faint); }
+        .prod-desc a { color: var(--prod-link); text-decoration: none; }
+        .prod-desc a:hover { text-decoration: underline; }
         .prod-right { width: 286px; flex: 0 0 286px; border-left: 1px solid var(--prod-divider); padding: 18px 14px; overflow: auto; background: var(--prod-content); }
         .prod-props { display: flex; flex-direction: column; gap: 2px; }
         .prod-prop { min-height: 32px; display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 8px; font-size: 13px; color: var(--prod-strong); }
@@ -30199,23 +30205,84 @@
             _prodReadonlyGuard();
             _prodClearBoardDropFx();
         }
-        // PORT-DELTA: artifact linkify is namespaced and uses host escape helpers.
-        function _prodLinkify(s) {
+        function _prodLinkifyInline(s) {
             s = _calEsc(s || '');
             const st = [];
             const keep = h => {
                 st.push(h);
                 return 'XMDTOK' + (st.length - 1) + 'ENDMDTOK';
             };
+            const linkLabel = l => String(l || '')
+                .replace(/^\*\*([^*]+)\*\*$/, '<strong>$1</strong>')
+                .replace(/^__([^_]+)__$/, '<strong>$1</strong>')
+                .replace(/^`([^`]+)`$/, '<code>$1</code>');
+            const anchor = u => '<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>';
+            const namedAnchor = (l, u) => '<a href="' + u + '" target="_blank" rel="noopener">' + linkLabel(l) + '</a>';
+            const trimLinkTail = u => {
+                let suffix = '';
+                while (u) {
+                    if (u.endsWith('**')) {
+                        suffix = '**' + suffix;
+                        u = u.slice(0, -2);
+                    } else if (u.endsWith('*')) {
+                        suffix = '*' + suffix;
+                        u = u.slice(0, -1);
+                    } else if (u.endsWith('&gt;')) {
+                        suffix = '&gt;' + suffix;
+                        u = u.slice(0, -4);
+                    } else if (/[)\].,!?;]$/.test(u)) {
+                        suffix = u.slice(-1) + suffix;
+                        u = u.slice(0, -1);
+                    } else {
+                        break;
+                    }
+                }
+                return { url: u, suffix };
+            };
             s = s.replace(/`([^`]+)`/g, (m, c) => keep('<code>' + c + '</code>'));
-            s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, l, u) => keep('<a href="' + u + '" target="_blank" rel="noopener">' + l + '</a>'));
-            s = s.replace(/(https?:\/\/[^\s<]+)/g, (m, u) => keep('<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>'));
+            s = s.replace(/\[([^\]]+)\]\(&lt;(https?:\/\/.*?)&gt;\)/g, (m, l, u) => keep(namedAnchor(l, u)));
+            s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, l, u) => keep(namedAnchor(l, u)));
+            s = s.replace(/(https?:\/\/[^\s<]+)/g, (m, u) => {
+                const out = trimLinkTail(u);
+                return keep(anchor(out.url)) + out.suffix;
+            });
             s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
             s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
             s = s.replace(/(^|\s)__([^_]+)__(?=\s|$|[.,!?])/g, '$1<strong>$2</strong>');
             s = s.replace(/(^|\s)_([^_\n]+)_(?=\s|$|[.,!?])/g, '$1<em>$2</em>');
-            s = s.replace(/XMDTOK(\d+)ENDMDTOK/g, (m, i) => st[+i]);
-            return s.replace(/\n/g, '<br>');
+            return s.replace(/XMDTOK(\d+)ENDMDTOK/g, (m, i) => st[+i]);
+        }
+        function _prodNormalizeMarkdownLine(line) {
+            return String(line || '')
+                .replace(/^\*{4}(?=\S)/, '**')
+                .replace(/(\*\*[^*]+:\*\*)\s+\*\*(?=\[[^\]]+\]\(<https?:\/\/)/g, '$1 ')
+                .replace(/:\s+\*\*(?=\[[^\]]+\]\(<https?:\/\/)/g, ': ');
+        }
+        function _prodMarkdownBlockish(line) {
+            const trimmed = String(line || '').trim();
+            return /^---+$/.test(trimmed) || /^#{1,4}\s+/.test(trimmed);
+        }
+        // PORT-DELTA: artifact linkify is namespaced and uses host escape helpers.
+        function _prodLinkify(s) {
+            const lines = String(s || '').replace(/\r\n?/g, '\n').split('\n');
+            return lines.map((line, ix) => {
+                line = _prodNormalizeMarkdownLine(line);
+                const trimmed = line.trim();
+                if (!trimmed) {
+                    const prev = _prodNormalizeMarkdownLine(lines[ix - 1] || '');
+                    const next = _prodNormalizeMarkdownLine(lines[ix + 1] || '');
+                    if (_prodMarkdownBlockish(prev) || _prodMarkdownBlockish(next)) return null;
+                    return '';
+                }
+                if (/^#{1,4}\s+/.test(trimmed)) {
+                    return '<span class="prod-md-heading">' + _prodLinkifyInline(trimmed.replace(/^#{1,4}\s+/, '')) + '</span>';
+                }
+                if (/^---+$/.test(trimmed)) return '<hr class="prod-md-rule">';
+                if (/^[-*]\s+/.test(trimmed)) {
+                    return '<span class="prod-md-bullet"><span class="prod-md-bullet-mark">•</span><span>' + _prodLinkifyInline(trimmed.replace(/^[-*]\s+/, '')) + '</span></span>';
+                }
+                return _prodLinkifyInline(line);
+            }).filter(part => part !== null).join('<br>');
         }
         function _prodPlacePop(pop, x, y) {
             if (!pop) return;

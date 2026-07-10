@@ -265,8 +265,8 @@ async function assertNoWriteRequests(requests) {
 
     await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
     await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
-    const linkified = await page.evaluate(() => _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com'));
-    if (!linkified.includes('<strong>bold</strong>') || !linkified.includes('<code>code</code>') || !linkified.includes('<a href="https://ex.com"')) {
+    const linkified = await page.evaluate(() => _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com\n---\n## Client Resources\n**Instagram: [theopenposturedoc](<https://www.instagram.com/theopenposturedoc/#>)**\n**Brand Guidelines:** **[Document](<https://docs.google.com/document/d/abc/edit>)\n****Personal Pictures:** [**Folder**](<https://drive.google.com/drive/folders/abc>)'));
+    if (!linkified.includes('<strong>bold</strong>') || !linkified.includes('<code>code</code>') || !linkified.includes('<a href="https://ex.com"') || !linkified.includes('prod-md-heading') || !linkified.includes('prod-md-rule') || !linkified.includes('<strong>Instagram: <a href="https://www.instagram.com/theopenposturedoc/#"') || !linkified.includes('<strong>Brand Guidelines:</strong> <a href="https://docs.google.com/document/d/abc/edit"') || !linkified.includes('<strong>Personal Pictures:</strong> <a href="https://drive.google.com/drive/folders/abc"') || linkified.includes('****')) {
       throw new Error('Production markdown/link renderer does not match artifact shape');
     }
     await expectCount(page, '[data-prod-crumb-client]', 1, 'clickable client crumb');

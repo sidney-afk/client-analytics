@@ -1117,7 +1117,8 @@ async function txt(page, sel) {
         return !!activity
           && !activity.querySelector('.prod-skeleton')
           && !!activity.querySelector('.prod-act-empty')
-          && /No activity events/i.test(activity.textContent || '');
+          && /No activity yet/i.test(activity.textContent || '')
+          && !/migrated row/i.test(activity.textContent || '');
       });
     }); await reset();
     await ok('detailFileLinkLabel', async () => {

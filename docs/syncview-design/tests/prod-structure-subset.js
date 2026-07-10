@@ -423,9 +423,16 @@ async function assertNoWriteRequests(requests) {
     await page.locator('#prodGroupBtn').click();
     await page.locator('#prodLayer [data-prod-show-subissues]').click();
     await page.waitForTimeout(120);
-    if (childRowsBeforeToggle && await page.locator('[data-prod-project-parent]:not([data-prod-project-parent=""])').count()) {
+    const childRowsAfterToggle = await page.locator('[data-prod-project-parent]:not([data-prod-project-parent=""])').count();
+    if (childRowsBeforeToggle && childRowsAfterToggle) {
       throw new Error('Project Display Show sub-issues toggle did not hide project child rows');
     }
+    const projectSideCountTracksVisible = await page.evaluate(() => {
+      const visible = document.querySelectorAll('[data-prod-project-issue]').length;
+      const sideText = (document.querySelector('[data-prod-detail-card="project-issues"] .prod-side-row')?.textContent || '').trim();
+      return sideText === String(visible) + ' issue' + (visible === 1 ? '' : 's');
+    });
+    if (!projectSideCountTracksVisible) throw new Error('Project side issue count should track visible project rows');
     const projectRowShapeOk = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('[data-prod-project-issue]')];
       return rows.length === 0 || rows.every(row => row.querySelector('.prod-status[data-st]') && row.querySelector('.prod-id') && row.querySelector('.prod-title') && row.querySelector('.prod-due') && row.querySelector('[data-prod-assign]'));

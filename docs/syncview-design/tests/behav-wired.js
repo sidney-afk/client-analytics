@@ -291,7 +291,13 @@ async function txt(page, sel) {
       await page.locator('#prodLayer [data-prod-show-subissues]').click();
       await page.waitForTimeout(120);
       const after = await page.locator('[data-prod-project-parent]:not([data-prod-project-parent=""])').count();
-      return before > 0 && grouped && after === 0 && await page.evaluate(() => _prodState.showSubIssues === false && !new URL(location.href).searchParams.has('ptab'));
+      return before > 0 && grouped && after === 0 && await page.evaluate(() => {
+        const visible = document.querySelectorAll('[data-prod-project-issue]').length;
+        const sideText = (document.querySelector('[data-prod-detail-card="project-issues"] .prod-side-row')?.textContent || '').trim();
+        return _prodState.showSubIssues === false
+          && !new URL(location.href).searchParams.has('ptab')
+          && sideText === String(visible) + ' issue' + (visible === 1 ? '' : 's');
+      });
     }); await reset();
     await ok('due', async () => {
       await page.locator('.prod-row .prod-due').first().click();

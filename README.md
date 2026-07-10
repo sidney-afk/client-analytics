@@ -14,15 +14,15 @@ onboarding, and keeping everything in sync with Linear.
   realtime updates.
 - **Sample & thumbnail review** — Kasper and client approval flows for content samples.
 - **Thumbnail revision history** — Drive-backed thumbnail change baselines for
-  graphics sent to Tweaks Needed; see `THUMBNAIL_REVISION_HISTORY.md`.
+  graphics sent to Tweaks Needed; see `docs/features/THUMBNAIL_REVISION_HISTORY.md`.
 - **YouTube title review** — title status plus tweak-round tracking.
 - **Client onboarding** — in-app onboarding form and inbox (standard and AI funnels).
 - **Sales intake** — subtab of the Kasper tab, filled right after a deal closes;
   submitting logs the intake to Supabase, creates the Sales & Service Agreement
   on eSignatures.com, and sends the client one combined email with the signing
-  link + Stripe payment link. See `SALES_INTAKE_DESIGN.md`.
+  link + Stripe payment link. See `docs/features/SALES_INTAKE_DESIGN.md`.
 - **SMM weekly reports** — hidden weekly form for social media managers and a
-  read-only Kasper viewer grouped by week and SMM. See `SMM_WEEKLY_REPORTS.md`.
+  read-only Kasper viewer grouped by week and SMM. See `docs/features/SMM_WEEKLY_REPORTS.md`.
 - **Workload view** — derived per-person workload, rebuilt from Linear.
 - **Linear sync** — two-way status sync between the calendar and Linear issues.
 - **Analytics** — follower/engagement metrics, top videos, and competitor /
@@ -57,15 +57,15 @@ like the body classes they anticipate). The app talks to three backends.
 > **Migration history:** the calendar and samples features were moved from Google Sheets
 > to Supabase (dual-write → hidden flag → flip-default) in June 2026. For those features
 > the Sheet now survives only as an automatic fallback if Supabase is unreachable; for
-> analytics it remains the live source. See `CALENDAR_REALTIME_MIGRATION.md`,
-> `SAMPLES_SUPABASE_KICKOFF.md`, and the current source of truth `AUDIT_2026-06-15.md`.
+> analytics it remains the live source. See `docs/archive/CALENDAR_REALTIME_MIGRATION.md`,
+> `docs/archive/SAMPLES_SUPABASE_KICKOFF.md`, and the current source of truth `docs/archive/AUDIT_2026-06-15.md`.
 
 ## Repository layout
 
 | Path | What it is |
 |---|---|
 | `index.html` | The entire application. |
-| `SMM_WEEKLY_REPORTS.md` | SQL, Edge Function, and n8n setup notes for the hidden SMM weekly report flow. |
+| `docs/features/SMM_WEEKLY_REPORTS.md` | SQL, Edge Function, and n8n setup notes for the hidden SMM weekly report flow. |
 | `test/` | Fast, offline unit/wiring tests that extract and exercise pieces of the inline script. Run with `npm test`. |
 | `qa/` | Headless (Playwright) end-to-end probes against the live backend. Run with `npm run test:e2e`. |
 | `scripts/` | The Linear ⇄ calendar reconcile job (`linear-sync-reconcile.js`). |

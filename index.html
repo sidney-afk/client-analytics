@@ -14299,7 +14299,7 @@
 
     /* ===================================================================
      * CONTENT SAMPLES v2 — Supabase realtime (clone of the calendar's
-     * _calV2* runtime; see CALENDAR_REALTIME_MIGRATION.md). Hidden behind
+     * _calV2* runtime; see docs/archive/CALENDAR_REALTIME_MIGRATION.md). Hidden behind
      * ?sv2=1 until the flip. Reads come from the content_samples table over
      * REST with a realtime subscription; writes still flow through the
      * samples-* n8n webhooks (which dual-write the Sheet + Supabase), so the
@@ -15234,7 +15234,7 @@
        Reachable ONLY via ?onboarding=<token>. Mirrors ?intake=1: bypasses the
        staff password, hides workspace chrome, locks the SPA to this page.
        Submit -> n8n `onboarding-submit` -> Supabase + Slack. Namespaced _ob/OB_.
-       Never-lose-a-submission fallbacks (see ONBOARDING_FALLBACK.md): the submit
+       Never-lose-a-submission fallbacks (see docs/features/ONBOARDING_FALLBACK.md): the submit
        retries once, then fails over to the Supabase Edge capture, then to the n8n
        fallback webhook (n8n Data Table `onboarding_fallback`). Drafts sync to the
        same fallback store while the client types; a successful submit also sends a
@@ -16317,7 +16317,7 @@
     const URGENT_SLACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/send-urgent-slack';
     /* ============================================================
        CALENDAR v2 (Supabase realtime) — Phase 2 config
-       See CALENDAR_REALTIME_MIGRATION.md. Hidden behind ?v2=1
+       See docs/archive/CALENDAR_REALTIME_MIGRATION.md. Hidden behind ?v2=1
        (sticky in localStorage; ?v2=0 clears it). Two gates:
          _calV2Enabled() — flag only. Turns on field-level patch
             writes (the upsert workflow already accepts partial
@@ -17110,7 +17110,7 @@
        Kasper queue, the Notes feed and unread/seen tracking. The YouTube TITLE
        is one of these — but is DELIBERATELY kept OUT of CAL_COMPONENTS above, so
        it never enters computeOverallStatus / _calIsClientReady / any overall-
-       status machinery. See YOUTUBE_TITLE_REVIEW_DESIGN.md. Iterate this list
+       status machinery. See docs/features/YOUTUBE_TITLE_REVIEW_DESIGN.md. Iterate this list
        (via _calComponentsFor) for review/Notes/queue; iterate CAL_COMPONENTS for
        anything that feeds the overall status. */
     const CAL_REVIEW_COMPONENTS = ['video','graphic','caption','title'];
@@ -33424,7 +33424,7 @@
        webhooks, over the components ['video','graphic'] only. Built as a fully
        ADDITIVE, namespaced fork (every new symbol carries `sxr`) so it can never
        affect the calendar and is removable by deleting the SXR fences.
-       See SAMPLES_REBUILD_STRATEGY.md / SAMPLES_REBUILD_SPEC.md.
+       See docs/features/SAMPLES_REBUILD_STRATEGY.md / docs/features/SAMPLES_REBUILD_SPEC.md.
        --- SURFACE 0: constants, flag isolation, shared-util aliases, state ---
        ============================================================ */
 
@@ -33436,7 +33436,7 @@
     const SXR_COMPONENTS = ['video','graphic'];
     const SXR_REVIEW_COMPONENTS = ['video','graphic'];
 
-    /* Live backend (SAMPLES_GO_LIVE.md): reads hit Supabase REST and fall back to
+    /* Live backend (docs/features/SAMPLES_GO_LIVE.md): reads hit Supabase REST and fall back to
        the get webhook; writes are field-level patches to the upsert webhook. The
        Supabase project + anon key are SHARED with the calendar (same browser key). */
     const SXR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-get';
@@ -33463,7 +33463,7 @@
     /* Reused-as-is from the calendar (table-agnostic utilities). Aliasing instead
        of cloning keeps the cloned surfaces uniformly `_sxr*` (clean grep/teardown)
        while still CALLING the shared implementation, so its security / pagination /
-       Linear-mapping fixes reach samples for free (see SAMPLES_PARITY_LOG.md §0). */
+       Linear-mapping fixes reach samples for free (see docs/features/SAMPLES_PARITY_LOG.md §0). */
     const _sxrEsc = _calEsc, _sxrEscAttr = _calEscAttr, _sxrJsArg = _jsAttrArg;
     const _sxrNormalizeClient = wlNormalizeClient;
     const _sxrSupabaseFetchAllRows = _calSupabaseFetchAllRows;
@@ -33475,7 +33475,7 @@
        `?sxr=1` turns it on and is sticky in localStorage; `?sxr=0` opts back out.
        With the flag off NO samples code runs: the nav tab stays hidden, the router
        never mounts the view (mountSxrView early-returns), and supabase-js is never
-       loaded. This isolation is a hard requirement (SAMPLES_REBUILD_SPEC.md §6). */
+       loaded. This isolation is a hard requirement (docs/features/SAMPLES_REBUILD_SPEC.md §6). */
     const SXR_ON_KEY  = 'syncview_sxr_on';
     const SXR_OFF_KEY = 'syncview_sxr_off';
     let _sxrFlagCache = null;
@@ -33484,7 +33484,7 @@
         // GA rollout (2026-07-02): default ON for everyone — the "Samples New"
         // nav tab ships beside the old Samples tab so SMMs can migrate; the old
         // module retires later. `?sxr=0` remains the sticky per-browser opt-out
-        // (the rollback documented in SAMPLES_GO_LIVE.md); `?sxr=1` clears it.
+        // (the rollback documented in docs/features/SAMPLES_GO_LIVE.md); `?sxr=1` clears it.
         let on = true;
         try {
             const q = new URLSearchParams(location.search).get('sxr');
@@ -39338,7 +39338,7 @@
        Supabase `sales_intakes` audit row → eSignatures.com agreement from
        the Sales & Service Agreement template → ONE combined email to the
        client (signing link + Stripe payment link) → Slack DM confirmation.
-       Spec: SALES_INTAKE_DESIGN.md. Form mechanics mirror the onboarding
+       Spec: docs/features/SALES_INTAKE_DESIGN.md. Form mechanics mirror the onboarding
        form (draft autosave, keep-draft-on-failure, required-field
        validation); access rides the Kasper unlock because it renders only
        inside the Kasper page (see _kasperRenderSalesIntake / KASPER_SUBTABS).
@@ -39347,7 +39347,7 @@
        ============================================================ */
     const SALES_INTAKE_SUBMIT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/sales-intake-submit';
     const SI_DRAFT_KEY = 'syncview_sales_intake_draft_v1';
-    // Fixed Stripe payment links (from Kasper, 2026-07-02 — SALES_INTAKE_DESIGN.md).
+    // Fixed Stripe payment links (from Kasper, 2026-07-02 — docs/features/SALES_INTAKE_DESIGN.md).
     // Monthly = per-4-week subscription, Quarterly = per-12-week subscription.
     // Custom recurring / one-time deals get a pasted link instead.
     const SI_STRIPE_LINKS = {
@@ -42001,7 +42001,7 @@
        flags are kept only as a SAME-DEVICE fallback so behaviour is unchanged
        until the backend columns are switched on (the upsert silently drops an
        unknown field), then it becomes global automatically. Rollout + the two
-       backend steps: KASPER_REVIEW_GLOBAL_ROLLOUT.md. */
+       backend steps: docs/features/KASPER_REVIEW_GLOBAL_ROLLOUT.md. */
     function _kasperFinishedAt(post) { return String((post && post.kasper_finished_at) || ''); }
     /* "Finish reviewing" hand-off. A finished card sits in "Tweaks pending"
        until a genuine fresh ask supersedes it:
@@ -43097,7 +43097,7 @@
             // is the latest message time = "I'd seen everything up to here", so a
             // later reply re-surfaces it (see _kasperIsFinished). The local
             // dismissed flag + seen stamp stay as a same-device fallback until the
-            // kasper_finished_at column is live (KASPER_REVIEW_GLOBAL_ROLLOUT.md).
+            // kasper_finished_at column is live (docs/features/KASPER_REVIEW_GLOBAL_ROLLOUT.md).
             // It does NOT leave the queue: it moves to "Tweaks pending" and stays
             // until the SMM addresses it or a fresh ask supersedes it. Not logged
             // as Approved — it's a hand-off.

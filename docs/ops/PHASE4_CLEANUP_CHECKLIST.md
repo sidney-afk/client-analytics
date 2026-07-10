@@ -4,7 +4,7 @@
 > (`_calV2Enabled()` defaults true, `?v2=0` = sticky kill-switch). In ~2 weeks, once v2 has proven
 > out, the dead v1 machinery should be removed. A fresh session won't *know* what's safe to delete —
 > this doc captures it while the v1/v2 boundaries are fresh, so the cleanup is guided surgery, not
-> archaeology. Pair with `CALENDAR_REALTIME_MIGRATION.md`.
+> archaeology. Pair with `docs/archive/CALENDAR_REALTIME_MIGRATION.md`.
 
 ## The key fact that makes this safe
 The anon key is committed (`index.html:11000`, non-empty) and `_calV2Enabled()` defaults true, so

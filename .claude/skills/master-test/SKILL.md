@@ -83,7 +83,7 @@ Give the user a tight summary:
 Do not dump all screenshots; surface the problems. Attach problem shots with the
 SendUserFile tool when a picture explains it faster than words.
 
-## Safety (same contract as docs/HEADLESS-TESTING-GUIDE.md §5)
+## Safety (same contract as docs/testing/HEADLESS-TESTING-GUIDE.md §5)
 
 - Test client **`sidneylaruel`** ONLY. Never touch another client's data.
 - Every seeded row is archived on exit (the scenario engine does this).

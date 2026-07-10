@@ -1,7 +1,7 @@
 # Samples (Review) FE Rebuild — Build Strategy & Contract
 
 **Status:** PLAN — awaiting your go-ahead. No feature code written yet.
-**Supersedes the *execution approach* of:** `SAMPLES_PARITY_PLAN.md` (that doc is the record of the
+**Supersedes the *execution approach* of:** `docs/archive/SAMPLES_PARITY_PLAN.md` (that doc is the record of the
 old *function-by-function* approach that failed). **Builds on:** `SAMPLES_REBUILD_SPEC.md` (the
 surface inventory) — this doc is the executable version of it, with verified line anchors, the
 tagging/teardown convention, and the open decisions.

@@ -15,7 +15,7 @@
  *   - Client request-change -> Tweaks Needed (_calApplyAutoStatus 'client_added');
  *     client approve -> Approved
  *
- * Run: node docs/interaction-path-generator.js [--cycles=2] [--max-depth=14] [--print=all|paths|pairs]
+ * Run: node docs/testing/interaction-path-generator.js [--cycles=2] [--max-depth=14] [--print=all|paths|pairs]
  */
 const S = {
   IP: 'In Progress', SA: 'For SMM Approval', KA: 'Kasper Approval',

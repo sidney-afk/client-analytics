@@ -2,7 +2,7 @@
 
 This folder is the **design source of truth** for the in-app Linear replacement (the
 "Production" / SyncView workspace tab) planned in
-[`../../TRACK_B_LINEAR_REPLACEMENT_SPEC.md`](../../TRACK_B_LINEAR_REPLACEMENT_SPEC.md).
+[`../independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md`](../independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md).
 
 It was produced by a dedicated design session that pixel- **and** behavior-matched the
 prototype to real Linear via a capture → match → verify loop (11 adversarial re-audits, the

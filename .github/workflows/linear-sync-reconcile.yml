@@ -2,7 +2,7 @@ name: Linear ⇄ SyncView status reconcile
 
 # Convergence backbone: catches any dropped real-time sync event by periodically
 # reconciling every linked card-component against its Linear issue (most-recent
-# action wins). See scripts/linear-sync-reconcile.js and LINEAR_SYNC_RECONCILE.md.
+# action wins). See scripts/linear-sync-reconcile.js and docs/ops/LINEAR_SYNC_RECONCILE.md.
 #
 # NOTE: `schedule` triggers only fire from the repository's DEFAULT branch, so
 # this becomes live once merged to the default branch. Until then, run it by hand

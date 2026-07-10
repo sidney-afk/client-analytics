@@ -247,8 +247,8 @@ client requests a change → SMM resolves to client → client approves → SMM 
 posted; or Kasper approves → undo → request-change → … Hand-listing these is
 infinite. So we encode the app's **real status graph once** and let a depth-first
 walk enumerate every branch — exactly the "go deep, backtrack, take the next path"
-process, made exhaustive. Generator: **`docs/interaction-path-generator.js`**
-(`node docs/interaction-path-generator.js`). Model it on **one component**
+process, made exhaustive. Generator: **`docs/testing/interaction-path-generator.js`**
+(`node docs/testing/interaction-path-generator.js`). Model it on **one component**
 (video/graphic/caption/title) — the lifecycle is identical for each.
 
 ### 10.1 The state graph (mirrors `index.html`)

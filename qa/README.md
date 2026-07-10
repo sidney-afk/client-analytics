@@ -7,7 +7,7 @@
 > drives it with Claude's eyes in the loop. The probes below are individual lanes.
 
 Runnable, end-to-end probes for the 6 golden review paths in
-`docs/CALENDAR-TEST-CATALOG.md` §10.4. They drive the **real** Kasper and client
+`docs/testing/CALENDAR-TEST-CATALOG.md` §10.4. They drive the **real** Kasper and client
 handlers across surfaces and assert on the backend after every step.
 
 > **These hit the LIVE backend and mutate the `sidneylaruel` test client.** They
@@ -47,5 +47,5 @@ Each prints `GOLDEN n: pass=… fail=…` and exits non-zero on any failure.
 The probes model **one component** (caption — no Linear dependency), pinning
 video/graphic to `Approved` so the lower-wins overall status tracks caption. To
 extend to the full 33 transition-pairs, reuse `golden_lib.js` the same way.
-See `docs/HEADLESS-TESTING-GUIDE.md` for the harness conventions and
-`docs/interaction-path-generator.js` for the full path/pair enumeration.
+See `docs/testing/HEADLESS-TESTING-GUIDE.md` for the harness conventions and
+`docs/testing/interaction-path-generator.js` for the full path/pair enumeration.

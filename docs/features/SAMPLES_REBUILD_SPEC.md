@@ -51,7 +51,7 @@ Two viable techniques, pick one up front (see the session note in §10):
 ## 3. Backend contract (LIVE — do NOT rebuild; just speak to it)
 
 The backend was built in earlier sessions and is live. The FE only has to talk to it
-correctly. Source of truth: `SAMPLES_SUPABASE_KICKOFF.md`, `SAMPLES_V2_PLAN.md`,
+correctly. Source of truth: `docs/archive/SAMPLES_SUPABASE_KICKOFF.md`, `docs/archive/SAMPLES_V2_PLAN.md`,
 `SAMPLES_GO_LIVE.md`, and the `n8n-backups/sample-*.json` snapshots.
 
 - **Table:** Supabase `sample_reviews`, PK `(client, id)`, all text columns. Anon SELECT +

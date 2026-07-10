@@ -67,7 +67,7 @@ turn.**
   `sxr_a*/c*/d*` from prior overnight runs.)
 - `test/*.js` + `node test/run-all.js` — the pure-logic unit gate (brace-extracts
   the REAL shipping functions). Keep it green.
-- `docs/HEADLESS-TESTING-GUIDE.md` — rules of the road.
+- `docs/testing/HEADLESS-TESTING-GUIDE.md` — rules of the road.
 - `qa/OVERNIGHT_TEST_REPORT.md` — the running report you maintain (resume from its
   "NOT YET COVERED" list).
 - Flag `?sxr=1` (default OFF). Surfaces:
@@ -85,7 +85,7 @@ typed text. Only AFTER that journey passes do you use `up(...)` seeding to set u
 specific downstream states for edge-case probes. (A suite that only ever seeds
 has a fatal blind spot — it can't prove the feature is usable from zero. That is
 exactly how the Samples tab shipped with no "Add" button. See
-`docs/HEADLESS-TESTING-GUIDE.md` §3 Principles.)
+`docs/testing/HEADLESS-TESTING-GUIDE.md` §3 Principles.)
 
 Drive the REAL UI (clicks/typing/paste), then read back the live `sample_reviews`
 row to confirm persistence, and check `sample_review_events` for the audit trail.

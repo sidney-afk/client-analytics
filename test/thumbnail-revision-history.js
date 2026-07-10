@@ -17,7 +17,7 @@ const SXR = fs.readFileSync(path.join(ROOT, 'supabase/functions/sample-review-up
 const SCAN = fs.readFileSync(path.join(ROOT, 'supabase/functions/thumbnail-revision-scan/index.ts'), 'utf8');
 const SQL = fs.readFileSync(path.join(ROOT, 'migrations/2026-07-09-thumbnail-media-revisions.sql'), 'utf8');
 const CFG = fs.readFileSync(path.join(ROOT, 'supabase/config.toml'), 'utf8');
-const DOC = fs.readFileSync(path.join(ROOT, 'THUMBNAIL_REVISION_HISTORY.md'), 'utf8');
+const DOC = fs.readFileSync(path.join(ROOT, 'docs/features/THUMBNAIL_REVISION_HISTORY.md'), 'utf8');
 
 function ok(cond, msg) {
   if (!cond) {

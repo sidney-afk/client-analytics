@@ -102,7 +102,7 @@ guard-by-guard analysis remains the reference for port fidelity.
    (`MJbMZ789B5ExZz9x`) was found inactive since 2026-06-28 23:14 UTC with **no content change and
    no documented reason** — an accidental unpublish. It was re-published on 2026-07-03 with the
    known-good post-embed version `2fc824c2-…` (the version documented as live+wiring-tested in
-   `SAMPLES_PARITY_LOG.md` 2026-06-26).
+   `docs/features/SAMPLES_PARITY_LOG.md` 2026-06-26).
 2. **[DONE 2026-07-03] Reset the Linear webhook delivery state.** The owner toggled the
    "Workload" webhook (id `a4482382-6d44-4c59-89f9-809220f559cb`) disable→enable in Linear
    settings at 19:57 UTC; delivery verified end-to-end at 20:02 with a VID probe issue

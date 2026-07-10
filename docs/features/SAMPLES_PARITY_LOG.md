@@ -83,7 +83,7 @@ Mirror Registry below.
 
 ### Tests
 Each `test/samples-*.js` / `qa/golden_sample_*.js` / `qa/probes/ps*.js` mirrors a calendar test —
-keep them in lock-step (see `SAMPLES_V2_PLAN.md` §13).
+keep them in lock-step (see `docs/archive/SAMPLES_V2_PLAN.md` §13).
 
 ---
 

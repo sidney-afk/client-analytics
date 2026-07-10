@@ -83,5 +83,5 @@ lag, not data loss.
 | Reconcile backstop (activate after merge) | `ZJOtYpQZj73DcBB1` |
 | Reconcile script / workflow | `scripts/sample-linear-reconcile.js` · `.github/workflows/sample-linear-reconcile.yml` |
 | GitHub PAT credential (n8n) | `GitHub PAT — reconcile` (`fygMapRRjtItIsaE`) |
-| Plan / parity / backups | `SAMPLES_V2_PLAN.md` · `SAMPLES_PARITY_LOG.md` · `n8n-backups/` |
+| Plan / parity / backups | `docs/archive/SAMPLES_V2_PLAN.md` · `SAMPLES_PARITY_LOG.md` · `n8n-backups/` |
 | Flag | `?sxr=1` (sticky `syncview_sxr_on` / `_off`), route `#sample-reviews` |

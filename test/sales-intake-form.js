@@ -11,7 +11,7 @@
  * wrong contract in a client's inbox — so the link-selection, validation and
  * payload-shaping helpers are pure functions and asserted here against the
  * REAL shipping code (extracted by name, brace-balanced). Spec:
- * SALES_INTAKE_DESIGN.md.
+ * docs/features/SALES_INTAKE_DESIGN.md.
  */
 const fs = require('fs');
 const path = require('path');
@@ -95,7 +95,7 @@ function valid(over) {
   }, over || {});
 }
 
-// 1) Fixed Stripe links match the spec (SALES_INTAKE_DESIGN.md, Kasper 2026-07-02).
+// 1) Fixed Stripe links match the spec (docs/features/SALES_INTAKE_DESIGN.md, Kasper 2026-07-02).
 ok('monthly Stripe link is the 4-week URL',
   api.SI_STRIPE_LINKS.monthly === 'https://buy.stripe.com/00waEW0TI6Sb2Y1cl0ao80g', api.SI_STRIPE_LINKS.monthly);
 ok('quarterly Stripe link is the 12-week URL',

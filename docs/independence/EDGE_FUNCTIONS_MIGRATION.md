@@ -7,10 +7,10 @@
 > any of it goes live. Snapshot/rollback IDs for the two hot handlers are
 > recorded in [Snapshots / rollback](#snapshots--rollback-capture-before-any-edit).
 >
-> Companion docs (read these for current truth): `N8N_SAVE_LATENCY_AUDIT_2026-06-15.md`
-> (the latency problem this targets), `LINEAR_SYNC_RECONCILE.md` (the safety net
-> that stays unchanged), `CALENDAR_REALTIME_MIGRATION.md` (how the browser already
-> reads Supabase directly), `AUDIT_2026-06-15.md` (Supabase-primary write path).
+> Companion docs (read these for current truth): `docs/archive/N8N_SAVE_LATENCY_AUDIT_2026-06-15.md`
+> (the latency problem this targets), `docs/ops/LINEAR_SYNC_RECONCILE.md` (the safety net
+> that stays unchanged), `docs/archive/CALENDAR_REALTIME_MIGRATION.md` (how the browser already
+> reads Supabase directly), `docs/archive/AUDIT_2026-06-15.md` (Supabase-primary write path).
 
 ## TL;DR
 
@@ -297,7 +297,7 @@ these on deliberately:
    faithfully (read-failure, phantom-row, `__CLEAR_LINK__`, link-clobber,
    duplicate-link, conflict/LWW) — reuse the JS from the n8n node nearly verbatim.
    Deploy with `verify_jwt = false` and CORS configured: the FE calls this as an
-   **unauthenticated public webhook** today (CORS `*`, per `AUDIT_2026-06-15.md`),
+   **unauthenticated public webhook** today (CORS `*`, per `docs/archive/AUDIT_2026-06-15.md`),
    so its "auth" is whatever the n8n endpoint has now. With JWT on, every save would
    break. Tightening that auth is a separate hardening item, not part of this move.
 2. [ ] For the comment merge, **call the existing `calendar_merge_comments` RPC**
@@ -308,7 +308,7 @@ these on deliberately:
    retry behavior is unchanged.
 4. [ ] **Keep** the best-effort Google-Sheets mirror in the port, **off** the
    response path (a try/catch that never affects the `{ok}` response), consistent
-   with `AUDIT_2026-06-15.md`, which retains the Sheet as a backup / human-readable
+   with `docs/archive/AUDIT_2026-06-15.md`, which retains the Sheet as a backup / human-readable
    mirror (NOT retired). Re-evaluate retiring it only as a separate Phase-4 cleanup
    — never as a silent side effect of this migration.
 5. [ ] Pin the function to the **DB region**.
@@ -402,7 +402,7 @@ key, store it as `LINEAR_API_KEY` via `supabase secrets set`, read it with
 exposure independent of this plan. (The Supabase keys in those same nodes are the
 already-public publishable key — no action.)
 
-Adjacent, out of scope here but tracked in `AUDIT_2026-06-15.md`: rotating the n8n
+Adjacent, out of scope here but tracked in `docs/archive/AUDIT_2026-06-15.md`: rotating the n8n
 `service_role` credential (`XdBpJ6Xk8PMpZXXT`, "Supabase - SyncView Calendar") and
 the `using (true)` anon RLS (any client can read any client's rows). This migration
 doesn't worsen them — but "no action" on the publishable key should not be read as
@@ -457,7 +457,7 @@ before relying on them.
 ## Status updates (append-only)
 
 Per repo convention (cf. the dated `## Status update (DATE) — …` logs in
-`N8N_SAVE_LATENCY_AUDIT_2026-06-15.md`), record each phase's apply / blocked /
+`docs/archive/N8N_SAVE_LATENCY_AUDIT_2026-06-15.md`), record each phase's apply / blocked /
 rolled-back state here as work happens, newest at the bottom.
 
 - **2026-06-29 — drafted.** Plan written and grounded against the live handlers,

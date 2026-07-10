@@ -1,6 +1,6 @@
 // Shared harness for the golden-path interaction probes.
 //
-// Design (see docs/CALENDAR-TEST-CATALOG.md §10.5):
+// Design (see docs/testing/CALENDAR-TEST-CATALOG.md §10.5):
 //   - Kasper actions  -> real Kasper handlers on a live Kasper page.
 //   - Client actions  -> real _calReview* handlers on a live client page (client mode).
 //   - SMM status moves-> the upsert webhook (the exact write the SMM status control

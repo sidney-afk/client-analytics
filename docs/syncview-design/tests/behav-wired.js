@@ -487,7 +487,7 @@ async function txt(page, sel) {
       await page.keyboard.press('Control+a');
       const before = await page.evaluate(() => _prodState.selected.size);
       await page.locator('#prodBulkActions').click();
-      await page.evaluate(() => document.querySelector('#prodLayer [data-prod-ctx="assign"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
+      await page.locator('#prodLayer [data-prod-ctx="assign"]').click();
       await page.waitForSelector('#prodLayer [data-prod-pick]', { timeout: 5000 });
       await page.locator('#prodLayer [data-prod-pick]').first().click();
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
@@ -1432,7 +1432,10 @@ async function txt(page, sel) {
       if (await page.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count()) return false;
       await page.locator('#prodBulkActions').click();
       await page.waitForSelector('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', { timeout: 5000 });
-      if (await page.locator('[data-prod-actionbar].menu-open').count() !== 1) return false;
+      if (await page.locator('[data-prod-actionbar].menu-open').count() !== 0) return false;
+      await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx="status"]').hover();
+      await page.waitForTimeout(120);
+      if (await page.locator('#prodLayer [data-prod-pick]').count()) return false;
       const labels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
       if (labels !== 'Assign to...|Change status...|Move to project...|Copy issue IDs|Change due date...|Delete issues') return false;
       await page.fill('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', 'status');

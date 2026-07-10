@@ -224,7 +224,9 @@ async function assertNoWriteRequests(requests) {
     const bulkLabels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
     if (bulkLabels !== 'Assign to...|Change status...|Move to project...|Copy issue IDs|Change due date...|Delete issues') throw new Error('Unexpected bulk command menu: ' + bulkLabels);
     await page.evaluate(() => document.querySelector('#prodLayer [data-prod-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
-    await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'bulk status guard picker');
+    await expectExactCount(page, '#prodLayer .prod-pop [data-prod-pick]', 0, 'bulk command hover does not open a blocking picker');
+    await page.locator('#prodLayer [data-prod-ctx="status"]').click();
+    await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'bulk status guard picker opens on click');
     await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
     await page.evaluate(() => { _prodState.selected.clear(); _prodRender(); });
     await row.locator('.prod-status').click();

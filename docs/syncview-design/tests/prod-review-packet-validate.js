@@ -155,8 +155,12 @@ function validatePacket(dir = packetDir) {
   }
   if (!selectedActions || !selectedActions.evidence || !selectedActions.evidence.actionBarVisible || !selectedActions.evidence.menuVisible || !selectedActions.evidence.searchVisible || selectedActions.evidence.selectedRows < 2) {
     failures.push('selected-actions-menu screenshot must record visible action bar, searchable menu, and selected-row evidence in review-manifest.json');
-  } else if (selectedActions.evidence.actionBarReceded !== true) {
-    failures.push('selected-actions-menu screenshot must record a receded action bar while the command menu is open');
+  } else if (selectedActions.evidence.actionBarReceded === true) {
+    failures.push('selected-actions-menu screenshot must keep the action bar visible instead of receding it');
+  } else if (selectedActions.evidence.menuCentered !== true || selectedActions.evidence.menuWidth < 640 || selectedActions.evidence.menuAboveActionBar !== true) {
+    failures.push('selected-actions-menu screenshot must record a centered Linear-style command panel above the action bar');
+  } else if (selectedActions.evidence.submenuOpenOnHover) {
+    failures.push('selected-actions-menu screenshot must prove hover does not open a blocking picker submenu');
   } else {
     const labels = Array.isArray(selectedActions.evidence.commandLabels) ? selectedActions.evidence.commandLabels : [];
     if (labels.join('|') !== expectedBulkLabels.join('|')) {

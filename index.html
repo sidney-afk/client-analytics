@@ -29476,7 +29476,7 @@
         }
         function _prodCurIssuesUnfiltered() {
             if (_prodState.view === 'project' && _prodState.openProjectId) {
-                return _prodApplySubIssueVisibility(_prodIssues().filter(d => d.project === _prodState.openProjectId));
+                return _prodApplySubIssueVisibility(_prodProjectAllRows(_prodClient(_prodState.openProjectId)));
             }
             return _prodIssues().filter(d => _prodState.team === 'all' || d.team === _prodState.team)
                 .filter(d => !_prodState.clientSlug || d.project === _prodState.clientSlug)
@@ -30926,11 +30926,21 @@
                 .sort(_prodIssueOrderCompare);
         }
         function _prodProjectRows(project) {
-            const id = String(project && project.id || '');
-            if (!id) return [];
-            return _prodUniqueRows(_prodApplySubIssueVisibility(_prodIssues().filter(d => d.project === id)))
+            return _prodUniqueRows(_prodApplySubIssueVisibility(_prodProjectAllRows(project)))
                 .filter(_prodMatchFilters)
                 .sort(_prodIssueOrderCompare);
+        }
+        function _prodProjectScopeTeam(project) {
+            const active = _prodState.team;
+            if (active === 'video' || active === 'graphics') return active;
+            const team = project && project.team;
+            return team === 'video' || team === 'graphics' ? team : 'all';
+        }
+        function _prodProjectAllRows(project) {
+            const id = String(project && project.id || '');
+            if (!id) return [];
+            const scope = _prodProjectScopeTeam(project);
+            return _prodIssues().filter(d => d.project === id && (scope === 'all' || d.team === scope));
         }
         function _prodCounts() {
             const all = _prodIssues();
@@ -31579,7 +31589,7 @@
         function _prodProjectTopbar() {
             const c = _prodClient(_prodState.openProjectId);
             const title = c ? (c.name || c.id) : 'Project';
-            const team = c ? c.team : _prodState.team;
+            const team = _prodProjectScopeTeam(c);
             const detailBtn = '<button class="prod-icon-btn' + (_prodState.projectDetailsOpen === false ? '' : ' active') + '" type="button" data-prod-project-details-toggle="1" onclick="_prodToggleProjectDetails()" title="Project details" data-prod-tip="Project details">' + _prodIcon('project') + '</button>';
             const subbar = '<div class="prod-subbar" data-prod-project-subbar="1"><div class="prod-filter-pills">' + _prodPillsHTML() + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" aria-label="Filter" data-prod-tip="Filter">' + _prodIcon('filter') + '</button>' + detailBtn + '<button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" aria-label="Display options" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
             return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><button class="prod-crumb-link" type="button" data-prod-crumb-root="1" onclick="_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Production">Production</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-team="' + _calEscAttr(team || 'all') + '" onclick="_prodOpenTeamView(' + _jsAttrArg(team || 'all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Open team projects">' + _calEsc(_prodTeamLabel(team)) + '</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>Project</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-project" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c ? c.id : '') + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>' + subbar;
@@ -31914,7 +31924,8 @@
             const c = _prodClient(_prodState.openProjectId);
             if (!c) return '<div class="prod-empty">Project not found.</div>';
             const lead = _prodMember(c.lead);
-            const allRows = _prodIssues().filter(i => i.project === c.id);
+            const projectTeam = _prodProjectScopeTeam(c);
+            const allRows = _prodProjectAllRows(c);
             const rows = _prodProjectRows(c);
             const desc = c.desc || 'No project description on this migrated row.';
             const empty = (_prodState.filters || []).length ? 'No issues match your filters.' : 'No issues in this view yet.';
@@ -31929,7 +31940,7 @@
                 + '<div class="prod-side-row"><span class="prod-disabled-pill"><button type="button" data-prod-disabled="project-controls" disabled title="' + _prodPreviewText() + '">Controls disabled</button></span></div></div>'
                 + '<div class="prod-side-card" data-prod-detail-card="project-issues"><div class="prod-side-card-head"><span>Issues</span></div><div class="prod-side-row muted">' + _calEsc(String(allRows.length)) + ' issue' + (allRows.length === 1 ? '' : 's') + '</div></div></div></aside>';
             return '<div class="prod-detail prod-project-detail" data-prod-project-detail="' + _calEscAttr(c.id) + '"><div class="prod-detail-main"><div class="prod-detail-inner">'
-                + '<div class="prod-detail-id">' + _calEsc(_prodTeamLabel(c.team)) + ' project</div><h1 class="prod-detail-title">' + _calEsc(c.name || c.id) + '</h1>'
+                + '<div class="prod-detail-id">' + _calEsc(_prodTeamLabel(projectTeam)) + ' project</div><h1 class="prod-detail-title">' + _calEsc(c.name || c.id) + '</h1>'
                 + '<div class="prod-desc">' + _calEsc(desc) + '</div>'
                 + '<div class="prod-subsection"><div class="prod-subhead">' + _prodIcon('issues') + ' Issues <span class="prod-group-count">' + _calEsc(issueCountLabel) + '</span></div>'
                 + rowHTML + '</div></div></div>' + side + '</div>';

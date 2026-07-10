@@ -125,6 +125,30 @@ async function collectCombinedFilterEvidence(page) {
   });
 }
 
+async function collectProjectDetailEvidence(page) {
+  return page.evaluate(() => {
+    const rows = [...document.querySelectorAll('[data-prod-project-issue]')];
+    const rowIds = rows.map(row => row.getAttribute('data-prod-project-issue') || '');
+    const rowTeams = rowIds.map(id => {
+      const issue = _prodIssue(id);
+      return issue && issue.team || '';
+    }).filter(Boolean);
+    const crumbTeam = document.querySelector('.prod-detail-crumb [data-prod-crumb-team]');
+    const groupCount = document.querySelector('.prod-subhead .prod-group-count');
+    const sideCount = document.querySelector('[data-prod-detail-card="project-issues"] .prod-side-row');
+    return {
+      stateTeam: _prodState.team || '',
+      openProjectId: _prodState.openProjectId || '',
+      crumbTeam: crumbTeam ? crumbTeam.textContent.trim() : '',
+      detailScope: (document.querySelector('.prod-detail-id')?.textContent || '').trim(),
+      visibleRows: rows.length,
+      rowTeams: [...new Set(rowTeams)].sort(),
+      groupCountText: groupCount ? groupCount.textContent.trim() : '',
+      sideIssuesText: sideCount ? sideCount.textContent.trim() : '',
+    };
+  });
+}
+
 async function setList(page) {
   await page.evaluate(() => {
     window._prodClearLayer && window._prodClearLayer();
@@ -193,13 +217,21 @@ async function setProject(page) {
   await page.evaluate(() => {
     window._prodClearLayer && window._prodClearLayer();
     document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
+    _prodState.view = 'board';
+    _prodState.team = 'video';
     _prodState.filters = [];
+    _prodState.groupBy = 'status';
+    _prodState.showSubIssues = true;
+    _prodState.collapsed = new Set();
     _prodState.selected.clear();
     _prodState.cardSel.clear();
     _prodState.focusCard = '';
     const projects = _prodProjects();
     const ids = Object.keys(projects);
-    const filteredId = ids.find(key => _prodProjectRows(projects[key]).length);
+    const filteredId = ids.find(key => {
+      const all = _prodIssues().filter(i => i.project === key);
+      return all.some(i => i.team === 'video') && all.some(i => i.team === 'graphics') && _prodProjectRows(projects[key]).length;
+    }) || ids.find(key => _prodProjectRows(projects[key]).length);
     const id = filteredId
       || ids.find(key => _prodIssues().some(i => i.project === key && !i.parent))
       || ids[0]
@@ -207,7 +239,7 @@ async function setProject(page) {
     if (id) _prodOpenProject(id);
   });
   await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
-  const clean = await page.evaluate(() => _prodState.view === 'project' && (_prodState.filters || []).length === 0);
+  const clean = await page.evaluate(() => _prodState.view === 'project' && _prodState.team === 'video' && (_prodState.filters || []).length === 0);
   if (!clean) throw new Error('Project detail review screenshot did not reset to an unfiltered project state');
 }
 
@@ -530,10 +562,12 @@ ${cards}
     });
 
     await setProject(desktop);
+    const projectDetailEvidence = await collectProjectDetailEvidence(desktop);
     await screenshot(desktop, shots, 'project-detail', 'Project detail', 'Project issue list, Filter/Project details/Display controls, right metadata.', {
       surface: 'project-detail',
-      route: 'production/project-detail',
-      checks: ['project issue list', 'filter control', 'project details toggle', 'display control', 'right metadata'],
+      route: 'production/video/project-detail',
+      evidence: projectDetailEvidence,
+      checks: ['project issue list', 'team-scoped project rows', 'filter control', 'project details toggle', 'display control', 'right metadata'],
     });
 
     await setParentDetail(desktop);

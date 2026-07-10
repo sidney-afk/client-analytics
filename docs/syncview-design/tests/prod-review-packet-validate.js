@@ -166,8 +166,24 @@ function validatePacket(dir = packetDir) {
     failures.push('project-board screenshot must be an unfiltered board baseline in review-manifest.json');
   }
   const projectDetail = byName('project-detail');
-  if (!projectDetail || !projectDetail.state || projectDetail.state.view !== 'project' || projectDetail.state.filters !== 0) {
-    failures.push('project-detail screenshot must be an unfiltered project-detail baseline in review-manifest.json');
+  if (!projectDetail || !projectDetail.state || projectDetail.state.view !== 'project' || projectDetail.state.team !== 'video' || projectDetail.state.filters !== 0) {
+    failures.push('project-detail screenshot must be an unfiltered Video project-detail baseline in review-manifest.json');
+  }
+  if (!projectDetail || !projectDetail.evidence || projectDetail.evidence.stateTeam !== 'video' || projectDetail.evidence.crumbTeam !== 'Video' || projectDetail.evidence.detailScope !== 'Video project') {
+    failures.push('project-detail screenshot must record Video crumb/detail-scope evidence in review-manifest.json');
+  } else {
+    const rowTeams = Array.isArray(projectDetail.evidence.rowTeams) ? projectDetail.evidence.rowTeams : [];
+    const visibleRows = Number(projectDetail.evidence.visibleRows);
+    if (rowTeams.some(team => team !== 'video')) {
+      failures.push(`project-detail screenshot includes rows outside the Video scope: ${rowTeams.join(', ')}`);
+    }
+    if (String(visibleRows) !== String(projectDetail.evidence.groupCountText || '')) {
+      failures.push(`project-detail group count does not match visible rows: ${projectDetail.evidence.groupCountText || '(missing)'} vs ${visibleRows}`);
+    }
+    const expectedSideText = String(visibleRows) + ' issue' + (visibleRows === 1 ? '' : 's');
+    if (projectDetail.evidence.sideIssuesText !== expectedSideText) {
+      failures.push(`project-detail side issue count does not match visible rows: ${projectDetail.evidence.sideIssuesText || '(missing)'} vs ${expectedSideText}`);
+    }
   }
   const parentDetail = byName('parent-detail');
   if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.subIssueRows < 1 || !parentDetail.evidence.hasGuardedAddSubIssue || !parentDetail.evidence.subIssueSectionVisible || !parentDetail.evidence.activityVisible) {

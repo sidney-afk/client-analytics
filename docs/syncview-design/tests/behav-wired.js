@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 163;
+const TOTAL = 164;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -188,6 +188,50 @@ async function txt(page, sel) {
           && detailsIndex === filterIndex + 1
           && projectScoped;
       }, slug);
+    }); await reset();
+    await ok('projectDetailKeepsTeamScope', async () => {
+      const opened = await page.evaluate(() => {
+        _prodState.view = 'board';
+        _prodState.team = 'video';
+        _prodState.filters = [];
+        _prodState.clientSlug = '';
+        _prodState.groupBy = 'status';
+        _prodState.showSubIssues = true;
+        _prodState.collapsed = new Set();
+        _prodRender();
+        const projects = _prodProjects();
+        const ids = Object.keys(projects);
+        const id = ids.find(key => {
+          const all = _prodIssues().filter(i => i.project === key);
+          return all.some(i => i.team === 'video') && all.some(i => i.team === 'graphics') && _prodProjectRows(projects[key]).length;
+        }) || ids.find(key => _prodProjectRows(projects[key]).length) || '';
+        if (!id) return { id: '', expected: 0 };
+        const expected = _prodProjectRows(projects[id]).length;
+        _prodOpenProject(id);
+        return { id, expected };
+      });
+      if (!opened.id) return true;
+      await page.waitForSelector('[data-prod-project-detail]', { timeout: 5000 });
+      return await page.evaluate(({ id, expected }) => {
+        const rows = [...document.querySelectorAll('[data-prod-project-issue]')];
+        const rowModels = rows.map(row => _prodIssue(row.getAttribute('data-prod-project-issue'))).filter(Boolean);
+        const crumbTeam = (document.querySelector('.prod-detail-crumb [data-prod-crumb-team]')?.textContent || '').trim();
+        const detailScope = (document.querySelector('.prod-detail-id')?.textContent || '').trim();
+        const groupCount = (document.querySelector('.prod-subhead .prod-group-count')?.textContent || '').trim();
+        const sideText = (document.querySelector('[data-prod-detail-card="project-issues"] .prod-side-row')?.textContent || '').trim();
+        return _prodState.view === 'project'
+          && _prodState.team === 'video'
+          && _prodState.openProjectId === id
+          && rows.length === expected
+          && rowModels.length === expected
+          && rowModels.every(row => row.team === 'video' && row.project === id)
+          && _prodProjectAllRows(_prodClient(id)).length === expected
+          && _prodCurIssuesUnfiltered().every(row => row.team === 'video' && row.project === id)
+          && crumbTeam === 'Video'
+          && detailScope === 'Video project'
+          && groupCount === String(expected)
+          && sideText === String(expected) + ' issue' + (expected === 1 ? '' : 's');
+      }, opened);
     }); await reset();
     await ok('projectRowsUseIssueListMetadataAndWidth', async () => {
       const opened = await page.evaluate(() => {
@@ -637,7 +681,7 @@ async function txt(page, sel) {
         const c = slug ? _prodClient(slug) : null;
         if (!slug || !c) return '';
         _prodOpenProject(slug);
-        return c.team || 'all';
+        return _prodProjectScopeTeam(c);
       });
       if (!team) return true;
       await page.locator('.prod-detail-crumb [data-prod-crumb-team]').click();

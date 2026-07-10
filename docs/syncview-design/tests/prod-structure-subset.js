@@ -141,6 +141,12 @@ async function assertNoWriteRequests(requests) {
     if (!(await page.locator('.prod-nav-section', { hasText: 'Your teams' }).count())) throw new Error('Your teams section missing');
     if (!(await page.locator('.prod-team-hd', { hasText: 'Video' }).count())) throw new Error('Video team missing');
     if (!(await page.locator('.prod-team-hd', { hasText: 'Graphics' }).count())) throw new Error('Graphics team missing');
+    const teamIssueCountBadges = await page.locator('.prod-team-hd', { hasText: /Video|Graphics/ }).evaluateAll(heads => heads.reduce((total, head) => {
+      const nav = head.closest('.prod-nav');
+      const issues = nav ? [...nav.querySelectorAll('.prod-nav-btn')].find(btn => (btn.textContent || '').includes('Issues')) : null;
+      return total + (issues && issues.querySelector('.prod-nav-count') ? 1 : 0);
+    }, 0));
+    if (teamIssueCountBadges) throw new Error('Team issue nav should not show numeric sidebar badges');
     const removedNav = await page.locator('.prod-side').evaluate(el => /Inbox|Triage|Views|Invite/.test(el.textContent || ''));
     if (removedNav) throw new Error('Removed prototype navigation item leaked into sidebar');
 

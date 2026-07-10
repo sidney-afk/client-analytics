@@ -67,6 +67,8 @@ async function collectParentDetailEvidence(page) {
     const detail = document.querySelector('.prod-detail');
     const subSection = document.querySelector('[data-prod-section="subissues"]');
     const activity = document.querySelector('.prod-activity');
+    const descText = (document.querySelector('.prod-detail .prod-desc')?.textContent || '').replace(/\s+/g, ' ').trim();
+    const activityText = (activity?.textContent || '').replace(/\s+/g, ' ').trim();
     const visible = el => {
       if (!el) return false;
       const rect = el.getBoundingClientRect();
@@ -80,7 +82,22 @@ async function collectParentDetailEvidence(page) {
       hasActivity: !!activity,
       subIssueSectionVisible: visible(subSection),
       activityVisible: visible(activity),
+      descText,
+      activityText,
+      hasScaffoldCopy: /migrated row/i.test(descText + ' ' + activityText),
       topbarFakeControls: document.querySelectorAll('.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]').length,
+    };
+  });
+}
+
+async function collectIssueDetailCopyEvidence(page) {
+  return page.evaluate(() => {
+    const descText = (document.querySelector('.prod-detail .prod-desc')?.textContent || '').replace(/\s+/g, ' ').trim();
+    const activityText = (document.querySelector('.prod-activity')?.textContent || '').replace(/\s+/g, ' ').trim();
+    return {
+      descText,
+      activityText,
+      hasScaffoldCopy: /migrated row/i.test(descText + ' ' + activityText),
     };
   });
 }
@@ -191,6 +208,8 @@ async function collectProjectDetailEvidence(page) {
       openProjectId: _prodState.openProjectId || '',
       crumbTeam: crumbTeam ? crumbTeam.textContent.trim() : '',
       detailScope: (document.querySelector('.prod-detail-id')?.textContent || '').trim(),
+      descText: (document.querySelector('[data-prod-project-detail] .prod-desc')?.textContent || '').replace(/\s+/g, ' ').trim(),
+      hasScaffoldCopy: /migrated row/i.test(document.querySelector('[data-prod-project-detail] .prod-desc')?.textContent || ''),
       visibleRows: rows.length,
       rowTeams: [...new Set(rowTeams)].sort(),
       groupCountText: groupCount ? groupCount.textContent.trim() : '',
@@ -640,9 +659,11 @@ ${cards}
     });
 
     await setSubIssueDetail(desktop);
+    const subIssueCopyEvidence = await collectIssueDetailCopyEvidence(desktop);
     await screenshot(desktop, shots, 'subissue-detail', 'Sub-issue detail', 'Breadcrumb/body hierarchy, Sub-issue of context, project context.', {
       surface: 'subissue-detail',
       route: 'production/subissue-detail',
+      evidence: subIssueCopyEvidence,
       checks: ['breadcrumb hierarchy', 'body-level parent context', 'project context'],
     });
 

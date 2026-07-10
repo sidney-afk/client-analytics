@@ -224,6 +224,9 @@ function validatePacket(dir = packetDir) {
     if (projectDetail.evidence.emptyDueIconOnly !== 0) {
       failures.push(`project-detail still exposes ${projectDetail.evidence.emptyDueIconOnly} icon-only empty due control(s)`);
     }
+    if (projectDetail.evidence.hasScaffoldCopy) {
+      failures.push('project-detail screenshot must not expose internal "migrated row" scaffold copy');
+    }
     const emptyDueLabels = Array.isArray(projectDetail.evidence.emptyDueLabels) ? projectDetail.evidence.emptyDueLabels : [];
     if (emptyDueLabels.some(label => label !== 'Add date')) {
       failures.push(`project-detail empty due labels changed: ${emptyDueLabels.join('|') || '(missing)'}`);
@@ -238,6 +241,13 @@ function validatePacket(dir = packetDir) {
   }
   if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.topbarFakeControls !== 0) {
     failures.push('parent-detail screenshot must record zero fake favorite/notification topbar controls in review-manifest.json');
+  }
+  if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.hasScaffoldCopy || !/No activity yet|Activity/i.test(parentDetail.evidence.activityText || '')) {
+    failures.push('parent-detail screenshot must use polished empty activity/description copy, not internal migrated-row wording');
+  }
+  const subIssueDetail = byName('subissue-detail');
+  if (!subIssueDetail || !subIssueDetail.evidence || subIssueDetail.evidence.hasScaffoldCopy || !/No activity yet|Activity/i.test(subIssueDetail.evidence.activityText || '')) {
+    failures.push('subissue-detail screenshot must use polished empty activity/description copy, not internal migrated-row wording');
   }
   if (!gallery.includes('Production Review Packet')) failures.push('index.html missing gallery heading');
   if (!markdown.includes('Production Review Packet')) failures.push('manifest.md missing heading');

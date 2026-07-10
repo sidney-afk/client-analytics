@@ -2633,7 +2633,6 @@
         .prod-nav-btn:hover { background: var(--prod-hover); color: var(--prod-text); }
         .prod-nav-btn.active { background: var(--prod-selected-nav); color: var(--prod-text); }
         .prod-nav-btn svg { width: 16px; height: 16px; flex: none; }
-        .prod-nav-count { margin-left: auto; color: var(--prod-faint); font-size: 12px; font-variant-numeric: tabular-nums; }
         .prod-main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--prod-content); }
         .prod-topbar { height: 48px; flex: none; border-bottom: 1px solid var(--prod-divider); display: flex; align-items: center; gap: 8px; padding: 0 16px; }
         .prod-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--prod-strong); min-width: 0; }
@@ -2709,6 +2708,7 @@
         .prod-desc .prod-md-bullet-mark { flex: none; color: var(--prod-faint); }
         .prod-desc a { color: var(--prod-link); text-decoration: none; }
         .prod-desc a:hover { text-decoration: underline; }
+        .prod-desc-empty { color: var(--prod-faint); }
         .prod-right { width: 286px; flex: 0 0 286px; border-left: 1px solid var(--prod-divider); padding: 18px 14px; overflow: auto; background: var(--prod-content); }
         .prod-props { display: flex; flex-direction: column; gap: 2px; }
         .prod-prop { min-height: 32px; display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 8px; font-size: 13px; color: var(--prod-strong); }
@@ -31718,14 +31718,6 @@
             const scope = _prodProjectScopeTeam(project);
             return _prodIssues().filter(d => d.project === id && (scope === 'all' || d.team === scope));
         }
-        function _prodCounts() {
-            const all = _prodIssues();
-            return {
-                all: all.length,
-                video: all.filter(d => d.team === 'video').length,
-                graphics: all.filter(d => d.team === 'graphics').length
-            };
-        }
         // PORT-DELTA: groupsFor accepts live rows and supports client-project grouping through adapter projects.
         function _prodGroupsFor(rows) {
             const grouped = new Map();
@@ -32315,12 +32307,11 @@
             if (list && _prodState.listScrollTop) list.scrollTop = _prodState.listScrollTop;
             if (_prodState.view === 'detail' && _prodState.openId && _prodState.events.get(_prodState.openId) === undefined) _prodLoadEventsFor(_prodState.openId);
         }
-        function _prodNavItem(icon, label, active, onClick, cls, count) {
-            return '<button class="prod-nav-btn' + (cls ? ' ' + cls : '') + (active ? ' active' : '') + '" type="button" onclick="' + onClick + '"><span class="prod-nav-ico">' + icon + '</span><span>' + _calEsc(label) + '</span>' + (count !== undefined ? '<span class="prod-nav-count">' + count + '</span>' : '') + '</button>';
+        function _prodNavItem(icon, label, active, onClick, cls) {
+            return '<button class="prod-nav-btn' + (cls ? ' ' + cls : '') + (active ? ' active' : '') + '" type="button" onclick="' + onClick + '"><span class="prod-nav-ico">' + icon + '</span><span>' + _calEsc(label) + '</span></button>';
         }
-        // PORT-DELTA: sidebar structure follows renderSidebar with host class names and live counts.
+        // PORT-DELTA: sidebar structure follows renderSidebar with host class names.
         function _prodSidebar() {
-            const c = _prodCounts();
             const favIssues = _prodIssues().filter(d => d.favorite || d.fav);
             const favHTML = favIssues.length
                 ? '<button class="prod-nav-section' + (_prodState.secOpen.fav ? '' : ' collapsed') + '" type="button" onclick="_prodToggleSection(' + _jsAttrArg('fav') + ')"><span class="prod-section-label">Favorites</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
@@ -32332,7 +32323,7 @@
                 const emoji = team === 'video' ? '📽️' : '🎨';
                 return '<div class="prod-nav"><button class="prod-team-hd' + (open ? '' : ' collapsed') + '" type="button" onclick="_prodToggleTeam(' + _jsAttrArg(team) + ')"><span class="prod-team-emoji">' + emoji + '</span><span class="prod-team-name">' + label + '</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
                     + (open
-                        ? _prodNavItem(_prodIcon('issues'), 'Issues', (_prodState.view === 'list' && _prodState.team === team), '_prodOpenTeamView(' + _jsAttrArg(team) + ',' + _jsAttrArg('list') + ')', 'child', c[team])
+                        ? _prodNavItem(_prodIcon('issues'), 'Issues', (_prodState.view === 'list' && _prodState.team === team), '_prodOpenTeamView(' + _jsAttrArg(team) + ',' + _jsAttrArg('list') + ')', 'child')
                             + _prodNavItem(_prodIcon('project'), 'Projects', (_prodState.view === 'board' && _prodState.team === team), '_prodOpenTeamView(' + _jsAttrArg(team) + ',' + _jsAttrArg('board') + ')', 'child')
                         : '')
                     + '</div>';
@@ -32692,7 +32683,7 @@
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div><h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
                 + _prodSubIssueContextHTML(d, parent)
-                + '<div class="prod-desc">' + (d.desc ? _prodLinkify(d.desc) : '<span style="color:var(--prod-faint)">No brief on this migrated row.</span>') + '</div>'
+                + '<div class="prod-desc">' + (d.desc ? _prodLinkify(d.desc) : '<span class="prod-desc-empty">No description.</span>') + '</div>'
                 + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" data-prod-file-link="1" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener" title="' + _calEscAttr(file) + '">' + _calEsc(_prodFileLinkLabel(file)) + '</a></p>' : '')
                 + subSection
                 + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Activity</span><span class="prod-spacer"></span></div>' + _prodActivity(events) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">Commenting is disabled in this preview.</button></div></div>'
@@ -32705,7 +32696,7 @@
             const projectTeam = _prodProjectScopeTeam(c);
             const allRows = _prodProjectAllRows(c);
             const rows = _prodProjectRows(c);
-            const desc = c.desc || 'No project description on this migrated row.';
+            const desc = c.desc || 'No project description.';
             const empty = (_prodState.filters || []).length ? 'No issues match your filters.' : 'No issues in this view yet.';
             const rowHTML = _prodProjectRowsHTML(rows, empty, allRows.length, c.name || c.id);
             const filteredCount = (_prodState.filters || []).length && allRows.length && rows.length !== allRows.length;
@@ -32751,7 +32742,7 @@
                 + '</div>';
         }
         function _prodActivity(events) {
-            if (!events || !events.length) return '<div class="prod-act-empty">No activity events on this migrated row yet.</div>';
+            if (!events || !events.length) return '<div class="prod-act-empty">No activity yet.</div>';
             return events.slice(0, 12).map(e => {
                 const actor = e.actor || e.role || e.source || 'system';
                 const label = e.action === 'status_change'

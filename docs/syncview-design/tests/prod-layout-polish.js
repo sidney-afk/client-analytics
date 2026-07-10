@@ -132,29 +132,30 @@ async function collectLayoutFailures(page, label) {
         _prodRender();
       });
       if (vp.name === 'desktop') {
-        const boardFitsDesktop = await page.evaluate(() => {
+        const boardScrollsHorizontally = await page.evaluate(() => {
           const board = document.querySelector('.prod-board');
           if (!board) return true;
           const boardRect = board.getBoundingClientRect();
-          const columns = [...board.querySelectorAll('.prod-col:not(.collapsed)')].filter(el => {
-            const r = el.getBoundingClientRect();
-            return r.width > 1 && r.height > 1;
-          });
-          return board.scrollWidth <= board.clientWidth + 2
-            && columns.every(col => col.getBoundingClientRect().right <= boardRect.right + 2);
+          const firstCol = board.querySelector('.prod-col:not(.collapsed)');
+          const firstRect = firstCol ? firstCol.getBoundingClientRect() : boardRect;
+          return board.scrollWidth >= board.clientWidth
+            && firstRect.left >= boardRect.left - 2
+            && firstRect.right <= boardRect.right + 2;
         });
-        if (!boardFitsDesktop) failures.push('desktop project board clips the final visible column at review width');
+        if (!boardScrollsHorizontally) failures.push('desktop project board should use a stable horizontal board lane layout');
         const boardColumnBalance = await page.evaluate(() => {
           const cardCols = [...document.querySelectorAll('.prod-col.has-cards:not(.collapsed)')];
           const emptyCols = [...document.querySelectorAll('.prod-col.is-empty:not(.collapsed)')];
           const titleWidths = [...document.querySelectorAll('.prod-col.has-cards .prod-card-title')].slice(0, 8).map(el => el.getBoundingClientRect().width);
+          const widths = [...cardCols, ...emptyCols].map(col => col.getBoundingClientRect().width);
           return cardCols.length === 0 || (
             cardCols.every(col => col.getBoundingClientRect().width >= 250)
-            && emptyCols.every(col => col.getBoundingClientRect().width <= 190)
+            && emptyCols.every(col => col.getBoundingClientRect().width >= 250)
+            && Math.max(...widths) - Math.min(...widths) <= 8
             && titleWidths.every(width => width >= 80)
           );
         });
-        if (!boardColumnBalance) failures.push('desktop project board should give non-empty columns enough width for readable project cards');
+        if (!boardColumnBalance) failures.push('desktop project board should give empty and non-empty columns the same readable lane width');
         const emptyColumnChrome = await page.evaluate(() => {
           const emptyCols = [...document.querySelectorAll('.prod-col.is-empty:not(.collapsed)')];
           const cardCols = [...document.querySelectorAll('.prod-col.has-cards:not(.collapsed)')];

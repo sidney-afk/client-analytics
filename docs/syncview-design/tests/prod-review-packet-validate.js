@@ -150,6 +150,9 @@ function validatePacket(dir = packetDir) {
   if (!desktopList || !desktopList.evidence || desktopList.evidence.visibleGroups < 1 || desktopList.evidence.groupAddControls !== 0) {
     failures.push('desktop-list screenshot must record grouped rows with no fake group-header add controls in review-manifest.json');
   }
+  if (!desktopList || !desktopList.evidence || desktopList.evidence.topbarFakeControls !== 0) {
+    failures.push('desktop-list screenshot must record zero fake favorite/notification topbar controls in review-manifest.json');
+  }
   if (!selectedActions || !selectedActions.evidence || !selectedActions.evidence.actionBarVisible || !selectedActions.evidence.menuVisible || !selectedActions.evidence.searchVisible || selectedActions.evidence.selectedRows < 2) {
     failures.push('selected-actions-menu screenshot must record visible action bar, searchable menu, and selected-row evidence in review-manifest.json');
   } else {
@@ -194,10 +197,16 @@ function validatePacket(dir = packetDir) {
     if (projectDetail.evidence.groupAddControls !== 0) {
       failures.push(`project-detail still exposes ${projectDetail.evidence.groupAddControls} fake group-header add control(s)`);
     }
+    if (projectDetail.evidence.topbarFakeControls !== 0) {
+      failures.push(`project-detail still exposes ${projectDetail.evidence.topbarFakeControls} fake favorite/notification topbar control(s)`);
+    }
   }
   const parentDetail = byName('parent-detail');
   if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.subIssueRows < 1 || !parentDetail.evidence.hasGuardedAddSubIssue || !parentDetail.evidence.subIssueSectionVisible || !parentDetail.evidence.activityVisible) {
     failures.push('parent-detail screenshot must record visible sub-issue rows, guarded add-sub-issue affordance, and activity evidence in review-manifest.json');
+  }
+  if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.topbarFakeControls !== 0) {
+    failures.push('parent-detail screenshot must record zero fake favorite/notification topbar controls in review-manifest.json');
   }
   if (!gallery.includes('Production Review Packet')) failures.push('index.html missing gallery heading');
   if (!markdown.includes('Production Review Packet')) failures.push('manifest.md missing heading');

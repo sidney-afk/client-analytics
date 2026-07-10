@@ -131,6 +131,7 @@ async function assertNoWriteRequests(requests) {
     await expectExactCount(page, '.prod-pop [data-prod-brand-action]', 0, 'brand workspace menu removed');
     if (!(await text(page, '.prod-preview-chip')).includes('Preview - read-only')) throw new Error('Preview chip missing');
     if (!(await page.locator('.prod-search-btn[title*="Search"]').count())) throw new Error('Search command button missing');
+    await expectExactCount(page, '.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]', 0, 'fake topbar favorite/notification controls');
     await page.keyboard.press('Slash');
     await expectCount(page, '.prod-cmd .prod-cmd-input', 1, 'Slash opens command palette');
     await page.keyboard.press('Escape');
@@ -261,7 +262,7 @@ async function assertNoWriteRequests(requests) {
     for (const tab of ['Active', 'Backlog', 'All issues']) {
       if (!(await page.locator('.prod-tab', { hasText: tab }).count())) throw new Error('Issue tab missing: ' + tab);
     }
-    if (!(await page.locator('.prod-icon-btn[title="Preview - read-only"]').count())) throw new Error('Topbar inert controls missing');
+    await expectExactCount(page, '.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]', 0, 'fake topbar favorite/notification controls');
 
     await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
     await page.waitForSelector('.prod-detail-title', { timeout: 10000 });

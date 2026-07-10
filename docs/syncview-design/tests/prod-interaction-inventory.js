@@ -427,6 +427,8 @@ async function selectionChecks(page) {
   await reset(page, 'board');
   const cardCursor = await page.locator('#prodRoot .prod-card[data-prod-client-card]').first().evaluate(el => getComputedStyle(el).cursor).catch(() => '');
   if (cardCursor !== 'pointer') failures.push(`project card cursor should be pointer, got ${cardCursor || 'empty'}`);
+  const topbarFakeControls = await page.locator('#prodRoot .prod-topbar [data-prod-disabled="favorite-view"], #prodRoot .prod-topbar [data-prod-disabled="favorite-issue"], #prodRoot .prod-topbar [data-prod-disabled="favorite-project"], #prodRoot .prod-topbar [data-prod-disabled="notifications"]').count();
+  if (topbarFakeControls) failures.push(`Production topbars exposed ${topbarFakeControls} fake favorite/notification control(s)`);
   const emptyColumnActions = await page.evaluate(() => {
     const cols = [...document.querySelectorAll('#prodRoot .prod-col')];
     return cols.filter(col => col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]')).length;

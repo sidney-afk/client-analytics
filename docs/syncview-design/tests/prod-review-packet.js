@@ -79,6 +79,7 @@ async function collectParentDetailEvidence(page) {
       hasActivity: !!activity,
       subIssueSectionVisible: visible(subSection),
       activityVisible: visible(activity),
+      topbarFakeControls: document.querySelectorAll('.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]').length,
     };
   });
 }
@@ -87,6 +88,7 @@ async function collectListGroupEvidence(page) {
   return page.evaluate(() => ({
     visibleGroups: document.querySelectorAll('.prod-listwrap .prod-group').length,
     groupAddControls: document.querySelectorAll('.prod-listwrap .prod-group [data-prod-disabled="add-deliverable"], .prod-listwrap .prod-group .prod-group-add').length,
+    topbarFakeControls: document.querySelectorAll('.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]').length,
   }));
 }
 
@@ -168,6 +170,7 @@ async function collectProjectDetailEvidence(page) {
       groupCountText: groupCount ? groupCount.textContent.trim() : '',
       sideIssuesText: sideCount ? sideCount.textContent.trim() : '',
       groupAddControls: document.querySelectorAll('.prod-project-groups .prod-project-group [data-prod-disabled="add-project-issue"], .prod-project-groups .prod-project-group .prod-group-add').length,
+      topbarFakeControls: document.querySelectorAll('.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]').length,
     };
   });
 }

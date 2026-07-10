@@ -371,12 +371,18 @@ async function txt(page, sel) {
       const graphics = await page.locator('.prod-card').count();
       return video >= 0 && graphics >= 0 && await page.locator('.prod-col').count() >= 6;
     }); await reset();
-    await ok('star', async () => {
+    await ok('topbarNoFakeFavorites', async () => {
+      const listClean = await page.locator('.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="notifications"]').count() === 0;
       await page.locator('.prod-row').first().click();
       await page.waitForSelector('.prod-detail');
-      await page.locator('[data-prod-disabled="favorite-issue"]').click();
-      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-      return (await txt(page, '#prodToast')).includes('Preview - read-only');
+      const detailClean = await page.locator('.prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="notifications"]').count() === 0;
+      await page.evaluate(() => {
+        const id = Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent)) || '';
+        if (id) _prodOpenProject(id);
+      });
+      await page.waitForSelector('[data-prod-project-detail]', { timeout: 5000 });
+      const projectClean = await page.locator('.prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]').count() === 0;
+      return listClean && detailClean && projectClean;
     }); await reset();
     await ok('chevron', async () => {
       const key = await page.locator('.prod-group').first().getAttribute('data-prod-group');

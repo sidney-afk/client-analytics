@@ -2823,6 +2823,7 @@
         .prod-desc { margin-bottom: 16px; }
         .prod-file-line { margin: 14px 0 0; color: var(--prod-strong); font-size: 13px; }
         .prod-file-line b { font-weight: 600; }
+        .prod-file-line .prod-link { margin-left: 4px; }
         .prod-subrow .prod-title { flex: 1; }
         .prod-project-groups { margin-top: 4px; }
         .prod-project-groups .prod-group { position: static; border-bottom: 0; border-radius: 6px; margin-top: 8px; background: var(--prod-hover); }
@@ -30285,6 +30286,25 @@
                 return _prodLinkifyInline(line);
             }).filter(part => part !== null).join('<br>');
         }
+        function _prodFileLinkLabel(file) {
+            const raw = String(file || '').trim();
+            if (!raw) return 'Open link';
+            let url = null;
+            try { url = new URL(raw); } catch (e) { return 'Open link'; }
+            const host = String(url.hostname || '').replace(/^www\./i, '').toLowerCase();
+            const path = String(url.pathname || '');
+            if (host.endsWith('drive.google.com')) {
+                if (/\/folders\//i.test(path)) return 'Open folder';
+                return 'Open file';
+            }
+            if (host.endsWith('docs.google.com')) return 'Open document';
+            if (host.endsWith('dropbox.com')) {
+                if (/\/scl\/fo\/|\/sh\//i.test(path)) return 'Open folder';
+                return 'Open file';
+            }
+            if (host.endsWith('frame.io') || host.endsWith('app.frame.io')) return 'Open Frame.io';
+            return 'Open link';
+        }
         function _prodPlacePop(pop, x, y) {
             if (!pop) return;
             const r = pop.getBoundingClientRect();
@@ -31877,7 +31897,7 @@
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div><h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
                 + _prodSubIssueContextHTML(d, parent)
                 + '<div class="prod-desc">' + (d.desc ? _prodLinkify(d.desc) : '<span style="color:var(--prod-faint)">No brief on this migrated row.</span>') + '</div>'
-                + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener">' + _calEsc(file) + '</a></p>' : '')
+                + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" data-prod-file-link="1" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener" title="' + _calEscAttr(file) + '">' + _calEsc(_prodFileLinkLabel(file)) + '</a></p>' : '')
                 + subSection
                 + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Activity</span><span class="prod-spacer"></span></div>' + _prodActivity(events) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">Commenting is disabled in this preview.</button></div></div>'
                 + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, file) + '</aside></div>';

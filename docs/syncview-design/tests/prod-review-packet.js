@@ -99,8 +99,12 @@ async function setBoard(page) {
 
 async function setProject(page) {
   await page.evaluate(() => {
-    const id = Object.keys(_prodProjects()).find(key => _prodIssues().some(i => i.project === key && !i.parent))
-      || Object.keys(_prodProjects())[0]
+    const projects = _prodProjects();
+    const ids = Object.keys(projects);
+    const filteredId = ids.find(key => _prodProjectRows(projects[key]).length);
+    const id = filteredId
+      || ids.find(key => _prodIssues().some(i => i.project === key && !i.parent))
+      || ids[0]
       || '';
     if (id) _prodOpenProject(id);
   });

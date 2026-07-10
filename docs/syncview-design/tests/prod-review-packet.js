@@ -140,12 +140,16 @@ async function collectProjectBoardEvidence(page) {
     const emptyCols = [...document.querySelectorAll('.prod-col.is-empty')];
     const cardCols = [...document.querySelectorAll('.prod-col.has-cards')];
     const hasAddOrOptions = col => !!col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]');
+    const widths = [...document.querySelectorAll('.prod-col:not(.collapsed)')].map(col => Math.round(col.getBoundingClientRect().width));
     return {
       emptyColumns: emptyCols.length,
       populatedColumns: cardCols.length,
       emptyColumnsWithActionControls: emptyCols.filter(hasAddOrOptions).length,
       populatedColumnsWithActionControls: cardCols.filter(hasAddOrOptions).length,
       totalColumnsWithActionControls: [...document.querySelectorAll('.prod-col')].filter(hasAddOrOptions).length,
+      columnWidths: widths,
+      minColumnWidth: widths.length ? Math.min(...widths) : 0,
+      maxColumnWidth: widths.length ? Math.max(...widths) : 0,
     };
   });
 }

@@ -174,6 +174,12 @@ function validatePacket(dir = packetDir) {
   }
   if (!projectBoard || !projectBoard.evidence || projectBoard.evidence.emptyColumns < 1 || projectBoard.evidence.populatedColumns < 1 || projectBoard.evidence.totalColumnsWithActionControls !== 0) {
     failures.push('project-board screenshot must record board-column evidence with zero fake add/options controls in review-manifest.json');
+  } else {
+    const minWidth = Number(projectBoard.evidence.minColumnWidth || 0);
+    const maxWidth = Number(projectBoard.evidence.maxColumnWidth || 0);
+    if (minWidth < 250 || maxWidth - minWidth > 8) {
+      failures.push(`project-board columns must use equal readable lane widths, saw ${minWidth}-${maxWidth}px`);
+    }
   }
   const projectDetail = byName('project-detail');
   if (!projectDetail || !projectDetail.state || projectDetail.state.view !== 'project' || projectDetail.state.team !== 'video' || projectDetail.state.filters !== 0) {

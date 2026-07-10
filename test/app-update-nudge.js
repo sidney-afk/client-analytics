@@ -44,6 +44,8 @@ function check(label, cond) {
 // ── Guards ────────────────────────────────────────────────────────────────
 check('skips non-http(s) protocols (file:// — tests/offline never poll or nudge)',
   /location\.protocol !== 'http:' && location\.protocol !== 'https:'/.test(NUDGE) && /return;/.test(NUDGE.slice(0, 400)));
+check('skips Production preview so ?prod=1 keeps zero non-GET boot requests',
+  /new URLSearchParams\(location\.search\)\.get\('prod'\) === '1'/.test(NUDGE));
 check('does not poll a backgrounded tab',
   /if \(document\.hidden\) return;/.test(NUDGE));
 

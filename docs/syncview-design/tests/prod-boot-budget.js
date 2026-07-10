@@ -44,7 +44,7 @@ const DCL_BUDGET_MS = Number(process.env.PROD_BOOT_DCL_BUDGET_MS || 3500);
 
   try {
     const started = Date.now();
-    await openProduction(page, port);
+    await openProduction(page, port, '/?prod=1', { allowSkeleton: true });
     const readyMs = Date.now() - started;
     const nav = await page.evaluate(() => {
       const n = performance.getEntriesByType('navigation')[0];

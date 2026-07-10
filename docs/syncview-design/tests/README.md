@@ -15,6 +15,7 @@ session re-runs against the wired Production tab (spec §10.6/§12, decision D-1
 | `prod-a11y-focus.js` | Accessibility/focus polish gate. Runs scoped axe-core checks, verifies visible controls have names/types, focused icon controls activate with Enter/Space, Escape closes transient chrome, and keyboard row navigation still works. | `node docs/syncview-design/tests/prod-a11y-focus.js` |
 | `prod-layout-polish.js` | Layout clipping gate across desktop, compact desktop, and mobile widths. Checks row/card metadata, filter pills, selected project cards, project details, and floating chrome stay inside their containers/viewports. | `node docs/syncview-design/tests/prod-layout-polish.js` |
 | `prod-review-packet.js` | Reviewer artifact generator. Captures named desktop, dark, and mobile screenshots plus a `manifest.md` so GitHub Actions can upload a compact visual packet for Production PR review. | `npm run test:prod-review` |
+| `prod-argos-export.js` | Argos visual-diff export. Validates the review packet, then writes desktop/dark Production PNGs plus companion `.argos.json` metadata to `.codex-tmp/prod-argos-snapshots` for the guarded CI upload. | `npm run test:prod-argos:prepare` |
 | `pixel-wired.js` | Wired-tab visual/placement parity pass for light and dark mode. Checks list, icons, palette, selection/actionbar, selected-action picker anchoring, status picker inventory, context menus, due popover, filter pill, filtered empty state, board drag/scroll, project detail toolbar tab removal, detail, and browser-history parity. | `node docs/syncview-design/tests/pixel-wired.js` |
 | `behav.js` | The primary behavioral regression suite — **138 assertions**, one per shipped interaction (list/board/detail/pickers/palette/keyboard/multi-select/undo). Prints `ALL N BEHAVIORS PASS` + `JS ERRORS: 0`. | `node behav.js` (needs Playwright + a built prototype) |
 | `qa-features.js` | Self-verify harness — drives every feature + menu regression sweep, asserts zero page/console errors. Prints `ALL GREEN`. | `node qa-features.js` |
@@ -30,7 +31,7 @@ embedded in the built `SyncView.html` and can be extracted from its `@font-face`
 For B2, the shipped Production tab is intentionally read-only while Linear remains authoritative,
 so the mutating prototype assertions stay guarded or disabled in the wired tab. The wired-tab
 gates are `prod-readonly-smoke.js`, `prod-polish-gate.js`, `prod-structure-subset.js`, `behav-wired.js`,
-`prod-interaction-inventory.js`, `prod-a11y-focus.js`, `prod-layout-polish.js`, `prod-review-packet.js`, and `pixel-wired.js`; the original mutating suites become the B3/B4 gate when writes are
+`prod-interaction-inventory.js`, `prod-a11y-focus.js`, `prod-layout-polish.js`, `prod-review-packet.js`, `prod-argos-export.js`, and `pixel-wired.js`; the original mutating suites become the B3/B4 gate when writes are
 intentionally enabled.
 
 When the Production tab is wired, the suites' selectors must also be adapted to the renamed

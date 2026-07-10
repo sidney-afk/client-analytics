@@ -21,10 +21,12 @@ For reviewer screenshots, run:
 ```bash
 npm run test:prod-review
 npm run test:prod-review:validate
+npm run test:prod-argos:prepare
 ```
 
 That writes `.codex-tmp/prod-review-packet/index.html`, `manifest.md`, `review-checklist.md`, `review-manifest.json`, plus named desktop, dark, and mobile PNGs for the core Production surfaces. The GitHub workflow uploads this folder as `production-review-packet`.
 The validator checks that the gallery, Markdown manifest, review checklist, JSON manifest, PNG screenshots, required surfaces, viewport metadata, themes, routes, inspection notes, screenshot Production state, and read-only invariant are all present. It also verifies that the clean Project board/detail screenshots are unfiltered baselines while the Combined filters screenshot records active status/client filter pills and deduped visible rows. The Project board screenshot must prove empty columns stay static with no add/options controls, while populated columns keep guarded controls. The desktop list and Project detail screenshots must record zero fake group-header add controls. The Project detail screenshot must also prove that the Video baseline contains only Video rows and that its breadcrumb/detail labels stay scoped to Video. Selected-actions screenshots must record the visible action bar, searchable command menu, and expected selected-issue command labels. Parent-detail screenshots must record visible sub-issue rows, the guarded add-sub-issue affordance, and visible activity evidence in the first desktop viewport.
+The Argos preparation step validates that same packet, then exports only the desktop/dark PNGs plus companion `.argos.json` metadata files to `.codex-tmp/prod-argos-snapshots`. Set `SYNCVIEW_ARGOS_INCLUDE_MOBILE=1` only if the team decides to include mobile screenshots in Argos billing/review.
 
 ## GitHub Workflow
 
@@ -34,6 +36,7 @@ The workflow uploads two visual artifacts:
 
 - `production-polish-screenshots`: the side-by-side pixel/parity screenshots from `.codex-tmp/prod-pixel-wired`;
 - `production-review-packet`: a compact reviewer packet with `index.html`, `manifest.md`, `review-checklist.md`, `review-manifest.json`, and named screenshots from `.codex-tmp/prod-review-packet`, validated before upload.
+- `production-argos-snapshots`: the clean Argos upload folder with desktop Production PNGs and metadata, generated only after the review packet validates.
 
 The workflow also appends the review-packet manifest and checklist to the GitHub job summary, so reviewers can see the screenshot map and inspectable items before downloading the artifact. Open `index.html` from the artifact for a browsable gallery. Use `review-manifest.json` when another automation agent needs screenshot names, routes, viewport sizes, themes, inspection notes, or the read-only invariant result without parsing Markdown.
 
@@ -41,11 +44,12 @@ The live SyncView app is already served from GitHub Pages (`main` at `syncview.s
 
 ## Optional Argos Visual Diff
 
-The workflow has a no-op Argos upload hook. It uploads `.codex-tmp/prod-review-packet` with `npm exec -- argos upload` only when the repository secret `ARGOS_TOKEN` is configured; otherwise it writes a skip note to the job summary and continues. To activate PR visual diffs:
+The workflow has a guarded Argos upload. It prepares `.codex-tmp/prod-argos-snapshots` and uploads it with `npm exec -- argos upload .codex-tmp/prod-argos-snapshots --build-name production-desktop` only when the repository secret `ARGOS_TOKEN` is configured; otherwise it writes a skip note to the job summary and continues. To activate PR visual diffs:
 
 1. Create/import the `sidney-afk/client-analytics` project in Argos.
 2. Add the project token as the GitHub Actions secret `ARGOS_TOKEN`.
-3. Run the Production polish workflow on `main` once so Argos has a reference build.
+3. Optionally set the repository Actions variable `ARGOS_PROJECT` to the Argos `account/project` slug if tokenless or multi-project auth ever needs disambiguation.
+4. Run the Production polish workflow on `main` once so Argos has a reference build.
 
 ## Pull Request Checklist
 
@@ -75,4 +79,5 @@ For AI-agent PRs, keep the issue text natural, but include the route and screens
 3. Run `npm run test:prod-polish`.
 4. Run `npm run test:prod-review` when the reviewer needs fresh screenshots.
 5. Run `npm run test:prod-review:validate` before using or uploading the packet.
-6. Update the Production parity docs and rollback notes with what the new check protects.
+6. Run `npm run test:prod-argos:prepare` before changing the Argos export contract.
+7. Update the Production parity docs and rollback notes with what the new check protects.

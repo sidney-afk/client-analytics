@@ -433,11 +433,15 @@ async function txt(page, sel) {
       await page.waitForSelector('[data-prod-static-scope="projects"]');
       return await page.evaluate(() => {
         const label = document.querySelector('[data-prod-static-scope="projects"]');
+        const cs = label ? getComputedStyle(label) : null;
         return !!label
           && label.tagName === 'SPAN'
           && label.textContent.trim() === 'All projects'
           && !label.hasAttribute('onclick')
-          && label.tabIndex < 0;
+          && label.tabIndex < 0
+          && cs && cs.cursor === 'default'
+          && cs.pointerEvents === 'none'
+          && cs.backgroundColor === 'rgba(0, 0, 0, 0)';
       });
     }); await reset();
     await ok('my', async () => {

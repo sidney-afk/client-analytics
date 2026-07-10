@@ -6219,22 +6219,44 @@
         .srp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 18px; }
         .srp-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; position: relative; }
         .srp-field.full { grid-column: 1 / -1; }
-        .srp-label { font-size: 0.78rem; font-weight: 800; color: var(--text-primary); }
+        .srp-label { font-size: 0.72rem; font-weight: 850; letter-spacing: 0.035em; text-transform: uppercase; color: var(--text-secondary); }
         .srp-help { font-size: 0.72rem; color: var(--text-muted); line-height: 1.4; }
-        .srp-input, .srp-select { width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 0.85rem; color: var(--text-primary); background: var(--white); box-sizing: border-box; }
-        .srp-input:focus, .srp-select:focus { outline: none; border-color: var(--sv-border-9aa3f0); box-shadow: 0 0 0 2px var(--sv-shadow-rgba-94-106-210-_12); }
+        .srp-input, .srp-select { width: 100%; border: 1px solid var(--border); border-radius: 11px; padding: 10px 12px; font: inherit; font-size: 0.86rem; color: var(--text-primary); background: linear-gradient(180deg, var(--sv-bg-fff), var(--sv-bg-fbfbfa)); box-sizing: border-box; transition: border-color 0.14s, box-shadow 0.14s, background 0.14s; }
+        .srp-input:focus, .srp-select:focus { outline: none; border-color: var(--text-primary); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-17-17-16-0_07); background: var(--white); }
         .srp-input[readonly] { background: var(--bg); color: var(--text-secondary); }
+        .srp-select-wrap { position: relative; width: 100%; }
+        .srp-select-wrap.is-disabled { opacity: 0.62; pointer-events: none; }
+        .srp-select-trigger { width: 100%; min-height: 41px; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--border); border-radius: 11px; background: linear-gradient(180deg, var(--sv-bg-fff), var(--sv-bg-fbfbfa)); color: var(--text-primary); font-family: inherit; font-size: 0.86rem; font-weight: 650; outline: 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; transition: border-color 0.14s, box-shadow 0.14s, background 0.14s; }
+        .srp-select-trigger:hover { border-color: var(--sv-border-b9b9b4); background: var(--sv-bg-fff); }
+        .srp-select-trigger:focus { border-color: var(--text-primary); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-17-17-16-0_07); }
+        .srp-select-trigger span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .srp-select-trigger svg { width: 13px; height: 13px; flex-shrink: 0; color: var(--text-muted); transition: transform 0.16s ease, color 0.16s ease; }
+        .srp-select-wrap.open .srp-select-trigger svg { transform: rotate(180deg); color: var(--text-primary); }
+        .srp-select-menu { position: absolute; z-index: 620; top: calc(100% + 7px); left: 0; right: 0; max-height: 260px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--white); box-shadow: 0 18px 48px var(--sv-shadow-rgba-17-17-16-0_16); opacity: 0; transform: translateY(-4px) scale(0.985); pointer-events: none; visibility: hidden; transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s linear 0.13s; }
+        .srp-select-wrap.open .srp-select-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; visibility: visible; transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s; }
+        .srp-select-menu::-webkit-scrollbar, .srp-search-results::-webkit-scrollbar { width: 6px; }
+        .srp-select-menu::-webkit-scrollbar-thumb, .srp-search-results::-webkit-scrollbar-thumb { background: var(--sv-bg-d8d8d4); border-radius: 99px; }
+        .srp-select-option { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.82rem; font-weight: 650; text-align: left; cursor: pointer; }
+        .srp-select-option:hover { background: var(--bg); color: var(--text-primary); }
+        .srp-select-option.active { background: var(--sv-bg-111110); color: var(--sv-fg-fff); }
+        .srp-select-option svg { width: 12px; height: 12px; opacity: 0.9; }
+        .srp-count-control { display: grid; grid-template-columns: 38px minmax(0, 1fr) 38px; align-items: center; border: 1px solid var(--border); border-radius: 11px; background: linear-gradient(180deg, var(--sv-bg-fff), var(--sv-bg-fbfbfa)); overflow: hidden; transition: border-color 0.14s, box-shadow 0.14s, background 0.14s; }
+        .srp-count-control:focus-within { border-color: var(--text-primary); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-17-17-16-0_07); background: var(--white); }
+        .srp-count-btn { width: 38px; height: 40px; border: 0; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 1.1rem; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.12s, color 0.12s; }
+        .srp-count-btn:hover { background: var(--bg); color: var(--text-primary); }
+        .srp-count-input { width: 100%; height: 40px; min-width: 0; border: 0; border-left: 1px solid var(--border-light); border-right: 1px solid var(--border-light); background: transparent; color: var(--text-primary); font: inherit; font-size: 0.88rem; font-weight: 750; text-align: center; outline: 0; box-sizing: border-box; -moz-appearance: textfield; }
+        .srp-count-input::-webkit-outer-spin-button, .srp-count-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .srp-radios { display: flex; flex-wrap: wrap; gap: 8px; }
         .srp-pill { position: relative; }
         .srp-pill input { position: absolute; opacity: 0; pointer-events: none; }
         .srp-pill span { display: inline-flex; align-items: center; min-height: 31px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 99px; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; transition: all 0.12s; user-select: none; box-sizing: border-box; }
         .srp-pill span:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); }
         .srp-pill input:checked + span { border-color: var(--sv-border-5e6ad2); background: var(--sv-bg-rgba-94-106-210-_08); color: var(--sv-fg-4a54b8); }
-        .srp-search-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--white); border: 1px solid var(--border-light); border-radius: 12px; box-shadow: 0 10px 30px var(--sv-shadow-rgba-0-0-0-0_12); padding: 6px; z-index: 40; max-height: 260px; overflow-y: auto; }
+        .srp-search-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--white); border: 1px solid var(--border-light); border-radius: 14px; box-shadow: 0 18px 48px var(--sv-shadow-rgba-17-17-16-0_16); padding: 6px; z-index: 40; max-height: 260px; overflow-y: auto; }
         .srp-search-option { display: block; width: 100%; padding: 8px 11px; border: 0; background: transparent; border-radius: 8px; text-align: left; font: inherit; font-size: 0.8rem; font-weight: 650; color: var(--text-secondary); cursor: pointer; }
         .srp-search-option:hover { background: var(--bg); color: var(--text-primary); }
         .srp-search-option.empty { color: var(--text-muted); cursor: default; font-style: italic; }
-        .srp-field.srp-missing .srp-input, .srp-field.srp-missing .srp-select, .srp-field.srp-missing .srp-pill span { border-color: var(--sv-border-fecaca); }
+        .srp-field.srp-missing .srp-input, .srp-field.srp-missing .srp-select, .srp-field.srp-missing .srp-select-trigger, .srp-field.srp-missing .srp-count-control, .srp-field.srp-missing .srp-pill span { border-color: var(--sv-border-fecaca); }
         .srp-field.srp-missing .srp-label { color: var(--sv-fg-b91c1c); }
         .srp-error { display: none; font-size: 0.78rem; font-weight: 650; color: var(--sv-fg-b91c1c); background: var(--sv-bg-fef2f2); border: 1px solid var(--sv-border-fecaca); border-radius: 9px; padding: 10px 12px; margin-top: 16px; }
         .srp-actions { display: flex; align-items: center; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
@@ -6245,8 +6267,23 @@
         .srp-btn.secondary:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); background: var(--white); }
         .srp-done { text-align: center; padding: 36px 28px; }
         .srp-done-icon { width: 46px; height: 46px; border-radius: 50%; background: var(--sv-bg-dcfce7); color: var(--sv-fg-16a34a); display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.82rem; margin-bottom: 14px; }
-        .srp-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px; background: var(--white); border: 1px solid var(--border-light); border-radius: 12px; margin-bottom: 14px; }
-        .srp-toolbar .srp-input, .srp-toolbar .srp-select { width: auto; min-width: 150px; }
+        .srp-skeleton { display: grid; gap: 15px; }
+        .srp-skel-head { display: flex; gap: 12px; align-items: center; }
+        .srp-skel-circle { width: 42px; height: 42px; border-radius: 50%; flex: 0 0 auto; }
+        .srp-skel-line, .srp-skel-pill, .srp-skel-box, .srp-skel-circle { display: block; background: linear-gradient(90deg, var(--bg) 0%, var(--border-light) 42%, var(--bg) 78%); background-size: 220% 100%; animation: srpSkeleton 1.25s ease-in-out infinite; }
+        .srp-skel-line { height: 12px; border-radius: 999px; }
+        .srp-skel-line.short { width: 36%; }
+        .srp-skel-line.medium { width: 62%; }
+        .srp-skel-line.long { width: 86%; }
+        .srp-skel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+        .srp-skel-field { display: grid; gap: 8px; min-width: 0; }
+        .srp-skel-field.full { grid-column: 1 / -1; }
+        .srp-skel-pill { height: 39px; border-radius: 11px; }
+        .srp-skel-box { height: 88px; border-radius: 12px; }
+        @keyframes srpSkeleton { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+        .srp-toolbar { display: grid; grid-template-columns: minmax(190px, 1.1fr) minmax(150px, 0.8fr) minmax(180px, 1fr) minmax(170px, 0.9fr) auto; align-items: center; gap: 10px; padding: 12px; background: var(--white); border: 1px solid var(--border-light); border-radius: 12px; margin-bottom: 14px; }
+        .srp-toolbar .srp-input, .srp-toolbar .srp-select-wrap { width: 100%; min-width: 0; }
+        .srp-toolbar .srp-btn { white-space: nowrap; min-height: 41px; }
         .srp-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
         .srp-metric { background: var(--white); border: 1px solid var(--border-light); border-radius: 10px; padding: 12px; min-width: 0; }
         .srp-metric strong { display: block; font-size: 1.2rem; color: var(--text-primary); line-height: 1; }
@@ -6267,8 +6304,9 @@
         .srp-answer .k { display: block; font-size: 0.67rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.035em; margin-bottom: 2px; }
         .srp-answer .v { font-size: 0.8rem; color: var(--text-primary); line-height: 1.45; word-break: break-word; }
         .srp-empty { text-align: center; padding: 56px 20px; color: var(--text-secondary); background: var(--white); border: 1px solid var(--border-light); border-radius: 12px; }
+        @media (max-width: 980px) { .srp-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); } .srp-toolbar .srp-btn { justify-self: start; } }
         @media (max-width: 880px) { .srp-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } .srp-detail-grid { grid-template-columns: 1fr; } .srp-answer.full { grid-column: auto; } }
-        @media (max-width: 640px) { .srp-wrap { width: calc(100vw - 28px); margin-top: 22px; } .srp-head { align-items: flex-start; flex-direction: column; } .srp-grid, .srp-summary { grid-template-columns: 1fr; } .srp-card { padding: 20px 16px 22px; } .srp-toolbar .srp-input, .srp-toolbar .srp-select { width: 100%; } }
+        @media (max-width: 640px) { .srp-wrap { width: calc(100vw - 28px); margin-top: 22px; } .srp-head { align-items: flex-start; flex-direction: column; } .srp-grid, .srp-summary, .srp-skel-grid, .srp-toolbar { grid-template-columns: 1fr; } .srp-card { padding: 20px 16px 22px; } .srp-toolbar .srp-btn { width: 100%; justify-content: center; } }
     </style>
 </head>
 <body>
@@ -16286,6 +16324,9 @@
     const SRP_SCHEDULE = ['Ahead', 'On track', 'Slightly behind', 'At risk'];
     const SRP_PERFORMANCE = ['Numbers up', 'Flat', 'Down', 'Too early to tell'];
     const _srpState = { managers: [], currentWeek: '', lastSubmitted: null, reports: [], weeks: [], filters: { week: '', smm: '', client: '', status: '' }, loadError: '' };
+    const SRP_ICON_CHEV = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3"/></svg>';
+    const SRP_ICON_CHECK = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.2 5 8.7 9.5 3.5"/></svg>';
+    let _srpOpenSelectId = null;
 
     function _srpEsc(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -16364,10 +16405,103 @@
     function _srpRadioGroup(name, values, selected) {
         return `<div class="srp-radios">${values.map((v, i) => `<label class="srp-pill"><input type="radio" name="${_srpEsc(name)}" value="${_srpEsc(v)}"${(selected || (!selected && i === 0)) === v ? ' checked' : ''}><span>${_srpEsc(v)}</span></label>`).join('')}</div>`;
     }
+    function _srpSelectHtml(id, name, items, selectedValue, placeholder, opts) {
+        opts = opts || {};
+        items = Array.isArray(items) ? items : [];
+        const active = items.find(x => String(x.value) === String(selectedValue));
+        const label = active ? active.label : (placeholder || 'Choose');
+        const hiddenName = name ? ` name="${_srpEsc(name)}"` : '';
+        const disabled = opts.disabled ? ' is-disabled' : '';
+        const optionHtml = items.length
+            ? items.map(x => {
+                const on = active && String(x.value) === String(active.value);
+                return `<button class="srp-select-option${on ? ' active' : ''}" type="button" data-srp-select-option data-value="${_srpEsc(x.value)}" data-label="${_srpEsc(x.label)}" onclick="_srpPickSelect(event, ${_jsAttrArg(id)}, ${_jsAttrArg(x.value)}, ${_jsAttrArg(x.label)})"><span>${_srpEsc(x.label)}</span>${on ? SRP_ICON_CHECK : ''}</button>`;
+            }).join('')
+            : `<div class="srp-select-option" style="cursor:default;color:var(--text-muted);">${_srpEsc(opts.emptyLabel || 'No options')}</div>`;
+        return `<div class="srp-select-wrap${disabled}" id="${_srpEsc(id)}Wrap" data-srp-select>
+            <button class="srp-select-trigger" type="button" id="${_srpEsc(id)}Btn" aria-haspopup="listbox" aria-expanded="false" onclick="_srpToggleSelect(event, ${_jsAttrArg(id)})"><span id="${_srpEsc(id)}Label">${_srpEsc(label)}</span>${SRP_ICON_CHEV}</button>
+            <input type="hidden" class="srp-select-value" id="${_srpEsc(id)}"${hiddenName} value="${_srpEsc(active ? active.value : '')}" data-label="${_srpEsc(active ? active.label : '')}">
+            <div class="srp-select-menu" id="${_srpEsc(id)}Menu" role="listbox">${optionHtml}</div>
+        </div>`;
+    }
+    function _srpCloseSelect(id) {
+        id = id || _srpOpenSelectId;
+        if (!id) return;
+        const wrap = document.getElementById(id + 'Wrap');
+        const btn = document.getElementById(id + 'Btn');
+        if (wrap) wrap.classList.remove('open');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+        if (_srpOpenSelectId === id) {
+            document.removeEventListener('mousedown', _srpSelectOutside);
+            document.removeEventListener('keydown', _srpSelectKeydown);
+            _srpOpenSelectId = null;
+        }
+    }
+    function _srpSelectOutside(e) { if (!e.target.closest('[data-srp-select]')) _srpCloseSelect(); }
+    function _srpSelectKeydown(e) { if (e.key === 'Escape') _srpCloseSelect(); }
+    function _srpToggleSelect(e, id) {
+        if (e) e.stopPropagation();
+        const wrap = document.getElementById(id + 'Wrap');
+        const btn = document.getElementById(id + 'Btn');
+        if (!wrap || !btn || wrap.classList.contains('is-disabled')) return;
+        const opening = !wrap.classList.contains('open');
+        if (_srpOpenSelectId && _srpOpenSelectId !== id) _srpCloseSelect(_srpOpenSelectId);
+        wrap.classList.toggle('open', opening);
+        btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+        if (opening) {
+            _srpOpenSelectId = id;
+            setTimeout(() => {
+                document.addEventListener('mousedown', _srpSelectOutside);
+                document.addEventListener('keydown', _srpSelectKeydown);
+            }, 0);
+        } else _srpCloseSelect(id);
+    }
+    function _srpPickSelect(e, id, value, label) {
+        if (e) e.stopPropagation();
+        const input = document.getElementById(id);
+        const lab = document.getElementById(id + 'Label');
+        const menu = document.getElementById(id + 'Menu');
+        if (input) {
+            input.value = value;
+            input.dataset.label = label || '';
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (lab) lab.textContent = label || '';
+        if (menu) menu.querySelectorAll('[data-srp-select-option]').forEach(btn => {
+            const on = btn.getAttribute('data-value') === String(value);
+            btn.classList.toggle('active', on);
+            const span = btn.querySelector('span');
+            btn.innerHTML = (span ? span.outerHTML : `<span>${_srpEsc(btn.getAttribute('data-label') || label || '')}</span>`) + (on ? SRP_ICON_CHECK : '');
+        });
+        _srpCloseSelect(id);
+    }
+    function _srpCountControlHtml() {
+        return `<div class="srp-count-control">
+            <button class="srp-count-btn" type="button" data-srp-count-step="-1" aria-label="Decrease content shipped">-</button>
+            <input class="srp-count-input" id="srpContentCount" name="content_count" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+            <button class="srp-count-btn" type="button" data-srp-count-step="1" aria-label="Increase content shipped">+</button>
+        </div>`;
+    }
+    function _srpSkeletonHtml(kind) {
+        const fields = kind === 'reports'
+            ? `<div class="srp-skel-grid"><span class="srp-skel-pill"></span><span class="srp-skel-pill"></span><span class="srp-skel-pill"></span><span class="srp-skel-pill"></span></div><span class="srp-skel-box"></span><span class="srp-skel-box"></span>`
+            : `<div class="srp-skel-grid">
+                <span class="srp-skel-field"><span class="srp-skel-line short"></span><span class="srp-skel-pill"></span></span>
+                <span class="srp-skel-field"><span class="srp-skel-line short"></span><span class="srp-skel-pill"></span></span>
+                <span class="srp-skel-field full"><span class="srp-skel-line medium"></span><span class="srp-skel-pill"></span></span>
+                <span class="srp-skel-field full"><span class="srp-skel-line long"></span><span class="srp-skel-pill"></span></span>
+                <span class="srp-skel-field"><span class="srp-skel-line medium"></span><span class="srp-skel-pill"></span></span>
+                <span class="srp-skel-field"><span class="srp-skel-line medium"></span><span class="srp-skel-pill"></span></span>
+            </div>`;
+        return `<div class="srp-card" aria-busy="true"><div class="srp-skeleton">
+            <div class="srp-skel-head"><span class="srp-skel-circle"></span><span style="display:grid;gap:8px;flex:1;"><span class="srp-skel-line medium"></span><span class="srp-skel-line short"></span></span></div>
+            ${fields}
+        </div></div>`;
+    }
     function renderSmmWeeklyReportFormView() {
         return `<main class="srp-wrap form" id="smmWeeklyReportMount">
             <div class="srp-head"><div><div class="srp-kicker">SyncView</div><h1 class="srp-title">Weekly client report</h1><p class="srp-sub">Submit one report per client for the current Monday-Sunday week.</p></div></div>
-            <div class="srp-card"><div class="srp-empty">Loading form...</div></div>
+            ${_srpSkeletonHtml('form')}
         </main>`;
     }
     async function mountSmmWeeklyReportFormView() {
@@ -16385,7 +16519,7 @@
     function _srpPaintFormShell(text) {
         const mount = document.getElementById('smmWeeklyReportMount');
         if (!mount) return;
-        mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">SyncView</div><h1 class="srp-title">Weekly client report</h1><p class="srp-sub">Submit one report per client for the current Monday-Sunday week.</p></div></div><div class="srp-card"><div class="srp-empty">${_srpEsc(text)}</div></div>`;
+        mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">SyncView</div><h1 class="srp-title">Weekly client report</h1><p class="srp-sub">Submit one report per client for the current Monday-Sunday week.</p></div></div>${_srpSkeletonHtml('form')}`;
     }
     function _srpPaintForm() {
         const mount = document.getElementById('smmWeeklyReportMount');
@@ -16399,21 +16533,19 @@
         }
         const managers = _srpState.managers || [];
         const week = _srpState.currentWeek || _srpWeekStartISO();
-        const managerOptions = managers.length
-            ? managers.map(m => `<option value="${_srpEsc(m.slug || _srpSlug(m.name))}" data-name="${_srpEsc(m.name || '')}">${_srpEsc(m.name || m.slug)}</option>`).join('')
-            : '<option value="">No SMMs synced yet</option>';
+        const managerItems = managers.map(m => ({ value: m.slug || _srpSlug(m.name), label: m.name || m.slug }));
         mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">SyncView</div><h1 class="srp-title">Weekly client report</h1><p class="srp-sub">Submit one report per client for ${_srpEsc(_srpWeekLabel(week))}.</p></div></div>
             <form class="srp-card" id="srpForm" autocomplete="off">
                 <input type="hidden" name="week_start_date" value="${_srpEsc(week)}">
                 <input type="hidden" name="client_name" id="srpClientName">
                 <input type="hidden" name="client_slug" id="srpClientSlug">
                 <div class="srp-grid">
-                    <div class="srp-field" data-field="smm_slug"><label class="srp-label" for="srpSmm">Name</label><select class="srp-select" id="srpSmm" name="smm_slug" ${managers.length ? '' : 'disabled'}><option value="">Select SMM</option>${managerOptions}</select></div>
+                    <div class="srp-field" data-field="smm_slug"><label class="srp-label" for="srpSmmBtn">Name</label>${_srpSelectHtml('srpSmm', 'smm_slug', managerItems, '', managers.length ? 'Select SMM' : 'No SMMs synced yet', { disabled: !managers.length, emptyLabel: 'No SMMs synced yet' })}</div>
                     <div class="srp-field" data-field="week_start_date"><label class="srp-label">Week</label><input class="srp-input" readonly value="${_srpEsc(_srpWeekLabel(week))}"></div>
                     <div class="srp-field full" data-field="client_name" id="srpClientField"><label class="srp-label" for="srpClientSearch">Client name</label><input class="srp-input" id="srpClientSearch" type="search" placeholder="Search client" autocomplete="off"><div class="srp-search-results" id="srpClientResults" style="display:none;"></div></div>
                     <div class="srp-field full" data-field="overall_status"><span class="srp-label">Overall status this week</span>${_srpRadioGroup('overall_status', SRP_OVERALL, 'On track')}</div>
                     <div class="srp-field full" data-field="what_done"><label class="srp-label" for="srpWhatDone">What got done this week?</label><input class="srp-input" id="srpWhatDone" name="what_done" maxlength="240" placeholder="Filmed 3 reels, scheduled week's posts"></div>
-                    <div class="srp-field" data-field="content_count"><label class="srp-label" for="srpContentCount">Content shipped this week</label><input class="srp-input" id="srpContentCount" name="content_count" type="number" min="0" step="1" placeholder="0"></div>
+                    <div class="srp-field" data-field="content_count"><label class="srp-label" for="srpContentCount">Content shipped this week</label>${_srpCountControlHtml()}</div>
                     <div class="srp-field" data-field="biggest_win"><label class="srp-label" for="srpBiggestWin">Biggest win this week</label><input class="srp-input" id="srpBiggestWin" name="biggest_win" maxlength="240"></div>
                     <div class="srp-field full" data-field="biggest_obstacle"><label class="srp-label" for="srpBiggestObstacle">Biggest obstacle or risk this week</label><input class="srp-input" id="srpBiggestObstacle" name="biggest_obstacle" maxlength="240" placeholder="None"></div>
                     <div class="srp-field full" data-field="obstacle_support"><span class="srp-label">Is the obstacle something you can solve, or do you need me?</span>${_srpRadioGroup('obstacle_support', SRP_OBSTACLE, 'Handling it')}</div>
@@ -16437,6 +16569,16 @@
         form.addEventListener('submit', _srpSubmitReport);
         form.addEventListener('input', e => { const f = e.target && e.target.closest ? e.target.closest('.srp-field') : null; if (f) f.classList.remove('srp-missing'); _srpSetFormError(''); });
         form.addEventListener('change', e => { const f = e.target && e.target.closest ? e.target.closest('.srp-field') : null; if (f) f.classList.remove('srp-missing'); _srpSetFormError(''); });
+        form.querySelectorAll('[data-srp-count-step]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const input = document.getElementById('srpContentCount');
+                if (!input) return;
+                const step = Number(btn.getAttribute('data-srp-count-step')) || 0;
+                const next = Math.max(0, (Number(input.value) || 0) + step);
+                input.value = String(next);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        });
         if (search && results) {
             search.addEventListener('input', () => { document.getElementById('srpClientName').value = ''; document.getElementById('srpClientSlug').value = ''; _srpPaintClientResults(search.value); });
             search.addEventListener('focus', () => _srpPaintClientResults(search.value));
@@ -16482,12 +16624,12 @@
         event.preventDefault();
         const form = event.currentTarget;
         const data = new FormData(form);
-        const managerSelect = document.getElementById('srpSmm');
-        const managerOption = managerSelect && managerSelect.selectedOptions ? managerSelect.selectedOptions[0] : null;
+        const smmSlug = String(data.get('smm_slug') || '');
+        const manager = (_srpState.managers || []).find(m => String(m.slug || _srpSlug(m.name)) === smmSlug);
         const payload = {
             week_start_date: data.get('week_start_date'),
-            smm_slug: data.get('smm_slug'),
-            smm_name: managerOption ? (managerOption.getAttribute('data-name') || managerOption.textContent || '') : '',
+            smm_slug: smmSlug,
+            smm_name: manager ? (manager.name || manager.slug || '') : '',
             client_name: data.get('client_name'),
             client_slug: data.get('client_slug'),
             overall_status: data.get('overall_status'),
@@ -16532,7 +16674,7 @@
     function renderSmmWeeklyReportsView() {
         return `<main class="srp-wrap" id="smmWeeklyReportsMount">
             <div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1><p class="srp-sub">Review reports by week, social media manager, and client.</p></div></div>
-            <div class="srp-empty">Loading reports...</div>
+            ${_srpSkeletonHtml('reports')}
         </main>`;
     }
     async function mountSmmWeeklyReportsView() {
@@ -16550,7 +16692,7 @@
     }
     async function _srpLoadReports() {
         const mount = document.getElementById('smmWeeklyReportsMount');
-        if (mount) mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1><p class="srp-sub">Review reports by week, social media manager, and client.</p></div></div><div class="srp-empty">Loading reports...</div>`;
+        if (mount) mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1><p class="srp-sub">Review reports by week, social media manager, and client.</p></div></div>${_srpSkeletonHtml('reports')}`;
         try {
             const [options, data] = await Promise.all([
                 _srpLoadOptions().catch(() => ({})),
@@ -16564,13 +16706,9 @@
             if (mount) mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1></div></div><div class="srp-empty">Could not load reports: ${_srpEsc(e.message || e)}</div>`;
         }
     }
-    function _srpPaintReports() {
-        const mount = document.getElementById('smmWeeklyReportsMount');
-        if (!mount) return;
+    function _srpReportModel() {
         const f = _srpState.filters;
         const currentWeek = _srpState.currentWeek || _srpWeekStartISO();
-        const weekList = [...new Set([currentWeek, f.week, ...(_srpState.weeks || [])].filter(Boolean))].sort((a, b) => b.localeCompare(a));
-        const managers = _srpState.managers || [];
         const q = String(f.client || '').trim().toLowerCase();
         const rows = (_srpState.reports || []).filter(r => {
             if (f.status && r.overall_status !== f.status) return false;
@@ -16588,23 +16726,51 @@
             if (!groups.has(key)) groups.set(key, []);
             groups.get(key).push(r);
         });
+        return { currentWeek, rows, uniqueManagers, uniqueClients, shipped, attention, needsKasper, groups };
+    }
+    function _srpSummaryHtml(model) {
+        return `<div class="srp-summary">
+            <div class="srp-metric"><strong>${model.rows.length}</strong><span>Reports</span></div>
+            <div class="srp-metric"><strong>${model.uniqueManagers}</strong><span>SMMs</span></div>
+            <div class="srp-metric"><strong>${model.uniqueClients}</strong><span>Clients</span></div>
+            <div class="srp-metric"><strong>${model.shipped}</strong><span>Shipped</span></div>
+            <div class="srp-metric"><strong>${model.attention}</strong><span>Attention</span></div>
+            <div class="srp-metric"><strong>${model.needsKasper}</strong><span>Need Kasper</span></div>
+        </div>`;
+    }
+    function _srpReportResultsHtml(model) {
+        return model.rows.length ? Array.from(model.groups.entries()).map(([name, items]) => _srpReportGroup(name, items)).join('') : '<div class="srp-empty">No reports match these filters.</div>';
+    }
+    function _srpPaintReportResults() {
+        const model = _srpReportModel();
+        const stats = document.getElementById('srpReportStats');
+        const results = document.getElementById('srpReportResults');
+        const sub = document.getElementById('srpReportsSub');
+        if (stats) stats.innerHTML = _srpSummaryHtml(model);
+        if (results) results.innerHTML = _srpReportResultsHtml(model);
+        if (sub) sub.textContent = _srpWeekLabel(_srpState.filters.week || model.currentWeek);
+    }
+    function _srpPaintReports() {
+        const mount = document.getElementById('smmWeeklyReportsMount');
+        if (!mount) return;
+        const f = _srpState.filters;
+        const currentWeek = _srpState.currentWeek || _srpWeekStartISO();
+        const weekList = [...new Set([currentWeek, f.week, ...(_srpState.weeks || [])].filter(Boolean))].sort((a, b) => b.localeCompare(a));
+        const managers = _srpState.managers || [];
+        const model = _srpReportModel();
+        const weekItems = weekList.map(w => ({ value: w, label: _srpWeekLabel(w) }));
+        const smmItems = [{ value: '', label: 'All SMMs' }, ...managers.map(m => ({ value: m.slug || _srpSlug(m.name), label: m.name || m.slug }))];
+        const statusItems = [{ value: '', label: 'All statuses' }, ...SRP_OVERALL.map(s => ({ value: s, label: s }))];
         mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1><p class="srp-sub">${_srpEsc(_srpWeekLabel(f.week || currentWeek))}</p></div></div>
             <div class="srp-toolbar">
-                <select class="srp-select" id="srpWeekFilter">${weekList.map(w => `<option value="${_srpEsc(w)}"${w === f.week ? ' selected' : ''}>${_srpEsc(_srpWeekLabel(w))}</option>`).join('')}</select>
-                <select class="srp-select" id="srpSmmFilter"><option value="">All SMMs</option>${managers.map(m => `<option value="${_srpEsc(m.slug || _srpSlug(m.name))}"${(m.slug || _srpSlug(m.name)) === f.smm ? ' selected' : ''}>${_srpEsc(m.name || m.slug)}</option>`).join('')}</select>
+                ${_srpSelectHtml('srpWeekFilter', '', weekItems, f.week || currentWeek, 'Current week')}
+                ${_srpSelectHtml('srpSmmFilter', '', smmItems, f.smm, 'All SMMs')}
                 <input class="srp-input" id="srpClientFilter" value="${_srpEsc(f.client)}" placeholder="Filter client">
-                <select class="srp-select" id="srpStatusFilter"><option value="">All statuses</option>${SRP_OVERALL.map(s => `<option value="${_srpEsc(s)}"${s === f.status ? ' selected' : ''}>${_srpEsc(s)}</option>`).join('')}</select>
+                ${_srpSelectHtml('srpStatusFilter', '', statusItems, f.status, 'All statuses')}
                 <button class="srp-btn secondary" type="button" id="srpRefreshReports">Refresh</button>
             </div>
-            <div class="srp-summary">
-                <div class="srp-metric"><strong>${rows.length}</strong><span>Reports</span></div>
-                <div class="srp-metric"><strong>${uniqueManagers}</strong><span>SMMs</span></div>
-                <div class="srp-metric"><strong>${uniqueClients}</strong><span>Clients</span></div>
-                <div class="srp-metric"><strong>${shipped}</strong><span>Shipped</span></div>
-                <div class="srp-metric"><strong>${attention}</strong><span>Attention</span></div>
-                <div class="srp-metric"><strong>${needsKasper}</strong><span>Need Kasper</span></div>
-            </div>
-            ${rows.length ? Array.from(groups.entries()).map(([name, items]) => _srpReportGroup(name, items)).join('') : '<div class="srp-empty">No reports match these filters.</div>'}`;
+            <div id="srpReportStats">${_srpSummaryHtml(model)}</div>
+            <div id="srpReportResults">${_srpReportResultsHtml(model)}</div>`;
         _srpWireReports();
     }
     function _srpReportGroup(name, items) {
@@ -16653,8 +16819,8 @@
         };
         if (week) week.addEventListener('change', () => { _srpState.filters.week = week.value; updateHash(); _srpLoadReports(); });
         if (smm) smm.addEventListener('change', () => { _srpState.filters.smm = smm.value; updateHash(); _srpLoadReports(); });
-        if (client) client.addEventListener('input', () => { _srpState.filters.client = client.value; updateHash(); _srpPaintReports(); });
-        if (status) status.addEventListener('change', () => { _srpState.filters.status = status.value; updateHash(); _srpPaintReports(); });
+        if (client) client.addEventListener('input', () => { _srpState.filters.client = client.value; updateHash(); _srpPaintReportResults(); });
+        if (status) status.addEventListener('change', () => { _srpState.filters.status = status.value; updateHash(); _srpPaintReportResults(); });
         if (refresh) refresh.addEventListener('click', () => _srpLoadReports());
     }
 

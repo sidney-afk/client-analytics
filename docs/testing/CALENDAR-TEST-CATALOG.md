@@ -321,17 +321,20 @@ are correct." These are where hand-off bugs hide.
 33. SMM:submit for SMM approval     ▶ SMM:send to Kasper
 ```
 
-### 10.4 Golden end-to-end paths (must-pass) — **already written & green** in `qa/`
-All six are implemented as live cross-surface probes under **`qa/`** (driving the
-real Kasper + client handlers, asserting on the backend after every step). They
-all pass today (48 assertions, 0 JS errors). Run them per `qa/README.md`.
+### 10.4 Golden end-to-end paths (must-pass) — covered by the scenario library in `qa/`
+All six are covered by the scenario engine (`qa/scenario_engine.js` +
+`qa/scenarios.js`, run via the master's `scenarios`/`tree` lanes), which drives
+the real Kasper + client handlers and asserts on the backend after every step.
+They were first implemented as the standalone `golden_1`–`golden_6` probes
+(removed in the 2026-07-10 cleanup — the scenario library supersedes them;
+`qa/golden_lib.js` survives as the shared handler harness). Run per `qa/README.md`.
 
-- **Clean approve** (`qa/golden_1_clean_approve.js`): send to Kasper → Kasper approve → client approve → mark posted.
-- **Kasper tweak loop** (`qa/golden_2_kasper_tweak_loop.js`): send to Kasper → request change → SMM resolve→Kasper → Kasper approve → client approve.
-- **Client tweak loop** (`qa/golden_3_client_tweak_loop.js`): Kasper approve → client request change → SMM resolve→client → client approve.
-- **Approve-after-tweaks shortcut** (`qa/golden_4_approve_after_tweaks.js`): send to Kasper → approve-after-tweaks → SMM resolve→client (no Kasper re-review) → client approve.
-- **Undo** (`qa/golden_5_undo_approve.js`): send to Kasper → approve → **undo approve** (toast) → request change.
-- **Archive at each stage** (`qa/golden_6_archive_cross_surface.js`): archive from Kasper Approval / Tweaks Needed → card leaves Kasper's queue → un-archive restores.
+- **Clean approve**: send to Kasper → Kasper approve → client approve → mark posted.
+- **Kasper tweak loop**: send to Kasper → request change → SMM resolve→Kasper → Kasper approve → client approve.
+- **Client tweak loop**: Kasper approve → client request change → SMM resolve→client → client approve.
+- **Approve-after-tweaks shortcut**: send to Kasper → approve-after-tweaks → SMM resolve→client (no Kasper re-review) → client approve.
+- **Undo**: send to Kasper → approve → **undo approve** (toast) → request change.
+- **Archive at each stage**: archive from Kasper Approval / Tweaks Needed → card leaves Kasper's queue → un-archive restores.
 
 These are the **template** for covering the remaining 33 transition-pairs (10.3):
 reuse `qa/golden_lib.js` and assemble the action helpers into each pair.

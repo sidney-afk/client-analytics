@@ -205,7 +205,7 @@ no secrets) as blocking requirements. A phase that cannot articulate its one-ste
 
 - Unit: `npm test` (30+ offline suites; they extract functions from `index.html` by name).
 - E2E: `qa/master.js` lanes + the calendar/samples nightly probes (see
-  `docs/HEADLESS-TESTING-GUIDE.md`); run the relevant lane after every phase.
+  `docs/testing/HEADLESS-TESTING-GUIDE.md`); run the relevant lane after every phase.
 - Each Track A endpoint spec includes a byte-parity test plan (same request → same response
   envelope, same DB effect) against a QA client slug before any canary.
 - Track B ships its own probe set (spec §8) following the SXR probe pattern.

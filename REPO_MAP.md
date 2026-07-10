@@ -45,6 +45,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 | Path | What it is |
 |---|---|
+| `docs/CLIENT_LIFECYCLE_MAP.md` | The master client lifecycle map (traffic → booking → sales → onboarding → provisioning → samples → production). **MIRRORED**: a byte-identical copy lives in the `synchrosocial` repo at the same path — change both together, and do not move it into a subfolder (the path is part of the mirror contract). |
 | `docs/features/` | **Living feature specs** — one doc per shipped feature (samples, onboarding, sales intake, thumbnails, title review, Kasper review, SMM reports, credentials, filming plans, dark mode…). |
 | `docs/ops/` | Runbooks: new-client onboarding, Linear reconcile safety net, monitoring/rollback coverage map (`docs/ops/MONITORING.md`), pending cleanup checklists. |
 | `docs/independence/` | The active independence program: `docs/independence/INDEPENDENCE_PLAN.md` (strategy), Track A (Edge Functions) and Track B (Linear replacement) specs, dependency audits. |

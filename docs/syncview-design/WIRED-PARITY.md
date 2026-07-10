@@ -333,3 +333,4 @@ Owner-feedback refinements applied on top of the read-only wired tab:
 20. Filtered project boards label project-card counts as matching issue(s), hide empty columns when matching projects exist, and reserve `No matching projects` for true no-match filtered boards, so board copy reflects active issue filters instead of reading as total project size.
 21. Detail activity no longer renders unresolved skeleton bars for migrated rows without events; missing activity data shows a subtle empty-state line until real event rows arrive.
 22. Delivered-file links on issue detail pages keep the original migrated URL as the destination, but the visible body text is a concise resource label such as `Open folder` instead of a raw Drive/Dropbox/Frame URL.
+23. The Projects board `All projects` marker is a static active-scope label, not a button with no action, so every visible button still works, opens guarded chrome, navigates, or is clearly disabled.

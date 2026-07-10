@@ -232,7 +232,7 @@ function allowedNoop(c) {
     || /\bprod-preview-chip\b/.test(cls)
     || /\bprod-created\b/.test(cls)
     || (c.attrs && c.attrs.oncontextmenu && !c.attrs.onclick)
-    || (c.tag === 'BUTTON' && !attrs.onclick && /^All projects$|^Open$|^Active$/.test(text));
+    || (c.tag === 'BUTTON' && !attrs.onclick && /^Open$|^Active$/.test(text));
 }
 
 function sameCandidate(a, b) {

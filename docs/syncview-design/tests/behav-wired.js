@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 162;
+const TOTAL = 163;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -340,6 +340,18 @@ async function txt(page, sel) {
       return await page.locator('#prodLayer .prod-pop [data-prod-ppick]').count() > 0 && await page.locator('.prod-detail').count() === 0;
     }); await reset();
     await ok('tabs', async () => (await page.locator('.prod-tabs .prod-tab').allTextContents()).join(',') === 'Active,Backlog,All issues'); await reset();
+    await ok('boardScopeLabelStatic', async () => {
+      await page.evaluate(() => _prodOpenTeamView('all', 'board'));
+      await page.waitForSelector('[data-prod-static-scope="projects"]');
+      return await page.evaluate(() => {
+        const label = document.querySelector('[data-prod-static-scope="projects"]');
+        return !!label
+          && label.tagName === 'SPAN'
+          && label.textContent.trim() === 'All projects'
+          && !label.hasAttribute('onclick')
+          && label.tabIndex < 0;
+      });
+    }); await reset();
     await ok('my', async () => {
       await page.locator('.prod-nav-btn', { hasText: 'My issues' }).click();
       return await page.evaluate(() => _prodState.view === 'my');

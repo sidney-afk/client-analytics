@@ -24,7 +24,7 @@ npm run test:prod-review:validate
 ```
 
 That writes `.codex-tmp/prod-review-packet/index.html`, `manifest.md`, `review-checklist.md`, `review-manifest.json`, plus named desktop, dark, and mobile PNGs for the core Production surfaces. The GitHub workflow uploads this folder as `production-review-packet`.
-The validator checks that the gallery, Markdown manifest, review checklist, JSON manifest, PNG screenshots, required surfaces, viewport metadata, themes, routes, inspection notes, screenshot Production state, and read-only invariant are all present. It also verifies that the clean Project board/detail screenshots are unfiltered baselines while the Combined filters screenshot records active filters.
+The validator checks that the gallery, Markdown manifest, review checklist, JSON manifest, PNG screenshots, required surfaces, viewport metadata, themes, routes, inspection notes, screenshot Production state, and read-only invariant are all present. It also verifies that the clean Project board/detail screenshots are unfiltered baselines while the Combined filters screenshot records active filters. Parent-detail screenshots must record visible sub-issue rows, the guarded add-sub-issue affordance, and visible activity evidence in the first desktop viewport.
 
 ## GitHub Workflow
 

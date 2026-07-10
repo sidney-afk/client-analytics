@@ -57,7 +57,29 @@ async function screenshot(page, shots, name, label, note, extra = {}) {
     surface: extra.surface || name,
     route: extra.route || 'production',
     state,
+    evidence: extra.evidence || null,
     checks: extra.checks || [],
+  });
+}
+
+async function collectParentDetailEvidence(page) {
+  return page.evaluate(() => {
+    const detail = document.querySelector('.prod-detail');
+    const subSection = document.querySelector('[data-prod-section="subissues"]');
+    const activity = document.querySelector('.prod-activity');
+    const visible = el => {
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth;
+    };
+    return {
+      detailId: detail ? detail.getAttribute('data-prod-detail') || '' : '',
+      subIssueRows: document.querySelectorAll('.prod-subissue-row').length,
+      hasGuardedAddSubIssue: !!document.querySelector('[data-prod-disabled="add-subissue"]'),
+      hasActivity: !!activity,
+      subIssueSectionVisible: visible(subSection),
+      activityVisible: visible(activity),
+    };
   });
 }
 
@@ -150,16 +172,39 @@ async function setProject(page) {
 async function setParentDetail(page) {
   await page.evaluate(() => {
     const rows = _prodIssues();
-    const parent = rows.find(d => rows.some(k => k.parent === d.id)) || rows[0];
-    if (parent) _prodOpenDeliverable(parent.id);
+    const parents = rows
+      .map(d => ({ row: d, kids: _prodChildrenOf(d.id) }))
+      .filter(item => item.kids.length > 0)
+      .sort((a, b) => {
+        const score = item => {
+          const label = _prodIssueLabel(item.row);
+          const descLen = (item.row.desc || '').length;
+          const titleLen = (item.row.title || '').length;
+          const kidPenalty = item.kids.length >= 2 && item.kids.length <= 4 ? 0 : (item.kids.length === 1 ? 30 : 20);
+          const typeBonus = /^VID-/i.test(label) ? -10 : 0;
+          return kidPenalty + descLen + titleLen + typeBonus;
+        };
+        return score(a) - score(b);
+      });
+    const parent = (parents[0] && parents[0].row) || rows[0];
+    if (parent) {
+      window.__prodReviewParentId = parent.id;
+      _prodOpenDeliverable(parent.id);
+    }
   });
   await page.waitForSelector('.prod-detail', { timeout: 10000 });
+  await page.waitForSelector('[data-prod-section="subissues"] .prod-subissue-row', { timeout: 10000 });
+  const evidence = await collectParentDetailEvidence(page);
+  if (!evidence.subIssueSectionVisible || !evidence.activityVisible) {
+    throw new Error('Parent detail review screenshot must keep sub-issues and activity visible in the desktop viewport');
+  }
 }
 
 async function setSubIssueDetail(page) {
   await page.evaluate(() => {
     const rows = _prodIssues();
-    const parent = rows.find(d => rows.some(k => k.parent === d.id));
+    const parent = (window.__prodReviewParentId && _prodIssue(window.__prodReviewParentId))
+      || rows.find(d => rows.some(k => k.parent === d.id));
     const child = parent ? rows.find(k => k.parent === parent.id) : null;
     if (child) _prodOpenDeliverable(child.id);
   });
@@ -446,9 +491,11 @@ ${cards}
     });
 
     await setParentDetail(desktop);
+    const parentDetailEvidence = await collectParentDetailEvidence(desktop);
     await screenshot(desktop, shots, 'parent-detail', 'Parent issue detail', 'Centered body, sub-issue rows, guarded add-sub-issue affordance, activity.', {
       surface: 'parent-issue-detail',
       route: 'production/issue-detail',
+      evidence: parentDetailEvidence,
       checks: ['centered issue body', 'sub-issue rows', 'guarded add-sub-issue affordance', 'activity'],
     });
 

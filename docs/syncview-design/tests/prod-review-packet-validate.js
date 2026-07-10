@@ -156,6 +156,10 @@ function validatePacket(dir = packetDir) {
   if (!projectDetail || !projectDetail.state || projectDetail.state.view !== 'project' || projectDetail.state.filters !== 0) {
     failures.push('project-detail screenshot must be an unfiltered project-detail baseline in review-manifest.json');
   }
+  const parentDetail = byName('parent-detail');
+  if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.subIssueRows < 1 || !parentDetail.evidence.hasGuardedAddSubIssue || !parentDetail.evidence.subIssueSectionVisible || !parentDetail.evidence.activityVisible) {
+    failures.push('parent-detail screenshot must record visible sub-issue rows, guarded add-sub-issue affordance, and activity evidence in review-manifest.json');
+  }
   if (!gallery.includes('Production Review Packet')) failures.push('index.html missing gallery heading');
   if (!markdown.includes('Production Review Packet')) failures.push('manifest.md missing heading');
   if (!checklist.includes('Production Review Checklist')) failures.push('review-checklist.md missing heading');

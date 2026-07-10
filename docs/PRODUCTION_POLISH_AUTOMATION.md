@@ -19,9 +19,11 @@ For reviewer screenshots, run:
 
 ```bash
 npm run test:prod-review
+npm run test:prod-review:validate
 ```
 
 That writes `.codex-tmp/prod-review-packet/index.html`, `manifest.md`, `review-manifest.json`, plus named desktop, dark, and mobile PNGs for the core Production surfaces. The GitHub workflow uploads this folder as `production-review-packet`.
+The validator checks that the gallery, Markdown manifest, JSON manifest, PNG screenshots, required surfaces, viewport metadata, themes, routes, inspection notes, and read-only invariant are all present.
 
 ## GitHub Workflow
 
@@ -30,7 +32,7 @@ That writes `.codex-tmp/prod-review-packet/index.html`, `manifest.md`, `review-m
 The workflow uploads two visual artifacts:
 
 - `production-polish-screenshots`: the side-by-side pixel/parity screenshots from `.codex-tmp/prod-pixel-wired`;
-- `production-review-packet`: a compact reviewer packet with `index.html`, `manifest.md`, `review-manifest.json`, and named screenshots from `.codex-tmp/prod-review-packet`.
+- `production-review-packet`: a compact reviewer packet with `index.html`, `manifest.md`, `review-manifest.json`, and named screenshots from `.codex-tmp/prod-review-packet`, validated before upload.
 
 The workflow also appends the review-packet manifest to the GitHub job summary, so reviewers can see the screenshot map before downloading the artifact. Open `index.html` from the artifact for a browsable gallery. Use `review-manifest.json` when another automation agent needs screenshot names, routes, viewport sizes, themes, inspection notes, or the read-only invariant result without parsing Markdown.
 
@@ -71,4 +73,5 @@ For AI-agent PRs, keep the issue text natural, but include the route and screens
    - `prod-interaction-inventory.js` or `behav-wired.js` for clicks, hovers, menus, routing, or state changes.
 3. Run `npm run test:prod-polish`.
 4. Run `npm run test:prod-review` when the reviewer needs fresh screenshots.
-5. Update the Production parity docs and rollback notes with what the new check protects.
+5. Run `npm run test:prod-review:validate` before using or uploading the packet.
+6. Update the Production parity docs and rollback notes with what the new check protects.

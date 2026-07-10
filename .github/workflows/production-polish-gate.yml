@@ -26,6 +26,8 @@ jobs:
         run: npm run test:prod-polish
       - name: Build Production review packet
         run: npm run test:prod-review
+      - name: Validate Production review packet
+        run: npm run test:prod-review:validate
       - name: Summarize Production review packet
         if: always()
         run: |

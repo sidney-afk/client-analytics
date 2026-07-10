@@ -114,6 +114,20 @@ async function collectLayoutFailures(page, label) {
         _prodState.focusCard = '';
         _prodRender();
       });
+      if (vp.name === 'desktop') {
+        const boardFitsDesktop = await page.evaluate(() => {
+          const board = document.querySelector('.prod-board');
+          if (!board) return true;
+          const boardRect = board.getBoundingClientRect();
+          const columns = [...board.querySelectorAll('.prod-col:not(.collapsed)')].filter(el => {
+            const r = el.getBoundingClientRect();
+            return r.width > 1 && r.height > 1;
+          });
+          return board.scrollWidth <= board.clientWidth + 2
+            && columns.every(col => col.getBoundingClientRect().right <= boardRect.right + 2);
+        });
+        if (!boardFitsDesktop) failures.push('desktop project board clips the final visible column at review width');
+      }
       if (await page.locator('.prod-card[data-prod-client-card]').count()) {
         await page.locator('.prod-card[data-prod-client-card] [data-prod-cardcheck]').first().click({ force: true });
         failures.push(...await collectLayoutFailures(page, `${vp.name} selected card`));

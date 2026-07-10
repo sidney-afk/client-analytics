@@ -2667,7 +2667,7 @@
         .prod-avatar { width: 18px; height: 18px; border-radius: 50%; flex: none; display: grid; place-items: center; color: #fff; font-size: 8px; font-weight: 700; background: var(--prod-accent); }
         .prod-avatar.empty { background: transparent; border: 1px dashed var(--prod-faint); color: var(--prod-faint); }
         .prod-board { flex: 1; display: flex; overflow: auto; }
-        .prod-col { width: 354px; flex: none; display: flex; flex-direction: column; padding: 11px 12px; border-right: 1px solid var(--prod-divider); background: var(--prod-column); min-height: 0; }
+        .prod-col { flex: 1 1 188px; min-width: 188px; max-width: 354px; box-sizing: border-box; display: flex; flex-direction: column; padding: 11px 12px; border-right: 1px solid var(--prod-divider); background: var(--prod-column); min-height: 0; }
         .prod-col-head { display: flex; align-items: center; gap: 7px; padding: 2px 6px 9px; }
         .prod-col-title { font-size: 13px; font-weight: 500; color: var(--prod-strong); }
         .prod-cards { display: flex; flex-direction: column; gap: 7px; overflow: auto; padding-bottom: 20px; }
@@ -2793,7 +2793,7 @@
         .prod-board::-webkit-scrollbar-thumb { background: var(--prod-border-soft); border-radius: 9px; }
         .prod-col { background: transparent; }
         .prod-col.prod-col-drop { background: var(--prod-selected); }
-        .prod-col.collapsed { width: 46px; min-width: 46px; padding-left: 5px; padding-right: 5px; }
+        .prod-col.collapsed { width: 46px; min-width: 46px; flex: 0 0 46px; padding-left: 5px; padding-right: 5px; }
         .prod-col.collapsed .prod-card-status, .prod-col.collapsed .prod-col-title, .prod-col.collapsed .prod-group-count, .prod-col.collapsed .prod-spacer, .prod-col.collapsed .prod-icon-btn, .prod-col.collapsed .prod-group-add, .prod-col.collapsed .prod-cards { display: none; }
         .prod-col-collapse { width: 17px; height: 17px; border: 0; border-radius: 4px; background: transparent; display: grid; place-items: center; color: var(--prod-faint); flex: none; opacity: 0; cursor: pointer; }
         .prod-col-head:hover .prod-col-collapse { opacity: 1; }
@@ -31770,9 +31770,16 @@
             const byClient = _prodBoardCardCounts();
             const filtered = !!((_prodState.filters || []).length);
             const emptyText = filtered ? 'No matching projects' : 'No projects';
-            return '<div class="prod-board">' + PROD_BOARD_ORDER.map(status => {
-                const cards = _prodBoardCardsForStatus(status, byClient);
-                const collapsed = _prodState.colCollapsed.has(status);
+            const columns = PROD_BOARD_ORDER.map(status => ({
+                status,
+                cards: _prodBoardCardsForStatus(status, byClient),
+                collapsed: _prodState.colCollapsed.has(status)
+            }));
+            const visibleColumns = filtered && columns.some(col => col.cards.length) ? columns.filter(col => col.cards.length) : columns;
+            return '<div class="prod-board">' + visibleColumns.map(col => {
+                const status = col.status;
+                const cards = col.cards;
+                const collapsed = col.collapsed;
                 return '<section class="prod-col' + (collapsed ? ' collapsed' : '') + '" data-prod-col="' + _calEscAttr(status) + '"><div class="prod-col-head"><button class="prod-col-collapse" type="button" data-prod-pcolcollapse="' + _calEscAttr(status) + '" onclick="_prodToggleBoardColumn(' + _jsAttrArg(status) + ')" data-prod-tip="' + (collapsed ? 'Expand column' : 'Collapse column') + '">' + _prodIcon('chevD') + '</button><span class="prod-card-status">' + _prodProjectStatusIcon(status) + '</span><span class="prod-col-title">' + _calEsc(_prodBoardLabel(status)) + '</span><span class="prod-group-count">' + cards.length + '</span><span class="prod-spacer"></span><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('dots') + '</button><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-client-board-card" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div>' + (collapsed ? '<div class="prod-col-rail">' + _calEsc(_prodBoardLabel(status)) + ' ' + cards.length + '</div>' : '<div class="prod-cards">'
                     + (cards.length ? cards.map(c => _prodClientCard(c, byClient.get(c.id) || 0)).join('') : '<div class="prod-empty" data-prod-board-empty="' + (filtered ? 'filtered' : 'plain') + '" style="margin:0;padding:16px;text-align:left;">' + _calEsc(emptyText) + '</div>')
                     + '</div>') + '</section>';

@@ -459,8 +459,10 @@ async function runTheme(port, browser, theme) {
     await wired.waitForSelector('#prodLayer .prod-pop [data-prod-ctx="status"]');
     await artifact.evaluate(() => document.querySelector('#layer .pop [data-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
     await wired.evaluate(() => document.querySelector('#prodLayer .prod-pop [data-prod-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
+    if (await wired.locator('#prodLayer [data-prod-pick]').count()) gaps.push({ rank: 1, state: 'bulk command hover', message: 'wired bulk command hover should not open a blocking picker' });
+    await wired.locator('#prodLayer .prod-pop [data-prod-ctx="status"]').click();
     await artifact.waitForSelector('#layer .pop');
-    await wired.waitForSelector('#prodLayer .prod-pop');
+    await wired.waitForSelector('#prodLayer .prod-pop [data-prod-pick]');
     const artifactStatusRows = await pickerInventory(artifact, '#layer .pop [data-i]');
     const wiredStatusRows = await pickerInventory(wired, '#prodLayer .prod-pop [data-prod-pick]');
     comparePickerInventory(gaps, 'status picker inventory', artifactStatusRows, wiredStatusRows);

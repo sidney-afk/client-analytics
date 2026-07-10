@@ -98,6 +98,8 @@ async function collectBulkActionEvidence(page) {
     const menu = document.querySelector('#prodLayer .prod-pop[data-prod-bulkcmd]');
     const actionBar = document.querySelector('[data-prod-actionbar]');
     const search = menu ? menu.querySelector('[data-prod-search]') : null;
+    const menuRect = menu ? menu.getBoundingClientRect() : null;
+    const actionBarRect = actionBar ? actionBar.getBoundingClientRect() : null;
     const visible = el => {
       if (!el) return false;
       const rect = el.getBoundingClientRect();
@@ -106,6 +108,10 @@ async function collectBulkActionEvidence(page) {
     return {
       actionBarVisible: visible(actionBar),
       actionBarReceded: !!(actionBar && actionBar.classList.contains('menu-open')),
+      menuCentered: !!(menuRect && Math.abs((menuRect.left + menuRect.width / 2) - window.innerWidth / 2) < 24),
+      menuWidth: menuRect ? Math.round(menuRect.width) : 0,
+      menuAboveActionBar: !!(menuRect && actionBarRect && menuRect.bottom <= actionBarRect.top - 6),
+      submenuOpenOnHover: !!document.querySelector('#prodLayer .prod-pop [data-prod-pick]'),
       menuVisible: visible(menu),
       searchVisible: visible(search),
       selectedRows: _prodState.selected && typeof _prodState.selected.size === 'number' ? _prodState.selected.size : 0,
@@ -216,6 +222,8 @@ async function setSelectedActionMenu(page) {
   await page.waitForSelector('[data-prod-actionbar]', { timeout: 10000 });
   await page.locator('#prodBulkActions').click();
   await page.waitForSelector('#prodLayer .prod-pop[data-prod-bulkcmd]', { timeout: 10000 });
+  await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx="status"]').hover();
+  await page.waitForTimeout(120);
 }
 
 async function setCombinedFilters(page) {

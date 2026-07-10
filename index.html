@@ -2852,7 +2852,6 @@
         .prod-project-groups .prod-subrow .prod-spacer { min-width: 8px; }
         .prod-project-groups .prod-subrow .prod-due, .prod-project-groups .prod-subrow .prod-assign-hot, .prod-project-groups .prod-subrow .prod-created { flex: none; }
         .prod-actionbar { position: fixed; left: calc(50% + 122px); bottom: 20px; transform: translateX(-50%); z-index: 2000; height: 44px; border: 1px solid var(--prod-border-soft); border-radius: 12px; background: var(--prod-surface); display: inline-flex; align-items: center; gap: 3px; padding: 5px; color: var(--prod-strong); font-size: 12px; box-shadow: var(--prod-shadow-pop); }
-        .prod-actionbar.menu-open { opacity: .34; }
         .prod-actionbar .cnt { color: var(--prod-dim); padding: 0 8px 0 9px; white-space: nowrap; }
         .prod-actionbar .abtn { height: 28px; border: 0; border-radius: 7px; background: var(--prod-hover); color: var(--prod-strong); display: inline-flex; align-items: center; gap: 6px; font: inherit; cursor: pointer; padding: 0 10px; }
         .prod-actionbar .abtn:hover, .prod-actionbar .ax:hover { background: var(--prod-hover); color: var(--prod-text); }
@@ -2877,14 +2876,20 @@
         .prod-layer { position: fixed; inset: 0; z-index: 9999; pointer-events: none; }
         .prod-pop-bd { position: fixed; inset: 0; }
         .prod-pop { position: absolute; min-width: 190px; padding: 5px; border: 1px solid var(--prod-border); border-radius: 12px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: var(--prod-shadow-pop); font-size: 13px; }
-        .prod-pop[data-prod-bulkcmd="1"] { width: min(520px, calc(100vw - 24px)); }
+        .prod-pop[data-prod-bulkcmd="1"] { width: min(720px, calc(100vw - 48px)); max-height: min(450px, calc(100vh - 120px)); padding: 8px; overflow: hidden; }
         .prod-bulk-chip { display: inline-flex; align-items: center; max-width: 100%; height: 24px; padding: 0 8px; border-radius: 999px; background: var(--prod-hover); color: var(--prod-muted); font-size: 12px; font-weight: 600; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .prod-bulk-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px 8px; color: var(--prod-muted); }
+        .prod-bulk-ask { display: inline-flex; align-items: center; gap: 7px; color: var(--prod-muted); font-size: 12px; }
+        .prod-bulk-ask kbd { height: 18px; min-width: 20px; padding: 0 5px; border: 1px solid var(--prod-border-soft); border-radius: 4px; background: var(--prod-hover); color: var(--prod-faint); font: inherit; font-size: 10px; line-height: 16px; text-align: center; box-sizing: border-box; }
         .prod-pop-hd { padding: 7px 9px; color: var(--prod-muted); font-size: 12px; font-weight: 500; }
         .prod-pop-search { padding: 4px; }
-        .prod-pop[data-prod-bulkcmd="1"] .prod-pop-search { display: flex; align-items: center; gap: 8px; }
+        .prod-pop[data-prod-bulkcmd="1"] .prod-pop-search { display: block; padding: 0 4px 8px; }
         .prod-pop-search input { width: 100%; box-sizing: border-box; height: 30px; border: 1px solid var(--prod-border); border-radius: 8px; background: var(--prod-surface); color: var(--prod-strong); font: inherit; font-size: 13px; padding: 0 8px; outline: 0; }
-        .prod-pop[data-prod-bulkcmd="1"] .prod-pop-search input { flex: 1 1 auto; min-width: 0; }
+        .prod-pop[data-prod-bulkcmd="1"] .prod-pop-search input { min-width: 0; height: 34px; border-color: transparent; background: transparent; padding: 0; }
         .prod-pop-search input:focus { border-color: var(--prod-accent); }
+        .prod-pop[data-prod-bulkcmd="1"] .prod-pop-search input:focus { border-color: transparent; }
+        .prod-pop[data-prod-bulkcmd="1"] .prod-pop-list { max-height: 344px; overflow-y: auto; padding-right: 2px; }
+        .prod-pop[data-prod-bulkcmd="1"] .prod-mi { height: 38px; padding: 0 10px; font-weight: 600; }
         .prod-mi { height: 32px; display: flex; align-items: center; gap: 9px; padding: 0 8px; border-radius: 6px; white-space: nowrap; cursor: default; }
         .prod-mi:not(.disabled):hover, .prod-mi.sel { background: var(--prod-menu-hover); }
         .prod-mi.disabled { color: var(--prod-faint); cursor: not-allowed; opacity: .72; }
@@ -30845,7 +30850,7 @@
             }
             document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
             _prodState.paletteOpen = false;
-            document.querySelectorAll('#prodFilterBtn.menu-open, #prodGroupBtn.menu-open, .prod-actionbar.menu-open').forEach(el => el.classList.remove('menu-open'));
+            document.querySelectorAll('#prodFilterBtn.menu-open, #prodGroupBtn.menu-open').forEach(el => el.classList.remove('menu-open'));
             _prodSubPop = null;
             _prodHideTip();
         }
@@ -32424,9 +32429,7 @@
                         sel = ix;
                         shown.forEach((row, i) => row.classList.toggle('sel', i === sel));
                     }
-                    const act = el.getAttribute('data-prod-ctx');
-                    if (hasSub[act]) _prodOpenSub(el, act, ids);
-                    else _prodCloseSub();
+                    _prodCloseSub();
                 });
                 el.addEventListener('click', e => {
                     e.preventDefault();
@@ -32472,13 +32475,12 @@
             }
             const bar = ev && ev.currentTarget && ev.currentTarget.closest ? ev.currentTarget.closest('.prod-actionbar') : null;
             const r = bar ? bar.getBoundingClientRect() : null;
-            if (bar) bar.classList.add('menu-open');
             const ids = _prodTargetIds(id);
             const count = ids.length || 1;
             const plural = count !== 1;
             const command = (label, icon, act, kbd, chev, danger) =>
                 '<div class="prod-mi' + (danger ? ' danger' : '') + '" data-prod-ctx="' + _calEscAttr(act) + '" data-prod-bulk-label="' + _calEscAttr(label) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (chev ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
-            const html = '<div class="prod-pop-search"><span class="prod-bulk-chip">' + count + ' selected</span><input data-prod-search placeholder="Type a command or search..."></div><div class="prod-pop-list">'
+            const html = '<div class="prod-bulk-head"><span class="prod-bulk-chip">' + count + ' ' + (plural ? 'issues' : 'issue') + '</span><span class="prod-bulk-ask">Ask Linear <kbd>Tab</kbd></span></div><div class="prod-pop-search"><input data-prod-search placeholder="Type a command or search..."></div><div class="prod-pop-list">'
                 + command('Assign to...', _prodIcon('assign'), 'assign', 'A', true)
                 + command('Change status...', _prodIcon('issues'), 'status', 'S', true)
                 + command('Move to project...', _prodIcon('project'), 'proj', 'P', true)
@@ -32493,7 +32495,7 @@
                 pop.setAttribute('data-prod-actioncmd', '1');
                 pop.setAttribute('data-prod-anchor-top', String(r.top));
                 const pr = pop.getBoundingClientRect();
-                _prodPlacePop(pop, r.left, r.top - pr.height - 8);
+                _prodPlacePop(pop, (innerWidth - pr.width) / 2, r.top - pr.height - 14);
             }
             if (pop) _prodWireBulkCommandMenu(pop, ids);
             return false;

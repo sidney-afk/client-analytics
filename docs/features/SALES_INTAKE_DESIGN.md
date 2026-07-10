@@ -151,9 +151,9 @@ email with both the agreement and the invoice link.
 
 ### Supabase table
 
-New migration file (root, `sales-intake-migration.sql`), **manually applied in the
+New migration file (root, `migrations/sales-intake-migration.sql`), **manually applied in the
 Supabase SQL editor** like all others — there is no auto-runner. Model on
-`onboarding-supabase-migration.sql`: RLS enabled, **no anon policies at all** (this
+`migrations/onboarding-supabase-migration.sql`: RLS enabled, **no anon policies at all** (this
 table holds billing data; service-role/n8n only — the tab itself doesn't need to read
 it back for v1).
 

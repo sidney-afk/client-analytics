@@ -44,12 +44,12 @@ Mirror Registry below.
 ### Supabase
 | Calendar | Samples twin | File |
 |---|---|---|
-| `calendar_posts` table | `sample_reviews` table | `sample-reviews-migration.sql` |
-| (none — new) | `sample_review_events` (append-only log) | `sample-reviews-migration.sql` |
-| `_calmerge_is_expired_tomb` | `_sxrmerge_is_expired_tomb` | `sample-reviews-migration.sql` |
-| `_calmerge_comment_cell` | `_sxrmerge_comment_cell` | `sample-reviews-migration.sql` |
-| `calendar_merge_comments` RPC | `sample_review_merge_comments` RPC | `sample-reviews-migration.sql` |
-| `calendar_posts_stamp_status_at` trigger | `sample_reviews_stamp_status_at` trigger | `sample-reviews-migration.sql` |
+| `calendar_posts` table | `sample_reviews` table | `migrations/sample-reviews-migration.sql` |
+| (none — new) | `sample_review_events` (append-only log) | `migrations/sample-reviews-migration.sql` |
+| `_calmerge_is_expired_tomb` | `_sxrmerge_is_expired_tomb` | `migrations/sample-reviews-migration.sql` |
+| `_calmerge_comment_cell` | `_sxrmerge_comment_cell` | `migrations/sample-reviews-migration.sql` |
+| `calendar_merge_comments` RPC | `sample_review_merge_comments` RPC | `migrations/sample-reviews-migration.sql` |
+| `calendar_posts_stamp_status_at` trigger | `sample_reviews_stamp_status_at` trigger | `migrations/sample-reviews-migration.sql` |
 
 ### n8n
 | Calendar | Samples twin | Notes |

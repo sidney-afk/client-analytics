@@ -70,7 +70,7 @@ Rollback is **repointing one webhook URL**.
   interval degrades to hours.
 - **Status change-timestamps are DB-stamped.** `video_status_at` /
   `graphic_status_at` are written by a **server-side Postgres `BEFORE INSERT/UPDATE`
-  trigger** (`calendar-status-at-migration.sql`), not by handler code. Any Edge
+  trigger** (`migrations/calendar-status-at-migration.sql`), not by handler code. Any Edge
   Function write to `calendar_posts` fires it automatically — preserve normal
   `UPDATE`/RPC writes so it keeps firing, and **never write these columns by hand.**
   This server-stamped exact time is what keeps the reconciler's most-recent-wins

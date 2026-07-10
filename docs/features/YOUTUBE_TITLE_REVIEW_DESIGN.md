@@ -217,7 +217,7 @@ beyond Part A's `title_tweaks` (component notes already persist via `<comp>_twea
 ## Data / persistence (both parts)
 
 New Supabase columns on `public.calendar_posts` (idempotent migration, like
-`kasper-review-state-migration.sql`): `title_status`, `title_tweaks`,
+`migrations/kasper-review-state-migration.sql`): `title_status`, `title_tweaks`,
 `client_title_approved_at`. Add the same three to the n8n `calendar-upsert-post` `ALLOWED`
 array. **Run the migration before editing `ALLOWED`** (same ordering rule as the
 Kasper-state rollout — otherwise the Supabase mirror sends an unknown column and errors).
@@ -278,7 +278,7 @@ the Notes feed (title comments labeled "Title", full unread/seen). Title is Line
 (`_calLinearUrlFor` → `''`). Guarded by `test/title-review-lifecycle.js` (proves the
 overall-status invariant) + the full existing suite (all pass).
 
-**Phase 0 backend — PENDING (needs you / sign-off):** run `title-review-migration.sql`
+**Phase 0 backend — PENDING (needs you / sign-off):** run `migrations/title-review-migration.sql`
 in Supabase, then add `title_status`, `title_tweaks`, `client_title_approved_at` to the
 n8n `calendar-upsert-post` `ALLOWED` array (migration first). Until then the toggle is
 off and the new fields are dropped by the upsert — no effect.

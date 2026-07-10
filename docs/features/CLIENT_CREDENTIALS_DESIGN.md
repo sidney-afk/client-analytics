@@ -4,7 +4,7 @@ SyncView now has a single source of truth for client social account logins. The 
 
 ## Data model
 
-Run `client-credentials-migration.sql` in the Supabase SQL editor before deploying the UI/function.
+Run `migrations/client-credentials-migration.sql` in the Supabase SQL editor before deploying the UI/function.
 
 ### `client_credentials`
 
@@ -97,7 +97,7 @@ On first use, the UI asks for staff name and passphrase. Name options are seeded
 
 ## Rollout
 
-1. Run `client-credentials-migration.sql` in Supabase SQL editor.
+1. Run `migrations/client-credentials-migration.sql` in Supabase SQL editor.
 2. Set the Edge secret:
 
    ```bash

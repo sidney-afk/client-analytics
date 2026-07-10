@@ -44,7 +44,7 @@ funnels that comes from the full `answers`; for old forms it comes from the
 
 ### 4. `legacy_onboarding.credentials` column
 Old-form logins were stripped from `fields` at import. They now live in a separate
-service-role-only `credentials jsonb` column (added by `legacy-onboarding-migration.sql`'s
+service-role-only `credentials jsonb` column (added by `migrations/legacy-onboarding-migration.sql`'s
 `alter table ... add column if not exists`). The values are loaded **out of band** — never
 committed to this repo. Only `onboarding-full` returns them.
 

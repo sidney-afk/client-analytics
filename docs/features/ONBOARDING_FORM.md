@@ -257,8 +257,8 @@ The front-end picks the URL by variant: `_obSubmit` POSTs to `ONBOARDING_SUBMIT_
 `ai_avatar` (`no` | `yes`) accordingly.
 
 The browser **never** writes Supabase directly. Both tables deliberately have **no anon
-read/write** (they hold passwords + personal data) — see `onboarding-supabase-migration.sql`
-and `ai-onboarding-supabase-migration.sql`. Only the service-role n8n webhooks touch them.
+read/write** (they hold passwords + personal data) — see `migrations/onboarding-supabase-migration.sql`
+and `migrations/ai-onboarding-supabase-migration.sql`. Only the service-role n8n webhooks touch them.
 
 ### Webhook contract — `POST /webhook/{onboarding-submit | ai-onboarding-submit}`
 
@@ -299,8 +299,8 @@ later step, not part of this form.)
     JS errors, title `SynchroSocial`, favicon `synchro-social-logo.png`.
   - **AI** (`?onboarding=ai`): 7 sections, **no** Sample video, **AI avatar** shown gate-less &
     renumbered to step 7, positional recolour, no JS errors, same branding.
-- ✅ `onboarding-supabase-migration.sql` — standard table `client_onboarding`.
-- ✅ `ai-onboarding-supabase-migration.sql` — AI table `ai_client_onboarding` (mirrors the
+- ✅ `migrations/onboarding-supabase-migration.sql` — standard table `client_onboarding`.
+- ✅ `migrations/ai-onboarding-supabase-migration.sql` — AI table `ai_client_onboarding` (mirrors the
   standard table + a `funnel` column). **Run it once** in the Supabase SQL editor
   (project `uzltbbrjidmjwwfakwve`).
 - ✅ n8n `onboarding-submit` webhook — workflow `ljNY7CKYLKzMOACZ`, `POST /webhook/onboarding-submit`
@@ -327,7 +327,7 @@ later step, not part of this form.)
 
 ### Finish steps for the AI funnel — ✅ DONE
 
-1. ✅ **AI SQL run.** `ai-onboarding-supabase-migration.sql` has been run in Supabase
+1. ✅ **AI SQL run.** `migrations/ai-onboarding-supabase-migration.sql` has been run in Supabase
    (project `uzltbbrjidmjwwfakwve`); `ai_client_onboarding` exists and is taking writes.
    *(Kept in the repo for the record / re-create / rollback.)*
 2. *(Optional)* **Confirm the Slack sender.** Workflow `hxLFIdKG9hUIzukO` → **Notify Sidney** is
@@ -341,7 +341,7 @@ silently dropped.)
 
 > **Note on the standard funnel's earlier finish steps:** if `client_onboarding` and workflow
 > `ljNY7CKYLKzMOACZ` were already set up in the prior round, nothing more is needed there. If not,
-> run `onboarding-supabase-migration.sql` and activate `ljNY7CKYLKzMOACZ` as before.
+> run `migrations/onboarding-supabase-migration.sql` and activate `ljNY7CKYLKzMOACZ` as before.
 
 ### Second auto-message (later)
 The June 25 call also wanted a *second* Slack post after the onboarding **call** (built from the
@@ -380,5 +380,5 @@ and a soft warning notes which list couldn't load (`Promise.allSettled`). Snapsh
 `n8n-backups/ai-onboarding-list.2026-06-28.created.json`.
 
 **Finish step:** both list workflows are **active** (`slqt2zCDyIc7OAmY` + `oDZ1Oljvaig5KSLD`).
-The AI section stays empty until `ai-onboarding-supabase-migration.sql` is run and an AI form is
+The AI section stays empty until `migrations/ai-onboarding-supabase-migration.sql` is run and an AI form is
 submitted; until the standard table/workflow exist the Standard section behaves the same way.

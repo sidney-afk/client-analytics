@@ -44,7 +44,7 @@ dropped by the upsert and Kasper's review still works **per-device** via its
 localStorage fallback (today's behaviour). To turn on the **cross-device**
 behavior:
 
-1. **Supabase — add the columns.** Run `kasper-review-state-migration.sql` in the
+1. **Supabase — add the columns.** Run `migrations/kasper-review-state-migration.sql` in the
    Supabase SQL editor (project `uzltbbrjidmjwwfakwve`). Idempotent.
 
    ```sql

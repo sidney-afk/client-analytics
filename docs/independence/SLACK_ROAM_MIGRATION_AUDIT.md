@@ -171,7 +171,7 @@ in any sheet.**
 
 | Artifact | Slack dependency? | Detail / change for Roam |
 |---|---|---|
-| Supabase tables / migrations (`onboarding-supabase-migration.sql`, `ai-onboarding-supabase-migration.sql`) | **No column** | Slack appears only in header comments; `client_onboarding` / `ai_client_onboarding` have **no Slack column**. No DB change needed |
+| Supabase tables / migrations (`migrations/onboarding-supabase-migration.sql`, `migrations/ai-onboarding-supabase-migration.sql`) | **No column** | Slack appears only in header comments; `client_onboarding` / `ai_client_onboarding` have **no Slack column**. No DB change needed |
 | Supabase edge functions | **None** | `EDGE_FUNCTIONS_MIGRATION.md` is a *future* plan that explicitly **keeps Slack on n8n**. Nothing to migrate |
 | CI (`.github/workflows/*`, 4 files) | **None today** | No Slack/notify step exists. `docs/archive/HEADLESS_TESTING_EVAL_2026-06-26.md` *recommends* adding failure alerting — if built, target **Roam**, not a Slack action. The README's `DISCORD_WEBHOOK_URL` is **defunct/unrelated** (dead IG scraper) — **decision item:** remove it during cutover so no one wires alerts to a dead endpoint |
 | `test/kasper-urgent-ping.js` | Coupled by **name/path** | Hardcodes `URGENT_SLACK_URL='…/webhook/send-urgent-slack'`, asserts POST `{issue,client,name}` against a **mocked** n8n response. Update the URL/path + any renamed functions. **The test logic is platform-agnostic and will pass even against a broken Roam integration** — it is necessary but **not sufficient**; add a live Roam smoke test |

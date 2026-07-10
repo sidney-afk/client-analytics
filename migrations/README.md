@@ -1,0 +1,27 @@
+# `migrations/` — manually applied Supabase SQL
+
+Every file here is a **one-time migration that was pasted into the Supabase SQL
+editor by hand** and is kept for provenance. There is no auto-runner: nothing in
+CI, `supabase/config.toml`, or `scripts/` executes these files (see
+`README.md` › Repository layout).
+
+## How to read this folder
+
+- **`live-schema-baseline-2026-07-03.sql`** is the authoritative reconstruction
+  point: a schema-only snapshot of the live database captured 2026-07-03. To
+  rebuild from scratch, start here.
+- **Dated files (`YYYY-MM-DD-<slug>.sql`)** are deltas. Files dated after
+  2026-07-03 apply **on top of** the baseline; earlier dated files are already
+  folded into it and remain as history.
+- **Undated feature files (`*-migration.sql`)** predate the dated convention
+  (June 2026, originally at the repo root). Their schema is also already part of
+  the baseline; each is documented by its owning design doc in `docs/features/`.
+
+## Rules
+
+- New migrations use the dated convention: `YYYY-MM-DD-<feature-slug>.sql`.
+- **Additive-only** during the independence migration — new tables/columns are
+  fine; `DROP`/`RENAME`/type changes are forbidden until final cleanup
+  (`ROLLBACK.md` rule 3).
+- After applying a migration, log it in `EXECUTION_LOG.md` (`ROLLBACK.md`
+  rule 5).

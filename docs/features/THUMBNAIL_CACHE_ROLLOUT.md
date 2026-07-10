@@ -33,7 +33,7 @@ backend below is in place, `thumb_rev` is simply dropped by the upsert and the
 editor still updates locally via its in-session fallback. To turn on the
 **cross-viewer** behavior:
 
-1. **Supabase — add the column.** Run `calendar-thumb-rev-migration.sql` in the
+1. **Supabase — add the column.** Run `migrations/calendar-thumb-rev-migration.sql` in the
    Supabase SQL editor (project `uzltbbrjidmjwwfakwve`). Idempotent.
 
    ```sql

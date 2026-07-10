@@ -38,7 +38,7 @@ webhook reads it. Nothing sensitive ships in the static site.
 
 ## Files
 
-- `legacy-onboarding-migration.sql` — creates `public.legacy_onboarding` and upserts all 21
+- `migrations/legacy-onboarding-migration.sql` — creates `public.legacy_onboarding` and upserts all 21
   rows (idempotent; safe to re-run). **Run once in the Supabase SQL editor** (project
   `uzltbbrjidmjwwfakwve`).
 - `n8n-backups/legacy-onboarding-list.2026-07-07.created.json` — the `GET
@@ -61,7 +61,7 @@ webhook reads it. Nothing sensitive ships in the static site.
 
 ## Go-live checklist
 
-1. **Run** `legacy-onboarding-migration.sql` in Supabase (creates table + loads 21 rows).
+1. **Run** `migrations/legacy-onboarding-migration.sql` in Supabase (creates table + loads 21 rows).
 2. **Import + activate** `n8n-backups/legacy-onboarding-list.2026-07-07.created.json` in n8n.
 3. Deploy `index.html`. The "Old forms" section lights up with all 21 clients.
 

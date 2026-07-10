@@ -35,7 +35,7 @@ stable submission id:
 - n8n Data Table **`onboarding_fallback`** (id `5dqP1AdgvDtvMboC`) — lives in n8n,
   NOT Supabase, so it survives Supabase-side failures.
 - Supabase table **`public.onboarding_fallback`** — written by the Edge Function,
-  survives n8n-side failures. (`onboarding-fallback-supabase-migration.sql`.)
+  survives n8n-side failures. (`migrations/onboarding-fallback-supabase-migration.sql`.)
 
 Row kinds: `draft` (autosaved while typing) → `submit-fallback` (primary failed,
 this IS the submission) → `submitted` (primary succeeded; kept as the second copy).
@@ -70,7 +70,7 @@ Pre-edit rollback snapshots: `n8n-backups/*.2026-07-02.pre-*.json`.
 The form already tries the Edge URL first and falls through cleanly while it 404s,
 so nothing breaks before these run — the n8n fallback carries the load alone.
 
-1. Run `onboarding-fallback-supabase-migration.sql` in the SQL editor
+1. Run `migrations/onboarding-fallback-supabase-migration.sql` in the SQL editor
    (project `uzltbbrjidmjwwfakwve`).
 2. `supabase functions deploy onboarding-capture --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt`
    (CLI: `supabase login` first; `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` are

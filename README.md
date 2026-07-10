@@ -70,7 +70,7 @@ like the body classes they anticipate). The app talks to three backends.
 | `qa/` | Headless (Playwright) end-to-end probes against the live backend. Run with `npm run test:e2e`. |
 | `scripts/` | The Linear ⇄ calendar reconcile job (`linear-sync-reconcile.js`). |
 | `.github/workflows/` | CI: unit tests on every push, nightly E2E, and the 10-minute Linear reconcile cron. |
-| `migrations/`, root `*.sql` | One-time, **manually applied** Supabase SQL-editor migrations, kept for provenance — there is no auto-runner. |
+| `migrations/` | One-time, **manually applied** Supabase SQL-editor migrations, kept for provenance — there is no auto-runner. See `migrations/README.md`. |
 | `n8n-backups/` | Point-in-time snapshots of the n8n workflows (rollback anchors). |
 | `docs/` | Test catalogs, the headless-testing guide, and archived handoff/incident notes under `docs/archive/`. |
 | Top-level `*_DESIGN.md` / `*_MIGRATION.md` | Design specs and runbooks for individual features. |

@@ -27,7 +27,11 @@ Full report: `docs/audits/2026-07-09-production-foundation-audit.md`.
 | Project toolbar order | owner project screenshot feedback after PR #757 | ported | The Project details toggle is a right-side icon control placed immediately after Filter and before Display. |
 | Project Display grouping/show sub-issues | owner project screenshot feedback after PR #757 | ported | Project detail rows now regroup by Status, Client, or Assignee, and the Display menu's Show sub-issues toggle hides/shows child rows in the project issue list. |
 | Production workspace menu removed | owner project screenshot feedback after PR #757 | ported | The sidebar workspace brand is static; no workspace dropdown, account/admin rows, preview shortcuts, or copy-link action is exposed. |
-| Existing behavioral gate | `docs/syncview-design/tests/behav-wired.js` | ported | After the Escape fix, guard-mode coverage is green at `156/156`; mutation-only behaviors remain explicitly reported as `deferred-B3`. |
+| Project-card selection state | owner selection screenshot feedback on PR #763 | ported | Mouse selection/deselection no longer leaves the keyboard focus ring or a clipped blue outer border; keyboard selection keeps focus styling for navigation. |
+| Project-row metadata clipping | owner project-row hover feedback on PR #763 | ported | Project issue rows let titles shrink before due/avatar/created metadata, so right-side chips stay visible on hover. |
+| Searchable selected-issue Actions menu | owner action-menu feedback on PR #763 | ported | Multi-select Actions now opens a Linear-style searchable command menu with Assign to, Change status, Move to project, Copy issue ID, Change due date, and Delete issue; mutating commands stay guarded. |
+| Combined filter pills and row identity | owner combined-filter screenshot feedback on PR #763 | ported | Status/client filter pills stay compact with ellipsis, and visible issue lists dedupe by issue ID before rendering. |
+| Existing behavioral gate | `docs/syncview-design/tests/behav-wired.js` | ported | Guard-mode coverage is green at `158/158`; mutation-only behaviors remain explicitly reported as `deferred-B3`. |
 | Finished-surface inventory gate | `docs/syncview-design/tests/prod-interaction-inventory.js` | ported | Samples unique visible controls across list/detail/board/project states, right-click context zones, hover tips, row open/checkbox/status/due/assignee/client-chip pointer controls, sub-issue body context, guarded add-sub-issue affordances, and the no-write/no-error invariant. |
 | Existing visual gate | `docs/syncview-design/tests/pixel-wired.js` | ported | Light and dark wired pixel/parity checks pass; screenshots remain local/private under `.codex-tmp/prod-pixel-wired`. |
 | Rollback scope | frontend-only `_prod*` hardening | ported | Revert the July 9 PR/commit to undo this pass. No Supabase data, runtime flags, n8n workflows, or backend write paths were touched. |
@@ -307,3 +311,7 @@ Owner-feedback refinements applied on top of the read-only wired tab:
 4. `_prodRender()` clears stale tooltips before navigation draws the next view, covering the parent-link `Open parent` tooltip.
 5. Sub-issue breadcrumbs label `Sub-issue` but omit the child issue ID; the title remains visible after the label.
 6. Production-scoped `contextmenu` handling suppresses the browser menu for inert areas such as group headers while preserving app context menus for rows/cards/detail surfaces.
+7. Project-card mouse selection/deselection clears transient focus state, so selected cards no longer show clipped outer rings and deselected cards do not keep blue borders.
+8. Project issue-row metadata chips are fixed-width/shrink-safe on hover, so due dates, assignees, and created dates remain visible.
+9. Selected issue Actions opens a searchable command menu with only the useful commands; `Copy issue ID` is active, while mutating commands continue to use guarded read-only pickers.
+10. Combined filter pills are constrained with ellipsis and visible issue rows are deduped by ID before rendering.

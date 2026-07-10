@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 156;
+const TOTAL = 158;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -388,7 +388,8 @@ async function txt(page, sel) {
       const before = await page.evaluate(() => _prodState.selected.size);
       await page.locator('#prodBulkActions').click();
       await page.evaluate(() => document.querySelector('#prodLayer [data-prod-ctx="assign"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
-      await page.locator('#prodLayer [data-prod-search]').press('Enter');
+      await page.waitForSelector('#prodLayer [data-prod-pick]', { timeout: 5000 });
+      await page.locator('#prodLayer [data-prod-pick]').first().click();
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
       const after = await page.evaluate(() => _prodState.selected.size);
       return before > 1 && after === before;
@@ -1228,7 +1229,12 @@ async function txt(page, sel) {
       const before = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.status])));
       if (await page.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count()) return false;
       await page.locator('#prodBulkActions').click();
-      await page.waitForSelector('#prodLayer [data-prod-ctx="status"]', { timeout: 5000 });
+      await page.waitForSelector('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', { timeout: 5000 });
+      const labels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
+      if (labels !== 'Assign to...|Change status...|Move to project...|Copy issue ID|Change due date...|Delete issue') return false;
+      await page.fill('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', 'status');
+      const visibleLabels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx]').evaluateAll(els => els.filter(el => el.style.display !== 'none').map(el => el.textContent.trim()).join('|'));
+      if (!visibleLabels.includes('Change status...') || visibleLabels.includes('Assign to...')) return false;
       await page.evaluate(() => document.querySelector('#prodLayer [data-prod-ctx="status"]')?.click());
       await page.waitForSelector('#prodLayer [data-prod-pick]', { timeout: 5000 });
       const isStatus = await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Backlog' }).count() > 0;
@@ -1236,6 +1242,23 @@ async function txt(page, sel) {
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
       const after = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.status])));
       return isStatus && before === after && (await txt(page, '#prodToast')).includes('Preview - read-only');
+    }); await reset();
+    await ok('bulkCopyIssueId', async () => {
+      const expected = await page.evaluate(() => {
+        const ids = _prodFlatOrder().slice(0, 2);
+        if (ids.length < 2) return '';
+        _prodState.selected = new Set(ids);
+        _prodRender();
+        return ids.map(id => _prodIssueLabel(_prodIssue(id))).join('\n');
+      });
+      if (!expected) return true;
+      await page.locator('#prodBulkActions').click();
+      await page.waitForSelector('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', { timeout: 5000 });
+      await page.fill('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', 'copy');
+      await page.locator('#prodLayer [data-prod-ctx="copy-id"]').click();
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const copied = await page.evaluate(() => window.__prodLastCopied || '');
+      return copied === expected && (await txt(page, '#prodToast')).includes('issue IDs copied');
     }); await reset();
     await ok('pickerNoResults', async () => {
       await page.locator('.prod-row .prod-status[data-st]').first().click();
@@ -1276,7 +1299,7 @@ async function txt(page, sel) {
       card.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }));
       const selected = _prodState.cardSel.has(flat[0]) && _prodState.view === 'board' && _prodState.cardSel.size === 1 && !!document.querySelector('.prod-card.pcard-sel[data-prod-client-card="' + CSS.escape(flat[0]) + '"]');
       document.querySelector('[data-prod-client-card="' + CSS.escape(flat[0]) + '"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }));
-      const deselected = !_prodState.cardSel.has(flat[0]) && _prodState.view === 'board';
+      const deselected = !_prodState.cardSel.has(flat[0]) && _prodState.view === 'board' && !document.querySelector('.prod-card.pcard-kfocus[data-prod-client-card="' + CSS.escape(flat[0]) + '"]');
       return selected && deselected;
     })); await reset();
     await ok('boardCardShiftRange', async () => await page.evaluate(() => {
@@ -1315,7 +1338,7 @@ async function txt(page, sel) {
       document.querySelector('[data-prod-client-card="' + CSS.escape(flat[0]) + '"] [data-prod-cardcheck]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       const on = _prodState.cardSel.has(flat[0]) && !!document.querySelector('[data-prod-client-card="' + CSS.escape(flat[0]) + '"] .prod-card-check.on');
       document.querySelector('[data-prod-client-card="' + CSS.escape(flat[0]) + '"] [data-prod-cardcheck]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      const off = !_prodState.cardSel.has(flat[0]);
+      const off = !_prodState.cardSel.has(flat[0]) && !document.querySelector('.prod-card.pcard-kfocus[data-prod-client-card="' + CSS.escape(flat[0]) + '"]');
       return on && off;
     })); await reset();
     await ok('boardBulkStatus', async () => {
@@ -1461,6 +1484,29 @@ async function txt(page, sel) {
       const pills = await page.locator('.prod-filter-pill.interactive').count();
       const after = await page.locator('.prod-row').count();
       return pills === 1 && after <= before;
+    }); await reset();
+    await ok('combinedFiltersUniqueRows', async () => {
+      const state = await page.evaluate(() => {
+        _prodState.view = 'list';
+        _prodState.team = 'video';
+        _prodState.tab = 'active';
+        _prodState.clientSlug = '';
+        _prodState.filters = [];
+        const row = _prodIssues().find(i => i.team === 'video' && i.project && _prodTabAllows(i.status));
+        if (!row) return null;
+        _prodState.filters = [
+          { field: 'status', values: [_prodArtifactStatus(row.status)] },
+          { field: 'client', values: [row.project] }
+        ];
+        _prodRender();
+        const ids = _prodIssueRows().map(i => i.id);
+        return { count: ids.length, unique: ids.length === new Set(ids).size };
+      });
+      if (!state) return true;
+      const rows = await page.locator('.prod-row').count();
+      const pills = await page.locator('.prod-filter-pill.interactive').count();
+      const compact = await page.locator('.prod-filter-pill.interactive').evaluateAll(els => els.every(el => el.getBoundingClientRect().height <= 28));
+      return state.unique && rows === state.count && pills === 2 && compact;
     }); await reset();
     await ok('clearFiltersEmptySafe', async () => {
       await page.evaluate(() => { _prodState.filters = [{ field: 'status', values: ['__none__'] }]; window._prodRender(); });

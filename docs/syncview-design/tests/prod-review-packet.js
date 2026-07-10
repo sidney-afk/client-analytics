@@ -148,6 +148,8 @@ async function collectProjectBoardEvidence(page) {
     const cardCols = [...document.querySelectorAll('.prod-col.has-cards')];
     const hasAddOrOptions = col => !!col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]');
     const widths = [...document.querySelectorAll('.prod-col:not(.collapsed)')].map(col => Math.round(col.getBoundingClientRect().width));
+    const scope = document.querySelector('[data-prod-static-scope="projects"]');
+    const scopeStyle = scope ? getComputedStyle(scope) : null;
     return {
       emptyColumns: emptyCols.length,
       populatedColumns: cardCols.length,
@@ -157,6 +159,11 @@ async function collectProjectBoardEvidence(page) {
       columnWidths: widths,
       minColumnWidth: widths.length ? Math.min(...widths) : 0,
       maxColumnWidth: widths.length ? Math.max(...widths) : 0,
+      staticScopeLabel: scope ? scope.textContent.trim() : '',
+      staticScopeInteractive: !!(scope && (scope.hasAttribute('onclick') || scope.tabIndex >= 0)),
+      staticScopeCursor: scopeStyle ? scopeStyle.cursor : '',
+      staticScopePointerEvents: scopeStyle ? scopeStyle.pointerEvents : '',
+      staticScopeBackground: scopeStyle ? scopeStyle.backgroundColor : '',
     };
   });
 }

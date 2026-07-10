@@ -27,7 +27,7 @@ The validator checks that the gallery, Markdown manifest, review checklist, JSON
 
 ## GitHub Workflow
 
-`.github/workflows/production-polish-gate.yml` runs this gate on pull requests that touch Production UI/test files, and can also be started manually from GitHub Actions.
+`.github/workflows/production-polish-gate.yml` runs this gate on pull requests that touch Production UI/test files, can be started manually from GitHub Actions, and runs on `main` at 09:17 UTC Monday through Friday after this PR merges. The workflow cancels superseded in-progress runs for the same ref so repeated pushes do not leave stale browser jobs queued.
 
 The workflow uploads two visual artifacts:
 

@@ -8,6 +8,12 @@ on:
       - 'docs/syncview-design/**'
       - '.github/workflows/production-polish-gate.yml'
   workflow_dispatch:
+  schedule:
+    - cron: '17 9 * * 1-5'
+
+concurrency:
+  group: production-polish-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   production-polish:

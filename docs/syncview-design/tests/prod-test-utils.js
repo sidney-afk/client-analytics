@@ -72,9 +72,11 @@ async function installProductionInit(page) {
   });
 }
 
-async function openProduction(page, port, pathSuffix = '/?prod=1') {
+async function openProduction(page, port, pathSuffix = '/?prod=1', opts = {}) {
   const url = `http://127.0.0.1:${port}${pathSuffix}`;
-  const contentSelector = '.prod-row, .prod-empty-state, .prod-empty, .prod-board, .prod-detail, .prod-loading';
+  const contentSelector = opts.allowSkeleton
+    ? '.prod-row, .prod-empty-state, .prod-empty, .prod-board, .prod-detail, .prod-loading, .prod-loading-skeleton'
+    : '.prod-row, .prod-empty-state, .prod-empty, .prod-board, .prod-detail, .prod-loading';
   const waitForContent = timeout => page.waitForSelector(contentSelector, { timeout });
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.prod-view, .prod-error', { timeout: 45000 });

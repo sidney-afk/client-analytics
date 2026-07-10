@@ -42,15 +42,29 @@ check('FAST_TABS does not include production', /const FAST_TABS = \[[^\]]+\]/.te
 check('preview reads B1 dormant tables', /_prodRestRows\('clients'/.test(prodBlock) && /_prodRestRows\('batches'/.test(prodBlock) && /_prodRestRows\('deliverables'/.test(prodBlock));
 check('preview does not expose service-role-only archive table', !/linear_archive/.test(prodBlock));
 check('preview does not read or write runtime flags', !/syncview_runtime_flags/.test(prodBlock));
-check('preview fetches linear_raw for archive/delete surfacing', /_prodRestRows\('deliverables'[\s\S]{0,260}linear_raw/.test(prodBlock));
+check('preview fetches projected archive/delete markers instead of full linear_raw at boot',
+  /_prodRestRows\('deliverables'[\s\S]{0,1200}raw_issue_archived_at:linear_raw->issue->>archivedAt/.test(prodBlock)
+  && /raw_issue_canceled_at:linear_raw->issue->>canceledAt/.test(prodBlock)
+  && /raw_webhook_delete:linear_raw->>webhook_delete/.test(prodBlock)
+  && !/linear_issue_url,linear_raw'/.test(prodBlock)
+  && !/title,brief,status/.test(prodBlock));
+check('preview lazy-loads full linear_raw for a single detail row',
+  /async function _prodLoadLinearRawFor\(id\)/.test(prodBlock)
+  && /_prodRestRows\('deliverables', 'id,brief,linear_raw', 'id=eq\.'/.test(prodBlock)
+  && /_prodLoadLinearRawFor\(id\)/.test(prodBlock));
+check('preview background-loads brief text outside boot',
+  /async function _prodLoadBriefs\(opts\)/.test(prodBlock)
+  && /_prodRestRows\('deliverables', 'id,brief', 'order=id\.asc', 1000, 50\)/.test(prodBlock)
+  && /setTimeout\(\(\) => _prodLoadBriefs\(\{ silent: true \}\), 6500\)/.test(prodBlock));
 check('preview filters Linear webhook delete/archive markers out of live issues', /function _prodDeliverableLive\(d\)/.test(prodBlock)
   && /webhook_delete/.test(prodBlock)
   && /raw\.issue && \(raw\.issue\.archivedAt \|\| raw\.issue\.canceledAt\)/.test(prodBlock)
+  && /raw_issue_archived_at/.test(prodBlock)
   && /deliverables = \(raw\.deliverables \|\| \[\]\)\.filter\(_prodDeliverableLive\)/.test(prodBlock));
-check('preview fetch helper uses default GET', /fetch\(url, \{ headers: _prodHeaders\(\) \}\)/.test(prodBlock));
+check('preview fetch helper uses default GET with retry', /async function _prodRestPage\(url, table, page\)/.test(prodBlock) && /fetch\(url, \{ headers: _prodHeaders\(\) \}\)/.test(prodBlock) && /resp\.status === 429 \|\| resp\.status >= 500/.test(prodBlock));
 check('preview read helper takes explicit page size and max page cap', /async function _prodRestRows\(table, select, params, pageSize, maxPages\)/.test(prodBlock) && /page < cap/.test(prodBlock) && /read exceeded pagination cap/.test(prodBlock));
 check('preview read helper strips duplicate limit and offset params', prodBlock.includes('!/^limit=|^offset=/.test(p)'));
-check('preview callers pass page sizes explicitly', /_prodRestRows\('deliverables'[\s\S]{0,360}, 1000, 50\)/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));
+check('preview callers pass page sizes explicitly', /_prodRestRows\('deliverables'[\s\S]{0,1200}, 1000, 50\)/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));
 check('preview block has no explicit browser write methods', !/['"`](POST|PUT|PATCH|DELETE)['"`]/.test(prodBlock));
 check('preview block has no Supabase write helpers', !/\.(insert|update|upsert|rpc)\s*\(/.test(prodBlock));
 check('topbar excludes non-artifact New issue and Refresh chrome', !/New issue/.test(prodBlock) && !/<button class="prod-tab" type="button" onclick="_prodRefresh\(\)">Refresh<\/button>/.test(prodBlock));

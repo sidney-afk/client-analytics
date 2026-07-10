@@ -78,6 +78,12 @@ Latest owner-feedback follow-up on PR #763 also passed `prod-structure-subset.js
 Targeted screenshots reviewed selected/deselected project cards, the selected-issue command menu,
 and combined status/client filters.
 
+Automation follow-up after the owner asked to reduce manual polishing overhead added a single
+`npm run test:prod-polish` command and GitHub Actions workflow. The gate passed locally in
+315.5s and covers boot/loading, structure, interaction inventory, accessibility/focus, layout
+clipping, wired behavior, and pixel parity. New focused checks also passed individually:
+`prod-boot-budget.js`, `prod-a11y-focus.js`, and `prod-layout-polish.js`.
+
 ## Finding fixed
 
 ### P1: Escape inside a Production popover could also navigate the page
@@ -125,6 +131,31 @@ opens a Linear-style searchable command menu with Assign to, Change status, Move
 Copy issue ID, Change due date, and Delete issue; Copy issue ID writes the selected issue labels
 to the clipboard; filter pills have compact ellipsis rules; visible lists dedupe by issue ID.
 The composer remains intentionally guarded read-only in this preview.
+
+No data, flags, backend code, n8n workflows, or Supabase objects were touched.
+
+### P2: Production polish was still too manual to scale
+
+User-visible path:
+
+1. Owner gives natural-language Production feedback with screenshots.
+2. A future agent implements the change.
+3. The app needs to prove the fix did not regress hover, focus, right-click, clipping, loading,
+   keyboard, or visual parity elsewhere.
+
+Expected behavior: there is one obvious gate and one obvious GitHub issue shape for Production
+polish work, so rough feedback can become a PR with repeatable proof.
+
+Actual behavior before this pass: the repo had strong individual Production suites, but no single
+PR-ready command, no GitHub workflow for the full polish pass, no issue template for rough owner
+feedback, and no dedicated accessibility/layout gate.
+
+Fix: added `npm run test:prod-polish`, `.github/workflows/production-polish-gate.yml`,
+`prod-boot-budget.js`, `prod-a11y-focus.js`, `prod-layout-polish.js`,
+`docs/PRODUCTION_POLISH_AUTOMATION.md`, `.github/ISSUE_TEMPLATE/production-polish.yml`,
+`.github/copilot-instructions.md`, and `AGENTS.md`. The new gate also found and fixed a real
+keyboard accessibility gap: the Production global keyboard handler no longer steals Enter/Space
+from focused buttons, and icon-only Filter/Display controls now have accessible names.
 
 No data, flags, backend code, n8n workflows, or Supabase objects were touched.
 
@@ -328,6 +359,9 @@ The existing automated gates plus the focused screenshot review are strong for t
 - project/detail side-panel balance;
 - anything that feels clickable but is not obviously live, guarded, or disabled.
 
+For PR-level regression protection, run `npm run test:prod-polish`; it is the owner-feedback
+automation gate for the current read-only Production surface.
+
 ## Rollback
 
 This pass is reversible by reverting the July 9 Production hardening PR or the specific commit that contains:
@@ -336,6 +370,8 @@ This pass is reversible by reverting the July 9 Production hardening PR or the s
 - the mobile app-header and Production detail-crumb polish rules;
 - the project toolbar/display/menu cleanup;
 - the project-card selection, project-row metadata, selected-action command menu, filter-pill, and row-dedupe cleanup;
+- the Production polish automation gate, GitHub workflow, issue template, agent instructions,
+  and focused keyboard/accessibility fix;
 - this audit report;
 - the parity/doc ledger updates.
 

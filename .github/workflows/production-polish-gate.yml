@@ -1,0 +1,33 @@
+name: Production polish gate
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'package.json'
+      - 'docs/syncview-design/**'
+      - '.github/workflows/production-polish-gate.yml'
+  workflow_dispatch:
+
+jobs:
+  production-polish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser test dependencies
+        run: npm install --no-package-lock
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run Production polish gate
+        run: npm run test:prod-polish
+      - name: Upload Production polish screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-polish-screenshots
+          path: .codex-tmp/prod-pixel-wired
+          if-no-files-found: ignore

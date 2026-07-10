@@ -87,6 +87,7 @@
                 return;
             }
             var FAST = ['linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'smm-weekly-report', 'smm-weekly-reports'];
+            var RESTORABLE_FAST = FAST.filter(function (nav) { return nav !== 'smm-weekly-report' && nav !== 'smm-weekly-reports'; });
             var ses = function (k) { try { return sessionStorage.getItem(k) === 'ok'; } catch (e) { return false; } };
             var kasperOk = function () { return q.get('Kasper') === '1' || ses('syncview_kasper_unlocked'); };
             var ttpOk = function () { return q.get('ttpilot') === '1' || ses('syncview_ttpilot_unlocked'); };
@@ -121,7 +122,11 @@
                 // no history.state needed); the post-await router restores
                 // savedNav kasper/tiktok-pilot only on a real refresh
                 // (history.state present) and only while unlocked.
-                if (FAST.indexOf(nav) >= 0) target = nav;
+                if (nav === 'smm-weekly-report' || nav === 'smm-weekly-reports') {
+                    if (saved === 'smm-weekly-report' || saved === 'smm-weekly-reports') {
+                        try { localStorage.removeItem('syncview_nav'); } catch (e) {}
+                    }
+                } else if (RESTORABLE_FAST.indexOf(nav) >= 0) target = nav;
                 else if (st && st.nav && ((saved === 'kasper' && kasperOk()) || (saved === 'tiktok-pilot' && ttpOk()))) target = saved;
             }
             if (target) {
@@ -9564,7 +9569,7 @@
         if(state&&state.client){
             const nav=state.nav||'home';
             currentNav=nav;
-            try{localStorage.setItem(NAV_KEY,nav);}catch(e){}   // full quota must not break Back/Forward nav
+            try{if(!_isSmmWeeklyRoute(nav))localStorage.setItem(NAV_KEY,nav);}catch(e){}   // full quota must not break Back/Forward nav
             document.getElementById('navHome').classList.toggle('active',nav==='home');
             document.getElementById('navLinear').classList.remove('active');
             const navTpl=document.getElementById('navTemplates');
@@ -11545,6 +11550,8 @@
     const LAST_LINK_KEY = 'syncview_last_link';
     const LINEAR_FORM_KEY = 'syncview_linear_form';
     const NAV_KEY = 'syncview_nav';
+    const SMM_WEEKLY_ROUTES = ['smm-weekly-report', 'smm-weekly-reports'];
+    function _isSmmWeeklyRoute(page) { return SMM_WEEKLY_ROUTES.includes(page); }
     let currentNav = 'home';
     const LINEAR_DEFAULT_VIDEO_COUNT = 12;
     let linearVideoCount = LINEAR_DEFAULT_VIDEO_COUNT;
@@ -15053,7 +15060,13 @@
         // user cleared storage. Persisting the last tab is a nice-to-have; never
         // let it break navigation. (Every other localStorage write here is
         // likewise wrapped — this one was the lone gap.)
-        try { localStorage.setItem(NAV_KEY, page); } catch (e) {}
+        try {
+            if (_isSmmWeeklyRoute(page)) {
+                if (_isSmmWeeklyRoute(localStorage.getItem(NAV_KEY))) localStorage.removeItem(NAV_KEY);
+            } else {
+                localStorage.setItem(NAV_KEY, page);
+            }
+        } catch (e) {}
         document.getElementById('navHome').classList.toggle('active', page === 'home');
         document.getElementById('navLinear').classList.toggle('active', page === 'linear');
         const navProd = document.getElementById('navProd');
@@ -15084,7 +15097,7 @@
         // (and the toolbar margins) for this page only — see body.cal-page CSS.
         document.body.classList.toggle('cal-page', page === 'calendar');
         if (page === 'sample-reviews') document.body.classList.add('cal-page'); // SXR_LINE
-        document.body.classList.toggle('smm-weekly-mode', page === 'smm-weekly-report' || page === 'smm-weekly-reports');
+        document.body.classList.toggle('smm-weekly-mode', _isSmmWeeklyRoute(page));
 
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
@@ -29727,6 +29740,7 @@
         // fetchAll in the background so the page paints immediately instead
         // of blocking on the analytics roundtrip.
         const FAST_TABS = ['linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'smm-weekly-report', 'smm-weekly-reports'];
+        const RESTORABLE_FAST_TABS = FAST_TABS.filter(tab => !_isSmmWeeklyRoute(tab));
 
         function _applyAllDataDependentChrome() {
             try { renderPins(); } catch {}
@@ -32781,7 +32795,11 @@
                 if (_sxrOn) { try { window.__sxrDeepHash = hashRaw; } catch (e) {} setTimeout(function () { try { navTo('sample-reviews', false); } catch (e) {} }, 0); return; }
             }
             // <<< SXR_END
-            const savedNav = localStorage.getItem(NAV_KEY);
+            let savedNav = localStorage.getItem(NAV_KEY);
+            if (_isSmmWeeklyRoute(savedNav)) {
+                try { localStorage.removeItem(NAV_KEY); } catch (e) {}
+                savedNav = null;
+            }
             const stateNav = history.state && history.state.nav;
             const stateClient = history.state && history.state.client;
             const hashIsFastTab = FAST_TABS.includes(hashRaw)
@@ -32789,7 +32807,8 @@
                 || hashRaw.startsWith('calendar/')
                 || hashRaw.startsWith('samples/')
                 || hashRaw.startsWith('templates/');
-            const fallbackFast = !hashRaw && !stateClient && FAST_TABS.includes(stateNav || savedNav);
+            const restoreFastNav = _isSmmWeeklyRoute(stateNav) ? savedNav : (stateNav || savedNav);
+            const fallbackFast = !hashRaw && !stateClient && RESTORABLE_FAST_TABS.includes(restoreFastNav);
             // Kasper has no analytics dependency — every sub-tab fetches its own
             // data over webhooks. So a refresh straight onto Kasper (when the tab
             // is already unlocked for this session) should mount immediately
@@ -33095,7 +33114,7 @@
                 } else if (hashIsFastTab) {
                     navTo(hashRaw, false);
                 } else {
-                    navTo((stateNav || savedNav), false);
+                    navTo(restoreFastNav, false);
                 }
                 // Bubble fetch errors to the user, but only if they actually
                 // navigate somewhere that needs data — for a clean calendar
@@ -33302,7 +33321,7 @@
     const _isClientLink=!!new URLSearchParams(location.search).get('c');
     const _isIntake=(new URLSearchParams(location.search).get('intake')==='1');
     const _entryHash=(()=>{try{return decodeURIComponent(location.hash.replace('#','')).split('/')[0].split('?')[0];}catch(e){return location.hash.replace('#','').split('/')[0].split('?')[0];}})();
-    const _isSmmWeeklyEntry=(_entryHash==='smm-weekly-report'||_entryHash==='smm-weekly-reports');
+    const _isSmmWeeklyEntry=_isSmmWeeklyRoute(_entryHash);
     const _obParam=new URLSearchParams(location.search).get('onboarding');
     // AI funnel lives at /ai_onboarding_form (or ?onboarding=ai); the standard
     // funnel at /onboarding_form (or ?onboarding=<anything-else>). The /ai_ path

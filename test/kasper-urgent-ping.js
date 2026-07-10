@@ -55,6 +55,10 @@ function build(env) {
       env.fetches.push({ url, body: JSON.parse(opts.body) });
       return Promise.resolve({ ok: true, json: async () => ({ ok: true, editor: 'Iara Jael' }) });
     },
+    _calPersistUrgentSentForPost: (client, post, ping) => {
+      if (env.persists) env.persists.push({ client, post, ping });
+      return Promise.resolve({ ok: true });
+    },
     URGENT_SLACK_URL: 'http://x/webhook/send-urgent-slack',
     calState: env.calState || { client: '', posts: [] },
     _kasperState: env._kasperState || { items: [], replies: [] },
@@ -135,8 +139,10 @@ const VID = 'https://linear.app/synchro-social/issue/VID-12624/video-1';
   console.log('\n— source-form guards —');
   const cardSrc = grabFunc('_kasperRenderCard');
   check("Kasper card gates URGENT on the shared _calShowUrgent(p, 'video')", /_calShowUrgent\(p, 'video'\)/.test(cardSrc));
-  check('Kasper card wires the button to _kasperSendUrgentSlack', /_kasperSendUrgentSlack\(event,/.test(cardSrc));
-  check('Kasper button reuses .cal-urgent-btn (+ kcard variant)', /class="cal-urgent-btn kcard-urgent-btn"/.test(cardSrc));
+  check('Kasper card wires the button through the shared urgent renderer',
+    /_calUrgentButtonHtml\(_calEscAttr\(pid\), '_kasperSendUrgentSlack', p, 'kcard-urgent-btn', true\)/.test(cardSrc));
+  check('Kasper button reuses .cal-urgent-btn (+ kcard variant) through the renderer',
+    /_calUrgentButtonHtml/.test(cardSrc) && /kcard-urgent-btn/.test(cardSrc));
   check('both SMM and Kasper route through the shared _calUrgentSlackDispatch',
     /_calUrgentSlackDispatch\(/.test(grabFunc('_calSendUrgentSlack')) && /_calUrgentSlackDispatch\(/.test(grabFunc('_kasperSendUrgentSlack')));
   check('Kasper handler resolves from the review queue, not calState.posts',

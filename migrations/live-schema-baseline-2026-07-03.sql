@@ -61,6 +61,10 @@ create table if not exists public.calendar_posts (
   client_title_approved_at text,
   video_status_at timestamp with time zone,
   graphic_status_at timestamp with time zone,
+  video_urgent_pinged_at timestamp with time zone,
+  video_urgent_status_at timestamp with time zone,
+  video_urgent_issue text,
+  video_urgent_editor text,
   kasper_finish_log text
 );
 
@@ -218,6 +222,10 @@ create table if not exists public.sample_reviews (
   thumb_rev text,
   video_status_at timestamp with time zone,
   graphic_status_at timestamp with time zone,
+  video_urgent_pinged_at timestamp with time zone,
+  video_urgent_status_at timestamp with time zone,
+  video_urgent_issue text,
+  video_urgent_editor text,
   created_at text,
   updated_at text
 );

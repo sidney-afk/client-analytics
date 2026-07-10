@@ -25,19 +25,23 @@ const ALLOWED = [
   "video_status", "graphic_status", "video_tweaks", "graphic_tweaks",
   "client_video_approved_at", "client_graphic_approved_at", "kasper_approved_at", "kasper_approved_by", "kasper_seen",
   "kasper_approved_after_tweaks", "kasper_finished_at", "kasper_closed_at", "thumb_rev", "created_at",
+  "video_urgent_pinged_at", "video_urgent_status_at", "video_urgent_issue", "video_urgent_editor",
 ] as const;
 
 const CONTENT_FIELDS = ["name", "asset_url", "thumbnail_url", "creative_direction", "video_tweaks", "graphic_tweaks"];
 const SCALAR_FIELDS = [
   "name", "asset_url", "thumbnail_url", "status", "video_status", "graphic_status", "creative_direction",
   "linear_issue_id", "video_deliverable_id", "graphic_linear_issue_id", "graphic_deliverable_id", "kasper_approved_at",
+  "video_urgent_pinged_at", "video_urgent_status_at", "video_urgent_issue", "video_urgent_editor",
 ];
 const MIRROR_COLS = [
   "id", "order_index", "name", "asset_url", "thumbnail_url", "status", "creative_direction", "hide_creative_direction",
   "linear_issue_id", "video_deliverable_id", "graphic_linear_issue_id", "graphic_deliverable_id",
   "video_status", "graphic_status", "video_tweaks", "graphic_tweaks",
   "client_video_approved_at", "client_graphic_approved_at", "kasper_approved_at", "kasper_approved_by", "kasper_seen",
-  "kasper_approved_after_tweaks", "kasper_finished_at", "kasper_closed_at", "thumb_rev", "created_at", "updated_at",
+  "kasper_approved_after_tweaks", "kasper_finished_at", "kasper_closed_at", "thumb_rev",
+  "video_urgent_pinged_at", "video_urgent_status_at", "video_urgent_issue", "video_urgent_editor",
+  "created_at", "updated_at",
 ];
 
 const READ_FAILURE_MESSAGE = "Not saved \u2014 the sample store was briefly unavailable. Your text is kept; please try again in a moment.";
@@ -46,6 +50,7 @@ const RETAIN_MS = 30 * 24 * 60 * 60 * 1000;
 const LINK_COLUMNS = ["graphic_linear_issue_id", "linear_issue_id", "video_deliverable_id", "graphic_deliverable_id"] as const;
 const DUPLICATE_LINK_COLUMNS = ["linear_issue_id", "graphic_linear_issue_id"] as const;
 const NULLABLE_LINK_COLUMNS = new Set<string>(["video_deliverable_id", "graphic_deliverable_id"]);
+const URGENT_MARKER_FIELDS = ["video_urgent_pinged_at", "video_urgent_status_at", "video_urgent_issue", "video_urgent_editor"] as const;
 
 type JsonMap = Record<string, unknown>;
 type Row = Record<string, string | null>;
@@ -180,6 +185,36 @@ function mergeCell(existingStr: unknown, incomingStr: unknown, baseAt: string, n
   return kept.length ? JSON.stringify(kept) : "";
 }
 
+function applyUrgentMarkerGuards(row: JsonMap, incoming: JsonMap, existing: ExistingRow): void {
+  const touched = URGENT_MARKER_FIELDS.some(k => has(incoming, k));
+  if (!touched) return;
+
+  for (const field of URGENT_MARKER_FIELDS) {
+    if (has(incoming, field) && clean(incoming[field]) === "" && clean(existing[field]) !== "") {
+      row[field] = String(existing[field] == null ? "" : existing[field]);
+    }
+  }
+
+  if (!has(incoming, "video_urgent_pinged_at") || clean(incoming.video_urgent_pinged_at) === "") return;
+
+  const status = clean(has(row, "video_status") ? row.video_status : existing.video_status);
+  if (status !== "Tweaks Needed") {
+    for (const field of URGENT_MARKER_FIELDS) {
+      row[field] = String(existing[field] == null ? "" : existing[field]);
+    }
+    return;
+  }
+
+  const statusAt = clean(existing.video_status_at) || clean(row.video_status_at) || clean(incoming.video_urgent_status_at);
+  if (statusAt) {
+    row.video_urgent_status_at = statusAt;
+    row.video_status_at = statusAt;
+  }
+  if (!clean(row.video_urgent_issue)) {
+    row.video_urgent_issue = clean(row.linear_issue_id) || clean(existing.linear_issue_id);
+  }
+}
+
 function applyGuards(incoming: JsonMap, existing: ExistingRow, twins: ExistingRow[], readFailed: boolean, nowMs: number): JsonMap {
   if (readFailed) {
     return { _conflict: true, ok: false, id: incoming.id, error: READ_FAILURE_MESSAGE };
@@ -229,6 +264,8 @@ function applyGuards(incoming: JsonMap, existing: ExistingRow, twins: ExistingRo
       }
     }
   }
+
+  applyUrgentMarkerGuards(row, incoming, existing);
 
   if (existsAlready && baseAt) {
     const storedAt = clean(existing.updated_at);
@@ -380,6 +417,16 @@ function buildEvents(client: string, inc: Row, patch: JsonMap, existing: Existin
   }
   if (has(patch, "kasper_closed_at") && sv(inc, "kasper_closed_at") && sv(inc, "kasper_closed_at") !== sv(existing, "kasper_closed_at")) {
     ev("kasper_close", { component: null, role: "kasper" });
+  }
+  if (has(patch, "video_urgent_pinged_at") && sv(inc, "video_urgent_pinged_at") && sv(inc, "video_urgent_pinged_at") !== sv(existing, "video_urgent_pinged_at")) {
+    ev("urgent_ping", {
+      component: "video",
+      payload: {
+        issue: sv(inc, "video_urgent_issue") || sv(inc, "linear_issue_id"),
+        editor: sv(inc, "video_urgent_editor") || null,
+        status_at: sv(inc, "video_urgent_status_at") || null,
+      },
+    });
   }
 
   for (const [comp, col] of [["video", "linear_issue_id"], ["graphic", "graphic_linear_issue_id"]]) {

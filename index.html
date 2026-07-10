@@ -18920,6 +18920,60 @@
        resolves the editor and posts to #video-editing as the SyncView Bot. A
        disclaimer gates the send, and the button latches to "Sent" for the rest
        of the session so a card can't be spam-pinged on re-render. */
+    function _calUrgentSameRound(a, b) {
+        const as = String(a || '').trim(), bs = String(b || '').trim();
+        if (!as || !bs) return false;
+        if (as === bs) return true;
+        const at = Date.parse(as), bt = Date.parse(bs);
+        return Number.isFinite(at) && Number.isFinite(bt) && Math.abs(at - bt) < 1000;
+    }
+    function _calUrgentSentForCurrentRound(p) {
+        if (!_calShowUrgent(p, 'video')) return false;
+        if (!String((p && p.video_urgent_pinged_at) || '').trim()) return false;
+        return _calUrgentSameRound(p && p.video_urgent_status_at, p && p.video_status_at);
+    }
+    function _calApplyUrgentButtonState(btn, p) {
+        if (!btn) return;
+        const sent = _calUrgentSentForCurrentRound(p);
+        btn.disabled = sent;
+        btn.textContent = sent ? 'Sent' : 'URGENT';
+        btn.dataset.urgentSent = sent ? '1' : '0';
+        btn.classList.toggle('is-sent', sent);
+    }
+    function _calUrgentButtonHtml(pid, handlerName, post, extraClass, stopPropagation) {
+        const sent = _calUrgentSentForCurrentRound(post);
+        const cls = 'cal-urgent-btn' + (extraClass ? ' ' + extraClass : '') + (sent ? ' is-sent' : '');
+        const preClick = stopPropagation ? 'event.stopPropagation();' : '';
+        return `<button type="button" class="${cls}" data-urgent-pid="${pid}" data-urgent-sent="${sent ? '1' : '0'}" onclick="${preClick}${handlerName}(event,'${pid}')" title="Ping the editor in #video-editing that this needs urgent tweaks"${sent ? ' disabled' : ''}>${sent ? 'Sent' : 'URGENT'}</button>`;
+    }
+    function _calBuildUrgentPatch(post, ping) {
+        const issue = String((ping && ping.issue) || (post && post.linear_issue_id) || '').trim();
+        return {
+            id: post.id,
+            video_urgent_pinged_at: String((ping && ping.sentAt) || new Date().toISOString()),
+            video_urgent_status_at: String((post && post.video_status_at) || ''),
+            video_urgent_issue: issue,
+            video_urgent_editor: String((ping && ping.editor) || '')
+        };
+    }
+    async function _calPersistUrgentSentForPost(clientOrSlug, post, ping) {
+        if (!post || !post.id) return null;
+        const slug = calClientSlug(clientOrSlug);
+        const patch = _calBuildUrgentPatch(post, ping || {});
+        const resp = await fetch(CALENDAR_UPSERT_EF_URL, {
+            method: 'POST',
+            headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
+            body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
+        const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
+        Object.assign(post, patch, echo);
+        if (!String(post.video_status_at || '').trim() && String(post.video_urgent_status_at || '').trim()) {
+            post.video_status_at = post.video_urgent_status_at;
+        }
+        return echo;
+    }
     function _calSendUrgentSlack(event, pid) {
         if (event) { event.preventDefault(); event.stopPropagation(); }
         const btn = (event && event.currentTarget) ? event.currentTarget : null;
@@ -18934,7 +18988,9 @@
             showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.');
             return;
         }
-        _calUrgentSlackDispatch(btn, issue, String(calState.client || '').trim(), post.name);
+        _calUrgentSlackDispatch(btn, issue, String(calState.client || '').trim(), post.name, {
+            persist: (ping) => _calPersistUrgentSentForPost(calState.client, post, ping)
+        });
     }
     /* Shared confirm → POST → button-latch for the URGENT ping. Used by BOTH the
        SMM calendar button (_calSendUrgentSlack) and Kasper's review-card button
@@ -18943,7 +18999,7 @@
        editor from Linear and posts to #video-editing, so the message is byte-for
        -byte identical no matter who triggers it. `btn` may be null (no element to
        latch). */
-    function _calUrgentSlackDispatch(btn, issue, client, name) {
+    function _calUrgentSlackDispatch(btn, issue, client, name, opts) {
         showConfirm(
             'Send urgent tweak ping?',
             'This posts an “URGENT TWEAKS NEEDED” message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
@@ -18958,9 +19014,19 @@
                         let j = null;
                         try { j = await resp.json(); } catch {}
                         if (!resp.ok || (j && j.ok === false)) throw new Error((j && j.error) || ('http ' + (resp && resp.status)));
+                        let persistFailed = false;
+                        const sentAt = new Date().toISOString();
+                        if (opts && typeof opts.persist === 'function') {
+                            try {
+                                await opts.persist({ sentAt, issue, editor: (j && j.editor) || '' });
+                            } catch (persistErr) {
+                                persistFailed = true;
+                                try { console.warn('[Urgent] Sent Slack ping but could not persist marker', persistErr); } catch {}
+                            }
+                        }
                         if (btn) { btn.disabled = true; btn.textContent = 'Sent'; btn.dataset.urgentSent = '1'; btn.classList.add('is-sent'); }
                         const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
-                        showNotify('Urgent ping sent', 'Posted to #video-editing' + who + '.');
+                        showNotify('Urgent ping sent', 'Posted to #video-editing' + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
                         if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                         showNotify('Could not send', 'The urgent ping failed to send. Try again, or post in #video-editing manually.');
@@ -23197,7 +23263,7 @@
             // (Shared predicate so the in-place updater stays in lockstep.)
             const showUrgent = _calShowUrgent(p, c);
             const urgentBtn = showUrgent
-                ? `<button type="button" class="cal-urgent-btn" data-urgent-pid="${pid}" onclick="_calSendUrgentSlack(event,'${pid}')" title="Ping the editor in #video-editing that this needs urgent tweaks">URGENT</button>`
+                ? _calUrgentButtonHtml(pid, '_calSendUrgentSlack', p)
                 : '';
             return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${showUrgent ? ' has-urgent' : ''}" data-val="${_calEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ' disabled title="Link a Linear sub-issue first"' : ''}>
@@ -28330,7 +28396,9 @@
             subWrap.classList.toggle('has-urgent', showUrgent);
             const urgentEl = subWrap.querySelector('.cal-urgent-btn');
             if (showUrgent && !urgentEl) {
-                subWrap.insertAdjacentHTML('beforeend', `<button type="button" class="cal-urgent-btn" data-urgent-pid="${pid}" onclick="_calSendUrgentSlack(event,'${pid}')" title="Ping the editor in #video-editing that this needs urgent tweaks">URGENT</button>`);
+                subWrap.insertAdjacentHTML('beforeend', _calUrgentButtonHtml(pid, '_calSendUrgentSlack', post));
+            } else if (showUrgent && urgentEl) {
+                _calApplyUrgentButtonState(urgentEl, post);
             } else if (!showUrgent && urgentEl) {
                 urgentEl.remove();
             }
@@ -33360,7 +33428,9 @@
             const urgentEl = subWrap.querySelector('.cal-urgent-btn');
             if (showUrgent && !urgentEl) {
                 const escPid = _sxrEscAttr(pid);
-                subWrap.insertAdjacentHTML('beforeend', `<button type="button" class="cal-urgent-btn" data-urgent-pid="${escPid}" onclick="_sxrSendUrgentSlack(event,'${escPid}')" title="Ping the editor in #video-editing that this needs urgent tweaks">URGENT</button>`);
+                subWrap.insertAdjacentHTML('beforeend', _calUrgentButtonHtml(escPid, '_sxrSendUrgentSlack', post));
+            } else if (showUrgent && urgentEl) {
+                _calApplyUrgentButtonState(urgentEl, post);
             } else if (!showUrgent && urgentEl) {
                 urgentEl.remove();
             }
@@ -33881,6 +33951,25 @@
         if (_sxrNormStatus(p[c + '_status'] || '') !== 'Tweaks Needed') return false;
         return !!String(p.linear_issue_id || '').trim();
     }
+    async function _sxrPersistUrgentSentForPost(clientOrSlug, post, ping) {
+        if (!post || !post.id) return null;
+        const slug = sxrClientSlug(clientOrSlug);
+        const patch = _calBuildUrgentPatch(post, ping || {});
+        const resp = await fetch(SXR_UPSERT_EF_URL, {
+            method: 'POST',
+            headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
+            body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
+        const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
+        Object.assign(post, patch, echo);
+        if (!String(post.video_status_at || '').trim() && String(post.video_urgent_status_at || '').trim()) {
+            post.video_status_at = post.video_urgent_status_at;
+        }
+        try { _sxrUpdateCardStatusDisplay(post.id); } catch (e) {}
+        return echo;
+    }
     // Ping the editor in #video-editing for an urgent video tweak. Reuses the
     // calendar's shared confirm→POST→latch dispatch (same webhook + message), just
     // sourcing the video sub-issue + client name from sxr state.
@@ -33892,7 +33981,9 @@
         if (!post) return;
         const issue = String(post.linear_issue_id || '').trim();
         if (!issue) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
-        _calUrgentSlackDispatch(btn, issue, String(sxrState.client || '').trim(), post.name);
+        _calUrgentSlackDispatch(btn, issue, String(sxrState.client || '').trim(), post.name, {
+            persist: (ping) => _sxrPersistUrgentSentForPost(sxrState.client, post, ping)
+        });
     }
     function _sxrRenderInlineCard(p, isBlank, isCurrent) {
         const pid = _sxrEscAttr(p.id);
@@ -33913,7 +34004,7 @@
             // sub-issue we can tag the editor from.
             const showUrgent = _sxrShowUrgent(p, c);
             const urgentBtn = showUrgent
-                ? `<button type="button" class="cal-urgent-btn" data-urgent-pid="${pid}" onclick="_sxrSendUrgentSlack(event,'${pid}')" title="Ping the editor in #video-editing that this needs urgent tweaks">URGENT</button>`
+                ? _calUrgentButtonHtml(pid, '_sxrSendUrgentSlack', p)
                 : '';
             return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${showUrgent ? ' has-urgent' : ''}" data-val="${_sxrEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_sxrStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ' disabled title="Link a Linear sub-issue first"' : ''}>
@@ -36063,7 +36154,7 @@
             : `<span class="kcard-smm is-missing" onclick="event.stopPropagation();" title="No row for ${_sxrEscAttr(item.client)} in the Social Media Managers sheet"><span class="kcard-smm-avatar">?</span>Social media manager not found</span>`;
         // URGENT ping (video at Tweaks Needed + linked) — reuses the existing N8N
         // workflow + message via _sxrKasperSendUrgentSlack → _calUrgentSlackDispatch.
-        const urgentBtn = _sxrShowUrgent(p, 'video') ? `<button type="button" class="cal-urgent-btn kcard-urgent-btn" data-urgent-pid="${_sxrEscAttr(pid)}" onclick="event.stopPropagation();_sxrKasperSendUrgentSlack(event,'${_sxrEscAttr(pid)}')" title="Ping the editor in #video-editing that this video needs urgent tweaks">URGENT</button>` : '';
+        const urgentBtn = _sxrShowUrgent(p, 'video') ? _calUrgentButtonHtml(_sxrEscAttr(pid), '_sxrKasperSendUrgentSlack', p, 'kcard-urgent-btn', true) : '';
         const pending = awaiting.length
             ? `<span class="kcard-pending"><span class="kcard-pending-strong">${awaiting.map(c => _sxrEsc(COMP_LABELS[c])).join(' & ')}</span> awaiting your review</span>`
             : (isFinished ? `<span class="kcard-pending">Sent to SMM — changes pending</span>` : '');
@@ -36301,7 +36392,9 @@
         const issue = String(it.post.linear_issue_id || '').trim();
         if (!issue) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
         const client = String(it.client || wlCanonicalClient(it.slug) || '').trim();
-        _calUrgentSlackDispatch(btn, issue, client, it.post.name);
+        _calUrgentSlackDispatch(btn, issue, client, it.post.name, {
+            persist: (ping) => _sxrPersistUrgentSentForPost(it.slug || client, it.post, ping)
+        });
     }
     // Slack deep link to the card's SMM — mirror of _kasperOpenSlack, reading the
     // samples Kasper SMM map and the SHARED _kasperResolveSlackTarget.
@@ -41332,7 +41425,7 @@
         // _kasperSendUrgentSlack, which resolves the post from the (cross-client)
         // review queue rather than calState.posts.
         const urgentBtn = _calShowUrgent(p, 'video')
-            ? `<button type="button" class="cal-urgent-btn kcard-urgent-btn" data-urgent-pid="${_calEscAttr(pid)}" onclick="event.stopPropagation();_kasperSendUrgentSlack(event,'${_calEscAttr(pid)}')" title="Ping the editor in #video-editing that this video needs urgent tweaks">URGENT</button>`
+            ? _calUrgentButtonHtml(_calEscAttr(pid), '_kasperSendUrgentSlack', p, 'kcard-urgent-btn', true)
             : '';
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
         const openTweaks = _kasperOpenTweakCount(p);
@@ -41396,7 +41489,9 @@
             return;
         }
         const client = String(item.client || wlCanonicalClient(item.slug) || '').trim();
-        _calUrgentSlackDispatch(btn, issue, client, item.post.name);
+        _calUrgentSlackDispatch(btn, issue, client, item.post.name, {
+            persist: (ping) => _calPersistUrgentSentForPost(item.slug || client, item.post, ping)
+        });
     }
     window._kasperSendUrgentSlack = _kasperSendUrgentSlack;
 

@@ -200,37 +200,66 @@ async function txt(page, sel) {
         _prodState.collapsed = new Set();
         _prodRender();
         const projects = _prodProjects();
-        const ids = Object.keys(projects);
-        const id = ids.find(key => {
+        const scopedRows = key => _prodUniqueRows(_prodApplySubIssueVisibility(_prodIssues().filter(i => i.project === key && i.team === 'video')))
+          .filter(_prodMatchFilters)
+          .sort(_prodIssueOrderCompare);
+        const candidates = Object.keys(projects).map(key => {
           const all = _prodIssues().filter(i => i.project === key);
-          return all.some(i => i.team === 'video') && all.some(i => i.team === 'graphics') && _prodProjectRows(projects[key]).length;
-        }) || ids.find(key => _prodProjectRows(projects[key]).length) || '';
-        if (!id) return { id: '', expected: 0 };
-        const expected = _prodProjectRows(projects[id]).length;
+          const rows = scopedRows(key);
+          return {
+            id: key,
+            ids: rows.map(row => row.id),
+            mixed: all.some(i => i.team === 'video') && all.some(i => i.team === 'graphics')
+          };
+        }).filter(c => c.ids.length);
+        const picked = candidates.find(c => c.mixed) || candidates[0] || { id: '', ids: [] };
+        const id = picked.id;
+        if (!id) return { id: '', expectedIds: [] };
         _prodOpenProject(id);
-        return { id, expected };
+        return { id, expectedIds: picked.ids, mixed: !!picked.mixed };
       });
       if (!opened.id) return true;
       await page.waitForSelector('[data-prod-project-detail]', { timeout: 5000 });
-      return await page.evaluate(({ id, expected }) => {
+      return await page.evaluate(({ id, expectedIds, mixed }) => {
         const rows = [...document.querySelectorAll('[data-prod-project-issue]')];
         const rowModels = rows.map(row => _prodIssue(row.getAttribute('data-prod-project-issue'))).filter(Boolean);
+        const rowIds = rowModels.map(row => row.id);
+        const scopedAll = _prodProjectAllRows(_prodClient(id));
+        const curUnfiltered = _prodCurIssuesUnfiltered();
         const crumbTeam = (document.querySelector('.prod-detail-crumb [data-prod-crumb-team]')?.textContent || '').trim();
         const detailScope = (document.querySelector('.prod-detail-id')?.textContent || '').trim();
         const groupCount = (document.querySelector('.prod-subhead .prod-group-count')?.textContent || '').trim();
         const sideText = (document.querySelector('[data-prod-detail-card="project-issues"] .prod-side-row')?.textContent || '').trim();
-        return _prodState.view === 'project'
-          && _prodState.team === 'video'
-          && _prodState.openProjectId === id
-          && rows.length === expected
-          && rowModels.length === expected
-          && rowModels.every(row => row.team === 'video' && row.project === id)
-          && _prodProjectAllRows(_prodClient(id)).length === expected
-          && _prodCurIssuesUnfiltered().every(row => row.team === 'video' && row.project === id)
-          && crumbTeam === 'Video'
-          && detailScope === 'Video project'
-          && groupCount === String(expected)
-          && sideText === String(expected) + ' issue' + (expected === 1 ? '' : 's');
+        const expected = expectedIds.length;
+        const checks = {
+          view: _prodState.view === 'project',
+          team: _prodState.team === 'video',
+          openProject: _prodState.openProjectId === id,
+          rowCount: rows.length === expected,
+          modelCount: rowModels.length === expected,
+          rowIds: rowIds.join('|') === expectedIds.join('|'),
+          rowsScoped: rowModels.every(row => row.team === 'video' && row.project === id),
+          allRowsScoped: scopedAll.every(row => row.team === 'video' && row.project === id),
+          curScoped: curUnfiltered.every(row => row.team === 'video' && row.project === id),
+          crumbTeam: crumbTeam === 'Video',
+          detailScope: detailScope === 'Video project',
+          groupCount: groupCount === String(expected),
+          sideText: sideText === String(expected) + ' issue' + (expected === 1 ? '' : 's')
+        };
+        return Object.values(checks).every(Boolean) || {
+          id,
+          mixed,
+          expectedIds,
+          rowIds,
+          scopedAllIds: scopedAll.map(row => row.id),
+          curUnfilteredIds: curUnfiltered.map(row => row.id),
+          crumbTeam,
+          detailScope,
+          groupCount,
+          sideText,
+          state: { view: _prodState.view, team: _prodState.team, openProjectId: _prodState.openProjectId },
+          checks
+        };
       }, opened);
     }); await reset();
     await ok('projectRowsUseIssueListMetadataAndWidth', async () => {

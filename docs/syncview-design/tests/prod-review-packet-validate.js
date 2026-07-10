@@ -101,6 +101,7 @@ function validatePacket(dir = packetDir) {
   requiredNames.forEach(name => {
     if (!names.has(name)) failures.push(`Missing required screenshot metadata: ${name}`);
   });
+  const byName = name => shots.find(shot => shot && shot.name === name);
 
   shots.forEach((shot, index) => {
     const label = shot && (shot.file || shot.name || `screenshot-${index + 1}`);
@@ -143,6 +144,18 @@ function validatePacket(dir = packetDir) {
   const darkShots = shots.filter(shot => shot.theme === 'dark');
   if (mobileShots.length < 2) failures.push('Expected at least two mobile screenshots');
   if (darkShots.length < 1) failures.push('Expected at least one dark theme screenshot');
+  const combinedFilters = byName('combined-filters');
+  if (!combinedFilters || !combinedFilters.state || combinedFilters.state.filters < 2) {
+    failures.push('combined-filters screenshot must record active status/client filters in review-manifest.json');
+  }
+  const projectBoard = byName('project-board');
+  if (!projectBoard || !projectBoard.state || projectBoard.state.view !== 'board' || projectBoard.state.filters !== 0) {
+    failures.push('project-board screenshot must be an unfiltered board baseline in review-manifest.json');
+  }
+  const projectDetail = byName('project-detail');
+  if (!projectDetail || !projectDetail.state || projectDetail.state.view !== 'project' || projectDetail.state.filters !== 0) {
+    failures.push('project-detail screenshot must be an unfiltered project-detail baseline in review-manifest.json');
+  }
   if (!gallery.includes('Production Review Packet')) failures.push('index.html missing gallery heading');
   if (!markdown.includes('Production Review Packet')) failures.push('manifest.md missing heading');
   if (!checklist.includes('Production Review Checklist')) failures.push('review-checklist.md missing heading');

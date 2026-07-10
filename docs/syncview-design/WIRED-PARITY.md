@@ -338,3 +338,4 @@ Owner-feedback refinements applied on top of the read-only wired tab:
 ## 2026-07-10 Desktop Project-Detail Row Polish
 
 1. Project-detail issue rows now render parent issue context as a secondary line under the primary issue title instead of squeezing both into one row. `prod-layout-polish.js` guards that parent trails stay inside the row and remain visually subordinate to the title.
+2. Projects board columns now balance empty and non-empty statuses: columns with project cards get readable card width, while empty status columns remain visible but narrower. The Production review packet now records per-screenshot Production state and validates clean board/project baselines separately from the intentionally filtered list screenshot.

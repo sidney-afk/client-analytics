@@ -27,6 +27,22 @@ async function screenshot(page, shots, name, label, note, extra = {}) {
   const file = `${String(shots.length + 1).padStart(2, '0')}-${name}.png`;
   await page.screenshot({ path: path.join(outDir, file), fullPage: false });
   const viewport = page.viewportSize() || {};
+  let state = null;
+  try {
+    state = await page.evaluate(() => {
+      if (typeof _prodState === 'undefined') return null;
+      return {
+        view: _prodState.view || '',
+        team: _prodState.team || '',
+        tab: _prodState.tab || '',
+        filters: Array.isArray(_prodState.filters) ? _prodState.filters.length : 0,
+        selectedRows: _prodState.selected && typeof _prodState.selected.size === 'number' ? _prodState.selected.size : 0,
+        selectedCards: _prodState.cardSel && typeof _prodState.cardSel.size === 'number' ? _prodState.cardSel.size : 0,
+      };
+    });
+  } catch (err) {
+    state = null;
+  }
   shots.push({
     file,
     name,
@@ -40,6 +56,7 @@ async function screenshot(page, shots, name, label, note, extra = {}) {
     theme: extra.theme || 'light',
     surface: extra.surface || name,
     route: extra.route || 'production',
+    state,
     checks: extra.checks || [],
   });
 }
@@ -93,12 +110,29 @@ async function setCombinedFilters(page) {
 }
 
 async function setBoard(page) {
-  await page.evaluate(() => window._prodOpenTeamView('video', 'board'));
+  await page.evaluate(() => {
+    window._prodClearLayer && window._prodClearLayer();
+    document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
+    _prodState.filters = [];
+    _prodState.selected.clear();
+    _prodState.cardSel.clear();
+    _prodState.focusCard = '';
+    _prodState.clientSlug = '';
+    _prodOpenTeamView('video', 'board');
+  });
   await page.waitForSelector('.prod-board', { timeout: 10000 });
+  const clean = await page.evaluate(() => _prodState.view === 'board' && _prodState.team === 'video' && (_prodState.filters || []).length === 0);
+  if (!clean) throw new Error('Project board review screenshot did not reset to an unfiltered board state');
 }
 
 async function setProject(page) {
   await page.evaluate(() => {
+    window._prodClearLayer && window._prodClearLayer();
+    document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
+    _prodState.filters = [];
+    _prodState.selected.clear();
+    _prodState.cardSel.clear();
+    _prodState.focusCard = '';
     const projects = _prodProjects();
     const ids = Object.keys(projects);
     const filteredId = ids.find(key => _prodProjectRows(projects[key]).length);
@@ -109,6 +143,8 @@ async function setProject(page) {
     if (id) _prodOpenProject(id);
   });
   await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
+  const clean = await page.evaluate(() => _prodState.view === 'project' && (_prodState.filters || []).length === 0);
+  if (!clean) throw new Error('Project detail review screenshot did not reset to an unfiltered project state');
 }
 
 async function setParentDetail(page) {

@@ -143,6 +143,17 @@ async function collectLayoutFailures(page, label) {
             && columns.every(col => col.getBoundingClientRect().right <= boardRect.right + 2);
         });
         if (!boardFitsDesktop) failures.push('desktop project board clips the final visible column at review width');
+        const boardColumnBalance = await page.evaluate(() => {
+          const cardCols = [...document.querySelectorAll('.prod-col.has-cards:not(.collapsed)')];
+          const emptyCols = [...document.querySelectorAll('.prod-col.is-empty:not(.collapsed)')];
+          const titleWidths = [...document.querySelectorAll('.prod-col.has-cards .prod-card-title')].slice(0, 8).map(el => el.getBoundingClientRect().width);
+          return cardCols.length === 0 || (
+            cardCols.every(col => col.getBoundingClientRect().width >= 250)
+            && emptyCols.every(col => col.getBoundingClientRect().width <= 190)
+            && titleWidths.every(width => width >= 80)
+          );
+        });
+        if (!boardColumnBalance) failures.push('desktop project board should give non-empty columns enough width for readable project cards');
       }
       if (await page.locator('.prod-card[data-prod-client-card]').count()) {
         await page.locator('.prod-card[data-prod-client-card] [data-prod-cardcheck]').first().click({ force: true });

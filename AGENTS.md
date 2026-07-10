@@ -2,6 +2,13 @@
 
 This repo is a single-file SyncView app served by GitHub Pages from `index.html`.
 
+- **`docs/CLIENT_LIFECYCLE_MAP.md` is a MIRRORED doc** — the identical file
+  lives in the `synchrosocial` repo at `docs/CLIENT_LIFECYCLE_MAP.md`. It maps
+  the entire client lifecycle (traffic → booking → sales → onboarding →
+  provisioning → samples → production). If you change either copy, apply the
+  identical change to the other repo in the same session/PR; keep them
+  byte-identical.
+
 For Production tab polish:
 
 - The current Production tab is a read-only Linear-style preview. Do not introduce real writes unless the requested milestone explicitly enables write behavior.

@@ -299,6 +299,7 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '[data-prod-detail-card="properties"]', 1, 'Properties detail card');
     await expectCount(page, '[data-prod-detail-card="project"]', 1, 'Project detail card');
     if (!(await text(page, '.prod-activity')).includes('Activity')) throw new Error('Activity section missing');
+    if (await page.locator('.prod-activity .prod-skeleton').count()) throw new Error('Activity should not show unresolved skeleton bars in the read-only preview');
     const activityLinesAreCompact = await page.evaluate(() => {
       const act = document.querySelector('.prod-act');
       return !act || (!!act.querySelector('.prod-act-text') && !act.querySelector('.prod-act-meta'));

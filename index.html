@@ -2718,6 +2718,7 @@
         .prod-act-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .prod-act-text b { color: var(--prod-strong); font-weight: 600; }
         .prod-act-time { color: var(--prod-faint); }
+        .prod-act-empty { color: var(--prod-faint); font-size: 12.5px; margin-bottom: 12px; }
         .prod-composer { margin-top: 10px; display: flex; gap: 10px; opacity: .75; }
         .prod-composer-box { flex: 1; border: 1px solid var(--prod-border); border-radius: 10px; background: var(--prod-surface); padding: 9px 10px; color: var(--prod-faint); font-size: 13px; }
         .prod-empty, .prod-error, .prod-loading { margin: auto; max-width: 420px; text-align: center; color: var(--prod-muted); font-size: 13px; line-height: 1.5; padding: 40px; }
@@ -31119,8 +31120,7 @@
         }
         async function _prodLoadEventsFor(id) {
             if (!id || _prodState.events.has(id)) return;
-            _prodState.events.set(id, null);
-            _prodRender();
+            _prodState.events.set(id, []);
             try {
                 const rows = await _prodRestRows('deliverable_events', 'id,deliverable_id,batch_id,client_slug,ts,actor,role,action,from_status,to_status,source,payload', 'deliverable_id=eq.' + encodeURIComponent(id) + '&order=ts.desc', 30, 2);
                 _prodState.events.set(id, rows);
@@ -31934,10 +31934,7 @@
                 + '</div>';
         }
         function _prodActivity(events) {
-            if (events === null || events === undefined) return '<div class="sv-skeleton-stack" role="status" aria-label="Loading" style="margin-bottom:12px;">'
-                + '<span class="prod-skeleton" style="height:13px;width:48%;"></span>'
-                + '<span class="prod-skeleton" style="height:13px;width:72%;"></span></div>';
-            if (!events.length) return '<div style="color:var(--prod-faint);font-size:12.5px;margin-bottom:12px">No activity events on this migrated row yet.</div>';
+            if (!events || !events.length) return '<div class="prod-act-empty">No activity events on this migrated row yet.</div>';
             return events.slice(0, 12).map(e => {
                 const actor = e.actor || e.role || e.source || 'system';
                 const label = e.action === 'status_change'

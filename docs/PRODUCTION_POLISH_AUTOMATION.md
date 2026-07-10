@@ -11,6 +11,7 @@ It runs the checks that matter for making the Production tab feel finished:
 - boot skeleton routing for `?prod=1`, including a guard against the Analytics skeleton flashing;
 - structural parity for the Linear-style sidebar, rows, details, migrated Markdown/resource descriptions, menus, and project board;
 - interaction inventory across click, right-click, hover, selection, Escape, keyboard, filters, display options, filtered project-board copy, and guarded read-only controls;
+- detail activity empty states, including a guard against unresolved placeholder bars in migrated rows;
 - accessibility/focus basics with axe-core plus custom keyboard checks;
 - layout clipping checks across desktop, compact desktop, and mobile viewports, including project-detail filtered-empty states;
 - existing behavior and pixel parity suites.

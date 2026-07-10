@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 160;
+const TOTAL = 161;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -982,6 +982,21 @@ async function txt(page, sel) {
         const ok = !!cs && cs.whiteSpace === 'nowrap' && cs.textOverflow === 'ellipsis' && cs.overflow === 'hidden';
         host.remove();
         return ok;
+      });
+    }); await reset();
+    await ok('activityMissingDataNotSkeleton', async () => {
+      const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
+      await page.evaluate(rowId => {
+        _prodState.events.delete(rowId);
+        _prodOpenDeliverable(rowId);
+      }, id);
+      await page.waitForSelector('.prod-detail');
+      return await page.evaluate(() => {
+        const activity = document.querySelector('.prod-activity');
+        return !!activity
+          && !activity.querySelector('.prod-skeleton')
+          && !!activity.querySelector('.prod-act-empty')
+          && /No activity events/i.test(activity.textContent || '');
       });
     }); await reset();
     await ok('boardJK', async () => {

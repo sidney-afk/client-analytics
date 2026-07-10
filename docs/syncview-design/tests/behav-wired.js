@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 164;
+const TOTAL = 165;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -521,6 +521,21 @@ async function txt(page, sel) {
       _prodState.filters = [];
       _prodRender();
       return ok;
+    })); await reset();
+    await ok('emptyBoardColumnsStayStatic', async () => await page.evaluate(() => {
+      _prodState.view = 'board';
+      _prodState.team = 'video';
+      _prodState.openId = '';
+      _prodState.openBatchId = '';
+      _prodState.clientSlug = '';
+      _prodState.filters = [];
+      _prodRender();
+      const emptyCols = [...document.querySelectorAll('.prod-col.is-empty')];
+      const cardCols = [...document.querySelectorAll('.prod-col.has-cards')];
+      return emptyCols.length > 0
+        && cardCols.length > 0
+        && emptyCols.every(col => !col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]'))
+        && cardCols.every(col => col.querySelector('[data-prod-disabled="add-client-board-card"]') && col.querySelector('[data-prod-disabled="board-column-options"]'));
     })); await reset();
     await ok('markdown', async () => await page.evaluate(() => {
       const h = _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com - VID-12586\n---\n## Client Resources\n**Instagram: [theopenposturedoc](<https://www.instagram.com/theopenposturedoc/#>)**\n**Brand Guidelines:** **[Document](<https://docs.google.com/document/d/abc/edit>)\n****Personal Pictures:** [**Folder**](<https://drive.google.com/drive/folders/abc>)');

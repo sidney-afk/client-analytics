@@ -125,6 +125,20 @@ async function collectCombinedFilterEvidence(page) {
   });
 }
 
+async function collectProjectBoardEvidence(page) {
+  return page.evaluate(() => {
+    const emptyCols = [...document.querySelectorAll('.prod-col.is-empty')];
+    const cardCols = [...document.querySelectorAll('.prod-col.has-cards')];
+    const hasAddOrOptions = col => !!col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]');
+    return {
+      emptyColumns: emptyCols.length,
+      populatedColumns: cardCols.length,
+      emptyColumnsWithActionControls: emptyCols.filter(hasAddOrOptions).length,
+      populatedColumnsWithActionControls: cardCols.filter(hasAddOrOptions).length,
+    };
+  });
+}
+
 async function collectProjectDetailEvidence(page) {
   return page.evaluate(() => {
     const rows = [...document.querySelectorAll('[data-prod-project-issue]')];
@@ -555,9 +569,11 @@ ${cards}
     });
 
     await setBoard(desktop);
+    const projectBoardEvidence = await collectProjectBoardEvidence(desktop);
     await screenshot(desktop, shots, 'project-board', 'Project board', 'Board columns, project card spacing, card metadata, pointer/selection affordances.', {
       surface: 'projects-board',
       route: 'production/video/projects',
+      evidence: projectBoardEvidence,
       checks: ['board columns', 'project card spacing', 'card metadata', 'selection affordance'],
     });
 

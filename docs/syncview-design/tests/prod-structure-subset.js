@@ -374,6 +374,15 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '.prod-col.collapsed .prod-col-rail', 1, 'collapsed board column rail');
     await page.locator('[data-prod-pcolcollapse]').first().click();
     await expectCount(page, '.prod-col-head [data-prod-disabled="add-client-board-card"][title="Preview - read-only"]', 1, 'disabled board add controls');
+    const emptyColumnsStatic = await page.evaluate(() => {
+      const emptyCols = [...document.querySelectorAll('.prod-col.is-empty')];
+      const cardCols = [...document.querySelectorAll('.prod-col.has-cards')];
+      return emptyCols.length > 0
+        && cardCols.length > 0
+        && emptyCols.every(col => !col.querySelector('[data-prod-disabled="add-client-board-card"], [data-prod-disabled="board-column-options"]'))
+        && cardCols.every(col => col.querySelector('[data-prod-disabled="add-client-board-card"]') && col.querySelector('[data-prod-disabled="board-column-options"]'));
+    });
+    if (!emptyColumnsStatic) throw new Error('Empty project-board columns should not show fake add/options controls');
     await expectCount(page, '[data-prod-client-card]', 1, 'project cards');
     const card = page.locator('[data-prod-client-card]').first();
     for (const sel of ['.prod-card-check', '.prod-card-ico', '.prod-card-title', '.prod-card-status svg', '.prod-avatar']) {

@@ -83,6 +83,13 @@ async function collectParentDetailEvidence(page) {
   });
 }
 
+async function collectListGroupEvidence(page) {
+  return page.evaluate(() => ({
+    visibleGroups: document.querySelectorAll('.prod-listwrap .prod-group').length,
+    groupAddControls: document.querySelectorAll('.prod-listwrap .prod-group [data-prod-disabled="add-deliverable"], .prod-listwrap .prod-group .prod-group-add').length,
+  }));
+}
+
 async function collectBulkActionEvidence(page) {
   return page.evaluate(() => {
     const menu = document.querySelector('#prodLayer .prod-pop[data-prod-bulkcmd]');
@@ -159,6 +166,7 @@ async function collectProjectDetailEvidence(page) {
       rowTeams: [...new Set(rowTeams)].sort(),
       groupCountText: groupCount ? groupCount.textContent.trim() : '',
       sideIssuesText: sideCount ? sideCount.textContent.trim() : '',
+      groupAddControls: document.querySelectorAll('.prod-project-groups .prod-project-group [data-prod-disabled="add-project-issue"], .prod-project-groups .prod-project-group .prod-group-add').length,
     };
   });
 }
@@ -544,9 +552,11 @@ ${cards}
     await openProduction(desktop, port);
 
     await setList(desktop);
+    const listGroupEvidence = await collectListGroupEvidence(desktop);
     await screenshot(desktop, shots, 'desktop-list', 'Desktop list', 'Baseline grouped issue list, toolbar, filter/display buttons, row metadata.', {
       surface: 'list',
       route: 'production/video/issues',
+      evidence: listGroupEvidence,
       checks: ['grouped issue list', 'toolbar controls', 'filter/display buttons', 'row metadata'],
     });
 

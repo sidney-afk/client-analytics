@@ -144,7 +144,7 @@ async function assertNoWriteRequests(requests) {
     if (removedNav) throw new Error('Removed prototype navigation item leaked into sidebar');
 
     await expectCount(page, '.prod-group .prod-status svg', 1, 'status-group glyphs');
-    await expectCount(page, '.prod-group [data-prod-disabled="add-deliverable"][title="Preview - read-only"]', 1, 'disabled group add controls');
+    await expectExactCount(page, '.prod-listwrap .prod-group [data-prod-disabled="add-deliverable"]', 0, 'issue-list group add controls');
     const groupContextPrevented = await page.locator('.prod-group').first().evaluate(el => {
       const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, view: window });
       el.dispatchEvent(ev);
@@ -431,6 +431,7 @@ async function assertNoWriteRequests(requests) {
       return rows.length === 0 || rows.every(row => row.querySelector('.prod-status[data-st]') && row.querySelector('.prod-id') && row.querySelector('.prod-title') && row.querySelector('.prod-due') && row.querySelector('[data-prod-assign]'));
     });
     if (!projectRowShapeOk) throw new Error('Project issue rows are missing issue-list metadata controls');
+    await expectExactCount(page, '.prod-project-groups .prod-project-group [data-prod-disabled="add-project-issue"]', 0, 'project-detail group add controls');
     await expectCount(page, '[data-prod-pstatus]', 1, 'project detail status property');
     await expectCount(page, '[data-prod-plead]', 1, 'project detail lead property');
     await expectCount(page, '[data-prod-ptarget]', 1, 'project detail target property');

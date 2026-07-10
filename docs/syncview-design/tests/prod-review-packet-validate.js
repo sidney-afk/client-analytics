@@ -146,6 +146,10 @@ function validatePacket(dir = packetDir) {
   if (darkShots.length < 1) failures.push('Expected at least one dark theme screenshot');
   const selectedActions = byName('selected-actions-menu');
   const expectedBulkLabels = ['Assign to...', 'Change status...', 'Move to project...', 'Copy issue ID', 'Change due date...', 'Delete issue'];
+  const desktopList = byName('desktop-list');
+  if (!desktopList || !desktopList.evidence || desktopList.evidence.visibleGroups < 1 || desktopList.evidence.groupAddControls !== 0) {
+    failures.push('desktop-list screenshot must record grouped rows with no fake group-header add controls in review-manifest.json');
+  }
   if (!selectedActions || !selectedActions.evidence || !selectedActions.evidence.actionBarVisible || !selectedActions.evidence.menuVisible || !selectedActions.evidence.searchVisible || selectedActions.evidence.selectedRows < 2) {
     failures.push('selected-actions-menu screenshot must record visible action bar, searchable menu, and selected-row evidence in review-manifest.json');
   } else {
@@ -186,6 +190,9 @@ function validatePacket(dir = packetDir) {
     const expectedSideText = String(visibleRows) + ' issue' + (visibleRows === 1 ? '' : 's');
     if (projectDetail.evidence.sideIssuesText !== expectedSideText) {
       failures.push(`project-detail side issue count does not match visible rows: ${projectDetail.evidence.sideIssuesText || '(missing)'} vs ${expectedSideText}`);
+    }
+    if (projectDetail.evidence.groupAddControls !== 0) {
+      failures.push(`project-detail still exposes ${projectDetail.evidence.groupAddControls} fake group-header add control(s)`);
     }
   }
   const parentDetail = byName('parent-detail');

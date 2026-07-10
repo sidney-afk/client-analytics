@@ -145,7 +145,7 @@ function validatePacket(dir = packetDir) {
   if (mobileShots.length < 2) failures.push('Expected at least two mobile screenshots');
   if (darkShots.length < 1) failures.push('Expected at least one dark theme screenshot');
   const selectedActions = byName('selected-actions-menu');
-  const expectedBulkLabels = ['Assign to...', 'Change status...', 'Move to project...', 'Copy issue ID', 'Change due date...', 'Delete issue'];
+  const expectedBulkLabels = ['Assign to...', 'Change status...', 'Move to project...', 'Copy issue IDs', 'Change due date...', 'Delete issues'];
   const desktopList = byName('desktop-list');
   if (!desktopList || !desktopList.evidence || desktopList.evidence.visibleGroups < 1 || desktopList.evidence.groupAddControls !== 0) {
     failures.push('desktop-list screenshot must record grouped rows with no fake group-header add controls in review-manifest.json');

@@ -1399,7 +1399,7 @@ async function txt(page, sel) {
       await page.locator('#prodBulkActions').click();
       await page.waitForSelector('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', { timeout: 5000 });
       const labels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
-      if (labels !== 'Assign to...|Change status...|Move to project...|Copy issue ID|Change due date...|Delete issue') return false;
+      if (labels !== 'Assign to...|Change status...|Move to project...|Copy issue IDs|Change due date...|Delete issues') return false;
       await page.fill('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', 'status');
       const visibleLabels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx]').evaluateAll(els => els.filter(el => el.style.display !== 'none').map(el => el.textContent.trim()).join('|'));
       if (!visibleLabels.includes('Change status...') || visibleLabels.includes('Assign to...')) return false;

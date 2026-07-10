@@ -31707,16 +31707,17 @@
             const r = bar ? bar.getBoundingClientRect() : null;
             const ids = _prodTargetIds(id);
             const count = ids.length || 1;
+            const plural = count !== 1;
             const command = (label, icon, act, kbd, chev, danger) =>
                 '<div class="prod-mi' + (danger ? ' danger' : '') + '" data-prod-ctx="' + _calEscAttr(act) + '" data-prod-bulk-label="' + _calEscAttr(label) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (chev ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
             const html = '<div class="prod-pop-search"><span class="prod-bulk-chip">' + count + ' selected</span><input data-prod-search placeholder="Type a command or search..."></div><div class="prod-pop-list">'
                 + command('Assign to...', _prodIcon('assign'), 'assign', 'A', true)
                 + command('Change status...', _prodIcon('issues'), 'status', 'S', true)
                 + command('Move to project...', _prodIcon('project'), 'proj', 'P', true)
-                + command('Copy issue ID', _prodIcon('copy'), 'copy-id', 'C', false)
+                + command(plural ? 'Copy issue IDs' : 'Copy issue ID', _prodIcon('copy'), 'copy-id', 'C', false)
                 + command('Change due date...', _prodIcon('cal'), 'due', 'D', true)
                 + '<div class="prod-msep"></div>'
-                + command('Delete issue', _prodIcon('trash'), 'delete', '', false, true)
+                + command(plural ? 'Delete issues' : 'Delete issue', _prodIcon('trash'), 'delete', '', false, true)
                 + '</div>';
             const pop = _prodLayerPop(html, r ? r.left : innerWidth / 2, r ? r.top - 8 : 160);
             if (pop && r) {

@@ -310,7 +310,7 @@ async function assertNoWriteRequests(requests) {
     await page.locator('[data-prod-disabled="composer"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     if (!(await text(page, '#prodToast')).includes('Preview - read-only')) throw new Error('Composer did not route to read-only guard');
-    if (!(await page.locator('[data-prod-disabled="detail-controls"][title="Preview - read-only"]:disabled').count())) throw new Error('Disabled detail controls missing');
+    await expectExactCount(page, '[data-prod-disabled="detail-controls"], .prod-disabled-pill', 0, 'detail disabled scaffold controls');
     await page.locator('[data-prod-prop="due"]').first().click();
     await expectCount(page, '.prod-duepop .prod-cal, .prod-duepop [data-prod-set="__custom__"]', 1, 'detail due property opens due popover');
     await page.locator('.prod-duepop [data-prod-set="__custom__"]').first().click().catch(() => {});
@@ -446,6 +446,7 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '[data-prod-pstatus]', 1, 'project detail status property');
     await expectCount(page, '[data-prod-plead]', 1, 'project detail lead property');
     await expectCount(page, '[data-prod-ptarget]', 1, 'project detail target property');
+    await expectExactCount(page, '[data-prod-disabled="project-controls"], .prod-disabled-pill', 0, 'project detail disabled scaffold controls');
     await page.locator('[data-prod-pstatus]').first().click();
     await expectCount(page, '#prodLayer .prod-pop [data-prod-ppick]', 1, 'project detail guarded status picker');
     await page.keyboard.press('Escape');

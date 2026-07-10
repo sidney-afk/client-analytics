@@ -12,7 +12,7 @@ It runs the checks that matter for making the Production tab feel finished:
 - structural parity for the Linear-style sidebar, rows, details, menus, and project board;
 - interaction inventory across click, right-click, hover, selection, Escape, keyboard, filters, display options, and guarded read-only controls;
 - accessibility/focus basics with axe-core plus custom keyboard checks;
-- layout clipping checks across desktop, compact desktop, and mobile viewports;
+- layout clipping checks across desktop, compact desktop, and mobile viewports, including project-detail filtered-empty states;
 - existing behavior and pixel parity suites.
 
 For reviewer screenshots, run:

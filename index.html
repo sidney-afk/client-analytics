@@ -2903,6 +2903,10 @@
         .prod-empty-state .es-ico { color: var(--prod-faint); opacity: .45; }
         .prod-empty-state .es-ico svg { width: 46px; height: 46px; }
         .prod-empty-state .es-clear { height: 30px; padding: 0 14px; border-radius: 7px; background: var(--prod-hover); color: var(--prod-strong); font-size: 13px; font-weight: 500; border: 0; }
+        .prod-inline-empty { margin: 0; padding: 16px 12px; text-align: left; color: var(--prod-muted); font-size: 13px; line-height: 1.5; border-top: 1px solid var(--prod-divider); }
+        .prod-inline-empty-title { display: block; color: var(--prod-strong); font-weight: 600; margin-bottom: 2px; }
+        .prod-inline-empty-action { margin-top: 10px; height: 28px; padding: 0 12px; border: 0; border-radius: 7px; background: var(--prod-hover); color: var(--prod-strong); font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; }
+        .prod-inline-empty-action:hover { background: var(--prod-menu-hover); }
         @media (max-width: 900px) { .prod-view { margin-left: -16px; margin-right: -16px; } .prod-side { display: none; } .prod-right { display: none; } .prod-detail-inner { padding-left: 20px; padding-right: 20px; } .prod-chip.optional { display: none; } }
 
         /* Workload calendar */
@@ -31771,8 +31775,13 @@
             return '<div class="prod-group prod-project-group' + (collapsed ? ' collapsed' : '') + '" data-prod-project-group="' + _calEscAttr(group.key) + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-ico prod-status">' + group.icon + '</span><span class="prod-group-title">' + _calEsc(group.title) + '</span><span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-project-issue" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div>'
                 + (collapsed ? '' : items.map(_prodProjectIssueRowHTML).join(''));
         }
-        function _prodProjectRowsHTML(rows, empty) {
-            if (!rows.length) return '<div class="prod-empty" style="margin:0;padding:16px;text-align:left;">' + _calEsc(empty) + '</div>';
+        function _prodProjectRowsHTML(rows, empty, allCount, projectName) {
+            if (!rows.length) {
+                if ((_prodState.filters || []).length && Number(allCount || 0) > 0) {
+                    return '<div class="prod-inline-empty" data-prod-project-filter-empty="1"><span class="prod-inline-empty-title">No issues match your filters.</span><span>Clear filters to see ' + _calEsc(String(allCount)) + ' issue' + (Number(allCount) === 1 ? '' : 's') + ' for ' + _calEsc(projectName || 'this project') + '.</span><br><button class="prod-inline-empty-action" type="button" onclick="_prodClearFilters()">Clear filters</button></div>';
+                }
+                return '<div class="prod-inline-empty" data-prod-project-empty="1">' + _calEsc(empty) + '</div>';
+            }
             return '<div class="prod-project-groups" data-prod-project-groups="' + _calEscAttr(_prodState.groupBy || 'status') + '">' + _prodGroupsFor(rows).map(_prodProjectGroupHTML).join('') + '</div>';
         }
         // PORT-DELTA: renderDetail uses live event reads and disables composer/write controls.
@@ -31803,7 +31812,9 @@
             const rows = _prodProjectRows(c);
             const desc = c.desc || 'No project description on this migrated row.';
             const empty = (_prodState.filters || []).length ? 'No issues match your filters.' : 'No issues in this view yet.';
-            const rowHTML = _prodProjectRowsHTML(rows, empty);
+            const rowHTML = _prodProjectRowsHTML(rows, empty, allRows.length, c.name || c.id);
+            const filteredCount = (_prodState.filters || []).length && allRows.length && rows.length !== allRows.length;
+            const issueCountLabel = filteredCount ? rows.length + ' of ' + allRows.length : String(rows.length);
             const side = _prodState.projectDetailsOpen === false ? '' : '<aside class="prod-right"><div class="prod-props">'
                 + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
                 + '<div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-pstatus="' + _calEscAttr(c.id) + '" data-pstatus="' + _calEscAttr(c.id) + '" data-prod-tip="Status: ' + _calEscAttr(_prodBoardLabel(c.status)) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(c.id) + ')">' + _prodProjectStatusIcon(c.status) + '<span>' + _calEsc(_prodBoardLabel(c.status)) + '</span></button></div>'
@@ -31814,7 +31825,7 @@
             return '<div class="prod-detail prod-project-detail" data-prod-project-detail="' + _calEscAttr(c.id) + '"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodTeamLabel(c.team)) + ' project</div><h1 class="prod-detail-title">' + _calEsc(c.name || c.id) + '</h1>'
                 + '<div class="prod-desc">' + _calEsc(desc) + '</div>'
-                + '<div class="prod-subsection"><div class="prod-subhead">' + _prodIcon('issues') + ' Issues <span class="prod-group-count">' + rows.length + '</span></div>'
+                + '<div class="prod-subsection"><div class="prod-subhead">' + _prodIcon('issues') + ' Issues <span class="prod-group-count">' + _calEsc(issueCountLabel) + '</span></div>'
                 + rowHTML + '</div></div></div>' + side + '</div>';
         }
         function _prodBatchDetail() {

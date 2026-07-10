@@ -328,3 +328,4 @@ Owner-feedback refinements applied on top of the read-only wired tab:
 15. The repo PR template now includes a Production checklist for read-only boundaries, interaction polish, `npm run test:prod-polish`, review-packet inspection, and docs/rollback updates.
 16. The Production workflow deliberately keeps review packets out of GitHub Pages because Pages serves the live app from `main`; a guarded Argos upload hook is present and will remain a no-op until the repository has `ARGOS_TOKEN`.
 17. The Production polish workflow now has a weekday scheduled run on `main` plus per-ref concurrency cancellation, so this protection continues after merge without stacking stale runs.
+18. Project detail no longer reads as truly empty when filters hide its issues: the issue header shows visible vs total count (`0 of N`), the inline empty state names the active filter cause, and `Clear filters` restores the rows.

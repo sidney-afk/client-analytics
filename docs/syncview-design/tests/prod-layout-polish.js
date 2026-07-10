@@ -94,6 +94,17 @@ async function collectLayoutFailures(page, label) {
         await page.evaluate(id => _prodOpenProject(id), projectId);
         await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
         failures.push(...await collectLayoutFailures(page, `${vp.name} project detail`));
+        const projectFilterEmptyExplained = await page.evaluate(() => {
+          const filterCount = (_prodState.filters || []).length;
+          const id = _prodState.openProjectId || '';
+          const project = _prodClient(id);
+          const allCount = _prodIssues().filter(i => i.project === id).length;
+          const visibleCount = project ? _prodProjectRows(project).length : 0;
+          if (!filterCount || !allCount || visibleCount) return true;
+          const empty = document.querySelector('[data-prod-project-filter-empty]');
+          return !!empty && /Clear filters/i.test(empty.textContent || '') && !!empty.querySelector('button');
+        });
+        if (!projectFilterEmptyExplained) failures.push(`${vp.name} project detail needs a clear filter-empty state when filters hide existing project issues`);
       }
 
       await page.evaluate(() => {

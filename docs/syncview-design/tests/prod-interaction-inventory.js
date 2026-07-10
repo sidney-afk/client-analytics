@@ -299,6 +299,11 @@ async function rightClickChecks(page) {
     await page.waitForTimeout(150);
     const ok = await page.locator('#prodLayer .prod-pop [data-prod-ctx="copy"], #prodLayer .prod-pop [data-prod-ctx="status"]').count();
     if (!ok) failures.push(`${stateName} right-click did not open a Production context menu for ${sel}`);
+    if (stateName === 'board') {
+      const activeProjectActions = await page.locator('#prodLayer .prod-pop [data-prod-pctx="pstatus"], #prodLayer .prod-pop [data-prod-pctx="plead"], #prodLayer .prod-pop [data-prod-pctx="ptarget"]').count();
+      const fakeProjectActions = await page.locator('#prodLayer .prod-pop [data-prod-disabled^="context-change-status"], #prodLayer .prod-pop [data-prod-disabled^="context-set-lead"], #prodLayer .prod-pop [data-prod-disabled^="context-set-target"]').count();
+      if (activeProjectActions !== 3 || fakeProjectActions) failures.push('board project right-click menu did not expose active status/lead/target pickers');
+    }
     await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
   }
   return failures;

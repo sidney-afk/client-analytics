@@ -454,7 +454,14 @@ async function assertNoWriteRequests(requests) {
     if (cardIconBadFallback) throw new Error('Project card icon fell back to the letter S instead of the artifact project glyph');
     await card.click({ button: 'right' });
     await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'project card context Copy link item');
-    await expectCount(page, '.prod-pop [data-prod-disabled^="context-"][title="Preview - read-only"]', 1, 'project card context disabled mutation items');
+    await expectCount(page, '.prod-pop [data-prod-pctx="pstatus"]', 1, 'project card context status action');
+    await expectCount(page, '.prod-pop [data-prod-pctx="plead"]', 1, 'project card context lead action');
+    await expectCount(page, '.prod-pop [data-prod-pctx="ptarget"]', 1, 'project card context target action');
+    await expectExactCount(page, '.prod-pop [data-prod-disabled^="context-change-status"], .prod-pop [data-prod-disabled^="context-set-lead"], .prod-pop [data-prod-disabled^="context-set-target"]', 0, 'project card context disabled mutation items');
+    await page.locator('.prod-pop [data-prod-pctx="pstatus"]').click();
+    await expectCount(page, '#prodLayer .prod-pop [data-prod-ppick]', 1, 'project context guarded status picker');
+    await page.keyboard.press('Escape');
+    await card.click({ button: 'right' });
     await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     const copiedProjectLink = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');

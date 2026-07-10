@@ -840,9 +840,11 @@ async function txt(page, sel) {
       await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
       await page.waitForSelector('.prod-board');
       await page.locator('.prod-card').first().click({ button: 'right' });
-      const hasItems = await page.locator('.prod-pop .mlbl', { hasText: 'Change status' }).count() > 0
+      const hasItems = await page.locator('.prod-pop [data-prod-pctx="pstatus"] .mlbl', { hasText: 'Change status' }).count() > 0
         && await page.locator('.prod-pop .mlbl', { hasText: 'Copy link' }).count() > 0;
-      await page.locator('.prod-pop .prod-mi', { hasText: 'Change status' }).click();
+      await page.locator('.prod-pop [data-prod-pctx="pstatus"]').click();
+      await page.waitForSelector('.prod-pop [data-prod-ppick]', { timeout: 3000 });
+      await page.locator('.prod-pop [data-prod-ppick]').first().click();
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
       return hasItems && (await txt(page, '#prodToast')).includes('Preview - read-only');
     }); await reset();
@@ -1815,8 +1817,21 @@ async function txt(page, sel) {
       await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
       await page.waitForSelector('.prod-board');
       await page.locator('.prod-card').first().click({ button: 'right' });
+      const projectActions = await page.locator('.prod-pop [data-prod-pctx] .mlbl').evaluateAll(els => els.map(el => el.textContent.trim()).join('|'));
+      const fakeDisabled = await page.locator('.prod-pop [data-prod-disabled^="context-change-status"], .prod-pop [data-prod-disabled^="context-set-lead"], .prod-pop [data-prod-disabled^="context-set-target"]').count();
       const lead = page.locator('.prod-pop .prod-mi', { hasText: 'Set lead' }).first();
-      return await lead.locator('.mic svg path[d*="M4 12"]').count() > 0;
+      const leadIcon = await lead.locator('.mic svg path[d*="M4 12"]').count() > 0;
+      await lead.click();
+      await page.waitForSelector('.prod-pop [data-prod-ppick]', { timeout: 3000 });
+      const pickerOpened = await page.locator('.prod-pop [data-prod-ppick]').count() > 0;
+      await page.locator('.prod-pop [data-prod-ppick]').first().click();
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const toast = await txt(page, '#prodToast');
+      return projectActions === 'Change status|Set lead|Set target'
+        && fakeDisabled === 0
+        && leadIcon
+        && pickerOpened
+        && toast === 'Preview - read-only';
     }); await reset();
     await page.evaluate(() => localStorage.setItem('syncview_theme', 'dark'));
     await page.reload({ waitUntil: 'domcontentloaded' });

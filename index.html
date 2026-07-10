@@ -30859,6 +30859,8 @@
                 '<div class="prod-mi disabled' + (danger ? ' danger' : '') + '" data-prod-disabled="context-' + _calEscAttr(label.toLowerCase().replace(/\s+/g, '-')) + '" title="' + _calEscAttr(preview) + '" data-prod-tip="' + _calEscAttr(preview) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (chev ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
             const active = (label, icon, act) =>
                 '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span></div>';
+            const projectAction = (label, icon, kbd, act) =>
+                '<div class="prod-mi" data-prod-pctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + '</div>';
             const issueMenu = [
                 menuItem('Status', _prodIcon('issues'), 'S', 'status'),
                 menuItem('Assignee', _prodIcon('assign'), 'A', 'assign'),
@@ -30871,9 +30873,9 @@
                 disabled('Delete', _prodIcon('trash'), 'Ctrl ⌫', true)
             ];
             const projectMenu = [
-                disabled('Change status', _prodIcon('issues'), 'S'),
-                disabled('Set lead', _prodIcon('assign'), 'A'),
-                disabled('Set target', _prodIcon('cal'), '⇧D'),
+                projectAction('Change status', _prodIcon('issues'), 'S', 'pstatus'),
+                projectAction('Set lead', _prodIcon('assign'), 'A', 'plead'),
+                projectAction('Set target', _prodIcon('cal'), '⇧D', 'ptarget'),
                 '<div class="prod-msep"></div>',
                 active('Copy link', _prodIcon('copy'), 'copy')
             ];
@@ -30894,6 +30896,14 @@
                     const copyKind = kind === 'client' ? 'client' : kind === 'batch' ? 'batch' : 'issue';
                     const copyIds = copyKind === 'issue' ? _prodTargetIds(id) : [id];
                     _prodCopyLink(copyKind, copyIds.length > 1 ? copyIds : id);
+                });
+            });
+            pop.querySelectorAll('[data-prod-pctx]').forEach(el => {
+                el.addEventListener('mouseenter', _prodCloseSub);
+                el.addEventListener('click', e => {
+                    const act = el.getAttribute('data-prod-pctx');
+                    if (!act) return;
+                    _prodOpenProjectPicker(act, e, id);
                 });
             });
             pop.querySelectorAll('[data-prod-disabled]').forEach(el => {

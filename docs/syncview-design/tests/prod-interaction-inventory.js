@@ -397,6 +397,7 @@ async function selectionChecks(page) {
       if (main) main.scrollTop = main.scrollHeight;
       window.scrollTo(0, document.body.scrollHeight);
     });
+    await page.locator('#prodRoot .prod-subrow').first().scrollIntoViewIfNeeded({ timeout: 2500 });
     await page.locator('#prodRoot .prod-subrow').first().click({ timeout: 2500, force: true });
     await page.waitForTimeout(180);
     const subDetail = await page.evaluate(() => {

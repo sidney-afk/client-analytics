@@ -83,6 +83,48 @@ async function collectParentDetailEvidence(page) {
   });
 }
 
+async function collectBulkActionEvidence(page) {
+  return page.evaluate(() => {
+    const menu = document.querySelector('#prodLayer .prod-pop[data-prod-bulkcmd]');
+    const actionBar = document.querySelector('[data-prod-actionbar]');
+    const search = menu ? menu.querySelector('[data-prod-search]') : null;
+    const visible = el => {
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
+    };
+    return {
+      actionBarVisible: visible(actionBar),
+      menuVisible: visible(menu),
+      searchVisible: visible(search),
+      selectedRows: _prodState.selected && typeof _prodState.selected.size === 'number' ? _prodState.selected.size : 0,
+      commandLabels: menu ? [...menu.querySelectorAll('[data-prod-ctx] .mlbl')].map(el => el.textContent.trim()) : [],
+    };
+  });
+}
+
+async function collectCombinedFilterEvidence(page) {
+  return page.evaluate(() => {
+    const pills = [...document.querySelectorAll('.prod-filter-pill.interactive')];
+    const rows = [...document.querySelectorAll('.prod-row[data-prod-row]')];
+    const rowIds = rows.map(row => row.getAttribute('data-prod-row') || '');
+    const pillLabel = pill => {
+      const field = pill.querySelector(':scope > span:not(.ficon):not(.fop):not(.fval)');
+      const op = pill.querySelector(':scope > .fop');
+      const val = pill.querySelector(':scope > .fval span:last-child');
+      return [field, op, val].map(el => el ? el.textContent.trim() : '').filter(Boolean).join(' ');
+    };
+    return {
+      pillCount: pills.length,
+      pillLabels: pills.map(pillLabel),
+      visibleRows: rows.length,
+      uniqueVisibleRows: new Set(rowIds).size,
+      hasStatusPill: pills.some(pill => /Status/i.test(pill.textContent || '')),
+      hasClientPill: pills.some(pill => /Client/i.test(pill.textContent || '')),
+    };
+  });
+}
+
 async function setList(page) {
   await page.evaluate(() => {
     window._prodClearLayer && window._prodClearLayer();
@@ -463,16 +505,20 @@ ${cards}
     });
 
     await setSelectedActionMenu(desktop);
+    const selectedActionsEvidence = await collectBulkActionEvidence(desktop);
     await screenshot(desktop, shots, 'selected-actions-menu', 'Selected issue Actions', 'Floating action bar and searchable selected-issue command menu.', {
       surface: 'bulk-actions',
       route: 'production/video/issues?selected=2',
+      evidence: selectedActionsEvidence,
       checks: ['floating action bar', 'searchable command menu', 'selected row state'],
     });
 
     await setCombinedFilters(desktop);
+    const combinedFiltersEvidence = await collectCombinedFilterEvidence(desktop);
     await screenshot(desktop, shots, 'combined-filters', 'Combined filters', 'Status/client pills, compact toolbar, deduped visible rows.', {
       surface: 'filters',
       route: 'production/video/issues?filters=status+client',
+      evidence: combinedFiltersEvidence,
       checks: ['filter pill width', 'status/client labels', 'deduped visible rows'],
     });
 

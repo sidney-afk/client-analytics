@@ -144,9 +144,22 @@ function validatePacket(dir = packetDir) {
   const darkShots = shots.filter(shot => shot.theme === 'dark');
   if (mobileShots.length < 2) failures.push('Expected at least two mobile screenshots');
   if (darkShots.length < 1) failures.push('Expected at least one dark theme screenshot');
+  const selectedActions = byName('selected-actions-menu');
+  const expectedBulkLabels = ['Assign to...', 'Change status...', 'Move to project...', 'Copy issue ID', 'Change due date...', 'Delete issue'];
+  if (!selectedActions || !selectedActions.evidence || !selectedActions.evidence.actionBarVisible || !selectedActions.evidence.menuVisible || !selectedActions.evidence.searchVisible || selectedActions.evidence.selectedRows < 2) {
+    failures.push('selected-actions-menu screenshot must record visible action bar, searchable menu, and selected-row evidence in review-manifest.json');
+  } else {
+    const labels = Array.isArray(selectedActions.evidence.commandLabels) ? selectedActions.evidence.commandLabels : [];
+    if (labels.join('|') !== expectedBulkLabels.join('|')) {
+      failures.push(`selected-actions-menu command labels changed: ${labels.join('|') || '(none)'}`);
+    }
+  }
   const combinedFilters = byName('combined-filters');
   if (!combinedFilters || !combinedFilters.state || combinedFilters.state.filters < 2) {
     failures.push('combined-filters screenshot must record active status/client filters in review-manifest.json');
+  }
+  if (!combinedFilters || !combinedFilters.evidence || combinedFilters.evidence.pillCount < 2 || !combinedFilters.evidence.hasStatusPill || !combinedFilters.evidence.hasClientPill || combinedFilters.evidence.visibleRows !== combinedFilters.evidence.uniqueVisibleRows) {
+    failures.push('combined-filters screenshot must record status/client filter pills and deduped visible-row evidence in review-manifest.json');
   }
   const projectBoard = byName('project-board');
   if (!projectBoard || !projectBoard.state || projectBoard.state.view !== 'board' || projectBoard.state.filters !== 0) {

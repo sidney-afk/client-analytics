@@ -150,6 +150,8 @@ async function collectProjectBoardEvidence(page) {
     const widths = [...document.querySelectorAll('.prod-col:not(.collapsed)')].map(col => Math.round(col.getBoundingClientRect().width));
     const scope = document.querySelector('[data-prod-static-scope="projects"]');
     const scopeStyle = scope ? getComputedStyle(scope) : null;
+    const emptyTargets = [...document.querySelectorAll('[data-prod-client-card] [data-prod-target-empty="true"]')];
+    const targetLabel = target => (target.textContent || '').trim();
     return {
       emptyColumns: emptyCols.length,
       populatedColumns: cardCols.length,
@@ -164,6 +166,9 @@ async function collectProjectBoardEvidence(page) {
       staticScopeCursor: scopeStyle ? scopeStyle.cursor : '',
       staticScopePointerEvents: scopeStyle ? scopeStyle.pointerEvents : '',
       staticScopeBackground: scopeStyle ? scopeStyle.backgroundColor : '',
+      emptyTargetControls: emptyTargets.length,
+      emptyTargetIconOnly: emptyTargets.filter(target => !targetLabel(target) && target.querySelector('svg')).length,
+      emptyTargetLabels: emptyTargets.map(targetLabel).filter(Boolean),
     };
   });
 }

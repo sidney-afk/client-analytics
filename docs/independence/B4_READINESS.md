@@ -23,7 +23,7 @@ answers to the owner's standing architecture questions.
 
 | # | Gate item (spec wording) | Status | Owner |
 |---|---|---|---|
-| 1 | Mirror zero-diff (modulo §1.4) **7 consecutive days** | ⏳ diff/repair clean since ~2026-07-08; all three metrics (incl. linkage) at zero from 2026-07-11. **Owner must ratify the reading:** (a) strict all-three-zero clock from 2026-07-11 → gate ~2026-07-18, or (b) faithfulness-primary (diff/repair, transients tolerated per §1.4d; linkage verified 0 at decision time) → gate ~2026-07-15. Recommendation: (b) — linkage re-accrues from live inflow by design and is a maintenance lane, not a faithfulness signal. | Owner |
+| 1 | Mirror zero-diff (modulo §1.4) **7 consecutive days** | ✅ **RATIFIED reading (owner, 2026-07-11):** gate is met when **both** hold — (i) the **B3 inbound scenario harness** (`scripts/b3-mirror-scenario-harness.js`, full matrix) passes green with reconciler v2 at 0/0/0 through it, providing *positive correctness proof*; **and** (ii) diff/repair faithfulness stays clean over the soak (the spec §14 "7 days", §1.4d transients tolerated; linkage verified 0 at decision — it re-accrues from inflow by design and is a maintenance lane, not a faithfulness signal). The harness supplies coverage the passive soak can't; the soak supplies time-based stability the harness can't. Earliest ~2026-07-15. | Owner |
 | 2 | Comments webhook subscribed + catch-up pull run (§4.3.4) | ✅ reconciler webhook probe: 4/4 enabled, `missing_comment_resource=0`; comment catch-up ran in B3 stage 3 | evidence in v2 summary `webhooks` block |
 | 3 | Echo probe green (§12) | ✅ 2026-07-11 TEST probe: one app comment produced one Linear comment and remained exactly one app-thread entry after both Comments webhooks settled; zero duplicate `mirror_in_comment_add` events; Linear creation 3.096 s, settled proof 11.543 s; all TEST mutations restored | Codex |
 | 4 | Editor/SMM UX feedback collected | ⏳ ongoing via the owner's feedback-expansion loop; needs an explicit "team tried the tab" note | Owner |
@@ -99,7 +99,28 @@ through legacy intake and the inbound engine adopts the mirrored parent into the
 webhook is retired with the rest of the legacy family (§13.4.g). No separate "B6" is needed —
 this is inside B4/B5.
 
-## 6. Explicitly out of scope here
+## 6. B4 rollout & UX — owner decisions (ratified 2026-07-11)
+
+Recorded here in plain language; the authoritative entries are spec §14 **D-19…D-23** (this
+section is the operational reflection, not a competing source).
+
+- **Rollout granularity (D-19):** flip **both video + graphics together** (so a card is never
+  split across systems mid-flight — removes the fiddliest adoption path), but roll out **per
+  client** through an allowlist — TEST client → one pilot client → the rest — exactly like Track A
+  did. Implication for the build: authority moves from the global per-team `prod_authority` switch
+  to a **per-client(-per-team) allowlist**. Codex to cost this vs. the split-card code at B4 scoping.
+- **Card → Production deep-link (D-20):** the card's old "open in Linear" button becomes
+  **"View sub-issue,"** opening that deliverable in the Production tab in a **new browser tab**.
+- **Legacy Linear-link fields (D-21):** keep them **inert but visible with a phase-aware
+  disclaimer** during the fallback window; retire the field quietly after teardown.
+- **Fallback grace period (D-22):** **~1 week, fully reversible** — the one-flag rollback to
+  Linear stays armed all week so the team can keep working in Linear if the app needs a fix; after
+  a clean week, freeze Linear read-only, then archive.
+- **Submission tab UI (D-23):** **no change** for now — only its backend plumbing flips.
+
+These are inputs for the B4/B5 build and the design pass; none are built yet.
+
+## 7. Explicitly out of scope here
 
 Write-path EF design for B4 (spec §4), teardown order (spec §13), and any change to gates —
 all live in the spec. This file only tracks evidence and execution.

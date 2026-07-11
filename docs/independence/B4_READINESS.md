@@ -117,6 +117,13 @@ section is the operational reflection, not a competing source).
   Linear stays armed all week so the team can keep working in Linear if the app needs a fix; after
   a clean week, freeze Linear read-only, then archive.
 - **Submission tab UI (D-23):** **no change** for now — only its backend plumbing flips.
+- **One password per person (D-24):** consolidate the three separate keys (role / credential /
+  onboarding) into the **role key** — each person types one password once, and their role decides
+  reach: **credentials → admin+smm; onboarding → admin only; creative → neither.** Additive +
+  reversible (old key paths kept alive during transition, then retired). Signed-in state shows an
+  **account menu** (name · role + Sign out; **no Switch user**). The sign-in surface to be polished
+  to a finished/premium standard and thoroughly tested (master-tester vision pass + `/human-audit`).
+  Runs its own careful auth sprint *after* the B3 harness; not blocking B4.
 
 These are inputs for the B4/B5 build and the design pass; none are built yet.
 

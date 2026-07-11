@@ -29,7 +29,7 @@ is wrong in one direction or the other.
 | `npm test` | Every `test/*.js` — offline pure-logic suites, auto-discovered (includes `test/port-fidelity-check.js` and `test/repo-map-sync.js`) | Every push (CI) and before every commit |
 | `npm run test:e2e` | Live probes in `qa/probes/nightly-manifest.txt` | Nightly CI; on demand |
 | `npm run test:master` | `qa/master.js` fast profile (smoke subset + visual capture); `npm run test:master:full` runs every lane — see `qa/MASTER_TESTER.md` | Big changes; nightly subset |
-| `npm run test:prod-polish` | The Production polish gate (boot, structure, interactions, a11y, layout, behavior, pixels) — see `PRODUCTION_POLISH_AUTOMATION.md` | Any Production-tab change (PR gate) |
+| `npm run test:prod-polish` | The complete Production polish gate (boot, structure, zero-write smoke, interactions, a11y, layout, behavior, pixels); CI splits it into a fast required PR lane and parallel full `main`/nightly lanes — see `PRODUCTION_POLISH_AUTOMATION.md` | Any Production-tab change |
 | `node docs/syncview-design/tests/prod-readonly-smoke.js` | Production read-only invariant (zero non-GET) | Production parity work; samples nightly |
 
 ## The four Claude skills (a 2×2)

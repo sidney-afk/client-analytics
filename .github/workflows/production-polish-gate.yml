@@ -19,9 +19,6 @@ on:
   schedule:
     - cron: '17 9 * * 1-5'
 
-env:
-  PLAYWRIGHT_VERSION: '1.56.1'
-
 concurrency:
   group: production-polish-${{ github.ref }}
   cancel-in-progress: true
@@ -35,6 +32,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: node -e "require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./package.json').devDependencies.playwright + '\n')"
       - name: Install browser test dependencies
         run: npm install --no-package-lock
       - name: Cache Playwright Chromium
@@ -42,7 +42,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ env.PLAYWRIGHT_VERSION }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright-version.outputs.version }}
       - name: Install Chromium and system dependencies
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
@@ -61,6 +61,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: node -e "require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./package.json').devDependencies.playwright + '\n')"
       - name: Install browser test dependencies
         run: npm install --no-package-lock
       - name: Cache Playwright Chromium
@@ -68,7 +71,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ env.PLAYWRIGHT_VERSION }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright-version.outputs.version }}
       - name: Install Chromium and system dependencies
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
@@ -87,6 +90,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: node -e "require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./package.json').devDependencies.playwright + '\n')"
       - name: Install browser test dependencies
         run: npm install --no-package-lock
       - name: Cache Playwright Chromium
@@ -94,7 +100,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ env.PLAYWRIGHT_VERSION }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright-version.outputs.version }}
       - name: Install Chromium and system dependencies
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium

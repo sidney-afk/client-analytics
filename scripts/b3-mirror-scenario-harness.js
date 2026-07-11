@@ -10,15 +10,17 @@
  *   B3_TEST_CROSS_VIDEO_ISSUE, B3_TEST_CROSS_GRAPHIC_ISSUE
  *   LINEAR_API_KEY, SUPABASE_SERVICE_ROLE_KEY
  *
- * Supabase observations always use the public anon key. The service key is
- * restricted to batch_write/deliverable_write snapshot cleanup after a
- * scenario verdict. Linear mutations are restricted to VID-/GRA- issues in
- * the configured TEST project. The script never reads or writes mirror_outbox
- * and never reads or changes runtime flags.
+ * Supabase observations always use the public anon key. Service-role recovery
+ * runs only through the project-scoped incremental refresh, identifier-scoped
+ * reconciler, and batch_write/deliverable_write snapshot cleanup. Linear
+ * mutations are restricted to VID-/GRA- issues in the configured TEST project.
+ * The script never reads or writes mirror_outbox and never reads or changes
+ * runtime flags.
  */
 
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 const {
   clean,
   parseJson,
@@ -55,6 +57,22 @@ const STATUS_LADDER = [
   { label: 'Approved (resume ladder)', slug: 'approved' },
   { label: 'Posted', slug: 'posted' },
 ];
+
+const CONSISTENCY_MODELS = Object.freeze({
+  create: 'refresh-eventual',
+  realtime: 'realtime',
+  clear: 'realtime set/change; reconciler-eventual clear',
+  unknownAssignee: 'realtime repair classification',
+  unmappedState: 'conditional realtime; N/A when no unmapped state exists',
+  reparent: 'refresh-eventual restructure; realtime parent preservation',
+  final: 'global reconciler',
+});
+
+const PARTIAL_WEBHOOK_CONTRACT = Object.freeze({
+  dueDateClear: 'omitted',
+  assigneeClear: 'omitted',
+  reparent: 'parentId-only',
+});
 
 function parseArgs(argv = process.argv.slice(2)) {
   const out = new Map();
@@ -249,6 +267,29 @@ function compactPollObservation(value) {
   };
 }
 
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value == null ? null : value);
+}
+
+function deliverableSnapshotMatches(actual, expected) {
+  if (!actual || !expected) return false;
+  const scalarFields = [
+    'id', 'identifier', 'batch_id', 'client_slug', 'team', 'kind', 'title', 'brief',
+    'status', 'assignee_id', 'due_date', 'priority', 'file_url', 'origin', 'card_id',
+    'sync_state', 'linear_issue_uuid', 'linear_identifier', 'linear_issue_url',
+  ];
+  if (!scalarFields.every(field => String(actual[field] == null ? '' : actual[field]) === String(expected[field] == null ? '' : expected[field]))) {
+    return false;
+  }
+  return stableJson(parseJson(actual.linear_raw)) === stableJson(parseJson(expected.linear_raw))
+    && stableJson(parseJson(actual.linear_aliases)) === stableJson(parseJson(expected.linear_aliases))
+    && stableJson(parseThread(actual.comments)) === stableJson(parseThread(expected.comments));
+}
+
 function markdownReport(report) {
   const esc = value => String(value == null ? '' : value).replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim();
   const lines = [
@@ -259,13 +300,13 @@ function markdownReport(report) {
     `Finished: ${report.finished_at || ''}`,
     `TEST project: ${report.test_project_name}`,
     '',
-    '| Scenario | Result | Latency | Fired | Expected | Observed |',
-    '|---|---|---:|---|---|---|',
+    '| Scenario | Consistency | Result | Latency | Fired | Expected | Observed |',
+    '|---|---|---|---:|---|---|---|',
   ];
   for (const item of report.scenarios || []) {
-    lines.push(`| ${esc(item.name)} | ${esc(item.status)} | ${item.latency_ms == null ? '' : `${item.latency_ms} ms`} | ${esc(JSON.stringify(item.fired))} | ${esc(JSON.stringify(item.expected))} | ${esc(JSON.stringify(item.observed))} |`);
+    lines.push(`| ${esc(item.name)} | ${esc(item.consistency)} | ${esc(item.status)} | ${item.latency_ms == null ? '' : `${item.latency_ms} ms`} | ${esc(JSON.stringify(item.fired))} | ${esc(JSON.stringify(item.expected))} | ${esc(JSON.stringify(item.observed))} |`);
   }
-  lines.push('', `Totals: ${report.passed || 0} PASS / ${report.failed || 0} FAIL / ${report.total || 0} scenarios.`);
+  lines.push('', `Totals: ${report.passed || 0} PASS / ${report.failed || 0} FAIL / ${report.skipped || 0} SKIPPED / ${report.total || 0} scenarios.`);
   if (report.final_reconciler) {
     lines.push(`Final reconciler: diff=${report.final_reconciler.diff_count}, repair=${report.final_reconciler.repair_list_size}, linkage=${report.final_reconciler.linkage_actionable}.`);
   }
@@ -329,6 +370,94 @@ class Harness {
     const text = await response.text();
     if (!response.ok) throw new Error(`Cleanup RPC ${name} failed: HTTP ${response.status} ${text.slice(0, 300)}`);
     return text ? JSON.parse(text) : null;
+  }
+
+  async runNodeScript(relativeScript, scriptArgs, extraEnv = {}) {
+    const root = path.resolve(__dirname, '..');
+    const script = path.resolve(root, relativeScript);
+    return await new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [script, ...scriptArgs], {
+        cwd: root,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          LINEAR_API_KEY: this.config.linearKey,
+          SUPABASE_SERVICE_ROLE_KEY: this.config.serviceKey,
+          SUPABASE_URL: this.config.supabaseUrl,
+          ...extraEnv,
+        },
+      });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', chunk => { stdout = (stdout + chunk).slice(-500000); });
+      child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-500000); });
+      child.on('error', reject);
+      child.on('close', code => {
+        if (code === 0) resolve({ stdout, stderr });
+        else reject(new Error(`${path.basename(relativeScript)} exited ${code}: ${(stderr || stdout).slice(-2000)}`));
+      });
+    });
+  }
+
+  async readLatestActionEvent(action) {
+    const rows = await this.supabaseRead(
+      `deliverable_events?select=id,ts,source,payload&action=eq.${encodeURIComponent(action)}&order=id.desc&limit=1`,
+    );
+    const row = Array.isArray(rows) ? rows[0] : null;
+    return row ? { ...row, payload: parseJson(row.payload) } : null;
+  }
+
+  async runIncrementalRefresh(label) {
+    const before = await this.readLatestActionEvent('linear_incremental_refresh');
+    const changedSince = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    await this.runNodeScript('scripts/b1-linear-backfill.js', [
+      '--incremental',
+      '--apply',
+      '--project-id',
+      this.config.projectId,
+      '--changed-since',
+      changedSince,
+      '--page-delay-ms',
+      '200',
+    ]);
+    const event = await this.poll(
+      () => this.readLatestActionEvent('linear_incremental_refresh'),
+      row => !!row
+        && Number(row.id || 0) > Number(before && before.id || 0)
+        && row.payload.ok === true
+        && clean(row.payload.project_filter) === this.config.projectId,
+      `${label} incremental refresh summary`,
+      this.config.recoveryTimeoutMs,
+    );
+    return {
+      event_id: event.id,
+      changed_issue_count: Number(event.payload.changed_issue_count || 0),
+      writes: parseJson(event.payload.writes),
+    };
+  }
+
+  async runTargetedReconciler(issue, label) {
+    assertTestIssue(issue, this.config);
+    const before = await this.readLatestActionEvent('linear_deliverables_reconcile_v2');
+    await this.runNodeScript('scripts/linear-deliverables-reconcile.js', [
+      '--apply',
+      '--cap=2',
+      `--identifier=${issue.identifier}`,
+      '--page-delay-ms=100',
+    ], { APPLY: 'true', CAP: '2' });
+    const event = await this.poll(
+      () => this.readLatestActionEvent('linear_deliverables_reconcile_v2'),
+      row => !!row
+        && Number(row.id || 0) > Number(before && before.id || 0)
+        && row.payload.apply === true
+        && clean(row.payload.identifier_filter).toUpperCase() === clean(issue.identifier).toUpperCase(),
+      `${label} targeted reconciler summary`,
+      this.config.recoveryTimeoutMs,
+    );
+    return {
+      event_id: event.id,
+      summary: parseJson(event.payload.summary),
+    };
   }
 
   async readIssue(id) {
@@ -625,6 +754,22 @@ class Harness {
     });
   }
 
+  async restoreScenarioSnapshots(issueSnapshots, rowSnapshots) {
+    for (const snapshot of issueSnapshots) await this.restoreLinearSnapshot(snapshot);
+    await sleep(this.config.cleanupSettleMs);
+    for (const row of rowSnapshots) if (row) await this.restoreDeliverableSnapshot(row);
+    await sleep(this.config.cleanupVerifyDelayMs);
+    for (const expected of rowSnapshots) {
+      if (!expected) continue;
+      await this.poll(
+        () => this.readDeliverable({ id: expected.linear_issue_uuid, identifier: expected.linear_identifier || expected.identifier }),
+        actual => deliverableSnapshotMatches(actual, expected),
+        `exact TEST row cleanup ${expected.linear_identifier || expected.identifier}`,
+        this.config.timeoutMs,
+      );
+    }
+  }
+
   async withRestoration(issueIds, work, extraCleanup) {
     const issues = await Promise.all(issueIds.map(id => this.readIssue(id)));
     issues.forEach(issue => assertTestIssue(issue, this.config));
@@ -641,9 +786,8 @@ class Harness {
     let cleanupError = null;
     try {
       if (extraCleanup) await extraCleanup({ issues, rows: rowSnapshots });
-      for (const snapshot of issueSnapshots) await this.restoreLinearSnapshot(snapshot);
-      // Exact TEST-row snapshot restore is deliberately after the assertion.
-      for (const row of rowSnapshots) if (row) await this.restoreDeliverableSnapshot(row);
+      // Let restoration webhooks settle before the exact RPC snapshot wins.
+      await this.restoreScenarioSnapshots(issueSnapshots, rowSnapshots);
     } catch (error) {
       cleanupError = error;
     }
@@ -655,7 +799,7 @@ class Harness {
     return value;
   }
 
-  async runScenario(name, expected, fn) {
+  async runScenario(name, consistency, expected, fn) {
     const trace = { fired: [], expected, observed: null };
     const started = Date.now();
     let status = 'PASS';
@@ -663,12 +807,13 @@ class Harness {
     try {
       const observed = await fn(trace);
       trace.observed = observed == null ? trace.observed : observed;
+      if (observed && observed.skipped === true) status = 'SKIPPED';
     } catch (error) {
       status = 'FAIL';
       errorText = error && error.message ? error.message : String(error);
       if (error && error.latest !== undefined && trace.observed == null) trace.observed = compactPollObservation(error.latest);
       if (error && error.cleanupFatal) {
-        const result = { name, status, fired: trace.fired, expected, observed: trace.observed, error: errorText, latency_ms: Date.now() - started };
+        const result = { name, consistency, status, fired: trace.fired, expected, observed: trace.observed, error: errorText, latency_ms: Date.now() - started };
         this.results.push(result);
         console.log(JSON.stringify(result));
         throw error;
@@ -676,6 +821,7 @@ class Harness {
     }
     const result = {
       name,
+      consistency,
       status,
       fired: trace.fired,
       expected,
@@ -703,6 +849,7 @@ class Harness {
     const todo = findState(this.context.teams, 'VID', 'todo');
     let parent = null;
     let child = null;
+    let observed = null;
     try {
       parent = await this.createIssue(video, {
         teamId: video.id,
@@ -720,44 +867,54 @@ class Harness {
       });
       trace.fired.push(`${child.identifier}:create_sub_issue`);
 
-      const observed = await this.poll(async () => {
+      const refresh = await this.runIncrementalRefresh('create adoption');
+      observed = await this.poll(async () => {
         const [parentRow, childRow, batches] = await Promise.all([
           this.readDeliverable(parent),
           this.readDeliverable(child),
           this.supabaseRead(`batches?select=*&client_slug=eq.${encodeURIComponent(this.config.clientSlug)}&limit=500`),
         ]);
         const batch = (batches || []).find(row => rawContains(parseJson(row.linear_parent_ids), [parent.id, parent.identifier]));
-        return { parent_row: !!parentRow, child_row: !!childRow, batch_row: !!batch };
-      }, current => current.parent_row && current.child_row && current.batch_row, 'create parent/sub inbound reflection', this.config.createTimeoutMs);
+        return { parent_row: !!parentRow, child_row: !!childRow, batch_row: !!batch, refresh };
+      }, current => current.parent_row && current.child_row && current.batch_row, 'create parent/sub refresh adoption', this.config.recoveryTimeoutMs);
       trace.observed = observed;
       return observed;
     } finally {
-      for (const issue of [child, parent].filter(Boolean)) {
-        const current = await this.readIssue(issue.id);
-        if (current && !current.archivedAt) await this.archiveIssue(current);
-      }
-      for (const issue of [child, parent].filter(Boolean)) {
-        const row = await this.readDeliverable(issue);
-        if (row) {
-          await this.poll(() => this.readDeliverable(issue), current => !!current && !isMirrorVisible(current), `created issue cleanup ${issue.identifier}`);
+      try {
+        for (const issue of [child, parent].filter(Boolean)) {
+          const current = await this.readIssue(issue.id);
+          if (current && !current.archivedAt) await this.archiveIssue(current);
         }
-      }
-      if (parent) {
-        const batches = await this.supabaseRead(`batches?select=*&client_slug=eq.${encodeURIComponent(this.config.clientSlug)}&limit=500`);
-        const batch = (batches || []).find(row => rawContains(parseJson(row.linear_parent_ids), [parent.id, parent.identifier]));
-        if (batch && batch.status !== 'archived') {
-          await this.cleanupRpc('batch_write', {
-            p_row: { ...batch, status: 'archived' },
-            p_event: {
-              actor: 'B3 TEST harness',
-              role: 'system',
-              action: 'b3_mirror_harness_cleanup',
-              source: 'system',
-              probe: 'b3_mirror_scenario_harness',
-              marker: RUN_MARKER,
-            },
-          });
+        if (parent || child) {
+          const cleanupRefresh = await this.runIncrementalRefresh('created issue cleanup');
+          if (observed) observed.cleanup_refresh = cleanupRefresh;
         }
+        for (const issue of [child, parent].filter(Boolean)) {
+          const row = await this.readDeliverable(issue);
+          if (row) {
+            await this.poll(() => this.readDeliverable(issue), current => !!current && !isMirrorVisible(current), `created issue cleanup ${issue.identifier}`);
+          }
+        }
+        if (parent) {
+          const batches = await this.supabaseRead(`batches?select=*&client_slug=eq.${encodeURIComponent(this.config.clientSlug)}&limit=500`);
+          const batch = (batches || []).find(row => rawContains(parseJson(row.linear_parent_ids), [parent.id, parent.identifier]));
+          if (batch && batch.status !== 'archived') {
+            await this.cleanupRpc('batch_write', {
+              p_row: { ...batch, status: 'archived' },
+              p_event: {
+                actor: 'B3 TEST harness',
+                role: 'system',
+                action: 'b3_mirror_harness_cleanup',
+                source: 'system',
+                probe: 'b3_mirror_scenario_harness',
+                marker: RUN_MARKER,
+              },
+            });
+          }
+        }
+      } catch (error) {
+        error.cleanupFatal = true;
+        throw error;
       }
     }
   }
@@ -803,12 +960,62 @@ class Harness {
     });
   }
 
+  async scenarioDueDate(trace, values) {
+    return this.withRestoration([this.config.primaryIssue], async ({ issues, rows }) => {
+      let issue = issues[0];
+      const row = rows[0];
+      const steps = [];
+      for (const value of values.slice(0, -1)) {
+        const cursor = await this.eventCursor(row.id);
+        const firedAt = Date.now();
+        trace.fired.push(`${issue.identifier}:dueDate=${value}`);
+        issue = await this.updateIssue(issue, { dueDate: value });
+        const reflected = await this.waitForReflection(
+          issue.id,
+          current => (normalizeDate(current.due_date) || null) === value,
+          /^mirror_in_/,
+          cursor,
+          `dueDate=${value}`,
+        );
+        this.assertReconcile(reflected.reconcile);
+        steps.push({ value, observed: normalizeDate(reflected.row.due_date), consistency: 'realtime', latency_ms: Date.now() - firedAt });
+      }
+
+      const firedAt = Date.now();
+      trace.fired.push(`${issue.identifier}:dueDate=null`);
+      issue = await this.updateIssue(issue, { dueDate: null });
+      await sleep(this.config.realtimeGraceMs);
+      let current = await this.readDeliverable(issue);
+      let recovery = null;
+      if (normalizeDate(current && current.due_date)) {
+        recovery = await this.runTargetedReconciler(issue, 'due-date clear');
+      }
+      current = await this.poll(
+        () => this.readDeliverable(issue),
+        value => !!value && !normalizeDate(value.due_date),
+        'due-date clear eventual convergence',
+        this.config.recoveryTimeoutMs,
+      );
+      const reconcile = compactReconcile(await this.targetedReconcile(assertTestIssue(await this.readIssue(issue.id), this.config), current));
+      this.assertReconcile(reconcile);
+      steps.push({
+        value: null,
+        observed: null,
+        consistency: recovery ? 'reconciler-eventual' : 'realtime',
+        recovery,
+        latency_ms: Date.now() - firedAt,
+      });
+      trace.observed = { payload_contract: PARTIAL_WEBHOOK_CONTRACT.dueDateClear, steps, reconcile };
+      return trace.observed;
+    });
+  }
+
   async scenarioKnownAssignees(trace) {
     return this.withRestoration([this.config.primaryIssue], async ({ issues, rows }) => {
       let issue = issues[0];
       const row = rows[0];
       const steps = [];
-      for (const user of [...this.context.knownUsers, null]) {
+      for (const user of this.context.knownUsers) {
         const linearId = user ? clean(user.id) : null;
         const expectedMember = user ? this.context.memberByLinearId.get(linearId) : null;
         const expectedId = expectedMember ? clean(expectedMember.id) : null;
@@ -826,7 +1033,32 @@ class Harness {
         this.assertReconcile(reflected.reconcile);
         steps.push({ linear_user_id: linearId, team_member_id: expectedId, event_actions: [...new Set(reflected.events.map(event => event.action))], latency_ms: Date.now() - firedAt });
       }
-      trace.observed = { steps };
+
+      const firedAt = Date.now();
+      trace.fired.push(`${issue.identifier}:assignee=null`);
+      issue = await this.updateIssue(issue, { assigneeId: null });
+      await sleep(this.config.realtimeGraceMs);
+      let current = await this.readDeliverable(issue);
+      let recovery = null;
+      if (clean(current && current.assignee_id)) {
+        recovery = await this.runTargetedReconciler(issue, 'assignee clear');
+      }
+      current = await this.poll(
+        () => this.readDeliverable(issue),
+        value => !!value && !clean(value.assignee_id),
+        'assignee clear eventual convergence',
+        this.config.recoveryTimeoutMs,
+      );
+      const reconcile = compactReconcile(await this.targetedReconcile(assertTestIssue(await this.readIssue(issue.id), this.config), current));
+      this.assertReconcile(reconcile);
+      steps.push({
+        linear_user_id: null,
+        team_member_id: null,
+        consistency: recovery ? 'reconciler-eventual' : 'realtime',
+        recovery,
+        latency_ms: Date.now() - firedAt,
+      });
+      trace.observed = { payload_contract: PARTIAL_WEBHOOK_CONTRACT.assigneeClear, steps, reconcile };
       return trace.observed;
     });
   }
@@ -855,8 +1087,11 @@ class Harness {
   async scenarioUnmappedState(trace) {
     const state = this.context.unmappedState;
     if (!state) {
-      trace.observed = { blocked: 'No active VID/GRA workflow state is unmapped; creating a workspace state is outside harness rails.' };
-      throw new Error(trace.observed.blocked);
+      trace.observed = {
+        skipped: true,
+        reason: 'No active VID/GRA workflow state is unmapped; creating a workspace state is outside harness rails.',
+      };
+      return trace.observed;
     }
     return this.withRestoration([this.config.primaryIssue], async ({ issues, rows }) => {
       const issue = issues[0];
@@ -878,30 +1113,82 @@ class Harness {
   }
 
   async scenarioReparent(trace) {
+    const beforeBatches = await this.supabaseRead(`batches?select=*&client_slug=eq.${encodeURIComponent(this.config.clientSlug)}&order=id.asc`);
+    const beforeBatchIds = new Set((beforeBatches || []).map(batch => clean(batch.id)));
     return this.withRestoration([this.config.primaryIssue], async ({ issues, rows }) => {
       let issue = issues[0];
       const row = rows[0];
       const parent = assertTestIssue(await this.readIssue(this.config.parentIssue), this.config, 'VID');
-      let cursor = await this.eventCursor(row.id);
       trace.fired.push(`${issue.identifier}:parent=${parent.identifier}`);
+      const firedAt = Date.now();
       issue = await this.updateIssue(issue, { parentId: parent.id });
-      let reflected = await this.waitForReflection(issue.id, current => parentIdFromRow(current) === parent.id, /^mirror_in_/, cursor, 're-parent');
-      this.assertReconcile(reflected.reconcile);
+      await sleep(this.config.realtimeGraceMs);
+      const realtimeRow = await this.readDeliverable(issue);
+      const refresh = await this.runIncrementalRefresh('re-parent restructure');
+      const restructured = await this.poll(
+        async () => {
+          const current = await this.readDeliverable(issue);
+          const batches = await this.supabaseRead(`batches?select=*&client_slug=eq.${encodeURIComponent(this.config.clientSlug)}&order=id.asc`);
+          const batch = current && (batches || []).find(candidate => clean(candidate.id) === clean(current.batch_id));
+          return { current, batch };
+        },
+        value => !!value.current
+          && !!value.batch
+          && parentIdFromRow(value.current) === parent.id
+          && clean(value.current.batch_id) !== clean(row.batch_id)
+          && rawContains(parseJson(value.batch.linear_parent_ids), [parent.id, parent.identifier]),
+        're-parent refresh convergence',
+        this.config.recoveryTimeoutMs,
+      );
+      let reflectedRow = restructured.current;
+      const expectedBatchId = clean(restructured.batch.id);
+      let reconcile = compactReconcile(await this.targetedReconcile(assertTestIssue(await this.readIssue(issue.id), this.config), reflectedRow));
+      this.assertReconcile(reconcile);
 
       const title = `B3 parent-preserve ${RUN_MARKER}`;
-      cursor = await this.eventCursor(row.id);
+      const cursor = await this.eventCursor(row.id);
       trace.fired.push(`${issue.identifier}:title_after_parent`);
       issue = await this.updateIssue(issue, { title });
-      reflected = await this.waitForReflection(
+      const reflected = await this.waitForReflection(
         issue.id,
-        current => current.title === title && parentIdFromRow(current) === parent.id,
+        current => current.title === title
+          && parentIdFromRow(current) === parent.id
+          && clean(current.batch_id) === expectedBatchId,
         /^mirror_in_/,
         cursor,
         'parent preservation after partial webhook',
       );
       this.assertReconcile(reflected.reconcile);
-      trace.observed = { parent_id: parentIdFromRow(reflected.row), title: reflected.row.title, reconcile: reflected.reconcile };
+      reflectedRow = reflected.row;
+      reconcile = reflected.reconcile;
+      trace.observed = {
+        payload_contract: PARTIAL_WEBHOOK_CONTRACT.reparent,
+        realtime_parent_before_refresh: parentIdFromRow(realtimeRow) || null,
+        parent_id: parentIdFromRow(reflectedRow),
+        batch_id: reflectedRow.batch_id,
+        expected_batch_id: expectedBatchId,
+        title: reflectedRow.title,
+        refresh,
+        refresh_latency_ms: Date.now() - firedAt,
+        reconcile,
+      };
       return trace.observed;
+    }, async () => {
+      const currentBatches = await this.supabaseRead(`batches?select=*&client_slug=eq.${encodeURIComponent(this.config.clientSlug)}&order=id.asc`);
+      for (const batch of currentBatches || []) {
+        if (beforeBatchIds.has(clean(batch.id)) || clean(batch.status) === 'archived') continue;
+        await this.cleanupRpc('batch_write', {
+          p_row: { ...batch, status: 'archived' },
+          p_event: {
+            actor: 'B3 TEST harness',
+            role: 'system',
+            action: 'b3_mirror_harness_cleanup',
+            source: 'system',
+            probe: 'b3_mirror_scenario_harness',
+            marker: RUN_MARKER,
+          },
+        });
+      }
     });
   }
 
@@ -945,9 +1232,19 @@ class Harness {
       cursor = await this.eventCursor(row.id);
       trace.fired.push(`${issue.identifier}:unarchive`);
       await this.unarchiveIssue(issue);
-      const reflected = await this.waitForReflection(issue.id, current => isMirrorVisible(current), /^mirror_in_/, cursor, 'reopen');
+      const reflected = await this.waitForReflection(issue.id, current => {
+        const raw = parseJson(current && current.linear_raw);
+        return isMirrorVisible(current)
+          && !rawHasAny(raw, ['webhook_delete', 'deleted', 'delete', 'removed', 'archived'])
+          && !(raw.issue && raw.issue.archivedAt);
+      }, 'mirror_in_restore', cursor, 'reopen');
       this.assertReconcile(reflected.reconcile);
-      trace.observed = { visible: isMirrorVisible(reflected.row), reconcile: reflected.reconcile };
+      trace.observed = {
+        visible: isMirrorVisible(reflected.row),
+        archive_markers_cleared: true,
+        event_actions: [...new Set(reflected.events.map(event => event.action))],
+        reconcile: reflected.reconcile,
+      };
       return trace.observed;
     });
   }
@@ -1088,42 +1385,48 @@ class Harness {
 
   async run() {
     await this.preflight();
-    const originalPrimaryIssue = issueSnapshot(this.context.issues.primary);
-    const originalPrimaryRow = this.context.rows.primary;
-    const originalCrossRows = [this.context.rows.crossVideo, this.context.rows.crossGraphic];
+    const originalIssues = [...new Map([
+      this.context.issues.primary,
+      this.context.issues.parent,
+      this.context.issues.crossVideo,
+      this.context.issues.crossGraphic,
+    ].map(issue => [issue.id, issueSnapshot(issue)])).values()];
+    const originalRows = [...new Map([
+      this.context.rows.primary,
+      this.context.rows.crossVideo,
+      this.context.rows.crossGraphic,
+    ].map(row => [row.id, row])).values()];
     let cleanupComplete = false;
     let fatalError = null;
     let finalReconciler = null;
 
     try {
-      await this.runScenario('Create parent + sub-issue', { batch: true, parent_deliverable: true, child_deliverable: true }, trace => this.scenarioCreate(trace));
+      await this.runScenario('Create parent + sub-issue', CONSISTENCY_MODELS.create, { batch: true, parent_deliverable: true, child_deliverable: true }, trace => this.scenarioCreate(trace));
       await this.activatePrimary();
-      await this.runScenario('Full status ladder + backward regression', { final_status: 'posted', every_step_reflected: true, diff_count: 0 }, trace => this.scenarioStatusLadder(trace));
-      await this.runScenario('Title change', { title_reflected: true, diff_count: 0 }, trace => this.scenarioSimpleField(trace, 'title', [`B3 title ${RUN_MARKER}`], /^mirror_in_/, row => row.title));
+      await this.runScenario('Full status ladder + backward regression', CONSISTENCY_MODELS.realtime, { final_status: 'posted', every_step_reflected: true, diff_count: 0 }, trace => this.scenarioStatusLadder(trace));
+      await this.runScenario('Title change', CONSISTENCY_MODELS.realtime, { title_reflected: true, diff_count: 0 }, trace => this.scenarioSimpleField(trace, 'title', [`B3 title ${RUN_MARKER}`], /^mirror_in_/, row => row.title));
       const dateA = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
       const dateB = new Date(Date.now() + 17 * 86400000).toISOString().slice(0, 10);
-      await this.runScenario('Due date set -> change -> clear', { values: [dateA, dateB, null], diff_count: 0 }, trace => this.scenarioSimpleField(trace, 'dueDate', [dateA, dateB, null], /^mirror_in_/, row => normalizeDate(row.due_date) || null));
-      await this.runScenario('Priority change', { values: [1, 4, 0], diff_count: 0 }, trace => this.scenarioSimpleField(trace, 'priority', [1, 4, 0], /^mirror_in_/, row => normalizePriority(row.priority) == null ? 0 : normalizePriority(row.priority)));
-      await this.runScenario('Assignee set -> change -> clear', { mapped_members: 2, clear: true, diff_count: 0 }, trace => this.scenarioKnownAssignees(trace));
-      await this.runScenario('Unknown assignee repair lane', { diff_count: 0, repair_list_size: 1 }, trace => this.scenarioUnknownAssignee(trace));
-      await this.runScenario('Unmapped state tolerated lane', { diff_count: 0, tolerated: 'unmapped_state_refused' }, trace => this.scenarioUnmappedState(trace));
-      await this.runScenario('Re-parent and preserve parent', { parent_reflected: true, parent_survives_partial_update: true, diff_count: 0 }, trace => this.scenarioReparent(trace));
-      await this.runScenario('Archive hides mirror row', { visible: false, diff_count: 0 }, trace => this.scenarioArchive(trace));
-      await this.runScenario('Cancel hides mirror row', { status: 'canceled', visible: false, diff_count: 0 }, trace => this.scenarioCancel(trace));
-      await this.runScenario('Reopen reappears', { visible: true, diff_count: 0 }, trace => this.scenarioReopen(trace));
-      await this.runScenario('Rapid successive edits', { final_state_wins: true, diff_count: 0 }, trace => this.scenarioRapidEdits(trace));
-      await this.runScenario('Duplicate webhook within 60 seconds', { mirror_event_count: 1, material_state_once: true }, trace => this.scenarioDuplicateDelivery(trace));
-      await this.runScenario('Cross-team batch VID + GRA', { both_reflected: true, same_batch: true, diff_count: 0 }, trace => this.scenarioCrossTeam(trace));
+      await this.runScenario('Due date set -> change -> clear', CONSISTENCY_MODELS.clear, { values: [dateA, dateB, null], diff_count: 0 }, trace => this.scenarioDueDate(trace, [dateA, dateB, null]));
+      await this.runScenario('Priority change', CONSISTENCY_MODELS.realtime, { values: [1, 4, 0], diff_count: 0 }, trace => this.scenarioSimpleField(trace, 'priority', [1, 4, 0], /^mirror_in_/, row => normalizePriority(row.priority) == null ? 0 : normalizePriority(row.priority)));
+      await this.runScenario('Assignee set -> change -> clear', CONSISTENCY_MODELS.clear, { mapped_members: 2, clear: true, diff_count: 0 }, trace => this.scenarioKnownAssignees(trace));
+      await this.runScenario('Unknown assignee repair lane', CONSISTENCY_MODELS.unknownAssignee, { diff_count: 0, repair_list_size: 1 }, trace => this.scenarioUnknownAssignee(trace));
+      await this.runScenario('Unmapped state tolerated lane', CONSISTENCY_MODELS.unmappedState, { skipped_if_no_unmapped_state: true, tolerated_if_present: 'unmapped_state_refused' }, trace => this.scenarioUnmappedState(trace));
+      await this.runScenario('Re-parent and preserve parent', CONSISTENCY_MODELS.reparent, { parent_reflected: true, batch_restructured: true, parent_survives_partial_update: true, diff_count: 0 }, trace => this.scenarioReparent(trace));
+      await this.runScenario('Archive hides mirror row', CONSISTENCY_MODELS.realtime, { visible: false, diff_count: 0 }, trace => this.scenarioArchive(trace));
+      await this.runScenario('Cancel hides mirror row', CONSISTENCY_MODELS.realtime, { status: 'canceled', visible: false, diff_count: 0 }, trace => this.scenarioCancel(trace));
+      await this.runScenario('Reopen reappears', CONSISTENCY_MODELS.realtime, { visible: true, archive_markers_cleared: true, diff_count: 0 }, trace => this.scenarioReopen(trace));
+      await this.runScenario('Rapid successive edits', CONSISTENCY_MODELS.realtime, { final_state_wins: true, diff_count: 0 }, trace => this.scenarioRapidEdits(trace));
+      await this.runScenario('Duplicate webhook within 60 seconds', CONSISTENCY_MODELS.realtime, { mirror_event_count: 1, material_state_once: true }, trace => this.scenarioDuplicateDelivery(trace));
+      await this.runScenario('Cross-team batch VID + GRA', CONSISTENCY_MODELS.realtime, { both_reflected: true, same_batch: true, diff_count: 0 }, trace => this.scenarioCrossTeam(trace));
       // Comment runs last while the disposable issue is active. Its mirror event
       // is excluded from v2 after the issue returns to its original canceled state.
-      await this.runScenario('Comment add + echo filter + tweak pinning', { genuine_copies: 1, echo_copies: 0, is_tweak: false, diff_count: 0 }, trace => this.scenarioComment(trace));
+      await this.runScenario('Comment add + echo filter + tweak pinning', CONSISTENCY_MODELS.realtime, { genuine_copies: 1, echo_copies: 0, is_tweak: false, diff_count: 0 }, trace => this.scenarioComment(trace));
     } catch (error) {
       fatalError = error;
     } finally {
       try {
-        await this.restoreLinearSnapshot(originalPrimaryIssue);
-        await this.restoreDeliverableSnapshot(originalPrimaryRow);
-        for (const row of originalCrossRows) await this.restoreDeliverableSnapshot(row);
+        await this.restoreScenarioSnapshots(originalIssues, originalRows);
         cleanupComplete = true;
       } catch (error) {
         fatalError = fatalError || error;
@@ -1136,7 +1439,7 @@ class Harness {
       try {
         finalReconciler = await this.waitForFinalReconciler(cleanupFinishedAt);
       } catch (error) {
-        await this.runScenario('Final reconciler 0/0/0', { diff_count: 0, repair_list_size: 0, linkage_actionable: 0 }, trace => {
+        await this.runScenario('Final reconciler 0/0/0', CONSISTENCY_MODELS.final, { diff_count: 0, repair_list_size: 0, linkage_actionable: 0 }, trace => {
           trace.observed = error.latest || null;
           throw error;
         });
@@ -1153,6 +1456,7 @@ class Harness {
       total: this.results.length,
       passed: this.results.filter(item => item.status === 'PASS').length,
       failed: this.results.filter(item => item.status === 'FAIL').length,
+      skipped: this.results.filter(item => item.status === 'SKIPPED').length,
       cleanup_complete: cleanupComplete,
       created_issue_ids: this.createdIssues,
       final_reconciler: finalReconciler,
@@ -1190,7 +1494,11 @@ function loadConfig(argv = process.argv.slice(2)) {
     timeoutMs: Math.max(5000, Number(args.get('timeout-ms') || process.env.B3_HARNESS_TIMEOUT_MS || 60000)),
     createTimeoutMs: Math.max(5000, Number(args.get('create-timeout-ms') || process.env.B3_CREATE_TIMEOUT_MS || 30000)),
     finalTimeoutMs: Math.max(10000, Number(args.get('final-timeout-ms') || process.env.B3_FINAL_TIMEOUT_MS || 20 * 60 * 1000)),
+    recoveryTimeoutMs: Math.max(10000, Number(args.get('recovery-timeout-ms') || process.env.B3_RECOVERY_TIMEOUT_MS || 20 * 60 * 1000)),
     pollMs: Math.max(250, Number(args.get('poll-ms') || process.env.B3_HARNESS_POLL_MS || 1000)),
+    realtimeGraceMs: Math.max(1000, Number(args.get('realtime-grace-ms') || process.env.B3_REALTIME_GRACE_MS || 8000)),
+    cleanupSettleMs: Math.max(1000, Number(args.get('cleanup-settle-ms') || process.env.B3_CLEANUP_SETTLE_MS || 6000)),
+    cleanupVerifyDelayMs: Math.max(500, Number(args.get('cleanup-verify-delay-ms') || process.env.B3_CLEANUP_VERIFY_DELAY_MS || 2000)),
     reportJson: args.get('report-json') || process.env.B3_HARNESS_REPORT_JSON || '',
     reportMd: args.get('report-md') || process.env.B3_HARNESS_REPORT_MD || '',
   };
@@ -1224,6 +1532,8 @@ if (require.main === module) {
 
 module.exports = {
   STATUS_LADDER,
+  CONSISTENCY_MODELS,
+  PARTIAL_WEBHOOK_CONTRACT,
   parseArgs,
   isRetryableLinearRead,
   parseThread,
@@ -1240,6 +1550,7 @@ module.exports = {
   commentObservation,
   compactReconcile,
   compactPollObservation,
+  deliverableSnapshotMatches,
   markdownReport,
   loadConfig,
   Harness,

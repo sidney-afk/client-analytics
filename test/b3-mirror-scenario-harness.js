@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const {
   STATUS_LADDER,
+  CONSISTENCY_MODELS,
+  PARTIAL_WEBHOOK_CONTRACT,
   isRetryableLinearRead,
   parseThread,
   rawContains,
@@ -17,6 +19,7 @@ const {
   commentObservation,
   compactReconcile,
   compactPollObservation,
+  deliverableSnapshotMatches,
   markdownReport,
 } = require('../scripts/b3-mirror-scenario-harness');
 const { classifyDeliverable } = require('../scripts/linear-deliverables-reconcile-lib');
@@ -77,6 +80,14 @@ ok(!stateMap.state_unknown, 'unknown state is deliberately left unmapped');
 ok(findState(teams, 'VID', 'kasper_approval').id === 'state_kasper', 'status-step lookup uses the shared state mapper');
 ok(STATUS_LADDER.some(step => step.label === 'Tweak Applied' && step.slug === 'kasper_approval' && step.activeAlias === 'For Kasper approval'),
   'status ladder records the active-team Tweak Applied alias explicitly');
+ok(CONSISTENCY_MODELS.create === 'refresh-eventual'
+  && CONSISTENCY_MODELS.clear.includes('reconciler-eventual')
+  && CONSISTENCY_MODELS.reparent.includes('refresh-eventual'),
+  'scenario matrix records the realtime, reconciler, and refresh consistency boundaries');
+ok(PARTIAL_WEBHOOK_CONTRACT.dueDateClear === 'omitted'
+  && PARTIAL_WEBHOOK_CONTRACT.assigneeClear === 'omitted'
+  && PARTIAL_WEBHOOK_CONTRACT.reparent === 'parentId-only',
+  'partial-webhook expectations match the retained TEST payload evidence');
 ok(isRetryableLinearRead('query HarnessRead { viewer { id } }', 503), 'transient Linear read failures are retryable');
 ok(!isRetryableLinearRead('mutation HarnessWrite { issueUpdate { success } }', 503), 'Linear mutations are never retried automatically');
 
@@ -104,6 +115,25 @@ const compactLatest = compactPollObservation({
 });
 ok(compactLatest.parent_id === 'parent_1' && compactLatest.due_date === '2026-07-20' && !('linear_raw' in compactLatest),
   'timeout reports compact the last row instead of copying its raw payload');
+const expectedRow = {
+  id: 'deliverable_test',
+  identifier: 'VID-99999',
+  batch_id: 'batch_original',
+  client_slug: 'test-client',
+  team: 'video',
+  kind: 'video',
+  title: 'Fixture',
+  status: 'todo',
+  linear_issue_uuid: 'linear_issue_test',
+  linear_identifier: 'VID-99999',
+  linear_raw: { issue: { parent: null } },
+  linear_aliases: { identifier: 'VID-99999' },
+  comments: '[]',
+};
+ok(deliverableSnapshotMatches({ ...expectedRow, updated_at: 'server-owned' }, expectedRow),
+  'cleanup comparison ignores server-generated timestamps');
+ok(!deliverableSnapshotMatches({ ...expectedRow, linear_raw: { issue: { parent: { id: 'late_parent' } } } }, expectedRow),
+  'cleanup comparison catches a late webhook restoring stale parent metadata');
 
 const snapshot = issueSnapshot({
   ...safeIssue,
@@ -175,17 +205,20 @@ const rendered = markdownReport({
   total: 2,
   passed: 1,
   failed: 1,
+  skipped: 0,
   cleanup_complete: true,
   final_reconciler: { diff_count: 0, repair_list_size: 0, linkage_actionable: 0 },
   scenarios: [
-    { name: 'Fixture pass', status: 'PASS', latency_ms: 10, fired: ['VID-99999'], expected: { ok: true }, observed: { ok: true } },
-    { name: 'Fixture red', status: 'FAIL', latency_ms: 20, fired: [], expected: { ok: true }, observed: { ok: false } },
+    { name: 'Fixture pass', consistency: 'realtime', status: 'PASS', latency_ms: 10, fired: ['VID-99999'], expected: { ok: true }, observed: { ok: true } },
+    { name: 'Fixture red', consistency: 'refresh-eventual', status: 'FAIL', latency_ms: 20, fired: [], expected: { ok: true }, observed: { ok: false } },
   ],
 });
-ok(/Fixture pass \| PASS/.test(rendered) && /Fixture red \| FAIL/.test(rendered), 'coverage report keeps red scenarios visible');
+ok(/Fixture pass \| realtime \| PASS/.test(rendered) && /Fixture red \| refresh-eventual \| FAIL/.test(rendered),
+  'coverage report keeps consistency and red scenarios visible');
 ok(/Final reconciler: diff=0, repair=0, linkage=0/.test(rendered), 'coverage report records the final 0/0/0 gate');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'b3-mirror-scenario-harness.js'), 'utf8');
+const refreshSource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'b1-linear-backfill.js'), 'utf8');
 ok(/B3_CONFIRM_TEST_MUTATIONS === '1'/.test(source), 'live harness requires explicit TEST mutation confirmation');
 ok(/Configured client is not the active TEST client/.test(source), 'live preflight requires clients.kind=test');
 ok(/\^\(VID\|GRA\)-\\d\+\$/.test(source), 'live guard restricts identifiers to VID/GRA');
@@ -193,10 +226,22 @@ ok(/method: 'GET'[\s\S]{0,180}apikey: this\.config\.anonKey/.test(source), 'all 
 ok(/\['deliverable_write', 'batch_write'\]\.includes\(name\)/.test(source), 'service-role cleanup is restricted to the two ledgered RPCs');
 ok(!/syncview_runtime_flags/.test(source), 'harness does not read or mutate runtime flags');
 ok(!/rest\/v1\/mirror_outbox|from\(['"]mirror_outbox/.test(source), 'harness never touches mirror_outbox');
+ok(/const PROJECT_FILTER = clean\(args\.get\('--project-id'\)\)/.test(refreshSource)
+  && /issueProjectId\(issue\) === PROJECT_FILTER/.test(refreshSource),
+  'incremental refresh supports an opt-in TEST-project write scope');
+ok(/runNodeScript\('scripts\/b1-linear-backfill\.js'/.test(source)
+  && /'--project-id',[\s\S]*this\.config\.projectId/.test(source),
+  'harness invokes refresh through the TEST-project scope');
+ok(/runNodeScript\('scripts\/linear-deliverables-reconcile\.js'/.test(source)
+  && /`--identifier=\$\{issue\.identifier\}`/.test(source),
+  'harness invokes reconciliation through the TEST-identifier scope');
+ok(/status = 'SKIPPED'/.test(source), 'no unmapped state is reported SKIPPED rather than red');
 ok(!/teamId.*allowed|projectId.*allowed/.test(source), 'issueUpdate allow-list cannot move an issue to another team/project');
-const restorationSource = source.slice(source.indexOf('async withRestoration('), source.indexOf('async runScenario('));
-ok(restorationSource.indexOf('restoreLinearSnapshot') < restorationSource.indexOf('restoreDeliverableSnapshot'),
-  'cleanup verifies Linear restoration before applying the exact Supabase snapshot');
+const cleanupSource = source.slice(source.indexOf('async restoreScenarioSnapshots('), source.indexOf('async withRestoration('));
+ok(cleanupSource.indexOf('restoreLinearSnapshot') < cleanupSource.indexOf('cleanupSettleMs')
+  && cleanupSource.indexOf('cleanupSettleMs') < cleanupSource.indexOf('restoreDeliverableSnapshot')
+  && /deliverableSnapshotMatches/.test(cleanupSource),
+  'cleanup lets inbound settle, applies the exact row snapshot, and verifies it');
 ok(!/Supabase cleanup reflection/.test(source), 'cleanup never waits on the inbound path before reaching its RPC fallback');
 
 if (failures) {

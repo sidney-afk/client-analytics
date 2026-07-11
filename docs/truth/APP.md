@@ -79,5 +79,22 @@ fast-moving file). Confirmed-dead example already documented: `_sxrReassertLinea
 | Misc | `_filmsParseSheet` `_kasperIsReviewMounted` `_tplViewLink` `generateBrief` `mBlockDiff` `setGainMode` |
 
 Repro: a name-occurrence scan (count `\bNAME\b` matches in `index.html`; flag names appearing
-once). Next audit chunks: duplicate literals,
+once).
+
+### F2 `[wontfix — audited clean]` — Linear status-string quirks are defended in the frontend
+
+The audits flag Linear's char-exact status hazards (trailing space `"Tweak Needed "`, case
+`"For Client Approval"` vs GRA `"For Client approval"`) as a standing footgun. **Verified
+2026-07-11: `index.html` handles them correctly.** Every consumer of Linear-sourced status
+normalizes through a trim+lowercase helper before comparing:
+- `wlNormStatus()` (`(sub.status||'').trim().toLowerCase()`) feeds `wlIsTweaksNeeded()`,
+  `wlIsToDo()`, `wlIsActiveStatus()` — the workload-mirror panel.
+- `_kedNorm()` (same normalization) feeds the whole `_ked*` editor-delivery module.
+Both modules carry comments showing the authors know about the quirks. The GRA lowercase
+variant never appears as a literal in the code precisely because matching is
+case-insensitive. **No FE action needed.** Residual risk is backend-only (the n8n
+`linear-set-status` mapping does char-exact matches) — already tracked in `docs/truth/N8N.md`
+and `docs/truth/LINEAR.md`; not verifiable from this repo.
+
+Next audit chunks: duplicate literals,
 `console.log` left in prod paths, inconsistent status-string handling, and large inline handlers.

@@ -96,5 +96,28 @@ case-insensitive. **No FE action needed.** Residual risk is backend-only (the n8
 `linear-set-status` mapping does char-exact matches) — already tracked in `docs/truth/N8N.md`
 and `docs/truth/LINEAR.md`; not verifiable from this repo.
 
-Next audit chunks: duplicate literals,
-`console.log` left in prod paths, inconsistent status-string handling, and large inline handlers.
+### F3 `[wontfix — audited, latent fragility noted]` — duplicate static DOM ids are exclusive-render, not runtime collisions
+
+Seven static `id="…"` literals repeat in `index.html` and are read via `getElementById` (which
+returns only the first DOM match). Investigated 2026-07-11 — all repeats are **mutually-exclusive
+render paths**, so only one instance is ever mounted:
+- `calSelectArchive` — a 3-way ternary producing a single action button.
+- `prodFilterBtn` / `prodGroupBtn` — one copy each in `_prodTopbar` vs `_prodProjectTopbar`
+  (board view vs project view; never mounted together).
+- `calImportErr` / `calImportGo` — one copy per import-wizard step
+  (`_calRenderImportPick` / `_calRenderImportSheetPick` / `_calRenderImportMap` /
+  `_calRenderImportSelect`; the wizard shows one step at a time).
+- `calView`, `briefViewContainer` — one copy per tab render (client-view vs cal-tab-view).
+
+**No confirmed bug.** Latent fragility: correctness depends on the "only one branch mounted"
+invariant, which nothing enforces — a future change that co-mounts two of these render functions
+would make `getElementById` silently target the wrong element (e.g. an error would render into an
+off-screen wizard step). Cheap defense if it ever bites: scope these to `class`+`closest()` or
+suffix the id per branch. Not worth changing preemptively.
+
+### Backlog (next chunks)
+
+Duplicate string literals, unguarded `JSON.parse` on localStorage (crash-on-corrupt-data — 86
+call sites, several `raw ? JSON.parse(raw) : …` guards handle null but not malformed JSON),
+fire-and-forget async (missing `await`), and large inline event handlers. (`console.log` cleanup
+is owner-decision, not an autonomous edit — see session note.)

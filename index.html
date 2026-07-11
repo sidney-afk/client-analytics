@@ -1338,19 +1338,73 @@
         .logo-text { font-weight: 700; font-size: 1rem; letter-spacing: -0.01em; }
         .header-meta { font-size: 0.77rem; color: var(--text-muted); }
         .header-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; }
+        .staff-identity-wrap { position: relative; display: inline-flex; }
         .staff-identity-btn { position: relative; }
-        .staff-identity-btn.is-valid::after { content: ''; position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--sv-fg-22c55e); box-shadow: 0 0 0 2px var(--white); }
-        .staff-auth-overlay { z-index: 9998; padding: 18px; box-sizing: border-box; background: var(--sv-bg-rgba-0-0-0-0_5); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
-        .staff-auth-card { width: min(420px, 100%); border: 1px solid var(--border); border-radius: 14px; background: var(--white); box-shadow: 0 24px 70px var(--sv-shadow-rgba-0-0-0-0_28); padding: 22px; }
-        .staff-auth-card h2 { margin: 0; color: var(--text-primary); font-size: 1.05rem; }
-        .staff-auth-card > p { margin: 7px 0 18px; color: var(--text-muted); font-size: 0.8rem; line-height: 1.5; }
-        .staff-auth-fields { display: grid; gap: 13px; }
-        .staff-auth-field { display: grid; gap: 6px; }
-        .staff-auth-field label { color: var(--text-secondary); font-size: 0.72rem; font-weight: 750; }
-        .staff-auth-field input:not([type="hidden"]) { width: 100%; min-height: 42px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 9px; background: var(--white); color: var(--text-primary); padding: 10px 12px; font: inherit; font-size: 0.84rem; outline: 0; }
+        .staff-identity-btn.is-checking svg { animation: staff-identity-check 1s ease-in-out infinite; }
+        .staff-identity-btn.is-valid { color: var(--up); border-color: var(--up); background: var(--up-bg); }
+        .staff-identity-btn.is-valid::after { content: ''; position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--up); box-shadow: 0 0 0 2px var(--white); }
+        .staff-account-popover { position: absolute; z-index: 9997; top: calc(100% + 10px); right: 0; width: min(286px, calc(100vw - 28px)); border: 1px solid var(--border); border-radius: 14px; background: var(--white); box-shadow: 0 18px 48px var(--sv-shadow-rgba-17-17-16-0_16); padding: 8px; transform-origin: top right; }
+        .staff-account-popover.is-open { animation: staff-popover-in 0.16s ease-out; }
+        .staff-account-summary { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 10px 11px; }
+        .staff-account-avatar { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: var(--up-bg); color: var(--up); font-size: 0.76rem; font-weight: 800; letter-spacing: -0.02em; }
+        .staff-account-copy { min-width: 0; }
+        .staff-account-line { color: var(--text-primary); font-size: 0.78rem; font-weight: 720; line-height: 1.45; overflow-wrap: anywhere; }
+        .staff-account-note { margin-top: 2px; color: var(--text-muted); font-size: 0.68rem; line-height: 1.35; }
+        .staff-account-sep { height: 1px; margin: 0 4px 5px; background: var(--border-light); }
+        .staff-account-action { width: 100%; min-height: 38px; border: 0; border-radius: 10px; padding: 9px 10px; display: flex; align-items: center; gap: 9px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 0.76rem; font-weight: 700; text-align: left; cursor: pointer; transition: background 0.14s, color 0.14s, transform 0.14s; }
+        .staff-account-action:hover { background: var(--bg); color: var(--text-primary); }
+        .staff-account-action:active { transform: scale(0.985); }
+        .staff-account-action:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+        .staff-account-action svg { width: 15px; height: 15px; flex: 0 0 auto; }
+        .staff-auth-overlay { z-index: 9998; padding: 18px; box-sizing: border-box; background: var(--sv-bg-rgba-0-0-0-0_5); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); animation: staff-backdrop-in 0.18s ease-out; }
+        .staff-auth-card { width: min(420px, 100%); border: 1px solid var(--border); border-radius: 16px; background: var(--white); box-shadow: 0 24px 70px var(--sv-shadow-rgba-0-0-0-0_28); padding: 24px; animation: staff-card-in 0.2s ease-out; }
+        .staff-auth-head { display: flex; align-items: center; gap: 11px; margin-bottom: 8px; }
+        .staff-auth-mark { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); background: var(--bg); color: var(--text-primary); }
+        .staff-auth-mark svg { width: 17px; height: 17px; }
+        .staff-auth-title-wrap { min-width: 0; }
+        .staff-auth-eyebrow { margin-bottom: 2px; color: var(--text-muted); font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+        .staff-auth-card h2 { margin: 0; color: var(--text-primary); font-size: 1.08rem; letter-spacing: -0.02em; }
+        .staff-auth-intro { margin: 0 0 19px; color: var(--text-secondary); font-size: 0.78rem; line-height: 1.55; }
+        .staff-auth-fields { display: grid; gap: 14px; }
+        .staff-auth-field { display: grid; gap: 7px; }
+        .staff-auth-field label { color: var(--text-secondary); font-size: 0.7rem; font-weight: 750; }
+        .staff-auth-field input:not([type="hidden"]) { width: 100%; min-height: 43px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 11px; background: var(--white); color: var(--text-primary); padding: 10px 12px; font: inherit; font-size: 0.84rem; outline: 0; transition: border-color 0.14s, box-shadow 0.14s, background 0.14s; }
+        .staff-auth-field input:not([type="hidden"]):hover { border-color: var(--sv-border-b9b9b4); }
         .staff-auth-field input:not([type="hidden"]):focus { border-color: var(--text-primary); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-17-17-16-0_07); }
-        .staff-auth-error { min-height: 18px; margin-top: 10px; color: var(--dn); font-size: 0.75rem; line-height: 1.4; }
-        .staff-auth-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; margin-top: 14px; }
+        .staff-auth-field input[aria-invalid="true"] { border-color: var(--dn); box-shadow: 0 0 0 3px var(--dn-bg); }
+        .staff-auth-field input:disabled, .staff-auth-field button:disabled { cursor: wait; opacity: 0.68; }
+        .staff-auth-error { min-height: 17px; margin-top: 9px; color: var(--dn); font-size: 0.72rem; font-weight: 650; line-height: 1.45; }
+        .staff-auth-error:not(:empty) { padding: 8px 10px; border: 1px solid var(--dn); border-radius: 9px; background: var(--dn-bg); animation: staff-error-in 0.14s ease-out both; }
+        .staff-auth-status { min-height: 17px; margin-top: 9px; color: var(--text-secondary); font-size: 0.72rem; font-weight: 650; line-height: 1.45; }
+        .staff-auth-status:empty { display: none; }
+        .staff-auth-secure { display: flex; align-items: flex-start; gap: 7px; margin-top: 12px; color: var(--text-muted); font-size: 0.66rem; line-height: 1.45; }
+        .staff-auth-secure svg { width: 13px; height: 13px; flex: 0 0 auto; margin-top: 1px; }
+        .staff-auth-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; margin-top: 17px; }
+        .staff-auth-actions .cal-import-btn-primary, .staff-auth-actions .cal-import-btn-ghost { min-height: 39px; transition: transform 0.14s, box-shadow 0.14s, background 0.14s, color 0.14s; }
+        .staff-auth-actions .cal-import-btn-primary:not(:disabled):hover { box-shadow: 0 6px 16px var(--sv-shadow-rgba-17-17-16-0_16); transform: translateY(-1px); }
+        .staff-auth-actions .cal-import-btn-primary:not(:disabled):active, .staff-auth-actions .cal-import-btn-ghost:active { transform: translateY(0) scale(0.985); }
+        .staff-auth-actions button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .staff-auth-spinner { width: 14px; height: 14px; display: inline-block; margin-right: 7px; vertical-align: -2px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: staff-spin 0.7s linear infinite; }
+        .staff-auth-loading { display: grid; justify-items: center; gap: 11px; padding: 18px 4px 4px; text-align: center; }
+        .staff-auth-loading .staff-auth-spinner { width: 20px; height: 20px; margin: 0; color: var(--text-primary); }
+        .staff-auth-loading strong { color: var(--text-primary); font-size: 0.82rem; }
+        .staff-auth-loading span { color: var(--text-muted); font-size: 0.7rem; line-height: 1.45; }
+        @keyframes staff-popover-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes staff-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes staff-card-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes staff-error-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes staff-spin { to { transform: rotate(360deg); } }
+        @keyframes staff-identity-check { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+        @media (max-width: 520px) {
+            .staff-account-popover { position: fixed; top: 56px; right: 14px; width: min(286px, calc(100vw - 28px)); }
+            .staff-auth-overlay { align-items: flex-end; padding: 12px; }
+            .staff-auth-card { width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; border-radius: 18px; padding: 21px 18px calc(18px + env(safe-area-inset-bottom)); }
+            .staff-auth-actions { display: grid; grid-template-columns: 1fr 1.25fr; }
+            .staff-auth-actions button { width: 100%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .staff-account-popover.is-open, .staff-auth-overlay, .staff-auth-card, .staff-auth-error:not(:empty), .staff-identity-btn.is-checking svg { animation: none; }
+        }
         .theme-toggle { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--theme-toggle-border); background: var(--theme-toggle-bg); color: var(--theme-toggle-color); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s; }
         .theme-toggle:hover { border-color: var(--focus-ring); color: var(--text-primary); box-shadow: 0 0 0 3px var(--theme-toggle-ring); }
         .theme-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
@@ -6470,9 +6524,12 @@
         </a>
     </div>
     <div class="header-actions">
-        <button class="theme-toggle staff-identity-btn" id="staffIdentityButton" type="button" onclick="_syncviewOpenStaffIdentity()" title="Staff sign in" aria-label="Staff sign in">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="5.3" r="2.5" stroke="currentColor" stroke-width="1.45"/><path d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/></svg>
-        </button>
+        <div class="staff-identity-wrap" id="staffIdentityWrap">
+            <button class="theme-toggle staff-identity-btn" id="staffIdentityButton" type="button" onclick="_syncviewOpenStaffIdentity()" title="Staff sign in" aria-label="Staff sign in" aria-haspopup="dialog" aria-expanded="false">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="5.3" r="2.5" stroke="currentColor" stroke-width="1.45"/><path d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/></svg>
+            </button>
+            <div class="staff-account-popover" id="staffAccountPopover" role="menu" aria-labelledby="staffIdentityButton" hidden></div>
+        </div>
         <button class="theme-toggle palette-toggle" id="statusPaletteToggle" type="button" onclick="toggleSyncViewStatusPalette()" title="Switch to original status colors" aria-label="Switch to original status colors" aria-pressed="false">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"/></svg>
         </button>
@@ -10306,9 +10363,9 @@
         .finally(()=>{ _obvLoading = false; _obvRerender(); });
     }
 
-    // Kasper full view: one gated call (onboarding-full) returns all three sources
-    // UN-stripped — names, emails, phones, and the account credentials. A rejected
-    // passphrase re-prompts once (so a wrong entry isn't a dead end).
+    // Admin full view: one gated call (onboarding-full) returns all three sources
+    // UN-stripped — names, emails, phones, and the account credentials.
+    // The request reuses the verified role identity; there is no second passphrase.
     async function _obvLoadFull(){
       try {
         const res = await _obvFetchFull(false);
@@ -10319,12 +10376,25 @@
         _obvLoadedAt = Date.now(); _obvLoading = false; _obvRerender();
       }
     }
-    async function _obvFetchFull(force){
-      const ident = await _ccEnsureIdentity('kasper', force);
+    async function _obvFetchFull(retried){
+      const ident = await _syncviewRequireStaffIdentity('onboarding');
       const r = await fetch(ONBOARDING_FULL_URL + '?_t=' + Date.now(), { method:'GET', headers: { 'X-Syncview-Key': ident.key } });
-      if (r.status === 401) { return force ? { submissions: [], error: 'That staff passphrase was rejected.' } : _obvFetchFull(true); }
+      if (r.status === 401) {
+        const active = _syncviewStaffIdentityForHeaders();
+        if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(ident)) {
+          return { submissions: [], error: 'Staff sign-in changed.' };
+        }
+        _syncviewStaffIdentityClear();
+        if (retried) return { submissions: [], error: 'Staff sign-in expired.' };
+        const replacement = await _syncviewOpenStaffIdentity({ reason: 'expired' });
+        if (!replacement) return { submissions: [], error: 'Staff sign-in required.' };
+        return _obvFetchFull(true);
+      }
+      if (r.status === 403) return { submissions: [], error: 'Admin access required.' };
       if (!r.ok) return { submissions: [], error: 'HTTP ' + r.status };
       const d = await r.json();
+      const active = _syncviewStaffIdentityForHeaders();
+      if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(ident)) return { submissions: [], error: 'Staff sign-in changed.' };
       return { submissions: (d && d.submissions) || [], warn: (d && d.warnings && d.warnings.length) ? d.warnings.join('; ') : '' };
     }
 
@@ -11244,7 +11314,6 @@
 
     /* ── Linear View ── */
     /* -- Filming Plans source of truth ---------------------------------- */
-    const FP_IDENTITY_KEY = 'syncview_filming_plans_identity_v1';
     let filmingPlansData = null;       // { rows, bySlug, source, loadedAt }
     let filmingPlansLoadPromise = null;
     let filmingPlansLoadError = '';
@@ -11371,35 +11440,27 @@
     function _fpDomId(slug) {
         return String(slug || '').replace(/[^a-z0-9]+/gi, '_');
     }
-    function _fpIdentity(force) {
-        if (!force) {
-            try {
-                const current = JSON.parse(localStorage.getItem(FP_IDENTITY_KEY) || 'null');
-                if (current && current.name && current.key) return current;
-            } catch (e) {}
-        }
-        const name = window.prompt('Staff name');
-        if (!name) return null;
-        const key = window.prompt('Onboarding staff passphrase');
-        if (!key) return null;
-        const ident = { name: String(name).trim(), key: String(key).trim() };
-        try { localStorage.setItem(FP_IDENTITY_KEY, JSON.stringify(ident)); } catch (e) {}
-        return ident;
-    }
-    async function _fpPostPlan(payload, forceIdentity) {
-        const ident = _fpIdentity(forceIdentity);
-        if (!ident) throw new Error('Passphrase required');
+    async function _fpPostPlan(payload, retried) {
+        const ident = await _syncviewRequireStaffIdentity('onboarding');
         const resp = await fetch(FILMING_PLANS_EF_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key, 'X-Syncview-Actor': ident.name, 'X-Syncview-Role': 'onboarding' },
+            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key, 'X-Syncview-Actor': ident.member.name, 'X-Syncview-Role': ident.role },
             body: JSON.stringify(payload),
         });
         let json = null;
         try { json = await resp.json(); } catch (e) {}
-        if (resp.status === 401 && !forceIdentity) {
-            try { localStorage.removeItem(FP_IDENTITY_KEY); } catch (e) {}
+        if (resp.status === 401) {
+            const active = _syncviewStaffIdentityForHeaders();
+            if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(ident)) throw new Error('Staff sign-in changed.');
+            _syncviewStaffIdentityClear();
+            if (retried) throw new Error((json && json.error) || 'Staff sign-in expired.');
+            const replacement = await _syncviewOpenStaffIdentity({ reason: 'expired' });
+            if (!replacement) throw new Error('Staff sign-in required.');
             return _fpPostPlan(payload, true);
         }
+        const active = _syncviewStaffIdentityForHeaders();
+        if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(ident)) throw new Error('Staff sign-in changed.');
+        if (resp.status === 403) throw new Error('This onboarding action needs an Admin account. Sign out first to use another authorized account.');
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         return _fpNormalizePlan(json.plan || {});
     }
@@ -11418,11 +11479,13 @@
         if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
     }
     function _fpToggleAdd() {
+        if (!_syncviewStaffCan('onboarding')) { _syncviewOfferStaffSignIn('onboarding'); return; }
         _fpAddOpen = !_fpAddOpen;
         _fpEditSlug = '';
         _fpRenderPage();
     }
     function _fpEdit(slug) {
+        if (!_syncviewStaffCan('onboarding')) { _syncviewOfferStaffSignIn('onboarding'); return; }
         _fpEditSlug = (_fpEditSlug === slug) ? '' : slug;
         _fpAddOpen = false;
         _fpRenderPage();
@@ -11438,6 +11501,7 @@
         try { localStorage.removeItem(KASPER_FILMING_CACHE_KEY); } catch (e) {}
     }
     async function _fpSaveExisting(slug) {
+        if (!_syncviewStaffCan('onboarding')) { _syncviewOfferStaffSignIn('onboarding'); return; }
         const row = _fpPlanForClient(slug);
         if (!row || _fpSavingSlug) return;
         const id = _fpDomId(slug);
@@ -11459,6 +11523,7 @@
         }
     }
     async function _fpSaveNew() {
+        if (!_syncviewStaffCan('onboarding')) { _syncviewOfferStaffSignIn('onboarding'); return; }
         if (_fpSavingSlug) return;
         const clientName = document.getElementById('fpAddClient')?.value?.trim() || '';
         const docUrl = document.getElementById('fpAddDoc')?.value?.trim() || '';
@@ -11493,7 +11558,7 @@
         const open = isUrl
             ? `<a class="fp-btn" href="${_tplEscAttr(row.docUrl)}" target="_blank" rel="noopener">${_fpExternalIcon()} Open</a>`
             : `<button class="fp-btn" type="button" disabled>Open</button>`;
-        const edit = editing ? `<div class="fp-edit">
+        const edit = editing ? `<div class="fp-edit" data-staff-capability="onboarding"${_syncviewStaffCan('onboarding') ? '' : ' hidden'}>
             <div class="fp-field"><label>Google Doc link</label><input class="fp-input" id="fpDoc_${id}" type="url" value="${_tplEscAttr(row.docUrl)}" autocomplete="off"></div>
             <div class="fp-field"><label>Notes</label><input class="fp-input" id="fpNotes_${id}" type="text" value="${_tplEscAttr(row.notes)}" autocomplete="off"></div>
             <div class="fp-edit-actions">
@@ -11506,7 +11571,7 @@
                 <span class="fp-doc-icon">${_fpDocIcon()}</span>
                 <div class="fp-meta"><div class="fp-name">${_tplEsc(row.clientName)}</div><div class="fp-url">${_tplEsc(host)}</div></div>
             </div>
-            <div class="fp-row-actions">${open}<button class="fp-btn" type="button" onclick="_fpEdit('${_tplEscAttr(row.clientSlug)}')">${editing ? 'Close' : 'Edit'}</button></div>
+            <div class="fp-row-actions">${open}<button class="fp-btn" data-staff-capability="onboarding"${_syncviewStaffCan('onboarding') ? '' : ' hidden'} type="button" onclick="_fpEdit('${_tplEscAttr(row.clientSlug)}')">${editing ? 'Close' : 'Edit'}</button></div>
             ${edit}
         </div>`;
     }
@@ -11519,7 +11584,7 @@
     function _fpAddCardHtml() {
         if (!_fpAddOpen) return '';
         const roster = (() => { try { return getClientRoster(); } catch (e) { return []; } })();
-        return `<div class="fp-add-card">
+        return `<div class="fp-add-card" data-staff-capability="onboarding"${_syncviewStaffCan('onboarding') ? '' : ' hidden'}>
             <datalist id="fpClientNames">${roster.map(n => `<option value="${_tplEscAttr(n)}"></option>`).join('')}</datalist>
             <div class="fp-form-grid">
                 <div class="fp-field"><label>Client</label><input class="fp-input" id="fpAddClient" list="fpClientNames" autocomplete="off"></div>
@@ -11545,7 +11610,7 @@
                 <div><div class="fp-title">Filming Plans</div><div class="fp-sub">Master Google Docs for each client</div></div>
                 <div class="fp-actions">
                     <button class="fp-btn" type="button" onclick="_fpRefresh()">Refresh</button>
-                    <button class="fp-btn primary" type="button" onclick="_fpToggleAdd()">Add / update</button>
+                    <button class="fp-btn primary" data-staff-capability="onboarding"${_syncviewStaffCan('onboarding') ? '' : ' hidden'} type="button" onclick="_fpToggleAdd()">Add / update</button>
                 </div>
             </div>
             <div class="fp-toolbar">
@@ -16370,15 +16435,28 @@
     const SMM_WEEKLY_REPORTS_URL = CAL_SUPABASE_URL + '/functions/v1/smm-weekly-reports';
     const SYNCVIEW_STAFF_IDENTITY_KEY = 'syncview_staff_identity_v1';
     const SYNCVIEW_STAFF_PROMPT_SESSION_KEY = 'syncview_staff_identity_prompted_v1';
+    const SYNCVIEW_STAFF_LEGACY_IDENTITY_KEYS = Object.freeze([
+        'syncview_client_credentials_identity_v1',
+        'syncview_filming_plans_identity_v1'
+    ]);
     let _syncviewStaffIdentityMem = null;
     let _syncviewStaffIdentityLoaded = false;
     let _syncviewStaffIdentityVerified = false;
     let _syncviewStaffRosterCache = null;
     let _syncviewStaffPromptPromise = null;
     let _syncviewStaffBootPromise = null;
+    let _syncviewStaffAwaitBootPromise = null;
 
     function _syncviewStaffEsc(value) {
         return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+    function _syncviewStaffIdentitySignature(identity) {
+        return identity && identity.key && identity.member && identity.member.id
+            ? [String(identity.key), String(identity.role || ''), String(identity.member.id)].join('\u0000')
+            : '';
+    }
+    function _syncviewStaffClearLegacyIdentityStorage() {
+        try { SYNCVIEW_STAFF_LEGACY_IDENTITY_KEYS.forEach(key => localStorage.removeItem(key)); } catch (e) {}
     }
     function _syncviewStaffIdentityLoad() {
         if (_syncviewStaffIdentityLoaded) return _syncviewStaffIdentityMem;
@@ -16396,8 +16474,10 @@
         } catch (e) {}
     }
     function _syncviewStaffIdentityClear() {
+        _syncviewStaffPurgeSensitiveState();
         _syncviewStaffIdentityVerified = false;
         _syncviewStaffIdentitySave(null);
+        _syncviewStaffClearLegacyIdentityStorage();
         _syncviewStaffRefreshChrome();
     }
     function _syncviewStaffIdentityValid() {
@@ -16406,6 +16486,80 @@
     }
     function _syncviewStaffIdentityForHeaders() {
         return _syncviewStaffIdentityValid() ? _syncviewStaffIdentityLoad() : null;
+    }
+    function _syncviewStaffIdentityStorageChanged(event) {
+        if (!event || event.key !== SYNCVIEW_STAFF_IDENTITY_KEY) return;
+        try { if (event.storageArea && event.storageArea !== localStorage) return; } catch (e) {}
+        let next = null;
+        try { next = event.newValue ? JSON.parse(event.newValue) : null; } catch (e) {}
+        const current = _syncviewStaffIdentityLoad();
+        const currentSignature = _syncviewStaffIdentitySignature(current);
+        const nextSignature = _syncviewStaffIdentitySignature(next);
+        _syncviewStaffIdentityMem = next || null;
+        _syncviewStaffIdentityLoaded = true;
+        if (!nextSignature) {
+            _syncviewStaffPurgeSensitiveState();
+            _syncviewStaffIdentityVerified = false;
+            _syncviewStaffClearLegacyIdentityStorage();
+            _syncviewStaffRefreshChrome();
+            return;
+        }
+        if (nextSignature === currentSignature && _syncviewStaffIdentityVerified) return;
+        if (nextSignature !== currentSignature) _syncviewStaffPurgeSensitiveState();
+        _syncviewStaffIdentityVerified = false;
+        _syncviewStaffRefreshChrome();
+        const verifyCurrentStoredIdentity = () => {
+            if (_syncviewStaffIdentitySignature(_syncviewStaffIdentityLoad()) !== nextSignature || _syncviewStaffIdentityValid()) return;
+            _syncviewStaffIdentityBoot();
+        };
+        if (_syncviewStaffBootPromise) {
+            _syncviewStaffBootPromise.finally(() => setTimeout(verifyCurrentStoredIdentity, 0));
+        } else verifyCurrentStoredIdentity();
+    }
+    window.addEventListener('storage', _syncviewStaffIdentityStorageChanged);
+    function _syncviewStaffRoleValue(identity) {
+        return String(identity && identity.role || '').trim().toLowerCase();
+    }
+    function _syncviewStaffRoleLabel(role) {
+        const value = String(role || '').trim().toLowerCase();
+        if (value === 'admin') return 'Admin';
+        if (value === 'smm') return 'SMM';
+        if (value === 'creative') return 'Creative';
+        return value ? value.charAt(0).toUpperCase() + value.slice(1) : 'Staff';
+    }
+    function _syncviewStaffCan(capability) {
+        const identity = _syncviewStaffIdentityForHeaders();
+        const role = _syncviewStaffRoleValue(identity);
+        if (capability === 'credentials') return role === 'admin' || role === 'smm';
+        if (capability === 'onboarding') return role === 'admin';
+        return !!identity;
+    }
+    async function _syncviewRequireStaffIdentity(capability) {
+        let identity = _syncviewStaffIdentityForHeaders();
+        if (!identity) {
+            await _syncviewOpenStaffIdentity({ reason: 'required' });
+            identity = _syncviewStaffIdentityForHeaders();
+        }
+        if (!identity) throw new Error('Staff sign-in required.');
+        if (!_syncviewStaffCan(capability)) {
+            const error = new Error(capability === 'credentials'
+                ? 'Client credentials are available to Admin or SMM accounts. Sign out first to use another authorized account.'
+                : 'This onboarding action requires an Admin account. Sign out first to use another authorized account.');
+            error.status = 403;
+            throw error;
+        }
+        return identity;
+    }
+    function _syncviewOfferStaffSignIn(capability) {
+        if (!_syncviewStaffIdentityForHeaders()) {
+            _syncviewOpenStaffIdentity({ reason: 'required' });
+            return false;
+        }
+        const message = capability === 'credentials'
+            ? 'Client credentials need an Admin or SMM account. Sign out first to use another authorized account.'
+            : 'This action needs an Admin account. Sign out first to use another authorized account.';
+        try { showToast(message); } catch (e) {}
+        return false;
     }
     function _syncviewProdDirectPreview() {
         try { return new URLSearchParams(location.search).get('prod') === '1'; }
@@ -16416,17 +16570,49 @@
             return !_isClientLink && !_isIntake && !_isOnboarding && !_isOnboardingView && !_isSmmWeeklyEntry;
         } catch (e) { return false; }
     }
+    function _syncviewStaffSetChecking(checking) {
+        const button = document.getElementById('staffIdentityButton');
+        if (!button) return;
+        button.classList.toggle('is-checking', !!checking);
+        if (checking) {
+            button.setAttribute('aria-busy', 'true');
+            button.title = 'Checking saved staff sign-in';
+            button.setAttribute('aria-label', 'Checking saved staff sign-in');
+        } else button.removeAttribute('aria-busy');
+    }
     function _syncviewStaffRefreshChrome() {
         const identity = _syncviewStaffIdentityForHeaders();
         const valid = !!identity;
+        const role = _syncviewStaffRoleValue(identity);
         const button = document.getElementById('staffIdentityButton');
+        const wrap = document.getElementById('staffIdentityWrap');
+        const eligible = _syncviewStaffEligible();
+        if (wrap) wrap.hidden = !eligible;
         if (button) {
-            button.hidden = !_syncviewStaffEligible();
+            button.hidden = !eligible;
             button.classList.toggle('is-valid', valid);
-            const label = valid ? ('Signed in as ' + identity.member.name) : 'Staff sign in';
+            const displayRole = valid ? _syncviewStaffRoleLabel(identity.member && identity.member.role || role) : '';
+            const label = valid ? ('Signed in as ' + identity.member.name + ' · ' + displayRole) : 'Staff sign in';
             button.title = label;
             button.setAttribute('aria-label', label);
+            button.setAttribute('aria-haspopup', valid ? 'menu' : 'dialog');
+            if (!valid) button.setAttribute('aria-expanded', 'false');
         }
+        try { document.documentElement.setAttribute('data-staff-role', valid ? role : ''); } catch (e) {}
+        document.querySelectorAll('[data-staff-capability]').forEach(element => {
+            element.hidden = !_syncviewStaffCan(element.getAttribute('data-staff-capability'));
+        });
+        if (!valid) _syncviewCloseStaffAccount();
+        try {
+            const tab = typeof _kasperState !== 'undefined' && _kasperState ? _kasperState.tab : '';
+            const blocked = (tab === 'client-credentials' && !_syncviewStaffCan('credentials'))
+                || (tab === 'onboarding' && !_syncviewStaffCan('onboarding'));
+            if (blocked) {
+                _kasperState.tab = 'review';
+                document.querySelectorAll('.kasper-subtab').forEach(item => item.classList.toggle('active', item.getAttribute('data-kasper-tab') === 'review'));
+                if (typeof currentNav !== 'undefined' && currentNav === 'kasper' && typeof _kasperRenderTab === 'function') _kasperRenderTab();
+            }
+        } catch (e) {}
         const nav = document.getElementById('navProd');
         if (nav) nav.style.display = (_syncviewProdDirectPreview() || valid) ? '' : 'none';
     }
@@ -16468,11 +16654,115 @@
             verified_at: new Date().toISOString()
         };
     }
-    function _syncviewCloseStaffIdentity(value) {
+    function _syncviewStaffInitials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || 'S').slice(0, 2)).toUpperCase();
+    }
+    function _syncviewStaffPurgeSensitiveState() {
+        try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
+        try { if (typeof _ccRevTeardown === 'function') _ccRevTeardown(); } catch (e) {}
+        try { document.querySelectorAll('#ccOverlay, .cc-sensitive-overlay').forEach(element => element.remove()); } catch (e) {}
+        try {
+            _ccState.kasper.credentials = [];
+            _ccState.kasper.error = null;
+            _ccState.kasper.loaded = false;
+            _ccState.kasper.loading = false;
+            _ccState.modal.credentials = [];
+            _ccState.modal.error = null;
+            _ccState.modal.loaded = false;
+            _ccState.modal.loading = false;
+            _ccState.modal.open = false;
+            _ccState.modal.client = '';
+        } catch (e) {}
+        try { _ccRevealed.clear(); } catch (e) {}
+        try { _ccExpanded.clear(); } catch (e) {}
+        try {
+            if (_obvMode === 'full') {
+                _obvSubs = null;
+                _obvSelected = null;
+                _obvError = '';
+                _obvWarn = '';
+                _obvLoadedAt = 0;
+                _obvLoading = false;
+                _obvMode = 'edge';
+            }
+        } catch (e) {}
+    }
+    function _syncviewCloseStaffAccount(options) {
+        options = options || {};
+        const popover = document.getElementById('staffAccountPopover');
+        const button = document.getElementById('staffIdentityButton');
+        if (!popover || popover.hidden) return;
+        if (popover._syncviewOutside) document.removeEventListener('mousedown', popover._syncviewOutside, true);
+        if (popover._syncviewKeydown) document.removeEventListener('keydown', popover._syncviewKeydown, true);
+        popover._syncviewOutside = null;
+        popover._syncviewKeydown = null;
+        popover.classList.remove('is-open');
+        popover.hidden = true;
+        if (button) button.setAttribute('aria-expanded', 'false');
+        if (options.restoreFocus && button) button.focus();
+    }
+    function _syncviewOpenStaffAccount() {
+        const identity = _syncviewStaffIdentityForHeaders();
+        if (!identity) return false;
+        const popover = document.getElementById('staffAccountPopover');
+        const button = document.getElementById('staffIdentityButton');
+        const wrap = document.getElementById('staffIdentityWrap');
+        if (!popover || !button || !wrap) return false;
+        if (!popover.hidden) { _syncviewCloseStaffAccount({ restoreFocus: true }); return true; }
+        const name = String(identity.member && identity.member.name || 'Staff');
+        const role = _syncviewStaffRoleLabel(identity.member && identity.member.role || _syncviewStaffRoleValue(identity));
+        popover.removeAttribute('aria-labelledby');
+        popover.setAttribute('aria-label', 'Signed in as ' + name + ' · ' + role);
+        popover.innerHTML = '<div class="staff-account-summary" role="presentation" aria-hidden="true">'
+            + '<span class="staff-account-avatar" aria-hidden="true">' + _syncviewStaffEsc(_syncviewStaffInitials(name)) + '</span>'
+            + '<div class="staff-account-copy"><div class="staff-account-line">Signed in as ' + _syncviewStaffEsc(name) + ' · ' + _syncviewStaffEsc(role) + '</div><div class="staff-account-note">Verified on this device</div></div>'
+            + '</div><div class="staff-account-sep" role="separator"></div>'
+            + '<button class="staff-account-action" id="staffIdentitySignOut" type="button" role="menuitem">'
+            + '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 2.5H3.8a1.3 1.3 0 0 0-1.3 1.3v8.4a1.3 1.3 0 0 0 1.3 1.3h2.7"/><path d="M9.5 5 12.5 8l-3 3M12.2 8H6"/></svg><span>Sign out</span></button>';
+        popover.hidden = false;
+        popover.classList.add('is-open');
+        button.setAttribute('aria-expanded', 'true');
+        popover.querySelector('#staffIdentitySignOut').onclick = _syncviewStaffSignOut;
+        popover._syncviewOutside = event => { if (!wrap.contains(event.target)) _syncviewCloseStaffAccount(); };
+        popover._syncviewKeydown = event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                _syncviewCloseStaffAccount({ restoreFocus: true });
+                return;
+            }
+            if (event.key === 'Tab') {
+                setTimeout(() => { if (!wrap.contains(document.activeElement)) _syncviewCloseStaffAccount(); }, 0);
+            }
+        };
+        document.addEventListener('keydown', popover._syncviewKeydown, true);
+        const action = popover.querySelector('#staffIdentitySignOut');
+        if (action) action.focus();
+        setTimeout(() => { if (!popover.hidden) document.addEventListener('mousedown', popover._syncviewOutside, true); }, 0);
+        return true;
+    }
+    function _syncviewStaffSignOut() {
+        _syncviewCloseStaffAccount();
+        _syncviewStaffIdentityClear();
+        try { showToast('Signed out'); } catch (e) {}
+        const button = document.getElementById('staffIdentityButton');
+        if (button) button.focus();
+    }
+    function _syncviewCloseStaffIdentity(value, options) {
+        options = options || {};
         const overlay = document.getElementById('staffIdentityOverlay');
+        if (!overlay) return;
+        overlay._syncviewClosed = true;
+        if (overlay._syncviewKeydown) document.removeEventListener('keydown', overlay._syncviewKeydown, true);
+        try { if (typeof _ccCloseSelect === 'function') _ccCloseSelect('staffIdentityMember'); } catch (e) {}
+        const done = overlay._syncviewResolve;
         if (overlay) overlay.remove();
-        const done = overlay && overlay._syncviewResolve;
         if (typeof done === 'function') done(value || null);
+        if (options.restoreFocus !== false) {
+            const button = document.getElementById('staffIdentityButton');
+            if (button) button.focus();
+        }
     }
     function _syncviewToggleStaffRoleKey(button) {
         _ccTogglePasswordField('staffIdentityKey', button);
@@ -16482,61 +16772,156 @@
         button.setAttribute('aria-label', label);
         button.title = label;
     }
+    function _syncviewBindStaffIdentityOverlay(overlay) {
+        overlay.onclick = event => { if (event.target === overlay) _syncviewCloseStaffIdentity(null); };
+        overlay._syncviewKeydown = event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                try {
+                    if (typeof _ccOpenSelectId !== 'undefined' && _ccOpenSelectId === 'staffIdentityMember') {
+                        _ccCloseSelect('staffIdentityMember');
+                        document.getElementById('staffIdentityMemberBtn')?.focus();
+                        return;
+                    }
+                } catch (e) {}
+                _syncviewCloseStaffIdentity(null);
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = Array.from(overlay.querySelectorAll('button:not([disabled]), input:not([disabled]):not([type="hidden"]), [href], [tabindex]:not([tabindex="-1"])'))
+                .filter(element => !element.hidden && element.getClientRects().length);
+            if (!focusable.length) {
+                event.preventDefault();
+                overlay.querySelector('[role="dialog"]')?.focus();
+                return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        };
+        document.addEventListener('keydown', overlay._syncviewKeydown, true);
+    }
+    function _syncviewRenderStaffIdentityForm(overlay, roster) {
+        const current = _syncviewStaffIdentityLoad();
+        const selectedId = current && current.member ? String(current.member.id || '') : '';
+        const memberItems = [{ value: '', label: 'Choose your name' }].concat(roster.map(member => ({ value: String(member.id), label: String(member.name) })));
+        const memberSelectHtml = _ccSelectHtml('staffIdentityMember', memberItems, selectedId, 'Choose your name');
+        overlay.innerHTML = '<form class="staff-auth-card" id="staffIdentityForm" role="dialog" aria-modal="true" aria-labelledby="staffIdentityTitle" aria-describedby="staffIdentityIntro staffIdentitySecure">'
+            + '<div class="staff-auth-head"><span class="staff-auth-mark" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none"><path d="M9 2.2 14.2 4v4.1c0 3.4-2 5.9-5.2 7.7-3.2-1.8-5.2-4.3-5.2-7.7V4L9 2.2Z" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/><path d="m6.8 8.8 1.5 1.5 3-3.1" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+            + '<div class="staff-auth-title-wrap"><div class="staff-auth-eyebrow">SyncView staff</div><h2 id="staffIdentityTitle">Staff sign in</h2></div></div>'
+            + '<p class="staff-auth-intro" id="staffIdentityIntro">Choose your roster name and enter the role key for your work.</p>'
+            + '<div class="staff-auth-fields">'
+            + '<div class="staff-auth-field"><label for="staffIdentityMemberBtn">Your name</label>' + memberSelectHtml + '</div>'
+            + '<div class="staff-auth-field"><label for="staffIdentityKey">Role key</label><div class="cc-password-wrap"><input id="staffIdentityKey" type="password" autocomplete="current-password" placeholder="Enter role key" aria-describedby="staffIdentityError" required><button class="cc-pass-toggle" type="button" id="staffIdentityKeyToggle" title="Show role key" aria-label="Show role key" aria-pressed="false" onclick="_syncviewToggleStaffRoleKey(this)">' + CC_ICON_EYE + '</button></div></div>'
+            + '</div><div class="staff-auth-error" id="staffIdentityError" role="alert"></div><div class="staff-auth-status" id="staffIdentityStatus" role="status" aria-live="polite"></div>'
+            + '<div class="staff-auth-secure" id="staffIdentitySecure"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7"/></svg><span>Your role key stays on this device and is sent only to SyncView secure functions.</span></div>'
+            + '<div class="staff-auth-actions"><button class="cal-import-btn-ghost" type="button" id="staffIdentityCancel">Not now</button><button class="cal-import-btn-primary" type="submit" id="staffIdentitySubmit">Continue</button></div>'
+            + '</form>';
+        const form = overlay.querySelector('#staffIdentityForm');
+        const memberInput = overlay.querySelector('#staffIdentityMember');
+        const memberTrigger = overlay.querySelector('#staffIdentityMemberBtn');
+        const key = overlay.querySelector('#staffIdentityKey');
+        const toggle = overlay.querySelector('#staffIdentityKeyToggle');
+        const submit = overlay.querySelector('#staffIdentitySubmit');
+        const error = overlay.querySelector('#staffIdentityError');
+        const status = overlay.querySelector('#staffIdentityStatus');
+        const showError = (message, target) => {
+            error.textContent = message || '';
+            status.textContent = '';
+            key.removeAttribute('aria-invalid');
+            memberTrigger.removeAttribute('aria-invalid');
+            if (target) {
+                target.setAttribute('aria-invalid', 'true');
+                target.focus();
+            }
+        };
+        const clearError = () => {
+            if (!error.textContent) return;
+            error.textContent = '';
+            key.removeAttribute('aria-invalid');
+            memberTrigger.removeAttribute('aria-invalid');
+        };
+        const setBusy = busy => {
+            form.setAttribute('aria-busy', busy ? 'true' : 'false');
+            submit.disabled = busy;
+            memberTrigger.disabled = busy;
+            key.disabled = busy;
+            toggle.disabled = busy;
+            submit.innerHTML = busy ? '<span class="staff-auth-spinner" aria-hidden="true"></span>Verifying…' : 'Continue';
+            status.textContent = busy ? 'Verifying your identity…' : '';
+        };
+        overlay.querySelector('#staffIdentityCancel').onclick = () => _syncviewCloseStaffIdentity(null);
+        memberInput.addEventListener('change', clearError);
+        key.addEventListener('input', clearError);
+        form.onsubmit = async event => {
+            event.preventDefault();
+            const member = roster.find(row => String(row.id) === String(memberInput.value));
+            const roleKey = key.value.trim();
+            if (!member) { showError('Choose your name.', memberTrigger); return; }
+            if (!roleKey) { showError('Enter your role key.', key); return; }
+            showError('');
+            setBusy(true);
+            try {
+                const verified = await _syncviewVerifyStaffIdentity({ key: roleKey, member }, 'staff-login');
+                if (!overlay.isConnected || overlay._syncviewClosed) return;
+                _syncviewStaffIdentityVerified = true;
+                _syncviewStaffIdentitySave(verified);
+                _syncviewStaffRefreshChrome();
+                _syncviewCloseStaffIdentity(verified);
+            } catch (e) {
+                if (!overlay.isConnected || overlay._syncviewClosed) return;
+                setBusy(false);
+                showError(e && e.message ? e.message : 'Could not verify this sign-in.', key);
+                key.select();
+            }
+        };
+        setTimeout(() => { if (overlay.isConnected) (selectedId ? key : memberTrigger).focus(); }, 20);
+    }
     function _syncviewOpenStaffIdentity(options) {
         options = options || {};
         if (!_syncviewStaffEligible()) return Promise.resolve(null);
+        const stored = _syncviewStaffIdentityLoad();
+        if (_syncviewStaffBootPromise && _syncviewStaffIdentitySignature(stored) && !options._afterBoot) {
+            if (!_syncviewStaffAwaitBootPromise) {
+                const afterBootOptions = Object.assign({}, options, { _afterBoot: true });
+                _syncviewStaffAwaitBootPromise = _syncviewStaffBootPromise.then(result => {
+                    if (result && _syncviewStaffIdentityValid()) {
+                        _syncviewOpenStaffAccount();
+                        return _syncviewStaffIdentityLoad();
+                    }
+                    return _syncviewOpenStaffIdentity(afterBootOptions);
+                }).finally(() => { _syncviewStaffAwaitBootPromise = null; });
+            }
+            return _syncviewStaffAwaitBootPromise;
+        }
+        const identity = _syncviewStaffIdentityForHeaders();
+        if (identity) {
+            _syncviewOpenStaffAccount();
+            return Promise.resolve(identity);
+        }
+        _syncviewCloseStaffAccount();
         if (_syncviewStaffPromptPromise) return _syncviewStaffPromptPromise;
         _syncviewStaffPromptPromise = (async () => {
-            const roster = await _syncviewStaffRoster();
-            if (!roster.length) throw new Error('No active staff roster rows are available');
-            const current = _syncviewStaffIdentityLoad();
-            return await new Promise(resolve => {
-                const overlay = document.createElement('div');
-                overlay.id = 'staffIdentityOverlay';
-                overlay.className = 'cal-import-overlay open staff-auth-overlay';
-                overlay._syncviewResolve = resolve;
-                const selectedId = current && current.member ? String(current.member.id || '') : '';
-                const memberItems = [{ value: '', label: 'Choose your name' }].concat(roster.map(member => ({ value: String(member.id), label: String(member.name) })));
-                const memberSelectHtml = _ccSelectHtml('staffIdentityMember', memberItems, selectedId, 'Choose your name');
-                overlay.innerHTML = '<form class="staff-auth-card" id="staffIdentityForm" role="dialog" aria-modal="true" aria-labelledby="staffIdentityTitle">'
-                    + '<h2 id="staffIdentityTitle">Staff sign in</h2>'
-                    + '<p>Choose your roster name and enter the role key for your work.</p>'
-                    + '<div class="staff-auth-fields">'
-                    + '<div class="staff-auth-field"><label for="staffIdentityMemberBtn">Your name</label>' + memberSelectHtml + '</div>'
-                    + '<div class="staff-auth-field"><label for="staffIdentityKey">Role key</label><div class="cc-password-wrap"><input id="staffIdentityKey" type="password" autocomplete="current-password" placeholder="Enter role key" required><button class="cc-pass-toggle" type="button" id="staffIdentityKeyToggle" title="Show role key" aria-label="Show role key" aria-pressed="false" onclick="_syncviewToggleStaffRoleKey(this)">' + CC_ICON_EYE + '</button></div></div>'
-                    + '</div><div class="staff-auth-error" id="staffIdentityError" role="alert"></div>'
-                    + '<div class="staff-auth-actions"><button class="cal-import-btn-ghost" type="button" id="staffIdentityCancel">' + (current && _syncviewStaffIdentityValid() ? 'Cancel' : 'Not now') + '</button><button class="cal-import-btn-primary" type="submit" id="staffIdentitySubmit">Continue</button></div>'
-                    + '</form>';
-                document.body.appendChild(overlay);
-                const form = overlay.querySelector('#staffIdentityForm');
-                const memberInput = overlay.querySelector('#staffIdentityMember');
-                const memberTrigger = overlay.querySelector('#staffIdentityMemberBtn');
-                const key = overlay.querySelector('#staffIdentityKey');
-                const submit = overlay.querySelector('#staffIdentitySubmit');
-                const error = overlay.querySelector('#staffIdentityError');
-                overlay.querySelector('#staffIdentityCancel').onclick = () => _syncviewCloseStaffIdentity(null);
-                form.onsubmit = async event => {
-                    event.preventDefault();
-                    const member = roster.find(row => String(row.id) === String(memberInput.value));
-                    const roleKey = key.value.trim();
-                    if (!member) { error.textContent = 'Choose your name.'; memberTrigger.focus(); return; }
-                    if (!roleKey) { error.textContent = 'Enter your role key.'; key.focus(); return; }
-                    submit.disabled = true;
-                    error.textContent = '';
-                    try {
-                        const verified = await _syncviewVerifyStaffIdentity({ key: roleKey, member }, 'staff-login');
-                        _syncviewStaffIdentityVerified = true;
-                        _syncviewStaffIdentitySave(verified);
-                        _syncviewStaffRefreshChrome();
-                        _syncviewCloseStaffIdentity(verified);
-                    } catch (e) {
-                        error.textContent = e && e.message ? e.message : 'Could not verify this sign-in.';
-                        submit.disabled = false;
-                        key.select();
-                    }
-                };
-                setTimeout(() => (selectedId ? key : memberTrigger).focus(), 20);
-            });
+            const overlay = document.createElement('div');
+            overlay.id = 'staffIdentityOverlay';
+            overlay.className = 'cal-import-overlay open staff-auth-overlay';
+            const result = new Promise(resolve => { overlay._syncviewResolve = resolve; });
+            overlay.innerHTML = '<div class="staff-auth-card" role="dialog" aria-modal="true" aria-label="Preparing staff sign in" aria-busy="true" tabindex="-1"><div class="staff-auth-loading"><span class="staff-auth-spinner" aria-hidden="true"></span><strong>Preparing secure sign-in</strong><span>Loading the active staff roster…</span></div></div>';
+            document.body.appendChild(overlay);
+            _syncviewBindStaffIdentityOverlay(overlay);
+            setTimeout(() => overlay.querySelector('[role="dialog"]')?.focus(), 0);
+            try {
+                const roster = await _syncviewStaffRoster();
+                if (!overlay.isConnected || overlay._syncviewClosed) return await result;
+                if (!roster.length) throw new Error('No active staff roster rows are available');
+                _syncviewRenderStaffIdentityForm(overlay, roster);
+                return await result;
+            } catch (error) {
+                _syncviewCloseStaffIdentity(null, { restoreFocus: !options.silent });
+                throw error;
+            }
         })().catch(error => {
             if (!options.silent) {
                 try { showNotify('Staff sign-in unavailable', error && error.message ? error.message : 'Try again shortly.'); } catch (e) {}
@@ -16564,13 +16949,17 @@
                 _syncviewScheduleStaffPrompt();
                 return null;
             }
+            const currentSignature = _syncviewStaffIdentitySignature(current);
+            _syncviewStaffSetChecking(true);
             try {
                 const verified = await _syncviewVerifyStaffIdentity(current, 'staff-boot');
+                if (_syncviewStaffIdentitySignature(_syncviewStaffIdentityLoad()) !== currentSignature) return null;
                 _syncviewStaffIdentityVerified = true;
                 _syncviewStaffIdentitySave(verified);
                 _syncviewStaffRefreshChrome();
                 return verified;
             } catch (e) {
+                if (_syncviewStaffIdentitySignature(_syncviewStaffIdentityLoad()) !== currentSignature) return null;
                 if (e && e.status === 401) {
                     _syncviewStaffIdentityClear();
                     _syncviewScheduleStaffPrompt();
@@ -16581,7 +16970,10 @@
                 }
                 return null;
             }
-        })().finally(() => { _syncviewStaffBootPromise = null; });
+        })().finally(() => {
+            _syncviewStaffSetChecking(false);
+            _syncviewStaffBootPromise = null;
+        });
         return _syncviewStaffBootPromise;
     }
 
@@ -22518,7 +22910,7 @@
                         <div class="cal-kebab-sep" role="separator"></div>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_calOpenCaptionPromptModal()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>Caption prompt</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalPlatformsEditor()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Platform</button>
-                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_ccOpenModal(calState.client)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>Client credentials</button>
+                        <button class="cal-kebab-item" data-staff-capability="credentials"${_syncviewStaffCan('credentials') ? '' : ' hidden'} type="button" onclick="_calCloseKebab();_ccOpenModal(calState.client)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>Client credentials</button>
                         <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleCollabMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="11" cy="7" r="1.8"/><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"/><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-wrap" data-no-tip onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does Collaborative mode do?">i</span><span class="cal-kebab-info-tip">Lets your client see what you're working on and suggest new posts of their own. With this off, they only see what's finished.</span></span><span class="cal-kebab-switch${_calIsCollabOn() ? ' is-on' : ''}" id="calCollabSwitch"></span></button>
                         <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleTitleReviewMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3.5" width="13" height="9" rx="2.5"/><path d="M6.6 6.2l3.1 1.8-3.1 1.8z" fill="currentColor" stroke="none"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-info-wrap" data-no-tip onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does YouTube title review do?">i</span><span class="cal-kebab-info-tip">Adds a title sign-off step on YouTube cards — the SMM sends the title to Kasper, then the client, with its own status and notes. It never affects the card's overall status.</span></span><span class="cal-kebab-switch${_calIsTitleReviewOn() ? ' is-on' : ''}" id="calTitleReviewSwitch"></span></button>
                         <div class="cal-kebab-sep" role="separator"></div>
@@ -40249,10 +40641,14 @@
     } catch (e) {}
 
     function renderKasperView() {
-        const tabsHtml = KASPER_SUBTABS.map(t => `
-            <button type="button" class="kasper-subtab${_kasperState.tab === t.key ? ' active' : ''}" data-kasper-tab="${t.key}" onclick="_kasperGotoTab('${t.key}')">
+        const tabsHtml = KASPER_SUBTABS.map(t => {
+            const capability = t.key === 'client-credentials' ? 'credentials' : (t.key === 'onboarding' ? 'onboarding' : '');
+            const gated = capability ? ` data-staff-capability="${capability}"${_syncviewStaffCan(capability) ? '' : ' hidden'}` : '';
+            return `
+            <button type="button" class="kasper-subtab${_kasperState.tab === t.key ? ' active' : ''}" data-kasper-tab="${t.key}"${gated} onclick="_kasperGotoTab('${t.key}')">
                 ${t.icon}<span>${_calEsc(t.label)}</span>${t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}">·</span>`}
-            </button>`).join('');
+            </button>`;
+        }).join('');
         return `<div class="kasper-wrap">
             <div class="kasper-head">
                 <div class="kasper-title">Kasper</div>
@@ -40571,6 +40967,8 @@
 
     function _kasperGotoTab(tab) {
         if (!KASPER_SUBTABS.some(t => t.key === tab)) return;
+        if (tab === 'client-credentials' && !_syncviewStaffCan('credentials')) { _syncviewOfferStaffSignIn('credentials'); return; }
+        if (tab === 'onboarding' && !_syncviewStaffCan('onboarding')) { _syncviewOfferStaffSignIn('onboarding'); return; }
         _kasperState.tab = tab;
         try { localStorage.setItem(KASPER_SUBTAB_KEY, tab); } catch (e) {}
         try { history.replaceState({ nav: 'kasper' }, '', location.pathname + location.search + '#kasper' + (tab === 'review' ? '' : '/' + tab)); } catch {}
@@ -40579,6 +40977,13 @@
     }
 
     function _kasperRenderTab() {
+        if (_kasperState.tab === 'client-credentials' && !_syncviewStaffCan('credentials')) {
+            _syncviewOfferStaffSignIn('credentials'); _kasperState.tab = 'review';
+        }
+        if (_kasperState.tab === 'onboarding' && !_syncviewStaffCan('onboarding')) {
+            _syncviewOfferStaffSignIn('onboarding'); _kasperState.tab = 'review';
+        }
+        document.querySelectorAll('.kasper-subtab').forEach(button => button.classList.toggle('active', button.getAttribute('data-kasper-tab') === _kasperState.tab));
         if (_kasperState.tab === 'samples' && typeof _sxrKasperRenderQueue === 'function') return _sxrKasperRenderQueue(); // SXR_LINE
         if (_kasperState.tab === 'review')  return _kasperRenderReview();
         if (_kasperState.tab === 'replies') return _kasperRenderReplies();
@@ -40619,11 +41024,9 @@
 
 
     /* ── Client Credentials ─────────────────────────────────────────
-       Staff-only credentials source of truth. The secret passphrase is never
-       committed: it is typed once per device and sent as X-Syncview-Key to the
-       Edge Function, which uses service-role access to the locked tables. */
+       Staff-only credentials source of truth. Requests reuse the verified
+       roster identity and role key; no second credentials prompt is shown. */
     const CC_EDGE_URL = CAL_SUPABASE_URL + '/functions/v1/client-credentials';
-    const CC_IDENTITY_KEY = 'syncview_client_credentials_identity_v1';
     const CC_MASK = '••••••';
     const CC_RT_SELF_ECHO_MS = 4500;
     const CC_PLATFORM_OPTIONS = ['instagram', 'tiktok', 'facebook', 'linkedin', 'youtube', 'threads', 'x', 'pinterest', 'website'];
@@ -40645,14 +41048,6 @@
     // collapsed by default (the list opens as a tidy client index); a slug is
     // added when the user opens that card and survives background repaints.
     const _ccExpanded = new Set();
-    let _ccIdentityPromise = null;
-    // Session-authoritative copy of the staff identity (name/role/passphrase).
-    // localStorage is only a best-effort persistence layer: if it can't be
-    // written (quota exhausted by other caches, Safari partitioned/private
-    // storage, a locked-down browser), we must NOT fall back to re-prompting on
-    // every request — that loops the passcode dialog forever and makes saves
-    // look like they never stick. Once set this session, memory wins.
-    let _ccIdentityMem = null, _ccIdentityMemSet = false;
     let _ccRevKasperChannel = null, _ccRevModalChannel = null, _ccRevModalSlug = null;
     let _ccRevKasperTimer = null, _ccRevModalTimer = null;
     let _ccLastLocalWriteAt = 0;
@@ -40672,9 +41067,9 @@
         let active = items.find(x => String(x.value) === String(selectedValue)) || items.find(x => x.active) || items[0] || { value: '', label: placeholder || 'Choose' };
         const opts = items.map(x => {
             const on = String(x.value) === String(active.value);
-            return `<button class="cc-select-option${on ? ' active' : ''}" type="button" data-cc-select-option data-value="${_ccEscAttr(x.value)}" onclick="_ccPickSelect(event, ${_jsAttrArg(id)}, ${_jsAttrArg(x.value)}, ${_jsAttrArg(x.label)})"><span>${_ccEsc(x.label)}</span>${on ? CC_ICON_CHECK : ''}</button>`;
+            return `<button class="cc-select-option${on ? ' active' : ''}" type="button" role="option" aria-selected="${on ? 'true' : 'false'}" data-cc-select-option data-value="${_ccEscAttr(x.value)}" onclick="_ccPickSelect(event, ${_jsAttrArg(id)}, ${_jsAttrArg(x.value)}, ${_jsAttrArg(x.label)})"><span>${_ccEsc(x.label)}</span>${on ? CC_ICON_CHECK : ''}</button>`;
         }).join('');
-        return `<div class="cc-select" id="${_ccEscAttr(id)}Wrap" data-cc-select><button class="cc-select-trigger" type="button" id="${_ccEscAttr(id)}Btn" aria-haspopup="listbox" aria-expanded="false" onclick="_ccToggleSelect(event, ${_jsAttrArg(id)})"><span id="${_ccEscAttr(id)}Label">${_ccEsc(active.label || placeholder || 'Choose')}</span>${CC_ICON_CHEV}</button><input type="hidden" id="${_ccEscAttr(id)}" value="${_ccEscAttr(active.value)}"><div class="cc-select-menu" id="${_ccEscAttr(id)}Menu" role="listbox">${opts}</div></div>`;
+        return `<div class="cc-select" id="${_ccEscAttr(id)}Wrap" data-cc-select><button class="cc-select-trigger" type="button" id="${_ccEscAttr(id)}Btn" aria-haspopup="listbox" aria-controls="${_ccEscAttr(id)}Menu" aria-expanded="false" onclick="_ccToggleSelect(event, ${_jsAttrArg(id)})"><span id="${_ccEscAttr(id)}Label">${_ccEsc(active.label || placeholder || 'Choose')}</span>${CC_ICON_CHEV}</button><input type="hidden" id="${_ccEscAttr(id)}" value="${_ccEscAttr(active.value)}"><div class="cc-select-menu" id="${_ccEscAttr(id)}Menu" role="listbox" aria-labelledby="${_ccEscAttr(id)}Btn">${opts}</div></div>`;
     }
     function _ccCloseSelect(id) {
         id = id || _ccOpenSelectId;
@@ -40685,10 +41080,18 @@
         if (btn) btn.setAttribute('aria-expanded', 'false');
         if (_ccOpenSelectId === id) {
             document.removeEventListener('mousedown', _ccSelectOutside);
+            document.removeEventListener('keydown', _ccSelectKeydown);
             _ccOpenSelectId = null;
         }
     }
     function _ccSelectOutside(e) { if (!e.target.closest('[data-cc-select]')) _ccCloseSelect(); }
+    function _ccSelectKeydown(e) {
+        if (e.key !== 'Escape' || !_ccOpenSelectId) return;
+        e.preventDefault();
+        const id = _ccOpenSelectId;
+        _ccCloseSelect(id);
+        document.getElementById(id + 'Btn')?.focus();
+    }
     function _ccToggleSelect(e, id) {
         if (e) e.stopPropagation();
         const wrap = document.getElementById(id + 'Wrap');
@@ -40701,6 +41104,7 @@
         if (opening) {
             _ccOpenSelectId = id;
             setTimeout(() => document.addEventListener('mousedown', _ccSelectOutside), 0);
+            document.addEventListener('keydown', _ccSelectKeydown);
         } else _ccCloseSelect(id);
     }
     function _ccPickSelect(e, id, value, label) {
@@ -40713,6 +41117,7 @@
         if (menu) menu.querySelectorAll('[data-cc-select-option]').forEach(btn => {
             const on = btn.getAttribute('data-value') === String(value);
             btn.classList.toggle('active', on);
+            btn.setAttribute('aria-selected', on ? 'true' : 'false');
             const span = btn.querySelector('span');
             btn.innerHTML = (span ? span.outerHTML : `<span>${_ccEsc(label)}</span>`) + (on ? CC_ICON_CHECK : '');
         });
@@ -40725,100 +41130,14 @@
         if (btn) { btn.innerHTML = show ? CC_ICON_EYE_OFF : CC_ICON_EYE; btn.setAttribute('aria-pressed', show ? 'true' : 'false'); btn.title = show ? 'Hide password' : 'Show password'; }
     }
     function _ccFind(id) { return (_ccState.kasper.credentials || []).concat(_ccState.modal.credentials || []).find(r => r.id === id) || null; }
-    function _ccIdentityRole(scope) { return scope === 'kasper' ? 'Kasper' : 'SMM'; }
-    function _ccIdentityLoad() {
-        // Read localStorage once per session, then serve the in-memory copy so a
-        // failed/blocked persist never resurfaces the passcode prompt mid-flow.
-        if (_ccIdentityMemSet) return _ccIdentityMem;
-        try { _ccIdentityMem = JSON.parse(localStorage.getItem(CC_IDENTITY_KEY) || 'null') || null; }
-        catch { _ccIdentityMem = null; }
-        _ccIdentityMemSet = true;
-        return _ccIdentityMem;
-    }
-    function _ccIdentitySave(v) {
-        _ccIdentityMem = v || null; _ccIdentityMemSet = true;
-        try { localStorage.setItem(CC_IDENTITY_KEY, JSON.stringify(v)); } catch {}
-    }
-    function _ccIdentityClearKey() { const v = _ccIdentityLoad() || {}; delete v.key; _ccIdentitySave(v); }
-
-    async function _ccNameOptions() {
-        const names = ['Kasper Hytonen', 'Synchro Social'];
-        try {
-            const map = await _kasperLoadSMMMap();
-            map.forEach(v => { if (v && v.name) names.push(v.name); });
-        } catch {}
-        return Array.from(new Set(names.map(x => String(x || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
-    }
-
-    function _ccPromptIdentity(role, force) {
-        if (_ccIdentityPromise) return _ccIdentityPromise;
-        _ccIdentityPromise = (async () => {
-            const current = _ccIdentityLoad() || {};
-            const opts = await _ccNameOptions();
-            return await new Promise((resolve, reject) => {
-                const ov = document.createElement('div');
-                ov.className = 'cal-import-overlay open';
-                ov.style.zIndex = '9998';
-                const selected = current.name && !opts.includes(current.name) ? '__other__' : (opts.includes(current.name) ? current.name : (opts[0] || 'Synchro Social'));
-                const nameItems = opts.map(n => ({ value: n, label: n })).concat([{ value: '__other__', label: 'Other…' }]);
-                const cancelPrompt = () => { _ccCloseSelect(); ov.remove(); reject(new Error('credentials prompt cancelled')); };
-                ov.innerHTML = `<div class="cc-identity-card" role="dialog" aria-modal="true">
-                    <button class="cc-identity-x" type="button" id="ccIdentityClose" aria-label="Close">${CC_ICON_X}</button>
-                    <h3>Client credentials</h3>
-                    <p>${force ? 'That passphrase did not work. Enter the current staff passphrase to continue.' : 'Pick your name and enter the staff passphrase once for this device.'}</p>
-                    <div class="cc-form-grid" style="grid-template-columns:1fr;">
-                        <div class="cc-field"><label>Your name</label>${_ccSelectHtml('ccIdentityName', nameItems, selected, 'Choose your name')}</div>
-                        <div class="cc-field" id="ccIdentityOtherWrap" style="display:none;"><label>Name</label><input id="ccIdentityOther" autocomplete="name" placeholder="Your name"></div>
-                        <div class="cc-field"><label>Staff passphrase</label><input id="ccIdentityKey" type="password" autocomplete="current-password" placeholder="Paste passphrase"></div>
-                    </div>
-                    <div class="cal-import-foot" style="padding:16px 0 0;border-top:0;">
-                        ${current && current.name && current.key && !force ? '<button class="cal-import-btn-ghost" type="button" id="ccIdentityCancel">Cancel</button>' : ''}
-                        <button class="cal-import-btn-primary" type="button" id="ccIdentitySave">Continue</button>
-                    </div>
-                </div>`;
-                document.body.appendChild(ov);
-                const sel = ov.querySelector('#ccIdentityName');
-                const otherWrap = ov.querySelector('#ccIdentityOtherWrap');
-                const other = ov.querySelector('#ccIdentityOther');
-                const key = ov.querySelector('#ccIdentityKey');
-                if (selected === '__other__' && current.name) other.value = current.name;
-                const syncOther = () => { otherWrap.style.display = sel.value === '__other__' ? '' : 'none'; if (sel.value === '__other__') other.focus(); };
-                sel.addEventListener('change', syncOther);
-                syncOther();
-                ov.querySelector('#ccIdentityClose').onclick = cancelPrompt;
-                ov.onclick = e => { if (e.target === ov) cancelPrompt(); };
-                ov.querySelector('#ccIdentitySave').onclick = () => {
-                    const name = (sel.value === '__other__' ? other.value : sel.value).trim();
-                    const pass = key.value.trim();
-                    if (!name) { showToast('Choose your name'); return; }
-                    if (!pass) { showToast('Enter the staff passphrase'); return; }
-                    const ident = { name, role: role || current.role || 'staff', key: pass };
-                    _ccIdentitySave(ident);
-                    ov.remove();
-                    resolve(ident);
-                };
-                const cancel = ov.querySelector('#ccIdentityCancel');
-                if (cancel) cancel.onclick = cancelPrompt;
-                key.addEventListener('keydown', e => { if (e.key === 'Enter') ov.querySelector('#ccIdentitySave').click(); });
-                setTimeout(() => key.focus(), 30);
-            });
-        })().finally(() => { _ccIdentityPromise = null; });
-        return _ccIdentityPromise;
-    }
-
-    async function _ccEnsureIdentity(role, force) {
-        const current = _ccIdentityLoad();
-        if (!force && current && current.name && current.key) {
-            if (role && current.role !== role) { current.role = role; _ccIdentitySave(current); }
-            return current;
-        }
-        return _ccPromptIdentity(role, force);
+    async function _ccEnsureIdentity() {
+        return _syncviewRequireStaffIdentity('credentials');
     }
 
     async function _ccApi(action, payload, opts) {
         opts = opts || {};
-        const ident = await _ccEnsureIdentity(opts.role || 'staff', !!opts.forceIdentity);
-        const body = Object.assign({}, payload || {}, { action, actor: { name: ident.name, role: opts.role || ident.role || 'staff' } });
+        const ident = await _ccEnsureIdentity();
+        const body = Object.assign({}, payload || {}, { action, actor: { name: ident.member.name, role: ident.role } });
         const resp = await fetch(CC_EDGE_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
@@ -40826,11 +41145,18 @@
         });
         let json = null;
         try { json = await resp.json(); } catch { json = null; }
-        if (resp.status === 401 && !opts._retried) {
-            _ccIdentityClearKey();
-            await _ccEnsureIdentity(opts.role || 'staff', true);
+        if (resp.status === 401) {
+            const active = _syncviewStaffIdentityForHeaders();
+            if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(ident)) throw new Error('Staff sign-in changed.');
+            _syncviewStaffIdentityClear();
+            if (opts._retried) throw new Error((json && json.error) || 'Staff sign-in expired.');
+            const replacement = await _syncviewOpenStaffIdentity({ reason: 'expired' });
+            if (!replacement) throw new Error('Staff sign-in required.');
             return _ccApi(action, payload, Object.assign({}, opts, { _retried: true }));
         }
+        const active = _syncviewStaffIdentityForHeaders();
+        if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(ident)) throw new Error('Staff sign-in changed.');
+        if (resp.status === 403) throw new Error('Client credentials need an Admin or SMM account. Sign out first to use another authorized account.');
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || 'Credentials request failed');
         return json;
     }
@@ -40867,7 +41193,7 @@
         _ccState.kasper.loading = true; _ccState.kasper.error = null;
         if (!background) _ccPaintKasper();
         try {
-            const json = await _ccApi('list', {}, { role: 'Kasper' });
+            const json = await _ccApi('list', {});
             _ccState.kasper.credentials = Array.isArray(json.credentials) ? json.credentials : [];
             _ccState.kasper.loaded = true;
         } catch (e) {
@@ -40997,7 +41323,7 @@
         const revealing = !_ccRevealed.has(id);
         if (revealing) _ccRevealed.add(id); else _ccRevealed.delete(id);
         if (scope === 'modal') _ccPaintModal(); else _ccPaintKasper();
-        if (revealing) { try { _ccApi('log_reveal', { credential_id: id }, { role: _ccIdentityRole(scope) }).catch(() => {}); } catch (e) {} }
+        if (revealing) { try { _ccApi('log_reveal', { credential_id: id }).catch(() => {}); } catch (e) {} }
     }
 
     async function _ccCopyPassword(id, scope) {
@@ -41021,7 +41347,7 @@
         const platformValue = String((row && row.platform) || 'instagram').trim().toLowerCase();
         const platformItems = (CC_PLATFORM_OPTIONS.includes(platformValue) ? CC_PLATFORM_OPTIONS : [platformValue].concat(CC_PLATFORM_OPTIONS)).filter(Boolean);
         const ov = document.createElement('div');
-        ov.className = 'cal-import-overlay open';
+        ov.className = 'cal-import-overlay open cc-sensitive-overlay';
         ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
             <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccEditClose">×</button><h3>${row ? 'Edit credential' : 'Add credential'}</h3><p>${scope === 'modal' ? _ccEsc(_ccState.modal.client) : 'Kasper credentials store'}</p></div>
             <div class="cal-import-body">
@@ -41060,7 +41386,7 @@
                     notes: ov.querySelector('#ccEditNotes').value.trim(),
                     source: row && row.source ? row.source : 'manual',
                 };
-                await _ccApi('upsert', { credential }, { role: _ccIdentityRole(scope) });
+                await _ccApi('upsert', { credential });
                 _ccLastLocalWriteAt = Date.now();
                 close(); showToast('Credential saved');
                 if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
@@ -41075,7 +41401,7 @@
         // SMM credentials modal) instead of the native browser confirm() dialog.
         showConfirm('Archive credential', 'Archive this credential? It will disappear from the active list but stay in audit history.', async () => {
             try {
-                await _ccApi('delete', { credential_id: id }, { role: _ccIdentityRole(scope) });
+                await _ccApi('delete', { credential_id: id });
                 _ccLastLocalWriteAt = Date.now();
                 showToast('Credential archived');
                 if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
@@ -41088,7 +41414,7 @@
         const parts = String(el.value || '').split('|');
         const client_slug = parts[0], client_name = parts.slice(1).join('|');
         try {
-            await _ccApi('reassign', { credential_id: id, client_slug, client_name }, { role: 'Kasper' });
+            await _ccApi('reassign', { credential_id: id, client_slug, client_name });
             _ccLastLocalWriteAt = Date.now();
             showToast('Assigned to ' + client_name);
             _ccLoadKasper(true);
@@ -41097,13 +41423,13 @@
 
     function _ccOpenHistory(id, clientSlug) {
         const ov = document.createElement('div');
-        ov.className = 'cal-import-overlay open';
+        ov.className = 'cal-import-overlay open cc-sensitive-overlay';
         ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true"><div class="cal-import-head"><button class="cal-import-x" type="button" id="ccHistClose">×</button><h3>Credential history</h3><p>Every change, reveal, import, and reassignment.</p></div><div class="cal-import-body" id="ccHistBody">${_calLoaderHtml('Loading history…')}</div></div>`;
         document.body.appendChild(ov);
         const close = () => ov.remove();
         ov.querySelector('#ccHistClose').onclick = close;
         ov.onclick = e => { if (e.target === ov) close(); };
-        _ccApi('history', id ? { credential_id: id } : { client_slug: clientSlug }, { role: 'Kasper' })
+        _ccApi('history', id ? { credential_id: id } : { client_slug: clientSlug })
             .then(json => { const body = ov.querySelector('#ccHistBody'); const events = json.events || []; body.innerHTML = events.length ? `<div class="cc-history-list">${events.map(_ccEventHtml).join('')}</div>` : '<div class="cc-empty">No history yet.</div>'; })
             .catch(e => { const body = ov.querySelector('#ccHistBody'); body.innerHTML = `<div class="cc-empty">${_ccEsc((e && e.message) || 'Could not load history')}</div>`; });
     }
@@ -41117,7 +41443,7 @@
 
     function _ccOpenBulkImport() {
         const ov = document.createElement('div');
-        ov.className = 'cal-import-overlay open';
+        ov.className = 'cal-import-overlay open cc-sensitive-overlay';
         ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
             <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccBulkClose">×</button><h3>Bulk import credentials</h3><p>Paste one account per line: Client name | platform | handle | password | notes</p></div>
             <div class="cal-import-body"><div class="cc-field full"><label>Paste credentials</label><textarea id="ccBulkText" style="min-height:170px;" placeholder="Jane Doe | instagram | @janedoe | password123 | 2FA backup…"></textarea></div><div id="ccBulkPreview"></div></div>
@@ -41136,7 +41462,7 @@
         };
         ov.querySelector('#ccBulkPreviewBtn').onclick = async () => {
             try {
-                const json = await _ccApi('bulk_import', { text: ov.querySelector('#ccBulkText').value, dry_run: true, known_clients: _ccKnownClients() }, { role: 'Kasper' });
+                const json = await _ccApi('bulk_import', { text: ov.querySelector('#ccBulkText').value, dry_run: true, known_clients: _ccKnownClients() });
                 renderPreview(json.preview || []);
             } catch (e) { showToast((e && e.message) || 'Preview failed'); }
         };
@@ -41144,7 +41470,7 @@
             if (!preview || !preview.length) return;
             const btn = ov.querySelector('#ccBulkImportBtn'); btn.disabled = true;
             try {
-                const json = await _ccApi('bulk_import', { text: ov.querySelector('#ccBulkText').value, dry_run: false, known_clients: _ccKnownClients() }, { role: 'Kasper' });
+                const json = await _ccApi('bulk_import', { text: ov.querySelector('#ccBulkText').value, dry_run: false, known_clients: _ccKnownClients() });
                 _ccLastLocalWriteAt = Date.now();
                 close(); showToast(`Imported ${json.imported || 0} credentials`); _ccLoadKasper(true);
             } catch (e) { showToast((e && e.message) || 'Import failed'); btn.disabled = false; }
@@ -41154,11 +41480,11 @@
     async function _ccOpenModal(clientName) {
         if (_isClientLink) return;
         if (!clientName) return;
-        try { await _ccEnsureIdentity('SMM'); }
-        catch (e) { return; }
+        try { await _ccEnsureIdentity(); }
+        catch (e) { if (e && e.status === 403) { try { showToast(e.message); } catch (_) {} } return; }
         _ccState.modal.open = true; _ccState.modal.client = clientName; _ccState.modal.loaded = false; _ccState.modal.credentials = [];
         let ov = document.getElementById('ccOverlay');
-        if (!ov) { ov = document.createElement('div'); ov.id = 'ccOverlay'; ov.className = 'cal-import-overlay cc-overlay open'; document.body.appendChild(ov); }
+        if (!ov) { ov = document.createElement('div'); ov.id = 'ccOverlay'; ov.className = 'cal-import-overlay cc-overlay cc-sensitive-overlay open'; document.body.appendChild(ov); }
         ov.classList.add('open');
         ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true"><div class="cal-import-head"><button class="cal-import-x" type="button" onclick="_ccCloseModal()">×</button><h3>${_ccEsc(clientName)} credentials</h3><p>View, copy, and update this client's account access.</p></div><div class="cal-import-body" id="ccModalBody"></div><div class="cal-import-foot"><button class="cal-import-btn-primary" type="button" onclick="_ccOpenEdit('', 'modal')">Add credential</button></div></div>`;
         ov.onclick = e => { if (e.target === ov) _ccCloseModal(); };
@@ -41176,7 +41502,7 @@
         if (!background) _ccPaintModal();
         try {
             const slug = calClientSlug(_ccState.modal.client);
-            const json = await _ccApi('list', { client_slug: slug }, { role: 'SMM' });
+            const json = await _ccApi('list', { client_slug: slug });
             _ccState.modal.credentials = Array.isArray(json.credentials) ? json.credentials : [];
             _ccState.modal.loaded = true;
         } catch (e) { _ccState.modal.error = e && e.message ? e.message : String(e); }

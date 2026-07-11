@@ -1,134 +1,119 @@
 'use strict';
+
 /*
- * Client Credentials must NEVER loop the passphrase prompt — regression test.
+ * Staff role identity consolidation regression checks.
  *
- * Run:  node test/credentials-identity-persist.js   (exit 0 = all good)
- *
- * THE BUG (branch: credentials-saving-loop). A social media manager opened a
- * client's Client Credentials, entered the staff passphrase, and then every
- * Save re-opened the passcode prompt — "it asks for the passcode, and then it
- * kind of loops … the credentials are not there". Changing a field (e.g. IG →
- * Facebook) never stuck either.
- *
- * ROOT CAUSE. The staff identity (name / role / passphrase) was persisted ONLY
- * in localStorage, behind a silent try/catch. _ccIdentityLoad() re-read
- * localStorage on EVERY _ccApi() call. When that write can't land — quota
- * exhausted by the app's own large calendar caches, Safari partitioned/private
- * storage, a locked-down browser — the read kept returning null, so the prompt
- * re-opened on list, then upsert, then the post-save reload … forever. If the
- * user dismissed any prompt, that request silently failed and the list showed
- * nothing, so saves looked like they never stuck.
- *
- * THE FIX. Hold the identity in a session-authoritative in-memory copy
- * (_ccIdentityMem); localStorage is only a best-effort mirror. Once set this
- * session, memory wins, so a browser that can't persist never re-prompts.
- *
- * This harness extracts the REAL _ccIdentity* helpers from ../index.html
- * (brace-balanced, so it survives line shifts), runs them against a localStorage
- * stub whose writes can be made to fail, and asserts the loop is impossible.
+ * Client Credentials, full onboarding, and filming-plan writes must reuse the
+ * one verified roster identity. No surface may revive its former passphrase
+ * prompt, and the UI role matrix must stay aligned with the Edge Functions.
  */
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
-
-function grabFunc(name) {
-  const at = INDEX.indexOf('function ' + name + '(');
-  if (at < 0) throw new Error('function not found: ' + name);
-  let depth = 0;
-  for (let j = INDEX.indexOf('{', at); j < INDEX.length; j++) {
-    const c = INDEX[j];
-    if (c === '{') depth++;
-    else if (c === '}') { depth--; if (depth === 0) return INDEX.slice(at, j + 1); }
-  }
-  throw new Error('unbalanced braces: ' + name);
-}
-
-// Harness: the module-level identity state + a controllable localStorage stub.
-// __ls.failWrites=true makes setItem throw like a full/blocked store.
-// __resetSession() mimics a fresh page load: memory forgotten, storage kept.
-const HARNESS = `
-let _ccIdentityMem = null, _ccIdentityMemSet = false;
-const CC_IDENTITY_KEY = 'syncview_client_credentials_identity_v1';
-const __ls = {
-  store: {}, failWrites: false,
-  getItem(k){ return Object.prototype.hasOwnProperty.call(this.store, k) ? this.store[k] : null; },
-  setItem(k, v){ if (this.failWrites) throw new Error('QuotaExceededError'); this.store[k] = String(v); },
-  removeItem(k){ delete this.store[k]; },
-};
-const localStorage = __ls;
-function __resetSession(){ _ccIdentityMem = null; _ccIdentityMemSet = false; }
-`;
-
-const REAL = [
-  grabFunc('_ccIdentityLoad'),
-  grabFunc('_ccIdentitySave'),
-  grabFunc('_ccIdentityClearKey'),
-].join('\n\n');
-
-const mod = new Function(HARNESS + '\n' + REAL + `
-;return {
-  load: _ccIdentityLoad,
-  save: _ccIdentitySave,
-  clearKey: _ccIdentityClearKey,
-  ls: __ls,
-  resetSession: __resetSession,
-  mem: () => _ccIdentityMem,
-};`)();
-
 let failures = 0;
-function check(label, got, want) {
-  const ok = JSON.stringify(got) === JSON.stringify(want);
-  if (!ok) failures++;
-  console.log(`${ok ? '✓' : '✗ FAIL'}  ${label}  (got ${JSON.stringify(got)}, want ${JSON.stringify(want)})`);
+
+function ok(condition, message) {
+  if (condition) console.log('  ok  ' + message);
+  else { failures++; console.error('FAIL  ' + message); }
 }
 
-const IDENT = { name: 'Laura Ospina', role: 'SMM', key: 'staff-passphrase' };
+function functionSource(name) {
+  const start = INDEX.indexOf(`function ${name}(`);
+  if (start < 0) throw new Error(`missing function ${name}`);
+  const open = INDEX.indexOf('{', start);
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+  for (let i = open; i < INDEX.length; i++) {
+    const ch = INDEX[i];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
+    if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) return INDEX.slice(start, i + 1);
+  }
+  throw new Error(`unterminated function ${name}`);
+}
 
-console.log('— Working localStorage: identity persists and reloads across a session —');
-mod.ls.failWrites = false; mod.ls.store = {}; mod.resetSession();
-mod.save(IDENT);
-check('saved into localStorage', JSON.parse(mod.ls.store[Object.keys(mod.ls.store)[0]]), IDENT);
-check('load returns it this session', mod.load(), IDENT);
-mod.resetSession(); // new page load — memory forgotten, storage kept
-check('fresh session rehydrates from localStorage', mod.load(), IDENT);
+const roleContext = vm.createContext({ identity: null });
+roleContext._syncviewStaffIdentityForHeaders = () => roleContext.identity;
+vm.runInContext(functionSource('_syncviewStaffRoleValue'), roleContext);
+vm.runInContext(functionSource('_syncviewStaffCan'), roleContext);
 
-console.log('\n— THE FIX: a browser that can NOT persist must not re-prompt every call —');
-mod.ls.failWrites = true; mod.ls.store = {}; mod.resetSession();
-check('nothing stored yet → first load is null (prompt shows once)', mod.load(), null);
-mod.save(IDENT);                                   // localStorage write throws, swallowed
-check('localStorage really stayed empty (write failed)', Object.keys(mod.ls.store).length, 0);
-check('but load STILL returns the identity (in-memory) → NO re-prompt', mod.load(), IDENT);
-check('and again on the next call → still no loop', mod.load(), IDENT);
-check('and again (upsert, then the post-save reload) → still no loop', mod.load(), IDENT);
+const matrix = [
+  { role: 'admin', credentials: true, onboarding: true },
+  { role: 'smm', credentials: true, onboarding: false },
+  { role: 'creative', credentials: false, onboarding: false },
+  { role: 'editor', credentials: false, onboarding: false },
+  { role: 'designer', credentials: false, onboarding: false },
+];
 
-console.log('\n— clearKey (the 401 recovery) drops only the passphrase, keeps who you are —');
-mod.ls.failWrites = false; mod.ls.store = {}; mod.resetSession();
-mod.save(IDENT);
-mod.clearKey();
-check('key removed', (mod.load() || {}).key, undefined);
-check('name kept for the re-prompt default', (mod.load() || {}).name, IDENT.name);
-check('role kept', (mod.load() || {}).role, IDENT.role);
+for (const row of matrix) {
+  roleContext.identity = { key: 'dummy-role-key', role: row.role, member: { id: 'dummy', name: 'Dummy Staff' } };
+  ok(roleContext._syncviewStaffCan('credentials') === row.credentials, `${row.role} credentials access is ${row.credentials ? 'allowed' : 'denied'}`);
+  ok(roleContext._syncviewStaffCan('onboarding') === row.onboarding, `${row.role} onboarding access is ${row.onboarding ? 'allowed' : 'denied'}`);
+}
+roleContext.identity = null;
+ok(roleContext._syncviewStaffCan('credentials') === false, 'signed-out credentials access is denied');
+ok(roleContext._syncviewStaffCan('onboarding') === false, 'signed-out onboarding access is denied');
 
-console.log('\n— clearKey under a blocked store must not resurrect a stale key from localStorage —');
-mod.ls.failWrites = false; mod.ls.store = {}; mod.resetSession();
-mod.save(IDENT);                                   // full identity mirrored to storage
-mod.ls.failWrites = true;                          // storage now frozen with the old key
-mod.clearKey();                                    // 401 path: clear the bad key
-check('localStorage still holds the stale full identity', !!mod.ls.store[Object.keys(mod.ls.store)[0]], true);
-check('load ignores stale storage and reports the key as cleared', (mod.load() || {}).key, undefined);
+const ensure = functionSource('_ccEnsureIdentity');
+const api = functionSource('_ccApi');
+const onboarding = functionSource('_obvFetchFull');
+const filming = functionSource('_fpPostPlan');
+const offer = functionSource('_syncviewOfferStaffSignIn');
+const clearIdentity = functionSource('_syncviewStaffIdentityClear');
+const storageChanged = functionSource('_syncviewStaffIdentityStorageChanged');
+const openIdentity = functionSource('_syncviewOpenStaffIdentity');
+const bootIdentity = functionSource('_syncviewStaffIdentityBoot');
 
-console.log('\n— Source-form: the 401 recovery path is intact (clear key, force re-prompt, retry once) —');
-const apiSrc = grabFunc('_ccApi');
-check('_ccApi clears the key on 401', /_ccIdentityClearKey\s*\(/.test(apiSrc), true);
-check('_ccApi force-re-prompts on 401', /_ccEnsureIdentity\([^)]*,\s*true\s*\)/.test(apiSrc), true);
-check('_ccApi retries at most once (guarded by _retried)', /_retried/.test(apiSrc), true);
+ok(/_syncviewRequireStaffIdentity\('credentials'\)/.test(ensure), 'credentials reuse the verified staff identity');
+ok(/actor:\s*\{\s*name:\s*ident\.member\.name,\s*role:\s*ident\.role\s*\}/.test(api), 'credential audit actor comes from the verified roster identity');
+ok(/'X-Syncview-Key':\s*ident\.key/.test(api), 'credentials send the verified role key');
+ok(/_syncviewStaffIdentityClear\(\)/.test(api) && /_syncviewOpenStaffIdentity\(\{ reason: 'expired' \}\)/.test(api), 'credential 401 clears and returns to the one staff sign-in');
+ok(/_syncviewRequireStaffIdentity\('onboarding'\)/.test(onboarding), 'full onboarding reuses the verified admin identity');
+ok(/headers:\s*\{\s*'X-Syncview-Key':\s*ident\.key\s*\}/.test(onboarding), 'full onboarding keeps its historical key-only CORS contract');
+ok(/_syncviewStaffIdentityClear\(\)/.test(onboarding), 'full onboarding clears the global identity on 401');
+ok(/_syncviewRequireStaffIdentity\('onboarding'\)/.test(filming), 'filming-plan writes reuse the verified admin identity');
+ok(/'X-Syncview-Actor':\s*ident\.member\.name/.test(filming) && /'X-Syncview-Role':\s*ident\.role/.test(filming), 'filming-plan attribution comes from the verified identity');
+ok(/_syncviewStaffIdentityClear\(\)/.test(filming), 'filming-plan 401 clears the global identity');
+ok(/_syncviewOpenStaffIdentity\(\{ reason: 'required' \}\)/.test(offer), 'a signed-out gated action opens the global staff sign-in');
+ok(/Sign out first to use another authorized account/.test(INDEX), 'wrong-role guidance uses sign out and never offers Switch user');
+ok(/SYNCVIEW_STAFF_LEGACY_IDENTITY_KEYS/.test(clearIdentity) || /_syncviewStaffClearLegacyIdentityStorage\(\)/.test(clearIdentity), 'sign out and 401 clear the retired surface-specific stored keys');
+for (const key of ['syncview_client_credentials_identity_v1', 'syncview_filming_plans_identity_v1']) {
+  ok((INDEX.match(new RegExp(key, 'g')) || []).length === 1, `legacy storage key is retained only for explicit purge: ${key}`);
+}
+ok(/event\.key !== SYNCVIEW_STAFF_IDENTITY_KEY/.test(storageChanged)
+  && /_syncviewStaffPurgeSensitiveState\(\)/.test(storageChanged)
+  && /_syncviewStaffIdentityBoot\(\)/.test(storageChanged), 'cross-tab identity changes purge sensitive state and revalidate safely');
+ok(/window\.addEventListener\('storage', _syncviewStaffIdentityStorageChanged\)/.test(INDEX), 'staff sign-out and identity changes synchronize across tabs');
+ok(/_syncviewStaffBootPromise/.test(openIdentity) && /_afterBoot/.test(openIdentity), 'staff button waits for stored-identity boot verification before choosing form vs account');
+ok(/_syncviewStaffIdentitySignature\(_syncviewStaffIdentityLoad\(\)\) !== currentSignature/.test(bootIdentity), 'stale boot responses cannot overwrite a newer cross-tab identity');
+for (const [name, requestSource] of [['credentials', api], ['full onboarding', onboarding], ['filming plans', filming]]) {
+  ok(/if \([a-z]+\.status === 401\) \{[\s\S]{0,260}_syncviewStaffIdentitySignature\(active\) !== _syncviewStaffIdentitySignature\(ident\)[\s\S]{0,180}_syncviewStaffIdentityClear\(\)/.test(requestSource),
+    `${name} ignores a stale 401 instead of signing out a newer cross-tab identity`);
+  ok(/_syncviewStaffIdentitySignature\(active\) !== _syncviewStaffIdentitySignature\(ident\)/.test(requestSource),
+    `${name} response ownership includes the roster member, not only the shared role key`);
+}
 
-console.log('\n— Source-form: save writes the in-memory copy, load prefers it —');
-const saveSrc = grabFunc('_ccIdentitySave');
-check('_ccIdentitySave sets _ccIdentityMem', /_ccIdentityMem\s*=/.test(saveSrc), true);
-const loadSrc = grabFunc('_ccIdentityLoad');
-check('_ccIdentityLoad serves the cached copy when set', /_ccIdentityMemSet/.test(loadSrc), true);
+[
+  '_ccPromptIdentity',
+  '_fpIdentity',
+  'Onboarding staff passphrase',
+].forEach(token => ok(!INDEX.includes(token), `retired separate identity path is absent: ${token}`));
 
-if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
-console.log('\nAll credentials-identity-persist checks passed.');
+ok(!INDEX.includes('Switch user'), 'staff surfaces contain no Switch user action');
+ok(/data-staff-capability="credentials"/.test(INDEX), 'credentials entry points carry a role capability gate');
+ok(/data-staff-capability="onboarding"/.test(INDEX), 'onboarding write controls carry an admin capability gate');
+
+if (failures) {
+  console.error(`\n${failures} staff identity consolidation check(s) failed`);
+  process.exit(1);
+}
+console.log('\nStaff identity consolidation checks passed');

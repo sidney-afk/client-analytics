@@ -1,11 +1,11 @@
-// Supabase Edge Function: onboarding-full  (KASPER-ONLY)
+// Supabase Edge Function: onboarding-full  (ADMIN-ONLY)
 //
 // Full onboarding view for Kasper — returns EVERYTHING across all three
 // onboarding sources with NOTHING stripped: names, emails, phones, and the
-// account credentials. Because this exposes passwords, it is gated by the shared
-// staff passphrase (same one the Client Credentials tool uses), sent in the
-// X-Syncview-Key header and checked server-side. The public anon key still can't
-// touch these tables; only this service-role function can, and only with the key.
+// account credentials. Because this exposes passwords, it accepts only the admin
+// role key, plus the historical onboarding passphrase during migration, sent in
+// X-Syncview-Key and checked server-side. The public anon key still can't touch
+// these tables; only this service-role function can, and only with an allowed key.
 //
 // Sources:
 //   - public.client_onboarding      (standard funnel) -> full `answers`
@@ -13,10 +13,11 @@
 //   - public.legacy_onboarding      (old Notion forms) -> `fields` + `credentials`
 //
 // Deploy:
-//   supabase secrets set ONBOARDING_STAFF_KEY=<staff passphrase>   # or reuse CREDENTIALS_STAFF_KEY
+//   Keep ONBOARDING_STAFF_KEY/CREDENTIALS_STAFF_KEY unchanged during migration.
 //   supabase functions deploy onboarding-full --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -29,21 +30,16 @@ function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 }
 
-// Constant-time string compare — avoids leaking the key length/prefix via timing.
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let r = 0;
-  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return r === 0;
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-  // Reuse the Client Credentials staff passphrase unless a dedicated one is set.
-  const KEY = (Deno.env.get("ONBOARDING_STAFF_KEY") || Deno.env.get("CREDENTIALS_STAFF_KEY") || "").trim();
+  // Admin role keys are the primary path. Preserve the exact legacy fallback:
+  // ONBOARDING_STAFF_KEY wins when configured; otherwise use CREDENTIALS_STAFF_KEY.
+  // SMM/creative keys stay denied regardless of any caller-supplied role header.
+  const legacyKey = (Deno.env.get("ONBOARDING_STAFF_KEY") || Deno.env.get("CREDENTIALS_STAFF_KEY") || "").trim();
   const given = (req.headers.get("x-syncview-key") || "").trim();
-  if (!KEY || !given || !safeEqual(given, KEY)) return json({ ok: false, error: "unauthorized" }, 401);
+  const auth = authorizeStaffKey(given, ["admin"], [legacyKey]);
+  if (!auth.ok) return json({ ok: false, error: auth.role ? "forbidden" : "unauthorized" }, staffAuthFailureStatus(auth));
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const [std, ai, legacy] = await Promise.all([

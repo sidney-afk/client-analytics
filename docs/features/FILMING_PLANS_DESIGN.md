@@ -1,9 +1,9 @@
 # Filming Plans — Design Spec
 
-**Status:** Implemented; historical design notes retained · **Date:** 2026-06-03, updated 2026-07-09
+**Status:** Implemented; historical design notes retained · **Date:** 2026-06-03, updated 2026-07-11
 **Owner area:** Kasper tab → new **Filming Plans** sub-tab
 
-> **2026-07-09 implementation update:** the original design below used the SYNCVIEW Google Sheet `FilmingPlans` tab as the source. The current implementation promotes Supabase `public.filming_plans` plus the main dashboard **Filming Plans** tab as the source of truth, with the Sheet kept only as a historical/emergency fallback. Templates and Kasper's Filming Plans tab read that same shared source, and editing master Doc links is gated by the onboarding staff passphrase.
+> **2026-07-11 implementation update:** the original design below used the SYNCVIEW Google Sheet `FilmingPlans` tab as the source. The current implementation promotes Supabase `public.filming_plans` plus the main dashboard **Filming Plans** tab as the source of truth, with the Sheet kept only as a historical/emergency fallback. Templates and Kasper's Filming Plans tab read that same shared source. Editing master Doc links accepts the verified admin role key; the old `ONBOARDING_STAFF_KEY` stays valid in parallel until the TEST/dummy proof and owner-approved retirement gate in `docs/features/CLIENT_CREDENTIALS_DESIGN.md`. SMM and creative/editor/designer role keys cannot write.
 
 ---
 

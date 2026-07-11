@@ -7,6 +7,7 @@ const ROOT = path.join(__dirname, '..');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const MIGRATION = fs.readFileSync(path.join(ROOT, 'migrations/2026-07-09-filming-plans-source.sql'), 'utf8');
 const FN = fs.readFileSync(path.join(ROOT, 'supabase/functions/filming-plans/index.ts'), 'utf8');
+const STAFF_ROLE_AUTH = fs.readFileSync(path.join(ROOT, 'supabase/functions/_shared/staff-role-auth.ts'), 'utf8');
 const CFG = fs.readFileSync(path.join(ROOT, 'supabase/config.toml'), 'utf8');
 
 function ok(cond, msg) {
@@ -44,7 +45,10 @@ ok(/\[functions\.filming-plans\]\s*\nverify_jwt = false/.test(CFG),
   'filming-plans function must be browser-callable because it does its own passphrase check');
 ok(/Deno\.env\.get\("ONBOARDING_STAFF_KEY"\)/.test(FN), 'function must require ONBOARDING_STAFF_KEY');
 ok(!/Deno\.env\.get\("CREDENTIALS_STAFF_KEY"\)/.test(FN), 'function must not accept the credentials staff key');
-ok(/x-syncview-key/.test(FN) && /timingSafeEqual/.test(FN), 'function must verify the supplied onboarding key safely');
+ok(/x-syncview-key/.test(FN)
+  && /authorizeStaffKey\(supplied, \["admin"\], \[legacyKey\]\)/.test(FN)
+  && /timingSafeEqual/.test(STAFF_ROLE_AUTH),
+  'function must timing-safely allow the admin role key or legacy onboarding key');
 ok(FN.includes('docs\\.google\\.com\\/document\\/d\\/[A-Za-z0-9_-]+'),
   'function must validate Google Docs document links');
 ok(/\.from\("filming_plans"\)[\s\S]*\.upsert/.test(FN), 'function must write filming_plans through Supabase service role');

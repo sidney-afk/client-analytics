@@ -6,6 +6,7 @@
 // by syncview_runtime_flags.auth_enforcement.
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
+import { matchingRoleForKey, type StaffRoleKey } from "../_shared/staff-role-auth.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -14,10 +15,7 @@ const CORS: Record<string, string> = {
   "Cache-Control": "no-store",
 };
 
-const TEXT = new TextEncoder();
-
 type JsonMap = Record<string, unknown>;
-type Role = "admin" | "smm" | "creative";
 type Member = {
   id: string;
   name: string;
@@ -44,28 +42,7 @@ function norm(s: unknown): string {
   return t.replace(/[^a-z0-9@.]+/g, "");
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
-  const aa = TEXT.encode(a || "");
-  const bb = TEXT.encode(b || "");
-  let diff = aa.length ^ bb.length;
-  const max = Math.max(aa.length, bb.length);
-  for (let i = 0; i < max; i++) diff |= (aa[i] || 0) ^ (bb[i] || 0);
-  return diff === 0;
-}
-
-function matchingRoleForKey(key: string): Role | null {
-  const pairs: Array<[Role, string | undefined]> = [
-    ["admin", Deno.env.get("ROLE_KEY_ADMIN")],
-    ["smm", Deno.env.get("ROLE_KEY_SMM")],
-    ["creative", Deno.env.get("ROLE_KEY_CREATIVE")],
-  ];
-  for (const [role, secret] of pairs) {
-    if (secret && timingSafeEqual(key, secret)) return role;
-  }
-  return null;
-}
-
-function roleCompatible(keyRole: Role, member: Member): boolean {
+function roleCompatible(keyRole: StaffRoleKey, member: Member): boolean {
   if (keyRole === "admin") return member.role === "admin";
   if (keyRole === "smm") return member.role === "smm";
   return member.role === "editor" || member.role === "designer";

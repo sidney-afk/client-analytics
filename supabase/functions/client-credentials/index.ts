@@ -2,15 +2,18 @@
 //
 // Service-role gateway for SyncView's Client Credentials UI. The public anon key
 // has no access to public.client_credentials or public.client_credential_events;
-// every browser/n8n request must pass the shared staff passphrase in
-// X-Syncview-Key. Do not log request bodies here: they can contain client
+// every browser/n8n request must pass X-Syncview-Key. Admin and SMM role keys
+// are accepted; the historical credentials/onboarding passphrases remain valid
+// during migration. Do not log request bodies here: they can contain client
 // passwords and old password history.
 //
 // Deploy:
-//   supabase secrets set CREDENTIALS_STAFF_KEY=<shared staff passphrase>
+//   Role secrets are shared with key-verify; keep CREDENTIALS_STAFF_KEY and
+//   ONBOARDING_STAFF_KEY unchanged until the documented retirement gate.
 //   supabase functions deploy client-credentials --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
+import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -19,7 +22,6 @@ const CORS: Record<string, string> = {
   "Cache-Control": "no-store",
 };
 
-const TEXT = new TextEncoder();
 const PRIVATE_IP = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|::1$|fc|fd|localhost)/i;
 const ALLOWED_STATUS = new Set(["active", "needs_review", "archived"]);
 const ALLOWED_SOURCE = new Set(["manual", "onboarding", "bulk_import"]);
@@ -99,15 +101,6 @@ function safeStatus(s: unknown): string {
 function safeSource(s: unknown): string {
   const v = clean(s) || "manual";
   return ALLOWED_SOURCE.has(v) ? v : "manual";
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  const aa = TEXT.encode(a || "");
-  const bb = TEXT.encode(b || "");
-  let diff = aa.length ^ bb.length;
-  const max = Math.max(aa.length, bb.length);
-  for (let i = 0; i < max; i++) diff |= (aa[i] || 0) ^ (bb[i] || 0);
-  return diff === 0;
 }
 
 function actorFrom(body: JsonMap): Actor {
@@ -601,23 +594,22 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method" }, 405);
 
-  // Credentials are opened from TWO places: Kasper's tab (he uses the onboarding
-  // passphrase ONBOARDING_STAFF_KEY) and the SMM calendar (staff use the shared
-  // CREDENTIALS_STAFF_KEY). Accept EITHER key so both audiences get in. (By
-  // contrast, onboarding-full accepts only ONBOARDING_STAFF_KEY once it's set, so
-  // onboarding stays Kasper-only.)
+  // Role keys are the primary path: admin and SMM can use credentials, while the
+  // creative key cannot. Keep both historical secrets additive during migration
+  // so existing Kasper/SMM browsers and backend callers cannot be locked out.
+  // X-Syncview-Role is intentionally not an input to this decision.
   const kOnb = (Deno.env.get("ONBOARDING_STAFF_KEY") || "").trim();
   const kStaff = (Deno.env.get("CREDENTIALS_STAFF_KEY") || "").trim();
-  if (!kOnb && !kStaff) return json({ ok: false, error: "credentials key not configured" }, 500);
   const supplied = (req.headers.get("x-syncview-key") || "").trim();
-  const authed = (!!kOnb && timingSafeEqual(supplied, kOnb)) || (!!kStaff && timingSafeEqual(supplied, kStaff));
-  if (!authed) return json({ ok: false, error: "unauthorized" }, 401);
+  const auth = authorizeStaffKey(supplied, ["admin", "smm"], [kOnb, kStaff]);
+  if (!auth.ok) return json({ ok: false, error: auth.role ? "forbidden" : "unauthorized" }, staffAuthFailureStatus(auth));
 
   let body: JsonMap;
   try { body = JSON.parse(await req.text()) as JsonMap; }
   catch (_e) { return json({ ok: false, error: "invalid body" }, 400); }
   const action = clean(body.action);
   const actor = actorFrom(body);
+  if (auth.via === "role" && auth.role) actor.role = auth.role;
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,

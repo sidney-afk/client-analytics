@@ -1,16 +1,19 @@
 // Supabase Edge Function: filming-plans
 //
 // Source-of-truth gateway for client master filming-plan Google Docs.
-// Reads are public through RLS, but writes require the onboarding staff
-// passphrase in X-Syncview-Key. Do not accept CREDENTIALS_STAFF_KEY here:
-// only Sidney/Kasper onboarding staff should change master-doc links.
+// Reads are public through RLS, but writes require the admin role key or the
+// historical onboarding passphrase in X-Syncview-Key. Do not accept
+// CREDENTIALS_STAFF_KEY here: only admins should change master-doc links.
 //
 // Required env:
 //   SUPABASE_URL
 //   SUPABASE_SERVICE_ROLE_KEY
-//   ONBOARDING_STAFF_KEY
+// Staff auth (at least one while the transition remains additive):
+//   ROLE_KEY_ADMIN (preferred)
+//   ONBOARDING_STAFF_KEY (legacy transition path)
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
+import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -18,8 +21,6 @@ const CORS: Record<string, string> = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key, x-syncview-actor, x-syncview-role",
   "Cache-Control": "no-store",
 };
-
-const TEXT = new TextEncoder();
 
 type JsonMap = Record<string, unknown>;
 
@@ -47,20 +48,11 @@ function docId(url: string): string {
   return m ? m[1] : "";
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
-  const aa = TEXT.encode(a || "");
-  const bb = TEXT.encode(b || "");
-  let diff = aa.length ^ bb.length;
-  const max = Math.max(aa.length, bb.length);
-  for (let i = 0; i < max; i++) diff |= (aa[i] || 0) ^ (bb[i] || 0);
-  return diff === 0;
-}
-
 function requireOnboardingKey(req: Request): Response | null {
-  const expected = clean(Deno.env.get("ONBOARDING_STAFF_KEY"));
-  if (!expected) return json({ ok: false, error: "onboarding key not configured" }, 500);
+  const legacyKey = clean(Deno.env.get("ONBOARDING_STAFF_KEY"));
   const supplied = clean(req.headers.get("x-syncview-key"));
-  if (!supplied || !timingSafeEqual(supplied, expected)) return json({ ok: false, error: "unauthorized" }, 401);
+  const auth = authorizeStaffKey(supplied, ["admin"], [legacyKey]);
+  if (!auth.ok) return json({ ok: false, error: auth.role ? "forbidden" : "unauthorized" }, staffAuthFailureStatus(auth));
   return null;
 }
 

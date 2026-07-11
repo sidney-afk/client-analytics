@@ -1,6 +1,6 @@
 # SyncView Independence Plan — n8n off the interactive path, Linear replaced in-app
 
-**Date:** 2026-07-03 · **Status:** approved strategy, ready for execution
+**Date:** 2026-07-03 · **Status:** in execution — Track A COMPLETE (closed out 2026-07-10); Track B live at B3 (see the 2026-07-11 update below and `docs/independence/B4_READINESS.md`)
 **Prepared from:** a full read-only audit of the codebase, the live n8n instance (87 workflows),
 the live Linear workspace, the Supabase schema, and the Google Sheets — see
 `docs/audits/2026-07-03-*.md` for the five detailed audit reports.
@@ -29,6 +29,19 @@ blindly.**
 > the SMM sheet tab, PITR unavailable on the current plan tier) are folded into
 > `TRACK_B_LINEAR_REPLACEMENT_SPEC.md`; the SMM-key rotation (spec §14 D-15) should not wait for
 > Track B.
+>
+> **2026-07-11 update:** execution status. **Track A is COMPLETE and closed out** — all 33 active
+> clients write through the Edge Functions since 2026-07-07 19:46 UTC; the 2026-07-10 three-day
+> close-out audit found zero real-client fallback traffic on all seven legacy write webhooks,
+> zero ledger errors, and a clean full-roster column-drift sweep. The n8n write workflows remain
+> ACTIVE as the dormant per-client fail-safe per ROLLBACK.md rule 2. **Track B is live at B3**:
+> the evaluation mirror has run since 2026-07-07 23:30 UTC; reconciler v2 executes every ~15 min
+> via the n8n monitoring pager; the finished-work history import (2026-07-10, tag
+> `history-backfill-2026-07-10`: 3,187 deliverables + 800 batches) brought the mirror to full
+> parity with live Linear (4,323 deliverables); pending card linkage drained to zero 2026-07-11.
+> Current gate posture, the per-item B3→B4 checklist with evidence, and the §6-auth
+> operationalization plan live in `docs/independence/B4_READINESS.md`. The repo was reorganized
+> 2026-07-10 (PR #778): paths cited in older docs may have moved — `REPO_MAP.md` is authoritative.
 
 ---
 

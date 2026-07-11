@@ -4,8 +4,8 @@
  *
  * B2 is a read-only, query-flagged preview. This test pins the safety invariants
  * that are easy to regress in a single-file app:
- *   - the Production nav stays hidden unless ?prod=1
- *   - navTo cannot enter the tab without _prodEnabled()
+ *   - the Production nav stays hidden unless ?prod=1 or staff identity verified
+ *   - navTo cannot enter the tab without _prodAccessAllowed()
  *   - the preview block has only read paths and no runtime-flag/n8n/Linear writes
  */
 const fs = require('fs');
@@ -32,8 +32,9 @@ check('Production preview block exists before init()', !!prodBlock);
 check('nav item is hidden by default', /id="navProd"[^>]+style="display:none;"/.test(index));
 check('Production nav click still routes through navTo()', /id="navProd"[\s\S]{0,180}navTo\('production'\)/.test(index));
 check('_prodEnabled is query-flagged on ?prod=1', /function _prodEnabled\(\) \{\s*try \{ return new URLSearchParams\(location\.search\)\.get\('prod'\) === '1'; \}/.test(index));
-check('navTo hard-falls back when ?prod=1 is absent', /if \(page === 'production' && !_prodEnabled\(\)\) page = 'home';/.test(index));
-check('navTo toggles Production nav visibility from _prodEnabled()', /navProd\.style\.display = _prodEnabled\(\) \? '' : 'none';/.test(index));
+check('navTo hard-falls back without direct preview or verified staff access', /if \(page === 'production' && !_prodAccessAllowed\(\)\) page = 'home';/.test(index));
+check('navTo toggles Production nav visibility from _prodAccessAllowed()', /navProd\.style\.display = _prodAccessAllowed\(\) \? '' : 'none';/.test(index));
+check('Production staff access is direct preview OR verified identity', /function _prodAccessAllowed\(\) \{\s*return _prodEnabled\(\) \|\| _syncviewStaffIdentityValid\(\);\s*\}/.test(index));
 check('init fast-mounts Production only when _prodEnabled()', /else if \(_prodEnabled\(\)\) _setBootLoadingText\('Loading Production preview\.\.\.'\);[\s\S]{0,220}if \(_prodEnabled\(\)\) \{[\s\S]{0,220}navTo\('production', false\)/.test(index));
 check('Production preview suppresses queued calendar-card writers', /setTimeout\(\(\) => \{\s*if \(_prodEnabled\(\)\) return;[\s\S]{0,120}_resumePendingCalCardJobs\(\)/.test(index));
 check('Production preview starts essentials for clean nav-out', /if \(_prodEnabled\(\)\) \{[\s\S]{0,260}fetchEssentials\(\)\.then/.test(index));

@@ -1338,6 +1338,19 @@
         .logo-text { font-weight: 700; font-size: 1rem; letter-spacing: -0.01em; }
         .header-meta { font-size: 0.77rem; color: var(--text-muted); }
         .header-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; }
+        .staff-identity-btn { position: relative; }
+        .staff-identity-btn.is-valid::after { content: ''; position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--sv-fg-22c55e); box-shadow: 0 0 0 2px var(--white); }
+        .staff-auth-overlay { z-index: 9998; padding: 18px; box-sizing: border-box; }
+        .staff-auth-card { width: min(420px, 100%); border: 1px solid var(--border); border-radius: 14px; background: var(--white); box-shadow: 0 24px 70px var(--sv-shadow-rgba-0-0-0-0_28); padding: 22px; }
+        .staff-auth-card h2 { margin: 0; color: var(--text-primary); font-size: 1.05rem; }
+        .staff-auth-card > p { margin: 7px 0 18px; color: var(--text-muted); font-size: 0.8rem; line-height: 1.5; }
+        .staff-auth-fields { display: grid; gap: 13px; }
+        .staff-auth-field { display: grid; gap: 6px; }
+        .staff-auth-field label { color: var(--text-secondary); font-size: 0.72rem; font-weight: 750; }
+        .staff-auth-field select, .staff-auth-field input { width: 100%; min-height: 42px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 9px; background: var(--white); color: var(--text-primary); padding: 10px 12px; font: inherit; font-size: 0.84rem; outline: 0; }
+        .staff-auth-field select:focus, .staff-auth-field input:focus { border-color: var(--text-primary); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-17-17-16-0_07); }
+        .staff-auth-error { min-height: 18px; margin-top: 10px; color: var(--dn); font-size: 0.75rem; line-height: 1.4; }
+        .staff-auth-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; margin-top: 14px; }
         .theme-toggle { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--theme-toggle-border); background: var(--theme-toggle-bg); color: var(--theme-toggle-color); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s; }
         .theme-toggle:hover { border-color: var(--focus-ring); color: var(--text-primary); box-shadow: 0 0 0 3px var(--theme-toggle-ring); }
         .theme-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
@@ -2547,6 +2560,12 @@
         /* Header nav */
         .header-nav { display: flex; align-items: center; gap: 6px; }
         .header-nav-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; text-decoration: none; }
+        @media (min-width: 761px) and (max-width: 1400px) {
+            .header { padding-left: 18px; padding-right: 18px; }
+            .header-nav { gap: 4px; }
+            .header-nav-btn { gap: 5px; padding-left: 10px; padding-right: 10px; font-size: 0.75rem; }
+            .header-actions { gap: 6px; }
+        }
         .header-nav-btn:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); background: var(--bg); }
         .header-nav-btn.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .header-nav-btn svg { flex-shrink: 0; }
@@ -6451,6 +6470,9 @@
         </a>
     </div>
     <div class="header-actions">
+        <button class="theme-toggle staff-identity-btn" id="staffIdentityButton" type="button" onclick="_syncviewOpenStaffIdentity()" title="Staff sign in" aria-label="Staff sign in">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="5.3" r="2.5" stroke="currentColor" stroke-width="1.45"/><path d="M3.2 13.2c.35-2.35 2.1-3.7 4.8-3.7s4.45 1.35 4.8 3.7" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/></svg>
+        </button>
         <button class="theme-toggle palette-toggle" id="statusPaletteToggle" type="button" onclick="toggleSyncViewStatusPalette()" title="Switch to original status colors" aria-label="Switch to original status colors" aria-pressed="false">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"/></svg>
         </button>
@@ -9804,9 +9826,10 @@
         _setTplStatus('saving');
         let ok = false;
         try {
-            const resp = await fetch(_settingsWriteUrlForClient(name, TEMPLATES_SAVE_EF_URL, TEMPLATES_SAVE_URL), {
+            const writeUrl = _settingsWriteUrlForClient(name, TEMPLATES_SAVE_EF_URL, TEMPLATES_SAVE_URL);
+            const resp = await fetch(writeUrl, {
                 method: 'POST',
-                headers: _settingsWriteHeaders('templates'),
+                headers: _settingsWriteHeaders('templates', writeUrl),
                 body: JSON.stringify({ clientName: name, patch }),
             });
             const json = await resp.json();
@@ -15061,7 +15084,7 @@
         // <head> boot script's data-boot-nav tag) to the real nav toggles below.
         document.documentElement.removeAttribute('data-boot-nav');
         document.documentElement.removeAttribute('data-boot-subtab');
-        if (page === 'production' && !_prodEnabled()) page = 'home';
+        if (page === 'production' && !_prodAccessAllowed()) page = 'home';
         currentNav = page;
         // Guarded: on a FULL localStorage (a heavy user whose caches filled the
         // quota) this setItem throws QuotaExceededError, and unguarded it aborted
@@ -15080,7 +15103,7 @@
         document.getElementById('navLinear').classList.toggle('active', page === 'linear');
         const navProd = document.getElementById('navProd');
         if (navProd) {
-            navProd.style.display = _prodEnabled() ? '' : 'none';
+            navProd.style.display = _prodAccessAllowed() ? '' : 'none';
             navProd.classList.toggle('active', page === 'production');
         }
         const navTpl = document.getElementById('navTemplates');
@@ -15142,7 +15165,11 @@
         } else {
             let hash = (page !== 'home' ? '#' + page : '');
             if (page === 'templates' && _templatesSelected) hash = '#templates/' + encodeURIComponent(_templatesSelected);
-            const url = location.pathname + location.search.replace(/#.*$/, '') + hash;
+            const query = new URLSearchParams(location.search);
+            if (page === 'production') query.set('prod', '1');
+            else query.delete('prod');
+            const queryText = query.toString();
+            const url = location.pathname + (queryText ? '?' + queryText : '') + hash;
             if (push) history.pushState(state, '', url);
             else history.replaceState(state, '', url);
         }
@@ -16338,8 +16365,215 @@
     const CAL_SUPABASE_ANON_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA'; // browser-safe publishable key; read-only via RLS
     const CAL_SUPABASE_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; // UMD → window.supabase
     const CLIENT_TOKEN_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/client-token-verify';
+    const STAFF_KEY_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/key-verify';
     const THUMBNAIL_FOLDER_RESOLVE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/thumbnail-folder-resolve';
     const SMM_WEEKLY_REPORTS_URL = CAL_SUPABASE_URL + '/functions/v1/smm-weekly-reports';
+    const SYNCVIEW_STAFF_IDENTITY_KEY = 'syncview_staff_identity_v1';
+    const SYNCVIEW_STAFF_PROMPT_SESSION_KEY = 'syncview_staff_identity_prompted_v1';
+    let _syncviewStaffIdentityMem = null;
+    let _syncviewStaffIdentityLoaded = false;
+    let _syncviewStaffIdentityVerified = false;
+    let _syncviewStaffRosterCache = null;
+    let _syncviewStaffPromptPromise = null;
+    let _syncviewStaffBootPromise = null;
+
+    function _syncviewStaffEsc(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+    function _syncviewStaffIdentityLoad() {
+        if (_syncviewStaffIdentityLoaded) return _syncviewStaffIdentityMem;
+        try { _syncviewStaffIdentityMem = JSON.parse(localStorage.getItem(SYNCVIEW_STAFF_IDENTITY_KEY) || 'null') || null; }
+        catch (e) { _syncviewStaffIdentityMem = null; }
+        _syncviewStaffIdentityLoaded = true;
+        return _syncviewStaffIdentityMem;
+    }
+    function _syncviewStaffIdentitySave(identity) {
+        _syncviewStaffIdentityMem = identity || null;
+        _syncviewStaffIdentityLoaded = true;
+        try {
+            if (identity) localStorage.setItem(SYNCVIEW_STAFF_IDENTITY_KEY, JSON.stringify(identity));
+            else localStorage.removeItem(SYNCVIEW_STAFF_IDENTITY_KEY);
+        } catch (e) {}
+    }
+    function _syncviewStaffIdentityClear() {
+        _syncviewStaffIdentityVerified = false;
+        _syncviewStaffIdentitySave(null);
+        _syncviewStaffRefreshChrome();
+    }
+    function _syncviewStaffIdentityValid() {
+        const identity = _syncviewStaffIdentityLoad();
+        return !!(_syncviewStaffIdentityVerified && identity && identity.key && identity.member && identity.member.id && identity.member.name && identity.role);
+    }
+    function _syncviewStaffIdentityForHeaders() {
+        return _syncviewStaffIdentityValid() ? _syncviewStaffIdentityLoad() : null;
+    }
+    function _syncviewProdDirectPreview() {
+        try { return new URLSearchParams(location.search).get('prod') === '1'; }
+        catch (e) { return false; }
+    }
+    function _syncviewStaffEligible() {
+        try {
+            return !_isClientLink && !_isIntake && !_isOnboarding && !_isOnboardingView && !_isSmmWeeklyEntry;
+        } catch (e) { return false; }
+    }
+    function _syncviewStaffRefreshChrome() {
+        const identity = _syncviewStaffIdentityForHeaders();
+        const valid = !!identity;
+        const button = document.getElementById('staffIdentityButton');
+        if (button) {
+            button.hidden = !_syncviewStaffEligible();
+            button.classList.toggle('is-valid', valid);
+            const label = valid ? ('Signed in as ' + identity.member.name) : 'Staff sign in';
+            button.title = label;
+            button.setAttribute('aria-label', label);
+        }
+        const nav = document.getElementById('navProd');
+        if (nav) nav.style.display = (_syncviewProdDirectPreview() || valid) ? '' : 'none';
+    }
+    async function _syncviewStaffRoster() {
+        if (_syncviewStaffRosterCache) return _syncviewStaffRosterCache;
+        const url = CAL_SUPABASE_URL + '/rest/v1/team_members?active=eq.true&select=id,name,role,team&order=name.asc';
+        const response = await fetch(url, {
+            headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+        });
+        if (!response.ok) throw new Error('Could not load the staff roster');
+        const rows = await response.json();
+        _syncviewStaffRosterCache = (Array.isArray(rows) ? rows : [])
+            .filter(row => row && row.id && row.name && row.active !== false)
+            .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        return _syncviewStaffRosterCache;
+    }
+    async function _syncviewVerifyStaffIdentity(candidate, surface) {
+        const response = await fetch(STAFF_KEY_VERIFY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': String(candidate && candidate.key || '') },
+            body: JSON.stringify({ surface: surface || 'staff-login', member: { id: candidate && candidate.member && candidate.member.id } })
+        });
+        let json = null;
+        try { json = await response.json(); } catch (e) {}
+        if (!response.ok || !json || json.ok !== true || !json.member) {
+            const error = new Error(response.status === 401 ? 'That role key does not match the selected name.' : 'Could not verify this sign-in right now.');
+            error.status = response.status;
+            throw error;
+        }
+        return {
+            key: String(candidate.key || ''),
+            role: String(json.role || ''),
+            member: {
+                id: String(json.member.id || ''),
+                name: String(json.member.name || ''),
+                role: String(json.member.role || ''),
+                team: json.member.team == null ? null : String(json.member.team)
+            },
+            verified_at: new Date().toISOString()
+        };
+    }
+    function _syncviewCloseStaffIdentity(value) {
+        const overlay = document.getElementById('staffIdentityOverlay');
+        if (overlay) overlay.remove();
+        const done = overlay && overlay._syncviewResolve;
+        if (typeof done === 'function') done(value || null);
+    }
+    function _syncviewOpenStaffIdentity(options) {
+        options = options || {};
+        if (!_syncviewStaffEligible()) return Promise.resolve(null);
+        if (_syncviewStaffPromptPromise) return _syncviewStaffPromptPromise;
+        _syncviewStaffPromptPromise = (async () => {
+            const roster = await _syncviewStaffRoster();
+            if (!roster.length) throw new Error('No active staff roster rows are available');
+            const current = _syncviewStaffIdentityLoad();
+            return await new Promise(resolve => {
+                const overlay = document.createElement('div');
+                overlay.id = 'staffIdentityOverlay';
+                overlay.className = 'cal-import-overlay open staff-auth-overlay';
+                overlay._syncviewResolve = resolve;
+                const selectedId = current && current.member ? String(current.member.id || '') : '';
+                const optionsHtml = '<option value="">Choose your name</option>' + roster.map(member => '<option value="' + _syncviewStaffEsc(member.id) + '"' + (String(member.id) === selectedId ? ' selected' : '') + '>' + _syncviewStaffEsc(member.name) + '</option>').join('');
+                overlay.innerHTML = '<form class="staff-auth-card" id="staffIdentityForm" role="dialog" aria-modal="true" aria-labelledby="staffIdentityTitle">'
+                    + '<h2 id="staffIdentityTitle">Staff sign in</h2>'
+                    + '<p>Choose your roster name and enter the role key for your work.</p>'
+                    + '<div class="staff-auth-fields">'
+                    + '<div class="staff-auth-field"><label for="staffIdentityMember">Your name</label><select id="staffIdentityMember" required>' + optionsHtml + '</select></div>'
+                    + '<div class="staff-auth-field"><label for="staffIdentityKey">Role key</label><input id="staffIdentityKey" type="password" autocomplete="current-password" placeholder="Enter role key" required></div>'
+                    + '</div><div class="staff-auth-error" id="staffIdentityError" role="alert"></div>'
+                    + '<div class="staff-auth-actions"><button class="cal-import-btn-ghost" type="button" id="staffIdentityCancel">' + (current && _syncviewStaffIdentityValid() ? 'Cancel' : 'Not now') + '</button><button class="cal-import-btn-primary" type="submit" id="staffIdentitySubmit">Continue</button></div>'
+                    + '</form>';
+                document.body.appendChild(overlay);
+                const form = overlay.querySelector('#staffIdentityForm');
+                const select = overlay.querySelector('#staffIdentityMember');
+                const key = overlay.querySelector('#staffIdentityKey');
+                const submit = overlay.querySelector('#staffIdentitySubmit');
+                const error = overlay.querySelector('#staffIdentityError');
+                overlay.querySelector('#staffIdentityCancel').onclick = () => _syncviewCloseStaffIdentity(null);
+                form.onsubmit = async event => {
+                    event.preventDefault();
+                    const member = roster.find(row => String(row.id) === String(select.value));
+                    const roleKey = key.value.trim();
+                    if (!member) { error.textContent = 'Choose your name.'; select.focus(); return; }
+                    if (!roleKey) { error.textContent = 'Enter your role key.'; key.focus(); return; }
+                    submit.disabled = true;
+                    error.textContent = '';
+                    try {
+                        const verified = await _syncviewVerifyStaffIdentity({ key: roleKey, member }, 'staff-login');
+                        _syncviewStaffIdentityVerified = true;
+                        _syncviewStaffIdentitySave(verified);
+                        _syncviewStaffRefreshChrome();
+                        _syncviewCloseStaffIdentity(verified);
+                    } catch (e) {
+                        error.textContent = e && e.message ? e.message : 'Could not verify this sign-in.';
+                        submit.disabled = false;
+                        key.select();
+                    }
+                };
+                setTimeout(() => (selectedId ? key : select).focus(), 20);
+            });
+        })().catch(error => {
+            if (!options.silent) {
+                try { showNotify('Staff sign-in unavailable', error && error.message ? error.message : 'Try again shortly.'); } catch (e) {}
+            }
+            return null;
+        }).finally(() => { _syncviewStaffPromptPromise = null; });
+        return _syncviewStaffPromptPromise;
+    }
+    function _syncviewScheduleStaffPrompt() {
+        if (!_syncviewStaffEligible() || _syncviewProdDirectPreview() || _syncviewStaffIdentityLoad()) return;
+        try {
+            if (sessionStorage.getItem(SYNCVIEW_STAFF_PROMPT_SESSION_KEY) === '1') return;
+            sessionStorage.setItem(SYNCVIEW_STAFF_PROMPT_SESSION_KEY, '1');
+        } catch (e) {}
+        setTimeout(() => _syncviewOpenStaffIdentity({ silent: true }), 700);
+    }
+    function _syncviewStaffIdentityBoot() {
+        if (_syncviewStaffBootPromise) return _syncviewStaffBootPromise;
+        _syncviewStaffBootPromise = (async () => {
+            if (!_syncviewStaffEligible()) { _syncviewStaffRefreshChrome(); return null; }
+            const current = _syncviewStaffIdentityLoad();
+            if (!current || !current.key || !current.member || !current.member.id) {
+                _syncviewStaffIdentityVerified = false;
+                _syncviewStaffRefreshChrome();
+                _syncviewScheduleStaffPrompt();
+                return null;
+            }
+            try {
+                const verified = await _syncviewVerifyStaffIdentity(current, 'staff-boot');
+                _syncviewStaffIdentityVerified = true;
+                _syncviewStaffIdentitySave(verified);
+                _syncviewStaffRefreshChrome();
+                return verified;
+            } catch (e) {
+                if (e && e.status === 401) {
+                    _syncviewStaffIdentityClear();
+                    _syncviewScheduleStaffPrompt();
+                } else {
+                    _syncviewStaffIdentityVerified = false;
+                    _syncviewStaffRefreshChrome();
+                    console.warn('[SyncView] staff key verifier unavailable; keeping auth permissive', e);
+                }
+                return null;
+            }
+        })().finally(() => { _syncviewStaffBootPromise = null; });
+        return _syncviewStaffBootPromise;
+    }
 
     const SRP_OVERALL = ['On track', 'Minor friction', 'Needs your attention', 'Blocked'];
     const SRP_OBSTACLE = ['Handling it', 'Need your input', 'Need you to act'];
@@ -16994,6 +17228,13 @@
             if (_isClientLink && String(url || '').indexOf(CAL_SUPABASE_URL + '/functions/v1/') === 0) {
                 const token = _syncviewClientWriteToken();
                 if (token) out['X-Syncview-Client-Token'] = token;
+            } else if (!_isClientLink && String(url || '').indexOf(CAL_SUPABASE_URL + '/functions/v1/') === 0) {
+                const identity = _syncviewStaffIdentityForHeaders();
+                if (identity) {
+                    out['X-Syncview-Key'] = identity.key;
+                    out['X-Syncview-Actor'] = identity.member.name;
+                    out['X-Syncview-Role'] = identity.role;
+                }
             }
         } catch (e) {}
         return out;
@@ -17064,8 +17305,8 @@
         _settingsPrimeRoutingFlag();
         return _settingsUseEf(clientOrSlug) ? efUrl : n8nUrl;
     }
-    function _settingsWriteHeaders(source) {
-        return { 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': source || 'settings' };
+    function _settingsWriteHeaders(source, url) {
+        return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': source || 'settings' }, url);
     }
     _settingsPrimeRoutingFlag();
     /* Default Caption Writer prompt — kept in sync with the same string
@@ -26184,9 +26425,10 @@
         btn.disabled = true;
         btn.textContent = 'Saving…';
         try {
-            const r = await fetch(_settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL), {
+            const writeUrl = _settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL);
+            const r = await fetch(writeUrl, {
                 method: 'POST',
-                headers: _settingsWriteHeaders('caption-prompts'),
+                headers: _settingsWriteHeaders('caption-prompts', writeUrl),
                 body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
             });
             const j = await r.json();
@@ -29914,6 +30156,9 @@
             try { return new URLSearchParams(location.search).get('prod') === '1'; }
             catch (e) { return false; }
         }
+        function _prodAccessAllowed() {
+            return _prodEnabled() || _syncviewStaffIdentityValid();
+        }
         function _prodPreviewText() { return 'Preview - read-only'; }
         function _prodApplyDisplayPrefs(saved) {
             saved = saved || {};
@@ -31866,7 +32111,7 @@
         }
         function mountProductionView() {
             const nav = document.getElementById('navProd');
-            if (nav) nav.style.display = _prodEnabled() ? '' : 'none';
+            if (nav) nav.style.display = _prodAccessAllowed() ? '' : 'none';
             _prodPrimeFromUrl();
             _prodRender();
             if (!_prodState.loaded && !_prodState.loading) _prodLoadData();
@@ -32857,6 +33102,10 @@
 
         async function init(){
         try{
+            // B4 staff identity is cosmetic while auth_enforcement stays
+            // permissive. Validate an existing key before restoring routes;
+            // a missing key prompts after first paint and never blocks boot.
+            await _syncviewStaffIdentityBoot();
             // Resume any calendar-card write job a previous session left
             // unfinished (tab closed during the post-submit write window).
             // Scheduled as a delayed macrotask so it runs on EVERY boot path

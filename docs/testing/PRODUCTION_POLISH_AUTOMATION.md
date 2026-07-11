@@ -10,6 +10,7 @@ It runs the checks that matter for making the Production tab feel finished:
 
 - boot skeleton routing for `?prod=1`, including a guard against the Analytics skeleton flashing;
 - structural parity for the Linear-style sidebar, rows, details, migrated Markdown/resource descriptions, clean delivered-file links, menus, and project board;
+- the explicit read-only smoke, including the zero-write browser-network invariant;
 - interaction inventory across click, right-click, hover, selection, Escape, keyboard, filters, display options, display-driven project counts, filtered project-board copy, project-card context menu pickers, fake board-header/topbar/scaffold action prevention, guarded read-only controls, and dead-button prevention;
 - detail activity empty states, including a guard against unresolved placeholder bars in migrated rows;
 - accessibility/focus basics with axe-core plus custom keyboard checks;
@@ -30,15 +31,15 @@ The Argos preparation step validates that same packet, then exports only the des
 
 ## GitHub Workflow
 
-`.github/workflows/production-polish-gate.yml` runs this gate on pull requests that touch Production UI/test files, can be started manually from GitHub Actions, and runs on `main` at 09:17 UTC Monday through Friday. The workflow cancels superseded in-progress runs for the same ref so repeated pushes do not leave stale browser jobs queued.
+`.github/workflows/production-polish-gate.yml` keeps the required `production-polish` PR check under five minutes by running boot, structure, the explicit zero-write smoke, accessibility/focus, and layout. The longer interaction inventory, `behav-wired`, pixel parity, review packet, validation, and Argos export are not weakened or deleted: they run in two additional parallel jobs after every relevant push to `main`, at 09:17 UTC Monday through Friday, and on manual dispatch. A Playwright-version-keyed cache reuses Chromium and skips the apt install on cache hits. The workflow cancels superseded in-progress runs for the same ref so repeated pushes do not leave stale browser jobs queued.
 
-The workflow uploads two visual artifacts:
+The full `main`/scheduled/manual workflow uploads three visual artifacts:
 
 - `production-polish-screenshots`: the side-by-side pixel/parity screenshots from `.codex-tmp/prod-pixel-wired`;
 - `production-review-packet`: a compact reviewer packet with `index.html`, `manifest.md`, `review-checklist.md`, `review-manifest.json`, and named screenshots from `.codex-tmp/prod-review-packet`, validated before upload.
 - `production-argos-snapshots`: the clean Argos upload folder with desktop Production PNGs and metadata, generated only after the review packet validates.
 
-The workflow also appends the review-packet manifest and checklist to the GitHub job summary, so reviewers can see the screenshot map and inspectable items before downloading the artifact. Open `index.html` from the artifact for a browsable gallery. Use `review-manifest.json` when another automation agent needs screenshot names, routes, viewport sizes, themes, inspection notes, or the read-only invariant result without parsing Markdown.
+The full workflow also appends the review-packet manifest and checklist to the GitHub job summary, so reviewers can see the screenshot map and inspectable items before downloading the artifact. Open `index.html` from the artifact for a browsable gallery. Use `review-manifest.json` when another automation agent needs screenshot names, routes, viewport sizes, themes, inspection notes, or the read-only invariant result without parsing Markdown.
 
 The live SyncView app is already served from GitHub Pages (`main` at `syncview.synchrosocial.com`), so this workflow deliberately does not publish temporary review packets through Pages. The artifact gallery gives reviewers the same single-page scan without changing the production Pages source.
 
@@ -53,7 +54,7 @@ The workflow has a guarded Argos upload. It prepares `.codex-tmp/prod-argos-snap
 
 ## Pull Request Checklist
 
-`.github/pull_request_template.md` includes a Production-specific checklist. For any PR touching `?prod=1`, the `_prod*`-prefixed identifiers inside `index.html` (not a file glob), or `docs/syncview-design/**`, keep the checklist honest: the preview should remain read-only unless a writable milestone is explicit, and visible UI changes should include `npm run test:prod-polish` plus review of the `production-review-packet` gallery artifact.
+`.github/pull_request_template.md` includes a Production-specific checklist. For any PR touching `?prod=1`, the `_prod*`-prefixed identifiers inside `index.html` (not a file glob), or `docs/syncview-design/**`, keep the checklist honest: the preview should remain read-only unless a writable milestone is explicit, and visible UI changes should include local `npm run test:prod-polish` plus review of the gallery from a full `main` or manual workflow run when visual evidence is needed before merge.
 
 ## Turning Feedback Into Work
 

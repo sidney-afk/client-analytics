@@ -7,6 +7,14 @@ on:
       - 'package.json'
       - 'docs/syncview-design/**'
       - '.github/workflows/production-polish-gate.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'package.json'
+      - 'docs/syncview-design/**'
+      - '.github/workflows/production-polish-gate.yml'
   workflow_dispatch:
   schedule:
     - cron: '17 9 * * 1-5'
@@ -18,18 +26,89 @@ concurrency:
 jobs:
   production-polish:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: node -e "require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./package.json').devDependencies.playwright + '\n')"
       - name: Install browser test dependencies
         run: npm install --no-package-lock
-      - name: Install Chromium
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright-version.outputs.version }}
+      - name: Install Chromium and system dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
-      - name: Run Production polish gate
-        run: npm run test:prod-polish
+      - name: Verify cached Chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install chromium
+      - name: Run fast Production polish gate
+        run: node docs/syncview-design/tests/prod-polish-gate.js --lane=fast
+
+  production-polish-interaction:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: node -e "require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./package.json').devDependencies.playwright + '\n')"
+      - name: Install browser test dependencies
+        run: npm install --no-package-lock
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright-version.outputs.version }}
+      - name: Install Chromium and system dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Verify cached Chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install chromium
+      - name: Run Production interaction inventory
+        run: node docs/syncview-design/tests/prod-polish-gate.js --lane=interaction
+
+  production-polish-heavy:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: node -e "require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./package.json').devDependencies.playwright + '\n')"
+      - name: Install browser test dependencies
+        run: npm install --no-package-lock
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright-version.outputs.version }}
+      - name: Install Chromium and system dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Verify cached Chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install chromium
+      - name: Run behavior and pixel Production polish gates
+        run: node docs/syncview-design/tests/prod-polish-gate.js --lane=heavy
       - name: Build Production review packet
         run: npm run test:prod-review
       - name: Validate Production review packet

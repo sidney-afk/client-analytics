@@ -16,11 +16,11 @@
 
 | Path | What it is |
 |---|---|
-| `master.js` | Unified orchestrator — every lane behind one summary/exit code (`npm run test:master`). |
+| `master.js` | Unified orchestrator — one summary/exit code for all lanes (`npm run test:master` = fast profile; `npm run test:master:full` = every lane). |
 | `run-probes.js` | Runs the probes listed in `probes/nightly-manifest.txt` (`npm run test:e2e`; nightly CI). |
 | `probes/` | Individual live probes. The **manifest** decides what the nightly gate runs; probes not in it (`p00`–`p27`, `p_g2*`) are kept as reference material only. |
 | `scenario_engine.js` + `scenarios.js` + `scenario_tree.js` | The multi-actor Samples review lifecycle: seeds a card, drives the real SMM/Kasper/Client handlers through the UI, and asserts DB + DOM after every step. The scenario library covers the golden review paths end to end (clean approve, Kasper/client tweak loops, approve-after-tweaks, undo, archive). |
-| `golden_lib.js`, `lib.js` (in `probes/`), `sxr_courier_lib.js`, `temporal_lib.js` | Shared harness libraries. `golden_lib.js` drives the real Kasper/client handlers plus the upsert webhook and is required by the probe harness. |
+| `golden_lib.js`, `lib.js` (in `probes/`), `sxr_courier_lib.js`, `temporal_lib.js` | Shared harness libraries. `golden_lib.js` drives the real Kasper/client handlers plus the upsert webhook and is required by the probe harness (named for the retired golden-path probes it once powered; the library outlived them). |
 | `visual.js`, `vision_judge.js` | The vision lane: turns per-step screenshots into a review manifest and verdict. |
 | `overnight_runner.sh`, `overnight_cron_chunk.sh` | Unattended continuous testing (see the `/overnight-test` skill); curated results land in `OVERNIGHT_TEST_REPORT.md`. |
 | `ef-writepath/` | Edge-Function write-path suite (Track A gates) — see its own README. |

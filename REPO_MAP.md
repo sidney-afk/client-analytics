@@ -49,7 +49,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `docs/features/` | **Living feature specs** — one doc per shipped feature (samples, onboarding, sales intake, thumbnails, title review, Kasper review, SMM reports, credentials, filming plans, dark mode…). |
 | `docs/ops/` | Runbooks: new-client onboarding, Linear reconcile safety net, monitoring/rollback coverage map (`docs/ops/MONITORING.md`), pending cleanup checklists. |
 | `docs/independence/` | The active independence program: `docs/independence/INDEPENDENCE_PLAN.md` (strategy), Track A (Edge Functions) and Track B (Linear replacement) specs, dependency audits. |
-| `docs/testing/` | How to test: `docs/testing/CALENDAR-TEST-CATALOG.md` (what to check), `docs/testing/HEADLESS-TESTING-GUIDE.md` (how to run live probes), `docs/testing/PRODUCTION_POLISH_AUTOMATION.md` (the prod-polish gate), and the interaction-path generator. |
+| `docs/testing/` | How to test — start at `docs/testing/README.md` (the map: suites, gates, the two safety contracts, and the four testing skills). Then: `docs/testing/CALENDAR-TEST-CATALOG.md` (what to check), `docs/testing/HEADLESS-TESTING-GUIDE.md` (how to run live probes), `docs/testing/PRODUCTION_POLISH_AUTOMATION.md` (the prod-polish gate), and the interaction-path generator. |
 | `docs/audits/` | Dated audit evidence (2026-07-03 →). Historical record — do not edit old audits; add new dated files. |
 | `docs/archive/` | Completed/superseded docs: finished migration plans, spent prompts, incident notes, old QA reports (`docs/archive/qa/`). Nothing here is current truth. |
 | `docs/syncview-design/` | The **locked design kit** for the Production tab: `docs/syncview-design/SyncView.html` (behavior source of truth), `docs/syncview-design/linear-design-tokens.md` (visual build spec), `docs/syncview-design/WIRED-PARITY.md` (parity contract), wired test gates in `docs/syncview-design/tests/`, raw probe measurements in `docs/syncview-design/probe-data/`, prototype-era suites in `docs/syncview-design/tests/design-machine-originals/`. |
@@ -70,7 +70,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | Path | What it is |
 |---|---|
 | `.github/` | CI workflows (unit, nightlies, prod-polish gate, reconcile crons, edge-function deploy), PR template, Copilot instructions. |
-| `.claude/` | Claude Code config: hooks (README-drift + repo-map reminders) and skills (`master-test`, `overnight-test`, `human-audit`, `feedback-expansion`). |
+| `.claude/` | Claude Code config: hooks (README-drift + repo-map reminders) and the four testing skills (`master-test`, `overnight-test`, `human-audit`, `feedback-expansion`) — each a general protocol + target binding; when to use which: `docs/testing/README.md`. |
 | `test/` | Fast offline unit/wiring suites — auto-discovered by `test/run-all.js` (every `test/*.js` runs; fixtures live in `test/fixtures/`). |
 | `qa/` | Live headless E2E: orchestrators, probes, the scenario engine, shared libs. See `qa/README.md`. |
 | `scripts/` | Ops jobs run by CI crons + one-shot migration tools (each guarded by a `test/*.js` counterpart). |

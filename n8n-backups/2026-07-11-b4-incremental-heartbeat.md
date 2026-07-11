@@ -8,3 +8,4 @@
 - Public-repo safety: no workflow JSON, credentials, tokens, webhook URLs, or private payloads are committed here.
 - Focused rollback: disable node `Gate Incremental Refresh 30m`.
 - Full pager rollback: deactivate `qllIDZPkdNAPRj0b`, or restore the private pre-change JSON and publish it.
+- Live proof: tick `244578` dispatched green B1 run `29143764570` and wrote summary event `7772`; tick `244646` skipped the intervening dispatch and emitted no alert.

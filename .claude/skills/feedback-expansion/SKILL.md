@@ -1,6 +1,6 @@
 ---
 name: feedback-expansion
-description: Turn raw, lazy owner feedback about the Production tab (?prod=1) — observations written while using the live page beside real Linear — into the RULE behind each observation, swept across the whole surface, expanded recursively into sibling rules until dry, gated against the Linear reference and the owner-ratified simpler-tool boundary, implemented artifact-first, and proven with machine assertions + master-test + human-audit. Every generalization the executor chooses NOT to build (or that is taste/ambiguous) is surfaced as a one-line owner decision so a wrong leap is vetoed, never silently shipped. Use when the owner hands unstructured observations and wants connect-the-dots expansion, not literal one-element patches. Generalizes to any wired-page-vs-reference pair; centered on the Production tab vs Linear. Pairs with /master-test (whole-app health) and /human-audit (hand-and-eyes parity).
+description: Turn raw, lazy owner feedback about a UI surface — observations written while using the live page beside its reference — into the RULE behind each observation, swept across the whole surface, expanded recursively into sibling rules until dry, gated against the reference and the owner-ratified boundaries, implemented artifact-first, and proven with machine assertions + master-test + human-audit. Every generalization the executor chooses NOT to build (or that is taste/ambiguous) is surfaced as a one-line owner decision so a wrong leap is vetoed, never silently shipped. General protocol for any wired-page-vs-reference pair; ships with a binding for the SyncView Production tab (?prod=1) vs real Linear. Use when the owner hands unstructured observations and wants connect-the-dots expansion, not literal one-element patches. Pairs with /master-test (whole-app health) and /human-audit (hand-and-eyes parity).
 ---
 
 # Feedback Expansion — one observation becomes the whole rule, swept and proven
@@ -16,9 +16,33 @@ Two hard-won constraints shape everything below:
 - **Recursion generates candidates; gates decide adoption.** Expanding rules into sibling
   rules is unbounded creativity. What ships is bounded by the reference, the owner-ratified
   boundaries, and the owner's veto. The system's imagination is infinite; its *authority* is
-  zero. That is the safety model — it turns the #710 over-reach risk into a controlled input.
+  zero. That is the safety model — it turns over-reach risk into a controlled input.
 - **This will outlive one context window.** A multi-generation sweep and multi-PR round is
   larger than any single run. An external state ledger is mandatory, not optional.
+
+## TARGET BINDING (what varies per surface — default: Production tab)
+
+- **Wired surface:** `index.html?prod=1` (the Production tab).
+- **Reference:** real Linear, observed live and read-only.
+- **Boundary doc:** `docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md` §10.8 — the
+  owner-ratified simpler-tool boundary (Linear wins only on look/feel/interaction of KEPT
+  surfaces) and the artifact-first transplant rule.
+- **Design artifact:** `docs/syncview-design/SyncView.html` (changed FIRST for anything
+  that alters look/behavior, then transplanted to the wired `_prod*` tab with
+  `// PORT-DELTA:` comments only where live data forces deviation).
+- **Assertion lanes:** `behav-wired`, `prod-structure-subset`, `pixel-wired`
+  (in `docs/syncview-design/tests/`) — suites only grow, never shrink.
+- **Gate set per PR:** `npm test` (includes `test/port-fidelity-check.js`),
+  `npm run test:prod-polish` (the full behavior/pixel/structure/layout/a11y/boot battery),
+  `node docs/syncview-design/tests/prod-readonly-smoke.js` (zero non-GET),
+  `git diff --check`, secret/model-id scan.
+- **Write policy:** the surface is READ-ONLY (the Production read-only contract — distinct
+  from the live-backend QA contract of `docs/testing/HEADLESS-TESTING-GUIDE.md` §5).
+  Write-implying rules are PHASE-BOUNDED (stage 4) until a writable milestone is explicit.
+
+To run this protocol on another surface, restate this block for it (surface, reference,
+boundary doc, artifact-or-direct, assertion lanes, gate set, write policy) and leave every
+stage below unchanged.
 
 ## GOAL (optimize toward this state, not toward executing steps once)
 
@@ -33,8 +57,8 @@ skill exists to prevent.
 
 Create/load a PRIVATE local ledger file (never committed — raw feedback may contain client
 names). It records: feedback items; rules with their generation number and gate verdicts;
-the sweep inventory (element × location × current behavior × target behavior × Linear
-reference × status); PRs opened; and the owner decision list. Update it after every stage.
+the sweep inventory (element × location × current behavior × target behavior × reference
+behavior × status); PRs opened; and the owner decision list. Update it after every stage.
 **On any resume or restart, re-read the ledger FIRST** and continue from recorded state —
 never restart from memory. If context is degrading, finish the current rule-group cleanly,
 write the ledger, and report what remains.
@@ -56,10 +80,10 @@ sentence. Merge items that share a rule. Do not climb two levels — a rule that
 whole app is a sign of over-generalization.
 
 **4 · GATE every rule (any generation, same gates, no exceptions):**
-- **Reference:** what does real Linear do for this element class? (live Linear, read-only
-  observation). Linear agrees → *ratified*. Linear disagrees or is silent → *OWNER-LISTED*,
-  not built (§10.8 simpler-tool boundary: Linear wins only on look/feel/interaction of KEPT
-  surfaces).
+- **Reference:** what does the binding's reference do for this element class? (live,
+  read-only observation). Reference agrees → *ratified*. Reference disagrees or is silent →
+  *OWNER-LISTED*, not built (the boundary doc decides what the reference is allowed to win
+  on).
 - **Boundary:** collides with a removed feature class or an owner-ratified rule (skeleton
   removals, read-only guard)? → *BLOCKED*, recorded with the rule it hit.
 - **Write-implying:** the interaction ends in a mutation? → *PHASE-BOUNDED*: build the full
@@ -80,18 +104,15 @@ expansion; hard cap of 3 generations per round regardless. Candidates that fail 
 are NOT discarded — they go in the report, visible and unbuilt.
 
 **7 · IMPLEMENT + land incrementally.** One draft PR per coherent rule-group (not per
-feedback line, not one mega-PR — PRs are your crash checkpoints). Artifact-first per §10.8:
-change `docs/syncview-design/SyncView.html` first for anything that alters look/behavior,
-then transplant to the wired `_prod*` tab; `// PORT-DELTA:` where live data forces deviation;
-never weaken the read-only guard; never touch runtime flags, backend, n8n, or Linear wiring
-from this work. Checkpoint the ledger after each PR.
+feedback line, not one mega-PR — PRs are your crash checkpoints). Artifact-first per the
+binding: change the design artifact first for anything that alters look/behavior, then
+transplant to the wired surface; `// PORT-DELTA:` where live data forces deviation; never
+weaken the read-only guard; never touch runtime flags, backend, n8n, or Linear wiring from
+this work. Checkpoint the ledger after each PR.
 
-**8 · PROVE.** Every FIXED inventory row gets a machine assertion in the right lane
-(`behav-wired`, `prod-structure-subset`, `pixel-wired` — suites only grow, never shrink).
-Full gate set per PR: `port-fidelity-check`, `behav-wired`, `prod-structure-subset`,
-`prod-readonly-smoke` (zero non-GET), `pixel-wired` light+dark, `npm test`,
-`git diff --check`, secret/model-id scan. Then run `/master-test` and a `/human-audit` pass
-over every surface you changed.
+**8 · PROVE.** Every FIXED inventory row gets a machine assertion in the binding's
+assertion lanes (suites only grow, never shrink). Run the binding's full gate set per PR.
+Then run `/master-test` and a `/human-audit` pass over every surface you changed.
 
 **9 · REPORT (audited — the reviewer re-derives your sweep; gaps are protocol violations).**
 Per feedback item: raw quote → reproduced? → rule (+ generation) → gate verdicts → inventory
@@ -116,7 +137,7 @@ stop silently mid-sweep.
 ## Rails (standing, non-negotiable)
 
 Public repo — no secrets, no client names/data in code, tests, committed screenshots, or PR
-text (TEST-client `sidneylaruel` / dummy data only); screenshots stay local; live-Linear
+text (TEST-client `sidneylaruel` / dummy data only); screenshots stay local; live-reference
 probing is observation-only on real data; read-only surfaces stay read-only; no runtime flag,
 backend, n8n, or Linear-wiring changes; no model identifiers anywhere. Owner merges every PR.
 
@@ -127,3 +148,5 @@ stops; a goal makes the loop the natural behavior. The ledger exists because a r
 already outlived a single context window. The generation cap and dry-out rule bound the
 recursion so it can't run forever or drift into a redesign. The audited report + owner
 decision list keep the owner's taste — not the executor's consistency — the final authority.
+The target binding is separated from the loop because the loop is portable; only the
+surface, reference, and gates change between targets.

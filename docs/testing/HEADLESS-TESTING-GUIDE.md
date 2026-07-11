@@ -16,7 +16,7 @@ re-run until green — then verify before pushing.
 
 ## 0. Why headless == the Chrome extension / live UI
 
-The whole product is one static file: `index.html` (a ~25k-line inline
+The whole product is one static file: `index.html` (one large inline
 `<script>`). The Chrome extension, GitHub Pages (`main` → live), and a local
 `python3 -m http.server` all serve the **identical bytes**. So:
 
@@ -46,8 +46,8 @@ guard at the top of every run handles this:
 ```
 
 ### Playwright
-Playwright is installed system-wide; require it by **absolute path** (it is not
-in the repo's `node_modules`):
+Playwright is installed system-wide; requiring it by **absolute path** works in
+every environment (including ones where `npm install` hasn't run):
 ```js
 const PW = require('/opt/node22/lib/node_modules/playwright');
 ```
@@ -88,11 +88,23 @@ const ctx = await browser.newContext({ timezoneId: 'America/Argentina/Buenos_Air
 
 ---
 
-## 2. The reusable harness (`qalib.js`)
+## 2. The reusable harness
 
-Keep one small helper shared across every probe. It captures **all** JS errors
-(console.error, pageerror, failed backend requests) so any probe can assert
-"0 JS errors", handles the auth seed, and opens each surface with a sane wait.
+**Use the in-repo harness libraries first** — they are the maintained
+descendants of the pattern this section teaches:
+
+- `qa/golden_lib.js` — real Kasper/client handlers + upsert webhook + polling
+  (required by `qa/probes/lib.js`);
+- `qa/sxr_courier_lib.js` — the Samples harness (courier, Linear mocks,
+  `archiveSafe` cleanup);
+- `qa/scenario_engine.js` + `qa/scenarios.js` — multi-actor flows via real DOM
+  clicks, asserted against the live DB.
+
+Don't hand-copy a fresh helper when one of those fits. The `qalib.js` below is
+the **model behind them** — read it to understand what every harness must do
+(capture ALL JS errors so any probe can assert "0 JS errors", seed the auth
+flag, open each surface with a sane wait), and use it only for a quick
+standalone probe outside `qa/`.
 
 ```js
 // qalib.js — shared headless harness
@@ -208,9 +220,10 @@ const PID = 'p_probe_' + TS;     // unique id so parallel runs never collide
 (async () => {
   // 1) SEED via the real backend path. A card needs an asset/thumb to clear
   //    Kasper's content gate; pick statuses that put it where you're testing.
-  await up({ id: PID, name: 'Probe ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29',
+  const TOMORROW = new Date(Date.now() + 86400e3).toISOString().slice(0, 10);
+  await up({ id: PID, name: 'Probe ' + TS, platforms: 'youtube', scheduled_date: TOMORROW,
     status: 'In Progress', caption_status: 'Kasper Approval',
-    thumbnail_url: 'https://via.placeholder.com/320x180.png', asset_url: 'https://example.com/x.mp4' });
+    thumbnail_url: 'https://placehold.co/320x180.png', asset_url: 'https://example.com/x.mp4' });
 
   // 2) DRIVE the real UI on the relevant surface.
   const browser = await Q.launch();
@@ -328,9 +341,9 @@ node -e "const fs=require('fs');const h=fs.readFileSync('index.html','utf8');
 const b=[...h.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).sort((a,c)=>c.length-a.length)[0];
 new (require('vm').Script)(b); console.log('✅ inline script parses');"
 
-# 2) Run the whole suite; trust EXIT CODES, not grep (a test can legitimately print "0 failed").
-for f in test/*.js; do node "$f" >/tmp/_t.out 2>&1; ec=$?; [ $ec -ne 0 ] && { echo "FAIL($ec): $f"; tail -3 /tmp/_t.out; }; done
-echo "suite done (only failures shown)"
+# 2) Run the whole suite via the blessed runner; trust EXIT CODES, not grep
+#    (a test can legitimately print "0 failed").
+node test/run-all.js || echo "UNIT SUITE FAILED"
 
 # 3) Run your targeted live probe(s) for the behaviour you changed → expect pass=N fail=0.
 node /tmp/qa/my_probe.js 2>&1 | tail -15
@@ -347,9 +360,9 @@ Only after all three are clean: commit and push.
   module-scoped. Driving via exposed `window._*` functions + reading the DOM is
   the reliable path; if you truly need an internal, assert on the DOM it
   produces instead.
-- **Placeholder-image 503s are not app errors.** `via.placeholder.com` failing is
-  noise — that's why `capture()` only flags `synchrosocial|supabase` request
-  failures.
+- **Placeholder-image failures are not app errors.** A stock image host
+  (`placehold.co` etc.) erroring is noise — that's why `capture()` only flags
+  `synchrosocial|supabase` request failures.
 - **ISO timestamps sort lexicographically.** `String(a).localeCompare(String(b))`
   on ISO 8601 is correct chronological order — used for "newest first" asserts.
 - **Realtime needs a beat.** Wait on `calV2Status().subscribed` (SMM) / give

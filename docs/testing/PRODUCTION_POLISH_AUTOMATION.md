@@ -1,6 +1,6 @@
 # Production Polish Automation
 
-This repo now has a single Production polish gate:
+The Production tab has a single polish gate:
 
 ```bash
 npm run test:prod-polish
@@ -30,7 +30,7 @@ The Argos preparation step validates that same packet, then exports only the des
 
 ## GitHub Workflow
 
-`.github/workflows/production-polish-gate.yml` runs this gate on pull requests that touch Production UI/test files, can be started manually from GitHub Actions, and runs on `main` at 09:17 UTC Monday through Friday after this PR merges. The workflow cancels superseded in-progress runs for the same ref so repeated pushes do not leave stale browser jobs queued.
+`.github/workflows/production-polish-gate.yml` runs this gate on pull requests that touch Production UI/test files, can be started manually from GitHub Actions, and runs on `main` at 09:17 UTC Monday through Friday. The workflow cancels superseded in-progress runs for the same ref so repeated pushes do not leave stale browser jobs queued.
 
 The workflow uploads two visual artifacts:
 
@@ -53,7 +53,7 @@ The workflow has a guarded Argos upload. It prepares `.codex-tmp/prod-argos-snap
 
 ## Pull Request Checklist
 
-`.github/pull_request_template.md` includes a Production-specific checklist. For any PR touching `?prod=1`, `_prod*`, or `docs/syncview-design/**`, keep the checklist honest: the preview should remain read-only unless a writable milestone is explicit, and visible UI changes should include `npm run test:prod-polish` plus review of the `production-review-packet` gallery artifact.
+`.github/pull_request_template.md` includes a Production-specific checklist. For any PR touching `?prod=1`, the `_prod*`-prefixed identifiers inside `index.html` (not a file glob), or `docs/syncview-design/**`, keep the checklist honest: the preview should remain read-only unless a writable milestone is explicit, and visible UI changes should include `npm run test:prod-polish` plus review of the `production-review-packet` gallery artifact.
 
 ## Turning Feedback Into Work
 
@@ -71,7 +71,7 @@ For AI-agent PRs, keep the issue text natural, but include the route and screens
 ## Adding a New Polish Regression
 
 1. Reproduce the issue in `?prod=1`.
-2. Add the narrowest check to one of:
+2. Add the narrowest check to one of (all in `docs/syncview-design/tests/`):
    - `prod-layout-polish.js` for clipping, stuck focus rings, responsive layout, or floating chrome placement;
    - `prod-a11y-focus.js` for keyboard/focus/control naming;
    - `prod-boot-budget.js` for refresh/loading/skeleton problems;
@@ -80,4 +80,4 @@ For AI-agent PRs, keep the issue text natural, but include the route and screens
 4. Run `npm run test:prod-review` when the reviewer needs fresh screenshots.
 5. Run `npm run test:prod-review:validate` before using or uploading the packet.
 6. Run `npm run test:prod-argos:prepare` before changing the Argos export contract.
-7. Update the Production parity docs and rollback notes with what the new check protects.
+7. Update the Production parity docs (`docs/syncview-design/WIRED-PARITY.md`) and rollback notes (`ROLLBACK.md`, `EXECUTION_LOG.md`) with what the new check protects.

@@ -12,11 +12,11 @@ the thing you used to do by hand, opening the page and clicking around.
 
 | Lane | Was | What it checks | Browser? |
 |------|-----|----------------|----------|
-| `unit` | `test/run-all.js` (29 suites) | pure transform/state-machine logic | no |
+| `unit` | `test/run-all.js` (every `test/*.js`, auto-discovered) | pure transform/state-machine logic | no |
 | `parity` | `parity_*.js`, `render_parity.js`, `realtime_parity.js` | Samples `_sxr*` is a faithful clone of calendar `_cal*` (logic + DOM + CSS + realtime/immediacy wiring) | yes¹ |
 | `realtime` | `realtime_parity.js` + `p88_realtime_handler.js` *(new)* | **Layer A** (static, no browser): every calendar realtime/immediacy hook has a wired samples twin (subscription + teardown + dataChanged gate). **Layer B** (real browser): GIVEN a push, the never-reloaded surface repaints, a no-op echo doesn't rebuild, and the Kasper queue updates. Together: A = "the socket calls the handler", B = "the handler updates the UI". | yes (B only) |
 | `probes` | `run-probes.js` + `p*.js` | calendar lifecycle/routing/sync — drives via app **handlers** (`page.evaluate`), not real clicks | yes |
-| `scenarios` | `scenario_engine.js` + `scenarios.js` | Samples multi-actor flows (SMM/Kasper/Client) — clicks **real DOM nodes in-page** (`element.click()` + input events; not Playwright synthetic mouse/keyboard), asserted against the live DB. Flat library of 51 paths. | yes |
+| `scenarios` | `scenario_engine.js` + `scenarios.js` | Samples multi-actor flows (SMM/Kasper/Client) — clicks **real DOM nodes in-page** (`element.click()` + input events; not Playwright synthetic mouse/keyboard), asserted against the live DB. The flat library (`qa/scenarios.js`). | yes |
 | `tree` | `scenario_tree.js` *(new)* | same engine, specs from the **branching scenario tree** (shared prefixes + branch points, compiled to root→leaf paths) | yes |
 | `temporal` | `temporal_lib.js` + `ot_temporal_*.js` | UI reaction speed + no flicker/revert | yes |
 | `visual` | *(new)* | drives a flow, screenshots every step, hands the frames to the **vision pass** (judged by a human / Claude via `/master-test` — not automated in CI) | yes |
@@ -159,14 +159,19 @@ MASTER_VISION=auto node qa/master.js
   takes precedence over the subscription.
 - **`api`** calls the Anthropic Messages API via `curl` (so it tunnels through
   the same egress proxy the courier uses). Requires `ANTHROPIC_API_KEY`.
-- Model via `MASTER_VISION_MODEL` (default `claude-opus-4-8`; set
-  `claude-sonnet-4-6` or `claude-haiku-4-5` to cut cost on high-volume runs).
+- Model via `MASTER_VISION_MODEL` (default: see `DEFAULT_MODEL` in
+  `qa/vision_judge.js`; set a smaller model to cut cost on high-volume runs).
 - Verdicts are written to `qa/visual/VISION_VERDICT.md`. A `broken` verdict marks
   the visual lane failed and fails the whole run; `warn`/`ok` don't.
 
 When `MASTER_VISION` is unset (default), the visual lane only **captures** and
 leaves the verdict to a human / `/master-test` — nothing calls a model and
 nothing bills.
+
+Enhancement worth making someday: the visual lane currently shoots only the
+**result** frame after each step — a before+after pair per step (in
+`scenario_engine.js`'s `shot()`) would sharpen "did it change correctly"
+judgments.
 
 Why vision instead of pixel-diff baselines? Baselines only catch *drift from a
 saved snapshot* and scream on every intentional tweak; they can't judge "does
@@ -189,7 +194,7 @@ then branches into Kasper-approves (→ Client approves / Client requests change
 Kasper-requests-change, and Kasper-approve-after-tweaks — six leaf paths sharing
 two authored prefixes. `node qa/scenario_tree.js` prints the expansion.
 
-The flat `scenarios` lane (51 paths) and the `tree` lane coexist — the tree is the
+The flat `scenarios` lane and the `tree` lane coexist — the tree is the
 new structured way to add coverage; existing flat scenarios are migrated into trees
 over time, never lost.
 

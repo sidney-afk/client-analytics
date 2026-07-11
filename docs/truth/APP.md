@@ -151,7 +151,28 @@ rollback `.catch`; log-linear-submission (29667) is intentional fire-and-forget 
 and thumbnail-folder resolve (23605) both end in `.catch`. Read fetches use
 `Promise.allSettled`/`.then` with error handling.
 
-### Backlog (next chunks)
+### F6 `[wontfix — audited clean]` — number/date parsing is safe
 
-Duplicate string literals and large inline event handlers. (`console.log` cleanup is
-owner-decision, not an autonomous edit — see session note.)
+Checked `parseInt`/`Number`/`new Date` for the usual footguns (2026-07-11). **Clean:**
+- 16 `parseInt` calls, ~10 without an explicit radix — but every one reads an **app-controlled
+  numeric string** (dataset attributes the app sets itself, `getComputedStyle` `px` values,
+  regex capture groups). None take `0x`-prefixed input, so the missing radix is inert in modern
+  JS (base-10 default). Adding radix would be lint-tidy, not a bugfix.
+- No `new Date(arg).toISOString()` sites (the `RangeError`-on-invalid-date crash pattern). The
+  80 `.toISOString()` calls run on `new Date()` (current time) or provably-valid derived dates
+  (e.g. `_kasperHistoryDayLabel`'s `yest = new Date(); yest.setDate(-1)`). No action.
+
+### Audit pass summary — 2026-07-11
+
+One session, six findings. **Actionable for the owner:**
+- **F1** `[open]` — 35 dead-code candidates, triage-per-group (the `_prod*` set may be active
+  Production-sprint work; confirm before deleting).
+- **F5** `[open, low]` — two `try{ fetch }catch` sites (lines 26171 / 26189) leak an unhandled
+  rejection on network failure; trivial `.catch(()=>{})` fix matching the pattern at line 16024.
+
+**Audited clean (recorded so they are not re-investigated):** F2 status-string quirks (normalized
+everywhere), F3 duplicate DOM ids (exclusive-render), F4 all 86 `JSON.parse` guarded, F6
+number/date parsing.
+
+Remaining lower-yield backlog for a future pass: duplicate string literals, large inline event
+handlers, and (owner-decision) whether to strip the 41 `console.log` debug statements.

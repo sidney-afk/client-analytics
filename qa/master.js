@@ -38,7 +38,7 @@
  * and writes qa/visual/manifest.json + qa/visual/VISUAL_REVIEW.md. The
  * /master-test skill (Claude in the loop) reads those shots and writes verdicts.
  *
- * SAFETY (same contract as docs/HEADLESS-TESTING-GUIDE.md §5):
+ * SAFETY (same contract as docs/testing/HEADLESS-TESTING-GUIDE.md §5):
  *   test client `sidneylaruel` ONLY · unique ids · archive on exit ·
  *   Linear ALWAYS mocked · assert 0 app JS errors.
  */

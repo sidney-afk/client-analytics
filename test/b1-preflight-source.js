@@ -24,7 +24,7 @@ function ok(cond, msg) {
   'mirror_outbox',
   'kind classification',
   'delivery-link comment sweep',
-].forEach(token => ok((PREFLIGHT + '\n' + fs.readFileSync(path.join(ROOT, 'TRACK_B_LINEAR_REPLACEMENT_SPEC.md'), 'utf8')).includes(token),
+].forEach(token => ok((PREFLIGHT + '\n' + fs.readFileSync(path.join(ROOT, 'docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md'), 'utf8')).includes(token),
   `preflight/spec token missing: ${token}`));
 
 [

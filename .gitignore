@@ -19,3 +19,6 @@ qa/MASTER_REPORT.md
 qa/overnight_runner.log
 qa/overnight-output/
 qa/reports/
+
+# Ad-hoc screenshot output (proof snapshots live in PRs/Argos, not git)
+qa/shots/

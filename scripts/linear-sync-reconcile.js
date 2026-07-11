@@ -18,7 +18,7 @@
  *   SyncView. A persistent ledger records, per card-component, the status last
  *   seen on each side and WHEN it changed. The CARD side uses the EXACT change time
  *   (calendar_posts.video_status_at / graphic_status_at, DB-stamped — see
- *   calendar-status-at-migration.sql) when present, else falls back to polling
+ *   migrations/calendar-status-at-migration.sql) when present, else falls back to polling
  *   granularity; Linear is polling-timed (fine at the 10-min n8n cadence). When the
  *   two disagree the side whose value changed more recently wins. Near-concurrent
  *   changes tie-break to: a Tweaks-Needed request never loses, else the
@@ -78,7 +78,7 @@ async function fetchAllCards() {
   const base = ['id','name','client','status','video_status','graphic_status','caption_status',
     'linear_issue_id','graphic_linear_issue_id','order_index','updated_at',
     'client_video_approved_at','client_graphic_approved_at','client_caption_approved_at','kasper_approved_at'];
-  // Exact per-component change-timestamps (calendar-status-at-migration.sql). OPTIONAL:
+  // Exact per-component change-timestamps (migrations/calendar-status-at-migration.sql). OPTIONAL:
   // if those columns aren't there yet, PostgREST errors the select, so we drop them and
   // fall back to the base set + poll-timing — making this safe to ship in either order.
   const ext = base.concat(['video_status_at', 'graphic_status_at']);
@@ -237,7 +237,7 @@ const log = (s) => { console.log(s); lines.push(s); };
       const linCal = _calMapLinearStatusStrict(linRaw);
       if (!linCal) { unmapped++; continue; }
       const cardCal = _calNormStatus(card[comp + '_status'] || '');
-      // EXACT card change-time from the DB trigger (calendar-status-at-migration.sql)
+      // EXACT card change-time from the DB trigger (migrations/calendar-status-at-migration.sql)
       // when present, else fall back to poll-time `t`. This is what stops a stale card
       // from looking "newer" than a Linear issue that advanced between polls — the
       // GRA-6339 wrong-direction regression. Linear stays poll-timed (fine at 10-min).

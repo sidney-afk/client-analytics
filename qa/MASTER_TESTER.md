@@ -195,7 +195,7 @@ over time, never lost.
 
 ## Safety
 
-Same contract as `docs/HEADLESS-TESTING-GUIDE.md` §5: test client `sidneylaruel`
+Same contract as `docs/testing/HEADLESS-TESTING-GUIDE.md` §5: test client `sidneylaruel`
 only, unique ids, archive on exit, **Linear always mocked**, assert 0 app JS
 errors.
 

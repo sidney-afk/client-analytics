@@ -19,7 +19,7 @@ Starting main commit: `bcdc0cfe95864a771cfff7cf92dc8c633cde0d78`
 
 Primary source read for this pass:
 
-- `TRACK_B_LINEAR_REPLACEMENT_SPEC.md`
+- `docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md`
 - `docs/syncview-design/ADAPTER.md`
 - `docs/syncview-design/WIRED-PARITY.md`
 - `docs/syncview-design/tests/README.md`
@@ -154,7 +154,7 @@ feedback, and no dedicated accessibility/layout gate.
 
 Fix: added `npm run test:prod-polish`, `.github/workflows/production-polish-gate.yml`,
 `prod-boot-budget.js`, `prod-a11y-focus.js`, `prod-layout-polish.js`,
-`docs/PRODUCTION_POLISH_AUTOMATION.md`, `.github/ISSUE_TEMPLATE/production-polish.yml`,
+`docs/testing/PRODUCTION_POLISH_AUTOMATION.md`, `.github/ISSUE_TEMPLATE/production-polish.yml`,
 `.github/copilot-instructions.md`, and `AGENTS.md`. The new gate also found and fixed a real
 keyboard accessibility gap: the Production global keyboard handler no longer steals Enter/Space
 from focused buttons, and icon-only Filter/Display controls now have accessible names. Added

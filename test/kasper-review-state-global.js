@@ -15,7 +15,7 @@
  * echo + Supabase realtime to every device (like `kasper_approved_at`). The old
  * per-browser flags are kept ONLY as a same-device fallback so behaviour is
  * unchanged until the backend columns are switched on (see
- * KASPER_REVIEW_GLOBAL_ROLLOUT.md), then it becomes global automatically.
+ * docs/features/KASPER_REVIEW_GLOBAL_ROLLOUT.md), then it becomes global automatically.
  *
  * This harness asserts:
  *   • GLOBAL: a card carrying kasper_finished_at reads as finished on a device

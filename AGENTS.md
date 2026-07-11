@@ -7,7 +7,11 @@ This repo is a single-file SyncView app served by GitHub Pages from `index.html`
   the entire client lifecycle (traffic → booking → sales → onboarding →
   provisioning → samples → production). If you change either copy, apply the
   identical change to the other repo in the same session/PR; keep them
-  byte-identical.
+  byte-identical. Because the path is part of the mirror contract, it stays at
+  `docs/CLIENT_LIFECYCLE_MAP.md` — do not move it into a docs/ subfolder.
+
+Repo layout is documented in `REPO_MAP.md` — when you add, move, or remove files,
+update the map in the same change (`test/repo-map-sync.js` enforces it in CI).
 
 For Production tab polish:
 

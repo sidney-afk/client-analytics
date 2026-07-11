@@ -1,6 +1,6 @@
 # Supabase CLI config for project uzltbbrjidmjwwfakwve (SyncView).
 # Only used for Edge Function deploys — the database schema is managed by the
-# *-supabase-migration.sql files in the repo root, run by hand in the SQL editor.
+# *.sql files in migrations/, run by hand in the SQL editor.
 project_id = "uzltbbrjidmjwwfakwve"
 
 # Public capture endpoint: the onboarding form calls it anonymously from the

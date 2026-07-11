@@ -32,8 +32,8 @@ const path = require('path');
 let PW; try { PW = require('playwright'); } catch { PW = require('/opt/node22/lib/node_modules/playwright'); }
 
 // In-process static server (a detached Bash server gets killed by the sandbox, so
-// we serve index.html + assets from inside the Node harness — same pattern as
-// qa/cc-multiview.js). Sets the dynamic origin used by the surface openers.
+// we serve index.html + assets from inside the Node harness). Sets the
+// dynamic origin used by the surface openers.
 const ROOT = path.resolve(__dirname, '..', '..');
 let _origin = 'http://127.0.0.1:8000';
 function startServer() {

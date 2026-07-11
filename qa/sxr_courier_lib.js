@@ -19,7 +19,7 @@
 // In an environment with open browser egress (GitHub Actions CI, a dev laptop),
 // the same probes run WITHOUT the courier — set SXR_COURIER=0.
 //
-// Scope/safety (same rules as docs/HEADLESS-TESTING-GUIDE.md §5): only ever
+// Scope/safety (same rules as docs/testing/HEADLESS-TESTING-GUIDE.md §5): only ever
 // mutate the test client `sidneylaruel`; unique `sr_*` ids; archive what you
 // create; assert 0 app JS errors.
 // ============================================================================

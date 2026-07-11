@@ -12,7 +12,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-actor, x-syncview-role, x-syncview-source",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key, x-syncview-actor, x-syncview-role, x-syncview-source",
   "Cache-Control": "no-store",
 };
 
@@ -25,6 +25,14 @@ function json(obj: unknown, status = 200): Response {
 
 function clean(v: unknown): string {
   return String(v == null ? "" : v).trim();
+}
+
+function actorFrom(req: Request): { actor: string | null; role: string | null; source: string } {
+  return {
+    actor: clean(req.headers.get("x-syncview-actor")) || null,
+    role: clean(req.headers.get("x-syncview-role")) || null,
+    source: clean(req.headers.get("x-syncview-source")).toLowerCase() || "settings",
+  };
 }
 
 function slug(name: unknown): string {
@@ -44,6 +52,7 @@ Deno.serve(async (req) => {
     const clientSlug = slug(body.client);
     if (!clientSlug) return json({ ok: false, error: "client required" }, 400);
     const prompt = String(body.prompt == null ? "" : body.prompt);
+    const actor = actorFrom(req);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -57,11 +66,22 @@ Deno.serve(async (req) => {
         client_slug: clientSlug,
         prompt,
         updated_at: now,
-        updated_by: clean(req.headers.get("x-syncview-actor")) || "syncview",
+        updated_by: actor.actor || "syncview",
       }, { onConflict: "client_slug" })
       .select("client_slug,prompt,updated_at")
       .single();
     if (error) throw error;
+
+    const { error: eventError } = await db.from("settings_events").insert({
+      surface: "caption_prompts",
+      client_slug: clientSlug,
+      actor: actor.actor,
+      role: actor.role,
+      action: "save",
+      source: actor.source,
+      payload: { prompt_length: prompt.length },
+    });
+    if (eventError) throw eventError;
 
     return json({ ok: true, client: data?.client_slug || clientSlug, prompt: data?.prompt ?? prompt });
   } catch (e) {

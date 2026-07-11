@@ -53,14 +53,14 @@ flag-flip audit trigger.
 
 **Remaining work-packages, in order:**
 
-| WP | What | Notes / rollback |
-|---|---|---|
-| WP-A1 | Verify every write EF **persists** actor/role into its event ledger (spec: the samples EF measurably dropped them at spec time) and fix any that drop | additive; per-EF revert |
-| WP-A2 | Mint the three role keys into EF secrets; confirm `key-verify` resolves roster rows | secrets only, never committed |
-| WP-A3 | Build the §6.1 login modal: role key + roster-name picker → localStorage; `key-verify` ping at boot; Production-tab visibility keyed on stored key (cosmetic) | behind the existing tab gate; revert = hide modal |
-| WP-A4 | Permissive telemetry window: count unkeyed writes in `syncview_auth_events` over real traffic; **gate: zero unkeyed writes for 72 h** | no behavior change |
-| WP-A5 | Flip `auth_enforcement` → `enforced` (owner action) | flip back = one flag |
-| WP-A6 | Owner decision: keep D6 (3 shared role keys + per-person actor from roster) or upgrade to per-person credentials. **Recommendation: keep D6 through B5; revisit after cutover.** Every write already carries a per-person actor name + role for the audit trail either way. | decision only |
+| WP | Status | What | Notes / rollback |
+|---|---|---|---|
+| WP-A1 | ✅ DONE 2026-07-11 | Every staff write EF now persists `X-Syncview-Actor` / `X-Syncview-Role`: calendar/sample upserts and reorders use their card event ledgers; template/caption-prompt saves use additive service-only `settings_events`. One disposable TEST write per EF proved all six paths and cleanup restored the two settings rows exactly with zero probe rows/events left. | Re-deploy the private pre-WP-A1 function snapshots; the additive `settings_events` table may remain dormant. No routing flag is involved. |
+| WP-A2 | ✅ DONE 2026-07-11 | The three role keys were already minted in EF secrets. Their deployed digests match the private B0 backup, and `key-verify` resolved compatible active roster rows for admin, SMM, and creative in permissive mode (proof events 3–5). | Secrets only; no key material is committed. Rollback is unnecessary while auth stays permissive; remove/rotate a role secret only for credential compromise. |
+| WP-A3 | ⏳ PENDING | Build the §6.1 login modal: role key + roster-name picker → localStorage; `key-verify` ping at boot; Production-tab visibility keyed on stored key (cosmetic) | behind the existing tab gate; revert = hide modal |
+| WP-A4 | ⏳ PENDING | Permissive telemetry window: count unkeyed writes in `syncview_auth_events` over real traffic; **gate: zero unkeyed writes for 72 h** | no behavior change |
+| WP-A5 | ⏳ OWNER GATE | Flip `auth_enforcement` → `enforced` (owner action) | flip back = one flag |
+| WP-A6 | ⏳ OWNER DECISION | Owner decision: keep D6 (3 shared role keys + per-person actor from roster) or upgrade to per-person credentials. **Recommendation: keep D6 through B5; revisit after cutover.** Every write already carries a per-person actor name + role for the audit trail either way. | decision only |
 
 ## 4. Plain-language answers (owner questions, 2026-07-11) — with spec citations
 

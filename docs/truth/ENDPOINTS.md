@@ -55,7 +55,7 @@ Other:
 - `webhook/content-ready` — content-ready notification
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (12)
+## Supabase Edge Functions (13)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
@@ -63,6 +63,7 @@ Other:
 - `functions/v1/templates-save`, `functions/v1/caption-prompts-save` — save-path ports
 - `functions/v1/onboarding-capture` — onboarding funnel capture
 - `functions/v1/client-token-verify`, `functions/v1/client-credentials` — client auth surface
+- `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal (#788) pings it at boot to revalidate the stored role key
 - `functions/v1/filming-plans` — filming plans backend
 - `functions/v1/smm-weekly-reports` — SMM weekly reports
 - `functions/v1/thumbnail-folder-resolve` — thumbnail Drive-folder resolution

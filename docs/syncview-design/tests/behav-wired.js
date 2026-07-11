@@ -79,8 +79,13 @@ async function txt(page, sel) {
     commentDeleteUndo: 'deferred-B3: comment deletion and undo mutate comments',
     childActivityLogged: 'deferred-B3: child activity log assertion depends on applying a status mutation',
   };
-  page.on('pageerror', e => errors.push(e.message));
-  page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+  page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+  page.on('console', msg => {
+    if (msg.type() !== 'error') return;
+    const loc = msg.location && msg.location();
+    const where = loc && loc.url ? ` @ ${loc.url}:${loc.lineNumber || 0}` : '';
+    errors.push('console: ' + msg.text() + where);
+  });
   page.on('request', req => requests.push({ method: req.method(), url: req.url() }));
   await page.addInitScript(() => {
     localStorage.setItem('syncview_auth_v1', 'ok');
@@ -1108,7 +1113,7 @@ async function txt(page, sel) {
     await ok('activityMissingDataNotSkeleton', async () => {
       const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
       await page.evaluate(rowId => {
-        _prodState.events.delete(rowId);
+        _prodState.events.set(rowId, []);
         _prodOpenDeliverable(rowId);
       }, id);
       await page.waitForSelector('.prod-detail');
@@ -1881,7 +1886,7 @@ async function txt(page, sel) {
     const darkSmoke = await page.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && !!document.querySelector('.prod-view'));
     if (!darkSmoke) throw new Error('dark Production preview did not follow syncview_theme=dark');
     await ok('noWriteRequests', async () => requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)).length === 0);
-    await ok('noConsoleErrors', async () => errors.length === 0);
+    await ok('noConsoleErrors', async () => errors.length ? errors.slice(0, 10).join(' | ') : true);
 
     const failed = Object.entries(results).filter(([, v]) => v !== true);
     console.log(JSON.stringify(results));

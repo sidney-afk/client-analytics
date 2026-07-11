@@ -15,7 +15,7 @@ import { captureGraphicTweakBaseline, scanGraphicTweakResolution } from "../_sha
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-actor, x-syncview-role, x-syncview-source, x-syncview-client-token",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key, x-syncview-actor, x-syncview-role, x-syncview-source, x-syncview-client-token",
   "Cache-Control": "no-store",
 };
 
@@ -55,6 +55,7 @@ const URGENT_MARKER_FIELDS = ["video_urgent_pinged_at", "video_urgent_status_at"
 type JsonMap = Record<string, unknown>;
 type Row = Record<string, string | null>;
 type ExistingRow = Record<string, unknown>;
+type Actor = { actor: string | null; role: string | null; source: string };
 type EventDraft = {
   client: string;
   sample_id: string;
@@ -79,6 +80,16 @@ function json(obj: unknown, status = 200): Response {
 
 function clean(v: unknown): string {
   return String(v == null ? "" : v).trim();
+}
+
+function actorFrom(req: Request, body: JsonMap): Actor {
+  const bodyActor = body.actor && typeof body.actor === "object" ? body.actor as JsonMap : {};
+  const bodyActorName = typeof body.actor === "string" ? body.actor : "";
+  const actor = clean(req.headers.get("x-syncview-actor") || bodyActor.name || body.actor_name || bodyActorName) || null;
+  const role = clean(req.headers.get("x-syncview-role") || bodyActor.role || body.actor_role) || null;
+  const rawSource = clean(req.headers.get("x-syncview-source") || body.source || "ui").toLowerCase();
+  const source = rawSource === "linear" || rawSource === "reconcile" ? rawSource : "ui";
+  return { actor, role, source };
 }
 
 function sv(o: JsonMap | ExistingRow | null | undefined, k: string): string {
@@ -370,20 +381,19 @@ function commentIds(s: unknown): string[] {
     .map(c => String(c.id));
 }
 
-function buildEvents(client: string, inc: Row, patch: JsonMap, existing: ExistingRow, now: string): EventDraft[] {
+function buildEvents(client: string, inc: Row, patch: JsonMap, existing: ExistingRow, actor: Actor, now: string): EventDraft[] {
   const existsAlready = !!(existing && existing.id);
   const sampleId = clean(inc.id || patch.id);
-  const actor = clean(patch.kasper_approved_by) || null;
   const events: EventDraft[] = [];
   const ev = (action: string, extra: Partial<EventDraft> = {}) => {
     events.push({
       client,
       sample_id: sampleId,
       ts: now,
-      actor,
-      role: null,
+      actor: actor.actor,
+      role: extra.role === undefined ? actor.role : extra.role || null,
       action,
-      source: "ui",
+      source: actor.source,
       created_at: now,
       ...extra,
     });
@@ -469,6 +479,7 @@ Deno.serve(async (req: Request) => {
   let client = "";
   let id = "";
   let outcome = "error";
+  const actor = actorFrom(req, body);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -500,7 +511,7 @@ Deno.serve(async (req: Request) => {
       incoming: sample,
       patch: built.row,
       existing: existingRead.row,
-      actor: { actor: clean(built.row.kasper_approved_by) || null, role: null, source: "ui" },
+      actor,
       now: isoNow(),
     }));
     waitUntil(scanGraphicTweakResolution({
@@ -511,11 +522,11 @@ Deno.serve(async (req: Request) => {
       incoming: sample,
       patch: built.row,
       existing: existingRead.row,
-      actor: { actor: clean(built.row.kasper_approved_by) || null, role: null, source: "ui" },
+      actor,
       now: isoNow(),
     }));
 
-    const events = buildEvents(client, sample, built.row, existingRead.row, isoNow());
+    const events = buildEvents(client, sample, built.row, existingRead.row, actor, isoNow());
     waitUntil(insertEvents(supabase, events));
 
     outcome = "ok";
@@ -529,6 +540,8 @@ Deno.serve(async (req: Request) => {
       fn: "sample-review-upsert",
       client,
       id,
+      actor: actor.actor,
+      role: actor.role,
       outcome,
       ms: Date.now() - started,
     }));

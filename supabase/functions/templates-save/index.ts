@@ -13,7 +13,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-actor, x-syncview-role, x-syncview-source",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key, x-syncview-actor, x-syncview-role, x-syncview-source",
   "Cache-Control": "no-store",
 };
 
@@ -26,6 +26,14 @@ function json(obj: unknown, status = 200): Response {
 
 function clean(v: unknown): string {
   return String(v == null ? "" : v).trim();
+}
+
+function actorFrom(req: Request): { actor: string | null; role: string | null; source: string } {
+  return {
+    actor: clean(req.headers.get("x-syncview-actor")) || null,
+    role: clean(req.headers.get("x-syncview-role")) || null,
+    source: clean(req.headers.get("x-syncview-source")).toLowerCase() || "settings",
+  };
 }
 
 function slug(name: unknown): string {
@@ -57,6 +65,7 @@ Deno.serve(async (req) => {
     if (!clientName || !clientSlug) return json({ ok: false, error: "clientName required" }, 400);
 
     const patch = patchObject(body.patch);
+    const actor = actorFrom(req);
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!supabaseUrl || !serviceKey) return json({ ok: false, error: "server not configured" }, 500);
@@ -79,11 +88,22 @@ Deno.serve(async (req) => {
         client_slug: clientSlug,
         data: next,
         updated_at: now,
-        updated_by: clean(req.headers.get("x-syncview-actor")) || "syncview",
+        updated_by: actor.actor || "syncview",
       }, { onConflict: "client_slug" })
       .select("data,updated_at")
       .single();
     if (saveError) throw saveError;
+
+    const { error: eventError } = await db.from("settings_events").insert({
+      surface: "templates",
+      client_slug: clientSlug,
+      actor: actor.actor,
+      role: actor.role,
+      action: "save",
+      source: actor.source,
+      payload: { changed_keys: Object.keys(patch).sort() },
+    });
+    if (eventError) throw eventError;
 
     const data = saved && saved.data && typeof saved.data === "object" ? saved.data as Record<string, unknown> : next;
     return json({ ok: true, template: { ...data, updated_at: saved?.updated_at || now } });

@@ -13,12 +13,13 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-actor, x-syncview-role, x-syncview-source, x-syncview-client-token",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key, x-syncview-actor, x-syncview-role, x-syncview-source, x-syncview-client-token",
   "Cache-Control": "no-store",
 };
 
 type JsonMap = Record<string, unknown>;
 type ReorderItem = { id: string; order_index: string };
+type Actor = { actor: string | null; role: string | null; source: string };
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), {
@@ -29,6 +30,16 @@ function json(obj: unknown, status = 200): Response {
 
 function clean(v: unknown): string {
   return String(v == null ? "" : v).trim();
+}
+
+function actorFrom(req: Request, body: JsonMap): Actor {
+  const bodyActor = body.actor && typeof body.actor === "object" ? body.actor as JsonMap : {};
+  const bodyActorName = typeof body.actor === "string" ? body.actor : "";
+  const actor = clean(req.headers.get("x-syncview-actor") || bodyActor.name || body.actor_name || bodyActorName) || null;
+  const role = clean(req.headers.get("x-syncview-role") || bodyActor.role || body.actor_role) || null;
+  const rawSource = clean(req.headers.get("x-syncview-source") || body.source || "ui").toLowerCase();
+  const source = rawSource === "linear" || rawSource === "reconcile" ? rawSource : "ui";
+  return { actor, role, source };
 }
 
 function parsePayload(body: JsonMap): { client: string; items: ReorderItem[] } {
@@ -59,10 +70,12 @@ Deno.serve(async (req: Request) => {
   try {
     const body = JSON.parse(await req.text()) as JsonMap;
     const parsed = parsePayload(body);
+    const actor = actorFrom(req, body);
     client = parsed.client;
     itemCount = parsed.items.length;
     const now = new Date().toISOString();
     let updated = 0;
+    const events: JsonMap[] = [];
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -77,7 +90,24 @@ Deno.serve(async (req: Request) => {
         .eq("id", item.id)
         .select("id");
       if (error) throw new Error("calendar reorder failed");
-      if (Array.isArray(data) && data.length) updated++;
+      if (Array.isArray(data) && data.length) {
+        updated++;
+        events.push({
+          client,
+          post_id: item.id,
+          ts: now,
+          actor: actor.actor,
+          role: actor.role,
+          action: "reorder",
+          source: actor.source,
+          payload: { order_index: item.order_index },
+        });
+      }
+    }
+
+    if (events.length) {
+      const { error } = await supabase.from("calendar_post_events").insert(events);
+      if (error) throw new Error("calendar reorder event failed");
     }
 
     outcome = "ok";

@@ -52,6 +52,7 @@ for (let i = 2; i < process.argv.length; i++) {
 const APPLY = args.has('--apply');
 const APPLY_RECONCILIATION_ONLY = args.has('--apply-reconciliation-only');
 const INCREMENTAL = args.has('--incremental');
+const PROJECT_FILTER = clean(args.get('--project-id'));
 
 function fail(message) {
   console.error('B1 Linear backfill failed:', message);
@@ -64,6 +65,11 @@ function clean(v) {
 
 function normalizeText(s) {
   return clean(s).toLowerCase().replace(/\s+/g, ' ');
+}
+
+function issueProjectId(issue) {
+  return clean(issue && issue.project && issue.project.id
+    || issue && issue.parent && issue.parent.project && issue.parent.project.id);
 }
 
 function personKey(s) {
@@ -1000,7 +1006,7 @@ async function buildIncrementalPlan() {
   const cutoffMonths = Number(args.get('--cutoff-months') || 12);
   const changedSince = await incrementalChangedSince();
   const [
-    issues,
+    loadedIssues,
     clients,
     members,
     calendarRows,
@@ -1018,6 +1024,9 @@ async function buildIncrementalPlan() {
     supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,created_by,created_at,linear_issue_uuid,linear_identifier,linear_issue_url'),
     supabaseRows('linear_archive', 'linear_uuid,identifier,title,state,client_slug,team'),
   ]);
+  const issues = PROJECT_FILTER
+    ? loadedIssues.filter(issue => issueProjectId(issue) === PROJECT_FILTER)
+    : loadedIssues;
 
   const cards = activeCardRows(calendarRows, sampleRows);
   const linksByIdentifier = cardLinkMap(cards);
@@ -1061,6 +1070,7 @@ async function buildIncrementalPlan() {
     mode: 'incremental',
     as_of: asOf,
     cutoff_months: cutoffMonths,
+    project_filter: PROJECT_FILTER || null,
     changed_since: changedSince,
     changed_issue_count: issues.length,
     operational_count: operational.length,
@@ -1130,6 +1140,7 @@ async function applyIncrementalPlan(plan) {
       started_at: startedAt,
       finished_at: finishedAt,
       changed_since: plan.changed_since,
+      project_filter: plan.project_filter,
       changed_issue_count: plan.changed_issue_count,
       operational_count: plan.operational_count,
       soft_handled_count: plan.soft_handled_count,
@@ -1145,6 +1156,7 @@ async function applyIncrementalPlan(plan) {
       started_at: startedAt,
       finished_at: new Date().toISOString(),
       changed_since: plan.changed_since,
+      project_filter: plan.project_filter,
       changed_issue_count: plan.changed_issue_count,
       error: message.slice(0, 500),
       writes: result,

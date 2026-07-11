@@ -114,6 +114,9 @@ ok(/postAnomalyAlert\("unknown_assignee", issue\)/.test(FN),
 ].forEach(token => ok(FN.includes(token), 'issue mapping token missing: ' + token));
 ok(/const previousIssue = raw\.issue && typeof raw\.issue === "object" \? raw\.issue as JsonMap : \{\};[\s\S]*raw\.issue = \{ \.\.\.issue \};[\s\S]*if \(!has\(issue, "parent"\) && previousIssue\.parent !== undefined\) \{[\s\S]*\(raw\.issue as JsonMap\)\.parent = previousIssue\.parent;[\s\S]*\}/.test(FN),
   'mergeLinearRaw must preserve the stored parent when an Issue webhook omits parent');
+ok(/import \{ clearArchiveMarkers \} from "\.\/restore-markers\.mjs"/.test(FN)
+  && /action === "restore"[\s\S]*clearArchiveMarkers\(linearRawWithFlag\(existing, issue, payload, "restored", true\)\)/.test(FN),
+  'restore must clear stale archive/delete markers before writing the deliverable');
 
 ok(/const DUPLICATE_LINK_COLUMNS/.test(fs.readFileSync(path.join(ROOT, 'supabase/functions/sample-review-upsert/index.ts'), 'utf8')),
   'sanity: running after the samples twins guard merge');

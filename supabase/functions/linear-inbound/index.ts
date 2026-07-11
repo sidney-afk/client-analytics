@@ -6,6 +6,7 @@
 // data writes.
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { clearArchiveMarkers } from "./restore-markers.mjs";
 
 type JsonMap = Record<string, unknown>;
 type ExistingRow = Record<string, unknown>;
@@ -518,7 +519,7 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
       row.linear_raw = linearRawWithFlag(existing, issue, payload, "archived", clean(issue.archivedAt || new Date().toISOString()));
       eventAction = "archive";
     } else if (action === "restore") {
-      row.linear_raw = linearRawWithFlag(existing, issue, payload, "restored", true);
+      row.linear_raw = clearArchiveMarkers(linearRawWithFlag(existing, issue, payload, "restored", true));
       eventAction = "restore";
     }
   }

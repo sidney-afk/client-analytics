@@ -38,6 +38,7 @@ const LINEAR_API_KEY = String(process.env.LINEAR_API_KEY || process.env.LINEAR_A
 const STATE_UUID_MAP = parseJson(process.env.LINEAR_STATE_UUID_MAP || '{}');
 const FIXTURES = args.get('fixtures') || '';
 const TEAM_FILTER = clean(args.get('team')).toLowerCase();
+const IDENTIFIER_FILTER = clean(args.get('identifier')).toUpperCase();
 const PAGE_DELAY_MS = Math.max(0, Number(args.get('page-delay-ms') || process.env.PAGE_DELAY_MS || 120));
 const DETAILS_JSON = args.get('details-json') || '';
 
@@ -201,7 +202,8 @@ async function loadLiveData() {
   const active = deliverables
     .filter(d => clean(d.linear_issue_uuid))
     .filter(d => !deliverableArchivedOrDeleted(d))
-    .filter(d => !TEAM_FILTER || clean(d.team).toLowerCase() === TEAM_FILTER);
+    .filter(d => !TEAM_FILTER || clean(d.team).toLowerCase() === TEAM_FILTER)
+    .filter(d => !IDENTIFIER_FILTER || clean(d.identifier || d.linear_identifier).toUpperCase() === IDENTIFIER_FILTER);
   const [linearIssues, webhooks] = await Promise.all([
     loadLinearIssuesById(active.map(d => d.linear_issue_uuid)),
     loadLinearWebhooks(),
@@ -264,6 +266,7 @@ function summaryMarkdown(plan, startedAt, finishedAt) {
     `Started: ${startedAt}`,
     `Finished: ${finishedAt}`,
     `Mode: ${APPLY ? 'apply' : 'dry-run'}`,
+    `Scope: ${IDENTIFIER_FILTER || TEAM_FILTER || 'all live deliverables'}`,
     '',
     '| Metric | Count |',
     '|---|---:|',
@@ -301,6 +304,7 @@ async function writeSummaryEvent(plan, startedAt, finishedAt) {
       dry_run: !APPLY,
       apply: APPLY,
       cap: SAFETY_CAP,
+      identifier_filter: IDENTIFIER_FILTER || null,
       started_at: startedAt,
       finished_at: finishedAt,
       summary: plan.summary,

@@ -146,6 +146,9 @@ ok(!/from\("deliverables"\)\.update|from\('deliverables'\)\.update|PATCH[\s\S]{0
 ok(/source: 'reconcile'/.test(script), 'summary/healing events must use source=reconcile');
 ok(/webhooks\(first: 100\)/.test(script) && /missing_comment_resource/.test(script),
   'reconciler must include Linear webhook enabled/resource probe');
+ok(/const IDENTIFIER_FILTER = clean\(args\.get\('identifier'\)\)\.toUpperCase\(\)/.test(script)
+  && /d\.identifier \|\| d\.linear_identifier/.test(script),
+  'reconciler must support an opt-in identifier scope for TEST-only healing');
 
 const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'linear-deliverables-reconcile.yml'), 'utf8');
 ok(/default: false/.test(workflow) && /APPLY:/.test(workflow), 'workflow apply default must be false');

@@ -46,8 +46,13 @@ function functionSource(name) {
 ].forEach(token => ok(source.includes(token), `staff login wiring includes ${token}`));
 
 ok(/team_members\?active=eq\.true&select=id,name,role,team/.test(source), 'name choices come from active team_members rows');
-ok(/<select id="staffIdentityMember" required>/.test(source), 'identity modal uses a roster select');
+ok(/_ccSelectHtml\('staffIdentityMember', memberItems, selectedId, 'Choose your name'\)/.test(source), 'identity modal uses the shared custom roster picker');
+ok(/const memberInput = overlay\.querySelector\('#staffIdentityMember'\)[\s\S]{0,900}String\(memberInput\.value\)/.test(source), 'custom roster picker feeds the existing form-submit value path');
+ok(/Choose your name\.'; memberTrigger\.focus\(\)/.test(source), 'roster validation focuses the custom picker trigger');
 ok(!/id="staffIdentity(?:Name|Other)"/.test(source), 'identity modal has no free-text name field');
+ok(/id="staffIdentityKeyToggle"[^>]+aria-label="Show role key"[^>]+onclick="_syncviewToggleStaffRoleKey\(this\)"/.test(source), 'role key has an accessible visibility toggle');
+ok(/function _syncviewToggleStaffRoleKey\(button\)[\s\S]{0,260}button\.setAttribute\('aria-label', label\)/.test(source), 'role-key visibility toggle updates its accessible label');
+ok(/\.staff-auth-overlay\s*\{[^}]*background:\s*var\(--sv-bg-rgba-0-0-0-0_5\)[^}]*backdrop-filter:\s*blur\(3px\)/.test(source), 'staff sign-in overlay uses a stronger blurred scrim');
 ok(/await _syncviewStaffIdentityBoot\(\)/.test(source), 'boot validates a stored staff key before route restoration');
 ok(/e && e\.status === 401[\s\S]{0,180}_syncviewStaffIdentityClear\(\)/.test(source), 'an invalid stored key is cleared');
 ok(/staff key verifier unavailable; keeping auth permissive/.test(source), 'verifier outages preserve permissive app access');

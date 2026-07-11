@@ -10,13 +10,16 @@
  * restores the original Supabase thread. Audit events remain as evidence.
  *
  * Required: B4_CONFIRM_TEST_MUTATIONS=1, B4_TEST_ISSUE,
- * SUPABASE_SERVICE_ROLE_KEY, LINEAR_API_KEY.
+ * B4_TEST_CLIENT_SLUG, B4_TEST_PROJECT_ID, SUPABASE_SERVICE_ROLE_KEY,
+ * LINEAR_API_KEY.
  */
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co').replace(/\/+$/, '');
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const LINEAR_KEY = process.env.LINEAR_API_KEY || '';
 const ISSUE = String(process.env.B4_TEST_ISSUE || '').trim().toUpperCase();
+const TEST_CLIENT_SLUG = String(process.env.B4_TEST_CLIENT_SLUG || '').trim();
+const TEST_PROJECT_ID = String(process.env.B4_TEST_PROJECT_ID || '').trim();
 const LEGACY_COMMENT_URL = process.env.LINEAR_ADD_COMMENT_URL || 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
 const CONFIRMED = process.env.B4_CONFIRM_TEST_MUTATIONS === '1';
 const MARKER = `b4-echo-${Date.now().toString(36)}`;
@@ -26,6 +29,7 @@ if (!CONFIRMED) throw new Error('Set B4_CONFIRM_TEST_MUTATIONS=1 to run the TEST
 if (!SERVICE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required');
 if (!LINEAR_KEY) throw new Error('LINEAR_API_KEY is required for verification and cleanup');
 if (!/^(VID|GRA)-\d+$/.test(ISSUE)) throw new Error('B4_TEST_ISSUE must be a TEST Linear identifier');
+if (!TEST_CLIENT_SLUG || !TEST_PROJECT_ID) throw new Error('B4_TEST_CLIENT_SLUG and B4_TEST_PROJECT_ID are required');
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -94,7 +98,7 @@ async function readLinearIssue() {
     query B4EchoIssue($id: String!) {
       issue(id: $id) {
         id identifier archivedAt canceledAt
-        project { name }
+        project { id }
         comments(first: 100) { nodes { id body createdAt } }
       }
     }
@@ -126,11 +130,11 @@ async function main() {
   const rows = await supabase(`deliverables?select=*&linear_identifier=eq.${encodeURIComponent(ISSUE)}&limit=2`);
   if (!Array.isArray(rows) || rows.length !== 1) throw new Error('TEST issue must resolve to exactly one deliverable');
   const row = rows[0];
-  if (row.client_slug !== 'sidneylaruel') throw new Error('Refusing to mutate a non-TEST deliverable');
+  if (row.client_slug !== TEST_CLIENT_SLUG) throw new Error('Refusing to mutate a non-TEST deliverable');
 
   const issue = await readLinearIssue();
   if (!issue || issue.identifier !== ISSUE || issue.archivedAt || issue.canceledAt) throw new Error('TEST Linear issue is unavailable or inactive');
-  if (String(issue.project && issue.project.name || '').trim().toLowerCase() !== 'sidney laruel') {
+  if (String(issue.project && issue.project.id || '') !== TEST_PROJECT_ID) {
     throw new Error('Refusing to mutate an issue outside the TEST project');
   }
 

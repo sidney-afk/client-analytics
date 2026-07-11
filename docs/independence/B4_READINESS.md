@@ -25,14 +25,14 @@ answers to the owner's standing architecture questions.
 |---|---|---|---|
 | 1 | Mirror zero-diff (modulo §1.4) **7 consecutive days** | ⏳ diff/repair clean since ~2026-07-08; all three metrics (incl. linkage) at zero from 2026-07-11. **Owner must ratify the reading:** (a) strict all-three-zero clock from 2026-07-11 → gate ~2026-07-18, or (b) faithfulness-primary (diff/repair, transients tolerated per §1.4d; linkage verified 0 at decision time) → gate ~2026-07-15. Recommendation: (b) — linkage re-accrues from live inflow by design and is a maintenance lane, not a faithfulness signal. | Owner |
 | 2 | Comments webhook subscribed + catch-up pull run (§4.3.4) | ✅ reconciler webhook probe: 4/4 enabled, `missing_comment_resource=0`; comment catch-up ran in B3 stage 3 | evidence in v2 summary `webhooks` block |
-| 3 | Echo probe green (§12) | ❓ needs a fresh run + recorded result | Codex |
+| 3 | Echo probe green (§12) | ✅ 2026-07-11 TEST probe: one app comment produced one Linear comment and remained exactly one app-thread entry after both Comments webhooks settled; zero duplicate `mirror_in_comment_add` events; Linear creation 3.096 s, settled proof 11.543 s; all TEST mutations restored | Codex |
 | 4 | Editor/SMM UX feedback collected | ⏳ ongoing via the owner's feedback-expansion loop; needs an explicit "team tried the tab" note | Owner |
 | 5 | Outbox drain + zero-diff + linkage-zero report (§1.5.3) | ⏳ linkage-zero done (event 7746); formal per-team report at flip time | Codex |
 | 6 | Legacy-writer gates verified (reconcilers + n8n bridges) | ⏳ at flip time per team | Codex |
 | 7 | Identifier seed check | ⏳ at flip time | Codex |
 | 8 | Flip + rollback rehearsal (`prod_authority[team]` → and back) on TEST | ⏳ not yet run | Codex + Owner |
-| 9 | Detect-only foreign-write alert tested | ⏳ not yet run | Codex |
-| 10 | Nightly due-date roller located AND disabled (D-9, with spec fallback) | ❓ locate first | Codex |
+| 9 | Detect-only foreign-write alert tested | ⚠️ BLOCKED in this sprint: the live branch is reachable only when a team's `prod_authority` is `supabase`; both teams remain `linear`, and the sprint forbids every runtime-flag change. Source coverage is green but is not counted as live gate evidence. | Codex + Owner |
+| 10 | Nightly due-date roller located AND disabled (D-9, with spec fallback) | ⚠️ BLOCKED on workspace-owned automation access; live signature and disable plan are recorded below. Nothing was disabled. | Codex + Owner |
 | 11 | Dedicated Linear mirror identity distinct from the house account (D-18) | ❌ not created — owner action in Linear (dedicated user or OAuth app), key stored as EF secret only | Owner |
 | 12 | Editor/SMM sign-off + DR drill | ⏳ | Owner |
 | 13 | **Auth prerequisite (§6, this file §3):** write attribution enforced before any real write phase | ⏳ WP-A1/A2 live and proven; WP-A3 implementation complete in draft, awaiting owner merge; permissive telemetry and enforcement gates remain | Owner + Codex |
@@ -62,7 +62,17 @@ flag-flip audit trigger.
 | WP-A5 | ⏳ OWNER GATE | Flip `auth_enforcement` → `enforced` (owner action) | flip back = one flag |
 | WP-A6 | ⏳ OWNER DECISION | Owner decision: keep D6 (3 shared role keys + per-person actor from roster) or upgrade to per-person credentials. **Recommendation: keep D6 through B5; revisit after cutover.** Every write already carries a per-person actor name + role for the audit trail either way. | decision only |
 
-## 4. Plain-language answers (owner questions, 2026-07-11) — with spec citations
+## 4. Readiness-sprint probe ledger (2026-07-11)
+
+| Probe / work item | Status | Evidence / next safe step |
+|---|---|---|
+| B3 legacy-comment echo (§12) | ✅ DONE | `scripts/b4-comment-echo-probe.js` snapshots the TEST deliverable thread, seeds one app comment through `deliverable_write`, sends the matching legacy Linear comment, proves exactly one app copy and no duplicate inbound event, then deletes the Linear comment and restores the original thread. Proof events `7769`–`7770` retain the audit trail; the TEST issue ended with its original two Linear comments and zero app comments. |
+| B4 strict-AND outbound echo + TEST create→status→comment→due (§1.5.6) | ⚠️ BLOCKED | No `linear-outbound` EF/retry worker exists yet, and §4.4 requires those writes to use `mirror_outbox`; this sprint explicitly forbids mirror-outbox writes. The mirror key is correctly confined to an EF secret, so bypassing the missing outbound path with a personal/local key would not prove the contract. Build the B4 outbound path first, then run the scripted TEST round-trip and restore/archive every mutation. |
+| Detect-only foreign-write alert (§1.5.8) | ⚠️ BLOCKED | `linear-inbound` records `foreign_write_detected` only when the affected team's authority is `supabase`. With both teams Linear-authoritative and runtime-flag changes forbidden, no truthful live drill is possible. Next step is an owner-approved TEST-only authority override and immediate rollback; do not count the source test as gate evidence. |
+| D-9 nightly due-date roller | ⚠️ BLOCKED | On 2026-07-10, 41 VID/GRA issues were touched from 23:45:28–23:45:35 UTC. Linear showed no visible field-change history and neither inbound webhook path received a material event, consistent with a hosted job re-saving an already-equal due date. A fresh read-only audit of all 127 live n8n workflows found no scheduled `issueUpdate`; the only due-date writer is the webhook-only status bridge and it had no execution during the burst. Repository Actions are also read-only at that time. The connected Drive identity cannot see the operational sheets or bound Apps Scripts. **Disable plan (owner action, not executed):** inspect Triggers and bound Apps Script under the workspace sheet-owner accounts; disable, do not delete, the 23:45 trigger; observe two nights. If absent, use the spec fallback: inventory and rotate remaining legacy personal Linear keys in a controlled window while keeping scoped due-date tolerance in detect-only monitoring. |
+| B1 incremental-refresh heartbeat | ✅ DONE / LIVE | Private pre/post snapshots bracket n8n pager `qllIDZPkdNAPRj0b`. First live tick `244578` dispatched GitHub run `29143764570`, which completed green and wrote summary event `7772` (2 changed issues; 1 archive upsert). The prior summary was 103 minutes old, so the new stale condition emitted one identifier-free DM and the Slack node succeeded. The active 15-minute pager dispatches through a 30-minute static-data gate and pages when no summary is fresh within 90 minutes. Disable `Gate Incremental Refresh 30m` to stop only this dispatch, or disable the pager for the global kill switch. |
+
+## 5. Plain-language answers (owner questions, 2026-07-11) — with spec citations
 
 **"The cards and the new-Linear sub-issues are the same thing, right?"** Almost — they stay two
 linked rows, on purpose (locked decision 6; spec §2.3, §9.6). `deliverables` is the single source
@@ -89,7 +99,7 @@ through legacy intake and the inbound engine adopts the mirrored parent into the
 webhook is retired with the rest of the legacy family (§13.4.g). No separate "B6" is needed —
 this is inside B4/B5.
 
-## 5. Explicitly out of scope here
+## 6. Explicitly out of scope here
 
 Write-path EF design for B4 (spec §4), teardown order (spec §13), and any change to gates —
 all live in the spec. This file only tracks evidence and execution.

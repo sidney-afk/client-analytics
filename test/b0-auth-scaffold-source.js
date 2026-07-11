@@ -8,6 +8,7 @@ const SQL = fs.readFileSync(path.join(ROOT, 'migrations/2026-07-05-b0-linear-aut
 const CFG = fs.readFileSync(path.join(ROOT, 'supabase/config.toml'), 'utf8');
 const TOKEN_FN = fs.readFileSync(path.join(ROOT, 'supabase/functions/client-token-verify/index.ts'), 'utf8');
 const KEY_FN = fs.readFileSync(path.join(ROOT, 'supabase/functions/key-verify/index.ts'), 'utf8');
+const STAFF_ROLE_AUTH = fs.readFileSync(path.join(ROOT, 'supabase/functions/_shared/staff-role-auth.ts'), 'utf8');
 const CAL_UPSERT = fs.readFileSync(path.join(ROOT, 'supabase/functions/calendar-upsert/index.ts'), 'utf8');
 const CAL_REORDER = fs.readFileSync(path.join(ROOT, 'supabase/functions/calendar-reorder/index.ts'), 'utf8');
 const SXR_UPSERT = fs.readFileSync(path.join(ROOT, 'supabase/functions/sample-review-upsert/index.ts'), 'utf8');
@@ -58,10 +59,16 @@ ok(/\[functions\.key-verify\]\s*verify_jwt = false/.test(CFG), 'key-verify confi
   'ROLE_KEY_ADMIN',
   'ROLE_KEY_SMM',
   'ROLE_KEY_CREATIVE',
+  'timingSafeEqual',
+  'matchingRoleForKey',
+].forEach(token => ok(STAFF_ROLE_AUTH.includes(token), 'shared staff role auth token missing: ' + token));
+
+[
   'team_members',
   'syncview_auth_events',
   'roleCompatible',
 ].forEach(token => ok(KEY_FN.includes(token), 'key-verify token missing: ' + token));
+ok(KEY_FN.includes('../_shared/staff-role-auth.ts'), 'key-verify must import the shared role-key resolver');
 
 [
   'CLIENT_TOKEN_VERIFY_URL',

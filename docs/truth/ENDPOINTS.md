@@ -55,18 +55,23 @@ Other:
 - `webhook/content-ready` — content-ready notification
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (13)
+## Supabase Edge Functions (13 literal URLs + 4 composed onboarding URLs)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
 - `functions/v1/sample-review-upsert`, `functions/v1/sample-review-reorder` — SXR write ports
 - `functions/v1/templates-save`, `functions/v1/caption-prompts-save` — save-path ports
 - `functions/v1/onboarding-capture` — onboarding funnel capture
-- `functions/v1/client-token-verify`, `functions/v1/client-credentials` — client auth surface
-- `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal (#788) pings it at boot to revalidate the stored role key
+- `functions/v1/client-token-verify`, `functions/v1/client-credentials` — client auth + staff credentials surface; credentials accepts admin/SMM role keys while both legacy surface keys remain transition-compatible
+- `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal pings it at boot to revalidate the stored role key, and sensitive staff EFs share its secret-to-role matcher
 - `functions/v1/filming-plans` — filming plans backend
 - `functions/v1/smm-weekly-reports` — SMM weekly reports
 - `functions/v1/thumbnail-folder-resolve` — thumbnail Drive-folder resolution
+
+The four calls composed from `ONBOARDING_EDGE_BASE` are `onboarding-list`,
+`ai-onboarding-list`, `legacy-onboarding-list`, and `onboarding-full`. The first three are
+credential-stripped reads; `onboarding-full` is the unstripped inbox and accepts the admin role
+key plus the legacy onboarding-key fallback during transition.
 
 ## Supabase tables (curated — NOT machine-enforced)
 

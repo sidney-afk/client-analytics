@@ -37,14 +37,23 @@ The public Supabase key cannot read or write `client_credentials` or `client_cre
 - No anon/authenticated policies are created.
 - All credential reads/writes go through `supabase/functions/client-credentials` with the service role key.
 
-The Edge Function requires `X-Syncview-Key` to match the `CREDENTIALS_STAFF_KEY` Edge secret. The passphrase is never committed to this repo. Staff enter it once per browser; the UI stores it locally and re-prompts on 401 so rotation is straightforward.
+The Edge Function resolves `X-Syncview-Key` with the same timing-safe secret matcher as
+`key-verify`. An admin or SMM role key is accepted; the creative role key used by editors and
+designers is denied. The role comes from the matching secret - `X-Syncview-Role` and actor data
+are audit metadata and cannot elevate access.
+
+During the role-key transition, both historical secrets remain valid in parallel:
+`CREDENTIALS_STAFF_KEY` and `ONBOARDING_STAFF_KEY`. This compatibility path is intentional and
+reversible; no secret value is rotated or removed in this tranche.
 
 Client share links are guarded in two layers:
 
 1. The calendar kebab item is not rendered when `_isClientLink` is true.
-2. Even if someone calls front-end functions manually, the server-side credentials tables are unreachable without the staff passphrase.
+2. Even if someone calls front-end functions manually, the server-side credentials tables are unreachable without an allowed staff key.
 
-Current limitation: this is still shared-passphrase auth with self-declared staff names. The audit trail records name, role, IP, country, and reveal events, but it is not a substitute for future per-user accounts.
+Current limitation: role keys are shared by role, while the person is resolved from the active
+staff roster at sign-in. The audit trail records name, role, IP, country, and reveal events, but
+this is not a substitute for future per-user accounts.
 
 ## Edge Function actions
 
@@ -53,7 +62,7 @@ Current limitation: this is still shared-passphrase auth with self-declared staf
 Headers:
 
 - `Content-Type: application/json`
-- `X-Syncview-Key: <staff passphrase>`
+- `X-Syncview-Key: <verified admin/SMM role key>` (preferred), or a transition-only legacy key
 
 Body always includes `action` and optionally `actor: { name, role }`.
 
@@ -91,30 +100,70 @@ The list refreshes live on any peer add/edit/archive (via the `client_credential
 
 Staff calendars get a `Client credentials` item in the More options menu. It opens the same credential rows for the currently selected client, without bulk import controls. The top-right × closes it (the redundant footer "Close" button was removed). It subscribes to the per-client realtime ping, so a change made by Kasper or another staff member updates the open modal live.
 
-### Identity prompt
+### Signed-in identity
 
-On first use, the UI asks for staff name and passphrase. Name options are seeded from the Social Media Managers sheet through `_kasperLoadSMMMap()` plus Kasper/Synchro Social fallbacks. Both values are stored in localStorage for that device. If the Edge Function returns 401, the key is cleared and the prompt opens again.
+With a valid `syncview_staff_identity_v1` identity, the credentials surfaces reuse the verified
+name, role, and role key from staff sign-in; they do not show a separate credentials prompt. If
+the Edge Function returns 401, the shared identity is cleared and the normal staff sign-in form
+opens again. The key is sent only to Edge Function writes/guarded reads, never to n8n fallbacks or
+client links.
+
+## Role-key transition and legacy retirement
+
+The transition is deliberately additive. Keep both legacy secrets configured until all of these
+proof gates are complete:
+
+1. The offline source matrix is green for admin, SMM, creative/editor/designer, invalid keys, and
+   every legacy fallback.
+2. TEST/dummy browser checks prove admin can open onboarding and save a filming-plan link, admin
+   and SMM can complete credentials reads/writes, recognized-but-disallowed roles receive 403
+   without losing their valid staff session, and invalid keys receive 401 and clear that identity.
+3. Inventory every non-browser caller of the legacy keys, including the known
+   `onboarding_import` automations. Migrate each caller to an approved role/service identity or
+   explicitly keep its legacy path indefinitely.
+4. Add identifier-only authorization telemetry (`auth.via=role|legacy`, never a key value) and
+   observe zero legacy use for an owner-approved window that includes at least one normal
+   `onboarding_import` run.
+5. Staff have used the shared sign-in identity through a normal working window with no unexpected
+   re-prompts or lockouts. `auth_enforcement` remains `permissive` throughout.
+
+Retirement is a later, owner-approved PR: remove only the legacy comparisons and obsolete
+surface-specific browser storage after the proof gates, then keep the old secret values available
+privately for one rollback window. Do not rotate or delete either legacy secret as part of this
+consolidation sprint.
+
+### No-lockout release and rollback order
+
+1. From the feature branch, manually dispatch **Deploy onboarding + credentials edge functions**.
+2. Verify every function deploy is green and run the role/legacy smoke matrix against TEST data.
+3. Only then merge the frontend so Pages begins reusing the signed-in role identity.
+4. If the frontend has trouble, roll back Pages first while leaving the additive backend deployed.
+   After the prior UI is confirmed healthy, the backend may be rolled back separately if needed.
+
+Do not use a whole-commit revert that can race Pages against older function code.
 
 ## Rollout
 
 1. Run `migrations/client-credentials-migration.sql` in Supabase SQL editor.
-2. Set the Edge secret:
+2. Keep the existing legacy Edge secret configured during the role-key proof window (no value
+   change is required):
 
    ```bash
    supabase secrets set CREDENTIALS_STAFF_KEY='<passphrase>' --project-ref uzltbbrjidmjwwfakwve
    ```
 
-3. Deploy the function:
-
-   ```bash
-   supabase functions deploy client-credentials --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
-   ```
+3. Manually dispatch **Deploy onboarding + credentials edge functions** from the feature branch and
+   wait for the complete workflow to pass before publishing the frontend.
 
 4. Smoke-test with fake data:
    - public anon key cannot read `client_credentials`
-   - missing/wrong `X-Syncview-Key` returns 401
+   - admin + SMM role keys pass
+   - creative/editor/designer role keys return 403 and keep the valid shared identity
+   - missing/wrong keys return 401 and clear the invalid identity
+   - both existing legacy key paths still pass
    - add/edit/reveal/delete/history round-trip works through the function
    - `client_credentials_rev` increments after writes
 5. Update n8n onboarding workflows to call `onboarding_import` after submission insert, with `onError: continue`.
-6. Publish front end and distribute the passphrase out-of-band.
+6. Only after the backend workflow and smoke matrix are green, publish the frontend. Do not mint,
+   rotate, or redistribute a separate surface passphrase for this transition.
 7. Use the Kasper bulk-import modal to load existing client credentials.

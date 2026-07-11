@@ -343,7 +343,7 @@ n8n in the metric read path.*
 - **Reads.** Review queue is a **3-tier fallback**: `calendar_posts` REST (paginated, v2 default) →
   n8n `kasper-queue` (batched `{slugs}`) → per-client n8n `calendar-get` fan-out (5 workers).
   Cross-client `sample_reviews` REST (samples subtab). n8n `editors-week` (editors). `filming_plans`
-  REST + n8n `filming-plan-tabs` (filming). `onboarding-full` EF (Kasper-only, key-gated). `client-
+  REST + n8n `filming-plan-tabs` (filming). `onboarding-full` EF (full sensitive inbox, admin-role-key gated). `client-
   credentials` EF (list/history). SMM-directory CSV. Realtime `kasper-cal`, `kasper-sxr`,
   `client-credentials-rev-kasper`, plus shared flag/filming channels.
 - **Writes.** Approvals/tweaks/comments/finish-close stamps via the shared calendar & sample upsert
@@ -354,21 +354,26 @@ n8n in the metric read path.*
 - **State.** sessionStorage `syncview_kasper_unlocked`; localStorage `syncview_kasper_subtab_v1`,
   `syncview_kasper_review_cache_v1` (24 h), `syncview_kasper_cal_<slug>_v1` (5 min),
   `syncview_kasper_approved_log_v1`, `syncview_kasper_editors_v2`, `syncview_kasper_filming_v1` (30
-  min), seen ledgers, both Linear outboxes, `syncview_client_credentials_identity_v1` (staff pass-
-  phrase, shared with onboarding-full), `syncview_sales_intake_draft_v1`. Kill switches: the calendar
+  min), seen ledgers, both Linear outboxes, `syncview_staff_identity_v1` (verified roster member +
+  role key, shared by staff EFs), `syncview_sales_intake_draft_v1`. Kill switches: the calendar
   & sample flags + `?v2=0`.
 - **Roles.** Hidden staff role, **no password for the queue itself** — only the URL param / session
   flag. Kasper comments are role `kasper` + audience `internal`, stripped from client views.
-  Sensitive subtabs (onboarding-full, client-credentials) add a **real** gate: the staff passphrase
-  sent as `X-Syncview-Key`, verified server-side.
-- **Failure/fallback.** Queue 3-tier as above; cached ≤24 h snapshot keeps painting. Persist failures
+  Sensitive subtabs add a **real** role gate: admin can open onboarding + credentials; SMM can open
+  credentials; creative/editor/designer can open neither. The role is derived from the matching
+  secret, never a caller-supplied role header.
+- **Failure/fallback.** Queue 3-tier as above; cached ≤24 h snapshot keeps painting. Stored staff
+  identity changes are synchronized across tabs; sign-out purges the sensitive caches everywhere.
+  Persist failures
   revert + per-card error; finish/close failures swallow (local flag hides the card, next write
-  reconciles). Linear outbox retry. 401 on key-gated subtabs → one re-prompt. Realtime failure →
+  reconciles). Linear outbox retry. 401 on key-gated subtabs → clear the shared identity, purge
+  sensitive UI/cache state, then show the one staff sign-in form. A recognized but unauthorized
+  role gets 403 and keeps its valid staff session. Realtime failure →
   visibility/focus refresh only (no poll despite a stale 30 s comment).
 - **Notable / corrections.** "SMM reports" is **not** a Kasper subtab (it's a separate top-level
   route, §4.14). `kasper-queue` is the **middle** fallback, not primary. The role-header quirk
   (§3) misattributes writes made from `#kasper/<subtab>` as `smm`. The Kasper unlock has no
-  password, so for credentials the passphrase is the only real secret.
+  password; the verified role key is the sensitive-subtab credential.
 - **Track B.** The queue-visibility gates are one of the §9.2 predicate families — missed at flip,
   new thumbnails silently vanish from review. The Messages inbox keeps working on card threads.
 
@@ -439,16 +444,17 @@ n8n in the metric read path.*
   `syncview-filming-plans` (subscribed only after a successful REST load — sheet-fallback sessions get
   no live updates). n8n `filming-plan-tabs` (Kasper only, optional coverage probe of Google-Doc tab
   names, per doc, concurrency 5). Kasper runway reuses Calendar reads.
-- **Writes.** **`filming-plans` EF is WRITE-ONLY** (single POST upsert; never read from). Gated by a
-  prompted "onboarding staff passphrase" (`syncview_filming_plans_identity_v1`); the request always
-  sends `X-Syncview-Role: onboarding`.
-- **State.** `syncview_filming_plans_identity_v1`, `syncview_kasper_filming_v1` (30-min, cleared on
+- **Writes.** **`filming-plans` EF is WRITE-ONLY** (single POST upsert; never read from). The app
+  reuses the signed-in Admin role identity and sends its key/roster actor/server-verified role. The
+  old `ONBOARDING_STAFF_KEY` remains backend-only transition compatibility.
+- **State.** `syncview_staff_identity_v1`, `syncview_kasper_filming_v1` (30-min, cleared on
   any plan save), in-memory `filmingPlansData` + `_linearPlanMap`. **No kill switch** —
   `FILMING_PLAN_TABS_URL` is a build-time switch only.
-- **Roles.** Team page behind the password; Kasper subtab read-only behind the unlock; writes gated by
-  passphrase possession, not view role.
+- **Roles.** Team page behind the password; Kasper subtab read-only behind the unlock; writes require
+  the admin role key. SMM and creative/editor/designer role keys are denied.
 - **Failure/fallback.** REST → Sheets CSV → both fail throws (page error card; Templates swallows;
-  Linear field degrades to "No filming plan"; Kasper error card). EF save 401 → one re-prompt; other
+  Linear field degrades to "No filming plan"; Kasper error card). EF save 401 → clear the shared
+  identity and offer the staff sign-in form once; other
   failure → inline error, **no fallback/retry/queue**. Runway fetch failure can paint a client
   falsely "red".
 - **Notable / corrections.** Batch filming links in the Production surface come from the `batches`
@@ -537,11 +543,11 @@ separate hidden first-party Direct-Post surface.*
   (preview/create contract + invoice email; **no auth header** — only the client-side Kasper unlock).
 - **State.** `syncview_onboarding_draft_v1` / `syncview_ai_onboarding_draft_v1` (separate keys),
   `syncview_*_subid_v1` (stable dedupe id across retries/fallbacks, cleared on success),
-  `syncview_sales_intake_draft_v1`, shared `syncview_client_credentials_identity_v1` (the
-  `onboarding-full` key). No kill switches.
+  `syncview_sales_intake_draft_v1`, shared `syncview_staff_identity_v1` (verified roster member +
+  role key). No kill switches.
 - **Roles.** Both forms fully **public** (no password, no token check — the `?onboarding` value is
-  never validated). Viewer public but credential-stripped. Kasper inbox needs the unlock **and** the
-  staff passphrase. Sales intake needs only the Kasper unlock; its webhook itself carries no auth.
+  never validated). Viewer public but credential-stripped. The full Kasper inbox needs the unlock
+  **and** an Admin staff identity. Sales intake needs only the Kasper unlock; its webhook itself carries no auth.
 - **Failure/fallback.** Submit chain: any leg's success shows the thank-you (a fallback capture counts
   as delivered); total failure → banner + "Download my answers" JSON + mailto escape hatch, no auto-
   retry. Draft sync is silent-fail with a 25 s throttle; pagehide uses a preflight-free `sendBeacon`.
@@ -588,24 +594,26 @@ separate hidden first-party Direct-Post surface.*
   directory CSV for the identity dropdown.
 - **Writes.** `client-credentials` EF — `upsert`, `delete` (soft), `reassign` (Kasper only),
   `bulk_import`, `log_reveal` (fire-and-forget password-reveal audit).
-- **State.** `syncview_client_credentials_identity_v1` (staff `{name, role, key}`; in-memory copy
-  wins), in-memory `_ccState` (plaintext passwords live in JS memory), reveal/expand Sets, a 4.5 s
+- **State.** shared `syncview_staff_identity_v1` (verified roster member + secret-derived role key),
+  in-memory `_ccState` (plaintext passwords live in JS memory), reveal/expand Sets, a 4.5 s
   self-echo window. **No `syncview_runtime_flags` switch**; CC realtime is gated only by the shared
   `_calV2Ready()` (so `?v2=0` silently disables live refresh here too).
-- **Roles.** Three tiers: **Kasper** (full store, reassign, bulk import, history), **SMM** (per-client
-  modal, role `SMM`), **client links** fully excluded. Real authorization is the shared staff
-  passphrase (`X-Syncview-Key`, verified server-side); the role string is client-asserted and only
-  labels audit entries.
-- **Failure/fallback.** Any API 401 → clear key, re-prompt, retry once. List fail → inline error +
-  manual Refresh. Mutations → toast + button re-enable, no queue. `log_reveal` failure ignored.
+- **Roles.** Three UI tiers remain: **Kasper** (full store, reassign, bulk import, history), **SMM**
+  (per-client modal), **client links** fully excluded. Server authorization allows admin + SMM role
+  keys and denies creative/editor/designer; the matched secret, not `X-Syncview-Role`, owns the gate.
+- **Failure/fallback.** Any API 401 → clear the shared identity, close/purge sensitive credential
+  state, show the staff sign-in form, and retry once. List fail → inline error +
+  manual Refresh. A 403 explains the required role without signing the user out. Mutations → toast
+  + button re-enable, no queue. `log_reveal` failure ignored.
   Realtime failure → console.warn, no resubscribe (silent live-off).
 - **Notable.** v1's `credentials-identity-persist` is **not an endpoint** — it's a source-guard test
   file. `thumbnail-revision-scan` EF is never called from `index.html` (thumbnail revision history is
   backend-only: baselines captured inside the upsert EFs, scan scheduled; `thumbnail_media_revisions`
   has no UI reader yet — **no new SPA row needed**). Passwords arrive in plaintext with `list` and sit
   in JS memory; masking is visual only; only reveals are audited (copies are not).
-- **Track B.** No impact functionally, but architecturally load-bearing: `client-credentials` is the
-  named precedent for the §6 role-key pattern; already staff-key-gated today.
+- **Track B.** `client-credentials`, `onboarding-full`, and filming-plan writes now consume the same
+  role-key identity as §6. Both old surface keys remain server-side compatibility until the separate
+  owner-approved retirement gate.
 
 ## 5. What changes, when (Track B) + auth
 
@@ -625,13 +633,14 @@ the full active roster (Track A closed 2026-07-10). Mirror at full parity (~4.3k
 
 **Auth (design locked, D6 — do not redesign).** Three role keys (admin / smm / creative) via
 `X-Syncview-Key` + a roster-picked `X-Syncview-Actor`; client links stay no-login with minted,
-server-verified tokens. Built and live: the B0 tables, the `client-token-verify` + `key-verify` EFs,
-header plumbing, the flag-flip trigger; `auth_enforcement=permissive` with the flip rehearsed. The
-login modal, key minting as EF secrets, the 72 h zero-unkeyed-writes telemetry, and the enforce flip
-are the remaining B4-readiness work packages. **Auth precedes any real write phase.** Because it lives
-at the write layer (every surface saves through the same EFs), one modal + the single
-`auth_enforcement` flag covers the whole site at once — which is also why the client-side password
-side doors in §3 close together at that flip rather than one surface at a time.
+server-verified tokens. Built: the B0 tables, `client-token-verify` + `key-verify`, the roster-backed
+staff sign-in, verified EF header plumbing, and the flag-flip trigger. A valid identity opens an
+account popover (name + role + Sign out); signed-out staff see the only name/key entry form.
+Credentials allow admin + SMM; full onboarding and filming-plan writes allow admin only. The old
+surface keys remain additive server fallbacks while `auth_enforcement=permissive`; their retirement
+is a later owner-approved gate after TEST/dummy proof and a clean working window. Remaining B4 auth
+work is the 72 h zero-unkeyed-writes telemetry and the owner enforcement flip. **Auth precedes any
+real write phase.**
 
 ## 6. What v2 resolved from v1's verify list
 

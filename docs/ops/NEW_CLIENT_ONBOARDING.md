@@ -40,7 +40,7 @@
 
 **Filming plans source of truth**
 - [ ] Create/move the client's master filming Google Doc inside their folder in the shared **Client Filming Plans** Drive.
-- [ ] In SyncView, open the main **Filming Plans** tab and add/update the client Doc link with the onboarding staff passphrase. → [§6a](#6a-filming-plan)
+- [ ] In SyncView, sign in with an **Admin** staff identity, then open the main **Filming Plans** tab and add/update the client Doc link. → [§6a](#6a-filming-plan)
 
 **Slack / Post For Me**
 - [ ] Create the client's **Slack channel**, grab its **channel ID** (→ Clients Info) and **member/SMM user ID** (→ SMM tab). → [§6c](#6c-slack-channel)
@@ -162,7 +162,7 @@ This is what makes the SMM's name/avatar and Slack DM appear on the Kasper revie
 1. In the shared **Client Filming Plans** Drive folder, create or open the client's folder.
 2. Create the **master Google Doc** for the client's filming plan inside that client folder. If the Doc was created somewhere else, move it into the folder before linking it.
 3. Inside it, use **one Docs *tab* per month** (title them like `July 2026`). The app reads those tabs via the n8n webhook **"Filming Plan Tabs"** (`5S4JyVVR2CpHEv9b`) and shows month coverage automatically.
-4. In SyncView, open **Filming Plans**, search the client, and add/update the Doc URL. Changing this link requires the onboarding staff passphrase, so only Sidney/Kasper should do it.
+4. In SyncView, sign in with an **Admin** staff identity, open **Filming Plans**, search the client, and add/update the Doc URL. The app reuses that verified role identity; it does not ask for a separate onboarding passphrase. The old onboarding key remains a backend-only transition fallback until the documented retirement gate.
 5. Verify the same Doc opens from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. *(If you skip the per-month tabs, you can hand-set `plan_months` like `2026-07,2026-08` as a fallback.)*
 
 Now that Supabase and the Edge Function are live, the old SYNCVIEW Google Sheet tab **`FilmingPlans`** (`client_name | doc_url | notes | plan_months`) is no longer an onboarding step. Treat it as a historical/emergency fallback only; do not use it as the source of truth or keep it manually in sync unless we deliberately roll back Supabase.
@@ -197,7 +197,7 @@ Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https:
 
 So: once the client is in the allowlist and work starts, their calendar and samples populate themselves.
 
-Exception: filming-plan master Doc links are intentionally managed in Supabase through the app's **Filming Plans** tab. You still should not edit Supabase directly; use the dashboard so the passphrase gate and app refresh behavior stay consistent.
+Exception: filming-plan master Doc links are intentionally managed in Supabase through the app's **Filming Plans** tab. You still should not edit Supabase directly; use the dashboard so the signed-in Admin gate, attribution, and app refresh behavior stay consistent.
 
 *Legacy note:* the old `Calendar_<slug>` / `Samples_<slug>` Google‑Sheet tabs (created by the **"Provision Missing Tabs"** workflows `gB17L9M5yYxxk6GT` / `7Pdp6qnkBzwXP3YG`) are now just a **best‑effort mirror**, not load‑bearing. If you want the mirror + Drive backups to stay complete you *can* add the new slug to those workflows' hardcoded `SLUGS` arrays and run them — but the live app no longer depends on it.
 

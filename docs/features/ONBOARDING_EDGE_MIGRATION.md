@@ -15,13 +15,15 @@ anon access):
 | `onboarding-list` | none | standard `client_onboarding`, **logins stripped** |
 | `ai-onboarding-list` | none | `ai_client_onboarding`, **logins stripped** |
 | `legacy-onboarding-list` | none | `legacy_onboarding` `fields` only (never `credentials`) |
-| `onboarding-full` | **X-Syncview-Key** | all three, **UN-stripped** — names, emails, phones, credentials |
+| `onboarding-full` | **admin role key** + legacy `X-Syncview-Key` fallback | all three, **UN-stripped** — names, emails, phones, credentials |
 
 The three list functions strip the account-login answer keys
 (`instagram, instagram_backup, tiktok, facebook, linkedin, youtube`) exactly like the old
-n8n "Strip Credentials" node. `onboarding-full` is gated by the shared staff passphrase
-(the same one the Client Credentials tool uses — `CREDENTIALS_STAFF_KEY`, or a dedicated
-`ONBOARDING_STAFF_KEY`), sent in `X-Syncview-Key` and compared server-side in constant time.
+n8n "Strip Credentials" node. `onboarding-full` accepts the verified admin role key sent in
+`X-Syncview-Key`; SMM and creative/editor/designer keys are denied. The role is derived from the
+matching secret, never from a caller-supplied role header. For the additive transition, the old
+`ONBOARDING_STAFF_KEY` remains valid and still falls back to `CREDENTIALS_STAFF_KEY` only when no
+dedicated onboarding key is configured. All comparisons use the shared timing-safe matcher.
 
 The dashboard points at `https://<project>.supabase.co/functions/v1/<name>`
 (`ONBOARDING_EDGE_BASE` in `index.html`). The n8n list webhooks are left in place for a
@@ -57,7 +59,8 @@ committed to this repo. Only `onboarding-full` returns them.
    supabase functions deploy legacy-onboarding-list --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
    supabase functions deploy onboarding-full        --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
    ```
-2. **Set the Kasper passphrase secret** (skip if `CREDENTIALS_STAFF_KEY` already covers it):
+2. **Keep the legacy Kasper passphrase secret during the proof window** (do not rotate it; skip if
+   the existing `CREDENTIALS_STAFF_KEY` fallback already covers it):
    ```
    supabase secrets set ONBOARDING_STAFF_KEY='<staff passphrase>' --project-ref uzltbbrjidmjwwfakwve
    ```
@@ -71,8 +74,15 @@ committed to this repo. Only `onboarding-full` returns them.
 6. Once verified, **archive** the n8n list workflows (`slqt2zCDyIc7OAmY`, `oDZ1Oljvaig5KSLD`,
    `ydbhXgV3X7SVnkSy`).
 
-> Deploy the functions **before** the merge — the dashboard now reads from them, so if they
-> aren't live the onboarding sections show "couldn't load" until they are.
+> From the feature branch, manually dispatch **Deploy onboarding + credentials edge functions**
+> and verify it is green **before** the frontend merge. If the frontend needs rollback, restore
+> Pages first and leave the additive functions deployed until the prior UI is healthy.
+
+The shared retirement gate is documented in `docs/features/CLIENT_CREDENTIALS_DESIGN.md`. Do not
+remove either legacy secret path until the admin role-key onboarding read and filming-plan write
+have both passed TEST/dummy browser proof, all non-browser callers (including
+`onboarding_import`) are inventoried, identifier-only telemetry shows zero legacy use across the
+approved window, and the owner approves the separate retirement PR.
 
 **Not migrated:** the form **submit** path stays on n8n (it also fires the Slack DMs); moving
 that is a separate job.

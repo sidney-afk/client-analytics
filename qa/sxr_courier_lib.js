@@ -25,6 +25,7 @@
 // ============================================================================
 const { execSync } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 let PW; try { PW = require('playwright'); } catch { PW = require('/opt/node22/lib/node_modules/playwright'); }
 
 const ORIGIN = 'http://localhost:8000';
@@ -95,8 +96,19 @@ function _q(a) { return `'${String(a).replace(/'/g, "'\\''")}'`; }
 // Windows portability: the single-quoted curl commands above are POSIX shell
 // syntax — under cmd.exe (Node's default shell on win32) the quotes pass
 // through literally and every call silently returns junk ("'select' is not
-// recognized…"). Route execSync through bash (git-bash ships it) on Windows.
-const _SHELL = process.platform === 'win32' ? { shell: 'bash.exe' } : {};
+// recognized…"). Route execSync through Git Bash on Windows. Git for Windows
+// does not always add bash.exe itself to PATH, so resolve its normal install
+// locations before falling back to PATH lookup.
+function _windowsBash() {
+  const candidates = [
+    process.env.SXR_BASH,
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
+    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'bin', 'bash.exe'),
+    process.env.USERPROFILE && path.join(process.env.USERPROFILE, 'scoop', 'apps', 'git', 'current', 'bin', 'bash.exe'),
+  ];
+  return candidates.find(candidate => candidate && fs.existsSync(candidate)) || 'bash.exe';
+}
+const _SHELL = process.platform === 'win32' ? { shell: _windowsBash() } : {};
 const _exec = (cmd, extra) => execSync(cmd, Object.assign({ encoding: 'utf8', timeout: 60000 }, _SHELL, extra || {}));
 
 // ---- Node-side network (works through the egress proxy) --------------------
@@ -179,7 +191,11 @@ function _courierFetch(method, url, headers, postData) {
 }
 
 async function launch() {
-  return await PW.chromium.launch({ headless: true, args: ['--ignore-certificate-errors'] });
+  // Windows headless Chromium can intermittently tile the second screenshot of
+  // a page with black GPU layers. The master vision lane needs deterministic
+  // pixels; browser behavior itself is covered separately by the normal-GPU B4
+  // suite, so force software compositing only in this QA harness.
+  return await PW.chromium.launch({ headless: true, args: ['--ignore-certificate-errors', '--disable-gpu'] });
 }
 function _capture(page) {
   page._errs = [];
@@ -200,6 +216,10 @@ async function _ctx(browser, opts) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...(opts || {}) });
   await ctx.addInitScript((theme) => {
     try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {}
+    // These scenarios exercise Samples/Calendar behavior, not the optional
+    // global staff sign-in invitation. Keep that auto-prompt from obscuring the
+    // visual lane; B4's dedicated real-browser suite owns the complete auth UX.
+    try { sessionStorage.setItem('syncview_staff_identity_prompted_v1', '1'); } catch (e) {}
     try {
       if (theme === 'dark') localStorage.setItem('syncview_theme', 'dark');
       else if (theme === 'light') localStorage.removeItem('syncview_theme');

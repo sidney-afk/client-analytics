@@ -320,8 +320,11 @@ function laneVisual(cfg) {
     else {
       console.log('Starting static server on :' + PORT + ' …');
       const py = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-      srv = spawn(py, ['-m', 'http.server', String(PORT)], { cwd: ROOT, stdio: 'ignore', detached: true });
-      killServer = () => { try { process.kill(-srv.pid); } catch { try { srv.kill('SIGKILL'); } catch {} } };
+      // Keep the child attached to the master process. Some Windows/sandbox job
+      // managers terminate detached children after a few seconds, while an
+      // in-process server cannot answer during the synchronous lane runners.
+      srv = spawn(py, ['-m', 'http.server', String(PORT)], { cwd: ROOT, stdio: 'ignore', detached: false });
+      killServer = () => { try { srv.kill('SIGTERM'); } catch {} };
       process.on('exit', killServer);
       if (!(await waitForServer())) { console.error('Server never came up on :' + PORT); killServer(); process.exit(2); }
     }

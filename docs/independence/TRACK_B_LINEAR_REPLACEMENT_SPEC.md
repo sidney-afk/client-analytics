@@ -83,7 +83,10 @@ mirror is one-directional. We never run true two-way sync.**
 
 **1.1 Authority is a runtime flag, not a deploy.** One new key in `syncview_runtime_flags`:
 `prod_authority` = `{"video":"linear","graphics":"linear"}` (B3 default) → `"supabase"` per team
-at each B4 flip. Consumed by the same proven `_calRuntimeFlagClients`-style machinery
+at each B4 flip. **(D-19, owner 2026-07-11 — amends granularity:** the pilot flips **both teams
+together** to avoid split-authority-within-a-card, but rolls out **per client** via an allowlist,
+Track-A style, rather than per-team-global. See D-19 / `B4_READINESS.md` §6 for the authority-shape
+change this implies.) Consumed by the same proven `_calRuntimeFlagClients`-style machinery
 (realtime-updated), read by: the FE Linear-push gates (§4.5), the card link-button resolver
 (§9.2), the inbound engine (§4.3), the outbound mirror (§4.4), the legacy reconcilers and the
 gated n8n bridges (§4.5). Flipping a team = **one SQL update**; rollback = the same update
@@ -1144,6 +1147,11 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-16 | §3 owner review list (Coleman, Burch, terrinamar, junk quarantine) | §3 | — | B1 |
 | D-17 | Copy the design-kit behavioral suites into the repo | **RESOLVED 2026-07-05**: owner shared the probe folder via Drive; `behav.js` (138 assertions), `qa-features.js`, `sweep.js`, `build.js`, and the parity-audit workflow are now committed at `docs/syncview-design/tests/` (with run + path-adaptation README). NOTE for owner: the shared Drive folder also contains `.linear-probe-profile` — a saved **Linear login session**; un-share the folder or delete that subfolder | B2 ✅ |
 | D-18 | Mirror identity: dedicated Linear user seat vs OAuth-app actor | §4.2/§4.4 — must be distinct from sidney@ for echo-dropping | OAuth-app actor if available; else a machine user seat | B4 |
+| D-19 | B4 flip granularity: per-team-global (§1.1) vs. both-teams-together, per-client | §1.1/§9.1 — per-team flipping creates the split-authority-within-a-card window (a card's video slot authoritative in Supabase while its graphic slot is still Linear), the plan's fiddliest adoption path | **RATIFIED by owner 2026-07-11 ("option 3"):** flip **both teams together** so a card is never split across systems, but roll out **per client** via an allowlist (TEST → pilot client → roster), mirroring the Track-A `*_ef_clients` rollout. Implies re-shaping authority from the global per-team `prod_authority` switch to a per-client(-per-team) allowlist. Trades the split-card adoption code for a per-client authority gate; keeps gradual blast-radius control. Codex to cost both at B4 scoping. | B4 |
+| D-20 | Card → Production deep-link (replaces the "open in Linear" URL button, §9.2) | locked decision 6 + §9.2 re-point cards from `linear_issue_id` to `*_deliverable_id` | **RATIFIED by owner 2026-07-11:** label **"View sub-issue"**; opens the deliverable in the Production tab in a **new browser tab** (not a side panel). | B4/B5 |
+| D-21 | Legacy Linear-link fields on cards at/after cutover | §13.4.i keeps the `linear_issue_id` columns inert after teardown | **RATIFIED by owner 2026-07-11:** leave the fields **inert but present** with a **phase-aware disclaimer** — during the fallback window "Linear is a fallback during migration; links still work," and the field quietly retires after teardown. | B5 |
+| D-22 | Linear fallback grace period (§1/§13) | Linear kept as a fallback after cutover | **RATIFIED by owner 2026-07-11:** **~1 week, fully reversible ("dual-ready"):** the one-flag `prod_authority`→`linear` rollback stays armed all week so the team can keep working in Linear if the app needs fixes; after a clean week, freeze Linear read-only, then archive. | B5 |
+| D-23 | Submission ("Linear") tab UI at B4 (§9.1) | intake plumbing flips to native create; the tab UI could also change | **CONFIRMED by owner 2026-07-11: no UI change** — only the backend plumbing flips (create natively, mirror out during the fallback). Revisit the look later if desired. | B4 |
 
 ---
 

@@ -99,7 +99,28 @@ through legacy intake and the inbound engine adopts the mirrored parent into the
 webhook is retired with the rest of the legacy family (§13.4.g). No separate "B6" is needed —
 this is inside B4/B5.
 
-## 6. Explicitly out of scope here
+## 6. B4 rollout & UX — owner decisions (ratified 2026-07-11)
+
+Recorded here in plain language; the authoritative entries are spec §14 **D-19…D-23** (this
+section is the operational reflection, not a competing source).
+
+- **Rollout granularity (D-19):** flip **both video + graphics together** (so a card is never
+  split across systems mid-flight — removes the fiddliest adoption path), but roll out **per
+  client** through an allowlist — TEST client → one pilot client → the rest — exactly like Track A
+  did. Implication for the build: authority moves from the global per-team `prod_authority` switch
+  to a **per-client(-per-team) allowlist**. Codex to cost this vs. the split-card code at B4 scoping.
+- **Card → Production deep-link (D-20):** the card's old "open in Linear" button becomes
+  **"View sub-issue,"** opening that deliverable in the Production tab in a **new browser tab**.
+- **Legacy Linear-link fields (D-21):** keep them **inert but visible with a phase-aware
+  disclaimer** during the fallback window; retire the field quietly after teardown.
+- **Fallback grace period (D-22):** **~1 week, fully reversible** — the one-flag rollback to
+  Linear stays armed all week so the team can keep working in Linear if the app needs a fix; after
+  a clean week, freeze Linear read-only, then archive.
+- **Submission tab UI (D-23):** **no change** for now — only its backend plumbing flips.
+
+These are inputs for the B4/B5 build and the design pass; none are built yet.
+
+## 7. Explicitly out of scope here
 
 Write-path EF design for B4 (spec §4), teardown order (spec §13), and any change to gates —
 all live in the spec. This file only tracks evidence and execution.

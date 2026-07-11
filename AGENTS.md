@@ -2,10 +2,10 @@
 
 This repo is a single-file SyncView app served by GitHub Pages from `index.html`.
 
-**New session? Read `docs/truth/BRIEFING.md` first** — it front-loads what you'd otherwise
-re-discover (system shape, where truth lives, enforced invariants, live-system safety).
-Check `docs/truth/` before re-auditing anything; those docs are current-state,
-updated in place, and drift-checked by `test/truth-sync.js`.
+**New session? Read `docs/ops/SESSION_BOOTSTRAP.md` first** — the 5-minute grounding pack (the
+cast and rules, standing rails, verification recipes, current phase). Then check `docs/truth/`
+for per-area current state before re-auditing anything; those docs are updated in place and
+drift-checked by `test/truth-sync.js`.
 
 - **`docs/CLIENT_LIFECYCLE_MAP.md` is a MIRRORED doc** — the identical file
   lives in the `synchrosocial` repo at `docs/CLIENT_LIFECYCLE_MAP.md`. It maps

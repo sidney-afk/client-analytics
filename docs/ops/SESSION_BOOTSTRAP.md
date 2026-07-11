@@ -40,6 +40,7 @@ disagree, reality wins — and fix this file in the same PR.
 | `docs/independence/SYSTEM_MAP.md` | every surface, its backends, Track-B impact |
 | `docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md` | the authoritative design (spec wins) |
 | `REPO_MAP.md` | where files live (CI-enforced) |
+| `docs/truth/` (README + per-area) | current per-area state — Linear/Supabase/n8n/Sheets/app/endpoints; the "don't re-audit" living layer, drift-checked by `test/truth-sync.js` |
 | `docs/ops/MONITORING.md` | which watcher covers which sync edge |
 | `EXECUTION_LOG.md` (tail) | what happened recently, newest at the bottom |
 

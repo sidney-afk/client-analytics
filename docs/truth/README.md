@@ -1,10 +1,19 @@
 # docs/truth/ — the living current-truth layer
 
-> Last verified: 2026-07-11 @ ae8a492
+> Last verified: 2026-07-11 @ cf2234f
+
+**New session? Start with `docs/ops/SESSION_BOOTSTRAP.md`** — the canonical 5-minute grounding
+pack (the cast and rules, standing rails, verification recipes, current phase). This layer is
+the *per-area current state* it points into; read it after bootstrap.
 
 **Problem this solves:** every audit written as a dated snapshot (`docs/audits/`) is stale the
 moment the code changes, so each new session re-audits the same ground. These docs are the
 opposite: they describe the **current** state of the system and are **updated in place**.
+
+**The don't-re-audit rule:** before exploring the codebase or live systems to answer a
+question, check whether the matching truth doc already answers it. If it does and the freshness
+stamp is recent, **trust it**. If the stamp is old and the claim is load-bearing for your task,
+verify **that one claim**, correct the doc, bump the stamp. Full re-audits are a last resort.
 
 ## The contract
 
@@ -34,7 +43,6 @@ opposite: they describe the **current** state of the system and are **updated in
 
 | Doc | Covers |
 |---|---|
-| `docs/truth/BRIEFING.md` | **Read first in every new session** — what this system is, where truth lives, what's enforced. |
 | `docs/truth/ENDPOINTS.md` | Machine-enforced inventory: every n8n webhook + Edge Function `index.html` calls, plus Supabase tables (curated). |
 | `docs/truth/LINEAR.md` | Live Linear reality: teams, states (incl. hazards), users, batch shapes, what is/isn't synced. |
 | `docs/truth/SUPABASE.md` | Tables, runtime flags, event ledgers, Edge Functions, write contracts. |

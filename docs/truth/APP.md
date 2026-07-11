@@ -129,8 +129,29 @@ crash-on-corrupt-persisted-data bug. **All are guarded** — inline `try{…}cat
 try/catch + shape-check + default pattern; don't rely on `|| '{}'` alone (it defends null, not
 malformed JSON).
 
+### F5 `[open — low severity, owner fix]` — two `try{ fetch }catch` sites can't catch the network rejection
+
+**Owner decision — 2-char safe fix.** In the caption-job poller, two best-effort backend
+stand-down POSTs are written as `try { fetch(CAPTION_JOB_UPDATE_URL, {POST…}) } catch {}` at
+`index.html` lines **26171** and **26189**. A `try`/`catch` wrapped around an **un-awaited**
+fetch only catches synchronous throws — it does **not** catch the promise rejection. So on a
+network/offline failure the POST rejects with no handler → an **unhandled promise rejection**
+(console noise, and false alarms for any `unhandledrejection` telemetry). Functionally these are
+fire-and-forget by design (the job settles locally right after regardless), so this is
+error-hygiene, not data loss.
+
+**Fix (safe, matches the codebase's own pattern):** append `.catch(()=>{})` to each fetch, exactly
+as the onboarding-fallback POST at line **16024** already does
+(`fetch(ONBOARDING_FALLBACK_URL, {…}).catch(function(){})`). The outer `try` can stay or go.
+Not applied autonomously — it's a behavior-adjacent `index.html` edit; flagged for owner sign-off.
+
+Rest of the async-write surface audited clean: caption-cancel (`_calCapJobCancel`, 26215) has a
+rollback `.catch`; log-linear-submission (29667) is intentional fire-and-forget with `.catch`;
+`_sxrReorderFetch` (33940) returns its promise to the caller; the update-nudge HEAD poll (44786)
+and thumbnail-folder resolve (23605) both end in `.catch`. Read fetches use
+`Promise.allSettled`/`.then` with error handling.
+
 ### Backlog (next chunks)
 
-Duplicate string literals, fire-and-forget async (missing `await` on writes), and large inline
-event handlers. (`console.log` cleanup is owner-decision, not an autonomous edit — see session
-note.)
+Duplicate string literals and large inline event handlers. (`console.log` cleanup is
+owner-decision, not an autonomous edit — see session note.)

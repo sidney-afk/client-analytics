@@ -15,6 +15,8 @@ session re-runs against the wired Production tab (spec §10.6/§12, decision D-1
 | `prod-a11y-focus.js` | Accessibility/focus polish gate. Runs scoped axe-core checks, verifies visible controls have names/types, focused icon controls activate with Enter/Space, Escape closes transient chrome, and keyboard row navigation still works. | `node docs/syncview-design/tests/prod-a11y-focus.js` |
 | `prod-layout-polish.js` | Layout clipping gate across desktop, compact desktop, and mobile widths. Checks row/card metadata, filter pills, selected project cards, project details, and floating chrome stay inside their containers/viewports. | `node docs/syncview-design/tests/prod-layout-polish.js` |
 | `prod-review-packet.js` | Reviewer artifact generator. Captures named desktop, dark, and mobile screenshots plus a `manifest.md` so GitHub Actions can upload a compact visual packet for Production PR review. | `npm run test:prod-review` |
+| `prod-review-packet-validate.js` | Validates the review packet (gallery, manifests, checklist, required surfaces/viewports/themes, screenshot Production state, read-only invariant) before it is used or uploaded. | `npm run test:prod-review:validate` |
+| `prod-test-utils.js` | Shared module for the wired suites: static server, Production init script, `openProduction`, write-like request detection. Not run directly. | (library) |
 | `prod-argos-export.js` | Argos visual-diff export. Validates the review packet, then writes desktop/dark Production PNGs plus companion `.argos.json` metadata to `.codex-tmp/prod-argos-snapshots` for the guarded CI upload. | `npm run test:prod-argos:prepare` |
 | `pixel-wired.js` | Wired-tab visual/placement parity pass for light and dark mode. Checks list, icons, palette, selection/actionbar, selected-action picker anchoring, status picker inventory, context menus, due popover, filter pill, filtered empty state, board drag/scroll, project detail toolbar tab removal, detail, and browser-history parity. | `node docs/syncview-design/tests/pixel-wired.js` |
 | `design-machine-originals/behav.js` | The primary behavioral regression suite — **138 assertions**, one per shipped interaction (list/board/detail/pickers/palette/keyboard/multi-select/undo). Prints `ALL N BEHAVIORS PASS` + `JS ERRORS: 0`. | `node behav.js` (needs Playwright + a built prototype) |
@@ -44,6 +46,7 @@ status keys (spec §10.1: prototype `prog`/`smm`/`kasper`/`client` → slugs
 `in_progress`/`smm_approval`/`kasper_approval`/`client_approval`) — that adaptation is part of
 the §12 lane work and its diffs should be committed alongside.
 
-The probe harness (`probe.js` + captures) and the `.linear-probe-profile` browser profile were
-deliberately NOT copied — the profile contains a live Linear login session and must never enter
-this public repo.
+The probe harness (`probe.js`), the raw Linear reference screenshots, and the
+`.linear-probe-profile` browser profile were deliberately NOT copied — the profile contains a
+live Linear login session and must never enter this public repo. (The probe's JSON
+*measurement* files are public-safe and live in `../probe-data/`.)

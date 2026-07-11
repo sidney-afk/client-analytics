@@ -92,12 +92,33 @@ function assert(condition, message) {
       fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
       await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'b4-staff-login-desktop.png'), fullPage: true });
     }
-    assert(await page.locator('#staffIdentityMember option').count() === 2, 'modal lists only the dummy active roster row plus its placeholder');
-    assert(await page.locator('#staffIdentityMember').evaluate(el => el.tagName) === 'SELECT', 'name is selected from a roster control');
+    assert(await page.locator('#staffIdentityMemberMenu [data-cc-select-option]').count() === 2, 'modal lists only the dummy active roster row plus its placeholder');
+    assert(await page.locator('#staffIdentityMember').evaluate(el => el.tagName === 'INPUT' && el.type === 'hidden'), 'custom roster control stores its selected value in a hidden input');
     assert(await page.locator('#staffIdentityOverlay input[type="text"]').count() === 0, 'modal has no free-text name input');
+    const scrim = await page.locator('#staffIdentityOverlay').evaluate(el => {
+      const style = getComputedStyle(el);
+      return { background: style.backgroundColor, blur: style.backdropFilter || style.webkitBackdropFilter || '' };
+    });
+    assert(scrim.background !== 'rgba(0, 0, 0, 0)' && scrim.blur.includes('blur(3px)'), 'staff sign-in uses a dimmed blurred scrim');
 
-    await page.selectOption('#staffIdentityMember', DUMMY_MEMBER.id);
     await page.fill('#staffIdentityKey', DUMMY_KEY);
+    await page.click('#staffIdentitySubmit');
+    assert(await page.locator('#staffIdentityError').textContent() === 'Choose your name.', 'missing roster choice shows validation feedback');
+    assert(await page.evaluate(() => document.activeElement && document.activeElement.id) === 'staffIdentityMemberBtn', 'missing roster choice focuses the custom dropdown trigger');
+
+    await page.click('#staffIdentityMemberBtn');
+    assert(await page.locator('#staffIdentityMemberBtn').getAttribute('aria-expanded') === 'true', 'custom roster dropdown opens accessibly');
+    await page.click(`#staffIdentityMemberMenu [data-value="${DUMMY_MEMBER.id}"]`);
+    assert(await page.locator('#staffIdentityMember').inputValue() === DUMMY_MEMBER.id, 'custom roster choice reaches the existing form value path');
+
+    const roleKeyToggle = page.locator('#staffIdentityKeyToggle');
+    assert(await roleKeyToggle.getAttribute('aria-label') === 'Show role key', 'role-key visibility toggle has an accessible initial label');
+    await roleKeyToggle.click();
+    assert(await page.locator('#staffIdentityKey').getAttribute('type') === 'text', 'role-key visibility toggle reveals the existing value');
+    assert(await page.locator('#staffIdentityKey').inputValue() === DUMMY_KEY, 'revealing the role key does not change its value');
+    assert(await roleKeyToggle.getAttribute('aria-label') === 'Hide role key', 'role-key visibility toggle updates its accessible label');
+    await roleKeyToggle.click();
+    assert(await page.locator('#staffIdentityKey').getAttribute('type') === 'password', 'role-key visibility toggle restores password masking');
     await page.click('#staffIdentitySubmit');
     await page.waitForSelector('#staffIdentityOverlay', { state: 'detached', timeout: 5000 });
     assert(await page.locator('#navProd').isVisible(), 'verified identity reveals the Production tab');

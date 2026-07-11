@@ -1340,15 +1340,15 @@
         .header-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; }
         .staff-identity-btn { position: relative; }
         .staff-identity-btn.is-valid::after { content: ''; position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--sv-fg-22c55e); box-shadow: 0 0 0 2px var(--white); }
-        .staff-auth-overlay { z-index: 9998; padding: 18px; box-sizing: border-box; }
+        .staff-auth-overlay { z-index: 9998; padding: 18px; box-sizing: border-box; background: var(--sv-bg-rgba-0-0-0-0_5); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
         .staff-auth-card { width: min(420px, 100%); border: 1px solid var(--border); border-radius: 14px; background: var(--white); box-shadow: 0 24px 70px var(--sv-shadow-rgba-0-0-0-0_28); padding: 22px; }
         .staff-auth-card h2 { margin: 0; color: var(--text-primary); font-size: 1.05rem; }
         .staff-auth-card > p { margin: 7px 0 18px; color: var(--text-muted); font-size: 0.8rem; line-height: 1.5; }
         .staff-auth-fields { display: grid; gap: 13px; }
         .staff-auth-field { display: grid; gap: 6px; }
         .staff-auth-field label { color: var(--text-secondary); font-size: 0.72rem; font-weight: 750; }
-        .staff-auth-field select, .staff-auth-field input { width: 100%; min-height: 42px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 9px; background: var(--white); color: var(--text-primary); padding: 10px 12px; font: inherit; font-size: 0.84rem; outline: 0; }
-        .staff-auth-field select:focus, .staff-auth-field input:focus { border-color: var(--text-primary); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-17-17-16-0_07); }
+        .staff-auth-field input:not([type="hidden"]) { width: 100%; min-height: 42px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 9px; background: var(--white); color: var(--text-primary); padding: 10px 12px; font: inherit; font-size: 0.84rem; outline: 0; }
+        .staff-auth-field input:not([type="hidden"]):focus { border-color: var(--text-primary); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-17-17-16-0_07); }
         .staff-auth-error { min-height: 18px; margin-top: 10px; color: var(--dn); font-size: 0.75rem; line-height: 1.4; }
         .staff-auth-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; margin-top: 14px; }
         .theme-toggle { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--theme-toggle-border); background: var(--theme-toggle-bg); color: var(--theme-toggle-color); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s; }
@@ -16474,6 +16474,14 @@
         const done = overlay && overlay._syncviewResolve;
         if (typeof done === 'function') done(value || null);
     }
+    function _syncviewToggleStaffRoleKey(button) {
+        _ccTogglePasswordField('staffIdentityKey', button);
+        const input = document.getElementById('staffIdentityKey');
+        if (!input || !button) return;
+        const label = input.type === 'text' ? 'Hide role key' : 'Show role key';
+        button.setAttribute('aria-label', label);
+        button.title = label;
+    }
     function _syncviewOpenStaffIdentity(options) {
         options = options || {};
         if (!_syncviewStaffEligible()) return Promise.resolve(null);
@@ -16488,28 +16496,30 @@
                 overlay.className = 'cal-import-overlay open staff-auth-overlay';
                 overlay._syncviewResolve = resolve;
                 const selectedId = current && current.member ? String(current.member.id || '') : '';
-                const optionsHtml = '<option value="">Choose your name</option>' + roster.map(member => '<option value="' + _syncviewStaffEsc(member.id) + '"' + (String(member.id) === selectedId ? ' selected' : '') + '>' + _syncviewStaffEsc(member.name) + '</option>').join('');
+                const memberItems = [{ value: '', label: 'Choose your name' }].concat(roster.map(member => ({ value: String(member.id), label: String(member.name) })));
+                const memberSelectHtml = _ccSelectHtml('staffIdentityMember', memberItems, selectedId, 'Choose your name');
                 overlay.innerHTML = '<form class="staff-auth-card" id="staffIdentityForm" role="dialog" aria-modal="true" aria-labelledby="staffIdentityTitle">'
                     + '<h2 id="staffIdentityTitle">Staff sign in</h2>'
                     + '<p>Choose your roster name and enter the role key for your work.</p>'
                     + '<div class="staff-auth-fields">'
-                    + '<div class="staff-auth-field"><label for="staffIdentityMember">Your name</label><select id="staffIdentityMember" required>' + optionsHtml + '</select></div>'
-                    + '<div class="staff-auth-field"><label for="staffIdentityKey">Role key</label><input id="staffIdentityKey" type="password" autocomplete="current-password" placeholder="Enter role key" required></div>'
+                    + '<div class="staff-auth-field"><label for="staffIdentityMemberBtn">Your name</label>' + memberSelectHtml + '</div>'
+                    + '<div class="staff-auth-field"><label for="staffIdentityKey">Role key</label><div class="cc-password-wrap"><input id="staffIdentityKey" type="password" autocomplete="current-password" placeholder="Enter role key" required><button class="cc-pass-toggle" type="button" id="staffIdentityKeyToggle" title="Show role key" aria-label="Show role key" aria-pressed="false" onclick="_syncviewToggleStaffRoleKey(this)">' + CC_ICON_EYE + '</button></div></div>'
                     + '</div><div class="staff-auth-error" id="staffIdentityError" role="alert"></div>'
                     + '<div class="staff-auth-actions"><button class="cal-import-btn-ghost" type="button" id="staffIdentityCancel">' + (current && _syncviewStaffIdentityValid() ? 'Cancel' : 'Not now') + '</button><button class="cal-import-btn-primary" type="submit" id="staffIdentitySubmit">Continue</button></div>'
                     + '</form>';
                 document.body.appendChild(overlay);
                 const form = overlay.querySelector('#staffIdentityForm');
-                const select = overlay.querySelector('#staffIdentityMember');
+                const memberInput = overlay.querySelector('#staffIdentityMember');
+                const memberTrigger = overlay.querySelector('#staffIdentityMemberBtn');
                 const key = overlay.querySelector('#staffIdentityKey');
                 const submit = overlay.querySelector('#staffIdentitySubmit');
                 const error = overlay.querySelector('#staffIdentityError');
                 overlay.querySelector('#staffIdentityCancel').onclick = () => _syncviewCloseStaffIdentity(null);
                 form.onsubmit = async event => {
                     event.preventDefault();
-                    const member = roster.find(row => String(row.id) === String(select.value));
+                    const member = roster.find(row => String(row.id) === String(memberInput.value));
                     const roleKey = key.value.trim();
-                    if (!member) { error.textContent = 'Choose your name.'; select.focus(); return; }
+                    if (!member) { error.textContent = 'Choose your name.'; memberTrigger.focus(); return; }
                     if (!roleKey) { error.textContent = 'Enter your role key.'; key.focus(); return; }
                     submit.disabled = true;
                     error.textContent = '';
@@ -16525,7 +16535,7 @@
                         key.select();
                     }
                 };
-                setTimeout(() => (selectedId ? key : select).focus(), 20);
+                setTimeout(() => (selectedId ? key : memberTrigger).focus(), 20);
             });
         })().catch(error => {
             if (!options.silent) {

@@ -115,9 +115,22 @@ would make `getElementById` silently target the wrong element (e.g. an error wou
 off-screen wizard step). Cheap defense if it ever bites: scope these to `class`+`closest()` or
 suffix the id per branch. Not worth changing preemptively.
 
+### F4 `[wontfix — audited clean]` — every `JSON.parse` is guarded (no crash-on-corrupt-data)
+
+Checked all **86 `JSON.parse` call sites** in `index.html` (2026-07-11) for the classic
+crash-on-corrupt-persisted-data bug. **All are guarded** — inline `try{…}catch`, or a
+`|| '{}'`/`|| 'null'` null-default *inside* an enclosing try/catch, or a wrapping block whose
+`catch` sits further down the function. A window scan surfaced 6 apparent unguarded sites
+(7066, 7396, 7588, 19068, 20071, 40516); each was verified to have a matching enclosing
+`try`/`catch` (the catch was just outside the initial window). Persistent-state hydrators
+(`_analyticsHydrateFromCache`, `_calArchivedReadRaw`, `_calHydrateLinearMeta`,
+`_kasperHydrateCache`) additionally `typeof`/shape-check the parsed object and TTL-expire it.
+**No action.** Convention for new code: read persisted JSON through the same
+try/catch + shape-check + default pattern; don't rely on `|| '{}'` alone (it defends null, not
+malformed JSON).
+
 ### Backlog (next chunks)
 
-Duplicate string literals, unguarded `JSON.parse` on localStorage (crash-on-corrupt-data — 86
-call sites, several `raw ? JSON.parse(raw) : …` guards handle null but not malformed JSON),
-fire-and-forget async (missing `await`), and large inline event handlers. (`console.log` cleanup
-is owner-decision, not an autonomous edit — see session note.)
+Duplicate string literals, fire-and-forget async (missing `await` on writes), and large inline
+event handlers. (`console.log` cleanup is owner-decision, not an autonomous edit — see session
+note.)

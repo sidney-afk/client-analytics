@@ -53,4 +53,31 @@ sales intake, filming plans, thumbnails tooling, SMM weekly reports, TikTok pilo
 ## Deep-audit findings ledger (Phase 2, 2026-07-11 →)
 
 Living section — findings land here with status tags: `[open]`, `[fixed <commit>]`,
-`[wontfix <reason>]`. Nothing yet.
+`[wontfix <reason>]`.
+
+### F1 `[open]` — 35 defined-but-unreferenced functions (dead-code candidates)
+
+Found 2026-07-11 by an automated scan (`function foo(` / `const foo = (…)=>` definitions whose
+name appears exactly once in `index.html`, cross-checked against `onclick=""` strings and
+`scripts/`+`supabase/` for `grabFunc` extraction). `appUpdateNudge` was a 36th hit but is
+referenced by `test/app-update-nudge.js`, so it is NOT dead and is excluded.
+
+**Do not bulk-delete.** Several are likely staged-but-unwired feature work, not cruft — triage
+per group before removing anything. Verify each is still unreferenced at removal time (this is a
+fast-moving file). Confirmed-dead example already documented: `_sxrReassertLinearStatus()`.
+
+| Group | Candidates |
+|---|---|
+| Calendar | `_calClientPossessive` `_calCommentTotal` `_calLinkLabel` `_calOnTextareaInput` `_calOnUrlInput` `_calOpenUrlField` `_calStatusChip` `_calZoomHintHtml` |
+| Production tab (`?prod=1`) — **check active prod sprint before touching** | `_prodById` `_prodClientEmoji` `_prodIsBatchParent` `_prodOpenBatch` `_prodSetFocusCard` `_prodSetTeam` |
+| Samples/SXR | `_sxrReassertLinearStatus` `_sxrReorderUrlForClient` `_sxrSetAllSettable` |
+| Onboarding | `_obAddCreatorRow` `_obToggle` `_obvToggle` |
+| Market-research tab (looks unwired) | `_mrHookBadge` `renderMRTab_landscape` `renderMRTab_topics` |
+| Client credentials | `_ccKnownClientOptions` `_ccOpenBulkImport` |
+| SMM | `_smApprovalSummary` `setSmMode` |
+| Workload | `wlAddDays` `wlWeekMondayISO` |
+| Misc | `_filmsParseSheet` `_kasperIsReviewMounted` `_tplViewLink` `generateBrief` `mBlockDiff` `setGainMode` |
+
+Repro: a name-occurrence scan (count `\bNAME\b` matches in `index.html`; flag names appearing
+once). Next audit chunks: duplicate literals,
+`console.log` left in prod paths, inconsistent status-string handling, and large inline handlers.

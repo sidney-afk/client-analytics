@@ -35,7 +35,7 @@ answers to the owner's standing architecture questions.
 | 10 | Nightly due-date roller located AND disabled (D-9, with spec fallback) | ❓ locate first | Codex |
 | 11 | Dedicated Linear mirror identity distinct from the house account (D-18) | ❌ not created — owner action in Linear (dedicated user or OAuth app), key stored as EF secret only | Owner |
 | 12 | Editor/SMM sign-off + DR drill | ⏳ | Owner |
-| 13 | **Auth prerequisite (§6, this file §3):** write attribution enforced before any real write phase | ⏳ see §3 | Owner + Codex |
+| 13 | **Auth prerequisite (§6, this file §3):** write attribution enforced before any real write phase | ⏳ WP-A1/A2 live and proven; WP-A3 implementation complete in draft, awaiting owner merge; permissive telemetry and enforcement gates remain | Owner + Codex |
 
 ## 3. Auth — operationalizing spec §6 (design is already owner-ratified; do not redesign)
 
@@ -57,7 +57,7 @@ flag-flip audit trigger.
 |---|---|---|---|
 | WP-A1 | ✅ DONE 2026-07-11 | Every staff write EF now persists `X-Syncview-Actor` / `X-Syncview-Role`: calendar/sample upserts and reorders use their card event ledgers; template/caption-prompt saves use additive service-only `settings_events`. One disposable TEST write per EF proved all six paths and cleanup restored the two settings rows exactly with zero probe rows/events left. | Re-deploy the private pre-WP-A1 function snapshots; the additive `settings_events` table may remain dormant. No routing flag is involved. |
 | WP-A2 | ✅ DONE 2026-07-11 | The three role keys were already minted in EF secrets. Their deployed digests match the private B0 backup, and `key-verify` resolved compatible active roster rows for admin, SMM, and creative in permissive mode (proof events 3–5). | Secrets only; no key material is committed. Rollback is unnecessary while auth stays permissive; remove/rotate a role secret only for credential compromise. |
-| WP-A3 | ⏳ PENDING | Build the §6.1 login modal: role key + roster-name picker → localStorage; `key-verify` ping at boot; Production-tab visibility keyed on stored key (cosmetic) | behind the existing tab gate; revert = hide modal |
+| WP-A3 | ✅ DONE 2026-07-11 (staged; owner merge pending) | Built the §6.1 staff sign-in modal: active `team_members` roster picker only (no free text) + role key → localStorage; `key-verify` revalidation at boot; verified identity decorates Supabase EF writes with key/actor/role and reveals normal Production navigation. Direct `?prod=1` remains the diagnostic B2 route. Missing keys can be deferred while enforcement is permissive; 401 clears the identity; verifier outage fails open for the app but hides Production. Dummy-data desktop/mobile browser coverage proves sign-in, reload, invalid-key clearing, header isolation, and direct-preview compatibility. | Revert the WP-A3 frontend commit. Until owner merge, production remains unchanged. After merge, auth still remains permissive and the modal has a `Not now` path. |
 | WP-A4 | ⏳ PENDING | Permissive telemetry window: count unkeyed writes in `syncview_auth_events` over real traffic; **gate: zero unkeyed writes for 72 h** | no behavior change |
 | WP-A5 | ⏳ OWNER GATE | Flip `auth_enforcement` → `enforced` (owner action) | flip back = one flag |
 | WP-A6 | ⏳ OWNER DECISION | Owner decision: keep D6 (3 shared role keys + per-person actor from roster) or upgrade to per-person credentials. **Recommendation: keep D6 through B5; revisit after cutover.** Every write already carries a per-person actor name + role for the audit trail either way. | decision only |

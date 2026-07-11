@@ -71,9 +71,9 @@ A client submits the **Notion "Onboarding Form"** database. The n8n workflow **"
 This is the part that's easy to forget the *method* for. You're producing three text fields that later drive market research, AI briefs, and the "about this client" copy.
 
 **Method (what you described, codified):**
-1. Pull **5–10 of the client's Instagram Reels**. The fast way is the Apify reel scraper that's already wired in n8n — see the template workflow **"ONE‑SHOT — Scrape Terrin IG"** (`G1RRkIDs6Mh7RGk8`). It POSTs to the Apify actor `apify~instagram-reel-scraper` with `{ "username": ["<their_ig_handle>"], "resultsLimit": 20 }`. Duplicate it, swap the handle, run it. (You can also just transcribe the reels by hand.)
+1. Pull **5–10 of the client's Instagram Reels**. The fast way is the Apify reel scraper that’s already wired in n8n — see the one-shot IG reel-scraper template workflow (`G1RRkIDs6Mh7RGk8`). It POSTs to the Apify actor `apify~instagram-reel-scraper` with `{ "username": ["<their_ig_handle>"], "resultsLimit": 20 }`. Duplicate it, swap the handle, run it. (You can also just transcribe the reels by hand.)
 2. **Transcribe / read** the reels and figure out what their content is actually about — themes, tone, audience, signature formats.
-3. Write the three fields **in the same format as the existing rows** (open the Miki Agrawal or Natalie MacNeil row in **Clients Info** as your template):
+3. Write the three fields **in the same format as the existing rows** (open the Maria Garcia or Natalie MacNeil row in **Clients Info** as your template):
 
    - **`keywords`** — a broad comma‑separated list of every topic they touch (15–20 items).
    - **`specific_keywords`** — the tighter subset (≈8) that best defines them (this seeds market research).
@@ -85,7 +85,7 @@ This is the part that's easy to forget the *method* for. You're producing three 
      AUDIENCE CONTEXT: who follows them (age/psychographics), why it resonates, what the client drives toward.
      ```
 
-   *(Real example — trimmed — from the Miki Agrawal row, to match the voice/length:)*
+   *(Real example — trimmed — from the Maria Garcia row, to match the voice/length:)*
    > **CREATOR IDENTITY:** Miki is a serial entrepreneur, author, and mission‑driven founder (TUSHY, HERO) who sits at the intersection of business, nature, spirituality, and social impact… **CONTENT DNA:** unified by one throughline — nature already solved the problem; the smartest thing humans can do is learn from it… she closes each piece with an affirmation (a signature format element)… **AUDIENCE CONTEXT:** purpose‑driven entrepreneurs and conscious consumers (28–45) who want to build things that matter… she drives toward TUSHY, HERO, and her retreats.
 
 4. **`competitors`** — a comma‑separated list of competitor **Instagram handles** (no `@`), e.g. `iamhoniakader,pagetkagy,davidghiyam,…`. This feeds the COMPETITOR RESEARCH / MARKET RESEARCH automations.
@@ -103,13 +103,13 @@ This is the part that's easy to forget the *method* for. You're producing three 
 
 | Column | What to put | Notes / can be blank? |
 |---|---|---|
-| `client_name` | Display name, e.g. `Terrin Ammar` | **Required.** This is what makes the client appear in the dashboard and derives the slug. |
+| `client_name` | Display name, e.g. `Jane Doe` | **Required.** This is what makes the client appear in the dashboard and derives the slug. |
 | `email` | Client email | Low‑stakes. |
 | `competitors` | Comma‑sep competitor **IG handles** | Drives competitor/market research. |
 | `keywords` | Broad topic list (15–20) | See [§3](#3-research-keywords--content-description). |
 | `specific_keywords` | Tight subset (~8) | Seeds market research. |
 | `content_description` | 3‑block brief (CREATOR IDENTITY / CONTENT DNA / AUDIENCE CONTEXT) | See [§3](#3-research-keywords--content-description). |
-| `instagram_handle` | IG handle, no `@` | e.g. `thequeenkollective`. |
+| `instagram_handle` | IG handle, no `@` | e.g. `jane.doe.living`. |
 | `tiktok_handle` | TikTok handle | **Blank/`N/A` is fine** — scrapers skip it. |
 | `youtube_channel_id` | `UC…` channel ID | **Blank/`N/A` is fine.** |
 | `slack_channel_id` | `C…` channel ID for their Slack | Fill after you create the channel ([§6c](#6c-slack-channel)). Weekly report posts here. |
@@ -117,7 +117,7 @@ This is the part that's easy to forget the *method* for. You're producing three 
 
 **Also read by the app** (add if you have them; they live in this same tab to the right): `slack_team_id` (Slack workspace id, for deep‑links) and `client_review_token` (guards the client's `?c=…` share link — if blank the app still works but the share link is unguarded).
 
-> 💡 The `instagram_handle` is **not** the slug. The slug comes from `client_name` (see below). E.g. Terrin Ammar's IG is `thequeenkollective` but her slug is `terrinammar`.
+> 💡 The `instagram_handle` is **not** the slug. The slug comes from `client_name` (see below). E.g. a client's IG handle can differ from their name — e.g. display name `Jane Doe`, IG `@jane.doe.living`, slug `janedoe`.
 
 ---
 
@@ -129,13 +129,13 @@ Almost everything keys off a **slug** derived from `client_name` by `wlNormalize
 
 | `client_name` | slug |
 |---|---|
-| Baya Voce | `bayavoce` |
-| Terrin Ammar | `terrinammar` *(not `terrin`)* |
-| Dr. Sonia Chopra | `soniachopra` *(no "dr")* |
-| Eben & Annie / Eben and Annie | `eben&annie` |
+| Ana Vox | `anavox` |
+| Jane Doe | `janedoe` *(not `jane`)* |
+| Dr. Maria Garcia | `mariagarcia` *(no "dr")* |
+| Sam & Alex / Sam and Alex | `sam&alex` |
 | Sidney Laruel | `sidneylaruel` |
 
-There is **one** slug convention everywhere (calendar, samples, caption prompts, Supabase `client` column, localStorage caches). Keep the **display name spelling consistent** across every tab/tool — drift like "Miki Agrawal" vs "Miki‑agrawal" vs "Eben & Annie" vs "Eben and Annie" is the #1 source of "why isn't this client showing up" bugs.
+There is **one** slug convention everywhere (calendar, samples, caption prompts, Supabase `client` column, localStorage caches). Keep the **display name spelling consistent** across every tab/tool — drift like "Maria Garcia" vs "maria‑garcia" vs "Sam & Alex" vs "Sam and Alex" is the #1 source of "why isn't this client showing up" bugs.
 
 ---
 

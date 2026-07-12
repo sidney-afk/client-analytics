@@ -137,6 +137,15 @@ D-24's implemented status and release evidence are tracked in WP-A3b above.
 The outbound backend, TEST-only drills, and pager coverage are staged; the Production write UI,
 all-client shadow observation window, and owner authority/live flips remain gated.
 
+### Write-UI epoch human rollout (D-28 / D-29) — added 2026-07-12
+
+The outbound *pipe* is proven live (flips 24/25) and then paused back to the D-26 stance. The
+*team-facing write UI* is the remaining epoch (scope: `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md`),
+and it rolls to humans in stages, not one flip:
+1. **Silent shadow soak** (~1 week): write-UI shipped, team stays on Linear, outbound in `shadow`; catch bugs with nobody watching.
+2. **Graphics team live first**; video stays on Linear as the safety net; roll video once graphics is boring.
+3. **Bug policy (D-29):** cosmetic/UI bugs are fixed in place (no flip); only a data-integrity bug pauses *that team* (D-26). No whole-company flip-flop.
+
 ### Outbound readiness criteria (D-25 / D-26)
 
 | Criterion | Current evidence | Gate state |

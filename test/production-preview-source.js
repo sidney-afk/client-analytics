@@ -78,14 +78,32 @@ check('preview fetches projected archive/delete markers instead of full linear_r
 check('preview lazy-loads full linear_raw for a single detail row',
   /async function _prodLoadLinearRawFor\(id\)/.test(prodBlock)
   && /_prodRestRows\('deliverables', 'id,brief,linear_raw', 'id=eq\.'/.test(prodBlock)
-  && /_prodLoadLinearRawFor\(id\)/.test(prodBlock));
+  && /_prodLoadLinearRawFor\(id\)/.test(prodBlock)
+  && /function _prodRender\(\)[\s\S]{0,900}_prodLoadLinearRawFor\(_prodState\.openId\)/.test(prodBlock));
 check('preview background-loads brief text outside boot',
   /async function _prodLoadBriefs\(opts\)/.test(prodBlock)
   && /_prodRestRows\('deliverables', 'id,brief', 'order=id\.asc', 1000, 50\)/.test(prodBlock)
   && /setTimeout\(\(\) => _prodLoadBriefs\(\{ silent: true \}\), 6500\)/.test(prodBlock));
+check('preview preserves hydrated descriptions across projected refresh rows',
+  /function _prodPreserveProjectedFields\(incoming, previous, key, fields\)/.test(prodBlock)
+  && /mergedClients = _prodPreserveProjectedFields\(clients, _prodState\.clients, 'slug', \['board_desc', 'desc'\]\)/.test(prodBlock)
+  && /mergedBatches = _prodPreserveProjectedFields\(batches, _prodState\.batches, 'id', \['description', 'desc'\]\)/.test(prodBlock)
+  && /mergedDeliverables = _prodPreserveProjectedFields\(deliverables, _prodState\.deliverables, 'id', \['brief', 'linear_raw', 'desc'\]\)/.test(prodBlock)
+  && /_prodState\.adapter = _prodAdapter\(\{ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables \}\)/.test(prodBlock));
+check('preview distinguishes pending descriptions from authoritative empty values',
+  /function _prodDescriptionHTML\(value, loaded, emptyText, rich\)/.test(prodBlock)
+  && /data-prod-desc-loading/.test(prodBlock)
+  && /descLoaded: !!descField/.test(prodBlock)
+  && /_prodState\.linearRaw\.has\(d\.id\)[\s\S]{0,90}_prodState\.linearRaw\.get\(d\.id\) !== null/.test(prodBlock));
+check('preview maps project and batch descriptions through the shared loaded-state renderer',
+  /descField = _prodHasOwn\(c, 'board_desc'\)/.test(prodBlock)
+  && /_prodDescriptionHTML\(c\.desc, !!c\.descLoaded, 'No project description\.', false\)/.test(prodBlock)
+  && /_prodDescriptionHTML\(desc, !!descField, 'No batch description\.', false\)/.test(prodBlock));
 check('preview filters Linear webhook delete/archive markers out of live issues', /function _prodDeliverableLive\(d\)/.test(prodBlock)
   && /webhook_delete/.test(prodBlock)
   && /raw\.issue && \(raw\.issue\.archivedAt \|\| raw\.issue\.canceledAt\)/.test(prodBlock)
+  && /hasProjectedMarkers = projectedMarkers\.some/.test(prodBlock)
+  && /!hasProjectedMarkers && _prodRawHasAny/.test(prodBlock)
   && /raw_issue_archived_at/.test(prodBlock)
   && /deliverables = \(raw\.deliverables \|\| \[\]\)\.filter\(_prodDeliverableLive\)/.test(prodBlock));
 check('preview fetch helper uses default GET with retry', /async function _prodRestPage\(url, table, page\)/.test(prodBlock) && /fetch\(url, \{ headers: _prodHeaders\(\) \}\)/.test(prodBlock) && /resp\.status === 429 \|\| resp\.status >= 500/.test(prodBlock));

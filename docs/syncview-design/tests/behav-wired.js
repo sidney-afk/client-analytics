@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 167;
+const TOTAL = 168;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -180,6 +180,162 @@ async function txt(page, sel) {
       await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
       return reachedSubmit;
     });
+    await ok('detailDescriptionStableThroughPendingRefresh', async () => page.evaluate(async () => {
+      const target = (_prodState.deliverables || []).find(row => row && row.id);
+      if (!target) return false;
+      const clientTarget = (_prodState.clients || []).find(row => row && row.slug) || null;
+      const batchTarget = (_prodState.batches || []).find(row => row && row.id) || null;
+      const id = String(target.id);
+      const clientId = String(clientTarget && clientTarget.slug || '');
+      const batchId = String(batchTarget && batchTarget.id || '');
+      const sentinel = 'Description stays visible during pending refresh';
+      const projectSentinel = 'Project description stays visible during pending refresh';
+      const batchSentinel = 'Batch description stays visible during pending refresh';
+      const originalRestRows = _prodRestRows;
+      const originalSetTimeout = window.setTimeout;
+      const state = {
+        clients: _prodState.clients,
+        members: _prodState.members,
+        batches: _prodState.batches,
+        deliverables: _prodState.deliverables,
+        adapter: _prodState.adapter,
+        loaded: _prodState.loaded,
+        loading: _prodState.loading,
+        error: _prodState.error,
+        briefsLoaded: _prodState.briefsLoaded,
+        briefsLoading: _prodState.briefsLoading,
+        view: _prodState.view,
+        openId: _prodState.openId,
+        openBatchId: _prodState.openBatchId,
+        openProjectId: _prodState.openProjectId,
+        clientSlug: _prodState.clientSlug,
+      };
+      const hadRaw = _prodState.linearRaw.has(id);
+      const previousRaw = _prodState.linearRaw.get(id);
+      const hadEvents = _prodState.events.has(id);
+      const previousEvents = _prodState.events.get(id);
+      try {
+        window.setTimeout = (fn, delay, ...args) => Number(delay) === 6500 ? 0 : originalSetTimeout(fn, delay, ...args);
+        const hydratedClients = state.clients.map(row => String(row && row.slug || '') === clientId
+          ? Object.assign({}, row, { board_desc: projectSentinel, desc: projectSentinel })
+          : Object.assign({}, row));
+        const hydratedBatches = state.batches.map(row => String(row && row.id || '') === batchId
+          ? Object.assign({}, row, { description: batchSentinel, desc: batchSentinel })
+          : Object.assign({}, row));
+        const hydrated = state.deliverables.map(row => String(row && row.id || '') === id
+          ? Object.assign({}, row, { brief: sentinel, desc: sentinel, linear_raw: { issue: { id: 'description-flicker-fixture' } } })
+          : Object.assign({}, row));
+        _prodState.clients = hydratedClients;
+        _prodState.batches = hydratedBatches;
+        _prodState.deliverables = hydrated;
+        _prodState.adapter = null;
+        _prodState.linearRaw.set(id, { issue: { id: 'description-flicker-fixture' } });
+        _prodState.events.set(id, []);
+        _prodOpenDeliverable(id);
+        const before = (document.querySelector('[data-prod-detail="' + CSS.escape(id) + '"] .prod-desc')?.textContent || '').trim();
+
+        const projectedClients = hydratedClients.map(row => {
+          const next = Object.assign({}, row);
+          if (String(next.slug || '') === clientId) { delete next.board_desc; delete next.desc; }
+          return next;
+        });
+        const projectedBatches = hydratedBatches.map(row => {
+          const next = Object.assign({}, row);
+          if (String(next.id || '') === batchId) { delete next.description; delete next.desc; }
+          return next;
+        });
+        let projectedDeliverables = hydrated.map(row => {
+          const next = Object.assign({}, row);
+          if (String(next.id || '') === id) { delete next.brief; delete next.linear_raw; delete next.desc; }
+          return next;
+        });
+        _prodState.linearRaw.set(id, null);
+        _prodRestRows = async table => {
+          if (table === 'clients') return projectedClients.map(row => Object.assign({}, row));
+          if (table === 'team_members') return state.members.map(row => Object.assign({}, row));
+          if (table === 'batches') return projectedBatches.map(row => Object.assign({}, row));
+          if (table === 'deliverables') return projectedDeliverables.map(row => Object.assign({}, row));
+          return [];
+        };
+        await _prodLoadData({ silent: true });
+        _prodRender(); // realtime/filter-style render while the detail fetch is still pending
+        const desc = document.querySelector('[data-prod-detail="' + CSS.escape(id) + '"] .prod-desc');
+        const after = (desc?.textContent || '').trim();
+        const issueStable = before === sentinel && after === sentinel
+          && !desc?.querySelector('.prod-desc-empty') && !/No description\./.test(after);
+
+        let projectStates = true;
+        if (clientId) {
+          _prodState.view = 'project'; _prodState.openProjectId = clientId; _prodState.openId = ''; _prodState.openBatchId = '';
+          _prodRender();
+          const projectStable = (document.querySelector('[data-prod-project-detail] .prod-desc')?.textContent || '').trim() === projectSentinel;
+          const clientRow = (_prodState.clients || []).find(row => String(row && row.slug || '') === clientId);
+          delete clientRow.board_desc; delete clientRow.desc;
+          _prodState.adapter = null;
+          _prodRender();
+          const projectPendingDesc = document.querySelector('[data-prod-project-detail] .prod-desc');
+          const projectPending = !!projectPendingDesc?.querySelector('[data-prod-desc-loading]') && !projectPendingDesc?.querySelector('.prod-desc-empty');
+          clientRow.board_desc = '';
+          _prodState.adapter = null;
+          _prodRender();
+          const projectEmptyDesc = document.querySelector('[data-prod-project-detail] .prod-desc');
+          const projectEmpty = (projectEmptyDesc?.querySelector('.prod-desc-empty')?.textContent || '').trim() === 'No project description.';
+          projectStates = projectStable && projectPending && projectEmpty;
+        }
+        let batchStates = true;
+        if (batchId) {
+          _prodState.view = 'batch'; _prodState.openBatchId = batchId; _prodState.openId = ''; _prodState.openProjectId = '';
+          _prodState.adapter = null;
+          _prodRender();
+          const batchStable = (document.querySelector('[data-prod-batch-detail] .prod-desc')?.textContent || '').trim() === batchSentinel;
+          const batchRow = (_prodState.batches || []).find(row => String(row && row.id || '') === batchId);
+          delete batchRow.description; delete batchRow.desc;
+          _prodState.adapter = null;
+          _prodRender();
+          const batchPendingDesc = document.querySelector('[data-prod-batch-detail] .prod-desc');
+          const batchPending = !!batchPendingDesc?.querySelector('[data-prod-desc-loading]') && !batchPendingDesc?.querySelector('.prod-desc-empty');
+          batchRow.description = '';
+          _prodState.adapter = null;
+          _prodRender();
+          const batchEmptyDesc = document.querySelector('[data-prod-batch-detail] .prod-desc');
+          const batchEmpty = (batchEmptyDesc?.querySelector('.prod-desc-empty')?.textContent || '').trim() === 'No batch description.';
+          batchStates = batchStable && batchPending && batchEmpty;
+        }
+
+        const pendingRow = (_prodState.deliverables || []).find(row => String(row && row.id || '') === id);
+        delete pendingRow.brief; delete pendingRow.linear_raw; delete pendingRow.desc;
+        _prodState.linearRaw.set(id, null);
+        _prodState.adapter = null;
+        _prodState.view = 'detail'; _prodState.openId = id; _prodState.openBatchId = ''; _prodState.openProjectId = '';
+        _prodRender();
+        const pendingDesc = document.querySelector('[data-prod-detail="' + CSS.escape(id) + '"] .prod-desc');
+        const pendingSafe = !!pendingDesc?.querySelector('[data-prod-desc-loading]')
+          && !pendingDesc?.querySelector('.prod-desc-empty')
+          && !/No description\./.test(pendingDesc?.textContent || '');
+
+        Object.assign(pendingRow, { brief: sentinel, desc: sentinel, linear_raw: { issue: { id: 'description-flicker-fixture' } } });
+        projectedDeliverables = projectedDeliverables.map(row => String(row && row.id || '') === id
+          ? Object.assign({}, row, { brief: '', linear_raw: {} })
+          : Object.assign({}, row));
+        _prodState.linearRaw.set(id, {});
+        _prodState.adapter = null;
+        await _prodLoadData({ silent: true });
+        _prodRender();
+        const emptyDesc = document.querySelector('[data-prod-detail="' + CSS.escape(id) + '"] .prod-desc');
+        const loadedEmpty = (emptyDesc?.querySelector('.prod-desc-empty')?.textContent || '').trim() === 'No description.'
+          && !emptyDesc?.querySelector('[data-prod-desc-loading]');
+        return issueStable && projectStates && batchStates && pendingSafe && loadedEmpty;
+      } finally {
+        _prodRestRows = originalRestRows;
+        window.setTimeout = originalSetTimeout;
+        Object.assign(_prodState, state);
+        if (hadRaw) _prodState.linearRaw.set(id, previousRaw);
+        else _prodState.linearRaw.delete(id);
+        if (hadEvents) _prodState.events.set(id, previousEvents);
+        else _prodState.events.delete(id);
+        _prodRender();
+      }
+    })); await reset();
 
     // Artifact-order coverage batch: behav.js chip -> kfocusShortcut,
     // with mutation checks adapted to read-only guard mode.

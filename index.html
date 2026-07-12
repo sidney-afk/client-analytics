@@ -2789,6 +2789,7 @@
         .prod-desc a { color: var(--prod-link); text-decoration: none; }
         .prod-desc a:hover { text-decoration: underline; }
         .prod-desc-empty { color: var(--prod-faint); }
+        .prod-desc-loading { display: block; width: min(320px, 68%); height: 14px; margin: 5px 0; }
         .prod-right { width: 286px; flex: 0 0 286px; border-left: 1px solid var(--prod-divider); padding: 18px 14px; overflow: auto; background: var(--prod-content); }
         .prod-props { display: flex; flex-direction: column; gap: 2px; }
         .prod-prop { min-height: 32px; display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 8px; font-size: 13px; color: var(--prod-strong); }
@@ -30642,6 +30643,20 @@
         function _prodById(rows, key) {
             return new Map((rows || []).map(r => [String(r && r[key] || ''), r]).filter(([k]) => k));
         }
+        function _prodHasOwn(row, field) {
+            return !!row && Object.prototype.hasOwnProperty.call(row, field);
+        }
+        function _prodPreserveProjectedFields(incoming, previous, key, fields) {
+            const priorById = _prodById(previous, key);
+            return (incoming || []).map(row => {
+                const prior = priorById.get(String(row && row[key] || ''));
+                if (!row || !prior) return row;
+                fields.forEach(field => {
+                    if (!_prodHasOwn(row, field) && _prodHasOwn(prior, field)) row[field] = prior[field];
+                });
+                return row;
+            });
+        }
         function _prodNormKey(v) {
             return String(v || '').trim().toLowerCase();
         }
@@ -30690,9 +30705,11 @@
         }
         function _prodDeliverableLive(d) {
             const raw = _prodLinearRaw(d && d.linear_raw);
+            const projectedMarkers = ['raw_issue_archived_at','raw_issue_canceled_at','raw_webhook_delete','raw_deleted','raw_delete','raw_removed','raw_archived'];
+            const hasProjectedMarkers = projectedMarkers.some(key => _prodHasOwn(d, key));
             if (_prodNormKey(d && d.status) === 'archived') return false;
-            if (_prodRawHasAny(raw, ['webhook_delete', 'deleted', 'delete', 'removed', 'archived'])) return false;
-            if (raw.issue && (raw.issue.archivedAt || raw.issue.canceledAt)) return false;
+            if (!hasProjectedMarkers && _prodRawHasAny(raw, ['webhook_delete', 'deleted', 'delete', 'removed', 'archived'])) return false;
+            if (!hasProjectedMarkers && raw.issue && (raw.issue.archivedAt || raw.issue.canceledAt)) return false;
             if (_prodRawMarkerTruthy(d && d.raw_issue_archived_at)) return false;
             if (_prodRawMarkerTruthy(d && d.raw_issue_canceled_at)) return false;
             if (_prodRawMarkerTruthy(d && d.raw_webhook_delete)) return false;
@@ -30726,12 +30743,15 @@
             clients.forEach(c => {
                 if (!c || !c.slug) return;
                 const slug = String(c.slug);
+                const descField = _prodHasOwn(c, 'board_desc') ? 'board_desc' : _prodHasOwn(c, 'desc') ? 'desc' : '';
                 PROJECTS[slug] = {
                     id: slug,
                     client: slug,
                     name: c.display_name || slug,
                     emoji: c.emoji || '',
                     team: c.kind === 'graphics' ? 'graphics' : c.kind === 'video' ? 'video' : '',
+                    desc: descField ? (c[descField] == null ? '' : c[descField]) : '',
+                    descLoaded: !!descField,
                     raw: c
                 };
             });
@@ -30754,6 +30774,7 @@
                 if (parent && parent.id) batchParent.set(key, String(parent.id));
             });
             const ISSUES = deliverables.map(d => {
+                const descField = _prodHasOwn(d, 'brief') ? 'brief' : _prodHasOwn(d, 'desc') ? 'desc' : '';
                 const batchId = String(d && d.batch_id || '');
                 const parentId = batchParent.get(batchTeamKey(d)) || '';
                 const isBatchParent = !!(parentId && String(d.id) === parentId);
@@ -30777,7 +30798,8 @@
                     updated: _prodFmtDate(d.updated_at),
                     updatedRaw: d.updated_at || '',
                     sub: null,
-                    desc: d.brief || '',
+                    desc: descField ? (d[descField] == null ? '' : d[descField]) : '',
+                    descLoaded: !!descField,
                     file,
                     comments: [],
                     batchId,
@@ -31771,6 +31793,11 @@
                 return _prodLinkifyInline(line);
             }).filter(part => part !== null).join('<br>');
         }
+        function _prodDescriptionHTML(value, loaded, emptyText, rich) {
+            if (value) return rich ? _prodLinkify(value) : _calEsc(value);
+            if (!loaded) return '<span class="prod-skeleton prod-desc-loading" data-prod-desc-loading="1" role="status" aria-label="Loading description"></span>';
+            return '<span class="prod-desc-empty">' + _calEsc(emptyText) + '</span>';
+        }
         function _prodFileLinkLabel(file) {
             const raw = String(file || '').trim();
             if (!raw) return 'Open link';
@@ -32605,11 +32632,14 @@
                     _prodRestRows('batches', 'id,client_slug,team,name,description,filming_doc_url,footage_folder_url,delivery_folder_url,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids', 'order=created_at.desc', 1000, 25),
                     _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_identifier,linear_issue_url,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived', 'order=team.asc,status.asc,due_date.asc', 1000, 50)
                 ]);
-                _prodState.clients = clients;
+                const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
+                const mergedBatches = _prodPreserveProjectedFields(batches, _prodState.batches, 'id', ['description', 'desc']);
+                const mergedDeliverables = _prodPreserveProjectedFields(deliverables, _prodState.deliverables, 'id', ['brief', 'linear_raw', 'desc']);
+                _prodState.clients = mergedClients;
                 _prodState.members = members;
-                _prodState.batches = batches;
-                _prodState.deliverables = deliverables;
-                _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables });
+                _prodState.batches = mergedBatches;
+                _prodState.deliverables = mergedDeliverables;
+                _prodState.adapter = _prodAdapter({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables });
                 _prodState.loaded = true;
                 _prodState.loading = false;
                 if (_prodState.openId && !_prodIssue(_prodState.openId)) {
@@ -33056,7 +33086,10 @@
             root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
             const list = root.querySelector('.prod-listwrap');
             if (list && _prodState.listScrollTop) list.scrollTop = _prodState.listScrollTop;
-            if (_prodState.view === 'detail' && _prodState.openId && _prodState.events.get(_prodState.openId) === undefined) _prodLoadEventsFor(_prodState.openId);
+            if (_prodState.view === 'detail' && _prodState.openId) {
+                if (_prodState.events.get(_prodState.openId) === undefined) _prodLoadEventsFor(_prodState.openId);
+                _prodLoadLinearRawFor(_prodState.openId);
+            }
         }
         function _prodNavItem(icon, label, active, onClick, cls) {
             return '<button class="prod-nav-btn' + (cls ? ' ' + cls : '') + (active ? ' active' : '') + '" type="button" onclick="' + onClick + '"><span class="prod-nav-ico">' + icon + '</span><span>' + _calEsc(label) + '</span></button>';
@@ -33431,10 +33464,11 @@
             const events = _prodState.events.get(d.id);
             const file = d.file || '';
             const subSection = _prodSubIssuesSectionHTML(kids);
+            const descLoaded = !!d.descLoaded || (_prodState.linearRaw.has(d.id) && _prodState.linearRaw.get(d.id) !== null);
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div><h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
                 + _prodSubIssueContextHTML(d, parent)
-                + '<div class="prod-desc">' + (d.desc ? _prodLinkify(d.desc) : '<span class="prod-desc-empty">No description.</span>') + '</div>'
+                + '<div class="prod-desc">' + _prodDescriptionHTML(d.desc, descLoaded, 'No description.', true) + '</div>'
                 + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" data-prod-file-link="1" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener" title="' + _calEscAttr(file) + '">' + _calEsc(_prodFileLinkLabel(file)) + '</a></p>' : '')
                 + subSection
                 + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Activity</span><span class="prod-spacer"></span></div>' + _prodActivity(events) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">Commenting is disabled in this preview.</button></div></div>'
@@ -33447,7 +33481,6 @@
             const projectTeam = _prodProjectScopeTeam(c);
             const allRows = _prodProjectAllRows(c);
             const rows = _prodProjectRows(c);
-            const desc = c.desc || 'No project description.';
             const empty = (_prodState.filters || []).length ? 'No issues match your filters.' : 'No issues in this view yet.';
             const rowHTML = _prodProjectRowsHTML(rows, empty, allRows.length, c.name || c.id);
             const filteredCount = (_prodState.filters || []).length && allRows.length && rows.length !== allRows.length;
@@ -33461,7 +33494,7 @@
                 + '<div class="prod-side-card" data-prod-detail-card="project-issues"><div class="prod-side-card-head"><span>Issues</span></div><div class="prod-side-row muted">' + _calEsc(String(rows.length)) + ' issue' + (rows.length === 1 ? '' : 's') + '</div></div></div></aside>';
             return '<div class="prod-detail prod-project-detail" data-prod-project-detail="' + _calEscAttr(c.id) + '"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodTeamLabel(projectTeam)) + ' project</div><h1 class="prod-detail-title">' + _calEsc(c.name || c.id) + '</h1>'
-                + '<div class="prod-desc">' + _calEsc(desc) + '</div>'
+                + '<div class="prod-desc">' + _prodDescriptionHTML(c.desc, !!c.descLoaded, 'No project description.', false) + '</div>'
                 + '<div class="prod-subsection"><div class="prod-subhead">' + _prodIcon('issues') + ' Issues <span class="prod-group-count">' + _calEsc(issueCountLabel) + '</span></div>'
                 + rowHTML + '</div></div></div>' + side + '</div>';
         }
@@ -33469,8 +33502,10 @@
             const batch = _prodBatch(_prodState.openBatchId);
             if (!batch) return '<div class="prod-empty">Batch not found.</div>';
             const rows = _prodBatchRows(batch.id);
+            const descField = _prodHasOwn(batch, 'description') ? 'description' : _prodHasOwn(batch, 'desc') ? 'desc' : '';
+            const desc = descField ? (batch[descField] == null ? '' : batch[descField]) : '';
             return '<div class="prod-detail" data-prod-batch-detail="' + _calEscAttr(batch.id) + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('batch') + ',' + _jsAttrArg(batch.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner"><div class="prod-detail-id">' + _calEsc(batch.team || 'mixed') + ' batch</div><h1 class="prod-detail-title">' + _calEsc(batch.name || 'Untitled batch') + '</h1>'
-                + '<div class="prod-desc">' + (batch.description ? _calEsc(batch.description) : '<span style="color:var(--prod-faint)">No batch description.</span>') + '</div>'
+                + '<div class="prod-desc">' + _prodDescriptionHTML(desc, !!descField, 'No batch description.', false) + '</div>'
                 + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
                 + '<div class="prod-prop"><span class="prod-prop-label">Client</span><span>' + _calEsc(_prodDisplayClient(batch.client_slug)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Team</span><span>' + _calEsc(_prodTeamLabel(batch.team)) + '</span></div>'

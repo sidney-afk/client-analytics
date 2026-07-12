@@ -4,8 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const {
+  D27_LIVE_ERA_START,
   classifyOutboundDeliverable,
   classifyOutboundBatch,
+  historicalWriteDisposition,
   summarize,
 } = require('../scripts/linear-deliverables-reconcile-lib');
 
@@ -51,6 +53,8 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   };
 
   ok(mapping.OUTBOUND_OPERATIONS.length === 10, 'all ten outbound operations are enumerated');
+  ok(mapping.D27_LIVE_ERA_START === D27_LIVE_ERA_START,
+    'reconciler and Edge Function share the exact D-27 live-era boundary');
   const status = mapping.buildMutation(baseRow, { state_id: 'state_approved', linear_issue_id: 'issue_fixture' });
   ok(status.kind === 'issueUpdate' && status.variables.input.stateId === 'state_approved',
     'status maps to issueUpdate.stateId');
@@ -126,6 +130,48 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     { state_id: 'state_approved', field_updated_at: '2026-07-11T11:59:00Z' },
   ).decision === 'stale', 'live Linear updatedAt safely bounds an omitted-field clock during resume');
 
+  const historicalEntity = {
+    created_by: 'linear-backfill',
+    created_at: '2026-07-08T12:00:00Z',
+    linear_raw: { issue: { completedAt: null } },
+  };
+  const liveEntity = { ...historicalEntity, created_at: '2026-07-12T05:00:00Z' };
+  const oldActiveEntity = {
+    created_by: 'ui',
+    origin: 'manual',
+    created_at: '2026-07-08T12:00:00Z',
+    linear_raw: { issue: { completedAt: null } },
+  };
+  const completedHistoricalEntity = {
+    ...oldActiveEntity,
+    linear_raw: { issue: { completedAt: '2026-07-10T12:00:00Z' } },
+  };
+  ok(historicalWriteDisposition('parent', historicalEntity).decision === 'tolerated_historical'
+    && historicalWriteDisposition('restore', historicalEntity).decision === 'tolerated_historical',
+  'reconciler suppresses historical parent and restore operations');
+  ok(historicalWriteDisposition('parent', liveEntity) === null
+    && historicalWriteDisposition('parent', oldActiveEntity) === null
+    && historicalWriteDisposition('restore', completedHistoricalEntity).decision === 'tolerated_historical',
+  'D-27 uses the live-era boundary plus explicit backfill or completed-work evidence');
+  ok(['create', 'status', 'comment', 'due', 'assignee', 'title', 'priority', 'archive']
+    .every(operation => historicalWriteDisposition(operation, historicalEntity) === null),
+  'all non-parent/non-restore operations on historical work remain writable');
+  ok(mapping.decideConflict(
+    { ...baseRow, operation: 'parent', payload: { parent_linear_issue_id: 'parent_new' } },
+    issue,
+    { entity: historicalEntity, parent_linear_issue_id: 'parent_new' },
+  ).decision === 'tolerated_historical', 'drainer mapping suppresses a queued historical parent operation');
+  ok(mapping.decideConflict(
+    { ...baseRow, operation: 'restore', payload: {} },
+    { ...issue, archivedAt: '2026-07-10T00:00:00Z' },
+    { entity: historicalEntity },
+  ).decision === 'tolerated_historical', 'drainer mapping suppresses a queued historical restore');
+  ok(mapping.decideConflict(
+    { ...baseRow, operation: 'parent', payload: { parent_linear_issue_id: 'parent_new' } },
+    issue,
+    { entity: liveEntity, parent_linear_issue_id: 'parent_new' },
+  ).decision === 'apply', 'drainer mapping still emits a live-era parent operation');
+
   const member = { id: 'member_fixture', linear_user_id: 'linear_user_fixture' };
   const outbound = classifyOutboundDeliverable({
     deliverable: {
@@ -160,6 +206,25 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   ok(outbound.outbound_intents.some(intent => intent.operation === 'comment'
     && intent.requeue_outbox_id === 77),
   'missing outbound comment reuses its original idempotent outbox row');
+  const historicalOutbound = classifyOutboundDeliverable({
+    deliverable: {
+      ...outbound.row,
+      ...historicalEntity,
+      title: 'Historical local title',
+      linear_issue_uuid: 'issue_fixture',
+    },
+    linearIssue: { ...issue, title: 'Historical Linear title', parent: { id: 'parent_old' } },
+    memberById: new Map([[member.id, member]]),
+    stateUuidMap: { state_todo: 'todo' },
+    expectedParentId: 'parent_new',
+    outboxComments: [],
+  });
+  ok(!historicalOutbound.diffs.some(diff => diff.field === 'parent')
+    && !historicalOutbound.outbound_intents.some(intent => intent.operation === 'parent')
+    && historicalOutbound.tolerated.some(item => item.reason === 'tolerated_historical' && item.operation === 'parent'),
+  'backfill-origin parent mismatch is reported as tolerated and never enqueued');
+  ok(historicalOutbound.outbound_intents.some(intent => intent.operation === 'title'),
+    'D-27 leaves title behavior on historical work unchanged');
   const summary = summarize([outbound], []);
   ok(summary.outbound_diff_count === outbound.diffs.length && summary.inbound_diff_count === 0,
     'reconciler summary separates outbound from inbound drift');
@@ -178,6 +243,33 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   ok(batchOutbound.entity === 'batch'
     && batchOutbound.outbound_intents.some(intent => intent.operation === 'title'),
   'two-way reconciler measures batch-parent title drift');
+  const historicalRestore = classifyOutboundBatch({
+    batch: {
+      id: 'bat_historical', client_slug: 'fixture-client', team: 'video',
+      name: 'Historical batch', status: 'active', ...historicalEntity,
+    },
+    linearIssue: { ...issue, title: 'Historical batch', archivedAt: '2026-07-10T00:00:00Z' },
+    outboxComments: [],
+  });
+  const liveRestore = classifyOutboundBatch({
+    batch: {
+      id: 'bat_live', client_slug: 'fixture-client', team: 'video',
+      name: 'Live batch', status: 'active', ...liveEntity,
+    },
+    linearIssue: { ...issue, title: 'Live batch', archivedAt: '2026-07-12T05:05:00Z' },
+    outboxComments: [],
+  });
+  ok(historicalRestore.diffs.length === 0
+    && historicalRestore.outbound_intents.length === 0
+    && historicalRestore.tolerated.some(item => item.reason === 'tolerated_historical' && item.operation === 'restore'),
+  'historical batch restore is reported but never emitted');
+  ok(liveRestore.diffs.some(item => item.reason === 'outbound_batch_archive_mismatch')
+    && liveRestore.outbound_intents.some(item => item.operation === 'restore'),
+  'live-era batch restore remains an outbound operation');
+  const d27Summary = summarize([historicalOutbound, historicalRestore, liveRestore], []);
+  ok(d27Summary.tolerated_historical === 2
+    && d27Summary.by_team.video.tolerated_historical === 2,
+  'reconciler summary reports D-27 tolerances explicitly at total and team scope');
   const entitySummary = summarize([outbound, batchOutbound], []);
   ok(entitySummary.deliverables_checked === 1 && entitySummary.batches_checked === 1,
     'two-way summary reports deliverable and batch coverage separately');
@@ -219,6 +311,9 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     'a create dependency supplies parentId only and is never mistaken for the child issue');
   ok(/status: "stale"/.test(ef) && /linear_newer_than_syncview_intent/.test(read('supabase/functions/linear-outbound/mapping.mjs')),
     'newer Linear edits are marked stale, not overwritten');
+  ok(/conflict\.decision === "tolerated_historical"/.test(ef)
+    && /counts\.tolerated_historical\+\+/.test(ef),
+  'drainer skips and counts defensively queued historical structure writes');
   ok(/linear_outbound_summary/.test(ef)
     && /echo_dropped/.test(ef)
     && /shadow_vs_actual_divergence/.test(ef),

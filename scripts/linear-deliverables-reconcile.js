@@ -282,7 +282,7 @@ async function loadLiveData() {
     outboxRows,
     prodAuthority,
   ] = await Promise.all([
-    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,priority,origin,card_id,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw', 'order=team.asc,identifier.asc'),
+    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,priority,origin,card_id,created_by,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw', 'order=team.asc,identifier.asc'),
     supabaseRows('team_members', 'id,name,email,linear_user_id,team,active'),
     supabaseRows('deliverable_events', 'deliverable_id,action,source,payload', '&source=in.(ui,mirror,outbound)&order=ts.desc'),
     supabaseRows('calendar_posts', 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'),
@@ -409,6 +409,7 @@ function summaryMarkdown(plan, startedAt, finishedAt) {
     `| SyncView -> Linear diffs | ${s.outbound_diff_count || 0} |`,
     `| Rows with diffs | ${s.diff_rows} |`,
     `| Tolerated divergences | ${s.tolerated_count} |`,
+    `| Historical structure tolerances | ${s.tolerated_historical || 0} |`,
     `| Unknown-assignee repair rows | ${s.repair_list_size} |`,
     `| Card linkage gaps | ${s.linkage_count} |`,
     `| Card linkage actionable | ${s.linkage_actionable || 0} |`,
@@ -418,11 +419,11 @@ function summaryMarkdown(plan, startedAt, finishedAt) {
     `| Linear webhooks disabled | ${s.webhooks ? s.webhooks.disabled : 0} |`,
     `| Linear webhooks missing Comment resource | ${s.webhooks ? s.webhooks.missing_comment_resource : 0} |`,
     '',
-    '| Team | Deliverables | Batches | Inbound diffs | Outbound diffs | Tolerated | Repairs | Detect-only rows |',
-    '|---|---:|---:|---:|---:|---:|---:|---:|',
+    '| Team | Deliverables | Batches | Inbound diffs | Outbound diffs | Tolerated | Historical | Repairs | Detect-only rows |',
+    '|---|---:|---:|---:|---:|---:|---:|---:|---:|',
   ];
   for (const [team, t] of Object.entries(s.by_team || {})) {
-    lines.push(`| ${team} | ${t.deliverables} | ${t.batches || 0} | ${t.inbound_diff_count || 0} | ${t.outbound_diff_count || 0} | ${t.tolerated_count} | ${t.repair_list_size} | ${t.detect_only_rows} |`);
+    lines.push(`| ${team} | ${t.deliverables} | ${t.batches || 0} | ${t.inbound_diff_count || 0} | ${t.outbound_diff_count || 0} | ${t.tolerated_count} | ${t.tolerated_historical || 0} | ${t.repair_list_size} | ${t.detect_only_rows} |`);
   }
   return lines.join('\n');
 }

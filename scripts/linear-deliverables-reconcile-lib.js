@@ -5,6 +5,8 @@ const STATUS_SLUGS = new Set([
   'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate',
 ]);
 const SAMPLE_CLAMPED_STATES = new Set(['scheduled', 'posted']);
+const D27_LIVE_ERA_START = '2026-07-12T04:48:56.000Z';
+const D27_BACKFILL_CREATORS = new Set(['linear-backfill', 'history-backfill-2026-07-10']);
 
 function clean(v) {
   return String(v == null ? '' : v).trim();
@@ -23,6 +25,37 @@ function parseJson(v) {
   } catch (_e) {
     return {};
   }
+}
+
+function dateMs(v) {
+  const value = Date.parse(clean(v));
+  return Number.isFinite(value) ? value : null;
+}
+
+function isHistoricalEntity(entity) {
+  const row = entity && typeof entity === 'object' ? entity : {};
+  const raw = parseJson(row.linear_raw);
+  const issue = raw.issue && typeof raw.issue === 'object' ? raw.issue : {};
+  const createdAt = dateMs(row.created_at || issue.createdAt);
+  const liveEraStart = dateMs(D27_LIVE_ERA_START);
+  if (createdAt == null || liveEraStart == null || createdAt >= liveEraStart) return false;
+
+  const backfillProvenance = D27_BACKFILL_CREATORS.has(lower(row.created_by))
+    || lower(row.origin) === 'backfill';
+  const completedAt = dateMs(issue.completedAt);
+  const completedBeforeLiveEra = completedAt != null && completedAt < liveEraStart;
+  return backfillProvenance || completedBeforeLiveEra;
+}
+
+function historicalWriteDisposition(operation, entity) {
+  const op = lower(operation);
+  if (!['parent', 'restore'].includes(op) || !isHistoricalEntity(entity)) return null;
+  return {
+    decision: 'tolerated_historical',
+    operation: op,
+    classification_reason: 'd27_historical_structure_frozen',
+    live_era_start: D27_LIVE_ERA_START,
+  };
 }
 
 function parseArray(v) {
@@ -162,8 +195,8 @@ function addReal(out, field, expected, actual, reason) {
   out.diffs.push({ field, expected, actual, reason: reason || 'mismatch' });
 }
 
-function addTolerated(out, field, expected, actual, reason) {
-  out.tolerated.push({ field, expected, actual, reason });
+function addTolerated(out, field, expected, actual, reason, details) {
+  out.tolerated.push(Object.assign({ field, expected, actual, reason }, details || {}));
 }
 
 function classifyDeliverable(input) {
@@ -368,17 +401,28 @@ function classifyOutboundDeliverable(input) {
 
   const linearParent = linearParentId(issue);
   if (expectedParentId && expectedParentId !== linearParent) {
-    addReal(out, 'parent', expectedParentId, linearParent || null, 'outbound_parent_mismatch');
-    out.outbound_intents.push(outboundIntent('parent', deliverable, {
-      parent_linear_issue_id: expectedParentId,
-    }));
+    const historical = historicalWriteDisposition('parent', deliverable);
+    if (historical) {
+      addTolerated(out, 'parent', expectedParentId, linearParent || null, 'tolerated_historical', historical);
+    } else {
+      addReal(out, 'parent', expectedParentId, linearParent || null, 'outbound_parent_mismatch');
+      out.outbound_intents.push(outboundIntent('parent', deliverable, {
+        parent_linear_issue_id: expectedParentId,
+      }));
+    }
   }
 
   const localGone = deliverableArchivedOrDeleted(deliverable);
   const linearGone = linearArchivedOrDeleted(issue);
   if (localGone !== linearGone) {
-    addReal(out, 'archived_deleted', localGone, linearGone, 'outbound_archive_mismatch');
-    out.outbound_intents.push(outboundIntent(localGone ? 'archive' : 'restore', deliverable, {}));
+    const operation = localGone ? 'archive' : 'restore';
+    const historical = historicalWriteDisposition(operation, deliverable);
+    if (historical) {
+      addTolerated(out, 'archived_deleted', localGone, linearGone, 'tolerated_historical', historical);
+    } else {
+      addReal(out, 'archived_deleted', localGone, linearGone, 'outbound_archive_mismatch');
+      out.outbound_intents.push(outboundIntent(operation, deliverable, {}));
+    }
   }
 
   const linearComments = linearCommentIds(issue);
@@ -437,10 +481,16 @@ function classifyOutboundBatch(input) {
   const localGone = ['archived', 'canceled'].includes(lower(batch.status));
   const linearGone = linearArchivedOrDeleted(issue);
   if (localGone !== linearGone) {
-    addReal(out, 'archived_deleted', localGone, linearGone, 'outbound_batch_archive_mismatch');
-    out.outbound_intents.push(outboundIntent(localGone ? 'archive' : 'restore', batch, {
-      linear_issue_id: clean(issue.id),
-    }));
+    const operation = localGone ? 'archive' : 'restore';
+    const historical = historicalWriteDisposition(operation, batch);
+    if (historical) {
+      addTolerated(out, 'archived_deleted', localGone, linearGone, 'tolerated_historical', historical);
+    } else {
+      addReal(out, 'archived_deleted', localGone, linearGone, 'outbound_batch_archive_mismatch');
+      out.outbound_intents.push(outboundIntent(operation, batch, {
+        linear_issue_id: clean(issue.id),
+      }));
+    }
   }
 
   const linearComments = linearCommentIds(issue);
@@ -501,6 +551,7 @@ function summarize(results, linkageRows) {
       inbound_diff_count: 0,
       outbound_diff_count: 0,
       tolerated_count: 0,
+      tolerated_historical: 0,
       repair_list_size: 0,
       detect_only_rows: 0,
     };
@@ -510,6 +561,8 @@ function summarize(results, linkageRows) {
     if (r.direction === 'outbound') byTeam[team].outbound_diff_count += r.diffs.length;
     else byTeam[team].inbound_diff_count += r.diffs.length;
     byTeam[team].tolerated_count += r.tolerated.length;
+    byTeam[team].tolerated_historical += r.tolerated
+      .filter(item => clean(item && item.reason) === 'tolerated_historical').length;
     byTeam[team].repair_list_size += r.repairs.length;
     if (r.diffs.length) byTeam[team].diff_rows++;
     if (r.authority === 'syncview' && r.diffs.length) byTeam[team].detect_only_rows++;
@@ -527,6 +580,8 @@ function summarize(results, linkageRows) {
       .reduce((n, r) => n + r.diffs.length, 0),
     diff_rows: results.filter(r => r.diffs.length).length,
     tolerated_count: results.reduce((n, r) => n + r.tolerated.length, 0),
+    tolerated_historical: results.reduce((n, r) => n + r.tolerated
+      .filter(item => clean(item && item.reason) === 'tolerated_historical').length, 0),
     repair_list_size: results.reduce((n, r) => n + r.repairs.length, 0),
     linkage_count: (linkageRows || []).length,
     by_team: byTeam,
@@ -548,8 +603,11 @@ function summarizeWebhooks(webhooks) {
 module.exports = {
   STATUS_SLUGS,
   SAMPLE_CLAMPED_STATES,
+  D27_LIVE_ERA_START,
   clean,
   parseJson,
+  isHistoricalEntity,
+  historicalWriteDisposition,
   statusFromName,
   mapLinearState,
   deliverableArchivedOrDeleted,

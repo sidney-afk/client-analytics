@@ -49,6 +49,7 @@ const plan = {
       id: 'batch-one', entity: 'batch', team: 'video', identifier: 'VID-2',
       row: { client_slug: 'fixture-three' },
       diffs: [{ field: 'title', expected: 'Local', actual: 'Remote', reason: 'outbound_batch_title_mismatch' }],
+      tolerated: [{ field: 'parent', reason: 'tolerated_historical', operation: 'parent' }],
       repairs: [], outbound_intents: [{ operation: 'title', payload: { title: 'Local' } }],
     },
   ],
@@ -71,6 +72,10 @@ ok(summary.public.intended_writes.total === 2
 ok(summary.public.by_team.video.entities_checked === 2
   && summary.public.by_team.graphics.entities_checked === 1,
 'summary preserves aggregate team coverage without client names');
+ok(summary.public.tolerated_historical.total === 1
+  && summary.public.tolerated_historical.by_operation.parent === 1
+  && summary.public.coverage.clients_with_tolerated_historical === 1,
+'summary keeps historical suppression visible without turning it into an intended write');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'b4-outbound-shadow-audit.js'), 'utf8');
 ok(/B4_CONFIRM_READ_ONLY_SHADOW/.test(source), 'live audit requires explicit read-only confirmation');

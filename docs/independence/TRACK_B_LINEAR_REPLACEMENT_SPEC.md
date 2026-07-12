@@ -78,15 +78,17 @@ mirror is one-directional. We never run true two-way sync.**
 | **B1** Data model + backfill | Linear (unchanged) | none | not built | schema, operational+archive migration, client reconcile |
 | **B2** Build surface | Linear (unchanged) | none | built, flag-hidden | Production tab behind `?prod=1`, role-gated |
 | **B3** *Phase 1 — Evaluation mirror* | **Linear** | Linear → Supabase (inbound) | **read-only live mirror** | editors keep real work in Linear, try the new tab; zero risk |
-| **B4** *Phase 2 — Authoritative pilot* | **Supabase** (per pilot team) | Supabase → Linear (outbound) | **authoritative** for the pilot team | pilot team works in the new tab; Linear kept current as fallback |
+| **B4** *Phase 2 — Shadow then authoritative rollout* | **SyncView** (after the owner flip) | SyncView → Linear (outbound) | shadow first; then authoritative for both teams | all-client shadow proof + watchers replace a per-client pilot; Linear remains the reversible fallback |
 | **B5** New-only + teardown | Supabase | none (Linear frozen) | authoritative for all | Linear cold read-only fallback for a grace period, then archive + cancel |
 
-**1.1 Authority is a runtime flag, not a deploy.** One new key in `syncview_runtime_flags`:
-`prod_authority` = `{"video":"linear","graphics":"linear"}` (B3 default) → `"supabase"` per team
-at each B4 flip. **(D-19, owner 2026-07-11 — amends granularity:** the pilot flips **both teams
-together** to avoid split-authority-within-a-card, but rolls out **per client** via an allowlist,
-Track-A style, rather than per-team-global. See D-19 / `B4_READINESS.md` §6 for the authority-shape
-change this implies.) Consumed by the same proven `_calRuntimeFlagClients`-style machinery
+**1.1 Authority is a runtime flag, not a deploy.** `prod_authority` starts as
+`{"video":"linear","graphics":"linear"}` (B3 default) and changes to `"syncview"` per team only
+at an owner-approved B4 handoff. `linear_outbound_enabled` is the independent global switch:
+`off` → `shadow` → `live`. **D-25 supersedes D-19's per-client pilot:** shadow is proven across
+the full roster, then the owner flips both teams/clients live together. **D-26 preserves per-team
+reversibility after that handoff:** either team may be paused by setting only that team's authority
+back to `linear`; inbound remains live so SyncView follows direct Linear work during the pause.
+Consumed by the same proven `_calRuntimeFlagClients`-style machinery
 (realtime-updated), read by: the FE Linear-push gates (§4.5), the card link-button resolver
 (§9.2), the inbound engine (§4.3), the outbound mirror (§4.4), the legacy reconcilers and the
 gated n8n bridges (§4.5). Flipping a team = **one SQL update**; rollback = the same update
@@ -97,10 +99,10 @@ reversed. Two hardening rules from the critic pass:
   cached value **freezes Linear-facing writes** (explicit "sync paused — reload" UX) rather than
   guessing. (A constant `linear` default would, after a flip, quietly re-enable Linear pushes and
   point editors back at frozen Linear.)
-- **Drill granularity:** `prod_authority_client_overrides` = `{"sidneylaruel":{"video":"supabase"}}`
-  (TEST-only, same shape discipline as the Track A flags) lets the §12 flip drill run end-to-end
-  on the TEST client/project **without** flipping a whole team in production. Consumers check the
-  override first, then the team value.
+- **Drill granularity:** the service-only TEST harness supplies a fail-closed request override that
+  is accepted only for the active TEST client and privately allowlisted TEST project ids. It never
+  writes a runtime flag and cannot authorize a real-client row. Production consumers read only the
+  global switch plus the team authority.
 Because `syncview_runtime_flags.updated_at` is **provably not maintained on update** (re-audit
 F3), B0 adds a `BEFORE UPDATE` stamp trigger **and** the `flag_flips` append-only log (§2.2).
 
@@ -131,8 +133,9 @@ drift; (d) **unknown assignees**: issues assigned to ghost/removed users compare
 `linear_raw` user id in the reconciler (mirror fidelity), and land on the repair list instead of
 the diff count — otherwise one stale-WIP ghost blocks the 7-day zero-diff gate forever.
 
-**1.5 The B3→B4 flip checklist (per team, one team at a time)** — expanded with the re-audit's
-hidden-writer inventory and the critic findings:
+**1.5 The B3→B4 flip checklist** — expanded with the re-audit's hidden-writer inventory and the
+critic findings. D-25 changes rollout granularity: complete the checklist and all-client shadow
+proof for both teams, then flip both teams together. D-26 keeps every later pause/resume per team:
 
 1. Announce freeze to the team (the freeze is social; steps 5–8 are the technical net).
 2. Quiesce app-side outbound: verify both localStorage outboxes are **drained on every staff
@@ -142,7 +145,8 @@ hidden-writer inventory and the critic findings:
 3. Final inbound reconcile; verify **zero diff** for that team (statuses, assignees — via raw
    user id, due dates modulo §1.4 tolerances, titles, engine-tracked comments per §8.1) **and
    zero cards carrying a Linear link with no `*_deliverable_id`** (linkage completeness, §4.3.5).
-4. Flip `prod_authority[team]='supabase'` (logged in `flag_flips` + `EXECUTION_LOG.md` +
+4. Set `linear_outbound_enabled='shadow'`, then flip both `prod_authority` entries to `syncview`
+   (logged in `flag_flips` + `EXECUTION_LOG.md` +
    ROLLBACK.md Live State row updated in the same PR).
 5. Verify every legacy writer is gated for that team: FE push gates (§4.5), `MJbMZ`'s
    calendar/samples branches, **both reconcile scripts** (skip / detect-only for
@@ -151,8 +155,9 @@ hidden-writer inventory and the critic findings:
    **n8n `linear-set-status` / `linear-add-comment` webhooks themselves** (server-side
    `prod_authority` check inside each — one snapshotted n8n edit per workflow — so stale-JS tabs
    and late outbox flushes are refused centrally, not just client-side).
-6. Enable the outbound mirror for that team; probe a full create→status→comment→due round trip
-   on the TEST project.
+6. Hold in shadow until all-client intended mutations match Linear and every outbound watcher is
+   live; only the owner may then set `linear_outbound_enabled='live'`. The TEST project must first
+   pass create→status→comment→due plus pause/resume and kill-switch drills.
 7. Repoint the card link buttons + status-pill lock predicate + **the Kasper-queue visibility
    gates** (§9.2 — the unlinked-graphic gates at `_calCompKasperVisible` and twins; missing this
    silently drops every new thumbnail out of Kasper review) for that team; probe: a new
@@ -176,7 +181,7 @@ Live-State mandate apply to every phase, not just B1):**
 | B1 | additive tables only; no behavior flip | drop nothing; old world untouched |
 | B2 | `?prod=1` + role gate (tab hidden by default) | hide tab (flag) |
 | B3 | `linear_inbound_enabled` runtime flag (+ webhook disable in Linear as the hard kill) | set false / disable webhook |
-| B4 | `prod_authority[team]` | flip back to `linear` |
+| B4 | `linear_outbound_enabled` (`off`/`shadow`/`live`) + `prod_authority[team]` | global stop: set mode `off`; everyday team pause: set that team back to `linear` |
 | B5 | each teardown step is its own reversible action (§13) | reactivate the n8n workflow / webhook |
 
 Every phase: snapshot per ROLLBACK rule 4 before starting, and update ROLLBACK.md's Live State
@@ -541,20 +546,40 @@ channels get explicit treatment:
 
 ### 4.4 Outbound mirror (new EF `linear-outbound` + `mirror_outbox`, B4 per team)
 
-- **Trigger:** the write EF commits → synchronous Linear push attempt → on failure
-  `sync_state='pending'` + `mirror_outbox` row. Retry worker (GH Actions cron ~5 min; pg_cron
-  fallback) drains with backoff; `attempts>8` → `sync_state='error'` + Slack. Durable retry is
-  server-side, deliberately not localStorage.
-- **Ops:** issue create (batch parent create on first deliverable — only on the deliverable's
-  own team, and never a parent on a Linear-authoritative team, §1.2), state update
-  (**deliverable-native mapping: straight, incl. `in_progress`→"In Progress"** — §2.1/D-10),
-  title/due/assignee update, comment create (`**{Actor} (via SyncView):**\n\n{body}` — the live
-  convention `linear-tweak-comments` parses), archive.
-- **Identity & secrets:** dedicated Linear key/actor distinct from sidney@ (§4.2, D-18), stored
-  as EF secret. **Rate limits:** Linear's budget dwarfs ~70 writes/day; worker caps 1 op/s,
-  backs off on 429.
+- **Durable enqueue:** `deliverable-write` and `batch-write` remain the only write entrypoints.
+  Their ledger transaction enqueues one idempotent `mirror_outbox` row for each explicit UI intent.
+  The row carries entity/operation/payload, `dedup_key`, actor/role, and `source_edited_at`; retries
+  and outcomes remain server-side, never in browser localStorage. Supported operations are create,
+  status, comment, due, assignee, title, priority, parent, archive, and restore.
+- **Three-way switch:** `linear_outbound_enabled={"mode":"off"}` is the deployed default. `shadow`
+  resolves the exact GraphQL mutation and variables, compares them with current Linear state, and
+  records `shadow_ok` without sending. `live` sends through the dedicated
+  `LINEAR_MIRROR_API_KEY`. A row advances in either mode only when its team's
+  `prod_authority` is `syncview`; otherwise it stays queued.
+- **Newest-edit-wins:** every row records the SyncView edit timestamp. Before shadow or live work,
+  the drainer reads the relevant current Linear value and its field clock. A newer direct-Linear
+  edit marks the queued row `stale` rather than overwriting it. Comments are additive and therefore
+  do not stale-drop because an unrelated issue field changed.
+- **Create/idempotency:** create uses a deterministic Linear-valid UUID derived from `dedup_key`,
+  checkpoints the Linear result before local linkage, and re-draining a written row is a no-op.
+  Parent create is an explicit dependency; a child is never mistaken for its own parent.
+- **Echo prevention:** outbound comments carry the established `(via SyncView)` convention plus an
+  internal dedup marker. `linear-inbound` drops an echo only when the webhook actor is the dedicated
+  mirror identity **and** its value/marker matches an acknowledged outbox intent. The drainer
+  checkpoints acknowledgment before final status so a fast webhook cannot race the guard.
+- **Pause/resume (D-26):** set one team's authority to `linear` to stop outbound writes and healing
+  immediately. Inbound continues applying Linear truth. Pending rows are retained. On resume, only
+  rows still newer than Linear are replayed; stale intents are dropped. Global emergency stop is
+  `linear_outbound_enabled={"mode":"off"}` and also retains pending rows.
+- **Recovery and monitoring:** the scheduled Actions worker drains capped batches and writes one
+  `source='outbound'` summary event per run. The n8n pager dispatches/checks it and pages on failed
+  writes, growing backlog above threshold, volume spikes, shadow mismatch, or stale summaries while
+  mode is active. Reconciler v2 measures both directions; outbound healing only enqueues through the
+  same RPC path when the team is SyncView-authoritative. A missing known Linear comment requeues its
+  original idempotent outbox row through the service-only `mirror_outbox_requeue` RPC rather than
+  minting a second dedup key.
 - **Dropped side effect:** the +2d overdue bump is NOT replicated (D-8).
-- **Not synced:** labels/estimates/cycles; the archive; priority (inbound-only).
+- **Not synced:** labels, estimates, and cycles.
 
 ### 4.5 The legacy pipes during transition (measured dependencies — gate, don't guess)
 
@@ -586,7 +611,7 @@ Last-write-wins remains the backstop only.
 | Sync loop (echo re-applied) | §4.2 strict-AND drop + flap alert (same field >N/hr) | per-team single direction | reconciler v2 settles to authoritative side | none (ledger has every hop) |
 | Partial mirror failure | `sync_state` + outbox depth + Slack | Supabase (authoritative) stays correct; mirror lags | outbox retries; manual replay tool | none |
 | Linear down (B3) | inbound silence + reconciler failures | mirror stale (banner via last-event age) | **webhook redelivery is limited** (Linear retries briefly and can auto-disable the webhook) — recovery = reconciler v2 **applying** corrections + §8.2 webhook-enabled probe; not redelivery hope | none |
-| Linear down (B4) | outbox depth alarm | pilot team unaffected | outbox drains on recovery | none |
+| Linear down (B4) | outbox depth alarm | SyncView-authoritative work remains saved; mirror pauses | outbox drains on recovery | none |
 | Supabase down | FE read failures; health check | B3: editors keep working in Linear; B4: degraded read-only (§7.4); **writes are refused loudly** (no background client queue — consistent with §4.4's removal of localStorage outboxes) | outbox/reconciler verify on recovery | none if refusals are loud; PITR/exports cover storage loss |
 | Comment lost in mirror | engine-tracked comment map (§8.1) | authoritative store written first | re-push from thread (idempotent by comment id) | none |
 | Client renamed mid-flight | rename event | slugs immutable; display-only rename | — | none |
@@ -832,6 +857,10 @@ envelope family the FE already speaks).
 **9.1 Creating a card → deliverable(s).** Batch picker + "new batch"; deliverables stamped
 `origin`, `card_id`, `kind`; one sample = up to TWO deliverables. In B3, creation still flows
 intake→Linear and mirrors in; from B4 the card/intake creates natively and the mirror pushes.
+The B4 backend now implements the native-create leg as an idempotent outbox dependency chain:
+batch parent first, then child deliverable, with deterministic Linear ids and result checkpointing.
+It remains dark behind outbound mode `off`; the existing intake UI/plumbing is not re-pointed until
+the owner-approved authority handoff.
 **Split-authority window (critic add):** intake requests split per deliverable team — the
 Supabase-authoritative leg creates its batch row + deliverable natively FIRST; the
 Linear-authoritative leg goes through the legacy intake and, when its parent/sub-issues mirror
@@ -1034,7 +1063,7 @@ Slack now, behind one `notify` EF (ro.am-swappable). Fires on: deliverable assig
 input (D-14):** what does Linear's native project→Slack integration post today (~51 projects
 carry `slackChannelId`) — which of it must the notify EF replicate so client channels don't go
 quiet at B5? Editors also lose Linear's own inbox at cutover; the assigned/tweak notifications
-are the replacement — confirm sufficiency with the pilot team during B3.
+are the replacement — confirm sufficiency in the TEST matrix and full-roster shadow review.
 
 ---
 
@@ -1049,8 +1078,8 @@ are the replacement — confirm sufficiency with the pilot team during B3.
   webhook running together — assert each app comment appears exactly once)**; B4 echo-drop
   (strict AND); per-team isolation; **two-writer race** (concurrent conflicting transitions →
   one 409, no silent overwrite); alias move; webhook delete; clamped-state tolerance; **the full
-  §1.5 flip checklist executed on the TEST client via `prod_authority_client_overrides`**
-  (team-level flags never flip in production for a drill — critic catch), including outbox-drain
+  §1.5 flip checklist executed on the TEST client via the service-only request override**
+  (runtime authority flags never change for a drill), including outbox-drain
   evidence and the detect-only straggler alert.
 - **Migration dry-run** (B1 gate): counts vs audit numbers; 20-issue spot parity; repair queue;
   idempotency (second run = zero changes); rate-budget compliance.
@@ -1131,7 +1160,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 |---|---|---|---|---|
 | D-1 | PITR add-on: yes/no/when | **Owner confirmed Pro plan 2026-07-05** (good — daily backups + 7-day retention already included). PITR costs **$100/mo (7-day)** + requires Small compute (~$5/mo net after Pro credits) — it's billed **prorated to the hour**, which enables a cheap middle path | (a) NOW: add a free 6-hourly export (GH Action) → RPO ≤ 6 h; (b) enable PITR **temporarily** around the risky windows only (B1 backfill days, each B4 flip week) and disable after — prorated cost ≈ a few dollars per window; (c) revisit keeping PITR permanently at B5, when Linear stops being a live second copy. **APPROVED by owner 2026-07-05** ("enable it [per this plan]; I'm not going to pay $100/mo") — i.e. no permanent add-on; 6-hourly export ships in B0; PITR toggled on only for the named windows | B1 ✅ |
 | D-2 | Ratify status slugs + mappings (§2.1), incl. the Triage no-op and the D-10 outbound split | three vocabularies measured | **RATIFIED by owner 2026-07-05** ("yeah okay, do that — smartly"). His follow-up question — should the CARD pills gain the Linear-only statuses (Backlog/Canceled/…)? — answered as specced: **no; cards keep today's 8-status review vocabulary unchanged** (zero behavior risk to the review flows); the Production tab carries the full 13; the projection shows Backlog/Todo/Triage as "In Progress" on cards exactly as the Linear sync does today. If SMMs later want a "not started yet" hint on cards, it can be added as a display badge without touching the vocabulary | B0 ✅ |
-| D-3 | Priority: mirror-only (hidden) vs surfaced | in active use again; locked design has no priority UI | mirror-only + URGENT; revisit after pilot | B1 |
+| D-3 | Priority: mirror-only (hidden) vs surfaced | in active use again; locked design has no priority UI | mirror-only + URGENT; revisit after the full-roster shadow window | B1 |
 | D-4 | Pre-migration Linear cleanup (824 zombies + 336 stale-WIP) | §5.1 — **OPTIONAL**: the migration cutoff already sends old open issues to the archive, not the live board, so skipping this loses nothing; a cleanup only makes Linear itself tidier during the mirror phase | default = skip unless the owner wants Linear tidied; a ready-made issue list can be generated on request | — |
 | D-5 | Intake extras: port Claude graphics-titles? confirm AI-thumbnail chain stays dead? | §9.1 | port titles via EF secret; thumbnails dead | B2 |
 | D-6 | Ratify §9.5 single-writer comment design | card thread stays the store; Kasper inbox intact | as specced | B1 |
@@ -1146,13 +1175,15 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-15 | Rotate the 7 public per-SMM Linear keys + remove the sheet column | publicly readable via gviz today | **DECLINED by owner 2026-07-05** ("I don't care about it") — risk accepted, same posture as D9 (hardcoded house key). Keys become moot at B5 when Linear is retired; the sheet column is still removed at §13.6 cleanup | — |
 | D-16 | §3 owner review list (Coleman, Burch, terrinamar, junk quarantine) | §3 | — | B1 |
 | D-17 | Copy the design-kit behavioral suites into the repo | **RESOLVED 2026-07-05**: owner shared the probe folder via Drive; `behav.js` (138 assertions), `qa-features.js`, `sweep.js`, `build.js`, and the parity-audit workflow are now committed at `docs/syncview-design/tests/` (with run + path-adaptation README). NOTE for owner: the shared Drive folder also contains `.linear-probe-profile` — a saved **Linear login session**; un-share the folder or delete that subfolder | B2 ✅ |
-| D-18 | Mirror identity: dedicated Linear user seat vs OAuth-app actor | §4.2/§4.4 — must be distinct from sidney@ for echo-dropping | OAuth-app actor if available; else a machine user seat | B4 |
-| D-19 | B4 flip granularity: per-team-global (§1.1) vs. both-teams-together, per-client | §1.1/§9.1 — per-team flipping creates the split-authority-within-a-card window (a card's video slot authoritative in Supabase while its graphic slot is still Linear), the plan's fiddliest adoption path | **RATIFIED by owner 2026-07-11 ("option 3"):** flip **both teams together** so a card is never split across systems, but roll out **per client** via an allowlist (TEST → pilot client → roster), mirroring the Track-A `*_ef_clients` rollout. Implies re-shaping authority from the global per-team `prod_authority` switch to a per-client(-per-team) allowlist. Trades the split-card adoption code for a per-client authority gate; keeps gradual blast-radius control. Codex to cost both at B4 scoping. | B4 |
+| D-18 | Mirror identity: dedicated Linear user seat vs OAuth-app actor | §4.2/§4.4 — must be distinct from a human editor for echo-dropping | **IMPLEMENTED in B4:** dedicated SyncView Mirror identity through the `LINEAR_MIRROR_API_KEY` EF secret; the drainer resolves its actor id at runtime and strict echo matching requires that actor plus the acknowledged outbox intent. No secret or personal identity is stored in the repo. | B4 ✅ |
+| D-19 | B4 flip granularity: per-team-global (§1.1) vs. both-teams-together, per-client | §1.1/§9.1 — per-team flipping creates the split-authority-within-a-card window (a card's video slot authoritative in Supabase while its graphic slot is still Linear), the plan's fiddliest adoption path | **SUPERSEDED by D-25 on 2026-07-11.** The earlier decision was both teams together with a per-client allowlist; D-25 replaces the allowlist/pilot with full-roster shadow proof followed by one owner-controlled all-client live flip. Retained here as decision history only. | B4 |
 | D-20 | Card → Production deep-link (replaces the "open in Linear" URL button, §9.2) | locked decision 6 + §9.2 re-point cards from `linear_issue_id` to `*_deliverable_id` | **RATIFIED by owner 2026-07-11:** label **"View sub-issue"**; opens the deliverable in the Production tab in a **new browser tab** (not a side panel). | B4/B5 |
 | D-21 | Legacy Linear-link fields on cards at/after cutover | §13.4.i keeps the `linear_issue_id` columns inert after teardown | **RATIFIED by owner 2026-07-11:** leave the fields **inert but present** with a **phase-aware disclaimer** — during the fallback window "Linear is a fallback during migration; links still work," and the field quietly retires after teardown. | B5 |
 | D-22 | Linear fallback grace period (§1/§13) | Linear kept as a fallback after cutover | **RATIFIED by owner 2026-07-11:** **~1 week, fully reversible ("dual-ready"):** the one-flag `prod_authority`→`linear` rollback stays armed all week so the team can keep working in Linear if the app needs fixes; after a clean week, freeze Linear read-only, then archive. | B5 |
 | D-23 | Submission ("Linear") tab UI at B4 (§9.1) | intake plumbing flips to native create; the tab UI could also change | **CONFIRMED by owner 2026-07-11: no UI change** — only the backend plumbing flips (create natively, mirror out during the fallback). Revisit the look later if desired. | B4 |
 | D-24 | Consolidate staff auth into the three role keys (one password per person) + polish the sign-in surface | today there are three separate keys — the B4 role key, the Client Credentials key (`client-credentials` EF), and the onboarding key (`onboarding-full`, Kasper-only) | **RATIFIED by owner 2026-07-11: one password per person = their role key.** The `client-credentials` and onboarding EFs accept the role key (same `key-verify` mechanism) and gate by role — **credentials: `admin`+`smm`; onboarding: `admin` only; creative/editor/designer: neither.** FE drops the separate credential/onboarding key prompts and uses the signed-in role identity. Additive + reversible: keep the old separate-key paths working during transition, then retire. **Signed-in state shows an account menu** (Signed in as `<name>` · `<role>` + **Sign out**; **no "Switch user"** — sign out then in). The sign-in modal itself to be polished to a finished/premium standard, judged via the master-tester vision pass + `/human-audit`. `auth_enforcement` stays permissive throughout; no secret-value rotation. | B4 / auth |
+| D-25 | B4 rollout model | D-19's per-client pilot vs. full-roster shadow proof | **RATIFIED by owner 2026-07-11; supersedes D-19:** no per-client pilot. Build `off` → `shadow` → `live`; prove the exact intended mutations in shadow across the full roster, require live watchers and zero two-way drift, then the owner flips both teams/all clients live together. Safety comes from shadow evidence and monitoring, not a reduced client allowlist. | B4 |
+| D-26 | Reversible pause / graceful fallback | emergency-only rollback vs. normal team operation | **RATIFIED by owner 2026-07-11:** a team may be paused at any time by setting its authority to `linear`. Outbound writes/healing stop immediately, inbound continues keeping SyncView current, pending rows are retained, and resume replays only intents that still win the real timestamp comparison. Global kill switch remains outbound mode `off`. | B4 |
 
 ---
 

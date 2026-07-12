@@ -73,6 +73,18 @@ The four calls composed from `ONBOARDING_EDGE_BASE` are `onboarding-list`,
 credential-stripped reads; `onboarding-full` is the unstripped inbox and accepts the admin role
 key plus the legacy onboarding-key fallback during transition.
 
+### Backend-only Edge Functions (not part of the machine-enforced `index.html` set)
+
+- `linear-inbound` — HMAC-verified Linear webhook target; the browser never calls it.
+- `linear-outbound` — service-triggered durable-outbox drainer. It is dark by default behind
+  `linear_outbound_enabled={"mode":"off"}` and is invoked by scheduled/backend jobs, not the SPA.
+- `deliverable-write`, `batch-write` — B4 server write wrappers over the existing ledger RPCs.
+  The Production tab is still read-only, so these have no `index.html` call site yet.
+- `thumbnail-revision-scan` — scheduled Drive scanner; the browser never calls it.
+
+These are documented separately by design. Do not add them to the literal endpoint set checked by
+`test/truth-sync.js` until `index.html` actually calls them.
+
 ## Supabase tables (curated — NOT machine-enforced)
 
 Table names are partly built dynamically (`'/rest/v1/' + table`), so this list is maintained

@@ -284,6 +284,38 @@ function baseDeliverableRow(existing: ExistingRow): JsonMap {
   };
 }
 
+function updateLinearFieldClocks(raw: JsonMap, payload: JsonMap, issue: JsonMap): void {
+  const data = objectAt(payload.data);
+  const updatedFrom = objectAt(payload.updatedFrom || data.updatedFrom);
+  const changed = new Set(Object.keys(updatedFrom));
+  const action = payloadAction(payload);
+  const timestampMs = webhookTimestampMs(payload);
+  const timestamp = Number.isFinite(timestampMs)
+    ? new Date(timestampMs).toISOString()
+    : clean(issue.updatedAt);
+  if (!timestamp) return;
+
+  const clocks = parseJson(raw.field_updated_at);
+  const mark = (field: string, keys: string[]): void => {
+    if (keys.some(key => changed.has(key))) clocks[field] = timestamp;
+  };
+  mark("status", ["state", "stateId"]);
+  mark("due", ["dueDate"]);
+  mark("assignee", ["assignee", "assigneeId"]);
+  mark("title", ["title"]);
+  mark("priority", ["priority"]);
+  mark("parent", ["parent", "parentId"]);
+  if (["archive", "restore", "remove", "delete"].includes(action) || changed.has("archivedAt")) {
+    clocks[action === "restore" ? "restore" : "archive"] = timestamp;
+  }
+  if (action === "create") {
+    for (const [field, key] of [["status", "state"], ["due", "dueDate"], ["assignee", "assignee"], ["title", "title"], ["priority", "priority"], ["parent", "parent"]]) {
+      if (has(issue, key)) clocks[field] = timestamp;
+    }
+  }
+  raw.field_updated_at = clocks;
+}
+
 function mergeLinearRaw(existing: ExistingRow, issue: JsonMap, payload: JsonMap): JsonMap {
   const raw = parseJson(existing.linear_raw);
   const previousIssue = raw.issue && typeof raw.issue === "object" ? raw.issue as JsonMap : {};
@@ -296,6 +328,7 @@ function mergeLinearRaw(existing: ExistingRow, issue: JsonMap, payload: JsonMap)
     webhook_timestamp: clean(payload.webhookTimestamp || payload.webhook_timestamp),
     delivery_id: clean(payload.id || payload.webhookId || payload.deliveryId),
   };
+  updateLinearFieldClocks(raw, payload, issue);
   return raw;
 }
 
@@ -396,7 +429,9 @@ async function recordDetectOnly(supabase: SupabaseClient, existing: ExistingRow,
 
 async function isDetectOnlyTeam(supabase: SupabaseClient, team: string): Promise<boolean> {
   const authority = await prodAuthority(supabase);
-  return clean(authority[team]) === "supabase";
+  const key = lower(team) === "graphics" || lower(team) === "graphic" ? "graphics" : "video";
+  const value = lower(authority[key]);
+  return value === "syncview" || value === "supabase";
 }
 
 function isClampedState(existing: ExistingRow, slug: string): boolean {
@@ -554,6 +589,109 @@ function shouldDropEchoComment(comment: JsonMap): boolean {
   return legacyCommentActors().some(actor => actor && authorKey.includes(actor));
 }
 
+function outboundMarker(body: unknown): string {
+  const match = String(body == null ? "" : body).match(/<!--\s*syncview-mirror:([^>]+?)\s*-->/i);
+  return match ? clean(match[1]) : "";
+}
+
+function objectAt(value: unknown): JsonMap {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as JsonMap : {};
+}
+
+function webhookActorId(payload: JsonMap, issue: JsonMap, comment: JsonMap): string {
+  const candidates = [
+    objectAt(payload.actor).id,
+    objectAt(payload.user).id,
+    objectAt(payload.webhookActor).id,
+    objectAt(issue.updatedBy).id,
+    objectAt(comment.user).id,
+  ];
+  return candidates.map(clean).find(Boolean) || "";
+}
+
+function outboundExpected(row: JsonMap): JsonMap {
+  const result = parseJson(row.linear_result);
+  const variables = parseJson(result.expected);
+  return parseJson(variables.input);
+}
+
+function outboundValueMatches(row: JsonMap, payload: JsonMap, issue: JsonMap, comment: JsonMap): boolean {
+  const operation = lower(row.operation);
+  const expected = outboundExpected(row);
+  const action = payloadAction(payload);
+  if (operation === "comment") {
+    const result = parseJson(row.linear_result);
+    const commentId = clean(comment.id);
+    return (clean(result.comment_id) && clean(result.comment_id) === commentId)
+      || (!!outboundMarker(comment.body) && outboundMarker(comment.body) === clean(row.dedup_key));
+  }
+  if (operation === "create") return action === "create";
+  if (operation === "status") return clean(objectAt(issue.state).id) === clean(expected.stateId);
+  if (operation === "due") return clean(issue.dueDate) === clean(expected.dueDate);
+  if (operation === "assignee") return clean(objectAt(issue.assignee).id) === clean(expected.assigneeId);
+  if (operation === "title") return clean(issue.title) === clean(expected.title);
+  if (operation === "priority") return Number(issue.priority || 0) === Number(expected.priority || 0);
+  if (operation === "parent") return clean(objectAt(issue.parent).id) === clean(expected.parentId);
+  if (operation === "archive") return action === "archive" || !!issue.archivedAt;
+  if (operation === "restore") return action === "restore" && !issue.archivedAt;
+  return false;
+}
+
+async function recentOutboundEcho(
+  supabase: SupabaseClient,
+  payload: JsonMap,
+): Promise<JsonMap | null> {
+  const comment = commentFromPayload(payload);
+  const issue = comment.issue && typeof comment.issue === "object"
+    ? comment.issue as JsonMap
+    : issueFromPayload(payload);
+  const issueId = linearIssueUuid(issue);
+  const actorId = webhookActorId(payload, issue, comment);
+  if (!issueId || !actorId) return null;
+
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("id,entity_id,client_slug,operation,dedup_key,payload,linear_result,status,processed_at,updated_at")
+    .in("status", ["pending", "shadow_ok", "written", "failed"])
+    .gte("updated_at", since)
+    .order("updated_at", { ascending: false })
+    .limit(100);
+  if (error) return null;
+
+  for (const candidate of Array.isArray(data) ? data : []) {
+    const row = candidate as JsonMap;
+    const result = parseJson(row.linear_result);
+    if (clean(result.issue_id) !== issueId) continue;
+    if (clean(result.mirror_actor_id) !== actorId) continue;
+    if (!outboundValueMatches(row, payload, issue, comment)) continue;
+    return row;
+  }
+  return null;
+}
+
+async function recordOutboundEchoDrop(
+  supabase: SupabaseClient,
+  row: JsonMap,
+  payload: JsonMap,
+): Promise<void> {
+  const issue = issueFromPayload(payload);
+  const existing = await readDeliverableForIssue(supabase, issue);
+  await supabase.from("deliverable_events").insert({
+    deliverable_id: clean(existing && existing.id) || clean(row.entity_id) || null,
+    batch_id: clean(existing && existing.batch_id) || null,
+    client_slug: clean(existing && existing.client_slug) || clean(row.client_slug) || "_system",
+    actor: "SyncView Mirror",
+    role: "system",
+    action: "mirror_out_echo_dropped",
+    source: "outbound",
+    payload: {
+      outbox_id: Number(row.id || 0),
+      operation: clean(row.operation),
+      delivery_id: clean(payload.webhookId || payload.deliveryId || payload.id),
+    },
+  });
+}
+
 function pinnedCommentObject(comment: JsonMap): JsonMap {
   return {
     role: "editor",
@@ -611,6 +749,11 @@ async function handleCommentEvent(supabase: SupabaseClient, payload: JsonMap): P
 }
 
 async function handleLinearWebhook(supabase: SupabaseClient, payload: JsonMap): Promise<JsonMap> {
+  const echo = await recentOutboundEcho(supabase, payload);
+  if (echo) {
+    await recordOutboundEchoDrop(supabase, echo, payload);
+    return { ok: true, dropped: "syncview_mirror_echo", outbox_id: Number(echo.id || 0) };
+  }
   const resource = payloadResource(payload);
   const action = payloadAction(payload);
   if (resource.includes("comment") || (commentFromPayload(payload).body !== undefined && action !== "remove")) {

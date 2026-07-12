@@ -44,10 +44,11 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   (`*_events`, `mirror_outbox`, `linear_archive`, `client_credentials_rev`,
   `thumbnail_media_revisions`) are written by Edge Functions / reconcilers, not read directly by the
   SPA.
-- **Edge Functions.** 19 live under `supabase/functions/`; **the app calls 16** (see §7). The three
-  it never calls are server-side only: the **B0 login verifier** (`key-verify` — built, wired in at
-  B4), the **Linear-webhook target** (`linear-inbound` — receives 2 of the 4 Linear webhooks in B3),
-  and the **scheduled thumbnail Drive scanner** (`thumbnail-revision-scan`).
+- **Edge Functions.** 22 live under `supabase/functions/`; **the app calls 17** (see §7). Five are
+  server-side only: the Linear webhook target (`linear-inbound`), the dark B4 outbox drainer
+  (`linear-outbound`), the B4 write wrappers (`deliverable-write`, `batch-write`), and the scheduled
+  thumbnail Drive scanner (`thumbnail-revision-scan`). The Production tab remains read-only, so the
+  new B4 wrappers/drainer have no `index.html` endpoint.
 - **n8n** (single host). **55 webhook paths** referenced by the app (§7). Live-instance check
   2026-07-11: **54 of 55 are served by ACTIVE workflows**; the lone exception is `ttp-status`, which
   has **no serving webhook** — its constant is defined but never fetched, and TikTok-Pilot status is
@@ -57,14 +58,16 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   `ai-onboarding-*`), TikTok (`tiktok-*`, `ttp-*`), and Slack pings (`send-urgent-slack`,
   `weekly-slack-top-reel`).
 - **Linear.** 4 webhooks in — 2 new HMAC-signed → the `linear-inbound` EF (realtime mirror, B3), 2
-  legacy → an n8n card-patch workflow (retire at B5). API out via the n8n `linear-*` bridge until the
-  B4 outbox. Adoption of brand-new issues via a 30-min incremental-refresh GitHub Action.
+  legacy → an n8n card-patch workflow (retire at B5). API out remains via the n8n `linear-*` bridge;
+  the B4 `linear-outbound` path is deployed but dark (`mode=off`, both teams Linear-authoritative).
+  Adoption of brand-new issues uses a 30-min incremental-refresh GitHub Action.
 - **Google Sheets** (`gviz` CSV, one workbook). Serves **all analytics numbers** (six tabs) and the
   client roster / review tokens (`Clients Info`), the SMM directory (`Social Media Managers`), and a
   legacy filming-plans fallback tab. Populated by an external morning scrape.
-- **GitHub Actions (9).** 3 reconcilers (`linear-sync`, `sample-linear`, `linear-deliverables`), 2
+- **GitHub Actions (10).** 3 reconcilers (`linear-sync`, `sample-linear`, `linear-deliverables`), 2
   nightlies (calendar-E2E, samples-E2E), the production-polish gate, unit tests, the B1 30-min Linear
-  incremental refresh, the edge-function deploy — plus Pages hosting itself. **Slack:** alerts + pings.
+  incremental refresh, the staged B4 outbound drainer, the edge-function deploy — plus Pages hosting
+  itself. **Slack:** alerts + pings.
 
 ## 3. App shell & cross-cutting mechanics
 
@@ -617,16 +620,20 @@ separate hidden first-party Direct-Post surface.*
 
 ## 5. What changes, when (Track B) + auth
 
-Current phase: **B3 (live)** — evaluation mirror, Linear authoritative for both teams.
+Current phase: **B4 outbound staging (dark)** — B3 evaluation mirror remains live and Linear stays
+authoritative for both teams.
 `prod_authority = {video: linear, graphics: linear}`, `linear_inbound_enabled = {enabled: true}`
 (flip 15, 2026-07-07), `auth_enforcement = permissive`; the three Track-A `*_ef_clients` flags carry
 the full active roster (Track A closed 2026-07-10). Mirror at full parity (~4.3k deliverables /
 ~1.0k batches; diff / repair / linkage all 0, 2026-07-11).
 
-- **B4 (gate owner-dependent, auth first).** Per-team authority flip (`prod_authority[team]`, one-flag
-  rollback): the Production tab becomes writable via deliverable-/batch-write EFs; Calendar & SXR
-  link predicates re-point (spec §9.2); Workload re-points to `deliverables` per team (realtime on);
-  intake creates natively; the outbound mirror keeps Linear current.
+- **B4 (in progress; owner gates remain).** The additive outbox, write wrappers, outbound drainer,
+  strict echo suppression, TEST-only harness, two-way reconciler lane, and pager coverage are staged
+  behind `linear_outbound_enabled=off`; real authority remains Linear. D-25 requires full-roster
+  shadow proof and live watchers before a both-team/all-client live flip. D-26 makes
+  `prod_authority[team]=linear` the normal per-team pause while inbound keeps SyncView current.
+  Production write affordances, card predicates, Workload, and intake remain on their current paths
+  until their separate owner-approved handoff.
 - **B5 (after clean batch cycles per team).** Linear frozen → archived; the `linear-*` n8n family and
   legacy card-write webhooks retired; Workload reconciler + `workload_issues` retired; SyncView is
   the whole production system.
@@ -671,7 +678,7 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 
 - **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
 - **Edge functions (17):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve`
-- **Not counted above:** 13 of the 17 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Two more live in `supabase/functions/` but are never called by the app: the Linear-webhook target and the scheduled thumbnail Drive scanner. (`key-verify` — the B0 login verifier — moved into the called set as of PR #788: the staff sign-in modal pings it at boot to revalidate the stored role key.)
+- **Not counted above:** 13 of the 17 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more live in `supabase/functions/` but are never called by the app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
 - **Supabase REST tables, literal (8):** `calendar_posts` · `caption_prompts` · `content_samples` · `filming_plans` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the Production tab pages any of its tables through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`; reaches `batches`, `deliverables`, `deliverable_events`, `team_members`, `clients`), and SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (3):** `calendar_upsert_ef_clients` · `sample_review_ef_clients` · `settings_ef_clients`

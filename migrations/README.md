@@ -13,6 +13,9 @@ CI, `supabase/config.toml`, or `scripts/` executes these files (see
 - **Dated files (`YYYY-MM-DD-<slug>.sql`)** are deltas. Files dated after
   2026-07-03 apply **on top of** the baseline; earlier dated files are already
   folded into it and remain as history.
+- **`2026-07-11-b4-linear-outbound.sql`** additively expands the dormant B1
+  outbox, seeds the default-off outbound switch, and installs atomic enqueue /
+  TEST-quarantine helpers. It does not flip authority or enable Linear writes.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

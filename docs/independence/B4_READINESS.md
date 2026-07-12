@@ -142,8 +142,9 @@ all-client shadow observation window, and owner authority/live flips remain gate
 | Pause / inbound fallback / resume preserves newer Linear work | Pause event `8942`, resume event `8944`; queued older title marked `stale` | ✅ |
 | Global off stops immediately and retains queue | Off event `8946`, resumed event `8948`, idempotent re-drain `8949` | ✅ |
 | Two-way reconciler returns zero | TEST authority event `8950` and post-cleanup event `8959`: diff 0 / repair 0 / linkage actionable 0 | ✅ |
-| Watchers deployed | Pager watches failure/backlog/volume/shadow mismatch/staleness; final dark-state pager execution `250463` was green with zero alert items. Actions drainer starts dispatching after owner merge places the workflow on `main`. | ✅ staged |
-| Full-roster shadow window clean | Owner must set shadow + both authorities only after this PR and writable callers are merged | ⏳ OWNER GATE |
+| Watchers deployed | Post-merge Action run `29181125012` completed green. Pager execution `251537` delivered the harmless failed-write signal; execution `251672` delivered harmless backlog-growth and shadow-mismatch signals. Normal event `9003` restored a clean mode-off summary. Volume/staleness branches remain source-tested. | ✅ live |
+| Read-only full-roster shadow preflight | Corrected run `b4-shadow-1783835492969` compared 5,228 entities across all 32 real clients without changing authority: 73 unexpected intended writes (72 parent, 1 restore), 0 actual writes, and unchanged flags/outbox high-water. Public-safe evidence: `docs/audits/2026-07-11-b4-postmerge-shadow-evidence.md`. | ⚠️ BLOCKED |
+| Full-roster shadow window clean | Do not move authority until the read-only preflight's historical-parent/archive handling rules are approved, the self-parent classifier correction is merged, and the same comparison returns zero unexpected intents. | ⚠️ BLOCKED |
 | All-client live handoff | Owner-only `shadow` → `live` flip after the clean shadow window | ⏳ OWNER GATE |
 
 ### Owner flip order (do not run before the gate)

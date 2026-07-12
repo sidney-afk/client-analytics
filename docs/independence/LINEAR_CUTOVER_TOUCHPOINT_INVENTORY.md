@@ -39,6 +39,12 @@ owner gate; this applies to the OAuth-application inventory and the `/add-to-cal
 
 - [ ] **Reroute every explicit status, comment, and create intent in the writer table through the
   server-side outbox.** Do not leave a direct Linear branch beside the new button handler.
+- [ ] **Make the native comment lane self-contained and visible:** persist body, stable author,
+  timestamp, comment/thread IDs, role/audience, and edit/delete state in durable events, then render
+  comment bodies in Production issue detail.
+- [ ] **Run an idempotent one-time Linear comment backfill.** If all currently discoverable VID/GRA
+  issues are in scope, treat 15,000 current comments as the statistical minimum and provision about
+  20,000 comment rows; size event/outbox rows and body/attachment bytes separately.
 - [ ] **Drain and then neutralize all three browser queues:** `syncview_linear_outbox_v1`,
   `syncview_sxr_linear_outbox_v1`, and `syncview_calCardJobs_v1`, including startup, focus, timer,
   page-hide, resume, and reassert paths.
@@ -145,8 +151,8 @@ written locally first. That is the authoritative local copy, not an imported bri
 | VERIFIED readback | Result |
 |---|---|
 | All deliverables | 4,350 rows. |
-| Operational `linear-backfill` rows | 1,145 total; 381 currently contain historical `linear_raw.issue.comments`, totaling 577 comments across 20 actor identities. |
-| One-time catch-up marker | 486 rows retain the 2026-07-07 catch-up marker; 373 still have comments and 113 now have an empty comment node list. No captured thread reported pagination beyond the 50-comment cap. |
+| Operational `linear-backfill` rows | 1,145 total; 387 have a comments array, of which 381 are non-empty and 6 empty. The non-empty arrays retain 577 comments across 20 actor identities. |
+| One-time catch-up marker | 486 rows retain the 2026-07-07 catch-up marker; 373 still have non-empty arrays with 565 comments and 113 now have no comments array. No retained array reported pagination beyond the 50-comment cap. |
 | Public-safe parity spots | `VID-9714` and `GRA-5239` each had 6 raw snapshot comments and 6 current Linear comments. |
 | Finished-work history backfill | 3,187 `history-backfill-2026-07-10` rows; 0 raw comment threads, by design. |
 
@@ -154,6 +160,89 @@ So backfill-era snapshots **sometimes contain complete historical threads**, but
 durable live comment lane and the Production UI does not display them. A later partial Linear issue
 payload can replace `linear_raw.issue` without comments, which explains the 113 catch-up rows that
 now have none.
+
+## Comment coverage census (2026-07-12 addendum)
+
+All counts below came from read-only, fully paged API/REST reads. Only aggregate counts and schema
+shape were retained; no comment body, client/project name, API key, or sampled issue list appears in
+this document.
+
+### `deliverable_events` since B3 live
+
+The census used `ts >= 2026-07-07T00:00:00Z` and semantic action/source filters; a text search for
+"comment" would incorrectly include reconciler webhook-health summaries.
+
+| VERIFIED event class | Ledger rows | Distinct scope | Body in event payload | Actual author in event payload |
+|---|---:|---|---:|---:|
+| Accepted inbound `mirror_in_comment_add` | 67 | 57 comment IDs across 37 deliverables; 10 IDs logged twice; 49 graphics / 18 video rows | 0 / 67 | 0 / 67 |
+| Native/outbound `comment_change` | 6 | 6 sanctioned TEST intents | 6 / 6 | 0 / 6 |
+| Comment `mirror_out_echo_dropped` | 18 | 6 TEST outbox intents, each logged three times | 0 / 18 | 0 / 18 |
+| One-time `linear_comment_catchup` summary | 489 | 489 deliverables; summaries represent 825 historical comments | 0 / 489 | 0 / 489 |
+
+There are therefore 85 direct mirror-lane rows (67 accepted inbound plus 18 echo records), but at
+most 63 distinct accepted/intended comments after inbound duplicates and repeated echo records
+collapse: 57 inbound comment IDs plus 6 outbound TEST intents. The inbound
+event actor is a transport/system identity, not the human commenter. Live payloads and source agree:
+`linear-inbound` writes body and author into mutable `deliverables.comments`, but sends only
+`linear_comment_id` and image references to `eventFor` (`linear-inbound/index.ts:390-402`,
+`695-705`, `746-748`). Catch-up ledger rows contain only count/pagination provenance
+(`b3-comment-catchup.js:205-211`). **The event ledger cannot reconstruct comment text or authors.**
+
+### `linear_raw` retention by cohort
+
+| VERIFIED cohort | Rows | Rows with comments array | Non-empty arrays | Retained comments | Conclusion |
+|---|---:|---:|---:|---:|---|
+| All deliverables | 4,350 | 387 | 381 | 577 | Only 8.9% have any array. |
+| Operational `linear-backfill` | 1,145 | 387 | 381 | 577 | Arrays exist only in this cohort. |
+| `history-backfill-2026-07-10` | 3,187 | 0 | 0 | 0 | Finished-work import intentionally has no threads. |
+| Recent inbound refresh (`linear_raw.inbound.webhook_timestamp >= 2026-07-10`) | 108 | 0 | 0 | 0 | Realtime refresh does not retain arrays. |
+| Rows carrying `incremental_refresh` | 42 | 13 | 13 | 29 | All 13 array-bearing rows also retain the catch-up marker; this marker covers only soft-handled incremental rows and does not mean current refreshes import comments. |
+
+Recent reads do not populate comments. Realtime inbound replaces `linear_raw.issue` wholesale except
+for `parent` (`linear-inbound/index.ts:319-332`), and the B1 query does not request comments
+(`b1-linear-backfill.js:427-450`). The 489 catch-up summaries represented 825 comments at capture
+time, while only 565 remain in the currently marked raw rows. `linear_raw` is therefore neither a
+complete history nor a safe backfill source.
+
+### Workspace-wide Linear volume estimate
+
+The read-only population census found 17,544 currently discoverable VID/GRA issues at the
+2026-07-12 cutoff, including archived issues: 11,428 VID / 6,116 GRA and 4,232 parents / 13,312
+subissues. A reproducible 256-issue sample used equal-rank creation-age quartiles inside each
+team x parent/subissue cell, yielding 16 strata and 16 issues per stratum. Selection used the 16
+lowest unsigned FNV-1a32 hashes of
+`linear-comment-volume-v1-2026-07-12T00:55:51Z|<identifier>` in each stratum. Each issue was
+requested with `limit=250` and followed until `hasNextPage=false`; all 256 fit on one page. The
+sample had zero API errors and no issue exceeded 11 comments.
+
+| VERIFIED population-weighted estimate | Result |
+|---|---:|
+| Mean comments per issue | 0.729 |
+| Median / P75 / P90 / maximum observed | 0 / 1 / 2 / 11 |
+| Zero-comment share | 53.6% |
+| Estimated currently retained comments | 12,792 |
+| Approximate 95% interval for total retained comments | 10,865-14,718 |
+| VID / GRA estimated comments | 4,784 / 8,008 |
+| Parent / subissue estimated comments | 5,303 / 7,488 |
+
+This estimates currently retained/discoverable comments, including replies and inline description
+comments but excluding issue activity history. Deleted comments and deleted/inaccessible issues are
+not recoverable. The interval treats deterministic hash selection as approximately random and may
+understate a rare unseen extreme tail. For an all-VID/GRA migration, **15,000 current comment
+entities** is the statistical planning minimum. Provision about **20,000 comment rows** for growth
+and rollback staging, and size event/outbox rows plus body/attachment bytes separately. Narrow the
+population only with an explicit mapped-deliverable scope.
+
+### Display gap and epoch deliverable
+
+Production loads `deliverable_events` (`index.html:32639-32649`) and passes them to `_prodActivity`
+(`33423-33441`). The renderer uses only actor/role/source, normalized action or status transition,
+and time; it never reads `payload`, `linear_raw`, or a comment body (`33495-33503`). The epoch must:
+
+1. make each durable comment event self-contained with body, stable author identity, timestamp,
+   Linear/native comment ID, parent/thread metadata, role/audience, and edit/delete state;
+2. backfill historical comments idempotently from Linear, not from the incomplete ledger/raw cache;
+3. render author + body + time in issue detail and verify pagination, edits, deletes, and visibility.
 
 ## Reader and inbound-writer inventory
 
@@ -295,8 +384,9 @@ Every item below is included above and must appear in the epoch spec:
 9. The `/add-to-calendar` Linear-reader/Sheet-writer branch with no confirmed caller.
 10. Kasper's non-Linear feed plus four Linear-link eligibility predicates.
 11. The four active Linear webhook configurations and the two observed machine identities.
-12. Backfill comment snapshots are historical-only, inconsistently retained, and never rendered in
-    Production issue detail.
+12. The comment ledger is not self-contained: accepted inbound events carry neither body nor actual
+    author, raw snapshots are historical-only/inconsistently retained, and Production renders no
+    comment bodies. The full-VID/GRA historical backfill is approximately 12,792 comments.
 13. Calendar/SXR manual Linear URL slots, link-gated status controls, completeness banners, and
     seven-day metadata/card caches.
 14. Linear-URL archive aliases plus duplicate/move identity and conflict behavior.
@@ -320,6 +410,8 @@ when all of the following are true at once:
   old gates or navigation;
 - native status controls, link pickers, archive/dedupe identity, Workload navigation,
   post-submit materialization, and new audit logs no longer require a Linear URL/identifier;
+- comment events are self-contained, the idempotent historical backfill is reconciled, and
+  Production issue detail renders author + body + time with edit/delete/visibility tests;
 - the four direct mutation webhooks refuse writes for SyncView-authoritative teams;
 - `MJbMZ`, both legacy reconcilers, and B1 incremental apply cannot write authoritative fields from
   Linear for a SyncView-authoritative team;

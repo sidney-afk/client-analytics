@@ -355,6 +355,7 @@ async function resolveContext(
 ): Promise<JsonMap> {
   const payload = parseJson(row.payload);
   const context: JsonMap = {
+    entity,
     linear_issue_id: linearIssueId(row, entity, dependency),
     parent_linear_issue_id: clean(
       payload.parent_linear_issue_id
@@ -645,6 +646,7 @@ Deno.serve(async (req: Request) => {
     retried: 0,
     echo_dropped: 0,
     stale_dropped: 0,
+    tolerated_historical: 0,
     skipped: 0,
     paused: 0,
     shadow_vs_actual_divergence: 0,
@@ -685,6 +687,19 @@ Deno.serve(async (req: Request) => {
       if (testClient) await testScope(supabase, row, issue);
       const context = await resolveContext(supabase, row, entity, issue, dependency);
       const conflict = decideConflict(row, issue, context);
+
+      if (conflict.decision === "tolerated_historical") {
+        counts.tolerated_historical++;
+        counts.skipped++;
+        await releaseRow(supabase, row, {
+          status: "skipped",
+          processed_at: new Date().toISOString(),
+          linear_result: { conflict, issue: compactIssue(issue) },
+          last_error: null,
+          next_retry_at: null,
+        });
+        continue;
+      }
 
       if (conflict.decision === "stale") {
         counts.stale_dropped++;

@@ -563,6 +563,14 @@ channels get explicit treatment:
 - **Create/idempotency:** create uses a deterministic Linear-valid UUID derived from `dedup_key`,
   checkpoints the Linear result before local linkage, and re-draining a written row is a no-op.
   Parent create is an explicit dependency; a child is never mistaken for its own parent.
+- **Historical structure freeze (D-27):** outbound never restructures historical work. `parent`
+  and `restore` are classified `tolerated_historical` and are neither enqueued nor sent when the
+  entity was created before `2026-07-12T04:48:56.000Z` (the B4 implementation merge boundary)
+  **and** has explicit historical provenance: `created_by` is `linear-backfill` or
+  `history-backfill-2026-07-10`, `origin='backfill'`, or
+  `linear_raw.issue.completedAt` predates that boundary. A row created at/after the boundary, or
+  an older active/manual row without that evidence, remains live-era and may emit `parent` or
+  `restore`. Every other operation, including `archive`, is unchanged.
 - **Echo prevention:** outbound comments carry the established `(via SyncView)` convention plus an
   internal dedup marker. `linear-inbound` drops an echo only when the webhook actor is the dedicated
   mirror identity **and** its value/marker matches an acknowledged outbox intent. The drainer
@@ -1184,6 +1192,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-24 | Consolidate staff auth into the three role keys (one password per person) + polish the sign-in surface | today there are three separate keys — the B4 role key, the Client Credentials key (`client-credentials` EF), and the onboarding key (`onboarding-full`, Kasper-only) | **RATIFIED by owner 2026-07-11: one password per person = their role key.** The `client-credentials` and onboarding EFs accept the role key (same `key-verify` mechanism) and gate by role — **credentials: `admin`+`smm`; onboarding: `admin` only; creative/editor/designer: neither.** FE drops the separate credential/onboarding key prompts and uses the signed-in role identity. Additive + reversible: keep the old separate-key paths working during transition, then retire. **Signed-in state shows an account menu** (Signed in as `<name>` · `<role>` + **Sign out**; **no "Switch user"** — sign out then in). The sign-in modal itself to be polished to a finished/premium standard, judged via the master-tester vision pass + `/human-audit`. `auth_enforcement` stays permissive throughout; no secret-value rotation. | B4 / auth |
 | D-25 | B4 rollout model | D-19's per-client pilot vs. full-roster shadow proof | **RATIFIED by owner 2026-07-11; supersedes D-19:** no per-client pilot. Build `off` → `shadow` → `live`; prove the exact intended mutations in shadow across the full roster, require live watchers and zero two-way drift, then the owner flips both teams/all clients live together. Safety comes from shadow evidence and monitoring, not a reduced client allowlist. | B4 |
 | D-26 | Reversible pause / graceful fallback | emergency-only rollback vs. normal team operation | **RATIFIED by owner 2026-07-11:** a team may be paused at any time by setting its authority to `linear`. Outbound writes/healing stop immediately, inbound continues keeping SyncView current, pending rows are retained, and resume replays only intents that still win the real timestamp comparison. Global kill switch remains outbound mode `off`. | B4 |
+| D-27 | Historical-write suppression | the full-roster read-only audit found historical parent/restore differences that would restructure completed backfill-era work | **RATIFIED by owner 2026-07-12:** outbound never restructures historical work. The exact predicate and operation scope are locked in §4.4; historical `parent`/`restore` differences remain visible as `tolerated_historical` but are never enqueued or written. Live-era restructuring remains enabled. | B4 |
 
 ---
 

@@ -101,7 +101,7 @@ Editor". At B5 the `linear-subissues` webhook is retired with the rest of the le
 
 ## 6. B4 rollout & UX — owner decisions (ratified 2026-07-11)
 
-Recorded here in plain language; the authoritative entries are spec §14 **D-19…D-23** (this
+Recorded here in plain language; the authoritative entries are spec §14 **D-19…D-27** (this
 section is the operational reflection, not a competing source).
 
 - **Rollout model (D-25; supersedes D-19):** no per-client pilot. Keep global mode `off` while
@@ -111,6 +111,10 @@ section is the operational reflection, not a competing source).
 - **Reversible pause (D-26):** setting either team's `prod_authority` back to `linear` is a normal
   operational pause. Outbound writes and healing stop for that team, inbound keeps SyncView current,
   queued intents remain durable, and resume drops any intent older than the direct Linear edit.
+- **Historical structure freeze (D-27):** outbound `parent` and `restore` operations are suppressed
+  only for pre-B4 entities with explicit backfill provenance or a pre-B4 Linear completion marker.
+  They remain counted as `tolerated_historical`; live-era parent moves/restores and all other fields
+  remain writable.
 - **Card → Production deep-link (D-20):** the card's old "open in Linear" button becomes
   **"View sub-issue,"** opening that deliverable in the Production tab in a **new browser tab**.
 - **Legacy Linear-link fields (D-21):** keep them **inert but visible with a phase-aware
@@ -143,8 +147,8 @@ all-client shadow observation window, and owner authority/live flips remain gate
 | Global off stops immediately and retains queue | Off event `8946`, resumed event `8948`, idempotent re-drain `8949` | ✅ |
 | Two-way reconciler returns zero | TEST authority event `8950` and post-cleanup event `8959`: diff 0 / repair 0 / linkage actionable 0 | ✅ |
 | Watchers deployed | Post-merge Action run `29181125012` completed green. Pager execution `251537` delivered the harmless failed-write signal; execution `251672` delivered harmless backlog-growth and shadow-mismatch signals. Normal event `9003` restored a clean mode-off summary. Volume/staleness branches remain source-tested. | ✅ live |
-| Read-only full-roster shadow preflight | Corrected run `b4-shadow-1783835492969` compared 5,228 entities across all 32 real clients without changing authority: 73 unexpected intended writes (72 parent, 1 restore), 0 actual writes, and unchanged flags/outbox high-water. Public-safe evidence: `docs/audits/2026-07-11-b4-postmerge-shadow-evidence.md`. | ⚠️ BLOCKED |
-| Full-roster shadow window clean | Do not move authority until the read-only preflight's historical-parent/archive handling rules are approved, the self-parent classifier correction is merged, and the same comparison returns zero unexpected intents. | ⚠️ BLOCKED |
+| Read-only full-roster shadow preflight | D-27 pre-alignment run `b4-shadow-1783877861264` returned 0 unexpected intents and reported all 73 prior findings as `tolerated_historical`. After the required SyncView-side terminal-row alignment, identical run `b4-shadow-1783878356762` returned 0 divergences, 0 intended writes, 0 repairs, and 72 historical parent tolerances. Both runs proved zero Linear mutations and unchanged flags/outbox. Public-safe evidence: `docs/audits/2026-07-11-b4-postmerge-shadow-evidence.md`. | ✅ RERUN GATE PASSED |
+| Full-roster shadow window clean | The read-only classifier preflight is clean under D-27. The actual owner-controlled runtime shadow observation window still requires the §1.5 flag sequence and monitoring checks; no authority moved in this work. | ⏳ OWNER GATE |
 | All-client live handoff | Owner-only `shadow` → `live` flip after the clean shadow window | ⏳ OWNER GATE |
 
 ### Owner flip order (do not run before the gate)

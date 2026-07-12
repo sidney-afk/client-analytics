@@ -27,6 +27,9 @@ const STATUS_NAMES = Object.freeze({
   duplicate: "Duplicate",
 });
 
+export const D27_LIVE_ERA_START = "2026-07-12T04:48:56.000Z";
+const D27_BACKFILL_CREATORS = new Set(["linear-backfill", "history-backfill-2026-07-10"]);
+
 function clean(value) {
   return String(value == null ? "" : value).trim();
 }
@@ -39,6 +42,47 @@ function sameValue(a, b) {
   if (a == null && b == null) return true;
   if (typeof a === "number" || typeof b === "number") return Number(a) === Number(b);
   return clean(a) === clean(b);
+}
+
+function parseObject(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(String(value || "{}"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (_e) {
+    return {};
+  }
+}
+
+function dateMs(value) {
+  const parsed = Date.parse(clean(value));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function isHistoricalEntity(entity) {
+  const row = entity && typeof entity === "object" ? entity : {};
+  const raw = parseObject(row.linear_raw);
+  const issue = raw.issue && typeof raw.issue === "object" ? raw.issue : {};
+  const createdAt = dateMs(row.created_at || issue.createdAt);
+  const liveEraStart = dateMs(D27_LIVE_ERA_START);
+  if (createdAt == null || liveEraStart == null || createdAt >= liveEraStart) return false;
+
+  const backfillProvenance = D27_BACKFILL_CREATORS.has(lower(row.created_by))
+    || lower(row.origin) === "backfill";
+  const completedAt = dateMs(issue.completedAt);
+  const completedBeforeLiveEra = completedAt != null && completedAt < liveEraStart;
+  return backfillProvenance || completedBeforeLiveEra;
+}
+
+export function historicalWriteDisposition(row, entity) {
+  const operation = lower(row && row.operation);
+  if (!["parent", "restore"].includes(operation) || !isHistoricalEntity(entity)) return null;
+  return {
+    decision: "tolerated_historical",
+    operation,
+    classification_reason: "d27_historical_structure_frozen",
+    live_era_start: D27_LIVE_ERA_START,
+  };
 }
 
 export function statusNameForSlug(slug) {
@@ -155,6 +199,8 @@ export function intendedValueForOperation(operation, payload = {}, context = {})
 
 export function decideConflict(row, issue, context = {}) {
   const operation = lower(row && row.operation);
+  const historical = historicalWriteDisposition(row, context.entity);
+  if (historical) return historical;
   if (operation === "create") {
     return issue
       ? { decision: "already_exists", reason: "linear_issue_already_exists" }

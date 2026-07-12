@@ -46,7 +46,7 @@ Result:
 | Video | 3,011 | 28 |
 | **Total** | **5,228** | **73** |
 
-Breakdown: 72 parent operations across 13 historical batch groups, plus 1 batch restore operation. These are unexpected and remain a go-live blocker; they were not reclassified as tolerated.
+Breakdown: 72 parent operations across 13 historical batch groups, plus 1 batch restore operation. At the time of this run these were unexpected and remained a go-live blocker; they had not yet received the D-27 handling rule.
 
 The first classifier pass also exposed 949 false parent alarms in which a title-matched batch-parent deliverable was being assigned the batch parent as its own parent. The branch fixes that calculation to honor the existing B1 adapter self-parent rule and adds focused coverage. The corrected full run is the 73-count result above.
 
@@ -59,6 +59,39 @@ Zero-write proof from corrected run `b4-shadow-1783835492969`:
 - Linear mutation calls: 0.
 - Private evidence SHA-256: `f2ed907633047fb9aba3b51037f07b1cba3df00b7fbc24d2c41f8a6994062d4a`.
 
+## D-27 follow-through (2026-07-12)
+
+The owner ratified D-27: outbound never restructures historical work. The implementation defines a
+historical entity as one created before `2026-07-12T04:48:56.000Z` **and** carrying at least one
+explicit historical signal: `created_by` is `linear-backfill` or
+`history-backfill-2026-07-10`, `origin='backfill'`, or the retained Linear `completedAt` predates
+the boundary. Only `parent` and `restore` are suppressed. Older active/manual work without a
+historical signal, all entities created at/after the boundary, and every other operation remain
+writable.
+
+Pre-alignment run `b4-shadow-1783877861264` proved the rule covered exactly the original findings:
+
+- 0 divergences, 0 intended writes, and 0 repairs.
+- 73 `tolerated_historical`: 72 parent operations and 1 restore.
+- Runtime flags and outbox count/high-water remained unchanged; Linear mutation calls: 0.
+- Private evidence SHA-256: `5a5122f82239f4620b18e3b605cbd003a542bc2135e608fef7d44dde40749912`.
+
+The restore evidence showed that Linear was terminal via its canceled state while the SyncView
+batch remained active. The batch was aligned to `archived` through `batch_write` with
+`source='reconcile'`; no Linear write and no outbox enqueue occurred. The private before/after
+snapshots preserve the one-step data rollback.
+
+Post-alignment identical run `b4-shadow-1783878356762` checked 5,227 entities across all 32 real
+clients and returned 0 divergences, 0 intended writes, 0 repairs, and 72 historical parent
+tolerances. Flags were unchanged; outbox stayed `181 -> 181` with high-water `181`, pending and
+real-written counts both stayed 0, and Linear mutation calls were 0. Private evidence SHA-256:
+`f0d9cb0fc697a87940f64906113e96fc899261f1d87eef34ced28ab95d394e68`.
+
+Independent reconciler v2 dry-run summary event `9145` then ended at diff 0 / repair 0 / linkage
+actionable 0 with no healing attempted.
+
 ## Gate decision
 
-No runtime flag moved and no production authority window was needed. The owner-controlled authority flip must remain blocked until the 72 historical parent differences and the single archived-parent difference receive an explicit handling rule, the reconciler fix is merged, and the same read-only full-roster comparison returns no unexpected intended writes.
+The D-27 read-only rerun criterion is passed. No runtime flag moved and no production authority
+window was used. The real all-client shadow observation window remains an explicit owner gate and
+must still follow the documented switch order and watcher checks.

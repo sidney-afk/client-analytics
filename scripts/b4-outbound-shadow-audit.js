@@ -102,6 +102,7 @@ function teamBucket(byTeam, team) {
       repair_count: 0,
       expected_explainable_repairs: 0,
       unexpected_repairs: 0,
+      tolerated_historical: 0,
     };
   }
   return byTeam[key];
@@ -115,6 +116,7 @@ function summarizeShadow(plan, data, rosterSlugs, testClientsExcluded = 0) {
   const operations = new Map();
   const expectedOperations = new Map();
   const clientsWithDiffs = new Set();
+  const clientsWithHistorical = new Set();
   const privateRows = [];
 
   let divergenceCount = 0;
@@ -126,6 +128,8 @@ function summarizeShadow(plan, data, rosterSlugs, testClientsExcluded = 0) {
   let repairCount = 0;
   let expectedRepairs = 0;
   let unexpectedRepairs = 0;
+  let toleratedHistorical = 0;
+  const historicalOperations = new Map();
 
   for (const result of plan.results || []) {
     const bucket = teamBucket(byTeam, result.team);
@@ -191,8 +195,20 @@ function summarizeShadow(plan, data, rosterSlugs, testClientsExcluded = 0) {
       }
     }
 
+    const historical = (result.tolerated || []).filter(item => clean(item && item.reason) === 'tolerated_historical');
+    for (const item of historical) {
+      toleratedHistorical++;
+      bucket.tolerated_historical++;
+      bump(historicalOperations, item.operation || item.field);
+    }
+
     if (diffClasses.length || repairClasses.length) {
       clientsWithDiffs.add(clean(result.row && result.row.client_slug));
+    }
+    if (historical.length) {
+      clientsWithHistorical.add(clean(result.row && result.row.client_slug));
+    }
+    if (diffClasses.length || repairClasses.length || historical.length) {
       privateRows.push({
         entity: result.entity,
         entity_id: result.id,
@@ -202,6 +218,7 @@ function summarizeShadow(plan, data, rosterSlugs, testClientsExcluded = 0) {
         diffs: diffClasses,
         intents: intentClasses,
         repairs: repairClasses,
+        tolerated_historical: historical,
       });
     }
   }
@@ -217,6 +234,7 @@ function summarizeShadow(plan, data, rosterSlugs, testClientsExcluded = 0) {
         deliverables_checked: Number(plan.summary && plan.summary.deliverables_checked || 0),
         batches_checked: Number(plan.summary && plan.summary.batches_checked || 0),
         clients_with_any_divergence: [...clientsWithDiffs].filter(Boolean).length,
+        clients_with_tolerated_historical: [...clientsWithHistorical].filter(Boolean).length,
       },
       divergences: {
         total: divergenceCount,
@@ -236,6 +254,10 @@ function summarizeShadow(plan, data, rosterSlugs, testClientsExcluded = 0) {
         total: repairCount,
         expected_explainable: expectedRepairs,
         unexpected: unexpectedRepairs,
+      },
+      tolerated_historical: {
+        total: toleratedHistorical,
+        by_operation: sortedObject(historicalOperations),
       },
       by_team: byTeam,
     },

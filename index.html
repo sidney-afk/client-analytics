@@ -2731,7 +2731,7 @@
         .prod-group-title { font-size: 13px; font-weight: 500; color: var(--prod-strong); }
         .prod-group-title.navp { cursor: pointer; }
         .prod-group-count { font-size: 13px; color: var(--prod-muted); font-variant-numeric: tabular-nums; }
-        .prod-row { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--prod-divider); cursor: pointer; user-select: none; }
+        .prod-row { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--prod-divider); cursor: pointer; user-select: none; content-visibility: auto; contain-intrinsic-size: 0 44px; contain: content; }
         .prod-row:hover { background: var(--prod-hover); }
         .prod-row.active, .prod-row.selected { background: var(--prod-selected); }
         .prod-row.kfocus { box-shadow: inset 2px 0 0 var(--prod-accent); }

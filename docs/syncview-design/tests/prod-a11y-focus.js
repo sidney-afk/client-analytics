@@ -134,12 +134,86 @@ const {
       _prodState.openId = '';
       _prodState.openProjectId = '';
       _prodState.selected.clear();
+      _prodState.collapsed.clear();
       _prodState.focusRow = '';
       _prodState.hoverRow = '';
       _prodRender();
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     });
     await page.waitForSelector('.prod-row', { timeout: 5000 });
+
+    const containment = await page.locator('.prod-row').first().evaluate(row => {
+      const style = getComputedStyle(row);
+      const rect = row.getBoundingClientRect();
+      return {
+        contentVisibility: style.contentVisibility,
+        contain: style.contain,
+        intrinsicWidth: style.containIntrinsicWidth,
+        intrinsicHeight: style.containIntrinsicHeight,
+        height: rect.height,
+      };
+    });
+    if (containment.contentVisibility !== 'auto'
+      || containment.contain !== 'content'
+      || !/^(?:auto )?0px$/.test(containment.intrinsicWidth)
+      || !/^(?:auto )?44px$/.test(containment.intrinsicHeight)
+      || Math.abs(containment.height - 44) > 0.01) {
+      failures.push('Production row containment contract drifted: ' + JSON.stringify(containment));
+    }
+
+    const offscreenTarget = await page.evaluate(() => {
+      const order = _prodFlatOrder();
+      if (order.length < 3) return '';
+      _prodState.focusRow = order[order.length - 2];
+      _prodRender();
+      const list = document.querySelector('.prod-listwrap');
+      if (list) list.scrollTop = 0;
+      window.scrollTo(0, 0);
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      const id = order[order.length - 1];
+      const row = document.querySelector('[data-prod-row="' + CSS.escape(id) + '"]');
+      const child = row && row.querySelector('.prod-id');
+      const rect = row && row.getBoundingClientRect();
+      return {
+        id,
+        startedOutsideViewport: !!rect && (rect.top >= window.innerHeight || rect.bottom <= 0),
+        startedSkipped: !!(child && child.checkVisibility
+          && !child.checkVisibility({ contentVisibilityAuto: true })),
+      };
+    });
+    if (!offscreenTarget || !offscreenTarget.id
+      || !offscreenTarget.startedOutsideViewport || !offscreenTarget.startedSkipped) {
+      failures.push('Production list did not expose a skipped off-screen row for keyboard focus coverage: '
+        + JSON.stringify(offscreenTarget));
+    } else {
+      await page.keyboard.press('ArrowDown');
+      await page.waitForFunction(id => {
+        const row = document.querySelector('[data-prod-row="' + CSS.escape(id) + '"]');
+        return _prodState.focusRow === id && row && row.classList.contains('kfocus');
+      }, offscreenTarget.id, { timeout: 5000 });
+      await page.waitForTimeout(80);
+      const offscreenFocus = await page.evaluate(id => {
+        const row = document.querySelector('[data-prod-row="' + CSS.escape(id) + '"]');
+        const list = document.querySelector('.prod-listwrap');
+        if (!row || !list) return null;
+        const rr = row.getBoundingClientRect();
+        const lr = list.getBoundingClientRect();
+        const child = row.querySelector('.prod-id');
+        return {
+          scrolled: list.scrollTop > 0 || window.scrollY > 0,
+          visible: rr.top >= Math.max(0, lr.top) - 1 && rr.bottom <= Math.min(window.innerHeight, lr.bottom) + 1,
+          focused: row.classList.contains('kfocus'),
+          insetShadow: /inset/i.test(getComputedStyle(row).boxShadow),
+          descendantVisible: !!(child && child.checkVisibility
+            && child.checkVisibility({ contentVisibilityAuto: true })),
+        };
+      }, offscreenTarget.id);
+      if (!offscreenFocus || !offscreenFocus.scrolled || !offscreenFocus.visible
+        || !offscreenFocus.focused || !offscreenFocus.insetShadow || !offscreenFocus.descendantVisible) {
+        failures.push('Off-screen data-prod-row focus/scroll or inset shadow regressed: ' + JSON.stringify(offscreenFocus));
+      }
+    }
+
     await page.keyboard.press('ArrowDown');
     const focusState = await page.evaluate(() => ({
       row: !!document.querySelector('.prod-row.kfocus'),
@@ -152,11 +226,39 @@ const {
     await page.keyboard.press('Enter');
     if (!(await page.locator('.prod-detail').count())) failures.push('Keyboard Enter did not open the focused issue detail');
 
+    await page.evaluate(() => {
+      _prodState.view = 'list';
+      _prodState.openId = '';
+      _prodState.openBatchId = '';
+      _prodState.openProjectId = '';
+      _prodState.focusRow = '';
+      _prodState.hoverRow = '';
+      _prodRender();
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    });
+    const paletteTarget = await page.evaluate(() => {
+      const order = _prodFlatOrder();
+      const id = order[order.length - 1] || '';
+      const issue = id && _prodIssue(id);
+      return issue ? { id, label: _prodIssueLabel(issue) } : null;
+    });
+    if (!paletteTarget) {
+      failures.push('Production list did not expose an issue for command-palette jump coverage');
+    } else {
+      await page.evaluate(() => _prodOpenPalette());
+      await page.fill('.prod-cmd-input', paletteTarget.label);
+      await page.waitForSelector('.prod-cmd-item', { timeout: 5000 });
+      await page.keyboard.press('Enter');
+      await page.waitForSelector('.prod-detail', { timeout: 5000 });
+      const paletteJumped = await page.evaluate(id => _prodState.openId === id, paletteTarget.id);
+      if (!paletteJumped) failures.push('Command palette did not jump to the searched issue');
+    }
+
     const writes = requests.filter(isWriteLikeRequest);
     if (writes.length) failures.push('Write-like requests during a11y/focus pass: ' + writes.slice(0, 5).map(r => `${r.method()} ${r.url()}`).join(' | '));
     if (errors.length) failures.push('Console/page errors during a11y/focus pass: ' + errors.slice(0, 5).join(' | '));
     if (failures.length) throw new Error(formatFailures('prod-a11y-focus failures', failures));
-    console.log(`prod-a11y-focus: ${axe.violations.length} axe findings (${serious.length} serious/critical after scoped rules), control names, focus, Escape, keyboard navigation passed`);
+    console.log(`prod-a11y-focus: ${axe.violations.length} axe findings (${serious.length} serious/critical after scoped rules), control names, containment, focus/scroll, palette jump, Escape, keyboard navigation passed`);
   } finally {
     await context.close().catch(() => {});
     await browser.close().catch(() => {});

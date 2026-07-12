@@ -46,8 +46,11 @@ disagree, reality wins — and fix this file in the same PR.
 ### Locked tab label ↔ route mapping
 
 - Visible **Linear** tab → `navProd` → internal key `production` → `#production`; `?prod=1`
-  remains its direct-entry/deep-link alias. This remains read-only; the B4 backend is staged dark
-  behind its off switch and is not wired into the SPA.
+  remains its direct-entry/deep-link alias. The tab remains **read-only in the SPA** — every
+  mutation attempt routes to `_prodReadonlyGuard()`; no mirror-tab write affordance is wired.
+  The B4 outbound backend (outbox → `linear-outbound`) was proven live end-to-end on 2026-07-12
+  (flag flips 24/25), but team-facing writes wait on the staff write-UI epoch. Read
+  `prod_authority` / `linear_outbound_enabled` for the current stance instead of assuming.
 - Visible **Submit** tab → `navLinear` → internal key `linear` → `#linear`. This is the existing
   Create Linear Issue submission form.
 
@@ -63,7 +66,10 @@ cloud sessions, curl needs `--cacert /root/.ccr/ca-bundle.crt`.
 **Runtime flags (the system's switchboard):**
 `GET /rest/v1/syncview_runtime_flags?select=key,value,updated_at` — expect the three
 `*_ef_clients` rosters (33 slugs), `auth_enforcement`, `prod_authority`,
-`linear_inbound_enabled`, and B4's default-off `linear_outbound_enabled`.
+`linear_inbound_enabled`, and `linear_outbound_enabled` (`off`/`shadow`/`live`). Do not assume
+a stance for the last two — the B4 live-path proof ran 2026-07-12 (flips 24/25) and the everyday
+stance between epochs is Linear authority with outbound off (D-26); `ROLLBACK.md` §2 has intent,
+the live flag row has truth.
 `flag_flips` holds the audited history of every change.
 
 **Mirror health (reconciler v2 summaries):**
@@ -72,15 +78,18 @@ cloud sessions, curl needs `--cacert /root/.ccr/ca-bundle.crt`.
 Healthy = 0/0/0 on a ~15-min cadence; a single non-zero tick that self-clears next run is a
 known transient (read-race), two consecutive is a page.
 
-**Outbound health (B4 staged dark):**
+**Outbound health (B4):**
 `GET /rest/v1/deliverable_events?select=id,ts,payload&action=eq.linear_outbound_summary&order=id.desc&limit=10`
-→ `payload.{mode,counts,backlog,alerts}`. Before the owner handoff, expect `mode=off`, zero writes,
-and zero backlog. In shadow/live, any failed write, growing backlog, volume-spike flag,
-shadow mismatch, or summary older than 90 minutes is a page. Global stop is mode `off`; a team's
+→ `payload.{mode,counts,backlog,alerts}`. `mode` must match the live flag. In every mode, any
+failed write, growing backlog, volume-spike flag, shadow mismatch, or summary older than
+90 minutes is a page. Global stop is mode `off`; a team's
 everyday pause is `prod_authority[team]=linear`.
 
 **Mirror inflow freshness:** same table, `&source=eq.mirror&limit=3` — actor "Linear webhook";
->12 h silence on a workday = webhook may have auto-disabled.
+>12 h silence on a workday = webhook may have auto-disabled. **Only while that team's
+`prod_authority` is `linear`** — under `syncview` authority inbound is detect-only, applied
+`mirror_in_*` writes go quiet by design, and the staleness signal to watch instead is the
+reconciler's `outbound_diff_count`.
 
 **New-issue adoption heartbeat:** `&action=eq.linear_incremental_refresh` — gaps well beyond
 30 min mean GitHub is throttling the cron (known failure mode; pager dispatch is the cure).
@@ -133,13 +142,19 @@ lane on PRs, heavy lanes on main/schedule); two nightlies; unit tests on every p
   tabs) — expected while `auth_enforcement` is permissive.
 - GitHub scheduled workflows firing hourly instead of every 10–30 min → GitHub cron throttling,
   the reason the n8n pager exists.
+- `mirror_in_*` applied events going quiet while a team's authority is `syncview` → inbound is
+  detect-only by design in that stance, not a webhook outage; watch `outbound_diff_count` instead.
 
-## 6. Phase pointer (as of 2026-07-11 — verify against B4_READINESS.md, do not trust)
+## 6. Phase pointer (as of 2026-07-12 — verify against B4_READINESS.md and the live flags, do not trust)
 
-Track A (writes off n8n): **complete, closed out**. Track B: **B4 outbound in progress** — B3
-inbound remains live and Linear-authoritative; the additive outbox/drainer, strict echo guard,
-two-way reconciler lane, TEST shadow/live/pause drills, and outbound pager are staged dark behind
-`linear_outbound_enabled=off`. D-25's full-roster shadow window and the owner live flip have not
-started. Visible **Linear**-mirror write affordances (internal `production`) remain gated, and the
-visible **Submit** tab (internal `linear`) remains on its existing submission path until a separate
-owner-approved intake handoff. The `linear-*` n8n family retires only at B5 (§13.4).
+Track A (writes off n8n): **complete, closed out**. Track B: **B4 outbound pipe PROVEN LIVE** —
+on 2026-07-12 the owner ran the bounded all-client shadow gate and then the live cutover (flag
+flips 24/25): both teams SyncView-authoritative, `linear_outbound_enabled=live`, clean live
+drainer cycles, pager green, reconciler 0/0/0 throughout. What is **not yet shipped** is the
+team-facing write layer: the visible **Linear** mirror tab is still read-only in the SPA
+(`_prodReadonlyGuard()`), the **Submit** tab still creates issues via the legacy n8n path, and
+the SMM `linear-set-status` / `linear-add-comment` webhooks still write Linear directly. Until
+that write-UI epoch ships, day-to-day team work happens on the pre-cutover surfaces, and the
+coherent everyday stance is Linear authority with outbound off (the D-26 pause) — the proven
+live pipe idles behind its flag and re-enabling is two flips. Read the current flags before
+assuming either stance. The `linear-*` n8n family retires at B5 (§13.4).

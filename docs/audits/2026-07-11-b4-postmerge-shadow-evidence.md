@@ -95,3 +95,22 @@ actionable 0 with no healing attempted.
 The D-27 read-only rerun criterion is passed. No runtime flag moved and no production authority
 window was used. The real all-client shadow observation window remains an explicit owner gate and
 must still follow the documented switch order and watcher checks.
+
+## Post-merge dark deployment (2026-07-12)
+
+- PR #800 merged as `bdd94c8bb3f8dda3712c1cbe829738cf5484f80e`. The prior active
+  `linear-outbound` version 14 was downloaded and hash-verified privately before deployment.
+- `linear-outbound` version 15 is active with JWT verification unchanged. Downloaded `index.ts`
+  and `mapping.mjs` match merged `main` after line-ending normalization; the deployed bundle
+  contains the shared D-27 boundary, `historicalWriteDisposition`, and the drainer skip guard.
+- Live privilege inspection reconfirmed all six write/outbox RPCs are executable by
+  `service_role` only, not `anon`, `authenticated`, or `public`.
+- Post-deploy read-only run `b4-shadow-1783880138781` checked 5,227 entities across all 32 real
+  clients: 0 divergences, 0 intended writes, 0 repairs, and 72 `tolerated_historical` parent
+  operations. Flags and outbox stayed unchanged; Linear mutation calls were 0. Private evidence
+  SHA-256: `2145b47663cea92e46789a596be69efe4fe980f348118387a050cc2efcd2f51a`.
+- Normal drainer Action `29203552968` completed green and wrote event `9152`: mode `off`, zero
+  writes/failures/backlog, and no alert condition. Reconciler event `9149` remained diff 0 /
+  repair 0 / linkage actionable 0.
+- Final readback remained outbound off, authority Linear/Linear, inbound enabled, auth
+  permissive; outbox remained 181 total/high-water, 0 pending, and 0 real written.

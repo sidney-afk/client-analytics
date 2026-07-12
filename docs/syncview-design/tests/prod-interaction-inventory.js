@@ -135,7 +135,7 @@ async function snapshot(page) {
     const layer = document.getElementById('prodLayer');
     const toast = document.getElementById('prodToast');
     const root = document.getElementById('prodRoot');
-    const text = root ? root.innerText : '';
+    const text = root ? root.textContent : '';
     return {
       url: location.href,
       view: _prodState.view,
@@ -149,6 +149,7 @@ async function snapshot(page) {
       filters: JSON.stringify(_prodState.filters || []),
       groupBy: _prodState.groupBy,
       orderBy: _prodState.orderBy,
+      collapsed: JSON.stringify([...(_prodState.collapsed || [])].sort()),
       selected: _prodState.selected ? _prodState.selected.size : 0,
       cardSel: _prodState.cardSel ? _prodState.cardSel.size : 0,
       layerOpen: !!(layer && layer.innerHTML),

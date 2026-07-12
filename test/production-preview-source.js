@@ -34,6 +34,7 @@ const navMarkup = id => {
 };
 const navProd = navMarkup('navProd');
 const navLinear = navMarkup('navLinear');
+const prodRowRule = (index.match(/\.prod-row\s*\{([^}]*)\}/) || [])[1] || '';
 const linearLogo = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 const submitIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>';
 
@@ -51,6 +52,10 @@ check('header nav scrolls without colliding with shell actions', /\.header-nav \
 check('header nav items remain intact inside the scroll strip', /\.header-nav-btn \{[^}]*flex: 0 0 auto;[^}]*white-space: nowrap;/.test(index));
 check('navigation reveals the active tab inside the bounded strip', /activeHeaderNav\.scrollIntoView\(\{ block: 'nearest', inline: 'nearest' \}\)/.test(index));
 check('Production keyboard shortcuts yield to focused app controls', prodBlock.includes('const activeControl = document.activeElement') && prodBlock.includes('if (activeControl) return;'));
+check('Production issue rows skip off-screen rendering with a fixed 44px fallback',
+  /content-visibility:\s*auto\s*;/.test(prodRowRule)
+  && /contain-intrinsic-size:\s*0(?:px)?\s+44px\s*;/.test(prodRowRule)
+  && /contain:\s*content\s*;/.test(prodRowRule));
 check('_prodEnabled is query-flagged on ?prod=1', /function _prodEnabled\(\) \{\s*try \{ return new URLSearchParams\(location\.search\)\.get\('prod'\) === '1'; \}/.test(index));
 check('navTo hard-falls back without direct preview or verified staff access', /if \(page === 'production' && !_prodAccessAllowed\(\)\) page = 'home';/.test(index));
 check('Production staff access is direct preview OR verified identity', /function _prodAccessAllowed\(\) \{\s*return _prodEnabled\(\) \|\| _syncviewStaffIdentityValid\(\);\s*\}/.test(index));

@@ -137,6 +137,15 @@ D-24's implemented status and release evidence are tracked in WP-A3b above.
 The outbound backend, TEST-only drills, and pager coverage are staged; the Production write UI,
 all-client shadow observation window, and owner authority/live flips remain gated.
 
+### Write-UI epoch human rollout (D-28 / D-29) — added 2026-07-12
+
+The outbound *pipe* is proven live (flips 24/25) and then paused back to the D-26 stance. The
+*team-facing write UI* is the remaining epoch (scope: `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md`),
+and it rolls to humans in stages, not one flip:
+1. **Silent shadow soak** (~1 week): write-UI shipped, team stays on Linear, outbound in `shadow`; catch bugs with nobody watching.
+2. **Graphics team live first**; video stays on Linear as the safety net; roll video once graphics is boring.
+3. **Bug policy (D-29):** cosmetic/UI bugs are fixed in place (no flip); only a data-integrity bug pauses *that team* (D-26). No whole-company flip-flop.
+
 ### Outbound readiness criteria (D-25 / D-26)
 
 | Criterion | Current evidence | Gate state |
@@ -149,7 +158,7 @@ all-client shadow observation window, and owner authority/live flips remain gate
 | Watchers deployed | Post-merge Action run `29181125012` completed green. Pager execution `251537` delivered the harmless failed-write signal; execution `251672` delivered harmless backlog-growth and shadow-mismatch signals. Normal event `9003` restored a clean mode-off summary. Volume/staleness branches remain source-tested. | ✅ live |
 | Read-only full-roster shadow preflight | D-27 pre-alignment run `b4-shadow-1783877861264` returned 0 unexpected intents and reported all 73 prior findings as `tolerated_historical`. After the required SyncView-side terminal-row alignment, identical run `b4-shadow-1783878356762` returned 0 divergences, 0 intended writes, 0 repairs, and 72 historical parent tolerances. Both runs proved zero Linear mutations and unchanged flags/outbox. Public-safe evidence: `docs/audits/2026-07-11-b4-postmerge-shadow-evidence.md`. | ✅ RERUN GATE PASSED |
 | Full-roster shadow window clean | Bounded deployed window (flip ids 20–23) held both teams SyncView-authoritative for 146.945 seconds: active roster had 0 unexpected intents / 72 historical tolerances; 40 additional tolerances belonged only to inactive internal rows. Drainer event `9162` was shadow with 0 writes/failures/backlog/echoes; controls were restored and post-window event `9163` was 0/0/0. | ✅ SHADOW STEP PASSED; ⏳ REVIEWER GO/NO-GO |
-| All-client live handoff | Reviewer approved after the bounded shadow gate. Flip id 24 set both teams SyncView-authoritative; flip id 25 set outbound live. Live drainer events `9171`, `9172`, and pager-triggered `9175` were zero-write/zero-failure; reconciler `9174` was 0/0/0 and pager execution `256097` completed with zero alert items. Team communications remain held by the owner. | ✅ LIVE 2026-07-12 |
+| All-client live handoff | Reviewer approved after the bounded shadow gate. Flip 24 set both teams SyncView-authoritative; flip 25 set outbound live; live drainer `9171`/`9172`/`9175` zero-write/zero-failure, reconciler `9174` 0/0/0, pager `256097` green. **Then flips 26/27 paused it back to the D-26 stance (authority Linear, outbound off)** because the team-facing write UI is not shipped (scope in `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md`); re-enable is two flips gated behind that epoch. No team message sent. | ✅ PROVEN LIVE 2026-07-12, now PAUSED (D-26) |
 
 ### Owner flip order (do not run before the gate)
 

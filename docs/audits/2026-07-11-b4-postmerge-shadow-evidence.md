@@ -138,3 +138,20 @@ The corrected bounded run used flip ids 20–23 and kept both-team SyncView auth
 
 Private evidence SHA-256: `13cd9162a00a285393460cf30817d74390316c7bd1b26f04c67c263669d8930b`.
 The live-write flip remains blocked pending reviewer go/no-go.
+
+## Go-live step 2: all-client live outbound (2026-07-12)
+
+After reviewer go-ahead, authority moved to SyncView for both teams (flip id 24) while outbound
+was still off, then outbound moved to `live` (flip id 25). Immediate event `9171`, manual Actions
+run `29206107017` / event `9172`, and pager-triggered event `9175` were all live-mode clean:
+0 enqueued, written, failed, backlog, echo, or shadow mismatch.
+
+Reconciler event `9174` checked 5,336 entities under SyncView authority and returned 0 inbound or
+outbound diffs, 0 repairs, 0 actionable linkage, and the expected 112 historical tolerances (72
+active-roster plus 40 inactive/internal). The first post-cutover n8n pager execution `256097`
+completed successfully, triggered and fetched the outbound summary, and produced zero alert items.
+No owner DM or team message was sent.
+
+Final readback: outbound `live`, authority SyncView/SyncView, inbound enabled in detect-only mode,
+auth permissive, and outbox 181 total/high-water with 0 pending and 0 real written. Private
+evidence SHA-256: `0c254f54786ab144168235cc55b7d2bcbc8a407e1e4a1f10fedcc7cfc2f29bfe`.

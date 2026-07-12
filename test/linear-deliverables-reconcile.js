@@ -9,7 +9,11 @@ const {
   summarize,
   summarizeWebhooks,
 } = require('../scripts/linear-deliverables-reconcile-lib');
-const { batchParentEntries, batchParentId } = require('../scripts/linear-deliverables-reconcile');
+const {
+  batchParentEntries,
+  batchParentId,
+  expectedParentIdForDeliverable,
+} = require('../scripts/linear-deliverables-reconcile');
 
 function ok(cond, msg) {
   if (!cond) {
@@ -56,6 +60,14 @@ const parentShape = {
 ok(batchParentEntries(parentShape).length === 2, 'object-keyed batch parents are both preserved');
 ok(batchParentId(parentShape, 'video') === 'parent_video', 'video batch parent resolves from object shape');
 ok(batchParentId(parentShape, 'gra') === 'parent_graphics', 'graphics batch parent resolves from object shape');
+ok(expectedParentIdForDeliverable(
+  { title: ' Batch title ', team: 'video' },
+  { name: 'batch title', ...parentShape },
+) === '', 'title-matched batch-parent deliverable is never assigned itself as parent');
+ok(expectedParentIdForDeliverable(
+  { title: 'Child title', team: 'video' },
+  { name: 'Batch title', ...parentShape },
+) === 'parent_video', 'non-parent deliverable still resolves the team batch parent');
 
 function classify(deliverablePatch, issuePatch, extra = {}) {
   return classifyDeliverable({

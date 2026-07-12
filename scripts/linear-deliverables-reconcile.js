@@ -236,6 +236,15 @@ function batchParentId(batch, team) {
   return clean((exact || normalized[0] || {}).id);
 }
 
+function expectedParentIdForDeliverable(deliverable, batch) {
+  const title = clean(deliverable && deliverable.title).toLowerCase();
+  const batchName = clean(batch && batch.name).toLowerCase();
+  // The B1 adapter contract represents a title-matched deliverable as the
+  // batch-parent issue. It must never be reconciled as its own child.
+  if (title && batchName && title === batchName) return '';
+  return batchParentId(batch, deliverable && deliverable.team);
+}
+
 function writtenComments(outboxRows) {
   const byDeliverable = new Map();
   for (const row of outboxRows || []) {
@@ -331,6 +340,7 @@ function buildPlan(data) {
   for (const deliverable of data.deliverables || []) {
     const issue = data.linearIssues.get(clean(deliverable.linear_issue_uuid)) || null;
     const authority = authorityFor(clean(deliverable.team), data.prodAuthority, deliverable.client_slug);
+    const batch = batchById.get(clean(deliverable.batch_id));
     const shared = {
       deliverable,
       linearIssue: issue,
@@ -342,7 +352,7 @@ function buildPlan(data) {
     };
     results.push(authority === 'syncview'
       ? classifyOutboundDeliverable(Object.assign({}, shared, {
-        expectedParentId: batchParentId(batchById.get(clean(deliverable.batch_id)), deliverable.team),
+        expectedParentId: expectedParentIdForDeliverable(deliverable, batch),
         outboxComments: commentsByEntity.get(clean(deliverable.id)) || [],
       }))
       : classifyDeliverable(shared));
@@ -566,4 +576,11 @@ if (require.main === module) {
   });
 }
 
-module.exports = { batchParentEntries, batchParentId, buildPlan, loadLiveData, summaryMarkdown };
+module.exports = {
+  batchParentEntries,
+  batchParentId,
+  expectedParentIdForDeliverable,
+  buildPlan,
+  loadLiveData,
+  summaryMarkdown,
+};

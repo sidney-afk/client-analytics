@@ -177,14 +177,17 @@ function classifyDeliverable(input) {
   const raw = parseJson(deliverable.linear_raw);
   const out = {
     id: clean(deliverable.id),
+    entity: 'deliverable',
     team: clean(deliverable.team),
     identifier: clean(deliverable.identifier || deliverable.linear_identifier),
     authority,
+    direction: 'inbound',
     row: deliverable,
     diffs: [],
     tolerated: [],
     repairs: [],
     patch: {},
+    outbound_intents: [],
   };
 
   if (!issue) {
@@ -278,6 +281,187 @@ function classifyDeliverable(input) {
   return out;
 }
 
+function outboundIntent(operation, deliverable, payload) {
+  const editedAt = clean(deliverable.updated_at || deliverable.status_at || new Date(0).toISOString());
+  return {
+    operation,
+    payload: Object.assign({
+      linear_issue_id: clean(deliverable.linear_issue_uuid),
+    }, payload || {}),
+    source_edited_at: editedAt,
+  };
+}
+
+function classifyOutboundDeliverable(input) {
+  const deliverable = input.deliverable || {};
+  const issue = input.linearIssue || null;
+  const memberById = input.memberById || new Map();
+  const stateUuidMap = input.stateUuidMap || {};
+  const expectedParentId = clean(input.expectedParentId);
+  const expectedComments = input.outboxComments || [];
+  const out = {
+    id: clean(deliverable.id),
+    entity: 'deliverable',
+    team: clean(deliverable.team),
+    identifier: clean(deliverable.identifier || deliverable.linear_identifier),
+    authority: 'syncview',
+    direction: 'outbound',
+    row: deliverable,
+    diffs: [],
+    tolerated: [],
+    repairs: [],
+    patch: {},
+    outbound_intents: [],
+  };
+
+  if (!issue) {
+    addReal(out, 'linear_issue', 'present', 'missing', 'outbound_issue_missing');
+    out.repairs.push({ field: 'linear_issue', reason: 'native_create_context_missing' });
+    return out;
+  }
+
+  const linearState = mapLinearState(issue.state, stateUuidMap);
+  const localStatus = clean(deliverable.status);
+  if (!linearState.slug) {
+    addReal(out, 'status', localStatus, linearState.unmapped_state, 'outbound_unmapped_linear_state');
+  } else if (linearState.slug !== localStatus) {
+    addReal(out, 'status', localStatus, linearState.slug, 'outbound_state_mismatch');
+    out.outbound_intents.push(outboundIntent('status', deliverable, { status: localStatus }));
+  }
+
+  const localTitle = clean(deliverable.title);
+  if (localTitle !== clean(issue.title)) {
+    addReal(out, 'title', localTitle, clean(issue.title), 'outbound_title_mismatch');
+    out.outbound_intents.push(outboundIntent('title', deliverable, { title: localTitle }));
+  }
+
+  const localDue = isoDate(deliverable.due_date);
+  const linearDue = isoDate(issue.dueDate);
+  if (localDue !== linearDue) {
+    addReal(out, 'due_date', localDue || null, linearDue || null, 'outbound_due_date_mismatch');
+    out.outbound_intents.push(outboundIntent('due', deliverable, { due_date: localDue || null }));
+  }
+
+  const localPriority = deliverable.priority == null || deliverable.priority === '' ? 0 : Number(deliverable.priority);
+  const linearPriority = issue.priority == null ? 0 : Number(issue.priority);
+  if (localPriority !== linearPriority) {
+    addReal(out, 'priority', localPriority, linearPriority, 'outbound_priority_mismatch');
+    out.outbound_intents.push(outboundIntent('priority', deliverable, { priority: localPriority }));
+  }
+
+  const member = clean(deliverable.assignee_id) ? memberById.get(clean(deliverable.assignee_id)) : null;
+  const localLinearAssignee = clean(member && member.linear_user_id);
+  const linearAssignee = clean(issue.assignee && issue.assignee.id);
+  if (clean(deliverable.assignee_id) && !localLinearAssignee) {
+    out.repairs.push({
+      field: 'assignee_id',
+      team_member_id: clean(deliverable.assignee_id),
+      reason: 'outbound_assignee_mapping_missing',
+    });
+  } else if (localLinearAssignee !== linearAssignee) {
+    addReal(out, 'assignee_id', localLinearAssignee || null, linearAssignee || null, 'outbound_assignee_mismatch');
+    out.outbound_intents.push(outboundIntent('assignee', deliverable, {
+      assignee_id: clean(deliverable.assignee_id) || null,
+      linear_user_id: localLinearAssignee || null,
+    }));
+  }
+
+  const linearParent = linearParentId(issue);
+  if (expectedParentId && expectedParentId !== linearParent) {
+    addReal(out, 'parent', expectedParentId, linearParent || null, 'outbound_parent_mismatch');
+    out.outbound_intents.push(outboundIntent('parent', deliverable, {
+      parent_linear_issue_id: expectedParentId,
+    }));
+  }
+
+  const localGone = deliverableArchivedOrDeleted(deliverable);
+  const linearGone = linearArchivedOrDeleted(issue);
+  if (localGone !== linearGone) {
+    addReal(out, 'archived_deleted', localGone, linearGone, 'outbound_archive_mismatch');
+    out.outbound_intents.push(outboundIntent(localGone ? 'archive' : 'restore', deliverable, {}));
+  }
+
+  const linearComments = linearCommentIds(issue);
+  for (const comment of expectedComments) {
+    const id = clean(comment && comment.comment_id);
+    if (!linearComments.has(id)) {
+      addReal(out, 'comments', id, null, 'outbound_comment_missing_in_linear');
+      if (Number(comment && comment.outbox_id) > 0 && clean(comment && comment.body)) {
+        out.outbound_intents.push({
+          operation: 'comment',
+          requeue_outbox_id: Number(comment.outbox_id),
+          source_edited_at: clean(comment.source_edited_at),
+        });
+      } else {
+        out.repairs.push({ field: 'comments', reason: 'outbound_comment_payload_missing' });
+      }
+    }
+  }
+  return out;
+}
+
+function classifyOutboundBatch(input) {
+  const batch = input.batch || {};
+  const issue = input.linearIssue || null;
+  const expectedComments = input.outboxComments || [];
+  const out = {
+    id: clean(batch.id),
+    entity: 'batch',
+    team: clean(input.team || batch.team),
+    identifier: clean(issue && issue.identifier),
+    authority: 'syncview',
+    direction: 'outbound',
+    row: batch,
+    diffs: [],
+    tolerated: [],
+    repairs: [],
+    patch: {},
+    outbound_intents: [],
+  };
+
+  if (!issue) {
+    addReal(out, 'linear_issue', 'present', 'missing', 'outbound_batch_issue_missing');
+    out.repairs.push({ field: 'linear_issue', reason: 'native_create_context_missing' });
+    return out;
+  }
+
+  const localTitle = clean(batch.name);
+  if (localTitle !== clean(issue.title)) {
+    addReal(out, 'title', localTitle, clean(issue.title), 'outbound_batch_title_mismatch');
+    out.outbound_intents.push(outboundIntent('title', batch, {
+      linear_issue_id: clean(issue.id),
+      title: localTitle,
+    }));
+  }
+
+  const localGone = ['archived', 'canceled'].includes(lower(batch.status));
+  const linearGone = linearArchivedOrDeleted(issue);
+  if (localGone !== linearGone) {
+    addReal(out, 'archived_deleted', localGone, linearGone, 'outbound_batch_archive_mismatch');
+    out.outbound_intents.push(outboundIntent(localGone ? 'archive' : 'restore', batch, {
+      linear_issue_id: clean(issue.id),
+    }));
+  }
+
+  const linearComments = linearCommentIds(issue);
+  for (const comment of expectedComments) {
+    const id = clean(comment && comment.comment_id);
+    if (!linearComments.has(id)) {
+      addReal(out, 'comments', id, null, 'outbound_batch_comment_missing_in_linear');
+      if (Number(comment && comment.outbox_id) > 0 && clean(comment && comment.body)) {
+        out.outbound_intents.push({
+          operation: 'comment',
+          requeue_outbox_id: Number(comment.outbox_id),
+          source_edited_at: clean(comment.source_edited_at),
+        });
+      } else {
+        out.repairs.push({ field: 'comments', reason: 'outbound_comment_payload_missing' });
+      }
+    }
+  }
+  return out;
+}
+
 function linkageGaps(input) {
   const rows = [];
   const add = (source, row, component, linkColumn, idColumn) => {
@@ -309,17 +493,38 @@ function summarize(results, linkageRows) {
   const byTeam = {};
   for (const r of results) {
     const team = r.team || 'unknown';
-    if (!byTeam[team]) byTeam[team] = { deliverables: 0, diff_count: 0, diff_rows: 0, tolerated_count: 0, repair_list_size: 0, detect_only_rows: 0 };
-    byTeam[team].deliverables++;
+    if (!byTeam[team]) byTeam[team] = {
+      deliverables: 0,
+      batches: 0,
+      diff_count: 0,
+      diff_rows: 0,
+      inbound_diff_count: 0,
+      outbound_diff_count: 0,
+      tolerated_count: 0,
+      repair_list_size: 0,
+      detect_only_rows: 0,
+    };
+    if (r.entity === 'batch') byTeam[team].batches++;
+    else byTeam[team].deliverables++;
     byTeam[team].diff_count += r.diffs.length;
+    if (r.direction === 'outbound') byTeam[team].outbound_diff_count += r.diffs.length;
+    else byTeam[team].inbound_diff_count += r.diffs.length;
     byTeam[team].tolerated_count += r.tolerated.length;
     byTeam[team].repair_list_size += r.repairs.length;
     if (r.diffs.length) byTeam[team].diff_rows++;
-    if (r.authority === 'supabase' && r.diffs.length) byTeam[team].detect_only_rows++;
+    if (r.authority === 'syncview' && r.diffs.length) byTeam[team].detect_only_rows++;
   }
   return {
-    deliverables_checked: results.length,
+    entities_checked: results.length,
+    deliverables_checked: results.filter(r => r.entity !== 'batch').length,
+    batches_checked: results.filter(r => r.entity === 'batch').length,
     diff_count: results.reduce((n, r) => n + r.diffs.length, 0),
+    inbound_diff_count: results
+      .filter(r => r.direction !== 'outbound')
+      .reduce((n, r) => n + r.diffs.length, 0),
+    outbound_diff_count: results
+      .filter(r => r.direction === 'outbound')
+      .reduce((n, r) => n + r.diffs.length, 0),
     diff_rows: results.filter(r => r.diffs.length).length,
     tolerated_count: results.reduce((n, r) => n + r.tolerated.length, 0),
     repair_list_size: results.reduce((n, r) => n + r.repairs.length, 0),
@@ -350,6 +555,8 @@ module.exports = {
   deliverableArchivedOrDeleted,
   engineCommentIds,
   classifyDeliverable,
+  classifyOutboundDeliverable,
+  classifyOutboundBatch,
   linkageGaps,
   summarize,
   summarizeWebhooks,

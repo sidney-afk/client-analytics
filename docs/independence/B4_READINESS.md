@@ -68,7 +68,7 @@ flag-flip audit trigger.
 | Probe / work item | Status | Evidence / next safe step |
 |---|---|---|
 | B3 legacy-comment echo (§12) | ✅ DONE | `scripts/b4-comment-echo-probe.js` snapshots the TEST deliverable thread, seeds one app comment through `deliverable_write`, sends the matching legacy Linear comment, proves exactly one app copy and no duplicate inbound event, then deletes the Linear comment and restores the original thread. Proof events `7769`–`7770` retain the audit trail; the TEST issue ended with its original two Linear comments and zero app comments. |
-| B4 strict-AND outbound echo + TEST create→status→comment→due (§1.5.6) | ⚠️ BLOCKED | No `linear-outbound` EF/retry worker exists yet, and §4.4 requires those writes to use `mirror_outbox`; this sprint explicitly forbids mirror-outbox writes. The mirror key is correctly confined to an EF secret, so bypassing the missing outbound path with a personal/local key would not prove the contract. Build the B4 outbound path first, then run the scripted TEST round-trip and restore/archive every mutation. |
+| B4 strict-AND outbound echo + TEST create→status→comment→due (§1.5.6) | ✅ DONE 2026-07-11 (staged dark) | `linear-outbound`, guarded write wrappers, and the durable outbox are deployed behind `linear_outbound_enabled={"mode":"off"}`. Final fail-closed run `b4-1783817733488-ff8283` passed 17/17: shadow (4 intended writes, zero Linear mutations), then live TEST create/status ladder/atomic local-first comment/due/assignee/title/priority/parent/archive/restore, 23 strict echo drops with zero unexpected mirror events, pause/resume newest-edit-wins using the authenticated source-edit clock, mid-drain off, idempotent re-drain, cleanup, and reconciler 0/0/0. No production authority or runtime flag changed. |
 | Detect-only foreign-write alert (§1.5.8) | ⚠️ BLOCKED | `linear-inbound` records `foreign_write_detected` only when the affected team's authority is `supabase`. With both teams Linear-authoritative and runtime-flag changes forbidden, no truthful live drill is possible. Next step is an owner-approved TEST-only authority override and immediate rollback; do not count the source test as gate evidence. |
 | D-9 nightly due-date roller | ⚠️ BLOCKED | On 2026-07-10, 41 VID/GRA issues were touched from 23:45:28–23:45:35 UTC. Linear showed no visible field-change history and neither inbound webhook path received a material event, consistent with a hosted job re-saving an already-equal due date. A fresh read-only audit of all 127 live n8n workflows found no scheduled `issueUpdate`; the only due-date writer is the webhook-only status bridge and it had no execution during the burst. Repository Actions are also read-only at that time. The connected Drive identity cannot see the operational sheets or bound Apps Scripts. **Disable plan (owner action, not executed):** inspect Triggers and bound Apps Script under the workspace sheet-owner accounts; disable, do not delete, the 23:45 trigger; observe two nights. If absent, use the spec fallback: inventory and rotate remaining legacy personal Linear keys in a controlled window while keeping scoped due-date tolerance in detect-only monitoring. |
 | B1 incremental-refresh heartbeat | ✅ DONE / LIVE | Private pre/post snapshots bracket n8n pager `qllIDZPkdNAPRj0b`. First live tick `244578` dispatched GitHub run `29143764570`, which completed green and wrote summary event `7772` (2 changed issues; 1 archive upsert). The prior summary was 103 minutes old, so the new stale condition emitted one identifier-free DM and the Slack node succeeded. Intervening tick `244646` proved the cadence gate: zero gate items, no incremental trigger, zero alerts. The active 15-minute pager therefore dispatches every ~30 minutes and pages when no summary is fresh within 90 minutes. Disable `Gate Incremental Refresh 30m` to stop only this dispatch, or disable the pager for the global kill switch. |
@@ -105,11 +105,13 @@ this is inside B4/B5.
 Recorded here in plain language; the authoritative entries are spec §14 **D-19…D-23** (this
 section is the operational reflection, not a competing source).
 
-- **Rollout granularity (D-19):** flip **both video + graphics together** (so a card is never
-  split across systems mid-flight — removes the fiddliest adoption path), but roll out **per
-  client** through an allowlist — TEST client → one pilot client → the rest — exactly like Track A
-  did. Implication for the build: authority moves from the global per-team `prod_authority` switch
-  to a **per-client(-per-team) allowlist**. Codex to cost this vs. the split-card code at B4 scoping.
+- **Rollout model (D-25; supersedes D-19):** no per-client pilot. Keep global mode `off` while
+  building, prove the exact mutation set in `shadow` across the full roster, require the outbound
+  watchers and two-way zero-drift evidence, then the owner flips both teams/all clients to `live`
+  together.
+- **Reversible pause (D-26):** setting either team's `prod_authority` back to `linear` is a normal
+  operational pause. Outbound writes and healing stop for that team, inbound keeps SyncView current,
+  queued intents remain durable, and resume drops any intent older than the direct Linear edit.
 - **Card → Production deep-link (D-20):** the card's old "open in Linear" button becomes
   **"View sub-issue,"** opening that deliverable in the Production tab in a **new browser tab**.
 - **Legacy Linear-link fields (D-21):** keep them **inert but visible with a phase-aware
@@ -126,8 +128,39 @@ section is the operational reflection, not a competing source).
   to a finished/premium standard and thoroughly tested (master-tester vision pass + `/human-audit`).
   Runs its own careful auth sprint *after* the B3 harness; not blocking B4.
 
-The remaining items are inputs for the B4/B5 build and design pass; D-24's
-implemented-draft status and release gate are tracked in WP-A3b above.
+D-24's implemented status and release evidence are tracked in WP-A3b above.
+The outbound backend, TEST-only drills, and pager coverage are staged; the Production write UI,
+all-client shadow observation window, and owner authority/live flips remain gated.
+
+### Outbound readiness criteria (D-25 / D-26)
+
+| Criterion | Current evidence | Gate state |
+|---|---|---|
+| TEST shadow matrix is exact and sends nothing | Summary event `8879`: 4 `shadow_ok`, 0 written | ✅ |
+| TEST live operation matrix + strict echo drop | 25 written, 1 stale-dropped, 23 echoes dropped, 0 unexpected mirror writes; disposable issues archived | ✅ |
+| Pause / inbound fallback / resume preserves newer Linear work | Pause event `8942`, resume event `8944`; queued older title marked `stale` | ✅ |
+| Global off stops immediately and retains queue | Off event `8946`, resumed event `8948`, idempotent re-drain `8949` | ✅ |
+| Two-way reconciler returns zero | TEST authority event `8950` and post-cleanup event `8959`: diff 0 / repair 0 / linkage actionable 0 | ✅ |
+| Watchers deployed | Pager watches failure/backlog/volume/shadow mismatch/staleness; final dark-state pager execution `250463` was green with zero alert items. Actions drainer starts dispatching after owner merge places the workflow on `main`. | ✅ staged |
+| Full-roster shadow window clean | Owner must set shadow + both authorities only after this PR and writable callers are merged | ⏳ OWNER GATE |
+| All-client live handoff | Owner-only `shadow` → `live` flip after the clean shadow window | ⏳ OWNER GATE |
+
+### Owner flip order (do not run before the gate)
+
+1. Confirm the outbound Actions run and n8n pager tick are green, the real-client outbox backlog is
+   zero, reconciler v2 is 0/0/0 in both directions, and all intended writable callers are merged.
+2. Set `linear_outbound_enabled={"mode":"shadow"}` **first**. With both team authorities still
+   `linear`, rows remain paused and no Linear mutation is possible.
+3. In one audited flag update, set `prod_authority={"video":"syncview","graphics":"syncview"}`.
+   Observe the full-roster shadow window; require zero failed rows, zero shadow mismatch, bounded
+   backlog, and two-way reconciler 0/0/0.
+4. After explicit owner approval, set `linear_outbound_enabled={"mode":"live"}`. Do not change the
+   inbound flag or disable Linear webhooks.
+
+Global rollback is one update: set outbound mode `off`. To pause only one team, change that team's
+authority to `linear`; inbound keeps SyncView current and pending outbox rows remain. To resume, set
+that team back to `syncview`; the drainer writes only still-current intents and marks older ones
+`stale`. Every update must be read back and present in `flag_flips` before proceeding.
 
 ## 7. Explicitly out of scope here
 

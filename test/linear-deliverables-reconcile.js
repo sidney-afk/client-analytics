@@ -9,6 +9,7 @@ const {
   summarize,
   summarizeWebhooks,
 } = require('../scripts/linear-deliverables-reconcile-lib');
+const { batchParentEntries, batchParentId } = require('../scripts/linear-deliverables-reconcile');
 
 function ok(cond, msg) {
   if (!cond) {
@@ -45,6 +46,16 @@ const baseDeliverable = {
   linear_issue_uuid: 'lin_issue_1',
   linear_raw: JSON.stringify({ issue: { parent: { id: 'lin_parent' } } }),
 };
+
+const parentShape = {
+  linear_parent_ids: {
+    video: { uuid: 'parent_video' },
+    graphics: { uuid: 'parent_graphics' },
+  },
+};
+ok(batchParentEntries(parentShape).length === 2, 'object-keyed batch parents are both preserved');
+ok(batchParentId(parentShape, 'video') === 'parent_video', 'video batch parent resolves from object shape');
+ok(batchParentId(parentShape, 'gra') === 'parent_graphics', 'graphics batch parent resolves from object shape');
 
 function classify(deliverablePatch, issuePatch, extra = {}) {
   return classifyDeliverable({

@@ -1,0 +1,63 @@
+name: SyncView Linear outbound drain
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: Maximum outbox rows to inspect
+        required: false
+        default: "15"
+  repository_dispatch:
+    types: [syncview-linear-outbound-drain]
+  schedule:
+    - cron: "*/10 * * * *"
+
+concurrency:
+  group: linear-outbound-drain
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      PROJECT_REF: uzltbbrjidmjwwfakwve
+      LIMIT: ${{ inputs.limit || github.event.client_payload.limit || '15' }}
+    steps:
+      - name: Require service-role secret
+        shell: bash
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY is not set"
+            exit 1
+          fi
+
+      - name: Drain server-side outbox
+        shell: bash
+        run: |
+          response="$(
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              --header "Content-Type: application/json" \
+              --data "{\"limit\":$LIMIT}" \
+              "https://$PROJECT_REF.supabase.co/functions/v1/linear-outbound"
+          )"
+          echo "$response" | jq '{
+            ok,
+            event_id,
+            mode,
+            counts,
+            backlog,
+            alerts
+          }'
+          {
+            echo "## SyncView Linear outbound"
+            echo '```json'
+            echo "$response" | jq '{event_id, mode, counts, backlog, alerts}'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$(echo "$response" | jq -r '.ok')" != "true" ]; then
+            exit 1
+          fi

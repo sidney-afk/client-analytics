@@ -52,13 +52,21 @@ cloud sessions, curl needs `--cacert /root/.ccr/ca-bundle.crt`.
 **Runtime flags (the system's switchboard):**
 `GET /rest/v1/syncview_runtime_flags?select=key,value,updated_at` — expect the three
 `*_ef_clients` rosters (33 slugs), `auth_enforcement`, `prod_authority`,
-`linear_inbound_enabled`. `flag_flips` holds the audited history of every change.
+`linear_inbound_enabled`, and B4's default-off `linear_outbound_enabled`.
+`flag_flips` holds the audited history of every change.
 
 **Mirror health (reconciler v2 summaries):**
 `GET /rest/v1/deliverable_events?select=ts,payload&action=eq.linear_deliverables_reconcile_v2&order=id.desc&limit=10`
 → `payload.summary.{diff_count,repair_list_size,linkage_actionable,deliverables_checked}`.
 Healthy = 0/0/0 on a ~15-min cadence; a single non-zero tick that self-clears next run is a
 known transient (read-race), two consecutive is a page.
+
+**Outbound health (B4 staged dark):**
+`GET /rest/v1/deliverable_events?select=id,ts,payload&action=eq.linear_outbound_summary&order=id.desc&limit=10`
+→ `payload.{mode,counts,backlog,alerts}`. Before the owner handoff, expect `mode=off`, zero writes,
+and zero backlog. In shadow/live, any failed write, growing backlog, volume-spike flag,
+shadow mismatch, or summary older than 90 minutes is a page. Global stop is mode `off`; a team's
+everyday pause is `prod_authority[team]=linear`.
 
 **Mirror inflow freshness:** same table, `&source=eq.mirror&limit=3` — actor "Linear webhook";
 >12 h silence on a workday = webhook may have auto-disabled.
@@ -72,7 +80,7 @@ known transient (read-race), two consecutive is a page.
 
 **Event-table cheatsheet:** `calendar_post_events` / `sample_review_events` (staff+client card
 writes, actor/role/source columns since WP-A1) · `deliverable_events` (mirror + reconciler +
-backfill; `source` ∈ ui/mirror/reconcile/backfill/system) · `settings_events`,
+backfill + B4 drainer summaries; `source` ∈ ui/mirror/reconcile/backfill/system/outbound) · `settings_events`,
 `syncview_auth_events`, `client_access_events` (service-role-only — anon read returns 42501,
 which is itself the "exists and locked" proof) · `flag_flips`.
 
@@ -99,7 +107,8 @@ burst windows is a finding) · Calendar Linear Status Sync `MJbMZ789B5ExZz9x` (a
 
 **GitHub Actions:** reconcilers `linear-sync-reconcile.yml`, `sample-linear-reconcile.yml`,
 `linear-deliverables-reconcile.yml` (dispatched by the pager — GitHub's own cron throttles);
-`b1-linear-incremental-refresh.yml` (new-issue adoption); `production-polish-gate.yml` (fast
+`b1-linear-incremental-refresh.yml` (new-issue adoption); `linear-outbound-drain.yml` (B4,
+default-off outbox worker); `production-polish-gate.yml` (fast
 lane on PRs, heavy lanes on main/schedule); two nightlies; unit tests on every push.
 
 ## 5. Known patterns that look like problems but aren't
@@ -116,7 +125,9 @@ lane on PRs, heavy lanes on main/schedule); two nightlies; unit tests on every p
 
 ## 6. Phase pointer (as of 2026-07-11 — verify against B4_READINESS.md, do not trust)
 
-Track A (writes off n8n): **complete, closed out**. Track B: **B3 live** — read-only mirror at
-full history parity, all gate metrics at zero; next is auth operationalization (WP-A1/A2 done
-2026-07-11) → B4 writable pilot (gate decision ~2026-07-15) → B5 cutover. The Linear submission
-tab goes native-create at B4 (spec §9.1); the `linear-*` n8n family retires at B5 (§13.4).
+Track A (writes off n8n): **complete, closed out**. Track B: **B4 outbound in progress** — B3
+inbound remains live and Linear-authoritative; the additive outbox/drainer, strict echo guard,
+two-way reconciler lane, TEST shadow/live/pause drills, and outbound pager are staged dark behind
+`linear_outbound_enabled=off`. D-25's full-roster shadow window and the owner live flip have not
+started. Production write affordances and intake re-pointing remain gated; the `linear-*` n8n
+family retires only at B5 (§13.4).

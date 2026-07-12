@@ -1,0 +1,822 @@
+// Supabase Edge Function: linear-outbound
+//
+// Service-only B4 outbox drainer. Normal calls obey both
+// linear_outbound_enabled (off/shadow/live) and prod_authority per team.
+// A service-role-authenticated TEST override is accepted only for rows already
+// marked test_only and belonging to clients.kind='test'.
+
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
+import {
+  buildMutation,
+  decideConflict,
+  extractMutationResult,
+  issueFields,
+  mergeBatchParentIds,
+  stateIdForSlug,
+} from "./mapping.mjs";
+
+type JsonMap = Record<string, unknown>;
+type OutboxRow = JsonMap & {
+  id: number;
+  entity: string;
+  entity_id: string;
+  operation: string;
+  client_slug: string;
+  team: string;
+  dedup_key: string;
+  source_edited_at: string;
+  status: string;
+  attempts: number;
+  payload: JsonMap;
+  test_only: boolean;
+  deliverable_id?: string | null;
+  batch_id?: string | null;
+  depends_on_id?: number | null;
+  linear_result?: JsonMap | null;
+  lock_token?: string | null;
+};
+
+const LINEAR_URL = "https://api.linear.app/graphql";
+const OUTBOUND_FLAG = "linear_outbound_enabled";
+const AUTHORITY_FLAG = "prod_authority";
+const MAX_LIMIT = 50;
+const MAX_ATTEMPTS = 8;
+const RATE_DELAY_MS = 1_000;
+const LOCK_TIMEOUT_MS = 10 * 60 * 1_000;
+const BACKLOG_ALERT_THRESHOLD = 100;
+const VOLUME_ALERT_THRESHOLD = 50;
+const CREATE_UUID_NAMESPACE = "8ec6f2de-20f4-4dc3-8f21-8b3298e780db";
+
+function clean(value: unknown): string {
+  return String(value == null ? "" : value).trim();
+}
+
+function lower(value: unknown): string {
+  return clean(value).toLowerCase();
+}
+
+function parseJson(value: unknown): JsonMap {
+  if (!value) return {};
+  if (typeof value === "object" && !Array.isArray(value)) return value as JsonMap;
+  try {
+    const parsed = JSON.parse(String(value));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as JsonMap : {};
+  } catch (_e) {
+    return {};
+  }
+}
+
+function parseArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(String(value == null ? "[]" : value));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_e) {
+    return [];
+  }
+}
+
+function json(body: JsonMap, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function deterministicCreateId(dedupKey: string): Promise<string> {
+  const namespace = CREATE_UUID_NAMESPACE.replace(/-/g, "").match(/.{2}/g) || [];
+  const namespaceBytes = Uint8Array.from(namespace.map(part => parseInt(part, 16)));
+  const keyBytes = new TextEncoder().encode(dedupKey);
+  const input = new Uint8Array(namespaceBytes.length + keyBytes.length);
+  input.set(namespaceBytes);
+  input.set(keyBytes, namespaceBytes.length);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-1", input));
+  const bytes = digest.slice(0, 16);
+  // Linear currently validates caller-supplied IssueCreateInput.id as UUIDv4.
+  // The remaining bytes are deterministic, so retries retain one stable id.
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map(value => value.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function safeError(error: unknown): string {
+  return clean(error instanceof Error ? error.message : error).slice(0, 500) || "outbound failure";
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  const left = new TextEncoder().encode(a);
+  const right = new TextEncoder().encode(b);
+  if (left.length !== right.length) return false;
+  let diff = 0;
+  for (let i = 0; i < left.length; i++) diff |= left[i] ^ right[i];
+  return diff === 0;
+}
+
+function bearer(req: Request): string {
+  return clean(req.headers.get("authorization")).replace(/^Bearer\s+/i, "");
+}
+
+async function serviceRoleRequest(req: Request): Promise<boolean> {
+  const expected = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+  const supplied = bearer(req);
+  if (!supplied) return false;
+  if (expected && timingSafeEqual(expected, supplied)) return true;
+
+  // Supabase can rotate the public service-role key before the Edge runtime's
+  // built-in value refreshes. Validate the presented key against a table whose
+  // grants/RLS admit service_role only; this remains cryptographic and fail-closed.
+  const url = clean(Deno.env.get("SUPABASE_URL"));
+  if (!url) return false;
+  try {
+    const response = await fetch(`${url}/rest/v1/rpc/b4_service_role_probe`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${supplied}`,
+        apikey: supplied,
+        "content-type": "application/json",
+      },
+      body: "{}",
+    });
+    if (!response.ok) return false;
+    return await response.json() === true;
+  } catch (_e) {
+    return false;
+  }
+}
+
+function modeFrom(value: unknown): string {
+  const mode = lower(parseJson(value).mode);
+  return ["off", "shadow", "live"].includes(mode) ? mode : "off";
+}
+
+function authorityFor(team: unknown, value: unknown): string {
+  const flags = parseJson(value);
+  const key = lower(team) === "graphics" || lower(team) === "graphic" ? "graphics" : "video";
+  const raw = lower(flags[key]);
+  return raw === "syncview" || raw === "supabase" ? "syncview" : "linear";
+}
+
+async function readFlag(supabase: SupabaseClient, key: string): Promise<JsonMap> {
+  const { data, error } = await supabase.from("syncview_runtime_flags")
+    .select("value")
+    .eq("key", key)
+    .maybeSingle();
+  if (error) return {};
+  return parseJson(data && (data as JsonMap).value);
+}
+
+async function linearGraphql(query: string, variables: JsonMap): Promise<JsonMap> {
+  const key = clean(Deno.env.get("LINEAR_MIRROR_API_KEY"));
+  if (!key) throw new Error("LINEAR_MIRROR_API_KEY unavailable");
+  const response = await fetch(LINEAR_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: key,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  const body = await response.json().catch(() => null) as JsonMap | null;
+  if (!response.ok || !body || Array.isArray(body.errors)) {
+    const retryAfter = response.headers.get("retry-after");
+    const suffix = retryAfter ? " retry-after=" + retryAfter : "";
+    const first = body && Array.isArray(body.errors) ? parseJson(body.errors[0]) : {};
+    const extensions = parseJson(first.extensions);
+    const detail = [clean(extensions.type || extensions.code), clean(first.message)]
+      .filter(Boolean)
+      .join(": ")
+      .replace(/[^a-zA-Z0-9 _.:/-]/g, "")
+      .slice(0, 240);
+    throw new Error("Linear GraphQL HTTP " + response.status + suffix + (detail ? " " + detail : ""));
+  }
+  return parseJson(body.data);
+}
+
+async function readViewer(): Promise<JsonMap> {
+  const data = await linearGraphql(
+    "query SyncViewMirrorViewer { viewer { id name email } }",
+    {},
+  );
+  return parseJson(data.viewer);
+}
+
+async function readIssue(id: string, allowMissing = false): Promise<JsonMap | null> {
+  if (!id) return null;
+  try {
+    const data = await linearGraphql(
+      "query SyncViewMirrorIssue($id: String!) { issue(id: $id) { " + issueFields() + " } }",
+      { id },
+    );
+    const issue = data.issue;
+    return issue && typeof issue === "object" && !Array.isArray(issue) ? issue as JsonMap : null;
+  } catch (error) {
+    if (allowMissing && /\b(entity|issue|resource) not found\b/i.test(safeError(error))) return null;
+    throw error;
+  }
+}
+
+async function readTeam(id: string): Promise<JsonMap | null> {
+  if (!id) return null;
+  const data = await linearGraphql(
+    "query SyncViewMirrorTeam($id: String!) { team(id: $id) { id key name states { nodes { id name type position } } } }",
+    { id },
+  );
+  const team = data.team;
+  return team && typeof team === "object" && !Array.isArray(team) ? team as JsonMap : null;
+}
+
+function projectIds(value: unknown): Set<string> {
+  const out = new Set<string>();
+  const stack = parseArray(value);
+  while (stack.length) {
+    const current = stack.pop();
+    if (typeof current === "string" && clean(current)) out.add(clean(current));
+    else if (current && typeof current === "object") {
+      const row = current as JsonMap;
+      for (const key of ["id", "project_id", "linear_project_id"]) {
+        if (clean(row[key])) out.add(clean(row[key]));
+      }
+      for (const child of Object.values(row)) if (Array.isArray(child)) stack.push(...child);
+    }
+  }
+  return out;
+}
+
+function configuredTestProjectIds(): Set<string> {
+  return new Set(clean(Deno.env.get("B4_TEST_PROJECT_IDS"))
+    .split(",")
+    .map(clean)
+    .filter(Boolean));
+}
+
+async function testScope(
+  supabase: SupabaseClient,
+  row: OutboxRow,
+  issue: JsonMap | null,
+): Promise<JsonMap> {
+  if (!row.test_only) throw new Error("TEST override requires test_only outbox rows");
+  const { data, error } = await supabase.from("clients")
+    .select("slug,kind,active,linear_project_ids")
+    .eq("slug", row.client_slug)
+    .maybeSingle();
+  if (error || !data || data.kind !== "test" || data.active !== true) {
+    throw new Error("TEST override client is not an active test client");
+  }
+  const allowed = projectIds(data.linear_project_ids);
+  for (const id of configuredTestProjectIds()) allowed.add(id);
+  const payload = parseJson(row.payload);
+  const issueProject = clean(issue && issue.project && (issue.project as JsonMap).id);
+  const createProject = clean(payload.project_id);
+  const project = issueProject || createProject;
+  if (!project || !allowed.has(project)) throw new Error("TEST override project mismatch");
+  return { client_slug: data.slug, project_ids: [...allowed] };
+}
+
+async function entityRow(supabase: SupabaseClient, row: OutboxRow): Promise<JsonMap> {
+  const table = row.entity === "batch" || (row.entity === "comment" && row.batch_id && !row.deliverable_id)
+    ? "batches"
+    : "deliverables";
+  const { data, error } = await supabase.from(table)
+    .select("*")
+    .eq("id", row.entity_id)
+    .maybeSingle();
+  if (error || !data) throw new Error("outbox entity row missing");
+  return data as JsonMap;
+}
+
+function batchParentId(row: OutboxRow, entity: JsonMap): string {
+  const wanted = lower(row.team) === "graphics" || lower(row.team) === "graphic" ? "graphics" : "video";
+  const raw = entity.linear_parent_ids;
+  const parsed = typeof raw === "string" ? parseJson(raw) : raw;
+  const parents = Array.isArray(parsed)
+    ? parsed
+    : (parsed && typeof parsed === "object"
+      ? Object.entries(parsed as JsonMap).map(([team, value]) => value && typeof value === "object"
+        ? { team, ...(value as JsonMap) }
+        : { team, id: value })
+      : []);
+  const matching = parents.find(value => {
+    if (!value || typeof value !== "object") return false;
+    const item = value as JsonMap;
+    const team = lower(item.team || item.team_key || item.key);
+    return team === wanted || (wanted === "graphics" && (team === "gra" || team === "graphic")) || (wanted === "video" && team === "vid");
+  });
+  const selected = matching || parents[0];
+  return clean(selected && typeof selected === "object"
+    ? ((selected as JsonMap).id || (selected as JsonMap).uuid || (selected as JsonMap).linear_issue_id)
+    : selected);
+}
+
+function linearIssueId(row: OutboxRow, entity: JsonMap, _dependency: JsonMap): string {
+  const payload = parseJson(row.payload);
+  const priorResult = parseJson(row.linear_result);
+  return clean(
+    payload.linear_issue_id
+      || entity.linear_issue_uuid
+      || batchParentId(row, entity)
+      || priorResult.issue_id,
+  );
+}
+
+async function dependencyResult(supabase: SupabaseClient, row: OutboxRow): Promise<JsonMap> {
+  const id = Number(row.depends_on_id || 0);
+  if (!id) return {};
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("id,status,linear_result")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) throw new Error("outbox dependency missing");
+  const result = parseJson(data.linear_result);
+  if (data.status === "written") return result;
+  if (data.status === "shadow_ok") {
+    const wouldSend = parseJson(result.would_send);
+    const variables = parseJson(wouldSend.variables);
+    const input = parseJson(variables.input);
+    const issueId = clean(input.id);
+    if (issueId) return { ...result, linear_issue_id: issueId, shadow_dependency: true };
+  }
+  return { waiting: true, status: data.status };
+}
+
+async function resolveContext(
+  supabase: SupabaseClient,
+  row: OutboxRow,
+  entity: JsonMap,
+  issue: JsonMap | null,
+  dependency: JsonMap,
+): Promise<JsonMap> {
+  const payload = parseJson(row.payload);
+  const context: JsonMap = {
+    linear_issue_id: linearIssueId(row, entity, dependency),
+    parent_linear_issue_id: clean(
+      payload.parent_linear_issue_id
+        || dependency.linear_issue_id
+        || dependency.issue_id,
+    ),
+  };
+
+  if (row.operation === "create") {
+    context.create_id = await deterministicCreateId(row.dedup_key);
+  }
+
+  const raw = parseJson(entity.linear_raw);
+  const fieldUpdatedAt = parseJson(raw.field_updated_at);
+  context.field_updated_at = clean(fieldUpdatedAt[row.operation]);
+
+  let team = issue && issue.team && typeof issue.team === "object" ? issue.team as JsonMap : null;
+  const requestedTeamId = clean(payload.team_id || (team && team.id));
+  if (!team && requestedTeamId) team = await readTeam(requestedTeamId);
+  context.team_id = clean(requestedTeamId || (team && team.id));
+
+  const stateSlug = clean(payload.status);
+  if (stateSlug) {
+    const states = team && team.states && typeof team.states === "object"
+      ? ((team.states as JsonMap).nodes as unknown[])
+      : [];
+    context.state_id = clean(payload.state_id) || stateIdForSlug(states, stateSlug);
+    if (!context.state_id) throw new Error("outbound state mapping missing");
+  }
+
+  const memberId = clean(payload.assignee_id);
+  if (memberId && !clean(payload.linear_user_id)) {
+    const { data, error } = await supabase.from("team_members")
+      .select("linear_user_id")
+      .eq("id", memberId)
+      .maybeSingle();
+    if (error || !data || !clean(data.linear_user_id)) throw new Error("outbound assignee mapping missing");
+    context.linear_user_id = clean(data.linear_user_id);
+  } else {
+    context.linear_user_id = clean(payload.linear_user_id);
+  }
+  context.project_id = clean(payload.project_id);
+  return context;
+}
+
+async function claimRow(supabase: SupabaseClient, row: OutboxRow): Promise<OutboxRow | null> {
+  const token = crypto.randomUUID();
+  const cutoff = new Date(Date.now() - LOCK_TIMEOUT_MS).toISOString();
+  const { data, error } = await supabase.from("mirror_outbox")
+    .update({ lock_token: token, locked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", row.id)
+    .eq("status", row.status)
+    .or("lock_token.is.null,locked_at.lt." + cutoff)
+    .select("*")
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as OutboxRow;
+}
+
+async function checkpointLinearResult(
+  supabase: SupabaseClient,
+  row: OutboxRow,
+  linearResult: JsonMap,
+): Promise<void> {
+  const { error } = await supabase.from("mirror_outbox")
+    .update({ linear_result: linearResult, updated_at: new Date().toISOString() })
+    .eq("id", row.id)
+    .eq("lock_token", row.lock_token);
+  if (error) throw new Error("outbox create checkpoint failed");
+  row.linear_result = linearResult;
+}
+
+async function releaseRow(
+  supabase: SupabaseClient,
+  row: OutboxRow,
+  patch: JsonMap,
+): Promise<void> {
+  const attempts = Number(row.attempts || 0) + 1;
+  const { error } = await supabase.from("mirror_outbox")
+    .update({
+      ...patch,
+      attempts,
+      lock_token: null,
+      locked_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", row.id)
+    .eq("lock_token", row.lock_token);
+  if (error) throw new Error("outbox release failed");
+}
+
+async function unlockPending(supabase: SupabaseClient, row: OutboxRow, delaySeconds = 30): Promise<void> {
+  const { error } = await supabase.from("mirror_outbox")
+    .update({
+      lock_token: null,
+      locked_at: null,
+      next_retry_at: new Date(Date.now() + delaySeconds * 1_000).toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", row.id)
+    .eq("lock_token", row.lock_token);
+  if (error) throw new Error("outbox unlock failed");
+}
+
+function compactIssue(issue: JsonMap | null): JsonMap {
+  if (!issue) return {};
+  return {
+    id: clean(issue.id),
+    identifier: clean(issue.identifier),
+    updated_at: clean(issue.updatedAt),
+    state_id: clean(issue.state && (issue.state as JsonMap).id),
+    due_date: clean(issue.dueDate) || null,
+    assignee_id: clean(issue.assignee && (issue.assignee as JsonMap).id) || null,
+    parent_id: clean(issue.parent && (issue.parent as JsonMap).id) || null,
+    archived: !!issue.archivedAt,
+  };
+}
+
+async function applyCreateLinkage(
+  supabase: SupabaseClient,
+  row: OutboxRow,
+  entity: JsonMap,
+  issue: JsonMap,
+): Promise<void> {
+  if (row.entity === "batch") {
+    const ids = mergeBatchParentIds(entity.linear_parent_ids, row.team, issue);
+    const { error } = await supabase.rpc("batch_write", {
+      p_row: { ...entity, linear_parent_ids: ids },
+      p_event: {
+        source: "outbound",
+        action: "mirror_out_create_link",
+        actor: "SyncView Mirror",
+        role: "system",
+        payload: { outbox_id: row.id },
+      },
+    });
+    if (error) throw new Error("batch create linkage failed");
+    return;
+  }
+
+  const raw = parseJson(entity.linear_raw);
+  const { error } = await supabase.rpc("deliverable_write", {
+    p_row: {
+      ...entity,
+      linear_issue_uuid: clean(issue.id),
+      linear_identifier: clean(issue.identifier),
+      linear_issue_url: clean(issue.url),
+      linear_raw: { ...raw, issue },
+      sync_state: "clean",
+    },
+    p_event: {
+      source: "outbound",
+      action: "mirror_out_create_link",
+      actor: "SyncView Mirror",
+      role: "system",
+      payload: { outbox_id: row.id },
+    },
+  });
+  if (error) throw new Error("deliverable create linkage failed");
+}
+
+async function latestOutboundSummaryTs(supabase: SupabaseClient): Promise<string> {
+  const { data } = await supabase.from("deliverable_events")
+    .select("ts")
+    .eq("action", "linear_outbound_summary")
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return clean(data && data.ts) || new Date(Date.now() - 60 * 60 * 1_000).toISOString();
+}
+
+async function echoDropCount(supabase: SupabaseClient, since: string): Promise<number> {
+  const { count } = await supabase.from("deliverable_events")
+    .select("id", { count: "exact", head: true })
+    .eq("action", "mirror_out_echo_dropped")
+    .gte("ts", since);
+  return Number(count || 0);
+}
+
+async function backlogCount(supabase: SupabaseClient): Promise<number> {
+  const { count } = await supabase.from("mirror_outbox")
+    .select("id", { count: "exact", head: true })
+    .in("status", ["pending", "failed", "shadow_ok"]);
+  return Number(count || 0);
+}
+
+async function writeSummary(supabase: SupabaseClient, summary: JsonMap): Promise<number | null> {
+  const { data, error } = await supabase.from("deliverable_events")
+    .insert({
+      deliverable_id: null,
+      batch_id: null,
+      client_slug: "_system",
+      actor: "SyncView Mirror",
+      role: "system",
+      action: "linear_outbound_summary",
+      source: "outbound",
+      payload: summary,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error("outbound summary event failed");
+  return data && data.id ? Number(data.id) : null;
+}
+
+async function readRows(
+  supabase: SupabaseClient,
+  mode: string,
+  limit: number,
+  testClient: string,
+): Promise<OutboxRow[]> {
+  const statuses = mode === "live" ? ["pending", "failed", "shadow_ok"] : ["pending", "failed"];
+  let query = supabase.from("mirror_outbox")
+    .select("*")
+    .in("status", statuses)
+    .order("created_at", { ascending: true })
+    .limit(limit * 3);
+  query = testClient
+    ? query.eq("client_slug", testClient).eq("test_only", true)
+    : query.eq("test_only", false);
+  const { data, error } = await query;
+  if (error) throw new Error("outbox read failed");
+  const now = Date.now();
+  return (Array.isArray(data) ? data : [])
+    .filter(row => Number(row.attempts || 0) < MAX_ATTEMPTS)
+    .filter(row => !row.next_retry_at || Date.parse(row.next_retry_at) <= now)
+    .slice(0, limit) as OutboxRow[];
+}
+
+async function currentControl(
+  supabase: SupabaseClient,
+  row: OutboxRow,
+  testOverride: JsonMap,
+): Promise<{ mode: string; authority: string }> {
+  if (clean(testOverride.client_slug)) {
+    return {
+      mode: modeFrom({ mode: testOverride.mode }),
+      authority: lower(testOverride.authority) === "linear" ? "linear" : "syncview",
+    };
+  }
+  const [modeFlag, authorityFlag] = await Promise.all([
+    readFlag(supabase, OUTBOUND_FLAG),
+    readFlag(supabase, AUTHORITY_FLAG),
+  ]);
+  return {
+    mode: modeFrom(modeFlag),
+    authority: authorityFor(row.team, authorityFlag),
+  };
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
+  if (!(await serviceRoleRequest(req))) return json({ ok: false, error: "forbidden" }, 403);
+
+  let body: JsonMap;
+  try {
+    body = parseJson(await req.json());
+  } catch (_e) {
+    return json({ ok: false, error: "invalid json" }, 400);
+  }
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+  const testOverride = parseJson(body.test_override);
+  const testClient = clean(testOverride.client_slug);
+  const testMode = lower(testOverride.mode);
+  if (testClient && clean(body.confirm) !== "B4_TEST_ONLY") {
+    return json({ ok: false, error: "TEST override confirmation missing" }, 400);
+  }
+  if (testClient && !["shadow", "live", "off"].includes(testMode)) {
+    return json({ ok: false, error: "invalid TEST override mode" }, 400);
+  }
+
+  const requestedLimit = Number(body.limit || 15);
+  const limit = Math.max(1, Math.min(MAX_LIMIT, Number.isFinite(requestedLimit) ? requestedLimit : 15));
+  const runStarted = new Date().toISOString();
+  const since = await latestOutboundSummaryTs(supabase);
+  const initialMode = testClient
+    ? modeFrom({ mode: testOverride.mode })
+    : modeFrom(await readFlag(supabase, OUTBOUND_FLAG));
+  const counts: Record<string, number> = {
+    enqueued: 0,
+    shadow_ok: 0,
+    written: 0,
+    failed: 0,
+    retried: 0,
+    echo_dropped: 0,
+    stale_dropped: 0,
+    skipped: 0,
+    paused: 0,
+    shadow_vs_actual_divergence: 0,
+  };
+
+  let rows: OutboxRow[] = [];
+  let mirrorActor: JsonMap = {};
+  if (initialMode !== "off") {
+    rows = await readRows(supabase, initialMode, limit, testClient);
+    counts.enqueued = rows.length;
+    if (initialMode === "live") mirrorActor = await readViewer();
+  }
+
+  for (const candidate of rows) {
+    const row = await claimRow(supabase, candidate);
+    if (!row) continue;
+    try {
+      const control = await currentControl(supabase, row, testOverride);
+      if (control.mode === "off") {
+        await unlockPending(supabase, row, 0);
+        break;
+      }
+      if (control.authority !== "syncview") {
+        counts.paused++;
+        await unlockPending(supabase, row, testClient ? 0 : 30);
+        continue;
+      }
+
+      const entity = await entityRow(supabase, row);
+      let dependency = await dependencyResult(supabase, row);
+      if (dependency.waiting === true) {
+        await unlockPending(supabase, row, 15);
+        continue;
+      }
+      const issueId = linearIssueId(row, entity, dependency)
+        || (row.operation === "create" ? await deterministicCreateId(row.dedup_key) : "");
+      const issue = issueId ? await readIssue(issueId, row.operation === "create") : null;
+      if (testClient) await testScope(supabase, row, issue);
+      const context = await resolveContext(supabase, row, entity, issue, dependency);
+      const conflict = decideConflict(row, issue, context);
+
+      if (conflict.decision === "stale") {
+        counts.stale_dropped++;
+        await releaseRow(supabase, row, {
+          status: "stale",
+          processed_at: new Date().toISOString(),
+          linear_result: { conflict },
+          last_error: null,
+          next_retry_at: null,
+        });
+        continue;
+      }
+      if (conflict.decision === "already_exists" && row.operation === "create" && control.mode === "live" && issue) {
+        await applyCreateLinkage(supabase, row, entity, issue);
+        counts.written++;
+        await releaseRow(supabase, row, {
+          status: "written",
+          processed_at: new Date().toISOString(),
+          linear_result: {
+            ...parseJson(row.linear_result),
+            mutation: "issueCreate",
+            issue_id: clean(issue.id),
+            identifier: clean(issue.identifier),
+            updated_at: clean(issue.updatedAt || issue.createdAt),
+            mirror_actor_id: clean(mirrorActor.id),
+            mirror_actor_name: clean(mirrorActor.name),
+            recovered_idempotently: true,
+            conflict,
+          },
+          last_error: null,
+          next_retry_at: null,
+        });
+        continue;
+      }
+      if (conflict.decision === "already_applied" || conflict.decision === "already_exists") {
+        counts.skipped++;
+        await releaseRow(supabase, row, {
+          status: "skipped",
+          processed_at: new Date().toISOString(),
+          linear_result: { conflict, issue: compactIssue(issue) },
+          last_error: null,
+          next_retry_at: null,
+        });
+        continue;
+      }
+      if (conflict.decision === "failed") throw new Error(clean(conflict.reason));
+
+      const mutation = buildMutation(row, context);
+      if (control.mode === "shadow") {
+        counts.shadow_ok++;
+        counts.shadow_vs_actual_divergence++;
+        await releaseRow(supabase, row, {
+          status: "shadow_ok",
+          processed_at: new Date().toISOString(),
+          shadow_actual: compactIssue(issue),
+          linear_result: {
+            would_send: { kind: mutation.kind, variables: mutation.variables },
+            conflict,
+          },
+          last_error: null,
+          next_retry_at: null,
+        });
+        continue;
+      }
+
+      if (Number(row.attempts || 0) > 0) counts.retried++;
+      const data = await linearGraphql(mutation.query, mutation.variables as JsonMap);
+      let result = extractMutationResult(mutation.kind, data);
+      if (mutation.kind === "issueArchive" || mutation.kind === "issueUnarchive") {
+        result = await readIssue(issueId);
+      }
+      const resultMap = result && typeof result === "object" ? result as JsonMap : {};
+      const resultIssue = mutation.kind === "commentCreate"
+        ? parseJson(resultMap.issue)
+        : resultMap;
+      const linearResult: JsonMap = {
+        mutation: mutation.kind,
+        issue_id: clean(resultIssue.id) || issueId,
+        identifier: clean(resultIssue.identifier),
+        updated_at: clean(resultIssue.updatedAt || resultMap.createdAt),
+        comment_id: mutation.kind === "commentCreate" ? clean(resultMap.id) : null,
+        mirror_actor_id: clean(mirrorActor.id),
+        mirror_actor_name: clean(mirrorActor.name),
+        expected: mutation.variables,
+      };
+      // Persist the acknowledged mutation before any follow-up work. Linear can
+      // deliver its webhook immediately, and inbound must see the exact intent
+      // even while this row is still locked/finalizing.
+      await checkpointLinearResult(supabase, row, linearResult);
+      if (row.operation === "create" && result && typeof result === "object") {
+        await applyCreateLinkage(supabase, row, entity, resultIssue);
+      }
+      counts.written++;
+      await releaseRow(supabase, row, {
+        status: "written",
+        processed_at: new Date().toISOString(),
+        linear_result: linearResult,
+        last_error: null,
+        next_retry_at: null,
+      });
+      await sleep(RATE_DELAY_MS);
+    } catch (error) {
+      counts.failed++;
+      const attempts = Number(row.attempts || 0) + 1;
+      const delay = Math.min(60 * 60, Math.pow(2, Math.min(attempts, 8)) * 15);
+      await releaseRow(supabase, row, {
+        status: "failed",
+        last_error: safeError(error),
+        next_retry_at: attempts >= MAX_ATTEMPTS
+          ? null
+          : new Date(Date.now() + delay * 1_000).toISOString(),
+      }).catch(() => null);
+    }
+  }
+
+  counts.echo_dropped = await echoDropCount(supabase, since);
+  const backlog = await backlogCount(supabase);
+  const summary: JsonMap = {
+    ok: counts.failed === 0,
+    mode: initialMode,
+    test_override: !!testClient,
+    started_at: runStarted,
+    finished_at: new Date().toISOString(),
+    counts,
+    backlog,
+    alerts: {
+      failed_write: counts.failed > 0,
+      backlog_growth: backlog > BACKLOG_ALERT_THRESHOLD,
+      write_volume_spike: counts.written > VOLUME_ALERT_THRESHOLD,
+      shadow_mismatch: counts.shadow_vs_actual_divergence > 0,
+    },
+  };
+  const eventId = await writeSummary(supabase, summary);
+  return json({ ok: counts.failed === 0, event_id: eventId, ...summary });
+});

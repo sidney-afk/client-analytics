@@ -37,8 +37,8 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 | Path | What it is |
 |---|---|
-| `supabase/` | Standard Supabase CLI layout: `supabase/config.toml` + `supabase/functions/` (Edge Functions). Deploys are path-triggered by `.github/workflows/deploy-onboarding-edge-functions.yml` — do not move. |
-| `migrations/` | Manually-applied Supabase SQL, kept for provenance (no auto-runner). See `migrations/README.md` for the baseline-plus-deltas layout. |
+| `supabase/` | Standard Supabase CLI layout: `supabase/config.toml` + `supabase/functions/` (Edge Functions). B4 outbound lives in `supabase/functions/linear-outbound/`, `supabase/functions/deliverable-write/`, `supabase/functions/batch-write/`, and shared write/auth code under `supabase/functions/_shared/`; `supabase/functions/linear-inbound/` owns strict echo suppression. Deploys are path-triggered by `.github/workflows/deploy-onboarding-edge-functions.yml` — do not move. |
+| `migrations/` | Manually-applied Supabase SQL, kept for provenance (no auto-runner). `2026-07-11-b4-linear-outbound.sql` is the additive durable-outbox/switch delta. See `migrations/README.md` for the baseline-plus-deltas layout. |
 | `n8n-backups/` | Point-in-time n8n workflow snapshots — the rollback anchors required by `ROLLBACK.md` rule 2. Purely archival; read by no code. |
 
 ## Documentation (`docs/`)
@@ -65,6 +65,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `npm run test:prod-polish` | `docs/syncview-design/tests/prod-polish-gate.js` — 7 Production-tab suites | PR gate for `index.html` / design-kit changes (`production-polish-gate.yml`). |
 | `qa/overnight_runner.sh` | Continuous unattended QA loop | Local only; see the `/overnight-test` skill. |
 | Reconcile crons | `scripts/linear-sync-reconcile.js`, `scripts/sample-linear-reconcile.js`, `scripts/linear-deliverables-reconcile.js`, `scripts/b1-linear-backfill.js` | Scheduled GitHub Actions; `scripts/` also holds tested one-shot ops tools. |
+| B4 outbound | `.github/workflows/linear-outbound-drain.yml`, `scripts/b4-linear-outbound-harness.js`, `scripts/b4-pager-outbound.js`, and matching `test/*.js` | Durable drainer cadence, fail-closed TEST-only live proof, and idempotent n8n pager wiring. Global mode defaults to `off`. |
 
 ## Meta
 

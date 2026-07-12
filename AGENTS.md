@@ -18,9 +18,10 @@ updated in place, and drift-checked by `test/truth-sync.js`.
 Repo layout is documented in `REPO_MAP.md` — when you add, move, or remove files,
 update the map in the same change (`test/repo-map-sync.js` enforces it in CI).
 
-For Production tab polish:
+For the visible **Linear** mirror (internal key/module `production`) polish:
 
-- The current Production tab is a read-only Linear-style preview. Do not introduce real writes unless the requested milestone explicitly enables write behavior.
+- Keep the deliberate label/route split: **Linear** = `navProd` / `production` / `#production` with `?prod=1`; **Submit** = `navLinear` / `linear` / `#linear`. Never derive routing from the visible labels.
+- The current mirror tab is read-only. Do not introduce real writes unless the requested milestone explicitly enables write behavior.
 - Run `npm run test:prod-polish` for Production UI changes. It covers boot skeleton routing, structure, interaction inventory, accessibility/focus basics, layout clipping, behavior, and pixel parity.
 - Keep fixes tight and add tests for owner feedback such as stuck hover states, clipped dates, broken right-click behavior, scroll position, filter/display menus, and selection cleanup.
 - Preserve URL/deep-link behavior for `?prod=1`, `team`, `view`, `client`, and `d` query params.

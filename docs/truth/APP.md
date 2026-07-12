@@ -8,8 +8,9 @@
 ## Shape
 
 One ~44k-line single-file SPA. Major surfaces: content calendar, samples (SXR + legacy),
-three review flows (client / Kasper / SMM), Production tab (`?prod=1`), onboarding funnel,
-sales intake, filming plans, thumbnails tooling, SMM weekly reports, TikTok pilot.
+three review flows (client / Kasper / SMM), the visible Linear read-only mirror (internal
+`production`, `#production`, `?prod=1`), the visible Submit form (internal `linear`, `#linear`),
+onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly reports, TikTok pilot.
 
 ## Calendar
 
@@ -40,9 +41,10 @@ sales intake, filming plans, thumbnails tooling, SMM weekly reports, TikTok pilo
 - Every consistency surface (status/assignee/due/name/comments), outboxes, flags:
   `docs/audits/2026-07-05-logic-sync.md`; current sync reality: `docs/truth/LINEAR.md`.
 
-## Production tab (`?prod=1`)
+## Linear mirror tab (internal `production`; `#production`; `?prod=1`)
 
-- Read-only in-app Linear mirror; **guarded read-only by design** — no writes until a
+- Visible top-nav label is **Linear**; the internal module/key remains `production`. It is a
+  read-only in-app Linear mirror, **guarded read-only by design** — no writes until a
   milestone explicitly enables them (Track B4).
 - Boot does a lightweight parallel select of `clients`/`team_members`/`batches`/
   `deliverables` (plus `deliverable_events`).
@@ -69,7 +71,7 @@ fast-moving file). Confirmed-dead example already documented: `_sxrReassertLinea
 | Group | Candidates |
 |---|---|
 | Calendar | `_calClientPossessive` `_calCommentTotal` `_calLinkLabel` `_calOnTextareaInput` `_calOnUrlInput` `_calOpenUrlField` `_calStatusChip` `_calZoomHintHtml` |
-| Production tab (`?prod=1`) — **check active prod sprint before touching** | `_prodById` `_prodClientEmoji` `_prodIsBatchParent` `_prodOpenBatch` `_prodSetFocusCard` `_prodSetTeam` |
+| Linear mirror (internal `production`; `?prod=1`) — **check active prod sprint before touching** | `_prodById` `_prodClientEmoji` `_prodIsBatchParent` `_prodOpenBatch` `_prodSetFocusCard` `_prodSetTeam` |
 | Samples/SXR | `_sxrReassertLinearStatus` `_sxrReorderUrlForClient` `_sxrSetAllSettable` |
 | Onboarding | `_obAddCreatorRow` `_obToggle` `_obvToggle` |
 | Market-research tab (looks unwired) | `_mrHookBadge` `renderMRTab_landscape` `renderMRTab_topics` |

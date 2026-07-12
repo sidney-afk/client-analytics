@@ -10,7 +10,7 @@ commit as any structural change.
 
 | Path | What it is |
 |---|---|
-| `index.html` | **The entire application** — a single-file SPA, served to production by GitHub Pages from `main`. Merging to `main` ships immediately. |
+| `index.html` | **The entire application** — a single-file SPA, served to production by GitHub Pages from `main`. Merging to `main` ships immediately. Deliberate nav mapping: visible **Linear** = `navProd` / key `production` / `#production` (`?prod=1` alias, read-only mirror); visible **Submit** = `navLinear` / key `linear` / `#linear` (submission form). |
 | `404.html`, `CNAME` | GitHub Pages plumbing (SPA fallback redirect; the `syncview.synchrosocial.com` domain). Must stay at root. |
 | `README.md` | Project overview: what SyncView does, architecture, development, deployment. |
 | `REPO_MAP.md` | This file. |
@@ -53,7 +53,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `docs/truth/` | **Living current-truth docs** — start at `docs/truth/BRIEFING.md` (session briefing) and `docs/truth/README.md` (the contract). Updated in place, freshness-stamped, drift-checked by `test/truth-sync.js`. Conclusions live here; evidence stays in `docs/audits/`. |
 | `docs/audits/` | Dated audit evidence (2026-07-03 →). Historical record — do not edit old audits; add new dated files. Current conclusions belong in `docs/truth/`. |
 | `docs/archive/` | Completed/superseded docs: finished migration plans, spent prompts, incident notes, old QA reports (`docs/archive/qa/`). Nothing here is current truth. |
-| `docs/syncview-design/` | The **locked design kit** for the Production tab: `docs/syncview-design/SyncView.html` (behavior source of truth), `docs/syncview-design/linear-design-tokens.md` (visual build spec), `docs/syncview-design/WIRED-PARITY.md` (parity contract), wired test gates in `docs/syncview-design/tests/`, raw probe measurements in `docs/syncview-design/probe-data/`, prototype-era suites in `docs/syncview-design/tests/design-machine-originals/`. |
+| `docs/syncview-design/` | The **locked design kit** for the visible **Linear** mirror (internally the `production` surface): `docs/syncview-design/SyncView.html` (behavior source of truth), `docs/syncview-design/linear-design-tokens.md` (visual build spec), `docs/syncview-design/WIRED-PARITY.md` (parity contract), wired test gates in `docs/syncview-design/tests/`, raw probe measurements in `docs/syncview-design/probe-data/`, prototype-era suites in `docs/syncview-design/tests/design-machine-originals/`. |
 
 ## Test & automation entry points
 
@@ -62,7 +62,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `npm test` | `test/run-all.js` → every `test/*.js` (offline, no network) | Runs on every push (`calendar-unit-tests.yml`). Run before every commit. |
 | `npm run test:e2e` | `qa/run-probes.js` → probes in `qa/probes/nightly-manifest.txt` | **Live backend**, test client only. Nightly (`calendar-e2e-nightly.yml`). |
 | `npm run test:master` | `qa/master.js` — all lanes (unit, parity, probes, scenarios, temporal, visual) | Samples nightly runs a lane subset (`samples-e2e-nightly.yml`). |
-| `npm run test:prod-polish` | `docs/syncview-design/tests/prod-polish-gate.js` — 7 Production-tab suites | PR gate for `index.html` / design-kit changes (`production-polish-gate.yml`). |
+| `npm run test:prod-polish` | `docs/syncview-design/tests/prod-polish-gate.js` — 8 internal Production-surface suites for the visible Linear mirror | PR gate for `index.html` / design-kit changes (`production-polish-gate.yml`). |
 | `qa/overnight_runner.sh` | Continuous unattended QA loop | Local only; see the `/overnight-test` skill. |
 | Reconcile crons | `scripts/linear-sync-reconcile.js`, `scripts/sample-linear-reconcile.js`, `scripts/linear-deliverables-reconcile.js`, `scripts/b1-linear-backfill.js` | Scheduled GitHub Actions; `scripts/` also holds tested one-shot ops tools. |
 | B4 outbound | `.github/workflows/linear-outbound-drain.yml`, `scripts/b4-linear-outbound-harness.js`, `scripts/b4-outbound-shadow-audit.js`, `scripts/b4-pager-outbound.js`, and matching `test/*.js` | Durable drainer cadence, fail-closed TEST-only live proof, read-only full-roster shadow analysis, and idempotent n8n pager wiring. Global mode defaults to `off`. |

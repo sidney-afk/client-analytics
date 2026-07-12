@@ -40,4 +40,4 @@ opposite: they describe the **current** state of the system and are **updated in
 | `docs/truth/SUPABASE.md` | Tables, runtime flags, event ledgers, Edge Functions, write contracts. |
 | `docs/truth/N8N.md` | Workflow inventory, active/inactive state, known hardcoded-credential hazards. |
 | `docs/truth/SHEETS.md` | Google Sheets tabs/columns, roster truth, client-name normalization. |
-| `docs/truth/APP.md` | `index.html` logic by surface: calendar, samples/SXR, reviews, Linear sync, Production tab. Phase-2 audit findings land here. |
+| `docs/truth/APP.md` | `index.html` logic by surface: calendar, samples/SXR, reviews, Linear sync, visible Linear mirror (internal `production`) and Submit form (internal `linear`). Phase-2 audit findings land here. |

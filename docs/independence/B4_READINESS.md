@@ -92,13 +92,12 @@ each team's flip, the four link-keyed predicate families re-point from `linear_i
 `*_deliverable_id` (§9.2): the status-pill lock, dupe-link warning, link nudges, Kasper-queue
 gates. After B5 teardown, the Linear link columns stay on cards but inert (§13.4.i).
 
-**"What about the Linear submission tab?"** Spec §9.1: during B3 (now), intake still creates in
-Linear and mirrors in. **From B4, the intake creates natively** — batch row + deliverables in
-Supabase first; during the split-authority window the Linear-authoritative team's leg still goes
-through legacy intake and the inbound engine adopts the mirrored parent into the existing batch
-(no duplicate batches). Auto-assign ports "Pick Freest Editor". At B5 the `linear-subissues`
-webhook is retired with the rest of the legacy family (§13.4.g). No separate "B6" is needed —
-this is inside B4/B5.
+**"What about the Linear submission tab?"** The visible **Submit** tab (internal `linear`) still
+creates in Linear and mirrors in. The B4 outbound backend is staged dark and is not wired to the
+SPA. At the separate owner-approved intake handoff, the same form creates natively — batch row +
+deliverables in Supabase first — and outbound keeps Linear current. Auto-assign ports "Pick Freest
+Editor". At B5 the `linear-subissues` webhook is retired with the rest of the legacy family
+(§13.4.g). No separate "B6" is needed — this is inside B4/B5.
 
 ## 6. B4 rollout & UX — owner decisions (ratified 2026-07-11)
 
@@ -119,7 +118,9 @@ section is the operational reflection, not a competing source).
 - **Fallback grace period (D-22):** **~1 week, fully reversible** — the one-flag rollback to
   Linear stays armed all week so the team can keep working in Linear if the app needs a fix; after
   a clean week, freeze Linear read-only, then archive.
-- **Submission tab UI (D-23):** **no change** for now — only its backend plumbing flips.
+- **Submission form UI (D-23):** its form and behavior remain unchanged; the top-nav label alone is
+  now **Submit** while its internal key/route stay `linear` / `#linear`. Only backend plumbing flips
+  at B4.
 - **One password per person (D-24):** consolidate the three separate keys (role / credential /
   onboarding) into the **role key** — each person types one password once, and their role decides
   reach: **credentials → admin+smm; onboarding → admin only; creative → neither.** Additive +

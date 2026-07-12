@@ -2,6 +2,10 @@
 
 Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 
+Visible shell note: the app's top-nav label is now **Linear**, but this ledger retains
+**Production** for the internal `production` module and historical design-kit terminology. The
+submission form is labeled **Submit** while retaining internal key `linear`.
+
 - ✅ ported: wired `?prod=1` matches the artifact behavior in read-only form.
 - 🔒 deferred-B3: artifact behavior mutates data and remains guarded until write authority moves.
 - ⬜ pending: read-only-safe artifact behavior still needs transplant/adaptation.
@@ -12,6 +16,9 @@ Full report: `docs/audits/2026-07-09-production-foundation-audit.md`.
 
 | Behavior | Source | Status | Notes |
 |---|---|---:|---|
+| Global nav promotion | owner direction, top-nav shell | ported | Visible order is Analytics → Linear mirror → Submit. The mirror keeps `#production` / `?prod=1`, the form keeps `#linear`, and the mirror remains read-only. |
+| Global nav keyboard boundary | focused human-audit pass | ported | Production's document-level row shortcuts yield whenever any real app control is focused, so Enter on the global Submit link performs native navigation instead of opening the first mirror row. |
+| Expanded desktop nav containment | master-tester vision pass at 1440px | ported | The center nav owns a bounded, scrollbar-free horizontal strip and reveals the active tab, so role-only tabs never collide with staff/account/theme controls after adding the promoted mirror. |
 | Finished read-only product standard | owner direction, Track B B2/B3 boundary | ported | The Production tab is treated as finished-quality read-only chrome: each visible control must work locally, navigate, open a guarded picker/menu, or be clearly disabled. |
 | Project toolbar overlay Escape cascade | `projectToolbarMenusAndDetailsToggle`, overlay key handling | ported | Fixed a real loose end where Escape inside a project Filter/Display popover also bubbled to the page-level handler and navigated from project detail back to board. |
 | Phone app-header layout | human/vision review at 390px wide | ported | The global header switches to a two-row mobile layout so the active Production tab is visible in its own horizontally scrollable nav row instead of colliding with the theme toggle. |

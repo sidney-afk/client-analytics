@@ -43,6 +43,17 @@ disagree, reality wins — and fix this file in the same PR.
 | `docs/ops/MONITORING.md` | which watcher covers which sync edge |
 | `EXECUTION_LOG.md` (tail) | what happened recently, newest at the bottom |
 
+### Locked tab label ↔ route mapping
+
+- Visible **Linear** tab → `navProd` → internal key `production` → `#production`; `?prod=1`
+  remains its direct-entry/deep-link alias. This remains read-only; the B4 backend is staged dark
+  behind its off switch and is not wired into the SPA.
+- Visible **Submit** tab → `navLinear` → internal key `linear` → `#linear`. This is the existing
+  Create Linear Issue submission form.
+
+The label/key mismatch is deliberate. Do not rename the hashes, `navTo()` arguments,
+`currentNav` comparisons, or the `?prod=1` alias to match the visible labels.
+
 ## 4. The verification toolkit (copy-paste recipes)
 
 All reads use the browser-safe publishable key already public in `index.html`
@@ -129,5 +140,6 @@ Track A (writes off n8n): **complete, closed out**. Track B: **B4 outbound in pr
 inbound remains live and Linear-authoritative; the additive outbox/drainer, strict echo guard,
 two-way reconciler lane, TEST shadow/live/pause drills, and outbound pager are staged dark behind
 `linear_outbound_enabled=off`. D-25's full-roster shadow window and the owner live flip have not
-started. Production write affordances and intake re-pointing remain gated; the `linear-*` n8n
-family retires only at B5 (§13.4).
+started. Visible **Linear**-mirror write affordances (internal `production`) remain gated, and the
+visible **Submit** tab (internal `linear`) remains on its existing submission path until a separate
+owner-approved intake handoff. The `linear-*` n8n family retires only at B5 (§13.4).

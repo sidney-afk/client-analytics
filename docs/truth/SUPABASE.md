@@ -22,7 +22,7 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   written events; inbound/reconcile bypass the ledger. `deliverable_events` (Track B) must
   not inherit that bypassability.
 - Track B tables (`batches`, `deliverables`, `deliverable_events`, `clients`, `team_members`)
-  are additive; read by the Production tab boot.
+  are additive; read by the visible Linear mirror's internal `production` boot.
 
 ## Write contract (calendar/SXR upsert paths)
 

@@ -39,7 +39,8 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
 
 - **Supabase** (one project). REST tables the app reads directly: `calendar_posts`,
   `content_samples`, `sample_reviews`, `templates`, `caption_prompts`, `filming_plans`,
-  `workload_issues`, `syncview_runtime_flags`; the Production tab additionally pages `batches`,
+  `workload_issues`, `syncview_runtime_flags`; the visible **Linear** mirror (internal
+  `production` surface) additionally pages `batches`,
   `deliverables`, `deliverable_events`, `team_members`, `clients`. Ledger/mirror tables
   (`*_events`, `mirror_outbox`, `linear_archive`, `client_credentials_rev`,
   `thumbnail_media_revisions`) are written by Edge Functions / reconcilers, not read directly by the
@@ -77,7 +78,7 @@ Everything below is shared by every surface; per-surface sections only note devi
   and `localStorage` and tags `<html>` with `boot-*` classes / `data-boot-nav` so the first paint
   already shows the right chrome; it is wrapped in try/catch and never throws. (2) The entry router
   at the end of the script (~33410–33505) chooses a mode: `?onboarding` / `/onboarding_form` →
-  public onboarding form; `?onboarding_view=<slug>` → standalone viewer; `?intake=1` → Linear-only
+  public onboarding form; `?onboarding_view=<slug>` → standalone viewer; `?intake=1` → Submit-only
   lock; `?c=<client>` → client link; `#smm-weekly-report(s)` hash → SMM weekly form/viewer; else the
   **password overlay unless `syncview_auth_v1==='ok'`**. `init()` (~32870–33345) then routes to the
   tab, with fast-tab and client-link fast paths that mount before analytics data resolves.
@@ -212,10 +213,11 @@ n8n in the metric read path.*
   B4 team flip: four link-predicate families re-point, name-sync activates, comments stay single-
   writer on the card thread. B5: link columns inert.
 
-### 4.3 Linear tab (batch submission)
+### 4.3 Submit tab (batch submission; internal key `linear`, route `#linear`)
 
-- **Entry.** Team tab / `#linear`; `?intake=1` hard-locks the whole SPA to this form (no password,
-  chrome hidden, `navTo` coerced to `linear`).
+- **Entry.** The visible top-nav label is **Submit** (`navLinear`), while the intentionally unchanged
+  internal nav key and hash are `linear` / `#linear`. `?intake=1` hard-locks the whole SPA to this
+  form (no password, chrome hidden, `navTo` coerced to `linear`). Existing bookmarks stay valid.
 - **Reads.** n8n `linear-projects` (client dropdown, on mount when empty). `filming_plans` REST (+
   Sheets CSV fallback + `syncview-filming-plans` realtime) to resolve a read-only plan link. Post-
   submit link poll reads `workload_issues` REST (Workload v2 default) → n8n `linear-issues` fallback.
@@ -241,13 +243,17 @@ n8n in the metric read path.*
 - **Notable / corrections.** `linear-subissues` is a **read** used by Calendar/SXR, not a Linear-tab
   write. The durable card-job system exists because of a real data-loss incident (tab closed during
   the pre-write window). Due dates are computed client-side in 5-working-day batches.
-- **Track B.** B3: still creates in Linear and mirrors in. B4: native create; split-authority legs
-  adopt into the existing batch row. B5: `linear-subissues` + family retired.
+- **Track B.** The current Submit form still creates in Linear and mirrors in. The B4 outbound
+  backend is staged dark but is not wired to the SPA; a separate owner-approved intake handoff
+  switches this form to native create. B5: `linear-subissues` + family retired.
 
-### 4.4 Production tab (`?prod=1`) — read-only Linear mirror
+### 4.4 Linear tab — read-only mirror (internal key `production`, route `#production`)
 
-- **Entry.** `?prod=1` only (`_prodEnabled`). `init()` short-circuits to mount it and leaves
-  essentials in the background; deep-link state in `#production` + many params.
+- **Entry.** The visible top-nav label is **Linear** (`navProd`), while the intentionally unchanged
+  internal nav key and hash are `production` / `#production`. It is mounted near the front for the
+  normal signed-in staff audience. `?prod=1` remains the entry/deep-link alias (`_prodEnabled`);
+  `init()` short-circuits to mount it and leaves essentials in the background. Existing bookmarks
+  and deep links remain valid.
 - **Reads.** All Supabase REST via the dynamic `'/rest/v1/'+table` pager (`_prodRestRows`): boot
   loads `clients`, `team_members`, `batches`, and a **lightweight** `deliverables` select (PR-#779
   shape — tombstone markers via `linear_raw->>…` JSON aliases, no `brief`/`linear_raw` body). Lazy:
@@ -261,9 +267,10 @@ n8n in the metric read path.*
   `syncview_auth_v1`. Deep-link params: `group`, `order`, `subs`, `team`, `view`, `issues`,
   `pdetails`, `client`, `d`, `batch` (`ptab` is dead). In-memory `_prodState` (rows + adapter, events
   Map, linearRaw Map). No kill switches, no realtime, no polling.
-- **Roles.** No role logic inside — the gate is `?prod=1` + the app-level password. "My issues" is a
-  hardcoded heuristic (member matching a specific name, else first active assignee), not a real
-  identity.
+- **Roles.** No role logic inside. Every verified staff role can use the mounted nav item; the
+  unchanged route guard accepts a valid staff identity or direct `?prod=1` diagnostics. "My issues"
+  is a hardcoded heuristic (member matching a specific name, else first active assignee), not a real
+  identity. None of this grants write capability.
 - **Failure/fallback.** Per-page fetch: 3 attempts, retry only network/429/5xx. Boot-load failure →
   full-tab error screen + Retry; silent refresh failure → `console.warn`, stale kept. Pagination-cap
   overflow is a hard error (never silent truncation). Freshness = silent refresh on visibility/focus/
@@ -273,8 +280,10 @@ n8n in the metric read path.*
   **only** user of the dynamic REST call site; its five tables are absent from the literal-table
   inventory by design. Deleted/archived issues are filtered client-side from tombstone JSON, not
   server-side. `prod_authority` does **not** exist anywhere in `index.html` yet.
-- **Track B.** The core surface. B3 (now): read-only mirror at full parity (~4.3k deliverables). B4:
-  writable via deliverable-/batch-write EFs + outbound mirror. B5: the only production surface.
+- **Track B.** The core surface remains read-only at full parity (~4.3k deliverables). The B4
+  deliverable-/batch-write EFs and outbound mirror are staged dark behind
+  `linear_outbound_enabled=off`; a separate owner-approved SPA handoff is required before this tab
+  becomes writable. B5: the only production surface.
 
 ### 4.5 Samples New (SXR) — `sample_reviews`
 
@@ -632,8 +641,8 @@ the full active roster (Track A closed 2026-07-10). Mirror at full parity (~4.3k
   behind `linear_outbound_enabled=off`; real authority remains Linear. D-25 requires full-roster
   shadow proof and live watchers before a both-team/all-client live flip. D-26 makes
   `prod_authority[team]=linear` the normal per-team pause while inbound keeps SyncView current.
-  Production write affordances, card predicates, Workload, and intake remain on their current paths
-  until their separate owner-approved handoff.
+  Visible Linear-mirror write affordances (internal `production` surface), card predicates,
+  Workload, and intake remain on their current paths until their separate owner-approved handoff.
 - **B5 (after clean batch cycles per team).** Linear frozen → archived; the `linear-*` n8n family and
   legacy card-write webhooks retired; Workload reconciler + `workload_issues` retired; SyncView is
   the whole production system.
@@ -680,7 +689,7 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 - **Edge functions (17):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve`
 - **Not counted above:** 13 of the 17 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more live in `supabase/functions/` but are never called by the app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
 - **Supabase REST tables, literal (8):** `calendar_posts` · `caption_prompts` · `content_samples` · `filming_plans` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
-- **Supabase REST tables, dynamic:** the Production tab pages any of its tables through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`; reaches `batches`, `deliverables`, `deliverable_events`, `team_members`, `clients`), and SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
+- **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages any of its tables through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`; reaches `batches`, `deliverables`, `deliverable_events`, `team_members`, `clients`), and SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (3):** `calendar_upsert_ef_clients` · `sample_review_ef_clients` · `settings_ef_clients`
 - **Flag semantics:** per-client-slug allowlists in the runtime-flags table; a listed client's writes go to Edge Functions, an unlisted client fail-safes to n8n. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). Plan-side flags (auth enforcement, prod authority, linear-inbound enable) live in the same table but are not yet read by the app.
 

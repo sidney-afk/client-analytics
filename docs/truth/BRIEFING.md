@@ -15,8 +15,9 @@ You are working on **SyncView**, the internal production app for a social-media 
 - `thumbnails/` is a self-contained sister app; nothing in SyncView references it.
 - Surfaces: content calendar, samples (SXR + legacy), three review flows (client / Kasper /
   SMM), onboarding funnel, sales intake, filming plans, thumbnail tools, SMM weekly reports,
-  and the **Production tab** (`?prod=1`) — an in-app Linear mirror, **read-only by design**;
-  do not add writes unless a milestone explicitly enables them.
+  and the visible **Linear** tab (`#production`, `?prod=1`; internal key `production`) — an in-app
+  mirror, **read-only by design** — and the visible **Submit** form (`#linear`; internal key
+  `linear`). Do not add mirror writes unless a milestone explicitly enables them.
 
 ## Read order for any task
 

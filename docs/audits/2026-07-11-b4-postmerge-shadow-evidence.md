@@ -114,3 +114,27 @@ must still follow the documented switch order and watcher checks.
   repair 0 / linkage actionable 0.
 - Final readback remained outbound off, authority Linear/Linear, inbound enabled, auth
   permissive; outbox remained 181 total/high-water, 0 pending, and 0 real written.
+
+## Go-live step 1: bounded deployed shadow window (2026-07-12)
+
+The first fail-closed attempt restored all controls before invoking the drainer because the global
+reconciler reported 112 historical tolerances rather than the 72 active-roster expectation. A
+read-only scope analysis proved the difference was exactly 72 active-client rows plus 40 inactive
+internal rows; there were still 0 diffs and 0 intended writes. Flip ids 16–19 record the opening
+and immediate safe restoration of that diagnostic attempt.
+
+The corrected bounded run used flip ids 20–23 and kept both-team SyncView authority open for
+146.945 seconds. Results:
+
+- Shadow reconciler event `9161` checked 5,336 globally loaded entities and returned 0 outbound
+  diffs/intended writes, 72 active-roster `tolerated_historical`, and 40 separately classified
+  inactive/internal tolerances.
+- Deployed drainer event `9162` ran in `shadow`: 0 enqueued, shadow-ok, written, failed, retried,
+  skipped, stale, or mismatched rows; backlog 0.
+- There were 0 outbound echo drops and 0 mirror events during the window.
+- Authority was restored to Linear/Linear before outbound returned to `off`. Outbox remained 181
+  total/high-water, 0 pending, and 0 real written.
+- Post-window reconciler event `9163` ended diff 0 / repair 0 / linkage actionable 0.
+
+Private evidence SHA-256: `13cd9162a00a285393460cf30817d74390316c7bd1b26f04c67c263669d8930b`.
+The live-write flip remains blocked pending reviewer go/no-go.

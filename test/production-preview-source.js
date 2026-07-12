@@ -2,9 +2,10 @@
 /*
  * Track B B2 source guard.
  *
- * B2 is a read-only, query-flagged preview. This test pins the safety invariants
+ * The promoted mirror is still a read-only, query-backed surface. This test pins
+ * the safety invariants and the deliberate visible-label/internal-route split
  * that are easy to regress in a single-file app:
- *   - the Production nav stays hidden unless ?prod=1 or staff identity verified
+ *   - the visible Linear mirror precedes Submit and stays mounted in staff nav
  *   - navTo cannot enter the tab without _prodAccessAllowed()
  *   - the preview block has only read paths and no runtime-flag/n8n/Linear writes
  */
@@ -27,14 +28,34 @@ function check(name, ok) {
 const prodStart = index.indexOf('PRODUCTION PREVIEW (Track B B2)');
 const prodEnd = index.indexOf('async function init()', prodStart);
 const prodBlock = prodStart >= 0 && prodEnd > prodStart ? index.slice(prodStart, prodEnd) : '';
+const navMarkup = id => {
+  const match = index.match(new RegExp(`<a[^>]+id="${id}"[\\s\\S]*?<\\/a>`));
+  return match ? match[0] : '';
+};
+const navProd = navMarkup('navProd');
+const navLinear = navMarkup('navLinear');
+const linearLogo = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+const submitIcon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>';
 
 check('Production preview block exists before init()', !!prodBlock);
-check('nav item is hidden by default', /id="navProd"[^>]+style="display:none;"/.test(index));
-check('Production nav click still routes through navTo()', /id="navProd"[\s\S]{0,180}navTo\('production'\)/.test(index));
+check('promoted Linear mirror nav is always mounted', !!navProd && !/display\s*:\s*none/.test(navProd) && !/navProd\.style\.display/.test(index));
+check('staff-identity and Production mount code no longer hide the promoted nav', !/getElementById\('navProd'\)[\s\S]{0,140}\.style\.display/.test(index));
+check('visible order is Analytics then Linear mirror then Submit', index.indexOf('id="navHome"') < index.indexOf('id="navProd"') && index.indexOf('id="navProd"') < index.indexOf('id="navLinear"'));
+check('Linear mirror keeps production id, hash, and nav key', /href="#production"/.test(navProd) && /navTo\('production'\)/.test(navProd) && /<\/svg>\s*Linear\s*<\/a>$/.test(navProd));
+check('Submit keeps linear id, hash, and nav key', /href="#linear"/.test(navLinear) && /navTo\('linear'\)/.test(navLinear) && /<\/svg>\s*Submit\s*<\/a>$/.test(navLinear));
+check('Linear logo moved verbatim to the mirror tab', navProd.includes(linearLogo) && !navLinear.includes(linearLogo));
+check('Submit uses the established neutral plus glyph', navLinear.includes(submitIcon));
+check('Production pre-paint route lights the promoted mirror tab', index.includes('html[data-boot-nav="production"] #navProd'));
+check('desktop header reserves a bounded middle column for nav', index.includes('grid-template-columns:auto minmax(0,1fr) auto'));
+check('header nav scrolls without colliding with shell actions', /\.header-nav \{[^}]*width: max-content;[^}]*max-width: 100%;[^}]*overflow-x: auto;/.test(index));
+check('header nav items remain intact inside the scroll strip', /\.header-nav-btn \{[^}]*flex: 0 0 auto;[^}]*white-space: nowrap;/.test(index));
+check('navigation reveals the active tab inside the bounded strip', /activeHeaderNav\.scrollIntoView\(\{ block: 'nearest', inline: 'nearest' \}\)/.test(index));
+check('Production keyboard shortcuts yield to focused app controls', prodBlock.includes('const activeControl = document.activeElement') && prodBlock.includes('if (activeControl) return;'));
 check('_prodEnabled is query-flagged on ?prod=1', /function _prodEnabled\(\) \{\s*try \{ return new URLSearchParams\(location\.search\)\.get\('prod'\) === '1'; \}/.test(index));
 check('navTo hard-falls back without direct preview or verified staff access', /if \(page === 'production' && !_prodAccessAllowed\(\)\) page = 'home';/.test(index));
-check('navTo toggles Production nav visibility from _prodAccessAllowed()', /navProd\.style\.display = _prodAccessAllowed\(\) \? '' : 'none';/.test(index));
 check('Production staff access is direct preview OR verified identity', /function _prodAccessAllowed\(\) \{\s*return _prodEnabled\(\) \|\| _syncviewStaffIdentityValid\(\);\s*\}/.test(index));
+check('submission-only linear key wiring remains unchanged', /if \(currentNav === 'linear'\) updateLinearFilmingPlan\(\);/.test(index));
+check('production navigation still sets only the prod alias', /if \(page === 'production'\) query\.set\('prod', '1'\);\s*else query\.delete\('prod'\);/.test(index));
 check('init fast-mounts Production only when _prodEnabled()', /else if \(_prodEnabled\(\)\) _setBootLoadingText\('Loading Production preview\.\.\.'\);[\s\S]{0,220}if \(_prodEnabled\(\)\) \{[\s\S]{0,220}navTo\('production', false\)/.test(index));
 check('Production preview suppresses queued calendar-card writers', /setTimeout\(\(\) => \{\s*if \(_prodEnabled\(\)\) return;[\s\S]{0,120}_resumePendingCalCardJobs\(\)/.test(index));
 check('Production preview starts essentials for clean nav-out', /if \(_prodEnabled\(\)\) \{[\s\S]{0,260}fetchEssentials\(\)\.then/.test(index));
@@ -81,4 +102,4 @@ if (failures) {
   console.error('\nproduction-preview-source: ' + failures + ' check(s) failed');
   process.exit(1);
 }
-console.log('production-preview-source: hidden, read-only, and deep-link source checks passed');
+console.log('production-preview-source: promoted nav, read-only, and route-lock checks passed');

@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 165;
+const TOTAL = 167;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -152,6 +152,34 @@ async function txt(page, sel) {
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
     if (await page.locator('.prod-error').count()) throw new Error('Production preview rendered an error card');
+
+    await ok('globalNavLabelRouteSplit', async () => page.evaluate(() => {
+      const mirror = document.getElementById('navProd');
+      const submit = document.getElementById('navLinear');
+      const home = document.getElementById('navHome');
+      if (!mirror || !submit || !home) return false;
+      const items = Array.from(document.querySelectorAll('#headerNav > .header-nav-btn'));
+      return mirror.textContent.trim() === 'Linear'
+        && submit.textContent.trim() === 'Submit'
+        && mirror.getAttribute('href') === '#production'
+        && submit.getAttribute('href') === '#linear'
+        && mirror.getAttribute('onclick').includes("navTo('production')")
+        && submit.getAttribute('onclick').includes("navTo('linear')")
+        && items.indexOf(home) < items.indexOf(mirror)
+        && items.indexOf(mirror) < items.indexOf(submit)
+        && getComputedStyle(mirror).display !== 'none';
+    }));
+    await ok('globalNavKeyboardExit', async () => {
+      // Keep this Production guard suite write-silent: the Submit form normally
+      // POSTs to a read-style project-list webhook when its cache is empty.
+      await page.evaluate(() => { linearProjects = ['TEST Workspace']; });
+      await page.locator('#navLinear').press('Enter');
+      await page.waitForFunction(() => currentNav === 'linear' && location.hash === '#linear' && !new URLSearchParams(location.search).has('prod'));
+      const reachedSubmit = (await page.locator('.linear-form-title').textContent()).trim() === 'Create Linear Issue';
+      await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
+      return reachedSubmit;
+    });
 
     // Artifact-order coverage batch: behav.js chip -> kfocusShortcut,
     // with mutation checks adapted to read-only guard mode.

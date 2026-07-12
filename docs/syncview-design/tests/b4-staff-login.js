@@ -226,7 +226,36 @@ async function selectMember(page, member) {
     assert(await page.locator('#staffIdentityKey').isDisabled() && await page.locator('#staffIdentityMemberBtn').isDisabled(), 'verification prevents duplicate edits and submissions');
     releaseVerify();
     await page.waitForSelector('#staffIdentityOverlay', { state: 'detached', timeout: 5000 });
-    assert(await page.locator('#navProd').isVisible(), 'verified identity reveals the Production tab');
+    assert(await page.locator('#navProd').isVisible()
+      && (await page.locator('#navProd').textContent()).trim() === 'Linear'
+      && (await page.locator('#navLinear').textContent()).trim() === 'Submit', 'verified identity sees the promoted Linear mirror and Submit labels');
+    assert(await page.evaluate(() => {
+      const ids = Array.from(document.querySelectorAll('#headerNav > .header-nav-btn')).map(item => item.id);
+      return ids.indexOf('navHome') < ids.indexOf('navProd') && ids.indexOf('navProd') < ids.indexOf('navLinear');
+    }), 'staff nav orders Analytics then Linear mirror then Submit');
+    assert(await page.evaluate(async () => {
+      const nav = document.getElementById('headerNav');
+      const actions = document.querySelector('.header-actions');
+      const extras = ['navSxr', 'navKasper', 'navTiktokPilot'].map(id => document.getElementById(id)).filter(Boolean);
+      const snapshots = extras.map(item => ({ item, display: item.style.display, active: item.classList.contains('active') }));
+      const originalActive = document.querySelector('#headerNav > .header-nav-btn.active');
+      extras.forEach(item => { item.style.display = ''; item.classList.remove('active'); });
+      const target = document.getElementById('navKasper');
+      if (originalActive) originalActive.classList.remove('active');
+      target.classList.add('active');
+      target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const navBox = nav.getBoundingClientRect();
+      const actionBox = actions.getBoundingClientRect();
+      const activeBox = target.getBoundingClientRect();
+      const clean = navBox.right <= actionBox.left + 0.5
+        && activeBox.left >= navBox.left - 0.5 && activeBox.right <= navBox.right + 0.5;
+      target.classList.remove('active');
+      if (originalActive) originalActive.classList.add('active');
+      snapshots.forEach(({ item, display, active }) => { item.style.display = display; item.classList.toggle('active', active); });
+      nav.scrollLeft = 0;
+      return clean;
+    }), 'expanded staff nav scrolls inside its column without overlapping account controls');
 
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('syncview_staff_identity_v1') || 'null'));
     assert(stored && stored.role === 'admin' && stored.member && stored.member.name === ADMIN.name, 'verified role and roster member persist locally');
@@ -372,7 +401,11 @@ async function selectMember(page, member) {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#staffIdentityOverlay', { timeout: 10000 });
     assert(await page.evaluate(() => localStorage.getItem('syncview_staff_identity_v1')) === null, '401 boot verification clears the invalid stored identity');
-    assert(!(await page.locator('#navProd').isVisible()), 'invalid stored identity hides normal Production navigation');
+    assert(await page.locator('#navProd').isVisible(), 'promoted Linear mirror remains mounted in normal staff navigation');
+    assert(await page.evaluate(() => {
+      navTo('production');
+      return currentNav === 'home' && !_prodAccessAllowed();
+    }), 'invalid stored identity still cannot enter the guarded production route');
     await context.close();
 
     const creativeContext = await browser.newContext();
@@ -381,6 +414,7 @@ async function selectMember(page, member) {
     await installMocks(creativePage);
     await creativePage.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded' });
     await creativePage.waitForFunction(() => document.getElementById('staffIdentityButton')?.getAttribute('aria-haspopup') === 'menu');
+    assert(await creativePage.locator('#navProd').isVisible() && (await creativePage.locator('#navProd').textContent()).trim() === 'Linear', 'creative staff also see the read-only Linear mirror tab');
     await creativePage.evaluate(() => _fpToggleAdd());
     await creativePage.waitForSelector('.sv-toast-msg');
     assert((await creativePage.locator('.sv-toast-msg').textContent()).includes('Sign out first') && await creativePage.locator('#staffIdentityOverlay').count() === 0, 'wrong-role onboarding action explains how to use an authorized account without a Switch user flow');
@@ -415,7 +449,7 @@ async function selectMember(page, member) {
     await preview.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     await preview.waitForSelector('.prod-view', { timeout: 10000 });
     await preview.waitForTimeout(1100);
-    assert(await preview.locator('#staffIdentityOverlay').count() === 0, 'direct B2 Production preview remains available without a sign-in prompt');
+    assert(await preview.locator('#staffIdentityOverlay').count() === 0, 'direct ?prod=1 mirror alias remains available without a sign-in prompt');
     await previewContext.close();
 
     const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });

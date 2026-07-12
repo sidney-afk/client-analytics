@@ -93,7 +93,8 @@ by hand; verify before relying on it.
 - String-literal in `index.html`: `syncview_runtime_flags` (kill switches), `calendar_posts`,
   `workload_issues` (read-only Linear mirror), `templates`, `filming_plans`,
   `content_samples`, `caption_prompts`.
-- Via dynamic refs: `sample_reviews` (through `SXR_TABLE`), and the Production-tab boot reads
+- Via dynamic refs: `sample_reviews` (through `SXR_TABLE`), and the visible Linear mirror's
+  internal `production` boot reads
   `clients`, `team_members`, `batches`, `deliverables` (plus `deliverable_events`) through a
   table-parameterized helper.
 - Event ledgers: `sample_review_events`, `calendar_post_events` — written via backend paths

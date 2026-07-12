@@ -47,5 +47,6 @@
 ## Replacement program
 
 Track B (in-app Linear replacement) spec: `docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md`;
-system-wide view: `docs/independence/SYSTEM_MAP.md`. The Production tab (`?prod=1`) is the
-read-only mirror surface — see `docs/truth/APP.md`.
+system-wide view: `docs/independence/SYSTEM_MAP.md`. The visible **Linear** tab (internal
+`production`, route `#production`, alias `?prod=1`) is the read-only mirror surface — see
+`docs/truth/APP.md`. The visible **Submit** tab retains internal key `linear` and route `#linear`.

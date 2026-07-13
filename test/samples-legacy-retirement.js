@@ -20,7 +20,8 @@ function check(label, condition) {
 
 const header = (INDEX.match(/<div class="header-nav" id="headerNav">([\s\S]*?)<\/div>\s*<div class="header-actions">/) || [])[1] || '';
 check('Samples Old nav button is absent', !/id="navSamples"/.test(header) && !/>\s*Samples Old\s*</.test(header));
-check('Samples New nav button is unchanged', /id="navSxr"[^>]*href="#sample-reviews"/.test(header) && />\s*Samples New\s*</.test(header));
+check('Samples nav keeps the SXR id and route', /id="navSxr"[^>]*href="#sample-reviews"/.test(header));
+check('Samples nav uses the post-retirement visible label', />\s*Samples\s*</.test(header) && !/>\s*Samples New\s*</.test(header));
 
 const resolverSource = (INDEX.match(/function _resolveRetiredSamplesRoute\(page\) \{[\s\S]*?\n    \}/) || [])[0];
 check('legacy route resolver is present', !!resolverSource);

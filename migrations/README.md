@@ -20,6 +20,10 @@ CI, `supabase/config.toml`, or `scripts/` executes these files (see
   comment store, service-only idempotent writer, protected body-bearing event
   snapshots, and the staff-reader data contract. It does not change authority,
   outbound flags, or Linear state.
+- **`2026-07-12-write-ui-outbox-parity.sql`** marks server-authenticated
+  legacy-parity outbox intents, seeds their independent reversible kill gate,
+  and adds the atomic normalized-comment + outbox writer used by the Write-UI
+  gateway. Existing authority and outbound-mode flag values are untouched.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

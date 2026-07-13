@@ -74,6 +74,12 @@ verify_jwt = false
 [functions.production-comments]
 verify_jwt = false
 
+# Browser-callable native Production write gateway. Supabase JWT verification
+# stays off because the static SPA authenticates each request with either a
+# staff role key plus exact roster actor or a scoped client review token.
+[functions.production-write]
+verify_jwt = false
+
 # Track B B3 inbound Linear webhook receiver. It verifies Linear HMAC itself and
 # follows the existing linear_inbound_enabled gate.
 [functions.linear-inbound]

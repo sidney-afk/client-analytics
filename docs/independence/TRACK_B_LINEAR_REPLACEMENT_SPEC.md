@@ -84,10 +84,13 @@ mirror is one-directional. We never run true two-way sync.**
 **1.1 Authority is a runtime flag, not a deploy.** `prod_authority` starts as
 `{"video":"linear","graphics":"linear"}` (B3 default) and changes to `"syncview"` per team only
 at an owner-approved B4 handoff. `linear_outbound_enabled` is the independent global switch:
-`off` → `shadow` → `live`. **D-25 supersedes D-19's per-client pilot:** shadow is proven across
-the full roster, then the owner flips both teams/clients live together. **D-26 preserves per-team
-reversibility after that handoff:** either team may be paused by setting only that team's authority
-back to `linear`; inbound remains live so SyncView follows direct Linear work during the pause.
+`off` → `shadow` → `live`. **D-25 superseded D-19's per-client pilot for proving the pipe:** the
+full-roster pipe proof completed before the write UI. **D-28 now governs the human cutover:** ship
+the gates with authority Linear/Linear and outbound off, soak the daily TEST drill + nightly
+full-roster shadow audit, then the owner flips Graphics first; Video follows only after Graphics is
+boring. **D-26 preserves per-team reversibility:** either team may be paused by setting only that
+team's authority back to `linear`; inbound remains live so SyncView follows direct Linear work
+during the pause.
 Consumed by the same proven `_calRuntimeFlagClients`-style machinery
 (realtime-updated), read by: the FE Linear-push gates (§4.5), the card link-button resolver
 (§9.2), the inbound engine (§4.3), the outbound mirror (§4.4), the legacy reconcilers and the
@@ -114,13 +117,12 @@ mirrored-pair batch (`team=null` or both `linear_parent_ids` present) freezes ba
 to **admin only** while its teams' authorities disagree, and the outbound mirror never writes a
 Linear parent belonging to a still-Linear-authoritative team (§4.4).
 
-**1.3 "Exact reflection" in B3 — what it actually requires.** Today's inbound path is
-**status-only**. B3's mirror must also reflect **title, due date, assignee, priority, parent,
-archived/deleted state, and comments** — none of which have any inbound path today. This is a NEW
-inbound engine (§4.3). Comments additionally require a **new Linear webhook subscription for the
-Comments resource** (the existing webhooks are Issues-only) — an owner action in Linear settings
-at B3 (§4.3.4, also a named B3 gate item). Fields the UI doesn't show are preserved verbatim in
-`deliverables.linear_raw` (§2.4).
+**1.3 "Exact reflection" in B3 — what it actually requires.** The original status-only path was
+replaced by the B3 inbound engine, which reflects **title, due date, assignee, priority, parent,
+archived/deleted state, and comments**. Part 1 (#809) added the Comments webhook capture,
+normalized durable store, historical Linear comment backfill, and protected thread reader. Fields
+the UI doesn't show remain preserved verbatim in `deliverables.linear_raw` (§2.4); comments live in
+`production_comments`, not in `linear_raw` snapshots or body-bearing ledger payloads.
 
 **1.4 Known divergence windows in B3 (documented, accepted; the §8.1 diff must tolerate them):**
 (a) the calendar refuses stale Linear regressions and never adopts unmapped states — the
@@ -134,8 +136,9 @@ drift; (d) **unknown assignees**: issues assigned to ghost/removed users compare
 the diff count — otherwise one stale-WIP ghost blocks the 7-day zero-diff gate forever.
 
 **1.5 The B3→B4 flip checklist** — expanded with the re-audit's hidden-writer inventory and the
-critic findings. D-25 changes rollout granularity: complete the checklist and all-client shadow
-proof for both teams, then flip both teams together. D-26 keeps every later pause/resume per team:
+critic findings. D-25's all-client proof established the outbound pipe; D-28 refines the human
+rollout to Graphics first, then Video after an independently boring window. Run this checklist per
+team. D-26 keeps every pause/resume per team:
 
 1. Announce freeze to the team (the freeze is social; steps 5–8 are the technical net).
 2. Quiesce app-side outbound: verify both localStorage outboxes are **drained on every staff
@@ -145,9 +148,11 @@ proof for both teams, then flip both teams together. D-26 keeps every later paus
 3. Final inbound reconcile; verify **zero diff** for that team (statuses, assignees — via raw
    user id, due dates modulo §1.4 tolerances, titles, engine-tracked comments per §8.1) **and
    zero cards carrying a Linear link with no `*_deliverable_id`** (linkage completeness, §4.3.5).
-4. Set `linear_outbound_enabled='shadow'`, then flip both `prod_authority` entries to `syncview`
-   (logged in `flag_flips` + `EXECUTION_LOG.md` +
-   ROLLBACK.md Live State row updated in the same PR).
+4. With live flags still authority Linear/Linear and outbound off, accumulate the D-28 green soak:
+   daily TEST write drill + nightly full-roster read-only shadow audit through the pager. After
+   owner approval, flip Graphics authority to `syncview`, then enable global outbound; keep Video
+   authority=`linear`. The later Video handoff changes only its authority. Every owner action is
+   logged in `flag_flips` + `EXECUTION_LOG.md`, with the ROLLBACK Live State row updated.
 5. Verify every legacy writer is gated for that team: FE push gates (§4.5), `MJbMZ`'s
    calendar/samples branches, **both reconcile scripts** (skip / detect-only for
    Supabase-authoritative teams — they are bidirectional writers and MUST be gated, or a
@@ -155,9 +160,10 @@ proof for both teams, then flip both teams together. D-26 keeps every later paus
    **n8n `linear-set-status` / `linear-add-comment` webhooks themselves** (server-side
    `prod_authority` check inside each — one snapshotted n8n edit per workflow — so stale-JS tabs
    and late outbox flushes are refused centrally, not just client-side).
-6. Hold in shadow until all-client intended mutations match Linear and every outbound watcher is
-   live; only the owner may then set `linear_outbound_enabled='live'`. The TEST project must first
-   pass create→status→comment→due plus pause/resume and kill-switch drills.
+6. The soak and each team handoff require every watcher live, shadow results clean, and the TEST
+   project passing create→status→comment→due→assignee plus pause/resume, stale-tab, and kill-switch
+   drills. Only the owner changes authority/outbound. A cosmetic defect is fixed in place; an
+   authoritative-data defect pauses the affected team under D-26 (D-29).
 7. Repoint the card link buttons + status-pill lock predicate + **the Kasper-queue visibility
    gates** (§9.2 — the unlinked-graphic gates at `_calCompKasperVisible` and twins; missing this
    silently drops every new thumbnail out of Kasper review) for that team; probe: a new
@@ -288,7 +294,7 @@ create table batches (
   delivery_folder_url text,
   color text,
   status text not null default 'active' check (status in ('active','done','archived')),
-  comments text,                          -- JSON thread; merged via batch_merge_comments RPC (clone)
+  comments text,                          -- legacy compatibility only; new issue threads use production_comments
   sort_key numeric,
   created_by text, created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -316,7 +322,7 @@ create table deliverables (
   due_date date,
   priority smallint,                      -- MIRRORED ONLY; UI does not render it — §14 D-3
   file_url text,
-  comments text,                          -- used ONLY for origin='manual' rows (§9.5)
+  comments text,                          -- legacy compatibility only; new issue threads use production_comments
   origin text not null default 'manual' check (origin in ('calendar','samples','manual')),
   card_id text,                           -- + client_slug joins the card (card PKs are (client,id))
   sort_key numeric,
@@ -355,6 +361,38 @@ create table deliverable_events (         -- append-only ledger; ENFORCED (§2.6
 create index on deliverable_events (deliverable_id, ts desc);
 create index on deliverable_events (client_slug, ts desc);
 create index on deliverable_events (source, ts desc);
+
+create table production_comments (       -- Part 1 #809 normalized issue thread (§9.5)
+  id text primary key,
+  idempotency_key text not null unique,
+  native_comment_id text unique,
+  deliverable_id text references deliverables(id),
+  batch_id text references batches(id),
+  client_slug text, team text not null,
+  linear_issue_uuid text, linear_identifier text,
+  linear_comment_id text unique,
+  parent_id text references production_comments(id),
+  thread_root_id text references production_comments(id),
+  linear_parent_comment_id text, linear_thread_root_id text,
+  author_key text not null,
+  author_member_id uuid references team_members(id),
+  linear_author_id text, author_name text not null,
+  role text not null,
+  transport_actor text, transport_role text, transport_linear_user_id text,
+  body text not null, body_format text not null, attachments jsonb not null,
+  audience text not null, component text, is_tweak boolean not null, round integer,
+  origin text not null, source text not null,
+  source_created_at timestamptz, source_updated_at timestamptz not null,
+  edited_at timestamptz, deleted_at timestamptz,
+  deleted_by_key text, deleted_by_name text,
+  resolved_at timestamptz, resolved_by_key text, resolved_by_name text,
+  version integer not null,
+  import_run_id text, backfill_tag text, provenance jsonb not null,
+  created_at timestamptz not null,
+  updated_at timestamptz not null, ingested_at timestamptz not null
+);
+-- Service-role writes only. Browser reads page through the authenticated production-comments EF;
+-- comment text is not granted to the anon REST role.
 
 create table mirror_outbox (              -- §4.4: durable server-side retry queue
   id bigint generated always as identity primary key,
@@ -400,17 +438,17 @@ workload, and calendar card via realtime on that one row + the card projection (
 
 ### 2.4 `linear_raw` and the §1 lossless promise
 
-`linear_raw jsonb` (+ `priority`, + verbatim `linear_archive.raw`) is where every Linear field
-the UI hides still lives. It also holds the **pre-B3 comment history** for operational issues
-(§5.1) — rendered as a read-only "Linear history" block in the activity feed, never imported into
-live card threads. Post-B5 it freezes as historical context.
+`linear_raw jsonb` (+ `priority`, + verbatim `linear_archive.raw`) is where every non-comment
+Linear field the UI hides still lives. Comment history is not assumed to exist in these snapshots:
+Part 1 imported it directly from Linear into `production_comments` and reconciles by stable comment
+id. Post-B5 `linear_raw` freezes as historical issue context.
 
 ### 2.5 Timestamps/types
 
-New tables use real types. Comment **threads** stay JSON-in-`text` deliberately: byte-compatible
-with the existing card threads and merge RPCs. New RPC clones: `deliverable_merge_comments`
-(manual-deliverable threads) and `batch_merge_comments` (batch threads) — clones of
-`sample_review_merge_comments`, service-role-only, same tombstone semantics.
+New tables use real types. Legacy card JSON threads remain byte-compatible during transition, but
+Production issue comments are normalized rows in `production_comments`; edits/deletes are
+lifecycle timestamps, not destructive rewrites. `production_comment_write` is service-role-only
+and atomically merges that row with its ledger/outbox intent (§4.4/§9.5).
 
 ### 2.6 The ledger must be un-bypassable — concrete mechanism (critic-hardened)
 
@@ -431,10 +469,14 @@ event; (b) raw UPDATE → 1 system event; (c) never 2.
 
 **Default for unlisted tables: service-role only.** Anon-readable (parity with the app's read
 model): `clients`, `team_members`, `batches`, `deliverables`, `deliverable_events`, `flag_flips`.
-Service-role only: `client_access`, `mirror_outbox`, **`linear_archive`** (17.5k issues of
+Service-role only: `client_access`, `mirror_outbox`, `production_comments`,
+**`linear_archive`** (17.5k issues of
 internal feedback, client briefs, and delivery links must not be one anonymous REST call away —
 the archive UI reads through a role-gated EF, §10.7), and every future table unless this section
-is amended. `team_members.email` exposure is accepted and recorded (already public in audit docs).
+is amended. `production-comments` provides the bounded staff-authenticated comment reader; no anon
+body policy is added. A restrictive ledger policy also filters body-bearing comment lifecycle
+events from anon/authenticated reads while leaving prior non-body activity readable.
+`team_members.email` exposure is accepted and recorded (already public in audit docs).
 Cross-client `using(true)` reads remain standing Phase-4 debt, not worsened by Track B.
 
 ### 2.8 Flags trigger
@@ -499,8 +541,8 @@ authoritative side. Batch-field edge case per §1.2.
 
 ### 4.2 Loop prevention (extended with the echo cases we will actually hit)
 
-Every write carries `source`; the mirror ignores `mirror`-sourced changes. Two measured echo
-channels get explicit treatment:
+Every write carries `source`; transport suppression is separate from durable storage. Two measured
+echo channels get explicit treatment:
 
 - **B4 outbound echo:** the mirror's own Linear writes come back as webhook deliveries ~1 s
   later. Drop rule = **strict AND**: (webhook actor == the mirror's own Linear identity) AND
@@ -508,15 +550,14 @@ channels get explicit treatment:
   just actor match). The mirror identity must be **distinct from sidney@** (a dedicated Linear
   user or OAuth-app actor — sidney@ is the legacy house identity used by n8n and by real humans;
   actor-only matching against it would swallow legitimate writes). §14 D-18.
-- **B3 comment echo (the loop the critics caught):** the legacy comment mirror
-  (`linear-add-comment`, house key, sidney@) keeps running through B3 — so every SyncView review
-  comment appears in Linear ~1 s later, and the new Comments webhook would re-import it into the
-  same card thread as a duplicate (which the legacy `is_tweak`-absent⇒true default would then
-  count as an open tweak, corrupting the resolve/queue machinery). The inbound comment path
-  therefore **drops** comments that are (authored by the legacy integration identity) AND (body
-  matches the `**{…} (via SyncView):**` prefix convention), and keeps an idempotency check
-  against recent `comment_add` ledger payload ids. sidney@'s *manual* Linear comments (no
-  prefix) still flow in.
+- **Comment echo:** Part 1 (#809) made `production_comments` the durable normalized thread. The
+  inbound path stores native, manual-Linear, legacy-bridge `(via SyncView)`, and outbound-mirror
+  comments idempotently by stable native/Linear ids; a transport identity never replaces the
+  stable human author carried by the originating intent. Bridge-authored comments are therefore
+  **not dropped from storage**. Echo suppression applies only to the later write-loop decision:
+  acknowledged mirror actor + matching outbox marker/value means "already sent", not "delete or
+  hide this comment". Comment webhook retries merge lifecycle state (edit/delete/parent/audience)
+  onto the same row.
 
 ### 4.3 Inbound engine (new EF `linear-inbound`)
 
@@ -528,13 +569,14 @@ channels get explicit treatment:
    archive/restore, **delete** (webhook `remove`), team move (alias push into `linear_aliases`;
    `linear_issue_uuid` stays the key). Clamped states per §1.4c. Unknown state UUID → verbatim
    into `linear_raw` + `payload.unmapped_state` + Slack alert.
-3. **Inbound comments:** full object pinned explicitly — `{role:'editor', audience:'internal',
-   is_tweak:false, done:false, round:null, parent_id:null, author:<Linear display name>,
-   body:<markdown verbatim>}` (the pinning matters: the legacy reader treats an *absent*
-   `is_tweak` as TRUE). Echo filtering per §4.2. Image URLs stored as-is (expiring — §14 D-12).
-4. **Comments webhook activation (owner action, B3 gate item):** subscribe the Comments resource
-   in Linear settings; then **immediately re-run the §5.1 operational pull** (catch-up — webhooks
-   only deliver from subscription time, and B1→B3 spans weeks at ~120 new issues/wk).
+3. **Inbound comments:** normalize every comment into `production_comments` with body, stable human
+   author, timestamp, native + Linear ids, parent/thread metadata, role/audience, and edit/delete
+   state. The body is stored verbatim Markdown and image URLs remain as-is (expiring — §14 D-12).
+   The ledger may carry a lifecycle/audit projection, but is not the body store. Storage and
+   write-loop suppression are deliberately separate per §4.2.
+4. **Comments capture + history (completed in Part 1 #809):** the Comments resource is subscribed,
+   live lifecycle events normalize into `production_comments`, and the restartable direct-Linear
+   history import reconciled the pre-subscription gap. Re-runs are idempotent and tag-rollbackable.
 5. **Card-linkage maintenance (continuous, not one-off):** on issue create/update, resolve the
    issue's URL/uuid against card Linear-link columns (and vice versa on card link_set events via
    the card EFs) and keep `video_deliverable_id`/`graphic_deliverable_id` current. Reconciler v2
@@ -546,16 +588,47 @@ channels get explicit treatment:
 
 ### 4.4 Outbound mirror (new EF `linear-outbound` + `mirror_outbox`, B4 per team)
 
-- **Durable enqueue:** `deliverable-write` and `batch-write` remain the only write entrypoints.
-  Their ledger transaction enqueues one idempotent `mirror_outbox` row for each explicit UI intent.
-  The row carries entity/operation/payload, `dedup_key`, actor/role, and `source_edited_at`; retries
-  and outcomes remain server-side, never in browser localStorage. Supported operations are create,
-  status, comment, due, assignee, title, priority, parent, archive, and restore.
-- **Three-way switch:** `linear_outbound_enabled={"mode":"off"}` is the deployed default. `shadow`
+**Part 2 implementation state:** the gateway/parity contract below is built on a draft branch but
+is not deployed or serving production. No runtime flag is changed by the code PR; authority remains
+Linear/Linear and global outbound remains off until owner-reviewed rollout work says otherwise.
+
+- **Authenticated browser gateway:** `production-write` is the only browser-reachable Track-B write
+  gateway. It accepts either a staff role key plus an active roster identity or a client token
+  scoped to its own client; if both credential types are present it rejects the request. The
+  matched secret decides the principal and permission set — claimed role, actor, source, and other
+  headers never elevate. Missing/invalid credentials return 401; authenticated but out-of-scope
+  requests return 403. Client tokens may add comments and perform only the client-legal approval /
+  tweak transitions for their own client. Staff permissions follow §6. Low-level
+  `deliverable-write` and `batch-write` HTTP wrappers are service-only so they cannot bypass this
+  policy.
+- **Authority + concurrency gate:** the gateway resolves the target row's team and validates a
+  last-known-good `prod_authority` value before the first write. Normal Production operations are
+  accepted only for a `syncview`-authoritative team; active TEST-client requests have a bounded,
+  fail-closed override that cannot target a real client/project. Writes carry compare-and-set
+  (`expected_status` / `expected_updated_at`), stable request/dedup ids, server-derived actor/role,
+  and server timestamp. A conflict returns 409 with current state; retries are idempotent.
+- **Durable transaction:** the gateway routes scalar mutations through the
+  `deliverable_write`/`batch_write` RPCs and comments through `production_comment_write`, which
+  stores the normalized `production_comments` row, ledger event, and one outbox intent atomically.
+  The outbox row carries entity/operation/payload, `dedup_key`, actor/role, and
+  `source_edited_at`; retries and outcomes remain server-side, never in a new browser queue.
+  Supported native operations are create, status, comment, due, assignee, title, priority, parent,
+  archive, and restore.
+- **Three-way switch:** `linear_outbound_enabled={"mode":"off"}` remains the global default. `shadow`
   resolves the exact GraphQL mutation and variables, compares them with current Linear state, and
   records `shadow_ok` without sending. `live` sends through the dedicated
   `LINEAR_MIRROR_API_KEY`. A row advances in either mode only when its team's
   `prod_authority` is `syncview`; otherwise it stays queued.
+- **Allowlisted legacy-parity lane:** rerouted Calendar/SXR status+comment intents and Submit
+  create intents still save natively first while their team is Linear-authoritative, then request
+  a targeted drain of that exact outbox dedup key. Only server-derived, allowlisted
+  `create|status|comment` intents may carry `legacy_parity=true`; due, assignee, Production-tab
+  writes, arbitrary rows, and broad drains cannot use the lane. Its independent
+  `linear_legacy_parity_enabled` kill switch must be enabled as well as team authority=`linear`.
+  This narrow compatibility lane does not turn on global outbound, has terminal no-redrain
+  semantics, and is replaced automatically by the normal lane after that team's flip. The caller
+  never performs a second Linear write, so there is no double-write. The legacy +2d overdue status
+  side effect is deliberately not ported.
 - **Newest-edit-wins:** every row records the SyncView edit timestamp. Before shadow or live work,
   the drainer reads the relevant current Linear value and its field clock. A newer direct-Linear
   edit marks the queued row `stale` rather than overwriting it. Comments are additive and therefore
@@ -572,9 +645,11 @@ channels get explicit treatment:
   an older active/manual row without that evidence, remains live-era and may emit `parent` or
   `restore`. Every other operation, including `archive`, is unchanged.
 - **Echo prevention:** outbound comments carry the established `(via SyncView)` convention plus an
-  internal dedup marker. `linear-inbound` drops an echo only when the webhook actor is the dedicated
-  mirror identity **and** its value/marker matches an acknowledged outbox intent. The drainer
-  checkpoints acknowledgment before final status so a fast webhook cannot race the guard.
+  internal dedup marker. `linear-inbound` classifies the webhook as an acknowledged echo only when
+  its actor is the dedicated mirror identity **and** its value/marker matches the outbox intent. It
+  still upserts Linear identity/lifecycle onto the normalized comment row; it suppresses only a
+  second local mutation/outbound intent. The drainer checkpoints acknowledgment before final status
+  so a fast webhook cannot race the guard.
 - **Pause/resume (D-26):** set one team's authority to `linear` to stop outbound writes and healing
   immediately. Inbound continues applying Linear truth. Pending rows are retained. On resume, only
   rows still newer than Linear are replayed; stale intents are dropped. Global emergency stop is
@@ -591,16 +666,34 @@ channels get explicit treatment:
 
 ### 4.5 The legacy pipes during transition (measured dependencies — gate, don't guess)
 
-Untouched through B3: `MJbMZ789B5ExZz9x` (the A1/A2 EF flag routing lives inside it), both
-reconcilers, `linear-set-status`/`linear-add-comment`, FE push sites. At each B4 team flip, ALL
-of these gate on `prod_authority[team]` (see §1.5.5 — including the reconcilers and the two n8n
-webhooks server-side). n8n edits follow the snapshot rule (§1.6 — private export + public stub;
-most Linear bridges have NO current repo backup, incl. `rhDX5` edited 06-29). FE gates live in
-the two push helpers + two comment helpers + two reassert loops + outbox flushers (**flushers
-re-check the flag at flush time**, so a queued item never fires at a frozen side); the full
-9-path fan-in inventory with symbols is `2026-07-05-logic-sync.md` §implications-1. Stale-JS
-protection: B2 ships a `min_app_version` runtime flag + forced-reload banner so a flip can expire
-tabs loaded before the gate code deployed (GitHub Pages caches ~10 min; a tab can live for days).
+Before any team flip, every bypass receives a server-side authority check: the
+`linear-set-status`, `linear-add-comment`, `video-form`, and `graphic-form` n8n mutation webhooks;
+the Calendar/Samples branches of `MJbMZ789B5ExZz9x`; both legacy apply reconcilers; and the B1
+incremental apply. A SyncView-authoritative target is refused or classified detect-only before an
+authoritative field can be changed. Workload-only/read-only branches remain untouched. n8n edits
+follow the snapshot rule (§1.6 — private export + public-safe stub, disable-not-delete).
+
+The browser reroute is shipped only after those central gates. Production status/comment/due/
+assignee controls are enabled per deliverable team only when its last-known-good authority is
+`syncview`, except for the bounded active-TEST override. A Linear-authoritative team renders the
+same read-only controls as B3 because inbound would otherwise overwrite the edit. Calendar, SXR,
+SMM bridge callers, and Submit call `production-write`; they do not call both the gateway and an
+n8n Linear mutation webhook. Submit creates batches/deliverables natively and uses returned native
+ids for card jobs instead of polling Linear.
+
+Existing `syncview_linear_outbox_v1`, `syncview_sxr_linear_outbox_v1`, and
+`syncview_calCardJobs_v1` data is drain-only migration debt. Startup, focus, timer, online,
+visibility, and resume paths re-check server authority before flushing; a gated stale item is
+terminally discarded/logged rather than sent around the gateway. No new item is written to those
+queues. Calendar/SXR cache namespaces are version-bumped so a seven-day cache cannot revive a
+legacy Linear URL or caller. A cold authority read failure freezes writes and asks for reload; it
+never guesses `linear` or `syncview`.
+
+D-28 rollout is team-scoped with no deploy at flip time: daily TEST write drills plus the nightly
+full-roster shadow audit must stay green through the soak window, then the owner may flip Graphics
+first. Video remains read-only/Linear-authoritative until its own gate is green. D-29 treats a
+cosmetic defect as fix-in-place; an authoritative-data defect pauses only the affected team through
+D-26 unless evidence shows a systemic failure.
 
 ### 4.6 Conflict handling (rescoped honestly)
 
@@ -734,13 +827,31 @@ gate satisfied and `file_url` filled best-effort, flagged for later repair — n
 ## 6. Auth — build first (B0)
 
 Three role keys via the `client-credentials` pattern: `X-Syncview-Key` (timing-safe) +
-`X-Syncview-Actor`. The header plumbing already reaches every write; B0 makes EFs **enforce and
-persist** it (today's samples EF drops actor/role — measured; Track B EFs must not).
+`X-Syncview-Actor`. The `production-write` gateway validates these at every request and persists
+the resolved principal; browser claims never select authority or role.
 
 - `ROLE_KEY_ADMIN` — Sidney + Kasper.
 - `ROLE_KEY_SMM` — calendar/samples writes, batch creation, assignment, approvals.
 - `ROLE_KEY_CREATIVE` — deliverable status/delivery/comments on own team's work; no approvals
   for Kasper/client, no batch creation, no `client_access`.
+
+**6.0 Write-boundary rule (Part 2): secret decides.** `production-write` is the only browser
+gateway for Track-B mutations. Exactly one auth mode is accepted:
+
+- staff role-key secret + roster member id: the matched secret establishes the key family, then
+  the active roster row establishes the stable human actor, actual role, and team scope;
+- client token: an active `client_access` row establishes the client principal and scopes every
+  target to that same client; or
+- service-authenticated TEST override: only the active TEST client and privately allowlisted TEST
+  projects, with an explicit confirmation value. It cannot authorize a real row and never changes
+  a runtime flag.
+
+Missing or invalid credentials are 401. A valid credential with the wrong actor, role, client,
+team, transition, or operation is 403. Unknown/unavailable authority fails closed; a valid write
+against a Linear-authoritative team is 409 unless it is an allowlisted legacy-parity intent from
+§4.4. Role/source/actor headers are audit hints only and cannot elevate. Direct
+`deliverable-write`/`batch-write` wrappers and write RPCs are service-only; granting the anon key
+their old HTTP permission would bypass the gateway and is forbidden.
 
 **6.1 Login UX.** One modal: role key + **name picked from the `team_members` roster** (not free
 text — a typo would silently empty "My issues" views and mis-attribute the ledger) → localStorage
@@ -766,16 +877,17 @@ false for exactly the rows that matter. Therefore:
   deactivated — until then, fail-closed tokens coexist with those legacy doors (accepted,
   time-boxed, stated).
 
-**6.3 Actor is the audit trail** (D7): every ledger row carries who/role/when; §2.6 guarantees a
-row even for rogue writers.
+**6.3 Actor is the audit trail** (D7): every ledger row carries the resolved stable human actor,
+actual roster/client role, and server timestamp; §2.6 guarantees a row even for rogue writers.
 
 **6.4 Client review links — mint, don't move; verify server-side.** The sheet column never
 existed; 0/29 tokens; the gate fails open today. B0: mint per-client tokens into `client_access`;
 ship **`client-token-verify` EF** (`{slug, token}` → boolean + an access-log event) — the FE
 client-link boot calls it (result cached per session) because the FE can no longer compare
-locally (tokens are service-role-only). Client **writes** call the same EFs with
+locally (tokens are service-role-only). Client **writes** call `production-write` with
 `X-Syncview-Client-Token`, validated against `client_access`, scoped to that client's rows and
-client-legal transitions only (D4 rows 8–10). Then: re-issue fresh links per client via SMMs;
+client-legal comments/transitions only (D4 rows 8–10); due date, assignee, intake creation, and
+staff-only approval transitions are denied. Then: re-issue fresh links per client via SMMs;
 gate = every active client has a token-validated access-log event; **then** flip fail-open →
 fail-closed (one flag). Fail-closed UX is an in-app screen ("ask your SMM for a fresh link" —
 note: a static GitHub-Pages SPA cannot emit a real HTTP 410; it's a rendered state), and the
@@ -824,8 +936,9 @@ older than about 2 h.
 **8.1 Continuous reconciler v2** (GH Actions + n8n trigger, ~10 min): per team, diff Linear ⇄
 `deliverables` on status / assignee (**by raw Linear user id** — §1.4d) / due / title, plus the
 **linkage lane** (cards with Linear links but no deliverable ids — §4.3.5) and the **comment
-lane**: engine-tracked comments must map 1:1 by comment id recorded in event payloads —
-pre-B3 history and `(via SyncView)` echoes explicitly excluded (§5.1, §4.2). Tolerances per
+lane**: `production_comments` rows with a Linear id must map 1:1 by that stable id, including the
+Part 1 historical backfill and stored `(via SyncView)` bridge rows. Echo recognition suppresses
+only a repeated outbound mutation; it does not exclude the durable row (§4.2/§9.5). Tolerances per
 §1.4 (roller/+2d churn, clamped states). **It APPLIES corrections toward the authoritative side**
 (within SAFETY_CAP ≈ 15, abort + page beyond) — alert-only would leave webhook-missed changes
 unhealed, and Linear's redelivery is bounded (§4.7). Also verifies both Linear webhooks are still
@@ -856,31 +969,39 @@ status per browser** (the §1.5.2 drain evidence).
 ## 9. Creation & interaction flows (LOGIC — the locked design's wiring contract)
 
 The current-state truth is the four logic maps; the **transition table**
-(`2026-07-05-logic-reviews.md` §D4) is normative for EF role gating. **The write EFs are named:**
-`deliverable-write` and `batch-write` (thin HTTP wrappers over the §2.6 RPCs; payload = op-level
-patches modeled on the SXR EF contract: `{id?, patch, expected_status?, expected_updated_at?,
-source}` + the §6 headers; response `{ok, row}` / `{ok:false, conflict:true, row}` — same
-envelope family the FE already speaks).
+(`2026-07-05-logic-reviews.md` §D4) is normative for role gating. The browser write boundary is
+`production-write`; `deliverable-write` and `batch-write` are service-only low-level wrappers over
+the §2.6 RPCs. Gateway payloads are operation-level intents with native target ids, CAS values,
+stable request ids, and §6 credentials; the response uses the existing `{ok,row}` /
+`{ok:false,conflict:true,row}` envelope family and intake additionally returns native batch + item
+ids for card materialization.
 
-**9.1 Creating a card → deliverable(s).** Batch picker + "new batch"; deliverables stamped
-`origin`, `card_id`, `kind`; one sample = up to TWO deliverables. In B3, creation still flows
-intake→Linear and mirrors in; from B4 the card/intake creates natively and the mirror pushes.
-The B4 backend now implements the native-create leg as an idempotent outbox dependency chain:
-batch parent first, then child deliverable, with deterministic Linear ids and result checkpointing.
-It remains dark behind outbound mode `off`; the existing intake UI/plumbing is not re-pointed until
-the owner-approved authority handoff.
-**Split-authority window (critic add):** intake requests split per deliverable team — the
-Supabase-authoritative leg creates its batch row + deliverable natively FIRST; the
-Linear-authoritative leg goes through the legacy intake and, when its parent/sub-issues mirror
-in, the inbound engine **adopts them into the existing batch row** by `linear_parent_ids`
-matching (title+client match fallback) rather than minting a second batch. The native side owns
-the SMM Slack notification; the n8n leg keeps writing the Sheets submissions log while it
-exists. **Auto-assign:** port Pick Freest Editor with three *deliberate* refinements (they are
-improvements, not parity bugs — do not "fix" them back during parity testing): count only
-`video`-team deliverables (was: all teams under the SMM's key), exclude `duplicate` from load
-(was: included), ties by stable member order (was: API order). Graphics = `default_for_team`.
-Claude-generated graphics titles: §14 D-5. **AI-thumbnail chain: verified disconnected dead code
-— do not port** (D-5 confirms).
+**9.1 Creating a card → deliverable(s).** Submit sends one authenticated `intake_create` request to
+`production-write`; the gateway validates the whole request before its first mutation, then creates
+the batch and every deliverable **natively first**. Stable request ids make retries idempotent.
+Each child outbox create depends on the correct team-specific parent create, and the response
+returns native batch/deliverable ids immediately for post-submit card materialization — new card
+jobs do not poll Linear to discover identity. `linear_identifier` is checkpointed later from the
+outbound result; Part 2 does not invent a native display identifier or seed a sequence (§10.3).
+
+**Mixed-authority window:** every team leg shares the same native batch. A
+SyncView-authoritative leg enters the normal outbox lane. A still-Linear-authoritative leg enters
+the narrow §4.4 `legacy_parity` create lane, which targets only that request's parent/children even
+while global outbound remains off. The browser never calls `video-form`/`graphic-form` in parallel,
+so it cannot double-create. The existing submissions-log Sheets telemetry may remain as a
+non-Linear side effect, but it consumes native response ids.
+
+**Project + assignment policy:** the canonical client row selects the client. Stored project ids
+are validated read-only against their Linear team; during the mapping migration, an absent stored
+id may use one exact normalized native-display-name match and otherwise fails closed. Video
+auto-assignment counts only video-team deliverables, excludes `duplicate`, and breaks ties by
+stable roster order. Graphics
+uses the one active `default_for_team` member. A missing/ambiguous mapping or assignee fails closed
+before the first row write. Graphics generated descriptions use a server-side provider configured
+only through private secrets. Missing configuration, transport failure, or a malformed provider
+response refuses the request before any native/outbox write; a valid response with a missing or
+unmatched item falls back only that item to `Video N`. Provider credentials/configuration never
+reach the browser. The disconnected AI-thumbnail chain is dead code and is not ported.
 
 **9.2 The card's two link buttons + the FOUR link-keyed predicates.** Each card's two slots
 resolve through authority (Linear URL ↔ `?prod=1&d=<id>`) via the choke points
@@ -906,20 +1027,20 @@ the stale-tab / bulk-import-replay revert (the `name`∉`_CAL_ROLLBACK_FIELDS` c
 the mirror stores Linear titles verbatim; name-sync activates per team at B4; legacy mismatches
 get a badge + one-time report, no mass rename (D-13).
 
-**9.5 Comments/notes — single-writer design (ratify D-6).** Card component threads
-(`video_tweaks`/`graphic_tweaks`) remain **the single store** for card-linked deliverables; the
-Production tab's activity feed renders and writes that same thread (via the **existing card EFs**
-— `calendar-upsert` / `sample-review-upsert` field-level comment patches, so the merge RPCs and
-the **card event ledgers** keep working exactly as today; `comment_add` events for card-linked
-rows land in `calendar_post_events`/`sample_review_events`, NOT double-logged into
-`deliverable_events`). Editors get `role='editor'`, `audience='internal'`. Manual deliverables
-use `deliverables.comments` + `deliverable_merge_comments`; batches use `batches.comments` +
-`batch_merge_comments`. Caption/title threads stay card-local (no deliverable exists — verified).
-**Corrected mirror premise (critic add):** today only Notes-modal messages + request-change
-bodies mirror to Linear; review-panel plain comments and Kasper's comment-only adds are
-deliberately app-only ("plain notes don't ping the editor"). The transition mirror **preserves
-exactly today's mirrored set** — it does not start pushing the app-only classes. Inbound Linear
-comments per §4.3.3 with echo filtering per §4.2. After cutover the Linear leg drops.
+**9.5 Comments/notes — normalized single-writer design (Part 1 #809 + Part 2).**
+`production_comments` is the durable issue-thread store for native and Linear-origin comments,
+including bridge-authored `(via SyncView)` rows. Every row carries body, stable human author,
+timestamp, native + Linear ids, parent/thread metadata, role/audience, and edit/delete state.
+`production-comments` is the protected paged reader; the Production detail renders its author +
+body + time thread from that endpoint. Comment text is not anonymous-readable.
+
+Writes go only through `production-write`, which resolves the actor and calls
+`production_comment_write`. That service-role RPC merges the normalized row and atomically appends
+the ledger/outbox intent, so retries cannot produce a second local row or Linear mutation. The
+transport actor is retained only as transport metadata; it never replaces the originating human
+author. Inbound webhook edits/deletes update lifecycle state on the same row. Outbound and
+legacy-parity echoes are retained in storage and suppressed only from re-writing per §4.2.
+Card-local caption/title threads remain card-local because no deliverable thread exists for them.
 
 **9.6 Assignment & due date:** single-row writes; the calendar card shows the editor chip via
 `*_deliverable_id → deliverables → team_members`.

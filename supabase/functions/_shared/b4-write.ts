@@ -264,6 +264,14 @@ export async function handleB4Write(
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
 
+  // These low-level wrappers remain available to the service-only B4 harness,
+  // but browsers must enter through production-write. A role header, actor,
+  // member_id, or otherwise valid staff key cannot bypass the gateway's client
+  // scoping and per-operation policy.
+  if (!(await serviceRoleRequest(req))) {
+    return json({ ok: false, error: "gateway_required" }, 403);
+  }
+
   const url = clean(Deno.env.get("SUPABASE_URL"));
   const key = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
   if (!url || !key) return json({ ok: false, error: "service_unavailable" }, 503);

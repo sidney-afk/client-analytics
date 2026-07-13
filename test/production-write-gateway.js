@@ -184,6 +184,9 @@ function ok(condition, message) {
     && /currentItemsById/.test(edge)
     && /items: currentResponseItems/.test(edge),
   'intake returns post-linkage updated_at values for the caller first CAS');
+  ok(/row: operation === "comment" \? publicRow\(existing\) : publicRow\(result\)/.test(edge)
+    && /operation === "comment" \? \{ comment: parseJson\(result\) \}/.test(edge),
+  'comment success preserves the target entity CAS row and returns the durable comment separately');
   ok(/terminalValueProof/.test(inbound)
     && /const isCommentEvent = resource\.includes\("comment"\)/.test(inbound)
     && /: issueFromPayload\(payload\)/.test(inbound)

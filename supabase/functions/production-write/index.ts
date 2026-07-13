@@ -1114,7 +1114,10 @@ async function handleEntityOperation(
     legacy_parity: legacyParity,
     mirror_pending: mirrorPending,
     mirror,
-    row: operation === "comment" ? parseJson(result) : publicRow(result),
+    // Keep `row` entity-shaped for every operation so a composer success
+    // cannot replace the caller's deliverable/CAS cursor with a comment id.
+    row: operation === "comment" ? publicRow(existing) : publicRow(result),
+    ...(operation === "comment" ? { comment: parseJson(result) } : {}),
   }, mirrorPending && shouldDrain ? 202 : 200);
 }
 

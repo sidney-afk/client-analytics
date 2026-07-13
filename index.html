@@ -106,11 +106,11 @@
                 target = 'kasper';
             }
             else if (q.get('prod') === '1') target = 'production';
-            else if (FAST.indexOf(hash) >= 0) target = hash; // exact fast-tab hash
+            else if (FAST.indexOf(hash) >= 0) target = hash === 'samples' ? 'sample-reviews' : hash; // retired Samples Old links move to SXR
             // Only calendar/samples/templates route sub-path hashes
             // (init()'s hashIsFastTab); linear/workload/tiktok-upload need
             // an exact match, so a sub-path there gets no prediction.
-            else if (seg === 'calendar' || seg === 'samples' || seg === 'templates') target = seg;
+            else if (seg === 'calendar' || seg === 'samples' || seg === 'templates') target = seg === 'samples' ? 'sample-reviews' : seg;
             else if (seg === 'kasper' && kasperOk()) target = 'kasper'; // kasper + kasper/<subtab>
             else if (hash === 'tiktok-pilot' && ttpOk()) target = 'tiktok-pilot'; // exact only
             else if (seg === 'sample-reviews' && sxrOn()) target = 'sample-reviews';
@@ -6520,11 +6520,7 @@
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Calendar
         </a>
-        <a class="header-nav-btn" id="navSamples" href="#samples" onclick="if(_modClick(event))return;event.preventDefault();navTo('samples')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 6L10.5 8L7 10V6Z" fill="currentColor"/></svg>
-            Samples Old
-        </a>
-        <!-- >>> SXR_BEGIN (nav — beside the old Samples tab for the migration window) -->
+        <!-- >>> SXR_BEGIN (nav) -->
         <a class="header-nav-btn" id="navSxr" href="#sample-reviews" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('sample-reviews')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 8.2L7 10.2L11 5.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Samples New
@@ -15161,6 +15157,10 @@
        inline nav handlers must NOT preventDefault. The hrefs are real hash
        routes that init() restores in the new tab. */
     function _modClick(e) { return !!(e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (e.button && e.button !== 0))); }
+    function _resolveRetiredSamplesRoute(page) {
+        const route = String(page || '');
+        return route === 'samples' || route.startsWith('samples/') ? 'sample-reviews' : page;
+    }
     function navTo(page, push = true) {
         if (page === 'brief') page = 'home';
         // Client intake link locks the whole SPA to the Linear submission flow,
@@ -15171,6 +15171,7 @@
         // <head> boot script's data-boot-nav tag) to the real nav toggles below.
         document.documentElement.removeAttribute('data-boot-nav');
         document.documentElement.removeAttribute('data-boot-subtab');
+        page = _resolveRetiredSamplesRoute(page); // Samples Old Phase 1: route to Samples New; keep legacy code dormant.
         if (page === 'production' && !_prodAccessAllowed()) page = 'home';
         currentNav = page;
         // Guarded: on a FULL localStorage (a heavy user whose caches filled the

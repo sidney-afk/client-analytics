@@ -30,8 +30,10 @@ client approval whose push to Linear was the delivery that dropped.
 
 ## How it works
 
-`scripts/linear-sync-reconcile.js`, run every ~10 min by
-`.github/workflows/linear-sync-reconcile.yml`:
+`scripts/linear-sync-reconcile.js`, dispatched every ~15 min by the monitored
+n8n pager `qllIDZPkdNAPRj0b` through
+`.github/workflows/linear-sync-reconcile.yml`'s `workflow_dispatch` entrypoint.
+The native GitHub cron is intentionally disabled to avoid duplicate runs:
 
 1. Reads every (non-archived) linked card from Supabase and resolves the current
    state of every linked Linear issue (one batched call).

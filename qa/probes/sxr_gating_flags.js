@@ -87,13 +87,13 @@ async function kasperCardState(page, cid) {
         enabled: (typeof _sxrEnabled === 'function') ? _sxrEnabled() : 'no-fn',
         navVisible: !!nav && getComputedStyle(nav).display !== 'none' && nav.offsetParent !== null,
         navLabel: nav ? nav.textContent.trim() : '',
-        oldLabel: (document.querySelector('#navSamples') || {}).textContent || '',
+        oldNavPresent: !!document.querySelector('#navSamples'),
       };
     });
     t(def.enabled === true, 'GA default: _sxrEnabled() is TRUE with no param', String(def.enabled));
     t(def.navVisible, 'GA default: "Samples New" nav tab is visible');
     t(/Samples New/.test(def.navLabel), 'GA default: new tab labeled "Samples New"', def.navLabel);
-    t(/Samples Old/.test(def.oldLabel), 'GA default: old tab labeled "Samples Old"', def.oldLabel.trim());
+    t(!def.oldNavPresent, 'GA default: retired "Samples Old" nav tab is absent');
 
     // ---------- 3b. opt-out isolation: ?sxr=0 → dormant, nav hidden, route refused ----------
     const offPage = await open(browser, '/index.html?sxr=0#sample-reviews/sidneylaruel');

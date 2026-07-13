@@ -154,6 +154,7 @@ async function snapshot(page) {
       cardSel: _prodState.cardSel ? _prodState.cardSel.size : 0,
       layerOpen: !!(layer && layer.innerHTML),
       cmdOpen: !!document.querySelector('.prod-cmd-bd'),
+      staffIdentityOpen: !!document.getElementById('staffIdentityOverlay'),
       toast: toast && toast.classList.contains('show') ? toast.textContent.trim() : '',
       textLen: text.length,
     };

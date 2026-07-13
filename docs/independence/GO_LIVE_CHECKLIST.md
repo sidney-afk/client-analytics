@@ -1,182 +1,147 @@
 # SyncView Go-Live Checklist — Linear → SyncView cutover
 
-**Purpose.** The ordered, owner-facing steps to move a production team's work from
-Linear into SyncView, one team at a time, with an instant flip-back. Written to be
-followed calmly on the day. If anything here disagrees with `ROLLBACK.md` or the live
-runtime flags, trust the live flags and stop.
+**Purpose.** The single canonical, owner-facing sequence for cutting production over from
+Linear to SyncView. Rewritten 2026-07-13 after the full cutover audit
+(`CUTOVER_AUDIT_2026-07-13.md`) — that register is the authority on WHY each gate exists.
+Exact flag payloads and emergency procedures live in **`docs/ops/FLIP_RUNBOOK.md`** (owner-
+executable, paste-able; no Codex required). If anything here disagrees with the live runtime
+flags, trust the live flags and stop.
 
-_Last updated: 2026-07-13._
-
----
-
-## Golden rules (read first)
-
-1. **The owner holds every switch.** No team goes live except by a deliberate flag flip
-   the owner makes. Nothing here happens automatically.
-2. **One team at a time.** Graphics first, then Video (decision D-28). Never both at once.
-3. **Flip-back is always one step.** At any moment you can return a team to Linear by
-   flipping its authority back. Rehearse it before you need it.
-4. **Cosmetic vs. data (decision D-29).** A *cosmetic* bug (something looks wrong) is
-   fixed in place — you do **not** flip the team back. Only a *data-integrity* bug
-   (a status/comment/assignment lands wrong or gets lost) pauses that team back to Linear.
-5. **Green before you move.** Every step waits on the watchers being quiet. A noisy
-   watcher is a stop sign.
+_This sequence supersedes all earlier flip orderings (audit F17). D-28's shadow-week soak is
+satisfied by the staged parity enrollment below plus the nightly shadow audit — ratified by the
+owner merging this file (see D-32)._
 
 ---
 
-## Current state (the starting line)
+## Golden rules
 
-Live runtime flags as of last check:
+1. **The owner holds every switch.** Nothing flips without a deliberate owner action.
+2. **One team at a time.** Graphics (one person) first, then Video (D-28).
+3. **Flip-back is one step — but drain first.** Before flipping a team's authority back to
+   Linear, ALWAYS run the outbound drain and confirm that team's backlog is 0 (F05: skipping
+   this strands up to ~an hour of the team's work). The exact recipe is in FLIP_RUNBOOK §R2.
+4. **Cosmetic vs. data (D-29).** Looks-wrong → fix in place, keep going. Wrong-data-written →
+   drain, then pause that team back to Linear, fix, re-flip.
+5. **Green before you move — with real eyes.** A quiet alarm channel only counts once the
+   non-n8n inbound pager (F09) is live; until then, silence can mean "the alarms are dead".
 
-| Flag | Value | Meaning |
+## Current state (update when flags move)
+
+| Flag | Value today | Meaning |
 |---|---|---|
 | `prod_authority` | `{video: linear, graphics: linear}` | Both teams still run on Linear |
-| `linear_outbound_enabled` | `off` | SyncView is not writing back to Linear |
-| `linear_inbound_enabled` | `enabled` | SyncView mirrors Linear → SyncView (the always-on copy) |
-| `auth_enforcement` | `permissive` | Sign-in checked but not yet required |
-| `linear_legacy_parity_enabled` | `disabled` | The transition write-lane is off (armed only at go-live) |
+| `linear_outbound_enabled` | `off` | No mirroring back to Linear |
+| `linear_inbound_enabled` | `enabled` | Linear → SyncView copy (always on until B5) |
+| `linear_legacy_parity_enabled` | `disabled` | Transition write-lane off (armed at Phase 1) |
+| `auth_enforcement` | `permissive` | Sign-in recorded but not required |
+| `write_ui_reroute_clients` *(ships with the fix-pack)* | TEST only | Which clients' buttons use the new pipes (D-32 allowlist) |
 
-Everything the team does today runs exactly as before. The new system is installed
-but dormant.
-
----
-
-## Phase 0 — Preconditions (ALL must be true before flipping ANY team)
-
-Do not flip a team until every box is checked.
-
-- [ ] **Code merged and dormant:** #810 (gateway), #811 (guards + monitors), #812
-      (write UI) merged to `main`. _(Status: #810 ✅, #811 ✅, #812 pending.)_
-- [ ] **The reroute switch merged:** #813 rebased, re-reviewed, and merged. It ships
-      inert — it only takes effect for a team once that team's authority flips.
-- [ ] **Project mappings complete:** all **62** team-tagged project mappings persisted
-      and owner-reviewed. _(Currently 0/62 — this is the hard blocker for new-batch
-      submissions. Needs a dedicated review session with the owner.)_
-- [ ] **Backend deployed and proven live:** the `production-write` gateway and the
-      `linear-outbound` writer are deployed, and the auth behavior is verified with real
-      principals — a wrong/blank credential is refused (401), a valid-but-forbidden
-      action is refused (403), and a real-team write while that team is still on Linear
-      is refused (409).
-- [ ] **Everyone can sign in:** every active staff member has completed role-key sign-in,
-      and every client link in circulation carries its access token.
-- [ ] **Quiet soak passed** (see Phase 1).
-- [ ] **Flip-back rehearsed:** you (or Codex) have practiced the rollback flip on the
-      TEST client and confirmed it returns to Linear cleanly.
+Merged & live: #810 gateway (deployed), #811 guards + daily TEST drill + nightly shadow audit,
+#812 mirror write-UI (locked for real teams), 62/62 client→project mappings, Samples retirement
++ rename. Parked: **#813** (reroutes + native Create-Post/Submit intake) — merges only at
+Phase 0.5 below, after the fix-pack.
 
 ---
 
-## Phase 1 — Quiet soak (prove it before anyone touches it)
+## Phase 0 — Preconditions (ALL boxes before #813 merges)
 
-Let the system run untouched and watch the automatic monitors for **several clean days
-in a row**:
+**Build/fix gates (Codex):**
+- [ ] **Fix-pack landed in #813** (audit B-section): per-client allowlist gate (F02/F23),
+      Kasper linkage predicate (F04), 401→sign-in dialog (F10), quarantine notice (F21),
+      batch-picker team-filter + duplicate disambiguation (F19), +2d overdue bump ported per
+      D-30 (F20), sync-drain lane for flipped teams (F07), oldest-pending-age pager (F16),
+      monitors made flip-tolerant (F08).
+- [ ] **production-write EF in the CI deploy workflow** and redeployed from the exact #813
+      merge commit at merge time, then TEST drill green (F06).
+- [ ] **Intake migration applied** (`production_intake_append` RPC) and pilot-verified on the
+      TEST client.
+- [ ] **Card resolvability sweep = 0 failures**: every active Linear-linked calendar slot
+      resolves to exactly one mirror row; the ~60 missing rows backfilled (F11).
+- [ ] **Client tokens wired** (F03/D-31): sheet column populated from the already-minted
+      tokens; ALL copy-link builders append `&t=`; then every SMM re-shares their clients'
+      links from the calendar "share link with client" button.
+- [ ] **Submit graphics path drilled live** against the deployed EF, including real
+      GRAPHIC_TITLE_* generation (F12).
+- [ ] **Non-n8n inbound-divergence pager live + pager last-mile proven** with a synthetic DM
+      (F09/B6).
+- [ ] **Backup package built per D-1** (F13): 6-hourly GitHub export + one timed restore
+      rehearsal into a scratch project; freshness alarm.
+- [ ] **n8n quota fire resolved** (F01): burner identified/killed, hard-stop vs overage known,
+      headroom projected past the flip window.
 
-- [ ] Daily TEST-write drill: green every day.
-- [ ] Nightly full audit: 0 differences every night.
-- [ ] The reconciler (Linear vs SyncView): 0 differences on its regular runs.
-- [ ] The alarm channel: quiet (no real alerts — see `docs/ops/MONITORING.md`).
+**People gates (owner/Kasper):**
+- [ ] **Sign-ins 14/14** — server-verified via `syncview_auth_events` (as of Jul 13: 11/14;
+      missing **Rocio**, **Martin**, the "Sidney" SMM row).
+- [ ] **Slack IDs backfilled** for active team members and the URGENT-ping re-source
+      smoke-tested on TEST (F15).
+- [ ] **D-9 nightly roller** neutralized per the touchpoint-inventory owner actions, OR
+      owner-signed detect-only risk acceptance; the shared `Form` API key consumer-mapped
+      before any rotation (F14).
+- [ ] **D-8/D-30 confirmed in code**: the +2d overdue bump behavior exists in the native path
+      (owner chose KEEP, 2026-07-13).
+- [ ] **Comms drafted** for parity-arm day (F24): "SyncView-relayed comments in Linear show
+      author 'SyncView Mirror' with the real name in the body; if a tweak seems missing in
+      Linear, check SyncView."
 
-If any of these is noisy, diagnose and clear it before moving on. A clean soak is the
-evidence that the write path is safe.
+## Phase 0.5 — Merge #813 DARK
 
----
+- [ ] Merge #813 with `write_ui_reroute_clients` = TEST only. **Nothing changes for real
+      clients or staff** — their buttons still use the legacy paths.
+- [ ] Same window: redeploy production-write from the merge commit; run the TEST drill; walk
+      the TEST client through Create-Post (latest batch + new batch), Submit, approve, tweak,
+      comment end-to-end.
+- [ ] Verify a real client's calendar still saves/approves through the legacy path (allowlist
+      really is dark).
 
-## Phase 2 — Flip Graphics first
+## Phase 1 — Staged parity soak (real traffic, Linear still boss)
 
-Pick a **low-activity window** (e.g. end of day) so few people are mid-action.
+- [ ] Arm the parity lane: `linear_legacy_parity_enabled` → enabled (FLIP_RUNBOOK §F4).
+- [ ] Enroll a first small cohort (2-3 real clients) in `write_ui_reroute_clients`. Their
+      staff/client/Kasper writes now flow through the gateway and land in Linear via the
+      parity drain — same outcome as before, new pipes.
+- [ ] Watch 2-3 days: reconciler 0-diffs, drill green, no oldest-pending-age alerts, no
+      quarantine/409 noise, spot-check tweak comments arriving in Linear.
+- [ ] Enroll the rest of the roster in cohorts. Full-roster clean for **~1 week** = D-28's
+      soak satisfied.
+- [ ] During the soak: complete Rocio's day-one desk walk (B3) and the two-tab collision
+      drill (B9).
 
-1. [ ] Post a heads-up to the Graphics team: "In ~15 min, Graphics moves to SyncView.
-       Finish what you're mid-way through, then switch to working in SyncView."
-2. [ ] Turn on the transition write-lane: `linear_legacy_parity_enabled` → **enabled**.
-       (This is what lets SyncView mirror Graphics changes back into Linear during the
-       transition, so anyone still watching Linear stays in sync.)
-3. [ ] Flip authority: `prod_authority.graphics` → **syncview**.
-4. [ ] Enable the mirror-back: `linear_outbound_enabled` → **live** (start at `shadow`
-       for a few minutes first if you want a dry-run, then `live`).
-5. [ ] Confirm the exact resulting flag values against `ROLLBACK.md` (have Codex hand you
-       the exact command for steps 2–4 during prep — the owner runs it, but the precise
-       payload should come from the deploy runbook, not memory).
-6. [ ] Tell the Graphics team: "You're live — work in SyncView now."
+## Phase 2 — Flip Graphics (Rocio)
 
-> ⚠️ Video is untouched. `prod_authority.video` stays `linear`. Video keeps working in
-> Linear exactly as before.
+Pick a low-activity window.
+1. [ ] Toggle PITR ON for the flip week (D-1; owner dashboard).
+2. [ ] Tell Rocio: work in SyncView only; problems → tell Sidney, never fall back to Linear
+       silently.
+3. [ ] `prod_authority.graphics` → `syncview`, then `linear_outbound_enabled` → `live`
+       (FLIP_RUNBOOK §F1/§F2). Confirm readbacks.
+4. [ ] Verify her first real write lands in Linear via the sync-drain lane (seconds if F07's
+       lane shipped; otherwise expect 10-60 min and do NOT treat that lag as a failure).
 
----
+## Phase 3 — Watch the Graphics window
 
-## Phase 3 — Watch the live Graphics window
-
-For the first hours/days after the Graphics flip:
-
-- [ ] Watch the reconciler and the alarm channel — they should stay at 0 differences /
-      quiet.
-- [ ] Spot-check a few real Graphics actions end-to-end: a status change and a comment
-      made in SyncView should appear correctly in Linear within a minute.
-- [ ] Collect team feedback. Apply decision D-29:
-  - **Cosmetic** issue → fix in place, keep Graphics live.
-  - **Data-integrity** issue → go to Rollback for Graphics, tell the team to work in
-    Linear meanwhile, fix, re-flip.
-
-Only move to Video once Graphics has been stable and quiet for a comfortable stretch.
-
----
+- [ ] Reconciler 0-diffs; oldest-pending-age quiet; drill/audit lanes green (flip-tolerant
+      per F08).
+- [ ] Kasper's queue shows her natively-created thumbnails (F04 fix proven live).
+- [ ] Apply D-29 on anything found. Rollback = FLIP_RUNBOOK §R2 (drain first!).
 
 ## Phase 4 — Flip Video
 
-Same as Phase 2, for the Video team:
+Same steps for `prod_authority.video` once Graphics is boring. All four editors signed in
+first; tweak-delivery comms sent (F24).
 
-1. [ ] Heads-up to the Video team.
-2. [ ] `prod_authority.video` → **syncview**. (The parity lane and outbound are already on
-       from the Graphics flip — confirm, don't re-toggle blindly.)
-3. [ ] Tell the Video team: work in SyncView now.
-4. [ ] Watch as in Phase 3.
+## Phase 5 — B5: retire Linear (its own project)
 
-When both teams are live and stable, the migration's active phase is done.
-
----
-
-## Rollback — return a team to Linear (any time)
-
-If a **data-integrity** problem shows up for a team:
-
-1. [ ] Flip that team's authority back: `prod_authority.<team>` → **linear**.
-2. [ ] Tell that team: "Work in Linear for now while we fix something — don't use SyncView
-       for status/comments until I say."
-3. [ ] The mirror keeps copying Linear → SyncView, so nothing is lost; the team's work in
-       Linear flows back in.
-4. [ ] Fix the issue, re-run a quick soak check, then re-flip when clean.
-
-This is per-team — flipping Graphics back does not affect Video, and vice-versa.
-
-> The full "stop everything" rollback (both teams back, outbound off, parity off — the
-> D-26 pause we already rehearsed live) is documented in `ROLLBACK.md`.
+Follow **TRACK_B_LINEAR_REPLACEMENT_SPEC.md §13** (8-week grace, archive-completeness + full
+private export, then the reversible retirement order — Workload feeder, tweak-comments,
+editors-week, inbound, readers). Assign an owner + ticket per replacement before starting.
+Note (F26): retiring Linear does NOT retire n8n — ~20 non-Linear webhooks (templates, briefs,
+filming plans, TikTok, hook library, weekly Slack, content-ready…) remain until their own
+migrations (Track-A spec A4 rows) complete. New-client onboarding must mint mapping + token
+(B2) before B5 makes Linear-side creation impossible.
 
 ---
 
-## Phase 5 — Later: retire Linear (B5)
+## Rollback — always through FLIP_RUNBOOK §R2
 
-Only after both teams are live and stable for a good while, and as a separate deliberate
-project:
-
-- [ ] Point the remaining read-only views (e.g. the Workload board) at SyncView's own data
-      instead of the Linear-fed cache.
-- [ ] Retire the Workload reconciler and the `workload_issues` cache (this is what froze
-      during the n8n outage — it goes away).
-- [ ] Retire the legacy Linear readers and the transition parity lane.
-- [ ] Turn off Linear.
-
-At that point SyncView is fully independent and there is no per-seat Linear cost or n8n
-execution cap left to hit.
-
----
-
-## Flag quick-reference
-
-| Flag | Off / Linear state | Live / SyncView state |
-|---|---|---|
-| `prod_authority.<team>` | `linear` | `syncview` |
-| `linear_outbound_enabled` | `off` | `live` (or `shadow` for dry-run) |
-| `linear_inbound_enabled` | `enabled` (always on until B5) | `enabled` |
-| `linear_legacy_parity_enabled` | `disabled` | `enabled` (during transition only) |
-| `auth_enforcement` | `permissive` | `enforcing` (tighten once everyone's signed in) |
-
-_Confirm the exact JSON payloads with `ROLLBACK.md` / the deploy runbook at prep time.
-The owner makes every flip; nothing here is automatic._
+Short version: **drain → confirm team backlog 0 → flip authority back → tell the team →
+fix → re-soak → re-flip.** Never flip back without the drain step (F05).

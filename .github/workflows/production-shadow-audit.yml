@@ -1,0 +1,54 @@
+name: Production write-UI shadow audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 5 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-write-ui-shadow-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      B4_CONFIRM_READ_ONLY_SHADOW: '1'
+      APPLY: 'false'
+      B4_SHADOW_PRIVATE_JSON: ${{ runner.temp }}/production-shadow-private.json
+      PRODUCTION_SHADOW_PUBLIC_JSON: artifacts/production-shadow-audit.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require read and telemetry credentials
+        shell: bash
+        run: |
+          missing=0
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$LINEAR_API_KEY" ]; then
+            echo "::error::Missing Supabase service role or Linear read credential."
+            missing=1
+          fi
+          exit "$missing"
+
+      - name: Run read-only full-roster shadow audit
+        run: node scripts/production-shadow-audit.js
+
+      - name: Upload public-safe aggregate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-shadow-audit
+          path: artifacts/production-shadow-audit.json
+          if-no-files-found: ignore
+          retention-days: 14

@@ -27,6 +27,14 @@ jobs:
         with:
           node-version: 22
 
+      - name: Restore last-known-good authority cache
+        uses: actions/cache@v4
+        with:
+          path: .sync-ledger
+          key: b1-prod-authority-${{ github.run_id }}
+          restore-keys: |
+            b1-prod-authority-
+
       - name: Require refresh secrets
         shell: bash
         run: |

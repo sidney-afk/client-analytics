@@ -321,8 +321,9 @@ async function safetySnapshot() {
 
 function assertSafe(snapshot) {
   const flags = snapshot.flags || {};
-  if (clean(flags.linear_outbound_enabled && flags.linear_outbound_enabled.mode).toLowerCase() !== 'off') {
-    fail('linear_outbound_enabled must be off');
+  const outboundMode = clean(flags.linear_outbound_enabled && flags.linear_outbound_enabled.mode).toLowerCase();
+  if (!['off', 'shadow'].includes(outboundMode)) {
+    fail('linear_outbound_enabled must be off or shadow');
   }
   if (clean(flags.prod_authority && flags.prod_authority.video).toLowerCase() !== 'linear'
       || clean(flags.prod_authority && flags.prod_authority.graphics).toLowerCase() !== 'linear') {
@@ -333,9 +334,6 @@ function assertSafe(snapshot) {
   }
   if (clean(flags.auth_enforcement && flags.auth_enforcement.mode).toLowerCase() !== 'permissive') {
     fail('auth_enforcement must remain permissive');
-  }
-  if (snapshot.outbox.pending !== 0 || snapshot.outbox.written_real !== 0) {
-    fail('outbox must begin with zero pending and zero real written rows');
   }
   if (snapshot.active_slugs.size !== snapshot.flagged_slugs.size
       || [...snapshot.active_slugs].some(slug => !snapshot.flagged_slugs.has(slug))) {
@@ -420,6 +418,7 @@ async function main() {
   fs.writeFileSync(output, JSON.stringify(detail, null, 2));
   report.private_artifact_sha256 = crypto.createHash('sha256').update(fs.readFileSync(output)).digest('hex');
   console.log(JSON.stringify(report, null, 2));
+  return report;
 }
 
 if (require.main === module) {
@@ -432,6 +431,7 @@ if (require.main === module) {
 module.exports = {
   classifyDiff,
   classifyRepair,
+  main,
   sampleLinkedDeliverableIds,
   summarizeShadow,
 };

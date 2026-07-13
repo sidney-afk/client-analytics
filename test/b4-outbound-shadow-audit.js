@@ -79,9 +79,9 @@ ok(summary.public.tolerated_historical.total === 1
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'b4-outbound-shadow-audit.js'), 'utf8');
 ok(/B4_CONFIRM_READ_ONLY_SHADOW/.test(source), 'live audit requires explicit read-only confirmation');
-ok(/linear_outbound_enabled must be off/.test(source)
+ok(/linear_outbound_enabled must be off or shadow/.test(source)
   && /prod_authority must remain linear\/linear/.test(source),
-'live audit fails closed on outbound mode and team authority');
+'live audit accepts only the D-28 off/shadow soak modes and Linear team authority');
 ok(/data\.prodAuthority = \{ video: 'syncview', graphics: 'syncview' \}/.test(source),
   'authority override exists only in the in-memory classifier data');
 ok(!/supabaseRpc|supabaseInsert|linearGraphql|\bmutation\s+[A-Za-z]/.test(source),

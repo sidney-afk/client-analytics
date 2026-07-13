@@ -5,9 +5,10 @@ entire Linear→SyncView cutover: 8 parallel system maps (SMM / Kasper / client 
 samples lifecycle / intake / live systems / docs), 4 gap-hunting lenses (merge-day, flipped
 operations, dependencies & retirement, plan soundness), adversarial verification of every
 candidate finding against code and live data, and a completeness critic. **26 findings survived
-verification (0 were refuted).** This file is the durable register so later sessions build on it
-instead of rediscovering it. Full evidence (file:line cites, live queries) lives in the audit
-session transcript; this register carries the operative one-liners.
+verification (0 were refuted).** A relentless second pass then continued from that baseline;
+confirmed second-pass findings start at F27 below. This file is the durable register so later
+sessions build on it instead of rediscovering it. Full evidence (file:line cites, live queries)
+lives in the audit session transcript; this register carries the operative one-liners.
 
 **Status legend:** `OPEN` (nothing landed) · `IN-PROGRESS` (assigned/being built) ·
 `DONE` (fix merged/verified) · `ACCEPTED` (owner accepted the risk/behavior).
@@ -62,7 +63,15 @@ before that step (merge / flip / B5); P2 has a workaround; P3 polish/comms.
 | F25 | P3 | GO_LIVE Phase 5 was 4 ownerless bullets while spec §13 has the real ordered B5 plan. | DONE — Phase 5 now links spec §13; replacement build tickets still to be assigned. |
 | F26 | P2 | "No n8n execution cap left to hit" post-B5 is false: ~20 non-Linear n8n webhooks (templates, briefs, TikTok, filming plans, hook library, weekly Slack…) + Google Sheets remain load-bearing; A4/Track-A spec rows exist but are incomplete. | DONE (claim corrected in GO_LIVE) / migrations OPEN |
 
-## E. Residual blind spots (completeness critic) — not yet closed
+## E. Second-pass findings (F27+)
+
+| ID | Sev | Finding | Next action | Status |
+|---|---|---|---|---|
+| F27 | P1 | **INFERRED from current-main source; deployed fingerprint pending.** The emergency rollback is not executable as written: R1 turns normal outbound `off`, then R2 mandates a drain, but `linear-outbound` selects no normal rows while off. The Action can therefore finish green without draining. Its summary exposes only a global `backlog`, not R2's claimed per-team `pending: 0` proof. A subsequent authority rollback can still trigger F05's stranded/overwritten-work failure. | Split healthy-writer pause from corrupt-writer emergency recovery. Add an audited per-team quarantine/replay/discard path plus `backlog_by_team`, oldest-pending, and retry-exhausted proof; make the rollback check fail until the requested team is genuinely zero. | OPEN |
+| F28 | P1 | **INFERRED future-operations conflict, verified in current-main docs.** Owner-ratified D-22 and B4 readiness set a roughly one-week dual-ready Linear fallback, but spec §7.3/§13 and GO_LIVE Phase 5 still prescribe eight weeks. The stale value predates D-22 and now sits in the canonical operator path. | Replace the three operative eight-week references with D-22's roughly one-week window; distinguish it from D-28's separate pre-flip shadow week and state the exact freeze/outbound/archive/cancel boundaries. | OPEN |
+| F29 | P1 | **VERIFIED-LIVE.** The keep-until-B5 Workload and tweak-comment readers silently accept partial Linear snapshots. One of seven source credentials has returned HTTP 400 continuously in every sampled run since at least Jul 10; a second source also failed transiently. All inspected workflows still reported success. The Workload feeder ignores `workspaceErrors`, upserts the partial union, then runs its stale-row deactivation; both browser consumers ignore the degradation too. Current source overlap masks the known failure but is not a completeness guarantee. | Rotate/remove the failed credential; add expected/successful-source completeness proof and paging; skip mark-and-sweep on degraded reads; preserve stale browser data with a visible degraded state; add TEST failure injection and anonymized per-source visibility-set equality proof. | OPEN |
+
+## F. Residual blind spots (completeness critic) — not yet closed
 
 | # | Blind spot | Cheapest closure |
 |---|---|---|

@@ -185,6 +185,8 @@ function ok(condition, message) {
     && /items: currentResponseItems/.test(edge),
   'intake returns post-linkage updated_at values for the caller first CAS');
   ok(/terminalValueProof/.test(inbound)
+    && /const isCommentEvent = resource\.includes\("comment"\)/.test(inbound)
+    && /: issueFromPayload\(payload\)/.test(inbound)
     && /if \(!issueId\) return null/.test(inbound)
     && /lower\(row\.status\) === "written"/.test(inbound)
     && /if \(!actorMatches && !terminalValueProof\) continue/.test(inbound),

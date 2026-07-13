@@ -692,7 +692,15 @@ async function recentOutboundEcho(
   payload: JsonMap,
 ): Promise<JsonMap | null> {
   const comment = commentFromPayload(payload);
-  const issue = issueFromCommentPayload(payload, comment);
+  const resource = payloadResource(payload);
+  const action = payloadAction(payload);
+  const isCommentEvent = resource.includes("comment")
+    || (comment.body !== undefined && action !== "remove");
+  // Issue webhooks carry the issue directly in data. Treating that data as a
+  // comment loses data.id and makes every scalar echo impossible to match.
+  const issue = isCommentEvent
+    ? issueFromCommentPayload(payload, comment)
+    : issueFromPayload(payload);
   const issueId = linearIssueUuid(issue);
   const actorId = webhookActorId(payload, issue, comment);
   if (!issueId) return null;

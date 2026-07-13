@@ -75,6 +75,10 @@ async function linear(query) {
   return json.data;
 }
 
+function isRetryableSupabaseRead(status) {
+  return Number(status) === 429 || Number(status) >= 500;
+}
+
 async function supabaseRows(table, select, params = '') {
   if (!SUPA_KEY) fail('SUPABASE_SERVICE_ROLE_KEY is required unless --fixtures is supplied');
   const rows = [];
@@ -82,11 +86,22 @@ async function supabaseRows(table, select, params = '') {
   const limit = 1000;
   for (;;) {
     const url = `${SUPA_URL}/rest/v1/${table}?select=${encodeURIComponent(select)}&limit=${limit}&offset=${offset}${params ? `&${params}` : ''}`;
-    const resp = await fetch(url, {
-      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, Accept: 'application/json' },
-    });
-    if (!resp.ok) throw new Error(`Supabase ${table} HTTP ${resp.status}: ${(await resp.text()).slice(0, 500)}`);
-    const batch = await resp.json();
+    let batch;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const resp = await fetch(url, {
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, Accept: 'application/json' },
+      });
+      if (resp.ok) {
+        batch = await resp.json();
+        break;
+      }
+      const errorText = (await resp.text()).slice(0, 500);
+      if (attempt < 3 && isRetryableSupabaseRead(resp.status)) {
+        await sleep(500 * (2 ** (attempt - 1)));
+        continue;
+      }
+      throw new Error(`Supabase ${table} HTTP ${resp.status}: ${errorText}`);
+    }
     rows.push(...batch);
     if (!Array.isArray(batch) || batch.length < limit) break;
     offset += limit;
@@ -578,6 +593,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  isRetryableSupabaseRead,
   batchParentEntries,
   batchParentId,
   expectedParentIdForDeliverable,

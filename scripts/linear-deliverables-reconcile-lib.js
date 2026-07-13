@@ -160,9 +160,12 @@ function engineCommentIds(events) {
     const action = lower(ev && ev.action);
     if (!action.includes('comment')) continue;
     const payload = parseJson(ev && ev.payload);
+    const comment = payload.comment && typeof payload.comment === 'object' ? payload.comment : {};
     const id = clean(payload.linear_comment_id
       || payload.comment_id
-      || (payload.comment && payload.comment.id)
+      || comment.linear_comment_id
+      || comment.native_comment_id
+      || comment.id
       || (payload.linear_comment && payload.linear_comment.id));
     if (id) ids.add(id);
   }

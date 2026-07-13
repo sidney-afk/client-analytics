@@ -13,6 +13,7 @@ const {
   batchParentEntries,
   batchParentId,
   expectedParentIdForDeliverable,
+  isRetryableSupabaseRead,
 } = require('../scripts/linear-deliverables-reconcile');
 
 function ok(cond, msg) {
@@ -68,6 +69,10 @@ ok(expectedParentIdForDeliverable(
   { title: 'Child title', team: 'video' },
   { name: 'Batch title', ...parentShape },
 ) === 'parent_video', 'non-parent deliverable still resolves the team batch parent');
+ok(isRetryableSupabaseRead(429) && isRetryableSupabaseRead(500) && isRetryableSupabaseRead(503),
+  'Supabase throttles and server failures are retryable reads');
+ok(!isRetryableSupabaseRead(400) && !isRetryableSupabaseRead(404),
+  'Supabase client errors fail closed without retry');
 
 function classify(deliverablePatch, issuePatch, extra = {}) {
   return classifyDeliverable({
@@ -120,6 +125,21 @@ ok(r.diffs.some(d => d.field === 'archived_deleted'), 'Linear archive marker is 
 
 r = classify({}, { comments: { nodes: [] } });
 ok(r.diffs.some(d => d.reason === 'engine_comment_missing_in_linear'), 'missing engine-tracked comment id is a real diff');
+
+r = classify({}, {}, {
+  events: [{
+    action: 'comment_add',
+    payload: {
+      comment: {
+        id: 'linear:lin_comment_1',
+        linear_comment_id: 'lin_comment_1',
+        native_comment_id: 'lin_comment_1',
+      },
+    },
+  }],
+});
+ok(!r.diffs.some(d => d.field === 'comments'),
+  'normalized Production comment events compare by native Linear id, not their local linear: row id');
 
 const gaps = linkageGaps({
   calendarPosts: [{ id: 'card_fixture', client: 'fixture-client', status: 'active', linear_issue_id: 'https://linear.example/VID-TST', video_deliverable_id: '' }],

@@ -14,6 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { authorityForTeam, loadAuthority } = require('./prod-authority-guard');
 
 const ROOT = path.join(__dirname, '..');
 const LINEAR_API_KEY = String(process.env.LINEAR_API_KEY
@@ -23,6 +24,8 @@ const LINEAR_API_KEY = String(process.env.LINEAR_API_KEY
   || '').trim();
 const SUPA_URL = process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co';
 const SUPA_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+const AUTHORITY_CACHE_PATH = process.env.PROD_AUTHORITY_CACHE_PATH
+  || path.join(ROOT, '.sync-ledger', 'b1-linear-incremental-authority.json');
 const TRACK_TEAMS = new Set(['VID', 'GRA']);
 const PRIVATE_ASSIGNEE_RULES = loadPrivateAssigneeRules();
 const ASSIGNEE_EXISTING_MEMBER_RULES = (PRIVATE_ASSIGNEE_RULES.existing_member_rules || []).map(rule => ({
@@ -1004,6 +1007,12 @@ async function buildIncrementalPlan() {
   const startedAt = new Date().toISOString();
   const asOf = args.get('--as-of') || startedAt;
   const cutoffMonths = Number(args.get('--cutoff-months') || 12);
+  const authorityState = await loadAuthority({
+    cachePath: AUTHORITY_CACHE_PATH,
+    key: SUPA_KEY || undefined,
+    supabaseUrl: SUPA_URL,
+  });
+  const prodAuthority = authorityState.authority;
   const changedSince = await incrementalChangedSince();
   const [
     loadedIssues,
@@ -1064,6 +1073,19 @@ async function buildIncrementalPlan() {
   const deliverableFields = ['identifier', 'batch_id', 'client_slug', 'team', 'kind', 'title', 'status', 'assignee_id', 'due_date', 'priority', 'origin', 'card_id', 'linear_issue_uuid', 'linear_identifier', 'linear_issue_url'];
   const archiveFields = ['identifier', 'title', 'state', 'client_slug', 'team'];
   const deliverableCandidates = [...deliverables, ...softHandledDeliverables];
+  const batchCandidates = batches.filter(r => !compareRow(existingBatchById.get(r.id), r, batchFields));
+  const deliverableWriteCandidates = deliverableCandidates.filter(r => !compareRow(existingDeliverableById.get(r.id), r, deliverableFields));
+  const batchAllowed = row => authorityState.write_safe === true
+    && (row._issues || []).every(issue => authorityForTeam(prodAuthority, linearTeam(issue)) === 'linear');
+  const deliverableAllowed = row => authorityState.write_safe === true
+    && authorityForTeam(prodAuthority, row.team) === 'linear';
+  const allowedBatches = batchCandidates.filter(batchAllowed);
+  const gatedBatches = batchCandidates.filter(row => !batchAllowed(row));
+  const allowedDeliverables = deliverableWriteCandidates.filter(deliverableAllowed);
+  const gatedDeliverables = deliverableWriteCandidates.filter(row => !deliverableAllowed(row));
+  const allowedClientSlugs = new Set((authorityState.write_safe === true ? operational : [])
+    .filter(issue => authorityForTeam(prodAuthority, linearTeam(issue)) === 'linear')
+    .map(issue => issueClientCandidate(issue).slug));
 
   return {
     generated_at: startedAt,
@@ -1076,10 +1098,24 @@ async function buildIncrementalPlan() {
     operational_count: operational.length,
     soft_handled_count: softHandledDeliverables.length,
     archive_count: archive.length,
+    authority: {
+      value: prodAuthority,
+      source: authorityState.source,
+      write_safe: authorityState.write_safe === true,
+      warning: authorityState.warning || null,
+    },
+    gated: {
+      batch_write_candidates: gatedBatches.length,
+      deliverable_write_candidates: gatedDeliverables.length,
+      by_team: {
+        video: gatedDeliverables.filter(row => row.team === 'video').length,
+        graphics: gatedDeliverables.filter(row => row.team === 'graphics').length,
+      },
+    },
     writes: {
-      clients: missingClients.map(publicClientRow),
-      batches: batches.filter(r => !compareRow(existingBatchById.get(r.id), r, batchFields)).map(({ _issues, ...r }) => r),
-      deliverables: deliverableCandidates.filter(r => !compareRow(existingDeliverableById.get(r.id), r, deliverableFields)),
+      clients: missingClients.filter(row => allowedClientSlugs.has(row.slug)).map(publicClientRow),
+      batches: allowedBatches.map(({ _issues, ...r }) => r),
+      deliverables: allowedDeliverables,
       linear_archive: archive.filter(r => !compareRow(existingArchiveById.get(r.linear_uuid), r, archiveFields)),
     },
     raw: { issues },
@@ -1096,10 +1132,21 @@ async function applyIncrementalPlan(plan) {
     summary_event_written: 0,
   };
   try {
-    await supabaseInsert('clients', plan.writes.clients);
-    result.inserted_clients = plan.writes.clients.length;
+    for (const client of plan.writes.clients) {
+      const teams = new Set();
+      for (const row of plan.writes.batches) {
+        if (row.client_slug !== client.slug) continue;
+        if (row.team) teams.add(row.team);
+        else { teams.add('video'); teams.add('graphics'); }
+      }
+      for (const row of plan.writes.deliverables) if (row.client_slug === client.slug) teams.add(row.team);
+      await assertFreshLinearAuthority(teams.size ? [...teams] : ['video', 'graphics']);
+      await supabaseInsert('clients', [client]);
+      result.inserted_clients++;
+    }
 
     for (const batch of plan.writes.batches) {
+      await assertFreshLinearAuthority(batch.team || ['video', 'graphics']);
       await supabaseRpc('batch_write', {
         p_row: batch,
         p_event: {
@@ -1113,6 +1160,7 @@ async function applyIncrementalPlan(plan) {
     }
 
     for (const deliverable of plan.writes.deliverables) {
+      await assertFreshLinearAuthority(deliverable.team);
       await supabaseRpc('deliverable_write', {
         p_row: deliverable,
         p_event: {
@@ -1145,6 +1193,8 @@ async function applyIncrementalPlan(plan) {
       operational_count: plan.operational_count,
       soft_handled_count: plan.soft_handled_count,
       archive_count: plan.archive_count,
+      authority: plan.authority,
+      gated: plan.gated,
       writes: result,
     });
     result.summary_event_written = 1;
@@ -1158,6 +1208,8 @@ async function applyIncrementalPlan(plan) {
       changed_since: plan.changed_since,
       project_filter: plan.project_filter,
       changed_issue_count: plan.changed_issue_count,
+      authority: plan.authority,
+      gated: plan.gated,
       error: message.slice(0, 500),
       writes: result,
     }).catch(() => {});
@@ -1206,6 +1258,7 @@ async function applyPlan(plan) {
 
   let batchWritten = 0;
   for (const batch of plan.writes.batches) {
+    await assertFreshLinearAuthority(batch.team || ['video', 'graphics']);
     await supabaseRpc('batch_write', {
       p_row: batch,
       p_event: {
@@ -1220,6 +1273,7 @@ async function applyPlan(plan) {
 
   let deliverableWritten = 0;
   for (const deliverable of plan.writes.deliverables) {
+    await assertFreshLinearAuthority(deliverable.team);
     await supabaseRpc('deliverable_write', {
       p_row: deliverable,
       p_event: {
@@ -1393,6 +1447,8 @@ function renderIncremental(plan, applyResult) {
   lines.push(`Operational changed issues: ${plan.operational_count}`);
   lines.push(`Soft-handled existing deliverables: ${plan.soft_handled_count}`);
   lines.push(`Archive candidates: ${plan.archive_count}`);
+  lines.push(`Authority: video=${plan.authority.value.video}, graphics=${plan.authority.value.graphics} (${plan.authority.source})`);
+  lines.push(`Authority-gated live writes: batches=${plan.gated.batch_write_candidates}, deliverables=${plan.gated.deliverable_write_candidates}`);
   lines.push('');
   lines.push('## Planned Writes');
   lines.push('');
@@ -1406,6 +1462,45 @@ function renderIncremental(plan, applyResult) {
   lines.push('');
   lines.push('Incremental mode only writes dormant B1 tables and system-source ledger events. It does not change runtime flags, n8n workflows, auth, or Linear.');
   return lines.join('\n');
+}
+
+async function assertFullApplyAuthority() {
+  if (!APPLY && !APPLY_RECONCILIATION_ONLY) return;
+  const state = await loadAuthority({
+    cachePath: AUTHORITY_CACHE_PATH,
+    key: SUPA_KEY || undefined,
+    supabaseUrl: SUPA_URL,
+  });
+  if (state.write_safe !== true || state.authority.video !== 'linear' || state.authority.graphics !== 'linear') {
+    throw new Error('full B1 apply is frozen unless a live flag read confirms both production teams are Linear-authoritative; use the authority-aware incremental lane or v2 reconciler');
+  }
+}
+
+async function assertFreshLinearAuthority(teams) {
+  const required = (Array.isArray(teams) ? teams : [teams]).map(teamKeyForAuthority);
+  if (!required.length || required.some(team => !team)) {
+    throw new Error('B1 authoritative write has an unknown production team');
+  }
+  const state = await loadAuthority({
+    cachePath: AUTHORITY_CACHE_PATH,
+    key: SUPA_KEY || undefined,
+    supabaseUrl: SUPA_URL,
+  });
+  if (state.write_safe !== true) {
+    throw new Error('B1 authoritative write frozen because prod_authority was not read live');
+  }
+  const blocked = [...new Set(required)].filter(team => authorityForTeam(state.authority, team) !== 'linear');
+  if (blocked.length) {
+    throw new Error(`B1 authoritative write frozen for SyncView-authoritative team(s): ${blocked.join(',')}`);
+  }
+  return state;
+}
+
+function teamKeyForAuthority(team) {
+  const key = clean(team).toLowerCase();
+  if (key === 'vid' || key === 'video') return 'video';
+  if (key === 'gra' || key === 'graphic' || key === 'graphics' || key === 'thumbnail') return 'graphics';
+  return '';
 }
 
 async function main() {
@@ -1429,6 +1524,7 @@ async function main() {
     console.log(report);
     return;
   }
+  await assertFullApplyAuthority();
   const plan = await buildPlan();
   let applyResult = null;
   if (APPLY_RECONCILIATION_ONLY) applyResult = await applyReconciliation(plan);

@@ -38,9 +38,12 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { authorityForTeam, loadAuthority } = require('./prod-authority-guard');
 
 const APPLY = process.argv.includes('--apply') || /^(1|true|yes)$/i.test(process.env.APPLY || '');
 const LEDGER_PATH = process.env.LEDGER_PATH || path.join(__dirname, '..', '.sync-ledger', 'sample-linear-reconcile.json');
+const AUTHORITY_CACHE_PATH = process.env.PROD_AUTHORITY_CACHE_PATH
+  || path.join(path.dirname(LEDGER_PATH), 'sample-linear-reconcile-authority.json');
 const SAFETY_CAP = Number(process.env.CAP || 15);
 const TIE_MS = 120 * 1000;
 
@@ -216,6 +219,10 @@ const log = (s) => { console.log(s); lines.push(s); };
 (async () => {
   log(`MODE: ${APPLY ? 'APPLY' : 'DRY-RUN'}  cap=${SAFETY_CAP}  ledger=${LEDGER_PATH}`);
   await loadUpsertEfClients();
+  const authorityState = await loadAuthority({ cachePath: AUTHORITY_CACHE_PATH });
+  const prodAuthority = authorityState.authority;
+  log(`prod_authority: video=${prodAuthority.video} graphics=${prodAuthority.graphics} source=${authorityState.source}`);
+  if (authorityState.warning) log(`prod_authority live read warning: ${authorityState.warning}`);
   const ledger = loadLedger();
   const fresh = !Object.keys(ledger).length;
   const cards = await fetchAllCards();
@@ -245,34 +252,55 @@ const log = (s) => { console.log(s); lines.push(s); };
       const stampRaw = card[comp + '_status_at'];
       const cardAtExact = (stampRaw && isFinite(Date.parse(stampRaw))) ? new Date(stampRaw).toISOString() : null;
       const key = `${card.client}|${card.id}|${comp}`;
-      let led = ledger[key];
-      if (!led) led = ledger[key] = { cardCal, cardAt: cardAtExact || t, linCal, linAt: t };
+      const authority = authorityForTeam(prodAuthority, comp);
+      const gated = authorityState.write_safe !== true || authority === 'syncview';
+      let led = ledger[key] ? { ...ledger[key] } : null;
+      if (!led) led = { cardCal, cardAt: cardAtExact || t, linCal, linAt: t };
       else {
         if (cardAtExact) { led.cardCal = cardCal; led.cardAt = cardAtExact; }
         else if (cardCal !== led.cardCal) { led.cardCal = cardCal; led.cardAt = t; }
         if (linCal !== led.linCal) { led.linCal = linCal; led.linAt = t; }
       }
+      if (!gated) ledger[key] = led;
       if (cardCal === linCal) { inSync++; continue; }
-      corrections.push({ card, comp, ident, url, cardCal, linCal, winner: decide(led, cardCal, linCal), led });
+      corrections.push({ card, comp, ident, url, cardCal, linCal, winner: decide(led, cardCal, linCal), led, authority, gated });
     }
   }
 
   const toLinear = corrections.filter(c => c.winner === 'card');
   const toCard = corrections.filter(c => c.winner === 'linear');
-  log(`IN SYNC ${inSync} · archived ${archived} · unmapped ${unmapped} · missing ${missing} · corrections ${corrections.length}`);
+  const gated = corrections.filter(c => c.gated);
+  const actionable = corrections.filter(c => !c.gated);
+  log(`IN SYNC ${inSync} · archived ${archived} · unmapped ${unmapped} · missing ${missing} · corrections ${corrections.length} · authority-gated ${gated.length}`);
   toLinear.forEach(c => log(`  → Linear ${c.ident} := "${c.cardCal}"  (was "${c.linCal}")  ${c.card.client}/${c.card.id}`));
   toCard.forEach(c => log(`  ← sample ${c.card.id} ${c.comp} := "${c.linCal}"  (was "${c.cardCal}")  ${c.card.client}`));
+  gated.forEach(c => log(`  ⛔ detect-only ${c.ident} ${c.comp}: prod_authority=${c.authority} source=${authorityState.source}`));
 
-  if (corrections.length > SAFETY_CAP) {
-    log(`\n⛔ ABORT: ${corrections.length} corrections > cap ${SAFETY_CAP}. Refusing to write — investigate (mass event or bug). Override with CAP=${corrections.length + 1}.`);
-    writeSummary(`⛔ ABORT — ${corrections.length} corrections exceeded cap ${SAFETY_CAP}; nothing written.`);
+  if (actionable.length > SAFETY_CAP) {
+    log(`\n⛔ ABORT: ${actionable.length} actionable corrections > cap ${SAFETY_CAP}. Refusing to write — investigate (mass event or bug). Override with CAP=${actionable.length + 1}.`);
+    writeSummary(`⛔ ABORT — ${actionable.length} actionable corrections exceeded cap ${SAFETY_CAP}; nothing written. ${gated.length} SyncView-authoritative differences remained detect-only.`);
     process.exit(2);
   }
 
-  if (!APPLY) { log('\n(dry-run — no writes)'); writeSummary(`Dry-run: ${corrections.length} corrections (${toLinear.length}→Linear, ${toCard.length}→sample). In sync: ${inSync}.`); return; }
+  if (!APPLY) { log('\n(dry-run — no writes)'); writeSummary(`Dry-run: ${corrections.length} corrections (${toLinear.length}→Linear, ${toCard.length}→sample), ${gated.length} authority-gated. In sync: ${inSync}.`); return; }
 
-  let ok = 0, fail = 0;
-  for (const c of corrections) {
+  let ok = 0, fail = 0, authorityFrozen = false;
+  for (const c of actionable) {
+    let freshAuthority = null;
+    try {
+      freshAuthority = await loadAuthority({ cachePath: AUTHORITY_CACHE_PATH });
+    } catch (e) {
+      authorityFrozen = true;
+      fail++;
+      log(`  authority freeze ${c.comp}: live prod_authority unavailable`);
+      break;
+    }
+    if (freshAuthority.write_safe !== true || authorityForTeam(freshAuthority.authority, c.comp) !== 'linear') {
+      authorityFrozen = true;
+      fail++;
+      log(`  authority freeze ${c.comp}: team is not live Linear-authoritative`);
+      break;
+    }
     try {
       if (c.winner === 'card') {
         const r = await pushCardToLinear(c.url, c.cardCal);
@@ -285,11 +313,17 @@ const log = (s) => { console.log(s); lines.push(s); };
         else { fail++; log(`  ❌ ${c.card.id} ${JSON.stringify(res).slice(0, 120)}`); }
       }
     } catch (e) { fail++; log(`  ❌ ${c.ident} ${e.message}`); }
+    if (fail) break;
     await sleep(150);
   }
+  if (authorityFrozen) {
+    log('\nauthority changed or became unavailable during APPLY; ledger not saved');
+    writeSummary(`Authority freeze after **${ok}** corrections; ledger clocks were not advanced. Re-run after a live Linear-authoritative read.`);
+    process.exit(1);
+  }
   saveLedger(ledger);
-  log(`\napplied ok=${ok} fail=${fail} · ledger saved (${Object.keys(ledger).length} keys)`);
-  writeSummary(`Applied **${ok}** corrections (${toLinear.length}→Linear, ${toCard.length}→sample), ${fail} failed. In sync: ${inSync}.`);
+  log(`\napplied ok=${ok} fail=${fail} · authority-gated=${gated.length} · ledger saved (${Object.keys(ledger).length} keys)`);
+  writeSummary(`Applied **${ok}** corrections, ${fail} failed, and kept **${gated.length}** SyncView-authoritative differences detect-only. In sync: ${inSync}.`);
   if (fail) process.exit(1);
 })().catch(e => { console.error('FATAL', e); writeSummary('FATAL: ' + e.message); process.exit(1); });
 

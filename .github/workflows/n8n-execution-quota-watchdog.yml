@@ -43,6 +43,7 @@ jobs:
       N8N_QUOTA_TIMEZONE: ${{ vars.N8N_QUOTA_TIMEZONE || 'America/Guatemala' }}
       N8N_QUOTA_ALERT_WEBHOOK: ${{ secrets.N8N_QUOTA_ALERT_WEBHOOK }}
       N8N_QUOTA_ALERT_WORKFLOW_ID: ${{ vars.N8N_QUOTA_ALERT_WORKFLOW_ID || 'Tfhc3vebZyG6obOg' }}
+      N8N_QUOTA_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       N8N_QUOTA_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
       N8N_QUOTA_CAP_OVERRIDE: ${{ inputs.cap_override }}
       N8N_QUOTA_THRESHOLDS_OVERRIDE: ${{ inputs.thresholds_override }}
@@ -59,6 +60,10 @@ jobs:
           fi
           if [ -z "$N8N_QUOTA_ALERT_WEBHOOK" ]; then
             echo "::error::N8N_QUOTA_ALERT_WEBHOOK is not set"
+            exit 1
+          fi
+          if [ "$N8N_QUOTA_DRY_RUN" != "true" ] && [ "$GITHUB_REF_NAME" != "$N8N_QUOTA_DEFAULT_BRANCH" ]; then
+            echo "::error::Live quota runs are allowed only on the default branch"
             exit 1
           fi
           if [ "$N8N_QUOTA_DRY_RUN" != "true" ] && [ -z "$N8N_MONTHLY_EXECUTION_CAP" ]; then

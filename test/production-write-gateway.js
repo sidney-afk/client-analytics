@@ -180,6 +180,10 @@ function ok(condition, message) {
     && /parityByTeam\[team\] = !principal\.testOnly && authorityByTeam\[team\] === "linear"/.test(edge)
     && /parentOutboxByTeam\[itemTeam\]/.test(edge),
   'mixed intake creates one nullable-team batch with independent team parents and child dependencies');
+  ok(/post-linkage version/.test(edge)
+    && /currentItemsById/.test(edge)
+    && /items: currentResponseItems/.test(edge),
+  'intake returns post-linkage updated_at values for the caller first CAS');
   ok(/GRAPHIC_TITLE_API_KEY/.test(edge)
     && /GRAPHIC_TITLE_MODEL/.test(edge)
     && /GRAPHIC_TITLE_PROMPT/.test(edge)

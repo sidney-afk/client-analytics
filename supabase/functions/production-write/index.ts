@@ -1491,6 +1491,23 @@ async function handleIntakeCreate(
   const targetedFailure = mirrorResults.some(result => result.acknowledged !== true);
   const hasNormalPending = drainPlans.some(plan => plan.targeted !== true);
   const mirrorPending = targetedFailure || hasNormalPending;
+  // A targeted create drain checkpoints Linear linkage through the ledger RPCs,
+  // which deliberately advances updated_at. Return that post-linkage version so
+  // the caller's first scalar CAS cannot reject its own successful create.
+  const [currentBatchResult, currentItemsResult] = await Promise.all([
+    supabase.from("batches").select("*").eq("id", batchId).maybeSingle(),
+    supabase.from("deliverables").select("*").in("id", deliverableIds),
+  ]);
+  if (currentBatchResult.error || currentItemsResult.error || !currentBatchResult.data) {
+    throw new GatewayError(500, "native_response_refresh_failed");
+  }
+  const currentItemsById = new Map(
+    ((currentItemsResult.data || []) as JsonMap[]).map(row => [clean(row.id), row]),
+  );
+  const currentResponseItems = responseItems.map(item => {
+    const current = currentItemsById.get(clean(item.id));
+    return current ? { item_index: item.item_index, ...publicRow(current) } : item;
+  });
   return json({
     ok: true,
     native_committed: true,
@@ -1498,8 +1515,8 @@ async function handleIntakeCreate(
     legacy_parity: parityByTeam,
     mirror_pending: mirrorPending,
     mirror: mirrorResults,
-    batch: publicRow(batch.row),
-    items: responseItems,
+    batch: publicRow(currentBatchResult.data),
+    items: currentResponseItems,
   }, targetedFailure ? 202 : 201);
 }
 

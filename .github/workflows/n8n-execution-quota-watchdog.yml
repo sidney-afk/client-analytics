@@ -1,0 +1,119 @@
+name: n8n execution quota watchdog
+
+on:
+  schedule:
+    - cron: "17 13 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Compute alerts without saving monthly dedupe markers
+        required: true
+        type: boolean
+        default: true
+      cap_override:
+        description: Dry-run-only monthly cap override
+        required: false
+        type: string
+        default: "1"
+      thresholds_override:
+        description: Dry-run-only comma-separated percentages
+        required: false
+        type: string
+        default: "0.01,0.02"
+      send_test_alert:
+        description: Deliver dry-run alerts through the owner pager
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+
+concurrency:
+  group: n8n-execution-quota-watchdog
+  cancel-in-progress: false
+
+jobs:
+  quota:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+      N8N_BASE_URL: ${{ vars.N8N_BASE_URL || 'https://synchrosocial.app.n8n.cloud' }}
+      N8N_MONTHLY_EXECUTION_CAP: ${{ vars.N8N_MONTHLY_EXECUTION_CAP }}
+      N8N_QUOTA_TIMEZONE: ${{ vars.N8N_QUOTA_TIMEZONE || 'America/Guatemala' }}
+      N8N_QUOTA_ALERT_WEBHOOK: ${{ secrets.N8N_QUOTA_ALERT_WEBHOOK }}
+      N8N_QUOTA_ALERT_WORKFLOW_ID: ${{ vars.N8N_QUOTA_ALERT_WORKFLOW_ID || 'Tfhc3vebZyG6obOg' }}
+      N8N_QUOTA_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      N8N_QUOTA_CAP_OVERRIDE: ${{ inputs.cap_override }}
+      N8N_QUOTA_THRESHOLDS_OVERRIDE: ${{ inputs.thresholds_override }}
+      N8N_QUOTA_SEND_DRY_RUN_ALERT: ${{ github.event_name == 'workflow_dispatch' && inputs.send_test_alert }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require watchdog secrets
+        shell: bash
+        run: |
+          if [ -z "$N8N_API_KEY" ]; then
+            echo "::error::N8N_API_KEY is not set"
+            exit 1
+          fi
+          if [ -z "$N8N_QUOTA_ALERT_WEBHOOK" ]; then
+            echo "::error::N8N_QUOTA_ALERT_WEBHOOK is not set"
+            exit 1
+          fi
+          if [ "$N8N_QUOTA_DRY_RUN" != "true" ] && [ -z "$N8N_MONTHLY_EXECUTION_CAP" ]; then
+            echo "::error::N8N_MONTHLY_EXECUTION_CAP repository variable is not set"
+            exit 1
+          fi
+
+      - name: Resolve calendar month
+        id: month
+        shell: bash
+        run: node scripts/n8n-execution-quota-watchdog.js --month-key >> "$GITHUB_OUTPUT"
+
+      - name: Restore 80 percent monthly marker
+        id: marker-80
+        uses: actions/cache/restore@v4
+        with:
+          path: .quota-watchdog/80
+          key: n8n-execution-quota-v1-${{ steps.month.outputs.month }}-80
+          lookup-only: true
+
+      - name: Restore 90 percent monthly marker
+        id: marker-90
+        uses: actions/cache/restore@v4
+        with:
+          path: .quota-watchdog/90
+          key: n8n-execution-quota-v1-${{ steps.month.outputs.month }}-90
+          lookup-only: true
+
+      - name: Count executions and notify
+        id: watchdog
+        env:
+          N8N_QUOTA_ALREADY_80: ${{ steps.marker-80.outputs.cache-hit == 'true' }}
+          N8N_QUOTA_ALREADY_90: ${{ steps.marker-90.outputs.cache-hit == 'true' }}
+        run: node scripts/n8n-execution-quota-watchdog.js
+
+      - name: Prepare 80 percent marker
+        if: steps.watchdog.outputs.alert_80_sent == 'true' && steps.watchdog.outputs.dry_run == 'false'
+        shell: bash
+        run: mkdir -p .quota-watchdog/80 && printf '%s\n' "${{ steps.watchdog.outputs.month }}" > .quota-watchdog/80/notified
+
+      - name: Save 80 percent monthly marker
+        if: steps.watchdog.outputs.alert_80_sent == 'true' && steps.watchdog.outputs.dry_run == 'false'
+        uses: actions/cache/save@v4
+        with:
+          path: .quota-watchdog/80
+          key: n8n-execution-quota-v1-${{ steps.month.outputs.month }}-80
+
+      - name: Prepare 90 percent marker
+        if: steps.watchdog.outputs.alert_90_sent == 'true' && steps.watchdog.outputs.dry_run == 'false'
+        shell: bash
+        run: mkdir -p .quota-watchdog/90 && printf '%s\n' "${{ steps.watchdog.outputs.month }}" > .quota-watchdog/90/notified
+
+      - name: Save 90 percent monthly marker
+        if: steps.watchdog.outputs.alert_90_sent == 'true' && steps.watchdog.outputs.dry_run == 'false'
+        uses: actions/cache/save@v4
+        with:
+          path: .quota-watchdog/90
+          key: n8n-execution-quota-v1-${{ steps.month.outputs.month }}-90

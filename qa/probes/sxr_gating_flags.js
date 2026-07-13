@@ -5,7 +5,7 @@
 //      "Finish", a later message must NOT pull the card back to Waiting — only a
 //      genuine Kasper-Approval re-route may. Parity with the calendar rule.
 //   3. Flag semantics (GA rollout 2026-07-02): samples is ON BY DEFAULT (no
-//      param → enabled, "Samples New" nav visible). `?sxr=0` is the sticky
+//      param → enabled, "Samples" nav visible). `?sxr=0` is the sticky
 //      per-browser OPT-OUT: everything dormant, nav hidden, route refused.
 'use strict';
 const L = require('../sxr_courier_lib.js');
@@ -78,7 +78,7 @@ async function kasperCardState(page, cid) {
     t(sawMsg, 'new SMM message landed on the finished card');
     t(stAfter === 'finished', 'BUG-7 FIX: a new message does NOT resurface a FINISHED card (stays in Tweaks pending; parity with calendar)', 'state=' + stAfter);
 
-    // ---------- 3a. GA default-ON: no param → enabled, "Samples New" nav visible ----------
+    // ---------- 3a. GA default-ON: no param → enabled, "Samples" nav visible ----------
     const defPage = await open(browser, '/index.html');   // NO sxr param at all
     await sleep(2500);
     const def = await defPage.evaluate(() => {
@@ -91,8 +91,8 @@ async function kasperCardState(page, cid) {
       };
     });
     t(def.enabled === true, 'GA default: _sxrEnabled() is TRUE with no param', String(def.enabled));
-    t(def.navVisible, 'GA default: "Samples New" nav tab is visible');
-    t(/Samples New/.test(def.navLabel), 'GA default: new tab labeled "Samples New"', def.navLabel);
+    t(def.navVisible, 'GA default: "Samples" nav tab is visible');
+    t(def.navLabel === 'Samples', 'GA default: SXR tab labeled "Samples"', def.navLabel);
     t(!def.oldNavPresent, 'GA default: retired "Samples Old" nav tab is absent');
 
     // ---------- 3b. opt-out isolation: ?sxr=0 → dormant, nav hidden, route refused ----------

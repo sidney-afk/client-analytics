@@ -695,7 +695,7 @@ async function recentOutboundEcho(
   const issue = issueFromCommentPayload(payload, comment);
   const issueId = linearIssueUuid(issue);
   const actorId = webhookActorId(payload, issue, comment);
-  if (!issueId || !actorId) return null;
+  if (!issueId) return null;
 
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase.from("mirror_outbox")

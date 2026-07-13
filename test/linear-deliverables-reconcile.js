@@ -13,6 +13,7 @@ const {
   batchParentEntries,
   batchParentId,
   expectedParentIdForDeliverable,
+  isRetryableSupabaseRead,
 } = require('../scripts/linear-deliverables-reconcile');
 
 function ok(cond, msg) {
@@ -68,6 +69,10 @@ ok(expectedParentIdForDeliverable(
   { title: 'Child title', team: 'video' },
   { name: 'Batch title', ...parentShape },
 ) === 'parent_video', 'non-parent deliverable still resolves the team batch parent');
+ok(isRetryableSupabaseRead(429) && isRetryableSupabaseRead(500) && isRetryableSupabaseRead(503),
+  'Supabase throttles and server failures are retryable reads');
+ok(!isRetryableSupabaseRead(400) && !isRetryableSupabaseRead(404),
+  'Supabase client errors fail closed without retry');
 
 function classify(deliverablePatch, issuePatch, extra = {}) {
   return classifyDeliverable({

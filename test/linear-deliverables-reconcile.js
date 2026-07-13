@@ -121,6 +121,21 @@ ok(r.diffs.some(d => d.field === 'archived_deleted'), 'Linear archive marker is 
 r = classify({}, { comments: { nodes: [] } });
 ok(r.diffs.some(d => d.reason === 'engine_comment_missing_in_linear'), 'missing engine-tracked comment id is a real diff');
 
+r = classify({}, {}, {
+  events: [{
+    action: 'comment_add',
+    payload: {
+      comment: {
+        id: 'linear:lin_comment_1',
+        linear_comment_id: 'lin_comment_1',
+        native_comment_id: 'lin_comment_1',
+      },
+    },
+  }],
+});
+ok(!r.diffs.some(d => d.field === 'comments'),
+  'normalized Production comment events compare by native Linear id, not their local linear: row id');
+
 const gaps = linkageGaps({
   calendarPosts: [{ id: 'card_fixture', client: 'fixture-client', status: 'active', linear_issue_id: 'https://linear.example/VID-TST', video_deliverable_id: '' }],
   sampleReviews: [{ id: 'sample_fixture', client: 'fixture-client', status: 'active', graphic_linear_issue_id: 'https://linear.example/GRA-TST', graphic_deliverable_id: '' }],

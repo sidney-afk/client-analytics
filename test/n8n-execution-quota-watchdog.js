@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const {
   alertPayload,
   confirmAlertDelivery,
@@ -126,6 +128,11 @@ async function run() {
 
   ok(parseThresholds('90,80,80').join(',') === '80,90', 'threshold parsing sorts and deduplicates');
   ok(isRetryableStatus(429) && isRetryableStatus(500) && !isRetryableStatus(401), 'only throttling and server failures retry');
+
+  const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'n8n-execution-quota-watchdog.yml'), 'utf8');
+  ok(workflow.includes('N8N_QUOTA_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}')
+    && workflow.includes('Live quota runs are allowed only on the default branch'),
+  'production alerts and monthly markers are restricted to the default branch');
 
   if (failures) {
     console.error(`\n${failures} n8n quota watchdog check(s) failed`);

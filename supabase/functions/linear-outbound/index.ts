@@ -29,6 +29,7 @@ type OutboxRow = JsonMap & {
   attempts: number;
   payload: JsonMap;
   test_only: boolean;
+  legacy_parity: boolean;
   deliverable_id?: string | null;
   batch_id?: string | null;
   depends_on_id?: number | null;
@@ -39,6 +40,8 @@ type OutboxRow = JsonMap & {
 const LINEAR_URL = "https://api.linear.app/graphql";
 const OUTBOUND_FLAG = "linear_outbound_enabled";
 const AUTHORITY_FLAG = "prod_authority";
+const LEGACY_PARITY_FLAG = "linear_legacy_parity_enabled";
+const LEGACY_PARITY_OPERATIONS = new Set(["create", "status", "comment"]);
 const MAX_LIMIT = 50;
 const MAX_ATTEMPTS = 8;
 const RATE_DELAY_MS = 1_000;
@@ -159,9 +162,16 @@ function modeFrom(value: unknown): string {
 
 function authorityFor(team: unknown, value: unknown): string {
   const flags = parseJson(value);
-  const key = lower(team) === "graphics" || lower(team) === "graphic" ? "graphics" : "video";
+  const normalizedTeam = lower(team);
+  const key = ["graphics", "graphic", "gra", "thumbnail"].includes(normalizedTeam)
+    ? "graphics"
+    : ["video", "vid"].includes(normalizedTeam)
+      ? "video"
+      : "";
+  if (!key) return "";
   const raw = lower(flags[key]);
-  return raw === "syncview" || raw === "supabase" ? "syncview" : "linear";
+  if (raw === "syncview" || raw === "supabase") return "syncview";
+  return raw === "linear" ? "linear" : "";
 }
 
 async function readFlag(supabase: SupabaseClient, key: string): Promise<JsonMap> {
@@ -169,8 +179,12 @@ async function readFlag(supabase: SupabaseClient, key: string): Promise<JsonMap>
     .select("value")
     .eq("key", key)
     .maybeSingle();
-  if (error) return {};
-  return parseJson(data && (data as JsonMap).value);
+  if (error || !data) throw new Error(`runtime flag unavailable: ${key}`);
+  const value = (data as JsonMap).value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`runtime flag malformed: ${key}`);
+  }
+  return value as JsonMap;
 }
 
 async function linearGraphql(query: string, variables: JsonMap): Promise<JsonMap> {
@@ -231,6 +245,30 @@ async function readTeam(id: string): Promise<JsonMap | null> {
   );
   const team = data.team;
   return team && typeof team === "object" && !Array.isArray(team) ? team as JsonMap : null;
+}
+
+const teamByKeyCache = new Map<string, JsonMap>();
+async function readTeamByRowTeam(value: unknown): Promise<JsonMap | null> {
+  const rowTeam = lower(value);
+  const key = ["graphics", "graphic", "gra"].includes(rowTeam)
+    ? "GRA"
+    : ["video", "vid"].includes(rowTeam)
+      ? "VID"
+      : "";
+  if (!key) return null;
+  const cached = teamByKeyCache.get(key);
+  if (cached) return cached;
+  const data = await linearGraphql(
+    "query SyncViewMirrorTeams { teams(first: 50) { nodes { id key name states { nodes { id name type position } } } } }",
+    {},
+  );
+  const teams = parseJson(data.teams);
+  const nodes = Array.isArray(teams.nodes) ? teams.nodes : [];
+  const found = nodes.find((item) => clean(parseJson(item).key).toUpperCase() === key);
+  if (!found || typeof found !== "object" || Array.isArray(found)) return null;
+  const team = found as JsonMap;
+  teamByKeyCache.set(key, team);
+  return team;
 }
 
 function projectIds(value: unknown): Set<string> {
@@ -375,6 +413,7 @@ async function resolveContext(
   let team = issue && issue.team && typeof issue.team === "object" ? issue.team as JsonMap : null;
   const requestedTeamId = clean(payload.team_id || (team && team.id));
   if (!team && requestedTeamId) team = await readTeam(requestedTeamId);
+  if (!team && row.operation === "create") team = await readTeamByRowTeam(row.team);
   context.team_id = clean(requestedTeamId || (team && team.id));
 
   const stateSlug = clean(payload.status);
@@ -565,34 +604,90 @@ async function readRows(
   mode: string,
   limit: number,
   testClient: string,
+  parityEnabled: boolean,
+  targetDedupKey: string,
 ): Promise<OutboxRow[]> {
-  const statuses = mode === "live" ? ["pending", "failed", "shadow_ok"] : ["pending", "failed"];
-  let query = supabase.from("mirror_outbox")
-    .select("*")
-    .in("status", statuses)
-    .order("created_at", { ascending: true })
-    .limit(limit * 3);
-  query = testClient
-    ? query.eq("client_slug", testClient).eq("test_only", true)
-    : query.eq("test_only", false);
-  const { data, error } = await query;
-  if (error) throw new Error("outbox read failed");
+  const normalStatuses = mode === "live" ? ["pending", "failed", "shadow_ok"] : ["pending", "failed"];
+  const parityStatuses = ["pending", "failed", "shadow_ok"];
+  const fetchLane = async (
+    legacyParity: boolean,
+    statuses: string[],
+    laneLimit: number,
+    scope: "test" | "real" | "any",
+  ): Promise<OutboxRow[]> => {
+    let query = supabase.from("mirror_outbox")
+      .select("*")
+      .in("status", statuses)
+      .eq("legacy_parity", legacyParity)
+      .order("created_at", { ascending: true })
+      .limit(laneLimit);
+    if (scope === "test") query = query.eq("client_slug", testClient).eq("test_only", true);
+    else if (scope === "real") query = query.eq("test_only", false);
+    if (targetDedupKey) query = query.eq("dedup_key", targetDedupKey);
+    const { data, error } = await query;
+    if (error) throw new Error("outbox read failed");
+    return (Array.isArray(data) ? data : []) as OutboxRow[];
+  };
+
+  let data: OutboxRow[] = [];
+  if (targetDedupKey) {
+    if (testClient && mode !== "off") data = await fetchLane(false, normalStatuses, 1, "test");
+    else if (parityEnabled) data = await fetchLane(true, parityStatuses, 1, "any");
+  } else if (testClient) {
+    if (mode !== "off") data = await fetchLane(false, normalStatuses, limit * 3, "test");
+  } else {
+    const [normalRows, parityRows] = await Promise.all([
+      mode === "off" ? Promise.resolve([]) : fetchLane(false, normalStatuses, limit * 3, "real"),
+      parityEnabled ? fetchLane(true, parityStatuses, limit * 3, "real") : Promise.resolve([]),
+    ]);
+    const byId = new Map<number, OutboxRow>();
+    for (const row of [...normalRows, ...parityRows]) byId.set(Number(row.id), row);
+    data = [...byId.values()].sort((a, b) => {
+      const created = Date.parse(clean(a.created_at)) - Date.parse(clean(b.created_at));
+      return Number.isFinite(created) && created !== 0 ? created : Number(a.id) - Number(b.id);
+    });
+  }
+
   const now = Date.now();
-  return (Array.isArray(data) ? data : [])
+  return data
     .filter(row => Number(row.attempts || 0) < MAX_ATTEMPTS)
     .filter(row => !row.next_retry_at || Date.parse(row.next_retry_at) <= now)
     .slice(0, limit) as OutboxRow[];
+}
+
+async function targetResult(supabase: SupabaseClient, dedupKey: string): Promise<JsonMap | null> {
+  if (!dedupKey) return null;
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("id,status,operation,legacy_parity,test_only,attempts,next_retry_at,last_error,linear_result")
+    .eq("dedup_key", dedupKey)
+    .maybeSingle();
+  if (error) throw new Error("target outbox read failed");
+  return data && typeof data === "object" ? data as JsonMap : null;
 }
 
 async function currentControl(
   supabase: SupabaseClient,
   row: OutboxRow,
   testOverride: JsonMap,
-): Promise<{ mode: string; authority: string }> {
+): Promise<{ mode: string; authority: string; legacyParity: boolean }> {
   if (clean(testOverride.client_slug)) {
     return {
       mode: modeFrom({ mode: testOverride.mode }),
       authority: lower(testOverride.authority) === "linear" ? "linear" : "syncview",
+      legacyParity: false,
+    };
+  }
+  if (row.legacy_parity === true) {
+    const [parityFlag, authorityFlag] = await Promise.all([
+      readFlag(supabase, LEGACY_PARITY_FLAG),
+      readFlag(supabase, AUTHORITY_FLAG),
+    ]);
+    const enabled = parityFlag.enabled === true
+      && LEGACY_PARITY_OPERATIONS.has(lower(row.operation));
+    return {
+      mode: enabled ? "live" : "off",
+      authority: authorityFor(row.team, authorityFlag),
+      legacyParity: true,
     };
   }
   const [modeFlag, authorityFlag] = await Promise.all([
@@ -602,6 +697,7 @@ async function currentControl(
   return {
     mode: modeFrom(modeFlag),
     authority: authorityFor(row.team, authorityFlag),
+    legacyParity: false,
   };
 }
 
@@ -624,20 +720,36 @@ Deno.serve(async (req: Request) => {
   const testOverride = parseJson(body.test_override);
   const testClient = clean(testOverride.client_slug);
   const testMode = lower(testOverride.mode);
+  const targetDedupKey = clean(body.target_dedup_key);
+  const targetedParity = body.legacy_parity === true;
   if (testClient && clean(body.confirm) !== "B4_TEST_ONLY") {
     return json({ ok: false, error: "TEST override confirmation missing" }, 400);
   }
   if (testClient && !["shadow", "live", "off"].includes(testMode)) {
     return json({ ok: false, error: "invalid TEST override mode" }, 400);
   }
+  if (targetDedupKey && testClient) {
+    if (body.legacy_parity !== undefined && body.legacy_parity !== false) {
+      return json({ ok: false, error: "invalid TEST target" }, 400);
+    }
+  } else if (targetDedupKey || body.legacy_parity !== undefined) {
+    if (!targetDedupKey || !targetedParity
+        || clean(body.confirm) !== "WRITE_UI_LEGACY_PARITY") {
+      return json({ ok: false, error: "invalid legacy parity target" }, 400);
+    }
+  }
 
   const requestedLimit = Number(body.limit || 15);
-  const limit = Math.max(1, Math.min(MAX_LIMIT, Number.isFinite(requestedLimit) ? requestedLimit : 15));
+  const limit = targetDedupKey
+    ? 1
+    : Math.max(1, Math.min(MAX_LIMIT, Number.isFinite(requestedLimit) ? requestedLimit : 15));
   const runStarted = new Date().toISOString();
   const since = await latestOutboundSummaryTs(supabase);
   const initialMode = testClient
     ? modeFrom({ mode: testOverride.mode })
     : modeFrom(await readFlag(supabase, OUTBOUND_FLAG));
+  const parityEnabled = !testClient
+    && (await readFlag(supabase, LEGACY_PARITY_FLAG)).enabled === true;
   const counts: Record<string, number> = {
     enqueued: 0,
     shadow_ok: 0,
@@ -649,15 +761,26 @@ Deno.serve(async (req: Request) => {
     tolerated_historical: 0,
     skipped: 0,
     paused: 0,
+    legacy_parity_written: 0,
+    legacy_parity_paused: 0,
     shadow_vs_actual_divergence: 0,
   };
 
   let rows: OutboxRow[] = [];
   let mirrorActor: JsonMap = {};
-  if (initialMode !== "off") {
-    rows = await readRows(supabase, initialMode, limit, testClient);
+  if (initialMode !== "off" || parityEnabled) {
+    rows = await readRows(
+      supabase,
+      initialMode,
+      limit,
+      testClient,
+      parityEnabled,
+      targetDedupKey,
+    );
     counts.enqueued = rows.length;
-    if (initialMode === "live") mirrorActor = await readViewer();
+    if (initialMode === "live" || rows.some(row => row.legacy_parity === true)) {
+      mirrorActor = await readViewer();
+    }
   }
 
   for (const candidate of rows) {
@@ -666,11 +789,18 @@ Deno.serve(async (req: Request) => {
     try {
       const control = await currentControl(supabase, row, testOverride);
       if (control.mode === "off") {
-        await unlockPending(supabase, row, 0);
-        break;
-      }
-      if (control.authority !== "syncview") {
         counts.paused++;
+        if (control.legacyParity) counts.legacy_parity_paused++;
+        await unlockPending(supabase, row, 0);
+        if (!control.legacyParity) break;
+        continue;
+      }
+      const authorityAllowed = control.legacyParity
+        ? control.authority === "linear"
+        : control.authority === "syncview";
+      if (!authorityAllowed) {
+        counts.paused++;
+        if (control.legacyParity) counts.legacy_parity_paused++;
         await unlockPending(supabase, row, testClient ? 0 : 30);
         continue;
       }
@@ -684,7 +814,9 @@ Deno.serve(async (req: Request) => {
       const issueId = linearIssueId(row, entity, dependency)
         || (row.operation === "create" ? await deterministicCreateId(row.dedup_key) : "");
       const issue = issueId ? await readIssue(issueId, row.operation === "create") : null;
-      if (testClient) await testScope(supabase, row, issue);
+      if (testClient || (control.legacyParity && row.test_only === true)) {
+        await testScope(supabase, row, issue);
+      }
       const context = await resolveContext(supabase, row, entity, issue, dependency);
       const conflict = decideConflict(row, issue, context);
 
@@ -715,6 +847,7 @@ Deno.serve(async (req: Request) => {
       if (conflict.decision === "already_exists" && row.operation === "create" && control.mode === "live" && issue) {
         await applyCreateLinkage(supabase, row, entity, issue);
         counts.written++;
+        if (control.legacyParity) counts.legacy_parity_written++;
         await releaseRow(supabase, row, {
           status: "written",
           processed_at: new Date().toISOString(),
@@ -793,6 +926,7 @@ Deno.serve(async (req: Request) => {
         await applyCreateLinkage(supabase, row, entity, resultIssue);
       }
       counts.written++;
+      if (control.legacyParity) counts.legacy_parity_written++;
       await releaseRow(supabase, row, {
         status: "written",
         processed_at: new Date().toISOString(),
@@ -817,10 +951,13 @@ Deno.serve(async (req: Request) => {
 
   counts.echo_dropped = await echoDropCount(supabase, since);
   const backlog = await backlogCount(supabase);
+  const target = await targetResult(supabase, targetDedupKey);
   const summary: JsonMap = {
     ok: counts.failed === 0,
     mode: initialMode,
     test_override: !!testClient,
+    legacy_parity_enabled: parityEnabled,
+    targeted: !!targetDedupKey,
     started_at: runStarted,
     finished_at: new Date().toISOString(),
     counts,
@@ -833,5 +970,5 @@ Deno.serve(async (req: Request) => {
     },
   };
   const eventId = await writeSummary(supabase, summary);
-  return json({ ok: counts.failed === 0, event_id: eventId, ...summary });
+  return json({ ok: counts.failed === 0, event_id: eventId, ...summary, target });
 });

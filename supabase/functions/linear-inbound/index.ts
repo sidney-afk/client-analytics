@@ -381,14 +381,28 @@ async function readDeliverableForIssue(supabase: SupabaseClient, issue: JsonMap)
   return null;
 }
 
-async function readStoredComment(supabase: SupabaseClient, linearCommentId: string): Promise<ExistingRow | null> {
-  if (!linearCommentId) return null;
+async function readStoredComment(
+  supabase: SupabaseClient,
+  linearCommentId: string,
+  nativeCommentId = "",
+): Promise<ExistingRow | null> {
+  const select = "id,native_comment_id,deliverable_id,batch_id,client_slug,team,origin,source,linear_comment_id,author_key,author_member_id,author_name,role,audience,body,body_format,attachments,parent_id,thread_root_id,component,is_tweak,round,source_created_at";
+  if (linearCommentId) {
+    const { data, error } = await supabase.from("production_comments")
+      .select(select)
+      .eq("linear_comment_id", linearCommentId)
+      .maybeSingle();
+    if (error) throw new Error("production comment lookup failed");
+    if (data) return data as ExistingRow;
+  }
+  if (!nativeCommentId) return null;
   const { data, error } = await supabase.from("production_comments")
-    .select("id,deliverable_id,batch_id,client_slug,team,origin,linear_comment_id")
-    .eq("linear_comment_id", linearCommentId)
-    .maybeSingle();
-  if (error) throw new Error("production comment lookup failed");
-  return data ? data as ExistingRow : null;
+    .select(select)
+    .or(`id.eq.${nativeCommentId},native_comment_id.eq.${nativeCommentId}`)
+    .limit(2);
+  if (error) throw new Error("production native comment lookup failed");
+  if (!Array.isArray(data) || data.length !== 1) return null;
+  return data[0] as ExistingRow;
 }
 
 async function readBatchForIssue(supabase: SupabaseClient, issue: JsonMap): Promise<ExistingRow | null> {
@@ -678,10 +692,18 @@ async function recentOutboundEcho(
   payload: JsonMap,
 ): Promise<JsonMap | null> {
   const comment = commentFromPayload(payload);
-  const issue = issueFromCommentPayload(payload, comment);
+  const resource = payloadResource(payload);
+  const action = payloadAction(payload);
+  const isCommentEvent = resource.includes("comment")
+    || (comment.body !== undefined && action !== "remove");
+  // Issue webhooks carry the issue directly in data. Treating that data as a
+  // comment loses data.id and makes every scalar echo impossible to match.
+  const issue = isCommentEvent
+    ? issueFromCommentPayload(payload, comment)
+    : issueFromPayload(payload);
   const issueId = linearIssueUuid(issue);
   const actorId = webhookActorId(payload, issue, comment);
-  if (!issueId || !actorId) return null;
+  if (!issueId) return null;
 
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase.from("mirror_outbox")
@@ -696,8 +718,18 @@ async function recentOutboundEcho(
     const row = candidate as JsonMap;
     const result = parseJson(row.linear_result);
     if (clean(result.issue_id) !== issueId) continue;
-    if (clean(result.mirror_actor_id) !== actorId) continue;
     if (!outboundValueMatches(row, payload, issue, comment)) continue;
+    const actorMatches = !!actorId
+      && !!clean(result.mirror_actor_id)
+      && clean(result.mirror_actor_id) === actorId;
+    // Linear issue webhooks do not consistently expose the API-key viewer as
+    // their actor. A terminal outbox row plus the exact issue and exact value
+    // is still a durable echo proof: the native ledger already owns the human
+    // actor, and applying that transport echo would only advance the CAS clock.
+    // Pending rows still require an actor match so a coincident external write
+    // cannot be suppressed before our mutation has been acknowledged.
+    const terminalValueProof = lower(row.status) === "written" && !!clean(row.processed_at);
+    if (!actorMatches && !terminalValueProof) continue;
     return row;
   }
   return null;
@@ -755,7 +787,11 @@ async function persistProductionComment(
   const action = payloadAction(payload);
   const member = await resolveCommentMember(supabase, comment);
   const normalized = normalizeLinearComment({ comment, issue, payload, action, member, echo });
-  const existingComment = await readStoredComment(supabase, clean(normalized.linear_comment_id));
+  const existingComment = await readStoredComment(
+    supabase,
+    clean(normalized.linear_comment_id),
+    echo ? clean(normalized.native_comment_id) : "",
+  );
   if (!existingComment && !clean(normalized.author_key)) {
     // A first-seen tombstone can legitimately contain only IDs. Retain it with
     // an explicit unknown snapshot; never apply this fallback over a stored
@@ -767,6 +803,17 @@ async function persistProductionComment(
     normalized.transport_role = "linear_webhook";
   }
   const lifecycleOnly = ["remove", "delete", "archive"].includes(action);
+  if (echo && existingComment) {
+    // A fast outbound echo links the Linear transport identity to the native
+    // comment. It must never reclassify a client-visible native thread as an
+    // internal bridge comment or replace its stable human author/body.
+    for (const field of [
+      "native_comment_id", "body", "body_format", "attachments",
+      "author_key", "author_member_id", "author_name", "role", "audience",
+      "origin", "source", "parent_id", "thread_root_id", "component",
+      "is_tweak", "round", "source_created_at", "edited_at",
+    ]) delete normalized[field];
+  }
   if (existingComment && lifecycleOnly) {
     // Linear removal payloads are allowed to omit body and human identity. A
     // tombstone changes lifecycle state only; it must not erase the durable

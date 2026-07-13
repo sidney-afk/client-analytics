@@ -1,6 +1,6 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-12 @ native-comment-lane
+> Last verified: 2026-07-12 @ Part 2 gateway backend deployed dark (runtime flags unchanged)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -79,7 +79,17 @@ key plus the legacy onboarding-key fallback during transition.
 - `linear-inbound` — HMAC-verified Linear webhook target; the browser never calls it.
 - `linear-outbound` — service-triggered durable-outbox drainer. It is dark by default behind
   `linear_outbound_enabled={"mode":"off"}` and is invoked by scheduled/backend jobs, not the SPA.
-- `deliverable-write`, `batch-write` — B4 server write wrappers over the existing ledger RPCs.
+  Part 2 adds a separately killed, targeted `legacy_parity` allowance for server-derived
+  create/status/comment intents while a team remains Linear-authoritative. It is deployed for
+  backend verification but does not enable the global drainer.
+- `production-write` — Part 2 authenticated browser gateway for status, comment, due, assignee,
+  and native intake creation. It accepts exactly one of a staff role key + roster identity or a
+  client token, derives authority from the matched secret, enforces per-team authority/CAS/dedup,
+  and routes through ledger/outbox RPCs. A bounded service-auth TEST override is project-scoped.
+  The function is deployed dark and passed the disposable TEST drill; the current `index.html`
+  still has no call site, so no production browser traffic reaches it.
+- `deliverable-write`, `batch-write` — service-only low-level wrappers over the existing ledger
+  RPCs. They are not browser authorization boundaries and must not be exposed to the anon client.
   The Production tab is still read-only, so these have no `index.html` call site yet.
 - `thumbnail-revision-scan` — scheduled Drive scanner; the browser never calls it.
 

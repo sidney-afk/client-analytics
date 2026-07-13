@@ -125,8 +125,8 @@ ok(/import \{ normalizeLinearComment, parseSyncViewBridgeBody \} from "\.\/comme
   'comment capture must use the shared bridge/human-author normalizer');
 ok(/rpc\("production_comment_upsert", \{[\s\S]*p_comment: pComment,[\s\S]*p_event: pEvent/.test(FN),
   'every comment webhook must converge through the durable production comment RPC');
-ok(/readStoredComment\(supabase, clean\(normalized\.linear_comment_id\)\)/.test(FN)
-  && /lifecycleOnly[\s\S]{0,520}delete normalized\[field\]/.test(FN),
+ok(/readStoredComment\([\s\S]{0,180}clean\(normalized\.linear_comment_id\)/.test(FN)
+  && /lifecycleOnly[\s\S]{0,900}delete normalized\[field\]/.test(FN),
   'lifecycle-only comment events preserve stored body and human-author snapshots');
 ok(/async function readBatchForIssue/.test(FN)
   && /\.contains\("linear_parent_ids", probe\)/.test(FN)

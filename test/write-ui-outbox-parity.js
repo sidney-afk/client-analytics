@@ -36,9 +36,10 @@ ok(!/update public\.syncview_runtime_flags/i.test(migration),
   'the migration never changes an existing runtime flag');
 
 ok(/v_legacy_parity boolean := coalesce\(\(v_outbound->>'legacy_parity'\)::boolean, false\)/.test(migration)
+  && /jsonb_typeof\(new\.payload->'outbound'\) is distinct from 'object'/.test(migration)
   && /v_outbox_id := public\.mirror_outbox_enqueue\(/.test(migration)
   && /where id = v_outbox_id/.test(migration),
-'the generic event trigger persists the server-derived parity marker after idempotent enqueue');
+'the generic event trigger ignores envelope-free UI events and persists parity after idempotent enqueue');
 ok(/v_team := coalesce\(nullif\(v_outbound->>'team', ''\), v_team\)/.test(migration),
   'team-specific parent intents support a nullable paired batch team');
 

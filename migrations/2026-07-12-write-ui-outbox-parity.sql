@@ -63,7 +63,7 @@ declare
   v_legacy_parity boolean := coalesce((v_outbound->>'legacy_parity')::boolean, false);
 begin
   if new.source <> 'ui'
-     or jsonb_typeof(new.payload->'outbound') <> 'object' then
+     or jsonb_typeof(new.payload->'outbound') is distinct from 'object' then
     return new;
   end if;
 

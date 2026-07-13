@@ -5,6 +5,7 @@ const fs = require('fs');
 const DEFAULT_BASE_URL = 'https://synchrosocial.app.n8n.cloud';
 const DEFAULT_TIME_ZONE = 'America/Guatemala';
 const DEFAULT_THRESHOLDS = Object.freeze([80, 90]);
+const DEFAULT_ALERT_WORKFLOW_ID = 'Tfhc3vebZyG6obOg';
 
 function clean(value) {
   return String(value == null ? '' : value).trim();
@@ -183,6 +184,56 @@ async function postAlert(webhookUrl, payload, options = {}) {
   }, options);
 }
 
+function relayBody(execution) {
+  try {
+    return execution.data.resultData.runData['Receive Edge Alert'][0].data.main[0][0].json.body || null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function findRelayExecution(executions, { runId, type }) {
+  return (Array.isArray(executions) ? executions : []).find(execution => {
+    const body = relayBody(execution);
+    return body && body.type === type && body.details && body.details.run_id === runId;
+  }) || null;
+}
+
+async function confirmAlertDelivery({
+  baseUrl,
+  apiKey,
+  workflowId = DEFAULT_ALERT_WORKFLOW_ID,
+  runId,
+  type,
+  fetchImpl = fetch,
+  sleepImpl = sleep,
+  attempts = 12,
+} = {}) {
+  if (!clean(apiKey)) throw new Error('N8N_API_KEY is required to confirm alert delivery');
+  if (!clean(workflowId)) throw new Error('N8N_QUOTA_ALERT_WORKFLOW_ID is required');
+  const root = clean(baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '');
+  const url = new URL(`${root}/api/v1/executions`);
+  url.searchParams.set('workflowId', workflowId);
+  url.searchParams.set('limit', '20');
+  url.searchParams.set('includeData', 'true');
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const payload = await fetchJson(url, {
+      method: 'GET',
+      headers: { 'X-N8N-API-KEY': apiKey, accept: 'application/json' },
+    }, { fetchImpl, sleepImpl });
+    const execution = findRelayExecution(payload && payload.data, { runId, type });
+    if (execution) {
+      if (execution.status === 'success') return { id: String(execution.id), status: execution.status };
+      if (['error', 'crashed', 'canceled'].includes(execution.status)) {
+        throw new Error(`owner alert relay execution ${execution.id} ended with ${execution.status}`);
+      }
+    }
+    if (attempt < attempts) await sleepImpl(1000);
+  }
+  throw new Error('owner alert relay did not confirm delivery before timeout');
+}
+
 function appendFile(path, text) {
   if (clean(path)) fs.appendFileSync(path, text, 'utf8');
 }
@@ -242,16 +293,28 @@ async function main(env = process.env) {
 
   const shouldSend = !dryRun || sendDryRunAlert;
   const sent = [];
+  const deliveries = [];
   for (const threshold of assessment.due) {
     if (!shouldSend) continue;
-    await postAlert(env.N8N_QUOTA_ALERT_WEBHOOK, alertPayload({
+    const alertRunId = [clean(env.GITHUB_RUN_ID || 'local'), clean(env.GITHUB_RUN_ATTEMPT || '1'), threshold]
+      .join('-');
+    const payload = alertPayload({
       month: usage.month,
       threshold,
       assessment,
       dryRun,
-      runId: env.GITHUB_RUN_ID,
-    }));
+      runId: alertRunId,
+    });
+    await postAlert(env.N8N_QUOTA_ALERT_WEBHOOK, payload);
+    const delivery = await confirmAlertDelivery({
+      baseUrl: env.N8N_BASE_URL,
+      apiKey: env.N8N_API_KEY,
+      workflowId: env.N8N_QUOTA_ALERT_WORKFLOW_ID || DEFAULT_ALERT_WORKFLOW_ID,
+      runId: alertRunId,
+      type: payload.type,
+    });
     sent.push(threshold);
+    deliveries.push({ threshold, execution_id: delivery.id });
   }
 
   output('month', usage.month);
@@ -284,13 +347,16 @@ async function main(env = process.env) {
       due_thresholds: assessment.due,
     },
     sent_thresholds: sent,
+    confirmed_alert_executions: deliveries,
   }, null, 2));
 }
 
 module.exports = {
   DEFAULT_THRESHOLDS,
   alertPayload,
+  confirmAlertDelivery,
   evaluateThresholds,
+  findRelayExecution,
   isRetryableStatus,
   monthWindow,
   parseThresholds,

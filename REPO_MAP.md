@@ -65,6 +65,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `npm run test:prod-polish` | `docs/syncview-design/tests/prod-polish-gate.js` — 8 internal Production-surface suites for the visible Linear mirror | PR gate for `index.html` / design-kit changes (`production-polish-gate.yml`). |
 | `qa/overnight_runner.sh` | Continuous unattended QA loop | Local only; see the `/overnight-test` skill. |
 | Reconcile crons | `scripts/linear-sync-reconcile.js`, `scripts/sample-linear-reconcile.js`, `scripts/linear-deliverables-reconcile.js`, `scripts/b1-linear-backfill.js` | Scheduled GitHub Actions; `scripts/` also holds tested one-shot ops tools. |
+| n8n quota watchdog | `.github/workflows/n8n-execution-quota-watchdog.yml`, `scripts/n8n-execution-quota-watchdog.js`, `test/n8n-execution-quota-watchdog.js` | Daily GitHub-hosted n8n Insights count, 80%/90% owner alerts, month-scoped dedupe, and low-threshold dry-run support. Runs outside n8n so scheduler failure there cannot disable the watcher. |
 | B4 outbound | `.github/workflows/linear-outbound-drain.yml`, `scripts/b4-linear-outbound-harness.js`, `scripts/b4-outbound-shadow-audit.js`, `scripts/b4-pager-outbound.js`, and matching `test/*.js` | Durable drainer cadence, fail-closed TEST-only live proof, read-only full-roster shadow analysis, and idempotent n8n pager wiring. Global mode defaults to `off`. |
 
 ## Meta

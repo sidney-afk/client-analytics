@@ -25,10 +25,6 @@ on:
         required: true
         type: boolean
         default: false
-  push:
-    branches:
-      - codex/n8n-execution-quota-watchdog
-
 permissions:
   contents: read
 
@@ -38,7 +34,6 @@ concurrency:
 
 jobs:
   quota:
-    if: github.event_name != 'push' || contains(github.event.head_commit.message, '[quota-dry-run]')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -47,10 +42,11 @@ jobs:
       N8N_MONTHLY_EXECUTION_CAP: ${{ vars.N8N_MONTHLY_EXECUTION_CAP }}
       N8N_QUOTA_TIMEZONE: ${{ vars.N8N_QUOTA_TIMEZONE || 'America/Guatemala' }}
       N8N_QUOTA_ALERT_WEBHOOK: ${{ secrets.N8N_QUOTA_ALERT_WEBHOOK }}
-      N8N_QUOTA_DRY_RUN: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
-      N8N_QUOTA_CAP_OVERRIDE: ${{ github.event_name == 'push' && '1' || inputs.cap_override }}
-      N8N_QUOTA_THRESHOLDS_OVERRIDE: ${{ github.event_name == 'push' && '0.01,0.02' || inputs.thresholds_override }}
-      N8N_QUOTA_SEND_DRY_RUN_ALERT: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.send_test_alert) }}
+      N8N_QUOTA_ALERT_WORKFLOW_ID: ${{ vars.N8N_QUOTA_ALERT_WORKFLOW_ID || 'Tfhc3vebZyG6obOg' }}
+      N8N_QUOTA_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      N8N_QUOTA_CAP_OVERRIDE: ${{ inputs.cap_override }}
+      N8N_QUOTA_THRESHOLDS_OVERRIDE: ${{ inputs.thresholds_override }}
+      N8N_QUOTA_SEND_DRY_RUN_ALERT: ${{ github.event_name == 'workflow_dispatch' && inputs.send_test_alert }}
     steps:
       - uses: actions/checkout@v4
 

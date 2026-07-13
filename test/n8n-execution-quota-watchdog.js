@@ -2,7 +2,9 @@
 
 const {
   alertPayload,
+  confirmAlertDelivery,
   evaluateThresholds,
+  findRelayExecution,
   isRetryableStatus,
   monthWindow,
   parseThresholds,
@@ -84,6 +86,43 @@ async function run() {
   ok(payload.type === 'n8n_quota_90', 'alert identifies the crossed threshold');
   ok(/used_95_cap_100_remaining_5_pct_95\.0/.test(payload.issue_identifier), 'alert carries used, cap, percentage, and remaining headroom');
   ok(payload.team === 'account' && payload.details.run_id === '123', 'alert uses the existing owner relay shape');
+
+  const relayExecution = {
+    id: 'fixture-execution',
+    status: 'success',
+    data: {
+      resultData: {
+        runData: {
+          'Receive Edge Alert': [{ data: { main: [[{ json: { body: payload } }]] } }],
+        },
+      },
+    },
+  };
+  ok(findRelayExecution([relayExecution], { runId: '123', type: 'n8n_quota_90' }) === relayExecution,
+    'relay confirmation matches both the unique run token and alert type');
+  ok(findRelayExecution([relayExecution], { runId: 'wrong', type: 'n8n_quota_90' }) === null,
+    'relay confirmation cannot adopt an unrelated execution');
+
+  const confirmationCalls = [];
+  const confirmed = await confirmAlertDelivery({
+    baseUrl: 'https://fixture.invalid',
+    apiKey: 'fixture-key',
+    workflowId: 'fixture-workflow',
+    runId: '123',
+    type: 'n8n_quota_90',
+    sleepImpl: async () => {},
+    fetchImpl: async (url, options) => {
+      confirmationCalls.push({ url: String(url), options });
+      return response({ data: confirmationCalls.length === 1 ? [] : [relayExecution] });
+    },
+  });
+  ok(confirmed.id === 'fixture-execution' && confirmationCalls.length === 2,
+    'alert delivery waits for the matching relay execution to finish');
+  const confirmationUrl = new URL(confirmationCalls[0].url);
+  ok(confirmationCalls[0].options.method === 'GET'
+    && confirmationUrl.searchParams.get('workflowId') === 'fixture-workflow'
+    && confirmationUrl.searchParams.get('includeData') === 'true',
+  'alert delivery confirmation is a read-only workflow-scoped API poll');
 
   ok(parseThresholds('90,80,80').join(',') === '80,90', 'threshold parsing sorts and deduplicates');
   ok(isRetryableStatus(429) && isRetryableStatus(500) && !isRetryableStatus(401), 'only throttling and server failures retry');

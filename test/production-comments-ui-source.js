@@ -79,7 +79,11 @@ ok(/c\.parent_id \? ' is-reply' : ''/.test(source), 'replies receive indentation
 ok(/c\.deleted \? 'Comment deleted\.' : _prodLinkify\(c\.body\)/.test(source), 'tombstones cannot render deleted bodies');
 ok(/prod-comment-edited/.test(source) && /prod-comment-pill">Resolved/.test(source), 'edited and resolved states render');
 ok(/target="_blank" rel="noopener noreferrer"/.test(source), 'linkified bodies isolate new tabs');
-ok(/data-prod-disabled="composer"/.test(source) && /Commenting is disabled in this preview/.test(source), 'composer remains disabled');
+ok(/function _prodComposerHTML\(issue\)/.test(source)
+  && /_prodCanWrite\(issue, 'comment'\)/.test(source)
+  && /data-prod-comment-form/.test(source)
+  && /data-prod-disabled=\\?"composer/.test(source),
+  'composer renders only behind the team authority gate and keeps an explicit read-only state');
 ok(!/localStorage[^\n]{0,120}comment/i.test(source.slice(source.indexOf('const _prodComments'), source.indexOf('function _prodDescriptionHTML'))), 'comment bodies are not persisted to localStorage');
 
 if (failures) {

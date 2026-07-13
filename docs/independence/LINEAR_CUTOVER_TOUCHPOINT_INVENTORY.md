@@ -39,18 +39,18 @@ owner gate; this applies to the OAuth-application inventory and the `/add-to-cal
 
 - [ ] **Reroute every explicit status, comment, and create intent in the writer table through the
   server-side outbox.** Do not leave a direct Linear branch beside the new button handler.
-- [ ] **Make the native comment lane self-contained and visible:** persist body, stable author,
+- [x] **Make the native comment lane self-contained and visible:** persist body, stable author,
   timestamp, comment/thread IDs, role/audience, and edit/delete state in durable events, then render
   comment bodies in Production issue detail.
-- [ ] **Run an idempotent one-time Linear comment backfill.** If all currently discoverable VID/GRA
+- [x] **Run an idempotent one-time Linear comment backfill.** If all currently discoverable VID/GRA
   issues are in scope, treat 15,000 current comments as the statistical minimum and provision about
   20,000 comment rows; size event/outbox rows and body/attachment bytes separately.
 - [ ] **Drain and then neutralize all three browser queues:** `syncview_linear_outbox_v1`,
   `syncview_sxr_linear_outbox_v1`, and `syncview_calCardJobs_v1`, including startup, focus, timer,
   page-hide, resume, and reassert paths.
-- [ ] **Install central authority checks before the UI epoch** on `linear-set-status`,
+- [x] **Install central authority checks before the UI epoch** on `linear-set-status`,
   `linear-add-comment`, `video-form`, and `graphic-form`. Frontend checks alone do not stop old tabs.
-- [ ] **Neutralize ungated inbound writers for SyncView-authoritative teams:** the calendar/sample
+- [x] **Neutralize ungated inbound writers for SyncView-authoritative teams:** the calendar/sample
   branches of `MJbMZ789B5ExZz9x`, both legacy apply reconcilers, and the B1 incremental apply job.
 - [ ] **Re-source intake project selection and urgent-assignee lookup** to native
   `clients` / `deliverables` / `team_members` at the epoch.

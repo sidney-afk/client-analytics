@@ -9,7 +9,7 @@
  *   - migrated B1 rows render in the list
  *   - team filters, project-board filters, detail, batch links, and deep links work
  *   - the projects board renders all locked columns
- *   - visible write affordances remain guarded or explicitly disabled
+ *   - visible write affordances remain authority-guarded or explicitly disabled
  *   - the preview makes no non-GET/HEAD/OPTIONS browser requests
  *   - a mobile viewport can open list and detail without errors
  *   - no console/page errors fire
@@ -146,12 +146,13 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (disabledControls < 1) throw new Error('No disabled write affordances were rendered');
     const unguarded = await page.locator('[data-prod-disabled]').evaluateAll(nodes => nodes.filter(n => {
       if (n.disabled) return false;
-      const titleOk = n.getAttribute('title') === 'Preview - read-only' || n.getAttribute('data-prod-tip') === 'Preview - read-only';
-      const guardOk = String(n.getAttribute('onclick') || '').includes('_prodReadonlyGuard');
+      const titleOk = !!(n.getAttribute('title') || n.getAttribute('data-prod-tip'));
+      const handler = String(n.getAttribute('onclick') || '');
+      const guardOk = handler.includes('_prodReadonlyGuard') || handler.includes('_prodToast');
       return !(titleOk && guardOk);
     }).length);
     if (unguarded) throw new Error('A read-only write affordance is neither disabled nor guarded');
-    if (!(await text(page, '.prod-composer-box')).includes('disabled')) throw new Error('Comment composer did not render the read-only hint');
+    if (!/read-only|authority|Sign in/.test(await text(page, '.prod-composer-box'))) throw new Error('Comment composer did not render the authority/authentication-gate hint');
     await page.waitForSelector('.prod-activity [data-prod-comments-state], .prod-activity .prod-comment-loading', { timeout: 15000 });
     await maybeShot(page, 'prod-detail');
 

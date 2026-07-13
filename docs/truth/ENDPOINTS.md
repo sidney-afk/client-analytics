@@ -55,7 +55,7 @@ Other:
 - `webhook/content-ready` — content-ready notification
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (14 literal URLs + 4 composed onboarding URLs)
+## Supabase Edge Functions (15 literal URLs + 4 composed onboarding URLs)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
@@ -65,6 +65,10 @@ Other:
 - `functions/v1/client-token-verify`, `functions/v1/client-credentials` — client auth + staff credentials surface; credentials accepts admin/SMM role keys while both legacy surface keys remain transition-compatible
 - `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal pings it at boot to revalidate the stored role key, and sensitive staff EFs share its secret-to-role matcher
 - `functions/v1/production-comments` — bounded, no-store Production-thread reader; it verifies the staff role key and active roster identity before service-role reads, so comment bodies are never granted to the browser's anon role
+- `functions/v1/production-write` — authenticated native status/comment/due/assignee gateway for the
+  Linear mirror; browser controls fail closed unless the target team is SyncView-authoritative or
+  the active TEST client uses the bounded override. Scalar writes carry CAS and every successful
+  operation commits through the ledger/outbox RPCs before the UI updates.
 - `functions/v1/filming-plans` — filming plans backend
 - `functions/v1/smm-weekly-reports` — SMM weekly reports
 - `functions/v1/thumbnail-folder-resolve` — thumbnail Drive-folder resolution
@@ -82,15 +86,9 @@ key plus the legacy onboarding-key fallback during transition.
   Part 2 adds a separately killed, targeted `legacy_parity` allowance for server-derived
   create/status/comment intents while a team remains Linear-authoritative. It is deployed for
   backend verification but does not enable the global drainer.
-- `production-write` — Part 2 authenticated browser gateway for status, comment, due, assignee,
-  and native intake creation. It accepts exactly one of a staff role key + roster identity or a
-  client token, derives authority from the matched secret, enforces per-team authority/CAS/dedup,
-  and routes through ledger/outbox RPCs. A bounded service-auth TEST override is project-scoped.
-  The function is deployed dark and passed the disposable TEST drill; the current `index.html`
-  still has no call site, so no production browser traffic reaches it.
 - `deliverable-write`, `batch-write` — service-only low-level wrappers over the existing ledger
   RPCs. They are not browser authorization boundaries and must not be exposed to the anon client.
-  The Production tab is still read-only, so these have no `index.html` call site yet.
+  The Production tab calls `production-write`, never these low-level functions directly.
 - `thumbnail-revision-scan` — scheduled Drive scanner; the browser never calls it.
 
 These are documented separately by design. Do not add them to the literal endpoint set checked by

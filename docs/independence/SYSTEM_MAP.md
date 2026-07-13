@@ -49,8 +49,8 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   §7). Six are backend-only: the Linear webhook target (`linear-inbound`), the dark B4 outbox
   drainer (`linear-outbound`), service-only write wrappers (`deliverable-write`, `batch-write`),
   the scheduled thumbnail Drive scanner (`thumbnail-revision-scan`), and the Part 2 authenticated
-  browser gateway (`production-write`). The last is code-built on the draft branch but is not yet
-  called by `index.html`, deployed, or serving production.
+  browser gateway (`production-write`). The last is deployed dark for TEST verification but is not
+  yet called by `index.html` or serving production browser traffic.
 - **n8n** (single host). **55 webhook paths** referenced by the app (§7). Live-instance check
   2026-07-11: **54 of 55 are served by ACTIVE workflows**; the lone exception is `ttp-status`, which
   has **no serving webhook** — its constant is defined but never fetched, and TikTok-Pilot status is
@@ -250,7 +250,7 @@ n8n in the metric read path.*
 - **Track B.** The current Submit form still creates in Linear and mirrors in. The Part 2 draft
   backend implements authenticated native-first mixed-team intake, server-owned project mapping /
   auto-assignment, native-id responses, and an allowlisted targeted parity create lane while a
-  team remains Linear-authoritative. It is not deployed or wired to the SPA; a separate
+  team remains Linear-authoritative. The additive backend is deployed dark but is not wired to the SPA; a separate
   owner-reviewed caller PR switches this form. B5: `linear-subissues` + family retired.
 
 ### 4.4 Linear tab — read-only mirror (internal key `production`, route `#production`)
@@ -661,8 +661,8 @@ the full active roster (Track A closed 2026-07-10). Mirror at full parity (~4.3k
   `prod_authority[team]=linear` the normal per-team pause while inbound keeps SyncView current.
   Visible Linear-mirror write affordances (internal `production` surface), card predicates,
   Workload, and intake remain on their current paths until their separate owner-approved handoff.
-- **Part 2 gateway draft (not deployed):** `production-write` is the planned single browser write
-  boundary. It authenticates staff role keys or client tokens with secret-decides semantics,
+- **Part 2 gateway backend (deployed dark; no browser caller):** `production-write` is the single
+  browser write boundary. It authenticates staff role keys or client tokens with secret-decides semantics,
   resolves a stable roster/client actor, enforces per-team authority + CAS/idempotency, and writes
   through service-only ledger RPCs. Normal Production writes require team authority=`syncview`;
   the active TEST client has a bounded override. Rerouted Calendar/SXR status+comment and Submit
@@ -670,7 +670,9 @@ the full active roster (Track A closed 2026-07-10). Mirror at full parity (~4.3k
   allowlisted `legacy_parity` create/status/comment intent may target-drain under its independent
   kill switch. This does not enable broad outbound and never double-writes. D-28 soaks the TEST
   drill + full-roster shadow audit before an owner-controlled Graphics-first flip; D-29 pauses only
-  the affected team for data-integrity defects.
+  the affected team for data-integrity defects. The 2026-07-12 disposable two-team TEST drill
+  completed 18 operations, observed zero unexpected echoes, reconciled `0/0/0`, cleaned up, and
+  proved the four pre-existing runtime flags byte-for-byte unchanged.
 - **B5 (after clean batch cycles per team).** Linear frozen → archived; the `linear-*` n8n family and
   legacy card-write webhooks retired; Workload reconciler + `workload_issues` retired; SyncView is
   the whole production system.
@@ -683,7 +685,7 @@ account popover (name + role + Sign out); signed-out staff see the only name/key
 Credentials allow admin + SMM; full onboarding and filming-plan writes allow admin only. The old
 surface keys remain additive server fallbacks while `auth_enforcement=permissive`; their retirement
 is a later owner-approved gate after TEST/dummy proof and a clean working window. The Part 2
-gateway draft is stricter regardless of the legacy permissive flag: missing/garbage credentials
+gateway is stricter regardless of the legacy permissive flag: missing/garbage credentials
 are rejected, claimed headers cannot elevate, and the low-level Track-B HTTP wrappers are
 service-only. Remaining live B4 auth work is the 72 h zero-unkeyed-writes telemetry and the owner
 enforcement flip. **Auth precedes any real write phase.**
@@ -717,7 +719,7 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 
 - **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
 - **Edge functions (18):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve`
-- **Not counted above:** 14 of the 18 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Six more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, `production-write`, and `thumbnail-revision-scan`. `production-write` is Part 2 draft code, not a live endpoint claim. (`key-verify` moved into the called set as of PR #788.)
+- **Not counted above:** 14 of the 18 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Six more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, `production-write`, and `thumbnail-revision-scan`. `production-write` is deployed dark for Part 2 verification but still has no `index.html` call site. (`key-verify` moved into the called set as of PR #788.)
 - **Supabase REST tables, literal (8):** `calendar_posts` · `caption_prompts` · `content_samples` · `filming_plans` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages any of its tables through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`; reaches `batches`, `deliverables`, `deliverable_events`, `team_members`, `clients`), and SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (3):** `calendar_upsert_ef_clients` · `sample_review_ef_clients` · `settings_ef_clients`

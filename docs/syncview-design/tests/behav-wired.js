@@ -1279,34 +1279,31 @@ async function txt(page, sel) {
       const after = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.due])));
       return opened && before === after && (await txt(page, '#prodToast')).includes('Preview - read-only');
     }); await reset();
-    await ok('activityLineCompact', async () => {
+    await ok('commentBodyWrap', async () => {
       const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
       await page.evaluate(rowId => _prodOpenDeliverable(rowId), id);
       await page.waitForSelector('.prod-detail');
       return await page.evaluate(() => {
         const host = document.createElement('div');
-        host.innerHTML = _prodActivity([{ actor: 'system', action: 'updated', ts: new Date().toISOString() }]);
+        host.innerHTML = _prodCommentHTML({ id: 'style-fixture', author_name: 'System', body: 'A long comment body', source_created_at: new Date().toISOString() });
         document.body.appendChild(host);
-        const el = host.querySelector('.prod-act-text');
+        const el = host.querySelector('.prod-comment-body');
         const cs = el && getComputedStyle(el);
-        const ok = !!cs && cs.whiteSpace === 'nowrap' && cs.textOverflow === 'ellipsis' && cs.overflow === 'hidden';
+        const ok = !!cs && cs.whiteSpace === 'normal' && cs.overflowWrap === 'anywhere';
         host.remove();
         return ok;
       });
     }); await reset();
-    await ok('activityMissingDataNotSkeleton', async () => {
-      const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
-      await page.evaluate(rowId => {
-        _prodState.events.set(rowId, []);
-        _prodOpenDeliverable(rowId);
-      }, id);
+    await ok('commentSignedOutStateNotSkeleton', async () => {
+        const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
+      await page.evaluate(rowId => _prodOpenDeliverable(rowId), id);
       await page.waitForSelector('.prod-detail');
       return await page.evaluate(() => {
         const activity = document.querySelector('.prod-activity');
         return !!activity
           && !activity.querySelector('.prod-skeleton')
-          && !!activity.querySelector('.prod-act-empty')
-          && /No activity yet/i.test(activity.textContent || '')
+          && !!activity.querySelector('[data-prod-comments-state="signin"]')
+          && /Sign in with your staff account/i.test(activity.textContent || '')
           && !/migrated row/i.test(activity.textContent || '');
       });
     }); await reset();

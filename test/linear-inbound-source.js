@@ -121,36 +121,27 @@ ok(/import \{ clearArchiveMarkers \} from "\.\/restore-markers\.mjs"/.test(FN)
 ok(/const DUPLICATE_LINK_COLUMNS/.test(fs.readFileSync(path.join(ROOT, 'supabase/functions/sample-review-upsert/index.ts'), 'utf8')),
   'sanity: running after the samples twins guard merge');
 
-ok(/role: "editor"[\s\S]*audience: "internal"[\s\S]*is_tweak: false[\s\S]*done: false[\s\S]*round: null[\s\S]*parent_id: null[\s\S]*author:[\s\S]*body:/.test(FN),
-  'comment object must pin the exact non-tweak editor/internal shape');
-ok(/SYNCVIEW_COMMENT_PREFIX/.test(FN) && /shouldDropEchoComment/.test(FN) && /duplicate_comment_event/.test(FN),
-  'comment echo filtering and idempotency checks missing');
-const dropFn = FN.match(/function shouldDropEchoComment\(comment: JsonMap\): boolean \{[\s\S]*?\n\}/);
-ok(dropFn && /if \(!SYNCVIEW_COMMENT_PREFIX\.test\(body\)\) return false;/.test(dropFn[0])
-  && /return legacyCommentActors\(\)\.some/.test(dropFn[0])
-  && !/SYNCVIEW_COMMENT_PREFIX\.test\(body\)\s*\|\|/.test(dropFn[0]),
-  'comment echo drop must be strict-AND: legacy actor AND SyncView prefix');
-
-const syncviewPrefix = /^\*\*.+ \(via SyncView\):\*\*/;
-const houseActors = ['house linear identity'];
-const shouldDropEchoFixture = (comment) => {
-  const body = String(comment.body || '');
-  const user = comment.user || {};
-  const authorKey = [user.name, user.email, comment.authorName, comment.authorEmail].map(v => String(v || '').toLowerCase()).join(' ');
-  return syncviewPrefix.test(body) && houseActors.some(actor => authorKey.includes(actor));
-};
-ok(shouldDropEchoFixture({
-  body: '**Video (via SyncView):** please update this',
-  user: { name: 'House Linear Identity' },
-}), 'house-authored SyncView-prefix comment must be dropped');
-ok(!shouldDropEchoFixture({
-  body: 'Manual editor note with no mirror prefix',
-  user: { name: 'House Linear Identity' },
-}), 'house-authored manual comment must be kept');
-ok(!shouldDropEchoFixture({
-  body: '**Video (via SyncView):** human copied this text',
-  user: { name: 'Fixture Editor' },
-}), 'genuine editor comment with a copied prefix must be kept');
+ok(/import \{ normalizeLinearComment, parseSyncViewBridgeBody \} from "\.\/comment-normalize\.mjs"/.test(FN),
+  'comment capture must use the shared bridge/human-author normalizer');
+ok(/rpc\("production_comment_upsert", \{[\s\S]*p_comment: pComment,[\s\S]*p_event: pEvent/.test(FN),
+  'every comment webhook must converge through the durable production comment RPC');
+ok(/readStoredComment\(supabase, clean\(normalized\.linear_comment_id\)\)/.test(FN)
+  && /lifecycleOnly[\s\S]{0,520}delete normalized\[field\]/.test(FN),
+  'lifecycle-only comment events preserve stored body and human-author snapshots');
+ok(/async function readBatchForIssue/.test(FN)
+  && /\.contains\("linear_parent_ids", probe\)/.test(FN)
+  && /targetBatchId[\s\S]{0,520}\{ batch_id: targetBatchId \}/.test(FN),
+  'comment capture resolves Linear batch-parent identities without explicit target nulling');
+ok(!/const pComment = \{[\s\S]{0,260}batch_id: null/.test(FN),
+  'comment RPC input never clears a stored batch target explicitly');
+ok(/including house-authored `\(via SyncView\)` bridges, is persisted first/.test(FN)
+  && /handleCommentEvent\(supabase, payload, await recentOutboundEcho/.test(FN),
+  'bridge echoes must be stored before echo suppression metadata is applied');
+ok(!/shouldDropEchoComment|duplicate_comment_event/.test(FN),
+  'legacy prefix drops and time-window comment dedupe must be removed in favor of durable idempotency');
+ok(/normalized\.linear_author_id\s*=[\s\S]*normalized\.transport_linear_user_id\s*=[\s\S]*normalized\.transport_actor\s*=/.test(
+  fs.readFileSync(path.join(ROOT, 'supabase/functions/linear-inbound/comment-normalize.mjs'), 'utf8')),
+  'human author identity and webhook transport identity must be stored separately');
 
 ok(/maintainCardLinkage/.test(FN)
   && /video_deliverable_id/.test(FN)

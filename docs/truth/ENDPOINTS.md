@@ -1,6 +1,6 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-11 @ ae8a492
+> Last verified: 2026-07-12 @ native-comment-lane
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -55,7 +55,7 @@ Other:
 - `webhook/content-ready` — content-ready notification
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (13 literal URLs + 4 composed onboarding URLs)
+## Supabase Edge Functions (14 literal URLs + 4 composed onboarding URLs)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
@@ -64,6 +64,7 @@ Other:
 - `functions/v1/onboarding-capture` — onboarding funnel capture
 - `functions/v1/client-token-verify`, `functions/v1/client-credentials` — client auth + staff credentials surface; credentials accepts admin/SMM role keys while both legacy surface keys remain transition-compatible
 - `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal pings it at boot to revalidate the stored role key, and sensitive staff EFs share its secret-to-role matcher
+- `functions/v1/production-comments` — bounded, no-store Production-thread reader; it verifies the staff role key and active roster identity before service-role reads, so comment bodies are never granted to the browser's anon role
 - `functions/v1/filming-plans` — filming plans backend
 - `functions/v1/smm-weekly-reports` — SMM weekly reports
 - `functions/v1/thumbnail-folder-resolve` — thumbnail Drive-folder resolution

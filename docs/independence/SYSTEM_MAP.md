@@ -45,7 +45,7 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   (`*_events`, `mirror_outbox`, `linear_archive`, `client_credentials_rev`,
   `thumbnail_media_revisions`) are written by Edge Functions / reconcilers, not read directly by the
   SPA.
-- **Edge Functions.** 22 live under `supabase/functions/`; **the app calls 17** (see §7). Five are
+- **Edge Functions.** 23 live under `supabase/functions/`; **the app calls 18** (see §7). Five are
   server-side only: the Linear webhook target (`linear-inbound`), the dark B4 outbox drainer
   (`linear-outbound`), the B4 write wrappers (`deliverable-write`, `batch-write`), and the scheduled
   thumbnail Drive scanner (`thumbnail-revision-scan`). The Production tab remains read-only, so the
@@ -254,31 +254,40 @@ n8n in the metric read path.*
   normal signed-in staff audience. `?prod=1` remains the entry/deep-link alias (`_prodEnabled`);
   `init()` short-circuits to mount it and leaves essentials in the background. Existing bookmarks
   and deep links remain valid.
-- **Reads.** All Supabase REST via the dynamic `'/rest/v1/'+table` pager (`_prodRestRows`): boot
+- **Reads.** Core rows use Supabase REST via the dynamic `'/rest/v1/'+table` pager (`_prodRestRows`): boot
   loads `clients`, `team_members`, `batches`, and a **lightweight** `deliverables` select (PR-#779
   shape — tombstone markers via `linear_raw->>…` JSON aliases, no `brief`/`linear_raw` body). Lazy:
-  `deliverable_events` (activity, on detail open), full `deliverables` row (brief + raw, on open),
-  bulk brief hydration 6.5 s post-boot / on palette open. Also fires the shared Sheets essentials in
-  the background for app chrome.
+  full `deliverables` row (brief + raw, on open), bulk brief hydration 6.5 s post-boot / on palette
+  open. Issue-detail comments page through the protected `production-comments` Edge Function in
+  50-row `{created_at,id}` cursor pages; it returns the normalized native thread, not the old
+  actor/action activity summaries. Also fires the shared Sheets essentials in the background for
+  app chrome.
 - **Writes.** **None.** Every mutating control routes to `_prodReadonlyGuard` → "Preview — read-only"
   toast. Module header and code agree: no writes, no realtime, no flag changes, no n8n/Linear side
   effects.
 - **State.** `syncview_prod_display_v1` (groupBy/orderBy/showSubIssues), shared `syncview_nav` /
   `syncview_auth_v1`. Deep-link params: `group`, `order`, `subs`, `team`, `view`, `issues`,
   `pdetails`, `client`, `d`, `batch` (`ptab` is dead). In-memory `_prodState` (rows + adapter, events
-  Map, linearRaw Map). No kill switches, no realtime, no polling.
-- **Roles.** No role logic inside. Every verified staff role can use the mounted nav item; the
+  Map, linearRaw Map) plus a memory-only paged comment cache. Reopening an issue and the normal
+  Production refresh both revalidate the newest comment page; stable-ID merge keeps already-loaded
+  older pages and request tokens drop stale pagination races. Comment bodies never enter
+  localStorage. No kill switches, no realtime, no polling.
+- **Roles.** Every verified staff role can use the mounted nav item. Comment reads additionally
+  re-check the role key plus one active role-compatible roster identity server-side; direct
+  `?prod=1` diagnostics without that identity show a comment sign-in state. The
   unchanged route guard accepts a valid staff identity or direct `?prod=1` diagnostics. "My issues"
   is a hardcoded heuristic (member matching a specific name, else first active assignee), not a real
   identity. None of this grants write capability.
-- **Failure/fallback.** Per-page fetch: 3 attempts, retry only network/429/5xx. Boot-load failure →
+- **Failure/fallback.** REST per-page fetch: 3 attempts, retry only network/429/5xx. Boot-load failure →
   full-tab error screen + Retry; silent refresh failure → `console.warn`, stale kept. Pagination-cap
-  overflow is a hard error (never silent truncation). Freshness = silent refresh on visibility/focus/
-  pageshow, throttled 30 s. `_prodRefresh` clears the events Map but **not** the linearRaw Map (an
-  opened deliverable's detail can go stale).
+  overflow is a hard error (never silent truncation). Comment failures are isolated to explicit
+  sign-in/error/retry states; older-page failure keeps already loaded rows. Freshness = silent
+  refresh on visibility/focus/pageshow, throttled 30 s.
 - **Notable.** `?c=…&prod=1` reaches this read-only mirror without the password (see §3). This is the
   **only** user of the dynamic REST call site; its five tables are absent from the literal-table
-  inventory by design. Deleted/archived issues are filtered client-side from tombstone JSON, not
+  inventory by design. The underlying comment store and body-bearing ledger snapshots are
+  service-only; this deliberately avoids extending the existing anon-readable mirror policy to
+  internal comment text. Deleted/archived issues are filtered client-side from tombstone JSON, not
   server-side. `prod_authority` does **not** exist anywhere in `index.html` yet.
 - **Track B.** The core surface remains read-only at full parity (~4.3k deliverables). The B4
   deliverable-/batch-write EFs and outbound mirror are staged dark behind
@@ -686,8 +695,8 @@ they drift — in either direction, including the counts. When it fails: update 
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
 - **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
-- **Edge functions (17):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve`
-- **Not counted above:** 13 of the 17 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more live in `supabase/functions/` but are never called by the app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
+- **Edge functions (18):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve`
+- **Not counted above:** 14 of the 18 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more live in `supabase/functions/` but are never called by the app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
 - **Supabase REST tables, literal (8):** `calendar_posts` · `caption_prompts` · `content_samples` · `filming_plans` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages any of its tables through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`; reaches `batches`, `deliverables`, `deliverable_events`, `team_members`, `clients`), and SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (3):** `calendar_upsert_ef_clients` · `sample_review_ef_clients` · `settings_ef_clients`

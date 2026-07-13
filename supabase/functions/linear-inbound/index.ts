@@ -1,12 +1,12 @@
 // Supabase Edge Function: linear-inbound
 //
-// Track B B3 dark inbound engine. Linear webhooks are not pointed here yet, and
-// the live `linear_inbound_enabled` flag defaults false. With the flag false this
-// function verifies the delivery, acknowledges it, logs only, and performs no
-// data writes.
+// Track B inbound engine. The live `linear_inbound_enabled` flag remains the
+// kill switch; disabled deliveries are verified and acknowledged without mirror
+// writes. Comment capture is normalized before any echo/loop suppression.
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { clearArchiveMarkers } from "./restore-markers.mjs";
+import { normalizeLinearComment, parseSyncViewBridgeBody } from "./comment-normalize.mjs";
 
 type JsonMap = Record<string, unknown>;
 type ExistingRow = Record<string, unknown>;
@@ -16,10 +16,8 @@ const REPLAY_WINDOW_MS = 60_000;
 const SIGNATURE_HEADER = "linear-signature";
 const SIGNING_SECRET_ENV = "LINEAR_INBOUND_SIGNING_SECRET";
 const STATE_UUID_MAP_ENV = "LINEAR_STATE_UUID_MAP";
-const LEGACY_COMMENT_ACTORS_ENV = "LINEAR_LEGACY_COMMENT_ACTORS";
 const ALERT_WEBHOOK_ENV = "SLACK_ALERT_WEBHOOK";
 const ALERT_THROTTLE_MS = 60 * 60 * 1000;
-const SYNCVIEW_COMMENT_PREFIX = /^\*\*.+ \(via SyncView\):\*\*/;
 const CLAMPED_SAMPLE_STATES = new Set(["scheduled", "posted"]);
 const STATUS_SLUGS = new Set([
   "triage", "backlog", "todo", "in_progress", "smm_approval", "kasper_approval",
@@ -245,6 +243,17 @@ function commentFromPayload(payload: JsonMap): JsonMap {
   return comment;
 }
 
+function issueFromCommentPayload(payload: JsonMap, comment: JsonMap): JsonMap {
+  if (comment.issue && typeof comment.issue === "object") return comment.issue as JsonMap;
+  const data = objectAt(payload.data);
+  if (data.issue && typeof data.issue === "object") return data.issue as JsonMap;
+  return {
+    id: clean(comment.issueId || data.issueId),
+    identifier: clean(comment.issueIdentifier || data.issueIdentifier),
+    team: comment.team || data.team || null,
+  };
+}
+
 function payloadResource(payload: JsonMap): string {
   return lower(payload.type || payload.webhookType || payload.resource || payload.entity || payload.model || "");
 }
@@ -258,6 +267,9 @@ function teamFromIssue(issue: JsonMap): string {
   const key = lower(team.key || team.name || issue.teamKey || issue.teamName);
   if (key === "gra" || key.includes("graphic")) return "graphics";
   if (key === "vid" || key.includes("video")) return "video";
+  const identifier = lower(issue.identifier);
+  if (identifier.startsWith("gra-")) return "graphics";
+  if (identifier.startsWith("vid-")) return "video";
   return "";
 }
 
@@ -367,6 +379,48 @@ async function readDeliverableForIssue(supabase: SupabaseClient, issue: JsonMap)
     if (data) return data as ExistingRow;
   }
   return null;
+}
+
+async function readStoredComment(supabase: SupabaseClient, linearCommentId: string): Promise<ExistingRow | null> {
+  if (!linearCommentId) return null;
+  const { data, error } = await supabase.from("production_comments")
+    .select("id,deliverable_id,batch_id,client_slug,team,origin,linear_comment_id")
+    .eq("linear_comment_id", linearCommentId)
+    .maybeSingle();
+  if (error) throw new Error("production comment lookup failed");
+  return data ? data as ExistingRow : null;
+}
+
+async function readBatchForIssue(supabase: SupabaseClient, issue: JsonMap): Promise<ExistingRow | null> {
+  const uuid = linearIssueUuid(issue);
+  const identifier = linearIdentifier(issue);
+  if (!uuid && !identifier) return null;
+
+  const issueTeam = teamFromIssue(issue);
+  const teamKeys = issueTeam ? [issueTeam] : ["video", "graphics"];
+  const probes: JsonMap[] = [];
+  for (const team of teamKeys) {
+    if (uuid) {
+      probes.push({ [team]: { uuid } }, { [team]: { id: uuid } }, { [team]: uuid });
+    }
+    if (identifier) probes.push({ [team]: { identifier } });
+  }
+
+  const matches = new Map<string, ExistingRow>();
+  for (const probe of probes) {
+    const { data, error } = await supabase.from("batches")
+      .select("id,client_slug,team,linear_parent_ids")
+      .contains("linear_parent_ids", probe)
+      .limit(2);
+    if (error) throw new Error("production comment batch lookup failed");
+    for (const row of Array.isArray(data) ? data : []) {
+      const item = row as ExistingRow;
+      const id = clean(item.id);
+      if (id) matches.set(id, item);
+    }
+  }
+  if (matches.size > 1) throw new Error("production comment batch target is ambiguous");
+  return matches.values().next().value || null;
 }
 
 async function resolveAssignee(supabase: SupabaseClient, assignee: JsonMap | null | undefined): Promise<{ id: string | null; unknown?: JsonMap }> {
@@ -566,27 +620,9 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
   return { ok: true, deliverable_id: clean(written.id), action: eventAction };
 }
 
-function legacyCommentActors(): string[] {
-  const configured = clean(Deno.env.get(LEGACY_COMMENT_ACTORS_ENV));
-  const raw = configured || "syncview";
-  return raw.split(",").map(s => normText(s)).filter(Boolean);
-}
-
 function commentAuthor(comment: JsonMap): string {
   const user = comment.user && typeof comment.user === "object" ? comment.user as JsonMap : {};
   return clean(user.displayName || user.name || comment.author || comment.userName);
-}
-
-function commentAuthorKey(comment: JsonMap): string {
-  const user = comment.user && typeof comment.user === "object" ? comment.user as JsonMap : {};
-  return normText([user.email, user.displayName, user.name, comment.author, comment.userName].map(clean).filter(Boolean).join(" "));
-}
-
-function shouldDropEchoComment(comment: JsonMap): boolean {
-  const body = clean(comment.body || comment.description || "");
-  if (!SYNCVIEW_COMMENT_PREFIX.test(body)) return false;
-  const authorKey = commentAuthorKey(comment);
-  return legacyCommentActors().some(actor => actor && authorKey.includes(actor));
 }
 
 function outboundMarker(body: unknown): string {
@@ -642,16 +678,14 @@ async function recentOutboundEcho(
   payload: JsonMap,
 ): Promise<JsonMap | null> {
   const comment = commentFromPayload(payload);
-  const issue = comment.issue && typeof comment.issue === "object"
-    ? comment.issue as JsonMap
-    : issueFromPayload(payload);
+  const issue = issueFromCommentPayload(payload, comment);
   const issueId = linearIssueUuid(issue);
   const actorId = webhookActorId(payload, issue, comment);
   if (!issueId || !actorId) return null;
 
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase.from("mirror_outbox")
-    .select("id,entity_id,client_slug,operation,dedup_key,payload,linear_result,status,processed_at,updated_at")
+    .select("id,entity_id,client_slug,operation,comment_id,dedup_key,payload,linear_result,status,processed_at,updated_at")
     .in("status", ["pending", "shadow_ok", "written", "failed"])
     .gte("updated_at", since)
     .order("updated_at", { ascending: false })
@@ -692,72 +726,149 @@ async function recordOutboundEchoDrop(
   });
 }
 
-function pinnedCommentObject(comment: JsonMap): JsonMap {
-  return {
-    role: "editor",
-    audience: "internal",
-    is_tweak: false,
-    done: false,
-    round: null,
-    parent_id: null,
-    author: commentAuthor(comment) || "Linear",
-    body: String(comment.body || comment.description || ""),
+async function resolveCommentMember(supabase: SupabaseClient, comment: JsonMap): Promise<JsonMap | null> {
+  const user = objectAt(comment.user);
+  const linearUserId = clean(user.id);
+  const bridge = parseSyncViewBridgeBody(comment.body || comment.description || "");
+  if (!bridge.bridge_authored && linearUserId) {
+    const { data } = await supabase.from("team_members")
+      .select("id,name,role")
+      .eq("linear_user_id", linearUserId)
+      .eq("active", true)
+      .maybeSingle();
+    if (data) return data as JsonMap;
+  }
+  if (!bridge.bridge_author_name) return null;
+  const { data } = await supabase.from("team_members").select("id,name,role").eq("active", true);
+  const target = normText(bridge.bridge_author_name);
+  return ((Array.isArray(data) ? data : []) as JsonMap[]).find(row => normText(row.name) === target) || null;
+}
+
+async function persistProductionComment(
+  supabase: SupabaseClient,
+  payload: JsonMap,
+  comment: JsonMap,
+  issue: JsonMap,
+  existing: ExistingRow | null,
+  echo: JsonMap | null,
+): Promise<JsonMap> {
+  const action = payloadAction(payload);
+  const member = await resolveCommentMember(supabase, comment);
+  const normalized = normalizeLinearComment({ comment, issue, payload, action, member, echo });
+  const existingComment = await readStoredComment(supabase, clean(normalized.linear_comment_id));
+  if (!existingComment && !clean(normalized.author_key)) {
+    // A first-seen tombstone can legitimately contain only IDs. Retain it with
+    // an explicit unknown snapshot; never apply this fallback over a stored
+    // human identity.
+    normalized.author_key = `linear-name:unknown-author`;
+    normalized.author_name = "Unknown author";
+    normalized.role = "linear";
+    normalized.transport_actor = "Linear";
+    normalized.transport_role = "linear_webhook";
+  }
+  const lifecycleOnly = ["remove", "delete", "archive"].includes(action);
+  if (existingComment && lifecycleOnly) {
+    // Linear removal payloads are allowed to omit body and human identity. A
+    // tombstone changes lifecycle state only; it must not erase the durable
+    // author/body snapshot captured by create, edit, or historical backfill.
+    for (const field of [
+      "body", "body_format", "author_key", "author_member_id", "author_name", "role",
+      "linear_author_id", "transport_linear_user_id", "transport_actor", "transport_role",
+      "audience", "origin", "source_created_at",
+    ]) delete normalized[field];
+  }
+  const linearParentId = clean(normalized.linear_parent_comment_id);
+  if (linearParentId) {
+    const { data: parent } = await supabase.from("production_comments")
+      .select("id,thread_root_id,linear_comment_id,linear_thread_root_id")
+      .eq("linear_comment_id", linearParentId)
+      .maybeSingle();
+    if (parent) {
+      const parentRow = parent as JsonMap;
+      normalized.parent_id = clean(parentRow.id) || null;
+      normalized.thread_root_id = clean(parentRow.thread_root_id || parentRow.id) || null;
+      normalized.linear_thread_root_id = clean(
+        parentRow.linear_thread_root_id || parentRow.linear_comment_id,
+      ) || linearParentId;
+    }
+  }
+  const storedDeliverableId = clean(existingComment && existingComment.deliverable_id);
+  const storedBatchId = clean(existingComment && existingComment.batch_id);
+  const batch = !storedDeliverableId && !storedBatchId && !existing
+    ? await readBatchForIssue(supabase, issue) : null;
+  const targetDeliverableId = storedDeliverableId || (existing ? clean(existing.id) : "");
+  const targetBatchId = storedBatchId || (!targetDeliverableId && batch ? clean(batch.id) : "");
+  const targetClientSlug = clean(
+    existingComment && existingComment.client_slug
+      || existing && existing.client_slug
+      || batch && batch.client_slug,
+  );
+  const targetTeam = clean(
+    existingComment && existingComment.team
+      || existing && existing.team
+      || batch && batch.team
+      || teamFromIssue(issue),
+  );
+  const pComment = {
+    ...normalized,
+    ...(targetDeliverableId ? { deliverable_id: targetDeliverableId } : {}),
+    ...(targetBatchId ? { batch_id: targetBatchId } : {}),
+    ...(targetClientSlug ? { client_slug: targetClientSlug } : {}),
+    ...(targetTeam ? { team: targetTeam } : {}),
   };
+  const pEvent = {
+    action: action === "remove" || action === "delete" ? "mirror_in_comment_delete"
+      : action === "update" ? "mirror_in_comment_edit" : "mirror_in_comment_add",
+    source: "mirror",
+    payload: {
+      delivery_id: clean(payload.webhookId || payload.deliveryId || payload.id) || null,
+      echo_suppressed: !!echo,
+    },
+  };
+  const { data, error } = await supabase.rpc("production_comment_upsert", {
+    p_comment: pComment,
+    p_event: pEvent,
+  });
+  if (error) throw new Error("production_comment_upsert failed");
+  return (data || pComment) as JsonMap;
 }
 
-async function hasRecentCommentEvent(supabase: SupabaseClient, deliverableId: string, commentId: string): Promise<boolean> {
-  if (!commentId) return false;
-  const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  const { data } = await supabase.from("deliverable_events")
-    .select("payload")
-    .eq("deliverable_id", deliverableId)
-    .eq("source", "mirror")
-    .eq("action", "mirror_in_comment_add")
-    .gte("ts", since)
-    .limit(50);
-  return (Array.isArray(data) ? data : []).some(row => clean((row as JsonMap).payload && ((row as JsonMap).payload as JsonMap).linear_comment_id) === commentId);
-}
-
-async function handleCommentEvent(supabase: SupabaseClient, payload: JsonMap): Promise<JsonMap> {
+async function handleCommentEvent(supabase: SupabaseClient, payload: JsonMap, echo: JsonMap | null = null): Promise<JsonMap> {
   const comment = commentFromPayload(payload);
-  if (shouldDropEchoComment(comment)) return { ok: true, dropped: "syncview_echo" };
-
-  const issue = comment.issue && typeof comment.issue === "object" ? comment.issue as JsonMap : issueFromPayload(payload);
+  const issue = issueFromCommentPayload(payload, comment);
   const existing = await readDeliverableForIssue(supabase, issue);
-  if (!existing) return { ok: true, ignored: "missing_deliverable" };
-
   const commentId = clean(comment.id);
-  if (await hasRecentCommentEvent(supabase, clean(existing.id), commentId)) {
-    return { ok: true, dropped: "duplicate_comment_event" };
-  }
+  const stored = await persistProductionComment(supabase, payload, comment, issue, existing, echo);
 
-  if (await isDetectOnlyTeam(supabase, clean(existing.team))) {
+  if (existing && await isDetectOnlyTeam(supabase, clean(existing.team))) {
     await recordDetectOnly(supabase, existing, { linear_comment_id: commentId, detect_only: true });
-    return { ok: true, detect_only: true };
+    return { ok: true, stored: true, comment_id: clean(stored.id), detect_only: true };
   }
-
-  const thread = parseArray(existing.comments);
-  const nextThread = [...thread, pinnedCommentObject(comment)];
-  const row = {
-    ...baseDeliverableRow(existing),
-    comments: JSON.stringify(nextThread),
-    linear_raw: linearRawWithFlag(existing, issue, payload, "last_linear_comment", { id: commentId, url: clean(comment.url) }),
+  if (echo) {
+    await recordOutboundEchoDrop(supabase, echo, payload);
+  }
+  return {
+    ok: true,
+    stored: true,
+    comment_id: clean(stored.id),
+    deliverable_id: existing ? clean(existing.id) : null,
+    action: payloadAction(payload) || "create",
+    echo_suppressed: !!echo,
   };
-  const event = eventFor(existing, "comment_add", { linear_comment_id: commentId, image_urls: comment.imageUrls || comment.attachments || [] });
-  const written = await writeDeliverableMirror(supabase, row, event);
-  return { ok: true, deliverable_id: clean(written.id), action: "comment_add" };
 }
 
 async function handleLinearWebhook(supabase: SupabaseClient, payload: JsonMap): Promise<JsonMap> {
+  const resource = payloadResource(payload);
+  const action = payloadAction(payload);
+  if (resource.includes("comment") || (commentFromPayload(payload).body !== undefined && action !== "remove")) {
+    // Echo detection is now linkage/loop metadata only. Every Linear comment,
+    // including house-authored `(via SyncView)` bridges, is persisted first.
+    return await handleCommentEvent(supabase, payload, await recentOutboundEcho(supabase, payload));
+  }
   const echo = await recentOutboundEcho(supabase, payload);
   if (echo) {
     await recordOutboundEchoDrop(supabase, echo, payload);
     return { ok: true, dropped: "syncview_mirror_echo", outbox_id: Number(echo.id || 0) };
-  }
-  const resource = payloadResource(payload);
-  const action = payloadAction(payload);
-  if (resource.includes("comment") || (commentFromPayload(payload).body !== undefined && action !== "remove")) {
-    return await handleCommentEvent(supabase, payload);
   }
   if (resource.includes("issue") || issueFromPayload(payload).identifier !== undefined || action === "remove") {
     return await handleIssueEvent(supabase, payload);

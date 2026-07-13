@@ -2812,6 +2812,25 @@
         .prod-act-text b { color: var(--prod-strong); font-weight: 600; }
         .prod-act-time { color: var(--prod-faint); }
         .prod-act-empty { color: var(--prod-faint); font-size: 12.5px; margin-bottom: 12px; }
+        .prod-comment-feed { display: flex; flex-direction: column; gap: 14px; }
+        .prod-comment { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 9px; color: var(--prod-strong); }
+        .prod-comment.is-reply { margin-left: 31px; }
+        .prod-comment-main { min-width: 0; }
+        .prod-comment-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; min-height: 18px; color: var(--prod-faint); font-size: 12px; line-height: 18px; }
+        .prod-comment-author { color: var(--prod-strong); font-weight: 600; }
+        .prod-comment-edited { color: var(--prod-faint); }
+        .prod-comment-pill { display: inline-flex; align-items: center; min-height: 17px; padding: 0 5px; border-radius: 999px; background: var(--prod-hover); color: var(--prod-muted); font-size: 10.5px; font-weight: 600; }
+        .prod-comment-body { margin-top: 2px; color: var(--prod-strong); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; white-space: normal; user-select: text; }
+        .prod-comment-body a { color: var(--prod-link); text-decoration: none; }
+        .prod-comment-body a:hover { text-decoration: underline; }
+        .prod-comment.is-deleted .prod-comment-body { color: var(--prod-faint); font-style: italic; }
+        .prod-comment-state { color: var(--prod-faint); font-size: 12.5px; line-height: 19px; margin-bottom: 12px; }
+        .prod-comment-state.is-error { color: var(--prod-danger); }
+        .prod-comment-state-action, .prod-comment-more { min-height: 27px; margin-top: 8px; padding: 0 10px; border: 1px solid var(--prod-border-soft); border-radius: 7px; background: var(--prod-surface); color: var(--prod-strong); font: inherit; font-size: 12px; cursor: pointer; }
+        .prod-comment-state-action:hover, .prod-comment-more:hover { background: var(--prod-hover); }
+        .prod-comment-state-action:disabled, .prod-comment-more:disabled { cursor: default; opacity: .6; }
+        .prod-comment-loading { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 9px; margin-bottom: 12px; }
+        .prod-comment-loading-copy { display: flex; flex-direction: column; gap: 7px; padding-top: 2px; }
         .prod-composer { margin-top: 10px; display: flex; gap: 10px; opacity: .75; }
         .prod-composer-box { flex: 1; border: 1px solid var(--prod-border); border-radius: 10px; background: var(--prod-surface); padding: 9px 10px; color: var(--prod-faint); font-size: 13px; }
         .prod-empty, .prod-error, .prod-loading { margin: auto; max-width: 420px; text-align: center; color: var(--prod-muted); font-size: 13px; line-height: 1.5; padding: 40px; }
@@ -16481,6 +16500,7 @@
         _syncviewStaffPurgeSensitiveState();
         _syncviewStaffIdentityVerified = false;
         _syncviewStaffIdentitySave(null);
+        try { if (typeof _prodComments !== 'undefined') _prodComments.clear(); } catch (e) {}
         _syncviewStaffClearLegacyIdentityStorage();
         _syncviewStaffRefreshChrome();
     }
@@ -16504,6 +16524,7 @@
         if (!nextSignature) {
             _syncviewStaffPurgeSensitiveState();
             _syncviewStaffIdentityVerified = false;
+            try { if (typeof _prodComments !== 'undefined') _prodComments.clear(); } catch (e) {}
             _syncviewStaffClearLegacyIdentityStorage();
             _syncviewStaffRefreshChrome();
             return;
@@ -16511,6 +16532,9 @@
         if (nextSignature === currentSignature && _syncviewStaffIdentityVerified) return;
         if (nextSignature !== currentSignature) _syncviewStaffPurgeSensitiveState();
         _syncviewStaffIdentityVerified = false;
+        if (nextSignature !== currentSignature) {
+            try { if (typeof _prodComments !== 'undefined') _prodComments.clear(); } catch (e) {}
+        }
         _syncviewStaffRefreshChrome();
         const verifyCurrentStoredIdentity = () => {
             if (_syncviewStaffIdentitySignature(_syncviewStaffIdentityLoad()) !== nextSignature || _syncviewStaffIdentityValid()) return;
@@ -30515,6 +30539,8 @@
         const PROD_BOARD_STATUS_TO_ARTIFACT = { in_progress: 'prog', prog: 'prog', backlog: 'backlog', planned: 'planned', paused: 'paused', completed: 'completed', canceled: 'canceled' };
         const PROD_EDITOR_COLORS = ['#e2a03f', '#4cb782', '#e56cd6', '#5e6ad2', '#6c6f7d'];
         const PROD_DISPLAY_PREFS_KEY = 'syncview_prod_display_v1';
+        const PROD_COMMENTS_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
+        const PROD_COMMENTS_PAGE_SIZE = 50;
         const PROD_GROUP_KEYS = new Set(['status', 'client', 'assignee']);
         const PROD_ORDER_KEYS = new Set(['due', 'updated', 'created']);
         const _prodState = {
@@ -31725,8 +31751,8 @@
                 .replace(/^\*\*([^*]+)\*\*$/, '<strong>$1</strong>')
                 .replace(/^__([^_]+)__$/, '<strong>$1</strong>')
                 .replace(/^`([^`]+)`$/, '<code>$1</code>');
-            const anchor = u => '<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>';
-            const namedAnchor = (l, u) => '<a href="' + u + '" target="_blank" rel="noopener">' + linkLabel(l) + '</a>';
+            const anchor = u => '<a href="' + u + '" target="_blank" rel="noopener noreferrer">' + u + '</a>';
+            const namedAnchor = (l, u) => '<a href="' + u + '" target="_blank" rel="noopener noreferrer">' + linkLabel(l) + '</a>';
             const trimLinkTail = u => {
                 let suffix = '';
                 while (u) {
@@ -31793,6 +31819,221 @@
                 return _prodLinkifyInline(line);
             }).filter(part => part !== null).join('<br>');
         }
+        function _prodCommentTruthy(value) {
+            if (value === true || value === 1) return true;
+            return ['true', '1', 'yes'].includes(String(value == null ? '' : value).trim().toLowerCase());
+        }
+        function _prodCommentNormalize(row, index) {
+            row = row && typeof row === 'object' ? row : {};
+            const explicitId = String(row.stable_id || row.id || row.comment_id || row.linear_comment_id || '').trim();
+            const hidden = _prodCommentTruthy(row.hidden);
+            const deleted = _prodCommentTruthy(row.deleted) || _prodCommentTruthy(row.is_deleted) || !!String(row.deleted_at || '').trim();
+            const sourceCreatedAt = String(row.source_created_at || '').trim();
+            const sourceUpdatedAt = String(row.source_updated_at || '').trim();
+            const createdAt = sourceCreatedAt || String(row.created_at || row.createdAt || row.ts || '').trim();
+            // production_comments.updated_at is the database ingestion clock,
+            // not proof that the source comment was edited. Only fall back to
+            // legacy updated_at when the endpoint supplied no source clocks.
+            const legacyUpdatedAt = !sourceCreatedAt && !sourceUpdatedAt
+                ? String(row.updated_at || row.updatedAt || '').trim()
+                : '';
+            const updatedAt = sourceUpdatedAt || legacyUpdatedAt || createdAt;
+            const author = hidden ? '' : String(row.author || row.author_name || row.user_name || row.actor || row.role || 'Unknown author').trim();
+            const body = hidden || deleted ? '' : String(row.body == null ? '' : row.body);
+            const fallbackSeed = [row.source || '', row.parent_id || row.parentId || '', createdAt, author, body, index == null ? '' : index].join('\u0000');
+            const id = explicitId || ('legacy-' + _prodHashText(fallbackSeed));
+            const role = String(row.role || '').trim().toLowerCase();
+            const audienceValue = String(row.audience || '').trim().toLowerCase();
+            const audience = audienceValue === 'client' || audienceValue === 'internal'
+                ? audienceValue
+                : role === 'client' ? 'client' : 'internal';
+            const createdMs = Date.parse(createdAt);
+            const updatedMs = Date.parse(updatedAt);
+            return {
+                id,
+                parent_id: String(row.parent_id || row.parentId || '').trim(),
+                author: author || 'Unknown author',
+                role,
+                audience,
+                body,
+                created_at: createdAt,
+                updated_at: updatedAt,
+                edited: !deleted && (!!String(row.edited_at || '').trim() || _prodCommentTruthy(row.edited)
+                    || (Number.isFinite(createdMs) && Number.isFinite(updatedMs) && updatedMs > createdMs + 1000)),
+                deleted,
+                hidden,
+                done: !!String(row.resolved_at || '').trim() || _prodCommentTruthy(row.done) || _prodCommentTruthy(row.resolved),
+            };
+        }
+        function _prodCommentMerge(existing, incoming) {
+            const byId = new Map();
+            const absorb = list => (Array.isArray(list) ? list : []).forEach((row, index) => {
+                const normalized = _prodCommentNormalize(row, index);
+                if (normalized.id) byId.set(normalized.id, normalized);
+            });
+            absorb(existing);
+            absorb(incoming);
+            return Array.from(byId.values()).filter(row => !row.hidden).sort((a, b) => {
+                const aa = Date.parse(a.created_at || a.updated_at || '');
+                const bb = Date.parse(b.created_at || b.updated_at || '');
+                if (Number.isFinite(aa) && Number.isFinite(bb) && aa !== bb) return aa - bb;
+                if (Number.isFinite(aa) !== Number.isFinite(bb)) return Number.isFinite(aa) ? -1 : 1;
+                return String(a.id).localeCompare(String(b.id));
+            });
+        }
+        function _prodCommentTime(comment) {
+            const raw = String(comment && (comment.created_at || comment.updated_at) || '').trim();
+            const ms = Date.parse(raw);
+            if (!raw || !Number.isFinite(ms)) return { text: 'Time unavailable', raw: '' };
+            const mins = Math.max(0, Math.round((Date.now() - ms) / 60000));
+            if (mins < 1) return { text: 'just now', raw };
+            if (mins < 60) return { text: mins + 'm ago', raw };
+            const hrs = Math.round(mins / 60);
+            if (hrs < 24) return { text: hrs + 'h ago', raw };
+            const days = Math.round(hrs / 24);
+            if (days < 7) return { text: days + 'd ago', raw };
+            return { text: new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), raw };
+        }
+        function _prodCommentHTML(comment) {
+            const c = _prodCommentNormalize(comment);
+            if (c.hidden) return '';
+            const time = _prodCommentTime(c);
+            const pills = (c.audience === 'client' ? '<span class="prod-comment-pill">Client-visible</span>' : '<span class="prod-comment-pill">Internal</span>')
+                + (c.done ? '<span class="prod-comment-pill">Resolved</span>' : '');
+            const edited = c.edited ? '<span class="prod-comment-edited">(edited)</span>' : '';
+            const body = c.deleted ? 'Comment deleted.' : _prodLinkify(c.body);
+            return '<div class="prod-comment' + (c.parent_id ? ' is-reply' : '') + (c.deleted ? ' is-deleted' : '') + '" data-prod-comment-id="' + _calEscAttr(c.id) + '">'
+                + _prodAvatar(null, 18)
+                + '<div class="prod-comment-main"><div class="prod-comment-meta"><span class="prod-comment-author">' + _calEsc(c.author) + '</span>'
+                + '<span aria-hidden="true">·</span><time' + (time.raw ? ' datetime="' + _calEscAttr(time.raw) + '" title="' + _calEscAttr(time.raw) + '"' : '') + '>' + _calEsc(time.text) + '</time>'
+                + edited + pills + '</div><div class="prod-comment-body">' + body + '</div></div></div>';
+        }
+        function _prodCommentLoadingHTML() {
+            return Array.from({ length: 2 }, () => '<div class="prod-comment-loading" role="status" aria-label="Loading comments"><span class="prod-skeleton" style="width:18px;height:18px;border-radius:50%;"></span><span class="prod-comment-loading-copy"><span class="prod-skeleton" style="height:11px;width:110px;"></span><span class="prod-skeleton" style="height:12px;width:min(360px,82%);"></span></span></div>').join('');
+        }
+        const _prodComments = (() => {
+            const states = new Map();
+            let generation = 0;
+            const stateFor = id => states.get(String(id || '')) || null;
+            const repaint = () => { try { _prodRender(); } catch (e) {} };
+            const authHeaders = () => _syncviewEfHeaders({
+                apikey: CAL_SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            }, PROD_COMMENTS_EF_URL);
+            async function load(id, options) {
+                id = String(id || '').trim();
+                options = options || {};
+                if (!id) return;
+                const append = !!options.append;
+                const current = stateFor(id);
+                if (append && (!current || current.status !== 'ready' || current.loadingMore || !current.cursor)) return;
+                if (!append && current && !options.force) return;
+                if (!_syncviewStaffIdentityForHeaders()) {
+                    states.set(id, { status: 'signin', items: [], cursor: null, hasMore: false, loadingMore: false, moreError: '' });
+                    repaint();
+                    return;
+                }
+                const requestGeneration = generation;
+                const token = (current && current.token || 0) + 1;
+                const refreshing = !append && !!options.refresh && !!current && current.status === 'ready';
+                if (append) states.set(id, { ...current, token, loadingMore: true, moreError: '' });
+                else if (refreshing) states.set(id, { ...current, token, refreshing: true, loadingMore: false, refreshError: '' });
+                else states.set(id, { status: 'loading', items: [], cursor: null, hasMore: false, loadingMore: false, refreshing: false, moreError: '', refreshError: '', pagesLoaded: 0, token });
+                repaint();
+                const cursor = append && current ? current.cursor : null;
+                try {
+                    const response = await fetch(PROD_COMMENTS_EF_URL, {
+                        method: 'POST',
+                        headers: authHeaders(),
+                        cache: 'no-store',
+                        body: JSON.stringify({ deliverable_id: id, limit: PROD_COMMENTS_PAGE_SIZE, before: cursor || null })
+                    });
+                    const json = await response.json().catch(() => ({}));
+                    if (generation !== requestGeneration || !stateFor(id) || stateFor(id).token !== token) return;
+                    if (response.status === 401 || response.status === 403) {
+                        states.set(id, { status: 'signin', items: [], cursor: null, hasMore: false, loadingMore: false, moreError: '' });
+                        repaint();
+                        return;
+                    }
+                    if (!response.ok) throw new Error('Comments read failed: HTTP ' + response.status);
+                    const page = Array.isArray(json.comments) ? json.comments : Array.isArray(json.items) ? json.items : [];
+                    const candidateCursor = json.next_cursor || json.nextCursor || null;
+                    const nextCursor = candidateCursor && typeof candidateCursor === 'object'
+                        && String(candidateCursor.created_at || '').trim()
+                        && String(candidateCursor.id || '').trim()
+                        ? { created_at: String(candidateCursor.created_at), id: String(candidateCursor.id) }
+                        : null;
+                    // Revalidating the newest page must not discard pages the user
+                    // already loaded. Stable-id merge applies edits/tombstones while
+                    // the deepest cursor remains authoritative after page 2+.
+                    const priorItems = (append || refreshing) && current ? current.items : [];
+                    const priorPages = current ? Math.max(1, Number(current.pagesLoaded || 1)) : 0;
+                    const preserveDeepCursor = refreshing && priorPages > 1;
+                    states.set(id, {
+                        status: 'ready',
+                        items: _prodCommentMerge(priorItems, page),
+                        cursor: preserveDeepCursor ? current.cursor : nextCursor,
+                        hasMore: preserveDeepCursor ? current.hasMore : !!nextCursor && (json.has_more !== false && json.hasMore !== false),
+                        loadingMore: false,
+                        refreshing: false,
+                        moreError: '',
+                        refreshError: '',
+                        pagesLoaded: append ? priorPages + 1 : refreshing ? priorPages : 1,
+                        token,
+                    });
+                } catch (e) {
+                    if (generation !== requestGeneration || !stateFor(id) || stateFor(id).token !== token) return;
+                    if (append && current) states.set(id, { ...current, token, loadingMore: false, moreError: 'Older comments could not load.' });
+                    else if (refreshing && current) states.set(id, { ...current, token, refreshing: false, loadingMore: false, refreshError: 'Comments could not refresh.' });
+                    else states.set(id, { status: 'error', items: [], cursor: null, hasMore: false, loadingMore: false, refreshing: false, moreError: '', refreshError: '', pagesLoaded: 0, token });
+                }
+                repaint();
+            }
+            function ensure(id) {
+                if (!stateFor(id)) load(id);
+            }
+            function refresh(id) {
+                const current = stateFor(id);
+                // _prodRender() may call ensure() immediately before an explicit
+                // reopen/refresh. Reuse that in-flight request instead of racing it.
+                if (current && (current.status === 'loading' || current.refreshing)) return;
+                load(id, { force: true, refresh: true });
+            }
+            function retry(id) {
+                states.delete(String(id || ''));
+                load(id, { force: true });
+            }
+            function loadOlder(id) {
+                load(id, { append: true });
+            }
+            async function signIn(id) {
+                await _syncviewOpenStaffIdentity({ reason: 'required' });
+                if (_syncviewStaffIdentityForHeaders()) retry(id);
+            }
+            function clear(id) {
+                generation++;
+                if (id == null) states.clear();
+                else states.delete(String(id || ''));
+                repaint();
+            }
+            function render(id) {
+                const state = stateFor(id);
+                if (!state || state.status === 'loading') return _prodCommentLoadingHTML();
+                if (state.status === 'signin') return '<div class="prod-comment-state" data-prod-comments-state="signin">Sign in with your staff account to view comments.<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.signIn(' + _jsAttrArg(id) + ')">Sign in to view comments</button></div>';
+                if (state.status === 'error') return '<div class="prod-comment-state is-error" data-prod-comments-state="error">Comments could not load.<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.retry(' + _jsAttrArg(id) + ')">Retry</button></div>';
+                if (!state.items.length) return '<div class="prod-comment-state" data-prod-comments-state="empty">No comments yet.</div>';
+                const rows = state.items.map(_prodCommentHTML).join('');
+                const refreshError = state.refreshError ? '<div class="prod-comment-state is-error">' + _calEsc(state.refreshError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.refresh(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
+                const more = state.hasMore
+                    ? '<button class="prod-comment-more" type="button" data-prod-comments-more="1" onclick="_prodComments.loadOlder(' + _jsAttrArg(id) + ')"' + (state.loadingMore ? ' disabled' : '') + '>' + (state.loadingMore ? 'Loading older comments…' : 'Load older comments') + '</button>'
+                    : '';
+                const moreError = state.moreError ? '<div class="prod-comment-state is-error">' + _calEsc(state.moreError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.loadOlder(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
+                return refreshError + '<div class="prod-comment-feed" data-prod-comments-state="ready">' + rows + '</div>' + moreError + more;
+            }
+            return { clear, ensure, refresh, retry, loadOlder, signIn, render };
+        })();
         function _prodDescriptionHTML(value, loaded, emptyText, rich) {
             if (value) return rich ? _prodLinkify(value) : _calEsc(value);
             if (!loaded) return '<span class="prod-skeleton prod-desc-loading" data-prod-desc-loading="1" role="status" aria-label="Loading description"></span>';
@@ -32992,7 +33233,8 @@
             _prodSetQuery({ d: id }, true);
             _prodRender();
             _prodScrollDetailToTop();
-            _prodLoadEventsFor(id);
+            _prodComments.ensure(id);
+            _prodComments.refresh(id);
             _prodLoadLinearRawFor(id);
         }
         function _prodOpenBatch(id) {
@@ -33055,6 +33297,7 @@
             if (!silent) _prodState.loaded = false;
             _prodState.adapter = null;
             _prodState.events = new Map();
+            if (_prodState.view === 'detail' && _prodState.openId) _prodComments.refresh(_prodState.openId);
             _prodLoadData({ silent });
         }
         let _prodLastAutoRefreshAt = 0;
@@ -33087,7 +33330,7 @@
             const list = root.querySelector('.prod-listwrap');
             if (list && _prodState.listScrollTop) list.scrollTop = _prodState.listScrollTop;
             if (_prodState.view === 'detail' && _prodState.openId) {
-                if (_prodState.events.get(_prodState.openId) === undefined) _prodLoadEventsFor(_prodState.openId);
+                _prodComments.ensure(_prodState.openId);
                 _prodLoadLinearRawFor(_prodState.openId);
             }
         }
@@ -33461,7 +33704,6 @@
             const kids = _prodChildrenOf(d.id);
             const parent = d.parent ? _prodIssue(d.parent) : null;
             const isBatchParent = !!d.isBatchParent;
-            const events = _prodState.events.get(d.id);
             const file = d.file || '';
             const subSection = _prodSubIssuesSectionHTML(kids);
             const descLoaded = !!d.descLoaded || (_prodState.linearRaw.has(d.id) && _prodState.linearRaw.get(d.id) !== null);
@@ -33471,7 +33713,7 @@
                 + '<div class="prod-desc">' + _prodDescriptionHTML(d.desc, descLoaded, 'No description.', true) + '</div>'
                 + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" data-prod-file-link="1" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener" title="' + _calEscAttr(file) + '">' + _calEsc(_prodFileLinkLabel(file)) + '</a></p>' : '')
                 + subSection
-                + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Activity</span><span class="prod-spacer"></span></div>' + _prodActivity(events) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">Commenting is disabled in this preview.</button></div></div>'
+                + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">Commenting is disabled in this preview.</button></div></div>'
                 + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, file) + '</aside></div>';
         }
         function _prodProjectDetail() {

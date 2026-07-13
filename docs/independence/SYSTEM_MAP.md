@@ -49,8 +49,8 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   §7). Six are backend-only: the Linear webhook target (`linear-inbound`), the dark B4 outbox
   drainer (`linear-outbound`), service-only write wrappers (`deliverable-write`, `batch-write`),
   the scheduled thumbnail Drive scanner (`thumbnail-revision-scan`), and the Part 2 authenticated
-  browser gateway (`production-write`). The last is deployed dark for TEST verification but is not
-  yet called by `index.html` or serving production browser traffic.
+  browser gateway (`production-write`). The backend is deployed dark and TEST-verified; this draft
+  adds its `index.html` caller, which remains read-only for both production teams under Linear authority.
 - **n8n** (single host). **55 webhook paths** referenced by the app (§7). Live-instance check
   2026-07-11: **54 of 55 are served by ACTIVE workflows**; the lone exception is `ttp-status`, which
   has **no serving webhook** — its constant is defined but never fetched, and TikTok-Pilot status is
@@ -62,9 +62,10 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
 - **Linear.** 4 webhooks in — 2 new HMAC-signed → the `linear-inbound` EF (realtime mirror, B3), 2
   legacy → an n8n card-patch workflow (retire at B5). API out remains via the n8n `linear-*` bridge;
   the B4 `linear-outbound` path is deployed but dark (`mode=off`, both teams Linear-authoritative).
-  Adoption of brand-new issues uses a 30-min incremental-refresh GitHub Action. The Part 2 draft
+  Adoption of brand-new issues uses a 30-min incremental-refresh GitHub Action. The Part 2 backend
   adds an allowlisted native-first legacy-parity lane for create/status/comment, protected by a
-  separate kill switch; it is not live and does not change global outbound.
+  separate kill switch; it is deployed but has no production SPA parity caller and does not change
+  global outbound.
 - **Google Sheets** (`gviz` CSV, one workbook). Serves **all analytics numbers** (six tabs) and the
   client roster / review tokens (`Clients Info`), the SMM directory (`Social Media Managers`), and a
   legacy filming-plans fallback tab. Populated by an external morning scrape.
@@ -247,13 +248,13 @@ n8n in the metric read path.*
 - **Notable / corrections.** `linear-subissues` is a **read** used by Calendar/SXR, not a Linear-tab
   write. The durable card-job system exists because of a real data-loss incident (tab closed during
   the pre-write window). Due dates are computed client-side in 5-working-day batches.
-- **Track B.** The current Submit form still creates in Linear and mirrors in. The Part 2 draft
+- **Track B.** The current Submit form still creates in Linear and mirrors in. The Part 2
   backend implements authenticated native-first mixed-team intake, server-owned project mapping /
   auto-assignment, native-id responses, and an allowlisted targeted parity create lane while a
-  team remains Linear-authoritative. The additive backend is deployed dark but is not wired to the SPA; a separate
+  team remains Linear-authoritative. The backend is deployed dark but intake is not wired to the SPA; a separate
   owner-reviewed caller PR switches this form. B5: `linear-subissues` + family retired.
 
-### 4.4 Linear tab — read-only mirror (internal key `production`, route `#production`)
+### 4.4 Linear tab — authority-gated mirror (internal key `production`, route `#production`)
 
 - **Entry.** The visible top-nav label is **Linear** (`navProd`), while the intentionally unchanged
   internal nav key and hash are `production` / `#production`. It is mounted near the front for the
@@ -267,39 +268,46 @@ n8n in the metric read path.*
   open. Issue-detail comments page through the protected `production-comments` Edge Function in
   50-row `{created_at,id}` cursor pages; it returns the normalized native thread, not the old
   actor/action activity summaries. Also fires the shared Sheets essentials in the background for
-  app chrome.
-- **Writes.** **None.** Every mutating control routes to `_prodReadonlyGuard` → "Preview — read-only"
-  toast. Module header and code agree: no writes, no realtime, no flag changes, no n8n/Linear side
-  effects.
+  app chrome. The tab also reads the single `prod_authority` runtime-flag row to gate controls.
+- **Writes.** Status, comment, due date, and assignee use the authenticated `production-write` Edge
+  Function. The browser supplies the native deliverable ID, a bounded idempotency key, and CAS for
+  scalar changes; verified staff headers come from the shared role-key identity path. Controls are
+  enabled only when the target team's authority is `syncview`, except an active `kind=test` client
+  can send the gateway's bounded TEST override before a flip. The browser never requests legacy
+  parity, changes flags, calls an n8n mutation, or writes Linear directly. Project moves, creates,
+  deletes, and the remaining artifact affordances stay read-only.
 - **State.** `syncview_prod_display_v1` (groupBy/orderBy/showSubIssues), shared `syncview_nav` /
   `syncview_auth_v1`. Deep-link params: `group`, `order`, `subs`, `team`, `view`, `issues`,
   `pdetails`, `client`, `d`, `batch` (`ptab` is dead). In-memory `_prodState` (rows + adapter, events
   Map, linearRaw Map) plus a memory-only paged comment cache. Reopening an issue and the normal
   Production refresh both revalidate the newest comment page; stable-ID merge keeps already-loaded
-  older pages and request tokens drop stale pagination races. Comment bodies never enter
-  localStorage. No kill switches, no realtime, no polling.
+  older pages and request tokens drop stale pagination races. Comment drafts, per-operation pending
+  state, and retry idempotency keys are memory-only; comment bodies never enter localStorage.
+  Authority is fail-closed and re-read on normal refresh/focus plus a 30-second foreground timer.
 - **Roles.** Every verified staff role can use the mounted nav item. Comment reads additionally
   re-check the role key plus one active role-compatible roster identity server-side; direct
   `?prod=1` diagnostics without that identity show a comment sign-in state. The
-  unchanged route guard accepts a valid staff identity or direct `?prod=1` diagnostics. "My issues"
+  unchanged route guard accepts a valid staff identity or direct `?prod=1` diagnostics. Admin/SMM
+  may use all four operations; Creative is limited to own-team status/comment and the server repeats
+  that authorization. Direct diagnostics without a verified identity remain read-only. "My issues"
   is a hardcoded heuristic (member matching a specific name, else first active assignee), not a real
-  identity. None of this grants write capability.
+  identity.
 - **Failure/fallback.** REST per-page fetch: 3 attempts, retry only network/429/5xx. Boot-load failure →
   full-tab error screen + Retry; silent refresh failure → `console.warn`, stale kept. Pagination-cap
   overflow is a hard error (never silent truncation). Comment failures are isolated to explicit
   sign-in/error/retry states; older-page failure keeps already loaded rows. Freshness = silent
-  refresh on visibility/focus/pageshow, throttled 30 s.
+  refresh on visibility/focus/pageshow, throttled 30 s. A stale-tab server authority rejection
+  refreshes the stance immediately; a CAS conflict applies the returned current row and asks the
+  user to retry. UI state changes only after `native_committed=true`.
 - **Notable.** `?c=…&prod=1` reaches this read-only mirror without the password (see §3). This is the
   **only** user of the dynamic REST call site; its five tables are absent from the literal-table
   inventory by design. The underlying comment store and body-bearing ledger snapshots are
   service-only; this deliberately avoids extending the existing anon-readable mirror policy to
   internal comment text. Deleted/archived issues are filtered client-side from tombstone JSON, not
-  server-side. `prod_authority` does **not** exist anywhere in `index.html` yet.
-- **Track B.** The core surface remains read-only at full parity (~4.3k deliverables). The B4
-  service-only write RPCs/outbound mirror and the Part 2 `production-write` browser gateway are
-  staged in separate layers behind authority/outbound gates; a separate owner-approved SPA handoff
-  is required before this tab becomes writable. The eventual status/comment/due/assignee controls
-  enable only for the target team when authority=`syncview`, with the bounded TEST override. B5:
+  server-side.
+- **Track B.** The mirror has the Part 2 status/comment/due/assignee caller, but both production
+  teams remain read-only while their authority is `linear`; no deploy or flag flip is implied. D-28
+  can enable Graphics first, then Video, by owner-controlled flag changes with no code change. B5:
   the only production surface.
 
 ### 4.5 Samples New (SXR) — `sample_reviews`
@@ -646,7 +654,7 @@ separate hidden first-party Direct-Post surface.*
 
 ## 5. What changes, when (Track B) + auth
 
-Current phase: **B4 outbound staging (dark), with Part 2 gateway code in draft** — B3 evaluation
+Current phase: **B4 outbound staging (dark), with the Part 2 gateway backend deployed and caller in draft** — B3 evaluation
 mirror remains live and Linear stays authoritative for both teams.
 `prod_authority = {video: linear, graphics: linear}`, `linear_inbound_enabled = {enabled: true}`
 (flip 15, 2026-07-07), `auth_enforcement = permissive`; the three Track-A `*_ef_clients` flags carry
@@ -659,9 +667,10 @@ the full active roster (Track A closed 2026-07-10). Mirror at full parity (~4.3k
   proved the pipe; D-28 now requires a green soak and Graphics-first human cutover before Video.
   D-26 makes
   `prod_authority[team]=linear` the normal per-team pause while inbound keeps SyncView current.
-  Visible Linear-mirror write affordances (internal `production` surface), card predicates,
-  Workload, and intake remain on their current paths until their separate owner-approved handoff.
-- **Part 2 gateway backend (deployed dark; no browser caller):** `production-write` is the single
+  The Linear-mirror caller is code-built but stays read-only under current authority; card
+  predicates, Workload, and intake remain on their current paths until their separate
+  owner-approved handoff.
+- **Part 2 gateway backend (deployed dark; caller in this draft):** `production-write` is the single
   browser write boundary. It authenticates staff role keys or client tokens with secret-decides semantics,
   resolves a stable roster/client actor, enforces per-team authority + CAS/idempotency, and writes
   through service-only ledger RPCs. Normal Production writes require team authority=`syncview`;
@@ -670,9 +679,9 @@ the full active roster (Track A closed 2026-07-10). Mirror at full parity (~4.3k
   allowlisted `legacy_parity` create/status/comment intent may target-drain under its independent
   kill switch. This does not enable broad outbound and never double-writes. D-28 soaks the TEST
   drill + full-roster shadow audit before an owner-controlled Graphics-first flip; D-29 pauses only
-  the affected team for data-integrity defects. The 2026-07-12 disposable two-team TEST drill
-  completed 18 operations, observed zero unexpected echoes, reconciled `0/0/0`, cleaned up, and
-  proved the four pre-existing runtime flags byte-for-byte unchanged.
+  the affected team for data-integrity defects. The disposable two-team TEST drill completed 18
+  operations, observed zero unexpected echoes, reconciled `0/0/0`, cleaned up, and proved the
+  pre-existing runtime flags unchanged.
 - **B5 (after clean batch cycles per team).** Linear frozen → archived; the `linear-*` n8n family and
   legacy card-write webhooks retired; Workload reconciler + `workload_issues` retired; SyncView is
   the whole production system.
@@ -718,12 +727,12 @@ they drift — in either direction, including the counts. When it fails: update 
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
 - **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
-- **Edge functions (18):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve`
-- **Not counted above:** 14 of the 18 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Six more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, `production-write`, and `thumbnail-revision-scan`. `production-write` is deployed dark for Part 2 verification but still has no `index.html` call site. (`key-verify` moved into the called set as of PR #788.)
+- **Edge functions (19):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve`
+- **Not counted above:** 15 of the 19 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
 - **Supabase REST tables, literal (8):** `calendar_posts` · `caption_prompts` · `content_samples` · `filming_plans` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
-- **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages any of its tables through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`; reaches `batches`, `deliverables`, `deliverable_events`, `team_members`, `clients`), and SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
-- **Runtime kill-switch flags (3):** `calendar_upsert_ef_clients` · `sample_review_ef_clients` · `settings_ef_clients`
-- **Flag semantics:** per-client-slug allowlists in the runtime-flags table; a listed client's writes go to Edge Functions, an unlisted client fail-safes to n8n. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). Plan-side flags (auth enforcement, prod authority, linear-inbound enable) live in the same table but are not yet read by the app.
+- **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages any of its tables through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`; reaches `batches`, `deliverables`, `deliverable_events`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read), and SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
+- **Runtime kill-switch flags (4):** `calendar_upsert_ef_clients` · `prod_authority` · `sample_review_ef_clients` · `settings_ef_clients`
+- **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, an unlisted client fail-safes to n8n. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. Other plan-side flags remain backend-only.
 
 ## 8. Freshness contract
 

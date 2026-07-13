@@ -68,7 +68,10 @@ check('FAST_TABS does not include production', /const FAST_TABS = \[[^\]]+\]/.te
 
 check('preview reads B1 dormant tables', /_prodRestRows\('clients'/.test(prodBlock) && /_prodRestRows\('batches'/.test(prodBlock) && /_prodRestRows\('deliverables'/.test(prodBlock));
 check('preview does not expose service-role-only archive table', !/linear_archive/.test(prodBlock));
-check('preview does not read or write runtime flags', !/syncview_runtime_flags/.test(prodBlock));
+check('preview reads only the authority flag needed to fail closed',
+  /_prodRestRows\('syncview_runtime_flags', 'value', 'key=eq\.'/.test(prodBlock)
+  && /PROD_AUTHORITY_FLAG_KEY = 'prod_authority'/.test(prodBlock)
+  && !/syncview_runtime_flags[\s\S]{0,180}(POST|PATCH|PUT|DELETE)/.test(prodBlock));
 check('preview fetches projected archive/delete markers instead of full linear_raw at boot',
   /_prodRestRows\('deliverables'[\s\S]{0,1200}raw_issue_archived_at:linear_raw->issue->>archivedAt/.test(prodBlock)
   && /raw_issue_canceled_at:linear_raw->issue->>canceledAt/.test(prodBlock)
@@ -111,10 +114,12 @@ check('preview read helper takes explicit page size and max page cap', /async fu
 check('preview read helper strips duplicate limit and offset params', prodBlock.includes('!/^limit=|^offset=/.test(p)'));
 check('preview callers pass page sizes explicitly', /_prodRestRows\('deliverables'[\s\S]{0,1200}, 1000, 50\)/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));
 const explicitMutationMethods = [...prodBlock.matchAll(/['"`](POST|PUT|PATCH|DELETE)['"`]/g)].map(match => match[1]);
-check('preview block allows only the protected comment-read POST', explicitMutationMethods.length === 1
-  && explicitMutationMethods[0] === 'POST'
+check('preview block limits POSTs to protected comment reads and authority-gated native writes', explicitMutationMethods.length === 2
+  && explicitMutationMethods.every(method => method === 'POST')
   && /fetch\(PROD_COMMENTS_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock)
-  && /deliverable_id: id, limit: PROD_COMMENTS_PAGE_SIZE, before: cursor \|\| null/.test(prodBlock));
+  && /deliverable_id: id, limit: PROD_COMMENTS_PAGE_SIZE, before: cursor \|\| null/.test(prodBlock)
+  && /fetch\(PROD_WRITE_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock)
+  && /_prodCanWrite\(issue, operation\)/.test(prodBlock));
 check('preview block has no Supabase write helpers', !/\.(insert|update|upsert|rpc)\s*\(/.test(prodBlock));
 check('topbar excludes non-artifact New issue and Refresh chrome', !/New issue/.test(prodBlock) && !/<button class="prod-tab" type="button" onclick="_prodRefresh\(\)">Refresh<\/button>/.test(prodBlock));
 check('visible write affordances are guarded without scaffold pills',

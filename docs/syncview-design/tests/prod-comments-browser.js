@@ -184,7 +184,8 @@ function expect(condition, message) {
     expect(await page.locator('[data-prod-disabled="composer"]').count() === 1, 'disabled composer missing');
     await page.locator('[data-prod-disabled="composer"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-    expect((await page.locator('#prodToast').textContent()).includes('Preview - read-only'), 'composer escaped the read-only guard');
+    const gateToast = await page.locator('#prodToast').textContent();
+    expect(/read-only while Linear is authoritative|authority is being checked/.test(gateToast), 'composer escaped the authority gate');
 
     errorId = ids[1];
     await page.evaluate(id => _prodOpenDeliverable(id), errorId);
@@ -194,7 +195,7 @@ function expect(condition, message) {
 
     expect(!unexpectedWrites.length, 'unexpected write-like requests: ' + unexpectedWrites.join(' | '));
     expect(!pageErrors.length, 'page errors: ' + pageErrors.join(' | '));
-    console.log('prod-comments-browser: auth, refresh races, paging, merge, escaping, visibility, states, and disabled composer passed');
+    console.log('prod-comments-browser: auth, refresh races, paging, merge, escaping, visibility, states, and authority-gated composer passed');
   } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));

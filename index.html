@@ -2831,8 +2831,17 @@
         .prod-comment-state-action:disabled, .prod-comment-more:disabled { cursor: default; opacity: .6; }
         .prod-comment-loading { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 9px; margin-bottom: 12px; }
         .prod-comment-loading-copy { display: flex; flex-direction: column; gap: 7px; padding-top: 2px; }
-        .prod-composer { margin-top: 10px; display: flex; gap: 10px; opacity: .75; }
-        .prod-composer-box { flex: 1; border: 1px solid var(--prod-border); border-radius: 10px; background: var(--prod-surface); padding: 9px 10px; color: var(--prod-faint); font-size: 13px; }
+        .prod-composer { margin-top: 12px; display: flex; align-items: flex-start; gap: 10px; }
+        .prod-composer-box { flex: 1; border: 1px solid var(--prod-border); border-radius: 10px; background: var(--prod-surface); padding: 9px 10px; color: var(--prod-faint); font-size: 13px; text-align: left; }
+        .prod-composer-form { flex: 1; min-width: 0; border: 1px solid var(--prod-border); border-radius: 10px; background: var(--prod-surface); overflow: hidden; }
+        .prod-composer-input { display: block; width: 100%; min-height: 74px; resize: vertical; border: 0; outline: 0; box-sizing: border-box; padding: 10px 11px 7px; background: transparent; color: var(--prod-strong); font: inherit; font-size: 13px; line-height: 20px; }
+        .prod-composer-input::placeholder { color: var(--prod-faint); }
+        .prod-composer-actions { min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 5px 7px; border-top: 1px solid var(--prod-divider); }
+        .prod-composer-audience { min-height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-muted); font: inherit; font-size: 11.5px; padding: 0 5px; }
+        .prod-composer-submit { min-height: 27px; border: 0; border-radius: 7px; padding: 0 11px; background: var(--prod-accent); color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .prod-composer-submit:disabled, .prod-composer-input:disabled, .prod-composer-audience:disabled { cursor: default; opacity: .58; }
+        .prod-write-state { color: var(--prod-faint); font-size: 11.5px; }
+        .prod-prop-btn[aria-disabled="true"], .prod-status[data-prod-write="off"], .prod-due[data-prod-write="off"], .prod-assign-hot[data-prod-write="off"] { cursor: default; opacity: .68; }
         .prod-empty, .prod-error, .prod-loading { margin: auto; max-width: 420px; text-align: center; color: var(--prod-muted); font-size: 13px; line-height: 1.5; padding: 40px; }
         .prod-error { color: var(--prod-danger); }
         /* Production preview artifact-structure layer, sourced from docs/syncview-design/SyncView.html. */
@@ -16714,6 +16723,12 @@
                 _obvMode = 'edge';
             }
         } catch (e) {}
+        try {
+            if (typeof _prodState !== 'undefined' && _prodState) {
+                _prodState.commentDrafts.clear();
+                _prodState.writes.clear();
+            }
+        } catch (e) {}
     }
     function _syncviewCloseStaffAccount(options) {
         options = options || {};
@@ -30457,10 +30472,11 @@
         let _ttpUnlocked = false;
 
         /* ============================================================
-           PRODUCTION PREVIEW (Track B B2)
-           Hidden behind ?prod=1. Read-only against the live B1 tables.
-           No write paths, realtime subscriptions, runtime flag changes, or
-           n8n/Linear side effects are wired in this phase.
+           PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI
+           Hidden behind ?prod=1 / verified staff navigation. Reads the native
+           mirror and enables only gateway-backed operations for a SyncView-
+           authoritative team (or the bounded TEST override). It never changes
+           flags or writes Linear directly.
            ============================================================ */
         const PROD_STATUS_TO_ARTIFACT = {
             triage: 'triage',
@@ -30541,6 +30557,8 @@
         const PROD_EDITOR_COLORS = ['#e2a03f', '#4cb782', '#e56cd6', '#5e6ad2', '#6c6f7d'];
         const PROD_DISPLAY_PREFS_KEY = 'syncview_prod_display_v1';
         const PROD_COMMENTS_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
+        const PROD_WRITE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-write';
+        const PROD_AUTHORITY_FLAG_KEY = 'prod_authority';
         const PROD_COMMENTS_PAGE_SIZE = 50;
         const PROD_GROUP_KEYS = new Set(['status', 'client', 'assignee']);
         const PROD_ORDER_KEYS = new Set(['due', 'updated', 'created']);
@@ -30580,6 +30598,11 @@
             adapter: null,
             events: new Map(),
             linearRaw: new Map(),
+            authority: null,
+            authorityLoaded: false,
+            authorityReadAt: 0,
+            writes: new Map(),
+            commentDrafts: new Map(),
             briefsLoaded: false,
             briefsLoading: false
         };
@@ -30591,6 +30614,13 @@
             return _prodEnabled() || _syncviewStaffIdentityValid();
         }
         function _prodPreviewText() { return 'Preview - read-only'; }
+        function _prodModeText() {
+            const authority = _prodState.authority;
+            if (authority && authority.video === 'syncview' && authority.graphics === 'syncview') return 'Native writes';
+            if (authority && authority.graphics === 'syncview') return 'Graphics writable';
+            if (authority && authority.video === 'syncview') return 'Video writable';
+            return _prodPreviewText();
+        }
         function _prodApplyDisplayPrefs(saved) {
             saved = saved || {};
             if (PROD_GROUP_KEYS.has(saved.groupBy)) _prodState.groupBy = saved.groupBy;
@@ -30666,6 +30696,45 @@
                 page += width;
             }
             return rows;
+        }
+        function _prodAuthorityValue(value) {
+            if (typeof value === 'string') {
+                try { value = JSON.parse(value); } catch (e) { return null; }
+            }
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+            const video = String(value.video || '').trim().toLowerCase();
+            const graphics = String(value.graphics || '').trim().toLowerCase();
+            if (!['linear', 'syncview'].includes(video) || !['linear', 'syncview'].includes(graphics)) return null;
+            return { video, graphics };
+        }
+        async function _prodFetchAuthority() {
+            try {
+                // Limit 2 lets the generic pager prove the exact-one contract;
+                // a 1-row page at a 1-page cap is intentionally treated as
+                // potentially truncated by _prodRestRows.
+                const rows = await _prodRestRows('syncview_runtime_flags', 'value', 'key=eq.' + encodeURIComponent(PROD_AUTHORITY_FLAG_KEY), 2, 1);
+                if (!Array.isArray(rows) || rows.length !== 1) return null;
+                return _prodAuthorityValue(rows[0] && rows[0].value);
+            } catch (e) {
+                return null;
+            }
+        }
+        async function _prodRefreshAuthority(options) {
+            const previous = JSON.stringify(_prodState.authority || null);
+            const authority = await _prodFetchAuthority();
+            _prodState.authority = authority;
+            _prodState.authorityLoaded = true;
+            _prodState.authorityReadAt = Date.now();
+            if ((!options || !options.silent || JSON.stringify(authority || null) !== previous) && document.getElementById('prodRoot')) _prodRender();
+            return authority;
+        }
+        let _prodAuthorityTimer = 0;
+        function _prodStartAuthorityRefresh() {
+            if (_prodAuthorityTimer) return;
+            _prodAuthorityTimer = setInterval(() => {
+                if (document.hidden || currentNav !== 'production' || !document.getElementById('prodRoot')) return;
+                _prodRefreshAuthority({ silent: true });
+            }, 30000);
         }
         function _prodById(rows, key) {
             return new Map((rows || []).map(r => [String(r && r[key] || ''), r]).filter(([k]) => k));
@@ -30937,7 +31006,10 @@
             return '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">' + inner + '</svg>';
         }
         function _prodStatusIcon(status, id) {
-            return '<span class="prod-status" data-status="' + _calEscAttr(_prodArtifactStatus(status)) + '" data-st="' + _calEscAttr(id || _prodArtifactStatus(status)) + '" title="' + _calEscAttr(_prodStatusLabel(status)) + '"' + (id ? ' onclick="return _prodStatusIconClick(event,' + _jsAttrArg(id) + ')" data-prod-tip="Change status"' : '') + '>' + _prodStatusSVG(status) + '</span>';
+            const issue = id ? _prodIssue(id) : null;
+            const allowed = !!(issue && _prodCanWrite(issue, 'status'));
+            const tip = issue && !allowed ? _prodWriteGateText(issue, 'status') : 'Change status';
+            return '<span class="prod-status" data-status="' + _calEscAttr(_prodArtifactStatus(status)) + '" data-st="' + _calEscAttr(id || _prodArtifactStatus(status)) + '" title="' + _calEscAttr(id ? tip : _prodStatusLabel(status)) + '"' + (id ? ' data-prod-write="' + (allowed ? 'on' : 'off') + '" aria-disabled="' + (allowed ? 'false' : 'true') + '" onclick="return _prodStatusIconClick(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(tip) + '"' : '') + '>' + _prodStatusSVG(status) + '</span>';
         }
         function _prodRawIcon(p, vb) { return '<svg width="16" height="16" viewBox="' + (vb || '0 0 16 16') + '" fill="currentColor">' + p + '</svg>'; }
         const PROD_ICON = {
@@ -31699,6 +31771,222 @@
             _prodToast(_prodPreviewText());
             return false;
         }
+        function _prodWriteTeam(value) {
+            value = String(value || '').trim().toLowerCase();
+            if (value === 'vid') return 'video';
+            if (value === 'gra' || value === 'graphic' || value === 'thumbnail') return 'graphics';
+            return value === 'video' || value === 'graphics' ? value : '';
+        }
+        function _prodTestWriteOverride(issue) {
+            const client = issue && _prodClient(issue.project);
+            const raw = client && client.raw;
+            return !!(raw && raw.active !== false && String(raw.kind || '').trim().toLowerCase() === 'test');
+        }
+        function _prodRoleCanWrite(issue, operation) {
+            const identity = _syncviewStaffIdentityForHeaders();
+            if (!identity || !issue) return false;
+            const role = String(identity.role || '').trim().toLowerCase();
+            if (role === 'admin' || role === 'smm') return true;
+            const memberTeam = _prodWriteTeam(identity.member && identity.member.team);
+            return role === 'creative'
+                && memberTeam === _prodWriteTeam(issue.team)
+                && (operation === 'status' || operation === 'comment');
+        }
+        function _prodCanWrite(issue, operation) {
+            if (!issue || !_prodRoleCanWrite(issue, operation)) return false;
+            if (_prodTestWriteOverride(issue)) return true;
+            const team = _prodWriteTeam(issue.team);
+            return !!(team && _prodState.authority && _prodState.authority[team] === 'syncview');
+        }
+        function _prodWriteGateText(issue, operation) {
+            if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with your staff account to write.';
+            if (!_prodRoleCanWrite(issue, operation)) return 'Your staff role cannot perform this action.';
+            if (_prodTestWriteOverride(issue)) return '';
+            const team = _prodWriteTeam(issue && issue.team);
+            if (!_prodState.authorityLoaded || !_prodState.authority || !team) return 'Write controls are unavailable while authority is being checked.';
+            if (_prodState.authority[team] !== 'syncview') return _prodTeamLabel(team) + ' stays read-only while Linear is authoritative.';
+            return '';
+        }
+        function _prodWriteRequestId(operation) {
+            let entropy = '';
+            try { entropy = crypto.randomUUID(); }
+            catch (e) { entropy = Math.random().toString(36).slice(2) + Date.now().toString(36); }
+            return 'prod:' + String(operation || 'write') + ':' + entropy;
+        }
+        function _prodWritePending(id, operation) {
+            return _prodState.writes.has(String(id || '') + ':' + String(operation || ''));
+        }
+        function _prodApplyGatewayRow(row) {
+            if (!row || !row.id) return;
+            const target = (_prodState.deliverables || []).find(item => String(item && item.id || '') === String(row.id));
+            if (!target) return;
+            ['status', 'status_at', 'due_date', 'assignee_id', 'updated_at'].forEach(field => {
+                if (Object.prototype.hasOwnProperty.call(row, field)) target[field] = row[field];
+            });
+            _prodState.adapter = null;
+        }
+        function _prodWriteErrorText(error, issue, operation) {
+            const code = String(error && error.code || '');
+            if (code === 'write_conflict') return 'This issue changed elsewhere. Current values were reloaded; try again.';
+            if (code === 'team_is_linear_authoritative' || code === 'legacy_parity_not_allowed') return _prodWriteGateText(issue, operation) || 'This team is read-only right now.';
+            if (code === 'operation_forbidden' || code === 'assignee_out_of_scope') return 'Your staff role cannot perform this action.';
+            if (error && (error.status === 401 || code === 'credentials_required')) return 'Your staff sign-in expired. Sign in again to write.';
+            if (error && error.status === 403) return 'This write is not allowed for the selected issue.';
+            return 'The change was not saved. Please try again.';
+        }
+        async function _prodGatewayWrite(issue, operation, fields, requestId) {
+            if (!issue || !_prodCanWrite(issue, operation)) {
+                const blocked = new Error('write_gate_closed');
+                blocked.code = 'write_gate_closed';
+                throw blocked;
+            }
+            const pendingKey = issue.id + ':' + operation;
+            if (_prodState.writes.has(pendingKey)) return null;
+            const payload = Object.assign({
+                operation,
+                surface: 'production',
+                entity: 'deliverable',
+                id: issue.id,
+                request_id: requestId || _prodWriteRequestId(operation),
+                source_edited_at: new Date().toISOString()
+            }, fields || {});
+            if (operation !== 'comment') {
+                payload.expected_updated_at = issue.updatedRaw;
+                if (operation === 'status') payload.expected_status = issue.sourceStatus;
+            }
+            if (_prodTestWriteOverride(issue)) payload.test_override = true;
+            _prodState.writes.set(pendingKey, payload.request_id);
+            _prodRender();
+            try {
+                const response = await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify(payload)
+                });
+                const json = await response.json().catch(() => ({}));
+                if (json && json.row) _prodApplyGatewayRow(json.row);
+                if (!response.ok || !json || json.ok !== true || json.native_committed !== true) {
+                    const error = new Error(String(json && json.error || 'write_failed'));
+                    error.status = response.status;
+                    error.code = String(json && json.error || 'write_failed');
+                    error.row = json && json.row || null;
+                    if (error.code === 'team_is_linear_authoritative' || error.code === 'legacy_parity_not_allowed') {
+                        _prodRefreshAuthority({ silent: true });
+                    }
+                    throw error;
+                }
+                return json;
+            } finally {
+                _prodState.writes.delete(pendingKey);
+                if (document.getElementById('prodRoot')) _prodRender();
+            }
+        }
+        async function _prodRunPickerWrite(kind, ids, value) {
+            const operation = kind === 'assign' ? 'assignee' : kind;
+            const issues = (ids || []).map(_prodIssue).filter(Boolean);
+            if (!issues.length) return;
+            if (kind === 'assign' && new Set(issues.map(issue => _prodWriteTeam(issue.team))).size > 1) {
+                _prodToast('Choose issues from one team before assigning.');
+                return;
+            }
+            const blocked = issues.find(issue => !_prodCanWrite(issue, operation));
+            if (blocked) {
+                _prodToast(_prodWriteGateText(blocked, operation));
+                return;
+            }
+            let completed = 0;
+            try {
+                for (const issue of issues) {
+                    const fields = kind === 'status'
+                        ? { status: PROD_STATUS_FROM_ARTIFACT[value] || value }
+                        : kind === 'assign'
+                            ? { assignee_id: value === '_' ? '' : value }
+                            : { due_date: value || '' };
+                    await _prodGatewayWrite(issue, operation, fields);
+                    completed++;
+                }
+                _prodToast(completed > 1 ? completed + ' issues updated' : (kind === 'status' ? 'Status updated' : kind === 'assign' ? 'Assignee updated' : 'Due date updated'));
+            } catch (error) {
+                const current = issues[Math.min(completed, issues.length - 1)];
+                _prodToast(_prodWriteErrorText(error, current, operation));
+            }
+        }
+        function _prodDueIso(value) {
+            if (!value) return '';
+            if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
+            const date = value instanceof Date ? value : _prodParseDue(value);
+            if (!date || Number.isNaN(date.getTime())) return '';
+            return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+        }
+        function _prodCommentDraftFor(id) {
+            id = String(id || '');
+            if (!_prodState.commentDrafts.has(id)) _prodState.commentDrafts.set(id, { body: '', audience: 'internal', requestId: '' });
+            return _prodState.commentDrafts.get(id);
+        }
+        function _prodCommentDraftInput(id, body) {
+            const draft = _prodCommentDraftFor(id);
+            body = String(body || '');
+            if (draft.body !== body) draft.requestId = '';
+            draft.body = body;
+        }
+        function _prodCommentDraftAudience(id, audience) {
+            const draft = _prodCommentDraftFor(id);
+            audience = audience === 'client' ? 'client' : 'internal';
+            if (draft.audience !== audience) draft.requestId = '';
+            draft.audience = audience;
+        }
+        function _prodComposerKeydown(event, id) {
+            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                event.preventDefault();
+                const form = event.currentTarget && event.currentTarget.form;
+                if (form && form.requestSubmit) form.requestSubmit();
+                else _prodSubmitComment(event, id);
+            }
+        }
+        function _prodComposerHTML(issue) {
+            const writable = _prodCanWrite(issue, 'comment');
+            const gate = _prodWriteGateText(issue, 'comment');
+            if (!writable) {
+                return '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" onclick="_prodToast(' + _jsAttrArg(gate) + ');return false" title="' + _calEscAttr(gate) + '" data-prod-tip="' + _calEscAttr(gate) + '">' + _calEsc(gate) + '</button></div>';
+            }
+            const draft = _prodCommentDraftFor(issue.id);
+            const pending = _prodWritePending(issue.id, 'comment');
+            return '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><form class="prod-composer-form" data-prod-comment-form="' + _calEscAttr(issue.id) + '" onsubmit="return _prodSubmitComment(event,' + _jsAttrArg(issue.id) + ')">'
+                + '<textarea class="prod-composer-input" data-prod-comment-input="1" maxlength="20000" placeholder="Write a comment…" oninput="_prodCommentDraftInput(' + _jsAttrArg(issue.id) + ',this.value)" onkeydown="_prodComposerKeydown(event,' + _jsAttrArg(issue.id) + ')"' + (pending ? ' disabled' : '') + '>' + _calEsc(draft.body) + '</textarea>'
+                + '<div class="prod-composer-actions"><select class="prod-composer-audience" aria-label="Comment visibility" onchange="_prodCommentDraftAudience(' + _jsAttrArg(issue.id) + ',this.value)"' + (pending ? ' disabled' : '') + '><option value="internal"' + (draft.audience === 'internal' ? ' selected' : '') + '>Internal</option><option value="client"' + (draft.audience === 'client' ? ' selected' : '') + '>Client-visible</option></select><span class="prod-spacer"></span>'
+                + (pending ? '<span class="prod-write-state" role="status">Saving…</span>' : '<span class="prod-write-state">Ctrl/⌘ Enter</span>')
+                + '<button class="prod-composer-submit" type="submit"' + (pending ? ' disabled' : '') + '>' + (pending ? 'Saving…' : 'Comment') + '</button></div></form></div>';
+        }
+        function _prodSubmitComment(event, id) {
+            if (event) event.preventDefault();
+            const issue = _prodIssue(id);
+            const form = event && event.currentTarget && event.currentTarget.tagName === 'FORM'
+                ? event.currentTarget
+                : document.querySelector('[data-prod-comment-form="' + CSS.escape(String(id || '')) + '"]');
+            const input = form && form.querySelector('[data-prod-comment-input]');
+            const draft = _prodCommentDraftFor(id);
+            if (input) _prodCommentDraftInput(id, input.value);
+            if (!String(draft.body || '').trim()) {
+                _prodToast('Write a comment first.');
+                return false;
+            }
+            if (!draft.requestId) draft.requestId = _prodWriteRequestId('comment');
+            _prodGatewayWrite(issue, 'comment', { comment: { body: String(draft.body).trim(), audience: draft.audience } }, draft.requestId)
+                .then(result => {
+                    if (!result) return;
+                    _prodState.commentDrafts.delete(String(id));
+                    _prodComments.retry(id);
+                    _prodToast('Comment added');
+                })
+                .catch(error => _prodToast(_prodWriteErrorText(error, issue, 'comment')));
+            return false;
+        }
         function _prodClearBoardDropFx() {
             document.querySelectorAll('.prod-col-drop').forEach(el => el.classList.remove('prod-col-drop'));
             document.querySelectorAll('.prod-card-dragging, .pcard-dragging').forEach(el => el.classList.remove('prod-card-dragging', 'pcard-dragging'));
@@ -32173,12 +32461,17 @@
             if (kind === 'due') return it.due || '';
             return null;
         }
-        function _prodPickerSpec(kind) {
+        function _prodPickerSpec(kind, ids) {
+            const issue = ids && ids.length ? _prodIssue(ids[0]) : null;
             if (kind === 'status') {
+                const identity = _syncviewStaffIdentityForHeaders();
+                const role = String(identity && identity.role || '').trim().toLowerCase();
+                const creativeStatuses = new Set(['triage', 'backlog', 'todo', 'prog', 'smm', 'tweak', 'canceled', 'duplicate']);
+                const statusOrder = role === 'creative' ? PROD_STATUS_ORDER.filter(key => creativeStatuses.has(key)) : PROD_STATUS_ORDER;
                 return {
                     hd: 'Change status...',
                     search: true,
-                    items: PROD_STATUS_ORDER.map((k, n) => ({
+                    items: statusOrder.map((k, n) => ({
                         v: k,
                         label: _prodStatusLabel(k),
                         html: '<span class="mic">' + _prodStatusSVG(k) + '</span><span class="mlbl">' + _calEsc(_prodStatusLabel(k)) + '</span><span class="kbd">' + (n < 10 ? (n + 1) % 10 : '') + '</span>'
@@ -32187,11 +32480,12 @@
             }
             if (kind === 'assign') {
                 const editors = _prodEditors();
+                const team = _prodWriteTeam(issue && issue.team);
                 return {
                     hd: 'Assign to...',
                     search: true,
                     items: [{ v: '_', label: 'Unassigned', html: '<span class="mic">' + _prodIcon('assign') + '</span><span class="mlbl">Unassigned</span>' }]
-                        .concat(Object.keys(editors).sort((a, b) => String(editors[a].name).localeCompare(String(editors[b].name))).map(k => ({
+                        .concat(Object.keys(editors).filter(k => editors[k].active !== false && _prodWriteTeam(editors[k].raw && editors[k].raw.team) === team).sort((a, b) => String(editors[a].name).localeCompare(String(editors[b].name))).map(k => ({
                             v: k,
                             label: editors[k].name,
                             html: '<span class="mic">' + _prodAvatar(editors[k], 16) + '</span><span class="mlbl">' + _calEsc(editors[k].name) + '</span>'
@@ -32222,23 +32516,26 @@
                 ].map(o => ({ v: o[1], label: o[0], html: '<span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">' + _calEsc(o[0]) + '</span>' }))
             };
         }
-        function _prodPickerHTML(kind, cur) {
-            const d = _prodPickerSpec(kind);
+        function _prodPickerHTML(kind, cur, ids) {
+            const d = _prodPickerSpec(kind, ids);
             const search = d.search || d.custom;
             return (search ? '<div class="prod-pop-search"><input data-prod-search placeholder="' + _calEscAttr(d.ph || d.hd) + '"></div>' : '<div class="prod-pop-hd">' + _calEsc(d.hd) + '</div>')
                 + '<div class="prod-pop-list">' + d.items.map((it, i) => '<div class="prod-mi" data-prod-pick="' + i + '">'
                     + it.html + (it.v === cur ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div>').join('') + '</div>';
         }
         function _prodWirePicker(pop, kind, ids) {
-            const d = _prodPickerSpec(kind);
-            const pick = () => {
-                _prodReadonlyGuard();
+            const d = _prodPickerSpec(kind, ids);
+            const pick = element => {
+                const row = element || visible()[sel] || visible()[0];
+                const item = row && d.items[+row.getAttribute('data-prod-pick')];
                 _prodClearLayer();
+                if (!item || kind === 'proj') return _prodReadonlyGuard();
+                _prodRunPickerWrite(kind, ids, item.v);
             };
             pop.querySelectorAll('[data-prod-pick]').forEach(el => el.addEventListener('click', e => {
                 e.preventDefault();
                 e.stopPropagation();
-                pick();
+                pick(el);
             }));
             const visible = () => Array.from(pop.querySelectorAll('[data-prod-pick]')).filter(el => el.style.display !== 'none');
             let sel = 0;
@@ -32281,11 +32578,11 @@
                         const idx = e.key === '0' ? 9 : (+e.key - 1);
                         if (idx >= 0 && idx < d.items.length) {
                             e.preventDefault();
-                            pick();
+                            pick(visible()[idx]);
                             return;
                         }
                     }
-                    if (e.key === 'Enter') { e.preventDefault(); pick(); }
+                    if (e.key === 'Enter') { e.preventDefault(); pick(visible()[sel] || visible()[0]); }
                 });
                 try { inp.focus(); } catch (e) {}
                 setTimeout(() => { try { inp.focus(); } catch (e) {} }, 20);
@@ -32297,6 +32594,14 @@
         // PORT-DELTA: submenu opens artifact pickers but routes selections to the read-only guard.
         function _prodOpenSub(parentEl, kind, ids) {
             _prodCloseSub();
+            if (kind !== 'proj') {
+                const operation = kind === 'assign' ? 'assignee' : kind;
+                const blocked = (ids || []).map(_prodIssue).filter(Boolean).find(issue => !_prodCanWrite(issue, operation));
+                if (blocked) {
+                    _prodToast(_prodWriteGateText(blocked, operation));
+                    return;
+                }
+            }
             const p = document.createElement('div');
             p.className = 'prod-pop' + (kind === 'due' ? ' prod-duepop' : '');
             p.style.visibility = 'hidden';
@@ -32308,7 +32613,7 @@
                 _prodSubPop = p;
                 return;
             }
-            p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null);
+            p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null, ids);
             const pr = p.getBoundingClientRect();
             let x = r.right - 4;
             let y = r.top - 6;
@@ -32332,6 +32637,14 @@
                 ev.stopPropagation();
             }
             const ids = _prodTargetIds(id);
+            if (kind !== 'proj') {
+                const operation = kind === 'assign' ? 'assignee' : kind;
+                const blocked = ids.map(_prodIssue).filter(Boolean).find(issue => !_prodCanWrite(issue, operation));
+                if (blocked) {
+                    _prodToast(_prodWriteGateText(blocked, operation));
+                    return false;
+                }
+            }
             const actionbar = ev && ev.currentTarget && ev.currentTarget.closest && ev.currentTarget.closest('.prod-actionbar');
             const anchor = actionbar ? ev.currentTarget.getBoundingClientRect() : null;
             const anchorBar = actionbar ? actionbar.getBoundingClientRect() : null;
@@ -32341,7 +32654,7 @@
                 p.classList.add('prod-duepop');
                 _prodBuildDue(p, _prodIssue(ids[0]), ids, anchor ? { x: anchor.left, y: anchorTop, above: true } : { x: ev ? ev.clientX : innerWidth / 2, y: ev ? ev.clientY : 160 });
             } else {
-                p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null);
+                p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null, ids);
                 if (anchor) {
                     p.style.maxHeight = Math.max(160, anchorTop - 16) + 'px';
                     p.style.overflowY = 'auto';
@@ -32465,7 +32778,7 @@
         const PROD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const PROD_MON_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
         const PROD_WK = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        const PROD_TODAY = new Date(2026, 6, 4);
+        const PROD_TODAY = (() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate()); })();
         function _prodToday() { return new Date(PROD_TODAY); }
         function _prodAddDays(d, n) {
             const x = new Date(d);
@@ -32501,16 +32814,17 @@
             if (m = s.match(/^(\d{1,2})$/)) return new Date(today.getFullYear(), today.getMonth(), +m[1]);
             return null;
         }
-        // PORT-DELTA: due calendar structure is artifact-derived; date selection is guarded read-only.
+        // PORT-DELTA: due calendar structure is artifact-derived; native writes
+        // still pass through the per-team authority gate and Production gateway.
         function _prodBuildDue(pop, cur, ids, anchor) {
             let view = 'quick';
             const parsed = cur && cur.due ? _prodParseDue(cur.due) : null;
             const todayRef = _prodToday();
             let calM = new Date((parsed || todayRef).getFullYear(), (parsed || todayRef).getMonth(), 1);
             let focusDay = parsed || new Date(todayRef);
-            const guard = () => {
-                _prodReadonlyGuard();
+            const apply = value => {
                 _prodClearLayer();
+                _prodRunPickerWrite('due', ids, _prodDueIso(value));
             };
             const quick = () => {
                 let h = '<div class="prod-pop-search"><input data-prod-search placeholder="Try: 24h, 7 days, Feb 9"></div><div class="prod-pop-list">';
@@ -32549,7 +32863,7 @@
                 pop.innerHTML = view === 'quick' ? quick() : cal();
                 pop.querySelectorAll('[data-prod-day]').forEach(el => el.addEventListener('click', e => {
                     e.stopPropagation();
-                    guard();
+                    apply(el.getAttribute('data-prod-day'));
                 }));
                 pop.querySelectorAll('[data-prod-set]').forEach(el => el.addEventListener('click', e => {
                     e.stopPropagation();
@@ -32557,7 +32871,7 @@
                         view = 'calendar';
                         draw();
                     } else {
-                        guard();
+                        apply('');
                     }
                 }));
                 pop.querySelectorAll('[data-prod-cal]').forEach(el => el.addEventListener('click', e => {
@@ -32580,7 +32894,10 @@
                             draw();
                             return;
                         }
-                    if (e.key === 'Enter' && (view === 'calendar' ? focusDay : _prodParseDue(inp.value))) guard();
+                    if (e.key === 'Enter') {
+                        const selected = view === 'calendar' ? focusDay : _prodParseDue(inp.value);
+                        if (selected) apply(selected);
+                    }
                 });
                     try { inp.focus(); } catch (e) {}
                     setTimeout(() => { try { inp.focus(); } catch (e) {} }, 20);
@@ -32786,6 +33103,7 @@
         }
         function mountProductionView() {
             _prodPrimeFromUrl();
+            _prodStartAuthorityRefresh();
             _prodRender();
             if (!_prodState.loaded && !_prodState.loading) _prodLoadData();
         }
@@ -32868,11 +33186,12 @@
             _prodState.briefsLoading = false;
             if (!silent) _prodRender();
             try {
-                const [clients, members, batches, deliverables] = await Promise.all([
+                const [clients, members, batches, deliverables, authority] = await Promise.all([
                     _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,updated_at', 'order=display_name.asc', 1000, 10),
                     _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
                     _prodRestRows('batches', 'id,client_slug,team,name,description,filming_doc_url,footage_folder_url,delivery_folder_url,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids', 'order=created_at.desc', 1000, 25),
-                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_identifier,linear_issue_url,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived', 'order=team.asc,status.asc,due_date.asc', 1000, 50)
+                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_identifier,linear_issue_url,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived', 'order=team.asc,status.asc,due_date.asc', 1000, 50),
+                    _prodFetchAuthority()
                 ]);
                 const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
                 const mergedBatches = _prodPreserveProjectedFields(batches, _prodState.batches, 'id', ['description', 'desc']);
@@ -32881,6 +33200,9 @@
                 _prodState.members = members;
                 _prodState.batches = mergedBatches;
                 _prodState.deliverables = mergedDeliverables;
+                _prodState.authority = authority;
+                _prodState.authorityLoaded = true;
+                _prodState.authorityReadAt = Date.now();
                 _prodState.adapter = _prodAdapter({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables });
                 _prodState.loaded = true;
                 _prodState.loading = false;
@@ -33299,6 +33621,7 @@
             _prodState.adapter = null;
             _prodState.events = new Map();
             if (_prodState.view === 'detail' && _prodState.openId) _prodComments.refresh(_prodState.openId);
+            _prodRefreshAuthority({ silent: true });
             _prodLoadData({ silent });
         }
         let _prodLastAutoRefreshAt = 0;
@@ -33356,7 +33679,7 @@
                         : '')
                     + '</div>';
             };
-            return '<aside class="prod-side"><div class="prod-side-top"><div class="prod-brand" aria-label="SyncView workspace"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-preview-chip">' + _prodPreviewText() + '</span></div><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search workspace (/)" data-prod-tip="Search workspace|/">' + _prodIcon('search') + '</button></div>'
+            return '<aside class="prod-side"><div class="prod-side-top"><div class="prod-brand" aria-label="SyncView workspace"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-preview-chip">' + _prodModeText() + '</span></div><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search workspace (/)" data-prod-tip="Search workspace|/">' + _prodIcon('search') + '</button></div>'
                 + '<div class="prod-side-scroll"><div class="prod-nav">'
                 + _prodNavItem(_prodIcon('issues'), 'My issues', _prodState.view === 'my', '_prodSetView(' + _jsAttrArg('my') + ')')
                 + '</div>' + favHTML
@@ -33697,7 +34020,7 @@
             }
             return '<div class="prod-project-groups" data-prod-project-groups="' + _calEscAttr(_prodState.groupBy || 'status') + '">' + _prodGroupsFor(rows).map(_prodProjectGroupHTML).join('') + '</div>';
         }
-        // PORT-DELTA: renderDetail uses live event reads and disables composer/write controls.
+        // PORT-DELTA: renderDetail uses native comments and team-authority-gated writes.
         function _prodDetail() {
             const d = _prodIssue(_prodState.openId);
             if (!d) return '<div class="prod-empty">Deliverable not found.</div>';
@@ -33714,7 +34037,7 @@
                 + '<div class="prod-desc">' + _prodDescriptionHTML(d.desc, descLoaded, 'No description.', true) + '</div>'
                 + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" data-prod-file-link="1" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener" title="' + _calEscAttr(file) + '">' + _calEsc(_prodFileLinkLabel(file)) + '</a></p>' : '')
                 + subSection
-                + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">Commenting is disabled in this preview.</button></div></div>'
+                + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
                 + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, file) + '</aside></div>';
         }
         function _prodProjectDetail() {
@@ -33760,11 +34083,16 @@
             const client = _prodClient(d.project);
             const sideRow = value => '<div class="prod-side-row">' + value + '</div>';
             const muted = text => '<span class="muted">' + _calEsc(text) + '</span>';
+            const writeAttrs = operation => {
+                const allowed = _prodCanWrite(d, operation);
+                const gate = allowed ? '' : _prodWriteGateText(d, operation);
+                return ' data-prod-write="' + (allowed ? 'on' : 'off') + '" aria-disabled="' + (allowed ? 'false' : 'true') + '"' + (gate ? ' title="' + _calEscAttr(gate) + '" data-prod-tip="' + _calEscAttr(gate) + '"' : '');
+            };
             return '<div class="prod-props">'
                 + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
-                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="status" onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span></button>')
-                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="assignee" onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span></button>')
-                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due" data-prod-tip="' + _calEscAttr(d.due ? ('Due: ' + d.due) : 'Set due date') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="status"' + writeAttrs('status') + ' onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span></button>')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="assignee"' + writeAttrs('assignee') + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span></button>')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + writeAttrs('due') + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>')
                 + '</div>'
                 + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</span></button></div></div>' : '')
                 + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-prop="project" onclick="return _prodOpenProjectMenu(event,' + _jsAttrArg(d.id) + ')"><span class="prod-card-ico">' + _prodProjectGlyph(client) + '</span><span>' + _calEsc(_prodDisplayClient(d.project)) + '</span></button></div></div>'

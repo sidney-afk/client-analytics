@@ -710,8 +710,18 @@ async function recentOutboundEcho(
     const row = candidate as JsonMap;
     const result = parseJson(row.linear_result);
     if (clean(result.issue_id) !== issueId) continue;
-    if (clean(result.mirror_actor_id) !== actorId) continue;
     if (!outboundValueMatches(row, payload, issue, comment)) continue;
+    const actorMatches = !!actorId
+      && !!clean(result.mirror_actor_id)
+      && clean(result.mirror_actor_id) === actorId;
+    // Linear issue webhooks do not consistently expose the API-key viewer as
+    // their actor. A terminal outbox row plus the exact issue and exact value
+    // is still a durable echo proof: the native ledger already owns the human
+    // actor, and applying that transport echo would only advance the CAS clock.
+    // Pending rows still require an actor match so a coincident external write
+    // cannot be suppressed before our mutation has been acknowledged.
+    const terminalValueProof = lower(row.status) === "written" && !!clean(row.processed_at);
+    if (!actorMatches && !terminalValueProof) continue;
     return row;
   }
   return null;

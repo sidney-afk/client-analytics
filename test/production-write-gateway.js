@@ -113,6 +113,10 @@ function ok(condition, message) {
     && /lower\(client\.kind\) !== "test"/.test(edge)
     && /uniqueActiveTestClient/.test(edge),
   'staff/client TEST mode is derived from an active TEST client and service drills can resolve the unique TEST row');
+  ok(/B4_TEST_PROJECT_BY_TEAM/.test(edge)
+    && /!projectId \|\| !allowlist\.has\(projectId\)/.test(edge)
+    && /test_project_mapping_unavailable/.test(edge),
+  'TEST intake uses one secret-selected allowlisted project per team and fails closed when absent');
 
   ok(/\.eq\("key", "prod_authority"\)/.test(edge)
     && /authority_unavailable/.test(edge)

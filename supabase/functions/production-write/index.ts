@@ -536,6 +536,11 @@ function configuredTestProjectIds(): Set<string> {
     .filter(Boolean));
 }
 
+function configuredTestProjectForTeam(team: string): string {
+  const configured = envJson("B4_TEST_PROJECT_BY_TEAM");
+  return clean(configured[normalizeTeam(team)]);
+}
+
 function linearReadKey(): string {
   return clean(
     Deno.env.get("LINEAR_READ_API_KEY")
@@ -618,10 +623,19 @@ function projectMatchesTeam(project: JsonMap, team: string): boolean {
 }
 
 async function projectForIntake(client: ClientRow, team: string, principal: Principal): Promise<string> {
-  let candidates = configuredProjectIds(client.linear_project_ids);
-  if (principal.testOnly && candidates.length === 0) {
-    candidates = [...configuredTestProjectIds()];
+  if (principal.testOnly) {
+    const projectId = configuredTestProjectForTeam(team);
+    const allowlist = configuredTestProjectIds();
+    if (!projectId || !allowlist.has(projectId)) {
+      throw new GatewayError(503, "test_project_mapping_unavailable");
+    }
+    const project = await readLinearProject(projectId);
+    if (!projectMatchesTeam(project, team)) {
+      throw new GatewayError(403, "test_project_scope_required");
+    }
+    return projectId;
   }
+  let candidates = configuredProjectIds(client.linear_project_ids);
 
   let matching: JsonMap[];
   if (candidates.length > 0) {
@@ -642,9 +656,6 @@ async function projectForIntake(client: ClientRow, team: string, principal: Prin
     throw new GatewayError(409, matching.length > 1 ? "project_mapping_ambiguous" : "project_mapping_missing");
   }
   const projectId = clean(matching[0].id);
-  if (principal.testOnly && !configuredTestProjectIds().has(projectId)) {
-    throw new GatewayError(403, "test_project_scope_required");
-  }
   return projectId;
 }
 

@@ -68,7 +68,13 @@ verify_jwt = false
 [functions.key-verify]
 verify_jwt = false
 
+# Staff-only paginated Production comment reader. The static browser supplies
+# its publishable key for routing; the function separately verifies the stored
+# staff role key and active roster member before any service-role read.
+[functions.production-comments]
+verify_jwt = false
+
 # Track B B3 inbound Linear webhook receiver. It verifies Linear HMAC itself and
-# remains dark while linear_inbound_enabled is false.
+# follows the existing linear_inbound_enabled gate.
 [functions.linear-inbound]
 verify_jwt = false

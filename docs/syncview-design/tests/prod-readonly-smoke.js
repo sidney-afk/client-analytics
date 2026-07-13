@@ -60,7 +60,23 @@ async function text(page, sel) {
 }
 
 async function assertNoWriteRequests(requests) {
-  const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method));
+  const isCommentRead = r => {
+    if (r.method !== 'POST') return false;
+    let pathname = '';
+    try { pathname = new URL(r.url).pathname; } catch (e) {}
+    if (pathname !== '/functions/v1/production-comments') return false;
+    let body = null;
+    try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+    const keys = Object.keys(body).sort();
+    if (keys.join(',') !== 'before,deliverable_id,limit') return false;
+    return typeof body.deliverable_id === 'string'
+      && body.deliverable_id.length > 0
+      && body.limit === 50
+      && (body.before === null || (body.before && typeof body.before === 'object'
+        && typeof body.before.created_at === 'string' && typeof body.before.id === 'string'));
+  };
+  const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method) && !isCommentRead(r));
   if (writes.length) {
     throw new Error('Production preview made write-like browser requests: '
       + writes.slice(0, 5).map(r => `${r.method} ${r.url}`).join(' | '));
@@ -71,7 +87,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
   const page = await browser.newPage(viewport);
   page.on('pageerror', err => errors.push(err.message));
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
-  page.on('request', req => requests.push({ method: req.method(), url: req.url() }));
+  page.on('request', req => requests.push({ method: req.method(), url: req.url(), postData: req.postData() || '' }));
   await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
   return page;
 }
@@ -136,10 +152,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     }).length);
     if (unguarded) throw new Error('A read-only write affordance is neither disabled nor guarded');
     if (!(await text(page, '.prod-composer-box')).includes('disabled')) throw new Error('Comment composer did not render the read-only hint');
-    await page.waitForFunction(() => {
-      const activity = document.querySelector('.prod-activity');
-      return activity && !activity.textContent.includes('Loading activity');
-    }, { timeout: 15000 });
+    await page.waitForSelector('.prod-activity [data-prod-comments-state], .prod-activity .prod-comment-loading', { timeout: 15000 });
     await maybeShot(page, 'prod-detail');
 
     const batchBtn = page.locator('.prod-parent-link').first();

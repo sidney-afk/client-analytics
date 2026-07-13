@@ -16,6 +16,10 @@ CI, `supabase/config.toml`, or `scripts/` executes these files (see
 - **`2026-07-11-b4-linear-outbound.sql`** additively expands the dormant B1
   outbox, seeds the default-off outbound switch, and installs atomic enqueue /
   TEST-quarantine helpers. It does not flip authority or enable Linear writes.
+- **`2026-07-12-production-comments.sql`** adds the normalized native/Linear
+  comment store, service-only idempotent writer, protected body-bearing event
+  snapshots, and the staff-reader data contract. It does not change authority,
+  outbound flags, or Linear state.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

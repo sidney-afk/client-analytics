@@ -307,13 +307,13 @@ async function assertNoWriteRequests(requests) {
     }
     await expectCount(page, '[data-prod-detail-card="properties"]', 1, 'Properties detail card');
     await expectCount(page, '[data-prod-detail-card="project"]', 1, 'Project detail card');
-    if (!(await text(page, '.prod-activity')).includes('Activity')) throw new Error('Activity section missing');
-    if (await page.locator('.prod-activity .prod-skeleton').count()) throw new Error('Activity should not show unresolved skeleton bars in the read-only preview');
-    const activityLinesAreCompact = await page.evaluate(() => {
-      const act = document.querySelector('.prod-act');
-      return !act || (!!act.querySelector('.prod-act-text') && !act.querySelector('.prod-act-meta'));
+    if (!(await text(page, '.prod-activity')).includes('Comments')) throw new Error('Comments section missing');
+    await page.waitForSelector('.prod-activity [data-prod-comments-state], .prod-activity .prod-comment-loading', { timeout: 10000 });
+    const commentRowsAreBodyFirst = await page.evaluate(() => {
+      const row = document.querySelector('.prod-comment');
+      return !row || (!!row.querySelector('.prod-comment-author') && !!row.querySelector('.prod-comment-body'));
     });
-    if (!activityLinesAreCompact) throw new Error('Activity events should render as compact one-line rows');
+    if (!commentRowsAreBodyFirst) throw new Error('Comment rows should render author and body');
     if (!(await page.locator('[data-prod-disabled="composer"][title="Preview - read-only"]').count())) throw new Error('Guarded composer missing');
     await page.locator('[data-prod-disabled="composer"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });

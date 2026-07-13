@@ -55,8 +55,30 @@ async function expectExactCount(page, sel, expected, label) {
   return n;
 }
 
+async function expectToastContains(page, expected, label) {
+  await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+  const actual = await text(page, '#prodToast');
+  if (!actual.includes(expected)) throw new Error(label + ' expected toast containing "' + expected + '", saw "' + actual + '"');
+}
+
 async function assertNoWriteRequests(requests) {
-  const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method));
+  const isCommentRead = r => {
+    if (r.method !== 'POST') return false;
+    let pathname = '';
+    try { pathname = new URL(r.url).pathname; } catch (e) {}
+    if (pathname !== '/functions/v1/production-comments') return false;
+    let body = null;
+    try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+    const keys = Object.keys(body).sort();
+    if (keys.join(',') !== 'before,deliverable_id,limit') return false;
+    return typeof body.deliverable_id === 'string'
+      && body.deliverable_id.length > 0
+      && body.limit === 50
+      && (body.before === null || (body.before && typeof body.before === 'object'
+        && typeof body.before.created_at === 'string' && typeof body.before.id === 'string'));
+  };
+  const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method) && !isCommentRead(r));
   if (writes.length) {
     throw new Error('Production structure subset made write-like browser requests: '
       + writes.slice(0, 5).map(r => `${r.method} ${r.url}`).join(' | '));
@@ -81,7 +103,7 @@ async function assertNoWriteRequests(requests) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
   page.on('pageerror', err => errors.push(err.message));
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
-  page.on('request', req => requests.push({ method: req.method(), url: req.url() }));
+  page.on('request', req => requests.push({ method: req.method(), url: req.url(), postData: req.postData() || '' }));
   await page.addInitScript(() => {
     localStorage.setItem('syncview_auth_v1', 'ok');
     try {
@@ -91,6 +113,11 @@ async function assertNoWriteRequests(requests) {
       });
     } catch (_) {}
   });
+  await page.route('**/functions/v1/production-comments', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ comments: [], next_cursor: null, has_more: false }),
+  }));
 
   try {
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
@@ -214,6 +241,32 @@ async function assertNoWriteRequests(requests) {
     const row = page.locator('.prod-row').first();
     if (!(await row.count())) throw new Error('No migrated rows rendered');
     const firstRowId = await row.getAttribute('data-prod-row');
+    const lockedWriteState = await page.evaluate(id => {
+      _syncviewStaffIdentityMem = {
+        key: 'structure-fixture-key',
+        role: 'admin',
+        member: { id: 'structure-admin', name: 'Structure Admin', role: 'admin', team: 'video' },
+      };
+      _syncviewStaffIdentityLoaded = true;
+      _syncviewStaffIdentityVerified = true;
+      _prodState.authority = { video: 'linear', graphics: 'linear' };
+      _prodState.authorityLoaded = true;
+      _prodRender();
+      const issue = _prodIssue(id);
+      return {
+        team: _prodWriteTeam(issue && issue.team),
+        canStatus: _prodCanWrite(issue, 'status'),
+        statusGate: _prodWriteGateText(issue, 'status'),
+        commentGate: _prodWriteGateText(issue, 'comment'),
+        dueGate: _prodWriteGateText(issue, 'due'),
+      };
+    }, firstRowId);
+    if (!['video', 'graphics'].includes(lockedWriteState.team)
+      || lockedWriteState.canStatus
+      || !lockedWriteState.statusGate.includes('stays read-only while Linear is authoritative.')) {
+      throw new Error('Linear-authoritative fixture did not fail closed: ' + JSON.stringify(lockedWriteState));
+    }
+    await expectExactCount(row, '[data-prod-write="on"]', 0, 'Linear-authoritative fixture row exposes no writable controls');
     for (const sel of ['.prod-check', '.prod-id', '.prod-status svg', '.prod-title b', '.prod-chip', '.prod-due', '.prod-avatar', '.prod-created']) {
       if (!(await row.locator(sel).count())) throw new Error('List row missing artifact part: ' + sel);
     }
@@ -232,16 +285,15 @@ async function assertNoWriteRequests(requests) {
     await page.evaluate(() => document.querySelector('#prodLayer [data-prod-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
     await expectExactCount(page, '#prodLayer .prod-pop [data-prod-pick]', 0, 'bulk command hover does not open a blocking picker');
     await page.locator('#prodLayer [data-prod-ctx="status"]').click();
-    await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'bulk status guard picker opens on click');
+    await expectExactCount(page, '#prodLayer .prod-pop [data-prod-pick]', 0, 'Linear-authoritative bulk status stays locked');
+    await expectToastContains(page, lockedWriteState.statusGate, 'Linear-authoritative bulk status lock');
     await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
     await page.evaluate(() => { _prodState.selected.clear(); _prodRender(); });
     await row.locator('.prod-status').click();
-    await expectCount(page, '.prod-pop [data-prod-pick]', 1, 'row status click opens status picker');
+    await expectExactCount(page, '.prod-pop [data-prod-pick]', 0, 'Linear-authoritative row status stays locked');
     const statusPickerUrl = new URL(page.url());
     if (statusPickerUrl.searchParams.get('d')) throw new Error('Clicking row status icon navigated the row instead of opening the picker');
-    await page.locator('.prod-pop [data-prod-pick]').first().click();
-    await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-    if (!(await text(page, '#prodToast')).includes('Preview - read-only')) throw new Error('Status picker did not route to read-only guard');
+    await expectToastContains(page, lockedWriteState.statusGate, 'Linear-authoritative row status lock');
     await page.keyboard.press('Escape');
     await row.click({ button: 'right' });
     await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'row context Copy link item');
@@ -249,17 +301,27 @@ async function assertNoWriteRequests(requests) {
       pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
       pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     });
-    await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'context keyboard Enter opens submenu picker');
+    await expectExactCount(page, '#prodLayer .prod-pop [data-prod-pick]', 0, 'Linear-authoritative context keyboard status stays locked');
+    await expectToastContains(page, lockedWriteState.statusGate, 'Linear-authoritative context keyboard lock');
     await page.keyboard.press('Escape');
     await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
+    const lockedContextState = await page.evaluate(() => ({
+      view: _prodState.view,
+      openId: _prodState.openId,
+      rows: document.querySelectorAll('.prod-row').length,
+      selected: _prodState.selected ? _prodState.selected.size : -1,
+    }));
+    if (lockedContextState.view !== 'list' || lockedContextState.openId || lockedContextState.rows < 1) {
+      throw new Error('Linear-authoritative context lock changed list navigation: ' + JSON.stringify(lockedContextState));
+    }
     await row.click({ button: 'right' });
     const contextText = await text(page, '.prod-pop');
     if (!contextText.includes('⇧D') || !contextText.includes('Ctrl ⌫')) throw new Error('Context menu keyboard hints do not match artifact glyphs');
     const popBg = await page.locator('.prod-pop').first().evaluate(el => getComputedStyle(el).backgroundColor);
     if (!popBg || popBg === 'rgba(0, 0, 0, 0)' || popBg === 'transparent') throw new Error('Production context menu background is transparent');
     await page.locator('.prod-pop [data-prod-ctx="status"]').hover();
-    await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'context Status hover opens submenu picker');
-    await expectCount(page, '#prodLayer .prod-pop .tick', 1, 'context picker marks current value');
+    await expectExactCount(page, '#prodLayer .prod-pop [data-prod-pick]', 0, 'Linear-authoritative context hover status stays locked');
+    await expectToastContains(page, lockedWriteState.statusGate, 'Linear-authoritative context hover lock');
     await expectCount(page, '.prod-pop [data-prod-disabled^="context-"][title="Preview - read-only"]', 1, 'row context disabled mutation items');
     await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
@@ -314,17 +376,23 @@ async function assertNoWriteRequests(requests) {
       return !row || (!!row.querySelector('.prod-comment-author') && !!row.querySelector('.prod-comment-body'));
     });
     if (!commentRowsAreBodyFirst) throw new Error('Comment rows should render author and body');
-    if (!(await page.locator('[data-prod-disabled="composer"][title="Preview - read-only"]').count())) throw new Error('Guarded composer missing');
+    const composer = page.locator('[data-prod-disabled="composer"]');
+    if (!(await composer.count()) || (await composer.first().getAttribute('title')) !== lockedWriteState.commentGate) {
+      throw new Error('Linear-authoritative composer did not expose its lock reason');
+    }
     await page.locator('[data-prod-disabled="composer"]').click();
-    await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-    if (!(await text(page, '#prodToast')).includes('Preview - read-only')) throw new Error('Composer did not route to read-only guard');
+    await expectToastContains(page, lockedWriteState.commentGate, 'Linear-authoritative composer lock');
     await expectExactCount(page, '[data-prod-disabled="detail-controls"], .prod-disabled-pill', 0, 'detail disabled scaffold controls');
-    await page.locator('[data-prod-prop="due"]').first().click();
-    await expectCount(page, '.prod-duepop .prod-cal, .prod-duepop [data-prod-set="__custom__"]', 1, 'detail due property opens due popover');
-    await page.locator('.prod-duepop [data-prod-set="__custom__"]').first().click().catch(() => {});
-    await expectCount(page, '.prod-duepop .prod-cal', 1, 'due custom opens artifact calendar');
-    await page.locator('.prod-duepop [data-prod-day]').first().click();
-    await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+    for (const operation of ['status', 'assignee', 'due']) {
+      const control = page.locator('[data-prod-prop="' + operation + '"]').first();
+      if ((await control.getAttribute('data-prod-write')) !== 'off'
+        || (await control.getAttribute('aria-disabled')) !== 'true') {
+        throw new Error('Linear-authoritative detail ' + operation + ' control was not marked locked');
+      }
+    }
+    await page.locator('[data-prod-prop="due"]').first().dispatchEvent('click');
+    await expectExactCount(page, '.prod-duepop', 0, 'Linear-authoritative detail due stays locked');
+    await expectToastContains(page, lockedWriteState.dueGate, 'Linear-authoritative detail due lock');
     if (await page.locator('.prod-parent-link').count()) {
       await expectCount(page, '[data-prod-detail-card="parent"]', 1, 'Parent issue detail card');
     }

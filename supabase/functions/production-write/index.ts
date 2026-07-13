@@ -537,8 +537,19 @@ function configuredTestProjectIds(): Set<string> {
 }
 
 function configuredTestProjectForTeam(team: string): string {
-  const configured = parseJson(Deno.env.get("B4_TEST_PROJECT_BY_TEAM") || "{}");
-  return clean(configured[normalizeTeam(team)]);
+  const raw = clean(Deno.env.get("B4_TEST_PROJECT_BY_TEAM"));
+  const configured = parseJson(raw || "{}");
+  const normalizedTeam = normalizeTeam(team);
+  const jsonValue = clean(configured[normalizedTeam]);
+  if (jsonValue) return jsonValue;
+  for (const entry of raw.split(",")) {
+    const separator = entry.indexOf(":");
+    if (separator < 1) continue;
+    if (normalizeTeam(entry.slice(0, separator)) === normalizedTeam) {
+      return clean(entry.slice(separator + 1));
+    }
+  }
+  return "";
 }
 
 function linearReadKey(): string {
@@ -626,9 +637,10 @@ async function projectForIntake(client: ClientRow, team: string, principal: Prin
   if (principal.testOnly) {
     const projectId = configuredTestProjectForTeam(team);
     const allowlist = configuredTestProjectIds();
-    if (!projectId || !allowlist.has(projectId)) {
+    if (!projectId) {
       throw new GatewayError(503, "test_project_mapping_unavailable");
     }
+    if (!allowlist.has(projectId)) throw new GatewayError(403, "test_project_scope_required");
     const project = await readLinearProject(projectId);
     if (!projectMatchesTeam(project, team)) {
       throw new GatewayError(403, "test_project_scope_required");

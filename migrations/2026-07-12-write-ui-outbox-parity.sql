@@ -36,7 +36,7 @@ $block$;
 insert into public.syncview_runtime_flags (key, value, updated_by)
 values (
   'linear_legacy_parity_enabled',
-  '{"enabled":true}'::jsonb,
+  '{"enabled":false}'::jsonb,
   'write-ui-outbox-parity-migration'
 )
 on conflict (key) do nothing;

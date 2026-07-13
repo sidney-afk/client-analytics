@@ -30,8 +30,8 @@ ok(/add column if not exists legacy_parity boolean not null default false/.test(
   'legacy parity is an additive, default-off row marker');
 ok(/legacy_parity = false[\s\S]*operation in \('create', 'status', 'comment'\)/.test(migration),
   'the database limits parity rows to the three approved operations');
-ok(/'linear_legacy_parity_enabled'[\s\S]*'\{"enabled":true\}'::jsonb[\s\S]*on conflict \(key\) do nothing/.test(migration),
-  'the independent kill gate is seeded without changing an existing value');
+ok(/'linear_legacy_parity_enabled'[\s\S]*'\{"enabled":false\}'::jsonb[\s\S]*on conflict \(key\) do nothing/.test(migration),
+  'the independent kill gate is seeded disabled without changing an existing value');
 ok(!/update public\.syncview_runtime_flags/i.test(migration),
   'the migration never changes an existing runtime flag');
 

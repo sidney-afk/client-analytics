@@ -64,6 +64,12 @@ function ok(condition, message) {
     && !policy.legacyParityAllowed('calendar', 'due'),
   'legacy parity is a closed surface/operation allowlist');
 
+  ok(policy.browserCredentialTestOverride(true, 'staff-role-key', '')
+    && policy.browserCredentialTestOverride(true, '', 'client-review-token')
+    && !policy.browserCredentialTestOverride(true, '', '')
+    && !policy.browserCredentialTestOverride(false, 'staff-role-key', 'client-review-token'),
+  'staff keys and client tokens cannot request the service-only TEST override');
+
   ok(JSON.stringify(policy.projectIdsForTeam({ video: 'project-v', graphics: { id: 'project-g' } }, 'VID'))
       === JSON.stringify(['project-v'])
     && JSON.stringify(policy.projectIdsForTeam([{ team: 'GRA', project_id: 'project-g' }], 'graphics'))
@@ -109,10 +115,22 @@ function ok(condition, message) {
   'client comments use a stable server-side client principal, never free text or transport');
   ok(!/auth_enforcement/.test(edge),
     'global permissive auth cannot weaken the fail-closed gateway');
-  ok(/deriveBrowserTestScope/.test(edge)
+  const browserOverrideGuardPos = edge.indexOf('browserCredentialTestOverride(body.test_override, key, token)');
+  const staffPrincipalPos = edge.indexOf('if (key) {');
+  const clientPrincipalPos = edge.indexOf('if (token) {');
+  const authorityBypassPos = edge.indexOf('const authority = principal.testOnly ? "syncview"');
+  ok(browserOverrideGuardPos > 0
+    && /browserCredentialTestOverride\(body\.test_override, key, token\)[\s\S]{0,120}invalid_test_override/.test(edge)
+    && browserOverrideGuardPos < staffPrincipalPos
+    && browserOverrideGuardPos < clientPrincipalPos
+    && staffPrincipalPos < clientPrincipalPos
+    && clientPrincipalPos < authorityBypassPos
+    && !/deriveBrowserTestScope/.test(edge),
+  'staff/client TEST override is rejected before principal auth and cannot reach the authority bypass');
+  ok(/body\.test_override === true[\s\S]{0,320}clean\(body\.confirm\) !== "B4_TEST_ONLY"[\s\S]{0,100}serviceRoleRequest\(req\)/.test(edge)
     && /lower\(client\.kind\) !== "test"/.test(edge)
     && /uniqueActiveTestClient/.test(edge),
-  'staff/client TEST mode is derived from an active TEST client and service drills can resolve the unique TEST row');
+  'legitimate TEST mode requires service authentication, explicit confirmation, and an active TEST client');
   ok(/B4_TEST_PROJECT_BY_TEAM/.test(edge)
     && /parseJson\(raw \|\| "\{\}"\)/.test(edge)
     && /raw\.split\(","\)/.test(edge)

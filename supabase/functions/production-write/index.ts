@@ -13,6 +13,7 @@ import {
 } from "../_shared/staff-role-auth.ts";
 import {
   DELIVERABLE_STATUSES,
+  browserCredentialTestOverride,
   clean,
   clientOperationAllowed,
   configuredProjectIds,
@@ -168,8 +169,11 @@ async function authenticate(
   const token = clean(req.headers.get("x-syncview-client-token"));
   if (key && token) throw new GatewayError(401, "ambiguous_credentials");
 
-  if (body.test_override === true && !key && !token) {
-    if (key || token || clean(body.confirm) !== "B4_TEST_ONLY" || !(await serviceRoleRequest(req))) {
+  if (body.test_override === true) {
+    if (browserCredentialTestOverride(body.test_override, key, token)) {
+      throw new GatewayError(401, "invalid_test_override");
+    }
+    if (clean(body.confirm) !== "B4_TEST_ONLY" || !(await serviceRoleRequest(req))) {
       throw new GatewayError(401, "invalid_test_override");
     }
     const client = await clientBySlug(supabase, targetClientSlug);
@@ -217,7 +221,7 @@ async function authenticate(
       client: null,
       testOnly: false,
     };
-    return await deriveBrowserTestScope(supabase, principal, body, targetClientSlug);
+    return principal;
   }
 
   if (token) {
@@ -248,24 +252,10 @@ async function authenticate(
       client,
       testOnly: false,
     };
-    return await deriveBrowserTestScope(supabase, principal, body, targetClientSlug);
+    return principal;
   }
 
   throw new GatewayError(401, "credentials_required");
-}
-
-async function deriveBrowserTestScope(
-  supabase: SupabaseClient,
-  principal: Principal,
-  body: JsonMap,
-  targetClientSlug: string,
-): Promise<Principal> {
-  if (body.test_override !== true) return principal;
-  const client = principal.client || await clientBySlug(supabase, targetClientSlug);
-  if (!client || client.active !== true || lower(client.kind) !== "test") {
-    throw new GatewayError(403, "test_client_scope_required");
-  }
-  return { ...principal, client, testOnly: true };
 }
 
 async function authorityFor(supabase: SupabaseClient, team: string): Promise<"linear" | "syncview"> {

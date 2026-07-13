@@ -109,6 +109,13 @@ export function legacyParityAllowed(surface, operation) {
   return lane === "submission" && op === "intake_create";
 }
 
+// A browser credential and the service-only TEST drill are mutually exclusive
+// principal modes. The gateway calls this before authenticating either browser
+// principal so a caller cannot turn a staff key or client token into testOnly.
+export function browserCredentialTestOverride(testOverride, staffKey, clientToken) {
+  return testOverride === true && (!!clean(staffKey) || !!clean(clientToken));
+}
+
 export function validRequestId(value) {
   const id = clean(value);
   return /^[a-zA-Z0-9][a-zA-Z0-9:_-]{7,199}$/.test(id) ? id : "";

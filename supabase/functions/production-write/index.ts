@@ -537,7 +537,7 @@ function configuredTestProjectIds(): Set<string> {
 }
 
 function configuredTestProjectForTeam(team: string): string {
-  const configured = envJson("B4_TEST_PROJECT_BY_TEAM");
+  const configured = parseJson(Deno.env.get("B4_TEST_PROJECT_BY_TEAM") || "{}");
   return clean(configured[normalizeTeam(team)]);
 }
 

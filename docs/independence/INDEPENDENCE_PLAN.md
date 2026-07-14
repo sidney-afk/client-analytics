@@ -1,6 +1,8 @@
 # SyncView Independence Plan — n8n off the interactive path, Linear replaced in-app
 
-**Date:** 2026-07-03 · **Status:** in execution — Track A COMPLETE (closed out 2026-07-10); Track B live at B3 (see the 2026-07-11 update below and `docs/independence/B4_READINESS.md`)
+**Date:** 2026-07-03 · **Status (2026-07-14):** Track A and Track B B0–B3 COMPLETE;
+B4 pipe proof exists and #812 is live authority-locked, but human cutover is BLOCKED by the
+current audit register/checklist (see `docs/independence/B4_READINESS.md`)
 **Prepared from:** a full read-only audit of the codebase, the live n8n instance (87 workflows),
 the live Linear workspace, the Supabase schema, and the Google Sheets — see
 `docs/audits/2026-07-03-*.md` for the five detailed audit reports.
@@ -26,15 +28,21 @@ blindly.**
 > `docs/audits/2026-07-05-*.md` (live-system diffs vs 2026-07-03 + the four logic maps, indexed by
 > `2026-07-05-reaudit-summary.md`). Material corrections found there (Linear sizing ~2× larger,
 > review tokens nonexistent → client links fail open, per-SMM Linear API keys publicly readable in
-> the SMM sheet tab, PITR unavailable on the current plan tier) are folded into
-> `TRACK_B_LINEAR_REPLACEMENT_SPEC.md`; the SMM-key rotation (spec §14 D-15) should not wait for
-> Track B.
+> the SMM sheet tab, and the **then-current** assumption that PITR was unavailable) are folded into
+> `TRACK_B_LINEAR_REPLACEMENT_SPEC.md`. D-15 records the owner's temporary acceptance of the
+> per-SMM keys through transition; D-9 forbids blind rotation of unknown consumers. Revoke them at
+> the evidence-bearing B5 cleanup or earlier only through a separately mapped/approved incident plan.
+>
+> **2026-07-13 capacity correction:** the project is Pro and PITR is available but currently off
+> between approved risk windows. See `docs/truth/SUPABASE.md` and audit F49; do not treat the July 5
+> historical assumption as current recovery truth.
 >
 > **2026-07-11 update:** execution status. **Track A is COMPLETE and closed out** — all 33 active
 > clients write through the Edge Functions since 2026-07-07 19:46 UTC; the 2026-07-10 three-day
 > close-out audit found zero real-client fallback traffic on all seven legacy write webhooks,
 > zero ledger errors, and a clean full-roster column-drift sweep. The n8n write workflows remain
-> ACTIVE as the dormant per-client fail-safe per ROLLBACK.md rule 2. **Track B is live at B3**:
+> ACTIVE as compatibility fallbacks, but they are unauthenticated and therefore not security-safe
+> rollback/failover paths until F67 closes. **Track B is live at B3**:
 > the evaluation mirror has run since 2026-07-07 23:30 UTC; reconciler v2 executes every ~15 min
 > via the n8n monitoring pager; the finished-work history import (2026-07-10, tag
 > `history-backfill-2026-07-10`: 3,187 deliverables + 800 batches) brought the mirror to full
@@ -71,31 +79,29 @@ These are settled — do not re-litigate them without new information:
 | D1 | Scope of "less n8n" = the **interactive SyncView path only**. The sales/onboarding funnel, scrapers/analytics jobs, weekly backups, and TikTok pipelines stay in n8n. |
 | D2 | The Sheets-fed analytics/home tab is **out of scope** entirely. |
 | D3 | Track A first, Track B after. Not together. |
-| D4 | **Samples Old is NOT retired yet.** SXR (Samples New) has not been announced to the team and old→new data migration hasn't happened. Samples Old keeps its n8n endpoints untouched until a separate, later retirement step. Do not port `samples-upsert`/`samples-reorder` to Edge Functions. |
+| D4 | **Historical sequencing decision, partially superseded.** Samples Old was kept during Track A and its endpoints were not ported. Phase-1 staff retirement has shipped: the nav is gone and `#samples` staff hashes route to Samples/SXR. The old tokened client URL is **not compatible**: F117 proves the redirect loses its verified client binding. Fail it closed or restore an exact-client server-bound handoff before any owner-approved Phase 2. Dormant renderer/state/endpoints/table/rows remain; do not delete or silently reactivate them. |
 | D5 | Templates and caption prompts **move from Google Sheets into Supabase tables** as part of Track A. |
-| D6 | Auth is **role-based, not per-person**: three tiers — **admin** (Sidney + Kasper), **smm** (social media managers), **creative** (video editors + graphic designers together). Owner explicitly wants zero per-account maintenance when people join/leave. No auth changes in Track A; role auth lands at the start of Track B. Clients keep tokenized links. |
+| D6 | Keep the three **role tiers** — admin, SMM, creative — but the original “not per-person / zero join-leave maintenance” credential interpretation is security-blocked by F31. Before a creative flip, each staff write needs an individually revocable server session with immutable member identity, or an explicit owner-signed, time-boxed residual-risk acceptance plus a tested offboarding/forced-login procedure. Clients keep tokenized links. |
 | D7 | **Debuggability is a hard requirement**: every write must be attributable (actor, role, timestamp) and land in an append-only event ledger, so future bugs can be reconstructed after the fact. |
 | D8 | Notifications stay on **Slack** for now (creative channels per client). A ro.am migration exists as a separate effort (`SLACK_ROAM_MIGRATION_AUDIT.md`) — design the notifier as a swappable module but implement Slack. |
 | D9 | The hardcoded Linear API key in n8n is **accepted as-is** (owner explicitly doesn't care); no rotation work in this plan. It becomes moot when Linear is retired. |
 | D10 | The `filming-plan-tabs` traffic (~12.7k calls/day) must be fixed — root cause is the QA harness cold-cache loop, see §5.3. |
 | D11 | No editor interviews; the owner answered the workflow questions directly — see Track B spec §2 ("How the creative team actually works"). |
 
-## 3. Current architecture in one paragraph (details in the audits)
+## 3. Current architecture in one paragraph (refreshed 2026-07-14)
 
-SyncView is a single-file SPA (`index.html`, ~36k lines) on GitHub Pages
-(syncview.synchrosocial.com). Reads: Supabase REST + realtime (project `uzltbbrjidmjwwfakwve`),
-anon key is read-only (`using(true)` SELECT policies on 6 tables; anon can write nothing). Writes:
-unauthenticated n8n webhooks (`synchrosocial.app.n8n.cloud/webhook/*`) that write Supabase as
-primary and mirror Google Sheets best-effort. Linear inbound sync arrives via a Linear org webhook
-→ n8n → minimal patch through the same upsert webhooks; a GitHub-Actions reconciler heals drift
-every ~10 min (cadence driven by an n8n schedule trigger). Two Edge Functions already exist and
-are the pattern precedents: `client-credentials` (staff-key-gated writes) and `onboarding-capture`
-(public fallback capture). The comment-merge logic — the hardest write guard — already lives in
-Postgres as service-role RPCs (`calendar_merge_comments`, `sample_review_merge_comments`).
-An earlier, narrower plan (`EDGE_FUNCTIONS_MIGRATION.md`, 2026-06-29, never executed) designed the
-`linear-status-sync` and `calendar-upsert-post` ports in depth — Track A absorbs and extends it;
-where the two documents disagree, **this plan and the Track A spec win**, but the older doc's
-guard-by-guard analysis remains the reference for port fidelity.
+SyncView is a single-file SPA (`index.html`, ~45.8k lines at this checkpoint) on GitHub Pages. It reads Supabase REST /
+Realtime, protected Edge Functions, n8n readers, and selected Google Sheets feeds. Production
+writes now have a **mixed** topology: the full active roster's Calendar, Samples/SXR, templates,
+and caption-prompt browser writes use Track-A Edge Functions with dormant per-client n8n
+fallbacks; many other unmigrated surfaces still use n8n; #812's Production operations use the
+authority-gated `production-write` gateway but remain read-only for real teams while authority is
+Linear. B3 Linear inbound reaches `linear-inbound` directly and scheduled reconcilers heal drift;
+the old n8n card/Workload fast receiver is inactive/unpublished (F46). Authentication is also
+mixed: some token/key/role gates are server-enforced, while six Track-A service-role writers remain
+publicly callable (F35). `SYSTEM_MAP.md`, `docs/truth/*`, `ROLLBACK.md`, and the cutover register are
+the current per-surface authority; the older `EDGE_FUNCTIONS_MIGRATION.md` is a visibly superseded
+historical plan, not an execution source.
 
 ## 4. End state
 
@@ -111,7 +117,13 @@ guard-by-guard analysis remains the reference for port fidelity.
 
 ## 5. Immediate actions (Phase 0 — some already done on 2026-07-03)
 
-1. **[DONE] Re-enable the inbound Linear sync in n8n.** `SyncView Calendar — Linear Status Sync`
+> **Current-state correction (2026-07-13):** items 1/2/2b below are a dated July 3 execution log,
+> not current topology. `MJbMZ789B5ExZz9x` is again inactive/unpublished
+> (`activeVersionId=null`); its saved authority-gated graph followed a crash cluster and has no later
+> execution. Do not call the legacy lane real-time or simply repeat “re-enable”: resolve the crash
+> and choose/drill published-fast-path versus reconciler-only operation first.
+
+1. **[HISTORICAL — completed 2026-07-03, not current] Re-enable the inbound Linear sync in n8n.** `SyncView Calendar — Linear Status Sync`
    (`MJbMZ789B5ExZz9x`) was found inactive since 2026-06-28 23:14 UTC with **no content change and
    no documented reason** — an accidental unpublish. It was re-published on 2026-07-03 with the
    known-good post-embed version `2fc824c2-…` (the version documented as live+wiring-tested in
@@ -120,7 +132,7 @@ guard-by-guard analysis remains the reference for port fidelity.
    "Workload" webhook (id `a4482382-6d44-4c59-89f9-809220f559cb`) disable→enable in Linear
    settings at 19:57 UTC; delivery verified end-to-end at 20:02 with a VID probe issue
    (n8n executions 190909/190910 on workflow `MJbMZ789B5ExZz9x`, ~1 s latency). Realtime
-   Linear→SyncView sync is live again **for the Video team**.
+   Linear→SyncView sync was live again **for the Video team at that checkpoint**.
 2b. **[DONE 2026-07-03] Extended webhook coverage to the Graphics team.** Discovery during
    verification: the original webhook was scoped `allPublicTeams: false, team: VID` and had been
    that way since 2026-05-19 — **Graphics issues had NEVER had realtime sync**; every GRA status
@@ -131,8 +143,8 @@ guard-by-guard analysis remains the reference for port fidelity.
    Graphics-scoped webhook (Label "Workload — Graphics", same URL
    `…/webhook/linear-status-sync`, Issues only, Team: Graphics) alongside the untouched VID
    webhook. Verified end-to-end at 20:13 UTC: a GRA probe (state change on GRA-6578 in the
-   "Sidney Laruel" TEST project) produced n8n execution 190952 on `MJbMZ789B5ExZz9x` at ~1 s
-   latency. **Realtime Linear→SyncView sync is now live for BOTH teams for the first time.**
+   private TEST project) produced n8n execution 190952 on `MJbMZ789B5ExZz9x` at ~1 s
+   latency. **Realtime Linear→SyncView sync was live for BOTH teams at that checkpoint.**
    Note: the new webhook's signing secret is currently inert (n8n does not verify signatures);
    the Track A EF port introduces its own HMAC-verified webhook + secret.
 3. **[DONE 2026-07-03] Recover the live schema.** Dump the live DDL (tables, policies,
@@ -147,12 +159,10 @@ guard-by-guard analysis remains the reference for port fidelity.
    rejected a manual run despite owner approval, so the owner ran the backup manually in n8n.
    Execution `191240` succeeded and produced the private Drive evidence recorded in
    `n8n-backups/2026-07-03-phase0-snapshot-status.md`.
-5. **[Codex] Stop the QA harness from hammering `filming-plan-tabs`** (D10): the frontend has a
-   correct 30-min localStorage cache (`KASPER_FILMING_CACHE_MAX_AGE_MS`, index.html:31548), but
-   every fresh headless QA context starts cold and a full pass fires ~1 call per client-with-doc.
-   Fix in the QA/overnight harness: stub or block `filming-plan-tabs` (and other n8n GETs it
-   doesn't assert on) at the Playwright route layer. The server-side fix (per-doc cache) comes
-   with the Track A port of this endpoint.
+5. **[DONE] Stop the QA harness from hammering `filming-plan-tabs`** (D10): the QA route-stub
+   containment shipped and removed the cold-context execution fire. The existing n8n endpoint and
+   browser cache remain the accepted load-bearing baseline; there is no promised Track-A EF port.
+   Any later server cache/replacement is a separately scoped optimization with its own parity gate.
 
 ## 6. Sequencing and gates
 
@@ -164,8 +174,9 @@ TRACK A
   A2 reorder + SXR upsert/reorder EFs            GATE: same bar, SXR parity probes green
   A3 Linear bridge EFs (inbound HMAC + outbound) GATE: reconciler reports zero corrections
                                                        for 72h with realtime sync live
-  A4 templates/caption-prompts tables + EFs,     GATE: Sheets tabs read-only for 1 week with
-     filming-plan-tabs EF with cache                   no complaints; then mirrors retired
+  A4 templates/caption-prompts tables + EFs      GATE: Sheets tabs read-only for 1 week with
+                                                       no complaints; then mirrors retired
+     filming-plan-tabs remained on accepted n8n/browser-cache baseline; QA hammer was contained
 TRACK B — SUPERSEDED SUMMARY: the authoritative phase model now lives in
   TRACK_B_LINEAR_REPLACEMENT_SPEC.md §1 (updated 2026-07-05; A3 was SKIPPED by
   owner decision, so Track B starts after A4, which is merged). In short:
@@ -182,9 +193,12 @@ TRACK B — SUPERSEDED SUMMARY: the authoritative phase model now lives in
 Rules that keep this safe:
 
 - **One writer family moves at a time.** Never flip calendar and samples in the same deploy.
-- **Old n8n endpoint stays live as the fallback URL** during each canary; rollback = flip one
-  frontend constant back (the fan-in list is in the Track A spec — 6 call sites + reconciler +
-  inbound sync; a single missed site silently splits the write path).
+- **Old n8n endpoints may remain dormant during Track-A canary only as compatibility evidence.**
+  They are unauthenticated service-role writers today (F67), so per-client flag removal, an empty
+  list, or dependency-failure failover is not an authorized rollback. Fail visibly and repair/revert
+  the authenticated caller/EF until every retained fallback enforces equivalent immutable
+  principal/client scope. The fan-in list remains a hard coverage gate; one missed caller silently
+  splits writes.
 - **The reconciler is the last thing to die.** It stays running (and quiet) through all of
   Track A and only retires in B5. A quiet reconciler is the proof the new path is correct;
   during Track A, add a Slack alert when it corrects anything (it should never fire).
@@ -193,14 +207,19 @@ Rules that keep this safe:
 
 ## 7. Rollback & backup doctrine — NON-NEGOTIABLE
 
-The owner's hard requirement: **at any moment, one step must return the business to a fully
-working website**, with backups of everything and a written trail of every action. The complete
-doctrine and the always-current Live State table live in **`ROLLBACK.md`** — read it before
-executing anything, keep its table updated in the same PR as every change, and treat its 8
-standing rules (one-step rollback, old path stays alive, additive-only DB changes, snapshot
-before every phase, log everything in `EXECUTION_LOG.md`, hard gates, rehearse the rollback,
-no secrets) as blocking requirements. A phase that cannot articulate its one-step rollback in
-`ROLLBACK.md` does not ship.
+The owner's hard requirement is immediate business-safe containment, backups of everything, and a
+written trail of every action. A server-readable kill switch must stop new harmful behavior in one
+step; that does **not** prove queued intents are safe to drain, authority can reverse blindly, or an
+Edge Function source rebuild reproduces the prior runtime. F27 requires audited per-team intent
+classification/resolution and machine-read zero before Track-B authority returns to Linear. F51
+requires pinned/attested artifacts or an explicitly deterministic rebuild contract before an EF
+rollback is called exact.
+
+The complete doctrine and always-current Live State table live in **`ROLLBACK.md`**. Read it before
+executing anything, update it in the same PR as every change, and treat its standing rules—immediate
+kill/containment, old-path availability, additive schema, snapshots, execution log, hard gates,
+rehearsed evidence-bearing recovery, and no secrets—as blockers. A phase that cannot articulate and
+rehearse both its immediate containment and its complete recovery in `ROLLBACK.md` does not ship.
 
 ## 8. Risk register (top items)
 
@@ -210,9 +229,9 @@ no secrets) as blocking requirements. A phase that cannot articulate its one-ste
 | A 4th copy of the Linear status mapping drifts during Track A | Hardcode in the EF + CI drift-check against `index.html` (`_calMapLinearStatusStrict` / `CAL_PRIORITY`), per `EDGE_FUNCTIONS_MIGRATION.md` "option (a)" |
 | Edge Functions have no durable retry (n8n retried via runner queue) | Frontend already has per-card retry + localStorage outboxes; upserts are idempotent; reconciler backstop stays until B5 |
 | Renaming load-bearing symbols breaks reconciler/tests silently (`grabFunc` extracts FE functions **by name**: `computeOverallStatus`, `_calMapLinearStatusStrict`, `CAL_PRIORITY`, …) | Do not rename; CI unit suite (`npm test`) plus `qa/master.js` must pass on every PR |
-| Supabase free-tier limits (500 MB DB is the documented forcing function; EF invocation quota) | Fix D10 first (QA traffic is the only heavy consumer); monitor usage after A1; upgrading the plan is an accepted cost if needed |
+| Supabase Pro capacity/egress surprises (the old 500 MB Free forcing function is obsolete; live disk was 0.45 GiB on 2026-07-13) | Monitor live disk and Dashboard Usage trend; before flip, owner records current egress and whether the spend cap is enabled; keep D-1 export/PITR/restore gates independent of capacity |
 | Track B pilot drifts from Linear during parallel run | Per-team single-authority model (spec §1, 2026-07-05): B3 = read-only inbound mirror (Linear authoritative), B4 = per-team flip to Supabase-authoritative with one-way outbound mirror; continuous reconciler v2 + detect-only foreign-write alerting |
-| Client links fail open (2026-07-05 re-audit: the Sheet token column NEVER EXISTED — 0/29 tokens, every client link is unguarded today) | Fixed in B0: tokens are MINTED into a service-role-only `client_access` table, links re-issued per client, then enforcement flips deny-by-default (spec §6.4) |
+| Client links fail open (2026-07-05 baseline: the Sheet token column never existed) | B0 minted private tokens in service-role-only `client_access`, but circulating links and all four builders remain tokenless/broken and enforcement is not complete (F03/F33). Build a staff-authenticated exact-client link endpoint, re-issue safely, prove revocation/cache behavior, then flip enforcement; never place tokens in Sheets/bootstrap. |
 
 ## 9. Verification
 
@@ -282,7 +301,9 @@ no secrets) as blocking requirements. A phase that cannot articulate its one-ste
 > with me so we're going to the right direction.
 
 **Follow-up decisions came in two later messages from the owner (2026-07-03); they are captured
-in §2 above and in the Track B spec §2.** Notable direct constraints: role-based (3-tier) auth
-rather than per-person accounts; keep Samples Old; Slack (not ro.am) notifications for now;
+in §2 above and in the Track B spec §2.** Notable direct constraints: retain three role tiers;
+F31 has reopened the credential/session mechanism and requires individual revocation/immutable
+actor proof or time-boxed owner risk acceptance. The historical keep-Samples-Old decision (now advanced through
+Phase-1 staff-route retirement, with Phase 2 still owner-gated); Slack (not ro.am) notifications for now;
 analytics stays on Sheets; back-office n8n stays; everything must be traceable with timestamps
 for future debugging.

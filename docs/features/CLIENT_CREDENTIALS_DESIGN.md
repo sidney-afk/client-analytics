@@ -1,5 +1,12 @@
 # Client Credentials Design
 
+> **P1 SECURITY BLOCKER (F84).** Current list responses bulk-deliver plaintext passwords before the
+> UI mask; direct API/DevTools extraction creates no reveal event; shared/legacy keys are not bound
+> to an active member; and the first password edit would store old/new plaintext in readable event
+> history. Treat this as historical design context, not approval to operate the vault. Replace it
+> with individual sessions, metadata-only list, one-secret synchronous audited reveal, and no old
+> plaintext history before go-live.
+
 SyncView now has a single source of truth for client social account logins. The feature lives in the `client-analytics` repo only; the public marketing site does not collect or display these credentials.
 
 ## Data model
@@ -22,7 +29,11 @@ The live uniqueness rule is `client_slug + lower(platform) + lower(label)` for r
 
 ### `client_credential_events`
 
-Append-style audit log for creates, updates, deletes, reassignments, bulk/onboarding imports, and password reveals. Events include actor name, role, timestamp, field-level old/new values, IP address, best-effort country, and non-secret payload metadata. Password changes intentionally retain old/new values for recovery.
+Append-style audit log for creates, updates, deletes, reassignments, bulk/onboarding imports, and
+password reveals. Events include actor name, role, timestamp, field-level old/new values, IP address,
+best-effort country, and non-secret payload metadata. **F84 correction:** retaining old/new password
+plaintext is not an approved recovery design and must be removed or replaced by an owner-approved
+encrypted, access-controlled, time-limited break-glass mechanism.
 
 ### `client_credentials_rev`
 
@@ -51,9 +62,10 @@ Client share links are guarded in two layers:
 1. The calendar kebab item is not rendered when `_isClientLink` is true.
 2. Even if someone calls front-end functions manually, the server-side credentials tables are unreachable without an allowed staff key.
 
-Current limitation: role keys are shared by role, while the person is resolved from the active
-staff roster at sign-in. The audit trail records name, role, IP, country, and reveal events, but
-this is not a substitute for future per-user accounts.
+Current blocker: role/legacy keys are shared and the gateway does not resolve/bind the active staff
+member at request time; actor name is body metadata. The audit trail therefore cannot prove who read
+or changed a secret. F84 requires individually revocable sessions and server-derived actor before
+this can be called an authorization/audit boundary.
 
 ## Edge Function actions
 
@@ -68,14 +80,16 @@ Body always includes `action` and optionally `actor: { name, role }`.
 
 Actions:
 
-- `list`: returns credentials, optionally filtered by `client_slug`.
+- `list`: currently returns full credentials including passwords, optionally filtered by
+  `client_slug`; F84 requires metadata-only output.
 - `upsert`: creates/updates one credential and writes field-level audit events.
 - `delete`: archives a credential and writes a delete snapshot.
 - `reassign`: moves an unmatched/needs-review credential to a known client.
 - `history`: returns audit events for `credential_id` or `client_slug`.
 - `bulk_import`: dry-run preview or confirmed import for `Client | platform | handle | password | notes` lines.
 - `onboarding_import`: parses free-text onboarding account access answers and stores them as `needs_review`.
-- `log_reveal`: records that a password was revealed/copied.
+- `log_reveal`: caller-invoked audit after the password was already downloaded/revealed; F84 requires
+  a single server reveal operation whose audit succeeds before the one secret is returned.
 
 The function avoids putting passwords in logs or error responses.
 
@@ -88,7 +102,9 @@ Kasper gets a `Client Credentials` subtab. It shows:
 - search across clients/platforms/handles/notes
 - unmatched/needs-review bucket
 - client cards grouped by client, **collapsed by default** (the header keeps the client name, credential count and any "needs review" chip visible; click to expand). Expanded state survives background realtime repaints.
-- masked passwords with reveal/copy buttons. **Reveal is instant** — the value is already in hand, so the mask flips synchronously and the `log_reveal` audit event is written in the background (fire-and-forget). Reveal is device-local: revealing on one screen never reveals on another. The password box reserves a stable width so the reveal/copy icons do not shift between masked and revealed.
+- masked passwords with reveal/copy buttons. Current “instant reveal” is visual masking only: every
+  password is already in JS memory and the audit is fire-and-forget. F84 blocks this pattern; future
+  reveal must fetch one secret just-in-time after synchronous durable audit.
 - add/edit/delete actions
 - credential history modal (the full audited change log; there is no longer an inline "Updated by" line under each row)
 
@@ -166,4 +182,6 @@ Do not use a whole-commit revert that can race Pages against older function code
 5. Update n8n onboarding workflows to call `onboarding_import` after submission insert, with `onError: continue`.
 6. Only after the backend workflow and smoke matrix are green, publish the frontend. Do not mint,
    rotate, or redistribute a separate surface passphrase for this transition.
-7. Use the Kasper bulk-import modal to load existing client credentials.
+7. There is no current Kasper bulk-import button. Any necessary historical/programmatic import uses
+   the protected `bulk_import` action through a reviewed operator tool with TEST proof, a bounded
+   input, immutable actor audit and readback; do not instruct staff to look for a nonexistent modal.

@@ -1,5 +1,11 @@
 # SMM Weekly Reports
 
+> **P0 SECURITY INCIDENT — DO NOT USE AS CURRENT DEPLOYMENT GUIDANCE (F76).** The deployed function
+> and underlying tables currently allow anonymous reads of real report/roster data; source also
+> allows anonymous report submission and roster synchronization/deactivation. “By request” does not
+> make that acceptable. Gate by individual SMM/Kasper/admin/service identity and revoke anon table
+> SELECT before use; the owner must choose immediate disablement or a time-boxed incident containment.
+
 Hidden weekly-report flow for social media managers and Kasper.
 
 ## URLs
@@ -8,7 +14,8 @@ Hidden weekly-report flow for social media managers and Kasper.
 - Kasper viewer: `https://syncview.synchrosocial.com/#smm-weekly-reports`
 - Kasper viewer with a week preselected: `https://syncview.synchrosocial.com/#smm-weekly-reports?week=2026-07-06`
 
-These routes intentionally bypass the staff password gate. There is no login, by request.
+These routes currently bypass the staff password gate. That deployed state is the F76 incident,
+not an approved steady-state design.
 
 ## Data Model
 
@@ -24,7 +31,9 @@ Tables:
   - The unique key is `(week_start_date, smm_slug, client_slug)`.
   - `week_end_date` is generated from `week_start_date + 6`.
 
-Writes are done by the Edge Function using the Supabase service role key. The browser can read through the public function and the open RLS read policies.
+Writes are done by the Edge Function using the Supabase service role key. Current public function
+and open RLS reads are unsafe; direct PostgREST can bypass the serializer. Revoke anon SELECT and
+require action-specific server authorization before the feature is used.
 
 ## Edge Function
 

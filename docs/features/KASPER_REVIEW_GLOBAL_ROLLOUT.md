@@ -1,93 +1,39 @@
-# Kasper review state → global (cross-device) — rollout
+# Kasper review state — global cross-device contract
 
-**Goal:** Kasper's **"Finish reviewing"** (hand-off) and **X-close** must be
-**global**, not per-browser. When Kasper finishes a card on his device it should
-move to **"Tweaks pending"** for the SMM and **stay there on every device and
-across refreshes** — and re-surface only on a genuine fresh ask. Until now both
-lived in his browser's `localStorage`, so his Finish never reached anyone else,
-and a refresh on another device (or after a cache clear) lost the state.
+> **Current status (verified 2026-07-14): DEPLOYED.** This is a deployed-state record, not an
+> executable rollout guide. Do not re-run the former SQL or edit a live n8n allowlist from this
+> file. Canonical evidence is the committed schema, `calendar-upsert`, `index.html`, and
+> `test/kasper-review-state-global.js`.
 
-## How it works
+## Product contract
 
-Two **persisted timestamp columns** on the card carry the state, exactly like the
-existing `kasper_approved_at`:
+Kasper's **Finish reviewing** handoff and **X-close** state are global, not browser-local:
 
-- **`kasper_finished_at`** — set when Kasper hits **Finish reviewing** on a card
-  with outstanding change-requests (a hand-off). The card sits in **"Tweaks
-  pending"** and **stays there** — a later message (an SMM reply OR a client
-  tweak) updates it **in place** but does **not** move it. It returns to
-  **"Waiting"** for exactly one reason: a component is re-sent to **Kasper
-  Approval** (an *actionable* one — an unlinked-thumbnail graphic stuck at KA does
-  **not** count, it can't be acted on). *(Product rule, 2026-06-29: an earlier
-  build also re-surfaced on any newer message, which kept bouncing finished cards
-  back into Waiting whenever a client added a tweak — e.g. Alli Schaper "Video 12".
-  That message branch was removed from `_kasperIsFinished` / `_sxrKasperIsFinished`.)*
-- **`kasper_closed_at`** — set when Kasper **X-closes** a card (no decision, just
-  hide it). It re-surfaces when a new message lands after the stamp.
+- `kasper_finished_at` records an explicit handoff when unresolved change requests remain. The
+  card stays in **Tweaks pending** across refreshes and devices. A later message updates the thread
+  in place and does **not** return the card to Waiting. Only an actionable component explicitly
+  routed back to `Kasper Approval` creates a fresh ask.
+- `kasper_closed_at` records an X-close. A genuinely newer message can reopen that hidden card.
+- Browser-local dismissed/closed maps are same-device continuity only; persisted timestamps are
+  the cross-device source of truth.
 
-Both ride the upsert echo + Supabase realtime to every open browser, so a
-refresh on **any** device shows the same state.
+## Current implementation evidence
 
-- **Front end:** `_kasperIsFinished` / `_kasperIsClosed` in `index.html` read the
-  stamps off the card (the cross-device source of truth). The old per-browser
-  flags (`_kasperState.dismissed` / `.closed`) are kept **only as a same-device
-  fallback** so behaviour is unchanged until the backend is switched on. The
-  write paths (`_kasperDismiss`, `_kasperClose`) stamp the column **and** persist
-  the card via the normal upsert.
-- **Regression test:** `test/kasper-review-state-global.js`.
+- Both fields exist in the committed `calendar_posts` schema baseline.
+- `calendar-upsert` accepts both fields and protects their update semantics.
+- Calendar and Samples/Kasper writers persist them; the normal echo and realtime paths return them.
+- `_kasperIsFinished` implements the explicit-reroute-only rule. `_kasperIsClosed` compares the
+  close stamp with the newest message creation time.
+- `test/kasper-review-state-global.js` covers global state, local fallback, explicit reroute, reply
+  behavior, and close behavior.
 
-## Rollout steps (in order)
+The historic migration and one-time catch-up instructions are complete and intentionally removed
+from the operative tree. Git history preserves them if incident forensics needs the old sequence.
 
-The front-end change is already shipped and is **safe on its own** — until the
-backend below is in place, `kasper_finished_at` / `kasper_closed_at` are simply
-dropped by the upsert and Kasper's review still works **per-device** via its
-localStorage fallback (today's behaviour). To turn on the **cross-device**
-behavior:
+## Verification
 
-1. **Supabase — add the columns.** Run `migrations/kasper-review-state-migration.sql` in the
-   Supabase SQL editor (project `uzltbbrjidmjwwfakwve`). Idempotent.
-
-   ```sql
-   alter table public.calendar_posts add column if not exists kasper_finished_at text;
-   alter table public.calendar_posts add column if not exists kasper_closed_at  text;
-   ```
-
-2. **n8n — allow the fields through the upsert.** In the `calendar-upsert-post`
-   workflow, open the **`Build Row From Patch`** Code node and add the two names
-   to the `ALLOWED` array:
-
-   ```js
-   const ALLOWED = [
-     'order_index','scheduled_date','name','asset_url','thumbnail_url',
-     // …existing entries…
-     'kasper_seen','kasper_approved_after_tweaks',
-     'kasper_finished_at','kasper_closed_at'        // ← add
-   ];
-   ```
-
-   Nothing else changes: the Google Sheet write (`autoMapInputData`,
-   `insertInNewColumn`) auto-adds the columns, the Supabase mirror
-   (`autoMapInputData`) writes them, the fetch returns all columns, and
-   `Wrap Response` echoes them back.
-
-**Do step 1 before step 2.** If the fields are allowed through before the
-Supabase columns exist, the mirror upsert sends an unknown column and errors.
-
-### One-time note about cards finished *before* this rollout
-
-Cards Kasper finished while the old (per-browser) code was live had their local
-"finished" flag **erased by the earlier bug**, and there is no server stamp for
-them yet — so they will show in **"Waiting"** until he finishes them once more.
-After steps 1–2 are live, Kasper should hard-refresh and click **Finish
-reviewing** on each lingering hand-off **one more time**; from then on it sticks
-and is global. (This is a one-time catch-up, not an ongoing issue.)
-
-## Verify
-
-Two browsers — ideally two **different devices/profiles** — one as Kasper, one as
-the SMM (or a second Kasper session with empty localStorage). On the Kasper
-session, request a change on a card and hit **Finish reviewing**. Within ~1s it
-should move to **"Tweaks pending"** on **both** sessions and **stay there after a
-refresh on the second device** (which never saw Kasper's localStorage). A new
-reply (SMM or client) must **NOT** move it — it stays in **"Tweaks pending"**;
-only re-sending a component to **Kasper Approval** brings it back to **"Waiting"**.
+Use two isolated TEST-client sessions, ideally separate profiles/devices. Request a change, finish
+reviewing, and prove both sessions remain in **Tweaks pending** after refresh. Add an SMM/client
+reply and prove it remains pending. Explicitly route an actionable component back to
+`Kasper Approval` and prove it returns to Waiting. Separately X-close a card and prove only a newer
+message reopens it. No verification step should touch a real-client record.

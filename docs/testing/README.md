@@ -3,16 +3,20 @@
 One page that ties every test suite, gate, and Claude skill together. If you
 only remember one file about testing, remember this one.
 
-## The two safety contracts (never confuse them)
+## The three safety contracts (never confuse them)
 
 | Contract | Applies to | Rule | Canonical text |
 |---|---|---|---|
 | **Live-backend QA** | `test/`, `qa/` (probes, scenarios, master) | Mutating the backend is *expected* — but ONLY the test client `sidneylaruel`, unique ids, archive on exit, Linear always mocked, 0 app JS errors | `HEADLESS-TESTING-GUIDE.md` §5 (+ the mocked-Linear / 0-JS-errors clauses in `qa/MASTER_TESTER.md` → Safety) |
-| **Production read-only** | The `?prod=1` Production tab and its suites | ZERO writes of any kind — no write-like browser requests (only GET/HEAD/OPTIONS), no runtime flags, no backend/n8n/Linear changes; guarded controls stay guarded | `AGENTS.md` + `docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md` §10.8 |
+| **Production locked-state safety** | `prod-readonly-smoke.js` and authority-aware guard coverage | Read-only live observation is allowed, including the bounded comment-read POST; ZERO live mutations, runtime-flag changes, n8n writes, or Linear writes; guarded controls stay guarded | `AGENTS.md` + `docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md` §10.8 |
+| **Production native-write capability** | `test/production-write-ui-source.js` and `prod-write-gateway-browser.js` | Status/comment/due/assignee are real authority-gated capabilities. Browser coverage uses a fully intercepted local mock only; it proves role/team/authority/TEST/CAS/stale-tab behavior without reaching a live backend | `docs/truth/APP.md` + `ROLLBACK.md` write-UI rows |
 
-They share the `sidneylaruel` name but answer different questions ("which rows
-may I mutate?" vs "may anything be written at all?"). A rule merged across them
-is wrong in one direction or the other.
+The TEST client, locked mirror state, and mocked writable state answer different questions:
+"which live fixture may a probe mutate?", "does a locked tab stay network-read-only?", and "does
+the shipped capability open and fail closed correctly?" A rule merged across them is wrong in one
+direction or the other. `npm run test:prod-polish` intentionally combines the latter two contracts.
+Locked lanes may read live production data; only the writable-capability lane is fully mocked, and
+no design-kit suite may send a live mutation.
 
 ## "Parity" means two unrelated things here
 
@@ -29,8 +33,9 @@ is wrong in one direction or the other.
 | `npm test` | Every `test/*.js` — offline pure-logic suites, auto-discovered (includes `test/port-fidelity-check.js` and `test/repo-map-sync.js`) | Every push (CI) and before every commit |
 | `npm run test:e2e` | Live probes in `qa/probes/nightly-manifest.txt` | Nightly CI; on demand |
 | `npm run test:master` | `qa/master.js` fast profile (smoke subset + visual capture); `npm run test:master:full` runs every lane — see `qa/MASTER_TESTER.md` | Big changes; nightly subset |
-| `npm run test:prod-polish` | The complete Production polish gate (boot, structure, zero-write smoke, interactions, a11y, layout, behavior, pixels); CI splits it into a fast required PR lane and parallel full `main`/nightly lanes — see `PRODUCTION_POLISH_AUTOMATION.md` | Any Production-tab change |
+| `npm run test:prod-polish` | Aggregate Production gate: boot, structure, locked live-read/zero-mutation smoke, comment reads, fully mocked write gateway, interactions, a11y, layout, behavior, pixels. **F105: aggregate currently red because interaction/heavy still assert the superseded picker-open guard model; the fast PR subset alone is not a go-live pass.** | Any Production-tab change; must be green before go-live |
 | `node docs/syncview-design/tests/prod-readonly-smoke.js` | Production read-only invariant (zero non-GET) | Production parity work; samples nightly |
+| `node docs/syncview-design/tests/prod-write-gateway-browser.js` | Fully mocked authority-gated status/comment/due/assignee capability; no live backend | Production write-gateway or authority work |
 
 ## The four Claude skills (a 2×2)
 

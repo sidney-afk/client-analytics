@@ -87,7 +87,7 @@ The artifact is a standalone document. The wired Production tab is embedded insi
 - Document keyboard listener: Production installs one document-level key listener scoped by `?prod=1` and `#prodRoot`. It handles Escape, command palette open, row focus, Enter-open, and guarded picker shortcuts without touching other SyncView tabs.
 - Overlay z-index map: `prodLayer` uses `9999`, `prodToast` uses `10000`, and `prodTip` uses `10001`, matching the artifact's body-mounted overlay ordering while staying above the embedded tab.
 - History API: Production owns only `?prod=1` URLs plus `team`, `view`, `issues`, `client`, `d`, and `batch` query params. It uses `history.pushState`/`replaceState` without touching runtime flags or any backend state.
-- Read-only guard: every mutation affordance routes to `_prodReadonlyGuard()`, which shows `Preview - read-only` and does not mutate local state or send a request.
+- Native-write boundary: supported status, comment, due-date, and assignee affordances first pass `_prodCanWrite()` and then use the authenticated `_prodGatewayWrite()` path. Linear-authoritative, missing/malformed authority, unsigned/incompatible-role, inactive/unsupported, and every unimplemented mutation state routes to `_prodReadonlyGuard()` without changing adapter state or sending a write. The bounded active-TEST override is derived from the target row; callers cannot request legacy parity.
 
 ## Port Deltas
 

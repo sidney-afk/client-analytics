@@ -1,0 +1,46 @@
+name: Thumbnail revision scan
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thumbnail-revision-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    if: vars.THUMBNAIL_REVISION_SCAN_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify scheduler secret
+        shell: bash
+        env:
+          THUMBNAIL_REVISION_SCAN_KEY: ${{ secrets.THUMBNAIL_REVISION_SCAN_KEY }}
+        run: |
+          if [ -z "$THUMBNAIL_REVISION_SCAN_KEY" ]; then
+            echo "THUMBNAIL_REVISION_SCAN_KEY is not configured" >&2
+            exit 1
+          fi
+
+      - name: Scan thumbnail revisions
+        env:
+          THUMBNAIL_REVISION_SCAN_URL: https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/thumbnail-revision-scan
+          THUMBNAIL_REVISION_SCAN_KEY: ${{ secrets.THUMBNAIL_REVISION_SCAN_KEY }}
+          THUMBNAIL_REVISION_SCAN_LIMIT: '25'
+          THUMBNAIL_REVISION_SCAN_BATCHES: '12'
+          THUMBNAIL_REVISION_SCAN_TIMEOUT_MS: '480000'
+        run: node scripts/thumbnail-revision-scan.js

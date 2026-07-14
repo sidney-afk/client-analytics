@@ -3,6 +3,12 @@
 **Status:** Implemented; historical design notes retained · **Date:** 2026-06-03, updated 2026-07-11
 **Owner area:** Kasper tab → new **Filming Plans** sub-tab
 
+> **P0 READ-BOUNDARY BLOCKER (F82).** The current Edge GET and independent anonymous table policy
+> both expose the complete client/Doc-link roster without caller identity. Role-gated editing does
+> not protect reads. Revoke both public paths together, replace them with a least-field
+> principal/client/role projection, review Google-Doc sharing/access evidence privately, and prove
+> anonymous and cross-client denial before operating this surface.
+>
 > **2026-07-11 implementation update:** the original design below used the SYNCVIEW Google Sheet `FilmingPlans` tab as the source. The current implementation promotes Supabase `public.filming_plans` plus the main dashboard **Filming Plans** tab as the source of truth, with the Sheet kept only as a historical/emergency fallback. Templates and Kasper's Filming Plans tab read that same shared source. Editing master Doc links accepts the verified admin role key; the old `ONBOARDING_STAFF_KEY` stays valid in parallel until the TEST/dummy proof and owner-approved retirement gate in `docs/features/CLIENT_CREDENTIALS_DESIGN.md`. SMM and creative/editor/designer role keys cannot write.
 
 ---
@@ -37,9 +43,10 @@ It pulls two things together that already exist but were never connected:
 
 - Kasper keeps doing exactly what he does today: one Google Doc per client, with a
   **new tab for each month's plan** (Docs tabs, titled e.g. `July 2026`, `June 2026`).
-- The **only** new habit: paste each client's master Doc link **once** into a Google
-  Sheet (see §6). After that, every new monthly tab he adds shows up automatically —
-  no extra data entry per month.
+- The **only** new habit: paste each client's master Doc link **once** through the main
+  dashboard **Filming Plans** editor. It persists to `public.filming_plans`; the former Google Sheet
+  is a historical/emergency fallback, not the primary edit surface. After that, every new monthly
+  tab he adds shows up automatically—no extra data entry per month.
 
 ### What we can and can't get from tabs (important)
 
@@ -144,6 +151,9 @@ Edge cases:
 
 ## 6. Data & plumbing
 
+> **Historical design below.** Published GViz and unauthenticated backend-reader guidance is not an
+> approved current read boundary. F82's authenticated, least-field contract supersedes it.
+
 ### 6a. New Google Sheet tab: `FilmingPlans`
 Read by the dashboard the same way it already reads Clients Info (published-CSV / gviz).
 
@@ -194,18 +204,24 @@ load, fetch lazily / in small batches and cache; the alert list can render progr
 - Notifications / Discord pings when a client goes red (good v2 — the data is all here).
 - Per-tab creation dates (not available from Docs; see §3).
 
-## 8. Open setup tasks (not code in this repo)
-1. Create the `FilmingPlans` tab in the existing Google Sheet + publish it to CSV.
-2. Build the `filming-plan-tabs` n8n webhook and add the Docs read scope to the
-   Google credential.
-3. Kasper pastes each client's master Doc link into the new tab (one-time).
+## 8. Current operational dependencies
 
-## 9. Build order once approved
-1. Sheet tab + n8n webhook (setup tasks above).
-2. `FILMING_PLANS_URL` read + tab-fetch wiring.
-3. Runway computation from calendars (lazy + cached).
-4. Alert list → expanded month strip → month grid.
-5. Polish: colours, info panel, empty/error states.
+The Supabase table, dashboard editor, Kasper reader, Templates consumer and Docs-tab lookup are
+already implemented. Do not recreate the original Sheet-first build sequence. Current readiness is:
+
+1. Close F82's public Edge/table read exposure and prove least-field role/client access.
+2. Preserve the former Sheet path only as an explicitly monitored emergency fallback until the
+   owner retires it with usage evidence and restore proof.
+3. Add/update each master Doc link through the authenticated dashboard editor and verify the
+   Supabase readback plus Docs-tab projection.
+4. Keep Google credential/scope values in managed runtime configuration; never copy them into this
+   repository or operator output.
+
+## 9. Historical build record
+
+The original order was Sheet tab → n8n Docs lookup → runway computation → Kasper UI. It is retained
+only to explain the architecture and is not a current rollout recipe. Current changes must follow
+the reviewed release/fingerprint/readback gates and the F82 access-boundary acceptance matrix.
 
 ---
 

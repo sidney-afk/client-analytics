@@ -10,7 +10,7 @@ commit as any structural change.
 
 | Path | What it is |
 |---|---|
-| `index.html` | **The entire application** — a single-file SPA, served to production by GitHub Pages from `main`. Merging to `main` ships immediately. Deliberate nav mapping: visible **Linear** = `navProd` / key `production` / `#production` (`?prod=1` alias, read-only mirror); visible **Submit** = `navLinear` / key `linear` / `#linear` (submission form). |
+| `index.html` | **The entire application** — a single-file SPA, served to production by GitHub Pages from `main`. Merging to `main` ships immediately. Deliberate nav mapping: visible **Linear** = `navProd` / key `production` / `#production` (`?prod=1` alias, authority-gated native mirror); visible **Submit** = `navLinear` / key `linear` / `#linear` (submission form). The mirror's status/comment/due/assignee controls write only through `production-write` when role/team/authority gates pass (or for the bounded active-TEST override); current authority must be read back, not inferred from this map. |
 | `404.html`, `CNAME` | GitHub Pages plumbing (SPA fallback redirect; the `syncview.synchrosocial.com` domain). Must stay at root. |
 | `README.md` | Project overview: what SyncView does, architecture, development, deployment. |
 | `REPO_MAP.md` | This file. |
@@ -37,7 +37,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 | Path | What it is |
 |---|---|
-| `supabase/` | Standard Supabase CLI layout: `supabase/config.toml` + `supabase/functions/` (Edge Functions). B4 outbound lives in `supabase/functions/linear-outbound/`, `supabase/functions/deliverable-write/`, `supabase/functions/batch-write/`, and shared write/auth code under `supabase/functions/_shared/`; `supabase/functions/linear-inbound/` owns strict echo suppression. Deploys are path-triggered by `.github/workflows/deploy-onboarding-edge-functions.yml` — do not move. |
+| `supabase/` | Standard Supabase CLI layout: `supabase/config.toml` + `supabase/functions/` (Edge Functions). B4 outbound lives in `supabase/functions/linear-outbound/`, `supabase/functions/deliverable-write/`, `supabase/functions/batch-write/`, and shared write/auth code under `supabase/functions/_shared/`; `supabase/functions/linear-inbound/` owns strict echo suppression. Scoped deploys are path-triggered by `.github/workflows/deploy-onboarding-edge-functions.yml` and `.github/workflows/deploy-thumbnail-edge-functions.yml` — do not move. |
 | `migrations/` | Manually-applied Supabase SQL, kept for provenance (no auto-runner). `2026-07-11-b4-linear-outbound.sql` is the additive durable-outbox/switch delta. See `migrations/README.md` for the baseline-plus-deltas layout. |
 | `n8n-backups/` | Point-in-time n8n workflow snapshots — the rollback anchors required by `ROLLBACK.md` rule 2. Purely archival; read by no code. |
 
@@ -46,7 +46,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | Path | What it is |
 |---|---|
 | `docs/CLIENT_LIFECYCLE_MAP.md` | The master client lifecycle map (traffic → booking → sales → onboarding → provisioning → samples → production). **MIRRORED**: a byte-identical copy lives in the `synchrosocial` repo at the same path — change both together, and do not move it into a subfolder (the path is part of the mirror contract). |
-| `docs/features/` | **Living feature specs** — one doc per shipped feature (samples, onboarding, sales intake, thumbnails, title review, Kasper review, SMM reports, credentials, filming plans, dark mode…). |
+| `docs/features/` | **Status-bearing feature contracts** — one doc per shipped feature. Each must state whether it is current deployed truth, a blocked future design, or non-operative history; completed SQL/workflow rollout recipes must not remain executable-looking. |
 | `docs/ops/` | Runbooks: new-client onboarding, Linear reconcile safety net, monitoring/rollback coverage map (`docs/ops/MONITORING.md`), pending cleanup checklists. |
 | `docs/independence/` | The active independence program: `docs/independence/INDEPENDENCE_PLAN.md` (strategy), Track A (Edge Functions) and Track B (Linear replacement) specs, dependency audits. |
 | `docs/testing/` | How to test — start at `docs/testing/README.md` (the map: suites, gates, the two safety contracts, and the four testing skills). Then: `docs/testing/CALENDAR-TEST-CATALOG.md` (what to check), `docs/testing/HEADLESS-TESTING-GUIDE.md` (how to run live probes), `docs/testing/PRODUCTION_POLISH_AUTOMATION.md` (the prod-polish gate), and the interaction-path generator. |
@@ -62,11 +62,12 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `npm test` | `test/run-all.js` → every `test/*.js` (offline, no network) | Runs on every push (`calendar-unit-tests.yml`). Run before every commit. |
 | `npm run test:e2e` | `qa/run-probes.js` → probes in `qa/probes/nightly-manifest.txt` | **Live backend**, test client only. Nightly (`calendar-e2e-nightly.yml`). |
 | `npm run test:master` | `qa/master.js` — all lanes (unit, parity, probes, scenarios, temporal, visual) | Samples nightly runs a lane subset (`samples-e2e-nightly.yml`). |
-| `npm run test:prod-polish` | `docs/syncview-design/tests/prod-polish-gate.js` — 8 internal Production-surface suites for the visible Linear mirror | PR gate for `index.html` / design-kit changes (`production-polish-gate.yml`). |
+| `npm run test:prod-polish` | `docs/syncview-design/tests/prod-polish-gate.js` — 10 Production-surface suites: locked live-read/zero-mutation, fully mocked authority/write gateway, interaction, behavior, and visual lanes | PR fast gate plus post-merge/scheduled long lanes (`production-polish-gate.yml`); no suite may mutate a live backend. F105 records that the fast PR lane is green while interaction/heavy remain red after the write milestone. |
 | `qa/overnight_runner.sh` | Continuous unattended QA loop | Local only; see the `/overnight-test` skill. |
 | Reconcile crons | `scripts/linear-sync-reconcile.js`, `scripts/sample-linear-reconcile.js`, `scripts/linear-deliverables-reconcile.js`, `scripts/b1-linear-backfill.js` | Scheduled GitHub Actions; `scripts/` also holds tested one-shot ops tools. |
 | n8n quota watchdog | `.github/workflows/n8n-execution-quota-watchdog.yml`, `scripts/n8n-execution-quota-watchdog.js`, `test/n8n-execution-quota-watchdog.js` | Daily GitHub-hosted n8n Insights count, 80%/90% owner alerts, month-scoped dedupe, and low-threshold dry-run support. Runs outside n8n so scheduler failure there cannot disable the watcher. |
 | B4 outbound | `.github/workflows/linear-outbound-drain.yml`, `scripts/b4-linear-outbound-harness.js`, `scripts/b4-outbound-shadow-audit.js`, `scripts/b4-pager-outbound.js`, and matching `test/*.js` | Durable drainer cadence, fail-closed TEST-only live proof, read-only full-roster shadow analysis, and idempotent n8n pager wiring. Global mode defaults to `off`. |
+| Thumbnail revision watcher | `.github/workflows/thumbnail-revision-scan.yml`, `scripts/thumbnail-revision-scan.js`, `test/thumbnail-revision-scheduler.js`, `test/thumbnail-revision-history.js` | Ten-minute, dedicated-signature caller with bounded aggregate-only scanning; the repository variable is the independent scheduler kill. |
 
 ## Meta
 

@@ -1,5 +1,43 @@
 # Centralized Onboarding Form (SyncView)
 
+> **Current status (verified 2026-07-14): capture and the Kasper inbox are deployed, but the
+> feature is not go-live ready.** F77/F85 block the read boundary, F81 blocks public-capture abuse,
+> F110/F111 block durable completion and operator acknowledgement, F118 blocks unproved public
+> example-media rights, and F128/F129 block privileged provisioning plus credential egress. The
+> current operator surface is Kasper → Onboarding, backed by Supabase
+> Edge readers—not Templates and not the historical n8n list routes.
+
+> **P0 READ-BOUNDARY BLOCKER (F77).** The three currently deployed onboarding-list Edge Functions
+> accept anonymous requests and return the contact/questionnaire corpus with service-role access.
+> Removing account-password fields does not make those responses public-safe. Disable or contain
+> those readers, add active role-scoped least-field reads and opaque discovery, constrain CORS, and
+> prove anonymous/cross-role denial before treating the dashboard inbox as operable.
+>
+> **ABUSE/INTEGRITY BLOCKER (F81).** The public intake must accept anonymous clients, but the
+> deployed capture fallback currently accepts unbounded caller-chosen IDs/payloads and can emit
+> caller text to alerts. It lacks nonce/session ownership, rate/CAPTCHA, strict size/schema/kind
+> controls, conditional updates, and immutable creation time. Add those controls and TEST
+> spam/replay/oversize/foreign-ID/alert failure before relying on the never-lose chain.
+>
+> **COMPLETION/HANDOFF BLOCKER (F110/F111).** The live standard/AI submit graphs acknowledge an
+> intake-row insert—not completed onboarding. Credential import is fail-soft, provisioning starts
+> after the response without waiting, and a duplicate row resumes neither branch. The browser then
+> clears its draft/id and shows Thank You. Treat 2xx as **captured only** until one durable resumable
+> job proves every step complete. Staff use the SyncView onboarding inbox/job as the current entry;
+> the old Notion intake is replaced and is not an operational fallback.
+>
+> **P0 PROVISIONING/AUTHORIZATION BLOCKER (F128).** The public primary webhooks can dispatch real
+> Drive, CRM, Slack and vault side effects from caller-supplied identity/email without an invitation,
+> verified-sale correlation or authenticated staff approval. Anonymous capture must be separated
+> from one server-owned authorized job. There is no provider sandbox or complete inverse today, so
+> a fictional fake-client submit is not a safe TEST drill.
+>
+> **P0 CREDENTIAL-EGRESS BLOCKER (F129).** “Stored securely” is not true end to end: the active
+> provisioning full-brief builder includes account-access and backup/recovery-code answers in a
+> workspace-public Slack channel, with the same brief used for fallback DM. Stop secret-class fields
+> before all messaging/logging, emit only vault receipt metadata, and complete private history/
+> rotation review. No message or value was read during the audit.
+
 A standalone, private-link onboarding page built into `index.html`. It replaces the
 two old intake systems (the **Notion** "Onboarding Form" for normal clients and the
 **JotForm** form for AI clients) — **two funnels rendered from one shared module**:
@@ -200,9 +238,18 @@ AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional
 
 ### Example media
 
+> **PUBLICATION-RIGHTS BLOCKER (F118).** These assets are served by the public site. The prior
+> implementation record described multiple files as derivatives of client-provided frames,
+> folders, or Drive originals and recorded no rights/provenance decision for the audio set. That is
+> not proof of permission for permanent public product use. Privacy/legal must classify each file's
+> source, people/voice/brand rights, licence, audience, retention and deletion duty; replace any
+> uncertain file with fictional, commissioned, or explicitly licensed material; and coordinate any
+> removal with F64's history/cache assessment. Do not add another media file without a public-safe
+> provenance entry.
+
 The two AI "look" options (`OB_LOOK_TALKING` / `OB_LOOK_PODCAST`) are shown as **selectable
-preview images** up front — `onboarding-ai/talking-head.jpg` + `podcast.jpg` (resized from the
-client's reference frames) — tick one or both, same preview + select feel as the subtitle styles
+preview images** up front — `onboarding-ai/talking-head.jpg` + `podcast.jpg` — tick one or both,
+same preview + select feel as the subtitle styles
 (`.ob-look-row`; no more ⓘ-to-reveal). Music previews are byte-sliced MP3 clips under
 `onboarding-audio/`.
 
@@ -213,25 +260,18 @@ The **thumbnail** picker is the separate live `_obThumbPicker` described above (
 Highlight, `_obThumbSync` swaps the preview). The full-screen zoom (`_obZoom`) auto-detects video vs
 image by extension.
 
-- **Sample-video example** — `onboarding-video/sample-example.mp4`. The real ~30s talking-to-camera
-  clip shown in **step 4** so clients see what a good "sample clip of you" looks like. Re-encoded from
-  the client's 4K portrait source (2160×3840, 43 s, ~57 MB) down to a web-friendly **720×1280 H.264**
-  **with audio** (it's a talking example, so sound is kept), `+faststart`, ~6.7 MB, via:
-  `ffmpeg -i src.mp4 -vf scale=720:-2 -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27 -preset slow
-  -c:a aac -b:a 96k -movflags +faststart sample-example.mp4`.
+- **Sample-video example** — `onboarding-video/sample-example.mp4`, a ~30 s talking-to-camera
+  example shown in **step 4**. Its presence in the tree is not a rights record; F118 must classify
+  or replace it before it remains a public product example.
 - **Subtitle clips** — `onboarding-video/sub-{elegant,native,bold}.mp4` + a `-hl.mp4` for each
   (six files; every style now has a highlighted-keyword variant). Purpose-made 9:16 sample reels
-  (one talent, same VO) demoing each subtitle style, 480×854 H.264 (`yuv420p`, `+faststart`, no
-  audio), ~16 s, ~1 MB each. Re-encoded from the client's source folder with:
-  `ffmpeg -i src.mp4 -vf scale=480:-2 -an -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27
-  -preset slow -movflags +faststart out.mp4`. (Replaced the old Elegant/Native/Banner set; `sub-banner.mp4` removed.)
+  demoing each subtitle style. F118 owns source/talent/voice and public-use classification.
 - **Thumbnail styles** — 24 hosted renders under `thumbnail-styles/<font>-<style>[-hl].jpg`
   (font ∈ bold/native/elegant, style ∈ plain/shadow/stroke/banner, `-hl` = highlighted line).
-  Same base cover ("The red flag nobody tells you to look for") rendered every way; resized to
-  800px-wide JPEG (~85 KB each, ~2 MB total) from the client's Drive originals. To swap the base or
-  add a font/style, drop in matching files and extend `OB_THUMB_FONTS` / `OB_THUMB_TSTYLES`.
+  One base cover is rendered in every combination. To change the set, first record the approved
+  source/provenance, then add matching files and extend `OB_THUMB_FONTS` / `OB_THUMB_TSTYLES`.
 - The two AI "look" frames are local selectable previews — `onboarding-ai/talking-head.jpg` +
-  `podcast.jpg` (`OB_LOOK_TALKING` / `OB_LOOK_PODCAST`), 800px-wide JPEGs from the client's frames.
+  `podcast.jpg` (`OB_LOOK_TALKING` / `OB_LOOK_PODCAST`). F118 must classify or replace them.
 
 ## Data flow
 
@@ -256,9 +296,12 @@ The front-end picks the URL by variant: `_obSubmit` POSTs to `ONBOARDING_SUBMIT_
 (`syncview-onboarding` | `syncview-ai-onboarding`), `funnel` (`standard` | `ai`), and
 `ai_avatar` (`no` | `yes`) accordingly.
 
-The browser **never** writes Supabase directly. Both tables deliberately have **no anon
-read/write** (they hold passwords + personal data) — see `migrations/onboarding-supabase-migration.sql`
-and `migrations/ai-onboarding-supabase-migration.sql`. Only the service-role n8n webhooks touch them.
+The browser **never** writes those tables directly. The tables are intended to have no anonymous
+table access because they hold private contact/questionnaire data — see
+`migrations/onboarding-supabase-migration.sql` and
+`migrations/ai-onboarding-supabase-migration.sql`. **That table policy is not the current read
+boundary:** three composed Edge readers use service-role access and currently accept anonymous
+requests (F77). They must be contained and replaced with authenticated, minimized projections.
 
 ### Webhook contract — `POST /webhook/{onboarding-submit | ai-onboarding-submit}`
 
@@ -279,17 +322,17 @@ Both webhooks take the identical body shape:
 }
 ```
 
-Expected response: `200` with any JSON (the form only checks `res.ok`). On a non-200 the
-form keeps the draft and shows a retry message, so a flaky webhook never loses answers.
+Current response: `200` with JSON; the browser checks only `res.ok`. On a non-200 it retains the
+draft and offers retry/fallback. On any 2xx—including capture-only fallback acceptance—it clears
+the draft and stable submission id and renders Thank You.
 
-Each webhook: (1) inserts the row into its table (PK `id`, via the service-role Supabase
-credential `XdBpJ6Xk8PMpZXXT`) — **the insert gates the 200**, so a missing table 500s and
-the browser keeps the draft rather than silently losing it — and (2) DMs Sidney on Slack
-(`U0ACW93FS30`, as **SyncView Bot**) with a readable summary. The Slack step is fail-soft
-(`onError: continueRegularOutput`): if the DM fails the submission is still saved and the
-form still gets its 200. The AI table also carries a `funnel` column (always `ai`).
-(A second auto-message after the onboarding *call* — from the Fathom transcript — is a
-later step, not part of this form.)
+The active graphs make that acknowledgement narrower than the UI implies. Each primary workflow
+inserts the intake row, passes through a fail-soft staff notification, responds, and only then
+dispatches provisioning without waiting. Credential import is a separate fail-soft branch from the
+insert, outside the response dependency. A same-id insert conflict goes straight to duplicate 200
+and reaches neither credential import nor provisioning. Therefore 2xx proves **captured**, not
+provisioned; retry safety currently applies to the intake row only (F110). A second auto-message
+after the onboarding *call* is a separate later workflow.
 
 ## Status
 
@@ -300,9 +343,8 @@ later step, not part of this form.)
   - **AI** (`?onboarding=ai`): 7 sections, **no** Sample video, **AI avatar** shown gate-less &
     renumbered to step 7, positional recolour, no JS errors, same branding.
 - ✅ `migrations/onboarding-supabase-migration.sql` — standard table `client_onboarding`.
-- ✅ `migrations/ai-onboarding-supabase-migration.sql` — AI table `ai_client_onboarding` (mirrors the
-  standard table + a `funnel` column). **Run it once** in the Supabase SQL editor
-  (project `uzltbbrjidmjwwfakwve`).
+- ✅ `migrations/ai-onboarding-supabase-migration.sql` — historical idempotent definition for the
+  deployed AI table; do not use this status doc as permission to change live schema.
 - ✅ n8n `onboarding-submit` webhook — workflow `ljNY7CKYLKzMOACZ`, `POST /webhook/onboarding-submit`
   → `client_onboarding`. (Active.)
 - ✅ n8n `ai-onboarding-submit` webhook — **created + activated** (workflow id `hxLFIdKG9hUIzukO`,
@@ -311,37 +353,28 @@ later step, not part of this form.)
   `ai_client_onboarding`, gate) → Notify Sidney (Slack DM, SyncView Bot) → Respond {ok}`.
   Cloned from the standard Submit workflow via the n8n SDK; Supabase + Slack ("SyncView Bot")
   credentials attached.
-- ✅ n8n `ai-onboarding-list` webhook — **created + activated** (workflow id `oDZ1Oljvaig5KSLD`,
+- **Historical deployment record only (not current reader guidance):** n8n `ai-onboarding-list`
+  webhook — created and activated (workflow id `oDZ1Oljvaig5KSLD`,
   `GET /webhook/ai-onboarding-list`): reads `ai_client_onboarding`, strips credentials, returns
   `{ok,count,submissions}`. Feeds the dashboard's **AI avatar onboarding** section.
-- ✅ Dashboard inbox — Templates→Onboarding now shows **two sections** (Standard + AI), fetching
-  both list webhooks in parallel with per-funnel fault tolerance. Verified in a headless browser
-  (both-load and AI-list-fails cases).
+- ✅ Dashboard inbox — the current **Kasper → Onboarding** surface uses one authenticated
+  `onboarding-full` Edge request for Standard + AI + Legacy. The separate three-reader viewer is a
+  different, currently unsafe public path under F77. The Kasper inbox still lacks fallback rows,
+  status/actions/paging/freshness under F110/F111.
 - ✅ Inbox detail — renders the **client's chosen thumbnail image** (`_obvThumb`) and surfaces
   **every editor/designer field** incl. the video/thumbnail/music references + described looks,
   subtitle-highlight, creators-to-model notes, the questions box, and (AI) the extra voice samples.
   Verified end-to-end against the live backend with real test submissions.
-- ✅ **Live end-to-end** — AI migration run; real submissions to both funnels were captured in
-  Supabase, read back through both list webhooks (credentials stripped), and rendered in the
-  dashboard. The whole pipeline is operational.
+- ✅ **Capture/read path live** — submissions have been captured and rendered through the dashboard.
+  This is not completion evidence for credential import or provisioning: those steps currently lack
+  the durable joined receipt required by F110.
 
-### Finish steps for the AI funnel — ✅ DONE
+### Deployment record — no operator actions
 
-1. ✅ **AI SQL run.** `migrations/ai-onboarding-supabase-migration.sql` has been run in Supabase
-   (project `uzltbbrjidmjwwfakwve`); `ai_client_onboarding` exists and is taking writes.
-   *(Kept in the repo for the record / re-create / rollback.)*
-2. *(Optional)* **Confirm the Slack sender.** Workflow `hxLFIdKG9hUIzukO` → **Notify Sidney** is
-   wired to **"SyncView Bot"** (`qUlAcjdhd6EpKOTL`). If the standard notifier uses a different
-   Slack credential and you want them identical, switch it there. The DM is fail-soft, so this
-   never blocks a submission.
-
-The whole pipeline is live. (Safety net unchanged: the Supabase insert gates the 200, so if a
-table were ever missing the webhook 500s and the browser keeps the draft — a submission is never
-silently dropped.)
-
-> **Note on the standard funnel's earlier finish steps:** if `client_onboarding` and workflow
-> `ljNY7CKYLKzMOACZ` were already set up in the prior round, nothing more is needed there. If not,
-> run `migrations/onboarding-supabase-migration.sql` and activate `ljNY7CKYLKzMOACZ` as before.
+The standard/AI capture schema and workflows are deployed. Their migration files remain historical,
+idempotent definitions—not paste-ready rollout instructions. Any live schema/workflow change follows
+the normal reviewed release and B4 fingerprint/readback process. A saved intake row remains protected
+against loss, but the product must say **captured** until F110 proves provisioning complete.
 
 ### Second auto-message (later)
 The June 25 call also wanted a *second* Slack post after the onboarding **call** (built from the
@@ -349,9 +382,9 @@ Fathom transcript + this form's answers). That's a separate workflow, not part o
 
 ---
 
-## Viewing submissions in the dashboard (Templates → Onboarding)
+## Viewing submissions in the dashboard (Kasper → Onboarding)
 
-A **Onboarding** sub-tab in the Templates tab lists submissions and shows each one's
+A **Onboarding** sub-tab in the Kasper page lists submissions and shows each one's
 editor/designer-relevant sections (brand & audience, style, photos/source, goals, AI avatar).
 The detail view surfaces **every field an editor/designer needs**, including the reference
 material the form collects: **video reference** links + the client's described look, **thumbnail
@@ -366,19 +399,30 @@ It is **split into two sections** — **Standard onboarding** and **AI avatar on
 each with its own count; an empty funnel shows a muted "None yet." so the two-funnel structure
 is always visible.
 
-It reads **both** list webhooks, in parallel:
+The Kasper inbox uses one `onboarding-full` Edge request and currently receives the standard, AI,
+and legacy tables. It does **not** include `onboarding_fallback`; although source rows carry status,
+the list/card UI does not expose it. There is no acknowledge, complete, retry, archive, pagination,
+polling, realtime, or durable job action. A successful refresh is therefore an unbounded snapshot,
+not an operator-completion receipt. F110/F111 require a joined job/step ledger, fallback/dead-letter
+visibility, staff acknowledgement, retry/resume controls, paging/freshness and an independent
+capture-without-acknowledgement alarm.
+
+The standalone client-profile viewer composes three Supabase Edge readers (`onboarding-list`,
+`ai-onboarding-list`, and `legacy-onboarding-list`) from the Edge base. F77 blocks operating those
+readers until they authenticate and minimize responses. The older n8n routes below are retained
+only as history and are not a recovery path:
 
 - `GET /webhook/onboarding-list` (workflow `slqt2zCDyIc7OAmY`) → `client_onboarding`.
 - `GET /webhook/ai-onboarding-list` (workflow `oDZ1Oljvaig5KSLD`) → `ai_client_onboarding`.
 
-Both fetch with the service-role credential and **strip the account-credential fields**
-(IG/TikTok/FB/LinkedIn/YouTube) before returning — so no passwords ever reach the public
-dashboard. The dashboard tags each row with its `funnel` (by which webhook it came from) and
-groups by it. Load is **fault-tolerant**: if one webhook fails, the other funnel still renders
-and a soft warning notes which list couldn't load (`Promise.allSettled`). Snapshots:
+Those historical routes fetched with the service-role credential and stripped account-credential
+fields before returning. That stripping was never a sufficient public-access boundary: contact
+and questionnaire data remained private, and the current anonymous Edge readers expose the wider
+corpus (F77). The standalone viewer tags each row with its `funnel` and uses per-reader
+`Promise.allSettled` behavior; the Kasper full inbox is instead one Edge call. Historical snapshots:
 `n8n-backups/onboarding-list.2026-06-26.created.json`,
 `n8n-backups/ai-onboarding-list.2026-06-28.created.json`.
 
-**Finish step:** both list workflows are **active** (`slqt2zCDyIc7OAmY` + `oDZ1Oljvaig5KSLD`).
-The AI section stays empty until `migrations/ai-onboarding-supabase-migration.sql` is run and an AI form is
-submitted; until the standard table/workflow exist the Standard section behaves the same way.
+On a current-reader failure, preserve the authorization boundary and investigate the Edge reader,
+session/role, deployment fingerprint, and Supabase health. Do not publish or revive a historical
+service-role list route as a shortcut.

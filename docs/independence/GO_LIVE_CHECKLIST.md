@@ -57,6 +57,14 @@ Phase 0.5 below, after the fix-pack.
       merge SHA, download-fingerprint/readback matches, and positive/negative TEST drills are green.
 - [ ] **Intake migration applied** (`production_intake_append` RPC) and pilot-verified on the
       TEST client.
+- [ ] **Intake cannot acknowledge work it has not durably accepted** (F44): every legacy/native
+      submit returns an idempotent receipt only after durable persistence, the browser awaits it
+      and preserves the draft, and missing mapping/credential/plan/roster plus partial-create,
+      timeout, retry, duplicate-click, dead-letter, alert, and replay drills pass on TEST.
+- [ ] **Project selection is complete** (F45): every paginated source reaches
+      `hasNextPage=false`, exposes a completeness/version readback, and exactly matches the
+      canonical client/team mapping in an anonymized set report; a partial read cannot populate
+      the dropdown or clear a draft.
 - [ ] **Card resolvability sweep = 0 failures**: every active Linear-linked calendar slot
       resolves to exactly one mirror row; the ~60 missing rows backfilled (F11).
 - [ ] **Client-token distribution rebuilt safely** (F03/F33): the public Clients Info sheet
@@ -79,6 +87,12 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Creative comment reads are team-scoped** (F39): the protected reader resolves the target
       server-side, returns a non-enumerating denial cross-team, and the own-team/cross-team TEST
       matrix is green for both creative roles.
+- [ ] **Existing card threads are migrated and replyable** (F42): every active linked
+      Calendar/Samples root and reply has one composite-scoped normalized identity; unresolved and
+      duplicate-ID cases are classified; an existing-root TEST reply survives projection/reload.
+- [ ] **Comments have one truth across every persona** (F43): plain comment, tweak, reply, edit,
+      resolve, reopen, delete, and Production-origin Client-visible paths use one canonical
+      lifecycle, with exact audience enforcement on real tokened TEST client links.
 - [ ] **Workload follows per-team authority** (F40): flipped teams read the reconciled native
       adapter with native links/realtime/catch-up and no Linear fallback; the parity report resolves
       stale ghosts, top-level visibility, CON/STR, parents, clients, assignees, and mixed authority.

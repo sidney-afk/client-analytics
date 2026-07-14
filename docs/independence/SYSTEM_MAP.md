@@ -223,13 +223,16 @@ n8n in the metric read path.*
 - **Entry.** The visible top-nav label is **Submit** (`navLinear`), while the intentionally unchanged
   internal nav key and hash are `linear` / `#linear`. `?intake=1` hard-locks the whole SPA to this
   form (no password, chrome hidden, `navTo` coerced to `linear`). Existing bookmarks stay valid.
-- **Reads.** n8n `linear-projects` (client dropdown, on mount when empty). `filming_plans` REST (+
+- **Reads.** n8n `linear-projects` (client dropdown, on mount when empty). **Current live caveat
+  (F45):** its unpaginated GraphQL query returns only the first 50 of 58 eligible video-team
+  projects and supplies no completeness signal. `filming_plans` REST (+
   Sheets CSV fallback + `syncview-filming-plans` realtime) to resolve a read-only plan link. Post-
   submit link poll reads `workload_issues` REST (Workload v2 default) → n8n `linear-issues` fallback.
   Calendar-upsert routing flag (read).
 - **Writes.** n8n `video-form` and `graphic-form` are the **live batch submit endpoints** (one POST
-  carries the whole batch; "Create Linears" fires both). n8n `log-linear-submission` writes a
-  replayable webhook envelope to a Sheet *before* submit (audit / manual replay). Background per-video
+  carries the whole batch; "Create Linears" fires both). The browser also calls n8n
+  `log-linear-submission` with a replay-shaped envelope before submit, but that call is itself
+  fire-and-forget; it is not a durable acceptance receipt. Background per-video
   calendar-card creation routes through the **calendar's** shared upsert fetch (EF `calendar-upsert`
   vs n8n `calendar-upsert-post` by the calendar flag) with deterministic `p_lin_<ident>` ids.
 - **State.** `syncview_linear_form` (autosaved draft, cleared on submit), `syncview_last_link`,
@@ -239,10 +242,13 @@ n8n in the metric read path.*
 - **Roles.** Staff full; intake role = password-bypassed Linear-only lock; clients never reach it
   except via intake (which stays role `smm`). Kasper active → background card writes carry kasper
   headers.
-- **Failure/fallback.** `linear-projects` fail → empty dropdown, retry only on next mount. `video-
-  form`/`graphic-form` are **fire-and-forget with `.catch(()=>{})`** — a failed Linear creation is
-  silent and the green "Issue created!" banner shows unconditionally; the only recovery is the
-  `log-linear-submission` Sheet envelope. Background card writer: durable job saved *before* the async
+- **Failure/fallback.** `linear-projects` fail → empty dropdown, retry only on next mount; a
+  successful truncated response looks complete (F45). `video-form`/`graphic-form` and the log call
+  are **fire-and-forget with `.catch(()=>{})`** — a failed Linear creation is silent and the green
+  "Issue created!" banner shows unconditionally. **F44 live proof:** the workflow Respond node can
+  return 200 before lookup/create; one non-TEST run then failed parent creation, produced no parent,
+  and had no companion log execution. Its error alert omitted the input, so neither the alert nor
+  the child-only card poller could replay it. Background card writer: durable job saved *before* the async
   work; 15 s wait then ≤20 polls × 5 s to find + link sub-issues; shortfall → "Calendar sync
   incomplete" pointing at calendar's Import-from-Linear. Resume skipped under `?prod=1`.
 - **Notable / corrections.** `linear-subissues` is a **read** used by Calendar/SXR, not a Linear-tab

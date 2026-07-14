@@ -39,12 +39,13 @@ owner gate; this applies to the OAuth-application inventory and the `/add-to-cal
 
 - [ ] **Reroute every explicit status, comment, and create intent in the writer table through the
   server-side outbox.** Do not leave a direct Linear branch beside the new button handler.
-- [x] **Make the native comment lane self-contained and visible:** persist body, stable author,
-  timestamp, comment/thread IDs, role/audience, and edit/delete state in durable events, then render
-  comment bodies in Production issue detail.
-- [x] **Run an idempotent one-time Linear comment backfill.** If all currently discoverable VID/GRA
-  issues are in scope, treat 15,000 current comments as the statistical minimum and provision about
-  20,000 comment rows; size event/outbox rows and body/attachment bytes separately.
+- [ ] **Make the native comment lane self-contained and visible on every lived surface.** Part 1
+  created the normalized Linear issue store and Production reader, but F42/F43 prove that active
+  Calendar/Samples threads were not migrated and create/lifecycle/client-read paths remain split.
+- [ ] **Reconcile both comment histories, not only Linear.** The direct Linear backfill is
+  idempotent, but enrollment also needs a composite-ID migration from Calendar/Samples with exact
+  parent, audience, component, tweak, resolve/delete, author/time, and target parity. Provision
+  about 20,000 normalized rows; size event/outbox rows and body/attachment bytes separately.
 - [ ] **Drain and then neutralize all three browser queues:** `syncview_linear_outbox_v1`,
   `syncview_sxr_linear_outbox_v1`, and `syncview_calCardJobs_v1`, including startup, focus, timer,
   page-hide, resume, and reassert paths.
@@ -54,6 +55,9 @@ owner gate; this applies to the OAuth-application inventory and the `/add-to-cal
   branches of `MJbMZ789B5ExZz9x`, both legacy apply reconcilers, and the B1 incremental apply job.
 - [ ] **Re-source intake project selection and urgent-assignee lookup** to native
   `clients` / `deliverables` / `team_members` at the epoch.
+- [ ] **Make intake durably acknowledged and complete:** no 2xx before a persisted idempotent
+  receipt; no null-project fallback; every project query fully paged; browser draft retained until
+  final success; retry/dead-letter/replay and partial-create TEST drills green (F44/F45).
 - [ ] **Activate native linkage everywhere, not only in the four Kasper predicates.** Switch link
   slots, status gates, duplicate/move checks, archive identity, focus navigation, urgent references,
   and new audit logs to `video_deliverable_id` / `graphic_deliverable_id` or a native route.
@@ -410,8 +414,11 @@ when all of the following are true at once:
   old gates or navigation;
 - native status controls, link pickers, archive/dedupe identity, Workload navigation,
   post-submit materialization, and new audit logs no longer require a Linear URL/identifier;
-- comment events are self-contained, the idempotent historical backfill is reconciled, and
-  Production issue detail renders author + body + time with edit/delete/visibility tests;
+- Linear and Calendar/Samples comment histories are composite-ID reconciled; every active existing
+  root is replyable; one canonical create/lifecycle path projects consistently to Production,
+  Calendar, Samples, and token-scoped client views with edit/delete/audience tests;
+- intake project reads prove complete, and a durable idempotent receipt—not an early webhook
+  acknowledgement—is the only state that lets the browser clear its draft;
 - the four direct mutation webhooks refuse writes for SyncView-authoritative teams;
 - `MJbMZ`, both legacy reconcilers, and B1 incremental apply cannot write authoritative fields from
   Linear for a SyncView-authoritative team;

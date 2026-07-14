@@ -50,7 +50,11 @@
 
 **Code + platforms**
 - [ ] **Frontend:** nothing — the client goes live automatically once the Clients Info row exists (sheet-driven allowlist). → [§6e](#6e-frontend-now-automatic)
-- [ ] **Supabase:** only the filming-plan link is entered through the app; the calendar & samples still auto-create. (Confirm why in [§6f](#6f-supabase-calendar--samples-nothing-to-do).)
+- [ ] **Supabase today:** only the filming-plan link is entered through the app; the calendar &
+  samples still auto-create. **Cutover blocker (B2/F44):** before native enrollment, the onboarding
+  service must also atomically create/read back the canonical client/team mapping and protected
+  review token—never by copying a token into a Sheet. (Confirm current behavior in
+  [§6f](#6f-supabase-calendar--samples-nothing-to-do).)
 - [ ] **Linear (SMM):** create a Project for the client on the **Video + Graphics** teams, set the SMM as lead, link the Slack channel. → [§6g](#6g-linear-project-smm)
 
 **Finish**
@@ -210,6 +214,12 @@ Usually done by the **Social Media Manager**. In the **`synchro-social`** worksp
 4. **Link the client's Slack channel** to the project.
 5. Drop brand info into the project description (fonts, accent colors, approved video/thumbnail samples, Drive/Frame.io links) — that's where editors look.
 
+**Do not call this complete from the project name alone.** The cutover preflight must resolve
+exactly one eligible project for each required team, the intended SMM credential, filming plan,
+and creative roster, then read back the native mapping. The current Create Post project endpoint
+silently returns only its first 50 of 58 eligible projects (F45), so dropdown presence/absence is
+not a completeness check until that reader is paginated and reconciled.
+
 ### 6h. Sandcastles (content intelligence)
 **Where:** Sandcastles → the **watchlist** (add via the web app, or the MCP tool `add_channels_to_watchlist`). One workspace, **"My Workspace"**, holds the whole watchlist.
 
@@ -226,6 +236,11 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 - Open the dashboard, switch to the new client: calendar and samples load (empty is fine).
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
+- Before any #813 enrollment, require a server-side onboarding receipt proving the exact team
+  mapping and protected review token exist. On TEST, submit one batch and verify the receipt,
+  parent/children, Calendar/Samples projection, and tokened client link after reload. A green
+  “Issue created” banner is not proof: F44 verified that the legacy workflow can return 200 and
+  clear the draft before parent creation later fails.
 - Next morning, check that **CLIENTS METRICS** / **TOP VIDEOS** produced rows (confirms handles are right). A client with no metrics row still appears via a placeholder, so absence of data ≠ broken.
 
 ### 6j. Monthly check-in email

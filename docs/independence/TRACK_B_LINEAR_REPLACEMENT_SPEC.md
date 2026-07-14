@@ -119,8 +119,10 @@ Linear parent belonging to a still-Linear-authoritative team (§4.4).
 
 **1.3 "Exact reflection" in B3 — what it actually requires.** The original status-only path was
 replaced by the B3 inbound engine, which reflects **title, due date, assignee, priority, parent,
-archived/deleted state, and comments**. Part 1 (#809) added the Comments webhook capture,
-normalized durable store, historical Linear comment backfill, and protected thread reader. Fields
+archived/deleted state, and Linear-origin comments**. Part 1 (#809) added the Comments webhook
+capture, normalized durable store, historical Linear comment backfill, and protected staff thread
+reader. **This did not migrate the active Calendar/Samples thread stores or provide client reads;
+F42/F43 keep the comment epoch open.** Fields
 the UI doesn't show remain preserved verbatim in `deliverables.linear_raw` (§2.4); comments live in
 `production_comments`, not in `linear_raw` snapshots or body-bearing ledger payloads.
 
@@ -574,9 +576,12 @@ echo channels get explicit treatment:
    state. The body is stored verbatim Markdown and image URLs remain as-is (expiring — §14 D-12).
    The ledger may carry a lifecycle/audit projection, but is not the body store. Storage and
    write-loop suppression are deliberately separate per §4.2.
-4. **Comments capture + history (completed in Part 1 #809):** the Comments resource is subscribed,
-   live lifecycle events normalize into `production_comments`, and the restartable direct-Linear
-   history import reconciled the pre-subscription gap. Re-runs are idempotent and tag-rollbackable.
+4. **Linear comments capture + history (completed in Part 1 #809):** the Comments resource is
+   subscribed, live lifecycle events normalize into `production_comments`, and the restartable
+   direct-Linear history import reconciled the pre-subscription gap. Re-runs are idempotent and
+   tag-rollbackable. **Separate open gate (F42/F43):** migrate active Calendar/Samples roots/replies
+   from their actual source arrays, reconcile composite identities/lifecycle, and route every card,
+   Production, and client entry point through the canonical thread before enrollment.
 5. **Card-linkage maintenance (continuous, not one-off):** on issue create/update, resolve the
    issue's URL/uuid against card Linear-link columns (and vice versa on card link_set events via
    the card EFs) and keep `video_deliverable_id`/`graphic_deliverable_id` current. Reconciler v2
@@ -1041,6 +1046,15 @@ transport actor is retained only as transport metadata; it never replaces the or
 author. Inbound webhook edits/deletes update lifecycle state on the same row. Outbound and
 legacy-parity echoes are retained in storage and suppressed only from re-writing per §4.2.
 Card-local caption/title threads remain card-local because no deliverable thread exists for them.
+
+**Implementation correction (F42/F43, 2026-07-13): this is a target design, not current truth.**
+The existing recovery script reads `deliverables.comments`; it did not import the active
+Calendar/Samples roots/replies, so existing source parent IDs are not addressable by the gateway.
+Review-panel plain comments and resolve/reopen/delete still write only card JSON, Notes uses the
+gateway first, Production writes only normalized rows, and client links do not read normalized
+client-audience rows. Enrollment is blocked until a composite-ID migration and one canonical
+create/reply/edit/resolve/reopen/delete contract pass the full staff/creative/client projection,
+audience, idempotency, retry, realtime, and refresh matrix.
 
 **9.6 Assignment & due date:** single-row writes; the calendar card shows the editor chip via
 `*_deliverable_id → deliverables → team_members`.

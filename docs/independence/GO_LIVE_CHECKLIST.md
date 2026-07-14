@@ -293,6 +293,9 @@ Phase 0.5 below, after the fix-pack.
 
 ## Phase 1 — Staged parity soak (real traffic, Linear still boss)
 
+- [ ] **TEST and real-client divergence are separate signals** (F90): TEST-only churn remains visible
+      in a diagnostic but cannot increment the real-client soak/pager criteria; mixed, TEST-only,
+      and real-only fixtures pass and all public output uses private TEST notation.
 - [ ] Arm the parity lane: `linear_legacy_parity_enabled` → enabled (FLIP_RUNBOOK §F4).
 - [ ] Enroll a first small cohort (2-3 real clients) in `write_ui_reroute_clients`. Their
       staff/client/Kasper writes now flow through the gateway and land in Linear via the

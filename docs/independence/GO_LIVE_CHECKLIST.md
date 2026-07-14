@@ -157,10 +157,18 @@ Phase 0.5 below, after the fix-pack.
       after Supabase updates while the Sheet branch failed. Any temporary old-code restoration is
       read-only or has one atomic read/write authority; prove stale-build/direct-caller zero and
       both-store parity before Phase 2 deletion.
-- [ ] **Drive-backed thumbnail jobs enforce auth and CAS** (F78–F80): the scanner fails closed on
-      missing/wrong scheduler identity; the resolver enforces originating principal/client scope;
-      both are bounded/rate-audited; and the resolver's final write CASes exact URL/version with
-      reversed-completion TEST proof. No anonymous Drive/Storage/service-role work remains.
+- [x] **Thumbnail revision scanner is fail-closed and bounded** (F78): a mandatory dedicated
+      scheduler signature is deployed; absent server credential returns `503`, wrong caller
+      credential returns `401`, and successful calls expose aggregate counts only. TEST-only
+      same-link/no-write/change proof passed, the initial all-active scan checked 239 with 0 failed,
+      and [the first scheduled run](https://github.com/sidney-afk/client-analytics/actions/runs/29370658087)
+      completed green with all 239 unchanged.
+- [ ] **Thumbnail folder resolver enforces originating scope** (F79): require an authenticated
+      principal or signed internal job bound to the exact client/row, bounded and audited Drive work,
+      least-field responses, and deployed missing/malformed/cross-client/correct-scope proof.
+- [ ] **Thumbnail folder resolver writes use atomic CAS** (F80): the final write must compare exact
+      normalized thumbnail URL plus row version/timestamp, treat zero affected rows as stale, and
+      pass reversed-completion, retry, clear/archive, and Calendar/Samples concurrency tests.
 - [ ] **Public onboarding capture is abuse-bounded** (F81): server-minted short-lived submission
       ownership, rate/CAPTCHA, strict byte/schema/kind limits, conditional/versioned updates,
       immutable creation time, sanitized final-only alerts, and spam/replay/oversize/foreign-ID/
@@ -169,9 +177,10 @@ Phase 0.5 below, after the fix-pack.
       table SELECT are removed together; the public seed is handled under F64; least-field,
       principal/client/role-scoped SMM/Kasper/Admin reads pass anonymous/cross-client/mobile/
       second-device tests; Google-document sharing and access logs are privately reviewed.
-- [ ] **Thumbnail revision metadata is private** (F83): anon SELECT and realtime exposure are
-      revoked, the table stays service-role-only unless a least-field role-scoped projection ships,
-      object-policy reachability is reviewed, and anonymous/cross-client negative tests pass.
+- [x] **Thumbnail revision metadata is private** (F83): raw browser table access returns `401` and
+      unsigned private-object access returns `400`; the least-field exact role/card projection
+      succeeds while cross-client scope returns `403`; only short-lived signed image URLs leave the
+      backend. Desktop/mobile Previous/Current comparison passed on an owner-selected real card.
 - [ ] **Credential vault uses least-secret, auditable delivery** (F84): list is metadata-only;
       individually revocable active-member sessions bind immutable actors; one-secret reveal audits
       synchronously/fail-closed; old plaintext passwords never enter history; shared/legacy keys are

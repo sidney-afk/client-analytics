@@ -57,10 +57,10 @@ verify_jwt = false
 [functions.thumbnail-folder-resolve]
 verify_jwt = false
 
-# Manual/scheduled scanner for pending thumbnail revision baselines. F78 requires a dedicated
-# scheduler signature and fail-closed source; optional-key behavior is unsafe when the secret is
-# absent. F83 separately requires revoking anon access to its metadata table. Do not invoke/schedule
-# until deployed negative proof passes.
+# Scheduled scanner for pending thumbnail revision baselines. F78 is closed: the deployed function
+# requires a dedicated scheduler signature, fails closed when its server secret is absent or the
+# caller signature is wrong, bounds work server-side, and returns aggregate counts only. The
+# independent operational kill is repository variable THUMBNAIL_REVISION_SCAN_ENABLED.
 [functions.thumbnail-revision-scan]
 verify_jwt = false
 

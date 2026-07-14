@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-14 @ 1ce7c91 + live topology/persona readback
+> Last verified: 2026-07-14 @ 08e18e6 + live topology/thumbnail browser proof
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.

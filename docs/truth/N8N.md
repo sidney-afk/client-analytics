@@ -1,6 +1,6 @@
 # n8n — current truth
 
-> Last verified: 2026-07-14 (live configuration/execution readback + second-pass reconciliation)
+> Last verified: 2026-07-14 @ e3961b6 (live configuration/execution readback + second-pass reconciliation)
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
 > full-active-roster Calendar/SXR/settings writes now use Edge Functions. Snapshot workflows
@@ -34,6 +34,12 @@ The app-facing webhook surface (55 endpoints) is enumerated and machine-enforced
   events/day across the then-current topology. Do not use the inbound count as current n8n traffic:
   B3 now enters through the Edge Function and the legacy n8n receiver is inactive (F46).
 - Weekly backup workflow runs on schedule (last verified 2026-07-05).
+- The central error-DM workflow is **not** blanket-wired (F09). In the 2026-07-14 live sample, five
+  of six load-bearing cutover workflows had no `errorWorkflow`; three of those unwired workflows
+  had 135 error/crash/cancel records since Jul 7. The handler also failed 29 of 30 sampled
+  invocations while the execution limit was active. Do not treat the handler's existence or a quiet
+  DM channel as coverage; require a complete active-workflow settings census, one sanitized TEST
+  receipt per workflow, and a non-n8n liveness path.
 
 ## Standing hazards
 
@@ -50,3 +56,7 @@ The app-facing webhook surface (55 endpoints) is enumerated and machine-enforced
   Routing a client back to n8n or calling a webhook directly can bypass later Edge Function auth.
   Authenticate/scope each fallback or retire it before enforcement; rollback must preserve the same
   principal/client boundary.
+- Four active Linear mutation routes are also caller-unauthenticated (F91): status, comment, video
+  intake, and graphics intake. Their `prod_authority` check constrains direction only; both teams are
+  presently Linear-authoritative. Contain them now with active immutable principal or a short-lived
+  exact-client intake capability, then complete the native reroute and retirement plan.

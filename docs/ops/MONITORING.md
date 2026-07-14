@@ -44,7 +44,12 @@ waive them.
 
 ## Alert destinations
 
-- n8n workflow failures use the existing `SyncView - Error Alerts -> DM Sidney` wiring.
+- n8n workflow failures do **not** yet have blanket alert coverage (F09). The central
+  `SyncView - Error Alerts -> DM Sidney` handler exists, but a 2026-07-14 live settings sample found
+  five of six load-bearing cutover workflows unwired; three of those had 135 error/crash/cancel
+  records since Jul 7. The handler itself also failed 29 of 30 sampled invocations at the execution
+  limit. Treat silence as unknown until a machine census proves every load-bearing active workflow
+  points to a tested handler and the independent non-n8n pager is live.
 - The n8n execution-quota Action runs outside n8n. Threshold notices reuse the active Edge Alert Relay, while a failed n8n read or relay confirmation leaves a failed GitHub run rather than a false green or a consumed monthly marker. Secrets are stored as `N8N_API_KEY` and `N8N_QUOTA_ALERT_WEBHOOK`; the plan cap is the repository variable `N8N_MONTHLY_EXECUTION_CAP`.
 - Edge Function anomaly alerts use the project `SLACK_ALERT_WEBHOOK` secret and send public-safe messages only: anomaly type, Linear issue identifier, and team. They do not include client names, assignee names, emails, or raw payloads. `onboarding-capture` also consumes this secret, so removing it is not a lane-specific rollback (F66). n8n workflow `Tfhc3vebZyG6obOg` is the active Edge Alert Relay to DM Sidney; synthetic relay execution `219237` and real EF anomaly relay execution `219602` succeeded on 2026-07-08.
 - n8n workflow `qllIDZPkdNAPRj0b` is the active Monitoring Pager + Reconciler Trigger. It runs every 15 minutes, dispatches `linear-deliverables-reconcile.yml` with `apply=false`, dispatches the calendar and samples reconcilers with `dry_run=false` and cap 15, dispatches the B1 incremental refresh through a 30-minute gate, and actively dispatches `linear-outbound-drain.yml`. It reads each outbound summary; because normal mode is `off` and parity is separately disabled, outbound-summary staleness paging is suppressed. It throttles each DM alert condition to at most once per hour.

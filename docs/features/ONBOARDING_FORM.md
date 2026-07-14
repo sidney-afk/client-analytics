@@ -1,5 +1,11 @@
 # Centralized Onboarding Form (SyncView)
 
+> **P0 READ-BOUNDARY BLOCKER (F77).** The three currently deployed onboarding-list Edge Functions
+> accept anonymous requests and return the contact/questionnaire corpus with service-role access.
+> Removing account-password fields does not make those responses public-safe. Disable or contain
+> those readers, add active role-scoped least-field reads and opaque discovery, constrain CORS, and
+> prove anonymous/cross-role denial before treating the dashboard inbox as operable.
+>
 > **ABUSE/INTEGRITY BLOCKER (F81).** The public intake must accept anonymous clients, but the
 > deployed capture fallback currently accepts unbounded caller-chosen IDs/payloads and can emit
 > caller text to alerts. It lacks nonce/session ownership, rate/CAPTCHA, strict size/schema/kind
@@ -262,9 +268,12 @@ The front-end picks the URL by variant: `_obSubmit` POSTs to `ONBOARDING_SUBMIT_
 (`syncview-onboarding` | `syncview-ai-onboarding`), `funnel` (`standard` | `ai`), and
 `ai_avatar` (`no` | `yes`) accordingly.
 
-The browser **never** writes Supabase directly. Both tables deliberately have **no anon
-read/write** (they hold passwords + personal data) — see `migrations/onboarding-supabase-migration.sql`
-and `migrations/ai-onboarding-supabase-migration.sql`. Only the service-role n8n webhooks touch them.
+The browser **never** writes those tables directly. The tables are intended to have no anonymous
+table access because they hold private contact/questionnaire data — see
+`migrations/onboarding-supabase-migration.sql` and
+`migrations/ai-onboarding-supabase-migration.sql`. **That table policy is not the current read
+boundary:** three composed Edge readers use service-role access and currently accept anonymous
+requests (F77). They must be contained and replaced with authenticated, minimized projections.
 
 ### Webhook contract — `POST /webhook/{onboarding-submit | ai-onboarding-submit}`
 
@@ -317,7 +326,8 @@ later step, not part of this form.)
   `ai_client_onboarding`, gate) → Notify Sidney (Slack DM, SyncView Bot) → Respond {ok}`.
   Cloned from the standard Submit workflow via the n8n SDK; Supabase + Slack ("SyncView Bot")
   credentials attached.
-- ✅ n8n `ai-onboarding-list` webhook — **created + activated** (workflow id `oDZ1Oljvaig5KSLD`,
+- **Historical deployment record only (not current reader guidance):** n8n `ai-onboarding-list`
+  webhook — created and activated (workflow id `oDZ1Oljvaig5KSLD`,
   `GET /webhook/ai-onboarding-list`): reads `ai_client_onboarding`, strips credentials, returns
   `{ok,count,submissions}`. Feeds the dashboard's **AI avatar onboarding** section.
 - ✅ Dashboard inbox — Templates→Onboarding now shows **two sections** (Standard + AI), fetching
@@ -372,14 +382,18 @@ It is **split into two sections** — **Standard onboarding** and **AI avatar on
 each with its own count; an empty funnel shows a muted "None yet." so the two-funnel structure
 is always visible.
 
-It reads **both** list webhooks, in parallel:
+This section describes the historical n8n reader topology and is retained only as implementation
+history. The current SPA composes three Supabase Edge readers (`onboarding-list`,
+`ai-onboarding-list`, and `legacy-onboarding-list`) from the Edge base. F77 blocks operating those
+current readers until they authenticate and minimize responses. Historical routes were:
 
 - `GET /webhook/onboarding-list` (workflow `slqt2zCDyIc7OAmY`) → `client_onboarding`.
 - `GET /webhook/ai-onboarding-list` (workflow `oDZ1Oljvaig5KSLD`) → `ai_client_onboarding`.
 
-Both fetch with the service-role credential and **strip the account-credential fields**
-(IG/TikTok/FB/LinkedIn/YouTube) before returning — so no passwords ever reach the public
-dashboard. The dashboard tags each row with its `funnel` (by which webhook it came from) and
+Those historical routes fetched with the service-role credential and stripped account-credential
+fields before returning. That stripping was never a sufficient public-access boundary: contact
+and questionnaire data remained private, and the current anonymous Edge readers expose the wider
+corpus (F77). The dashboard tags each row with its `funnel` (by which reader it came from) and
 groups by it. Load is **fault-tolerant**: if one webhook fails, the other funnel still renders
 and a soft warning notes which list couldn't load (`Promise.allSettled`). Snapshots:
 `n8n-backups/onboarding-list.2026-06-26.created.json`,

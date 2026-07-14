@@ -1,6 +1,6 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-13 (Management API and live disk-utilization readback)
+> Last verified: 2026-07-14 @ e3961b6 (Management API and live readback)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 ## Tables

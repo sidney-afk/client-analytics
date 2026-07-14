@@ -83,6 +83,12 @@ Phase 0.5 below, after the fix-pack.
       anonymous/cross-role requests, CORS is constrained, background discovery uses a minimal
       authorized/opaque projection, logs are reviewed, embedded private links/credentials are
       dispositioned, and the owner records disable-now versus expiring incident containment.
+- [ ] **P0 public Linear mutation routes are contained** (F91): status/comment bridges require an
+      active immutable principal; video/graphics intake requires staff auth or an owner-ratified,
+      server-minted short-lived exact-client capability; target/client/team are resolved server-side;
+      audit, request limits, idempotency, and deployed anonymous/expired/cross-client negative tests
+      are green. Owner explicitly answers whether `?intake=1` remains shareable and under what
+      mint/expiry/revocation contract.
 - [ ] **Drive-backed thumbnail jobs enforce auth and CAS** (F78–F80): the scanner fails closed on
       missing/wrong scheduler identity; the resolver enforces originating principal/client scope;
       both are bounded/rate-audited; and the resolver's final write CASes exact URL/version with
@@ -245,8 +251,11 @@ Phase 0.5 below, after the fix-pack.
       No value enters this repository.
 - [ ] **Submit graphics path drilled live on the private TEST fixture only** against the deployed
       EF, including real GRAPHIC_TITLE_* generation (F12). No real-client write is induced.
+- [ ] **Every load-bearing n8n workflow has proved error delivery** (F09): a generated live-settings
+      census shows the intended handler on every active graph, and one sanitized TEST-only failure
+      receipt per workflow reaches the owner. The handler's existence is not evidence of wiring.
 - [ ] **Non-n8n inbound-divergence pager live + pager last-mile proven** with a synthetic DM
-      (F09/B6).
+      (F09/B6), including proof it still fires while n8n execution is unavailable.
 - [ ] **Alert rollback is lane-scoped** (F66): stopping Linear-inbound anomaly delivery cannot
       disable onboarding fallback alerts or any unrelated consumer of a shared project secret;
       both routes pass independent TEST sends and kill/readback drills.
@@ -366,10 +375,14 @@ live readback; do not list “deactivate it” as newly completed teardown work.
       service-only TEST override removes Linear validation, eligibility, IDs, and new outbox
       enqueues transactionally; full TEST mutations pass with Linear unavailable and create zero
       intents. Keep the real retired-epoch flag disabled throughout the dual-ready grace.
-- [ ] **End-of-grace activation order proven (F58/F61):** freeze human/app writes; set/read F4
+- [ ] **End-of-grace activation order proven (F58/F61/F92):** freeze human/app/service writes;
+      set/read F4
       parity false; classify/replay/disposition final intents and prove both teams zero; set/read F2
-      normal outbound off; final reconcile/archive/export; only then atomically activate/read back
-      retired mode and prove a private TEST mutation creates zero outbox rows before teardown/resume.
+      normal outbound off; run only a dry-run/detect-only final reconcile. Any diff/would-enqueue
+      aborts and returns under the freeze to F2 live plus classify/drain/disposition and a fresh
+      per-team zero proof. Only a final dry-run zero may proceed to archive/export and atomic
+      retired-mode activation/readback. Prove a private TEST mutation creates zero outbox rows before
+      teardown/resume.
 - [ ] **The end-of-grace freeze is server-enforced** (F61): a team-scoped maintenance/cutoff state
       or atomic high-water protocol rejects every browser, stale-tab, retry, service, and automation
       mutation with explicit UX while the final zero/export/epoch transaction runs. TEST races prove

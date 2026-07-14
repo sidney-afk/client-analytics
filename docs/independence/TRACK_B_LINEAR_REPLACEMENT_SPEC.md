@@ -491,20 +491,25 @@ via bare PostgREST updates (stated here so the builder doesn't reproduce the two
 that would make the marker invisible and double-log every write). CI asserts: (a) RPC write → 1
 event; (b) raw UPDATE → 1 system event; (c) never 2.
 
-### 2.7 Anon-exposure policy (explicit, with a safe default)
+### 2.7 Read-exposure policy (F86/F88 decision OPEN; fail closed for new work)
 
-**Default for unlisted tables: service-role only.** Anon-readable (parity with the app's read
-model): `clients`, `team_members`, `batches`, `deliverables`, `deliverable_events`, `flag_flips`.
-Service-role only: `client_access`, `mirror_outbox`, `production_comments`,
-**`linear_archive`** (17.5k issues of
-internal feedback, client briefs, and delivery links must not be one anonymous REST call away —
-the archive UI reads through a role-gated EF, §10.7), and every future table unless this section
-is amended. `production-comments` provides the bounded staff-authenticated comment reader; no anon
-body policy is added. A restrictive ledger policy also filters body-bearing comment lifecycle
-events from anon/authenticated reads while leaving prior non-body activity readable.
-`team_members.email` exposure is accepted and recorded as an existing design decision; no literal
-staff address belongs in this public specification.
-Cross-client `using(true)` reads remain standing Phase-4 debt, not worsened by Track B.
+**Default for every unlisted table is service-role only.** No raw anonymous-readable list is
+approved here. F88 proves the current browser-key policy exposes nonempty operational tables across
+content, events, Production, settings, and directories; F86 proves the raw staff/client tables
+include inactive rows and internal email/Slack/Linear/project-mapping fields beyond the sign-in
+surface's least-field need. The owner/legal/client decision remains explicit: either classify and
+accept each exposed field as intentionally public, or move each browser consumer to a
+principal/client/role-scoped least-field projection and revoke raw anonymous access. Until that
+decision and migration are complete, new Track-B tables/readers must fail closed and must not add
+`using(true)` parity policies.
+
+`client_access`, `mirror_outbox`, `production_comments`, and **`linear_archive`** remain
+service-role-only. The archive contains internal feedback, client briefs, and delivery links; its
+UI must read through an authenticated, audience/role-scoped function (§10.7). The protected
+comment reader remains subject to F39's target/team enforcement. Staff email exposure is no longer
+treated as a standing accepted design decision. Any future table requires an explicit field-level
+classification, owner, consumer list, and direct-REST/cross-client denial proof before read access
+is widened.
 
 ### 2.8 Flags trigger
 
@@ -711,6 +716,16 @@ topology decision plus machine readback (active state, active-version/node finge
 execution), not an automatic publish. n8n edits follow the snapshot rule (§1.6 — private export +
 public-safe stub, disable-not-delete).
 
+**Authority is not caller authentication (F91).** The four active n8n mutation webhooks above
+currently accept no incoming staff/client credential; with both teams Linear-authoritative their
+direction gate permits the serving path. This is a current containment blocker, not work to defer
+until the team flip. Status/comment require an active immutable staff/client principal as
+appropriate. Video/graphics intake requires staff auth or an owner-ratified, server-minted,
+short-lived exact-client capability if the shareable intake product is retained. Every path must
+resolve scope server-side, audit immutable actor/role, bound requests, enforce idempotency, and pass
+deployed anonymous/expired/cross-client negative tests without production writes. The later native
+reroute and B5 retirement do not excuse an unauthenticated transition epoch.
+
 The browser reroute is shipped only after those central gates. Production status/comment/due/
 assignee controls are enabled per deliverable team only when its last-known-good authority is
 `syncview`, except for the bounded active-TEST override. A Linear-authoritative team renders the
@@ -914,7 +929,9 @@ completed on 2026-07-10. Do not re-run that rollout or describe the flags as TES
   read failures, and some EF failures. They are unauthenticated service-role writers (F67), not
   approved recovery paths. Block flag-removal/empty-list rollback, fail visibly on dependency
   failure, and either add equivalent immutable principal/client authorization or retire the webhook
-  after every caller/stale tab is accounted for through the ordered B5 gates in §13.
+  **before auth enforcement or either human flip**, after every caller/stale tab is accounted for.
+  B5 may archive/delete only an already-contained zero-caller path; it is not the deadline for
+  closing anonymous write access.
 
 **6.3 Actor is the audit-trail target** (D7): every accepted write must carry an immutable,
 server-resolved human/member identity, actual role, and server timestamp. This target is **not yet
@@ -1360,7 +1377,11 @@ miss; it prevents the current fail-open success branch from surviving the cutove
    and automations with explicit UX and an atomic high-water/readback contract. Set/read F4 parity `false`;
    keep normal outbound live only long enough to classify/replay or owner-disposition all final
    queued intents and prove both teams machine-zero, then set/read F2 normal outbound `off`. Run the
-   final reconcile and verify archive completeness (counts vs export; image-rescue report) plus the
+   final reconcile **dry-run/detect-only only** (F92). If it reports any diff or would-enqueue work,
+   abort the transition: while the server freeze remains active, restore/read F2 live, classify and
+   drain/disposition the work, re-prove both teams zero, set/read F2 off, and retry the final dry-run.
+   Never run reconciler apply after F2 is off. Then verify archive completeness (counts vs export;
+   image-rescue report) plus the
    private full Linear export in Drive. F34 requires a live role/audience-scoped archive reader and exact retrieval
    drills, a complete issue↔comment manifest, and zero unreviewed Linear-hosted image/attachment
    gaps—stored rows or a generic count are not human/asset recovery.
@@ -1389,9 +1410,10 @@ miss; it prevents the current fail-open success branch from surviving the cutove
    g. `linear-set-status`, `linear-add-comment`, `linear-subissues`, `linear-issue-statuses`,
       `linear-tweak-comments`, `editors-week` (→ §9.11 query). (The nightly due-date roller is
       NOT in this family — n8n was eliminated by measurement; it dies only via D-9.)
-   h. **the unauthenticated legacy card-write webhooks** (`calendar-upsert-post`,
-      `sample-review-upsert`, reorders — deactivate now that all clients are EF-routed; this is
-      the moment §6.4's "closes the unauthenticated write path" claim becomes fully true);
+   h. **the legacy card-write webhooks** (`calendar-upsert-post`, `sample-review-upsert`, reorders):
+      F67 requires authentication or retirement in Phase 0, before enforcement or either human
+      flip. B5 may only perform final deactivate/archive/deletion after a zero-caller/stale-tab proof;
+      it is not the moment an unauthenticated path is allowed to close;
    i. FE: Linear push/outbox/reassert/point-adoption/bulk-link code removed; link columns stay,
       inert.
 6. **Secrets teardown:** rotate the house Linear key (hardcoded in 6+ workflows). The owner accepted
@@ -1412,7 +1434,11 @@ miss; it prevents the current fail-open success branch from surviving the cutove
 **Hard gates** (evidence + owner sign-off, ROLLBACK rule 6). Every phase also: rule-4 snapshot
 before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 - **B0 →**: vocabulary ratified (D-2); tokens minted + `client-token-verify` live; flags
-  trigger + `flag_flips` live; n8n errorWorkflow wired (§8.2).
+  trigger + `flag_flips` live. **Monitoring sub-gate REOPENED (F09):** the central n8n error
+  handler exists, but five of six sampled load-bearing cutover workflows were not wired to it and
+  the handler failed 29 of 30 sampled invocations at the execution limit. Require a generated
+  active-workflow/settings census, one sanitized TEST receipt per load-bearing workflow, and an
+  independently hosted pager receipt while n8n execution is unavailable before this gate is green.
 - **B0.5 → COMPLETE (2026-07-10):** Track A latent bugs fixed; all active clients reached all
   three EF flags on 2026-07-07, then the owner-approved three-day close-out found zero real-client
   fallback traffic, zero ledger errors, and clean full-roster column drift. This supersedes the
@@ -1427,8 +1453,10 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
   the wired read-only lanes green ✅ (`prod-structure-subset.js` + `prod-readonly-smoke.js`;
   full behav/sweep re-run lands at B3 per §10.8); **staff diagnostic page live — STILL OPEN**;
   parity-gap backlog worked down per `docs/audits/2026-07-06-prod-parity-gaps.md`.
-- **B3 →**: comments webhook subscribed + catch-up pull run (§4.3.4); mirror zero-diff (modulo
-  §1.4) 7 consecutive days; echo probe green (§12); editor/SMM UX feedback collected.
+- **B3 →**: comments webhook subscribed + catch-up pull run (§4.3.4); after F90 source separation,
+  **real-client-only** mirror zero-diff (modulo §1.4) for a new 7 consecutive days, with planned
+  TEST activity retained as a separately failing diagnostic rather than counted in the real soak;
+  echo probe green (§12); editor/SMM UX feedback collected.
 - **B3→B4 per team**: §1.5 checklist artifacts (outbox drain, zero-diff + linkage-zero report,
   legacy-writer gates verified incl. reconcilers + n8n bridges, identifier seed check, flip +
   rollback rehearsal, detect-only alert tested) + **roller located and disabled, or an explicit

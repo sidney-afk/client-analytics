@@ -1,6 +1,6 @@
 # Linear — current truth
 
-> Last verified: 2026-07-13 (live n8n configuration and execution readback)
+> Last verified: 2026-07-14 @ e3961b6 (live n8n configuration and execution readback)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -36,6 +36,11 @@
 - **Legacy Calendar/Samples card comments:** app → Linear via `webhook/linear-add-comment`,
   prefixed `**{Reviewer} (via SyncView):**`. Those card-local arrays do not receive a complete
   inbound comment/lifecycle projection; see F42/F43.
+- **Current caller-auth defect (F91):** `linear-set-status`, `linear-add-comment`, `video-form`, and
+  `graphic-form` authenticate no incoming principal. Their authority checks only choose whether a
+  team may still write toward Linear; with both teams Linear-authoritative they permit the route.
+  The `?intake=1` page deliberately bypasses staff sign-in. Contain now with an active immutable
+  principal or an owner-ratified short-lived exact-client intake capability; do not wait for B5.
 - **Native deliverable mirror:** the two active HMAC Edge Function webhooks subscribe to Issue +
   Comment. `linear-inbound` mirrors state, title, due date, assignee, priority, parent,
   archive/restore/delete/team linkage into native deliverables and normalizes comment lifecycle into
@@ -57,4 +62,5 @@ system-wide view: `docs/independence/SYSTEM_MAP.md`. The visible **Linear** tab 
 `production`, route `#production`, alias `?prod=1`) is the native mirror surface. #812 ships
 authority-gated status/comment/due/assignee controls: real teams remain read-only while authority is
 Linear; the bounded active-TEST lane can write. The visible **Submit** tab retains internal key
-`linear` and route `#linear`; its #813 native reroute is still unmerged and not dark-gated (F02).
+`linear` and route `#linear`; its #813 native reroute is still unmerged and not dark-gated (F02),
+while the serving legacy intake is caller-unauthenticated (F91).

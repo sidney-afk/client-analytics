@@ -28,6 +28,9 @@ Linear bridge:
   `webhook/linear-subissues`, `webhook/linear-set-status`, `webhook/linear-add-comment`,
   `webhook/linear-tweak-comments`, `webhook/log-linear-submission`
 
+`linear-set-status` and `linear-add-comment` have team-direction gates but no incoming caller
+authentication (F91). Do not confuse `prod_authority` with principal verification.
+
 AI generation (briefs, captions, summaries):
 - `webhook/generate-brief`, `webhook/generate-caption`, `webhook/generate-content-summary`,
   `webhook/generate-general-brief`, `webhook/generate-market-brief`,
@@ -44,6 +47,10 @@ TikTok pilot (uploads + TTP auth):
 Onboarding + intake forms:
 - `webhook/onboarding-submit`, `webhook/onboarding-fallback`, `webhook/ai-onboarding-submit`,
   `webhook/sales-intake-submit`, `webhook/video-form`, `webhook/graphic-form`
+
+`video-form` and `graphic-form` are active Linear mutation routes and authenticate no caller; the
+password-bypassed `?intake=1` page sends no principal (F91). Current containment/auth is required
+before the later native reroute/retirement.
 
 Templates:
 - `webhook/templates-get`, `webhook/templates-save`

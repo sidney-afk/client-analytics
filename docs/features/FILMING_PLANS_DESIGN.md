@@ -3,6 +3,12 @@
 **Status:** Implemented; historical design notes retained · **Date:** 2026-06-03, updated 2026-07-11
 **Owner area:** Kasper tab → new **Filming Plans** sub-tab
 
+> **P0 READ-BOUNDARY BLOCKER (F82).** The current Edge GET and independent anonymous table policy
+> both expose the complete client/Doc-link roster without caller identity. Role-gated editing does
+> not protect reads. Revoke both public paths together, replace them with a least-field
+> principal/client/role projection, review Google-Doc sharing/access evidence privately, and prove
+> anonymous and cross-client denial before operating this surface.
+>
 > **2026-07-11 implementation update:** the original design below used the SYNCVIEW Google Sheet `FilmingPlans` tab as the source. The current implementation promotes Supabase `public.filming_plans` plus the main dashboard **Filming Plans** tab as the source of truth, with the Sheet kept only as a historical/emergency fallback. Templates and Kasper's Filming Plans tab read that same shared source. Editing master Doc links accepts the verified admin role key; the old `ONBOARDING_STAFF_KEY` stays valid in parallel until the TEST/dummy proof and owner-approved retirement gate in `docs/features/CLIENT_CREDENTIALS_DESIGN.md`. SMM and creative/editor/designer role keys cannot write.
 
 ---
@@ -143,6 +149,9 @@ Edge cases:
 ---
 
 ## 6. Data & plumbing
+
+> **Historical design below.** Published GViz and unauthenticated backend-reader guidance is not an
+> approved current read boundary. F82's authenticated, least-field contract supersedes it.
 
 ### 6a. New Google Sheet tab: `FilmingPlans`
 Read by the dashboard the same way it already reads Clients Info (published-CSV / gviz).

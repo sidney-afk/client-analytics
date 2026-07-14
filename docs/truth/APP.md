@@ -18,6 +18,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   write path + contract: `docs/truth/SUPABASE.md`.
 - Status pushes to Linear go through `_calPushStatusToLinear()` — **no guard** on
   Posted/Scheduled (they ARE pushed; a stale code comment claims otherwise).
+- The active `linear-set-status` and `linear-add-comment` bridges receive no verified caller
+  identity (F91). Team authority constrains direction only; it is not authentication.
 - Status pills require a linked Linear sub-issue ("Link a Linear sub-issue first").
 
 ## Samples (SXR + legacy)
@@ -35,11 +37,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - The three flows as state machines + transition table:
   `docs/audits/2026-07-05-logic-reviews.md`.
 - Linear comments are written prefixed `**{Reviewer} (via SyncView):**`.
+  That display name is cosmetic on the legacy bridge and does not establish the caller (F91).
 
 ## Linear sync surface
 
 - Every consistency surface (status/assignee/due/name/comments), outboxes, flags:
   `docs/audits/2026-07-05-logic-sync.md`; current sync reality: `docs/truth/LINEAR.md`.
+- The password-bypassed `?intake=1` page and both live intake webhooks likewise carry no caller
+  identity (F91). Containment/authentication is a current gate, not deferred B5 cleanup.
 
 ## Linear mirror tab (internal `production`; `#production`; `?prod=1`)
 

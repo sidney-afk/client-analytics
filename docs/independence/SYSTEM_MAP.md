@@ -132,7 +132,7 @@ Everything below is shared by every surface; per-surface sections only note devi
   pending calendar-card jobs).
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
   constant declared *before* the main Supabase URL constant (TDZ avoidance) — that is why §7 counts
-  "12 literal + 4 composed" Edge Functions.
+  "15 literal + 4 composed" Edge Functions.
 
 ## 4. Surface catalog
 
@@ -262,6 +262,11 @@ n8n in the metric read path.*
 - **Roles.** Staff full; intake role = password-bypassed Linear-only lock; clients never reach it
   except via intake (which stays role `smm`). Kasper active → background card writes carry kasper
   headers.
+- **Current caller-auth defect (F91).** The password-bypassed intake page sends no authenticated
+  principal, and the active video/graphics n8n gates verify team direction only. The shared
+  status/comment bridges have the same defect. Contain all four now with active immutable identity
+  or an owner-ratified short-lived exact-client intake capability; native reroute is not permission
+  to leave the transition route public.
 - **Failure/fallback.** `linear-projects` fail → empty dropdown, retry only on next mount; a
   successful truncated response looks complete (F45). `video-form`/`graphic-form` and the log call
   are **fire-and-forget with `.catch(()=>{})`** — a failed Linear creation is silent and the green
@@ -421,7 +426,8 @@ n8n in the metric read path.*
 - **Reads.** Review queue is a **3-tier fallback**: `calendar_posts` REST (paginated, v2 default) →
   n8n `kasper-queue` (batched `{slugs}`) → per-client n8n `calendar-get` fan-out (5 workers).
   Cross-client `sample_reviews` REST (samples subtab). n8n `editors-week` (editors). `filming_plans`
-  REST + n8n `filming-plan-tabs` (filming). `onboarding-full` EF (full sensitive inbox, admin-role-key gated). `client-
+  REST + n8n `filming-plan-tabs` (filming). `onboarding-full` EF (full sensitive inbox,
+  shared/legacy-key-gated; active-admin binding and read audit are missing under F85). `client-
   credentials` EF (list/history). SMM-directory CSV. Realtime `kasper-cal`, `kasper-sxr`,
   `client-credentials-rev-kasper`, plus shared flag/filming channels.
 - **Writes.** Approvals/tweaks/comments/finish-close stamps via the shared calendar & sample upsert

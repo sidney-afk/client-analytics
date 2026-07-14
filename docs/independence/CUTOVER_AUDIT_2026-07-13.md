@@ -272,8 +272,34 @@ companion unless the owner changes scope.
 
 ### Resume procedure
 
-Open draft PR #827, confirm its head/checks and read this section plus the finding rows. Preserve any
-unrelated local files. Take monitoring fault injection first unless an owner closes/reprioritizes a
-higher-severity containment item. Keep real production/Linear data read-only; use only the private
-TEST fixture for writes; do not flip runtime flags or destructively change n8n without explicit owner
-sign-off; keep every committed artifact free of client identifiers and secrets.
+Open draft PR #827 for the complete audit checkpoint and draft PR #836 for the owner-authorized
+live-exposure containment package. Confirm both heads/checks and read this section plus the finding
+rows. Preserve unrelated local files. Finish #836's merge-gated security sequence before returning to
+monitoring fault injection unless the owner explicitly reprioritizes it. Keep real production/Linear
+data read-only; use only the private TEST fixture for writes; do not flip runtime flags or
+destructively change n8n without explicit owner sign-off; keep every committed artifact free of client
+identifiers and secrets.
+
+### 2026-07-14 security-containment addendum (draft PR #836)
+
+- **Closed live:** all three onboarding list readers and the weekly-report reader/roster-sync deny
+  anonymous requests with `401`; four low-coupling service-role writers deny missing/wrong
+  credentials and have restored TEST allow-path proof; the filming-plan EF denies anonymous reads;
+  anonymous table reads are revoked for thumbnail revision metadata and both weekly-report tables.
+  The exact deployed versions, source SHAs and response-size proof are recorded in F35/F76/F77/F82/
+  F88 and PR #836.
+- **Public artifacts contained:** both unsafe producers remain manually disabled, 414 target bundles
+  are deleted, and anonymous enumeration returns zero target artifacts. Candidate B1 output is
+  aggregate-only; candidate Production emits no Actions/Argos review delivery. F122's first-run,
+  reconciler-log and external-Argos review remain open.
+- **Merge-gated:** merge authenticated browser/scheduled callers first; browser-walk onboarding,
+  weekly reports and filming; deploy `calendar-upsert` plus `sample-review-upsert` from the exact merge
+  SHA and repeat deny/TEST-allow/restore proof; then revoke anonymous `filming_plans` table SELECT.
+  Never restore an anonymous path to repair a protected UI.
+- **Still owner-gated:** the schema-only migration package remains access-restricted because GitHub
+  exposed deleted rows even behind a diff guard. Current public files/history/caches/forks/clones stay
+  open under F64 until the scheduled freeze, final GO, single canonical rewrite, Support cleanup and
+  fresh-clone/fork proof. `clients` and the seven explicit direct-use tables remain F88 projection
+  work. Reconciler logs and external Argos history remain F122 work.
+- **Owner decisions:** legal determines whether the 21 affected people require notice; do not rotate
+  the shared Form Linear API key without a complete consumer inventory and controlled migration.

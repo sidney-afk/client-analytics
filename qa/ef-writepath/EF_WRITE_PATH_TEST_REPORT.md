@@ -1,7 +1,13 @@
 # SyncView Edge-Function (EF) Write-Path — End-to-End Test Report
 
+> **HISTORICAL ROUTING PROOF — NOT CURRENT ROLLBACK GUIDANCE (F67/F72).** This report proved that
+> allowlist removal and dependency failure select legacy n8n writers. Those writers are
+> unauthenticated, so that behavior is now classified as an authorization downgrade/fail-open—not
+> a safe fallback or one-step rollback. Operators must preserve auth, fail visibly, and repair/revert
+> the authenticated caller/EF until equivalent auth/scope exists. TEST identity is private config.
+
 **Scope:** Validate the new Supabase Edge-Function write path end-to-end on ONE test
-client (`sidneylaruel`) so the owner can decide whether to move all clients onto it.
+client (`<PRIVATE_TEST_CLIENT>`) so the owner can decide whether to move all clients onto it.
 **Method:** Repeatable headless Playwright harness driving the REAL UI against the REAL
 backend, with outbound network captured to prove routing by URL; Supabase rows read back
 via anon RLS; Linear round-trips verified via the Linear API and reverted.
@@ -60,7 +66,7 @@ success shape n8n returned — `{ ok: true, post: {...} }` (calendar-upsert
 - Flag table read once + realtime-subscribed: `syncview_runtime_flags` keyed by
   `calendar_upsert_ef_clients` / `sample_review_ef_clients` / `settings_ef_clients`.
 - `_calUpsertUseEf(slug)` @15155 returns `slug && _calUpsertEfClients.has(slug)`; empty/error
-  flag ⇒ `false` ⇒ n8n (fail-safe).
+  flag ⇒ `false` ⇒ unauthenticated n8n (**F67 fail-open; not safe rollback**).
 
 ### Interaction → routing → column → Linear map (to be exercised live)
 
@@ -99,11 +105,11 @@ separately — see Phase 1b.)
 
 ### Live pre-conditions confirmed (read-only)
 
-- `sidneylaruel` is present in ALL THREE EF flags (`calendar_upsert_ef_clients`,
+- `<PRIVATE_TEST_CLIENT>` is present in ALL THREE EF flags (`calendar_upsert_ef_clients`,
   `sample_review_ef_clients`, `settings_ef_clients`). Five other (real) clients are also
   already flagged — i.e. the EF path is already live in production for them; strictly
   read-only on those here.
-- Test fixtures (`calendar_posts`, `client=sidneylaruel`):
+- Test fixtures (`calendar_posts`, `client=<PRIVATE_TEST_CLIENT>`):
   - **TEST 2** `p_mqjznt6m_h4k9o` — video=`Tweaks Needed`, graphic=`Approved`,
     caption=`Approved`, title=`Approved`; linked VID-12612 (video) + GRA-6310 (graphic).
     Card and Linear currently in sync. Primary dual-component fixture.
@@ -201,23 +207,23 @@ Harness `qa/ef-writepath/21-drift-check.js`. For every flagged client (the test 
   `SUPABASE_SERVICE_ROLE_KEY`, an owner-only secret — recommend the owner run it too; this anon
   read reproduces its core drift/dup-link assertions.)
 
-## Phase 3 — fail-safe fork (RESULT: PASS)
+## Phase 3 — routing fork (historical routing assertion passed; security classification failed)
 
 Harness `qa/ef-writepath/20-routing-failsafe.js`, 16/16 green. Asserting the REAL in-page
 routing functions:
 
-| Router | flagged (sidneylaruel) | unflagged slug | empty flag |
+| Router | flagged (`<PRIVATE_TEST_CLIENT>`) | unflagged slug | empty flag |
 |---|---|---|---|
-| `_calUpsertUrlForClient` | calendar-upsert **EF** | n8n `calendar-upsert-post` | n8n (fail-safe) |
+| `_calUpsertUrlForClient` | calendar-upsert **EF** | n8n `calendar-upsert-post` | n8n (**F67 fail-open**) |
 | `_calReorderUrlForClient` | calendar-reorder **EF** | n8n `calendar-reorder-batch` | — |
-| `_sxrUpsertUrlForClient` | sample-review-upsert **EF** | n8n `sample-review-upsert` | n8n (fail-safe) |
+| `_sxrUpsertUrlForClient` | sample-review-upsert **EF** | n8n `sample-review-upsert` | n8n (**F67 fail-open**) |
 | `_settingsUseEf` | true (**EF**) | false (n8n) | — |
 
-**Live fail-safe:** with `sidneylaruel` temporarily removed from the in-memory flag, a real
+**Historical routing drill:** with `<PRIVATE_TEST_CLIENT>` temporarily removed from the in-memory flag, a real
 caption edit on a disposable card routed to the n8n `calendar-upsert-post` webhook (captured;
 the n8n write was blocked so nothing landed), NOT the EF. Flag restored, card archived. The
-routing decision degrades to n8n on empty/error flag — a client can be pulled off the EF path
-instantly by removing the slug (one-step rollback).
+routing decision degrades to unauthenticated n8n on empty/error flag. This is the F67 security
+defect and must not be repeated as rollback.
 
 ## Phase 4 — read-only surface health (focused) — PASS
 
@@ -306,8 +312,8 @@ with 0 reconciler-sourced corrections and no recorded write-path incident, the r
 shows 0 drift, response-shape and column parity hold, the guard gauntlet is preserved
 (A1/A2/A4 parity previously passed on the test client), and this end-to-end test confirms every
 interaction routes to the EF, writes the correct columns, still drives Linear correctly per
-component, persists, and propagates — with a clean one-step per-client rollback (remove the slug
-→ instant n8n fallback).
+component, persists, and propagates. Its former “one-step per-client rollback” conclusion is
+withdrawn: slug removal selects an unauthenticated n8n writer (F67).
 
 **Recommended before / during a full rollout:**
 1. **All-client drift pre-flight.** This test verified 0 drift on the 6 flagged clients only.
@@ -332,7 +338,7 @@ is a calendar write-path blocker.
 
 Harness lives in `qa/ef-writepath/` (Node + Playwright, same courier pattern as
 `qa/sxr_courier_lib.js`). Each script serves `index.html` in-process, seeds the auth key, drives
-the REAL UI on the test client `sidneylaruel`, and captures outbound network to prove routing by
+the REAL UI on the test client `<PRIVATE_TEST_CLIENT>`, and captures outbound network to prove routing by
 URL. Linear pushes are captured+mocked by default (zero mutation); `EFWP_LINEAR_FORWARD=1`
 forwards ONLY the test client's own allow-listed issues to live n8n for the real round-trip.
 
@@ -348,6 +354,6 @@ node qa/ef-writepath/21-drift-check.js      # column drift, all flagged clients 
 node qa/ef-writepath/30-master-readonly.js  # Phase 4 read-only surface health
 ```
 
-Safety: only `sidneylaruel` is ever written; Linear mutations are limited to the test client's
+Safety: only `<PRIVATE_TEST_CLIENT>` is ever written; Linear mutations are limited to the test client's
 own allow-listed issues and reverted; screenshots (if any) stay local and are not committed; the
 browser-safe publishable anon key already in `index.html` is the only key used (no secrets).

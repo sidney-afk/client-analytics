@@ -3,14 +3,15 @@
 # *.sql files in migrations/, run by hand in the SQL editor.
 project_id = "uzltbbrjidmjwwfakwve"
 
-# Public capture endpoint: the onboarding form calls it anonymously from the
-# browser, so JWT verification must stay off (the function holds the service
-# role internally and the target table has no anon access).
+# Public capture endpoint: transport remains anonymous, but F81 requires server-minted submission
+# ownership, abuse/rate/size/schema/kind controls, conditional updates, immutable creation time,
+# and sanitized alerts. JWT-off plus service role is not itself a safe public-write contract.
 [functions.onboarding-capture]
 verify_jwt = false
 
-# Staff-only credentials gateway. Browser calls it anonymously, but every action
-# must include X-Syncview-Key matching the CREDENTIALS_STAFF_KEY Edge secret.
+# Staff credentials gateway. F84 blocks current shared/legacy-key + bulk-plaintext design: replace
+# it with individually revocable active-member sessions, metadata-only list, one-secret fail-closed
+# audited reveal, and no old plaintext history. JWT-off plus a shared custom key is not sufficient.
 [functions.client-credentials]
 verify_jwt = false
 
@@ -39,24 +40,27 @@ verify_jwt = false
 [functions.caption-prompts-save]
 verify_jwt = false
 
-# Filming plan source of truth. Browser reads use anon RLS; writes are public
-# HTTP calls gated inside the function by ONBOARDING_STAFF_KEY.
+# Filming plan source of truth. F82 blocks current deployment: both EF GET and anon RLS expose the
+# complete client/document-link roster. Replace with least-field principal/client/role reads and
+# revoke anon SELECT; writes remain function-gated during the separate auth migration.
 [functions.filming-plans]
 verify_jwt = false
 
-# Public hidden SMM weekly report form + Kasper viewer. Security is intentionally
-# permissive for v1; the function validates payloads and the table unique index
-# prevents duplicate SMM/client/week submissions.
+# Public HTTP transport for the SMM report form/viewer. F76 blocks the current deployed source:
+# every action needs custom individual/role/service authorization, and underlying tables must not
+# grant anon SELECT. Payload validation/uniqueness do not provide authentication or prevent abuse.
 [functions.smm-weekly-reports]
 verify_jwt = false
 
-# Browser-triggered resolver for Google Drive thumbnail parent folders. It
-# verifies the target row's thumbnail_url before updating derived folder fields.
+# Browser-triggered resolver for Google Drive thumbnail parent folders. F79/F80 block current
+# deployment: require principal/client scope and make the final write an exact URL/version CAS.
 [functions.thumbnail-folder-resolve]
 verify_jwt = false
 
-# Manual/scheduled scanner for pending thumbnail revision baselines. If the
-# THUMBNAIL_REVISION_SCAN_KEY secret is set, callers must send X-Syncview-Key.
+# Manual/scheduled scanner for pending thumbnail revision baselines. F78 requires a dedicated
+# scheduler signature and fail-closed source; optional-key behavior is unsafe when the secret is
+# absent. F83 separately requires revoking anon access to its metadata table. Do not invoke/schedule
+# until deployed negative proof passes.
 [functions.thumbnail-revision-scan]
 verify_jwt = false
 

@@ -1,5 +1,12 @@
 # Samples (Review) — Go-Live Checklist
 
+> **HISTORICAL ROLLOUT RECORD — DO NOT EXECUTE (F46/F67/F73).** Samples/SXR is now GA default-on,
+> not a default-off `?sxr=1` canary. Three early boot copies still incorrectly require the old
+> opt-in, so a fresh staff deep-link/reload can fall back to home even though `_sxrEnabled()` is on.
+> The combined n8n Linear receiver named below is inactive/unpublished; scheduled reconcilers are
+> the current healer. Its anonymous n8n writers are not safe rollback. Use GO LIVE, FLIP, ROLLBACK,
+> MONITORING, and the cutover register; retain the rest only as dated rollout evidence.
+
 The samples feature is **built, verified, and committed**. It ships behind the
 `?sxr=1` flag (**default OFF**), so merging changes nothing for anyone until you
 flip that flag. This is the short list of steps to take it live.

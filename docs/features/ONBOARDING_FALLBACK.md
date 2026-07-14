@@ -1,5 +1,16 @@
 # Onboarding Fallback & Backup (never lose a submission)
 
+> **ABUSE/INTEGRITY BLOCKER (F81).** “Never lose” currently also means an unauthenticated caller can
+> choose an ID, upsert arbitrary payload/note content, reset creation chronology, and trigger the
+> shared alert route without nonce, rate, size/schema/kind, or ownership controls. Preserve the
+> public client journey, but add bounded server-minted submission sessions and negative abuse tests.
+>
+> **CAPTURE IS NOT COMPLETION (F110/F111).** This safety net protects a copy of the answers. It
+> does not prove credential import, Drive/CRM/Slack provisioning, Track-B enrollment, or staff
+> acknowledgement. Primary duplicate handling de-duplicates the intake row but bypasses downstream
+> work, so replay is not completion-safe. Use the SyncView onboarding inbox/job as the current
+> operator entry; the replaced Notion workflow is not a fallback.
+
 The goal, verbatim from the June 2 July call: **a client's submitted form must never
 be lost — there must always be a copy somewhere.** This doc describes the layered
 safety net added 2026-07-02 around both onboarding funnels (`/onboarding_form` +
@@ -14,10 +25,11 @@ safety net added 2026-07-02 around both onboarding funnels (`/onboarding_form` +
                     │ + sendBeacon flush on tab hide/close ────────┼──▶ fallback store
                     └──────────────────────────────────────────────┘
 Submit ──▶ primary n8n webhook (20s timeout, 1 auto-retry)
-   │              │ insert OK ──▶ Supabase table ──▶ Slack DM ──▶ 200
-   │              │            └─▶ form also parks a `submitted` copy in the fallback store
+   │              │ insert OK ──▶ Supabase table ──▶ fail-soft alert ──▶ 200 (captured)
+   │              │            ├─▶ form also parks a `submitted` copy in the fallback store
+   │              │            └─▶ credentials + unawaited provisioning (no completion receipt)
    │              │ insert FAILS ─▶ dead-letter to Data Table + 🚨 Slack DM ──▶ 500
-   │              │ duplicate id ─▶ 200 {ok, duplicate:true}  (retries never poison)
+   │              │ duplicate id ─▶ 200 {ok, duplicate:true}  (row dedup only; no resume)
    │ primary unreachable / non-200
    ├──▶ Supabase Edge Function `onboarding-capture`  (different infra than n8n)
    ├──▶ n8n fallback webhook `onboarding-fallback`   (different store than Supabase)
@@ -49,8 +61,9 @@ Supabase insert failed.
 retries, draft syncs and fallbacks; it clears on success. So:
 
 - a retry after a lost success response gets `200 {ok, duplicate:true}` from the
-  primary (the insert 409s on the PK and the error branch classifies it) — no
-  duplicate rows, no stuck retry loop;
+  primary (the insert 409s on the PK and the error branch classifies it), so the
+  intake row is not duplicated. That direct duplicate branch does **not** resume
+  credential import or provisioning and is not a completion receipt (F110);
 - draft → fallback → submitted all upsert ONE row per client in the fallback store.
 
 ## What is live right now (n8n side — no action needed)
@@ -59,39 +72,25 @@ retries, draft syncs and fallbacks; it clears on success. So:
 | --- | --- | --- |
 | Fallback capture webhook | wf `u4ACOKArXHidVJXl`, `POST /webhook/onboarding-fallback` | ✅ active, tested (JSON + text/plain beacon + Slack alert) |
 | Data Table `onboarding_fallback` | n8n project `4dvRQbC5gyJNowXX`, id `5dqP1AdgvDtvMboC` | ✅ created, taking rows |
-| Dead-letter + duplicate branch | submit wfs `ljNY7CKYLKzMOACZ` + `hxLFIdKG9hUIzukO` | ✅ live, duplicate path tested on both funnels |
+| Dead-letter + duplicate branch | both primary submit workflows | ✅ row-level dedup live; downstream resume missing (F110) |
 | Slack cred drift fix | `ljNY…` Notify Sidney → **SyncView Bot** (`qUlAcjdhd6EpKOTL`) | ✅ done (was “Slack account 2” per 06-25 snapshot) |
 | Weekly backup incl. onboarding tables | wf `jlVfbg0Njxf1It7h` | ✅ live; verified run 2026-07-02 (`supabase-2026-07-02.json`, counts 2926/25/1/1, credential-strip verified) |
 
 Pre-edit rollback snapshots: `n8n-backups/*.2026-07-02.pre-*.json`.
 
-## Finish steps (Supabase side — two commands, then the Edge layer is live too)
+## Deployment status — no operator actions
 
-The form already tries the Edge URL first and falls through cleanly while it 404s,
-so nothing breaks before these run — the n8n fallback carries the load alone.
-
-1. Run `migrations/onboarding-fallback-supabase-migration.sql` in the SQL editor
-   (project `uzltbbrjidmjwwfakwve`).
-2. `supabase functions deploy onboarding-capture --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt`
-   (CLI: `supabase login` first; `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` are
-   auto-injected, no secrets required). Optional: `supabase secrets set
-   SLACK_ALERT_WEBHOOK=<incoming-webhook-url>` to get pinged on Edge captures.
+Both fallback stores are deployed. The migration remains an idempotent historical definition, not
+a paste-ready instruction, and live Edge deployment follows the reviewed B4 fingerprint/readback
+process. F81 still blocks treating the public capture route as hardened.
 
 ## Replaying a captured submission
 
-A 🛟/🚨 DM means a submission is sitting in the fallback store instead of the real
-table. To replay: open the row (n8n → Data Tables → onboarding_fallback, or the
-Supabase table), copy `payload`, and POST it to the primary webhook once the fault
-is fixed:
-
-```
-curl -X POST https://synchrosocial.app.n8n.cloud/webhook/{onboarding-submit|ai-onboarding-submit} \
-  -H 'Content-Type: application/json' -d '{"submission": <payload>}'
-```
-
-Same id → if it somehow already landed, you just get `{ok, duplicate:true}` —
-replays are always safe. The dashboard inbox reads the real tables only, so a
-replayed submission shows up there like any other.
+A capture alert means a copy exists outside the primary table. Do not manually POST its sensitive
+payload from this public guide: the current duplicate branch can acknowledge an existing intake row
+without healing missed downstream work. Until F110 ships, an authorized operator verifies whether
+the primary row exists, records every missing side effect, and uses a private owner-reviewed recovery
+runbook; the final design must resume the same server-owned job idempotently and read back completion.
 
 ## Sensitivity notes
 
@@ -105,16 +104,9 @@ replayed submission shows up there like any other.
 
 ## Housekeeping / test data
 
-Safe to delete whenever (they're clearly marked):
-
-- Data Table rows `o_fallback_probe_001` / `o_fallback_probe_002` (today's fallback tests).
-- Supabase `ai_client_onboarding` row `o_test_delete_me_001` and
-  `client_onboarding` row `o_livetest_1782428655` (earlier live tests) — these two
-  also sit in the dashboard inbox. **Careful with the DELETE — scope it by id**;
-  as of the 2026-07-02 backup run these tables are in the weekly Drive dump, so
-  there's finally a copy to fall back on.
-- Drafts accumulate one Data Table/Supabase row per browser that typed a name or
-  email; prune occasionally if it bothers anyone (rows are tiny text).
+Do not publish row identifiers or deletion recipes here. TEST cleanup requires a private exact-row
+manifest, ownership/readback assertions, backup confirmation, and an owner-reviewed deletion. Draft
+retention/pruning needs an explicit privacy and recovery policy; “rows are small” is not a policy.
 
 ## Loss scenarios → where the copy lives now
 
@@ -124,6 +116,6 @@ Safe to delete whenever (they're clearly marked):
 | Supabase insert fails (cred/table/outage) | Data Table dead-letter + 🚨 DM; browser also falls back |
 | Both n8n and Supabase down | client keeps draft + downloads answers file; drafts already synced earlier |
 | Client abandons after failure, never retries | latest draft/fallback row already server-side (throttled sync + beacon) |
-| Success response lost, client retries | `{ok, duplicate:true}` — original row intact |
+| Success response lost, client retries | Original intake row remains; duplicate 2xx does not prove or resume downstream completion (F110) |
 | Row deleted / table dropped later | weekly Drive dump (credential-stripped) + `submitted` copy in fallback store |
 | Private mode / in-app browser (no localStorage) | draft sync + beacon still fire (id held in memory for the session) |

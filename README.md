@@ -98,8 +98,19 @@ npm run test:prod-polish  # full Production polish gate for ?prod=1 UI work
 
 GitHub Pages serves `index.html` from `main` at the `CNAME` domain
 (`syncview.synchrosocial.com`). Merging to `main` ships to production immediately.
-For the migrated features, per-browser rollback is available via `?v2=0` (calendar)
-and `?sv2=0` (samples).
+Samples Old retains a dormant read-source selector at `?sv2=0`; it is neither a current route nor a
+writable recovery. Its old writer fans out to Sheet + Supabase, continues after a Sheet error, and
+anchors success on the Supabase branch, so a successful save can still be absent from the Sheet that
+sticky-off/automatic-fallback readers use (F57). **Do not use Calendar `?v2=0` as writable rollback
+either (F125):** it reads the legacy Sheet while full-roster writes/reorders go only to Supabase, so
+successful work can disappear on refresh or stale Sheet state can overwrite canonical fields. Until
+coupled recovery ships, treat either legacy read mode as read-only and escalate.
+
+A deploy also does **not** expire old tabs (F127). The current ETag banner is absent in direct
+Production, unreliable on onboarding aliases/cached first checks, and dismissible; protected calls
+carry no build/authority epoch. Do not use banner absence as a stale-caller, auth, cutover, or rollback
+gate. Mandatory releases need server-side minimum-build/epoch rejection plus privacy-safe population
+proof and draft/queue-safe reload.
 
 ## Keeping this README current
 

@@ -1,5 +1,13 @@
 # Thumbnail revision history
 
+> **SECURITY/CORRECTNESS BLOCKERS (F78–F80/F83).** The active scanner has no deployed scan-key and
+> currently fails open to anonymous service-role Drive/Storage work. The active folder resolver is
+> also anonymous and its final write is not a URL/version compare-and-set, so reversed requests can
+> commit stale parent metadata. Separately, the supposedly backend-only revision table grants anon
+> SELECT/realtime over cross-client Drive/private-path/requester/error metadata. Do not invoke or
+> schedule either path until required auth, bounded work, atomic CAS, revoked anonymous reads, and
+> deployed negative/concurrency tests pass.
+
 ## Goal
 
 When a thumbnail/graphic is sent back for changes, SyncView should keep enough
@@ -40,8 +48,9 @@ Snapshots live in the private Supabase Storage bucket
 - `migrations/2026-07-09-thumbnail-media-revisions.sql`
   - Creates the private Storage bucket.
   - Creates `public.thumbnail_media_revisions`.
-  - Enables anonymous read of metadata for future UI, while writes remain
-    service-role only.
+  - **F83 blocker:** currently enables anonymous metadata read/realtime for a future UI that does
+    not exist. Revoke this; keep service-role-only until an authenticated least-field projection is
+    designed and negatively tested.
 - `supabase/functions/_shared/thumbnail-revisions.ts`
   - Shared Drive metadata, snapshot, baseline capture, and scan logic.
 - `supabase/functions/calendar-upsert/index.ts`
@@ -91,14 +100,17 @@ Snapshots live in the private Supabase Storage bucket
    GOOGLE_PRIVATE_KEY
    ```
 
-4. Optional but recommended: set a scan key before wiring a scheduled caller.
+4. **Mandatory:** set a dedicated scan key/service signature before any manual or scheduled caller.
+   The function must fail closed when the secret is absent; verify deployed no-key/malformed-key
+   denial and a bounded correct-key TEST run (F78).
 
    ```bash
    supabase secrets set THUMBNAIL_REVISION_SCAN_KEY=<shared-secret> --project-ref uzltbbrjidmjwwfakwve
    ```
 
 5. Schedule `POST /functions/v1/thumbnail-revision-scan` every 10-15 minutes
-   from n8n or another scheduler. Send `X-Syncview-Key` if the scan key is set.
+   from n8n or another scheduler. The dedicated service signature is mandatory: always send it,
+   and treat an absent/malformed key as a failed deployment—not an optional compatibility mode.
 
    Example body:
 
@@ -109,7 +121,7 @@ Snapshots live in the private Supabase Storage bucket
    Narrow scan for the test client:
 
    ```json
-   { "client": "sidneylaruel", "limit": 10 }
+    { "client": "<PRIVATE_TEST_CLIENT>", "limit": 10 }
    ```
 
 ## Folder links
@@ -137,7 +149,7 @@ not expose the snapshots in the browser. The future UI should:
 
 ## Test client
 
-Use only `sidneylaruel` / "Sidney Laruel" for live verification. Existing useful
+Use only the privately configured `<PRIVATE_TEST_CLIENT>` for live verification. Existing useful
 fixtures observed on 2026-07-09:
 
 - Single Drive image:
@@ -147,7 +159,7 @@ fixtures observed on 2026-07-09:
 
 Live verification after rollout:
 
-1. Create or reuse a `sidneylaruel` test card with the single Drive image.
+1. Create or reuse a `<PRIVATE_TEST_CLIENT>` test card with the single Drive image.
 2. Move the graphic component to `Tweaks Needed`.
 3. Confirm one `thumbnail_media_revisions` row appears with `status='pending'`
    and a `baseline_storage_path`.

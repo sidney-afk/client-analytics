@@ -82,7 +82,7 @@ ok(/create policy "anon read thumbnail_media_revisions"/.test(SQL),
 ok(/alter publication supabase_realtime add table public\.thumbnail_media_revisions/.test(SQL),
   'revision table must be realtime-enabled');
 
-ok(/Folder links are deliberately skipped/.test(DOC) && /sidneylaruel/.test(DOC),
-  'documentation must cover folder limitation and test client');
+ok(/Folder links are deliberately skipped/.test(DOC) && /PRIVATE_TEST_CLIENT/.test(DOC),
+  'documentation must cover folder limitation and private-config test client');
 
 console.log('thumbnail revision history source checks passed');

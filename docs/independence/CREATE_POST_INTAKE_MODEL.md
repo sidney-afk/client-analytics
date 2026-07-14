@@ -86,3 +86,17 @@ materialization) implements exactly this, and flag/adjust any gap:
 - [ ] The **new-batch** path reuses Submit's native intake (parent + deliverables).
 - [ ] Batch creation works from **both** Submit and Create Post.
 - [ ] No free-form issue/sub-issue creation surface exists in the Linear tab.
+
+### Current implementation correction — F101
+
+The shipped Submit form still exposes Advanced **Video issue only** and **Thumbnail issue only**
+actions. Current card materialization and parked PR #813 create only the selected deliverable but
+initialize the absent sibling as `In Progress`. Calendar then counts that nonexistent leg in overall
+and client-ready state while disabling the control that could advance it.
+
+The locked paired decision above therefore requires those single-team actions to be removed and
+rejected server-side before native intake merges. Existing single-link cards must be classified as
+missing-link repairs versus deliberate exceptions. **Owner question:** are any deliberate
+single-team posts still supported? If yes, ratify that exception and require explicit active/N/A
+component semantics across every review, readiness, queue, comment, alert, artifact, and migration
+path; do not represent absence as approval or unfinished work.

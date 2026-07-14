@@ -1,5 +1,10 @@
 # Onboarding: Edge Functions + Templates merge + Kasper full view
 
+> **SECURITY BLOCKERS (F77/F85).** The three credential-stripped list readers are anonymous P0
+> disclosures. The unstripped full reader denies missing keys but accepts shared/legacy secret
+> possession without active-member binding or read audit. This document is historical rollout
+> context; do not use its key-retention steps as current authorization approval.
+
 This replaces the n8n onboarding **list** webhooks with Supabase Edge Functions, moves
 the onboarding inbox out of Templates, and gives Kasper a full (credentials-included)
 onboarding view. Builds on `LEGACY_ONBOARDING.md` (the old-forms import).
@@ -19,9 +24,9 @@ anon access):
 
 The three list functions strip the account-login answer keys
 (`instagram, instagram_backup, tiktok, facebook, linkedin, youtube`) exactly like the old
-n8n "Strip Credentials" node. `onboarding-full` accepts the verified admin role key sent in
-`X-Syncview-Key`; SMM and creative/editor/designer keys are denied. The role is derived from the
-matching secret, never from a caller-supplied role header. For the additive transition, the old
+n8n "Strip Credentials" node. `onboarding-full` accepts the admin role key sent in
+`X-Syncview-Key`; SMM and creative/editor/designer keys are denied. F85 proves secret-derived role
+alone is insufficient because the reader does not bind an active member or audit access. For the additive transition, the old
 `ONBOARDING_STAFF_KEY` remains valid and still falls back to `CREDENTIALS_STAFF_KEY` only when no
 dedicated onboarding key is configured. All comparisons use the shared timing-safe matcher.
 

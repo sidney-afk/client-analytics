@@ -1,5 +1,10 @@
 # Samples (Review) FE Rebuild — Build Strategy & Contract
 
+> **HISTORICAL EXECUTION STRATEGY; NOT CURRENT FLAG/TOPOLOGY GUIDANCE (F46/F73).** The build shipped
+> and SXR is GA default-on. Default-OFF/`?sxr=1` requirements below are dated design constraints;
+> three stale early-boot copies now contradict GA and break fresh staff deep links/reloads. The named
+> combined n8n receiver is inactive/unpublished. Use the current register/System Map until rewrite.
+
 **Status:** PLAN — awaiting your go-ahead. No feature code written yet.
 **Supersedes the *execution approach* of:** `docs/archive/SAMPLES_PARITY_PLAN.md` (that doc is the record of the
 old *function-by-function* approach that failed). **Builds on:** `SAMPLES_REBUILD_SPEC.md` (the

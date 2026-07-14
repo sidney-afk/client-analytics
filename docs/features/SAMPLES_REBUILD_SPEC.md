@@ -1,5 +1,11 @@
 # Samples (Review) — Front-End Rebuild Spec (the parity MAP)
 
+> **HISTORICAL BUILD CONTRACT; FLAG/TOPOLOGY SECTIONS ARE NON-OPERATIVE (F46/F73).** The rebuild
+> shipped and SXR is GA default-on. Statements requiring `?sxr=1` or default-OFF isolation describe
+> rollout, not intended current behavior. Three early boot copies still implement that obsolete
+> expression and break fresh deep-link/reload; the combined n8n receiver is inactive/unpublished.
+> Use the current register/System Map; do not “fix” runtime back to this old blueprint.
+
 **Status:** blueprint for a clean, from-scratch rebuild of the Samples (Review) FRONT END.
 **Backend:** DONE + LIVE (do not rebuild — see §3). This spec is FRONT-END only.
 **Read this first, then build.** It exists because the first attempt failed in a specific,

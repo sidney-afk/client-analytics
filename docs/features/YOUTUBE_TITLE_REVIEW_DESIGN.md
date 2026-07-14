@@ -1,6 +1,14 @@
 # YouTube Title Review + Notes Component Routing — Design Spec
 
-**Status:** Part A front-end BUILT + pushed (`claude/zen-meitner-bmih9m`); Phase 0 backend + Part B pending · **Date:** 2026-06-17
+> **Current status (verified 2026-07-14): Parts A and B plus their backend fields are deployed.**
+> This file preserves the design contract; its old branch/rollout sequence is not executable.
+> Canonical evidence is `index.html`, the committed schema, `calendar-upsert`,
+> `test/title-review-lifecycle.js`, and `test/notes-linear-routing.js`. The optional lifecycle
+> system-event timeline remains deferred; ordinary comment/tweak history is the current audit trail.
+> **F109 remains open:** generic title text edits can retain an older Approved stamp/status without
+> recording which text changed or forcing renewed approval.
+
+**Original design date:** 2026-06-17
 **Owner area:** Calendar → per-card title, Kasper/client review, Notes modal, Linear sync
 
 This spec covers two related features decided together:
@@ -96,12 +104,12 @@ New per-card fields (added to the n8n `calendar-upsert-post` `ALLOWED` list + Su
 The **audit trail** comes from the existing comment model, which already records per entry:
 `{ role: 'smm'|'kasper'|'client', author, is_tweak, audience, body, created_at, updated_at,
 done, done_at, done_by }` — i.e. **who / what / when / resolved**. We add two small,
-title-scoped extensions for the "leave no room for error" goal:
+title-scoped extension for the "leave no room for error" goal, plus one deferred idea:
 
-- a **`round`** integer tag on entries (revision 1, 2, 3…), and
-- optional **`kind:'event'`** system entries logging lifecycle moments (`submit`,
-  `kasper_approve`, `client_approve`, `edit_title` with old→new). The thread is JSON, so
-  this is additive and needs no migration — and gives headroom for details we add later.
+- **Deployed:** a **`round`** integer tag on entries (revision 1, 2, 3…).
+- **Deferred/not audit evidence:** optional **`kind:'event'`** system entries for lifecycle
+  moments (`submit`, `kasper_approve`, `client_approve`, `edit_title` with old→new). The current
+  code does not emit these entries.
 
 The per-client enable flag lives where "Collaborative mode" persists (cross-device).
 
@@ -117,8 +125,10 @@ The title flows through `title_status` like any component:
   `Tweaks Needed` + a Kasper tweak comment. (No Linear push — title has no issue.)
 - **Client** Approve → `Approved` + `client_title_approved_at`; Request change →
   `Tweaks Needed` + a client tweak.
-- **Edit after approval** → logged as an `edit_title` event; status unchanged unless the SMM
-  changes it.
+- **Edit after approval** → status stays unchanged unless the SMM changes it. A dedicated
+  `edit_title` system-event timeline was designed but is not implemented; do not treat it as
+  current audit evidence. F109 requires an owner-approved invalidation/audit rule before the prior
+  sign-off can be treated as approval of the edited text.
 
 ## A5. UI surfaces
 
@@ -235,10 +245,13 @@ The Sheet auto-adds columns. Part B needs **no** new columns.
 - Overall status never gated by the title (a card can be `Approved`/`Posted` with its title
   still in review, and vice versa).
 
-## Build order
+## Historical build order — complete; do not execute
 
-**Phase 0 — backend (no-op until used):** Supabase migration (3 columns) → `ALLOWED` (3
-names). 
+The sequence below records how the feature was assembled. It is not permission to rerun a
+migration or modify a live workflow.
+
+**Phase 0 — backend (complete):** the three fields exist in the schema baseline and are accepted
+by `calendar-upsert`.
 
 **Phase A — title review:** list split (`CAL_REVIEW_COMPONENTS`) + audit the §A6 sites →
 seed/persist (`_calMigratePostShape`, patch builder) → `COMP_LABELS`/colors + status subset
@@ -267,9 +280,9 @@ Each phase ships safe behind the off-by-default toggle (A) / is additive (B).
 
 All decisions (Part A and Part B) are **locked** — see "Decisions captured" (§A2) and §B3.
 
-## Implementation status (2026-06-17)
+## Implementation status (reconciled 2026-07-14)
 
-**Part A front-end — DONE & pushed** (off-by-default, safe). Foundation/data layer
+**Part A — DEPLOYED.** Foundation/data layer
 (`CAL_REVIEW_COMPONENTS` split, `title_status`/`title_tweaks`/`client_title_approved_at`
 in migrate + patch builder + rollback/dedupe/realtime tuples), the per-client ⋮ toggle,
 the SMM title pill (trimmed status list), the SMM + client review panels (title preview,
@@ -278,10 +291,9 @@ the Notes feed (title comments labeled "Title", full unread/seen). Title is Line
 (`_calLinearUrlFor` → `''`). Guarded by `test/title-review-lifecycle.js` (proves the
 overall-status invariant) + the full existing suite (all pass).
 
-**Phase 0 backend — PENDING (needs you / sign-off):** run `migrations/title-review-migration.sql`
-in Supabase, then add `title_status`, `title_tweaks`, `client_title_approved_at` to the
-n8n `calendar-upsert-post` `ALLOWED` array (migration first). Until then the toggle is
-off and the new fields are dropped by the upsert — no effect.
+**Phase 0 backend — DEPLOYED.** `title_status`, `title_tweaks`, and
+`client_title_approved_at` exist in the schema baseline and the current `calendar-upsert`
+allowlist. Do not repeat the former SQL/n8n rollout from Git history.
 
 **Audit trail — DONE:** per-comment role/author/time/resolved + `client_title_approved_at`
 + `kasper_seen` (via reuse), **plus explicit `round` numbering** on every change-request
@@ -293,12 +305,14 @@ off and the new fields are dropped by the upsert — no effect.
   `round` numbering above already covers "2nd / 3rd tweak"; a full system-event timeline is a
   further enhancement.
 - A literal YouTube logo glyph on the title pill/panel (currently a red dot + "Title").
-- **Part B** (Notes component picker + Linear routing) — separate phase, not started.
+- **Part B — DEPLOYED.** The Notes picker uses `_calComposeComp`; root notes validate the selected
+  component, replies resolve the original component, and only Video/Graphics route through
+  `_calLinearUrlFor`. `test/notes-linear-routing.js` guards that contract.
 
 ## Outstanding bugs — live QA (2026-06-17) → **ALL RESOLVED 2026-06-18**
 
 The title feature is **verified working** in live testing (driven headlessly on the
-**Sidney Laruel** test client against the live backend): `title_status`/`caption_status`
+the private TEST client against the live backend): `title_status`/`caption_status`
 hold through every realtime reconcile; round numbering, echo-adopt and the title square
 all behave; the title is excluded from the overall status through SMM, Kasper and client
 title-review (approve / request-change / resolve), and every status + comment persists
@@ -345,4 +359,3 @@ Regression coverage: `test/calendar-v2-status-repro.js` sections E/F/G.
   background branch was a no-op that refreshed nothing. Fix: refresh the Notes badges on
   that branch too. Verified live: the unread dot now lights even inside the recent-save
   window and cross-tab.
-

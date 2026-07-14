@@ -4,7 +4,7 @@
 
 Dark mode is staff-only and opt-in. Light mode remains the default and must remain visually unchanged.
 
-Included staff surfaces: analytics/home, client detail analytics and charts, content calendar views, Samples New views, Samples Old views, Templates, Workload, Submit/intake (internal `linear`), TikTok Upload, TikTok Pilot, Kasper queue/subtabs, the Linear read-only mirror (internal `production`; `?prod=1`), modals, toasts, dropdowns, search panels, tooltips, and scrollbars.
+Included staff surfaces: analytics/home, client detail analytics and charts, content calendar views, Samples New views, Samples Old views, Templates, Workload, Submit/intake (internal `linear`), TikTok Upload, TikTok Pilot, Kasper queue/subtabs, the authority-gated Linear mirror (internal `production`; `?prod=1`), modals, toasts, dropdowns, search panels, tooltips, and scrollbars. Theme scope says nothing about write authority; current `prod_authority` must be read back separately.
 
 Excluded surfaces:
 

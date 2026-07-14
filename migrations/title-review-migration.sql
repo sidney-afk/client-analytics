@@ -1,8 +1,8 @@
 -- ============================================================
 -- Calendar: YouTube Title Review — add title_status + title_tweaks
 --           + client_title_approved_at columns
--- Run in the Supabase SQL editor for project uzltbbrjidmjwwfakwve.
--- Idempotent (safe to run more than once).
+-- CURRENT STATUS: deployed historical idempotent definition, not a live rollout instruction.
+-- F109 remains open: approved title text can change without invalidation or an immutable event.
 --
 -- WHY: The title review (see YOUTUBE_TITLE_REVIEW_DESIGN.md) makes the YouTube
 -- title a reviewable element with its OWN status + comment thread + client
@@ -16,15 +16,13 @@
 --   • client_title_approved_at  — client sign-off timestamp (mirrors
 --                                 client_caption_approved_at).
 --
--- ROLLOUT ORDER (important):
+-- HISTORICAL ROLLOUT ORDER (completed; do not execute from this file):
 --   1. Run THIS migration first (adds the columns).
 --   2. Then add 'title_status', 'title_tweaks' and 'client_title_approved_at'
 --      to the ALLOWED array in the n8n "calendar-upsert-post" workflow's
 --      "Build Row From Patch" Code node.
---   Doing step 2 before step 1 would make the Supabase mirror upsert
---   (autoMapInputData) send an unknown column and error. The front end can ship
---   any time: until these are in the allow-list the upsert just drops them, and
---   the title-review toggle stays off by default, so nothing changes.
+--   These steps are retained only to explain dependency order. Any current live
+--   change follows the reviewed release and B4 fingerprint/readback process.
 -- ============================================================
 
 alter table public.calendar_posts

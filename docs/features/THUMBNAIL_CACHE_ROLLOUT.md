@@ -1,69 +1,37 @@
-# Thumbnail auto-refresh (`thumb_rev`) — rollout
+# Thumbnail auto-refresh (`thumb_rev`) — deployed-state record
 
-**Goal:** when anyone changes a post's thumbnail link — even to the *same* link
-(a new file behind an unchanged Google Drive share link) — the picture refreshes
-**live for every viewer** (the SMM, the client, Kasper), with no hard refresh.
+> **Current status (verified 2026-07-14): DEPLOYED.** This file is no longer an executable
+> rollout checklist. Do not re-run its former SQL or edit a live n8n allowlist from this document.
+> Canonical evidence is the current schema, `supabase/functions/calendar-upsert/index.ts`,
+> `index.html`, and `test/calendar-thumb-cache-bust.js`.
 
-## How it works
+## Contract
 
-Thumbnail `<img>` URLs already carry a `_cb` cache-buster (the post's
-`updated_at`). But the strip reuses the already-decoded image across re-renders
-whenever the base URL is unchanged (this is what stops a flicker on every
-caption/status save), so a same-link thumbnail swap kept showing the stale image.
+When a post's thumbnail link changes—or the file behind an unchanged share link is replaced—the
+image must refresh for the SMM, client, and Kasper without unrelated saves causing flicker.
 
-Fix: a per-post **`thumb_rev`** token, appended to the image URL as `_r` and
-**kept** in the strip's reuse key. It is bumped when a thumbnail/asset link is
-written, and also when `graphic_status` moves out of `Tweaks Needed`. That second
-case covers the normal design workflow where the Drive link stays identical but
-the designer replaced the file behind it. Unrelated saves still reuse the decoded
-image (no flicker), but a real thumbnail revision forces a reload on every render
-path. `thumb_rev` is a **persisted column**, so the new token rides the upsert
-echo + Supabase realtime to every open browser - that's what makes the client's
-and Kasper's views reload live.
+Thumbnail image URLs carry `_cb` for ordinary row freshness and `_r` for a real thumbnail revision.
+The per-post `thumb_rev` token is part of the strip reuse key. It changes when a thumbnail/asset link
+is written and when Graphics leaves `Tweaks Needed`, covering the normal same-link replacement
+workflow. Session state provides an immediate local update; the persisted value carries the change
+across reloads, realtime, and devices.
 
-- **Front end:** sourced session-first (`_calThumbRev[id]`, instant on the editor
-  + graceful fallback) then persisted (`post.thumb_rev`, remote viewers + after a
-  reload). See the `_calThumbRev` / `_calCacheBustThumb` block in `index.html`.
-- **Regression test:** `test/calendar-thumb-cache-bust.js`.
+## Current implementation evidence
 
-## Rollout steps (in order)
+- `calendar_posts.thumb_rev` exists in the committed live schema baseline.
+- `calendar-upsert` accepts and persists `thumb_rev`.
+- Calendar and Samples save paths bump and send it; Kasper's patch allowlist carries it.
+- `_calThumbRev` / `_calCacheBustThumb` keep `_r` in the image reuse key.
+- `test/calendar-thumb-cache-bust.js` guards same-link refresh and unrelated-save reuse behavior.
 
-The front-end change is already shipped and is **safe on its own** — until the
-backend below is in place, `thumb_rev` is simply dropped by the upsert and the
-editor still updates locally via its in-session fallback. To turn on the
-**cross-viewer** behavior:
+These statements describe the repository/deployed contract; they are not permission to mutate a
+workflow or schema. Any future backend change follows the normal release manifest, TEST proof,
+fingerprint/readback, and rollback controls.
 
-1. **Supabase — add the column.** Run `migrations/calendar-thumb-rev-migration.sql` in the
-   Supabase SQL editor (project `uzltbbrjidmjwwfakwve`). Idempotent.
+## Verification
 
-   ```sql
-   alter table public.calendar_posts add column if not exists thumb_rev text;
-   ```
-
-2. **n8n — allow the field through the upsert.** In the `calendar-upsert-post`
-   workflow, open the **`Build Row From Patch`** Code node and add `'thumb_rev'`
-   to the `ALLOWED` array:
-
-   ```js
-   const ALLOWED = [
-     'order_index','scheduled_date','name','asset_url','thumbnail_url',
-     // …existing entries…
-     'kasper_seen','kasper_approved_after_tweaks',
-     'thumb_rev'                      // ← add
-   ];
-   ```
-
-   Nothing else changes: the Google Sheet write (`autoMapInputData`,
-   `insertInNewColumn`) auto-adds the column, the Supabase mirror
-   (`autoMapInputData`) writes it, and `Wrap Response` echoes it back.
-
-**Do step 1 before step 2.** If the field is allowed through before the Supabase
-column exists, the mirror upsert sends an unknown column and errors.
-
-## Verify
-
-Two browsers on the same client (e.g. an SMM tab and a client-link tab). Change a
-card's thumbnail link, or move a graphic from `Tweaks Needed` back to review after
-the designer swapped the Drive file behind the same link. The image should update
-in **both** within ~1s, no refresh. Caption/status/date edits must **not** make
-the thumbnail flicker.
+Use two isolated TEST-client sessions. Replace a thumbnail link or move Graphics out of
+`Tweaks Needed` after replacing the file behind the same link. Both sessions must reload the image
+without a hard refresh; caption/status/date-only saves must retain the decoded image. Include
+reload, second-device, realtime interruption/recovery, and stale-write cases before changing the
+contract.

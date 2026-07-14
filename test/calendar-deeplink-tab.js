@@ -60,9 +60,10 @@ let currentNav = 'calendar';
 let calState = { client: null, embedded: false, posts: [] };
 let _calPendingDeepLink = null;
 let _calFocusRequest = null;
-const calls = { loadCalendarPosts: 0, renderBody: 0, renderTabs: 0 };
+const calls = { loadCalendarPosts: 0, renderBody: 0, renderTabs: 0, renderShell: 0 };
 // DOM-coupled deps → no-ops / counters.
 function _calRenderTabs(){ calls.renderTabs++; }
+function _calRenderShell(){ calls.renderShell++; }
 function _calFlushAllPending(){}
 function _calResetSelection(){}
 function _calLoadClientFilters(){}
@@ -103,6 +104,7 @@ function reset() {
   m.calls.loadCalendarPosts = 0;
   m.calls.renderBody = 0;
   m.calls.renderTabs = 0;
+  m.calls.renderShell = 0;
 }
 
 console.log('— _calOpenClientTab pins AND switches to the client —');
@@ -110,6 +112,7 @@ reset();
 m._calOpenClientTab('Jenna Phillips Ballard');
 ok(m._calGetPins()[0] === 'Jenna Phillips Ballard', 'client is added to the open-tabs list (a tab appears)');
 ok(m.calState.client === 'Jenna Phillips Ballard', 'client becomes the active client');
+ok(m.calls.renderShell === 1, 'cold activation rebuilds client-dependent toolbar chrome');
 ok(m.calls.loadCalendarPosts === 1, 'its calendar is loaded');
 
 console.log('\n— Opening the already-active client is a no-op reload (no dup tab) —');
@@ -135,6 +138,7 @@ m.WL = ['Baya Voce', 'Jessica Winterstern', 'Morgan Burton', 'Jenna Phillips Bal
 m._calResolvePendingDeepLink();
 ok(m.calState.client === 'Jenna Phillips Ballard', 'switches to the deep-linked client');
 ok(m._calGetPins()[0] === 'Jenna Phillips Ballard', 'and opens it as a tab');
+ok(m.calls.renderShell === 1, 'deferred deep link restores More and Sheet actions');
 ok(m.pending === null, 'pending deep link is cleared');
 
 console.log('\n— Boot race: a card deep link carries the cardId into the focus request —');
@@ -153,6 +157,7 @@ m.pending = { slug: 'whoisthis', cardId: null };
 // WL stays seed-only → slug never resolves
 m._calResolvePendingDeepLink();
 ok(m.calState.client === 'Baya Voce', 'falls back to the first pinned client');
+ok(m.calls.renderShell === 1, 'fallback uses the same complete toolbar activation path');
 ok(m.calls.loadCalendarPosts === 1, 'and loads it (no stuck loader)');
 
 console.log('\n— Navigated away while loading: resolver does not yank the user back —');

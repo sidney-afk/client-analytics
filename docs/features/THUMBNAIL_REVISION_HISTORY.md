@@ -94,20 +94,33 @@ when SyncView has both confirmed snapshots.
 
 ### 4. Protected comparison UI
 
-Calendar and Samples cards with a single thumbnail expose a **Compare** action. It does not fan out
-history reads while cards render. Opening it lazily calls:
+Calendar and Samples cards with a single Drive-file thumbnail expose a **Compare** icon only after
+the protected reader confirms that a real Previous/Current pair exists. After cards render, the
+browser groups eligible card IDs into authenticated availability requests of at most 50 IDs:
 
 ```text
 POST /functions/v1/thumbnail-revision-read
 ```
 
-with `{surface, client, source_id}`. Staff must supply a valid role key and one exact active roster
-identity; a client link must supply the exact review token for the requested client. The function
-then verifies that the requested card belongs to that surface/client before reading history.
+with `{surface, client, mode:"availability", source_ids:[...]}`. The function verifies that every
+requested card belongs to the exact surface/client, then returns only `available_source_ids`. This
+check does not sign snapshot objects or return revision rows, timestamps, Drive IDs, Storage paths,
+or other history metadata. Batching prevents a one-request-per-card fanout; if the check fails, the
+icon remains hidden and a later authoritative render can retry.
 
-The raw history table and private bucket are never browser-read. The function returns only status,
-minimal timestamps, and five-minute signed image URLs for one card. Responses are `no-store` and
-omit Drive IDs, Storage paths, requester attribution, and internal errors.
+The icon also stays hidden while the card is in **Tweaks Needed**. The source-row status change can
+arrive just before its new baseline is captured, so this fail-closed rule prevents an older cycle's
+pair from appearing as the new one. Leaving Tweaks Needed changes the card version and triggers a
+fresh availability check.
+
+Clicking a visible icon calls the same endpoint with `{surface, client, source_id}` for that exact
+card. Staff must supply a valid role key and one exact active roster identity; a client link must
+supply the exact review token for the requested client. The function then verifies that the
+requested card belongs to that surface/client before reading and signing its comparison pair.
+
+The raw history table and private bucket are never browser-read. The exact-card response returns
+only status and five-minute signed image URLs for one card. Responses are `no-store` and omit
+timestamps, revision IDs, Drive IDs, Storage paths, requester attribution, and internal errors.
 
 The dialog presents **Previous** and **Current** side by side on desktop and stacked on narrow
 screens. It includes loading, pending, no-history, authorization, expired-image, and retry states;
@@ -161,7 +174,8 @@ never accepts a staff key as scheduler authority.
 - `supabase/functions/calendar-upsert/index.ts`: Calendar baseline/resolution hooks and response token.
 - `supabase/functions/sample-review-upsert/index.ts`: Samples baseline/resolution hooks and response token.
 - `supabase/functions/thumbnail-revision-scan/index.ts`: fail-closed, signature-authenticated scanner.
-- `supabase/functions/thumbnail-revision-read/index.ts`: principal/card-scoped signed-image reader.
+- `supabase/functions/thumbnail-revision-read/index.ts`: bounded principal-scoped availability
+  projection plus exact-card signed-image reader.
 - `.github/workflows/thumbnail-revision-scan.yml` and `scripts/thumbnail-revision-scan.js`: bounded
   ten-minute caller and aggregate-only logging.
 - `index.html`: direct final-host thumbnail URLs, persisted-revision adoption, realtime image refresh,

@@ -216,9 +216,11 @@ n8n in the metric read path.*
   writable recovery.
   Caption prompts (n8n `caption-prompts-get` base + flag-gated `caption_prompts` REST overlay — see
   §4.11). Caption job state via n8n `caption-job-status` (5 s poll while jobs active). Runtime-flag
-  reads (calendar-upsert + settings keys). A card's Compare action lazily calls protected EF
-  `thumbnail-revision-read`; it reads no history table directly and receives only one signed
-  Previous/Current pair. supabase-js + `xlsx` CDN assets.
+  reads (calendar-upsert + settings keys). Rendered cards group at most 50 IDs into one or more
+  authenticated `thumbnail-revision-read` availability calls; the response contains only IDs with
+  a real pair and no signed URLs or history metadata. Clicking a visible Compare icon calls the
+  same protected EF for one exact card and receives only its signed Previous/Current pair. The
+  browser never reads the history table directly. supabase-js + `xlsx` CDN assets.
 - **Writes.** Every card save (fields, comments, statuses, approvals, archive-as-`status:Archived`,
   imports) → **`calendar-upsert` EF iff the slug is flagged, else n8n `calendar-upsert-post`**
   (comments piggyback as JSON in `*_tweaks` columns; v2 sends `comments_base_at:''` to skip the
@@ -236,9 +238,10 @@ n8n in the metric read path.*
   exit. Active-card watchers also detect same-file replacements that cause no SyncView write; each
   confirmed scan atomically closes Previous/Current, bumps the exact source row, and carries Current
   forward as the next baseline. Existing realtime then advances every open editor/review image
-  without a hard refresh. Baseline/latest objects remain private and the comparison reader verifies staff+actor or exact client token plus
-  card scope before returning five-minute signed URLs. The v2 flag is backend-only and is documented
-  in §3, not the browser runtime-key inventory.
+  without a hard refresh. Baseline/latest objects remain private. The comparison reader verifies
+  staff+actor or exact client token plus source-card scope before returning an ID-only availability
+  projection (maximum 50 requested IDs), and signs five-minute URLs only for an exact-card click.
+  The v2 flag is backend-only and is documented in §3, not the browser runtime-key inventory.
 - **Notification correction (F47).** The legacy urgent workflow can post a generic channel message
   and return success with no exact assignee mention; the browser then persists “Sent.” No caller may
   treat a channel post as delivery without an immutable member + provider receipt. Missing mapping
@@ -426,16 +429,17 @@ n8n in the metric read path.*
   `sample-review-get` fallback; realtime `sxr-<slug>`. Kasper queue: **unscoped cross-client**
   `sample_reviews` REST (no client filter, **no webhook fallback**) + unfiltered `kasper-sxr`
   realtime. n8n `linear-subissues` on fresh link-adopt. Runtime-flag read (sample-review key).
-  Shared: SMM-directory CSV, client-token-verify EF, and lazy protected
-  `thumbnail-revision-read` comparison URLs.
+  Shared: SMM-directory CSV, client-token-verify EF, bounded ID-only
+  `thumbnail-revision-read` availability checks, and exact-card protected comparison URLs.
 - **Writes.** `sample-review-upsert` (EF iff flagged, else n8n — **no EF→n8n fallback**),
   `sample-review-reorder` (EF **with** n8n fallback on failure). Linear legs (`linear-set-status`,
   `linear-add-comment`), `send-urgent-slack`, `thumbnail-folder-resolve` (all shared). URGENT marker
   → `sample-review-upsert` EF directly (bypasses the flag).
 - **Thumbnail refresh/comparison.** SXR shares Calendar's final Drive host, persisted server
-  `thumb_rev`, realtime node advancement, private snapshot store, and protected Previous/Current
-  dialog. Folder/media-less cards have no comparison action; direct media writes can still refresh
-  the current image even when no captured pair exists.
+  `thumb_rev`, realtime node advancement, private snapshot store, bounded history-availability
+  projection, and exact-card protected Previous/Current dialog. Folder/media-less cards and cards
+  without a confirmed pair have no comparison action; direct media writes can still refresh the
+  current image even when no captured pair exists.
 - **State.** `syncview_sxr_on`/`_off`, `syncview_sxr_prefs_v1`, `syncview_sxr_cache_v1_<slug>`,
   `syncview_sxr_archived_v1_<slug>` (60 s-grace ledger), `syncview_sxr_kasper_seen_v1`,
   `syncview_sxr_linear_outbox_v1`, `sxr-skip-setall-confirm-<status>`; shares

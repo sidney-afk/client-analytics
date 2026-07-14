@@ -34,6 +34,8 @@ const CORS: Record<string, string> = {
 const BUCKET = "syncview-thumbnail-revisions";
 const SIGNED_URL_TTL_SECONDS = 5 * 60;
 const MAX_BODY_BYTES = 8 * 1024;
+const MAX_AVAILABILITY_IDS = 50;
+const MAX_AVAILABILITY_REVISION_ROWS = 1000;
 const SURFACE_TABLES: Record<string, string> = {
   calendar: "calendar_posts",
   samples: "sample_reviews",
@@ -49,6 +51,32 @@ function json(body: JsonMap, status = 200): Response {
 
 function clean(value: unknown): string {
   return String(value == null ? "" : value).trim();
+}
+
+function selectedRevision(rows: JsonMap[]): JsonMap | null {
+  const changed = rows.find((row) =>
+    clean(row.status) === "changed" && clean(row.baseline_storage_path) && clean(row.latest_storage_path)
+  );
+  const pendingCycle = rows.find((row) =>
+    clean(row.status) === "pending" && clean(row.reason) !== "continuous_watch"
+  );
+  const continuousPending = rows.find((row) =>
+    clean(row.status) === "pending" && clean(row.reason) === "continuous_watch"
+  );
+  const changedRequestedAt = changed ? Date.parse(clean(changed.requested_at)) : NaN;
+  const pendingRequestedAt = pendingCycle ? Date.parse(clean(pendingCycle.requested_at)) : NaN;
+  const newerPendingCycle = !!pendingCycle && (!changed || (
+    Number.isFinite(pendingRequestedAt)
+    && (!Number.isFinite(changedRequestedAt) || pendingRequestedAt > changedRequestedAt)
+  ));
+  // A fresh continuous watcher is implementation state, not a new user review
+  // cycle. A genuinely newer tweak/user cycle still suppresses the older pair.
+  return newerPendingCycle ? pendingCycle : changed || pendingCycle || continuousPending || null;
+}
+
+function revisionAvailable(revision: JsonMap | null): boolean {
+  return !!revision && clean(revision.status) === "changed"
+    && !!clean(revision.baseline_storage_path) && !!clean(revision.latest_storage_path);
 }
 
 function normalizeClient(value: unknown): string {
@@ -174,8 +202,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const surface = clean(body.surface).toLowerCase();
   const table = SURFACE_TABLES[surface];
   const client = normalizeClient(body.client);
-  const sourceId = clean(body.source_id);
-  if (!table || !client || !sourceId || !SAFE_SOURCE_ID.test(sourceId)) {
+  const availabilityMode = clean(body.mode).toLowerCase() === "availability";
+  const sourceId = availabilityMode ? "" : clean(body.source_id);
+  let sourceIds: string[] = [];
+  if (availabilityMode) {
+    if (!Array.isArray(body.source_ids)
+      || body.source_ids.length < 1
+      || body.source_ids.length > MAX_AVAILABILITY_IDS
+      || body.source_ids.some((value) => typeof value !== "string")) {
+      return json({ ok: false, error: "invalid_scope" }, 400);
+    }
+    sourceIds = body.source_ids.map(clean);
+    if (new Set(sourceIds).size !== sourceIds.length
+      || sourceIds.some((value) => !SAFE_SOURCE_ID.test(value))) {
+      return json({ ok: false, error: "invalid_scope" }, 400);
+    }
+  }
+  if (!table || !client || (!availabilityMode && (!sourceId || !SAFE_SOURCE_ID.test(sourceId)))) {
     return json({ ok: false, error: "invalid_scope" }, 400);
   }
 
@@ -199,6 +242,55 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (!activeClient) throw new Error("inactive_client");
 
     const principal = await authorize(supabase, req, client);
+    if (availabilityMode) {
+      const { data: sources, error: sourceError } = await supabase
+        .from(table)
+        .select("id")
+        .eq("client", client)
+        .in("id", sourceIds);
+      if (sourceError) throw new Error("source_read_failed");
+      const verifiedIds = new Set(((sources || []) as JsonMap[]).map((row) => clean(row.id)));
+      if (verifiedIds.size !== sourceIds.length || sourceIds.some((id) => !verifiedIds.has(id))) {
+        return json({ ok: false, error: "not_found" }, 404);
+      }
+
+      const { data, error, count } = await supabase
+        .from("thumbnail_media_revisions")
+        .select("source_id,status,reason,requested_at,baseline_storage_path,latest_storage_path", { count: "exact" })
+        .eq("surface", surface)
+        .eq("client", client)
+        .in("source_id", sourceIds)
+        .in("status", ["changed", "pending"])
+        .order("requested_at", { ascending: false })
+        .limit(MAX_AVAILABILITY_REVISION_ROWS);
+      if (error) throw new Error("revision_read_failed");
+      const rows = Array.isArray(data) ? data as JsonMap[] : [];
+      if (typeof count === "number" && count > rows.length) {
+        throw new Error("availability_result_too_large");
+      }
+      const grouped = new Map<string, JsonMap[]>();
+      for (const row of rows) {
+        const id = clean(row.source_id);
+        if (!verifiedIds.has(id)) continue;
+        const group = grouped.get(id) || [];
+        group.push(row);
+        grouped.set(id, group);
+      }
+      const availableSourceIds = sourceIds.filter((id) =>
+        revisionAvailable(selectedRevision(grouped.get(id) || []))
+      );
+      console.log(JSON.stringify({
+        fn: "thumbnail-revision-read",
+        principal,
+        surface,
+        mode: "availability",
+        outcome: "ok",
+        requested_count: sourceIds.length,
+        available_count: availableSourceIds.length,
+      }));
+      return json({ ok: true, available_source_ids: availableSourceIds });
+    }
+
     const { data: source, error: sourceError } = await supabase
       .from(table)
       .select("id")
@@ -210,7 +302,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const { data, error } = await supabase
       .from("thumbnail_media_revisions")
-      .select("id,status,reason,requested_at,detected_at,baseline_modified_time,baseline_storage_path,latest_modified_time,latest_storage_path")
+      .select("status,reason,requested_at,baseline_storage_path,latest_storage_path")
       .eq("surface", surface)
       .eq("client", client)
       .eq("source_id", sourceId)
@@ -220,26 +312,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (error) throw new Error("revision_read_failed");
 
     const rows = Array.isArray(data) ? data as JsonMap[] : [];
-    const changed = rows.find((row) =>
-      clean(row.status) === "changed" && clean(row.baseline_storage_path) && clean(row.latest_storage_path)
-    );
-    const pendingCycle = rows.find((row) =>
-      clean(row.status) === "pending" && clean(row.reason) !== "continuous_watch"
-    );
-    const continuousPending = rows.find((row) =>
-      clean(row.status) === "pending" && clean(row.reason) === "continuous_watch"
-    );
-    const changedRequestedAt = changed ? Date.parse(clean(changed.requested_at)) : NaN;
-    const pendingRequestedAt = pendingCycle ? Date.parse(clean(pendingCycle.requested_at)) : NaN;
-    const newerPendingCycle = !!pendingCycle && (!changed || (
-      Number.isFinite(pendingRequestedAt)
-      && (!Number.isFinite(changedRequestedAt) || pendingRequestedAt > changedRequestedAt)
-    ));
-    // The fresh continuous watcher is an implementation detail, not a new
-    // user review cycle: it must not hide the pair that was just completed.
-    // A genuinely newer tweak/user cycle does take precedence so an older
-    // pair is never mislabeled as that cycle's Current.
-    const revision = newerPendingCycle ? pendingCycle : changed || pendingCycle || continuousPending || null;
+    const revision = selectedRevision(rows);
     if (!revision) {
       console.log(JSON.stringify({ fn: "thumbnail-revision-read", principal, surface, outcome: "none" }));
       return json({ ok: true, available: false, status: "none", revision: null });
@@ -256,14 +329,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       available,
       status: available ? "changed" : "pending",
       revision: {
-        id: clean(revision.id),
-        requested_at: clean(revision.requested_at) || null,
-        detected_at: clean(revision.detected_at) || null,
         baseline: baselineUrl
-          ? { url: baselineUrl, modified_at: clean(revision.baseline_modified_time) || null }
+          ? { url: baselineUrl }
           : null,
         latest: latestUrl
-          ? { url: latestUrl, modified_at: clean(revision.latest_modified_time) || null }
+          ? { url: latestUrl }
           : null,
       },
     });

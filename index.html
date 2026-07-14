@@ -4143,35 +4143,29 @@
         .cal-lightbox img { max-width: 92vw; max-height: 92vh; border-radius: 8px; box-shadow: 0 24px 70px var(--sv-shadow-rgba-0-0-0-0_55); cursor: default; }
         .cal-lightbox-close { position: fixed; top: 20px; right: 24px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--sv-bg-rgba-255-255-255-0_16); color: var(--sv-fg-fff); font-size: 1.5rem; line-height: 1; cursor: pointer; }
         .cal-lightbox-close:hover { background: var(--sv-bg-rgba-255-255-255-0_3); }
-        /* Thumbnail revision history. The quiet card action stays available on
-           every single-image thumbnail; the dot appears only after the lazy
-           reader confirms that a captured previous/current pair exists. */
+        /* Thumbnail revision history. A bounded availability read reveals the
+           icon only for cards with a real previous/current pair. */
+        .thumb-compare-slot { display: contents; }
         .thumb-compare-trigger { display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 6px; padding: 3px 6px;
             background: transparent; color: var(--text-muted); font-family: inherit; font-size: 0.74rem; font-weight: 500; line-height: 1.35; cursor: pointer;
             transition: color 0.14s ease, background 0.14s ease; position: relative; }
         .thumb-compare-trigger:hover, .thumb-compare-trigger:focus-visible { color: var(--text-primary); background: var(--bg); outline: none; }
         .thumb-compare-trigger svg { width: 13px; height: 13px; opacity: 0.72; flex: 0 0 auto; }
         .thumb-compare-trigger:hover svg, .thumb-compare-trigger:focus-visible svg { opacity: 1; }
-        .thumb-compare-trigger.has-history::after { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--cal-notes-dot-bg);
-            box-shadow: 0 0 0 2px var(--cal-notes-dot-ring); flex: 0 0 auto; }
+        .thumb-compare-trigger.is-link-action { gap: 0; }
         .thumb-compare-trigger.is-compact { width: 32px; height: 32px; padding: 0; justify-content: center; border: 1px solid var(--border); background: transparent; }
         .thumb-compare-trigger.is-compact svg { width: 15px; height: 15px; }
         .thumb-compare-trigger.is-compact span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-        .thumb-compare-trigger.is-compact.has-history::after { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; }
         .thumb-compare-overlay { position: fixed; inset: 0; z-index: 360; display: none; align-items: center; justify-content: center; padding: 22px;
             background: var(--sv-bg-rgba-0-0-0-0_55); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
         .thumb-compare-overlay.open { display: flex; }
-        .thumb-compare-dialog { width: min(1040px, 96vw); max-height: min(860px, 92vh); overflow: hidden; display: flex; flex-direction: column;
+        .thumb-compare-dialog { position: relative; width: min(1280px, 96vw); max-height: 94vh; overflow: hidden; display: flex; flex-direction: column;
             border: 1px solid var(--border); border-radius: 18px; background: var(--white); color: var(--text-primary); box-shadow: 0 28px 90px var(--sv-shadow-rgba-0-0-0-0_32); }
-        .thumb-compare-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px 15px; border-bottom: 1px solid var(--border); }
-        .thumb-compare-title-wrap { min-width: 0; }
-        .thumb-compare-eyebrow { margin-bottom: 3px; color: var(--text-muted); font-size: 0.65rem; font-weight: 800; letter-spacing: 0.075em; text-transform: uppercase; }
-        .thumb-compare-title { margin: 0; color: var(--text-primary); font-size: 1.05rem; line-height: 1.3; letter-spacing: -0.01em; }
-        .thumb-compare-subtitle { margin: 4px 0 0; color: var(--text-secondary); font-size: 0.78rem; line-height: 1.45; }
-        .thumb-compare-close { flex: 0 0 auto; width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--bg); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+        .thumb-compare-head { position: absolute; z-index: 2; top: 12px; right: 12px; }
+        .thumb-compare-close { width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--bg); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
         .thumb-compare-close:hover, .thumb-compare-close:focus-visible { background: var(--border); color: var(--text-primary); outline: none; }
         .thumb-compare-close svg { width: 14px; height: 14px; }
-        .thumb-compare-content { min-height: 280px; overflow: auto; padding: 18px 20px 20px; }
+        .thumb-compare-content { min-height: 280px; overflow: auto; padding: 22px 24px 24px; }
         .thumb-compare-loading, .thumb-compare-empty { min-height: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; text-align: center; color: var(--text-secondary); }
         .thumb-compare-loading strong, .thumb-compare-empty strong { color: var(--text-primary); font-size: 0.92rem; }
         .thumb-compare-loading p, .thumb-compare-empty p { max-width: 470px; margin: 0; font-size: 0.8rem; line-height: 1.55; }
@@ -4179,25 +4173,20 @@
         .thumb-compare-empty-icon svg { width: 21px; height: 21px; }
         .thumb-compare-retry { margin-top: 5px; border: 1px solid var(--border); border-radius: 99px; padding: 8px 15px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.76rem; font-weight: 700; line-height: 1; cursor: pointer; }
         .thumb-compare-retry:hover, .thumb-compare-retry:focus-visible { border-color: var(--sv-border-aaa); background: var(--bg); outline: none; }
-        .thumb-compare-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; color: var(--text-secondary); font-size: 0.73rem; }
-        .thumb-compare-status-pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 99px; padding: 5px 9px; background: var(--cal-notes-open-bg); color: var(--cal-notes-accent-fg); font-weight: 700; }
-        .thumb-compare-status-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--cal-notes-dot-bg); }
-        .thumb-compare-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-        .thumb-compare-pane { min-width: 0; margin: 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg); }
-        .thumb-compare-pane-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 11px 12px; border-bottom: 1px solid var(--border); background: var(--white); }
-        .thumb-compare-pane-title { color: var(--text-primary); font-size: 0.8rem; font-weight: 800; }
-        .thumb-compare-pane-time { color: var(--text-muted); font-size: 0.67rem; line-height: 1.4; text-align: right; }
-        .thumb-compare-image-wrap { min-height: 360px; height: min(54vh, 560px); padding: 12px; display: flex; align-items: center; justify-content: center; background: var(--media-tub-bg); }
-        .thumb-compare-image-wrap img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 9px; box-shadow: 0 10px 28px var(--sv-shadow-rgba-0-0-0-0_18); }
+        .thumb-compare-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+        .thumb-compare-pane { min-width: 0; margin: 0; }
+        .thumb-compare-pane-head { padding: 0 0 9px; }
+        .thumb-compare-pane-title { color: var(--text-primary); font-size: 0.82rem; font-weight: 800; }
+        .thumb-compare-image-wrap { min-height: 520px; height: min(76vh, 720px); display: flex; align-items: center; justify-content: center; }
+        .thumb-compare-image-wrap img { display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 10px; }
         .thumb-compare-image-error { max-width: 240px; color: var(--text-secondary); font-size: 0.76rem; line-height: 1.5; text-align: center; }
         @media (max-width: 720px) {
             .thumb-compare-overlay { align-items: flex-end; padding: 0; }
             .thumb-compare-dialog { width: 100%; max-height: 96vh; border-radius: 18px 18px 0 0; }
-            .thumb-compare-head { padding: 15px 16px 13px; }
-            .thumb-compare-content { padding: 14px 14px 20px; }
-            .thumb-compare-status { align-items: flex-start; flex-direction: column; }
+            .thumb-compare-head { top: 10px; right: 10px; }
+            .thumb-compare-content { padding: 20px 14px 24px; }
             .thumb-compare-grid { grid-template-columns: 1fr; }
-            .thumb-compare-image-wrap { min-height: 250px; height: 46vh; }
+            .thumb-compare-image-wrap { min-height: 360px; height: 58vh; }
         }
         .cal-card-thumb-fallback { font-size: 1.4rem; font-weight: 800; color: var(--text-muted); letter-spacing: 0.06em; display: inline-flex; align-items: center; justify-content: center; }
         /* Google Drive permission warning shown when a thumbnail won't load */
@@ -16724,6 +16713,12 @@
                 if (typeof currentNav !== 'undefined' && currentNav === 'kasper' && typeof _kasperRenderTab === 'function') _kasperRenderTab();
             }
         } catch (e) {}
+        try {
+            if (valid && typeof _thumbCompareScheduleAvailability === 'function') {
+                if (typeof currentNav !== 'undefined' && currentNav === 'calendar') _thumbCompareScheduleAvailability('calendar');
+                else if (typeof currentNav !== 'undefined' && currentNav === 'sample-reviews') _thumbCompareScheduleAvailability('samples');
+            }
+        } catch (e) {}
     }
     async function _syncviewStaffRoster() {
         if (_syncviewStaffRosterCache) return _syncviewStaffRosterCache;
@@ -19784,6 +19779,7 @@
         const pins = _calGetPins();
         if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
         if (calState.client === name) { _calRenderTabs(); return; }
+        const shellNeedsClientChrome = !calState.client;
         // Persist debounced saves for the outgoing client before switching.
         _calFlushAllPending();
         calState.client = name;
@@ -19791,6 +19787,11 @@
         calState.posts = [];
         _calLoadClientFilters();
         _calSavePrefs();
+        // A cold sheet-roster deep link mounts the first shell before its client
+        // exists, so that shell intentionally has no More or bulk-action buttons.
+        // Repaint once at the no-client -> client boundary; normal tab switches
+        // keep their lighter partial render and preserve the current card strip.
+        if (shellNeedsClientChrome) _calRenderShell();
         _calSyncUrlClient();
         _calRenderTabs();
         _calRefreshFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml());
@@ -19816,7 +19817,7 @@
             // on its loader — fall back to the normal first-pinned client.
             if (!calState.client) {
                 const pins = _calGetPins();
-                if (pins.length) { calState.client = pins[0]; _calLoadClientFilters(); _calSyncUrlClient(); loadCalendarPosts(); }
+                if (pins.length) _calOpenClientTab(pins[0]);
                 else _calRenderBody();
             }
             return;
@@ -21364,8 +21365,7 @@
         _calBulkLinkSubs = null;
         _calBulkLinkParent = null;
         _calBulkLinkPosts = null;
-        const btn = document.querySelector('.cal-select-btn');
-        if (btn) btn.classList.remove('active');
+        document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach(btn => btn.classList.remove('active'));
         _calRenderBody({ preserveScroll: true });
     }
 
@@ -23041,11 +23041,13 @@
                 </div>`
             : '';
         const archiveActive = calState.selectMode && calState.selectAction !== 'caption' && calState.selectAction !== 'link';
-        const selectBtnHtml = (calState.client && !_isClientLink && calState.view === 'organizer')
-            ? `<button class="cal-select-btn${archiveActive ? ' active' : ''}" type="button" data-select-action="archive" onclick="_calToggleSelectMode()" title="Select multiple posts to color-tag or archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
+        // Keep both Sheet-only controls mounted across Review/Month/Week. A shell
+        // first built in another view can then reveal them without a rebuild.
+        const selectBtnHtml = (calState.client && !_isClientLink)
+            ? `<button class="cal-select-btn${archiveActive ? ' active' : ''}" type="button" data-select-action="archive" onclick="_calToggleSelectMode()" title="Select multiple posts to color-tag or archive"${calState.view === 'organizer' ? '' : ' style="display:none"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
             : '';
-        const bulkCapBtnHtml = (calState.client && !_isClientLink && calState.view === 'organizer')
-            ? `<button class="cal-select-btn${calState.selectMode && calState.selectAction === 'caption' ? ' active' : ''}" type="button" data-select-action="caption" onclick="_calToggleSelectMode('caption')" title="Generate captions for multiple posts"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg></button>`
+        const bulkCapBtnHtml = (calState.client && !_isClientLink)
+            ? `<button class="cal-select-btn${calState.selectMode && calState.selectAction === 'caption' ? ' active' : ''}" type="button" data-select-action="caption" onclick="_calToggleSelectMode('caption')" title="Generate captions for multiple posts"${calState.view === 'organizer' ? '' : ' style="display:none"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg></button>`
             : '';
         const viewLabels = { review: 'Review', smmreview: 'Review', organizer: 'Sheet', month: 'Month', week: 'Week' };
         // The client link gets the client approval queue ('review'); the SMM
@@ -23527,10 +23529,12 @@
     function _thumbRefreshChangedCards(surface, before, after) {
         if (!Array.isArray(before) || !Array.isArray(after) || !before.length) return;
         const prev = new Map(before.map(p => [p && p.id, p]));
+        let comparisonChanged = false;
         after.forEach(post => {
             if (!post || !post.id) return;
             const old = prev.get(post.id);
             if (!old) return;
+            if (_thumbCompareVersion(old) !== _thumbCompareVersion(post)) comparisonChanged = true;
             const mediaChanged = String(old.thumbnail_url || old.asset_url || '').trim() !== String(post.thumbnail_url || post.asset_url || '').trim();
             const revisionChanged = String(old.thumb_rev || '') !== String(post.thumb_rev || '');
             if (!mediaChanged && !revisionChanged) return;
@@ -23555,6 +23559,18 @@
                 });
             } catch (e) {}
         });
+        if (comparisonChanged) {
+            // Focused fields defer the full card repaint. Keep the history-only
+            // icon truthful in place anyway, then probe the new version without
+            // replacing the focused card or disturbing its caret.
+            try {
+                const client = _thumbCompareClient(surface);
+                if (client) {
+                    _thumbCompareRefreshSlots(surface, client);
+                    _thumbCompareScheduleAvailability(surface);
+                }
+            } catch (e) {}
+        }
     }
 
     function _calRenderBody(opts) {
@@ -23608,6 +23624,7 @@
         _calUpdateReviewBadge();
         _calSyncMonthWarnIcon();
         _calSyncClientLinks();
+        _thumbCompareScheduleAvailability('calendar');
     }
 
     /* Drag a post pill from one day cell to another to reschedule it. */
@@ -23883,11 +23900,16 @@
             _calResetSelection();
         }
         document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === v));
-        const selBtn = document.querySelector('.cal-select-btn');
-        if (selBtn) {
+        document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach(selBtn => {
             selBtn.style.display = v === 'organizer' ? '' : 'none';
-            selBtn.classList.toggle('active', calState.selectMode);
-        }
+            const action = selBtn.getAttribute('data-select-action') || 'archive';
+            const active = v === 'organizer' && calState.selectMode && (
+                action === 'archive'
+                    ? (calState.selectAction !== 'caption' && calState.selectAction !== 'link')
+                    : calState.selectAction === action
+            );
+            selBtn.classList.toggle('active', active);
+        });
         const mid = document.querySelector('.cal-toolbar-mid');
         if (mid) {
             // Month and status pills both only exist on the Sheet tab, so they
@@ -24324,11 +24346,12 @@
     }
 
     /* ── Previous/current thumbnail comparison ─────────────────────────────
-       The button is intentionally cheap: cards never fan out one history read
-       apiece. The signed snapshot pair is fetched only when somebody opens the
-       comparison, and it is fetched again on the next open because those URLs
-       expire after five minutes. */
+       One bounded authenticated availability read reveals history-only icons for
+       the rendered cards. Private signed images remain exact-card and click-only,
+       and are fetched again on every open because those URLs expire quickly. */
     const _thumbCompareKnown = new Map();
+    const _thumbCompareAvailabilityPending = new Set();
+    const _thumbCompareAvailabilityTimers = new Map();
     let _thumbCompareState = null;
     function _thumbCompareIconSvg() {
         return `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="3" width="8.2" height="9" rx="1.5"/><path d="M6 3V1.8h6.2a2 2 0 0 1 2 2v7.4H10"/><path d="m3.5 9 1.7-1.8 2.8 3"/></svg>`;
@@ -24344,15 +24367,42 @@
         }
     }
     function _thumbCompareKey(surface, client, pid) { return [surface, client, pid].join('|'); }
-    function _thumbCompareButtonHtml(surface, post, compact) {
-        if (!post || !post.id || String(post.id).startsWith('__')) return '';
+    function _thumbCompareWatchedPost(post) {
+        if (!post || !post.id || String(post.id).startsWith('__')) return false;
         const thumbnailUrl = String(post.thumbnail_url || '').trim();
-        if (!thumbnailUrl || _calIsFolderLink(thumbnailUrl) || !_calDriveFileId(thumbnailUrl)) return '';
+        return !!(thumbnailUrl && !_calIsFolderLink(thumbnailUrl) && _calDriveFileId(thumbnailUrl));
+    }
+    function _thumbCompareEligiblePost(post) {
+        if (!_thumbCompareWatchedPost(post)) return false;
+        // The source row reaches Tweaks Needed just before its new baseline row
+        // is captured asynchronously. Hide the prior cycle during that window;
+        // leaving Tweaks Needed changes the version and triggers a fresh probe.
+        return String(post.graphic_status || '').trim().toLowerCase() !== 'tweaks needed';
+    }
+    function _thumbCompareVersion(post) {
+        return [
+            String(post && post.thumbnail_url || '').trim(),
+            String(post && post.thumb_rev || ''),
+            String(post && post.graphic_status || '')
+        ].join('|');
+    }
+    function _thumbCompareButtonHtml(surface, post, compact, placement) {
+        if (!_thumbCompareEligiblePost(post)) return '';
         const client = _thumbCompareClient(surface);
         const known = _thumbCompareKnown.get(_thumbCompareKey(surface, client, post.id));
-        const cls = 'thumb-compare-trigger' + (compact ? ' is-compact' : '') + (known === true ? ' has-history' : '');
-        const label = known === true ? 'Compare thumbnail versions — previous version available' : 'Compare thumbnail versions';
-        return `<button type="button" class="${cls}" data-thumb-compare-surface="${_calEscAttr(surface)}" data-thumb-compare-client="${_calEscAttr(client)}" data-thumb-compare-pid="${_calEscAttr(post.id)}" onclick="_thumbCompareOpen(event,this.dataset.thumbCompareSurface,this.dataset.thumbComparePid)" title="${_calEscAttr(label)}" aria-label="${_calEscAttr(label)}">${_thumbCompareIconSvg()}<span>Compare</span></button>`;
+        if (!known || known.available !== true || known.version !== _thumbCompareVersion(post)) return '';
+        const isLinkAction = placement === 'link';
+        const cls = 'thumb-compare-trigger' + (compact ? ' is-compact' : '') + (isLinkAction ? ' is-link-action cal-link-folder' : '');
+        const label = 'Compare previous and current thumbnails';
+        const text = isLinkAction ? '' : '<span>Compare</span>';
+        return `<button type="button" class="${cls}" data-thumb-compare-surface="${_calEscAttr(surface)}" data-thumb-compare-client="${_calEscAttr(client)}" data-thumb-compare-pid="${_calEscAttr(post.id)}" onclick="_thumbCompareOpen(event,this.dataset.thumbCompareSurface,this.dataset.thumbComparePid)" title="${_calEscAttr(label)}" aria-label="${_calEscAttr(label)}">${_thumbCompareIconSvg()}${text}</button>`;
+    }
+    function _thumbCompareSlotHtml(surface, post, compact, placement) {
+        // Keep an invisible placeholder during Tweaks Needed so a focused-field
+        // deferred repaint can reveal the next confirmed pair in place later.
+        if (!_thumbCompareWatchedPost(post)) return '';
+        const client = _thumbCompareClient(surface);
+        return `<span class="thumb-compare-slot" data-thumb-compare-surface="${_calEscAttr(surface)}" data-thumb-compare-client="${_calEscAttr(client)}" data-thumb-compare-pid="${_calEscAttr(post.id)}" data-thumb-compare-compact="${compact ? '1' : '0'}" data-thumb-compare-placement="${placement === 'link' ? 'link' : 'review'}">${_thumbCompareButtonHtml(surface, post, compact, placement)}</span>`;
     }
     function _thumbCompareFindPost(surface, pid) {
         const rows = surface === 'samples'
@@ -24360,15 +24410,93 @@
             : ((calState && calState.posts) || []);
         return rows.find(p => String(p && p.id) === String(pid)) || null;
     }
+    function _thumbCompareRefreshSlots(surface, client) {
+        document.querySelectorAll('.thumb-compare-slot[data-thumb-compare-pid]').forEach(slot => {
+            if (slot.dataset.thumbCompareSurface !== surface || slot.dataset.thumbCompareClient !== client) return;
+            const post = _thumbCompareFindPost(surface, slot.dataset.thumbComparePid);
+            slot.innerHTML = post
+                ? _thumbCompareButtonHtml(surface, post, slot.dataset.thumbCompareCompact === '1', slot.dataset.thumbComparePlacement)
+                : '';
+        });
+    }
+    function _thumbCompareCanDiscover() {
+        return _isClientLink ? !!_syncviewClientWriteToken() : !!_syncviewStaffIdentityForHeaders();
+    }
+    function _thumbCompareScheduleAvailability(surface) {
+        surface = surface === 'samples' ? 'samples' : 'calendar';
+        if (!_thumbCompareCanDiscover()) return;
+        const client = _thumbCompareClient(surface);
+        if (!client) return;
+        const pendingKey = surface + '|' + client;
+        if (_thumbCompareAvailabilityPending.has(pendingKey) || _thumbCompareAvailabilityTimers.has(pendingKey)) return;
+        const timer = setTimeout(() => {
+            _thumbCompareAvailabilityTimers.delete(pendingKey);
+            _thumbCompareDiscoverAvailability(surface, client);
+        }, 0);
+        _thumbCompareAvailabilityTimers.set(pendingKey, timer);
+    }
+    async function _thumbCompareDiscoverAvailability(surface, client) {
+        if (!_thumbCompareCanDiscover()) return;
+        const pendingKey = surface + '|' + client;
+        if (_thumbCompareAvailabilityPending.has(pendingKey)) return;
+        const candidates = new Map();
+        document.querySelectorAll('.thumb-compare-slot[data-thumb-compare-pid]').forEach(slot => {
+            if (slot.dataset.thumbCompareSurface !== surface || slot.dataset.thumbCompareClient !== client) return;
+            const post = _thumbCompareFindPost(surface, slot.dataset.thumbComparePid);
+            if (!_thumbCompareEligiblePost(post)) return;
+            const version = _thumbCompareVersion(post);
+            const known = _thumbCompareKnown.get(_thumbCompareKey(surface, client, post.id));
+            if (!known || known.version !== version) candidates.set(String(post.id), version);
+        });
+        if (!candidates.size) return;
+        _thumbCompareAvailabilityPending.add(pendingKey);
+        let completed = false;
+        try {
+            const ids = Array.from(candidates.keys());
+            for (let offset = 0; offset < ids.length; offset += 50) {
+                const sourceIds = ids.slice(offset, offset + 50);
+                const headers = _syncviewEfHeaders({
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'apikey': CAL_SUPABASE_ANON_KEY,
+                    'Authorization': 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    'X-Syncview-Source': 'thumbnail-compare-availability'
+                }, THUMBNAIL_REVISION_READ_EF_URL);
+                const response = await fetch(THUMBNAIL_REVISION_READ_EF_URL, {
+                    method: 'POST', headers, cache: 'no-store',
+                    body: JSON.stringify({ surface, client, mode: 'availability', source_ids: sourceIds })
+                });
+                const json = await response.json().catch(() => null);
+                if (!response.ok || !json || json.ok !== true || !Array.isArray(json.available_source_ids)) return;
+                const available = new Set(json.available_source_ids.map(String));
+                sourceIds.forEach(pid => {
+                    const post = _thumbCompareFindPost(surface, pid);
+                    const requestedVersion = candidates.get(pid);
+                    if (!post || _thumbCompareVersion(post) !== requestedVersion) return;
+                    _thumbCompareKnown.set(_thumbCompareKey(surface, client, pid), { version: requestedVersion, available: available.has(pid) });
+                });
+                _thumbCompareRefreshSlots(surface, client);
+            }
+            completed = true;
+        } catch (e) {
+            // Availability is progressive enhancement. Keep the icon hidden on a
+            // transient failure; a later authoritative render will retry safely.
+        } finally {
+            _thumbCompareAvailabilityPending.delete(pendingKey);
+            // A realtime thumb_rev/view change can repaint while this batch is in
+            // flight. Re-scan once after a successful response so any newer or
+            // newly-rendered slot is discovered; an all-known pass makes no fetch.
+            if (completed) _thumbCompareScheduleAvailability(surface);
+        }
+    }
     function _thumbCompareEnsureOverlay() {
         let overlay = document.getElementById('thumbCompareOverlay');
         if (overlay) return overlay;
         overlay = document.createElement('div');
         overlay.id = 'thumbCompareOverlay';
         overlay.className = 'thumb-compare-overlay';
-        overlay.innerHTML = `<section class="thumb-compare-dialog" id="thumbCompareDialog" role="dialog" aria-modal="true" aria-labelledby="thumbCompareTitle" aria-describedby="thumbCompareSubtitle" tabindex="-1">
+        overlay.innerHTML = `<section class="thumb-compare-dialog" id="thumbCompareDialog" role="dialog" aria-modal="true" aria-label="Previous and current thumbnail comparison" tabindex="-1">
             <header class="thumb-compare-head">
-                <div class="thumb-compare-title-wrap"><div class="thumb-compare-eyebrow">Thumbnail history</div><h2 class="thumb-compare-title" id="thumbCompareTitle">Previous and current</h2><p class="thumb-compare-subtitle" id="thumbCompareSubtitle">Loading captured versions…</p></div>
                 <button type="button" class="thumb-compare-close" onclick="_thumbCompareClose()" aria-label="Close thumbnail comparison"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </header>
             <div class="thumb-compare-content" id="thumbCompareContent" role="status" aria-live="polite"></div>
@@ -24402,14 +24530,13 @@
         const trigger = event && (event.currentTarget || (event.target && event.target.closest('.thumb-compare-trigger')));
         const client = _thumbCompareClient(surface);
         const post = _thumbCompareFindPost(surface, pid);
-        if (!client || !post) return;
+        if (!client || !_thumbCompareEligiblePost(post)) {
+            if (client) _thumbCompareRefreshSlots(surface, client);
+            return;
+        }
         if (_thumbCompareState && _thumbCompareState.controller) _thumbCompareState.controller.abort();
         const overlay = _thumbCompareEnsureOverlay();
         _thumbCompareState = { surface, client, pid: String(pid), trigger: trigger || document.activeElement, controller: null };
-        const title = document.getElementById('thumbCompareTitle');
-        const subtitle = document.getElementById('thumbCompareSubtitle');
-        if (title) title.textContent = post.name ? 'Previous and current — ' + post.name : 'Previous and current thumbnail';
-        if (subtitle) subtitle.textContent = 'See the version captured before the change beside the latest captured thumbnail.';
         overlay.classList.add('open');
         document.body.classList.add('cal-modal-open');
         _thumbCompareLoading('Loading thumbnail history…');
@@ -24490,8 +24617,14 @@
             if (!json || json.ok !== true) throw new Error('Thumbnail history returned an unexpected response.');
             if (_thumbCompareState !== state) return;
             const model = _thumbCompareNormalize(json);
-            _thumbCompareKnown.set(_thumbCompareKey(state.surface, state.client, state.pid), model.available);
-            _thumbCompareUpdateButtons(state, model.available);
+            const currentPost = _thumbCompareFindPost(state.surface, state.pid);
+            if (currentPost) {
+                _thumbCompareKnown.set(_thumbCompareKey(state.surface, state.client, state.pid), {
+                    version: _thumbCompareVersion(currentPost),
+                    available: model.available
+                });
+                _thumbCompareRefreshSlots(state.surface, state.client);
+            }
             if (model.available) _thumbCompareRenderPair(model);
             else _thumbCompareRenderUnavailable(model);
         } catch (error) {
@@ -24510,20 +24643,6 @@
         const available = !!(json && json.available === true && baseline && latest && baseline.url && latest.url);
         return { available, status, revision, baseline, latest };
     }
-    function _thumbCompareUpdateButtons(state, available) {
-        document.querySelectorAll('.thumb-compare-trigger[data-thumb-compare-pid]').forEach(button => {
-            if (button.dataset.thumbCompareSurface !== state.surface || button.dataset.thumbCompareClient !== state.client || button.dataset.thumbComparePid !== state.pid) return;
-            button.classList.toggle('has-history', !!available);
-            const label = available ? 'Compare thumbnail versions — previous version available' : 'Compare thumbnail versions';
-            button.title = label; button.setAttribute('aria-label', label);
-        });
-    }
-    function _thumbCompareFormatTime(value) {
-        if (!value) return 'Time not recorded';
-        const date = new Date(value);
-        if (isNaN(date)) return String(value);
-        return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-    }
     function _thumbCompareImageUrl(entry) {
         if (!entry) return '';
         // Only render the short-lived private Storage URL issued by the scoped
@@ -24536,19 +24655,15 @@
         const dialog = document.getElementById('thumbCompareDialog');
         if (dialog) dialog.setAttribute('aria-busy', 'false');
         if (!content) return;
-        const revision = model.revision || {};
         const previousUrl = _thumbCompareImageUrl(model.baseline);
         const currentUrl = _thumbCompareImageUrl(model.latest);
-        const detectedAt = revision.detected_at || revision.requested_at || '';
-        content.innerHTML = `<div class="thumb-compare-status"><span class="thumb-compare-status-pill">Change captured</span><span>${detectedAt ? 'Detected ' + _calEsc(_thumbCompareFormatTime(detectedAt)) : 'Previous and current snapshots are ready'}</span></div>
-            <div class="thumb-compare-grid">
+        content.innerHTML = `<div class="thumb-compare-grid">
                 ${_thumbComparePaneHtml('Previous', model.baseline, previousUrl, 'Previous thumbnail')}
                 ${_thumbComparePaneHtml('Current', model.latest, currentUrl, 'Current thumbnail')}
             </div>`;
     }
     function _thumbComparePaneHtml(label, entry, url, alt) {
-        const time = _thumbCompareFormatTime(entry && (entry.modified_at || entry.captured_at));
-        return `<figure class="thumb-compare-pane"><figcaption class="thumb-compare-pane-head"><span class="thumb-compare-pane-title">${_calEsc(label)}</span><time class="thumb-compare-pane-time">${_calEsc(time)}</time></figcaption><div class="thumb-compare-image-wrap"><img src="${_calEscAttr(url)}" alt="${_calEscAttr(alt)}" onerror="_thumbCompareImgError(this)"></div></figure>`;
+        return `<figure class="thumb-compare-pane"><figcaption class="thumb-compare-pane-head"><span class="thumb-compare-pane-title">${_calEsc(label)}</span></figcaption><div class="thumb-compare-image-wrap"><img src="${_calEscAttr(url)}" alt="${_calEscAttr(alt)}" onerror="_thumbCompareImgError(this)"></div></figure>`;
     }
     function _thumbCompareImgError(img) {
         const wrap = img && img.parentElement;
@@ -24692,6 +24807,7 @@
         const folderBtn = (isThumb && _calThumbnailFolderUrl(post, v))
             ? `<button type="button" class="cal-link-folder" tabindex="-1" onclick="_calOpenThumbnailFolder('${pid}')" title="Open parent folder">${_calThumbFolderIconSvg()}</button>`
             : '';
+        const compareSlot = isThumb ? _thumbCompareSlotHtml('calendar', post, false, 'link') : '';
         const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
         if (ro) {
             // Client-link view — links can be opened but never edited.
@@ -24720,6 +24836,7 @@
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
                 <button type="button" class="cal-link-pill-open" onclick="_calOpenLink('${pid}','${fld}')" title="Open in a new tab">${extIco}<span class="cal-link-label">${label}</span></button>
                 ${folderBtn}
+                ${compareSlot}
                 <button type="button" class="cal-link-edit" tabindex="-1" onclick="_calEditLink('${pid}','${fld}')" title="Edit link">${pencil}</button>
                 ${input}
             </div>`;
@@ -25116,7 +25233,6 @@
                 <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
                 <div class="cal-card-foot">
-                    ${_thumbCompareButtonHtml('calendar', p, false)}
                     ${_calCommentsBtnHtml(p, pid)}
                     ${p._saveError
                         ? `<button type="button" class="cal-card-saving is-error" data-saving="${pid}" onclick="_calRetrySave('${pid}')" title="${_calEscAttr(typeof p._saveError === 'string' ? p._saveError : 'Save failed')} — click to retry">Save failed · Retry</button>`
@@ -26483,8 +26599,7 @@
                 calState.selectAction = 'archive';
                 calState.selected = new Set();
                 calState.lastSel = null;
-                const btn = document.querySelector('.cal-select-btn');
-                if (btn) btn.classList.remove('active');
+                document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach(btn => btn.classList.remove('active'));
                 _calRenderBody({ preserveScroll: true });
                 try { _calCacheWrite(slug, calState.posts); } catch {}
                 // Bounded concurrency: a 30-card bulk archive used to fire 30
@@ -28342,7 +28457,7 @@
                     ${compPills ? `<div class="cal-review-sub-row">${compPills}</div>` : ''}
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
-                    ${_thumbCompareButtonHtml('calendar', p, true)}
+                    ${_thumbCompareSlotHtml('calendar', p, true, 'review')}
                     <button class="kcard-open-sheet" type="button" onclick="_calReviewOpenInSheet('${escId}')" title="Open this card in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
                     <button class="kcard-expand-btn" type="button" onclick="_calReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
                 </div>
@@ -36137,6 +36252,7 @@
         const folderBtn = (isThumb && _calThumbnailFolderUrl(post, v))
             ? `<button type="button" class="cal-link-folder" tabindex="-1" onclick="_sxrOpenThumbnailFolder('${pid}')" title="Open parent folder">${_calThumbFolderIconSvg()}</button>`
             : '';
+        const compareSlot = isThumb ? _thumbCompareSlotHtml('samples', post, false, 'link') : '';
         const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
         if (ro) {
             if (!v) return '';
@@ -36149,6 +36265,7 @@
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
                 <button type="button" class="cal-link-pill-open" onclick="_sxrOpenLink('${pid}','${fld}')" title="Open in a new tab">${extIco}<span class="cal-link-label">${label}</span></button>
                 ${folderBtn}
+                ${compareSlot}
                 <button type="button" class="cal-link-edit" tabindex="-1" onclick="_sxrEditLink('${pid}','${fld}')" title="Edit link">${pencil}</button>
                 ${input}
             </div>`;
@@ -36651,7 +36768,6 @@
                 ${_sxrLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, p)}
                 ${_sxrCreativeDirectionHtml(pid, p, editableText)}
                 <div class="cal-card-foot">
-                    ${_thumbCompareButtonHtml('samples', p, false)}
                     ${_sxrCommentsBtnHtml(p, pid)}
                     ${p._saveError
                         ? `<button type="button" class="cal-card-saving is-error" data-saving="${pid}" onclick="_sxrRetrySave('${pid}')" title="${_sxrEscAttr(typeof p._saveError === 'string' ? p._saveError : 'Save failed')} — click to retry">Save failed · Retry</button>`
@@ -36801,6 +36917,7 @@
             if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0 });
         }
         if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
+        _thumbCompareScheduleAvailability('samples');
     }
 
     /* ============================================================
@@ -37357,7 +37474,7 @@
                     ${compPills ? `<div class="cal-review-sub-row">${compPills}</div>` : ''}
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
-                    ${_thumbCompareButtonHtml('samples', p, true)}
+                    ${_thumbCompareSlotHtml('samples', p, true, 'review')}
                     <button class="kcard-open-sheet" type="button" onclick="_sxrReviewOpenInSheet('${escId}')" title="Open this sample in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
                     <button class="kcard-expand-btn" type="button" onclick="_sxrReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
                 </div>

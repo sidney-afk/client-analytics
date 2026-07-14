@@ -183,6 +183,10 @@ n8n in the metric read path.*
   errors render **nothing** (silent). Chart.js CDN miss retries 40× then charts silently absent.
   Independently, F124 means a successfully fetched newest Sheet row can itself be false-zero/
   degraded; the SPA has no source-coverage/freshness field to distinguish that from real no-content.
+  Current aggregate execution topology makes the gap concrete: one retained Metrics run stopped on
+  its first append and skipped 25 later roster clients after the PostTracking path ran, while each of
+  four green Top Videos runs collapsed 4–7 of 15 configured YouTube lanes into the same no-source
+  branch used for missing/empty input and still wrote 29 client results. No row value was inspected.
 - **Notable.** Client-viewable brief pages can write to the agency Hook Library (`add-hook-to-library`
   ungated) and can trigger the `generate-content-summary` AI workflow (ungated). Two hardcoded
   per-client display special-cases exist in the render path. Correction: `content-ready` is **not**
@@ -306,7 +310,10 @@ n8n in the metric read path.*
   backend implements authenticated native-first mixed-team intake, server-owned project mapping /
   auto-assignment, native-id responses, and an allowlisted targeted parity create lane while a
   team remains Linear-authoritative. The backend is deployed dark but intake is not wired to the SPA; a separate
-  owner-reviewed caller PR switches this form. B5: `linear-subissues` + family retired.
+  owner-reviewed caller PR switches this form. **Parked-caller defects (F133/F134):** that candidate
+  commits generic deliverable titles and later edits only the card, while committed card-materialization
+  recovery is actor-bound localStorage with no server job/admin reassignment. Both are pre-merge gates.
+  B5: `linear-subissues` + family retired.
 
 ### 4.4 Linear tab — authority-gated mirror (internal key `production`, route `#production`)
 
@@ -321,7 +328,8 @@ n8n in the metric read path.*
   full `deliverables` row (brief + raw, on open), bulk brief hydration 6.5 s post-boot / on palette
   open. Issue-detail comments page through the protected `production-comments` Edge Function in
   50-row `{created_at,id}` cursor pages; it returns the normalized native thread, not the old
-  actor/action activity summaries. Also fires the shared Sheets essentials in the background for
+  actor/action activity summaries. `_prodLoadEventsFor`/`_prodActivity` exist but are never called,
+  so persisted native events are not shown (F138). Also fires the shared Sheets essentials in the background for
   app chrome. The tab also reads the single `prod_authority` runtime-flag row to gate controls.
 - **Writes.** Status, comment, due date, and assignee use the authenticated `production-write` Edge
   Function. The browser supplies the native deliverable ID, a bounded idempotency key, and CAS for
@@ -330,13 +338,17 @@ n8n in the metric read path.*
   can send the gateway's bounded TEST override before a flip. The browser never requests legacy
   parity, changes flags, calls an n8n mutation, or writes Linear directly. Project moves, creates,
   deletes, and the remaining artifact affordances stay read-only.
-- **Current hard gaps (F50/F53/F54/F94).** A successful deliverable status write does **not** project to
+- **Current hard gaps (F50/F53/F54/F94/F136–F138).** A successful deliverable status write does **not** project to
   the linked Calendar/Samples card, whose component status remains a separate downstream truth.
   Graphics has no canonical protected file/delivery-link operation; a manual card-side organizer
   edit does not set `deliverables.file_url`. Inactive clients are loaded into ordinary queues, and
   neither browser staff gating nor server staff-key writes enforce `clients.active` for
   status/comment/due/assignee. Manual assignment also offers/accepts any active same-team roster row,
   without compatible-role or usable-Linear-mapping enforcement before the native commit (F94).
+  Creative authorization also lacks current-status/assignee input, so same-team creatives can regress
+  reviewer/terminal work or cancel/duplicate it unless a separate owner policy is enforced (F136).
+  Video's four typed resources collapse into one priority-selected URL always labelled Delivered file
+  (F137), and native activity events are never loaded/rendered (F138).
   Production work data also has no realtime/bounded foreground refresh or ordinary manual refresh;
   only authority polls, so an all-day foreground creative tab can remain stale indefinitely (F95).
   Its due picker also freezes a browser-local “today” at script load while overdue compares a fresh
@@ -356,7 +368,8 @@ n8n in the metric read path.*
   re-check the role key plus one active role-compatible roster identity server-side; direct
   `?prod=1` diagnostics without that identity show a comment sign-in state. The
   unchanged route guard accepts a valid staff identity or direct `?prod=1` diagnostics. Admin/SMM
-  may use all four operations. Creative **writes** are limited to own-team status/comment, but the
+  may use all four operations. Creative **writes** are limited to same-team status/comment, not
+  own-assignment, and status policy does not validate current state (F37/F136). The
   protected comment **reader does not fetch the target or enforce member-team scope** (F39), so a
   creative key can currently read another team's full protected thread by deliverable ID. Direct
   diagnostics without a verified identity remain read-only. "My issues" is a hardcoded heuristic
@@ -365,12 +378,14 @@ n8n in the metric read path.*
   touch-visible top bar has no personal/team queue switch (F96).
 - **Failure/fallback.** REST per-page fetch: 3 attempts, retry only network/429/5xx. Boot-load failure →
   full-tab error screen + Retry; silent refresh failure → `console.warn`, stale kept. Pagination-cap
-  overflow is a hard error (never silent truncation). Comment failures are isolated to explicit
+  overflow is a hard error (never silent truncation). Comment read failures are isolated to explicit
   sign-in/error/retry states; older-page failure keeps already loaded rows. Freshness is only a
   silent refresh on visibility/focus/pageshow, throttled 30 s; the repeating foreground timer reads
   authority, not operational data, and the normal UI has no manual Refresh (F95). A stale-tab server authority rejection
   refreshes the stance immediately; a CAS conflict applies the returned current row and asks the
-  user to retry. UI state changes only after `native_committed=true`.
+  user to retry. UI state changes only after `native_committed=true`. A protected-write 401 is only
+  converted to toast copy; it does not clear/reverify the session, open sign-in, preserve intent, or
+  retry after fresh authorization (F10).
 - **Notable.** `?c=…&prod=1` reaches the current read-only client mirror without the password (see §3);
   signed-in staff on the private active TEST fixture can use #812's bounded write lane. This is the
   **only** user of the dynamic REST call site; its five tables are absent from the literal-table
@@ -822,7 +837,8 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   predicates, Workload, and intake remain on their current paths until their separate
   owner-approved handoff.
   **F98 forward-order correction:** for the first handoff, F2 normal outbound must be live/read back
-  with a fresh healthy heartbeat, zero normal writes, and exact both-team normal-lane zero before
+  with correlated terminal drainer/credential receipts plus an observer outside n8n, zero normal
+  writes, and exact both-team normal-lane zero before
   Graphics F1 opens native authority. Parity writes are classified separately; authority-paused
   residue is not released. The former F1→F2 order exposed a native-committed/Linear-stale window.
 - **Part 2 gateway backend + #812 Production caller (live, authority-locked):** `production-write` is the single
@@ -892,7 +908,7 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 - **Edge functions (19):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve`
 - **Not counted above:** 15 of the 19 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
 - **Supabase REST tables, literal (8):** `calendar_posts` · `caption_prompts` · `content_samples` · `filming_plans` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
-- **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages any of its tables through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`; reaches `batches`, `deliverables`, `deliverable_events`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read), and SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
+- **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read. A dormant event-loader target names `deliverable_events`, but runtime never invokes it (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (4):** `calendar_upsert_ef_clients` · `prod_authority` · `sample_review_ef_clients` · `settings_ef_clients`
 - **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. Other plan-side flags remain backend-only.
 

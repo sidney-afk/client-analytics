@@ -90,13 +90,17 @@ the live flag row has truth.
 **Mirror health (reconciler v2 summaries):**
 `GET /rest/v1/deliverable_events?select=ts,payload&action=eq.linear_deliverables_reconcile_v2&order=id.desc&limit=10`
 → `payload.summary.{diff_count,repair_list_size,linkage_actionable,deliverables_checked}`.
-Healthy = 0/0/0 on a ~15-min cadence; a single non-zero tick that self-clears next run is a
-known transient (read-race), two consecutive is a page.
+Zero is expected, but current pager behavior is not terminal-health proof (F132): diff, repair and
+linkage share one two-summary rule/hourly throttle, an earlier lane failure can suppress observation,
+and accepted dispatches are not correlated to terminal receipts. Repair/linkage should page
+independently and immediately unless the owner ratifies/tests another policy.
 
 **Outbound health (B4):**
 `GET /rest/v1/deliverable_events?select=id,ts,payload&action=eq.linear_outbound_summary&order=id.desc&limit=10`
-→ `payload.{mode,counts,backlog,alerts}`. `mode` must match the live flag. Any fresh summary with
-a failed write, growing backlog, volume-spike flag, or shadow mismatch is a page. Summary-freshness
+→ `payload.{mode,counts,backlog,alerts}`. Compare `mode` independently with the live flag; the pager
+currently trusts the embedded value. A fresh summary is not a correlated terminal receipt (F132).
+Failed writes, growing/old backlog, volume spikes, shadow or mode mismatch, missing/malformed/
+over-age terminal receipts, and queue depth must page independently. Summary-freshness
 paging (>90 minutes) applies while normal outbound mode is active (`shadow`/`live`); `off` suppresses
 that staleness alarm but does **not** stop F4 legacy parity. For unknown/mixed bad Linear writes,
 stop affected users, set normal outbound `off`, set legacy parity `false`, and read back both.
@@ -109,8 +113,11 @@ classify/replay/quarantine/discard decisions, and machine-read team zero are com
 `mirror_in_*` writes go quiet by design, and the staleness signal to watch instead is the
 reconciler's `outbound_diff_count`.
 
-**New-issue adoption heartbeat:** `&action=eq.linear_incremental_refresh` — gaps well beyond
-30 min mean GitHub is throttling the cron (known failure mode; pager dispatch is the cure).
+**New-issue adoption checkpoint:** do not treat the newest
+`&action=eq.linear_incremental_refresh` row as a heartbeat. Per-row, success and failure events share
+that action, so cursor selection and age-only paging can advance/look green after partial failure
+(F131). Require a distinct success-only terminal event, durable last-success high-water, matching
+counts, failure convergence, correlated terminal receipt, and an observer outside n8n.
 
 **Ledger error scan:** on `calendar_post_events`, `sample_review_events`, `deliverable_events`:
 `?or=(action.ilike.%error%,action.ilike.%fail%,action.ilike.%anomaly%,action.ilike.%unmapped%,action.ilike.%unknown%)&ts=gte.<12h ago>`

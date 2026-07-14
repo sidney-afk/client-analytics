@@ -14,6 +14,11 @@ does nothing; the only value the code honors is `enforced`).
 > disable **both** and read both back. F1 authority reversal is not an emergency first step; it
 > requires R2's completed intent accounting. Remove this banner only in the same reviewed change
 > that records all gate evidence.
+> F131/F132 mean a fresh timestamp or quiet pager is not a healthy receipt. F133–F137 mean the
+> bounded SMM/editor source walks are not human handoff approval: canonical title/materialization,
+> accessible reorder, creative transition policy, and all Video assets must pass their explicit
+> TEST/device gates before the applicable team flips. F138 native Activity must pass by the
+> owner-ratified first-flip-or-history-retirement gate; no document may silently choose that timing.
 
 **Where:** Supabase Dashboard → project `uzltbbrjidmjwwfakwve` → **SQL Editor** (paste, Run).
 Forward/kill mutations are SQL-only because the blocks below enforce expected-state CAS and exact
@@ -42,8 +47,9 @@ limit 20;
 For the first human handoff only, execute F2 `live` while authority still reads exactly
 `{"video":"linear","graphics":"linear"}`. Before and after F2, require exact zero real, non-parity
 normal rows for both teams in `pending|failed|shadow_ok`; owner-classify/resolve residue and restart
-the proof. Read F2 back and require a fresh healthy drainer/credential/pager heartbeat with zero
-normal-lane writes; any writes must exactly equal expected, acknowledged `legacy_parity_written`.
+the proof. Read F2 back and require correlated terminal drainer/credential receipts plus an observer
+outside n8n, not a fresh/quiet pager timestamp (F131/F132), with zero normal-lane writes; any writes
+must exactly equal expected, acknowledged `legacy_parity_written`.
 Only then execute Graphics F1 and read back both rows. This intermediate state is fail-safe because
 native normal writes remain authority-blocked, but paused nonzero can starve the global batch or be
 released by F1 and is not green. **Never run Graphics F1 first:** if the later F2 action or session
@@ -57,7 +63,7 @@ Some backends still accept legacy `"supabase"` while the browser rejects it (F55
 alias must be removed before any drill. Never use it as a compatibility shortcut.
 The first human authority flip is Graphics only. Do not run either forward statement while the
 block banner is present; Video's statement is a later, separately approved gate after Graphics.
-For Graphics, the readback and healthy-heartbeat prerequisites in “First Graphics handoff order”
+For Graphics, the readback and correlated-terminal-receipt prerequisites in “First Graphics handoff order”
 must already be current. A standalone valid F1 paste is not authorization.
 
 **Run exactly one fenced action below, then run the read-back at the top. Never paste two actions
@@ -185,7 +191,8 @@ end $$;
 Forward to live (expected current state: off or shadow; blocked by the banner):
 
 For the first Graphics handoff, this is deliberately executed and proved **before** F1 while both
-teams remain Linear-authoritative. Do not continue to F1 if the CAS, readback, or heartbeat fails.
+teams remain Linear-authoritative. Do not continue to F1 if the CAS, readback, correlated terminal
+drainer/credential receipts, or outside-n8n observer fails.
 
 ```sql
 do $$ declare n integer; begin
@@ -366,8 +373,8 @@ When Supabase returns, keep affected teams paused and **do not dispatch the reco
    teams, classify any accidental Linear edits as foreign and manually apply each intended change
    to SyncView with the original person/time recorded; then apply every private incident-log item.
 4. Account for every logged/foreign intent as applied, rejected with owner reason, or duplicate.
-   Only then run the reconciler in the authoritative direction, require zero unexplained diffs and
-   healthy outbox/inbound checks, and tell each team where to resume.
+   Only then run the reconciler in the authoritative direction, require zero unexplained diffs,
+   terminal outbox and inbound receipts plus the outside-n8n observer, and tell each team where to resume.
 
 **Before the first flip:** rehearse this mixed-authority branch and build an owner-approved way to
 hold automatic reconciliation during recovery. Without that hold, R3 is not executable (F41).

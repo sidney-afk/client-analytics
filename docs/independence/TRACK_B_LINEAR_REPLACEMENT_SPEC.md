@@ -152,8 +152,9 @@ rollout to Graphics first, then Video after an independently boring window. Run 
 team. D-29 keeps incident containment per team, while F27/R2 governs any authority reversal:
 
 1. With live flags still authority Linear/Linear and outbound off, accumulate the D-28 green soak:
-   daily TEST write drill + nightly full-roster read-only shadow audit through the pager. Require
-   every watcher live, shadow results clean, and the TEST project passing
+   daily TEST write drill + nightly full-roster read-only shadow audit. qll may dispatch work, but
+   while F132 is open it cannot supply gate evidence. Require independently correlated terminal
+   drill/audit receipts, clean shadow results, the outside-n8n observer live, and the TEST project passing
    create→status→comment→due→assignee plus pause/resume, stale-tab, and both lane-specific kill
    switches. Record owner approval to enter the final handoff window; **do not flip yet**.
 2. Announce the brief final freeze to the team. Quiesce app-side outbound: verify both localStorage outboxes are **drained on every staff
@@ -191,9 +192,10 @@ team. D-29 keeps incident containment per team, while F27/R2 governs any authori
      forward. **A direct flip-back or default-drainer green is not a rehearsal (F05/F27).**
 9. **Only after steps 1–8 are green**, prove exact zero real, non-parity normal rows for both teams in
    `pending|failed|shadow_ok`, owner-classifying/resolving any residue. Then enable and read back
-   global normal outbound **while both teams are still Linear-authoritative** and require a fresh
-   healthy drainer/credential/pager heartbeat plus the same fresh both-team zero. The heartbeat has
-   zero normal-lane writes; any writes exactly equal expected, acknowledged `legacy_parity_written`.
+   global normal outbound **while both teams are still Linear-authoritative** and require correlated
+   terminal drainer/credential receipts plus an observer outside n8n (F131/F132), with the same fresh
+   both-team zero. A fresh pager timestamp is not health. The terminal receipt has zero normal-lane
+   writes; any writes exactly equal expected, acknowledged `legacy_parity_written`.
    Per-row authority pauses normal residue in this intermediate state, but paused nonzero can starve
    the global batch or become writable at F1 and is not green. Only then flip Graphics authority to `syncview` and read back both flags
    (F98); never open authority before F2. Video remains `linear`. The later Video
@@ -699,9 +701,12 @@ cohort boundary (F02/F23); no current proof authorizes a forward flag change.
   prove a machine-read team zero before changing authority to `linear`. Inbound may then apply
   Linear truth. Timestamp-based stale dropping is a resume safeguard, not rollback accounting.
 - **Recovery and monitoring:** the scheduled Actions worker drains capped batches and writes one
-  `source='outbound'` summary event per run. The n8n pager dispatches/checks it and pages on failed
-  writes, growing backlog above threshold, volume spikes, shadow mismatch, or stale summaries while
-  mode is active. Reconciler v2 measures both directions; outbound healing only enqueues through the
+  `source='outbound'` summary event per run. The current n8n pager dispatches/checks it, but trusts
+  the summary's embedded mode and lacks per-dispatch terminal correlation; a fresh summary or quiet
+  pager is not proof that the active runtime mode was observed or an accepted dispatch finished
+  (F132). The target pages failed writes, growing/oldest backlog, volume spikes, shadow mismatch,
+  mode mismatch, missing/malformed/over-age terminal receipts, and queue depth independently, with
+  an observer outside n8n. Reconciler v2 measures both directions; outbound healing only enqueues through the
   same RPC path when the team is SyncView-authoritative. A missing known Linear comment requeues its
   original idempotent outbox row through the service-only `mirror_outbox_requeue` RPC rather than
   minting a second dedup key.
@@ -813,11 +818,11 @@ Two pulls from Linear GraphQL, idempotent (keyed on `linear_issue_uuid`), re-run
   issues** → parent's project, else title parse, else the `unattributed` client (visible repair
   queue, B1 gate reviews it).
 - **Fields:** status per §2.1 (state UUID), assignee via `team_members` (unknown → recorded),
-  due/priority verbatim, `identifier = linear_identifier`, `linear_raw` = full payload **incl.
-  the issue's existing comment thread** (rendered read-only in the activity feed — pre-B3
-  comment history is NEVER imported into live card threads: it would double-count the mirrored
-  copies of card comments and its synthesized shapes would trip the `is_tweak` legacy default;
-  the §8.1 comment metric consequently covers only engine-tracked comments).
+  due/priority verbatim, `identifier = linear_identifier`, and a `linear_raw` snapshot. Some original
+  backfill snapshots retained an issue comment array, but later incremental/inbound payloads can omit
+  or replace it and the current Production detail never renders `linear_raw` comments or native
+  Activity (F138). Pre-B3 comment history is therefore neither a normalized live thread nor a safe
+  reader source; the §8.1 comment metric covers only engine-tracked comments.
 - **Delivery links:** parse trailing delivery-link comments (`drive.google.com` / `f.io`) →
   `file_url`.
 
@@ -1046,12 +1051,14 @@ skeleton. Written + rehearsed before B4.
 
 ## 8. Monitoring & observability (always-on)
 
-**2026-07-08 cadence update:** GitHub cron remains requested every 10 min, but observed
-delivery may be roughly hourly. n8n is the reliability layer for the mirror gate: the
-Monitoring Pager + Reconciler V2 Trigger dispatches a dry-run v2 pass every 15 min and pages
-if the latest summary is older than about 90 min or any gate count is non-zero. The same
-pager checks calendar/samples reconciler freshness and pages when the latest completed run is
-older than about 2 h.
+**2026-07-14 monitoring correction (F131/F132):** GitHub cron remains requested every 10 min, but
+observed delivery may be roughly hourly. The combined n8n pager dispatches a dry-run v2 pass every
+15 min, but it is not a reliability layer or terminal receipt: stop-on-error can suppress later
+lanes, dispatches are uncorrelated, outbound trusts an embedded mode, Calendar/Samples inspect only
+five unfiltered runs, and a fresh pending run can mask terminal failure. Diff, repair and linkage
+currently share a two-summary rule/hourly throttle, so first repair/linkage breaches can be quiet.
+Split dispatch from observation, isolate/correlate every lane, require exact terminal receipts and
+an observer outside n8n, and page missing/failed/malformed/over-age/queue-depth/mode mismatch states.
 
 **8.1 Continuous reconciler v2** (GH Actions + n8n trigger, ~10 min): per team, diff Linear ⇄
 `deliverables` on status / assignee (**by raw Linear user id** — §1.4d) / due / title, plus the
@@ -1063,8 +1070,10 @@ only a repeated outbound mutation; it does not exclude the durable row (§4.2/§
 (within SAFETY_CAP ≈ 15, abort + page beyond) — alert-only would leave webhook-missed changes
 unhealed, and Linear's redelivery is bounded (§4.7). Also verifies both Linear webhooks are still
 **enabled** (Linear can auto-disable after sustained failures). Every correction = ledger row
-(`source='reconcile'`) + Slack. **Restarts the dead samples lane** (measured: samples reconcile
-is not running today). **Excludes `clients.kind='test'` rows from alerting** (QA harness traffic
+(`source='reconcile'`) + Slack. **Samples cadence correction:** the Samples reconciler is not dead;
+its independent `*/10` schedule and the pager dispatch are both active. Until F132 closes, retain the
+independent schedule; if reducing F01 burn, remove the pager dispatch first and prove 24 hours.
+**Excludes `clients.kind='test'` rows from alerting** (QA harness traffic
 must not page the owner at 3am — probes stamp a reserved actor; a "monitoring quiet during
 overnight run" checklist item lands in B2/B3).
 
@@ -1165,6 +1174,13 @@ the stale-tab / bulk-import-replay revert (the `name`∉`_CAL_ROLLBACK_FIELDS` c
 the mirror stores Linear titles verbatim; name-sync activates per team at B4; legacy mismatches
 get a badge + one-time report, no mass rename (D-13).
 
+**Native-intake correction (F133/F134, 2026-07-14): this invariant is not present in the parked
+#813 candidate.** Create Post commits generic deliverable titles, then focuses a card-only title
+input; the gateway exposes no title operation. Post-commit card materialization/recovery is also
+actor-bound browser localStorage, so sign-out/offboarding/device loss can strand committed work and
+block another SMM. Before merge, collect canonical title before commit and add one atomic CAS title
+operation; materialization must be a server-owned idempotent job with protected recovery/reassignment.
+
 **Approval-revision correction (F109/F113, 2026-07-14):** current title, media, and caption
 approvals are status/timestamp-only, not bound to the content the client saw. Calendar/Samples
 generic editors and Edge writers can change approved content while preserving the old sign-off;
@@ -1194,9 +1210,13 @@ The existing recovery script reads `deliverables.comments`; it did not import th
 Calendar/Samples roots/replies, so existing source parent IDs are not addressable by the gateway.
 Review-panel plain comments and resolve/reopen/delete still write only card JSON, Notes uses the
 gateway first, Production writes only normalized rows, and client links do not read normalized
-client-audience rows. Enrollment is blocked until a composite-ID migration and one canonical
-create/reply/edit/resolve/reopen/delete contract pass the full staff/creative/client projection,
-audience, idempotency, retry, realtime, and refresh matrix.
+client-audience rows. Current review-save helpers can also resolve a failed canonical save, allowing
+the caller to send a Linear side effect and optimistically leave the queue (F43). Enrollment is
+blocked until a composite-ID migration and one canonical create/reply/edit/resolve/reopen/delete
+contract pass the full staff/creative/client projection, audience, idempotency, retry, realtime,
+and refresh matrix. Canonical persistence must succeed before any Linear/mirror side effect; failure
+retains the draft/queue with visible retry. Retry produces exactly one canonical mutation and, while
+mirroring is enabled, exactly one applicable mirror intent; retired mode produces zero mirror/outbox intents.
 
 **9.6 Assignment & due date:** single-row writes; the calendar card shows the editor chip via
 `*_deliverable_id → deliverables → team_members`.
@@ -1233,6 +1253,11 @@ affected status readers canonical—before a Graphics or Video authority flip.
 **9.7 Delivery flows preserved:** video = frame.io folder on the batch + status →
 `smm_approval`; graphics = Drive folder on batch + per-deliverable `file_url`. A pasted link in
 a comment offers "set as delivery link".
+
+**Video-asset correction (F137, 2026-07-14): this preservation is not implemented in Production.**
+The current adapter collapses deliverable file, delivery folder, raw-footage folder and filming plan
+to one priority-selected URL labelled “Delivered file,” and batch detail exposes none. Preserve all
+four typed fields and render/test them independently before the Video flip.
 
 **Implementation correction (F53, 2026-07-13): this target is not implemented.** Native Graphics
 intake currently creates a blank `file_url`/thumbnail, Production exposes no protected file/link
@@ -1297,6 +1322,14 @@ data.
 | `STATUS` / `STATUS_ORDER` | **same 13-status set, DIFFERENT keys** — the prototype uses `prog`/`smm`/`kasper`/`client` where the DB stores `in_progress`/`smm_approval`/`kasper_approval`/`client_approval` (other 9 match). The rebuild renames the prototype keys to the §2.1 slugs, and the ported test-suite selectors are adapted to match (§12) — do NOT feed DB slugs into unrenamed prototype lookups |
 | `CLIENTS` project-board cards `{status(PSTATUS), lead, target, desc}` | `clients.board_status` / `lead_member_id` / `target_date` / `board_desc` (§2.2 — these are WRITABLE in the locked design: pickers + drag; writes go through `batch-write`-style EF ops on `clients`, evented as `board_change`) |
 | `TODAY = new Date(2026,6,4)`, `DRIVE` const | real clock; real links (mock scaffolding — no mock data ships) |
+
+**Current authorization/history correction (F136/F138, 2026-07-14):** the gateway authorizes a
+creative's next status without receiving current status or assignee, so reviewer/terminal regressions,
+cancel/duplicate and peer-work mutations are not state-machine-enforced. The gateway writes native
+events, but the SPA never calls its event loader/renderer and detail shows Comments only. A server
+role/current/next/team/assignee policy is a first-flip gate. The owner must explicitly choose whether
+the protected paginated Activity timeline is also a first-flip gate or a later gate; it is required
+no later than Linear history/Inbox retirement.
 
 Ordinary Production project, team, and personal queues include only active clients. Inactive-client
 rows live in an explicit role-gated recovery view and cannot be assigned or advanced without an
@@ -1534,12 +1567,18 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
   the handler failed 29 of 30 sampled invocations at the execution limit. Require a generated
   active-workflow/settings census, one sanitized TEST receipt per load-bearing workflow, and an
   independently hosted pager receipt while n8n execution is unavailable before this gate is green.
+  F132 adds correlated terminal receipts and lane isolation: the current combined pager can stop
+  before later dispatches/reads/Slack and can be quiet while no terminal success exists. F66/F81
+  require authenticated, versioned relay callers and actionable privacy-safe onboarding fallback;
+  webhook HTTP acceptance is not delivery proof.
 - **B0.5 → COMPLETE (2026-07-10):** Track A latent bugs fixed; all active clients reached all
   three EF flags on 2026-07-07, then the owner-approved three-day close-out found zero real-client
   fallback traffic, zero ledger errors, and clean full-roster column drift. This supersedes the
   unexecuted one-week planning target. **Separate auth gate remains OPEN:** F35 must close every
   public writer and real write-attempt telemetry must be clean for 72 h before `enforced`.
-- **B1 →**: dry-run counts match audit; **constraint preflight (§5.6) posted with every
+- **B1 →**: dry-run counts match audit; **F131 success-only checkpoint/heartbeat is proved:**
+  per-row and terminal events are distinct, only a complete write/readback advances the durable
+  high-water, and failure/retry convergence skips nothing; **constraint preflight (§5.6) posted with every
   non-zero violation count carrying an approved handling rule**; 20-issue spot parity; repair
   queue + `active=false` list reviewed (D-16); replay-verify green; CON/STR active split
   measured (D-11).
@@ -1561,7 +1600,8 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
   and migration/schema state to the owner flag transaction (F56/F59). Every fallback writer retains
   the same auth boundary (F67). Rotating unknown shared/personal keys is not an automatic fallback.
 - **B4→B5**: 2 full batch cycles per team, zero lost/wrong statuses; reconciler v2 quiet;
-  owner sign-off.
+  owner sign-off. A fresh timestamp, accepted dispatch, or quiet channel is not parity evidence:
+  require F131/F132 correlated terminal receipts, lane isolation, and an observer outside n8n.
 - **B5 end**: grace green + server-enforced freeze/atomic epoch transition (F61) + archive verified
   before cancellation. No history/comment DELETE is considered ready until F62/F68's dependency-
   safe transaction and restore rehearsal exist.

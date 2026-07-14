@@ -400,6 +400,13 @@ The recurring engine once a client is live:
    assigned editor in Slack `#video-editing`. YouTube titles get their own
    review loop (title_status, no Linear). Thumbnail revisions are
    snapshotted for before/after evidence when tweaks are requested.
+   **Native-cutover blockers:** the parked Create Post caller can split the canonical card/
+   deliverable title and strand post-commit card materialization in one actor's browser
+   (F133/F134). Current Production lets a creative choose next status without current-state or
+   assignee authorization (F136), collapses filming plan/raw footage/delivery/deliverable links into
+   one “Delivered file” URL (F137), and writes activity events that the UI never loads (F138).
+   Calendar/Samples reorder is also mouse-drag-only (F135). None may be represented as a complete
+   replacement for the SMM/editor day until the corresponding TEST/device matrices pass.
 5. **Scheduling & posting** — approved cards get scheduled/posted on the
    calendar. The retained `add-to-calendar` branch is **not a safe ingestion contract** (F126): it
    accepts first-page-only children/comments as complete, can omit later work/links, writes the
@@ -421,8 +428,8 @@ completeness receipt.
 
 | Automation (n8n) | Schedule | What it does |
 | --- | --- | --- |
-| CLIENTS METRICS | daily | IG (Apify) + TikTok (Apify) + YouTube stats per `Clients Info` row → appends `Metrics` / updates `PostTracking`. **F124:** source/prior-state failures can become ordinary zero/reset rows or stop later roster clients while the run succeeds; require per-client/platform coverage and last-good/degraded semantics. |
-| TOP VIDEOS / COMPETITOR RESEARCH / MARKET RESEARCH | scheduled | research briefs per client → sheets → SyncView Analytics tab. **F124:** Top Videos can treat provider errors as empty/old complete truth; valid empty and source failure are not distinguished. |
+| CLIENTS METRICS | daily | IG (Apify) + TikTok (Apify) + YouTube stats per `Clients Info` row → appends `Metrics` / updates `PostTracking`. **F124:** source/prior-state failures can become ordinary zero/reset rows or stop later roster clients. One retained run failed on its first Metrics append after PostTracking work and skipped the other 25 clients; require per-client/platform coverage, roster isolation and last-good/degraded semantics. |
+| TOP VIDEOS / COMPETITOR RESEARCH / MARKET RESEARCH | scheduled | research briefs per client → sheets → SyncView Analytics tab. **F124:** Top Videos can treat provider errors as empty/old complete truth; in each of four green runs, 4–7 of 15 configured YouTube lanes used the same no-source branch as missing/empty input while all 29 client results were written. |
 | Weekly Slack – Top Reel | Mondays | posts each client's top reel into their client Slack channel |
 | Clients — Monthly Check-in | 1st of month, 08:00 | emails every `Monthly Checkup` row a check-in with the iClosed **`check-in`** calendar link |
 | SMM Reports — Weekly Reminder | Mondays 09:00 | emails Kasper the SMM weekly-reports viewer link |

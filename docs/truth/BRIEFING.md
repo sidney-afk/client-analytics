@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-14 @ 1ce7c91 (second-pass current-state reconciliation through F130)
+> Last verified: 2026-07-14 @ 1ce7c91 (second-pass current-state reconciliation through F138)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -63,8 +63,9 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 - Permissive auth is a pre-enforcement posture only. GO_LIVE Phase 0.75 must execute and prove the
   F5 forward CAS before any real-client parity cohort; the old canonical sequence omitted it (F97).
 - The first human authority handoff uses fail-safe F2→F1 order: normal outbound is armed/read back
-  and proves a healthy zero-normal-write heartbeat plus exact both-team normal-lane zero while both
-  teams remain Linear, then Graphics authority opens. Any parity writes are separately classified;
+  and proves correlated terminal drainer/credential receipts plus an observer outside n8n, zero
+  normal writes, and exact both-team normal-lane zero while both teams remain Linear, then Graphics
+  authority opens. A fresh pager timestamp is not health (F131/F132). Any parity writes are separately classified;
   paused normal residue is not green. The former F1→F2 sequence could strand work (F98).
 - Production writes are mixed: full-roster Calendar/SXR/settings writes use Edge Functions with
   dormant n8n fallback, while many unmigrated surfaces still use n8n. Snapshot any workflow
@@ -85,6 +86,14 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 - Kasper mobile/recovery is not complete: all eight subtabs require contained accessible navigation
   at 390/768 px (F121), and Review/Messages need active-tab-aware failure plus visible retry rather
   than an indefinite skeleton/dead-end error (F130).
+- Monitoring quiet is not terminal health: B1's event/cursor can advance after failed or partial work
+  (F131), while the combined pager can stop before later lanes or suppress alerts behind pending/
+  malformed state (F132). Require success-only checkpoints, correlated terminal receipts, lane
+  isolation, authenticated relay sources, and an observer outside n8n.
+- The bounded SMM/editor walks remain blocked: native Create Post can split title truth and strand
+  browser-owned recovery (F133/F134); Calendar/Samples reorder has no touch/keyboard path (F135);
+  creatives can regress reviewer/terminal work (F136); Video assets collapse into one mislabeled
+  link (F137); and persisted native activity is never loaded or shown (F138).
 - Known standing hazard: several credentials remain exposed (per-SMM Linear API keys in a
   publicly readable sheet tab and the house Linear key in legacy n8n). F52 reverified one
   reachable Graphics title-generation workflow carrying a plaintext provider key across all 50

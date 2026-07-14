@@ -1,6 +1,6 @@
 # n8n — current truth
 
-> Last verified: 2026-07-14 @ e3961b6 (live configuration/execution readback + second-pass reconciliation)
+> Last verified: 2026-07-14 @ 1ce7c91 (live configuration/execution readback + second-pass reconciliation)
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
 > full-active-roster Calendar/SXR/settings writes now use Edge Functions. Snapshot workflows
@@ -9,10 +9,13 @@
 ## Inventory
 
 The app-facing webhook surface (55 endpoints) is enumerated and machine-enforced in
-`docs/truth/ENDPOINTS.md`. A 2026-07-14 live census found 92 workflows, 77 active; 75 of the 77
-active graphs were readable and 34 matched fan-out/catch/continue-risk heuristics. Two already-known
-monitor/relay graphs could not be detailed through the live tool and remain explicit gaps. Deep
-historical per-workflow reads: `docs/audits/2026-07-05-n8n.md`.
+`docs/truth/ENDPOINTS.md`. A 2026-07-14 live census found 92 workflows, 77 active; all 77 active
+graphs are now structurally readable; at least 34 matched fan-out/catch/continue-risk heuristics.
+Structural coverage is not health proof. The combined pager/orchestrator has stop-on-error branch
+coupling and deterministic false-green conditions (F132). The Edge Alert Relay acknowledges before
+downstream Slack delivery and lacks authenticated, versioned source contracts (F09/F66/F81).
+Neither graph directly calls Linear. Deep historical per-workflow reads:
+`docs/audits/2026-07-05-n8n.md`.
 
 ## Known state (spot-verify before relying — n8n changes outside git)
 
@@ -26,8 +29,9 @@ historical per-workflow reads: `docs/audits/2026-07-05-n8n.md`.
 - The old dedicated Samples n8n trigger (`ZJOtYpQZj73DcBB1`) remains inactive, but Samples drift
   protection is **on twice**: pager `qllIDZPkdNAPRj0b` dispatches the GitHub workflow every 15
   minutes and `sample-linear-reconcile.yml` still has its own `*/10` schedule. Recent executions
-  contain both trigger types. Remove one cadence (not both), retain the monitored healer, and prove
-  the post-cut 24-hour execution rate (audit F01).
+  contain both trigger types. Until F132 closes, retain the independent schedule because Samples is
+  the pager's last stop-on-error branch. If reducing burn first, remove the pager dispatch (not both),
+  retain independent observation, and prove the post-cut 24-hour execution rate (audit F01).
 - `linear-set-status` is the only n8n dueDate writer (+2d when overdue, on every call). The
   nightly due-date roller is NOT in n8n (see `docs/truth/LINEAR.md`).
 - VIDEO PRODUCTION AUTOMATION ground truth: "Pick Freest Editor" = fewest open sub-issues
@@ -54,8 +58,11 @@ historical per-workflow reads: `docs/audits/2026-07-05-n8n.md`.
   it has no revision/staging/transaction/restore receipt. Keep it out of recovery workflows until
   the destructive partial-replacement finding closes.
 - Client analytics collectors can publish provider/state failures as zeros, stale values, or
-  incomplete platform coverage while the workflow remains successful. Treat Metrics/Top Videos as
-  degraded unless per-client/platform coverage receipts distinguish valid empty from source failure.
+  incomplete platform coverage while the workflow remains successful. In the retained aggregate
+  window, one Metrics run stopped on its first append and skipped 25 later clients after its
+  PostTracking path, while four green Top Videos runs sent 4–7 of 15 configured YouTube lanes per
+  run through the same no-source path used for missing/empty input. Treat Metrics/Top Videos as
+  degraded unless typed per-client/platform receipts distinguish valid empty from source failure.
 - The active Linear Sub-Issues reader and retained `/add-to-calendar` branch do not page children
   (or nested comments), reject partial GraphQL envelopes, or publish a completeness receipt. Their
   outputs currently drive Calendar import/link/status or legacy Sheet writes. Treat `ok:true` and a
@@ -66,6 +73,15 @@ historical per-workflow reads: `docs/audits/2026-07-05-n8n.md`.
   invocations while the execution limit was active. Do not treat the handler's existence or a quiet
   DM channel as coverage; require a complete active-workflow settings census, one sanitized TEST
   receipt per workflow, and a non-n8n liveness path.
+- B1's current event is neither a success-only checkpoint nor a typed terminal heartbeat (F131).
+  Per-deliverable, success-summary, and failure-summary writes share one action; cursor selection and
+  pager age checks can therefore advance/look green after partial or failed work. Require a durable
+  last-success high-water, distinct event types, exact `ok`/count validation, and failure convergence.
+- The combined pager is not a terminal-health receipt (F132). Its stop-on-error v1 branches can
+  suppress later lanes; Calendar/Samples inspect only five unfiltered runs and fresh pending work can
+  hide terminal failure; outbound trusts embedded mode; malformed V2 can become zero; diff/repair/
+  linkage share a two-summary gate and hourly throttle. Treat quiet as unknown until lanes are
+  isolated/correlated and an external observer proves execution.
 
 ## Standing hazards
 

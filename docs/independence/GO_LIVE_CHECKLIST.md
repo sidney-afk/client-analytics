@@ -187,7 +187,11 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Client analytics distinguish empty from failure** (F124): Metrics/Top Videos publish
       per-client/platform expected/attempted/succeeded/count/freshness/error receipts, never convert
       source/prior-state failure to zero/no-content, preserve visible last-good staleness, isolate
-      roster clients and alert on coverage. Test every provider/state/mid-roster/partial/retry case.
+      roster clients and alert on coverage. The acceptance drill includes the observed first-client
+      Metrics-write failure class, proves every later roster client continues or is durably retried,
+      and makes every configured Top Videos lane distinguish valid empty from provider failure. The
+      seven-day browser cache shows source age/degradation and cannot replace last-good from a bad
+      HTTP response. Test every provider/state/mid-roster/partial/retry/cache-recovery case.
 - [ ] **Raw staff/client directories are minimized** (F86): anonymous raw-table reads are revoked;
       purpose-specific active projections expose only fields each surface needs; inactive rows and
       email/Slack/Linear/project mappings are protected; direct omitted-column tests deny.
@@ -204,7 +208,8 @@ Phase 0.5 below, after the fix-pack.
       a fresh exact valid event for every active client. The present seven-day window has zero valid
       events and is not go-live evidence.
 - [ ] **Fix-pack landed in #813** (audit B-section): per-client allowlist gate (F02/F23),
-      Kasper linkage predicate (F04), 401→sign-in dialog (F10), quarantine notice (F21),
+      Kasper linkage predicate (F04), protected-write 401 session invalidation/reverification with
+      draft/action-intent preservation and retry only after fresh sign-in (F10), quarantine notice (F21),
       batch-picker team-filter + duplicate disambiguation (F19), +2d overdue bump ported per
       D-30 (F20), sync-drain lane for flipped teams (F07), oldest-pending-age pager (F16),
       monitors made flip-tolerant (F08).
@@ -290,9 +295,10 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Native concurrency is fail-safe** (F36): every Calendar/Samples/Production mutation sends
       an expected canonical version; stale requests create neither state nor outbox intent, return
       409 with the current row, and the browser offers compare/reapply instead of silent overwrite.
-- [ ] **Production identity is real** (F37): “My issues,” “Assigned to me,” own-team scope, comment
-      scope, and actor attribution use the server-verified immutable member ID; the TEST matrix is
-      green for every active creative and unsigned/revoked sessions show no personal queue.
+- [ ] **Production identity is real** (F37): “My issues,” “Assigned to me,” owner-ratified team/
+      assignment scope, comment scope, and actor attribution use the server-verified immutable member
+      ID. The TEST matrix covers every active creative plus peer-assigned, unassigned, direct-link,
+      account-switch and zero-row cases; unsigned/revoked sessions show no personal queue.
 - [ ] **Foreground Production converges** (F95): an all-day-open creative tab receives bounded
       assignment/status/due/artifact/comment changes from another device without requiring blur,
       backgrounding, or reload. Realtime/poll fallback, last-success age, stale UX, manual refresh,
@@ -305,11 +311,31 @@ Phase 0.5 below, after the fix-pack.
       selected/controls plus roving arrow/Home/End keyboard focus remain visible. Owner ratifies Back
       history behavior. Test all eight keys at 390/768 and surrounding widths, real touch swipe,
       direct deep link/back/reload, 200% zoom/text scaling, portrait/landscape, populated layouts and
-      second device—especially Onboarding, Sales Intake and Client Credentials.
+      second device—especially Onboarding, Sales Intake and Client Credentials. A denied tab must
+      atomically canonicalize the active tab, URL hash, and saved subtab so reload cannot recur into
+      an inaccessible surface.
 - [ ] **Kasper Review/Messages failures are recoverable** (F130): cold and cached refresh failures
       render in the active tab, preserve any cache under an honest stale banner, and expose a visible
       keyboard/touch Retry. Pass Review and Messages cold failure, cached failure, retry success/
       repeat failure, tab-switch/abort race, mobile and keyboard tests; no indefinite skeleton.
+- [ ] **B1 has a success-only durable checkpoint and typed terminal heartbeat** (F131): per-row
+      writes, successful summaries, and failed summaries use distinct event types; only a complete
+      write/readback advances the stored high-water. Failure at every write stage retries from the
+      previous success and converges without skipping a planned issue. Monitoring requires the
+      exact terminal type, `ok === true`, and matching expected/attempted/written counts.
+- [ ] **Pager health is correlated, terminal, and lane-isolated** (F132/F09): every dispatch has a
+      correlation ID and terminal receipt; one lane's failure cannot prevent another lane's dispatch
+      or observation. Missing, failed, malformed, over-age pending, queue-depth, and mode-mismatch
+      states page independently. An observer outside n8n proves the pager itself is executing.
+- [ ] **Alert relay proves delivery and authenticates its source** (F09/F66/F81): HTTP acceptance
+      is not Slack-delivery proof. Every caller uses authenticated source identity, a versioned typed
+      schema, correlation/dedupe, and a terminal receipt. The onboarding fallback produces an
+      actionable privacy-safe alert with no raw contact or notes.
+- [ ] **Samples retains an independent cadence until pager isolation is proved** (F01/F132): if
+      execution burn must be reduced before F132 closes, remove the pager's Samples dispatch rather
+      than the independent GitHub schedule.
+- [ ] **Repair-list and linkage alert policy is explicit** (F132): both page immediately with
+      distinct state and throttle keys unless the owner records and tests another approved policy.
 - [ ] **Client links fail closed and revoke reads** (F38): enforced-mode verifier errors cannot
       load/cache client access; the verifier requires an active client/current revision; verdicts
       are short-lived; same-tab reload, focus, second-device, offline-return, offboarding, and
@@ -335,7 +361,10 @@ Phase 0.5 below, after the fix-pack.
       duplicate-ID cases are classified; an existing-root TEST reply survives projection/reload.
 - [ ] **Comments have one truth across every persona** (F43): plain comment, tweak, reply, edit,
       resolve, reopen, delete, and Production-origin Client-visible paths use one canonical
-      lifecycle, with exact audience enforcement on real tokened TEST client links.
+      lifecycle, with exact audience enforcement on real tokened TEST client links. Canonical
+      persistence must succeed before any Linear/mirror side effect; failure retains the draft and
+      queue with visible retry. Retry produces exactly one canonical mutation and, while mirroring is
+      enabled, exactly one applicable mirror intent; retired mode produces zero mirror/outbox intents.
 - [ ] **Samples Finish history is durable** (F65): `kasper_finish_log` exists in schema, every EF/
       fallback allowlist and mirror preserves it, and Finish/re-finish/undo/retry survives refresh
       and a second TEST device with exact append-only equality.
@@ -391,6 +420,29 @@ Phase 0.5 below, after the fix-pack.
       transactional deliverable→card projection with CAS/idempotency or make every downstream
       Calendar/Samples/SMM/Kasper/client reader use deliverable status. Both-team TEST walks across
       refresh, realtime loss, second device, concurrency, retry, and rollback are green.
+- [ ] **Native Create Post keeps one canonical title** (F133): the SMM enters/accepts the title
+      before commit; deliverable and card are transactionally equal; later rename CASes both and
+      records one `title_change`. Pass latest/new batch, multi-post, retry/lost-response, pre/post-
+      review edit, two-tab, offline/reload and exact Calendar/Samples/Production/mirror equality.
+- [ ] **Native intake recovery is server-owned and reassignable** (F134): committed-but-unmaterialized
+      work lives in one durable idempotent job/reconciler, not one actor's localStorage. A protected
+      recovery inbox can resume or auditably reassign it after sign-out/offboarding/device loss without
+      losing original attribution or blocking unrelated intake. Prove exact-once cards and zero orphans.
+- [ ] **Calendar and Samples reorder works without a mouse** (F135): touch and keyboard users have
+      explicit accessible move/position controls through the same CAS reorder. Pass physical iOS/
+      Android, keyboard/screen reader, scroll arbitration, filters, concurrency, offline and second device.
+- [ ] **Creative status transitions are server-authorized from current state** (F136): owner ratifies
+      one role/current/next/team/assignee matrix; the server and picker enforce it. Reviewer/terminal
+      regression, cancel, duplicate and peer-work actions require only the explicitly approved role.
+      Pass the full 13×13 TEST matrix across list/All/My/direct-link, stale CAS, retry and two devices.
+- [ ] **Video editors retain every distinct work asset** (F137): Production shows separately labelled
+      Filming plan, Raw footage, Delivery/Frame folder and deliverable file with missing/invalid/
+      expired/permission states; no priority fallback hides or mislabels another asset. Pass all 16
+      presence combinations, native/backfill, reassignment, mobile, refresh and second device.
+- [ ] **Native activity history is protected and visible** (F138): a team/role-scoped paginated
+      reader renders stable actor/time/action/from→to history with loading/empty/stale/retry states and
+      redaction. Pass event completeness/order/paging, denial, comments coexistence, mobile and second
+      device before Linear history/Inbox retirement; `WIRED-PARITY.md` matches runtime truth.
 - [ ] **Graphics can deliver canonical media** (F53): protected file/link write or first-class
       picker updates `deliverables.file_url`, preserves actor/time/replacement history, and projects
       the correct card asset. SMM Approval rejects media-less work; a fresh TEST intake completes
@@ -409,8 +461,9 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Every load-bearing n8n workflow has proved error delivery** (F09): a generated live-settings
       census shows the intended handler on every active graph, and one sanitized TEST-only failure
       receipt per workflow reaches the owner. The handler's existence is not evidence of wiring.
-- [ ] **Non-n8n inbound-divergence pager live + pager last-mile proven** with a synthetic DM
-      (F09/B6), including proof it still fires while n8n execution is unavailable.
+- [ ] **Non-n8n inbound-divergence pager live + terminal delivery proved** (F09/B6/F132): retain
+      B6's sampled synthetic-DM success as happy-path evidence, then correlate acceptance through
+      terminal owner delivery and prove the independent observer still fires while n8n is unavailable.
 - [ ] **Alert rollback is lane-scoped** (F66): stopping Linear-inbound anomaly delivery cannot
       disable onboarding fallback alerts or any unrelated consumer of a shared project secret;
       both routes pass independent TEST sends and kill/readback drills.
@@ -513,10 +566,11 @@ Pick a low-activity window.
 2. [ ] Tell Rocio: work in SyncView only; problems → tell Sidney, never fall back to Linear
        silently.
 3. [ ] **Arm the mirror before authority (F98):** while both teams still read back `linear`, set
-       `linear_outbound_enabled` → `live` (FLIP_RUNBOOK §F2), read it back, and require one fresh
-       healthy drainer/credential/pager heartbeat. Immediately before and after it, prove exact
+       `linear_outbound_enabled` → `live` (FLIP_RUNBOOK §F2), read it back, and require correlated
+       terminal drainer/credential receipts plus an observer outside n8n (F131/F132), not a fresh
+       pager timestamp. Immediately before and after it, prove exact
        zero **both-team** real, non-parity rows in `pending|failed|shadow_ok`; owner-classify/resolve
-       any residue and restart the proof. The heartbeat must show zero normal-lane writes; any write
+       any residue and restart the proof. The terminal receipt must show zero normal-lane writes; any write
        must equal expected, acknowledged `legacy_parity_written` from the still-armed parity cohort.
        Authority-paused nonzero is not green: it can starve the global batch or be released by F1.
        Any failure stops here with both teams still Linear-authoritative.
@@ -543,9 +597,12 @@ Pick a low-activity window.
 Repeat the Phase 2 human/readiness gates and F1 authority action for `prod_authority.video` once
 Graphics is boring, but **do not rerun F2**: normal outbound was enabled globally during the
 Graphics flip and must already be live/read back. Re-prove both F2 and F4 current state, **exact
-zero real non-parity Video rows in `pending|failed|shadow_ok`**, and a fresh healthy heartbeat before
+zero real non-parity Video rows in `pending|failed|shadow_ok`**, correlated terminal drainer/
+credential receipts, and an observer outside n8n before
 Video F1; classify/resolve residue instead of releasing it. Re-prove all four editors signed in,
-tweak-delivery comms sent (F24), and exact-recipient assignment/tweak/URGENT receipts proven.
+tweak-delivery comms sent (F24), exact-recipient assignment/tweak/URGENT receipts proven, current-state
+transition authorization green (F136), all four Video assets visible (F137), and activity-history
+replacement agreed/proved to the gate chosen for F138.
 
 ## Phase 5 — B5: retire Linear (its own project)
 

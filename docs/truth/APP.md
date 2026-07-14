@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-14 @ e3961b6 + live topology readback
+> Last verified: 2026-07-14 @ 1ce7c91 + live topology/persona readback
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -42,9 +42,12 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - SXR rejects pushing Scheduled/Posted to Linear (unlike calendar).
 - `_sxrReassertLinearStatus()` is **defined but never called** (dead drift-protection). Samples
   reconciliation is currently on twice—pager dispatch plus its own GitHub schedule—so remove one
-  cadence, not both (see `docs/truth/N8N.md`). The browser also has a 5-minute local-fresh merge guard.
+  cadence, not both. Until F132 closes, retain the independent schedule and remove the pager dispatch
+  first if burn must fall (see `docs/truth/N8N.md`). The browser also has a 5-minute local-fresh merge guard.
 - SXR writes `kasper_finish_log` which is silently dropped server-side
   (see `docs/truth/SUPABASE.md`).
+- Calendar and Samples reorder only through HTML5 mouse drag events; no touch/pointer or keyboard
+  fallback exists (F135).
 
 ## Reviews (client / Kasper / SMM)
 
@@ -52,6 +55,11 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `docs/audits/2026-07-05-logic-reviews.md`.
 - Linear comments are written prefixed `**{Reviewer} (via SyncView):**`.
   That display name is cosmetic on the legacy bridge and does not establish the caller (F91).
+- Comment truth remains split across card JSON and normalized rows (F43). Canonical persistence must
+  succeed before any Linear/mirror side effect; a failure keeps the draft/queue with visible retry,
+  and retry must produce exactly one canonical mutation plus exactly one applicable mirror intent
+  while mirroring is enabled; retired mode produces zero mirror/outbox intents. Production currently
+  has no Reply action/`parent_id` send path and client links do not read Client-visible normalized rows.
 - Kasper's eight-tab strip is not contained or semantically keyboard-operable at 390/768 px; later
   and deep-linked tabs require whole-page horizontal panning (F121). A failed shared Review/Messages
   cold load leaves Messages on an indefinite skeleton, and Review renders no Retry (F130).
@@ -69,6 +77,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   status/comment/due/assignee controls are deployed through `production-write`, but authority
   remains Linear/Linear, so real-team rows render read-only while the bounded private TEST override
   can write. Human cutover is blocked by the audit register; this is not a future unwired preview.
+- A protected-write 401 becomes toast copy only: Production does not clear/reverify the staff session,
+  open sign-in, preserve/replay the action after fresh authorization, or otherwise recover (F10).
 - F94: manual assignment is not eligibility-safe yet. The picker/server accept any active same-team
   roster row and do not preflight compatible creative role plus usable Linear mapping before the
   native commit. This remains a first-flip blocker even though the control is deployed.
@@ -78,8 +88,13 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - F96: at touch-mobile widths the sidebar is hidden, taking My issues and the visible palette
   trigger with it. The mobile top bar has no personal/team queue switch; `?view=my` works only when
   supplied directly or reached through a hardware-keyboard shortcut.
-- Boot does a lightweight parallel select of `clients`/`team_members`/`batches`/
-  `deliverables` (plus `deliverable_events`).
+- Boot does a lightweight parallel select of `clients`/`team_members`/`batches`/`deliverables`.
+  Native events are written, and loader/renderer helpers exist, but no runtime call loads or displays
+  them; detail shows Comments only (F138).
+- Creative policy is same-team-wide and checks next status without current status or assignee, so it
+  can regress reviewer/terminal work or mutate peer work after a flip (F37/F136).
+- Video delivery/source data is collapsed from four typed fields to one priority winner labelled
+  “Delivered file”; filming plan/raw footage can be hidden or mislabeled (F137).
 - Current Production contracts are `docs/syncview-design/WIRED-PARITY.md`, `ADAPTER.md`, and the
   wired suites; `SyncView.html`/tokens are frozen visual evidence, while the old handoff/loop files
   are non-operative tombstones under F56/F64. UI changes must pass `npm run test:prod-polish`.

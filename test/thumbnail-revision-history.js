@@ -150,6 +150,10 @@ ok(/alter publication supabase_realtime add table public\.thumbnail_media_revisi
 
 ok(/thumbnail_revision_v2/.test(V2_SQL) && /"mode":"off"/.test(V2_SQL),
   'v2 runtime kill must seed off');
+ok(/normalized_slug text := regexp_replace/.test(V2_SQL)
+  && /from public\.clients c\s+where c\.slug = p_client and c\.active = true/.test(V2_SQL)
+  && !/where slug = p_client/.test(V2_SQL),
+  'v2 client flag lookup must avoid ambiguous PL/pgSQL column references');
 ok(/before update of thumbnail_url, asset_url on public\.calendar_posts/.test(V2_SQL)
   && /before update of thumbnail_url, asset_url on public\.sample_reviews/.test(V2_SQL),
   'database fallback must cover same-link media writes on both surfaces');

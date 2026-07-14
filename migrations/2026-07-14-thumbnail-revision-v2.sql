@@ -63,7 +63,7 @@ as $$
 declare
   config jsonb := '{}'::jsonb;
   mode text := 'off';
-  slug text := regexp_replace(lower(coalesce(p_client, '')), '[^a-z0-9&]+', '', 'g');
+  normalized_slug text := regexp_replace(lower(coalesce(p_client, '')), '[^a-z0-9&]+', '', 'g');
 begin
   select value into config
   from public.syncview_runtime_flags
@@ -72,13 +72,13 @@ begin
   mode := lower(coalesce(config ->> 'mode', 'off'));
   if mode not in ('test', 'on') then return false; end if;
   if not exists (
-    select 1 from public.clients
-    where slug = p_client and active = true
+    select 1 from public.clients c
+    where c.slug = p_client and c.active = true
   ) then
     return false;
   end if;
   if mode = 'on' then return true; end if;
-  if slug = '' then return false; end if;
+  if normalized_slug = '' then return false; end if;
 
   return exists (
     select 1
@@ -88,7 +88,7 @@ begin
         else '[]'::jsonb
       end
     ) as allowed(client)
-    where regexp_replace(lower(allowed.client), '[^a-z0-9&]+', '', 'g') = slug
+    where regexp_replace(lower(allowed.client), '[^a-z0-9&]+', '', 'g') = normalized_slug
   );
 end;
 $$;

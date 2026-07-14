@@ -1,8 +1,9 @@
 # Thumbnail refresh and revision comparison
 
-> Current source status (2026-07-14): v2 is implemented in this branch, but this document does
-> not claim that its migration, Edge Functions, scheduler, runtime flag, Pages build, or live
-> verification have completed. Record those facts in `EXECUTION_LOG.md` only after readback.
+> Current status (verified 2026-07-14): v2 is deployed and globally enabled. Migration, four Edge
+> Functions, Pages, flag, scheduler, negative access checks, same-link/repeated/A-to-B rotation,
+> zero-hard-refresh repaint, desktop/mobile comparison, and zero-residue TEST cleanup were read back
+> live. Public-safe operational evidence is recorded in `EXECUTION_LOG.md`.
 
 ## Outcome
 
@@ -114,10 +115,10 @@ traps focus while open; closes on Escape/backdrop/close; and returns focus to th
 
 ## Runtime controls
 
-The server-readable `syncview_runtime_flags.thumbnail_revision_v2` value is:
+The server-readable `syncview_runtime_flags.thumbnail_revision_v2` value uses this schema:
 
 ```json
-{"mode":"off","clients":[]}
+{"mode":"off|test|on","clients":["<normalized-client-slug>"]}
 ```
 
 - `off`: comparison reads and scans fail closed; v2 server token minting is disabled.
@@ -125,9 +126,9 @@ The server-readable `syncview_runtime_flags.thumbnail_revision_v2` value is:
   calls must include an enrolled client scope.
 - `on`: all clients can use the v2 reader/scanner/token path.
 
-The migration seeds `off` without overwriting an existing value. Set `test` only for the private
-TEST client until positive, negative, same-link, realtime, and rollback probes pass. Set `on` only
-after the TEST gate and live Pages/Edge readback are recorded.
+The migration seeded `off` without overwriting an existing value. The verified live readback is
+`{"mode":"on","clients":[]}` after the private TEST client gate, off/test rollback rehearsal, and live
+Pages/Edge proof. Changing this value remains an audited operational action.
 
 Baseline capture in both upsert functions checks the same active-client-aware flag before any Drive
 read, Storage upload, or revision-row write. Turning v2 `off` therefore prevents capture,
@@ -140,10 +141,12 @@ The scheduled caller has a separate operational switch:
 GitHub Actions variable THUMBNAIL_REVISION_SCAN_ENABLED=true|false
 ```
 
-The workflow runs every ten minutes only when that variable is exactly `true`. It sends the
-dedicated `X-Syncview-Scheduler-Signature` secret, uses at most 12 sequential 25-row requests with
-one run-level fairness cutoff and an overall timeout, stops early on a short page, and logs aggregate counts only. Any item failure
-makes the workflow fail visibly without logging card, client, URL, path, or upstream error details.
+The verified live repository value is `true`; the first scheduled production run completed green
+with 239 checked, 239 unchanged, and 0 failed. The workflow runs every ten minutes only when that
+variable is exactly `true`. It sends the dedicated `X-Syncview-Scheduler-Signature` secret, uses at
+most 12 sequential 25-row requests with one run-level fairness cutoff and an overall timeout, stops
+early on a short page, and logs aggregate counts only. Any item failure makes the workflow fail
+visibly without logging card, client, URL, path, or upstream error details.
 The Edge Function returns `503` when its secret is absent, `401` for a missing/wrong signature, and
 never accepts a staff key as scheduler authority.
 
@@ -164,31 +167,19 @@ never accepts a staff key as scheduler authority.
 - `index.html`: direct final-host thumbnail URLs, persisted-revision adoption, realtime image refresh,
   and accessible comparison dialog.
 
-## Rollout and proof checklist
+## Verified deployment evidence
 
-Do not use a real client for mutation proof. Use only the private TEST client and unique disposable
-card IDs, then clean up and read back zero residue.
-
-1. Snapshot the affected Edge Function source/version fingerprints and relevant TEST rows privately.
-2. Apply `migrations/2026-07-14-thumbnail-revision-v2.sql`; verify the flag is `off` and anonymous
-   PostgREST cannot select `thumbnail_media_revisions`.
-3. Configure `THUMBNAIL_REVISION_SCAN_KEY` independently in Supabase and GitHub, then deploy the
-   four affected functions with the pinned CLI workflow/toolchain.
-4. While `off`, prove the comparison reader and scanner return `503`; prove the scanner returns
-   `401` for missing/wrong signatures once enabled.
-5. Set `test` with only the private TEST slug. Prove same-link media assignment and
-   `Tweaks Needed` exit mint a new persisted token through both Edge and non-browser/server paths.
-6. Initialize a TEST watch, change its Drive revision without a SyncView write, and scan it. Prove a
-   `changed` pair, atomic source `thumb_rev` bump, fresh pending baseline, and open-viewer repaint
-   without hard refresh. Repeat once more to prove the watcher rotates indefinitely; also prove an
-   A-to-B Drive link change is source-checked rather than paired against stale media.
-7. Prove authorized staff/client reads and cross-client, missing-credential, wrong-credential,
-   missing-card, oversize-body, and raw-table denials.
-8. Verify desktop and narrow-screen Previous/Current screenshots, keyboard close/focus return, and
-   signed-URL refresh after reopening.
-9. Rehearse `test -> off -> test`, then enable the scheduler variable. Promote to `on` only after
-   the owner-approved gate and record every migration, deploy, secret presence check, flag flip,
-   workflow change, cleanup, and readback in `EXECUTION_LOG.md`.
+- The migration and four functions were applied/deployed, then read back on the merged release.
+- Missing/wrong scanner identity, missing/wrong reader identity, cross-client, missing-card,
+  oversized-body, raw-table, and unsigned-private-object denials passed.
+- Disposable TEST proof covered same-link writes, no-write Drive replacements, repeated rotation,
+  A-to-B replacement, persisted monotonic revisions, and open-tab repaint with zero hard refreshes.
+- The initial global scan checked 239 watches with 0 failures. Scheduled run `29370658087` completed
+  green with 239 unchanged; after TEST cleanup, 238 active watches remained with 0 error rows.
+- An owner-selected real Calendar card showed Previous/Current on desktop and mobile; Escape/focus
+  return and fresh signed image URLs after reopen also passed.
+- Disposable TEST cards, events, revision rows, and private objects were removed and zero residue was
+  read back. No real-client mutation was used for rollout proof.
 
 ## Rollback
 

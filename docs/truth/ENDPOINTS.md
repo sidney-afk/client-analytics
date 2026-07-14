@@ -1,6 +1,6 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-14 @ 616ea20 + live routing/topology readback
+> Last verified: 2026-07-14 @ 08e18e6 + live routing/thumbnail readback
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -129,7 +129,8 @@ deactivation. Gate all readers, replace bare discovery, and retire the legacy fu
 - `thumbnail-revision-scan` — bounded scheduled Drive scanner; the browser never calls it. It
   requires the dedicated `X-Syncview-Scheduler-Signature`, fails closed if the secret is absent or
   wrong, honors the backend `thumbnail_revision_v2` off/test/on scope, and exposes aggregate counts
-  only. Its GitHub schedule remains dark unless `THUMBNAIL_REVISION_SCAN_ENABLED=true`.
+  only. `THUMBNAIL_REVISION_SCAN_ENABLED=true` is live; scheduled run `29370658087` completed green
+  with 239 checked, 239 unchanged, and 0 failed.
 
 These are documented separately by design. Do not add them to the literal endpoint set checked by
 `test/truth-sync.js` until `index.html` actually calls them.
@@ -157,5 +158,6 @@ by hand; verify before relying on it.
   *(per `docs/audits/2026-07-05-supabase.md`; UI-source rows only to date)*.
 - Thumbnail comparison history: the SPA does **not** call PostgREST for
   `thumbnail_media_revisions`. The v2 migration revokes raw browser SELECT and the protected
-  `thumbnail-revision-read` function is the sole browser projection. Treat that as staged source
-  until the migration and negative live readback are recorded.
+  `thumbnail-revision-read` function is the sole browser projection. The migration is live: raw
+  browser table access returns `401`, unsigned private-object access returns `400`, exact authorized
+  reads pass, and cross-client scope returns `403`.

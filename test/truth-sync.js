@@ -155,6 +155,7 @@ const reconciledFeatureDocs = [
   'docs/features/YOUTUBE_TITLE_REVIEW_DESIGN.md',
   'docs/features/KASPER_REVIEW_GLOBAL_ROLLOUT.md',
   'docs/features/THUMBNAIL_CACHE_ROLLOUT.md',
+  'docs/features/THUMBNAIL_REVISION_HISTORY.md',
   'docs/features/SALES_INTAKE_DESIGN.md',
   'docs/features/ONBOARDING_FORM.md',
 ];
@@ -163,6 +164,10 @@ const staleFeatureMarkers = [
   /Phase 0 backend[^\n]*\bPENDING\b/i,
   /Part B[^\n]*\bnot started\b/i,
   /^## Rollout steps\b/im,
+  /^## Rollout and proof checklist\b/im,
+  /\bstaged;\s*no live claim\b/i,
+  /\bnot yet a live claim\b/i,
+  /Current source status[^\n]*v2 is implemented/i,
   /until the backend below is in place/i,
   /open the \*\*`Build Row From Patch`\*\*/i,
   /claude\/sales-intake-form-tab/i,

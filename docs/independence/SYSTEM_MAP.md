@@ -47,9 +47,9 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   `deliverables`, `deliverable_events`, `team_members`, `clients`. Ledger/mirror tables
   (`*_events`, `mirror_outbox`, `linear_archive`, `client_credentials_rev`,
   `thumbnail_media_revisions`) are written by Edge Functions / reconcilers, not read directly by the
-  SPA. Thumbnail v2 adds a protected, least-field Edge projection for one card and a migration that
-  revokes raw browser SELECT; neither is live proof until the migration and negative readback are
-  recorded, so F83 remains open at this source checkpoint. **Systemic F88:** an exhaustive live count-only
+  SPA. Thumbnail v2's protected least-field Edge projection and raw-read revocation are live:
+  browser table access returns `401`, unsigned private-object access returns `400`, exact authorized
+  card reads pass, and cross-client scope returns `403`. F83 closed 2026-07-14. **Systemic F88:** an exhaustive live count-only
   census found 20 nonempty anon-selectable operational tables. Client-token/UI verification does
   not constrain direct PostgREST; the owner must explicitly accept the exposed fields as public or
   migrate to scoped projections and revoke raw policies. F86 separately blocks raw inactive staff/
@@ -828,8 +828,9 @@ separate hidden first-party Direct-Post surface.*
 - **Notable.** v1's `credentials-identity-persist` is **not an endpoint** — it's a source-guard test
   file. Thumbnail history now has two distinct endpoints elsewhere in the map:
   `thumbnail-revision-scan` remains backend-only, while Calendar/SXR call protected
-  `thumbnail-revision-read`. The source migration revokes raw revision-table reads, but F83 remains
-  open until live negative proof. Passwords arrive in plaintext with `list` and sit in JS memory;
+  `thumbnail-revision-read`. The live migration revokes raw revision-table reads; browser-table and
+  unsigned-object denials plus authorized/cross-client reader scope were proved, closing F83 on
+  2026-07-14. Passwords arrive in plaintext with `list` and sit in JS memory;
   masking is visual only; even reveal auditing is caller-invoked/fire-and-forget and direct
   extraction or copies can be unlogged (F84).
 - **Track B.** `client-credentials`, `onboarding-full`, and filming-plan writes now consume the same

@@ -1,25 +1,26 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-14 @ e3961b6 (Management API and live readback)
+> Last verified: 2026-07-14 @ 08e18e6 + live thumbnail rollout readback
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 ## Tables
 
 See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
-> **READ-ACCESS BLOCKER (F88; live count-only census 2026-07-14).** Of 37 exposed table paths, 20
+> **READ-ACCESS BLOCKER (F88; pre-thumbnail-remediation live census 2026-07-14).** Of 37 exposed table paths, 20
 > have nonempty rows selectable with the browser publishable key, including cross-client operational
 > rows/events, rosters/mappings, reports, filming plans, and thumbnail revision metadata. Client
 > tokens gate SPA behavior only; direct PostgREST does not consult them. The owner must explicitly
 > accept every exposed field as public (with legal/client review) or replace raw policies with
 > principal/client/role-scoped projections. F86 specifically requires minimizing raw staff/client
-> tables. B1 proved anonymous writes were denied; it did not prove read confidentiality.
+> tables. B1 proved anonymous writes were denied; it did not prove read confidentiality. This was
+> not rerun as a 37-path census after thumbnail remediation, so the historical count remains the
+> baseline and systemic F88 stays open.
 >
-> **Thumbnail v2 source remediation (not yet a live claim):**
-> `migrations/2026-07-14-thumbnail-revision-v2.sql` revokes anon/authenticated SELECT from
-> `thumbnail_media_revisions`. The SPA instead calls a principal- and card-scoped Edge reader that
-> returns short-lived signed images and no raw paths/Drive/requester/error fields. F83 closes only
-> after the migration and negative PostgREST/read-scope probes are applied and read back live.
+> **Thumbnail v2 remediation verified live; F83 closed 2026-07-14:** the migration revoked raw
+> anon/authenticated reads, and a browser-key table request now returns `401`. Unsigned private-object
+> access returns `400`; the SPA instead uses a principal/card-scoped Edge reader that returns only
+> short-lived signed images. Exact authorized reads pass and cross-client scope returns `403`.
 
 - `calendar_posts` — main calendar store (~3.4k rows at last count; ~77% belong to the TEST
   client; most rows archived).
@@ -73,21 +74,22 @@ uniform denials, bounded event retention, and explicit audit-outage behavior. F8
 window has zero valid-token events and cannot satisfy the spec's active-client validation gate.
 
 Live set in `docs/truth/ENDPOINTS.md`. Source now represents 25 functions. The existing onboarding
-deploy Action covers 7 and still uses an unpinned latest CLI; this branch adds a separate pinned
-`2.109.0` workflow for the 4 thumbnail-path functions. That new workflow is source coverage, not
-evidence that its first main run or the deployed function fingerprints were verified. Seven
+deploy Action covers 7 and still uses an unpinned latest CLI. The separate pinned `2.109.0`
+thumbnail workflow deployed and read back `calendar-upsert` v32, `sample-review-upsert` v33,
+`thumbnail-revision-read` v12, and `thumbnail-revision-scan` v17 from the merged release. Seven
 functions use floating `supabase-js@2` (six npm aliases plus one `esm.sh` alias), and no function
 has a committed lock/import map. Treat every deployment/rebuild/rollback as F51-gated until all 25
 source closures, dependencies, JWT settings, toolchain, release SHA, and downloaded server
 fingerprints are manifested and independently read back.
 
 Thumbnail v2 is controlled by backend flag
-`thumbnail_revision_v2={"mode":"off|test|on","clients":[...]}`. `off` fails the protected reader
+`thumbnail_revision_v2={"mode":"off|test|on","clients":[...]}`; the verified live value is
+`{"mode":"on","clients":[]}`. `off` fails the protected reader
 and scanner closed and prevents v2 server token minting; `test` requires an explicit enrolled client
 scope; `on` permits all clients. The scheduled scanner separately requires
 `X-Syncview-Scheduler-Signature`, fails closed when its secret is absent, limits each request, and
-returns aggregate counts only. The GitHub caller remains dark unless repository variable
-`THUMBNAIL_REVISION_SCAN_ENABLED` is exactly `true`.
+returns aggregate counts only. Repository variable `THUMBNAIL_REVISION_SCAN_ENABLED` is live as
+`true`; first scheduled run `29370658087` completed green with 239 checked and 0 failed.
 
 ## Backup and capacity truth
 

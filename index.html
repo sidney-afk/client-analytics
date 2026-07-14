@@ -12098,14 +12098,24 @@
         return s === 'to do' || s === 'todo';
     }
 
-    // Active editors. Video editors come from SYNCVIEW's "Video Editors" tab;
-    // the only graphic designer right now is Rocío Perez. Anyone else gets
-    // filtered out so the panels only surface people actively editing.
+    // Editors who have left the team. This shared exclusion is applied to both
+    // Workload's local roster and the Kasper Editors response, so historical or
+    // cached Linear activity cannot put a former editor back in either view.
+    const WL_INACTIVE_EDITOR_IDS = new Set([
+        '6b70f1d8-f73e-4222-9a59-944b86da2cc9', // Martin
+    ]);
+    const WL_INACTIVE_EDITORS = new Set([
+        'martin',
+        'martinsynchro',
+    ]);
+
+    // Active editors. The video roster is maintained here; the only graphic
+    // designer right now is Rocío Perez. Anyone else gets filtered out so the
+    // panels only surface people actively editing.
     // Each entry is a normalised name token — wlNormalizeEditor() collapses
     // emails, accented names and "First Last"/"Last First" into the same key.
     const WL_ALLOWED_EDITORS = new Set([
         'iaramiraille',
-        'martinsynchro',
         'espindolanahuel',
         'nahuelespindola',
         'santigimelli',
@@ -12122,7 +12132,6 @@
     // editor's live work collapse into one chip rather than duplicating.
     const WL_VIDEO_EDITORS = [
         { id: 'b199cff7-2b9b-4164-8824-d3644d13f1fd', name: 'Iara Miraille' },
-        { id: '6b70f1d8-f73e-4222-9a59-944b86da2cc9', name: 'Martin' },
         { id: 'e19eb17e-fb0d-45c6-b303-7907d1ccfaaa', name: 'Nahuel Espindola' },
         { id: '2cea7628-c64e-4abb-9b3e-3f8bd9f64ae4', name: 'Santi Gimelli' },
     ];
@@ -12133,9 +12142,14 @@
         const local = lower.includes('@') ? lower.split('@')[0] : lower;
         return local.replace(/[\s._\-]+/g, '');
     }
+    function wlIsInactiveEditor(id, name) {
+        return WL_INACTIVE_EDITOR_IDS.has(String(id || '').trim()) ||
+            WL_INACTIVE_EDITORS.has(wlNormalizeEditor(name));
+    }
     function wlIsAllowedEditor(name, teamKey, teamName) {
         if (!name) return false;
         const norm = wlNormalizeEditor(name);
+        if (WL_INACTIVE_EDITORS.has(norm)) return false;
         if (wlTeamBucket(teamKey, teamName) === 'graphics') {
             return WL_ALLOWED_GRAPHICS.has(norm);
         }
@@ -45026,7 +45040,11 @@
         const data = _kasperState.editorsData;
         const body = document.getElementById('kedBody');
         if (!body || !data) return;
-        const editors = Array.isArray(data.editors) ? data.editors : [];
+        const editors = (Array.isArray(data.editors) ? data.editors : [])
+            .filter(ed => !wlIsInactiveEditor(
+                ed && (ed.id || ed.assigneeId || ed.assignee_id || ed.userId || ed.user_id),
+                ed && (ed.name || ed.assigneeName || ed.assignee_name)
+            ));
 
         const weekEl = document.getElementById('kedWeekLabel');
         if (weekEl) weekEl.textContent = data.weekLabel || 'Last week';

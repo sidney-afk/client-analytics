@@ -68,6 +68,11 @@ Phase 0.5 below, after the fix-pack.
       fence; every forward/kill/recovery action passes an isolated TEST flag-store transaction,
       exact expected-state CAS, affected-row assertion, and readback. Never paste a multi-action
       sequence or an unconditional whole-row replacement.
+- [ ] **The complete Production browser gate is green before merge/flip** (F105): do not accept the
+      fast PR subset alone. Locked live-read/zero-mutation and fully intercepted writable states are
+      explicit; interaction/behavior/pixel lanes are authority-aware; unsupported operations remain
+      guarded; no suite sends a live mutation; current review-packet/Argos artifacts exist. Require
+      aggregate `npm run test:prod-polish` plus the long lanes on the exact candidate commit.
 - [ ] **Public-repo hygiene is enforced** (F64): no new client identity, slug, account address,
       secret, or private fixture enters a commit. Remove the plaintext onboarding records from the
       current tree immediately without losing required schema; privately preserve evidence and
@@ -454,6 +459,11 @@ live readback; do not list “deactivate it” as newly completed teardown work.
       Any future migration has a fresh owner-approved ID, immutable source checkpoint, exact current
       dry run, script/schema commit, expiry, TEST rehearsal, and dependency-safe recovery. CI finds
       no active apply/delete/recovery recipe in any executed or historical playbook.
+- [ ] **Calendar-v1 cleanup uses a new owner-approved plan** (F104): the old Phase-4 deletion recipe
+      remains quarantined. Before removing any flag/fallback/symbol, measure opt-out and caller use,
+      ratify replacement outage recovery, scan whole-repo consumers, update README/System Map/
+      ROLLBACK together, and pass v2-on/off, Supabase/n8n failure, metadata/banner, save-concurrency,
+      Calendar/client/Kasper/Films, focus/mobile/second-device tests. Every object also passes F60.
 - [ ] **Archive is usable and assets are rescued (F34):** a role/audience-scoped archive reader is
       live; issue/comment counts and hashes match the private export; every Linear-hosted image/
       attachment is rescued/relinked or explicitly owner-dispositioned; retrieval/restore drills

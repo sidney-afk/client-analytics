@@ -231,6 +231,10 @@ n8n in the metric read path.*
   *flag read* fall back to n8n. Linear pushes queue to the localStorage outbox (retry on load/focus/
   60 s, parked after 6 attempts). Caption jobs are poller-authoritative with 45 s/3 min/12 min
   watchdogs. Realtime subscribe failure degrades to fetch-on-focus.
+- **Retirement warning (F104).** The former Phase-4 checklist is quarantined: it falsely treated the
+  opt-out and fallback branches as unreachable and would also remove the v2 metadata reader's
+  `LINEAR_STATUSES_URL`. No flag, fallback, helper, workflow, or Sheet is retired without measured
+  usage, replacement recovery, whole-repo consumer proof, full cross-surface tests, and F60.
 - **Notable / corrections.** `calendar-append-post` and `calendar-delete-post` are **dead** (constants
   defined, zero fetch sites; delete is an archive-upsert). `linear-tweak-comments` is **not** a
   calendar endpoint (it's Workload's). The URGENT-marker write bypasses the routing flag, so an EF

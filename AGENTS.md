@@ -21,8 +21,8 @@ update the map in the same change (`test/repo-map-sync.js` enforces it in CI).
 For the visible **Linear** mirror (internal key/module `production`) polish:
 
 - Keep the deliberate label/route split: **Linear** = `navProd` / `production` / `#production` with `?prod=1`; **Submit** = `navLinear` / `linear` / `#linear`. Never derive routing from the visible labels.
-- The current mirror tab is read-only. Do not introduce real writes unless the requested milestone explicitly enables write behavior.
-- Run `npm run test:prod-polish` for Production UI changes. It covers boot skeleton routing, structure, interaction inventory, accessibility/focus basics, layout clipping, behavior, and pixel parity.
+- Production is an authority-gated native mirror. Status, comment, due-date, and assignee controls may write only for a verified compatible role on a SyncView-authoritative team, plus the bounded active-TEST override. Linear-authoritative, missing/malformed authority, unsigned, and unsupported operations stay read-only and fail closed. Read back current runtime authority before acting; never treat a dated Linear/Linear snapshot as a permanent guarantee.
+- Run `npm run test:prod-polish` for Production UI changes. It includes a locked live-read/zero-mutation lane and a fully mocked `production-write` capability lane, plus boot, structure, interaction, accessibility/focus, layout, behavior, and pixel coverage. Live-observation lanes may issue read-only requests; no suite may mutate a live backend. F105 is open until the stale interaction/heavy guard-mode assertions are rewritten and the aggregate gate is green.
 - Keep fixes tight and add tests for owner feedback such as stuck hover states, clipped dates, broken right-click behavior, scroll position, filter/display menus, and selection cleanup.
 - Preserve URL/deep-link behavior for `?prod=1`, `team`, `view`, `client`, and `d` query params.
 - Keep docs current: `docs/syncview-design/WIRED-PARITY.md`, `docs/audits/2026-07-09-production-foundation-audit.md`, `EXECUTION_LOG.md`, and `ROLLBACK.md`.

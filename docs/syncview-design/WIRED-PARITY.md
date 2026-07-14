@@ -1,14 +1,32 @@
 # Wired Production Parity Ledger
 
-Source of truth: `docs/syncview-design/SyncView.html`. Status values:
+Source of visual truth: `docs/syncview-design/SyncView.html`. Runtime authority and native-write
+truth come from the current source, gateway contract, and an immediate `prod_authority` readback;
+the static artifact cannot authorize a write. Current status values:
 
 Visible shell note: the app's top-nav label is now **Linear**, but this ledger retains
 **Production** for the internal `production` module and historical design-kit terminology. The
 submission form is labeled **Submit** while retaining internal key `linear`.
 
-- ✅ ported: wired `?prod=1` matches the artifact behavior in read-only form.
-- 🔒 deferred-B3: artifact behavior mutates data and remains guarded until write authority moves.
-- ⬜ pending: read-only-safe artifact behavior still needs transplant/adaptation.
+- ✅ ported: wired `?prod=1` matches the applicable artifact behavior.
+- 🔐 authority-gated: shipped native behavior opens only when role, team, target, operation, and
+  current authority allow it (or for the bounded active-TEST override).
+- 🔒 unsupported/guarded: no native contract exists; the control must not send a write.
+- ⬜ pending: artifact behavior still needs transplant/adaptation.
+
+## 2026-07-13 Current Authority-Gated Write Milestone
+
+This section supersedes unqualified “the mirror is read-only” language elsewhere in this ledger.
+The dated sections below remain historical evidence: their “current,” “now,” `B2`, and
+`deferred-B3` wording describes the milestone named by that section, not today's capability.
+
+| Behavior | Current status | Contract |
+|---|---:|---|
+| Status, comment, due date, and assignee | 🔐 authority-gated | The browser calls only the authenticated `production-write` gateway. A verified compatible role, active/supported target, valid SyncView authority for the row's team, and operation-specific server checks are required; the bounded active-TEST override is the only pre-flip exception. |
+| Linear-authoritative, missing/malformed authority, unsigned, incompatible-role, and unsupported states | 🔒 guarded | Controls stay read-only and fail closed. Current authority must be read back before any operational decision; the dated Linear/Linear state in `docs/truth/APP.md`/`ROLLBACK.md` is not a permanent guarantee. |
+| Locked-state browser proof | ⚠️ partial / F105 | `prod-readonly-smoke.js` and the updated structure suite prove zero live mutations and fail-closed controls. The interaction/behavior/pixel guard corpus still assumes supported pickers open before the lock and is red after the write milestone. |
+| Writable-state browser proof | ✅ ported | `prod-write-gateway-browser.js` uses a fully intercepted local mock to prove mixed authority, four supported operations, CAS, verified-role attribution, TEST override, and stale-tab rejection without reaching a live backend. `test/production-write-ui-source.js` pins the source contract. |
+| Project moves, deletes/undo, new issues/sub-issues, favorites, comment edit/delete, and other unimplemented mutations | 🔒 unsupported/guarded | Historical prototype controls do not create runtime authority. Keep them guarded or absent until a separately designed, server-authorized, tested, and owner-approved milestone. |
 
 ## 2026-07-09 Foundation Hardening Audit
 
@@ -38,7 +56,7 @@ Full report: `docs/audits/2026-07-09-production-foundation-audit.md`.
 | Project-row metadata clipping | owner project-row hover feedback on PR #763 | ported | Project issue rows let titles shrink before due/avatar/created metadata, so right-side chips stay visible on hover. |
 | Searchable selected-issue Actions menu | owner action-menu feedback on PR #763 | ported | Multi-select Actions now opens a Linear-style searchable command menu with Assign to, Change status, Move to project, Copy issue ID, Change due date, and Delete issue; mutating commands stay guarded. |
 | Combined filter pills and row identity | owner combined-filter screenshot feedback on PR #763 | ported | Status/client filter pills stay compact with ellipsis, and visible issue lists dedupe by issue ID before rendering. |
-| Production polish gate | owner automation request after PR #764 | ported | `npm run test:prod-polish` runs the complete boot, structure, explicit zero-write smoke, interaction inventory, accessibility/focus, layout clipping, behavior, and pixel parity set. CI keeps the required PR job to the fast safety set and runs the untouched long interaction/behavior/visual lanes in parallel on `main`, schedule, and manual dispatch. |
+| Production polish gate | owner automation request after PR #764 | **historical port; current F105 open** | The runner still selects all ten suites, but only the fast lane runs on pull requests. After the authority-gated write milestone, the fast lane passes while post-merge interaction and heavy lanes fail on superseded read-only picker assumptions; review-packet/Argos steps are skipped after heavy failure. Do not treat the aggregate gate as green until all lanes use explicit locked versus fully mocked writable states. |
 | Production boot/loading guard | `prod-boot-budget.js` | ported | `?prod=1` is source-checked against the Production skeleton route, opens within budget, and rejects visible/leaked Analytics skeletons during Production refresh. |
 | Accessibility and keyboard-control guard | `prod-a11y-focus.js`, Production key handler | ported | Scoped axe checks pass; icon-only Filter/Display controls have accessible names; focused Production buttons keep native Enter/Space activation instead of being stolen by row keyboard shortcuts. |
 | Layout clipping guard | `prod-layout-polish.js` | ported | Desktop, compact desktop, and mobile checks reject clipped row/card metadata, wrapped filter pills, stale project-card focus rings, and off-screen menus/toasts. |

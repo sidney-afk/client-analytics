@@ -63,8 +63,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   supplied directly or reached through a hardware-keyboard shortcut.
 - Boot does a lightweight parallel select of `clients`/`team_members`/`batches`/
   `deliverables` (plus `deliverable_events`).
-- Design source of truth is the locked kit in `docs/syncview-design/`; UI changes must pass
-  `npm run test:prod-polish`. Deep-links: `?prod=1`, `team`, `view`, `client`, `d` params.
+- Current Production contracts are `docs/syncview-design/WIRED-PARITY.md`, `ADAPTER.md`, and the
+  wired suites; `SyncView.html`/tokens are frozen visual evidence, while the old handoff/loop files
+  are non-operative tombstones under F56/F64. UI changes must pass `npm run test:prod-polish`.
+  Deep-links: `?prod=1`, `team`, `view`, `client`, `d` params.
 - Foundation audit evidence: `docs/audits/2026-07-09-production-foundation-audit.md`.
 
 ## Deep-audit findings ledger (Phase 2, 2026-07-11 →)

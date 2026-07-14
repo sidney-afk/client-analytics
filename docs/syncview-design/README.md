@@ -1,43 +1,45 @@
-# SyncView design kit — the locked Linear-replacement design
+# SyncView design kit — current routing and frozen evidence
 
-This folder is the **design source of truth** for the in-app Linear replacement (the
-"Production" / SyncView workspace tab) planned in
-[`../independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md`](../independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md).
+This folder contains both the **current wired Production/Linear contract** and a frozen 2026-07-05
+prototype reference. Do not confuse the two.
 
-It was produced by a dedicated design session that pixel- **and** behavior-matched the
-prototype to real Linear via a capture → match → verify loop (11 adversarial re-audits, the
-last several 0-high / 0-regression; a 138-assertion behavioral suite green). The build session
-wires logic to this; it does not redesign it.
+## Current operational sources — read in this order
 
-## Model (how the workspace maps to our world)
-- **client = project**
-- **shoot / batch = parent issue**
-- **deliverable (video / thumbnail) = sub-issue** — with status, assignee, due date, comments
-- **No manual "new issue."** Issues are created from the content-calendar / samples system
-  (SMM makes a card → a sub-issue is auto-created under a chosen batch, or a new batch).
+1. [`../../index.html`](../../index.html) — the shipped application. The visible **Linear** tab is
+   the internal `production` module; it is an authority-gated native mirror, not an inherently
+   read-only prototype.
+2. [`WIRED-PARITY.md`](WIRED-PARITY.md) — living parity and capability ledger, including the
+   locked live-read/zero-mutation lane and fully mocked native-write lane.
+3. [`ADAPTER.md`](ADAPTER.md) — current database-to-view model and mutation boundary.
+4. [`tests/README.md`](tests/README.md) — runnable repository suites. Use `npm test` and
+   `npm run test:prod-polish`; locked lanes may read live data, but no design-kit suite may mutate
+   a live backend. F105 keeps the aggregate gate open until legacy guard-mode lanes are repaired.
+5. [`../truth/APP.md`](../truth/APP.md) and
+   [`../independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md`](../independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md)
+   — current app/cutover truth. Runtime authority always requires an immediate live readback.
 
-## Deliberately removed vs real Linear (simpler by design)
-priority, labels, cycles, the Triage/Views/Inbox/Invite nav, the workspace switcher, and manual
-new-issue. **Kept:** the Triage *status* (needed to migrate existing data). Light theme now;
-dark mode is a later whole-site effort.
+## Frozen design evidence — reference, not authority
 
-## Files (read in this order)
-1. `HANDOFF.md` — start here; the design session's own handoff.
-2. `CONTINUATION.md` — operational resume: prototype architecture, build/verify commands, gotchas.
-3. `PARITY.md` — the parity checklist / backlog (what matches Linear, what's left).
-4. `linear-design-tokens.md` — the **visual build spec** (measured Linear colors, type, geometry,
-   status-icon system, interaction/menu specs). Build the real UI to these values.
-5. `SyncView.html` — the **behavior source of truth**: the working single-file prototype.
-   Live version: https://claude.ai/code/artifact/50e256f7-1438-45df-a808-bc2f312327e6
-6. `PARITY-LOOP.md` — the behavioral changelog / "brain" (every interaction audit + fix).
-7. `syncview-app.src.html` — survivable copy of the prototype source (has the `__INTER_B64__`
-   font placeholder). `probe-data/*.json` are the raw pixel measurements from the probe.
+- `SyncView.html` and `syncview-app.src.html` preserve the prototype visual/interaction reference.
+- `linear-design-tokens.md` and `probe-data/` preserve the dated measurement baseline.
+- `tests/design-machine-originals/` preserves verbatim prototype-era test source. It is explicitly
+  non-runnable here and cannot authorize a runtime behavior or provider session.
 
-## What's intentionally NOT committed here
-The design session's **~19 MB of raw Linear reference screenshots** (`*.png`) are left out to
-keep this public repo lean — they are reproducible from the probe and live in Sidney's local
-`linear-design-probe/out/` folder. The measured values that matter are captured in
-`linear-design-tokens.md` and the `probe-data/*.json` measurement files.
+The model remains: client = project, batch/shoot = parent issue, and video/thumbnail deliverable =
+sub-issue. Product creation, status vocabulary, authority, write operations, and removed/retained
+features are governed by current source and Track-B decisions—not by prototype prose.
 
-> **Note:** `SyncView.html` contains mock/sample data, including one example Google Drive folder
-> link. It is placeholder content, not a live integration.
+Treat the frozen artifact as an oracle that needs independent review: do not update it alongside a
+wired implementation merely to make a comparison green. A material oracle change needs an
+owner-reviewed rationale, pinned artifact identity, and tests that preserve the old/current delta.
+
+## Historical files — quarantined
+
+`HANDOFF.md`, `CONTINUATION.md`, `PARITY.md`, and `PARITY-LOOP.md` are fail-safe tombstones. Their
+former versions contained obsolete external build/publish commands, session-specific paths,
+private task references, and saved provider-profile instructions. Git history preserves that dated
+record; it is not an operational resume path.
+
+F64/D-17 provider-session containment remains open. Removing instructions from the active tree
+does not prove revocation: the provider-side session must be revoked, the old profile denied, and
+copies/caches reviewed privately. Do not open or test the old profile in this public-repo workflow.

@@ -1,30 +1,29 @@
-# Linear Design Tokens — measured from the live SynchroSocial workspace
+# Linear Design Tokens — frozen 2026-07-05 measurement baseline
 
-**Purpose:** a pixel-accurate design-token spec for rebuilding the Linear
-issue/project experience inside SyncView. Hand this to the design assistant to
-snap the mockup to exact values, and to Codex as the build spec.
+**Purpose:** preserve the dated visual measurements used to create the prototype reference. This
+is not current runtime, capability, build, or provider-session authority; wired behavior is governed
+by `WIRED-PARITY.md`, `ADAPTER.md`, current source, and repository tests.
 
-> **Status 2026-07-05:** the measured VISUAL tokens below are unchanged and current.
+> **Status 2026-07-05:** the measured visual tokens below are a frozen baseline.
 > Phase 2 (behavioral parity) added new *component* styles in the prototype source
 > (e.g. `.act-sys` activity rows, `.pcard-check`/`.pcard-sel` board selection,
 > `.pop-empty` picker empty-state, `.composer-hint`, action-bar quick-action buttons) —
-> these are interaction affordances, not re-measured Linear tokens. See `out/PARITY-LOOP.md`
-> for the behavioral changelog and `out/SyncView.html` / `out/syncview-app.src.html` for the CSS.
+> these are interaction affordances, not re-measured Linear tokens. See `WIRED-PARITY.md` for the
+> current ledger and `SyncView.html` / `syncview-app.src.html` for frozen prototype evidence.
 
-**How this was measured (per `synchrosocial/docs/pixel-matching-playbook.md`):**
-a headed Playwright + Chromium browser loaded the *live* workspace
-(`linear.app/synchro-social`) at a **1440 px** CSS viewport, and values were read
+**How this was measured:**
+an authorized read-only browser session loaded the provider workspace at a **1440 px** CSS
+viewport, and values were read
 off the rendered DOM with `getComputedStyle()` + `getBoundingClientRect()` —
 keyed off element **text**, not class names (Linear ships hashed classes). Colors
 are authored by Linear in **`lch()`**; each was resolved to sRGB **hex** through
 the browser's own canvas engine (exact, not eyeballed). Screenshots were captured
 full-page at 1440 px CSS width, exported at 2× (2880 px) for clarity.
 
-**Theme:** this workspace runs Linear in **LIGHT mode** — the tokens below are the
-light theme. (If you ever switch editors to dark, these must be re-measured.)
+**Theme:** the measured provider workspace used **LIGHT mode**. These are reference tokens for
+that snapshot; current SyncView dark-mode behavior is documented separately.
 
-**Screens measured:** Video › Issues (list, `/team/VID/all`) · My Issues
-(`/my-issues/assigned`) · an open issue (`/issue/VID-7624`) · Projects board
+**Screens measured:** team Issues list · My Issues · an open issue · Projects board
 (`/projects/all`). Screenshots sit next to this file (`01-issues-board.png`,
 `02-my-issues.png`, `03-open-issue.png`, `04-projects.png`, `status-dropdown.png`).
 
@@ -142,7 +141,7 @@ unusual `450`/`550` weights). All sizes in px at the 1440 viewport.
 
 ## 4. Workflow status states (the video/editor workflow)
 
-Measured from the live **status dropdown** on issue VID-7624 (13 states). Each icon
+Measured from the snapshot's **status dropdown** (13 states). Each icon
 is 14px, drawn in a 16px slot. `type` is Linear's category (drives the icon family).
 
 | # | State | type | Color | Icon rendering |

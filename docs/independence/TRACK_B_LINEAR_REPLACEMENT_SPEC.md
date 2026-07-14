@@ -1341,23 +1341,19 @@ provably — as the floor on which later improvements are built.
   states how the embedded tab satisfies each (e.g. `--prod-*` variables must resolve on every
   overlay mount point, not only inside `.prod-view`). New body-mounted elements are added to
   this list in the same PR that adds them.
-- **10.8.5 Parity ledger (kills F4):** `docs/syncview-design/WIRED-PARITY.md` lists every
-  artifact behavior (seeded from `behav.js`'s assertion inventory + `PARITY.md` + the
-  2026-07-06 gap audit) with status ✅ ported / 🔒 deferred-B3 (write-path) / ⬜ pending.
-  Every Production-tab PR updates it. **Definition of done for B2 fidelity: every row ✅
-  or 🔒.** The ledger supersedes `docs/audits/2026-07-06-prod-parity-gaps.md` as the
-  tracking surface.
-- **10.8.6 Verification that can see (kills F5):** every `_prod*` PR must pass, in addition
-  to `prod-structure-subset.js` + `prod-readonly-smoke.js`: (a) `behav-wired` — the artifact's
-  own 138-assertion `behav.js` adapted to run against the wired `?prod=1` tab via a selector
-  map, with mutation assertions run in guard mode (assert the read-only toast and no state
-  change) — the pass-count is reported in the PR and may only go up; (b) a scripted
-  side-by-side screenshot pass (same interaction script driven on the artifact and the wired
-  tab, paired shots) whose pairs are reviewed by the REVIEWER, never self-graded by the
-  builder. The reviewer's verdict is issued against the ledger and the checker output, not
-  the PR description.
-- At B3, when interactions go live, guard-mode assertions flip to real-mutation assertions
-  one ledger row at a time (🔒 → ✅), keeping the same suite as the gate through B4.
+- **10.8.5 Parity ledger (kills F4):** `docs/syncview-design/WIRED-PARITY.md` is the living
+  behavior ledger. Current states distinguish ✅ ported, 🔐 authority-gated, 🔒 unsupported/
+  guarded, and ⬜ pending. The former `PARITY.md`/B2 `deferred-B3` text is historical and cannot
+  authorize current behavior. Every Production-tab PR updates the living ledger.
+- **10.8.6 Verification that can see (F105 currently OPEN):** every `_prod*` PR must exercise two
+  explicit browser states: (a) locked live-read/zero-mutation, where supported controls fail closed
+  according to current UX and no live mutation is sent; (b) fully intercepted writable fixtures
+  covering verified role, team authority, bounded active-TEST override, all four supported
+  operations, conflicts, and stale-tab rejection. Interaction, `behav-wired`, pixel, and review
+  packet assertions must declare which state they test; unsupported mutations remain guarded.
+  The exact candidate commit must pass the aggregate `npm run test:prod-polish`, not only the fast
+  PR subset, and a REVIEWER examines fresh artifacts. Current interaction/heavy lanes are red on
+  superseded B2 picker assumptions, so this definition of done is not met.
 
 ---
 
@@ -1462,12 +1458,16 @@ miss; it prevents the current fail-open success branch from surviving the cutove
    g. `linear-set-status`, `linear-add-comment`, `linear-subissues`, `linear-issue-statuses`,
       `linear-tweak-comments`, `editors-week` (→ §9.11 query). (The nightly due-date roller is
       NOT in this family — n8n was eliminated by measurement; it dies only via D-9.)
-   h. **the legacy card-write webhooks** (`calendar-upsert-post`, `sample-review-upsert`, reorders):
-      F67 requires authentication or retirement in Phase 0, before enforcement or either human
-      flip. B5 may only perform final deactivate/archive/deletion after a zero-caller/stale-tab proof;
-      it is not the moment an unauthenticated path is allowed to close;
-   i. FE: Linear push/outbox/reassert/point-adoption/bulk-link code removed; link columns stay,
-      inert.
+    h. **the legacy card-write webhooks** (`calendar-upsert-post`, `sample-review-upsert`, reorders):
+       F67 requires authentication or retirement in Phase 0, before enforcement or either human
+       flip. B5 may only perform final deactivate/archive/deletion after a zero-caller/stale-tab proof;
+       it is not the moment an unauthenticated path is allowed to close;
+      **F104 boundary:** Calendar's `?v2=0` read path, n8n fallback, Kasper/Films recovery, and
+      shared status-metadata helpers are not implied by this Linear retirement list. The historical
+      Phase-4 recipe is quarantined; retire them only through a fresh owner plan with usage,
+      replacement recovery, whole-repo consumers, cross-surface tests, and F60 per-object proof;
+    i. FE: Linear push/outbox/reassert/point-adoption/bulk-link code removed; link columns stay,
+       inert.
 6. **Secrets teardown:** rotate the house Linear key (hardcoded in 6+ workflows). The owner accepted
    the seven public per-SMM keys through the transition at D-15; revoke them at B5 and remove their
    Sheet column during this owner-gated cleanup—do not imply they were already rotated. **F52 is a Phase-0 containment item,
@@ -1549,7 +1549,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-20 | Card → Production deep-link (replaces the "open in Linear" URL button, §9.2) | locked decision 6 + §9.2 re-point cards from `linear_issue_id` to `*_deliverable_id` | **RATIFIED by owner 2026-07-11:** label **"View sub-issue"**; opens the deliverable in the Production tab in a **new browser tab** (not a side panel). | B4/B5 |
 | D-21 | Legacy Linear-link fields on cards at/after cutover | §13.4.i keeps the `linear_issue_id` columns inert after teardown | **RATIFIED by owner 2026-07-11:** leave the fields **inert but present** with a **phase-aware disclaimer** — during the fallback window "Linear is a fallback during migration; links still work," and the field quietly retires after teardown. | B5 |
 | D-22 | Linear fallback grace period (§1/§13) | Linear kept as a fallback after cutover | **RATIFIED duration retained; one-flag mechanism superseded by F27.** Keep the roughly one-week fallback window, but a team cannot resume in Linear until new SyncView writes stop and its outbox is audited, classified, resolved, and proved zero. After a clean week, freeze Linear read-only, then archive. | B5 / F27 |
-| D-23 | Submission (visible **Submit**, internal `linear`) tab UI at B4 (§9.1) | intake plumbing flips to native create; the form UI could also change | **CONFIRMED by owner 2026-07-11:** the submission form/body and behavior do not change — only its top-nav label becomes **Submit** while `#linear` / `navTo('linear')` remain locked. The read-only mirror receives the **Linear** label/logo but keeps `#production` / `?prod=1`. Backend plumbing flips separately at B4 (create natively, mirror out during the fallback). | B4 |
+| D-23 | Submission (visible **Submit**, internal `linear`) tab UI at B4 (§9.1) | intake plumbing flips to native create; the form UI could also change | **CONFIRMED by owner 2026-07-11; capability wording corrected 2026-07-14:** the submission form/body and behavior do not change — only its top-nav label becomes **Submit** while `#linear` / `navTo('linear')` remain locked. The authority-gated native mirror receives the **Linear** label/logo but keeps `#production` / `?prod=1`; its shipped status/comment/due/assignee controls remain read-only for Linear-authoritative teams and open only under the verified write contract (plus bounded active-TEST override). Backend intake plumbing flips separately at B4 (create natively, mirror out during the fallback). | B4 |
 | D-24 | Consolidate staff auth into the three role keys (one password per person) + polish the sign-in surface | today there are three separate keys — the B4 role key, the Client Credentials key (`client-credentials` EF), and the onboarding key (`onboarding-full`, Kasper-only) | **RATIFIED by owner 2026-07-11: one password per person = their role key.** The `client-credentials` and onboarding EFs accept the role key (same `key-verify` mechanism) and gate by role — **credentials: `admin`+`smm`; onboarding: `admin` only; creative/editor/designer: neither.** FE drops the separate credential/onboarding key prompts and uses the signed-in role identity. Additive + reversible: keep the old separate-key paths working during transition, then retire. **Signed-in state shows an account menu** (Signed in as `<name>` · `<role>` + **Sign out**; **no "Switch user"** — sign out then in). The sign-in modal itself to be polished to a finished/premium standard, judged via the master-tester vision pass + `/human-audit`. `auth_enforcement` stays permissive throughout; no secret-value rotation. | B4 / auth |
 | D-25 | B4 rollout model | D-19's per-client pilot vs. full-roster shadow proof | **Historical pipe-proof decision; superseded for human rollout by D-28/D-32.** The full-roster shadow proof remains valid evidence for the outbound pipe. Human parity enrollment now uses per-client cohorts, then Graphics-first authority. Do not execute the old both-team/all-client flip. | B4 history |
 | D-26 | Reversible pause / graceful fallback | emergency-only rollback vs. normal team operation | **Historical direct-pause mechanism superseded/blocked by F27/F58.** Stop team mutations and disable the involved outbound lane(s), both F2/F4 when unknown/mixed. Authority returns to `linear` only after audited per-team quarantine/classify/replay/discard and machine-read zero. Pending-row timestamp logic is not permission to skip that accounting. | B4 / F27 |

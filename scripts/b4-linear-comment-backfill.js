@@ -9,10 +9,11 @@
  *
  * Examples:
  *   node scripts/b4-linear-comment-backfill.js --scope full
- *   B4_CONFIRM_TEST_MUTATIONS=1 node scripts/b4-linear-comment-backfill.js \
- *     --apply --scope test --import-run-id linear-comment-test-2026-07-12
- *   node scripts/b4-linear-comment-backfill.js \
- *     --apply --scope full --import-run-id linear-comment-backfill-2026-07-12
+ *
+ * Apply is deliberately not a copy-paste example. The 2026-07-12 migration is
+ * complete, and a historical run ID is not fresh authorization (F103). Any new
+ * apply needs a new owner-reviewed runbook and run ID; runtime completed-run
+ * rejection is still an open gate.
  */
 
 const crypto = require('crypto');

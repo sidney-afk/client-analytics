@@ -41,6 +41,7 @@ waive them.
 | F66 — shared alert-secret blast radius | Removing the shared project alert secret can silence both Linear-inbound anomalies and onboarding fallback notifications. | Add lane-specific controls/secrets and independent TEST heartbeats; never use shared-secret removal as scoped containment. |
 | F67 — unauthenticated fallback writers | EF auth telemetry cannot see direct or routed writes to legacy n8n fallback webhooks. | Authenticate/scope or retire every fallback; run direct negative probes and page on any anonymous accepted write. |
 | F68 — comment-import rollback dependencies | No current preflight detects cross-run self-FK descendants or post-import versions before deletion. | Keep rollback blocked; require a fresh dependency/version graph and assertion-bearing TEST/scratch rehearsal before documenting a command. |
+| F103 — completed migration replay | No terminal completion ledger rejects a consumed import run ID; a historical zero-write rerun can later plan source-driven writes. | Keep the executed playbook non-runnable; reject consumed IDs before the first RPC and alert on any apply attempt against a completed/historical ID. |
 
 ## Alert destinations
 

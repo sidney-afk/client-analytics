@@ -91,21 +91,23 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
 
 Everything below is shared by every surface; per-surface sections only note deviations.
 
-- **Two-stage entry.** (1) A pre-paint boot-gate script in `<head>` (~27–143) reads the URL params
+- **Two-stage entry.** (1) A pre-paint boot-gate script in `<head>` reads the URL params
   and `localStorage` and tags `<html>` with `boot-*` classes / `data-boot-nav` so the first paint
   already shows the right chrome; it is wrapped in try/catch and never throws. (2) The entry router
-  at the end of the script (~33410–33505) chooses a mode: `?onboarding` / `/onboarding_form` →
+  at the end of the script chooses a mode: `?onboarding` / `/onboarding_form` →
   public onboarding form; `?onboarding_view=<slug>` → standalone viewer; `?intake=1` → Submit-only
   lock; `?c=<client>` → client link; `#smm-weekly-report(s)` hash → SMM weekly form/viewer; else the
-  **password overlay unless `syncview_auth_v1==='ok'`**. `init()` (~32870–33345) then routes to the
+  **password overlay unless `syncview_auth_v1==='ok'`**. `init()` then routes to the
   tab, with fast-tab and client-link fast paths that mount before analytics data resolves.
-- **Password side doors.** The gate at 33461 admits `_isSmmWeeklyEntry || _isIntake || _isClientLink
+- **Password side doors / F102.** The gate admits `_isSmmWeeklyEntry || _isIntake || _isClientLink
   || auth==='ok'` and then runs `init()`. So **`?c=…`, `?intake=1`, `?onboarding`, `?onboarding_view`
   and `#smm-weekly-*` all run without the staff password** (each hides staff chrome and locks nav to
-  its own view). Because the `?prod=1` branch inside `init()` (32937) fires *before* the client-link
+  its own view). Because the `?prod=1` branch inside `init()` fires *before* the client-link
   branch (32948), a `?c=…&prod=1` URL reaches the currently read-only client Production preview without the password;
   an unknown `?c=` slug with no matching client falls through routing to `navTo('home')` and paints
-  the staff dashboard. These are consequences of client-side auth and are the target of the B4 flip.
+  the staff dashboard without invoking the token verifier. F102 requires resolve+verify before any
+  bypass/data load and forbids every client URL from falling into a staff route; token enforcement
+  alone does not fix this.
 - **Identity/roles are mixed and stored.** Verified staff state (key, roster member, secret-derived
   role) persists in `localStorage.syncview_staff_identity_v1`, is revalidated at boot, and supplies
   staff EF headers. Protected EFs must re-resolve the matched secret/member; F31/F35 name paths that
@@ -276,6 +278,11 @@ n8n in the metric read path.*
   the child-only card poller could replay it. Background card writer: durable job saved *before* the async
   work; 15 s wait then ≤20 polls × 5 s to find + link sub-issues; shortfall → "Calendar sync
   incomplete" pointing at calendar's Import-from-Linear. Resume skipped under `?prod=1`.
+- **Single-team component defect (F101).** Advanced Video-only/Thumbnail-only sends only the chosen
+  team and leaves the sibling link blank, but the card writer initializes both creative statuses to
+  `In Progress`. Overall/client-ready logic includes the absent sibling while its pill is disabled
+  and bulk actions skip it. Parked native intake preserves the same contradiction. Enforce the
+  locked paired model or implement explicit active/N/A component semantics before reroute.
 - **Notable / corrections.** `linear-subissues` is a **read** used by Calendar/SXR, not a Linear-tab
   write. The durable card-job system exists because of a real data-loss incident (tab closed during
   the pre-write window). Due dates are computed client-side in 5-working-day batches.

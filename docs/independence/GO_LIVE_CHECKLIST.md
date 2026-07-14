@@ -89,6 +89,12 @@ Phase 0.5 below, after the fix-pack.
       audit, request limits, idempotency, and deployed anonymous/expired/cross-client negative tests
       are green. Owner explicitly answers whether `?intake=1` remains shareable and under what
       mint/expiry/revocation contract.
+- [ ] **Unknown client links fail closed before loading data** (F102): `?c=` alone grants no bypass;
+      an allowed client and current token are resolved before data/cache/route entry. Unknown,
+      malformed, unsupported-view, invalid-token, and every `c`+hash/`prod` combination show only
+      the invalid-link surface and purge client/staff state. Production/staff routes require an
+      individually verified staff session. Owner records the exact supported client-view allowlist,
+      and fictional desktop/mobile/second-device/cache/history tests prove no staff fallthrough.
 - [ ] **Drive-backed thumbnail jobs enforce auth and CAS** (F78–F80): the scanner fails closed on
       missing/wrong scheduler identity; the resolver enforces originating principal/client scope;
       both are bounded/rate-audited; and the resolver's final write CASes exact URL/version with
@@ -148,6 +154,12 @@ Phase 0.5 below, after the fix-pack.
       submit returns an idempotent receipt only after durable persistence, the browser awaits it
       and preserves the draft, and missing mapping/credential/plan/roster plus partial-create,
       timeout, retry, duplicate-click, dead-letter, alert, and replay drills pass on TEST.
+- [ ] **Intake never invents an unfinishable component** (F101): owner either enforces the locked
+      paired Video+Graphics model by removing/rejecting single-team intake, or ratifies explicit
+      active-component semantics end to end. Classify and repair/migrate every existing single-link
+      row; absent legs are N/A rather than `In Progress`. Overall/client-ready status, Calendar,
+      Samples, queues, bulk actions, comments/alerts, artifacts, and every persona pass all-mode TEST
+      coverage before #813 merges or either team becomes writable.
 - [ ] **Project selection is complete** (F45): every paginated source reaches
       `hasNextPage=false`, exposes a completeness/version readback, and exactly matches the
       canonical client/team mapping in an anonymized set report; a partial read cannot populate
@@ -437,6 +449,11 @@ live readback; do not list “deactivate it” as newly completed teardown work.
 - [ ] **No destructive import rollback is represented as ready** (F62/F68): preserve both imports
       by default. Any removal requires a fresh dependency/version graph, owner-approved disposition,
       assertion-bearing transaction, and full TEST/scratch restore rehearsal.
+- [ ] **Completed migration IDs cannot be reused** (F103): the executed comment-import record stays
+      non-runnable; a server-side completion ledger/CAS rejects consumed IDs before the first RPC.
+      Any future migration has a fresh owner-approved ID, immutable source checkpoint, exact current
+      dry run, script/schema commit, expiry, TEST rehearsal, and dependency-safe recovery. CI finds
+      no active apply/delete/recovery recipe in any executed or historical playbook.
 - [ ] **Archive is usable and assets are rescued (F34):** a role/audience-scoped archive reader is
       live; issue/comment counts and hashes match the private export; every Linear-hosted image/
       attachment is rescued/relinked or explicitly owner-dispositioned; retrieval/restore drills

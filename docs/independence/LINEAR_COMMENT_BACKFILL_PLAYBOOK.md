@@ -1,5 +1,13 @@
 # Linear comment history backfill playbook
 
+> [!CAUTION]
+> **HISTORICAL EXECUTION RECORD — DO NOT RUN OR RE-RUN.** The accepted 2026-07-12
+> migration is complete. Its one zero-write rerun proved only that historical snapshot. The script
+> still accepts the consumed run ID and can write newer source changes; full rollback is blocked by
+> F68. F103 makes the former apply recipes below inert. Any future import requires a new
+> owner-approved run ID, immutable source checkpoint, current dry-run/review, completion guard, and
+> dependency-safe recovery plan in a new runbook.
+
 **Status:** executed additively on 2026-07-12. The full import reconciled exactly and its
 idempotent rerun performed zero writes. The former full-delete rollback is **withdrawn** (F68):
 current cross-run/self-FK dependencies and non-baseline row versions make its source-only guard
@@ -135,69 +143,29 @@ Prerequisites:
    node test/b4-linear-comment-backfill.js
    ```
 
-### Gate A — full dry-run
+### Historical Gate A record — full dry-run
 
-Dry-run performs Linear/Supabase reads and zero Supabase writes:
+The accepted run first used a read-only full plan. Its recorded parameters were full scope, the
+2026-07-12 import ID, bounded paging/concurrency, a 20,000-write ceiling, and a local aggregate
+report. The gate required zero conflicts, complete source accounting, and an approved rule for
+every non-zero unmapped/legacy category. This is evidence, not permission to query production now.
 
-```bash
-node scripts/b4-linear-comment-backfill.js \
-  --scope full \
-  --import-run-id linear-comment-backfill-2026-07-12 \
-  --page-delay-ms 500 \
-  --write-concurrency 8 \
-  --cap 20000 \
-  --json-report artifacts/linear-comment-backfill-dry-run.json
-```
+### Historical Gate B record — TEST pilot
 
-Do not proceed unless: conflicts are 0, the planned total is at most 20,000, every source ID is
-accounted for, and every non-zero unmapped/legacy category has an approved handling rule.
+The accepted TEST pilot used the private TEST client/project allowlist, a distinct 2026-07-12 pilot
+ID, explicit local mutation confirmation, and a 500-write ceiling. It was rerun to zero writes, then
+rolled back and re-planned before full apply. The executable command and rollback instruction are
+removed: F68 proves the old recovery assumptions are not a standing safety contract.
 
-### Gate B — TEST pilot
+### Historical Gate C record — full apply and reconciliation
 
-The TEST apply is fail-closed to the privately configured TEST client/project allowlist and VID/GRA
-issues. Existing tracked identifier exposure is recorded in F64; do not add those values here. The
-explicit confirmation is mandatory:
+The accepted full apply reused the reviewed 2026-07-12 full-run parameters and a 20,000-write
+ceiling. At that time, its immediate rerun produced zero writes. The script remains capable of
+inserting missing rows and updating same-run rows when source `updatedAt` or lifecycle state moves;
+there is no completed-run ledger that makes the old ID terminal. Therefore the former apply command
+is intentionally not preserved as an executable recipe.
 
-```bash
-B4_CONFIRM_TEST_MUTATIONS=1 node scripts/b4-linear-comment-backfill.js \
-  --apply \
-  --scope test \
-  --import-run-id linear-comment-pilot-2026-07-12 \
-  --page-delay-ms 500 \
-  --write-concurrency 8 \
-  --cap 500 \
-  --json-report artifacts/linear-comment-pilot.json
-```
-
-Re-run the identical command. It must report zero inserts/updates, every pilot row as an exact or
-stale no-op, zero conflicts, and `missing_from_store=0` / `extra_in_store=0`.
-
-Then run the rollback in section 6 with the pilot run ID and repeat the TEST dry-run. The pilot must
-return to its pre-pilot planned count. **Pilot rollback is a hard gate before full apply.** A full
-plan treats any still-present backfill row carrying the pilot run ID as a conflict, so pilot rows
-cannot escape the full rollback tag.
-
-### Gate C — full apply and reconciliation
-
-Use the same approved run ID, cap, and source scope as the full dry-run:
-
-```bash
-node scripts/b4-linear-comment-backfill.js \
-  --apply \
-  --scope full \
-  --import-run-id linear-comment-backfill-2026-07-12 \
-  --page-delay-ms 500 \
-  --write-concurrency 8 \
-  --cap 20000 \
-  --json-report artifacts/linear-comment-backfill-full.json
-```
-
-The script is restartable after interruption. Missing rows insert; a newer Linear
-`updatedAt` on a row from the same run plans an RPC update for edit/delete/resolve convergence;
-older source replays are stale no-ops. A true same-clock/content contradiction is a conflict and is
-never overwritten automatically.
-
-Re-run the identical full command. Required result:
+The historical required reconciliation result was:
 
 - planned inserts = 0;
 - planned updates = 0;
@@ -205,7 +173,7 @@ Re-run the identical full command. Required result:
 - `missing_from_store=0` and `extra_in_store=0`;
 - source count equals the unique stored `linear_comment_id` count.
 
-## 5. Optional recovery of the eight local-only native comments
+## 5. Historical supplement — recovery of eight local-only native comments
 
 This is a separate, explicit supplement. Do not enable it in the TEST pilot or ordinary Linear
 history run.
@@ -226,22 +194,10 @@ When this supplement runs after the full import, those exact matches are narrowl
 same-clock metadata-enrichment updates: body, author, target, thread, and lifecycle fields must all
 remain unchanged. The eight local-only rows remain inserts.
 
-Use a fixed capture timestamp and repeat it on every rerun:
-
-```bash
-node scripts/b4-linear-comment-backfill.js \
-  --apply \
-  --scope full \
-  --import-run-id linear-comment-backfill-2026-07-12 \
-  --recover-legacy-native \
-  --legacy-native-cap 8 \
-  --legacy-capture-at 2026-07-12T23:00:00Z \
-  --cap 20000 \
-  --json-report artifacts/linear-comment-backfill-with-legacy.json
-```
-
-Proceed only when `standalone_additions=8` matches the independently verified gap. Any other count
-is a stop-and-review result.
+The executed supplement used the same historical run ID, a fixed 2026-07-12 ingestion-only capture
+time, and a cap of eight standalone additions. Its executable recipe is removed. The count check
+occurred after the write path and cannot make a later rerun safe; any future recovery must use a new
+reviewed plan and reject a consumed run ID before its first RPC.
 
 ## 6. Full-import rollback — blocked pending a dependency-safe design (F68)
 

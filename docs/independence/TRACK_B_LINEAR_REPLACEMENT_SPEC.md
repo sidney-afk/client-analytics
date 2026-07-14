@@ -845,6 +845,12 @@ inserts of §5.3 — those are Track B tables and their rows MUST land **before*
 (FK dependency), or the backfill rejects real work. Insertion order is derived from the FK
 graph: `clients` → `team_members` → `batches` → `deliverables` → `deliverable_events`.
 
+**Completed-run rule (F103):** an executed migration ID is terminal, not a standing idempotency
+credential. Reject it server-side before any write. A future import requires a fresh owner-approved
+ID, immutable source checkpoint/hash, exact current dry run, pinned script/schema commit, expiry,
+TEST rehearsal, and dependency-safe compensating plan. Executed playbooks retain evidence only;
+they expose no runnable apply/delete/recovery command.
+
 ### 5.6 Constraint preflight (MANDATORY before the first backfill write)
 
 *Added 2026-07-06 after the clients-FK near-miss: the audit had found the facts (85 operational
@@ -966,6 +972,13 @@ every active client has a fresh exact valid event at current revision, no missin
 and same-tab/second-device/offline-return/offboarding drills pass. The denial UX is in-app; a static
 Pages SPA does not itself emit HTTP 410.
 
+**Unknown-client entry correction (F102):** a nonempty `?c=` currently bypasses the password before
+client resolution. An unknown slug skips the verifier and falls into staff Home; adding `?prod=1`
+reaches Production before the client branch. Replace this boolean shortcut with resolve+verify-first
+entry, an explicit server-owned client-view allowlist, no pre-verification data/cache load, invalid-
+link state for every unknown/malformed/cross-route combination, and individually verified staff
+sessions for staff/Production routes. F38/F89/F97 closure does not imply this route is closed.
+
 **6.5 Individual staff sessions are a pre-flip security gate (F31), not a generic future upgrade.**
 Shared role keys may retain tier selection, but accepted writes need an individually revocable
 server session with immutable member ID and version invalidation. The only alternative is an
@@ -1070,6 +1083,15 @@ Each child outbox create depends on the correct team-specific parent create, and
 returns native batch/deliverable ids immediately for post-submit card materialization — new card
 jobs do not poll Linear to discover identity. `linear_identifier` is checkpointed later from the
 outbound result; Part 2 does not invent a native display identifier or seed a sequence (§10.3).
+
+**Active-component correction (F101, 2026-07-14):** the owner-locked model creates a paired Video
+and Graphics deliverable for every post. Current Submit's advanced single-team actions and parked
+PR #813 instead allow one team while materializing both card statuses as `In Progress`; the absent
+leg is then counted by overall/client-ready logic but cannot be advanced. Before the caller merges,
+remove and reject single-team intake under the locked model. If the owner ratifies single-team work
+as an exception, add an explicit active-component contract across storage, materialization,
+review/readiness/queues, comments/alerts, artifacts, migration, and every persona; absence is N/A,
+not synthetic approval.
 
 **Mixed-authority window:** every team leg shares the same native batch. A
 SyncView-authoritative leg enters the normal outbox lane. A still-Linear-authoritative leg enters

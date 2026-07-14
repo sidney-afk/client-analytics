@@ -307,12 +307,16 @@ n8n in the metric read path.*
   can send the gateway's bounded TEST override before a flip. The browser never requests legacy
   parity, changes flags, calls an n8n mutation, or writes Linear directly. Project moves, creates,
   deletes, and the remaining artifact affordances stay read-only.
-- **Current hard gaps (F50/F53/F54).** A successful deliverable status write does **not** project to
+- **Current hard gaps (F50/F53/F54/F94).** A successful deliverable status write does **not** project to
   the linked Calendar/Samples card, whose component status remains a separate downstream truth.
   Graphics has no canonical protected file/delivery-link operation; a manual card-side organizer
   edit does not set `deliverables.file_url`. Inactive clients are loaded into ordinary queues, and
   neither browser staff gating nor server staff-key writes enforce `clients.active` for
-  status/comment/due/assignee. These are pre-flip build/authorization gates, not polish.
+  status/comment/due/assignee. Manual assignment also offers/accepts any active same-team roster row,
+  without compatible-role or usable-Linear-mapping enforcement before the native commit (F94).
+  Production work data also has no realtime/bounded foreground refresh or ordinary manual refresh;
+  only authority polls, so an all-day foreground creative tab can remain stale indefinitely (F95).
+  These are pre-flip build/authorization gates, not polish.
 - **State.** `syncview_prod_display_v1` (groupBy/orderBy/showSubIssues), shared `syncview_nav` /
   `syncview_auth_v1`. Deep-link params: `group`, `order`, `subs`, `team`, `view`, `issues`,
   `pdetails`, `client`, `d`, `batch` (`ptab` is dead). In-memory `_prodState` (rows + adapter, events
@@ -329,12 +333,15 @@ n8n in the metric read path.*
   protected comment **reader does not fetch the target or enforce member-team scope** (F39), so a
   creative key can currently read another team's full protected thread by deliverable ID. Direct
   diagnostics without a verified identity remain read-only. "My issues" is a hardcoded heuristic
-  (member matching a specific name, else first active assignee), not a real identity (F37).
+  (member matching a specific name, else first active assignee), not a real identity (F37). At
+  ≤900px the sidebar containing My issues and the only visible palette trigger is hidden; the
+  touch-visible top bar has no personal/team queue switch (F96).
 - **Failure/fallback.** REST per-page fetch: 3 attempts, retry only network/429/5xx. Boot-load failure →
   full-tab error screen + Retry; silent refresh failure → `console.warn`, stale kept. Pagination-cap
   overflow is a hard error (never silent truncation). Comment failures are isolated to explicit
-  sign-in/error/retry states; older-page failure keeps already loaded rows. Freshness = silent
-  refresh on visibility/focus/pageshow, throttled 30 s. A stale-tab server authority rejection
+  sign-in/error/retry states; older-page failure keeps already loaded rows. Freshness is only a
+  silent refresh on visibility/focus/pageshow, throttled 30 s; the repeating foreground timer reads
+  authority, not operational data, and the normal UI has no manual Refresh (F95). A stale-tab server authority rejection
   refreshes the stance immediately; a CAS conflict applies the returned current row and asks the
   user to retry. UI state changes only after `native_committed=true`.
 - **Notable.** `?c=…&prod=1` reaches the current read-only client mirror without the password (see §3);

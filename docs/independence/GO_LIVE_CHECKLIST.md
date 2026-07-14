@@ -178,6 +178,13 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Production identity is real** (F37): “My issues,” “Assigned to me,” own-team scope, comment
       scope, and actor attribution use the server-verified immutable member ID; the TEST matrix is
       green for every active creative and unsigned/revoked sessions show no personal queue.
+- [ ] **Foreground Production converges** (F95): an all-day-open creative tab receives bounded
+      assignment/status/due/artifact/comment changes from another device without requiring blur,
+      backgrounding, or reload. Realtime/poll fallback, last-success age, stale UX, manual refresh,
+      backoff, and focus/scroll/draft preservation pass two-tab TEST drills.
+- [ ] **Personal work is touch-mobile discoverable** (F96): below/at/above the 900px breakpoint, a
+      fresh creative can switch between team Issues and My issues without a crafted URL or hardware
+      keyboard. Deep link, back, reload, account switch, zero-row, portrait, and landscape tests pass.
 - [ ] **Client links fail closed and revoke reads** (F38): enforced-mode verifier errors cannot
       load/cache client access; the verifier requires an active client/current revision; verdicts
       are short-lived; same-tab reload, focus, second-device, offline-return, offboarding, and
@@ -216,6 +223,10 @@ Phase 0.5 below, after the fix-pack.
       nonterminal workload for active eligible editors (or the explicitly chosen alternative),
       deterministic ties/leave rules, and concurrency-safe allocation; prove >50, >1,000, batch,
       simultaneous-intake, and live anonymized ranking parity.
+- [ ] **Manual assignment uses one server-authoritative eligible roster** (F94): picker and gateway
+      require active compatible creative role/team and, until retired mode, an active Linear mapping.
+      Ineligible, unmapped, provider-inactive, cross-team, or stale-picker targets fail before native
+      state/outbox writes. Owner explicitly decides whether admin/SMM may ever own creative work.
 - [ ] **Staff credentials are individually revocable and attribution is immutable** (F31): remove
       inactive roster access, rotate the shared creative credential, invalidate old devices, and
       bind each accepted write to a server-resolved member/session ID. If the owner accepts any

@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-14 @ e3961b6 (second-pass current-state reconciliation through F93)
+> Last verified: 2026-07-14 @ e3961b6 (second-pass current-state reconciliation through F96)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.

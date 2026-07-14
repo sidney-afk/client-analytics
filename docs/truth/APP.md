@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-14 @ 616ea20 + live topology readback
+> Last verified: 2026-07-14 @ e3961b6 + live topology readback
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -52,6 +52,15 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   status/comment/due/assignee controls are deployed through `production-write`, but authority
   remains Linear/Linear, so real-team rows render read-only while the bounded private TEST override
   can write. Human cutover is blocked by the audit register; this is not a future unwired preview.
+- F94: manual assignment is not eligibility-safe yet. The picker/server accept any active same-team
+  roster row and do not preflight compatible creative role plus usable Linear mapping before the
+  native commit. This remains a first-flip blocker even though the control is deployed.
+- F95: operational data loads at mount and on focus/visibility/pageshow return; the repeating timer
+  refreshes only authority. There is no operational realtime/poll fallback or ordinary Refresh
+  control, so a continuously foreground Production tab can remain stale indefinitely.
+- F96: at touch-mobile widths the sidebar is hidden, taking My issues and the visible palette
+  trigger with it. The mobile top bar has no personal/team queue switch; `?view=my` works only when
+  supplied directly or reached through a hardware-keyboard shortcut.
 - Boot does a lightweight parallel select of `clients`/`team_members`/`batches`/
   `deliverables` (plus `deliverable_events`).
 - Design source of truth is the locked kit in `docs/syncview-design/`; UI changes must pass

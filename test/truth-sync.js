@@ -16,6 +16,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const TRUTH_DIR = path.join(ROOT, 'docs', 'truth');
@@ -29,10 +30,22 @@ const docs = fs.readdirSync(TRUTH_DIR).filter(f => f.endsWith('.md'))
   .map(f => ({ name: 'docs/truth/' + f, text: fs.readFileSync(path.join(TRUTH_DIR, f), 'utf8') }));
 ok(docs.length > 0, 'docs/truth/ contains truth docs');
 
-// 1. Exact date + commit freshness stamp in every doc.
+// 1. Exact, recent date + resolvable ancestor-commit freshness stamp in every doc.
+const maxFreshnessDays = 30;
 for (const d of docs) {
-  ok(/Last verified: \d{4}-\d{2}-\d{2} @ [0-9a-f]{7,40}\b/.test(d.text),
+  const stamp = d.text.match(/Last verified: (\d{4}-\d{2}-\d{2}) @ ([0-9a-f]{7,40})\b/);
+  ok(!!stamp,
     `${d.name} has an exact date + commit freshness stamp`);
+  if (stamp) {
+    const commit = spawnSync('git', ['cat-file', '-e', `${stamp[2]}^{commit}`], { cwd: ROOT });
+    ok(commit.status === 0, `${d.name} freshness commit resolves`);
+    const ancestor = spawnSync('git', ['merge-base', '--is-ancestor', stamp[2], 'HEAD'], { cwd: ROOT });
+    ok(ancestor.status === 0, `${d.name} freshness commit is an ancestor of HEAD`);
+    const verifiedAt = Date.parse(`${stamp[1]}T00:00:00Z`);
+    const ageDays = (Date.now() - verifiedAt) / 86400000;
+    ok(Number.isFinite(ageDays) && ageDays >= -1 && ageDays <= maxFreshnessDays,
+      `${d.name} freshness date is within ${maxFreshnessDays} days`);
+  }
 }
 
 // 2. Endpoint inventory in ENDPOINTS.md matches index.html exactly (set equality).
@@ -40,12 +53,26 @@ const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const endpointsDoc = docs.find(d => d.name.endsWith('ENDPOINTS.md'));
 ok(!!endpointsDoc, 'docs/truth/ENDPOINTS.md exists');
 if (endpointsDoc) {
-  for (const kind of [/webhook\/[a-zA-Z0-9_-]+/g, /functions\/v1\/[a-zA-Z0-9_-]+/g]) {
+  const webhookPattern = /webhook\/[a-zA-Z0-9_-]+/g;
+  const functionPattern = /functions\/v1\/[a-zA-Z0-9_-]+/g;
+  const literalFunctionCalls = new Set(INDEX.match(functionPattern) || []);
+  const stringConstants = new Map([...INDEX.matchAll(/\bconst\s+([A-Z][A-Z0-9_]*)\s*=\s*['"]([^'"]+)['"]/g)]
+    .map(match => [match[1], match[2]]));
+  const composedFunctionCalls = new Set();
+  for (const match of INDEX.matchAll(/\bconst\s+[A-Z][A-Z0-9_]*\s*=\s*([A-Z][A-Z0-9_]*)\s*\+\s*['"]\/([a-zA-Z0-9_-]+)['"]/g)) {
+    const base = stringConstants.get(match[1]) || '';
+    if (/\/functions\/v1\/?$/.test(base)) composedFunctionCalls.add(`functions/v1/${match[2]}`);
+  }
+  for (const kind of [webhookPattern, functionPattern]) {
     const inCode = new Set(INDEX.match(kind) || []);
+    if (kind === functionPattern) for (const endpoint of composedFunctionCalls) inCode.add(endpoint);
     const inDoc = new Set(endpointsDoc.text.match(kind) || []);
     for (const e of inCode) ok(inDoc.has(e), `ENDPOINTS.md lists \`${e}\` (called by index.html)`);
     for (const e of inDoc) ok(inCode.has(e), `ENDPOINTS.md \`${e}\` is still called by index.html`);
   }
+  const systemMap = fs.readFileSync(path.join(ROOT, 'docs', 'independence', 'SYSTEM_MAP.md'), 'utf8');
+  ok(systemMap.includes(`"${literalFunctionCalls.size} literal + ${composedFunctionCalls.size} composed" Edge Functions`),
+    'SYSTEM_MAP literal/composed Edge Function count matches index.html');
 }
 
 // 3. Backticked path-like tokens must exist (same heuristic as repo-map-sync).

@@ -88,8 +88,9 @@ Other:
 - `functions/v1/smm-weekly-reports` — SMM weekly reports
 - `functions/v1/thumbnail-folder-resolve` — thumbnail Drive-folder resolution
 
-The four calls composed from `ONBOARDING_EDGE_BASE` are `onboarding-list`,
-`ai-onboarding-list`, `legacy-onboarding-list`, and `onboarding-full`. **F77 P0:** the first three
+The four calls composed from `ONBOARDING_EDGE_BASE` are `functions/v1/onboarding-list`,
+`functions/v1/ai-onboarding-list`, `functions/v1/legacy-onboarding-list`, and
+`functions/v1/onboarding-full`. **F77 P0:** the first three
 currently strip dedicated credential fields but remain anonymous service-role readers of real
 contact/questionnaire data; field stripping is not an auth boundary. `onboarding-full` is the
 unstripped inbox and accepts the admin role key plus the legacy onboarding-key fallback during

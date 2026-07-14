@@ -775,7 +775,7 @@ Last-write-wins remains the backstop only.
 | Straggler Linear write after flip | detect-only inbound alert (seconds) | not applied | manual merge via tab | none (event holds payload) |
 | Stale-JS tab / closed-laptop outbox fires post-flip | server-side gates in the n8n bridges refuse it (§1.5.5); refusals logged | centrally refused regardless of client state | `min_app_version` forced reload | none |
 | EF platform outage | "not saved" chips + health probe | reads unaffected; pre-B4 n8n paths unaffected | explicit user retry | none |
-| Realtime outage | staleness watchdog → banner + poll | SWR refetch-on-focus | auto-heals | none |
+| Realtime outage | **Target only — OPEN under F95:** staleness watchdog → banner + poll; the shipped Production tab has no operational realtime/poll watchdog | SWR refetch-on-focus exists, but a continuously foreground tab can stay stale | add bounded foreground catch-up/manual refresh and prove two-tab recovery | not yet proved |
 | Flag corruption / unreadable | consumer validation; last-known-good cache (§1.1) | freeze writes on cold-no-cache; never reassign authority silently | fix flag; `flag_flips` forensics | none |
 | Backfill crash mid-run | idempotent + re-runnable; dry-run counts gate | additive tables; old world untouched | re-run; verify counts | none |
 | Archive pull rate-limits production bridges | §5.2 throttle budget + off-hours schedule | resume tokens | resume | none |
@@ -1129,6 +1129,14 @@ audience, idempotency, retry, realtime, and refresh matrix.
 
 **9.6 Assignment & due date:** single-row writes; the calendar card shows the editor chip via
 `*_deliverable_id → deliverables → team_members`.
+
+**Manual-assignment correction (F94, 2026-07-14):** the shipped Production picker and gateway do
+not yet implement a trustworthy eligibility boundary. Both must consume one server-authoritative
+projection that enforces active native membership, the owner-ratified compatible creative role/team,
+and an active Linear-user mapping while dual-ready mirroring remains required. Reject an ineligible,
+unmapped, provider-inactive, or stale target before the native row/outbox commit. Retired mode removes
+only the external-mapping requirement through the same atomic epoch transition; it does not weaken
+native role/team/activity checks.
 
 **Implementation correction (F50, 2026-07-13):** the corresponding status projection is not
 implemented. Linkage IDs do not update a card's review-status field. Add the explicit 13→8 mapping,

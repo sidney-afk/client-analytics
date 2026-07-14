@@ -11,8 +11,9 @@ opposite: they describe the **current** state of the system and are **updated in
 1. **One doc per area**, always current. History and evidence live in `docs/audits/`
    (immutable, dated); conclusions live here.
 2. **Every doc carries an exact freshness stamp** — a
-   `Last verified: YYYY-MM-DD @ <7-40 character commit>` line. Additional live-readback context may
-   follow it, but cannot replace the source commit anchor.
+   `Last verified: YYYY-MM-DD @ <7-40 character commit>` line. The commit must resolve, be an
+   ancestor of the tested tree, and the verification date must be no more than 30 days old.
+   Additional live-readback context may follow it, but cannot replace the source commit anchor.
    When you verify a doc's claims still hold, bump the stamp (even with no other edit).
    When you change behavior the doc describes, update the doc **in the same PR**.
 3. **Reference code by symbol, not line number.** Line numbers in a ~45.8k-line single file are
@@ -20,9 +21,11 @@ opposite: they describe the **current** state of the system and are **updated in
    symbol still exists in `index.html` or `scripts/`.
 4. **Machine-enforced where possible.** `test/truth-sync.js` (runs in `npm test` + CI) fails
    when:
-   - a truth doc is missing its exact date + commit freshness stamp,
+   - a truth doc is missing its exact date + commit freshness stamp, the commit is not a resolvable
+     ancestor, or the date is older than 30 days,
    - the read-first briefing's `through Fxx` boundary is behind/ahead of the cutover audit register,
    - an open P0/P1 cutover finding is absent from all operative control docs,
+   - a simple base-plus-suffix Edge Function call or the literal/composed endpoint count drifts,
    - the endpoint inventory in `ENDPOINTS.md` no longer matches what `index.html` actually
      calls (n8n webhooks + Edge Functions, derived by grep),
    - a truth doc references a repo path that doesn't exist,

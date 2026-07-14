@@ -11,9 +11,12 @@ disagree, reality wins — and fix this file in the same PR.
   write reports in plain language, lead with the outcome, and surface decisions explicitly.
 - **Codex** (local, on the owner's machine) is the primary builder. It holds the service-role
   credentials and can deploy Edge Functions, apply migrations, edit n8n, and store secrets.
-- **Claude sessions** (cloud) plan, review, verify, and author docs/skills. The reviewer session
-  holds only the public **anon/publishable** Supabase key — read-only against the backend by
-  construction. It independently verifies every substantive Codex report before the owner merges.
+- **Claude sessions** (cloud) plan, review, verify, and author docs/skills. The reviewer session may
+  hold only the public **anon/publishable** Supabase key, but that is **not** a technical read-only
+  boundary: F76/F81/F91 prove publicly reachable service-backed mutation routes. Read-only is an
+  explicit operating rule. Reviewers may use GET/HEAD/count/source/config reads only and must never
+  invoke a mutation route/Edge Function, even if it accepts a public credential or no credential.
+  They independently verify every substantive Codex report before the owner merges.
 - Flow: Claude prepares prompts → owner pastes them to Codex → Codex reports → Claude verifies
   against the live system → owner merges. **Nobody merges their own work.**
 

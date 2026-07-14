@@ -43,6 +43,10 @@ function ok(condition, label) {
   const fetchAllSource = grabFunc('fetchAll');
   const applyChromeSource = grabFunc('_applyAllDataDependentChrome');
   const recoverSource = grabFunc('_calResolveClientAfterDataReady');
+  const openClientSource = grabFunc('_calOpenClientTab');
+  const pendingDeepLinkSource = grabFunc('_calResolvePendingDeepLink');
+  const renderShellSource = grabFunc('_calRenderShell');
+  const viewChangeSource = grabFunc('onCalViewChange');
 
   ok(/const dataLoad = fetchAll\(\);[\s\S]{0,160}dataLoad\.essentials\.then\(_applyAllDataDependentChrome/.test(INDEX),
     'normal boot attaches Calendar chrome recovery to essentials');
@@ -54,6 +58,15 @@ function ok(condition, label) {
     'the essentials-ready hook includes Calendar client recovery');
   ok(recoverSource.indexOf('calState.client = next') < recoverSource.indexOf('_calRenderShell()'),
     'Calendar restores the active client before repainting the toolbar shell');
+  ok(/shellNeedsClientChrome = !calState\.client[\s\S]*calState\.client = name[\s\S]*if \(shellNeedsClientChrome\) _calRenderShell\(\)/.test(openClientSource),
+    'deferred no-client activation repaints the shell after assigning the client');
+  ok(/if \(pins\.length\) _calOpenClientTab\(pins\[0\]\)/.test(pendingDeepLinkSource),
+    'unresolved deep links use the same complete toolbar activation path');
+  ok(/const selectBtnHtml = \(calState\.client && !_isClientLink\)[\s\S]*data-select-action="archive"/.test(renderShellSource)
+      && /const bulkCapBtnHtml = \(calState\.client && !_isClientLink\)[\s\S]*data-select-action="caption"/.test(renderShellSource),
+    'both Sheet actions stay mounted when a client shell starts in another view');
+  ok(/querySelectorAll\('\.cal-toolbar \.cal-select-btn'\)[\s\S]*selBtn\.style\.display = v === 'organizer'/.test(viewChangeSource),
+    'view changes reveal or hide both Sheet action buttons together');
 
   const essential = deferred();
   const extras = deferred();

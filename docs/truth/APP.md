@@ -39,9 +39,11 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   persisted `thumb_rev` in the actual browser cache key. Calendar adopts a newer server revision
   across cache/LWW guards and advances existing image nodes on realtime without waiting for a hard
   refresh or a focused-field repaint.
-- Cards with a single thumbnail expose a lazy **Compare** action. It calls the protected
-  `thumbnail-revision-read` Edge Function for that exact surface/client/card and displays signed
-  Previous/Current snapshots when a changed pair exists. Staff without a verified roster identity
+- Cards with a single Drive-file thumbnail group their IDs into authenticated, bounded (maximum 50)
+  availability calls to `thumbnail-revision-read`. That projection returns only the IDs with a real
+  Previous/Current pair, so the **Compare** icon stays absent otherwise; it returns no signed URLs or
+  history metadata. Clicking a visible icon calls the same function for one exact
+  surface/client/card and receives the signed snapshots. Staff without a verified roster identity
   are sent through the existing secure sign-in first; client links use their scoped review token.
 
 ## Samples (SXR + legacy)
@@ -57,8 +59,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - Calendar and Samples reorder only through HTML5 mouse drag events; no touch/pointer or keyboard
   fallback exists (F135).
 - SXR shares Calendar's server-authoritative `thumb_rev`, final-host Drive URL, realtime image
-  advancement, and protected lazy Previous/Current comparison. The comparison action appears only
-  for a single rendered thumbnail; Drive folders and media-less cards do not advertise a pair.
+  advancement, bounded ID-only availability check, and exact-card signed Previous/Current reader.
+  The comparison action appears only after a real pair is confirmed for a single rendered
+  thumbnail; Drive folders and media-less cards do not advertise a pair.
 
 ## Reviews (client / Kasper / SMM)
 

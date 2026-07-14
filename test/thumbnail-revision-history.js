@@ -194,6 +194,11 @@ ok(/function shouldMintThumbRev[\s\S]*has\(patch, "thumbnail_url"\)[\s\S]*has\(p
 ok(/const SIGNED_URL_TTL_SECONDS = 5 \* 60/.test(READ)
   && /createSignedUrl\(storagePath, SIGNED_URL_TTL_SECONDS\)/.test(READ),
   'reader must return only short-lived private snapshot URLs');
+ok(!/id: clean\(revision\.id\)/.test(READ)
+  && !/requested_at: clean\(revision\.requested_at\)/.test(READ)
+  && !/detected_at: clean\(revision\.detected_at\)/.test(READ)
+  && !/modified_at: clean\(revision\./.test(READ),
+  'exact-card response must return signed URLs without unused revision metadata');
 ok(/\.eq\("surface", surface\)[\s\S]*\.eq\("client", client\)[\s\S]*\.eq\("source_id", sourceId\)/.test(READ),
   'reader query must bind the exact surface, client, and source card');
 ok(/Access-Control-Allow-Headers[^\n]*x-syncview-source/.test(READ),
@@ -208,6 +213,52 @@ ok(/reason,requested_at/.test(READ)
   && /clean\(row\.reason\) !== "continuous_watch"/.test(READ)
   && /newerPendingCycle \? pendingCycle : changed \|\| pendingCycle \|\| continuousPending/.test(READ),
   'reader must ignore the fresh continuous watcher but respect a newer user tweak cycle');
+ok(/const MAX_AVAILABILITY_IDS = 50/.test(READ)
+  && /Array\.isArray\(body\.source_ids\)/.test(READ)
+  && /new Set\(sourceIds\)\.size !== sourceIds\.length/.test(READ)
+  && /sourceIds\.some\(\(value\) => !SAFE_SOURCE_ID\.test\(value\)\)/.test(READ),
+  'availability mode must accept only 1-50 unique safe source ids');
+ok((READ.match(/await authorize\(/g) || []).length === 1
+  && /\.from\(table\)[\s\S]*\.eq\("client", client\)[\s\S]*\.in\("id", sourceIds\)/.test(READ)
+  && /verifiedIds\.size !== sourceIds\.length/.test(READ),
+  'availability mode must authorize once and verify every source row in the exact client table');
+ok(/\.eq\("surface", surface\)[\s\S]*\.eq\("client", client\)[\s\S]*\.in\("source_id", sourceIds\)[\s\S]*MAX_AVAILABILITY_REVISION_ROWS/.test(READ)
+  && /revisionAvailable\(selectedRevision\(grouped\.get\(id\) \|\| \[\]\)\)/.test(READ),
+  'availability mode must use the exact pair-selection semantics for each verified source');
+{
+  const availabilityBranch = READ.match(/const principal = await authorize\([\s\S]*?if \(availabilityMode\) \{([\s\S]*?)return json\(\{ ok: true, available_source_ids: availableSourceIds \}\);/);
+  ok(!!availabilityBranch
+    && !/signedUrl|createSignedUrl|baseline_modified_time|latest_modified_time/.test(availabilityBranch[1])
+    && /requested_count/.test(availabilityBranch[1])
+    && /available_count/.test(availabilityBranch[1]),
+  'availability response must be aggregate-only and never sign or return history metadata');
+}
+{
+  function sourceFunction(name) {
+    const start = READ.indexOf(`function ${name}`);
+    const open = READ.indexOf('{', start);
+    let depth = 0;
+    for (let i = open; i < READ.length; i++) {
+      if (READ[i] === '{') depth++;
+      if (READ[i] === '}' && --depth === 0) return READ.slice(start, i + 1);
+    }
+    throw new Error(`could not extract ${name}`);
+  }
+  const cleanFn = sourceFunction('clean').replace('(value: unknown): string', '(value)');
+  const selectFn = sourceFunction('selectedRevision').replace('(rows: JsonMap[]): JsonMap | null', '(rows)');
+  const availableFn = sourceFunction('revisionAvailable').replace('(revision: JsonMap | null): boolean', '(revision)');
+  const evaluate = new Function(`${cleanFn}\n${selectFn}\n${availableFn}\nreturn { selectedRevision, revisionAvailable };`)();
+  const changed = {
+    status: 'changed', reason: 'continuous_watch', requested_at: '2026-01-01T00:00:00Z',
+    baseline_storage_path: 'before.png', latest_storage_path: 'after.png',
+  };
+  const freshWatch = { status: 'pending', reason: 'continuous_watch', requested_at: '2026-01-02T00:00:00Z' };
+  const newerTweak = { status: 'pending', reason: 'graphic_tweaks_needed', requested_at: '2026-01-03T00:00:00Z' };
+  ok(evaluate.revisionAvailable(evaluate.selectedRevision([freshWatch, changed])) === true,
+    'availability keeps the completed pair visible behind a fresh continuous watcher');
+  ok(evaluate.revisionAvailable(evaluate.selectedRevision([newerTweak, freshWatch, changed])) === false,
+    'availability suppresses an older pair behind a genuinely newer tweak cycle');
+}
 ok(!/console\.log[^\n]*(?:client|sourceId|source_id)/.test(READ),
   'reader logs must not include client/card identifiers');
 ok(/version:\s*2\.109\.0/.test(DEPLOY) && /timeout-minutes:\s*15/.test(DEPLOY)

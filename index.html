@@ -7777,14 +7777,16 @@
         })();
         return _fetchExtrasPromise;
     }
-    async function fetchAll(){
+    function fetchAll(){
         // Kick off both halves in parallel so the SMM flow keeps its original
-        // total time — the split is only useful when a caller awaits just
-        // the essentials and lets the extras stream in afterwards.
-        const e = fetchEssentials();
-        const x = fetchExtras();
-        await e;
-        await x;
+        // total time. Expose the essentials stage separately because Calendar's
+        // fast boot only needs that client roster to restore its active client,
+        // staff toolbar, and deferred deep links. Unrelated analytics extras may
+        // be slow or fail independently.
+        const essentials = fetchEssentials();
+        const extras = fetchExtras();
+        const complete = Promise.all([essentials, extras]).then(() => undefined);
+        return { essentials, complete };
     }
 
     async function fetchBriefs(){
@@ -34373,8 +34375,13 @@
                     if(navTtp) navTtp.style.display='';
                 }
             }catch(e){}
-            const dataPromise = fetchAll();
-            dataPromise.then(_applyAllDataDependentChrome, () => {});
+            // Calendar can mount immediately on the fast path, before the
+            // Clients Info roster has populated its saved client. Reconcile as
+            // soon as essentials land; analytics extras must never hold the
+            // More / multi-select / zoom toolbar recovery hostage.
+            const dataLoad = fetchAll();
+            const dataPromise = dataLoad.complete;
+            dataLoad.essentials.then(_applyAllDataDependentChrome, () => {});
 
             if (skipAwait) {
                 // Bare /?Kasper=1 with no hash — drop straight into Kasper
@@ -34412,11 +34419,11 @@
                     // tab once fetchAll folds in the Clients Info sheet.
                     else if (slug) {
                         _calPendingDeepLink = { slug, cardId: cardId || null };
-                        // Run on both settle paths: fetchEssentials (which merges
-                        // the sheet) can succeed while fetchExtras rejects, and the
-                        // resolver must still fire so the strip never sticks on its
-                        // loader. The resolver degrades gracefully if unresolved.
-                        dataPromise.then(_calResolvePendingDeepLink, _calResolvePendingDeepLink);
+                        // Listen to essentials itself, not the full analytics
+                        // bundle: once the sheet roster is merged this route can
+                        // resolve even if extras are still pending or fail. A
+                        // rejected essentials load takes the graceful fallback.
+                        dataLoad.essentials.then(_calResolvePendingDeepLink, _calResolvePendingDeepLink);
                     }
                     navTo('calendar', false);
                 } else if (hashRaw.startsWith('samples/')) {

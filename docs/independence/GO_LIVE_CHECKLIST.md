@@ -67,6 +67,15 @@ Phase 0.5 below, after the fix-pack.
       functions authenticate and authorize the exact client/operation, derive actor server-side,
       and emit real write-attempt telemetry; anonymous negative probes are green and the 72-hour
       zero-unkeyed-write gate is measured from those attempts, not sign-in events.
+- [ ] **Native concurrency is fail-safe** (F36): every Calendar/Samples/Production mutation sends
+      an expected canonical version; stale requests create neither state nor outbox intent, return
+      409 with the current row, and the browser offers compare/reapply instead of silent overwrite.
+- [ ] **Production identity is real** (F37): “My issues,” “Assigned to me,” own-team scope, comment
+      scope, and actor attribution use the server-verified immutable member ID; the TEST matrix is
+      green for every active creative and unsigned/revoked sessions show no personal queue.
+- [ ] **Client links fail closed and revoke reads** (F38): enforced-mode verifier errors cannot
+      load/cache client access; verdicts are short-lived and revision-bound; same-tab reload,
+      focus, second-device, offline-return, and token-rotation drills purge all client state.
 - [ ] **Submit graphics path drilled live** against the deployed EF, including real
       GRAPHIC_TITLE_* generation (F12).
 - [ ] **Non-n8n inbound-divergence pager live + pager last-mile proven** with a synthetic DM
@@ -110,8 +119,9 @@ Phase 0.5 below, after the fix-pack.
       quarantine/409 noise, spot-check tweak comments arriving in Linear.
 - [ ] Enroll the rest of the roster in cohorts. Full-roster clean for **~1 week** = D-28's
       soak satisfied.
-- [ ] During the soak: complete Rocio's day-one desk walk (B3) and the two-tab collision
-      drill (B9).
+- [ ] During the soak: after F37 is fixed, complete Rocio's full day-one desk walk (B3). F36's
+      initial collision already failed; run its remaining mutation/409 recovery matrix rather than
+      repeating only the same status collision.
 
 ## Phase 2 — Flip Graphics (Rocio)
 

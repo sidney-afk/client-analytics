@@ -10443,7 +10443,7 @@
       }
       let body;
       if (_obvSubs === null) body = _svLoadingSkeletonHtml('onboarding');
-      else if (_obvError && !_obvSubs.length) body = `<div class="obv-empty">Couldn't load submissions (${_obvEsc(_obvError)}).<br><small>If a list webhook isn't active yet, activate it in n8n.</small></div>`;
+      else if (_obvError && !_obvSubs.length) body = `<div class="obv-empty">Couldn't load submissions (${_obvEsc(_obvError)}).<br><small>The current onboarding reader failed. Keep the access boundary in place and ask the SyncView operator to investigate.</small></div>`;
       else if (!_obvSubs.length) body = `<div class="obv-empty">No onboarding submissions yet.</div>`;
       else {
         // Three sections: Standard = client_onboarding; AI = ai_client_onboarding;

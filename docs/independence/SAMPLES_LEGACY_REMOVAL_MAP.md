@@ -4,6 +4,12 @@ Status: Phase 1 implemented on this branch. The navigation entry is hidden and
 legacy routes resolve to Samples New. No legacy renderer, browser state,
 endpoint, workflow, table, or row is deleted or changed.
 
+> **CLIENT-LINK BLOCKER (F117; verified 2026-07-14).** Phase 1 is safe only for staff hashes. A
+> tokened legacy client link verifies its named client, then the redirect discards that binding and
+> mounts generic Samples New from browser pins/preferences, including **Add client**, while client
+> actions remain enabled. Do not call the legacy client portal intact, delete the old renderer, or
+> approve Phase 2 until the old URL fails closed or reaches an exact-client server-bound portal.
+
 This document is public-safe. It intentionally contains no client names,
 credentials, private workflow identifiers, or live row data. Line references
 are to the Phase-1 branch version of the repository.
@@ -22,7 +28,7 @@ are to the Phase-1 branch version of the repository.
 | Item | Classification | Source | Phase-1 disposition |
 | --- | --- | --- | --- |
 | `#navSamples` / “Samples Old” button | legacy-only — safe to delete | Removed from `index.html` between the Calendar and SXR nav entries; SXR remains at `index.html:6524-6528` | Removed from markup. A one-commit revert restores it. |
-| `#samples`, `#samples/<client>`, and `#samples/<client>/<card>` | owner-decision | Boot rewrite at `index.html:109-113`; runtime resolver `_resolveRetiredSamplesRoute` and `navTo` hook at `index.html:15160-15175` | Resolve to `#sample-reviews`; no old view mounts. Keep this compatibility redirect after Phase 2 unless the owner deliberately sunsets old bookmarks. |
+| `#samples`, `#samples/<client>`, and `#samples/<client>/<card>` | owner-decision | Boot rewrite at `index.html:109-113`; runtime resolver `_resolveRetiredSamplesRoute` and `navTo` hook at `index.html:15160-15175` | Staff hashes resolve to `#sample-reviews`; no old view mounts. This is not proof for tokened client URLs (F117). Keep only after staff/client routing tests and an owner sunset decision. |
 | Restored `syncview_nav=samples` state | owner-decision | `FAST`/saved-nav prediction at `index.html:89-120`; app `FAST_TABS`/restore path at `index.html:30422-30423` and `index.html:33818-33831` | Still recognized so old browser state reaches `navTo`, then resolves to Samples New. |
 | `navTo('samples')` calls | legacy-only — safe to delete, except the resolver | Existing callers remain at `index.html:33961`, `index.html:34100`, and `index.html:34261`; resolver at `index.html:15160-15175` | Callers are harmless and dormant because the resolver runs before `currentNav` is assigned. Delete callers in Phase 2; retain the resolver for bookmark compatibility. |
 | SXR / “Samples New” nav and renderer | shared — must keep | `#navSxr` at `index.html:6524-6528`; route/mount at `index.html:15210`, `index.html:15300-15305`; SXR module begins at `index.html:34440` | Untouched. |
@@ -40,7 +46,7 @@ are to the Phase-1 branch version of the repository.
 | `currentNav === 'samples'` / `page === 'samples'` branch | legacy-only — safe to delete | Legacy cleanup checks at `index.html:15236-15238`; render/mount branch at `index.html:15307-15311` | Delete only with the full `_sm*` module. Keep `currentNav`, which is global shared router state (`index.html:11670-11675`). |
 | Initial `#samples/<...>` deep-link focus parser | legacy-only — safe to delete | `index.html:33825-33829`, `index.html:34093-34100` | Delete the old focus parsing; keep the top-level compatibility redirect. |
 | Popstate `#samples/<...>` focus parser | legacy-only — safe to delete | `index.html:34254-34261` | Delete the old focus parsing; let the resolver continue to redirect. |
-| Legacy client portal `?c=...&v=samples&t=...` | owner-decision | Detection/loading at `index.html:33854-33863`; token gate/mount handoff at `index.html:33924-33964`; loader selection at `index.html:34418-34425` | Replace with a direct, token-preserving redirect to `v=sample-reviews` before deleting the old block. Confirm the desired sunset behavior with the owner because external links may still exist. |
+| Legacy client portal `?c=...&v=samples&t=...` | owner-decision — **currently broken (F117)** | Detection/loading at `index.html:33854-33863`; token gate/mount handoff at `index.html:33924-33964`; retirement resolver and generic SXR mount | Current code verifies the old link's client/token, then loses the client binding and uses generic SXR pins/preferences. Fail closed or implement a server-bound exact-client handoff into the dedicated client mount; remove Add-client/client switching, clear residual selection, and test every old-link/fresh/residual/cross-client/mobile/second-device case before deleting the old block. |
 | Global `NAV_KEY`, history, router, and other tab branches | shared — must keep | `index.html:11671-11675`, `index.html:15165-15338` | Keep. Remove only Samples Old-specific conditions. |
 
 ### Legacy UI, state, and helpers
@@ -187,4 +193,7 @@ the table, deletes rows, deletes a workflow, or changes Samples New.
 - [x] Every non-Samples route is returned unchanged by the retirement resolver.
 - [x] Legacy frontend/backend code and `content_samples` remain intact.
 - [x] Focused retirement and boot-parity guards pass.
+- [ ] A tokened `v=samples` link stays bound to exactly its verified client across fresh/residual
+      state, refresh/back, mobile and second device, with all cross-client reads/writes denied
+      server-side (F117).
 - [ ] Owner explicitly authorizes Phase 2.

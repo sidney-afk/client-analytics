@@ -156,6 +156,7 @@ const reconciledFeatureDocs = [
   'docs/features/KASPER_REVIEW_GLOBAL_ROLLOUT.md',
   'docs/features/THUMBNAIL_CACHE_ROLLOUT.md',
   'docs/features/SALES_INTAKE_DESIGN.md',
+  'docs/features/ONBOARDING_FORM.md',
 ];
 const staleFeatureMarkers = [
   /PR\s+#652[^\n]*\bis open\b/i,
@@ -166,6 +167,7 @@ const staleFeatureMarkers = [
   /open the \*\*`Build Row From Patch`\*\*/i,
   /claude\/sales-intake-form-tab/i,
   /https?:\/\/app\.notion\.com\/p\//i,
+  /activate (?:it|the .*?) in n8n/i,
 ];
 for (const rel of reconciledFeatureDocs) {
   const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -174,6 +176,8 @@ for (const rel of reconciledFeatureDocs) {
 }
 ok(!/later reply re-surfaces it/i.test(INDEX),
   'Kasper source comments match explicit-reroute-only finished behavior');
+ok(!/list webhook isn't active yet, activate it in n8n/i.test(INDEX),
+  'onboarding recovery copy points at the current reader instead of legacy n8n activation');
 
 const reconciledMigrationRecords = [
   'migrations/kasper-review-state-migration.sql',

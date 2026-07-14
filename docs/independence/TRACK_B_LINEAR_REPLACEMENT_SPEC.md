@@ -1014,7 +1014,12 @@ review. F86 separately requires least-field active staff/client directory projec
 seven-day retention window. PITR was **off**, consistent with the approved temporary-window policy;
 it must be explicitly enabled and read back before each named risky window. Independently ship a
 six-hourly export of all Track-B tables to a private store with a >7 h freshness alarm; retained
-daily backups alone do not meet that RPO and do not prove restore.
+daily backups alone do not meet that RPO and do not prove restore. The current weekly n8n workflow
+also does **not** satisfy this requirement: sanitized live graph review found continued critical
+nodes, explicit empty-array substitution for failed/missing dumps, and no expected-corpus manifest,
+hash/readback, complete pointer, or restore proof (F13). A green execution can therefore be partial.
+The independent exporter must fail closed and advance last-known-good only after every expected
+object is independently read back and verified.
 
 **7.2 Reconstruct-from-events.** §2.6 makes the ledger trustworthy; `scripts/replay-deliverables.js
 --verify` ships with B1 and runs weekly in CI against a scratch schema (replay == state, or
@@ -1565,7 +1570,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 
 | # | Decision | Context | Recommendation | Blocks |
 |---|---|---|---|---|
-| D-1 | PITR add-on: yes/no/when | **Live 2026-07-13:** Pro entitlements; seven completed daily physical backups / seven-day retention; PITR off between approved windows; database disk 0.45 GiB used; no successful scratch restore rehearsal documented. Management API does not settle billed egress or spend-cap posture. | Keep the approved temporary-window policy: ship the independent six-hourly export, enable/read back PITR before each named risky window, disable after, and rehearse a timed scratch restore before B4. **Owner Dashboard question before flip:** what does Usage/Billing show for current egress, and is the spend cap enabled or disabled? | B4 gate remains OPEN until export + PITR readback + restore drill + Dashboard answer |
+| D-1 | PITR add-on: yes/no/when | **Live 2026-07-14:** Pro entitlements; seven completed daily physical backups / seven-day retention at the 2026-07-13 check; PITR off between approved windows; database disk 0.45 GiB used. The weekly n8n backup can green with failed/missing objects because critical nodes continue and the builder substitutes empty dumps; it has no complete manifest/hash/readback. No successful scratch restore rehearsal is documented. Management API does not settle billed egress or spend-cap posture. | Keep the approved temporary-window policy: ship an n8n-independent six-hourly fail-closed export with expected corpus/schema/count/byte/hash manifest, independent readback and complete last-known-good pointer; enable/read back PITR before each named risky window, disable after, and rehearse a timed scratch restore before B4. **Owner Dashboard question before flip:** what does Usage/Billing show for current egress, and is the spend cap enabled or disabled? | B4 gate remains OPEN until verified export + PITR readback + restore drill + Dashboard answer |
 | D-2 | Ratify status slugs + mappings (§2.1), incl. the Triage no-op and the D-10 outbound split | three vocabularies measured | **RATIFIED by owner 2026-07-05** ("yeah okay, do that — smartly"). His follow-up question — should the CARD pills gain the Linear-only statuses (Backlog/Canceled/…)? — answered as specced: **no; cards keep today's 8-status review vocabulary unchanged** (zero behavior risk to the review flows); the Production tab carries the full 13; the projection shows Backlog/Todo/Triage as "In Progress" on cards exactly as the Linear sync does today. If SMMs later want a "not started yet" hint on cards, it can be added as a display badge without touching the vocabulary | B0 ✅ |
 | D-3 | Priority: mirror-only (hidden) vs surfaced | in active use again; locked design has no priority UI | mirror-only + URGENT; revisit after the full-roster shadow window | B1 |
 | D-4 | Pre-migration Linear cleanup (824 zombies + 336 stale-WIP) | §5.1 — **OPTIONAL**: the migration cutoff already sends old open issues to the archive, not the live board, so skipping this loses nothing; a cleanup only makes Linear itself tidier during the mirror phase | default = skip unless the owner wants Linear tidied; a ready-made issue list can be generated on request | — |

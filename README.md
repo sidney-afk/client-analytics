@@ -98,8 +98,12 @@ npm run test:prod-polish  # full Production polish gate for ?prod=1 UI work
 
 GitHub Pages serves `index.html` from `main` at the `CNAME` domain
 (`syncview.synchrosocial.com`). Merging to `main` ships to production immediately.
-For the migrated features, per-browser rollback is available via `?v2=0` (calendar)
-and `?sv2=0` (samples).
+Samples retains a read-source selector at `?sv2=0`. **Do not use Calendar `?v2=0` as writable
+rollback (F125):** it reads the legacy Sheet while full-roster writes/reorders still go only to
+Supabase, so successful work can disappear on refresh or stale Sheet state can overwrite canonical
+fields. A normal Supabase-read failure automatically enters the same split. Until a coupled recovery
+ships, preserve/repair v2; if a browser is sticky-off **or shows the Sheet-fallback warning**, treat
+Calendar as read-only and escalate.
 
 ## Keeping this README current
 

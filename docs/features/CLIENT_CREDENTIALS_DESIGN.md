@@ -182,4 +182,6 @@ Do not use a whole-commit revert that can race Pages against older function code
 5. Update n8n onboarding workflows to call `onboarding_import` after submission insert, with `onError: continue`.
 6. Only after the backend workflow and smoke matrix are green, publish the frontend. Do not mint,
    rotate, or redistribute a separate surface passphrase for this transition.
-7. Use the Kasper bulk-import modal to load existing client credentials.
+7. There is no current Kasper bulk-import button. Any necessary historical/programmatic import uses
+   the protected `bulk_import` action through a reviewed operator tool with TEST proof, a bounded
+   input, immutable actor audit and readback; do not instruct staff to look for a nonexistent modal.

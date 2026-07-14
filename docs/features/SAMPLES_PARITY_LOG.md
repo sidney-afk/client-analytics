@@ -95,6 +95,12 @@ keep them in lock-step (see `docs/archive/SAMPLES_V2_PLAN.md` §13).
 
 ## 2. Change Log
 
+> **Current correction (2026-07-14, F117):** the historical rows below describe the intended
+> tokened Samples New client surface. They do not prove the later `v=samples` retirement redirect is
+> safe. That old URL now verifies one client and then mounts generic SXR without carrying the
+> binding, so residual pins/Add-client can select another client while client actions remain active.
+> Fail closed or restore an exact-client server-bound handoff before treating old links as parity.
+
 > Add a row whenever you change the calendar side of any registry entry above (or a SHARED artifact in
 > a way that affects only one surface). `Mirror?` = does samples need the same change. `Status` =
 > Pending / Done / N/A.

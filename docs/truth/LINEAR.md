@@ -51,7 +51,10 @@
   current real-time producer. Calendar/Samples status healing therefore depends on the scheduled
   reconcilers unless the owner deliberately chooses, repairs, publishes, and drills that fast path.
 - Reconcilers (GitHub-cron scripts): `scripts/linear-sync-reconcile.js`,
-  `scripts/sample-linear-reconcile.js`, `scripts/linear-deliverables-reconcile.js`.
+  `scripts/sample-linear-reconcile.js`, `scripts/linear-deliverables-reconcile.js`. **F122:** the
+  first two print live roster/diff identifiers and copy full output into public job summaries.
+  Convert logs/summaries to bounded aggregate counts/reasons before treating the cadence as a safe
+  monitor; no log body was opened during the finding.
 - A nightly due-date roller fires ~23:45 UTC but is **NOT in n8n** and has degraded; actor
   unknown (needs Linear admin audit log).
 

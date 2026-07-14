@@ -182,17 +182,16 @@ link, termination clause, referred-by) → `POST /webhook/sales-intake-submit`
 > request idempotency key. Require an active individual Kasper/Admin principal plus a server-owned
 > receipt/state machine, or deactivate this route and use the manual process.
 
-> Doc drift note: `SALES_INTAKE_DESIGN.md` in `client-analytics` still says
-> the n8n workflow is pending — it is **live and active** since 2026-07-09
-> (§15.3).
+`SALES_INTAKE_DESIGN.md` is the reconciled deployed-state contract. F106/F107 and the downstream
+F115/F116 gates must all close before this funnel is operationally trusted.
 
 ---
 
 ## 4. Stage 4 — Contract + payment gates → onboarding email
 
-Two independent webhooks race; whichever lands **second** triggers the
-onboarding email. Idempotency and routing live in **HubSpot contact
-properties**:
+Two independent provider callbacks set HubSpot contact properties and attempt to trigger the
+onboarding email. The intended rule is “exactly once after both verified gates,” but current graphs
+do not safely implement it:
 
 | Property | Set by | Meaning |
 | --- | --- | --- |
@@ -202,15 +201,24 @@ properties**:
 | `first_invoice_paid` | Sales — Invoice Paid (Stripe) | first Stripe invoice done (only the first payment matters) |
 | `onboarding_sent` | onboarding-email workflows | prevents double-send |
 
-- **Sales — Contract Signed** (`/webhook/contract-signed`, verified by a
-  shared secret): deal → `closedwon`, `contract_signed=true`. If
+- **Sales — Contract Signed** (`/webhook/contract-signed`): deal → `closedwon`,
+  `contract_signed=true`. It compares a static caller-body token, not the provider's native
+  raw-body HMAC, and does not correlate the event to the agreement created for this sale. If
   `first_invoice_paid` already true and `onboarding_sent` empty → route by
   `is_ai_client` → send onboarding email.
 - **Sales — Invoice Paid (Stripe)** (`/webhook/stripe-invoice`): deal →
-  custom stage `3230372548` ("invoice paid"), `first_invoice_paid=true`.
-  Mirror-image gate check → onboarding email.
+  custom stage `3230372548` ("invoice paid"), `first_invoice_paid=true`. The unauthenticated route
+  does not verify the provider signature/raw body, event identity/type/mode/account/paid state, or
+  correlate the payment to server-owned sale state. Mirror-image gate check → onboarding email.
 - Missing HubSpot contact on either webhook → ⚠️ Slack DM to Sidney to
   handle manually.
+
+> **Current blockers (F115/F116):** both routes acknowledge on receipt and trust unverified caller
+> events. Each then decides from the contact snapshot read **before** its own flag write. A
+> simultaneous valid pair can leave both flags true while neither sends; duplicates can make more
+> than one asynchronous child pass the old `onboarding_sent` check. The children have no durable
+> unique gate job, joined completion receipt, error workflow, or reconciler. Provider-native
+> verification/correlation plus one atomic idempotent gate and resumable email job are mandatory.
 
 **Onboarding email** (Normal Client / AI Client — Send Onboarding Email):
 subject *"Synchro Social X {first_name} — doesn't that sound magnetic?"*,
@@ -406,15 +414,15 @@ the Workload view.
 
 | Automation (n8n) | Schedule | What it does |
 | --- | --- | --- |
-| CLIENTS METRICS | daily | IG (Apify) + TikTok (Apify) + YouTube stats per `Clients Info` row → appends `Metrics` sheet, updates `PostTracking` gains |
-| TOP VIDEOS / COMPETITOR RESEARCH / MARKET RESEARCH | scheduled | research briefs per client → sheets → SyncView Analytics tab |
+| CLIENTS METRICS | daily | IG (Apify) + TikTok (Apify) + YouTube stats per `Clients Info` row → appends `Metrics` / updates `PostTracking`. **F124:** source/prior-state failures can become ordinary zero/reset rows or stop later roster clients while the run succeeds; require per-client/platform coverage and last-good/degraded semantics. |
+| TOP VIDEOS / COMPETITOR RESEARCH / MARKET RESEARCH | scheduled | research briefs per client → sheets → SyncView Analytics tab. **F124:** Top Videos can treat provider errors as empty/old complete truth; valid empty and source failure are not distinguished. |
 | Weekly Slack – Top Reel | Mondays | posts each client's top reel into their client Slack channel |
 | Clients — Monthly Check-in | 1st of month, 08:00 | emails every `Monthly Checkup` row a check-in with the iClosed **`check-in`** calendar link |
 | SMM Reports — Weekly Reminder | Mondays 09:00 | emails Kasper the SMM weekly-reports viewer link |
 | SMM Reports — Manager Sync | daily 06:00 | syncs `Social Media Managers` sheet → Supabase `social_media_managers` |
 | Workload — Reconcile | every 10 min | rebuilds `workload_issues` from Linear |
 | Calendar — Linear Reconcile Trigger | every 10 min | dispatches the GitHub Action reconciler |
-| SyncView — Weekly Backup | Sundays 02:00 | dated Drive folder: SYNCVIEW sheet copy, repo zip, **all n8n workflow export**, Supabase dumps (credentials stripped) |
+| SyncView — Weekly Backup | Sundays 02:00 | dated Drive folder: Sheet copy, repo zip, workflow export, Supabase dumps. **F13:** continued errors/empty substitution mean a green run is not a complete restore set; D-1 independent manifest/readback/restore remains open. |
 | Editors — Labor Week | on demand | per-editor delivery counts from Linear history |
 | Error alert relays | event-driven | n8n errors + Supabase EF alerts → DM Sidney |
 
@@ -447,7 +455,9 @@ the Workload view.
   `Samples_<slug>` mirrors (no longer load-bearing).
 - **Client-facing content calendar** (`1XOyGrvSo52e…`): one tab per client,
   written by `add-to-calendar`.
-- **Project Central** (`1ZAGZBMoT1M…`): internal ops tracker.
+- **Project Central** (`1ZAGZBMoT1M…`): internal ops tracker. Its active unauthenticated API can
+  accept partial/empty/stale state, clear all three live tabs before append, and leave an empty or
+  partial hierarchy with no staging/revision/restore receipt (F123). Do not use it as a recovery tool.
 
 **n8n Data Tables**: `iClosed Cancelled Calls` (nurture kill-switch),
 `onboarding_fallback` (drafts / fallback / dead-letter).

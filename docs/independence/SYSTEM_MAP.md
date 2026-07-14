@@ -153,6 +153,9 @@ n8n in the metric read path.*
   `TopVideos`, `Competitor Briefs`, `Market Research Briefs`, `ContentSummaries` (extras). AI tab/
   synthesis summaries via n8n `generate-tab-summary` and `generate-general-brief` (compute-on-read,
   cached client-side). `client-token-verify` EF only on client links. Chart.js CDN asset.
+  Scheduled CLIENTS METRICS/TOP VIDEOS jobs populate the first/third tabs, but their current graphs
+  have no per-client/platform completeness receipt and can serialize source failure as zero, stale,
+  or partial truth (F124).
 - **Writes.** All n8n, all fire-and-forget-then-poll: `generate-market-brief`, `generate-brief`
   (competitor) — completion detected by re-polling the same CSVs every 30 s for a new row, *there is
   no brief-read webhook*; `generate-content-summary` (also logs to the `ContentSummaries` sheet);
@@ -175,6 +178,8 @@ n8n in the metric read path.*
   `.catch(()=>null)`. Brief POST errors keep polling (pending state persisted *before* the POST);
   polling times out at 40 min (MR) / 15 min (competitor) → timeout card. `generate-tab-summary`
   errors render **nothing** (silent). Chart.js CDN miss retries 40× then charts silently absent.
+  Independently, F124 means a successfully fetched newest Sheet row can itself be false-zero/
+  degraded; the SPA has no source-coverage/freshness field to distinguish that from real no-content.
 - **Notable.** Client-viewable brief pages can write to the agency Hook Library (`add-hook-to-library`
   ungated) and can trigger the `generate-content-summary` AI workflow (ungated). Two hardcoded
   per-client display special-cases exist in the render path. Correction: `content-ready` is **not**
@@ -191,6 +196,9 @@ n8n in the metric read path.*
   failure or `?v2=0`; realtime `cal-<slug>` (350 ms-debounced reload, 4 s self-echo suppression,
   catch-up snapshot on reconnect). Linear card-banner meta via n8n `linear-issue-statuses` (throttled;
   v1-only reconcile) and `linear-subissues` (parent expansion for link-adopt / import / bulk-match).
+  **F125:** both the v1 selector and automatic REST-failure fallback change only reads; full-roster
+  writes/reorders still route to Supabase-only Edge Functions. Either is unsafe split-brain, not
+  writable recovery.
   Caption prompts (n8n `caption-prompts-get` base + flag-gated `caption_prompts` REST overlay — see
   §4.11). Caption job state via n8n `caption-job-status` (5 s poll while jobs active). Runtime-flag
   reads (calendar-upsert + settings keys). supabase-js + `xlsx` CDN assets.
@@ -218,7 +226,8 @@ n8n in the metric read path.*
   `syncview_calLinearMeta_v1`, `syncview_kasper_seen_v1`/`_at_v1`, `syncview_notes_seen_v1`,
   `syncview_calCardJobs_v1` (durable post-submit card jobs). sessionStorage: `sv_noteDraft_<pid>`,
   the shared token-verify cache. **Kill switches:** `calendar_upsert_ef_clients` (upsert+reorder
-  routing), `settings_ef_clients` (caption-prompts-save + prompt overlay), `?v2=0`. Rich optimistic-
+  routing), `settings_ef_clients` (caption-prompts-save + prompt overlay). `?v2=0` is a local
+  read-source selector, **not a kill switch** (F125). Rich optimistic-
   state guards (`_calReorderOptimistic` 12 s, recent-save windows, save-in-flight queues).
 - **Roles.** Client: Review tab targets Client-Approval→Approved, may approve/comment/drag (drag only
   when collab_mode on), status labels renamed. SMM: multi-select archive/caption/link, bulk set-all,
@@ -410,10 +419,12 @@ n8n in the metric read path.*
 ### 4.6 Samples Old — Phase-1 retired staff route; retained client/backend compatibility
 
 - **Entry/status.** The staff nav was removed and `#samples[/...]` now resolves to
-  `#sample-reviews`; the legacy staff renderer does not mount. The legacy client portal
-  `?c=…&v=samples&t=…`, frontend module, browser state, endpoints, table, and rows remain intact for
-  compatibility pending the separately owner-approved Phase 2. The details below describe that
-  retained path, not an ordinary staff surface.
+  `#sample-reviews`; the legacy staff renderer does not mount. **The legacy client portal is not
+  intact (F117):** `?c=…&v=samples&t=…` verifies that client/token, then the retirement redirect
+  mounts generic SXR without carrying the verified client. Generic pins/preferences and **Add
+  client** can select another client while client-link controls remain enabled. The legacy module,
+  browser state, endpoints, table, and rows remain present, but the shipped redirect is neither a
+  safe old portal nor a token-bound SXR migration.
 - **Reads.** `content_samples` REST is the **default read** (Supabase since Phase 3, 2026-06-15 — v1's
   "opt-in behind `?sv2`" is stale); n8n `samples-get` is the per-request fallback and primary only
   under sticky `?sv2=0`. Realtime `sm-<slug>`. Token-verify EF on client links.
@@ -423,9 +434,11 @@ n8n in the metric read path.*
 - **State.** `syncview_samplesCache_v1:<slug>` (7-day, also the offline write fallback),
   `syncview_samples_prefs_v1`, `syncview_samplesSeen_v1`, `syncview_samples_v2`/`_v2_off`; shares
   `syncview_calendar_pins`. Only kill = local `?sv2=0` (reads only).
-- **Roles.** Client: review-limited, with approval/request-change/comment actions but no organizer
-  editing; internal threads hidden, and "Request a change" flips only when the note is actually sent. Team: full editor incl. the Kasper
-  approval *stage* (a stage here, not a role — any password-holder clicks it).
+- **Roles.** The dormant old client renderer was review-limited, with approval/request-change/comment
+  actions but no organizer editing. The current legacy URL instead reaches generic SXR in client
+  mode without an exact-client binding (F117); do not treat the old renderer's restrictions as a
+  current route boundary. The dormant team renderer remains a full editor, including the Kasper
+  approval *stage* (a stage here, not a role — any password-holder could click it from a stale tab).
 - **Failure/fallback.** Cache-first → REST → n8n; both fail + nothing cached → "offline, saved on this
   device" banner; both fail + cache → stale board, silent. **Writes have no outbox/retry** — a failed
   save shows a *green* "Saved on device" and only retries when that card is edited again. Delete/
@@ -435,9 +448,10 @@ n8n in the metric read path.*
   tokens in `client_access` are not wired into the four link builders (F03/F33). `setSmMode` preview
   toggle is dead code.
 - **Track B.** D4 kept this path unchanged during Track A; Phase-1 staff-route retirement has now
-  shipped. The retained client portal/backends stay outside §13.4 teardown until the owner approves
-  `SAMPLES_LEGACY_REMOVAL_MAP.md` Phase 2. Do not call it the active staff baseline, delete it with
-  Linear teardown, or reactivate the old staff route accidentally.
+  shipped, but F117 blocks calling its client-link behavior compatible. Fail the old URL closed or
+  restore a token-bound portal before any Phase-2 deletion/redirect decision. Retained backends stay
+  outside §13.4 teardown until the owner approves `SAMPLES_LEGACY_REMOVAL_MAP.md` Phase 2. Do not
+  reactivate the old staff route accidentally.
 
 ### 4.7 Kasper mode (`#kasper` / `?Kasper=1`)
 
@@ -462,7 +476,7 @@ n8n in the metric read path.*
   `syncview_kasper_approved_log_v1`, `syncview_kasper_editors_v2`, `syncview_kasper_filming_v1` (30
   min), seen ledgers, both Linear outboxes, `syncview_staff_identity_v1` (verified roster member +
   role key, shared by staff EFs), `syncview_sales_intake_draft_v1`. Kill switches: the calendar
-  & sample flags + `?v2=0`.
+  & sample flags. `?v2=0` changes Calendar reads/realtime only and is unsafe for writes (F125).
 - **Roles.** Hidden staff role, **no password for the queue itself** — only the URL param / session
   flag. Kasper comments are role `kasper` + audience `internal`, stripped from client views.
   Sensitive subtabs add a **real** role gate: admin can open onboarding + credentials; SMM can open
@@ -479,7 +493,9 @@ n8n in the metric read path.*
 - **Notable / corrections.** "SMM reports" is **not** a Kasper subtab (it's a separate top-level
   route, §4.14). `kasper-queue` is the **middle** fallback, not primary. The role-header quirk
   (§3) misattributes writes made from `#kasper/<subtab>` as `smm`. The Kasper unlock has no
-  password; the verified role key is the sensitive-subtab credential.
+  password; the verified role key is the sensitive-subtab credential. At a 390 px viewport, the
+  max-content eight-tab strip expands the document to about 1166 px and places later tabs such as
+  Onboarding off-screen; it has no contained horizontal scroller or active-tab reveal (F121).
 - **Track B.** The queue-visibility gates are one of the §9.2 predicate families — missed at flip,
   new thumbnails silently vanish from review. The Messages inbox keeps working on card threads.
 
@@ -631,8 +647,9 @@ separate hidden first-party Direct-Post surface.*
   source; 5 s poll while processing).
 - **Writes.** Upload: n8n `tiktok-upload` (multipart XHR → Post-For-Me), `tiktok-upload-cancel`,
   `tiktok-upload-status` (**used only for the failed-row Retry** — `?id&retry=1`, not polling). Pilot:
-  n8n `ttp-auth-init` (full-page OAuth redirect), `ttp-submit` (Direct Post; privacy locked
-  `SELF_ONLY` while the app is unaudited).
+  n8n `ttp-auth-init` (full-page OAuth redirect), `ttp-submit` (Direct Post). Current unaudited
+  compose source automatically assigns `SELF_ONLY` and disables its selector; it also lacks the
+  required pre-submit Music Usage Confirmation (F119).
 - **State.** Upload: `syncview_tiktokUploadForm_v1`, `syncview_pendingTiktokUploads_v1` (optimistic,
   5-min TTL), `syncview_hiddenTiktokUploads_v1`. Pilot: `syncview_ttpilotForm_v1`,
   `syncview_pendingTtpilot_v1`, `syncview_hiddenTtpilot_v1`, sessionStorage
@@ -648,7 +665,9 @@ separate hidden first-party Direct-Post surface.*
   n8n "not-found"); `tiktok-upload-status` is a retry trigger, not a poller. Pilot is a deliberate
   clean room sharing no webhooks/state with production. Idempotency key doubles as the optimistic row
   id. `TikTok Pilot` also has backend-only webhooks (`ttp-auth-callback`, status cron, token refresh)
-  not in the client inventory.
+  not in the client inventory. F119 blocks review/posting until privacy has no default, the music/
+  commercial declarations are implemented and tested, and product/legal records provider-backed
+  eligibility for agency staff posting to connected client accounts.
 - **Track B.** No impact — TikTok stays in back-office n8n by owner decision D1; never referenced in
   the Track-B spec.
 
@@ -664,7 +683,9 @@ separate hidden first-party Direct-Post surface.*
   credential fields is not authorization. Kasper inbox: `onboarding-full` denies a missing key but
   F85 proves its shared admin/legacy-secret match does not bind an active member or audit reads; it
   returns the unstripped corpus including retained legacy credential arrays.
-  Same-origin media assets (audio/video/thumbnail-style previews).
+  Same-origin media assets (audio/video/thumbnail-style previews). The public tree serves 43 such
+  files; the existing implementation record describes many as client-source derivatives and gives
+  no rights/provenance classification for others (F118).
 - **Writes.** Onboarding submit is a **never-lose-a-submission chain**: primary n8n `onboarding-
   submit` (or `ai-onboarding-submit`) with one retry → `onboarding-capture` EF → n8n `onboarding-
   fallback` (also the `sendBeacon` target on tab-hide). Sales intake: n8n `sales-intake-submit`
@@ -683,12 +704,16 @@ separate hidden first-party Direct-Post surface.*
   as delivered); total failure → banner + "Download my answers" JSON + mailto escape hatch, no auto-
   retry. Draft sync is silent-fail with a 25 s throttle; pagehide uses a preflight-free `sendBeacon`.
   Viewer partial-list failure shows a warn banner; a standalone-viewer total failure is
-  indistinguishable from "no record on file". Sales intake: single attempt, no retry/fallback, draft
-  retained.
+  indistinguishable from "no record on file". The Kasper full inbox is one unpaged snapshot of only
+  the three primary tables: it omits fallback/dead-letter rows, does not show returned status, and
+  has no acknowledge/complete/retry/archive action, polling, or realtime (F110/F111). Its stale n8n-
+  activation recovery copy was removed under F120. Sales intake: single attempt, no retry/fallback,
+  draft retained.
 - **Notable / corrections.** `?intake=1` is **NOT** this surface (it's the client Linear-submission
   mode — the code comment literally warns "the key is sales-intake, never intake"). `sales-intake-
-  submit` triggers real contracts/emails with only a client-side gate. A dead `SC_THUMB` constant and
-  a stale "activate it in n8n" hint remain in the module.
+  submit` triggers real contracts/emails with only a client-side gate. A dead `SC_THUMB` constant
+  remains. Current operator placement is Kasper → Onboarding; the historical Templates/n8n-list
+  guidance is not a recovery path (F120).
 - **Track B.** Low — the funnel stays n8n (D1); the onboarding-capture fallback is unchanged. §9.1's
   "intake" means the Linear-tab batch intake, not these forms.
 

@@ -43,9 +43,10 @@ It pulls two things together that already exist but were never connected:
 
 - Kasper keeps doing exactly what he does today: one Google Doc per client, with a
   **new tab for each month's plan** (Docs tabs, titled e.g. `July 2026`, `June 2026`).
-- The **only** new habit: paste each client's master Doc link **once** into a Google
-  Sheet (see §6). After that, every new monthly tab he adds shows up automatically —
-  no extra data entry per month.
+- The **only** new habit: paste each client's master Doc link **once** through the main
+  dashboard **Filming Plans** editor. It persists to `public.filming_plans`; the former Google Sheet
+  is a historical/emergency fallback, not the primary edit surface. After that, every new monthly
+  tab he adds shows up automatically—no extra data entry per month.
 
 ### What we can and can't get from tabs (important)
 
@@ -203,18 +204,24 @@ load, fetch lazily / in small batches and cache; the alert list can render progr
 - Notifications / Discord pings when a client goes red (good v2 — the data is all here).
 - Per-tab creation dates (not available from Docs; see §3).
 
-## 8. Open setup tasks (not code in this repo)
-1. Create the `FilmingPlans` tab in the existing Google Sheet + publish it to CSV.
-2. Build the `filming-plan-tabs` n8n webhook and add the Docs read scope to the
-   Google credential.
-3. Kasper pastes each client's master Doc link into the new tab (one-time).
+## 8. Current operational dependencies
 
-## 9. Build order once approved
-1. Sheet tab + n8n webhook (setup tasks above).
-2. `FILMING_PLANS_URL` read + tab-fetch wiring.
-3. Runway computation from calendars (lazy + cached).
-4. Alert list → expanded month strip → month grid.
-5. Polish: colours, info panel, empty/error states.
+The Supabase table, dashboard editor, Kasper reader, Templates consumer and Docs-tab lookup are
+already implemented. Do not recreate the original Sheet-first build sequence. Current readiness is:
+
+1. Close F82's public Edge/table read exposure and prove least-field role/client access.
+2. Preserve the former Sheet path only as an explicitly monitored emergency fallback until the
+   owner retires it with usage evidence and restore proof.
+3. Add/update each master Doc link through the authenticated dashboard editor and verify the
+   Supabase readback plus Docs-tab projection.
+4. Keep Google credential/scope values in managed runtime configuration; never copy them into this
+   repository or operator output.
+
+## 9. Historical build record
+
+The original order was Sheet tab → n8n Docs lookup → runway computation → Kasper UI. It is retained
+only to explain the architecture and is not a current rollout recipe. Current changes must follow
+the reviewed release/fingerprint/readback gates and the F82 access-boundary acceptance matrix.
 
 ---
 

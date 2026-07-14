@@ -79,6 +79,18 @@ Phase 0.5 below, after the fix-pack.
       complete the owner/GitHub exposure, cache/fork, token-link, and history-rewrite assessment.
       A private tracked-exposure inventory and owner disposition exist for the wider repository;
       CI rejects new exposures.
+- [ ] **Public Actions publish aggregates only** (F122): stop B1 row-plan JSON, live Production
+      screenshots/review/Argos bundles, and reconciler roster/identifier logs/job summaries. Keep
+      safety computations running with strict allowlisted aggregates and fictional/intercepted visual
+      fixtures. Privately inventory/delete retained artifacts/runs, determine Argos use/access/
+      retention, and record privacy/legal disposition. Recursive canaries inspect exact archives,
+      stdout and summaries; visual tests fail on any live-host request; private generators refuse
+      worktree paths. Short retention is required after—not instead of—sanitization.
+- [ ] **Every public onboarding-media asset has proved publication rights** (F118): privacy/legal
+      records source, people/voice/brand releases, licence, intended audience, retention and deletion
+      duty for every tracked file. Replace uncertain media with fictional/commissioned/licensed
+      examples; coordinate removals with F64 history/cache/fork handling; CI rejects any unclassified
+      asset. Owner explicitly answers which existing files may remain publicly hosted.
 - [ ] **P0 weekly-report exposure is contained** (F76): unauthenticated report/roster reads and
       writes are unavailable; anon table SELECT is revoked; individual SMM submit, Kasper/admin
       view/options, and signed service roster sync are enforced and negatively tested. Access logs
@@ -99,11 +111,24 @@ Phase 0.5 below, after the fix-pack.
       actor/role before any ledger, agreement, email, or notification side effect; exact action/scope,
       bounds, immutable audit, idempotency, and deployed no-key/expired/wrong-role/replay denials pass.
       Deactivate and use the manual process if this cannot be proved before go-live.
+- [ ] **Project Central cannot clear live state from an unverified/partial save** (F123): active
+      role/scope auth and audit protect load/save; source failures are explicit; complete input and
+      relationships/counts/hashes validate before mutation; staged copy-on-write + revision/CAS +
+      idempotency atomically promotes one version with an immutable backup/restore receipt. TEST
+      empty/malformed/partial/stale/concurrent/lost-response and every clear/append failure.
 - [ ] **Sales Intake completion and replay are truthful** (F107): one server-minted receipt owns the
       preview and request state; the server reads/CASes that state rather than trusting returned row,
       contract, or link values; duplicate/lost-response retries resume instead of recreating work;
       and the UI shows accepted/processing until required email/audit completion is durable. TEST
       provider failure, email failure, stale/wrong preview, partial commit, duplicate click, and retry.
+- [ ] **Contract/payment callbacks verify native provider events** (F115): both routes validate the
+      provider-native signature over the raw body, bounded timestamp, unique event ID, exact type/
+      status/mode/account, and a server-owned agreement/payment correlation; persist the unique
+      inbox event before 2xx. Prove stale/replay/wrong-account/wrong-sale/downstream-failure retries.
+- [ ] **The two-of-two sales gate is atomic and exactly-once** (F116): one unique durable job owns
+      “both verified gates → onboarding email,” with pending/sent/failed step receipts and a
+      reconciler. A synchronized two-callback race, duplicates, lost response, child/email/HubSpot/
+      stage failures and retries cannot lose or duplicate the communication.
 - [ ] **Approved YouTube title text remains the text actually approved** (F109): owner ratifies
       material-edit semantics; an SMM or Collaborative client edit atomically invalidates/re-enters
       review and/or records an immutable server-generated old/new event tied to actor and row
@@ -122,6 +147,11 @@ Phase 0.5 below, after the fix-pack.
       the invalid-link surface and purge client/staff state. Production/staff routes require an
       individually verified staff session. Owner records the exact supported client-view allowlist,
       and fictional desktop/mobile/second-device/cache/history tests prove no staff fallthrough.
+- [ ] **Legacy Samples client links preserve exact-client scope or fail closed** (F117): a verified
+      `v=samples` client/token never enters generic SXR pins/preferences or Add-client switching.
+      Bind the server capability to the dedicated client mount and every read/write, or show an
+      explicit retired-link state. Pass old-data parity, cross-client denial, fresh/residual cache,
+      invalid/rotated token, deep-link, refresh/back, mobile and second-device tests.
 - [ ] **Drive-backed thumbnail jobs enforce auth and CAS** (F78–F80): the scanner fails closed on
       missing/wrong scheduler identity; the resolver enforces originating principal/client scope;
       both are bounded/rate-audited; and the resolver's final write CASes exact URL/version with
@@ -145,6 +175,14 @@ Phase 0.5 below, after the fix-pack.
       cannot read the corpus; every minimized/paginated access has immutable member attribution and
       a durable synchronous audit; holder inventory, key/session rotation, and credential-array
       retention disposition are complete. The owner answers the two F85 questions explicitly.
+- [ ] **TikTok Pilot is compliant and eligible before review/posting** (F119): keep it disabled until
+      privacy has no default and requires an explicit provider-returned choice, the exact music-use
+      acknowledgement/commercial controls are present, source and sandbox tests agree, and product/
+      legal records provider-backed eligibility for agency staff posting to client accounts.
+- [ ] **Client analytics distinguish empty from failure** (F124): Metrics/Top Videos publish
+      per-client/platform expected/attempted/succeeded/count/freshness/error receipts, never convert
+      source/prior-state failure to zero/no-content, preserve visible last-good staleness, isolate
+      roster clients and alert on coverage. Test every provider/state/mid-roster/partial/retry case.
 - [ ] **Raw staff/client directories are minimized** (F86): anonymous raw-table reads are revoked;
       purpose-specific active projections expose only fields each surface needs; inactive rows and
       email/Slack/Linear/project mappings are protected; direct omitted-column tests deny.
@@ -221,11 +259,15 @@ Phase 0.5 below, after the fix-pack.
       before returning success; distinguish `captured`, `processing`, `complete`, and `failed` in
       the client/staff UX. Duplicate clicks, lost responses, capture-only replay, and a failure at
       every credential/provisioning/enrollment step resume the same job to verified completion;
-      they never take a duplicate-success shortcut or clear the only recovery handle.
+      they never take a duplicate-success shortcut or clear the only recovery handle. The Kasper
+      inbox includes fallback/dead-letter work, exposes status and step age, pages/freshens safely,
+      and provides audited acknowledge/retry/resume actions rather than an unbounded snapshot.
 - [ ] **Operators start from the current intake** (F111): the SyncView standard/AI inbox plus its
       durable job/alert is the sole documented handoff. Do not wait for the replaced Notion form or
       its active-labelled but non-production-triggered legacy workflow; archive that object only
-      through F60's restore-proof process after identifier-free zero-use evidence.
+      through F60's restore-proof process after identifier-free zero-use evidence. Independently
+      page on captured work without a staff acknowledgement so a failed notification or stale
+      open tab cannot strand a client.
 - [ ] **Native concurrency is fail-safe** (F36): every Calendar/Samples/Production mutation sends
       an expected canonical version; stale requests create neither state nor outbox intent, return
       409 with the current row, and the browser offers compare/reapply instead of silent overwrite.
@@ -239,6 +281,10 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Personal work is touch-mobile discoverable** (F96): below/at/above the 900px breakpoint, a
       fresh creative can switch between team Issues and My issues without a crafted URL or hardware
       keyboard. Deep link, back, reload, account switch, zero-row, portrait, and landscape tests pass.
+- [ ] **Every Kasper subtab is touch-mobile discoverable** (F121): the tab row scrolls within the
+      viewport, the active tab is revealed without page-wide overflow, and keyboard focus remains
+      visible. Test all eight tabs, deep link/back/reload, zoom/text scaling, portrait/landscape and
+      second device—especially Onboarding, Sales Intake and Client Credentials.
 - [ ] **Client links fail closed and revoke reads** (F38): enforced-mode verifier errors cannot
       load/cache client access; the verifier requires an active client/current revision; verdicts
       are short-lived; same-tab reload, focus, second-device, offline-return, offboarding, and
@@ -273,6 +319,9 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Legacy multi-source reads fail closed** (F29): rotate/remove failed sources, page every
       source, require expected/successful-source and visibility-set completeness, skip destructive
       Workload mark-and-sweep on degradation, and preserve stale UI data with a visible warning.
+      Linear status metadata distinguishes true not-found from source failure, never returns
+      full-success for a subset, and does not advance the five-minute success throttle on degraded
+      fetches; retry only failed IDs while retaining last-good values.
 - [ ] **Video assignment policy is owner-ratified and atomic** (F30): use a fully paged current
       nonterminal workload for active eligible editors (or the explicitly chosen alternative),
       deterministic ties/leave rules, and concurrency-safe allocation; prove >50, >1,000, batch,
@@ -333,8 +382,12 @@ Phase 0.5 below, after the fix-pack.
       both routes pass independent TEST sends and kill/readback drills.
 - [ ] **Backup package built per D-1** (F13/F49): live Pro truth is recorded (2026-07-13: seven
       completed daily physical backups / seven-day retention, PITR off, database disk 0.45 GiB
-      used); 6-hourly independent export + freshness alarm are live; PITR is enabled/read back for
-      the risky window; and one timed scratch restore + replay verification succeeds. Owner answers
+      used). The current weekly n8n run is not evidence: continued critical-node errors and `[]`
+      substitution can produce a green partial set. A 6-hourly export independent of n8n has a
+      versioned expected-corpus/schema/count/byte/hash manifest, fails closed, independently reads
+      back every object, never advances last-known-good on partial output, and alerts independently.
+      PITR is enabled/read back for the risky window; one timed scratch restore + replay succeeds.
+      Owner answers
       from Dashboard Usage/Billing: **what is current egress, and is the spend cap on or off?**
 - [ ] **n8n quota fire resolved** (F01): burner identified/killed, hard-stop vs overage known,
       headroom projected past the flip window.
@@ -501,6 +554,17 @@ live readback; do not list “deactivate it” as newly completed teardown work.
       ratify replacement outage recovery, scan whole-repo consumers, update README/System Map/
       ROLLBACK together, and pass v2-on/off, Supabase/n8n failure, metadata/banner, save-concurrency,
       Calendar/client/Kasper/Films, focus/mobile/second-device tests. Every object also passes F60.
+- [ ] **Calendar recovery never splits read and write authority** (F125): withdraw `?v2=0` as
+      writable rollback and treat automatic REST→Sheet fallback the same way. Sticky-off/fallback
+      plus an EF-enrolled client is explicitly read-only until one atomic recovery mode couples its
+      reader/writer (or journals/reconciles writes). Add server CAS
+      for every mutable whole-card field and pass v2 on/off × EF enrolled/unenrolled/flag failure ×
+      REST/fallback × edit/create/archive/reorder/import × cache/second-device/two-tab tests.
+- [ ] **Sub-issue expansion is complete before any Calendar mutation** (F126): page children and
+      required comments to exhaustion, reject partial GraphQL envelopes, and require an explicit
+      complete receipt. Import, bulk-link and status adoption preserve prior state and write nothing
+      on incomplete data; a parent is a leaf only after a complete zero-child result. Retire the
+      legacy `/add-to-calendar` branch after zero-caller proof or give it the same durable contract.
 - [ ] **Archive is usable and assets are rescued (F34):** a role/audience-scoped archive reader is
       live; issue/comment counts and hashes match the private export; every Linear-hosted image/
       attachment is rescued/relinked or explicitly owner-dispositioned; retrieval/restore drills

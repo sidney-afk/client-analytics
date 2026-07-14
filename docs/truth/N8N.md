@@ -9,7 +9,10 @@
 ## Inventory
 
 The app-facing webhook surface (55 endpoints) is enumerated and machine-enforced in
-`docs/truth/ENDPOINTS.md`. Deep per-workflow reads: `docs/audits/2026-07-05-n8n.md`.
+`docs/truth/ENDPOINTS.md`. A 2026-07-14 live census found 92 workflows, 77 active; 75 of the 77
+active graphs were readable and 34 matched fan-out/catch/continue-risk heuristics. Two already-known
+monitor/relay graphs could not be detailed through the live tool and remain explicit gaps. Deep
+historical per-workflow reads: `docs/audits/2026-07-05-n8n.md`.
 
 ## Known state (spot-verify before relying — n8n changes outside git)
 
@@ -33,7 +36,25 @@ The app-facing webhook surface (55 endpoints) is enumerated and machine-enforced
 - Historical 2026-07-05 sizing was ~25 calendar upserts, ~41 set-status, and ~27 inbound Linear
   events/day across the then-current topology. Do not use the inbound count as current n8n traffic:
   B3 now enters through the Edge Function and the legacy n8n receiver is inactive (F46).
-- Weekly backup workflow runs on schedule (last verified 2026-07-05).
+- The weekly backup runs on schedule, but **green is not complete** (F13). Ten critical nodes
+  continue after copy/download/export/dump/upload errors; builders serialize whatever arrived and
+  explicitly substitute empty arrays for missing/failed table dumps. There is no expected-corpus
+  manifest, checksum/readback, complete pointer, or restore proof. It is neither independent of n8n
+  nor a valid D-1 restore gate.
+- Provider sales callbacks are unsafe (F115/F116): neither has a provider-native verified,
+  server-correlated durable inbox; the mirrored stale-snapshot two-gate logic can lose or duplicate
+  the onboarding email.
+- Project Central's active load/save API can turn a failed source tab into a valid partial tree, then
+  clear all three live sheets before validating/reappending; its webhooks authenticate no caller and
+  it has no revision/staging/transaction/restore receipt. Keep it out of recovery workflows until
+  the destructive partial-replacement finding closes.
+- Client analytics collectors can publish provider/state failures as zeros, stale values, or
+  incomplete platform coverage while the workflow remains successful. Treat Metrics/Top Videos as
+  degraded unless per-client/platform coverage receipts distinguish valid empty from source failure.
+- The active Linear Sub-Issues reader and retained `/add-to-calendar` branch do not page children
+  (or nested comments), reject partial GraphQL envelopes, or publish a completeness receipt. Their
+  outputs currently drive Calendar import/link/status or legacy Sheet writes. Treat `ok:true` and a
+  green execution as incomplete until F126's exhaustive-page/zero-mutation contract is proved.
 - The central error-DM workflow is **not** blanket-wired (F09). In the 2026-07-14 live sample, five
   of six load-bearing cutover workflows had no `errorWorkflow`; three of those unwired workflows
   had 135 error/crash/cancel records since Jul 7. The handler also failed 29 of 30 sampled

@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-14 @ e3961b6 (second-pass current-state reconciliation through F114)
+> Last verified: 2026-07-14 @ e3961b6 (second-pass current-state reconciliation through F126)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -70,6 +70,10 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   dormant n8n fallback, while many unmigrated surfaces still use n8n. Snapshot any workflow
   privately plus a public-safe `n8n-backups/` stub before touching it (rollback rule 2). Every live
   write drill uses only the private TEST fixture.
+- Green Linear-reader executions are not completeness proof: F29 covers partial multi-source/status
+  snapshots and deterministic 100-ID starvation; F126 covers unpaged child/comment expansion that
+  can drive Calendar import/link/status writes. Require complete receipts and zero mutation on any
+  partial source before merge, flip or B5.
 - Known standing hazard: several credentials remain exposed (per-SMM Linear API keys in a
   publicly readable sheet tab and the house Linear key in legacy n8n). F52 reverified one
   reachable Graphics title-generation workflow carrying a plaintext provider key across all 50

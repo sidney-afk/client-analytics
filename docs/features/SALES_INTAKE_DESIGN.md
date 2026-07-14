@@ -7,7 +7,9 @@ specified from owner calls and the former manual reference form on 2026-07-02.
 > PR #652 and its old branch are historical; do not implement or push there. The route is **not
 > go-live ready**: the active webhook authenticates no caller (F106), and its send branches return
 > success before email while trusting browser-round-tripped preview state with no durable replay key
-> (F107). Canonical evidence is `index.html`, `migrations/live-schema-baseline-2026-07-03.sql`,
+> (F107). The downstream contract/payment callbacks also trust unverified caller events (F115), and
+> their mirrored stale-snapshot gate can lose or duplicate the onboarding email (F116). Canonical
+> evidence is `index.html`, `migrations/live-schema-baseline-2026-07-03.sql`,
 > current sanitized n8n workflow detail, and `test/sales-intake-form.js`.
 
 The private reference-form URL is intentionally not retained in this public repository. The field
@@ -222,6 +224,26 @@ individually authenticated privileged staff surface; a hidden subtab/query flag 
 - [ ] F106: active individual caller authorization, role decision, bounds/audit/idempotency, and
       deployed negative proof.
 - [ ] F107: server-owned receipt/state, truthful completion UX, and partial-failure/retry proof.
+- [ ] F115: provider-native raw-body signature, timestamp/replay/type/mode/account validation,
+      server-owned payment/agreement correlation, and durable inbox before 2xx for both callbacks.
+- [ ] F116: one atomic, unique onboarding-email gate/job with resumable step receipts, reconciliation,
+      and synchronized two-callback/duplicate/failure proof.
+
+## Downstream contract/payment gate — current blockers
+
+Agreement creation is not proof that the expected agreement was signed, and a payment-link email is
+not proof that the expected first invoice was paid. The two active provider callbacks currently
+derive those facts from unverified incoming fields. One route has no gate; the other compares a
+static caller-body token rather than the provider's native raw-body signature. Neither correlates
+the event to server-owned Sales Intake agreement/payment state, and both acknowledge before
+downstream completion (F115).
+
+They also implement the two-of-two gate as two mirrored workflows. Each reads the contact, updates
+its own flag, and evaluates the other flag plus `onboarding_sent` from the older read. A simultaneous
+valid pair can therefore leave both flags true without an email; retries can dispatch more than one
+asynchronous email child. There is no durable unique gate job or reconciler (F116). The replacement
+must be one idempotent state transition and resumable communication job, not two reordered variants
+of the current graph.
 
 ## Out of scope for this feature (tracked from the same calls)
 

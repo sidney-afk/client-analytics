@@ -109,7 +109,8 @@ Snapshots live in the private Supabase Storage bucket
    ```
 
 5. Schedule `POST /functions/v1/thumbnail-revision-scan` every 10-15 minutes
-   from n8n or another scheduler. Send `X-Syncview-Key` if the scan key is set.
+   from n8n or another scheduler. The dedicated service signature is mandatory: always send it,
+   and treat an absent/malformed key as a failed deployment—not an optional compatibility mode.
 
    Example body:
 

@@ -1,5 +1,11 @@
 # Centralized Onboarding Form (SyncView)
 
+> **Current status (verified 2026-07-14): capture and the Kasper inbox are deployed, but the
+> feature is not go-live ready.** F77/F85 block the read boundary, F81 blocks public-capture abuse,
+> F110/F111 block durable completion and operator acknowledgement, and F118 blocks unproved public
+> example-media rights. The current operator surface is Kasper → Onboarding, backed by Supabase
+> Edge readers—not Templates and not the historical n8n list routes.
+
 > **P0 READ-BOUNDARY BLOCKER (F77).** The three currently deployed onboarding-list Edge Functions
 > accept anonymous requests and return the contact/questionnaire corpus with service-role access.
 > Removing account-password fields does not make those responses public-safe. Disable or contain
@@ -219,9 +225,18 @@ AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional
 
 ### Example media
 
+> **PUBLICATION-RIGHTS BLOCKER (F118).** These assets are served by the public site. The prior
+> implementation record described multiple files as derivatives of client-provided frames,
+> folders, or Drive originals and recorded no rights/provenance decision for the audio set. That is
+> not proof of permission for permanent public product use. Privacy/legal must classify each file's
+> source, people/voice/brand rights, licence, audience, retention and deletion duty; replace any
+> uncertain file with fictional, commissioned, or explicitly licensed material; and coordinate any
+> removal with F64's history/cache assessment. Do not add another media file without a public-safe
+> provenance entry.
+
 The two AI "look" options (`OB_LOOK_TALKING` / `OB_LOOK_PODCAST`) are shown as **selectable
-preview images** up front — `onboarding-ai/talking-head.jpg` + `podcast.jpg` (resized from the
-client's reference frames) — tick one or both, same preview + select feel as the subtitle styles
+preview images** up front — `onboarding-ai/talking-head.jpg` + `podcast.jpg` — tick one or both,
+same preview + select feel as the subtitle styles
 (`.ob-look-row`; no more ⓘ-to-reveal). Music previews are byte-sliced MP3 clips under
 `onboarding-audio/`.
 
@@ -232,25 +247,18 @@ The **thumbnail** picker is the separate live `_obThumbPicker` described above (
 Highlight, `_obThumbSync` swaps the preview). The full-screen zoom (`_obZoom`) auto-detects video vs
 image by extension.
 
-- **Sample-video example** — `onboarding-video/sample-example.mp4`. The real ~30s talking-to-camera
-  clip shown in **step 4** so clients see what a good "sample clip of you" looks like. Re-encoded from
-  the client's 4K portrait source (2160×3840, 43 s, ~57 MB) down to a web-friendly **720×1280 H.264**
-  **with audio** (it's a talking example, so sound is kept), `+faststart`, ~6.7 MB, via:
-  `ffmpeg -i src.mp4 -vf scale=720:-2 -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27 -preset slow
-  -c:a aac -b:a 96k -movflags +faststart sample-example.mp4`.
+- **Sample-video example** — `onboarding-video/sample-example.mp4`, a ~30 s talking-to-camera
+  example shown in **step 4**. Its presence in the tree is not a rights record; F118 must classify
+  or replace it before it remains a public product example.
 - **Subtitle clips** — `onboarding-video/sub-{elegant,native,bold}.mp4` + a `-hl.mp4` for each
   (six files; every style now has a highlighted-keyword variant). Purpose-made 9:16 sample reels
-  (one talent, same VO) demoing each subtitle style, 480×854 H.264 (`yuv420p`, `+faststart`, no
-  audio), ~16 s, ~1 MB each. Re-encoded from the client's source folder with:
-  `ffmpeg -i src.mp4 -vf scale=480:-2 -an -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27
-  -preset slow -movflags +faststart out.mp4`. (Replaced the old Elegant/Native/Banner set; `sub-banner.mp4` removed.)
+  demoing each subtitle style. F118 owns source/talent/voice and public-use classification.
 - **Thumbnail styles** — 24 hosted renders under `thumbnail-styles/<font>-<style>[-hl].jpg`
   (font ∈ bold/native/elegant, style ∈ plain/shadow/stroke/banner, `-hl` = highlighted line).
-  Same base cover ("The red flag nobody tells you to look for") rendered every way; resized to
-  800px-wide JPEG (~85 KB each, ~2 MB total) from the client's Drive originals. To swap the base or
-  add a font/style, drop in matching files and extend `OB_THUMB_FONTS` / `OB_THUMB_TSTYLES`.
+  One base cover is rendered in every combination. To change the set, first record the approved
+  source/provenance, then add matching files and extend `OB_THUMB_FONTS` / `OB_THUMB_TSTYLES`.
 - The two AI "look" frames are local selectable previews — `onboarding-ai/talking-head.jpg` +
-  `podcast.jpg` (`OB_LOOK_TALKING` / `OB_LOOK_PODCAST`), 800px-wide JPEGs from the client's frames.
+  `podcast.jpg` (`OB_LOOK_TALKING` / `OB_LOOK_PODCAST`). F118 must classify or replace them.
 
 ## Data flow
 
@@ -336,9 +344,10 @@ after the onboarding *call* is a separate later workflow.
   webhook — created and activated (workflow id `oDZ1Oljvaig5KSLD`,
   `GET /webhook/ai-onboarding-list`): reads `ai_client_onboarding`, strips credentials, returns
   `{ok,count,submissions}`. Feeds the dashboard's **AI avatar onboarding** section.
-- ✅ Dashboard inbox — Templates→Onboarding now shows **two sections** (Standard + AI), fetching
-  both list webhooks in parallel with per-funnel fault tolerance. Verified in a headless browser
-  (both-load and AI-list-fails cases).
+- ✅ Dashboard inbox — the current **Kasper → Onboarding** surface uses one authenticated
+  `onboarding-full` Edge request for Standard + AI + Legacy. The separate three-reader viewer is a
+  different, currently unsafe public path under F77. The Kasper inbox still lacks fallback rows,
+  status/actions/paging/freshness under F110/F111.
 - ✅ Inbox detail — renders the **client's chosen thumbnail image** (`_obvThumb`) and surfaces
   **every editor/designer field** incl. the video/thumbnail/music references + described looks,
   subtitle-highlight, creators-to-model notes, the questions box, and (AI) the extra voice samples.
@@ -360,9 +369,9 @@ Fathom transcript + this form's answers). That's a separate workflow, not part o
 
 ---
 
-## Viewing submissions in the dashboard (Templates → Onboarding)
+## Viewing submissions in the dashboard (Kasper → Onboarding)
 
-A **Onboarding** sub-tab in the Templates tab lists submissions and shows each one's
+A **Onboarding** sub-tab in the Kasper page lists submissions and shows each one's
 editor/designer-relevant sections (brand & audience, style, photos/source, goals, AI avatar).
 The detail view surfaces **every field an editor/designer needs**, including the reference
 material the form collects: **video reference** links + the client's described look, **thumbnail
@@ -377,10 +386,18 @@ It is **split into two sections** — **Standard onboarding** and **AI avatar on
 each with its own count; an empty funnel shows a muted "None yet." so the two-funnel structure
 is always visible.
 
-This section describes the historical n8n reader topology and is retained only as implementation
-history. The current SPA composes three Supabase Edge readers (`onboarding-list`,
+The Kasper inbox uses one `onboarding-full` Edge request and currently receives the standard, AI,
+and legacy tables. It does **not** include `onboarding_fallback`; although source rows carry status,
+the list/card UI does not expose it. There is no acknowledge, complete, retry, archive, pagination,
+polling, realtime, or durable job action. A successful refresh is therefore an unbounded snapshot,
+not an operator-completion receipt. F110/F111 require a joined job/step ledger, fallback/dead-letter
+visibility, staff acknowledgement, retry/resume controls, paging/freshness and an independent
+capture-without-acknowledgement alarm.
+
+The standalone client-profile viewer composes three Supabase Edge readers (`onboarding-list`,
 `ai-onboarding-list`, and `legacy-onboarding-list`) from the Edge base. F77 blocks operating those
-current readers until they authenticate and minimize responses. Historical routes were:
+readers until they authenticate and minimize responses. The older n8n routes below are retained
+only as history and are not a recovery path:
 
 - `GET /webhook/onboarding-list` (workflow `slqt2zCDyIc7OAmY`) → `client_onboarding`.
 - `GET /webhook/ai-onboarding-list` (workflow `oDZ1Oljvaig5KSLD`) → `ai_client_onboarding`.
@@ -388,12 +405,11 @@ current readers until they authenticate and minimize responses. Historical route
 Those historical routes fetched with the service-role credential and stripped account-credential
 fields before returning. That stripping was never a sufficient public-access boundary: contact
 and questionnaire data remained private, and the current anonymous Edge readers expose the wider
-corpus (F77). The dashboard tags each row with its `funnel` (by which reader it came from) and
-groups by it. Load is **fault-tolerant**: if one webhook fails, the other funnel still renders
-and a soft warning notes which list couldn't load (`Promise.allSettled`). Snapshots:
+corpus (F77). The standalone viewer tags each row with its `funnel` and uses per-reader
+`Promise.allSettled` behavior; the Kasper full inbox is instead one Edge call. Historical snapshots:
 `n8n-backups/onboarding-list.2026-06-26.created.json`,
 `n8n-backups/ai-onboarding-list.2026-06-28.created.json`.
 
-**Finish step:** both list workflows are **active** (`slqt2zCDyIc7OAmY` + `oDZ1Oljvaig5KSLD`).
-The AI section stays empty until `migrations/ai-onboarding-supabase-migration.sql` is run and an AI form is
-submitted; until the standard table/workflow exist the Standard section behaves the same way.
+On a current-reader failure, preserve the authorization boundary and investigate the Edge reader,
+session/role, deployment fingerprint, and Supabase health. Do not publish or revive a historical
+service-role list route as a shortcut.

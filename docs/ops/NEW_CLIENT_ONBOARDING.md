@@ -272,7 +272,10 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
   parent/children, Calendar/Samples projection, and tokened client link after reload. A green
   “Issue created” banner is not proof: F44 verified that the legacy workflow can return 200 and
   clear the draft before parent creation later fails.
-- Next morning, check that **CLIENTS METRICS** / **TOP VIDEOS** produced rows (confirms handles are right). A client with no metrics row still appears via a placeholder, so absence of data ≠ broken.
+- Next morning, require a **per-client/platform coverage receipt** for CLIENTS METRICS / TOP VIDEOS,
+  not merely a new row or placeholder (F124). Current collectors can convert provider/prior-state
+  failure into zero, old, or incomplete output while the workflow reports success. A valid empty
+  result must be distinguished from source failure; preserve last-good data with visible staleness.
 
 ### 6j. Monthly check-in email
 **Where:** SYNCVIEW sheet → tab **`Monthly Checkup`** — columns `client_name | email`.
@@ -294,7 +297,9 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 - **Supabase row seeding** — Calendar/SXR rows can be created on first authenticated EF write; no
   manual row is needed. Routing/auth enrollment is still mandatory.
   ([§6f](#6f-supabase-calendar--samples-no-manual-row-but-routing-is-required))
-- **Metrics, Top Videos, Competitor Research, Market Research** — scheduled n8n workflows that read **Clients Info**; they pick up the new client on their next run.
+- **Metrics, Top Videos, Competitor Research, Market Research** — scheduled n8n workflows read
+  **Clients Info**, but roster pickup is not complete until F124's per-client/platform receipt proves
+  expected/attempted/succeeded coverage and distinguishes valid empty from degraded data.
 - **Per‑client caches / realtime channels / share‑link state** in the frontend — created at runtime from the slug.
 - **No** per‑client brand‑color config in `index.html` (brand colors only exist in the separate `thumbnails/` app, which is unrelated to dashboard onboarding).
 

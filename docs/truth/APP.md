@@ -21,6 +21,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - The active `linear-set-status` and `linear-add-comment` bridges receive no verified caller
   identity (F91). Team authority constrains direction only; it is not authentication.
 - Status pills require a linked Linear sub-issue ("Link a Linear sub-issue first").
+- `?v2=0` is **not writable rollback** (F125): it selects Sheet reads while full-roster
+  upsert/reorder routing still targets Supabase-only Edge Functions. Normal Supabase-read failure
+  automatically selects the same Sheet fallback. Either state must remain read-only until one
+  coupled recovery authority exists.
 
 ## Samples (SXR + legacy)
 
@@ -67,6 +71,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   wired suites; `SyncView.html`/tokens are frozen visual evidence, while the old handoff/loop files
   are non-operative tombstones under F56/F64. UI changes must pass `npm run test:prod-polish`.
   Deep-links: `?prod=1`, `team`, `view`, `client`, `d` params.
+- The present Production polish visual lanes are a P0 distribution blocker (F122): they make
+  unmocked live reads and upload screenshots/DOM manifests through public Actions, with optional
+  Argos delivery. Keep visual publication off until all reads are intercepted with fictional data
+  and the exact archives pass recursive privacy tests.
 - Foundation audit evidence: `docs/audits/2026-07-09-production-foundation-audit.md`.
 
 ## Deep-audit findings ledger (Phase 2, 2026-07-11 →)

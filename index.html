@@ -43287,10 +43287,9 @@
        timestamp ON THE CARD — `kasper_finished_at` / `kasper_closed_at` — that
        rides the upsert echo + Supabase realtime to every device, exactly like
        `kasper_approved_at`. The per-browser `_kasperState.dismissed` / `.closed`
-       flags are kept only as a SAME-DEVICE fallback so behaviour is unchanged
-       until the backend columns are switched on (the upsert silently drops an
-       unknown field), then it becomes global automatically. Rollout + the two
-       backend steps: docs/features/KASPER_REVIEW_GLOBAL_ROLLOUT.md. */
+       flags are kept only as a SAME-DEVICE continuity fallback. The backend
+       columns and allowlist are deployed; the current contract is recorded in
+       docs/features/KASPER_REVIEW_GLOBAL_ROLLOUT.md. */
     function _kasperFinishedAt(post) { return String((post && post.kasper_finished_at) || ''); }
     /* "Finish reviewing" hand-off. A finished card sits in "Tweaks pending"
        until a genuine fresh ask supersedes it:
@@ -44352,8 +44351,9 @@
          • No unresolved tweaks → he approved everything → logged to Approved.
          • Has unresolved tweaks → handed off to the SMM, stamped
            kasper_finished_at (persisted, cross-device) so a refresh on any
-           device doesn't drag it back. It returns only when the SMM re-routes a
-           component to Kasper Approval or replies in the thread. See
+           device doesn't drag it back. It returns only when the SMM explicitly
+           re-routes an actionable component to Kasper Approval. Replies update
+           the thread in place and do not re-open the Waiting bucket. See
            _kasperIsFinished / kasper_finished_at. */
     async function _kasperDismiss(pid) {
         const item = _kasperState.items.find(x => x.post.id === pid);
@@ -44382,11 +44382,11 @@
             // FINISHED on the card itself (kasper_finished_at) and PERSIST it —
             // the durable, cross-device hand-off marker that rides the upsert
             // echo + Supabase realtime to every device (like kasper_approved_at),
-            // so a refresh on ANY device keeps it in "Tweaks pending". The stamp
-            // is the latest message time = "I'd seen everything up to here", so a
-            // later reply re-surfaces it (see _kasperIsFinished). The local
-            // dismissed flag + seen stamp stay as a same-device fallback until the
-            // kasper_finished_at column is live (docs/features/KASPER_REVIEW_GLOBAL_ROLLOUT.md).
+            // so a refresh on ANY device keeps it in "Tweaks pending". A later
+            // reply updates the thread but does not re-surface it; only an explicit
+            // actionable Kasper Approval re-route does (see _kasperIsFinished).
+            // The local dismissed flag + seen stamp remain continuity fallbacks;
+            // the persisted column is deployed (KASPER_REVIEW_GLOBAL_ROLLOUT.md).
             // It does NOT leave the queue: it moves to "Tweaks pending" and stays
             // until the SMM addresses it or a fresh ask supersedes it. Not logged
             // as Approved — it's a hand-off.
@@ -44418,7 +44418,7 @@
         _kasperInvalidateInFlightLoad();
         // Durable, cross-device close marker (kasper_closed_at), persisted like
         // the finish stamp so the card stays hidden on every device; the local
-        // `closed` flag is the same-device fallback until the column is live.
+        // `closed` flag is a same-device continuity fallback; the column is live.
         item.post.kasper_closed_at = new Date().toISOString();
         if (!_kasperState.closed || typeof _kasperState.closed !== 'object') _kasperState.closed = {};
         _kasperState.closed[pid] = true;

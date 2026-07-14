@@ -46,7 +46,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | Path | What it is |
 |---|---|
 | `docs/CLIENT_LIFECYCLE_MAP.md` | The master client lifecycle map (traffic → booking → sales → onboarding → provisioning → samples → production). **MIRRORED**: a byte-identical copy lives in the `synchrosocial` repo at the same path — change both together, and do not move it into a subfolder (the path is part of the mirror contract). |
-| `docs/features/` | **Living feature specs** — one doc per shipped feature (samples, onboarding, sales intake, thumbnails, title review, Kasper review, SMM reports, credentials, filming plans, dark mode…). |
+| `docs/features/` | **Status-bearing feature contracts** — one doc per shipped feature. Each must state whether it is current deployed truth, a blocked future design, or non-operative history; completed SQL/workflow rollout recipes must not remain executable-looking. |
 | `docs/ops/` | Runbooks: new-client onboarding, Linear reconcile safety net, monitoring/rollback coverage map (`docs/ops/MONITORING.md`), pending cleanup checklists. |
 | `docs/independence/` | The active independence program: `docs/independence/INDEPENDENCE_PLAN.md` (strategy), Track A (Edge Functions) and Track B (Linear replacement) specs, dependency audits. |
 | `docs/testing/` | How to test — start at `docs/testing/README.md` (the map: suites, gates, the two safety contracts, and the four testing skills). Then: `docs/testing/CALENDAR-TEST-CATALOG.md` (what to check), `docs/testing/HEADLESS-TESTING-GUIDE.md` (how to run live probes), `docs/testing/PRODUCTION_POLISH_AUTOMATION.md` (the prod-polish gate), and the interaction-path generator. |

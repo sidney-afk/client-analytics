@@ -150,5 +150,44 @@ if (briefing && fs.existsSync(auditPath)) {
   }
 }
 
+// 7. Current feature contracts must not regress into completed rollout instructions.
+const reconciledFeatureDocs = [
+  'docs/features/YOUTUBE_TITLE_REVIEW_DESIGN.md',
+  'docs/features/KASPER_REVIEW_GLOBAL_ROLLOUT.md',
+  'docs/features/THUMBNAIL_CACHE_ROLLOUT.md',
+  'docs/features/SALES_INTAKE_DESIGN.md',
+];
+const staleFeatureMarkers = [
+  /PR\s+#652[^\n]*\bis open\b/i,
+  /Phase 0 backend[^\n]*\bPENDING\b/i,
+  /Part B[^\n]*\bnot started\b/i,
+  /^## Rollout steps\b/im,
+  /until the backend below is in place/i,
+  /open the \*\*`Build Row From Patch`\*\*/i,
+  /claude\/sales-intake-form-tab/i,
+  /https?:\/\/app\.notion\.com\/p\//i,
+];
+for (const rel of reconciledFeatureDocs) {
+  const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  ok(/Current status \(verified 2026-07-14\)/.test(text), `${rel} declares its reconciled current status`);
+  ok(!staleFeatureMarkers.some(pattern => pattern.test(text)), `${rel} has no executable stale-rollout marker`);
+}
+ok(!/later reply re-surfaces it/i.test(INDEX),
+  'Kasper source comments match explicit-reroute-only finished behavior');
+
+const reconciledMigrationRecords = [
+  'migrations/kasper-review-state-migration.sql',
+  'migrations/calendar-thumb-rev-migration.sql',
+  'migrations/title-review-migration.sql',
+  'migrations/sales-intake-migration.sql',
+];
+for (const rel of reconciledMigrationRecords) {
+  const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  ok(/CURRENT STATUS: deployed historical idempotent definition/.test(text),
+    `${rel} is labelled as deployed historical schema`);
+  ok(!/Run in the Supabase SQL editor|ROLLOUT ORDER \(important\)|There is no auto-runner — apply this manually/i.test(text),
+    `${rel} contains no current manual-rollout instruction`);
+}
+
 console.log(`\ntruth-sync: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

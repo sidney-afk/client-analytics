@@ -176,6 +176,12 @@ link, termination clause, referred-by) → `POST /webhook/sales-intake-submit`
 - Supports `preview_contract` (create + return signing URL, no email) and
   `send_existing_contract` (send a previously previewed contract).
 
+> **Current blocker (F106/F107):** “Kasper-gated” describes only the visible per-tab UI unlock.
+> The active webhook authenticates no caller. It also acknowledges both send branches before the
+> email result, trusts browser-round-tripped preview identifiers/link state, and has no durable
+> request idempotency key. Require an active individual Kasper/Admin principal plus a server-owned
+> receipt/state machine, or deactivate this route and use the manual process.
+
 > Doc drift note: `SALES_INTAKE_DESIGN.md` in `client-analytics` still says
 > the n8n workflow is pending — it is **live and active** since 2026-07-09
 > (§15.3).
@@ -256,6 +262,14 @@ form ──POST──▶ n8n /webhook/onboarding-submit        (normal)
                 n8n /webhook/onboarding-fallback → Data Table onboarding_fallback → 🛟 DM
 ```
 
+**Current acknowledgement boundary (F110):** the primary graphs respond after the intake-row
+insert/fail-soft alert, then start provisioning without waiting; credential import is a separate
+fail-soft branch. A duplicate row responds directly and runs neither. The form clears its draft/id
+and says Thank You on any 2xx, including capture-only fallback. Therefore this diagram shows
+attempted side effects, not a transaction: **captured ≠ provisioned** until a durable resumable job
+reads every step back as complete. The canonical staff handoff is the SyncView inbox/job, not the
+replaced Notion trigger (F111).
+
 A third, read-only funnel exists: **`legacy_onboarding`** — 21 old Notion
 form submissions imported into Supabase, credentials split into a
 service-role-only column. Staff read all three funnels via Edge Functions
@@ -268,6 +282,9 @@ credential-stripped; `onboarding-full` = Kasper-only, keyed, un-stripped).
 
 n8n **Client — Onboarding Provisioning** (called by both submit workflows
 with `funnel = standard | ai`):
+
+This dispatch is currently unawaited and has no durable job/step ledger, completion callback, or
+whole-run reconciliation. Each item below is an intended side effect, not a completion guarantee.
 
 1. **Google Drive**: create folder `{first}-{last}` inside the shared
    **Clients** folder (`17u2c8JMLkrKMRxAXczirMFitNv1wD-JA`).
@@ -291,9 +308,9 @@ automated today:
 | --- | --- | --- | --- |
 | 1 | HubSpot | contact + deal + lifecycle | ✅ auto (booking → gates → provisioning) |
 | 2 | Supabase `client_onboarding` / `ai_client_onboarding` | form submission | ✅ auto (form submit) |
-| 3 | Supabase `client_credentials` | login vault rows (`needs_review`) | ✅ auto (onboarding_import) |
-| 4 | Google Drive "Clients" folder | client folder | ✅ auto (provisioning) |
-| 5 | Slack `#name-creative` | internal creative channel + brief | ✅ auto (provisioning) |
+| 3 | Supabase `client_credentials` | login vault rows (`needs_review`) | ⚠️ fail-soft attempt; no joined receipt/resume (F110) |
+| 4 | Google Drive "Clients" folder | client folder | ⚠️ unawaited provisioning attempt; no completion receipt (F110) |
+| 5 | Slack `#name-creative` | internal creative channel + brief | ⚠️ unawaited provisioning attempt; no completion receipt (F110) |
 | 6 | Slack **client channel** | the channel the client is in (weekly reports, tweak pings) | ❌ manual — note the ID `C…` |
 | 7 | SYNCVIEW sheet → `Clients Info` | the **public, non-secret** row that puts the client live in SyncView (allowlist is sheet-driven): name, handles, competitors, keywords, `slack_channel_id`, `postforme_account_id` | ❌ manual |
 | 7a | Supabase `client_access` + authenticated link builder | service-role-only review token and the staff-authorized path that copies one exact client's link; **never put the token in Clients Info** (audit F33) | ❌ Track-B onboarding/distribution gap |
@@ -477,7 +494,8 @@ Onboarding Email · ★SyncView Onboarding — Submit · ★SyncView AI Onboardi
 Submit · ★SyncView Onboarding — Fallback Capture · ★Client — Onboarding
 Provisioning · SyncView Onboarding — List · SyncView AI Onboarding — List ·
 SyncView Onboarding — Legacy List (reads superseded by Edge Functions) ·
-★New Client → Slack DM (Notion Onboarding) *(legacy, still polling — §15.10)*.
+★New Client → Slack DM (Notion Onboarding) *(replaced legacy object: active-labelled, but current
+sanitized metadata reports no production trigger and no retained executions — F111/§15.10)*.
 
 **Production core:** ★VIDEO PRODUCTION AUTOMATION (6 webhooks: video-form,
 graphic-form, linear-projects, linear-issues, add-to-calendar,
@@ -566,7 +584,7 @@ state; Supabase holds ops state; Sheets hold the client roster + analytics
 | **Track A — n8n → Supabase Edge Functions** (interactive writes) | A1/A2/A4 merged, per-client canary flags; A3 skipped | §9 write paths; n8n calendar/sample writers become fallback-only |
 | **Track B — replace Linear** with in-app `batches`/`deliverables` | PLANNING, sign-off pending; schema live but empty; Production tab read-only behind `?prod=1` | §7 row 10, §9 (sync section dies), §11 Linear section, Workload source |
 | **Off Google Sheets** | calendar/samples/templates/filming-plans done; **client roster (`Clients Info`) + analytics still on Sheets** | §7 rows 7–9, §10 metrics, §11 Sheets section |
-| **Off Notion** | done (form replaced 2026-06; 21 legacy rows imported) | remove the legacy Notion trigger (§15.10) |
+| **Off Notion** | product path replaced; operator docs corrected in this audit | F60-safe archive of the active-labelled/no-production-trigger legacy object after zero-use proof (§15.10/F111) |
 | **Slack → ro.am** | decided "Slack now, ro.am later" | §6, §11 Slack section |
 | **Repo reorganization** | in progress in other sessions | file paths cited here |
 
@@ -608,8 +626,10 @@ table are all slated to become automated/Supabase-native.
 9. **Two Slack channels per client** (the client channel + the auto-created
    `#name-creative`) with no documented relationship — decide whether
    provisioning should create/link both.
-10. **Legacy Notion trigger still active**: "New Client → Slack DM (Notion
-    Onboarding)" polls a dead form every minute.
+10. **Legacy Notion trigger is misleadingly active-labelled** (F111): current sanitized metadata
+    reports no production trigger/manual-only execution, its description says setup is incomplete,
+    and retained execution metadata is empty. Do not describe it as polling or healthy; the old form
+    is replaced. Archive only after F60 backup/restore and identifier-free zero-use proof.
 11. **Samples: two live generations** (`content_samples` on by default,
     `sample_reviews` built but default-off). Flip or fold.
 12. **Event/investor bookings (`demo`, `1-1-call-with-kasper`) create no CRM

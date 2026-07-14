@@ -52,6 +52,18 @@ Onboarding + intake forms:
 password-bypassed `?intake=1` page sends no principal (F91). Current containment/auth is required
 before the later native reroute/retirement.
 
+`sales-intake-submit` is a separate active privileged paperwork route. Its live webhook also has
+no caller authentication (F106). Both send branches respond before the client-email result; the
+preview-send branch trusts browser-round-tripped row/contract/link state, and no durable request
+idempotency key exists (F107). Treat its response as neither authorization nor completion evidence.
+
+The standard and AI onboarding submit routes acknowledge after the intake-row insert (or direct
+duplicate classification), not after onboarding completes. Credential import is a separate
+fail-soft branch and provisioning is dispatched after the response without waiting; the duplicate
+path reaches neither. Until F110 closes, a 2xx/Thank You screen proves **captured**, not provisioned,
+and cannot be used as a new-client readiness receipt. The current operator handoff is the SyncView
+standard/AI inbox, not the replaced Notion intake (F111).
+
 Templates:
 - `webhook/templates-get`, `webhook/templates-save`
 

@@ -22,14 +22,16 @@
 | **Slack** | One channel per client (weekly reports + tweak pings post there). | ✅ Create channel |
 | **Sandcastles** | Content-intelligence watchlist — channel recaps, top hooks/topics/formats, outlier alerts. | ✅ Add the client **+ their competitors** |
 | **Post For Me** (`postforme.dev`) | A connected **TikTok account** per client (TikTok auto‑upload). | ⚪ Not urgent |
-| **Notion** | The intake **"Onboarding Form"** that kicks everything off. | ▶️ Entry point |
+| **SyncView onboarding** | Standard/AI intake rows and the staff onboarding inbox. A captured row is not yet proof of provisioning (F110). | ▶️ Current entry point |
+| **Notion** | Replaced historical intake; retained records only. Its legacy workflow is not an operational fallback (F111). | ❌ Do not wait on it |
 
 ---
 
 ## 1. Quick checklist (the whole thing)
 
 **Research / prep**
-- [ ] Intake form received (Notion → you get a Slack DM). → [§2](#2-intake)
+- [ ] SyncView standard/AI intake is visible in the protected onboarding inbox; record the durable
+      job/receipt when F110 ships. A Slack alert is a convenience, not the source of truth. → [§2](#2-intake)
 - [ ] Scrape 5–10 of their Instagram **reels** and write the **keywords** + **content_description**. → [§3](#3-research-keywords--content_description)
 
 **SYNCVIEW Google Sheet** (`10QQ…QqAU8`)
@@ -70,7 +72,17 @@
 
 ## 2. Intake
 
-A client submits the **Notion "Onboarding Form"** database. The n8n workflow **"New Client → Slack DM (Notion Onboarding)"** (`y1bEpXLggfR5HqYV`) watches it and DMs you on Slack the moment a row lands. That DM is your trigger to start this checklist. (Discovery‑call notes also live in Fathom if you record them.)
+The client submits the current SyncView **standard** or **AI** onboarding form. An authorized staff
+member opens the protected onboarding inbox and verifies the exact submission there; a fail-soft
+Slack alert may prompt that check but is not the receipt. Today, the intake-row 2xx/Thank You screen
+does not prove credential import or provisioning (F110), so do not advance this checklist until the
+required side effects have been read back manually. The target state is one protected, resumable
+`captured → processing → complete|failed` job with an independent unacknowledged-capture alarm.
+
+The old Notion form was replaced. Its active-labelled legacy workflow currently reports no
+production trigger, describes itself as pending setup, and has no retained execution metadata.
+Do not wait for or revive that DM path from this runbook; archive it only through F60's private
+backup/restore and identifier-free zero-use proof (F111).
 
 ---
 
@@ -315,7 +327,8 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 **Key n8n workflows**
 | Workflow | ID | Role |
 |---|---|---|
-| New Client → Slack DM (Notion Onboarding) | `y1bEpXLggfR5HqYV` | Intake alert |
+| SyncView standard/AI submit + onboarding inbox | resolve current objects from private operator config | Current intake capture; F110 durable completion receipt still required |
+| New Client → Slack DM (Notion Onboarding) | resolve only for F60 retirement evidence | Replaced legacy object; not an intake alert (F111) |
 | ONE‑SHOT — Scrape IG Reels | `G1RRkIDs6Mh7RGk8` | Onboarding reel scrape (keywords) |
 | CLIENTS METRICS | `Q4n1bagJYBkurEaI` | Daily metrics (reads Clients Info) |
 | TOP VIDEOS | `DyVPx0neUZ94R0hJ` | Daily top videos (reads handles) |

@@ -732,6 +732,13 @@ resolve scope server-side, audit immutable actor/role, bound requests, enforce i
 deployed anonymous/expired/cross-client negative tests without production writes. The later native
 reroute and B5 retirement do not excuse an unauthenticated transition epoch.
 
+**The non-Linear Sales Intake route is retained, not exempt (F106/F107).** Its active privileged
+workflow also authenticates no caller, returns success before email completes, trusts
+browser-round-tripped preview state, and has no durable replay key. Track B does not migrate this
+route, but go-live still depends on the agency lifecycle working safely. Bind an active individual
+Kasper/Admin principal before side effects and replace the response with a server-owned,
+idempotent receipt/state machine; otherwise deactivate it and use the manual process.
+
 The browser reroute is shipped only after those central gates. Production status/comment/due/
 assignee controls are enabled per deliverable team only when its last-known-good authority is
 `syncview`, except for the bounded active-TEST override. A Linear-authoritative team renders the
@@ -949,6 +956,14 @@ completed on 2026-07-10. Do not re-run that rollout or describe the flags as TES
   **before auth enforcement or either human flip**, after every caller/stale tab is accounted for.
   B5 may archive/delete only an already-contained zero-caller path; it is not the deadline for
   closing anonymous write access.
+- New-client onboarding is not a completed Track-B enrollment path (F69/F110). The active standard
+  and AI submit graphs acknowledge the intake-row insert, then dispatch provisioning without
+  waiting while credential import is fail-soft; duplicate-row success resumes neither branch.
+  Before any new client is called live, one server-owned job must durably read back every mapping,
+  token/revision, authority, authenticated routing/policy, credential, and legacy provisioning
+  receipt. Its protected status surface must distinguish captured/processing/complete/failed and
+  resume the same job across partial failure, lost response, duplicate click, and capture-only
+  replay. Operators start from that SyncView receipt/inbox—not the replaced Notion workflow (F111).
 
 **6.3 Actor is the audit-trail target** (D7): every accepted write must carry an immutable,
 server-resolved human/member identity, actual role, and server timestamp. This target is **not yet

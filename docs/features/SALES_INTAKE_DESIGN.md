@@ -1,18 +1,17 @@
 # Sales Intake Form — Design Spec
 
-Source: two calls between Sidney and Kasper on 2026-07-02 ("Client Onboarding and
-Contract Automation Workflow" + "Client Onboarding, Payment Links and Email Sequence
-Review"), plus Kasper's reference form and follow-up messages the same day. This doc
-is the implementation contract for the new **Sales Intake** tab.
+This is the design and deployed-state record for the **Sales Intake** surface, originally
+specified from owner calls and the former manual reference form on 2026-07-02.
 
-**Status:** PR [#652](https://github.com/sidney-afk/client-analytics/pull/652) is open
-for branch `claude/sales-intake-form-tab-k0jan2`. Implement on this branch — pushes
-update the PR; do not open a new one.
+> **Current status (verified 2026-07-14): the UI, schema, and active n8n workflow are deployed.**
+> PR #652 and its old branch are historical; do not implement or push there. The route is **not
+> go-live ready**: the active webhook authenticates no caller (F106), and its send branches return
+> success before email while trusting browser-round-tripped preview state with no durable replay key
+> (F107). Canonical evidence is `index.html`, `migrations/live-schema-baseline-2026-07-03.sql`,
+> current sanitized n8n workflow detail, and `test/sales-intake-form.js`.
 
-**Reference form:** Kasper's current manual version is a Notion form —
-<https://app.notion.com/p/283bcb82c4bf8155836dc41a204064aa>. The field list below
-mirrors it (his form uses plain text inputs for invoice amount / payment link /
-termination clause; ours makes those structured, per the call).
+The private reference-form URL is intentionally not retained in this public repository. The field
+contract below is self-contained.
 
 ## What it is
 
@@ -26,19 +25,17 @@ internal form. Submitting it kicks off the whole paperwork chain automatically:
 2. The client receives an **email with the agreement to sign and the invoice** — the
    Stripe payment link matching the billing option Kasper picked.
 
-Today this is all manual (Kasper closes → someone manually triggers a Stripe-link
-email). The form replaces the manual trigger. Kasper explicitly OK'd hosting this
-inside SyncView.
+Before this feature, the process was manual. The deployed form now starts the automation, subject
+to F106/F107's containment and truthful-completion gates.
 
 ## Placement & gating
 
-- New top-nav tab in `index.html`, **hidden by default and Kasper-gated**, exactly like
-  the existing Kasper tab: nav `<a>` ships with `style="display:none"` and is revealed
-  by the same session unlock (`?Kasper=1` → `KASPER_UNLOCK_KEY` sessionStorage flag).
-  Guard the `navTo` branch too, so the page can't be reached by hash alone.
+- Current placement is the **Sales Intake subtab inside the hidden Kasper page**, not a separate
+  top-level tab. `?Kasper=1` sets a per-tab UI unlock only; it is not caller authentication.
+  F106 requires an active individual Kasper/Admin principal before the subtab or webhook can perform
+  privileged work.
 - **Naming: do NOT call the page `intake`.** `?intake=1` / `body.intake-mode` already
-  mean the client Linear-submission link. Use `sales-intake` (page id
-  `'sales-intake'`, nav id `navSalesIntake`).
+  mean the client Linear-submission link. The deployed subtab key is `sales-intake`.
 
 ## Form fields
 
@@ -85,15 +82,14 @@ not auto-couple the clause to the billing type.
 - **One-time project fee** — custom amount, fixed set of deliverables, no renewal
   (e.g. the client Kasper closed the day of the call).
 
-### Stripe links (from Kasper, 2026-07-02)
+### Payment-link contract
 
-- **Every 4 weeks (monthly):** `https://buy.stripe.com/00waEW0TI6Sb2Y1cl0ao80g`
-- **Every 12 weeks (quarterly):** `https://buy.stripe.com/28E00i6e2ekD569dp4ao80q`
+- **Monthly:** the owner-approved four-week payment link.
+- **Quarterly:** the owner-approved twelve-week payment link.
 
-Both URLs return HTTP 200; the pages are client-rendered so product/amount could not
-be verified headlessly from the dev sandbox — **click both once before go-live** to
-sanity-check the product and amount. (The 4-week URL arrived with chat metadata glued
-on — "…ao80gEdited 1:11 PM" — the clean URL above is the real one.)
+The exact links live in current application/runtime configuration and are not duplicated in this
+public design record. Before a release, an authorized owner verifies product, amount, cadence, and
+destination through the provider—not merely an HTTP 200 response.
 
 (On call 2 Kasper floated separate ACH vs credit-card links plus a card-processing-fee
 product, but he has since dropped the idea — these two links are final. Monthly →
@@ -126,13 +122,14 @@ Sales Intake tab ─POST {action, submission}─▶ n8n `sales-intake-submit`
         ├─▶ Gmail sends ONE combined email to the client
         └─▶ Slack DM confirmation (mirror the onboarding-submit pattern)
 
-**Combined email — two ways to implement, pick whichever the eSignatures API
-supports more cleanly:** (a) customize the eSignatures signing-request email so its
-body also carries the Stripe payment link, or (b) suppress eSignatures' own email,
-take the signing-page URL from the create-contract response, and send a single email
-from n8n containing both links. Either way the client must receive exactly one
-email with both the agreement and the invoice link.
+**Deployed combined-email choice:** provider-owned email is suppressed; n8n sends one Gmail
+message containing the signing and payment links.
 ```
+
+> **F107 current failure contract:** the graph responds before Gmail in both send branches. The
+> browser therefore sees `ok` and clears its draft before delivery is known. The preview-send path
+> also trusts returned preview ID, contract ID, and signing URL without a server-side row/state
+> lookup. This ordering is documented here as a blocker, not endorsed behavior.
 
 - Autosave a draft to localStorage while typing; clear on successful submit; on webhook
   failure keep the draft and show retry (same behaviour as the onboarding form).
@@ -149,13 +146,12 @@ email with both the agreement and the invoice link.
 - Success state should show what was created (client, amount, which link was sent) so
   Kasper can eyeball it.
 
-### Supabase table
+### Supabase table — deployed
 
-New migration file (root, `migrations/sales-intake-migration.sql`), **manually applied in the
-Supabase SQL editor** like all others — there is no auto-runner. Model on
-`migrations/onboarding-supabase-migration.sql`: RLS enabled, **no anon policies at all** (this
-table holds billing data; service-role/n8n only — the tab itself doesn't need to read
-it back for v1).
+`sales_intakes` exists in the committed live-schema baseline with RLS enabled and no anon policy;
+the browser does not read it directly. `migrations/sales-intake-migration.sql` is historical source
+evidence, not a command to rerun. Future schema changes use the release manifest, TEST proof,
+fingerprint/readback, and rollback controls.
 
 Suggested columns: `id`, `created_at`, `closed_by`, `client_name`, `client_email`,
 `instagram`, `contract_start_date`, `deliverables`, `billing_type`
@@ -177,20 +173,19 @@ Action modes:
 - `send_existing_contract`: send the combined email using the previously returned
   preview signing URL and contract id.
 
-Workflow `sales-intake-submit` (webhook POST), built like `onboarding-submit`
-(webhook → build row → Supabase insert → Slack), plus two HTTP Request nodes:
+The active `sales-intake-submit` POST workflow contains the deployed ledger, agreement, Gmail,
+staff-notification, preview, and failure branches. Sanitized live graph review on 2026-07-14 found
+19 nodes. Do not rebuild it from this design description.
 
-- **eSignatures.com** — create contract from template. Secrets stay in n8n
-  (credential / env), never in `index.html`. Sidney has an eSignatures account invite
-  (Kasper sent it by email). Template ID + API token must be collected before this
-  node can be finished — build it with a placeholder credential if needed and flag it.
+- **eSignatures.com** — create contract from the managed n8n credential/template. Secret or
+  template values never belong in `index.html`, this repository, screenshots, or audit output.
 - **Combined email** — one email with the signing link + payment link (see the
-  submit-flow note). If sent from n8n, use whatever mailer the existing flows use
-  (see the `content-ready` workflow behind `crSend()` for the email-via-n8n model).
+  submit-flow note). The deployed graph uses Gmail after the webhook response; F107 requires a
+  durable completion receipt and retry state before this is operationally truthful.
 
-## eSignatures template work (separate task, same feature)
+## Agreement-template contract — deployed; verify privately
 
-In the eSignatures.com template ("Sales & Service Agreement"):
+The managed agreement template must preserve these rules:
 
 1. Confirm/create placeholder fields for: client name, contract start date,
    deliverables, invoice amount.
@@ -200,34 +195,33 @@ In the eSignatures.com template ("Sales & Service Agreement"):
 3. Termination clause placeholder: filled with the regular clause text or Kasper's
    custom text per the form.
 
-## Front-end integration points
+## Current front-end integration points
 
-Mapped 2026-07-02 (line numbers will drift — re-grep before editing):
+Use symbols, never dated line numbers:
 
-| Concern | Where |
+| Concern | Current source |
 |---|---|
-| Nav buttons (copy `navKasper`, incl. hidden-by-default) | `index.html` ~4177–4220 |
-| `navTo` router — active-class toggle + page branch | `index.html` ~11717, ~11741, ~11783–11839 |
-| Kasper unlock block (reveal hidden nav buttons) | `index.html` ~25047–25068 (`KASPER_UNLOCK_KEY` ~24840) |
-| `FAST_TABS` + refresh/deep-link restore | `index.html` ~24809, ~25285 |
-| Form field helpers to model on (`_obField`, `_obSerialize`, `_obValidate`, `_obSubmit`) | `index.html` ~11919 / ~12432 / ~12446 / ~12462 |
-| Webhook-URL constant pattern | `index.html` ~11848 (`ONBOARDING_SUBMIT_URL`) |
-| Email-via-n8n model (`crSend` → `content-ready`) | `index.html` ~10519 / ~8289 |
-| Read-back inbox pattern, if a submissions log view is wanted later | `renderOnboardingInbox` ~7464 |
+| Subtab registration and routing | `KASPER_SUBTABS`, `_kasperGotoTab`, `_kasperRenderTab` |
+| UI unlock (visibility only) | `KASPER_UNLOCK_KEY`, `_kasperUnlocked` |
+| Form render/validation/draft | `renderSalesIntakeView`, `_siValidate`, `_siBuildSubmission`, `SI_DRAFT_KEY` |
+| Preview and final submit | `_siGenerateAgreementPreview`, `_siSubmit`, `_siShowDone` |
+| Request helper | `_obPost`, `SALES_INTAKE_SUBMIT_URL` |
+| Authorization gap | staff capability checks cover Credentials/Onboarding, not Sales Intake (F106) |
 
-Note the onboarding form is a standalone public page; this tab is the opposite — an
-authenticated, Kasper-gated in-app tab. Model the *form mechanics* on onboarding and
-the *tab registration/gating* on the Kasper tab.
+The onboarding form is public and is only a form-mechanics reference. Sales Intake must become an
+individually authenticated privileged staff surface; a hidden subtab/query flag is not that gate.
 
-## Prerequisites checklist
+## Deployed dependencies and open safety gates
 
 - [x] Stripe payment links — 4-week and 12-week links received (see above).
 - [x] Standard termination clause text — received verbatim (see above); still to be
       published on synchrosocial.com.
-- [ ] eSignatures.com API token + Sales & Service Agreement template ID — Sidney will
-      paste these into the implementation session; put the token in an n8n
-      credential, never in `index.html` or the repo.
+- [x] Agreement provider credential + template are configured through managed n8n state. Never
+      copy their values into an implementation session, browser source, repository, or audit output.
 - [x] Email shape confirmed: **one combined email** (agreement + payment link together).
+- [ ] F106: active individual caller authorization, role decision, bounds/audit/idempotency, and
+      deployed negative proof.
+- [ ] F107: server-owned receipt/state, truthful completion UX, and partial-failure/retry proof.
 
 ## Out of scope for this feature (tracked from the same calls)
 

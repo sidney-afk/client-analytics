@@ -11,6 +11,13 @@
 > caller text to alerts. It lacks nonce/session ownership, rate/CAPTCHA, strict size/schema/kind
 > controls, conditional updates, and immutable creation time. Add those controls and TEST
 > spam/replay/oversize/foreign-ID/alert failure before relying on the never-lose chain.
+>
+> **COMPLETION/HANDOFF BLOCKER (F110/F111).** The live standard/AI submit graphs acknowledge an
+> intake-row insert—not completed onboarding. Credential import is fail-soft, provisioning starts
+> after the response without waiting, and a duplicate row resumes neither branch. The browser then
+> clears its draft/id and shows Thank You. Treat 2xx as **captured only** until one durable resumable
+> job proves every step complete. Staff use the SyncView onboarding inbox/job as the current entry;
+> the old Notion intake is replaced and is not an operational fallback.
 
 A standalone, private-link onboarding page built into `index.html`. It replaces the
 two old intake systems (the **Notion** "Onboarding Form" for normal clients and the
@@ -294,17 +301,17 @@ Both webhooks take the identical body shape:
 }
 ```
 
-Expected response: `200` with any JSON (the form only checks `res.ok`). On a non-200 the
-form keeps the draft and shows a retry message, so a flaky webhook never loses answers.
+Current response: `200` with JSON; the browser checks only `res.ok`. On a non-200 it retains the
+draft and offers retry/fallback. On any 2xx—including capture-only fallback acceptance—it clears
+the draft and stable submission id and renders Thank You.
 
-Each webhook: (1) inserts the row into its table (PK `id`, via the service-role Supabase
-credential `XdBpJ6Xk8PMpZXXT`) — **the insert gates the 200**, so a missing table 500s and
-the browser keeps the draft rather than silently losing it — and (2) DMs Sidney on Slack
-(`U0ACW93FS30`, as **SyncView Bot**) with a readable summary. The Slack step is fail-soft
-(`onError: continueRegularOutput`): if the DM fails the submission is still saved and the
-form still gets its 200. The AI table also carries a `funnel` column (always `ai`).
-(A second auto-message after the onboarding *call* — from the Fathom transcript — is a
-later step, not part of this form.)
+The active graphs make that acknowledgement narrower than the UI implies. Each primary workflow
+inserts the intake row, passes through a fail-soft staff notification, responds, and only then
+dispatches provisioning without waiting. Credential import is a separate fail-soft branch from the
+insert, outside the response dependency. A same-id insert conflict goes straight to duplicate 200
+and reaches neither credential import nor provisioning. Therefore 2xx proves **captured**, not
+provisioned; retry safety currently applies to the intake row only (F110). A second auto-message
+after the onboarding *call* is a separate later workflow.
 
 ## Status
 
@@ -315,9 +322,8 @@ later step, not part of this form.)
   - **AI** (`?onboarding=ai`): 7 sections, **no** Sample video, **AI avatar** shown gate-less &
     renumbered to step 7, positional recolour, no JS errors, same branding.
 - ✅ `migrations/onboarding-supabase-migration.sql` — standard table `client_onboarding`.
-- ✅ `migrations/ai-onboarding-supabase-migration.sql` — AI table `ai_client_onboarding` (mirrors the
-  standard table + a `funnel` column). **Run it once** in the Supabase SQL editor
-  (project `uzltbbrjidmjwwfakwve`).
+- ✅ `migrations/ai-onboarding-supabase-migration.sql` — historical idempotent definition for the
+  deployed AI table; do not use this status doc as permission to change live schema.
 - ✅ n8n `onboarding-submit` webhook — workflow `ljNY7CKYLKzMOACZ`, `POST /webhook/onboarding-submit`
   → `client_onboarding`. (Active.)
 - ✅ n8n `ai-onboarding-submit` webhook — **created + activated** (workflow id `hxLFIdKG9hUIzukO`,
@@ -337,27 +343,16 @@ later step, not part of this form.)
   **every editor/designer field** incl. the video/thumbnail/music references + described looks,
   subtitle-highlight, creators-to-model notes, the questions box, and (AI) the extra voice samples.
   Verified end-to-end against the live backend with real test submissions.
-- ✅ **Live end-to-end** — AI migration run; real submissions to both funnels were captured in
-  Supabase, read back through both list webhooks (credentials stripped), and rendered in the
-  dashboard. The whole pipeline is operational.
+- ✅ **Capture/read path live** — submissions have been captured and rendered through the dashboard.
+  This is not completion evidence for credential import or provisioning: those steps currently lack
+  the durable joined receipt required by F110.
 
-### Finish steps for the AI funnel — ✅ DONE
+### Deployment record — no operator actions
 
-1. ✅ **AI SQL run.** `migrations/ai-onboarding-supabase-migration.sql` has been run in Supabase
-   (project `uzltbbrjidmjwwfakwve`); `ai_client_onboarding` exists and is taking writes.
-   *(Kept in the repo for the record / re-create / rollback.)*
-2. *(Optional)* **Confirm the Slack sender.** Workflow `hxLFIdKG9hUIzukO` → **Notify Sidney** is
-   wired to **"SyncView Bot"** (`qUlAcjdhd6EpKOTL`). If the standard notifier uses a different
-   Slack credential and you want them identical, switch it there. The DM is fail-soft, so this
-   never blocks a submission.
-
-The whole pipeline is live. (Safety net unchanged: the Supabase insert gates the 200, so if a
-table were ever missing the webhook 500s and the browser keeps the draft — a submission is never
-silently dropped.)
-
-> **Note on the standard funnel's earlier finish steps:** if `client_onboarding` and workflow
-> `ljNY7CKYLKzMOACZ` were already set up in the prior round, nothing more is needed there. If not,
-> run `migrations/onboarding-supabase-migration.sql` and activate `ljNY7CKYLKzMOACZ` as before.
+The standard/AI capture schema and workflows are deployed. Their migration files remain historical,
+idempotent definitions—not paste-ready rollout instructions. Any live schema/workflow change follows
+the normal reviewed release and B4 fingerprint/readback process. A saved intake row remains protected
+against loss, but the product must say **captured** until F110 proves provisioning complete.
 
 ### Second auto-message (later)
 The June 25 call also wanted a *second* Slack post after the onboarding **call** (built from the

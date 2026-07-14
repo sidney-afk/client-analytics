@@ -94,6 +94,21 @@ Phase 0.5 below, after the fix-pack.
       audit, request limits, idempotency, and deployed anonymous/expired/cross-client negative tests
       are green. Owner explicitly answers whether `?intake=1` remains shareable and under what
       mint/expiry/revocation contract.
+- [ ] **P0 Sales Intake caller authorization is contained** (F106): the owner ratifies Kasper-only,
+      Admin-only, or both; an individually revocable active-member session binds the server-derived
+      actor/role before any ledger, agreement, email, or notification side effect; exact action/scope,
+      bounds, immutable audit, idempotency, and deployed no-key/expired/wrong-role/replay denials pass.
+      Deactivate and use the manual process if this cannot be proved before go-live.
+- [ ] **Sales Intake completion and replay are truthful** (F107): one server-minted receipt owns the
+      preview and request state; the server reads/CASes that state rather than trusting returned row,
+      contract, or link values; duplicate/lost-response retries resume instead of recreating work;
+      and the UI shows accepted/processing until required email/audit completion is durable. TEST
+      provider failure, email failure, stale/wrong preview, partial commit, duplicate click, and retry.
+- [ ] **Approved YouTube title text remains the text actually approved** (F109): owner ratifies
+      material-edit semantics; an SMM or Collaborative client edit atomically invalidates/re-enters
+      review and/or records an immutable server-generated old/new event tied to actor and row
+      revision, with approval age visible. Test no-op/whitespace edits, both roles, concurrency,
+      offline retry, undo, timestamp behavior, and second device.
 - [ ] **Unknown client links fail closed before loading data** (F102): `?c=` alone grants no bypass;
       an allowed client and current token are resolved before data/cache/route entry. Unknown,
       malformed, unsupported-view, invalid-token, and every `c`+hash/`prod` combination show only
@@ -189,6 +204,15 @@ Phase 0.5 below, after the fix-pack.
       mint/revision/revocation, and every required Track-A routing/policy enrollment—or static
       allowlists are replaced. A fake TEST client proves first authenticated writes and teardown
       immediately denies its token with no fallback.
+- [ ] **Onboarding acknowledgement is truthful and resumable** (F110): persist a server-owned job
+      before returning success; distinguish `captured`, `processing`, `complete`, and `failed` in
+      the client/staff UX. Duplicate clicks, lost responses, capture-only replay, and a failure at
+      every credential/provisioning/enrollment step resume the same job to verified completion;
+      they never take a duplicate-success shortcut or clear the only recovery handle.
+- [ ] **Operators start from the current intake** (F111): the SyncView standard/AI inbox plus its
+      durable job/alert is the sole documented handoff. Do not wait for the replaced Notion form or
+      its active-labelled but non-production-triggered legacy workflow; archive that object only
+      through F60's restore-proof process after identifier-free zero-use evidence.
 - [ ] **Native concurrency is fail-safe** (F36): every Calendar/Samples/Production mutation sends
       an expected canonical version; stale requests create neither state nor outbox intent, return
       409 with the current row, and the browser offers compare/reapply instead of silent overwrite.

@@ -1138,6 +1138,15 @@ picker (DB uniqueness). Plus a **"create missing deliverable" affordance**: a ca
 deliverable (e.g. the graphic slot of a half-linked B3-era sample) offers "create thumbnail
 deliverable in batch …" post-flip. No four-button period.
 
+**Implementation correction (F112, 2026-07-14): this card projection is not shipped.** The
+deployed app, current `main`, and the latest inspected #813 candidate still pass only the legacy
+Linear URL into both Calendar and Samples slot renderers. Native linkage IDs are transported and
+#813 uses them for write routing/materialization, but neither surface dereferences a deliverable,
+renders D-20's **View sub-issue** route, or resolves the current assignee. Treat this paragraph as
+a target contract: both card surfaces must pass mixed-authority, reassignment, missing/inactive
+linkage, mobile/new-tab/back, second-device, and Linear-unavailable proof before the first creative
+team flip.
+
 **9.3 Back-link + origin label** (unchanged): "open source card" + **"Sample"** /
 **"Off-calendar"** tags.
 
@@ -1150,6 +1159,15 @@ ledger event (`title_change`) — there is no second-hop propagation write to te
 the stale-tab / bulk-import-replay revert (the `name`∉`_CAL_ROLLBACK_FIELDS` caveat). During B3
 the mirror stores Linear titles verbatim; name-sync activates per team at B4; legacy mismatches
 get a badge + one-time report, no mass rename (D-13).
+
+**Approval-revision correction (F109/F113, 2026-07-14):** current title, media, and caption
+approvals are status/timestamp-only, not bound to the content the client saw. Calendar/Samples
+generic editors and Edge writers can change approved content while preserving the old sign-off;
+the client queue then remains empty. This target therefore requires one server-owned material
+revision per reviewed component, approval of an exact revision, atomic invalidation or explicit
+stale-sign-off state on every material/same-link provider revision, and immutable actor/revision
+events. Approval-versus-edit races, no-ops, offline retries, queue re-entry, and second-device
+convergence are first-flip gates.
 
 **9.5 Comments/notes — normalized single-writer design (Part 1 #809 + Part 2).**
 `production_comments` is the durable issue-thread store for native and Linear-origin comments,
@@ -1177,6 +1195,11 @@ audience, idempotency, retry, realtime, and refresh matrix.
 
 **9.6 Assignment & due date:** single-row writes; the calendar card shows the editor chip via
 `*_deliverable_id → deliverables → team_members`.
+
+**Current implementation correction (F112):** no Calendar or Samples card-side
+`deliverables → team_members` read exists today, including in the latest inspected #813 candidate.
+The editor chip and explicit unassigned/inactive/degraded states remain a first-flip gate, not
+completed behavior.
 
 **Due-clock correction (F99, 2026-07-14):** the shipped picker is not yet a real-clock contract.
 It freezes browser-local midnight at script load, while overdue uses a fresh UTC date. Ratify one

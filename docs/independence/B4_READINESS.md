@@ -131,6 +131,8 @@ same tab. This is acceptable only during the explicitly permissive epoch and blo
 | Sales Intake durable completion (F107) | ❌ OPEN / VERIFIED LIVE GRAPH | Both send branches return success before Gmail, then discard the browser draft; preview-send trusts browser-round-tripped row/contract/link values and no request idempotency key exists. Add a server-owned receipt/state machine, truthful pending/completion UX, and TEST partial-failure/retry proof. |
 | Feature-contract rollout truth (F108) | ✅ DONE IN THIS PR | Four active feature docs and their deployed migration records now describe current/historical state instead of pending SQL/n8n/branch work; stale Kasper source comments are corrected, private/obsolete resume references are removed, and truth-sync rejects the known executable stale-rollout markers. |
 | YouTube title approval integrity (F109) | ❌ OPEN / VERIFIED SOURCE | Generic SMM/Collaborative-client `name` edits can change an Approved title without clearing its approval stamp/status or writing an old/new event. Ratify material-edit semantics, enforce atomically server-side, expose approval age, and prove both-role/concurrent/offline/second-device cases. |
+| Media/caption approval revision binding (F113) | ❌ OPEN / VERIFIED SOURCE + CURRENT #813 | Calendar/Samples remove Approved components from client review, but later staff media/caption edits preserve the old status/stamp; Calendar Collaborative clients can also edit approved caption text. Bind approval to a server-owned material revision/hash, invalidate or visibly age it atomically on change, and prove same-link replacement plus approval/edit races before relying on sign-off. |
+| Native card navigation/ownership (F112) | ❌ OPEN / VERIFIED LIVE SOURCE + CURRENT #813 | Calendar/Samples still render Linear URL buttons and never join their native deliverable IDs to `deliverables → team_members`; the promised `View sub-issue` link/editor chip has no test. Build an authority-aware per-component projection and pass mixed-team/reassignment/missing-link/mobile/second-device/Linear-unavailable proof before either flip or B5. |
 | TEST versus real-client soak signal (F90) | ❌ OPEN / CONCURRENT NUMBER COLLISION RESOLVED | TEST drill diffs feed the real soak/pager criteria. Split source aggregates, retain a TEST diagnostic, prove mixed/TEST-only/real-only behavior, and keep private TEST identity out of public evidence. |
 | Living-truth/operator coverage guard (F93) | ✅ DONE IN THIS PR | Freshness date + resolvable ancestor commit + 30-day maximum, briefing/register maximum, open-P0/P1 operative-doc presence, composed Edge routes, and literal/composed counts are machine-checked. These checks prevent silent omission; structured control meaning and live semantic verification remain human-owned. |
 | Auth-enforcement forward transition (F97) | ❌ OPEN / CANONICAL STEP ADDED | GO_LIVE Phase 0.75 now binds F5 to exact current-token evidence, stale-verdict/session purge, readback, and negative proof before any real cohort. Underlying Phase-0 findings and the owner enforcement drill remain open. |
@@ -150,8 +152,9 @@ and its own 8-status review vocabulary (D-2), joined by `video_deliverable_id` /
 `graphic_deliverable_id` ↔ `card_id`. A card's video slot and graphic slot each point at their
  own deliverable — same reason a card has two Linear links today. Realtime keeps Production and
  Workload readers current from the deliverable row, but **it does not presently project a changed
- deliverable status into the card's separate review-status field (F50)**. Assignee/due display also
- has to be verified surface by surface. The rows are linked, not interchangeable; the review and
+ deliverable status into the card's separate review-status field (F50)**. **F112 confirms that
+ neither card surface currently dereferences the native ID for the promised assignee chip or
+ D-20 Production deep-link.** The rows are linked, not interchangeable; the review and
  production surfaces keep different vocabularies and lifecycles. A team flip is blocked until the
  projection contract is implemented or every affected reader uses canonical deliverable state.
 

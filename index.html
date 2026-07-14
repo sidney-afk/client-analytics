@@ -27843,11 +27843,10 @@
                 if (!_calHasMedia(p)) return false;
                 return _calComponentsFor(p).some(c => _calReviewComponentActive(p, c, 'smm'));
             }
-            // Clients see cards waiting on their approval AND cards
-            // where they've already left tweaks (so they can add more
-            // tweaks or change their mind before the editor turns it
-            // around). The card only drops off the queue once that
-            // component reaches Approved.
+            // A real tokened client sees only components exactly at Client
+            // Approval. Tweaks Needed is retained only by the internal
+            // non-client preview in _calReviewComponentActive; the real client
+            // queue drops it until the revised work returns for approval.
             if (_isClientLink) {
                 return _calComponentsFor(p).some(c => _calReviewComponentActive(p, c, 'client'));
             }
@@ -27957,12 +27956,9 @@
 
     function _calReviewCardBody(p) {
         const escId = _calEscAttr(p.id);
-        // Client sees panels for components waiting on her approval AND
-        // for components where she's already left tweaks — that second
-        // case keeps the compose box around so she can pile on follow-up
-        // tweaks instead of being locked out after the first submit. The
-        // card only auto-removes once every component has reached
-        // Approved (handled by _calReviewItems on the next render).
+        // A real tokened client gets panels only for components exactly at
+        // Client Approval. The internal non-client preview may also retain
+        // Tweaks Needed, as defined by _calReviewComponentActive.
         const _reviewMode = _calReviewMode();
         const activeComps = (_reviewMode === 'smm')
             ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'smm'))

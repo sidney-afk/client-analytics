@@ -109,6 +109,13 @@ Phase 0.5 below, after the fix-pack.
       review and/or records an immutable server-generated old/new event tied to actor and row
       revision, with approval age visible. Test no-op/whitespace edits, both roles, concurrency,
       offline retry, undo, timestamp behavior, and second device.
+- [ ] **Every media/caption approval is bound to the exact reviewed revision** (F113): Calendar and
+      Samples record a server-owned per-component revision/hash at approval. Any material URL/text
+      edit or same-link provider revision atomically invalidates/reopens review (or visibly ages the
+      sign-off under an owner-ratified policy), emits an immutable actor/revision event, and returns
+      the component to the right queue. Pass both surfaces, all reviewed components, exact role
+      permissions, no-op normalization, concurrent approval/edit, offline retry/undo, refresh, and
+      second-device tests before treating a green approval as release evidence.
 - [ ] **Unknown client links fail closed before loading data** (F102): `?c=` alone grants no bypass;
       an allowed client and current token are resolved before data/cache/route entry. Unknown,
       malformed, unsupported-view, invalid-token, and every `c`+hash/`prod` combination show only
@@ -186,6 +193,12 @@ Phase 0.5 below, after the fix-pack.
       the dropdown or clear a draft.
 - [ ] **Card resolvability sweep = 0 failures**: every active Linear-linked calendar slot
       resolves to exactly one mirror row; the ~60 missing rows backfilled (F11).
+- [ ] **Cards expose native ownership and navigation** (F112): for each flipped component on both
+      Calendar and Samples, the card joins its native deliverable to the current active assignee
+      (or an explicit unassigned/inactive/degraded state) and **View sub-issue** opens the stable
+      Production detail in a new tab. No flipped-team card opens/edits Linear. Mixed authority,
+      reassignment, stale/missing linkage, mobile, return refresh, second device, and Linear-down
+      cases pass; the candidate suite asserts the card surfaces themselves, not only Production.
 - [ ] **Client-token distribution rebuilt safely** (F03/F33): the public Clients Info sheet
       contains **no** review-token column; a staff-authenticated exact-client endpoint powers all
       four copy-link builders; then every SMM re-shares their clients' links. D-31's sheet

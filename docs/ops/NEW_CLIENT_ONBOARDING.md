@@ -115,7 +115,7 @@ This is the part that's easy to forget the *method* for. You're producing three 
 | `slack_channel_id` | `C…` channel ID for their Slack | Fill after you create the channel ([§6c](#6c-slack-channel)). Weekly report posts here. |
 | `postforme_account_id` | Post For Me account id (`spc_…`) | **Usually blank** — only the TikTok‑auto‑upload clients use it ([§6d](#6d-post-for-me-account-not-urgent)). |
 
-**Also read by the app** (add if you have them; they live in this same tab to the right): `slack_team_id` (Slack workspace id, for deep‑links) and `client_review_token` (guards the client's `?c=…` share link — if blank the app still works but the share link is unguarded).
+**Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` (Slack workspace id, for deep-links). **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
 
 > 💡 The `instagram_handle` is **not** the slug. The slug comes from `client_name` (see below). E.g. a client's IG handle can differ from their name — e.g. display name `Jane Doe`, IG `@jane.doe.living`, slug `janedoe`.
 
@@ -255,7 +255,7 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 3. **Filming plan links are not just a URL.** The linked master Doc should live inside that client's folder in the shared **Client Filming Plans** Drive. If a correct-looking Doc lives elsewhere, move it into the client folder before treating the link as healthy.
 4. **Stale doc:** root `README.md` describes an old Instaloader pipeline that no longer exists — don't follow it. (The old `index.html` "provision the tab" comment was corrected in this PR.)
 5. **Duplicate Linear projects** are common (several clients already have 2–3). Search before creating; reuse the canonical one.
-6. **Secrets stay out of git:** Linear API keys, `client_review_token`s, Supabase service-role — they live in the Google Sheet / n8n only. This public repo must never contain them.
+6. **Secrets stay out of git and public Sheets:** Linear API keys, `client_review_token`s, and the Supabase service role belong only in their protected server-side stores. In particular, review tokens live in service-role-only `client_access`, never Clients Info, `clientMap`, or n8n payload logs.
 
 ---
 

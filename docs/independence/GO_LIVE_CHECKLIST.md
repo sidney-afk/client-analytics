@@ -51,15 +51,22 @@ Phase 0.5 below, after the fix-pack.
       batch-picker team-filter + duplicate disambiguation (F19), +2d overdue bump ported per
       D-30 (F20), sync-drain lane for flipped teams (F07), oldest-pending-age pager (F16),
       monitors made flip-tolerant (F08).
-- [ ] **production-write EF in the CI deploy workflow** and redeployed from the exact #813
-      merge commit at merge time, then TEST drill green (F06).
+- [ ] **Production-write TEST contract resolved** (F06): owner/implementation chooses the
+      service-only spec contract or a newly justified browser-safe alternative; SPA, gateway, and
+      one cross-boundary test agree. A complete dependency-aware EF manifest then deploys the exact
+      merge SHA, download-fingerprint/readback matches, and positive/negative TEST drills are green.
 - [ ] **Intake migration applied** (`production_intake_append` RPC) and pilot-verified on the
       TEST client.
 - [ ] **Card resolvability sweep = 0 failures**: every active Linear-linked calendar slot
       resolves to exactly one mirror row; the ~60 missing rows backfilled (F11).
-- [ ] **Client tokens wired** (F03/D-31): sheet column populated from the already-minted
-      tokens; ALL copy-link builders append `&t=`; then every SMM re-shares their clients'
-      links from the calendar "share link with client" button.
+- [ ] **Client-token distribution rebuilt safely** (F03/F33): the public Clients Info sheet
+      contains **no** review-token column; a staff-authenticated exact-client endpoint powers all
+      four copy-link builders; then every SMM re-shares their clients' links. D-31's sheet
+      mechanism is blocked pending the explicit owner decision in F33.
+- [ ] **Track-A writers actually enforce auth** (F35): all six Calendar/Samples/settings write
+      functions authenticate and authorize the exact client/operation, derive actor server-side,
+      and emit real write-attempt telemetry; anonymous negative probes are green and the 72-hour
+      zero-unkeyed-write gate is measured from those attempts, not sign-in events.
 - [ ] **Submit graphics path drilled live** against the deployed EF, including real
       GRAPHIC_TITLE_* generation (F12).
 - [ ] **Non-n8n inbound-divergence pager live + pager last-mile proven** with a synthetic DM

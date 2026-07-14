@@ -316,6 +316,10 @@ n8n in the metric read path.*
   without compatible-role or usable-Linear-mapping enforcement before the native commit (F94).
   Production work data also has no realtime/bounded foreground refresh or ordinary manual refresh;
   only authority polls, so an all-day foreground creative tab can remain stale indefinitely (F95).
+  Its due picker also freezes a browser-local “today” at script load while overdue compares a fresh
+  UTC day; no Production timezone contract reconciles them (F99). Mouse due choices/cells also
+  discard the selected year, while keyboard Enter preserves it, and stored `MM/DD` cannot seed the
+  correct picker month/selection (F100).
   These are pre-flip build/authorization gates, not polish.
 - **State.** `syncview_prod_display_v1` (groupBy/orderBy/showSubIssues), shared `syncview_nav` /
   `syncview_auth_v1`. Deep-link params: `group`, `order`, `subs`, `team`, `view`, `issues`,
@@ -749,6 +753,10 @@ Calendar/Samples/Submit reroutes remain unmerged and lack the required cohort ga
 the full active roster (Track A closed 2026-07-10). Mirror at full parity (~4.3k deliverables /
 ~1.0k batches; diff / repair / linkage all 0, 2026-07-11).
 
+**F97:** permissive is the current pre-enforcement state, not a phase that may survive into real
+parity. GO_LIVE Phase 0.75 now connects the owner F5 CAS to exact current-token evidence,
+stale-verdict/session invalidation, readback, and fail-closed TEST proof before any real cohort.
+
 - **B4 (in progress; owner gates remain).** The additive outbox, write wrappers, outbound drainer,
   strict echo suppression, TEST-only harness, two-way reconciler lane, and pager coverage are staged
   behind `linear_outbound_enabled=off`; real authority remains Linear. D-25's full-roster exercise
@@ -759,6 +767,10 @@ the full active roster (Track A closed 2026-07-10). Mirror at full parity (~4.3k
   machine-read zero. The #812 Linear-mirror caller is live on Pages but stays read-only under current authority; card
   predicates, Workload, and intake remain on their current paths until their separate
   owner-approved handoff.
+  **F98 forward-order correction:** for the first handoff, F2 normal outbound must be live/read back
+  with a fresh healthy heartbeat, zero normal writes, and exact both-team normal-lane zero before
+  Graphics F1 opens native authority. Parity writes are classified separately; authority-paused
+  residue is not released. The former F1→F2 order exposed a native-committed/Linear-stale window.
 - **Part 2 gateway backend + #812 Production caller (live, authority-locked):** `production-write` is the single
   browser write boundary. It authenticates staff role keys or client tokens with secret-decides semantics,
   resolves an authorized claimed roster/client principal, enforces per-team authority + CAS/idempotency, and writes

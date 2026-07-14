@@ -37,6 +37,19 @@ limit 20;
 
 ---
 
+## First Graphics handoff order — F2 before F1 (F98)
+
+For the first human handoff only, execute F2 `live` while authority still reads exactly
+`{"video":"linear","graphics":"linear"}`. Before and after F2, require exact zero real, non-parity
+normal rows for both teams in `pending|failed|shadow_ok`; owner-classify/resolve residue and restart
+the proof. Read F2 back and require a fresh healthy drainer/credential/pager heartbeat with zero
+normal-lane writes; any writes must exactly equal expected, acknowledged `legacy_parity_written`.
+Only then execute Graphics F1 and read back both rows. This intermediate state is fail-safe because
+native normal writes remain authority-blocked, but paused nonzero can starve the global batch or be
+released by F1 and is not green. **Never run Graphics F1 first:** if the later F2 action or session
+fails, native commits can succeed while Linear remains stale. Video never reruns F2 and requires a
+fresh Video normal-lane zero before its F1.
+
 ## F1 — Team authority (who is the boss for a team)
 
 Row: `prod_authority`. Valid sides: `"linear"` or `"syncview"` per team. NEVER any other word.
@@ -44,6 +57,8 @@ Some backends still accept legacy `"supabase"` while the browser rejects it (F55
 alias must be removed before any drill. Never use it as a compatibility shortcut.
 The first human authority flip is Graphics only. Do not run either forward statement while the
 block banner is present; Video's statement is a later, separately approved gate after Graphics.
+For Graphics, the readback and healthy-heartbeat prerequisites in “First Graphics handoff order”
+must already be current. A standalone valid F1 paste is not authorization.
 
 **Run exactly one fenced action below, then run the read-back at the top. Never paste two actions
 together.** Each block validates the exact two-key expected state, changes only the named team, and
@@ -169,6 +184,9 @@ end $$;
 
 Forward to live (expected current state: off or shadow; blocked by the banner):
 
+For the first Graphics handoff, this is deliberately executed and proved **before** F1 while both
+teams remain Linear-authoritative. Do not continue to F1 if the CAS, readback, or heartbeat fails.
+
 ```sql
 do $$ declare n integer; begin
   update public.syncview_runtime_flags
@@ -248,6 +266,11 @@ anything else (including `enforcing`) silently behaves as permissive.
 The forward `enforced` change is separately blocked by the auth findings in the audit register;
 do not run it merely because the syntax below is correct.
 
+**Canonical place:** GO_LIVE Phase 0.75, after the TEST-only dark merge and before Phase 1 enrolls
+any real client (F97). The same unexpired preflight must prove every Phase-0 auth/read/write gate,
+an exact active-client/current-token-revision roster, the fixed fail-closed verifier, and stale
+verdict/session invalidation. A correct paste without those handles is not authorization.
+
 > **There is intentionally no global `enforced` → `permissive` paste block (F70).** Permissive is
 > not a harmless UI rollback: it reopens invalid/stale staff and client access. During an auth
 > incident, stop affected protected mutations/reads, preserve enforcement, and revert/fix the
@@ -267,6 +290,11 @@ do $$ declare n integer; begin
   if n <> 1 then raise exception 'auth enforcement refused: expected permissive'; end if;
 end $$;
 ```
+
+Immediately read back this row and require exactly `{"mode":"enforced"}`. Record the readback,
+`flag_flips` event, cache/session epoch, and preflight handle in `EXECUTION_LOG.md` and ROLLBACK Live
+State. Then pass the Phase-0.75 missing/invalid/expired/rotated/inactive/verifier-failure TEST matrix.
+Do not enroll a real cohort on any other value or after proof expiry.
 
 ## F6 — Reroute allowlist (which clients' buttons use the new pipes)
 

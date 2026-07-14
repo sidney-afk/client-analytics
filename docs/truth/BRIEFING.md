@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-14 @ e3961b6 (second-pass current-state reconciliation through F96)
+> Last verified: 2026-07-14 @ e3961b6 (second-pass current-state reconciliation through F100)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -60,6 +60,12 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   allowlists carry the full active roster; Track-B authority remains Linear/Linear, outbound is
   off, and auth is permissive. The exact TEST fixture identity stays in private operator config;
   `ROLLBACK.md` has the public-safe live-state table.
+- Permissive auth is a pre-enforcement posture only. GO_LIVE Phase 0.75 must execute and prove the
+  F5 forward CAS before any real-client parity cohort; the old canonical sequence omitted it (F97).
+- The first human authority handoff uses fail-safe F2→F1 order: normal outbound is armed/read back
+  and proves a healthy zero-normal-write heartbeat plus exact both-team normal-lane zero while both
+  teams remain Linear, then Graphics authority opens. Any parity writes are separately classified;
+  paused normal residue is not green. The former F1→F2 sequence could strand work (F98).
 - Production writes are mixed: full-roster Calendar/SXR/settings writes use Edge Functions with
   dormant n8n fallback, while many unmigrated surfaces still use n8n. Snapshot any workflow
   privately plus a public-safe `n8n-backups/` stub before touching it (rollback rule 2). Every live

@@ -189,8 +189,14 @@ team. D-29 keeps incident containment per team, while F27/R2 governs any authori
      team's outbox, replay/quarantine/discard with an audited decision, prove a machine-read team
      zero, only then reverse authority and confirm Linear-authoritative flow. Re-soak before flipping
      forward. **A direct flip-back or default-drainer green is not a rehearsal (F05/F27).**
-9. **Only after steps 1–8 are green**, the owner flips Graphics authority to `syncview`, enables
-   global normal outbound, and reads back both flags; Video remains `linear`. The later Video
+9. **Only after steps 1–8 are green**, prove exact zero real, non-parity normal rows for both teams in
+   `pending|failed|shadow_ok`, owner-classifying/resolving any residue. Then enable and read back
+   global normal outbound **while both teams are still Linear-authoritative** and require a fresh
+   healthy drainer/credential/pager heartbeat plus the same fresh both-team zero. The heartbeat has
+   zero normal-lane writes; any writes exactly equal expected, acknowledged `legacy_parity_written`.
+   Per-row authority pauses normal residue in this intermediate state, but paused nonzero can starve
+   the global batch or become writable at F1 and is not green. Only then flip Graphics authority to `syncview` and read back both flags
+   (F98); never open authority before F2. Video remains `linear`. The later Video
    handoff changes only its authority after repeating the human/readiness gates and re-reading the
    already-live global outbound/parity state; it must not execute F2 forward a second time. Log every owner action in
    `flag_flips` + `EXECUTION_LOG.md` and update the ROLLBACK Live State row.
@@ -923,6 +929,11 @@ completed on 2026-07-10. Do not re-run that rollout or describe the flags as TES
 - `auth_enforcement` remains **permissive**. Staff sign-in and protected B4 operations exist, but
   F35 proves six Track-A service-role writers still accept public unauthenticated calls. The
   enforcement decision therefore remains a security gate, not an elapsed-time flip.
+- **F97 sequencing correction:** the canonical checklist previously never executed the already
+  documented F5 forward action. GO_LIVE Phase 0.75 now requires all Phase-0 auth/read/write findings,
+  exact current-token roster evidence, stale-verdict/session invalidation, CAS/readback, and negative
+  proof before any real-client parity cohort. No real cohort or team handoff may start while this
+  flag is permissive, missing, malformed, or supported only by expired evidence.
 - F03/F33 still block safe client-link re-issuance: tokens exist only in protected storage; every
   builder/distribution path and revocation/cache behavior must be proven before enforcement.
 - The legacy n8n card-write webhooks remain reachable and are selected for unlisted clients, flag
@@ -1129,6 +1140,17 @@ audience, idempotency, retry, realtime, and refresh matrix.
 
 **9.6 Assignment & due date:** single-row writes; the calendar card shows the editor chip via
 `*_deliverable_id → deliverables → team_members`.
+
+**Due-clock correction (F99, 2026-07-14):** the shipped picker is not yet a real-clock contract.
+It freezes browser-local midnight at script load, while overdue uses a fresh UTC date. Ratify one
+business IANA zone or explicitly viewer-local calendar-day rule; derive all relative input, option,
+highlight, overdue, and write dates on demand from it; re-render at its next midnight and on return;
+and pass long-open/UTC±/DST/leap-day/mouse/keyboard/bulk tests before writable authority.
+
+**Due-year correction (F100, 2026-07-14):** the mouse picker currently stores only a formatted
+month/day label and reparses it with the current year; stored `MM/DD` also cannot seed its month or
+selection. Keep ISO values separate from visible labels, seed/compare from `dueRaw`, unify mouse,
+keyboard, typed, and bulk conversion, and prove Dec→Jan/leap-day/future-year behavior.
 
 **Manual-assignment correction (F94, 2026-07-14):** the shipped Production picker and gateway do
 not yet implement a trustworthy eligibility boundary. Both must consume one server-authoritative

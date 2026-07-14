@@ -36,7 +36,7 @@ owner merging this file (see D-32)._
 | `linear_outbound_enabled` | `off` | No mirroring back to Linear |
 | `linear_inbound_enabled` | `enabled` | Linear → SyncView copy (always on until B5) |
 | `linear_legacy_parity_enabled` | `disabled` | Transition write-lane off (armed at Phase 1) |
-| `auth_enforcement` | `permissive` | Sign-in recorded but not required |
+| `auth_enforcement` | `permissive` | Client-link verifier permits missing/invalid tokens; this is not a staff-write gate |
 | `write_ui_reroute_clients` | **NOT DEPLOYED** (absent from #813 head `885026a`) | Required D-32 allowlist; no merge until it exists, defaults to TEST-only, and reads back |
 
 Merged & live: #810 gateway (deployed), #811 guards + daily TEST drill + nightly shadow audit,
@@ -227,6 +227,13 @@ Phase 0.5 below, after the fix-pack.
       require active compatible creative role/team and, until retired mode, an active Linear mapping.
       Ineligible, unmapped, provider-inactive, cross-team, or stale-picker targets fail before native
       state/outbox writes. Owner explicitly decides whether admin/SMM may ever own creative work.
+- [ ] **Production calendar-day semantics are stable** (F99): owner ratifies one business-zone or
+      explicitly viewer-local contract; one on-demand clock powers relative parsing, quick choices,
+      today highlighting, overdue display, and writes. Long-open tabs re-render at the next midnight
+      and on return. UTC±, DST, midnight, leap-day, and mouse/keyboard/bulk TEST cases pass.
+- [ ] **Due picker preserves the exact selected year** (F100): quick options and calendar cells carry
+      ISO values, existing rows seed/select from `dueRaw`, mouse/keyboard/bulk paths agree, and
+      Dec→Jan, leap day, explicit-year input, far-future navigation, and multi-select tests pass.
 - [ ] **Staff credentials are individually revocable and attribution is immutable** (F31): remove
       inactive roster access, rotate the shared creative credential, invalidate old devices, and
       bind each accepted write to a server-resolved member/session ID. If the owner accepts any
@@ -311,8 +318,28 @@ Phase 0.5 below, after the fix-pack.
 - [ ] Passively observe one organic real-client save/approval through the legacy path, or prove
       the dark behavior with a non-enrolled TEST fixture. Do not induce a production write.
 
+## Phase 0.75 — Enforce client-link auth before real traffic (F97)
+
+- [ ] **All Phase-0 auth/read/write gates remain green on one unexpired preflight**: especially
+      F31/F35/F38/F67/F69/F70/F76–F89/F91. Phase 0.5 remains TEST-only and is not evidence that a
+      real client can be enrolled safely.
+- [ ] **Exact current-token roster proof is green** (F89): every active client has one fresh
+      `credential_valid=true` event bound to its current token revision; missing, extra, stale,
+      inactive, or ambiguous rows fail the gate. No token or client identity enters public output.
+- [ ] Deploy/read back F38's fail-closed verifier and browser changes, rotate the verdict/cache
+      epoch, and purge stale permissive verdicts, client DOM/data, channels, and write state.
+- [ ] The owner executes FLIP_RUNBOOK §F5's single CAS from exactly `permissive` to `enforced`,
+      reads back exactly `{"mode":"enforced"}`, and records the flag event plus the same preflight
+      evidence handle in `EXECUTION_LOG.md` and ROLLBACK Live State.
+- [ ] On TEST, missing/invalid/expired/rotated/inactive credentials and verifier 5xx/timeout/offline
+      all deny reads and writes across reload, foreground return, second device, mobile, and stale
+      tab; a current exact-client credential still works. If any case fails, **do not enter Phase 1**.
+      Preserve enforcement and contain/fix the specific caller or verifier per F70.
+
 ## Phase 1 — Staged parity soak (real traffic, Linear still boss)
 
+- [ ] Read back `auth_enforcement={"mode":"enforced"}` and the still-current Phase-0.75 proof.
+      A permissive, missing, malformed, stale, or unproved value blocks every real cohort (F97).
 - [ ] **TEST and real-client divergence are separate signals** (F90): TEST-only churn remains visible
       in a diagnostic but cannot increment the real-client soak/pager criteria; mixed, TEST-only,
       and real-only fixtures pass and all public output uses private TEST notation.
@@ -344,11 +371,19 @@ Pick a low-activity window.
 1. [ ] Toggle PITR ON for the flip week (D-1; owner dashboard).
 2. [ ] Tell Rocio: work in SyncView only; problems → tell Sidney, never fall back to Linear
        silently.
-3. [ ] `prod_authority.graphics` → `syncview`, then `linear_outbound_enabled` → `live`
-       (FLIP_RUNBOOK §F1/§F2). Confirm readbacks.
-4. [ ] Verify the first real intake has a canonical, visible artifact before SMM Approval and the
+3. [ ] **Arm the mirror before authority (F98):** while both teams still read back `linear`, set
+       `linear_outbound_enabled` → `live` (FLIP_RUNBOOK §F2), read it back, and require one fresh
+       healthy drainer/credential/pager heartbeat. Immediately before and after it, prove exact
+       zero **both-team** real, non-parity rows in `pending|failed|shadow_ok`; owner-classify/resolve
+       any residue and restart the proof. The heartbeat must show zero normal-lane writes; any write
+       must equal expected, acknowledged `legacy_parity_written` from the still-armed parity cohort.
+       Authority-paused nonzero is not green: it can starve the global batch or be released by F1.
+       Any failure stops here with both teams still Linear-authoritative.
+4. [ ] Only after step 3 is current, set `prod_authority.graphics` → `syncview` (FLIP_RUNBOOK §F1)
+       and read back **both** flags. Never open authority first and hope F2 succeeds afterward.
+5. [ ] Verify the first real intake has a canonical, visible artifact before SMM Approval and the
        deliverable status reaches the linked Calendar/Samples card and every reviewer (F50/F53).
-5. [ ] Verify her first real write lands in Linear via the F07 sync-drain lane within the approved
+6. [ ] Verify her first real write lands in Linear via the F07 sync-drain lane within the approved
        seconds-scale SLO. **Hard stop:** do not enter this phase unless F07 is shipped and proven;
        a 10–60 minute legacy-poll delay is not an acceptable fallback.
 
@@ -366,9 +401,10 @@ Pick a low-activity window.
 
 Repeat the Phase 2 human/readiness gates and F1 authority action for `prod_authority.video` once
 Graphics is boring, but **do not rerun F2**: normal outbound was enabled globally during the
-Graphics flip and must already be live/read back. Re-prove both F2 and F4 current state, all four
-editors signed in, tweak-delivery comms sent (F24), and exact-recipient assignment/tweak/URGENT
-receipts proven.
+Graphics flip and must already be live/read back. Re-prove both F2 and F4 current state, **exact
+zero real non-parity Video rows in `pending|failed|shadow_ok`**, and a fresh healthy heartbeat before
+Video F1; classify/resolve residue instead of releasing it. Re-prove all four editors signed in,
+tweak-delivery comms sent (F24), and exact-recipient assignment/tweak/URGENT receipts proven.
 
 ## Phase 5 — B5: retire Linear (its own project)
 

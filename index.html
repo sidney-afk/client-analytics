@@ -7077,11 +7077,10 @@
     const MR_BRIEFS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Market%20Research%20Briefs`;
     const CONTENT_SUMMARIES_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ContentSummaries`;
     const BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-brief';
-    // Filming Plans source. Supabase is authoritative; the old sheet URL is
-    // retained only as a temporary read fallback before the table is deployed.
+    // Filming Plans source. The staff-gated Edge Function is authoritative;
+    // browser reads never fall back to raw PostgREST or the former public sheet.
     // plan_months is an optional manual list like "2026-04,2026-05" used when the
     // tabs webhook below isn't configured yet.
-    const FILMING_PLANS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=FilmingPlans`;
     // Optional n8n endpoint that, given ?doc=<docId>, returns the Google Doc's
     // tabs as { ok:true, tabs:[{ tabId, title, url }] } via the Docs API. The
     // "Filming Plan Tabs" workflow (n8n id 5S4JyVVR2CpHEv9b) serves this; until
@@ -10326,13 +10325,13 @@
     /* ============================================================
        ONBOARDING VIEWER  (Templates tab → "Onboarding" sub-tab)
        Lists submissions from the centralized onboarding form and shows the
-       editor/designer-relevant sections of each. Reads a service-role n8n
-       webhook (onboarding-list) which has ALREADY stripped the account
-       credentials, so no passwords ever reach this public dashboard.
+       editor/designer-relevant sections of each. Reads admin-key-gated Edge
+       Functions which strip account credentials before returning list data.
        Namespaced _obv* / OBV_*. Inline handlers are global (matches the
        templates tab's _tpl* pattern).
        ============================================================ */
-    // Onboarding reads now go through Supabase Edge Functions (service-role, credential-stripped)
+    // Onboarding reads go through admin-key-gated Supabase Edge Functions
+    // (service-role, credential-stripped).
     // instead of n8n. Hardcoded base (CAL_SUPABASE_URL is declared later in the file → TDZ if referenced here).
     const ONBOARDING_EDGE_BASE = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1';
     const ONBOARDING_LIST_URL = ONBOARDING_EDGE_BASE + '/onboarding-list';
@@ -10373,15 +10372,42 @@
 
     // Slug index: which clients have ANY onboarding record, so a client's template
     // profile can show/hide its "Onboarding" button. Uses the credential-stripped
-    // list functions, so it's safe in the normal (non-Kasper) dashboard.
+    // list functions, after the same verified admin staff sign-in as the inbox.
+    async function _obvFetchLists(retried){
+      const ident = await _syncviewRequireStaffIdentity('onboarding');
+      const pull = async (url, funnel) => {
+        const r = await fetch(url + '?_t=' + Date.now(), { method:'GET', headers: { 'X-Syncview-Key': ident.key } });
+        if (!r.ok) { const e = new Error(r.status === 403 ? 'Admin access required.' : ('HTTP '+r.status)); e.status = r.status; throw e; }
+        const txt = await r.text();
+        let d=null; if(txt && txt.trim()){ try{ d=JSON.parse(txt); }catch(e){ d=null; } }
+        const arr = Array.isArray(d) ? d : ((d && d.submissions) || []);
+        arr.forEach(s=>{ s.funnel = funnel; });
+        return arr;
+      };
+      const settled = await Promise.allSettled([
+        pull(ONBOARDING_LIST_URL, 'standard'),
+        pull(AI_ONBOARDING_LIST_URL, 'ai'),
+        pull(LEGACY_ONBOARDING_LIST_URL, 'legacy')
+      ]);
+      const active = _syncviewStaffIdentityForHeaders();
+      if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(ident)) throw new Error('Staff sign-in changed.');
+      if (settled.some(item => item.status === 'rejected' && item.reason && item.reason.status === 401)) {
+        _syncviewStaffIdentityClear();
+        if (retried) throw new Error('Staff sign-in expired.');
+        const replacement = await _syncviewOpenStaffIdentity({ reason: 'expired' });
+        if (!replacement) throw new Error('Staff sign-in required.');
+        return _obvFetchLists(true);
+      }
+      return settled;
+    }
     function _obvEnsureSlugIndex(){
       if (_obvSlugSet || _obvSlugLoading) return;
       _obvSlugLoading = true;
-      const pull = (url) => fetch(url + '?_t=' + Date.now()).then(r=>r.ok?r.text():'').then(t=>{ try{ const d=JSON.parse(t); return (d&&d.submissions)||[]; }catch(e){ return []; } }).catch(()=>[]);
-      Promise.all([ pull(ONBOARDING_LIST_URL), pull(AI_ONBOARDING_LIST_URL), pull(LEGACY_ONBOARDING_LIST_URL) ]).then(all=>{
+      _obvFetchLists(false).then(results=>{
+        const all = results.map(item => item.status === 'fulfilled' ? item.value : []);
         const set = new Set();
         all.flat().forEach(s=>{ if(s && s.slug) set.add(s.slug); });
-        _obvSlugSet = set; _obvSlugLoading = false;
+        _obvSlugSet = set;
         // Re-render the open client profile so the button appears now that we know.
         try {
           if (_templatesSelected && !_obvSelected && document.getElementById('content')) {
@@ -10389,20 +10415,22 @@
             if (typeof mountTemplatesView === 'function') mountTemplatesView();
           }
         } catch(e){}
-      });
+      }).catch(()=>{ _obvSlugSet = new Set(); })
+        .finally(()=>{ _obvSlugLoading = false; });
     }
     function _obvHasOnboarding(name){ return !!(_obvSlugSet && _obvSlugSet.has(wlNormalizeClient(name))); }
     function _obvOpenStandalone(slug){ try { window.open('?onboarding_view=' + encodeURIComponent(slug), '_blank', 'noopener'); } catch(e){} }
 
     // Standalone per-client onboarding viewer (its own browser tab, ?onboarding_view=<slug>).
-    // Read-only, credential-free, no contact info — reuses _obvDetail with the back button stripped.
+    // Read-only, credential-free, no contact info. The isolated tab still
+    // requires a verified admin staff identity before any list request.
     let _obvStandaloneSlug = null;
     function _obvMountStandalone(slug){
       _obvStandaloneSlug = String(slug||'');
       _obvMode = 'edge';
       const content = document.getElementById('content');
       if (content) { _obvInjectStyles(); content.innerHTML = `<div id="obvStandaloneWrap" class="obv-standalone"></div>`; _obvRenderStandalone(); }
-      _obvEnsureLoaded();
+      _syncviewStaffIdentityBoot().then(()=>_obvEnsureLoaded(), ()=>_obvEnsureLoaded());
     }
     function _obvRenderStandalone(){
       const wrap = document.getElementById('obvStandaloneWrap'); if(!wrap) return;
@@ -10417,13 +10445,10 @@
       if (_obvSubs && !force) return;
       _obvLoading = true; _obvError = ''; _obvWarn = '';
       if (_obvMode === 'full') { _obvLoadFull(); return; }
-      // Three sources = three edge functions (standard + AI + legacy), all credential-stripped.
+      // Three sources = three admin-key-gated Edge Functions (standard + AI + legacy), all credential-stripped.
       // Pull all, tag each row with its funnel, merge. Partial failure still shows what loaded.
       // Read as text first: an empty table yields a 200 with an empty body → read as "no submissions".
-      const pull = (url, funnel) => fetch(url + '?_t=' + Date.now(), { method:'GET' })
-        .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
-        .then(txt=>{ let d=null; if(txt && txt.trim()){ try{ d=JSON.parse(txt); }catch(e){ d=null; } } const arr = Array.isArray(d) ? d : ((d && d.submissions) || []); arr.forEach(s=>{ s.funnel = funnel; }); return arr; });
-      Promise.allSettled([ pull(ONBOARDING_LIST_URL, 'standard'), pull(AI_ONBOARDING_LIST_URL, 'ai'), pull(LEGACY_ONBOARDING_LIST_URL, 'legacy') ])
+      _obvFetchLists(false)
         .then(([std, ai, legacy])=>{
           const ok = []; const failed = [];
           if (std.status==='fulfilled') ok.push(...std.value); else failed.push('standard ('+(std.reason&&std.reason.message||'failed')+')');
@@ -10434,6 +10459,7 @@
           _obvWarn  = (ok.length>0  && failed.length) ? ('Couldn\'t load the ' + failed.join(' and ') + ' list.') : '';
           _obvLoadedAt = Date.now();
         })
+        .catch(e=>{ _obvSubs = []; _obvError = (e && e.message) || 'Staff sign-in required.'; })
         .finally(()=>{ _obvLoading = false; _obvRerender(); });
     }
 
@@ -10570,7 +10596,7 @@
     // Legacy (old Notion form) detail — no schema mapping; the original
     // question -> answer list is shown verbatim (credentials already stripped).
     // Login/credential keys inside `answers` (standard/AI funnels). Never returned by
-    // the public list functions; only Kasper's onboarding-full view carries them.
+    // the staff-gated list functions; only Kasper's onboarding-full view carries them.
     const OBV_CRED_KEYS = [['instagram','Instagram'],['instagram_backup','Instagram backup code'],['tiktok','TikTok'],['facebook','Facebook'],['linkedin','LinkedIn'],['youtube','YouTube']];
     function _obvCredSection(s){
       let rows='';
@@ -11391,7 +11417,6 @@
     let filmingPlansData = null;       // { rows, bySlug, source, loadedAt }
     let filmingPlansLoadPromise = null;
     let filmingPlansLoadError = '';
-    let _fpRealtimeChannel = null;
     let _fpQuery = '';
     let _fpAddOpen = false;
     let _fpEditSlug = '';
@@ -11430,23 +11455,29 @@
         try { if (typeof _linearInvalidatePlanMap === 'function') _linearInvalidatePlanMap(); } catch (e) {}
         return filmingPlansData;
     }
-    async function _fpLoadFromSupabase() {
-        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
-        const url = CAL_SUPABASE_URL + '/rest/v1/filming_plans?select=client_slug,client_name,doc_url,doc_id,notes,plan_months,updated_at,updated_by&order=client_name.asc&limit=5000';
-        const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+    async function _fpLoadFromSupabase(retried) {
+        if (!FILMING_PLANS_EF_URL) throw new Error('Filming plans are not configured');
+        const ident = await _syncviewRequireStaffIdentity();
+        const resp = await fetch(FILMING_PLANS_EF_URL + '?_t=' + Date.now(), {
+            method: 'GET',
+            headers: { 'X-Syncview-Key': ident.key, Accept: 'application/json' },
+        });
+        if (resp.status === 401) {
+            const active = _syncviewStaffIdentityForHeaders();
+            if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(ident)) throw new Error('Staff sign-in changed.');
+            _syncviewStaffIdentityClear();
+            if (retried) throw new Error('Staff sign-in expired.');
+            const replacement = await _syncviewOpenStaffIdentity({ reason: 'expired' });
+            if (!replacement) throw new Error('Staff sign-in required.');
+            return _fpLoadFromSupabase(true);
+        }
+        if (resp.status === 403) throw new Error('Staff access required.');
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        return await resp.json();
-    }
-    async function _fpLoadFromSheetFallback() {
-        const resp = await fetch(FILMING_PLANS_URL + '&_t=' + Date.now());
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const text = await resp.text();
-        return parseCSV(text).map(r => ({
-            client_name: r.client_name || r.client || '',
-            doc_url: r.doc_url || r.url || '',
-            notes: r.notes || '',
-            plan_months: r.plan_months || '',
-        }));
+        const payload = await resp.json();
+        const active = _syncviewStaffIdentityForHeaders();
+        if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(ident)) throw new Error('Staff sign-in changed.');
+        if (!payload || !payload.ok || !Array.isArray(payload.plans)) throw new Error('Invalid filming plans response');
+        return payload.plans;
     }
     async function _fpEnsureLoaded(force) {
         if (filmingPlansData && !force) return filmingPlansData;
@@ -11454,40 +11485,16 @@
         filmingPlansLoadError = '';
         filmingPlansLoadPromise = (async () => {
             try {
-                const rows = await _fpLoadFromSupabase();
-                const data = _fpSetData(rows, 'supabase');
-                _fpSubscribeRealtime();
-                return data;
-            } catch (supaError) {
-                try {
-                    const rows = await _fpLoadFromSheetFallback();
-                    const data = _fpSetData(rows, 'sheet-fallback');
-                    filmingPlansLoadError = supaError && supaError.message ? supaError.message : String(supaError || '');
-                    return data;
-                } catch (sheetError) {
-                    filmingPlansLoadError = sheetError && sheetError.message ? sheetError.message : String(sheetError || '');
-                    throw sheetError;
-                }
+                const rows = await _fpLoadFromSupabase(false);
+                return _fpSetData(rows, 'edge-function');
+            } catch (error) {
+                filmingPlansLoadError = error && error.message ? error.message : String(error || '');
+                throw error;
             } finally {
                 filmingPlansLoadPromise = null;
             }
         })();
         return filmingPlansLoadPromise;
-    }
-    async function _fpSubscribeRealtime() {
-        if (_fpRealtimeChannel || !CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return;
-        const client = await _calRuntimeFlagClient();
-        if (!client || _fpRealtimeChannel) return;
-        try {
-            _fpRealtimeChannel = client
-                .channel('syncview-filming-plans')
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'filming_plans' }, () => {
-                    _fpEnsureLoaded(true).then(_fpRerenderSurfaces, () => {});
-                })
-                .subscribe();
-        } catch (e) {
-            _fpRealtimeChannel = null;
-        }
     }
     function _fpRerenderSurfaces() {
         if (currentNav === 'filming-plans') _fpRenderPage();
@@ -11496,6 +11503,33 @@
         if (currentNav === 'kasper' && typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'filming') {
             _kasperLoadFilming(true).catch(() => {});
         }
+    }
+    function _fpPurgeSensitiveState() {
+        filmingPlansData = null;
+        filmingPlansLoadPromise = null;
+        filmingPlansLoadError = '';
+        _fpEditSlug = '';
+        _fpSavingSlug = '';
+        try { _linearPlanMap = null; _linearResolvedPlanUrl = ''; } catch (e) {}
+        try { localStorage.removeItem(KASPER_FILMING_CACHE_KEY); } catch (e) {}
+        try {
+            if (typeof _kasperState !== 'undefined' && _kasperState) {
+                _kasperState.filmingData = null;
+                _kasperState.filmingLoadedAt = 0;
+                _kasperState.filmingError = null;
+                _kasperState.filmingExpanded = {};
+            }
+        } catch (e) {}
+        try {
+            if (typeof currentNav !== 'undefined' && currentNav === 'filming-plans') {
+                const content = document.getElementById('content');
+                if (content) content.innerHTML = '<div class="fp-view"><div class="fp-empty">Staff sign-in required to load filming plans.</div></div>';
+            } else if (typeof currentNav !== 'undefined' && currentNav === 'templates') {
+                _maybeRerenderTemplates();
+            } else if (typeof currentNav !== 'undefined' && currentNav === 'linear') {
+                updateLinearFilmingPlan();
+            }
+        } catch (e) {}
     }
     function _fpPlanForClient(nameOrSlug) {
         if (!filmingPlansData || !filmingPlansData.bySlug) return null;
@@ -16632,6 +16666,8 @@
         const role = _syncviewStaffRoleValue(identity);
         if (capability === 'credentials') return role === 'admin' || role === 'smm';
         if (capability === 'onboarding') return role === 'admin';
+        if (capability === 'weekly-report-submit') return role === 'admin' || role === 'smm';
+        if (capability === 'weekly-report-manage') return role === 'admin';
         return !!identity;
     }
     async function _syncviewRequireStaffIdentity(capability) {
@@ -16642,9 +16678,12 @@
         }
         if (!identity) throw new Error('Staff sign-in required.');
         if (!_syncviewStaffCan(capability)) {
-            const error = new Error(capability === 'credentials'
-                ? 'Client credentials are available to Admin or SMM accounts. Sign out first to use another authorized account.'
-                : 'This onboarding action requires an Admin account. Sign out first to use another authorized account.');
+            let message = 'This action requires an Admin account. Sign out first to use another authorized account.';
+            if (capability === 'credentials') message = 'Client credentials are available to Admin or SMM accounts. Sign out first to use another authorized account.';
+            else if (capability === 'onboarding') message = 'This onboarding action requires an Admin account. Sign out first to use another authorized account.';
+            else if (capability === 'weekly-report-submit') message = 'Weekly reports are available to Admin or SMM accounts. Sign out first to use another authorized account.';
+            else if (capability === 'weekly-report-manage') message = 'Weekly report management requires an Admin account. Sign out first to use another authorized account.';
+            const error = new Error(message);
             error.status = 403;
             throw error;
         }
@@ -16667,7 +16706,7 @@
     }
     function _syncviewStaffEligible() {
         try {
-            return !_isClientLink && !_isIntake && !_isOnboarding && !_isOnboardingView && !_isSmmWeeklyEntry;
+            return !_isClientLink && !_isIntake && !_isOnboarding;
         } catch (e) { return false; }
     }
     function _syncviewStaffSetChecking(checking) {
@@ -16706,7 +16745,8 @@
         try {
             const tab = typeof _kasperState !== 'undefined' && _kasperState ? _kasperState.tab : '';
             const blocked = (tab === 'client-credentials' && !_syncviewStaffCan('credentials'))
-                || (tab === 'onboarding' && !_syncviewStaffCan('onboarding'));
+                || (tab === 'onboarding' && !_syncviewStaffCan('onboarding'))
+                || (tab === 'filming' && !valid);
             if (blocked) {
                 _kasperState.tab = 'review';
                 document.querySelectorAll('.kasper-subtab').forEach(item => item.classList.toggle('active', item.getAttribute('data-kasper-tab') === 'review'));
@@ -16763,6 +16803,7 @@
         return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || 'S').slice(0, 2)).toUpperCase();
     }
     function _syncviewStaffPurgeSensitiveState() {
+        try { if (typeof _fpPurgeSensitiveState === 'function') _fpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
         try { if (typeof _ccRevTeardown === 'function') _ccRevTeardown(); } catch (e) {}
         try { document.querySelectorAll('#ccOverlay, .cc-sensitive-overlay').forEach(element => element.remove()); } catch (e) {}
@@ -17141,6 +17182,14 @@
     async function _srpApi(params, options) {
         const opts = options || {};
         const method = (opts.method || 'GET').toUpperCase();
+        let action = String(params && params.action || '');
+        if (method !== 'GET' && opts.body) {
+            try { action = String((JSON.parse(opts.body) || {}).action || 'submit'); } catch (e) { action = 'submit'; }
+        }
+        const capability = action === 'reports' || action === 'sync_managers'
+            ? 'weekly-report-manage'
+            : 'weekly-report-submit';
+        const ident = await _syncviewRequireStaffIdentity(capability);
         let url = SMM_WEEKLY_REPORTS_URL;
         if (method === 'GET') {
             const qs = new URLSearchParams();
@@ -17153,6 +17202,7 @@
             apikey: CAL_SUPABASE_ANON_KEY,
             Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY
         }, opts.headers || {});
+        headers['X-Syncview-Key'] = ident.key;
         if (method !== 'GET') headers['Content-Type'] = 'application/json';
         const resp = await fetch(url, Object.assign({}, opts, { method, headers }));
         let data = null;
@@ -27667,24 +27717,20 @@
         // feedback, and the per-card optimistic move is the live confirmation.)
         _calLastLocalWriteAt = Date.now();
         try {
-            // Edge Function for flagged clients; fall back to the old n8n
-            // reorder writer on any EF failure. Unflagged clients still use
-            // batched n8n first, with original per-row n8n as fallback.
+            // Edge Function for flagged clients. Once a client is on the EF
+            // route, fail closed: an auth denial/outage must never downgrade
+            // into the unauthenticated legacy n8n writer. Unflagged clients
+            // retain the existing batched-n8n path until their own migration.
             let json = null;
             if (_calUpsertUseEf(slug)) {
-                try {
-                    const url = _calReorderUrlForClient(slug);
-                    const resp = await fetch(url, {
-                        method: 'POST', headers: _calUpsertHeaders('ui', url),
-                        body: JSON.stringify({ client: slug, items })
-                    });
-                    json = await resp.json().catch(() => null);
-                    if (!resp.ok || !json || !json.ok || Number(json.updated || 0) < items.length) {
-                        throw new Error((json && json.error) || ('calendar reorder EF HTTP ' + resp.status));
-                    }
-                } catch (e) {
-                    console.warn('[Calendar] EF reorder failed; falling back to n8n', e);
-                    json = await _calPersistReorderViaN8n(slug, items);
+                const url = _calReorderUrlForClient(slug);
+                const resp = await fetch(url, {
+                    method: 'POST', headers: _calUpsertHeaders('ui', url),
+                    body: JSON.stringify({ client: slug, items })
+                });
+                json = await resp.json().catch(() => null);
+                if (!resp.ok || !json || !json.ok || Number(json.updated || 0) < items.length) {
+                    throw new Error((json && json.error) || ('calendar reorder EF HTTP ' + resp.status));
                 }
             } else {
                 json = await _calPersistReorderViaN8n(slug, items);
@@ -35227,7 +35273,8 @@
         setTimeout(function(){ try{ navTo('onboarding', false); }catch(e){ console.error('[onboarding] mount failed', e); } }, 0);
     } else if(_isOnboardingView){
         // Standalone per-client onboarding viewer (new tab from a client's template
-        // profile). Read-only, credential-free — no staff password, no dashboard load.
+        // profile). Read-only and credential-free, with no dashboard data load;
+        // the onboarding reader opens verified admin staff sign-in before fetch.
         document.body.classList.add('onboarding-view-mode');
         try { document.title = 'Onboarding — SynchroSocial'; } catch(e){}
         const _hV=document.querySelector('header.header'); if(_hV) _hV.style.display='none';
@@ -35464,9 +35511,6 @@
             try { json = await resp.clone().json(); } catch (e) {}
             if (!resp.ok || (json && json.ok === false)) throw new Error((json && json.error) || ('sample reorder EF HTTP ' + resp.status));
             return resp;
-        }).catch((e) => {
-            console.warn('[Samples] EF reorder failed; falling back to n8n', e);
-            return post(SXR_REORDER_N8N_URL);
         });
     }
     _sxrPrimeSampleRoutingFlag();
@@ -42902,6 +42946,7 @@
     }
 
     function _filmsLoadCache() {
+        if (!_syncviewStaffIdentityForHeaders()) return null;
         try {
             const raw = localStorage.getItem(KASPER_FILMING_CACHE_KEY);
             if (!raw) return null;

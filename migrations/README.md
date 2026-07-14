@@ -30,6 +30,10 @@ CI, `supabase/config.toml`, or `scripts/` executes these files (see
   and defines a locked service-role-only revision-rotation RPC. Dormant watcher
   placeholders may be seeded, but it does not enable Drive scanning, comparison
   delivery, or source-row mutation for any client.
+- **`2026-07-14-f88-safe-sensitive-read-revocations.sql`** repeatably removes anon SELECT only
+  from the backend/protected-reader safe subset: thumbnail revision metadata, both SMM weekly-
+  report tables, and filming plans. It intentionally does not touch `clients` or the other raw
+  tables still read by the SPA.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

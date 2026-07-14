@@ -34,12 +34,12 @@ ok(/_calReorderUrlForClient/.test(INDEX), 'calendar reorder router missing');
 ok(/async function _calFetchPostsForVerify\(\)[\s\S]*_calUpsertUseEf\(slug\)[\s\S]*\/rest\/v1\/calendar_posts\?select=\*&client=eq\.[\s\S]*_calSupabaseFetchAllRows/.test(INDEX),
   'EF-client bulk import verification must read calendar_posts, not n8n calendar-get');
 ok(/async function _calPersistReorderViaN8n/.test(INDEX)
-  && /EF reorder failed; falling back to n8n/.test(INDEX)
   && /_calUpsertHeaders\('ui', url\)/.test(INDEX)
-  && /Number\(json\.updated \|\| 0\) < items\.length/.test(INDEX),
-  'calendar EF reorder must include token headers, verify updated count, and fall back to n8n');
+  && /Number\(json\.updated \|\| 0\) < items\.length/.test(INDEX)
+  && !/\[Calendar\] EF reorder failed; falling back to n8n/.test(INDEX),
+  'calendar EF reorder must include token headers, verify updated count, and fail closed without n8n downgrade');
 ok(/showToast\('Couldn.t save the new order[\s\S]*reverted/.test(INDEX),
-  'calendar reorder failure must remain visible after EF and n8n fallback both fail');
+  'calendar reorder EF failure must remain visible after the fail-closed rejection');
 
 ok(/SXR_SAMPLE_REVIEW_FLAG_KEY = 'sample_review_ef_clients'/.test(INDEX), 'samples runtime flag key missing');
 ok(/SXR_UPSERT_N8N_URL/.test(INDEX) && /SXR_UPSERT_EF_URL/.test(INDEX), 'sample upsert n8n/EF URLs missing');
@@ -50,12 +50,14 @@ ok(!/fetch\(SXR_UPSERT_URL/.test(INDEX), 'frontend must not fetch SXR_UPSERT_URL
 ok(!/fetch\(SXR_REORDER_URL/.test(INDEX), 'frontend must not fetch SXR_REORDER_URL directly');
 ok((INDEX.match(/_sxrUpsertFetch\(/g) || []).length >= 4, 'expected samples upsert router definition plus call sites');
 ok((INDEX.match(/_sxrReorderFetch\(/g) || []).length >= 2, 'expected samples reorder router definition plus call site');
-ok(/post\(SXR_REORDER_EF_URL\)[\s\S]*EF reorder failed; falling back to n8n[\s\S]*post\(SXR_REORDER_N8N_URL\)/.test(INDEX),
-  'sample EF reorder must fall back to n8n on EF failure');
+ok(/if \(!_sxrSampleUseEf\(clientOrSlug\)\) return post\(SXR_REORDER_N8N_URL\)/.test(INDEX)
+  && /return post\(SXR_REORDER_EF_URL\)\.then/.test(INDEX)
+  && !/\[Samples\] EF reorder failed; falling back to n8n/.test(INDEX),
+  'sample EF reorder must fail closed without n8n downgrade once the client is flagged');
 ok(/const json = await resp\.clone\(\)\.json\(\)\.catch\(\(\) => null\);[\s\S]*json && json\.ok === false/.test(INDEX),
   'sample reorder fallback failure must remain visible to the UI');
 ok(/showNotify\("Couldn't save the new order", 'It was put back/.test(INDEX),
-  'sample reorder failure must notify the user after EF and n8n fallback both fail');
+  'sample reorder EF failure must notify the user after the fail-closed rejection');
 
 [
   'READ_FAILURE_MESSAGE',
@@ -95,5 +97,9 @@ ok(/loadUpsertEfClients/.test(RECON) && /await loadUpsertEfClients\(\)/.test(REC
 ok(/upsertUrlForClient\(card\.client\)/.test(RECON), 'sample reconciler must route by card client');
 ok(!/fetch\(UPSERT_URL/.test(RECON), 'sample reconciler must not fetch UPSERT_URL directly');
 ok(/X-Syncview-Source': 'reconcile'/.test(RECON), 'sample reconciler source header missing');
+ok(/SYNCVIEW_STAFF_KEY/.test(RECON)
+  && /headers\['X-Syncview-Key'\] = SYNCVIEW_STAFF_KEY/.test(RECON)
+  && /if \(url === UPSERT_EF_URL\)/.test(RECON),
+  'sample reconciler must attach its staff key only to EF writes and fail closed when absent');
 
 console.log('A2 writer Edge Function source checks passed');

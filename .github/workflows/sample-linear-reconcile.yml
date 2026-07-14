@@ -51,4 +51,5 @@ jobs:
           # schedule runs always apply; manual runs honor the dry_run input
           APPLY: ${{ github.event_name == 'schedule' || github.event.inputs.dry_run != 'true' }}
           CAP: ${{ github.event.inputs.cap || '15' }}
+          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
         run: node scripts/sample-linear-reconcile.js

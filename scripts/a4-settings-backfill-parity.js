@@ -11,6 +11,7 @@
  *
  * Required env:
  *   SUPABASE_SERVICE_ROLE_KEY
+ *   SYNCVIEW_STAFF_KEY (for --parity Edge writer calls)
  *
  * Optional:
  *   SUPABASE_URL (defaults to the live SyncView project)
@@ -18,6 +19,7 @@
 
 const SUPA_URL = process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const STAFF_KEY = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
 const TEST_CLIENT_NAME = 'Sidney Laruel';
 const TEST_CLIENT_SLUG = routeSlug(TEST_CLIENT_NAME);
 
@@ -222,6 +224,7 @@ async function restorePrompt(originalRow, originalPrompt) {
 }
 
 async function parity() {
+  if (!STAFF_KEY) throw new Error('SYNCVIEW_STAFF_KEY is required for protected Edge writer parity');
   const templatesBefore = await fetchTemplatesFromN8n();
   const promptsBefore = await fetchPromptsFromN8n();
   const originalTemplate = templatesBefore[TEST_CLIENT_NAME] || null;
@@ -240,8 +243,7 @@ async function parity() {
     const oldTemplateResp = await postJson(TEMPLATES_SAVE_N8N_URL, { clientName: TEST_CLIENT_NAME, patch: templatePatch });
     if (!oldTemplateResp || oldTemplateResp.ok !== true || !oldTemplateResp.template) throw new Error('n8n templates-save unexpected response');
     const efTemplateResp = await postJson(TEMPLATES_SAVE_EF_URL, { clientName: TEST_CLIENT_NAME, patch: templatePatch }, {
-      'X-Syncview-Actor': 'A4 parity',
-      'X-Syncview-Role': 'system',
+      'X-Syncview-Key': STAFF_KEY,
       'X-Syncview-Source': 'parity',
     });
     if (!efTemplateResp || efTemplateResp.ok !== true || !efTemplateResp.template) throw new Error('EF templates-save unexpected response');
@@ -253,8 +255,7 @@ async function parity() {
     const oldPromptResp = await postJson(CAPTION_PROMPTS_SAVE_N8N_URL, { client: TEST_CLIENT_SLUG, prompt: promptText });
     if (!oldPromptResp || oldPromptResp.ok !== true) throw new Error('n8n caption-prompts-save unexpected response');
     const efPromptResp = await postJson(CAPTION_PROMPTS_SAVE_EF_URL, { client: TEST_CLIENT_SLUG, prompt: promptText }, {
-      'X-Syncview-Actor': 'A4 parity',
-      'X-Syncview-Role': 'system',
+      'X-Syncview-Key': STAFF_KEY,
       'X-Syncview-Source': 'parity',
     });
     if (!efPromptResp || efPromptResp.ok !== true) throw new Error('EF caption-prompts-save unexpected response');

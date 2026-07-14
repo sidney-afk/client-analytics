@@ -1,10 +1,10 @@
 # Legacy (Old Notion) Onboarding — "Old forms"
 
-> **P0 CURRENT PRIVACY INCIDENT (F77).** `legacy-onboarding-list`, `onboarding-list`, and
-> `ai-onboarding-list` are deployed as anonymous service-role readers and return real contact data
-> plus onboarding answers. “Credential-stripped” is not authorization. Disable/gate them now,
-> restrict CORS, replace background discovery with a minimal authorized projection, review access
-> logs/embedded links privately, and pass deployed anonymous/cross-role denial before use.
+> **F77 PARTIAL CONTAINMENT — MERGE-GATED UI.** `legacy-onboarding-list`, `onboarding-list`, and
+> `ai-onboarding-list` now authenticate before service-role access; missing/wrong keys return `401`.
+> Candidate Pages callers obtain the key only after verified Admin sign-in, while current Pages
+> fails closed until that caller merges. Wildcard CORS, full-list background discovery, shared-key
+> lifecycle, access-log/embedded-link review and incident disposition remain open.
 
 A third section in **Templates → Onboarding**, alongside *Standard onboarding* and
 *AI avatar onboarding*. It shows the historical onboarding forms that lived in **Notion**
@@ -34,7 +34,7 @@ text/share links and decide whether retained credential arrays are still require
 Notion export (private Drive) ──private reviewed loader──▶ Supabase legacy_onboarding
                                                           (service-role only, NO anon)
                                                           │
-              Edge Functions: legacy-onboarding-list (credential-stripped but anonymous — F77)
+              Edge Functions: legacy-onboarding-list (Admin-gated, credential-stripped — F77)
                               onboarding-full (shared/legacy-key-only unstripped — F85)
                                                           ▼
                               Dashboard: Templates → Onboarding → "Old forms"
@@ -49,9 +49,10 @@ static site” does not mean public git history/caches/clones are already remedi
 
 ## Files
 
-- `migrations/legacy-onboarding-migration.sql` — **target state: data-free schema/RLS/revoke DDL
-  only**. F64's replacement is prepared locally but not in this docs PR. Public `main` still contains
-  the plaintext backfill until the guard-only → guarded scrub → guard-removal sequence completes.
+- `migrations/legacy-onboarding-migration.sql` — the public file remains row-bearing under F64.
+  A reviewed data-free schema/RLS/revoke replacement exists only in the access-restricted incident
+  package because GitHub expanded its deletions despite the attempted diff guard. Restore it only
+  inside the coordinated history rewrite, then complete cache/fork/reclone cleanup.
   Historical rows already live in the protected table; any restore/import must come from an
   encrypted private artifact through a separately reviewed loader. Never add row values again.
 - `n8n-backups/legacy-onboarding-list.2026-07-07.created.json` — historical transition reader
@@ -85,5 +86,6 @@ static site” does not mean public git history/caches/clones are already remedi
    defense, not the gate. Do not activate n8n.
 4. Deploy `index.html`; verify the Old forms surface through the authorized staff path.
 
-Until the schema/private restore/Edge Function steps are done the section renders a soft "couldn't load" note (same graceful
-degradation the AI funnel had before its table existed) — no other part of the app is affected.
+The protected table and Edge readers are live. Current Pages does not yet attach the Admin key, so
+the section fails closed with its soft load error until the candidate caller merges; no other part
+of the app is affected.

@@ -23,8 +23,9 @@ disagree, reality wins — and fix this file in the same PR.
 ## 2. Standing rails (non-negotiable — from ROLLBACK.md rule set)
 
 - **Public repo.** No secrets, no real client names/handles/PII in any committed file or PR text.
-  F64 is an active P0: a schema-only replacement is prepared locally but must land only after a
-  separate guard-only PR is merged, followed by guarded scrub proof and immediate guard removal.
+  F64 is an active P0: reviewed schema-only replacements exist only in the private incident package.
+  GitHub ignored the attempted exact-path diff guard and expanded the row deletions, so they must be
+  restored only inside the owner-coordinated history rewrite—not through an ordinary public PR.
   Public main/history/cache/fork/clone assessment and the wider tracked-exposure scrub remain open.
   Obtain the active TEST fixture only from private operator config; committed examples
   use generic TEST labels or fictional names.

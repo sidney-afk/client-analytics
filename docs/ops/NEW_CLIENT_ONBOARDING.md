@@ -187,7 +187,7 @@ This is what makes the SMM's name/avatar and Slack DM appear on the Kasper revie
 4. In SyncView, sign in with an **Admin** staff identity, open **Filming Plans**, search the client, and add/update the Doc URL. The app reuses that verified role identity; it does not ask for a separate onboarding passphrase. The old onboarding key remains a backend-only transition fallback until the documented retirement gate.
 5. Verify the same Doc opens from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. *(If you skip the per-month tabs, you can hand-set `plan_months` like `2026-07,2026-08` as a fallback.)*
 
-Now that Supabase and the Edge Function are live, the old SYNCVIEW Google Sheet tab **`FilmingPlans`** (`client_name | doc_url | notes | plan_months`) is no longer an onboarding step. Treat it as a historical/emergency fallback only; do not use it as the source of truth or keep it manually in sync unless we deliberately roll back Supabase.
+Now that Supabase and the Edge Function are live, the old SYNCVIEW Google Sheet tab **`FilmingPlans`** (`client_name | doc_url | notes | plan_months`) is no longer an onboarding step or browser fallback. Do not use or maintain it as an emergency copy; review its sharing and retire/private it through the owner-approved data-retention process.
 
 The operational source-of-truth UI is the main **Filming Plans** tab. Kasper's **Filming Plans** sub-tab reads that same source and combines it with the client's `calendar_posts` runway.
 
@@ -321,7 +321,7 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 **Locations (identifiers stay in private operator config)**
 - Primary workspace Sheet: tabs `Clients Info`, `Social Media Managers`, `Templates`,
   `CaptionPrompts`, `Video Editors`, `Monthly Checkup`, and analytics data tabs. The old
-  `FilmingPlans` tab is historical fallback; Supabase is current truth.
+  `FilmingPlans` tab is historical only (not a fallback); Supabase is current truth.
 - Legacy Calendar Sheet: `Calendar_<slug>`, `Samples_<slug>`, `TikTokUploads`; optional mirror only.
 - Supabase: `filming_plans`, `calendar_posts`, `sample_reviews`, plus protected onboarding/client
   tables. Obtain the project reference privately.

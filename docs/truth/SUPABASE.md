@@ -1,6 +1,6 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-14 @ 08e18e6 + live thumbnail rollout readback
+> Last verified: 2026-07-14 @ a1e2622 + live security-remediation deny/allow readback
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 ## Tables
@@ -21,6 +21,16 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 > anon/authenticated reads, and a browser-key table request now returns `401`. Unsigned private-object
 > access returns `400`; the SPA instead uses a principal/card-scoped Edge reader that returns only
 > short-lived signed images. Exact authorized reads pass and cross-client scope returns `403`.
+>
+> **F88 safe-subset remediation (partly live):**
+> `migrations/2026-07-14-f88-safe-sensitive-read-revocations.sql` repeatably revokes anon SELECT
+> from `thumbnail_media_revisions`, `social_media_managers`, `smm_weekly_reports`, and
+> `filming_plans`. Anonymous reads to the thumbnail and both weekly-report tables now return `401`.
+> The gated filming-plan Edge reader is live and denies a missing/wrong key with `401`; its protected
+> browser caller is staged here, so the table revoke must wait for the Pages caller to merge. The
+> migration deliberately leaves `clients` alone: Production
+> still reads it directly through `_prodRestRows('clients', ...)`. The other direct-use tables named
+> in F88 likewise remain separate projection work.
 
 - `calendar_posts` — main calendar store (~3.4k rows at last count; ~77% belong to the TEST
   client; most rows archived).
@@ -52,6 +62,13 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
 - Payload shape `{client, post|sample, comments_base_at}`; `__CLEAR_LINK__` sentinel clears
   a Linear link; a guard gauntlet exists in n8n and is ported to the EFs.
+- Candidate source gives all six browser writer EFs one fail-closed policy: exactly one configured
+  staff/automation key or active client token scoped to the written client; the server derives
+  attribution and ignores caller actor/role claims. `calendar-reorder`, `sample-review-reorder`,
+  `templates-save`, and `caption-prompts-save` are live with missing/wrong-key `401` and restored
+  TEST allow proof. `calendar-upsert` and `sample-review-upsert` deliberately remain on their prior
+  public source until the merged reconciler callers send the managed key; deploy those two only as
+  one caller/function change after merge. Direct legacy n8n writers remain F67.
 - The EF ports string-extract 11 symbols from `index.html` **by name** (`grabFunc`) — renaming
   those symbols silently breaks the port. Check `supabase/functions/` before renaming
   anything the write path touches.
@@ -81,6 +98,12 @@ functions use floating `supabase-js@2` (six npm aliases plus one `esm.sh` alias)
 has a committed lock/import map. Treat every deployment/rebuild/rollback as F51-gated until all 25
 source closures, dependencies, JWT settings, toolchain, release SHA, and downloaded server
 fingerprints are manifested and independently read back.
+
+The 2026-07-14 containment deployments are independently recorded in `EXECUTION_LOG.md`: all three
+onboarding list readers are live at v24 and `smm-weekly-reports` at v21 with anonymous `401` proofs;
+the four safe-to-deploy writers above and `filming-plans` are also live and deny missing/wrong
+credentials. Function versions can increment when project secrets restart functions, so the source
+commit plus downloaded/server fingerprint—not the version integer alone—is the release identity.
 
 Thumbnail v2 is controlled by backend flag
 `thumbnail_revision_v2={"mode":"off|test|on","clients":[...]}`; the verified live value is

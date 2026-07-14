@@ -9,6 +9,11 @@
 //   SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
+import {
+  authorizeBrowserWrite,
+  browserWriteAuthResponse,
+  normalizeBrowserWriteClient,
+} from "../_shared/browser-write-auth.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -19,7 +24,6 @@ const CORS: Record<string, string> = {
 
 type JsonMap = Record<string, unknown>;
 type ReorderItem = { id: string; order_index: string };
-type Actor = { actor: string | null; role: string | null; source: string };
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), {
@@ -32,18 +36,8 @@ function clean(v: unknown): string {
   return String(v == null ? "" : v).trim();
 }
 
-function actorFrom(req: Request, body: JsonMap): Actor {
-  const bodyActor = body.actor && typeof body.actor === "object" ? body.actor as JsonMap : {};
-  const bodyActorName = typeof body.actor === "string" ? body.actor : "";
-  const actor = clean(req.headers.get("x-syncview-actor") || bodyActor.name || body.actor_name || bodyActorName) || null;
-  const role = clean(req.headers.get("x-syncview-role") || bodyActor.role || body.actor_role) || null;
-  const rawSource = clean(req.headers.get("x-syncview-source") || body.source || "ui").toLowerCase();
-  const source = rawSource === "linear" || rawSource === "reconcile" ? rawSource : "ui";
-  return { actor, role, source };
-}
-
 function parsePayload(body: JsonMap): { client: string; items: ReorderItem[] } {
-  const client = clean(body.client);
+  const client = normalizeBrowserWriteClient(body.client);
   if (!client) throw new Error("client required");
   const raw = Array.isArray(body.items) ? body.items : [];
   if (!raw.length) throw new Error("items[] required");
@@ -70,7 +64,6 @@ Deno.serve(async (req: Request) => {
   try {
     const body = JSON.parse(await req.text()) as JsonMap;
     const parsed = parsePayload(body);
-    const actor = actorFrom(req, body);
     client = parsed.client;
     itemCount = parsed.items.length;
     const now = new Date().toISOString();
@@ -82,6 +75,7 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
+    const actor = await authorizeBrowserWrite(supabase, req, client, "calendar-reorder");
 
     for (const item of parsed.items) {
       const { data, error } = await supabase.from("calendar_posts")
@@ -113,6 +107,11 @@ Deno.serve(async (req: Request) => {
     outcome = "ok";
     return json({ ok: true, updated });
   } catch (e) {
+    const auth = browserWriteAuthResponse(e);
+    if (auth) {
+      outcome = "denied";
+      return json({ ok: false, error: auth.code }, auth.status);
+    }
     const msg = e instanceof Error ? e.message : "request failed";
     return json({ ok: false, error: msg }, 500);
   } finally {

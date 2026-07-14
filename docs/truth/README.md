@@ -1,6 +1,6 @@
 # docs/truth/ — the living current-truth layer
 
-> Last verified: 2026-07-11 @ ae8a492
+> Last verified: 2026-07-14 @ 616ea20
 
 **Problem this solves:** every audit written as a dated snapshot (`docs/audits/`) is stale the
 moment the code changes, so each new session re-audits the same ground. These docs are the
@@ -13,7 +13,7 @@ opposite: they describe the **current** state of the system and are **updated in
 2. **Every doc carries a freshness stamp** — a `Last verified: YYYY-MM-DD @ <commit>` line.
    When you verify a doc's claims still hold, bump the stamp (even with no other edit).
    When you change behavior the doc describes, update the doc **in the same PR**.
-3. **Reference code by symbol, not line number.** Line numbers in a 44k-line single file are
+3. **Reference code by symbol, not line number.** Line numbers in a ~45.8k-line single file are
    stale within days. Write `` `_calPushStatusToLinear()` ``; the drift test verifies the
    symbol still exists in `index.html` or `scripts/`.
 4. **Machine-enforced where possible.** `test/truth-sync.js` (runs in `npm test` + CI) fails

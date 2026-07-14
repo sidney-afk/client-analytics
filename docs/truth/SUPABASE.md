@@ -1,11 +1,19 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-11 @ ae8a492
+> Last verified: 2026-07-13 (Management API and live disk-utilization readback)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 ## Tables
 
 See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
+
+> **READ-ACCESS BLOCKER (F88; live count-only census 2026-07-14).** Of 37 exposed table paths, 20
+> have nonempty rows selectable with the browser publishable key, including cross-client operational
+> rows/events, rosters/mappings, reports, filming plans, and thumbnail revision metadata. Client
+> tokens gate SPA behavior only; direct PostgREST does not consult them. The owner must explicitly
+> accept every exposed field as public (with legal/client review) or replace raw policies with
+> principal/client/role-scoped projections. F86 specifically requires minimizing raw staff/client
+> tables. B1 proved anonymous writes were denied; it did not prove read confidentiality.
 
 - `calendar_posts` — main calendar store (~3.4k rows at last count; ~77% belong to the TEST
   client; most rows archived).
@@ -13,10 +21,13 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   Referenced in code via `SXR_TABLE`.
 - `workload_issues` — **read-only mirror** of Linear (4 teams present: VID/GRA/CON/STR;
   56 messy `client_name` variants — normalize via `wlNormalizeClient()`).
-- `syncview_runtime_flags` — runtime kill-switches / migration routing. All flags currently
-  `{"clients":["sidneylaruel"]}` (TEST only) — must match the `ROLLBACK.md` live-state table.
-  **Hazard:** `updated_at` is provably not maintained on update; don't trust it for audit
-  trail (Track B wants an update trigger or flip log).
+- `syncview_runtime_flags` — runtime kill-switches / migration routing. Values have different
+  schemas and move during cutover; **never** assume they are all TEST-only. Read them live and
+  reconcile with `ROLLBACK.md` plus `docs/independence/GO_LIVE_CHECKLIST.md` before an operation.
+  B0's `BEFORE UPDATE` trigger maintains `updated_at`, and the separate `flag_flips` trigger records
+  old/new value plus actor/time; read both after every change. Canonical `prod_authority` sides are
+  only `linear`/`syncview`. F55 remains open because several backends also accept legacy `supabase`
+  while the browser rejects it; do not use that alias.
 - Event ledgers `sample_review_events` (~22k rows) + `calendar_post_events` (~473):
   **100% `source='ui'` to date** — the `linear_in`/`linear_out`/`reconcile` paths have never
   written events; inbound/reconcile bypass the ledger. `deliverable_events` (Track B) must
@@ -36,13 +47,32 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
 ## Edge Functions
 
-Live set in `docs/truth/ENDPOINTS.md`. Deploys are path-triggered by
-`.github/workflows/deploy-onboarding-edge-functions.yml` on changes under `supabase/functions/`.
+Client/staff verifier truth is also not ready for enforcement: F87 records missing request controls,
+uniform denials, bounded event retention, and explicit audit-outage behavior. F89 proves
+`client_access_events.ok` means access-allowed rather than credential-valid; the current seven-day
+window has zero valid-token events and cannot satisfy the spec's active-client validation gate.
 
-## Open operational question
+Live set in `docs/truth/ENDPOINTS.md`. Only 7 of 24 functions are covered by the current deploy
+Action; it also uses an unpinned latest CLI and records no resolved dependency graph or server
+artifact attestation. Seven functions use floating `supabase-js@2` (six npm aliases plus one
+`esm.sh` alias), and no function has a committed
+lock/import map. Treat every deployment/rebuild/rollback as F51-gated until all 24 source closures,
+dependencies, JWT settings, toolchain, release SHA, and downloaded server fingerprints are
+manifested and independently read back.
 
-Plan/PITR tier unconfirmed (spec assumed PITR; docs imply free tier). Owner call needed
-before relying on point-in-time recovery. *(Still open as of 2026-07-11.)*
+## Backup and capacity truth
+
+- The live project is on **Pro**, not Free. The 2026-07-13 readback showed seven completed daily
+  physical backups spanning the included seven-day retention window; the newest completed that day.
+- PITR was **off** at the readback. That matches the approved temporary-window policy, but means PITR
+  must be explicitly enabled and read back before each named risky window; it cannot be assumed.
+- Database disk utilization was **0.45 GiB used**. The old "approaching a 500 MB Free cap" framing is
+  obsolete. Capacity monitoring should use the live Pro disk/usage readbacks.
+- No successful scratch restore rehearsal is documented. Backup existence is not restore proof;
+  the timed restore + replay verification remains a hard pre-flip gate.
+- The Management API does not settle billed egress or the project's spend-cap posture. Before the
+  first flip, the owner must answer from **Dashboard -> Usage/Billing**: what is current egress, and
+  is the spend cap enabled or disabled?
 
 ## Migrations
 

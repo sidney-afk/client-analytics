@@ -1,23 +1,26 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-11 @ ae8a492
+> Last verified: 2026-07-14 (second-pass current-state reconciliation through F81)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
 
 ## What the system is (60 seconds)
 
-- **The entire app is `index.html`** — a single-file SPA (~44k lines), served by GitHub Pages
+- **The entire app is `index.html`** — a single-file SPA (~45.8k lines at this checkpoint), served by GitHub Pages
   from `main` at `syncview.synchrosocial.com`. **Merging to `main` deploys immediately.**
 - Backends: **Supabase** (Postgres REST + Edge Functions), **n8n** (webhook workflows),
   **Google Sheets** (roster/config via unauthenticated gviz CSV), **Linear** (the team's
   issue tracker, being replaced in-app by Track B).
 - `thumbnails/` is a self-contained sister app; nothing in SyncView references it.
-- Surfaces: content calendar, samples (SXR + legacy), three review flows (client / Kasper /
+- Surfaces: content calendar, Samples/SXR (plus a retained legacy client/backend compatibility
+  path whose staff route is Phase-1 retired), three review flows (client / Kasper /
   SMM), onboarding funnel, sales intake, filming plans, thumbnail tools, SMM weekly reports,
   and the visible **Linear** tab (`#production`, `?prod=1`; internal key `production`) — an in-app
-  mirror, **read-only by design** — and the visible **Submit** form (`#linear`; internal key
-  `linear`). Do not add mirror writes unless a milestone explicitly enables them.
+  mirror with authority-gated status/comment/due/assignee controls — and the visible **Submit**
+  form (`#linear`; internal key `linear`). Real teams are currently read-only because authority is
+  Linear, not because the surface is permanently read-only; only the gated cutover plan may enable
+  writes.
 
 ## Read order for any task
 
@@ -39,8 +42,10 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 
 ## Laws and enforced invariants
 
-- **`ROLLBACK.md` is law**: one-step rollback must always exist; log every deploy, flag flip,
-  migration, backup, and incident in `EXECUTION_LOG.md`.
+- **`ROLLBACK.md` is law**: every forward change needs a one-step behavior kill plus a rehearsed,
+  evidence-bearing complete recovery. F27 means Track-B authority reversal is not one-step; F51
+  means an EF source rebuild is not automatically an exact runtime rollback. Log every deploy,
+  flag flip, migration, backup, recovery, and incident in `EXECUTION_LOG.md`.
 - `npm test` runs every `test/*.js` offline — including `test/repo-map-sync.js` (repo layout
   vs `REPO_MAP.md`) and `test/truth-sync.js` (truth docs vs code). CI runs it on every push.
 - Production-tab / design-kit changes must pass `npm run test:prod-polish`.
@@ -51,11 +56,16 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 
 ## Live-system safety
 
-- Runtime kill-switches live in Supabase `syncview_runtime_flags` — flags are currently
-  scoped to the TEST client only (`sidneylaruel`); `ROLLBACK.md` has the live-state table.
-- n8n workflows are the production write path — snapshot to `n8n-backups/` before touching
-  (rollback rule 2). Live QA uses the TEST client only.
-- Known standing hazard *(per `docs/audits/2026-07-05-reaudit-summary.md`)*: several
-  credentials are exposed (per-SMM Linear API keys in a publicly readable sheet tab; house
-  Linear key hardcoded in n8n; an Anthropic key in two n8n nodes). Rotation is owed; don't
-  add new secrets to sheets or n8n nodes.
+- Runtime kill-switches live in Supabase `syncview_runtime_flags`. The three Track-A client
+  allowlists carry the full active roster; Track-B authority remains Linear/Linear, outbound is
+  off, and auth is permissive. The exact TEST fixture identity stays in private operator config;
+  `ROLLBACK.md` has the public-safe live-state table.
+- Production writes are mixed: full-roster Calendar/SXR/settings writes use Edge Functions with
+  dormant n8n fallback, while many unmigrated surfaces still use n8n. Snapshot any workflow
+  privately plus a public-safe `n8n-backups/` stub before touching it (rollback rule 2). Every live
+  write drill uses only the private TEST fixture.
+- Known standing hazard: several credentials remain exposed (per-SMM Linear API keys in a
+  publicly readable sheet tab and the house Linear key in legacy n8n). F52 reverified one
+  reachable Graphics title-generation workflow carrying a plaintext provider key across all 50
+  retained versions; the complete wider workflow/export/backup population remains unverified.
+  Rotation is owed; never add secrets to Sheets, workflow code, docs, or logs.

@@ -1,14 +1,14 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-11 @ ae8a492
+> Last verified: 2026-07-14 @ 616ea20 + live topology readback
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
 
 ## Shape
 
-One ~44k-line single-file SPA. Major surfaces: content calendar, samples (SXR + legacy),
-three review flows (client / Kasper / SMM), the visible Linear read-only mirror (internal
+One ~45.8k-line single-file SPA. Major surfaces: content calendar, samples (SXR + legacy),
+three review flows (client / Kasper / SMM), the visible Linear mirror/work surface (internal
 `production`, `#production`, `?prod=1`), the visible Submit form (internal `linear`, `#linear`),
 onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly reports, TikTok pilot.
 
@@ -24,9 +24,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 - Logic map: `docs/audits/2026-07-05-logic-samples.md`.
 - SXR rejects pushing Scheduled/Posted to Linear (unlike calendar).
-- `_sxrReassertLinearStatus()` is **defined but never called** (dead drift-protection);
-  with the samples reconciler likely off (see `docs/truth/N8N.md`), SXR's only protections
-  are a 5-minute local-fresh merge guard.
+- `_sxrReassertLinearStatus()` is **defined but never called** (dead drift-protection). Samples
+  reconciliation is currently on twice—pager dispatch plus its own GitHub schedule—so remove one
+  cadence, not both (see `docs/truth/N8N.md`). The browser also has a 5-minute local-fresh merge guard.
 - SXR writes `kasper_finish_log` which is silently dropped server-side
   (see `docs/truth/SUPABASE.md`).
 
@@ -43,9 +43,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Linear mirror tab (internal `production`; `#production`; `?prod=1`)
 
-- Visible top-nav label is **Linear**; the internal module/key remains `production`. It is a
-  read-only in-app Linear mirror, **guarded read-only by design** — no writes until a
-  milestone explicitly enables them (Track B4).
+- Visible top-nav label is **Linear**; the internal module/key remains `production`. #812's
+  status/comment/due/assignee controls are deployed through `production-write`, but authority
+  remains Linear/Linear, so real-team rows render read-only while the bounded private TEST override
+  can write. Human cutover is blocked by the audit register; this is not a future unwired preview.
 - Boot does a lightweight parallel select of `clients`/`team_members`/`batches`/
   `deliverables` (plus `deliverable_events`).
 - Design source of truth is the locked kit in `docs/syncview-design/`; UI changes must pass

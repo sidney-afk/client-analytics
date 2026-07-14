@@ -2,7 +2,7 @@
 
 **Who this is for:** any new Claude/Codex session working on SyncView. Read this INSTEAD of
 re-auditing the whole system from scratch. Everything here is either a pointer to a live source
-of truth (trust those) or a stable recipe (verified 2026-07-11). When this file and reality
+of truth (trust those) or a stable recipe (verified 2026-07-14). When this file and reality
 disagree, reality wins — and fix this file in the same PR.
 
 ## 1. The cast, and the rules between them
@@ -19,16 +19,26 @@ disagree, reality wins — and fix this file in the same PR.
 
 ## 2. Standing rails (non-negotiable — from ROLLBACK.md rule set)
 
-- **Public repo.** No secrets, no real client names/handles/PII in any committed file or PR text
-  (a 2026-07-11 scrub removed historical leaks — do not reintroduce). TEST client is
-  `sidneylaruel`; use it or fictional names for every example and probe.
+- **Public repo.** No secrets, no real client names/handles/PII in any committed file or PR text.
+  F64 is an active P0: a schema-only replacement is prepared locally but must land only after a
+  separate guard-only PR is merged, followed by guarded scrub proof and immediate guard removal.
+  Public main/history/cache/fork/clone assessment and the wider tracked-exposure scrub remain open.
+  Obtain the active TEST fixture only from private operator config; committed examples
+  use generic TEST labels or fictional names.
 - **No model identifiers** in commits/PRs/code/docs — chat replies only.
-- **One-step rollback for everything**; additive-only DB during the migration; old n8n paths
-  stay deactivated-not-deleted; back up n8n before editing (private export + public-safe stub).
-- **Runtime flags are owner-only decisions.** Never flip `auth_enforcement`, `prod_authority`,
-  `linear_inbound_enabled`, or the `*_ef_clients` rosters without explicit owner approval.
-- **Linear is read-only** except sanctioned mutations on the TEST project ("Sidney Laruel"),
-  reverted/archived afterward.
+- **Every forward cutover is blocked until its behavior rollback is proved.** A kill flag may
+  contain new behavior in one step, but Track-B team authority rollback currently requires
+  FLIP_RUNBOOK R2's audited intent classification/team-zero (F27), and EF code rollback is not
+  exact without pinned/attested artifacts (F51). Database changes stay additive. Track-A fallback
+  workflows remain active-but-dormant through their approved rollback gate; once retirement is
+  authorized, deactivate/archive rather than delete and retain a drilled inverse. Back up n8n
+  before editing (private export + public-safe stub).
+- **Every runtime-flag mutation is owner-only.** This includes all three `*_ef_clients` rosters,
+  `auth_enforcement`, `prod_authority`, `linear_inbound_enabled`, `linear_outbound_enabled`,
+  `linear_legacy_parity_enabled`, and any newly deployed cohort/epoch flag. Read-only inspection is
+  not permission to flip one.
+- **Linear is read-only** except sanctioned mutations on the private active TEST project,
+  reverted/archived afterward; never publish its name or identifier.
 - Secrets are handed to AIs **by name, never by value** (e.g. `LINEAR_MIRROR_API_KEY`).
 
 ## 3. Live sources of truth (read these first, in this order)
@@ -46,11 +56,12 @@ disagree, reality wins — and fix this file in the same PR.
 ### Locked tab label ↔ route mapping
 
 - Visible **Linear** tab → `navProd` → internal key `production` → `#production`; `?prod=1`
-  remains its direct-entry/deep-link alias. The tab remains **read-only in the SPA** — every
-  mutation attempt routes to `_prodReadonlyGuard()`; no mirror-tab write affordance is wired.
-  The B4 outbound backend (outbox → `linear-outbound`) was proven live end-to-end on 2026-07-12
-  (flag flips 24/25), but team-facing writes wait on the staff write-UI epoch. Read
-  `prod_authority` / `linear_outbound_enabled` for the current stance instead of assuming.
+  remains its direct-entry/deep-link alias. #812 ships status/comment/due/assignee controls through
+  `production-write`; they are authority-gated and real teams render read-only under the current
+  Linear/Linear stance, while the bounded active-TEST lane can write. The B4 outbox →
+  `linear-outbound` backend was proven live end-to-end on 2026-07-12. F50/F53 remain hard gaps:
+  deliverable status does not reach the linked review card, and Graphics has no canonical protected
+  media-link operation. Read `prod_authority` / `linear_outbound_enabled` live instead of assuming.
 - Visible **Submit** tab → `navLinear` → internal key `linear` → `#linear`. This is the existing
   Create Linear Issue submission form.
 
@@ -66,7 +77,8 @@ cloud sessions, curl needs `--cacert /root/.ccr/ca-bundle.crt`.
 **Runtime flags (the system's switchboard):**
 `GET /rest/v1/syncview_runtime_flags?select=key,value,updated_at` — expect the three
 `*_ef_clients` rosters (33 slugs), `auth_enforcement`, `prod_authority`,
-`linear_inbound_enabled`, and `linear_outbound_enabled` (`off`/`shadow`/`live`). Do not assume
+`linear_inbound_enabled`, `linear_outbound_enabled` (`off`/`shadow`/`live`), and the independent
+`linear_legacy_parity_enabled` (currently disabled). Do not assume
 a stance for the last two — the B4 live-path proof ran 2026-07-12 (flips 24/25) and the everyday
 stance between epochs is Linear authority with outbound off (D-26); `ROLLBACK.md` §2 has intent,
 the live flag row has truth.
@@ -80,10 +92,13 @@ known transient (read-race), two consecutive is a page.
 
 **Outbound health (B4):**
 `GET /rest/v1/deliverable_events?select=id,ts,payload&action=eq.linear_outbound_summary&order=id.desc&limit=10`
-→ `payload.{mode,counts,backlog,alerts}`. `mode` must match the live flag. In every mode, any
-failed write, growing backlog, volume-spike flag, shadow mismatch, or summary older than
-90 minutes is a page. Global stop is mode `off`; a team's
-everyday pause is `prod_authority[team]=linear`.
+→ `payload.{mode,counts,backlog,alerts}`. `mode` must match the live flag. Any fresh summary with
+a failed write, growing backlog, volume-spike flag, or shadow mismatch is a page. Summary-freshness
+paging (>90 minutes) applies while normal outbound mode is active (`shadow`/`live`); `off` suppresses
+that staleness alarm but does **not** stop F4 legacy parity. For unknown/mixed bad Linear writes,
+stop affected users, set normal outbound `off`, set legacy parity `false`, and read back both.
+Returning one team's authority to `linear` is blocked until FLIP_RUNBOOK R2's immutable snapshot,
+classify/replay/quarantine/discard decisions, and machine-read team zero are complete (F27).
 
 **Mirror inflow freshness:** same table, `&source=eq.mirror&limit=3` — actor "Linear webhook";
 >12 h silence on a workday = webhook may have auto-disabled. **Only while that team's
@@ -119,17 +134,21 @@ changed files.
 
 **n8n quick reference (workflow ids are public-safe; webhooks already appear in index.html):**
 Monitoring Pager `qllIDZPkdNAPRj0b` (15-min reconciler dispatch + staleness pager) · Edge Alert
-Relay `Tfhc3vebZyG6obOg` (EF anomaly → owner DM) · legacy write fail-safes: calendar upsert
+Relay `Tfhc3vebZyG6obOg` (EF anomaly → owner DM) · legacy **unauthenticated fallback writers**
+(F67; not a security-safe failover): calendar upsert
 `pWSqaqVw7dmqhYOA`, samples upsert `gPY5DL4D0n5nwius`, reorders `lTtZNLrQLpIZqwAY`/`OXd0sUoSJYMspGTF`/`XOT7IDFGxTwOUCCP`,
 templates `oPX1nH7TxzCITNAz`, caption prompts `RGkuE8d4uJg6CPde` (all dormant since 2026-07-07 —
 executions on the upsert pair are QA-harness traffic on the TEST client; anything outside QA
-burst windows is a finding) · Calendar Linear Status Sync `MJbMZ789B5ExZz9x` (active).
+burst windows is a finding). New clients are omitted from static routing lists by construction
+until F69 is fixed. Calendar Linear Status Sync `MJbMZ789B5ExZz9x`
+(**inactive/unpublished** at the 2026-07-13 readback; saved five-node graph is authority-gated, but
+must not be treated as a real-time path or republished before its crash/topology decision).
 
-**GitHub Actions:** reconcilers `linear-sync-reconcile.yml`, `sample-linear-reconcile.yml`,
-`linear-deliverables-reconcile.yml` (dispatched by the pager — GitHub's own cron throttles);
-`b1-linear-incremental-refresh.yml` (new-issue adoption); `linear-outbound-drain.yml` (B4,
-default-off outbox worker); `production-polish-gate.yml` (fast
-lane on PRs, heavy lanes on main/schedule); two nightlies; unit tests on every push.
+**GitHub Actions (13 workflow files):** reconcilers `linear-sync-reconcile.yml`,
+`sample-linear-reconcile.yml`, `linear-deliverables-reconcile.yml` (pager-dispatched; GitHub cron
+can throttle); `b1-linear-incremental-refresh.yml`; `linear-outbound-drain.yml`;
+`production-write-drill.yml`; `production-shadow-audit.yml`; `n8n-execution-quota-watchdog.yml`;
+`production-polish-gate.yml`; the Edge-Function deploy; two nightlies; and unit tests.
 
 ## 5. Known patterns that look like problems but aren't
 
@@ -148,13 +167,11 @@ lane on PRs, heavy lanes on main/schedule); two nightlies; unit tests on every p
 ## 6. Phase pointer (as of 2026-07-12 — verify against B4_READINESS.md and the live flags, do not trust)
 
 Track A (writes off n8n): **complete, closed out**. Track B: **B4 outbound pipe PROVEN LIVE** —
-on 2026-07-12 the owner ran the bounded all-client shadow gate and then the live cutover (flag
-flips 24/25): both teams SyncView-authoritative, `linear_outbound_enabled=live`, clean live
-drainer cycles, pager green, reconciler 0/0/0 throughout. What is **not yet shipped** is the
-team-facing write layer: the visible **Linear** mirror tab is still read-only in the SPA
-(`_prodReadonlyGuard()`), the **Submit** tab still creates issues via the legacy n8n path, and
-the SMM `linear-set-status` / `linear-add-comment` webhooks still write Linear directly. Until
-that write-UI epoch ships, day-to-day team work happens on the pre-cutover surfaces, and the
-coherent everyday stance is Linear authority with outbound off (the D-26 pause) — the proven
-live pipe idles behind its flag and re-enabling is two flips. Read the current flags before
-assuming either stance. The `linear-*` n8n family retires at B5 (§13.4).
+on 2026-07-12 the bounded TEST/shadow/live evidence passed, then production authority returned to
+the coherent everyday stance: Linear/Linear with outbound off. #812's Production
+status/comment/due/assignee controls are shipped but authority-locked for real teams; the bounded
+active-TEST override remains. The **Submit** tab and Calendar/Samples reroute in draft #813 are not
+merged, and current #813 head lacks the required per-client dark gate (F02/F23). Day-to-day real-team
+work therefore stays on the legacy surfaces. Re-enabling outbound/authority is an owner operation,
+not proof that F50/F53 or the other audit gates are closed. Read live flags and the register before
+assuming any stance. The `linear-*` n8n family retires only at B5 (§13.4).

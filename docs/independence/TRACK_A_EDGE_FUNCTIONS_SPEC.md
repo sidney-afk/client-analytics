@@ -1,5 +1,10 @@
 # Track A — Moving the interactive SyncView write path from n8n to Supabase Edge Functions
 
+> **Historical execution spec; Track A closed 2026-07-10.** Do not execute open/future wording in
+> this file as current work. `ROLLBACK.md`, `docs/truth/*`, and the cutover register own live state.
+> In particular, the shipped topology did not port every A3/A4 planning row below; retained n8n
+> fallbacks and accepted baselines are deliberate until separately owner-approved retirement.
+
 **Parent doc:** `INDEPENDENCE_PLAN.md` (read it first, including Appendix A).
 **Reference doc:** `EDGE_FUNCTIONS_MIGRATION.md` (2026-06-29) — its guard-by-guard analysis of
 `calendar-upsert-post` and `linear-status-sync` is authoritative for port fidelity. This spec
@@ -30,10 +35,10 @@ Function. n8n workflow IDs are in the n8n audit.
 | `linear-issue-statuses` (batched load-time reconcile) | A3 | **Port to EF** (one batched GraphQL query in, statuses out) |
 | `templates-get` / `templates-save` | A4 | **Replace**: new `templates` table; FE reads Supabase directly (+realtime), writes via EF `templates-save` |
 | `caption-prompts-get` / `caption-prompts-save` | A4 | **Replace**: new `caption_prompts` table, same pattern |
-| `filming-plan-tabs` | A4 | **Port to EF** with a `filming_plan_tabs_cache` table (10-min TTL per doc); needs a Google service-account secret |
+| `filming-plan-tabs` | A4 historical proposal | **Not ported / no current commitment.** QA route containment shipped; the existing n8n endpoint plus browser cache is the accepted baseline. Any server-cache replacement is a separately scoped optimization. |
 | `calendar-get`, `kasper-queue`, `samples-get`, `sample-review-get` | A4 | **Retire the FE fallbacks** once A1–A2 have baked (they exist only as error fallbacks for reads the FE already does directly); keep the n8n workflows until Phase-4 cleanup |
 | `calendar-append-post`, `calendar-delete-post` | A4 | **Dead code** — FE constants exist but are never called; archive the n8n workflows |
-| `samples-upsert`, `samples-reorder` (Samples Old) | — | **UNCHANGED on n8n** (owner decision D4). Do not port, do not break. |
+| `samples-upsert`, `samples-reorder` (Samples Old) | — | Phase-1 staff-route retirement shipped; legacy client/backend compatibility remains until owner-approved Phase 2 (F57). Do not delete or silently reactivate it. |
 | `generate-caption`, `caption-job-status`, `caption-job-update` | — | Stay on n8n (long-running AI pipeline; D1) |
 | `send-urgent-slack`, `linear-tweak-comments`, `editors-week`, `linear-projects`, `linear-subissues`, `video-form`, `graphic-form`, `log-linear-submission`, `add-to-calendar` | — | Stay on n8n; they are Linear-era machinery that **Track B deletes or replaces** — porting them now is wasted work |
 | onboarding, sales-intake, TikTok (all), briefs/summaries, content-ready, weekly-slack | — | Stay on n8n (D1/D2) |
@@ -131,7 +136,7 @@ survive the port, in order of how expensive a miss is:
    call. Flip via a canary allowlist (`CALENDAR_UPSERT_URL_EF` + client-slug list) applied in
    ALL of those places in one PR. Add a CI grep asserting the old URL string appears only in
    the fallback constant.
-7. **Canary**: start with the QA client slug(s) (e.g. the "Sidney Laruel" test client), then 2–3
+7. **Canary (historical execution record)**: start with the privately configured QA fixture, then 2–3
    real clients for 48 h, then all. Watch: `{ok:false}` rates, conflict rates, reconciler
    corrections (must be zero), p95 latency.
 
@@ -178,13 +183,12 @@ These get deleted in Track B5; port them mechanically, no redesign.
   ports; `LINEAR_API_KEY` from EF secrets. The FE's durable localStorage outbox + per-issue
   serialization stays as-is (it's the retry layer).
 
-### 4.5 `filming-plan-tabs` (A4)
+### 4.5 `filming-plan-tabs` (A4) — historical proposal, not committed work
 
-EF flow: `?doc=<id>` → if `filming_plan_tabs_cache` row fresher than 10 min, return it; else
-fetch tab list via Google Docs API (`documents.get` with a service account that has read access
-to the filming-plan docs), upsert cache, return. Response shape must match the n8n one
-(`{tabs:[{title…}]}` — capture the exact live shape at port time). This plus the Phase-0 QA stub
-takes the endpoint from ~12.7k n8n executions/day to a handful of Docs API calls per hour.
+The QA cold-context hammer was contained by route stubbing. The existing n8n endpoint and browser
+cache remain the accepted production baseline. The former Edge Function/cache design below never
+shipped and must not be treated as an outstanding Track-A promise; any future replacement needs a
+fresh live response/credential/access audit, exact parity, a rollback gate, and separate approval.
 
 ## 5. What Track A explicitly does NOT do
 

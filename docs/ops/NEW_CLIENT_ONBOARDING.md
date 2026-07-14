@@ -30,7 +30,7 @@
 
 **Research / prep**
 - [ ] Intake form received (Notion → you get a Slack DM). → [§2](#2-intake)
-- [ ] Scrape 5–10 of their Instagram **reels** and write the **keywords** + **content_description**. → [§3](#3-research-keywords--content-description)
+- [ ] Scrape 5–10 of their Instagram **reels** and write the **keywords** + **content_description**. → [§3](#3-research-keywords--content_description)
 
 **SYNCVIEW Google Sheet** (`10QQ…QqAU8`)
 - [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, slack channel id, …). → [§4](#4-clients-info-row-the-big-one)
@@ -49,12 +49,16 @@
 - [ ] *(recommended)* Add the client to **Sandcastles** — their **own** IG/TikTok **and** their **competitor** handles to the watchlist. → [§6h](#6h-sandcastles-content-intelligence)
 
 **Code + platforms**
-- [ ] **Frontend:** nothing — the client goes live automatically once the Clients Info row exists (sheet-driven allowlist). → [§6e](#6e-frontend-now-automatic)
+- [ ] **Roster display is automatic; write enrollment is not** (F69): a Clients Info row makes the
+  client visible, but the new slug is absent from the three static Track-A routing flags and falls
+  to unauthenticated n8n writers. Do not call onboarding complete until the atomic server receipt
+  proves all required authenticated routing entries/readbacks. → [§6e](#6e-roster-automatic-write-enrollment-blocked)
 - [ ] **Supabase today:** only the filming-plan link is entered through the app; the calendar &
   samples still auto-create. **Cutover blocker (B2/F44):** before native enrollment, the onboarding
   service must also atomically create/read back the canonical client/team mapping and protected
-  review token—never by copying a token into a Sheet. (Confirm current behavior in
-  [§6f](#6f-supabase-calendar--samples-nothing-to-do).)
+  review token plus every required Track-A authenticated routing enrollment—never by copying a
+  token into a Sheet. (Confirm current behavior in
+  [§6f](#6f-supabase-calendar--samples-no-manual-row-but-routing-is-required).)
 - [ ] **Linear (SMM):** create a Project for the client on the **Video + Graphics** teams, set the SMM as lead, link the Slack channel. → [§6g](#6g-linear-project-smm)
 
 **Finish**
@@ -110,9 +114,9 @@ This is the part that's easy to forget the *method* for. You're producing three 
 | `client_name` | Display name, e.g. `Jane Doe` | **Required.** This is what makes the client appear in the dashboard and derives the slug. |
 | `email` | Client email | Low‑stakes. |
 | `competitors` | Comma‑sep competitor **IG handles** | Drives competitor/market research. |
-| `keywords` | Broad topic list (15–20) | See [§3](#3-research-keywords--content-description). |
+| `keywords` | Broad topic list (15–20) | See [§3](#3-research-keywords--content_description). |
 | `specific_keywords` | Tight subset (~8) | Seeds market research. |
-| `content_description` | 3‑block brief (CREATOR IDENTITY / CONTENT DNA / AUDIENCE CONTEXT) | See [§3](#3-research-keywords--content-description). |
+| `content_description` | 3‑block brief (CREATOR IDENTITY / CONTENT DNA / AUDIENCE CONTEXT) | See [§3](#3-research-keywords--content_description). |
 | `instagram_handle` | IG handle, no `@` | e.g. `jane.doe.living`. |
 | `tiktok_handle` | TikTok handle | **Blank/`N/A` is fine** — scrapers skip it. |
 | `youtube_channel_id` | `UC…` channel ID | **Blank/`N/A` is fine.** |
@@ -121,7 +125,9 @@ This is the part that's easy to forget the *method* for. You're producing three 
 
 **Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` (Slack workspace id, for deep-links). **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
 
-> 💡 The `instagram_handle` is **not** the slug. The slug comes from `client_name` (see below). E.g. a client's IG handle can differ from their name — e.g. display name `Jane Doe`, IG `@jane.doe.living`, slug `janedoe`.
+> 💡 The `instagram_handle` is **not** the slug. The slug comes from `client_name` (see below). A
+> fictional display name `Example Alpha` might use handle `@example.alpha.media` while its slug is
+> `examplealpha`.
 
 ---
 
@@ -133,13 +139,13 @@ Almost everything keys off a **slug** derived from `client_name` by `wlNormalize
 
 | `client_name` | slug |
 |---|---|
-| Ana Vox | `anavox` |
-| Jane Doe | `janedoe` *(not `jane`)* |
-| Dr. Maria Garcia | `mariagarcia` *(no "dr")* |
-| Sam & Alex / Sam and Alex | `sam&alex` |
-| Sidney Laruel | `sidneylaruel` |
+| Example Alpha | `examplealpha` |
+| Example Beta | `examplebeta` *(not `example`)* |
+| Dr. Example Gamma | `examplegamma` *(no "dr")* |
+| Alpha & Beta / Alpha and Beta | `alpha&beta` |
+| QA Fixture | `qafixture` |
 
-There is **one** slug convention everywhere (calendar, samples, caption prompts, Supabase `client` column, localStorage caches). Keep the **display name spelling consistent** across every tab/tool — drift like "Maria Garcia" vs "maria‑garcia" vs "Sam & Alex" vs "Sam and Alex" is the #1 source of "why isn't this client showing up" bugs.
+There is **one** slug convention everywhere (calendar, samples, caption prompts, Supabase `client` column, localStorage caches). Keep the **display name spelling consistent** across every tab/tool—drift between punctuation, spacing, or `and`/`&` variants is the main source of “why isn't this client showing up” bugs. Examples above are fictional.
 
 ---
 
@@ -187,19 +193,30 @@ This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5
 ### 6d. Post For Me account (not urgent)
 Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`spc_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)
 
-### 6e. Frontend (now automatic)
-**Nothing to do.** The dashboard now derives its client allowlist from the **Clients Info** sheet at load time (`wlMergeClientsFromSheet` in `index.html`), so the moment the Clients Info row exists the client is live everywhere — no code edit, no deploy. The hardcoded `WL_CLIENT_NAMES` list (~line 8032) is just an offline seed / first‑paint fallback; you don't normally touch it.
+### 6e. Roster automatic; write enrollment blocked
+The dashboard derives its visible client roster from the **Clients Info** sheet at load time
+(`wlMergeClientsFromSheet` in `index.html`), so a new row appears without a frontend deploy. That is
+**display visibility only**, not write readiness. The three `*_ef_clients` runtime flags are static
+lists; a new slug is absent until explicitly enrolled and read back. Current fallback then routes
+Calendar/SXR/settings writes to unauthenticated n8n service-role webhooks (F67/F69). Do not ask the
+client/team to write until one atomic onboarding receipt proves the client row, project mapping,
+protected review token, all required authenticated Track-A routing entries, and first-write path.
+Longer term, replace manual static allowlists with an authenticated active-client policy.
 
 > ⚠️ The **root `README.md`** is still stale (it describes an old Instaloader/`scraper.py` pipeline that no longer exists) — ignore its "Add More Clients" section.
 
-### 6f. Supabase calendar & samples (nothing to do)
-**You do NOT manually create a content calendar or sample calendar in Supabase.** Under the current (Supabase-primary) architecture:
+### 6f. Supabase calendar & samples: no manual row, but routing is required
+You do not manually seed a content-calendar or SXR row. Under the current architecture:
 
-- The content calendar = table **`calendar_posts`**, the sample strip = **`content_samples`**. Both have primary key **`(client, id)`** keyed by the slug.
+- The content calendar uses **`calendar_posts`** and Samples/SXR uses **`sample_reviews`**. The
+  retained Samples Old compatibility store is separate (F57).
 - **Reads** of a brand‑new slug just return an empty `200` (empty calendar / empty strip — handled cleanly).
-- **The first write creates the row** (every writer upserts on `(client, id)` through n8n's service‑role credential). No table, no seed, no RLS policy is added per client.
+- **The first write creates the row**, but it must use the authenticated Track-A Edge Function after
+  exact routing enrollment. An omitted slug currently falls to the unauthenticated n8n writer; that
+  is a security/readiness failure, not an acceptable automatic setup (F69).
 
-So: once the client is in the allowlist and work starts, their calendar and samples populate themselves.
+So: after the server-generated onboarding receipt and a TEST-safe authenticated first-write probe,
+the client's Calendar/SXR rows can populate on demand. A visible empty surface alone is not proof.
 
 Exception: filming-plan master Doc links are intentionally managed in Supabase through the app's **Filming Plans** tab. You still should not edit Supabase directly; use the dashboard so the signed-in Admin gate, attribution, and app refresh behavior stay consistent.
 
@@ -226,7 +243,7 @@ not a completeness check until that reader is paginated and reconciled.
 Add **both** to the watchlist (`add_channels_to_watchlist`, or the web app):
 
 1. The client's **own** Instagram/TikTok — to track their own performance.
-2. The client's **competitor** handles (the `competitors` column in Clients Info) — to mine the niche for hooks/formats. If competitors aren't filled in yet, do that first ([§3](#3-research-keywords--content-description)); that same list feeds the competitor/market-research robots.
+2. The client's **competitor** handles (the `competitors` column in Clients Info) — to mine the niche for hooks/formats. If competitors aren't filled in yet, do that first ([§3](#3-research-keywords--content_description)); that same list feeds the competitor/market-research robots.
 
 New-to-Sandcastles channels are submitted automatically and finish scraping within a few minutes. After that you can pull `channel_recap`, `top_hooks` / `top_topics` / `top_formats`, and outlier alerts on any of them. (A deep `analyze_video` on a single post costs 1 analysis credit; tracking and recaps are free.)
 
@@ -237,7 +254,9 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
 - Before any #813 enrollment, require a server-side onboarding receipt proving the exact team
-  mapping and protected review token exist. On TEST, submit one batch and verify the receipt,
+  mapping, protected review token, and all required authenticated Track-A routing entries exist and
+  read back. Prove the first Calendar/SXR/settings write reaches the authenticated EF and cannot
+  fall through to anonymous n8n (F67/F69). On TEST, submit one batch and verify the receipt,
   parent/children, Calendar/Samples projection, and tokened client link after reload. A green
   “Issue created” banner is not proof: F44 verified that the legacy workflow can return 200 and
   clear the draft before parent creation later fails.
@@ -246,7 +265,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 ### 6j. Monthly check-in email
 **Where:** SYNCVIEW sheet → tab **`Monthly Checkup`** — columns `client_name | email`.
 
-The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on the **1st of every month at 8 AM** and emails **every row of this tab** a friendly check-in from `house@synchrosocial.com` with the iClosed booking link (`app.iclosed.io/e/synchrosocial/check-in`). Adding the row is the only wiring — the workflow reads the tab live on each run, no n8n change needed.
+The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on the **1st of every month at 8 AM** and emails **every row of this tab** a friendly check-in from the privately configured workspace sender with the iClosed booking link. Adding the row is the only wiring — the workflow reads the tab live on each run, no n8n change needed. Do not publish workspace account addresses (F64).
 
 1. Add a row: `client_name` (same spelling as Clients Info) + the client's `email` (watch for typos and trailing spaces — this goes straight into the To: field).
 2. **Default: every active client gets added.** If a client shouldn't receive these (special arrangement etc.), flag it with Kasper — but don't block onboarding on the question; removing a row later takes five seconds.
@@ -255,10 +274,14 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 
 ---
 
-## What's automatic (don't waste time on it)
+## What's automatic—and what is not
 
-- **Going live in the dashboard** — the Clients Info row is folded into the allowlist on load; no code change/deploy. ([§6e](#6e-frontend-now-automatic))
-- **Supabase** content calendar & sample strip — auto-create on first write. ([§6f](#6f-supabase-calendar--samples-nothing-to-do))
+- **Roster visibility only** — the Clients Info row appears without a frontend deploy, but the
+  client is **not write-ready** until F69's atomic authenticated routing receipt/readback succeeds.
+  ([§6e](#6e-roster-automatic-write-enrollment-blocked))
+- **Supabase row seeding** — Calendar/SXR rows can be created on first authenticated EF write; no
+  manual row is needed. Routing/auth enrollment is still mandatory.
+  ([§6f](#6f-supabase-calendar--samples-no-manual-row-but-routing-is-required))
 - **Metrics, Top Videos, Competitor Research, Market Research** — scheduled n8n workflows that read **Clients Info**; they pick up the new client on their next run.
 - **Per‑client caches / realtime channels / share‑link state** in the frontend — created at runtime from the slug.
 - **No** per‑client brand‑color config in `index.html` (brand colors only exist in the separate `thumbnails/` app, which is unrelated to dashboard onboarding).
@@ -266,7 +289,9 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 ## Gotchas & drift to watch
 
 1. **Name spelling must be identical** across Clients Info, Social Media Managers, the Filming Plans tab, and the Linear project. The slug is unforgiving (see the slug rule). The hardcoded `WL_CLIENT_NAMES` list is only an offline fallback seed now.
-2. **The dashboard allowlist is now the Clients Info sheet** (folded in at load by `wlMergeClientsFromSheet`). The only remaining hardcoded slug lists are the **n8n "Provision Missing Tabs" `SLUGS` arrays** — legacy/optional mirror only; update them just if you want the Sheet mirror + Drive backups to stay complete.
+2. **Clients Info controls roster visibility, not every write allowlist.** The three Track-A routing
+   flags are separate static slug lists and must be atomically enrolled/read back until replaced
+   (F69). Legacy Provision Missing Tabs arrays affect only the optional Sheet mirror.
 3. **Filming plan links are not just a URL.** The linked master Doc should live inside that client's folder in the shared **Client Filming Plans** Drive. If a correct-looking Doc lives elsewhere, move it into the client folder before treating the link as healthy.
 4. **Stale doc:** root `README.md` describes an old Instaloader pipeline that no longer exists — don't follow it. (The old `index.html` "provision the tab" comment was corrected in this PR.)
 5. **Duplicate Linear projects** are common (several clients already have 2–3). Search before creating; reuse the canonical one.
@@ -276,12 +301,16 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 
 ## 7. Reference appendix
 
-**IDs & locations**
-- SYNCVIEW Google Sheet: `10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8` — tabs: `Clients Info`, `Social Media Managers`, `Templates`, `CaptionPrompts`, `Video Editors`, `Monthly Checkup`, + data tabs (Metrics, TopVideos, Competitor/Market Research, ContentSummaries). The old `FilmingPlans` tab is historical/emergency fallback only; the app source of truth is Supabase via the main Filming Plans tab.
-- SyncView Calendar Google Sheet (legacy mirror): `1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps` — `Calendar_<slug>`, `Samples_<slug>`, `TikTokUploads`.
-- Supabase project: `uzltbbrjidmjwwfakwve` — tables `filming_plans` (master Doc links), `calendar_posts`, `content_samples` (PK `(client, id)` for calendar/samples).
-- Frontend: `index.html` → `WL_CLIENT_NAMES` (~`8032`), `wlNormalizeClient` (`8014`). Live at `syncview.synchrosocial.com`.
-- Linear workspace: `synchro-social`; teams **Video (`VID`)**, **Graphics (`GRA`)**; duplicate the **"Client Example"** project.
+**Locations (identifiers stay in private operator config)**
+- Primary workspace Sheet: tabs `Clients Info`, `Social Media Managers`, `Templates`,
+  `CaptionPrompts`, `Video Editors`, `Monthly Checkup`, and analytics data tabs. The old
+  `FilmingPlans` tab is historical fallback; Supabase is current truth.
+- Legacy Calendar Sheet: `Calendar_<slug>`, `Samples_<slug>`, `TikTokUploads`; optional mirror only.
+- Supabase: `filming_plans`, `calendar_posts`, `sample_reviews`, plus protected onboarding/client
+  tables. Obtain the project reference privately.
+- Frontend: locate `WL_CLIENT_NAMES` and `wlNormalizeClient` by symbol, never a dated line number.
+- Linear: obtain workspace/team/template identifiers from private operator config; do not publish
+  project/client names.
 
 **Key n8n workflows**
 | Workflow | ID | Role |
@@ -296,8 +325,12 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 | Filming Plan Tabs | `5S4JyVVR2CpHEv9b` | Reads filming‑Doc month tabs |
 | Calendar / Samples Provision Missing Tabs | `gB17L9M5yYxxk6GT` / `7Pdp6qnkBzwXP3YG` | Legacy Sheet‑tab mirror |
 
-**SMM roster** (first name → email; copy their Linear key / Slack ID from existing Sheet rows, don't hard‑code): Analia · Sebastian · Ludmila · Molly (Molly Morales) · Laura · Raha · Sidney. (Josefina, Camila, Ivana also appear as Linear leads on some accounts.)
+**SMM roster:** use the current owner-approved private employment/role roster and existing protected
+Sheet rows. Do not publish names, emails, Linear keys, or Slack IDs; F31 requires offboarding and
+individual revocation proof before treating a listed actor as current.
 
 ---
 
-*Maintainer note:* if the architecture shifts again (e.g. the Google Sheet mirror is retired per `PHASE4_CLEANUP_CHECKLIST.md`, or RLS becomes per-client per `AUDIT_2026-06-15.md`), update [§6f](#6f-supabase-calendar--samples-nothing-to-do) and the "stale docs" gotcha.
+*Maintainer note:* if the architecture shifts again (for example, the Sheet mirror retires or RLS
+becomes per-client), update [§6f](#6f-supabase-calendar--samples-no-manual-row-but-routing-is-required)
+and the stale-docs warning.

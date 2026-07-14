@@ -116,10 +116,10 @@ they are not disposable legacy-old code.
 
 | Artifact | Classification | Source | Decision |
 | --- | --- | --- | --- |
-| `SAMPLES_REBUILD_SPEC.md` | shared — must keep | `docs/features/SAMPLES_REBUILD_SPEC.md:1-238` | SXR surface/routing contract and exclusion map. |
-| `SAMPLES_REBUILD_STRATEGY.md` | shared — must keep | `docs/features/SAMPLES_REBUILD_STRATEGY.md:1-253` | SXR namespace, copy discipline, shared-utility boundary, and verification strategy. |
-| `SAMPLES_GO_LIVE.md` | shared — must keep | `docs/features/SAMPLES_GO_LIVE.md:1-87` | SXR rollout and rollback record. |
-| `SAMPLES_PARITY_LOG.md` | shared — must keep | `docs/features/SAMPLES_PARITY_LOG.md:1-117` | Live Calendar ↔ SXR shared/forked registry. |
+| `SAMPLES_REBUILD_SPEC.md` | shared — keep as historical build contract | `docs/features/SAMPLES_REBUILD_SPEC.md` | Surface/exclusion evidence only; default-OFF and n8n topology claims are superseded by its F46/F73 banner. |
+| `SAMPLES_REBUILD_STRATEGY.md` | shared — keep as historical execution record | `docs/features/SAMPLES_REBUILD_STRATEGY.md` | Namespace/copy-discipline evidence only; not current flag/topology guidance. |
+| `SAMPLES_GO_LIVE.md` | shared — keep as historical rollout record | `docs/features/SAMPLES_GO_LIVE.md` | Do not execute its old default-OFF, workflow, or fallback instructions; current controls are linked in its banner. |
+| `SAMPLES_PARITY_LOG.md` | shared — keep append-only | `docs/features/SAMPLES_PARITY_LOG.md` | Historical Calendar ↔ SXR build registry; old “embedded + live” and default-OFF rows do not override current state. |
 | SXR fences and aliases | shared — must keep | `index.html:34440-34518`; shared aliases specifically at `index.html:34482-34491` | Do not delete any `_sxr*`, `SXR_*`, `#sample-reviews`, `navSxr`, or `sample-review-*` item. |
 
 ## Test inventory
@@ -149,15 +149,12 @@ merge of Phase 1.
 2. **Disable, do not delete, the three `samples-*` workflows.** Snapshot the
    current workflows privately, verify no accepted legacy traffic after the
    frontend bake window, then deactivate get/upsert/reorder. Store workflow IDs
-   only in the private deployment environment. The public-safe rollback shape
-   is one PowerShell command:
-
-   ```powershell
-   $env:SAMPLES_WORKFLOW_IDS -split ',' | ForEach-Object { Invoke-RestMethod -Method Post -Headers @{'X-N8N-API-KEY'=$env:N8N_API_KEY} -Uri "$env:N8N_API_URL/api/v1/workflows/$_/activate" }
-   ```
-
-   Validate the exact API route against the installed n8n version at execution
-   time. Do not commit IDs or credentials.
+   only in the private deployment environment. **There is no bulk blind-activation rollback.**
+   Before restoring each workflow, read back and compare its exact approved graph/active version,
+   trigger, credential bindings, error handler, and last-green contract; exclude duplicate active
+   callers/cadences; obtain owner approval; activate one workflow; then verify activation plus its
+   first green request before considering the next. Stop on any mismatch. Validate the exact API
+   route against the installed n8n version and keep IDs/credentials private (F60/F63).
 
 3. **Archive `content_samples` without deleting rows.** After workflow disable
    and a verified backup, remove the table from browser realtime and revoke

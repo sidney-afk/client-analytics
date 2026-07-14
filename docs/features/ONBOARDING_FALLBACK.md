@@ -1,5 +1,10 @@
 # Onboarding Fallback & Backup (never lose a submission)
 
+> **ABUSE/INTEGRITY BLOCKER (F81).** “Never lose” currently also means an unauthenticated caller can
+> choose an ID, upsert arbitrary payload/note content, reset creation chronology, and trigger the
+> shared alert route without nonce, rate, size/schema/kind, or ownership controls. Preserve the
+> public client journey, but add bounded server-minted submission sessions and negative abuse tests.
+
 The goal, verbatim from the June 2 July call: **a client's submitted form must never
 be lost — there must always be a copy somewhere.** This doc describes the layered
 safety net added 2026-07-02 around both onboarding funnels (`/onboarding_form` +

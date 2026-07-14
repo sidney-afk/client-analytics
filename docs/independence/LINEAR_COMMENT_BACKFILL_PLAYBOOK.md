@@ -1,8 +1,10 @@
 # Linear comment history backfill playbook
 
 **Status:** executed additively on 2026-07-12. The full import reconciled exactly and its
-idempotent rerun performed zero writes. The one-command full rollback remains available and has
-not been executed.
+idempotent rerun performed zero writes. The former full-delete rollback is **withdrawn** (F68):
+current cross-run/self-FK dependencies and non-baseline row versions make its source-only guard
+insufficient. The version-2 timestamps fall inside the import/supplement window; no later mutation
+is inferred from version alone.
 
 This playbook imports the complete discoverable VID/GRA Linear comment history into
 `production_comments`. Linear is read-only throughout. Dry-run is the default, and the only
@@ -31,8 +33,9 @@ comment events are hidden from anonymous reads. This access decision needs expli
 before the UI is merged; relaxing it to match the anonymous mirror-table policies would expose
 comment bodies and is not part of this epoch.
 
-The full-run rollback in section 6 is rehearsed through the identical tag-scoped TEST pilot path
-and remains ready. It was not executed against the full import.
+The original tag-scoped TEST-pilot deletion does not prove that the evolved full import can be
+removed. Section 6 records the current live blockers and the recovery design that must exist before
+any full-import rollback is offered.
 
 ## 1. What is reused, and what was missing
 
@@ -43,8 +46,10 @@ script:
 - `EXECUTION_LOG.md` records the two-client pilot (680 deliverables / 203 batches), the remaining
   rollout (2,507 / 597), exact ledger coverage, zero orphaned batches, no Linear 429s, and a clean
   reconciler before and after. Total: 3,187 deliverables / 800 batches.
-- `ROLLBACK.md` records tag `created_by='history-backfill-2026-07-10'` and the transactional,
-  tag-scoped rollback.
+- `ROLLBACK.md` records tag `created_by='history-backfill-2026-07-10'`. **Do not reuse its former
+  three-DELETE rollback:** after this comment import, NO ACTION comment FKs and thousands of ledger
+  events depend on those history rows, so F62 requires a new dependency-aware disposition and
+  rehearsal. F68 independently withdraws the comment-import rollback in §6 below.
 - `scripts/b1-linear-backfill.js` is reusable for default-dry-run posture, paged service reads,
   public aggregate artifacts, RPC-only writes, and reconciliation. It deliberately writes
   `comments:null` and therefore is not the comment importer.
@@ -149,8 +154,9 @@ accounted for, and every non-zero unmapped/legacy category has an approved handl
 
 ### Gate B — TEST pilot
 
-The TEST apply is fail-closed to client `sidneylaruel`, projects `Sidney Laruel` / `Test Project`,
-and VID/GRA issues. The explicit confirmation is mandatory:
+The TEST apply is fail-closed to the privately configured TEST client/project allowlist and VID/GRA
+issues. Existing tracked identifier exposure is recorded in F64; do not add those values here. The
+explicit confirmation is mandatory:
 
 ```bash
 B4_CONFIRM_TEST_MUTATIONS=1 node scripts/b4-linear-comment-backfill.js \
@@ -237,45 +243,23 @@ node scripts/b4-linear-comment-backfill.js \
 Proceed only when `standalone_additions=8` matches the independently verified gap. Any other count
 is a stop-and-review result.
 
-## 6. One-command rollback
+## 6. Full-import rollback — blocked pending a dependency-safe design (F68)
 
-Replace the run ID in all three predicates. Execute the whole block as one service-role SQL-editor
-command. It refuses to delete a tagged row whose source has since changed away from `backfill`,
-deletes only that run's self-contained events first, then deletes only that run's backfill rows. It
-never touches Linear, deliverables, batches, flags, n8n, or the mirror outbox.
+**Do not run the former DELETE block.** A 2026-07-13 service-role, aggregate-only read found 12,691
+tagged comments still sourced from the backfill, but the import is no longer self-contained:
 
-```sql
-begin;
-do $$
-begin
-  if exists (
-    select 1 from public.production_comments
-    where import_run_id = 'linear-comment-backfill-2026-07-12'
-      and source <> 'backfill'
-  ) then
-    raise exception 'rollback refused: tagged comments have non-backfill changes';
-  end if;
-end $$;
+- 223 current rows reference tagged IDs through `parent_id` and/or `thread_root_id` NO ACTION
+  self-foreign keys; 222 are same-run descendants and one outside-run row references a tagged ID;
+- 41 tagged rows are version 2 (their timestamps remain inside the import/supplement window);
+  checking only that `source='backfill'` cannot classify why a row is non-baseline, while the later
+  outside-run relationship independently proves the import is no longer self-contained.
 
-delete from public.deliverable_events
-where source = 'backfill'
-  and action in (
-    'comment_add', 'comment_edit', 'comment_delete', 'comment_resolve',
-    'comment_unresolve', 'comment_link_linear', 'comment_link_native'
-  )
-  and coalesce(
-    payload->>'import_run_id',
-    payload#>>'{comment,import_run_id}'
-  ) = 'linear-comment-backfill-2026-07-12';
-
-delete from public.production_comments
-where source = 'backfill'
-  and import_run_id = 'linear-comment-backfill-2026-07-12';
-commit;
-```
-
-Rollback verification: the run-tag count and its event count are zero; pre-existing native/mirror
-comments are unchanged; rerunning the same dry-run reproduces the original planned insert count.
+The safe default is to preserve the import. A future rollback must first capture a fresh private
+dependency/version snapshot; require an owner-approved preserve/relink/delete disposition for
+same-run and cross-run descendants plus events; calculate assertion-bearing dry-run counts; execute
+dependency order inside one transaction; and pass a full TEST/scratch restore rehearsal and exact
+post-rollback readback. Only then may a new command be documented. The small TEST-pilot rollback was
+valid for that then-isolated fixture and is not evidence for deleting today's full import.
 
 ## 7. Stop conditions
 

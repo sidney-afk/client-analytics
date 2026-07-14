@@ -1,11 +1,13 @@
 # Edge Functions Migration Plan — `linear-status-sync` & `calendar-upsert-post` (n8n → Supabase Edge Functions)
 
-> **Status:** PLAN — FUTURE / NOT YET IMPLEMENTED (drafted 2026-06-29). No Edge
-> Function has been deployed, no n8n workflow has been changed, no Linear webhook
-> has been repointed. This is a review-first plan; **apply nothing until signed
-> off.** It needs more investigation and a dedicated implementation pass before
-> any of it goes live. Snapshot/rollback IDs for the two hot handlers are
-> recorded in [Snapshots / rollback](#snapshots--rollback-capture-before-any-edit).
+> **SUPERSEDED HISTORICAL PLAN — DO NOT EXECUTE (drafted 2026-06-29).** Its deployment state,
+> active-workflow claims, hot-standby model, cost tier, and “repoint/Activate” rollback instructions
+> no longer describe production. Edge Functions are deployed; legacy `MJbMZ789B5ExZz9x` is
+> inactive/unpublished after a crash cluster (F46); and F51 proves that a source revert/rebuild is
+> not an exact artifact rollback. Every checklist, command, URL-repoint, activation, and rollback
+> below is retained only as design history. Current operators must use
+> `CUTOVER_AUDIT_2026-07-13.md`, `GO_LIVE_CHECKLIST.md`, `ROLLBACK.md`, and
+> `docs/truth/SUPABASE.md`.
 >
 > Companion docs (read these for current truth): `docs/archive/N8N_SAVE_LATENCY_AUDIT_2026-06-15.md`
 > (the latency problem this targets), `docs/ops/LINEAR_SYNC_RECONCILE.md` (the safety net
@@ -33,9 +35,11 @@ backups). The two paths:
    in Postgres** (`calendar_merge_comments`), so the port is thinner than it looks.
 
 This is **not** a rip-out of n8n. It is a surgical, reversible, one-handler-at-a-
-time move of two paths. Cost impact: **$0** (Edge Functions are inside the
-Supabase free tier; see [Cost](#cost--does-this-force-us-onto-a-paid-plan)).
-Rollback is **repointing one webhook URL**.
+time move of two paths. The original incremental-cost conclusion was **$0** because the projected
+function volume fit the then-current allowance. The project is live on Pro as of 2026-07-13; see
+[Cost](#cost--does-this-force-us-onto-a-paid-plan) for the dated correction.
+The historical proposal treated rollback as repointing one webhook URL; that is **not current
+rollback guidance**. Use `ROLLBACK.md` and the F46/F51 gates.
 
 ## Why now (the symptom)
 
@@ -432,14 +436,11 @@ revisit **(c)** if a third consumer ever appears.
 
 ## Cost — does this force us onto a paid plan?
 
-**No.** Edge Functions are included in the Supabase **Free tier** (500,000
-invocations/month; no per-function fee). Two webhook/write handlers generate
-hundreds–to–low-thousands of invocations/month — ~100× under the limit. The app is
-already on Supabase Free for DB + Realtime, and live browser traffic keeps the
-project from the 7-day inactivity pause. The thing that would *eventually* force
-the $25/mo Pro plan is **not** Edge Functions — it is the **500 MB database size
-cap** (Pro raises it to 8 GB). Verify current numbers on the live pricing page
-before relying on them.
+**Historical answer: no incremental upgrade was required for these handlers. Current correction
+(2026-07-13): the project is already on Pro.** Live database disk utilization was 0.45 GiB, so the
+old “500 MB Free cap will force Pro” claim is obsolete. Do not reuse the historical invocation or
+plan-limit numbers as current pricing. Read the live entitlements and Dashboard Usage/Billing;
+before cutover, the owner must record current egress and whether the spend cap is enabled.
 
 ## Open items / first steps for the next session
 

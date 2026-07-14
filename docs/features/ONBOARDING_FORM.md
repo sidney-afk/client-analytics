@@ -1,5 +1,11 @@
 # Centralized Onboarding Form (SyncView)
 
+> **ABUSE/INTEGRITY BLOCKER (F81).** The public intake must accept anonymous clients, but the
+> deployed capture fallback currently accepts unbounded caller-chosen IDs/payloads and can emit
+> caller text to alerts. It lacks nonce/session ownership, rate/CAPTCHA, strict size/schema/kind
+> controls, conditional updates, and immutable creation time. Add those controls and TEST
+> spam/replay/oversize/foreign-ID/alert failure before relying on the never-lose chain.
+
 A standalone, private-link onboarding page built into `index.html`. It replaces the
 two old intake systems (the **Notion** "Onboarding Form" for normal clients and the
 **JotForm** form for AI clients) — **two funnels rendered from one shared module**:

@@ -196,6 +196,8 @@ ok(/const SIGNED_URL_TTL_SECONDS = 5 \* 60/.test(READ)
   'reader must return only short-lived private snapshot URLs');
 ok(/\.eq\("surface", surface\)[\s\S]*\.eq\("client", client\)[\s\S]*\.eq\("source_id", sourceId\)/.test(READ),
   'reader query must bind the exact surface, client, and source card');
+ok(/Access-Control-Allow-Headers[^\n]*x-syncview-source/.test(READ),
+  'reader CORS must allow the source header sent by the browser comparison request');
 ok(/matchingRoleForKey/.test(READ) && /client_scope_mismatch/.test(READ)
   && /roster_actor_not_unique/.test(READ),
   'reader must enforce scoped client or exact active staff identity');

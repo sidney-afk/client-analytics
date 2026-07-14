@@ -6,3 +6,6 @@ index.html text eol=lf
 *.md text eol=lf
 *.sql text eol=lf
 *.toml text eol=lf
+
+# Temporary F64 privacy-incident guard. Remove immediately after the separately reviewed scrub.
+migrations/legacy-onboarding-migration.sql -diff

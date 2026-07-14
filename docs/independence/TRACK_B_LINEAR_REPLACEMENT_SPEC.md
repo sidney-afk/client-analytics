@@ -1055,9 +1055,19 @@ EF reading `team_members.slack_user_id` (the sheet never had Slack ids). Same co
 **9.9 Kasper Messages inbox:** built on card threads + `kasper_seen` — §9.5 keeps it working
 unchanged, now also showing editor replies. No rebuild.
 
-**9.10 Workload tab re-point** (per team at flip): read `deliverables` (+`team_members`) for
-flipped teams; CON/STR filtered; realtime can finally turn ON (row-level writes); allowlists retire into
-`team_members`.
+**9.10 Workload tab re-point** (per team at flip): read `deliverables + batches + clients +
+team_members` for flipped teams; CON/STR filtered; realtime can finally turn ON (row-level writes);
+allowlists retire into `team_members`. **F40 implementation correction (2026-07-13): this is not in
+main or #813.** Both still read only Linear-derived `workload_issues` with n8n fallback, so the
+handoff is a hard pre-flip build gate, not B5 cleanup. The adapter composes native rows only for
+SyncView-authoritative teams and must never fall back those teams to Linear truth.
+
+Before enabling, publish a set-parity report. The live audit found 13 legacy stale ghosts and 39
+genuine active top-level native rows hidden by today's sub-issue-only Workload rule. The owner must
+explicitly preserve that rule or accept the additional rows with comms; parent/client/assignee/status
+semantics, native deep links, CON/STR, search/rollups, catch-up, and mixed-authority failure behavior
+must all be covered. B5 removes `workload_issues`, the n8n fallback, old cache, and Linear links only
+after that report and TEST propagation matrix are green.
 
 **9.11 `editors-week` replacement (B5) — corrected semantics (critic catch):** a "delivery" is a
 transition **INTO a review state** (`smm_approval|kasper_approval|client_approval`) **FROM a work

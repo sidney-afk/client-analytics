@@ -116,10 +116,31 @@ the team's SyncView work, and inbound then overwrites it.**
 
 ## R3 — If Supabase itself is down
 
-The team keeps working in real Linear (it is unaffected pre-B5). No flag can be flipped while
-Supabase is down — that is fine: with Supabase down, SyncView is down, so nothing is writing.
-When it returns: read back the flags URL, run one reconcile (Actions → "Linear ⇄ deliverables
-reconcile v2" → Run workflow), and check diffs = 0 before telling anyone anything.
+**Do not tell every team to use Linear.** Authority is per team, and no flag can be changed while
+its database is unavailable. Use the last successful read-back captured in the incident/flip notes:
+
+- A team last verified as **`linear`** may keep working in Linear.
+- A team last verified as **`syncview`** must stop production mutations. Record each required
+  change in a private incident log (time, person, target, field/action, intended value); do not make
+  it in Linear. Tell the team plainly that the change is recorded but not saved yet.
+- If authority is unknown, use the safer `syncview` instruction: stop and log; never guess Linear.
+- After B5/Linear freeze, no team has a Linear fallback.
+
+When Supabase returns, keep affected teams paused and **do not dispatch the reconciler yet**:
+
+1. Read back every flag and confirm the database recovery point. If the restored data predates the
+   outage, enter the restore/PITR procedure before accepting writes.
+2. Snapshot Linear changes/comments made during the outage window and collect detect-only/failed
+   automation evidence. Preserve this before an authority-directed reconcile can overwrite it.
+3. For Linear-authoritative teams, pull their legitimate Linear work. For SyncView-authoritative
+   teams, classify any accidental Linear edits as foreign and manually apply each intended change
+   to SyncView with the original person/time recorded; then apply every private incident-log item.
+4. Account for every logged/foreign intent as applied, rejected with owner reason, or duplicate.
+   Only then run the reconciler in the authoritative direction, require zero unexplained diffs and
+   healthy outbox/inbound checks, and tell each team where to resume.
+
+**Before the first flip:** rehearse this mixed-authority branch and build an owner-approved way to
+hold automatic reconciliation during recovery. Without that hold, R3 is not executable (F41).
 
 ---
 

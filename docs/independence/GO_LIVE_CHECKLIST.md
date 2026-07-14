@@ -76,6 +76,12 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Client links fail closed and revoke reads** (F38): enforced-mode verifier errors cannot
       load/cache client access; verdicts are short-lived and revision-bound; same-tab reload,
       focus, second-device, offline-return, and token-rotation drills purge all client state.
+- [ ] **Creative comment reads are team-scoped** (F39): the protected reader resolves the target
+      server-side, returns a non-enumerating denial cross-team, and the own-team/cross-team TEST
+      matrix is green for both creative roles.
+- [ ] **Workload follows per-team authority** (F40): flipped teams read the reconciled native
+      adapter with native links/realtime/catch-up and no Linear fallback; the parity report resolves
+      stale ghosts, top-level visibility, CON/STR, parents, clients, assignees, and mixed authority.
 - [ ] **Submit graphics path drilled live** against the deployed EF, including real
       GRAPHIC_TITLE_* generation (F12).
 - [ ] **Non-n8n inbound-divergence pager live + pager last-mile proven** with a synthetic DM
@@ -98,6 +104,9 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Comms drafted** for parity-arm day (F24): "SyncView-relayed comments in Linear show
       author 'SyncView Mirror' with the real name in the body; if a tweak seems missing in
       Linear, check SyncView."
+- [ ] **Supabase-outage table-top passed** (F41): last-known authority is available offline, the
+      automation hold/manual-merge path is executable, and every Linear-authoritative versus
+      SyncView-authoritative team receives the correct instruction from FLIP_RUNBOOK R3.
 
 ## Phase 0.5 — Merge #813 DARK
 

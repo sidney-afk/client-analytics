@@ -288,10 +288,11 @@ n8n in the metric read path.*
   re-check the role key plus one active role-compatible roster identity server-side; direct
   `?prod=1` diagnostics without that identity show a comment sign-in state. The
   unchanged route guard accepts a valid staff identity or direct `?prod=1` diagnostics. Admin/SMM
-  may use all four operations; Creative is limited to own-team status/comment and the server repeats
-  that authorization. Direct diagnostics without a verified identity remain read-only. "My issues"
-  is a hardcoded heuristic (member matching a specific name, else first active assignee), not a real
-  identity.
+  may use all four operations. Creative **writes** are limited to own-team status/comment, but the
+  protected comment **reader does not fetch the target or enforce member-team scope** (F39), so a
+  creative key can currently read another team's full protected thread by deliverable ID. Direct
+  diagnostics without a verified identity remain read-only. "My issues" is a hardcoded heuristic
+  (member matching a specific name, else first active assignee), not a real identity (F37).
 - **Failure/fallback.** REST per-page fetch: 3 attempts, retry only network/429/5xx. Boot-load failure →
   full-tab error screen + Retry; silent refresh failure → `console.warn`, stale kept. Pagination-cap
   overflow is a hard error (never silent truncation). Comment failures are isolated to explicit
@@ -441,9 +442,12 @@ n8n in the metric read path.*
   others are the constant + comments). The realtime channel is dormant. `content-ready`'s missing
   `resp.ok` check is a real bug-shape. `loadLinearIssues` is also the Calendar bulk-create link poll's
   data source (shared feeder + cache).
-- **Track B.** v1 was stale: the re-point to `deliverables` happens **per team at each B4 flip**
-  (realtime turns on then), not only at B5. B5 retires the Workload reconciler + `workload_issues`
-  and replaces `editors-week` with the spec query.
+- **Track B.** Required but **not implemented** (F40): the re-point to native rows must happen per
+  team at each B4 flip, but main and #813 still unconditionally use `workload_issues`/n8n with
+  realtime off and Linear links. The adapter needs `deliverables + batches + clients +
+  team_members`, mixed-authority composition, and an explicit sub-issue/top-level policy. B5 may
+  retire the Workload reconciler/feed only after this native path and the `editors-week` query pass
+  parity gates.
 
 ### 4.9 Client links (`?c=<name>&t=<token>`, no-login)
 

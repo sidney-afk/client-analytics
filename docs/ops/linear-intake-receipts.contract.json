@@ -1,0 +1,112 @@
+{
+  "schema_version": 2,
+  "authoritative_store": {
+    "kind": "supabase",
+    "name": "linear_intake_receipts",
+    "migration": "migrations/2026-07-14-linear-intake-receipts.sql",
+    "primary_key": "receipt_key",
+    "access": "service_role only; RLS enabled; no delete grant"
+  },
+  "operator_mirror": {
+    "kind": "n8n_data_table",
+    "name": "linear_intake_receipts",
+    "id": "EncletbVvvYfSDfF",
+    "project_id": "4dvRQbC5gyJNowXX",
+    "mirrors_statuses": ["failed", "partial"],
+    "authority": false,
+    "rule": "Operator convenience and payload-bearing dead-letter only. Missing or stale mirror rows never override Supabase."
+  },
+  "columns": [
+    { "name": "receipt_key", "supabase_type": "text", "mirror_type": "string", "required": true },
+    { "name": "payload_hash", "supabase_type": "text", "mirror_type": "string", "required": true },
+    { "name": "client", "supabase_type": "text", "mirror_type": "string", "required": true },
+    { "name": "team", "supabase_type": "text", "mirror_type": "string", "required": true },
+    { "name": "payload_json", "supabase_type": "text", "mirror_type": "string", "required": true, "encoding": "UTF-8 stable JSON create payload" },
+    { "name": "requested_at", "supabase_type": "timestamptz", "mirror_type": "date", "required": true },
+    { "name": "updated_at", "supabase_type": "timestamptz", "mirror_type": "date", "required": true },
+    { "name": "status", "supabase_type": "text", "mirror_type": "string", "required": true },
+    { "name": "attempts", "supabase_type": "integer", "mirror_type": "number", "required": true },
+    { "name": "parent_issue_id", "supabase_type": "text", "mirror_type": "string", "required": false, "format": "Linear UUIDv4" },
+    { "name": "parent_issue_url", "supabase_type": "text", "mirror_type": "string", "required": false },
+    { "name": "child_issue_ids", "supabase_type": "text", "mirror_type": "string", "required": true, "encoding": "JSON array of confirmed Linear UUID strings" },
+    { "name": "error", "supabase_type": "text", "mirror_type": "string", "required": false },
+    { "name": "replay_note", "supabase_type": "text", "mirror_type": "string", "required": false, "encoding": "UTF-8 stable JSON replay claim" }
+  ],
+  "identity": {
+    "payload_hash": "lowercase SHA-256 of the exact UTF-8 payload_json bytes; the database recomputes and checks this value with pgcrypto",
+    "receipt_key": "linear-intake-v1:<team>:<payload_hash>",
+    "teams": ["video", "graphics"],
+    "canonical_payload": {
+      "serialization": "Recursive stable JSON with object keys sorted by code point and no insignificant whitespace",
+      "top_level_fields": ["clientName", "filmingPlans", "notes", "title", "videos"],
+      "video_fields": ["audio", "dueDate", "main_cam", "number", "side_cam"],
+      "video_number_rule": "Positive consecutive integers starting at 1 in canonical array order",
+      "additional_fields": false,
+      "excluded_transport_fields": ["mode", "team", "payload_hash", "receipt_key", "idempotency_key", "requested_at", "retry_metadata", "operator_replay_id"],
+      "team_scope_rule": "The same create payload has the same payload_hash for video, graphics, and both-mode submission; receipt_key supplies the team scope",
+      "expected_child_count": "payload_json.videos.length"
+    },
+    "linear_uuid_namespace": "8ec6f2de-20f4-4dc3-8f21-8b3298e780db",
+    "parent_seed": "<receipt_key>:parent",
+    "child_seed": "<receipt_key>:child:<stable-child-key>",
+    "stable_child_key": "the canonical payload child kind plus its zero-based canonical ordinal",
+    "retry_rule": "Every retry reuses the same expected Linear UUIDs. A duplicate-ID response is followed by a read of that exact UUID and is success only when the issue matches this receipt.",
+    "receipt_abandonment_rule": "Once a server receipt exists, the browser cannot replace it with a new payload hash. Empty filming plans are rejected before receipt insertion; server dependency fixes retry the immutable receipt."
+  },
+  "states": {
+    "pending": "The payload-bearing receipt exists. A fresh pending row is an in-progress workflow and must not be replayed concurrently.",
+    "partial": "At least one expected issue exists but the full expected set is not confirmed. Automatic parent replay is forbidden.",
+    "failed": "The bounded attempt or preflight failed without a confirmed issue set. The full payload remains in this dead-letter row; a normal retry reuses its deterministic IDs and exact payload.",
+    "created": "The parent and exactly payload_json.videos.length unique deterministic child UUIDs have been read back and confirmed for this receipt. This is the only success state."
+  },
+  "retry": {
+    "max_attempts": 3,
+    "backoff_seconds": [2, 5, 10],
+    "automatic_retry_requires_zero_created_issue_ids": true,
+    "timeout_is_failure": true,
+    "database_attempts_are_monotonic_total": true,
+    "database_guards": [
+      "identity and payload are immutable",
+      "payload_hash is the database-recomputed SHA-256 of the exact canonical payload_json bytes",
+      "nonnull parent and every confirmed child ID must be a Linear UUIDv4; child IDs are unique and cannot be removed or replaced",
+      "created requires exactly the expected unique child UUID count derived from payload_json.videos",
+      "created is terminal",
+      "failed or partial to pending increments attempts by exactly one and atomically installs a new structured replay_note",
+      "a pending receipt cannot accept another replay claim"
+    ]
+  },
+  "replay": {
+    "allowed_source_states": ["failed", "partial"],
+    "automatic_failed_retry": "A failed receipt may be claimed by the normal Submit retry. Exact deterministic-ID reads still precede every create, so an ambiguous earlier response cannot create a second issue.",
+    "operator_required_source_states": ["partial"],
+    "requires_operator_identity": "partial only",
+    "requires_reason": "partial only",
+    "resume_only_missing_expected_issue_ids": true,
+    "parent_replay_requires_recorded_absence_confirmation": true,
+    "never_clear_created_issue_ids": true,
+    "transport": "Repost the unchanged payload_json to the same video-form or graphic-form endpoint with the same payload_hash and receipt_key. A partial receipt must first be operator-claimed, then the repost adds only operator_replay_id equal to that claim's private replay_id; this transport field is excluded from canonical payload hashing.",
+    "operator_claim_capability": "Supabase RLS keeps replay_id private. A pending operator claim resumes only when operator_replay_id exactly matches the UUIDv4 replay_id and the stored receipt, hash, attempts, source state, and confirmed child IDs all validate; missing or wrong capability returns non-200 and cannot reach Linear.",
+    "created_duplicate_rule": "A created receipt returns the stored confirmed result and performs no Linear mutation.",
+    "claim_rule": "Claim replay with one compare-and-set update matching receipt_key, source status, and prior attempts; set status=pending, attempts=prior_attempts+1, and a new replay_note in that same update. Zero updated rows means another worker won and this worker must stop.",
+    "replay_note_rule": "Store a new stable JSON object for every replay. It is bound to receipt_key, payload_hash, source status, and prior attempts; it records requester, timestamp, reason, and exact deterministic-ID read-before-create state. Never append to or reuse the previous note.",
+    "replay_note_schema": {
+      "schema_version": 1,
+      "additional_fields": false,
+      "required_fields": ["exact_id_readback", "payload_hash", "prior_attempts", "reason", "receipt_key", "replay_id", "requested_at", "requested_by", "schema_version", "source_status"],
+      "replay_id": "A new UUIDv4 for this claim; it must differ from the prior replay_id",
+      "source_status": ["failed", "partial"],
+      "requested_at": "UTC ISO-8601 timestamp ending in Z",
+      "exact_id_readback": {
+        "additional_fields": false,
+        "strategy": "read-before-create",
+        "parent": ["present", "absent", "unknown"],
+        "confirmed_child_ids": "The exact ordered unique UUID array already stored in child_issue_ids"
+      }
+    }
+  },
+  "retention": {
+    "created_days": 30,
+    "unresolved_auto_delete": false,
+    "rule": "Never prune pending, failed, or partial rows. A created row may be removed only when updated_at is at least 30 days old and a final exact-ID readback succeeds."
+  }
+}

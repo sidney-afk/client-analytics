@@ -11754,6 +11754,8 @@
     const LOG_SUBMISSION_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/log-linear-submission';
     const LAST_LINK_KEY = 'syncview_last_link';
     const LINEAR_FORM_KEY = 'syncview_linear_form';
+    const LINEAR_RECEIPTS_KEY = 'syncview_linear_intake_receipts_v1';
+    const LINEAR_SUBMIT_TIMEOUT_MS = 45 * 1000;
     const NAV_KEY = 'syncview_nav';
     const SMM_WEEKLY_ROUTES = ['smm-weekly-report', 'smm-weekly-reports'];
     function _isSmmWeeklyRoute(page) { return SMM_WEEKLY_ROUTES.includes(page); }
@@ -11761,6 +11763,7 @@
     const LINEAR_DEFAULT_VIDEO_COUNT = 12;
     let linearVideoCount = LINEAR_DEFAULT_VIDEO_COUNT;
     let linearJustCreated = false;
+    let linearSubmitInFlight = null;
     let linearProjectsLoading = false;
 
 
@@ -14274,6 +14277,7 @@
             });
         });
         localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(f));
+        return f;
     }
 
     function loadLinearForm() {
@@ -30431,7 +30435,7 @@
 
         const successBanner = linearJustCreated ? `<div class="linear-success-banner" id="linearSuccessBanner">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Issue created in Linear!
+            Linear work confirmed!
         </div>` : '';
         linearJustCreated = false;
 
@@ -30592,38 +30596,355 @@
         toggle.classList.toggle('open', open);
     }
 
-    async function submitLinearForm(mode) {
-        const client = document.getElementById('linearClientSearch')?.value?.trim();
-        const title = buildLinearTitle();
-        const notes = document.getElementById('linearNotes')?.value?.trim();
-        const filmingPlans = _linearResolvedPlanUrl || '';
-        const generalDrive = document.getElementById('linearGeneralDrive')?.value?.trim() || '';
+    function _linearStableJson(value) {
+        if (value === null || typeof value !== 'object') return JSON.stringify(value);
+        if (Array.isArray(value)) return '[' + value.map(_linearStableJson).join(',') + ']';
+        return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + _linearStableJson(value[key])).join(',') + '}';
+    }
 
-        if (!client) { document.getElementById('linearStatus').textContent = 'Please select a client.'; return; }
+    async function _linearPayloadHash(value) {
+        if (!globalThis.crypto || !globalThis.crypto.subtle || typeof TextEncoder === 'undefined') {
+            throw new Error('Secure submission hashing is unavailable in this browser. Reload SyncView and retry.');
+        }
+        const bytes = new TextEncoder().encode(_linearStableJson(value));
+        const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+        return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    }
 
-        const cards = document.querySelectorAll('[id^="videoCard_"]');
-        const videos = [];
-        let num = 1;
-        // Auto-assign due dates in batches of 5: videos 1–5 due in 5 working
-        // days, 6–10 in 10 working days, 11–15 in 15 working days, etc. Uses
-        // working days (Mon–Fri) so the dates align with the Workload
-        // scheduler's calendar.
-        const todayISO = wlTodayISO();
-        cards.forEach(card => {
-            const id = card.id.replace('videoCard_', '');
-            const batchIndex = Math.floor((num - 1) / 5); // 0 for #1-5, 1 for #6-10, …
-            const dueDate = wlAddWorkingDays(todayISO, (batchIndex + 1) * 5);
-            videos.push({
-                number: num++,
-                main_cam: document.getElementById('vid_main_' + id)?.value?.trim() || '',
-                side_cam: document.getElementById('vid_side_' + id)?.value?.trim() || '',
-                audio: document.getElementById('vid_audio_' + id)?.value?.trim() || '',
-                dueDate
-            });
+    function _linearStorageError(message) {
+        const error = new Error(message);
+        error.linearStorageError = true;
+        return error;
+    }
+
+    function _linearDraftSnapshot(client) {
+        try {
+            const expected = saveLinearForm();
+            const raw = localStorage.getItem(LINEAR_FORM_KEY);
+            if (!raw || !expected || _linearStableJson(JSON.parse(raw)) !== _linearStableJson(expected)) {
+                throw new Error('draft readback mismatch');
+            }
+            if (String(expected.client || '').trim() !== String(client || '').trim()) {
+                throw new Error('draft client mismatch');
+            }
+            return { form_raw: raw, last_link_raw: localStorage.getItem(LAST_LINK_KEY) };
+        } catch (error) {
+            throw _linearStorageError('SyncView could not safely save and verify this draft in your browser.');
+        }
+    }
+
+    function _linearReceiptStoreRead() {
+        let raw;
+        try { raw = localStorage.getItem(LINEAR_RECEIPTS_KEY); }
+        catch (error) { throw _linearStorageError('SyncView could not read the saved submission receipt.'); }
+        if (!raw) return { version: 1, receipts: {} };
+        try {
+            const store = JSON.parse(raw);
+            if (!store || store.version !== 1 || !store.receipts || typeof store.receipts !== 'object' || Array.isArray(store.receipts)) {
+                throw new Error('invalid receipt store');
+            }
+            return store;
+        } catch (error) {
+            throw _linearStorageError('The saved submission receipt is unreadable. No request was sent.');
+        }
+    }
+
+    function _linearReceiptStoreWrite(store) {
+        const encoded = _linearStableJson(store);
+        try {
+            localStorage.setItem(LINEAR_RECEIPTS_KEY, encoded);
+            const readback = localStorage.getItem(LINEAR_RECEIPTS_KEY);
+            if (readback !== encoded || _linearStableJson(JSON.parse(readback)) !== encoded) {
+                throw new Error('receipt readback mismatch');
+            }
+            return encoded;
+        } catch (error) {
+            throw _linearStorageError('SyncView could not safely save and verify the submission receipt.');
+        }
+    }
+
+    function _linearTargetForTeam(team) {
+        if (team === 'video') return { team, label: 'Video', url: VIDEO_FORM_WEBHOOK };
+        if (team === 'graphics') return { team, label: 'Graphics', url: GRAPHIC_FORM_WEBHOOK };
+        return null;
+    }
+
+    function _linearSelectedTeams(mode) {
+        const teams = [];
+        if (mode === 'video' || mode === 'both') teams.push('video');
+        if (mode === 'thumbnail' || mode === 'both') teams.push('graphics');
+        return teams;
+    }
+
+    function _linearReceiptKey(team, payloadHash) {
+        return 'linear-intake-v1:' + team + ':' + payloadHash;
+    }
+
+    function _linearUuid(value) {
+        const id = String(value || '').trim();
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) ? id : '';
+    }
+
+    function _linearResponseParentId(result) {
+        const parent = result && (result.parent || result.parent_issue || result.issue) || {};
+        return _linearUuid(result && (result.parent_id || result.parentId)) || _linearUuid(parent.id);
+    }
+
+    function _linearConfirmedCreate(result, receipt) {
+        if (!result || result.ok !== true || String(result.status || '').toLowerCase() !== 'created') return false;
+        if (String(result.ledger_status || '').toLowerCase() !== 'created') return false;
+        if (String(result.team || '') !== receipt.team || String(result.payload_hash || '') !== receipt.payload_hash) return false;
+        if (String(result.receipt_key || '') !== receipt.receipt_key) return false;
+        if (result.idempotency_key != null && String(result.idempotency_key) !== receipt.receipt_key) return false;
+        if (!_linearResponseParentId(result)) return false;
+        const children = Array.isArray(result.child_issue_ids) ? result.child_issue_ids.map(_linearUuid) : [];
+        const expectedChildren = Array.isArray(receipt.payload && receipt.payload.videos) ? receipt.payload.videos.length : 0;
+        return expectedChildren > 0
+            && children.length === expectedChildren
+            && children.every(Boolean)
+            && new Set(children).size === expectedChildren;
+    }
+
+    function _linearSafeReceiptRef(receipt, result, status) {
+        const rawId = String(result && (result.receipt_id || result.receipt_ref) || '');
+        const receiptId = /^[A-Za-z0-9:_-]{1,200}$/.test(rawId) ? rawId : '';
+        return {
+            team: receipt.team,
+            payload_hash: receipt.payload_hash,
+            receipt_key: receipt.receipt_key,
+            receipt_id: receiptId || null,
+            status: String(status || 'pending').slice(0, 40),
+            parent_id: _linearResponseParentId(result) || null
+        };
+    }
+
+    function _linearReceiptFailure(message, receipt, result, status) {
+        const error = new Error(message);
+        error.linearReceiptRef = _linearSafeReceiptRef(receipt, result, status);
+        error.linearReceiptStatus = status || 'failed';
+        return error;
+    }
+
+    function _linearCreateError(result, response, label) {
+        const detail = result && (result.error || result.detail || (response && !response.ok && result.message));
+        if (detail) return String(detail);
+        if (response && !response.ok) return label + ' creation failed (HTTP ' + response.status + ').';
+        if (result && result.ok === true && String(result.status || '').toLowerCase() === 'created') {
+            return label + ' returned a stale or mismatched receipt confirmation.';
+        }
+        return label + ' creation was not confirmed by the server.';
+    }
+
+    function _linearRecoveryIdText(items, includeCreated) {
+        return (items || []).filter(item => item && item.receipt_key && (includeCreated || !item.ok)).map(item => {
+            const target = _linearTargetForTeam(item.team);
+            return (target ? target.label + ' ' : '') + 'Recovery ID: ' + String(item.receipt_key);
+        }).join('; ');
+    }
+
+    async function _linearPrepareReceipts(client, selectedTeams, draftSnapshot, payloadFactory) {
+        let store = _linearReceiptStoreRead();
+        const storeSnapshotJson = _linearStableJson(store);
+        let existing = Object.values(store.receipts).filter(Boolean);
+        let payload = null;
+        let payloadHash = '';
+        let originalDraft = draftSnapshot;
+
+        if (existing.length) {
+            payload = existing[0].payload;
+            originalDraft = {
+                form_raw: existing[0].draft_raw,
+                last_link_raw: existing[0].last_link_raw == null ? null : existing[0].last_link_raw
+            };
+            if (!payload || typeof originalDraft.form_raw !== 'string') {
+                throw _linearStorageError('The saved submission receipt failed its integrity check.');
+            }
+            payloadHash = await _linearPayloadHash(payload);
+            const storedPayloadJson = _linearStableJson(payload);
+            const invalidExisting = Object.entries(store.receipts).some(([slot, receipt]) => !receipt
+                || slot !== receipt.team
+                || !_linearTargetForTeam(receipt.team)
+                || receipt.payload_hash !== payloadHash
+                || receipt.receipt_key !== _linearReceiptKey(receipt.team, payloadHash)
+                || _linearStableJson(receipt.payload) !== storedPayloadJson
+                || receipt.draft_raw !== originalDraft.form_raw
+                || (receipt.last_link_raw == null ? null : receipt.last_link_raw) !== originalDraft.last_link_raw);
+            if (invalidExisting) throw _linearStorageError('The saved submission receipt failed its integrity check.');
+
+            const currentLastLink = draftSnapshot.last_link_raw == null ? null : draftSnapshot.last_link_raw;
+            const draftChanged = draftSnapshot.form_raw !== originalDraft.form_raw
+                || currentLastLink !== originalDraft.last_link_raw;
+            const allStrictCreated = existing.every(receipt => receipt.status === 'created' && _linearUuid(receipt.parent_id));
+            if (allStrictCreated && draftChanged) {
+                const currentPayload = payloadFactory();
+                const currentPayloadHash = await _linearPayloadHash(currentPayload);
+                // The old set is already terminal, but another tab may have
+                // replaced it while hashing. Re-read immediately before the
+                // one-write replacement and fail closed on any divergence.
+                if (_linearStableJson(_linearReceiptStoreRead()) !== storeSnapshotJson) {
+                    throw _linearStorageError('The submission receipt changed in another tab. Review its latest result before retrying.');
+                }
+                store = { version: 1, receipts: {} };
+                existing = [];
+                payload = currentPayload;
+                payloadHash = currentPayloadHash;
+                originalDraft = draftSnapshot;
+            }
+        } else {
+            payload = payloadFactory();
+            payloadHash = await _linearPayloadHash(payload);
+        }
+        if (String(payload.clientName || '').trim() !== String(client || '').trim()) {
+            throw _linearStorageError('A different client has a pending submission receipt. Finish or recover it before starting another.');
+        }
+        const allTeams = [...new Set(existing.map(receipt => receipt.team).concat(selectedTeams))];
+        const now = new Date().toISOString();
+        for (const team of allTeams) {
+            if (!_linearTargetForTeam(team)) throw _linearStorageError('The pending submission receipt contains an unknown team.');
+            const expectedKey = _linearReceiptKey(team, payloadHash);
+            const receipt = store.receipts[team];
+            if (receipt) {
+                if (receipt.team !== team || receipt.payload_hash !== payloadHash || receipt.receipt_key !== expectedKey
+                    || _linearStableJson(receipt.payload) !== _linearStableJson(payload)
+                    || receipt.draft_raw !== originalDraft.form_raw
+                    || (receipt.last_link_raw == null ? null : receipt.last_link_raw) !== originalDraft.last_link_raw) {
+                    throw _linearStorageError('The saved ' + team + ' submission receipt failed its integrity check.');
+                }
+                continue;
+            }
+            store.receipts[team] = {
+                version: 1,
+                team,
+                payload,
+                payload_hash: payloadHash,
+                receipt_key: expectedKey,
+                status: 'pending',
+                draft_raw: originalDraft.form_raw,
+                last_link_raw: originalDraft.last_link_raw,
+                created_at: now,
+                updated_at: now,
+                safe_ref: _linearSafeReceiptRef({ team, payload_hash: payloadHash, receipt_key: expectedKey }, null, 'pending')
+            };
+        }
+        const raw = _linearReceiptStoreWrite(store);
+        return { store, raw, teams: allTeams, payload, draftSnapshot: originalDraft };
+    }
+
+    async function _linearAwaitCreate(target, receipt) {
+        const controller = new AbortController();
+        let timeoutId = null;
+        const body = Object.assign({}, receipt.payload, {
+            team: receipt.team,
+            payload_hash: receipt.payload_hash,
+            receipt_key: receipt.receipt_key,
+            idempotency_key: receipt.receipt_key
         });
+        const request = (async () => {
+            let response;
+            try {
+                response = await fetch(target.url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                    signal: controller.signal
+                });
+            } catch (error) {
+                if (error && error.name === 'AbortError') {
+                    throw _linearReceiptFailure(target.label + ' creation timed out before confirmation.', receipt, null, 'timeout');
+                }
+                throw _linearReceiptFailure(target.label + ' creation could not be confirmed (' + ((error && error.message) || 'network error') + ').', receipt, null, 'failed');
+            }
+            let result = null;
+            try { result = await response.json(); } catch (error) {}
+            if (!response.ok || !_linearConfirmedCreate(result, receipt)) {
+                throw _linearReceiptFailure(_linearCreateError(result, response, target.label), receipt, result, 'failed');
+            }
+            return {
+                result,
+                parent_id: _linearResponseParentId(result),
+                receipt_ref: _linearSafeReceiptRef(receipt, result, 'created')
+            };
+        })();
+        const timeout = new Promise((resolve, reject) => {
+            timeoutId = setTimeout(() => {
+                controller.abort();
+                reject(_linearReceiptFailure(target.label + ' creation timed out before confirmation.', receipt, null, 'timeout'));
+            }, LINEAR_SUBMIT_TIMEOUT_MS);
+        });
+        try { return await Promise.race([request, timeout]); }
+        finally { clearTimeout(timeoutId); }
+    }
 
+    function _linearApplyReceiptOutcomes(outcomes) {
+        const store = _linearReceiptStoreRead();
+        const now = new Date().toISOString();
+        outcomes.forEach(outcome => {
+            const receipt = store.receipts[outcome.team];
+            if (!receipt || receipt.receipt_key !== outcome.receipt_key || receipt.payload_hash !== outcome.payload_hash) {
+                throw _linearStorageError('The ' + outcome.team + ' receipt changed while this request was running.');
+            }
+            // A slower failure must never downgrade a terminal result written by
+            // another tab using the same idempotent receipt.
+            if (receipt.status === 'created' && _linearUuid(receipt.parent_id) && !outcome.ok) return;
+            receipt.status = outcome.ok ? 'created' : outcome.status;
+            receipt.parent_id = outcome.ok ? outcome.parent_id : (receipt.parent_id || null);
+            receipt.last_error = outcome.ok ? null : outcome.error;
+            receipt.safe_ref = outcome.receipt_ref;
+            receipt.updated_at = now;
+        });
+        const raw = _linearReceiptStoreWrite(store);
+        return { store, raw };
+    }
+
+    function _linearCompareRemove(key, expectedRaw) {
+        try {
+            if (localStorage.getItem(key) === expectedRaw) localStorage.removeItem(key);
+        } catch (error) {}
+    }
+
+    function _linearRestoreSubmitButtons(states) {
+        states.forEach(state => {
+            state.button.disabled = state.disabled;
+            if (state.label) state.label.textContent = state.text;
+            else state.button.textContent = state.text;
+        });
+    }
+
+    function submitLinearForm(mode) {
+        // Install the lock before hashing/fetch can yield, so same-tick double
+        // clicks share one request, one receipt, and one terminal result.
+        if (linearSubmitInFlight) return linearSubmitInFlight;
+        const request = _submitLinearFormOnce(mode);
+        const guarded = request.finally(() => {
+            if (linearSubmitInFlight === guarded) linearSubmitInFlight = null;
+        });
+        linearSubmitInFlight = guarded;
+        return guarded;
+    }
+
+    async function _submitLinearFormOnce(mode) {
+        const client = document.getElementById('linearClientSearch')?.value?.trim();
         const allBtns = ['linearSubmitBtnVideo', 'linearSubmitBtnThumbnail', 'linearSubmitBtnBoth'].map(id => document.getElementById(id));
+        const buttonStates = allBtns.filter(Boolean).map(button => {
+            const label = button.querySelector('.linear-submit-primary-label');
+            return { button, label, disabled: button.disabled, text: label ? label.textContent : button.textContent };
+        });
         const status = document.getElementById('linearStatus');
+        if (!client) {
+            if (status) status.textContent = 'Please select a client.';
+            return { ok: false, error: 'Please select a client.' };
+        }
+        const selectedTeams = _linearSelectedTeams(mode);
+        if (!selectedTeams.length) {
+            if (status) status.textContent = 'Choose a valid submission type and retry.';
+            return { ok: false, error: 'Choose a valid submission type and retry.' };
+        }
+        if (!String(_linearResolvedPlanUrl || '').trim()) {
+            const message = 'Add or reload the filming plan before submitting.';
+            if (status) status.textContent = message + ' No create request was sent.';
+            return { ok: false, error: message };
+        }
+
         allBtns.forEach(b => { if (b) b.disabled = true; });
         const activeBtn = document.getElementById(mode === 'video' ? 'linearSubmitBtnVideo' : mode === 'thumbnail' ? 'linearSubmitBtnThumbnail' : 'linearSubmitBtnBoth');
         if (activeBtn) {
@@ -30631,69 +30952,183 @@
             if (label) label.textContent = 'Submitting…';
             else activeBtn.textContent = 'Submitting…';
         }
-        status.textContent = '';
+        if (status) status.textContent = '';
 
-        // Build description: prepend links before notes
-        let descParts = [];
-        if (filmingPlans) descParts.push('Filming Plan: ' + filmingPlans);
-        if (generalDrive) descParts.push('General Drive: ' + generalDrive);
-        if (descParts.length && notes) descParts.push('');  // blank line before notes
-        if (notes) descParts.push(notes);
-        const description = descParts.join('\n');
+        let prepared = null;
+        let networkStarted = false;
+        try {
+            const draftSnapshot = _linearDraftSnapshot(client);
+            prepared = await _linearPrepareReceipts(client, selectedTeams, draftSnapshot, () => {
+                const title = buildLinearTitle();
+                const notes = document.getElementById('linearNotes')?.value?.trim();
+                const filmingPlans = String(_linearResolvedPlanUrl || '').trim();
+                const generalDrive = document.getElementById('linearGeneralDrive')?.value?.trim() || '';
+                const descParts = [];
+                if (filmingPlans) descParts.push('Filming Plan: ' + filmingPlans);
+                if (generalDrive) descParts.push('General Drive: ' + generalDrive);
+                if (descParts.length && notes) descParts.push('');
+                if (notes) descParts.push(notes);
 
-        const payload = { clientName: client, title, notes: description, videos, filmingPlans };
+                const videos = [];
+                let num = 1;
+                const todayISO = wlTodayISO();
+                document.querySelectorAll('[id^="videoCard_"]').forEach(card => {
+                    const id = card.id.replace('videoCard_', '');
+                    const batchIndex = Math.floor((num - 1) / 5);
+                    videos.push({
+                        number: num++,
+                        main_cam: document.getElementById('vid_main_' + id)?.value?.trim() || '',
+                        side_cam: document.getElementById('vid_side_' + id)?.value?.trim() || '',
+                        audio: document.getElementById('vid_audio_' + id)?.value?.trim() || '',
+                        dueDate: wlAddWorkingDays(todayISO, (batchIndex + 1) * 5)
+                    });
+                });
+                // This exact five-field object is the canonical server payload.
+                // UI mode and transport receipt metadata are deliberately absent.
+                return { clientName: client, filmingPlans, notes: descParts.join('\n'), title, videos };
+            });
 
-        // Log submission to fallback Google Sheet (fire-and-forget)
-        const targetWebhook = (mode === 'thumbnail') ? GRAPHIC_FORM_WEBHOOK : VIDEO_FORM_WEBHOOK;
-        const webhookJson = JSON.stringify([{
-            headers: { 'content-type': 'application/json' },
-            params: {},
-            query: {},
-            body: payload,
-            webhookUrl: targetWebhook,
-            executionMode: 'production'
-        }]);
+            // Keep the legacy Sheet log as best-effort telemetry. The durable
+            // per-team receipts above are already saved and read back first.
+            const webhookJson = JSON.stringify(prepared.teams.map(team => ({
+                headers: { 'content-type': 'application/json' },
+                params: {},
+                query: {},
+                body: Object.assign({}, prepared.payload, {
+                    team,
+                    payload_hash: prepared.store.receipts[team].payload_hash,
+                    receipt_key: prepared.store.receipts[team].receipt_key
+                }),
+                webhookUrl: _linearTargetForTeam(team).url,
+                executionMode: 'production'
+            })));
+            try {
+                Promise.resolve(fetch(LOG_SUBMISSION_WEBHOOK, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        timestamp: new Date().toISOString(),
+                        clientName: client,
+                        mode,
+                        receipt_keys: prepared.teams.map(team => prepared.store.receipts[team].receipt_key),
+                        webhookJson
+                    })
+                })).catch(() => {});
+            } catch (error) {}
 
-        fetch(LOG_SUBMISSION_WEBHOOK, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                timestamp: new Date().toISOString(),
-                clientName: client,
-                mode: mode,
-                webhookJson: webhookJson
-            })
-        }).catch(() => {});
+            const receipts = prepared.teams.map(team => prepared.store.receipts[team]);
+            networkStarted = true;
+            const settled = await Promise.allSettled(receipts.map(receipt => {
+                if (receipt.status === 'created' && _linearUuid(receipt.parent_id)) {
+                    return Promise.resolve({
+                        parent_id: receipt.parent_id,
+                        receipt_ref: receipt.safe_ref || _linearSafeReceiptRef(receipt, { parent_id: receipt.parent_id }, 'created'),
+                        from_store: true
+                    });
+                }
+                return _linearAwaitCreate(_linearTargetForTeam(receipt.team), receipt);
+            }));
+            const outcomes = settled.map((entry, index) => {
+                const receipt = receipts[index];
+                if (entry.status === 'fulfilled') {
+                    return {
+                        ok: true,
+                        team: receipt.team,
+                        payload_hash: receipt.payload_hash,
+                        receipt_key: receipt.receipt_key,
+                        parent_id: entry.value.parent_id,
+                        status: 'created',
+                        receipt_ref: entry.value.receipt_ref
+                    };
+                }
+                const reason = entry.reason || {};
+                return {
+                    ok: false,
+                    team: receipt.team,
+                    payload_hash: receipt.payload_hash,
+                    receipt_key: receipt.receipt_key,
+                    parent_id: null,
+                    status: reason.linearReceiptStatus || 'failed',
+                    error: String(reason.message || 'creation was not confirmed'),
+                    receipt_ref: reason.linearReceiptRef || _linearSafeReceiptRef(receipt, null, reason.linearReceiptStatus || 'failed')
+                };
+            });
 
-        // Fire the relevant webhook(s) — fire-and-forget (CORS may block response reading)
-        const sendOptions = {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        };
-        if (mode === 'video' || mode === 'both') fetch(VIDEO_FORM_WEBHOOK, sendOptions).catch(() => {});
-        if (mode === 'thumbnail' || mode === 'both') fetch(GRAPHIC_FORM_WEBHOOK, sendOptions).catch(() => {});
+            let applied;
+            try { applied = _linearApplyReceiptOutcomes(outcomes); }
+            catch (error) {
+                const summary = outcomes.map(outcome => (_linearTargetForTeam(outcome.team).label + ': ' + (outcome.ok ? 'created' : outcome.error))).join('; ');
+                const recoveryIds = _linearRecoveryIdText(outcomes, true);
+                if (status) status.textContent = 'The server requests settled, but SyncView could not save their receipt results. ' + summary
+                    + (recoveryIds ? '. ' + recoveryIds : '') + '. Confirm the work before retrying.';
+                _linearRestoreSubmitButtons(buttonStates);
+                return {
+                    ok: false,
+                    error: error.message + (recoveryIds ? '. ' + recoveryIds : ''),
+                    storage_error: true,
+                    recovery_ids: outcomes.map(outcome => outcome.receipt_key),
+                    outcomes
+                };
+            }
 
-        // Write the cards to the client's calendar directly. The Linear
-        // webhook (linear-status-sync) used to do this on the backend, but
-        // 12 concurrent Sheets writes from the burst dropped most rows.
-        // Sequential frontend writes land reliably; runs in the background
-        // so we don't block the navigation back to the Linear list.
-        // The helper is mode-aware (wantVideo/wantGraphic) so graphic-only
-        // submissions still get calendar rows linked to the GRA sub-issues.
-        // The write is recorded as a durable job first: it takes ~15-120s to
-        // even start POSTing, and if this tab closes in that window the job
-        // is resumed on the next app load instead of silently losing cards.
-        const cardJob = _calCardJobCreate(client, videos, title, mode);
-        _writeLinearVideoCardsToCalendar(client, videos, title, { mode, job: cardJob }).catch(e => {
-            console.warn('[SyncView] Background calendar write failed:', e);
-            showNotify('Calendar sync issue', 'The Linear issues were created, but adding the matching cards to the content calendar failed. SyncView will retry automatically next time the app is opened — or open the calendar and use "Import from Linear" with the parent link to backfill them now.');
-        });
+            const failures = outcomes.filter(outcome => !outcome.ok);
+            if (failures.length) {
+                const summary = outcomes.map(outcome => (_linearTargetForTeam(outcome.team).label + ': ' + (outcome.ok ? 'created' : outcome.error))).join('; ');
+                const recoveryIds = _linearRecoveryIdText(outcomes, false);
+                if (status) status.textContent = 'Submission incomplete — ' + summary + (recoveryIds ? '. ' + recoveryIds : '')
+                    + '. Your draft and receipt are still saved. Retry to continue the same submission.';
+                _linearRestoreSubmitButtons(buttonStates);
+                return {
+                    ok: false,
+                    error: summary + (recoveryIds ? '. ' + recoveryIds : ''),
+                    partial: outcomes.some(outcome => outcome.ok),
+                    recovery_ids: failures.map(outcome => outcome.receipt_key),
+                    outcomes
+                };
+            }
 
-        localStorage.removeItem(LINEAR_FORM_KEY);
-        localStorage.removeItem(LAST_LINK_KEY);
-        linearJustCreated = true;
-        navTo('linear');
+            const completedMode = prepared.teams.includes('video') && prepared.teams.includes('graphics')
+                ? 'both' : (prepared.teams.includes('graphics') ? 'thumbnail' : 'video');
+            const payload = prepared.payload;
+            const videos = payload.videos;
+            const title = payload.title;
+            mode = completedMode;
+            const cardJob = _calCardJobCreate(client, videos, title, mode);
+            _writeLinearVideoCardsToCalendar(client, videos, title, { mode, job: cardJob }).catch(error => {
+                console.warn('[SyncView] Background calendar write failed:', error);
+                showNotify('Calendar sync issue', 'The Linear issues were created, but adding the matching cards to the content calendar failed. SyncView will retry automatically next time the app is opened — or open the calendar and use "Import from Linear" with the parent link to backfill them now.');
+            });
+
+            // Another tab (or edits made while the request was in flight) may
+            // have saved newer work. Delete only the exact draft versions that
+            // produced this receipt; never erase a newer form or pasted link.
+            _linearCompareRemove(LINEAR_FORM_KEY, prepared.draftSnapshot.form_raw);
+            _linearCompareRemove(LAST_LINK_KEY, prepared.draftSnapshot.last_link_raw);
+            const allStoredCreated = Object.values(applied.store.receipts).filter(Boolean)
+                .every(receipt => receipt.status === 'created' && _linearUuid(receipt.parent_id));
+            if (allStoredCreated) _linearCompareRemove(LINEAR_RECEIPTS_KEY, applied.raw);
+
+            linearJustCreated = true;
+            navTo('linear');
+            return { ok: true, status: 'created', outcomes };
+        } catch (error) {
+            const message = String((error && error.message) || 'Submission failed.');
+            const recoveryItems = prepared ? prepared.teams.map(team => ({
+                ok: false,
+                team,
+                receipt_key: prepared.store.receipts[team] && prepared.store.receipts[team].receipt_key
+            })) : [];
+            const recoveryIds = networkStarted ? _linearRecoveryIdText(recoveryItems, true) : '';
+            if (status) status.textContent = networkStarted
+                ? message + (recoveryIds ? ' ' + recoveryIds + '.' : '') + ' Confirm the work before retrying.'
+                : message + ' No create request was sent. SyncView cannot promise recovery until storage succeeds.';
+            _linearRestoreSubmitButtons(buttonStates);
+            return {
+                ok: false,
+                error: message + (recoveryIds ? ' ' + recoveryIds : ''),
+                recovery_ids: recoveryItems.map(item => item.receipt_key).filter(Boolean)
+            };
+        }
     }
 
     /* After the Linear form is submitted, write a calendar card per video.

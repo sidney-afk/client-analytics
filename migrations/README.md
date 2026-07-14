@@ -34,6 +34,10 @@ CI, `supabase/config.toml`, or `scripts/` executes these files (see
   from the backend/protected-reader safe subset: thumbnail revision metadata, both SMM weekly-
   report tables, and filming plans. It intentionally does not touch `clients` or the other raw
   tables still read by the SPA.
+- **`2026-07-14-linear-intake-receipts.sql`** adds the service-only F44
+  Calendar-to-Linear receipt ledger, team-scoped payload-hash receipt key, and
+  monotonic retry/progress guards. It does not create Linear work or change
+  workflow authority by itself.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

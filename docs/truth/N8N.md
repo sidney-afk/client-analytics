@@ -37,6 +37,15 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
 - VIDEO PRODUCTION AUTOMATION ground truth: "Pick Freest Editor" = fewest open sub-issues
   among Video Editors-tab emails (ties by API order); graphic-form assigns a hardcoded single
   designer; the AI-thumbnail chain is **disconnected dead code** — don't budget a port.
+- F44 server containment is live on VIDEO PRODUCTION AUTOMATION workflow
+  `BrJSe8zCKUccfmIq`, active version `f6a5ca07-e7a7-4a41-a3d3-3638a682b596`. Intake now
+  persists an idempotent Supabase receipt before work, strictly preflights exactly one project plus
+  SMM credential, filming plan and roster, and returns success only after exact parent/child create
+  confirmation. Bounded retry and payload-bearing dead-letter/replay support partial-create operator
+  recovery. Safe malformed probes `268305` and `268306` returned 400 before receipt/create; live
+  receipt rows remained zero and no work was created. This is server containment, not full closure:
+  the awaiting/draft-preserving browser change remains owner-merge/deploy required. The retained
+  rollback version is `d867fa43-2ab2-44a4-93c8-57254846ca1c`; restoring it reopens early success.
 - Historical 2026-07-05 sizing was ~25 calendar upserts, ~41 set-status, and ~27 inbound Linear
   events/day across the then-current topology. Do not use the inbound count as current n8n traffic:
   B3 now enters through the Edge Function and the legacy n8n receiver is inactive (F46).

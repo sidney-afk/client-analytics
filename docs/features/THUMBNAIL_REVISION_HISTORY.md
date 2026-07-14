@@ -1,171 +1,219 @@
-# Thumbnail revision history
+# Thumbnail refresh and revision comparison
 
-> **SECURITY/CORRECTNESS BLOCKERS (F78–F80/F83).** The active scanner has no deployed scan-key and
-> currently fails open to anonymous service-role Drive/Storage work. The active folder resolver is
-> also anonymous and its final write is not a URL/version compare-and-set, so reversed requests can
-> commit stale parent metadata. Separately, the supposedly backend-only revision table grants anon
-> SELECT/realtime over cross-client Drive/private-path/requester/error metadata. Do not invoke or
-> schedule either path until required auth, bounded work, atomic CAS, revoked anonymous reads, and
-> deployed negative/concurrency tests pass.
+> Current source status (2026-07-14): v2 is implemented in this branch, but this document does
+> not claim that its migration, Edge Functions, scheduler, runtime flag, Pages build, or live
+> verification have completed. Record those facts in `EXECUTION_LOG.md` only after readback.
 
-## Goal
+## Outcome
 
-When a thumbnail/graphic is sent back for changes, SyncView should keep enough
-history to answer two questions:
+This feature solves two related problems for Calendar and Samples:
 
-- Was the Google Drive image changed after the request?
-- What did it look like before and after?
+- every viewer should receive a newly replaced thumbnail without a hard refresh, even when the
+  Google Drive file ID and visible link are unchanged; and
+- SyncView continuously preserves the current Drive image as the baseline for the next replacement,
+  so authorized viewers can compare the previous and current images on the card.
 
-This is intentionally separate from `thumb_rev`. `thumb_rev` refreshes the
-current image in the app when a Drive link stays the same. Thumbnail revision
-history stores comparison evidence across time.
+`thumb_rev` is the cross-viewer refresh signal. `thumbnail_media_revisions` is the durable
+comparison history. They work together, but they serve different purposes.
 
-## First implementation
+## Current design
 
-The first version is backend-only and additive.
+### 1. The browser uses the final Google image host
 
-1. A Calendar post or Samples row changes `graphic_status` from anything else to
-   `Tweaks Needed`.
-2. The Edge writer checks the row's `thumbnail_url`.
-3. If the thumbnail is a single Google Drive file, it captures a baseline image
-   snapshot and Drive revision metadata into `thumbnail_media_revisions`.
-4. If the thumbnail is a Drive folder, Dropbox folder, Frame.io link, direct URL,
-   or blank value, the capture is skipped. Folder links are common for Stories
-   and multi-image sets; there is no single image to compare yet.
-5. The scheduled/manual `thumbnail-revision-scan` Edge Function checks pending
-   rows. When Drive's revision metadata changes, it captures the new snapshot and
-   marks the row `changed`.
-6. When the graphic leaves `Tweaks Needed`, the Calendar/Samples writer also
-   scans that card's pending baseline. The frontend sends a fresh `thumb_rev` on
-   the same status save, so open tabs reload the current image without a hard
-   refresh even when the Drive link did not change.
+For a single Drive file, `_calDriveImageUrl()` derives a URL on the final image host:
 
-Snapshots live in the private Supabase Storage bucket
-`syncview-thumbnail-revisions`. Postgres stores metadata and storage paths only.
+```text
+https://lh3.googleusercontent.com/d/<file-id>=w<size>?_cb=<updated-at>&_r=<thumb-rev>
+```
 
-## Files
+The previous `drive.google.com/thumbnail?...` form redirected to `lh3.googleusercontent.com` and
+discarded SyncView's cache-busting query. Different browsers could therefore keep different bytes
+under the same 24-hour CDN URL. The direct final-host URL keeps `_r` in the browser's real cache key.
 
-- `migrations/2026-07-09-thumbnail-media-revisions.sql`
-  - Creates the private Storage bucket.
-  - Creates `public.thumbnail_media_revisions`.
-  - **F83 blocker:** currently enables anonymous metadata read/realtime for a future UI that does
-    not exist. Revoke this; keep service-role-only until an authenticated least-field projection is
-    designed and negatively tested.
-- `supabase/functions/_shared/thumbnail-revisions.ts`
-  - Shared Drive metadata, snapshot, baseline capture, and scan logic.
-- `supabase/functions/calendar-upsert/index.ts`
-  - Captures a baseline when Calendar `graphic_status` enters `Tweaks Needed`.
-  - Scans the pending baseline when Calendar `graphic_status` leaves
-    `Tweaks Needed`.
-- `supabase/functions/sample-review-upsert/index.ts`
-  - Captures a baseline when Samples `graphic_status` enters `Tweaks Needed`.
-  - Scans the pending baseline when Samples `graphic_status` leaves
-    `Tweaks Needed`.
-- `supabase/functions/thumbnail-revision-scan/index.ts`
-  - Scans pending baselines and records the changed revision.
-- `test/thumbnail-revision-history.js`
-  - Offline source guard for the wiring and folder-skip behavior.
+`_cb` follows `updated_at`. `_r` follows the persisted `thumb_rev`. The browser keeps a short-lived
+optimistic session token only so the editing tab can repaint immediately; a server-returned
+`thumb_rev` takes precedence and stale local/cache merge state cannot mask it.
 
-## Rollout
+Realtime row updates and normal refreshes include `thumb_rev`. When it changes, Calendar, Samples,
+client review, Kasper review, and SMM review image nodes advance to the new URL without requiring a
+hard refresh. Unrelated saves may still reuse an already decoded image to avoid flicker.
 
-1. Run `migrations/2026-07-09-thumbnail-media-revisions.sql` in the Supabase SQL
-   editor for project `uzltbbrjidmjwwfakwve`.
-2. Deploy the shared Edge Function changes:
+### 2. The server owns `thumb_rev`
 
-   ```bash
-   supabase functions deploy calendar-upsert --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
-   supabase functions deploy sample-review-upsert --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
-   supabase functions deploy thumbnail-revision-scan --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
-   ```
+The v2 migration installs guarded `BEFORE` triggers on `calendar_posts` and `sample_reviews`.
+For an enrolled client they mint a fresh token when:
 
-3. Confirm Drive access secrets are present. `thumbnail-folder-resolve` already
-   uses these; the revision helper uses the same API-key/service-account pattern.
+- a row is inserted with a thumbnail/media URL;
+- `thumbnail_url` or `asset_url` is assigned, including a same-value assignment that signals an
+  in-place replacement; or
+- `graphic_status` leaves `Tweaks Needed`.
 
-   Required for public Drive files:
+The Calendar and Samples upsert Edge Functions also mint the token before returning their response,
+so the saving browser does not wait for a later read. The database trigger is the authority for
+other writers, including reconciliation paths that do not use the browser.
 
-   ```bash
-   GOOGLE_DRIVE_API_KEY
-   ```
+When the scanner confirms that Drive metadata changed, it stores the current snapshot and also
+bumps the source row's `thumb_rev` and `updated_at`. That source-row update is what wakes open
+realtime viewers and changes their final CDN URL.
 
-   Recommended for shared/private workspace files:
+The same triggers enroll each active single-file Drive thumbnail in a lightweight
+`continuous_watch` row. A bounded repair RPC backfills any eligible card that arrived through an
+older or hidden write path. Placeholders may be created while the runtime flag is off, but they do
+not fetch Drive, scan, serve comparisons, or change source rows until the flag is enabled.
 
-   ```bash
-   GOOGLE_SERVICE_ACCOUNT_JSON
-   ```
+### 3. Revision capture and scan
 
-   or:
+The comparison lifecycle remains intentionally scoped to one active Drive image per card:
 
-   ```bash
-   GOOGLE_CLIENT_EMAIL
-   GOOGLE_PRIVATE_KEY
-   ```
+1. The write trigger or bounded repair pass creates one pending `continuous_watch` placeholder.
+2. Its first enabled scan reads Drive metadata, archives the authenticated original bytes as the
+   baseline in the private `syncview-thumbnail-revisions` bucket, and verifies that the metadata
+   and card source did not change during capture.
+3. The dedicated scheduler checks the least-recently-checked watches every ten minutes. Its caller
+  makes up to 12 bounded batches of 25, enough to cover the current active set without one large
+   request or per-card logs. Every batch shares one run-start cutoff, preventing a later page from
+   wrapping around to rows already checked in the same cycle.
+4. A same-file metadata change or an A-to-B Drive link change captures verified Current bytes. One
+   locked database transaction rechecks the exact active source, closes the old watch as `changed`,
+   bumps the source `thumb_rev`, and installs Current as the baseline of a fresh pending watch.
+5. The cycle repeats after every replacement, so a second or later change does not freeze the first
+   comparison pair as Current.
 
-4. **Mandatory:** set a dedicated scan key/service signature before any manual or scheduled caller.
-   The function must fail closed when the secret is absent; verify deployed no-key/malformed-key
-   denial and a bounded correct-key TEST run (F78).
+The older graphic-tweak baseline hook remains a fast path: when available, its already captured
+snapshot initializes the continuous watcher, and leaving `Tweaks Needed` asks the writer to scan
+that card immediately. The scheduled watcher is what covers replacements with no SyncView save at
+all. Archived cards, inactive clients, missing sources, and non-Drive/folder links are not watched.
 
-   ```bash
-   supabase secrets set THUMBNAIL_REVISION_SCAN_KEY=<shared-secret> --project-ref uzltbbrjidmjwwfakwve
-   ```
+Snapshots use authenticated Drive `alt=media` original bytes rather than a thumbnail CDN response,
+with metadata checked both before and after download. If Drive changes during capture, the scan
+defers instead of saving mismatched evidence. Drive folders, Dropbox folders, Frame.io links,
+ordinary direct URLs, and blank values do not produce a comparison pair. A direct link write can
+still refresh the current image through `thumb_rev`; a Previous/Current comparison appears only
+when SyncView has both confirmed snapshots.
 
-5. Schedule `POST /functions/v1/thumbnail-revision-scan` every 10-15 minutes
-   from n8n or another scheduler. The dedicated service signature is mandatory: always send it,
-   and treat an absent/malformed key as a failed deployment—not an optional compatibility mode.
+### 4. Protected comparison UI
 
-   Example body:
+Calendar and Samples cards with a single thumbnail expose a **Compare** action. It does not fan out
+history reads while cards render. Opening it lazily calls:
 
-   ```json
-   { "limit": 50 }
-   ```
+```text
+POST /functions/v1/thumbnail-revision-read
+```
 
-   Narrow scan for the test client:
+with `{surface, client, source_id}`. Staff must supply a valid role key and one exact active roster
+identity; a client link must supply the exact review token for the requested client. The function
+then verifies that the requested card belongs to that surface/client before reading history.
 
-   ```json
-    { "client": "<PRIVATE_TEST_CLIENT>", "limit": 10 }
-   ```
+The raw history table and private bucket are never browser-read. The function returns only status,
+minimal timestamps, and five-minute signed image URLs for one card. Responses are `no-store` and
+omit Drive IDs, Storage paths, requester attribution, and internal errors.
+
+The dialog presents **Previous** and **Current** side by side on desktop and stacked on narrow
+screens. It includes loading, pending, no-history, authorization, expired-image, and retry states;
+traps focus while open; closes on Escape/backdrop/close; and returns focus to the trigger.
+
+## Runtime controls
+
+The server-readable `syncview_runtime_flags.thumbnail_revision_v2` value is:
+
+```json
+{"mode":"off","clients":[]}
+```
+
+- `off`: comparison reads and scans fail closed; v2 server token minting is disabled.
+- `test`: only normalized slugs in `clients` can read, scan, or receive v2 server tokens. Scanner
+  calls must include an enrolled client scope.
+- `on`: all clients can use the v2 reader/scanner/token path.
+
+The migration seeds `off` without overwriting an existing value. Set `test` only for the private
+TEST client until positive, negative, same-link, realtime, and rollback probes pass. Set `on` only
+after the TEST gate and live Pages/Edge readback are recorded.
+
+Baseline capture in both upsert functions checks the same active-client-aware flag before any Drive
+read, Storage upload, or revision-row write. Turning v2 `off` therefore prevents capture,
+comparison delivery, scanning, and cross-viewer token minting, but does not delete existing private
+snapshots or unwind an already captured baseline.
+
+The scheduled caller has a separate operational switch:
+
+```text
+GitHub Actions variable THUMBNAIL_REVISION_SCAN_ENABLED=true|false
+```
+
+The workflow runs every ten minutes only when that variable is exactly `true`. It sends the
+dedicated `X-Syncview-Scheduler-Signature` secret, uses at most 12 sequential 25-row requests with
+one run-level fairness cutoff and an overall timeout, stops early on a short page, and logs aggregate counts only. Any item failure
+makes the workflow fail visibly without logging card, client, URL, path, or upstream error details.
+The Edge Function returns `503` when its secret is absent, `401` for a missing/wrong signature, and
+never accepts a staff key as scheduler authority.
+
+## Data and code ownership
+
+- `migrations/2026-07-09-thumbnail-media-revisions.sql`: original private bucket/history table.
+- `migrations/2026-07-14-thumbnail-revision-v2.sql`: seed-off flag, revoke browser SELECT on raw
+  history, install active-source watcher triggers/backfill, and provide the service-role-only locked
+  rotation transaction.
+- `supabase/functions/_shared/thumbnail-revisions.ts`: flag parsing, Drive metadata/snapshots,
+  authenticated verified snapshot capture, active-source reread, and fair continuous scanning.
+- `supabase/functions/calendar-upsert/index.ts`: Calendar baseline/resolution hooks and response token.
+- `supabase/functions/sample-review-upsert/index.ts`: Samples baseline/resolution hooks and response token.
+- `supabase/functions/thumbnail-revision-scan/index.ts`: fail-closed, signature-authenticated scanner.
+- `supabase/functions/thumbnail-revision-read/index.ts`: principal/card-scoped signed-image reader.
+- `.github/workflows/thumbnail-revision-scan.yml` and `scripts/thumbnail-revision-scan.js`: bounded
+  ten-minute caller and aggregate-only logging.
+- `index.html`: direct final-host thumbnail URLs, persisted-revision adoption, realtime image refresh,
+  and accessible comparison dialog.
+
+## Rollout and proof checklist
+
+Do not use a real client for mutation proof. Use only the private TEST client and unique disposable
+card IDs, then clean up and read back zero residue.
+
+1. Snapshot the affected Edge Function source/version fingerprints and relevant TEST rows privately.
+2. Apply `migrations/2026-07-14-thumbnail-revision-v2.sql`; verify the flag is `off` and anonymous
+   PostgREST cannot select `thumbnail_media_revisions`.
+3. Configure `THUMBNAIL_REVISION_SCAN_KEY` independently in Supabase and GitHub, then deploy the
+   four affected functions with the pinned CLI workflow/toolchain.
+4. While `off`, prove the comparison reader and scanner return `503`; prove the scanner returns
+   `401` for missing/wrong signatures once enabled.
+5. Set `test` with only the private TEST slug. Prove same-link media assignment and
+   `Tweaks Needed` exit mint a new persisted token through both Edge and non-browser/server paths.
+6. Initialize a TEST watch, change its Drive revision without a SyncView write, and scan it. Prove a
+   `changed` pair, atomic source `thumb_rev` bump, fresh pending baseline, and open-viewer repaint
+   without hard refresh. Repeat once more to prove the watcher rotates indefinitely; also prove an
+   A-to-B Drive link change is source-checked rather than paired against stale media.
+7. Prove authorized staff/client reads and cross-client, missing-credential, wrong-credential,
+   missing-card, oversize-body, and raw-table denials.
+8. Verify desktop and narrow-screen Previous/Current screenshots, keyboard close/focus return, and
+   signed-URL refresh after reopening.
+9. Rehearse `test -> off -> test`, then enable the scheduler variable. Promote to `on` only after
+   the owner-approved gate and record every migration, deploy, secret presence check, flag flip,
+   workflow change, cleanup, and readback in `EXECUTION_LOG.md`.
+
+## Rollback
+
+Immediate behavior kill (one database flag update):
+
+```sql
+update public.syncview_runtime_flags
+set value = '{"mode":"off","clients":[]}'::jsonb,
+    updated_at = now(),
+    updated_by = '<operator>'
+where key = 'thumbnail_revision_v2';
+```
+
+Read back the row and its `flag_flips` ledger entry. This disables v2 reads/scans/token minting
+without deleting history. To stop scheduled traffic too, set repository variable
+`THUMBNAIL_REVISION_SCAN_ENABLED=false` or disable the workflow and verify no newer run starts.
+Frontend source reversion and Edge redeployment are secondary recovery steps; they are not the
+one-step containment control.
+
+Do not restore anonymous access to `thumbnail_media_revisions`, make the private bucket public, or
+delete revision history as a rollback. Those actions weaken confidentiality and are not required to
+return the website to its prior current-thumbnail behavior.
 
 ## Folder links
 
-Folder links are deliberately skipped in this version. For Stories or other
-multi-image deliverables, a future version should model the folder as a set:
-
-- list direct children at request time,
-- snapshot each image or at least child IDs/checksums,
-- compare added/removed/changed children,
-- present a folder-level diff in the UI.
-
-That should be a separate design because it has different storage and UX rules
-from a single thumbnail image.
-
-## UI follow-up
-
-The data model is ready for a card-level comparison UI, but this first pass does
-not expose the snapshots in the browser. The future UI should:
-
-- show a small indicator when a card has a pending or changed thumbnail revision,
-- open a compare modal with baseline/latest images,
-- handle private Storage paths through a short-lived signed URL function,
-- keep folder rows hidden until folder-set diffing exists.
-
-## Test client
-
-Use only the privately configured `<PRIVATE_TEST_CLIENT>` for live verification. Existing useful
-fixtures observed on 2026-07-09:
-
-- Single Drive image:
-  `https://drive.google.com/file/d/1rpOCT4NRO6ZUWoiWfShrMP3YQ3e8tDT2/view?usp=drive_link`
-- Drive folder, expected skip:
-  `https://drive.google.com/drive/folders/1UfrowQc0fLTuZDn_6deKgLO8SHOSJ_Da?usp=sharing`
-
-Live verification after rollout:
-
-1. Create or reuse a `<PRIVATE_TEST_CLIENT>` test card with the single Drive image.
-2. Move the graphic component to `Tweaks Needed`.
-3. Confirm one `thumbnail_media_revisions` row appears with `status='pending'`
-   and a `baseline_storage_path`.
-4. Run `thumbnail-revision-scan`; confirm it stays `pending` when Drive has not
-   changed.
-5. Replace the Drive file in place, preserving the same Drive file ID/link.
-6. Run `thumbnail-revision-scan`; confirm the row becomes `changed` with
-   `latest_storage_path`.
-7. Repeat with the folder fixture and confirm no baseline row is created.
+Folder comparison remains a separate future design. It needs a captured child set, added/removed/
+changed semantics, and folder-level UI. The existing folder resolver's F79/F80 authorization/CAS
+findings are independent of this single-file refresh/comparison v2 and are not closed here.

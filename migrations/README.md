@@ -24,6 +24,12 @@ CI, `supabase/config.toml`, or `scripts/` executes these files (see
   legacy-parity outbox intents, seeds their independent reversible kill gate,
   and adds the atomic normalized-comment + outbox writer used by the Write-UI
   gateway. Existing authority and outbound-mode flag values are untouched.
+- **`2026-07-14-thumbnail-revision-v2.sql`** revokes direct browser access to
+  raw thumbnail revision metadata, seeds the default-off comparison/refresh
+  gate, adds active Drive-thumbnail watcher/refresh triggers and bounded repair,
+  and defines a locked service-role-only revision-rotation RPC. Dormant watcher
+  placeholders may be seeded, but it does not enable Drive scanning, comparison
+  delivery, or source-row mutation for any client.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

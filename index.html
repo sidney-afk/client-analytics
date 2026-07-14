@@ -4143,6 +4143,62 @@
         .cal-lightbox img { max-width: 92vw; max-height: 92vh; border-radius: 8px; box-shadow: 0 24px 70px var(--sv-shadow-rgba-0-0-0-0_55); cursor: default; }
         .cal-lightbox-close { position: fixed; top: 20px; right: 24px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--sv-bg-rgba-255-255-255-0_16); color: var(--sv-fg-fff); font-size: 1.5rem; line-height: 1; cursor: pointer; }
         .cal-lightbox-close:hover { background: var(--sv-bg-rgba-255-255-255-0_3); }
+        /* Thumbnail revision history. The quiet card action stays available on
+           every single-image thumbnail; the dot appears only after the lazy
+           reader confirms that a captured previous/current pair exists. */
+        .thumb-compare-trigger { display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 6px; padding: 3px 6px;
+            background: transparent; color: var(--text-muted); font-family: inherit; font-size: 0.74rem; font-weight: 500; line-height: 1.35; cursor: pointer;
+            transition: color 0.14s ease, background 0.14s ease; position: relative; }
+        .thumb-compare-trigger:hover, .thumb-compare-trigger:focus-visible { color: var(--text-primary); background: var(--bg); outline: none; }
+        .thumb-compare-trigger svg { width: 13px; height: 13px; opacity: 0.72; flex: 0 0 auto; }
+        .thumb-compare-trigger:hover svg, .thumb-compare-trigger:focus-visible svg { opacity: 1; }
+        .thumb-compare-trigger.has-history::after { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--cal-notes-dot-bg);
+            box-shadow: 0 0 0 2px var(--cal-notes-dot-ring); flex: 0 0 auto; }
+        .thumb-compare-trigger.is-compact { width: 32px; height: 32px; padding: 0; justify-content: center; border: 1px solid var(--border); background: transparent; }
+        .thumb-compare-trigger.is-compact svg { width: 15px; height: 15px; }
+        .thumb-compare-trigger.is-compact span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+        .thumb-compare-trigger.is-compact.has-history::after { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; }
+        .thumb-compare-overlay { position: fixed; inset: 0; z-index: 360; display: none; align-items: center; justify-content: center; padding: 22px;
+            background: var(--sv-bg-rgba-0-0-0-0_55); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+        .thumb-compare-overlay.open { display: flex; }
+        .thumb-compare-dialog { width: min(1040px, 96vw); max-height: min(860px, 92vh); overflow: hidden; display: flex; flex-direction: column;
+            border: 1px solid var(--border); border-radius: 18px; background: var(--white); color: var(--text-primary); box-shadow: 0 28px 90px var(--sv-shadow-rgba-0-0-0-0_32); }
+        .thumb-compare-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px 15px; border-bottom: 1px solid var(--border); }
+        .thumb-compare-title-wrap { min-width: 0; }
+        .thumb-compare-eyebrow { margin-bottom: 3px; color: var(--text-muted); font-size: 0.65rem; font-weight: 800; letter-spacing: 0.075em; text-transform: uppercase; }
+        .thumb-compare-title { margin: 0; color: var(--text-primary); font-size: 1.05rem; line-height: 1.3; letter-spacing: -0.01em; }
+        .thumb-compare-subtitle { margin: 4px 0 0; color: var(--text-secondary); font-size: 0.78rem; line-height: 1.45; }
+        .thumb-compare-close { flex: 0 0 auto; width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--bg); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+        .thumb-compare-close:hover, .thumb-compare-close:focus-visible { background: var(--border); color: var(--text-primary); outline: none; }
+        .thumb-compare-close svg { width: 14px; height: 14px; }
+        .thumb-compare-content { min-height: 280px; overflow: auto; padding: 18px 20px 20px; }
+        .thumb-compare-loading, .thumb-compare-empty { min-height: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; text-align: center; color: var(--text-secondary); }
+        .thumb-compare-loading strong, .thumb-compare-empty strong { color: var(--text-primary); font-size: 0.92rem; }
+        .thumb-compare-loading p, .thumb-compare-empty p { max-width: 470px; margin: 0; font-size: 0.8rem; line-height: 1.55; }
+        .thumb-compare-empty-icon { width: 42px; height: 42px; border-radius: 13px; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--text-muted); }
+        .thumb-compare-empty-icon svg { width: 21px; height: 21px; }
+        .thumb-compare-retry { margin-top: 5px; border: 1px solid var(--border); border-radius: 99px; padding: 8px 15px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.76rem; font-weight: 700; line-height: 1; cursor: pointer; }
+        .thumb-compare-retry:hover, .thumb-compare-retry:focus-visible { border-color: var(--sv-border-aaa); background: var(--bg); outline: none; }
+        .thumb-compare-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; color: var(--text-secondary); font-size: 0.73rem; }
+        .thumb-compare-status-pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 99px; padding: 5px 9px; background: var(--cal-notes-open-bg); color: var(--cal-notes-accent-fg); font-weight: 700; }
+        .thumb-compare-status-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--cal-notes-dot-bg); }
+        .thumb-compare-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+        .thumb-compare-pane { min-width: 0; margin: 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg); }
+        .thumb-compare-pane-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 11px 12px; border-bottom: 1px solid var(--border); background: var(--white); }
+        .thumb-compare-pane-title { color: var(--text-primary); font-size: 0.8rem; font-weight: 800; }
+        .thumb-compare-pane-time { color: var(--text-muted); font-size: 0.67rem; line-height: 1.4; text-align: right; }
+        .thumb-compare-image-wrap { min-height: 360px; height: min(54vh, 560px); padding: 12px; display: flex; align-items: center; justify-content: center; background: var(--media-tub-bg); }
+        .thumb-compare-image-wrap img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 9px; box-shadow: 0 10px 28px var(--sv-shadow-rgba-0-0-0-0_18); }
+        .thumb-compare-image-error { max-width: 240px; color: var(--text-secondary); font-size: 0.76rem; line-height: 1.5; text-align: center; }
+        @media (max-width: 720px) {
+            .thumb-compare-overlay { align-items: flex-end; padding: 0; }
+            .thumb-compare-dialog { width: 100%; max-height: 96vh; border-radius: 18px 18px 0 0; }
+            .thumb-compare-head { padding: 15px 16px 13px; }
+            .thumb-compare-content { padding: 14px 14px 20px; }
+            .thumb-compare-status { align-items: flex-start; flex-direction: column; }
+            .thumb-compare-grid { grid-template-columns: 1fr; }
+            .thumb-compare-image-wrap { min-height: 250px; height: 46vh; }
+        }
         .cal-card-thumb-fallback { font-size: 1.4rem; font-weight: 800; color: var(--text-muted); letter-spacing: 0.06em; display: inline-flex; align-items: center; justify-content: center; }
         /* Google Drive permission warning shown when a thumbnail won't load */
         .cal-thumb-drive-warn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 16px; color: var(--sv-fg-92400e); }
@@ -16467,6 +16523,7 @@
     const CLIENT_TOKEN_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/client-token-verify';
     const STAFF_KEY_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/key-verify';
     const THUMBNAIL_FOLDER_RESOLVE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/thumbnail-folder-resolve';
+    const THUMBNAIL_REVISION_READ_EF_URL = CAL_SUPABASE_URL + '/functions/v1/thumbnail-revision-read';
     const SMM_WEEKLY_REPORTS_URL = CAL_SUPABASE_URL + '/functions/v1/smm-weekly-reports';
     const SYNCVIEW_STAFF_IDENTITY_KEY = 'syncview_staff_identity_v1';
     const SYNCVIEW_STAFF_PROMPT_SESSION_KEY = 'syncview_staff_identity_prompted_v1';
@@ -18903,9 +18960,9 @@
          • _calThumbRev[id] — a SESSION mirror of the same token on the editing
            browser, used so the local strip updates instantly (no wait for the
            save echo) and as a graceful fallback before the thumb_rev column / the
-           upsert allow-list entry exist. Takes priority over post.thumb_rev on
-           the editor; remote viewers have no session entry so they use the
-           persisted value.
+           upsert allow-list entry exist. The persisted post.thumb_rev takes
+           priority once present, so a later server/Linear revision can never be
+           masked by an older token left in this tab's session map.
        The two cache-bust tokens do different jobs:
          _cb (updated_at) changes on EVERY save and carries cross-RELOAD freshness
             (a replaced Drive file behind an unchanged link refetches after a page
@@ -22371,6 +22428,7 @@
                     return fp;
                 })();
                 winner = _calAdoptThumbnailFolderMeta(winner, fp);
+                winner = _thumbAdoptPersistedRevision(winner, fp);
                 if (_calV2DebugOn() && winner === lp &&
                     (lp.video_status !== fp.video_status || lp.graphic_status !== fp.graphic_status ||
                      lp.caption_status !== fp.caption_status || lp.title_status !== fp.title_status || lp.status !== fp.status)) {
@@ -22438,6 +22496,7 @@
             });
             dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
             calState.posts = newPosts;
+            _thumbRefreshChangedCards('calendar', prevPosts, newPosts);
             calState.error = null;
             calState.fromCache = false;
             calState.staleNotice = null;
@@ -23431,7 +23490,7 @@
         // still Tweaks Needed — the overall stays Tweaks but the pill
         // colour must update).
         const keys = ['id','order_index','scheduled_date','status','name',
-                      'asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','cta',
+                      'asset_url','thumbnail_url','thumb_rev','caption','caption_alt','caption_alt_platform','cta',
                       'thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at',
                       'linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id',
                       'video_status','graphic_status','caption_status','title_status',
@@ -23446,6 +23505,42 @@
             if (JSON.stringify(a[i].title_comments || []) !== JSON.stringify(b[i].title_comments || [])) return false;
         }
         return true;
+    }
+    /* When a passive refresh lands while a field is focused, the full card
+       repaint is deliberately deferred. A media revision is safe to apply in
+       place, though, and must not wait for blur: swap only the affected image so
+       every open tab sees the new thumbnail as soon as realtime delivers it. */
+    function _thumbRefreshChangedCards(surface, before, after) {
+        if (!Array.isArray(before) || !Array.isArray(after) || !before.length) return;
+        const prev = new Map(before.map(p => [p && p.id, p]));
+        after.forEach(post => {
+            if (!post || !post.id) return;
+            const old = prev.get(post.id);
+            if (!old) return;
+            const mediaChanged = String(old.thumbnail_url || old.asset_url || '').trim() !== String(post.thumbnail_url || post.asset_url || '').trim();
+            const revisionChanged = String(old.thumb_rev || '') !== String(post.thumb_rev || '');
+            if (!mediaChanged && !revisionChanged) return;
+            try {
+                if (surface === 'samples') _sxrForceThumbRefresh(post.id);
+                else _calRefreshCardThumb(post.id);
+            } catch (e) {}
+            // Review cards can contain a collapsed thumbnail, a graphic preview,
+            // and the blurred backdrop behind the video link. A focused comment
+            // composer defers the full kcard rebuild, so advance those image nodes
+            // directly too; no textarea/caret is touched.
+            try {
+                const root = document.getElementById(surface === 'samples' ? 'sxrBody' : 'calBody');
+                const info = _calDeriveThumbInfo(post);
+                if (!root || !info || !info.url) return;
+                root.querySelectorAll('.kcard[data-cal-review-pid]').forEach(card => {
+                    if (card.getAttribute('data-cal-review-pid') !== String(post.id)) return;
+                    card.querySelectorAll('.kcard-thumb img, .cal-review-preview-thumb img, .cal-review-video-bg').forEach(img => {
+                        if (info.isDrive) img.setAttribute('data-drive', '1'); else img.removeAttribute('data-drive');
+                        img.setAttribute('src', info.url);
+                    });
+                });
+            } catch (e) {}
+        });
     }
 
     function _calRenderBody(opts) {
@@ -23818,9 +23913,9 @@
          _r  = the thumbnail rev, bumped ONLY when the link is written and KEPT in
                the harvest key, so a real link edit reloads the image on every
                render path (in-app, no hard refresh) while unrelated saves still
-               reuse the decoded <img>. Sourced from the SESSION mirror first
-               (editing browser, instant) then the PERSISTED post.thumb_rev
-               (remote viewers + after a reload). See the _calThumbRev block.
+               reuse the decoded <img>. Sourced from the PERSISTED post.thumb_rev
+               first, with the SESSION mirror only as an optimistic fallback.
+               See the _calThumbRev block.
        Objects without an id / updated_at (live-preview probes) get whichever
        tokens apply — a raw link change already forces a fresh fetch there. */
     function _calCacheBustThumb(url, p) {
@@ -23828,9 +23923,29 @@
         let out = url;
         const tok = p && p.updated_at;
         if (tok) out += (out.includes('?') ? '&' : '?') + '_cb=' + encodeURIComponent(tok);
-        const rev = (p && p.id && _calThumbRev[p.id]) || (p && p.thumb_rev);
+        const rev = (p && p.thumb_rev) || (p && p.id && _calThumbRev[p.id]);
         if (rev) out += (out.includes('?') ? '&' : '?') + '_r=' + encodeURIComponent(rev);
         return out;
+    }
+    function _calDriveFileId(url) {
+        const u = String(url || '').trim();
+        if (!/(?:drive|docs)\.google\.com/i.test(u) && !/googleusercontent\.com\/d\//i.test(u)) return '';
+        let m = u.match(/googleusercontent\.com\/d\/([A-Za-z0-9_-]+)/i);
+        if (m) return m[1];
+        m = u.match(/\/file\/d\/([A-Za-z0-9_-]+)/i);
+        if (m) return m[1];
+        m = u.match(/[?&]id=([A-Za-z0-9_-]+)/i);
+        return m ? m[1] : '';
+    }
+    /* Request Drive thumbnails from Google's FINAL image host. Appending _r to
+       drive.google.com/thumbnail never worked reliably because the 302 redirect
+       discarded our query string and every revision collapsed onto the same
+       24-hour-cached lh3 URL. A query on this direct URL survives as the browser's
+       actual cache key, so a persisted thumb_rev reaches every viewer. */
+    function _calDriveImageUrl(fileId, p, size) {
+        if (!fileId) return '';
+        const px = Math.max(320, Math.min(2000, Number(size) || 640));
+        return _calCacheBustThumb('https://lh3.googleusercontent.com/d/' + encodeURIComponent(fileId) + '=w' + px, p);
     }
     function _calDeriveThumb(p) {
         const u = String(p.thumbnail_url || p.asset_url || '').trim();
@@ -23840,8 +23955,8 @@
         // an identical image on every unrelated save).
         let m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([A-Za-z0-9_-]{11})/);
         if (m) return `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg`;
-        m = u.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([A-Za-z0-9_-]+)/);
-        if (m) return _calCacheBustThumb(`https://drive.google.com/thumbnail?id=${m[1]}&sz=w320`, p);
+        const driveId = _calDriveFileId(u);
+        if (driveId) return _calDriveImageUrl(driveId, p, 640);
         if (/\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(u)) return _calCacheBustThumb(u, p);
         return '';
     }
@@ -24019,6 +24134,27 @@
         keys.forEach(k => { next[k] = String(serverPost[k] || ''); });
         return next;
     }
+    /* The row-level LWW guards intentionally keep local edits for a while, but
+       thumb_rev is an independent server signal: Linear/the revision scanner can
+       mint it while this browser's otherwise-newer card stays local. Adopt the
+       server token when it belongs to the same media and the server row is at
+       least as new. This prevents stale localStorage/session state from masking a
+       real image change, without letting an old self-echo overwrite an optimistic
+       token from a save that is still in flight. */
+    function _thumbAdoptPersistedRevision(post, serverPost) {
+        if (!post || !serverPost) return post;
+        const localMedia = String(post.thumbnail_url || post.asset_url || '').trim();
+        const serverMedia = String(serverPost.thumbnail_url || serverPost.asset_url || '').trim();
+        if (!localMedia || localMedia !== serverMedia) return post;
+        const serverRev = String(serverPost.thumb_rev || '').trim();
+        const localRev = String(post.thumb_rev || '').trim();
+        if (!serverRev || serverRev === localRev) return post;
+        const serverAt = Date.parse(serverPost.updated_at || '');
+        const localAt = Date.parse(post.updated_at || '');
+        const serverIsCurrent = !localRev || (isFinite(serverAt) && (!isFinite(localAt) || serverAt >= localAt));
+        if (!serverIsCurrent) return post;
+        return Object.assign({}, post, { thumb_rev: serverRev });
+    }
     function _calStripThumbnailFolderFields(row) {
         if (!row) return row;
         ['thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'].forEach(k => { delete row[k]; });
@@ -24171,6 +24307,251 @@
     }
     function _calThumbContent(p) {
         return _calThumbMediaHtml(_calDeriveThumbInfo(p), '_calOnThumbImgError');
+    }
+
+    /* ── Previous/current thumbnail comparison ─────────────────────────────
+       The button is intentionally cheap: cards never fan out one history read
+       apiece. The signed snapshot pair is fetched only when somebody opens the
+       comparison, and it is fetched again on the next open because those URLs
+       expire after five minutes. */
+    const _thumbCompareKnown = new Map();
+    let _thumbCompareState = null;
+    function _thumbCompareIconSvg() {
+        return `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="3" width="8.2" height="9" rx="1.5"/><path d="M6 3V1.8h6.2a2 2 0 0 1 2 2v7.4H10"/><path d="m3.5 9 1.7-1.8 2.8 3"/></svg>`;
+    }
+    function _thumbCompareClient(surface) {
+        try {
+            return surface === 'samples' ? sxrClientSlug(sxrState.client) : calClientSlug(calState.client);
+        } catch (e) {
+            const raw = surface === 'samples'
+                ? (typeof sxrState !== 'undefined' && sxrState ? sxrState.client : '')
+                : (calState && calState.client);
+            return String(raw || '').toLowerCase().replace(/[^a-z0-9&]+/g, '');
+        }
+    }
+    function _thumbCompareKey(surface, client, pid) { return [surface, client, pid].join('|'); }
+    function _thumbCompareButtonHtml(surface, post, compact) {
+        if (!post || !post.id || String(post.id).startsWith('__')) return '';
+        const thumbnailUrl = String(post.thumbnail_url || '').trim();
+        if (!thumbnailUrl || _calIsFolderLink(thumbnailUrl) || !_calDriveFileId(thumbnailUrl)) return '';
+        const client = _thumbCompareClient(surface);
+        const known = _thumbCompareKnown.get(_thumbCompareKey(surface, client, post.id));
+        const cls = 'thumb-compare-trigger' + (compact ? ' is-compact' : '') + (known === true ? ' has-history' : '');
+        const label = known === true ? 'Compare thumbnail versions — previous version available' : 'Compare thumbnail versions';
+        return `<button type="button" class="${cls}" data-thumb-compare-surface="${_calEscAttr(surface)}" data-thumb-compare-client="${_calEscAttr(client)}" data-thumb-compare-pid="${_calEscAttr(post.id)}" onclick="_thumbCompareOpen(event,this.dataset.thumbCompareSurface,this.dataset.thumbComparePid)" title="${_calEscAttr(label)}" aria-label="${_calEscAttr(label)}">${_thumbCompareIconSvg()}<span>Compare</span></button>`;
+    }
+    function _thumbCompareFindPost(surface, pid) {
+        const rows = surface === 'samples'
+            ? ((typeof sxrState !== 'undefined' && sxrState && sxrState.posts) || [])
+            : ((calState && calState.posts) || []);
+        return rows.find(p => String(p && p.id) === String(pid)) || null;
+    }
+    function _thumbCompareEnsureOverlay() {
+        let overlay = document.getElementById('thumbCompareOverlay');
+        if (overlay) return overlay;
+        overlay = document.createElement('div');
+        overlay.id = 'thumbCompareOverlay';
+        overlay.className = 'thumb-compare-overlay';
+        overlay.innerHTML = `<section class="thumb-compare-dialog" id="thumbCompareDialog" role="dialog" aria-modal="true" aria-labelledby="thumbCompareTitle" aria-describedby="thumbCompareSubtitle" tabindex="-1">
+            <header class="thumb-compare-head">
+                <div class="thumb-compare-title-wrap"><div class="thumb-compare-eyebrow">Thumbnail history</div><h2 class="thumb-compare-title" id="thumbCompareTitle">Previous and current</h2><p class="thumb-compare-subtitle" id="thumbCompareSubtitle">Loading captured versions…</p></div>
+                <button type="button" class="thumb-compare-close" onclick="_thumbCompareClose()" aria-label="Close thumbnail comparison"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            </header>
+            <div class="thumb-compare-content" id="thumbCompareContent" role="status" aria-live="polite"></div>
+        </section>`;
+        overlay.addEventListener('click', e => { if (e.target === overlay) _thumbCompareClose(); });
+        overlay.addEventListener('keydown', _thumbCompareKeydown);
+        document.body.appendChild(overlay);
+        return overlay;
+    }
+    function _thumbCompareKeydown(e) {
+        const overlay = document.getElementById('thumbCompareOverlay');
+        if (!overlay || !overlay.classList.contains('open')) return;
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); _thumbCompareClose(); return; }
+        if (e.key !== 'Tab') return;
+        const focusable = Array.from(overlay.querySelectorAll('button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])'))
+            .filter(el => !el.hidden && el.getClientRects().length);
+        if (!focusable.length) { e.preventDefault(); overlay.querySelector('[role="dialog"]')?.focus(); return; }
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    function _thumbCompareLoading(message) {
+        const content = document.getElementById('thumbCompareContent');
+        const dialog = document.getElementById('thumbCompareDialog');
+        if (dialog) dialog.setAttribute('aria-busy', 'true');
+        if (content) content.innerHTML = `<div class="thumb-compare-loading"><span class="cal-refresh-spin" aria-hidden="true"></span><strong>${_calEsc(message || 'Loading thumbnail history…')}</strong><p>Fetching the captured previous and current images securely.</p></div>`;
+    }
+    function _thumbCompareOpen(event, surface, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        surface = surface === 'samples' ? 'samples' : 'calendar';
+        const trigger = event && (event.currentTarget || (event.target && event.target.closest('.thumb-compare-trigger')));
+        const client = _thumbCompareClient(surface);
+        const post = _thumbCompareFindPost(surface, pid);
+        if (!client || !post) return;
+        if (_thumbCompareState && _thumbCompareState.controller) _thumbCompareState.controller.abort();
+        const overlay = _thumbCompareEnsureOverlay();
+        _thumbCompareState = { surface, client, pid: String(pid), trigger: trigger || document.activeElement, controller: null };
+        const title = document.getElementById('thumbCompareTitle');
+        const subtitle = document.getElementById('thumbCompareSubtitle');
+        if (title) title.textContent = post.name ? 'Previous and current — ' + post.name : 'Previous and current thumbnail';
+        if (subtitle) subtitle.textContent = 'See the version captured before the change beside the latest captured thumbnail.';
+        overlay.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        _thumbCompareLoading('Loading thumbnail history…');
+        setTimeout(() => overlay.querySelector('.thumb-compare-close')?.focus(), 0);
+        // Staff routes must never send an anonymous read. Keep the comparison
+        // open underneath the existing sign-in dialog and continue automatically
+        // only if verification succeeds.
+        if (!_isClientLink && !_syncviewStaffIdentityForHeaders()) {
+            _thumbCompareRenderSignIn();
+            _syncviewOpenStaffIdentity({ reason: 'required' }).then(identity => {
+                const state = _thumbCompareState;
+                if (identity && state && state.surface === surface && state.pid === String(pid)) _thumbCompareLoad();
+            });
+            return;
+        }
+        _thumbCompareLoad();
+    }
+    function _thumbCompareClose() {
+        const state = _thumbCompareState;
+        if (state && state.controller) state.controller.abort();
+        const overlay = document.getElementById('thumbCompareOverlay');
+        if (overlay) overlay.classList.remove('open');
+        document.body.classList.remove('cal-modal-open');
+        _thumbCompareState = null;
+        const trigger = state && state.trigger;
+        if (trigger && trigger.isConnected && typeof trigger.focus === 'function') setTimeout(() => trigger.focus(), 0);
+    }
+    function _thumbCompareRenderSignIn() {
+        const dialog = document.getElementById('thumbCompareDialog');
+        const content = document.getElementById('thumbCompareContent');
+        if (dialog) dialog.setAttribute('aria-busy', 'false');
+        if (!content) return;
+        content.innerHTML = `<div class="thumb-compare-empty"><span class="thumb-compare-empty-icon">${_thumbCompareIconSvg()}</span><strong>Staff sign-in required</strong><p>Thumbnail history contains private review images. Finish the secure staff sign-in to view this comparison.</p><button type="button" class="thumb-compare-retry" onclick="_thumbCompareSignIn()">Sign in</button></div>`;
+    }
+    async function _thumbCompareSignIn() {
+        const identity = await _syncviewOpenStaffIdentity({ reason: 'required' });
+        if (identity && _thumbCompareState) _thumbCompareLoad();
+    }
+    function _thumbCompareHttpMessage(status) {
+        if (status === 400) return 'This card could not be matched to thumbnail history.';
+        if (status === 401) return _isClientLink ? 'This client link cannot access thumbnail history. Ask for a fresh share link.' : 'Your staff sign-in could not be verified. Sign in again and retry.';
+        if (status === 403) return 'This account does not have access to this client’s thumbnail history.';
+        if (status === 404) return 'This card is no longer available in the selected client.';
+        if (status === 503) return 'Thumbnail history is temporarily unavailable.';
+        return 'Thumbnail history could not be loaded.';
+    }
+    function _thumbCompareRenderError(message) {
+        const dialog = document.getElementById('thumbCompareDialog');
+        const content = document.getElementById('thumbCompareContent');
+        if (dialog) dialog.setAttribute('aria-busy', 'false');
+        if (!content) return;
+        content.innerHTML = `<div class="thumb-compare-empty"><span class="thumb-compare-empty-icon">${_thumbCompareIconSvg()}</span><strong>Couldn’t load the comparison</strong><p>${_calEsc(message || 'Try again in a moment.')}</p><button type="button" class="thumb-compare-retry" onclick="_thumbCompareLoad()">Try again</button></div>`;
+    }
+    async function _thumbCompareLoad() {
+        const state = _thumbCompareState;
+        if (!state) return;
+        if (!_isClientLink && !_syncviewStaffIdentityForHeaders()) { _thumbCompareRenderSignIn(); return; }
+        if (_isClientLink && !_syncviewClientWriteToken()) { _thumbCompareRenderError('This client link is missing its secure access token. Ask for a fresh share link.'); return; }
+        if (state.controller) state.controller.abort();
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        state.controller = controller;
+        _thumbCompareLoading('Loading thumbnail history…');
+        try {
+            const headers = _syncviewEfHeaders({
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'apikey': CAL_SUPABASE_ANON_KEY,
+                'Authorization': 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                'X-Syncview-Source': 'thumbnail-compare-ui'
+            }, THUMBNAIL_REVISION_READ_EF_URL);
+            const response = await fetch(THUMBNAIL_REVISION_READ_EF_URL, {
+                method: 'POST', headers, cache: 'no-store',
+                body: JSON.stringify({ surface: state.surface, client: state.client, source_id: state.pid }),
+                signal: controller ? controller.signal : undefined
+            });
+            const json = await response.json().catch(() => null);
+            if (!response.ok) { const error = new Error(_thumbCompareHttpMessage(response.status)); error.status = response.status; throw error; }
+            if (!json || json.ok !== true) throw new Error('Thumbnail history returned an unexpected response.');
+            if (_thumbCompareState !== state) return;
+            const model = _thumbCompareNormalize(json);
+            _thumbCompareKnown.set(_thumbCompareKey(state.surface, state.client, state.pid), model.available);
+            _thumbCompareUpdateButtons(state, model.available);
+            if (model.available) _thumbCompareRenderPair(model);
+            else _thumbCompareRenderUnavailable(model);
+        } catch (error) {
+            if (error && error.name === 'AbortError') return;
+            if (_thumbCompareState !== state) return;
+            _thumbCompareRenderError(error && error.message ? error.message : 'Try again in a moment.');
+        } finally {
+            if (_thumbCompareState === state) state.controller = null;
+        }
+    }
+    function _thumbCompareNormalize(json) {
+        const revision = (json && json.revision) || null;
+        const baseline = revision && (revision.baseline || revision.previous) || null;
+        const latest = revision && (revision.latest || revision.current) || null;
+        const status = String((json && json.status) || (revision && revision.status) || 'none').toLowerCase();
+        const available = !!(json && json.available === true && baseline && latest && baseline.url && latest.url);
+        return { available, status, revision, baseline, latest };
+    }
+    function _thumbCompareUpdateButtons(state, available) {
+        document.querySelectorAll('.thumb-compare-trigger[data-thumb-compare-pid]').forEach(button => {
+            if (button.dataset.thumbCompareSurface !== state.surface || button.dataset.thumbCompareClient !== state.client || button.dataset.thumbComparePid !== state.pid) return;
+            button.classList.toggle('has-history', !!available);
+            const label = available ? 'Compare thumbnail versions — previous version available' : 'Compare thumbnail versions';
+            button.title = label; button.setAttribute('aria-label', label);
+        });
+    }
+    function _thumbCompareFormatTime(value) {
+        if (!value) return 'Time not recorded';
+        const date = new Date(value);
+        if (isNaN(date)) return String(value);
+        return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+    function _thumbCompareImageUrl(entry) {
+        if (!entry) return '';
+        // Only render the short-lived private Storage URL issued by the scoped
+        // reader. A mutable Drive URL can show today's bytes in both panes and
+        // would make the historical comparison false.
+        return String(entry.url || entry.media_url || '').trim();
+    }
+    function _thumbCompareRenderPair(model) {
+        const content = document.getElementById('thumbCompareContent');
+        const dialog = document.getElementById('thumbCompareDialog');
+        if (dialog) dialog.setAttribute('aria-busy', 'false');
+        if (!content) return;
+        const revision = model.revision || {};
+        const previousUrl = _thumbCompareImageUrl(model.baseline);
+        const currentUrl = _thumbCompareImageUrl(model.latest);
+        const detectedAt = revision.detected_at || revision.requested_at || '';
+        content.innerHTML = `<div class="thumb-compare-status"><span class="thumb-compare-status-pill">Change captured</span><span>${detectedAt ? 'Detected ' + _calEsc(_thumbCompareFormatTime(detectedAt)) : 'Previous and current snapshots are ready'}</span></div>
+            <div class="thumb-compare-grid">
+                ${_thumbComparePaneHtml('Previous', model.baseline, previousUrl, 'Previous thumbnail')}
+                ${_thumbComparePaneHtml('Current', model.latest, currentUrl, 'Current thumbnail')}
+            </div>`;
+    }
+    function _thumbComparePaneHtml(label, entry, url, alt) {
+        const time = _thumbCompareFormatTime(entry && (entry.modified_at || entry.captured_at));
+        return `<figure class="thumb-compare-pane"><figcaption class="thumb-compare-pane-head"><span class="thumb-compare-pane-title">${_calEsc(label)}</span><time class="thumb-compare-pane-time">${_calEsc(time)}</time></figcaption><div class="thumb-compare-image-wrap"><img src="${_calEscAttr(url)}" alt="${_calEscAttr(alt)}" onerror="_thumbCompareImgError(this)"></div></figure>`;
+    }
+    function _thumbCompareImgError(img) {
+        const wrap = img && img.parentElement;
+        if (!wrap) return;
+        wrap.innerHTML = `<div class="thumb-compare-image-error">This captured image couldn’t be displayed. Close and reopen the comparison to request a fresh secure image link.</div>`;
+    }
+    function _thumbCompareRenderUnavailable(model) {
+        const dialog = document.getElementById('thumbCompareDialog');
+        const content = document.getElementById('thumbCompareContent');
+        if (dialog) dialog.setAttribute('aria-busy', 'false');
+        if (!content) return;
+        const pending = model.status === 'pending';
+        const title = pending ? 'The comparison is still being prepared' : 'No captured previous version yet';
+        const copy = pending
+            ? 'SyncView has recorded the revision request, but the previous/current snapshot pair is not ready yet. Try again shortly.'
+            : 'The current thumbnail is available, but SyncView does not have a confirmed changed snapshot pair for this card.';
+        content.innerHTML = `<div class="thumb-compare-empty"><span class="thumb-compare-empty-icon">${_thumbCompareIconSvg()}</span><strong>${_calEsc(title)}</strong><p>${_calEsc(copy)}</p><button type="button" class="thumb-compare-retry" onclick="_thumbCompareLoad()">Check again</button></div>`;
     }
     function _calFmtDateShort(iso) {
         if (!iso) return '';
@@ -24721,6 +25102,7 @@
                 <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
                 <div class="cal-card-foot">
+                    ${_thumbCompareButtonHtml('calendar', p, false)}
                     ${_calCommentsBtnHtml(p, pid)}
                     ${p._saveError
                         ? `<button type="button" class="cal-card-saving is-error" data-saving="${pid}" onclick="_calRetrySave('${pid}')" title="${_calEscAttr(typeof p._saveError === 'string' ? p._saveError : 'Save failed')} — click to retry">Save failed · Retry</button>`
@@ -27946,6 +28328,7 @@
                     ${compPills ? `<div class="cal-review-sub-row">${compPills}</div>` : ''}
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${_thumbCompareButtonHtml('calendar', p, true)}
                     <button class="kcard-open-sheet" type="button" onclick="_calReviewOpenInSheet('${escId}')" title="Open this card in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
                     <button class="kcard-expand-btn" type="button" onclick="_calReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
                 </div>
@@ -35523,6 +35906,7 @@
             // laggy" fix: the click was already instant; this kills the late repaint.
             const _sxrDataChanged = !background || typeof _sxrPostsEqualForRender !== 'function' || !_sxrPostsEqualForRender(_sxrPrevPosts, _sxrMerged);
             sxrState.posts = _sxrMerged;
+            _thumbRefreshChangedCards('samples', _sxrPrevPosts, _sxrMerged);
             sxrState.loading = false; sxrState.error = null;
             _sxrCacheWrite(slug, rows);
             _sxrSetStaleNotice(false);
@@ -36253,6 +36637,7 @@
                 ${_sxrLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, p)}
                 ${_sxrCreativeDirectionHtml(pid, p, editableText)}
                 <div class="cal-card-foot">
+                    ${_thumbCompareButtonHtml('samples', p, false)}
                     ${_sxrCommentsBtnHtml(p, pid)}
                     ${p._saveError
                         ? `<button type="button" class="cal-card-saving is-error" data-saving="${pid}" onclick="_sxrRetrySave('${pid}')" title="${_sxrEscAttr(typeof p._saveError === 'string' ? p._saveError : 'Save failed')} — click to retry">Save failed · Retry</button>`
@@ -36958,6 +37343,7 @@
                     ${compPills ? `<div class="cal-review-sub-row">${compPills}</div>` : ''}
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${_thumbCompareButtonHtml('samples', p, true)}
                     <button class="kcard-open-sheet" type="button" onclick="_sxrReviewOpenInSheet('${escId}')" title="Open this sample in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
                     <button class="kcard-expand-btn" type="button" onclick="_sxrReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
                 </div>
@@ -37722,7 +38108,7 @@
         if (a === b) return true;
         if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
         const keys = ['id','order_index','status','name',
-                      'asset_url','thumbnail_url','creative_direction','hide_creative_direction',
+                      'asset_url','thumbnail_url','thumb_rev','creative_direction','hide_creative_direction',
                       'thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at',
                       'linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id',
                       'video_status','graphic_status',
@@ -37816,10 +38202,12 @@
             for (const k of keys) {
                 if (String(post[k] || '') !== String(serverPost[k] || '')) { changed = true; break; }
             }
-            if (!changed) return post;
-            const next = Object.assign({}, post);
-            keys.forEach(k => { next[k] = String(serverPost[k] || ''); });
-            return next;
+            let next = post;
+            if (changed) {
+                next = Object.assign({}, post);
+                keys.forEach(k => { next[k] = String(serverPost[k] || ''); });
+            }
+            return _thumbAdoptPersistedRevision(next, serverPost);
         };
         for (const srv of server) {
             serverIds.add(srv.id);

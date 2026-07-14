@@ -64,6 +64,13 @@ verify_jwt = false
 [functions.thumbnail-revision-scan]
 verify_jwt = false
 
+# Browser comparison reader. Transport JWT stays off because the static SPA
+# authenticates with either a staff role key + exact active roster actor or a
+# client review token scoped to the requested client. The private bucket and raw
+# revision table are never exposed directly.
+[functions.thumbnail-revision-read]
+verify_jwt = false
+
 # Track B B0 auth verifiers. Both are callable from the static browser app and
 # enforce/log with the service role internally; JWT verification stays off.
 [functions.client-token-verify]

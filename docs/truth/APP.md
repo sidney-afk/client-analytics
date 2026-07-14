@@ -35,6 +35,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   upsert/reorder routing still targets Supabase-only Edge Functions. Normal Supabase-read failure
   automatically selects the same Sheet fallback. Either state must remain read-only until one
   coupled recovery authority exists.
+- Drive-file thumbnails are rendered from the final `lh3.googleusercontent.com/d/<id>` host, with
+  persisted `thumb_rev` in the actual browser cache key. Calendar adopts a newer server revision
+  across cache/LWW guards and advances existing image nodes on realtime without waiting for a hard
+  refresh or a focused-field repaint.
+- Cards with a single thumbnail expose a lazy **Compare** action. It calls the protected
+  `thumbnail-revision-read` Edge Function for that exact surface/client/card and displays signed
+  Previous/Current snapshots when a changed pair exists. Staff without a verified roster identity
+  are sent through the existing secure sign-in first; client links use their scoped review token.
 
 ## Samples (SXR + legacy)
 
@@ -48,6 +56,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   (see `docs/truth/SUPABASE.md`).
 - Calendar and Samples reorder only through HTML5 mouse drag events; no touch/pointer or keyboard
   fallback exists (F135).
+- SXR shares Calendar's server-authoritative `thumb_rev`, final-host Drive URL, realtime image
+  advancement, and protected lazy Previous/Current comparison. The comparison action appears only
+  for a single rendered thumbnail; Drive folders and media-less cards do not advertise a pair.
 
 ## Reviews (client / Kasper / SMM)
 
@@ -63,6 +74,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - Kasper's eight-tab strip is not contained or semantically keyboard-operable at 390/768 px; later
   and deep-linked tabs require whole-page horizontal panning (F121). A failed shared Review/Messages
   cold load leaves Messages on an indefinite skeleton, and Review renders no Retry (F130).
+- Calendar/SXR review cards use the same persisted revision cache key as the editing strips, so a
+  server or scanner bump replaces collapsed thumbnails, graphic previews, and backdrop images even
+  while a comment field defers the full card rebuild. The comparison dialog is modal, Escape/focus
+  managed, desktop side-by-side, and narrow-screen stacked.
 
 ## Linear sync surface
 

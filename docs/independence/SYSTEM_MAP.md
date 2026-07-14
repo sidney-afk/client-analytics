@@ -47,13 +47,14 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   `deliverables`, `deliverable_events`, `team_members`, `clients`. Ledger/mirror tables
   (`*_events`, `mirror_outbox`, `linear_archive`, `client_credentials_rev`,
   `thumbnail_media_revisions`) are written by Edge Functions / reconcilers, not read directly by the
-  SPA. That is not an access boundary: F83 proves `thumbnail_media_revisions` is anonymously
-  selectable/realtime despite having no UI reader. **Systemic F88:** an exhaustive live count-only
+  SPA. Thumbnail v2 adds a protected, least-field Edge projection for one card and a migration that
+  revokes raw browser SELECT; neither is live proof until the migration and negative readback are
+  recorded, so F83 remains open at this source checkpoint. **Systemic F88:** an exhaustive live count-only
   census found 20 nonempty anon-selectable operational tables. Client-token/UI verification does
   not constrain direct PostgREST; the owner must explicitly accept the exposed fields as public or
   migrate to scoped projections and revoke raw policies. F86 separately blocks raw inactive staff/
   client rows and internal email/Slack/Linear/project mappings.
-- **Edge Functions.** 24 are represented under `supabase/functions/`; **the app calls 19** (see
+- **Edge Functions.** 25 are represented under `supabase/functions/`; **the app calls 20** (see
   §7). Five are backend-only: the Linear webhook target (`linear-inbound`), B4 outbox drainer
   (`linear-outbound`), service-only write wrappers (`deliverable-write`, `batch-write`), and the
   scheduled thumbnail Drive scanner (`thumbnail-revision-scan`). `production-write` is app-called
@@ -82,10 +83,11 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   client roster (`Clients Info`), the SMM directory, and a legacy filming-plans fallback. The review
   token column **does not exist and must not be added**; current browser code still attempts that
   broken public-sheet dependency, while real tokens stay only in protected `client_access` (F03/F33).
-- **GitHub Actions (13 workflow files).** Three reconcilers (`linear-sync`, `sample-linear`,
+- **GitHub Actions (15 workflow files).** Three reconcilers (`linear-sync`, `sample-linear`,
   `linear-deliverables`), two E2E nightlies, unit tests, production-polish, B1 incremental refresh,
-  B4 outbound drain, Edge-Function deploy, Production write drill, Production shadow audit, and the
-  n8n execution-quota watchdog—plus Pages hosting itself. **Slack:** alerts + pings.
+  B4 outbound drain, two scoped Edge-Function deploy workflows, the thumbnail revision scanner,
+  Production write drill, Production shadow audit, and the n8n execution-quota watchdog—plus
+  Pages hosting itself. **Slack:** alerts + pings.
 
 ## 3. App shell & cross-cutting mechanics
 
@@ -122,6 +124,12 @@ Everything below is shared by every surface; per-surface sections only note devi
   (`syncview-runtime-flags`, `syncview-settings-runtime-flags`, `syncview-sample-runtime-flags`)
   lazily after supabase-js loads. Any flag read failure empties the set → all writes route to
   unauthenticated n8n writers. That is an authorization downgrade/fail-open (F67), not fail-safe.
+- **Thumbnail-v2 backend gate.** Edge/database paths read
+  `thumbnail_revision_v2={"mode":"off|test|on","clients":[...]}` server-side. `off` disables the
+  protected comparison reader/scanner and v2 token minting; `test` admits only listed client slugs;
+  `on` admits all. This is not a fourth browser `*_FLAG_KEY` read and is therefore not counted in
+  §7's machine-derived runtime-key list. Scheduled calls have a second operational gate,
+  repository variable `THUMBNAIL_REVISION_SCAN_ENABLED`.
 - **Realtime channels (13).** `cal-<slug>`, `sm-<slug>`, `sxr-<slug>` (per-client post/sample
   streams); `kasper-cal`, `kasper-sxr` (unfiltered cross-client Kasper queues);
   `client-credentials-rev-<slug>` / `-kasper`; `syncview-filming-plans`, `syncview-templates`,
@@ -137,7 +145,7 @@ Everything below is shared by every surface; per-surface sections only note devi
   epoch, server minimum-version rejection, or build-population telemetry currently expires callers.
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
   constant declared *before* the main Supabase URL constant (TDZ avoidance) — that is why §7 counts
-  "15 literal + 4 composed" Edge Functions.
+  "16 literal + 4 composed" Edge Functions.
 
 ## 4. Surface catalog
 
@@ -208,7 +216,9 @@ n8n in the metric read path.*
   writable recovery.
   Caption prompts (n8n `caption-prompts-get` base + flag-gated `caption_prompts` REST overlay — see
   §4.11). Caption job state via n8n `caption-job-status` (5 s poll while jobs active). Runtime-flag
-  reads (calendar-upsert + settings keys). supabase-js + `xlsx` CDN assets.
+  reads (calendar-upsert + settings keys). A card's Compare action lazily calls protected EF
+  `thumbnail-revision-read`; it reads no history table directly and receives only one signed
+  Previous/Current pair. supabase-js + `xlsx` CDN assets.
 - **Writes.** Every card save (fields, comments, statuses, approvals, archive-as-`status:Archived`,
   imports) → **`calendar-upsert` EF iff the slug is flagged, else n8n `calendar-upsert-post`**
   (comments piggyback as JSON in `*_tweaks` columns; v2 sends `comments_base_at:''` to skip the
@@ -220,6 +230,15 @@ n8n in the metric read path.*
   EF (Drive parent-folder link; skipped for client links) is currently anonymous (F79), and its
   remote-read/final-update sequence lacks atomic URL/version CAS (F80). URGENT "sent" marker → **`calendar-upsert`
   EF directly, bypassing the kill switch**.
+- **Thumbnail refresh/comparison.** Single Drive files render from the final
+  `lh3.googleusercontent.com/d/<id>` host with persisted `thumb_rev` in the browser's actual cache
+  key. Enrolled server writers mint on media assignment (same-value included) and graphic Tweaks
+  exit. Active-card watchers also detect same-file replacements that cause no SyncView write; each
+  confirmed scan atomically closes Previous/Current, bumps the exact source row, and carries Current
+  forward as the next baseline. Existing realtime then advances every open editor/review image
+  without a hard refresh. Baseline/latest objects remain private and the comparison reader verifies staff+actor or exact client token plus
+  card scope before returning five-minute signed URLs. The v2 flag is backend-only and is documented
+  in §3, not the browser runtime-key inventory.
 - **Notification correction (F47).** The legacy urgent workflow can post a generic channel message
   and return success with no exact assignee mention; the browser then persists “Sent.” No caller may
   treat a channel post as delivery without an immutable member + provider receipt. Missing mapping
@@ -407,11 +426,16 @@ n8n in the metric read path.*
   `sample-review-get` fallback; realtime `sxr-<slug>`. Kasper queue: **unscoped cross-client**
   `sample_reviews` REST (no client filter, **no webhook fallback**) + unfiltered `kasper-sxr`
   realtime. n8n `linear-subissues` on fresh link-adopt. Runtime-flag read (sample-review key).
-  Shared: SMM-directory CSV, client-token-verify EF.
+  Shared: SMM-directory CSV, client-token-verify EF, and lazy protected
+  `thumbnail-revision-read` comparison URLs.
 - **Writes.** `sample-review-upsert` (EF iff flagged, else n8n — **no EF→n8n fallback**),
   `sample-review-reorder` (EF **with** n8n fallback on failure). Linear legs (`linear-set-status`,
   `linear-add-comment`), `send-urgent-slack`, `thumbnail-folder-resolve` (all shared). URGENT marker
   → `sample-review-upsert` EF directly (bypasses the flag).
+- **Thumbnail refresh/comparison.** SXR shares Calendar's final Drive host, persisted server
+  `thumb_rev`, realtime node advancement, private snapshot store, and protected Previous/Current
+  dialog. Folder/media-less cards have no comparison action; direct media writes can still refresh
+  the current image even when no captured pair exists.
 - **State.** `syncview_sxr_on`/`_off`, `syncview_sxr_prefs_v1`, `syncview_sxr_cache_v1_<slug>`,
   `syncview_sxr_archived_v1_<slug>` (60 s-grace ledger), `syncview_sxr_kasper_seen_v1`,
   `syncview_sxr_linear_outbox_v1`, `sxr-skip-setall-confirm-<status>`; shares
@@ -802,12 +826,12 @@ separate hidden first-party Direct-Post surface.*
   + button re-enable, no queue. `log_reveal` failure ignored.
   Realtime failure → console.warn, no resubscribe (silent live-off).
 - **Notable.** v1's `credentials-identity-persist` is **not an endpoint** — it's a source-guard test
-  file. `thumbnail-revision-scan` EF is never called from `index.html` (thumbnail revision history is
-  backend-only in topology: baselines are captured inside the upsert EFs and scanning is scheduled.
-  However, F83 proves `thumbnail_media_revisions` is anonymously selectable/realtime even though it
-  has no UI reader; remove that access. Passwords arrive in plaintext with `list` and sit
-  in JS memory; masking is visual only; even reveal auditing is caller-invoked/fire-and-forget and
-  direct extraction or copies can be unlogged (F84).
+  file. Thumbnail history now has two distinct endpoints elsewhere in the map:
+  `thumbnail-revision-scan` remains backend-only, while Calendar/SXR call protected
+  `thumbnail-revision-read`. The source migration revokes raw revision-table reads, but F83 remains
+  open until live negative proof. Passwords arrive in plaintext with `list` and sit in JS memory;
+  masking is visual only; even reveal auditing is caller-invoked/fire-and-forget and direct
+  extraction or copies can be unlogged (F84).
 - **Track B.** `client-credentials`, `onboarding-full`, and filming-plan writes now consume the same
   role-key identity as §6. Both old surface keys remain server-side compatibility until the separate
   owner-approved retirement gate.
@@ -905,8 +929,8 @@ they drift — in either direction, including the counts. When it fails: update 
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
 - **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
-- **Edge functions (19):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve`
-- **Not counted above:** 15 of the 19 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
+- **Edge functions (20):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read`
+- **Not counted above:** 16 of the 20 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
 - **Supabase REST tables, literal (8):** `calendar_posts` · `caption_prompts` · `content_samples` · `filming_plans` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read. A dormant event-loader target names `deliverable_events`, but runtime never invokes it (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (4):** `calendar_upsert_ef_clients` · `prod_authority` · `sample_review_ef_clients` · `settings_ef_clients`

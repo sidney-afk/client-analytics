@@ -1,7 +1,8 @@
 name: Deploy onboarding + credentials edge functions
 
-# Auto-deploys the onboarding/credentials functions and their shared role-key
-# helper to Supabase whenever they change on main, or on manual
+# Auto-deploys the onboarding/credentials functions plus the Track-B
+# linear-outbound + production-write pair and their shared/local helpers to
+# Supabase whenever they change on main, or on manual
 # dispatch — so nobody runs `supabase functions deploy` by hand. Uses the existing
 # SUPABASE_ACCESS_TOKEN Actions secret. Role keys and transition-only legacy
 # passphrases live as Supabase function secrets, never in this repository.
@@ -9,6 +10,12 @@ name: Deploy onboarding + credentials edge functions
 # branch and verify it is green before merging the frontend. If the frontend
 # needs rollback, roll back Pages first and leave the additive backend support
 # deployed until the old UI is confirmed healthy.
+# production-write was hand-deployed ahead of main during #813 validation. At
+# merge time, manually redeploy the exact merge SHA with commit_sha so both
+# linear-outbound (including mapping.mjs + monitoring.mjs) and production-write
+# are pinned to the same repository history before Pages callers advance. The
+# provider deploys first so production-write never emits a body the live
+# linear-outbound version cannot accept.
 on:
   push:
     branches: [main]
@@ -18,11 +25,19 @@ on:
       - 'supabase/functions/legacy-onboarding-list/**'
       - 'supabase/functions/onboarding-full/**'
       - 'supabase/functions/client-credentials/**'
+      - 'supabase/functions/client-review-link/**'
       - 'supabase/functions/filming-plans/**'
       - 'supabase/functions/key-verify/**'
-      - 'supabase/functions/_shared/staff-role-auth.ts'
+      - 'supabase/functions/linear-outbound/**'
+      - 'supabase/functions/production-write/**'
+      - 'supabase/functions/_shared/**'
       - '.github/workflows/deploy-onboarding-edge-functions.yml'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact 40-character commit SHA from main to deploy
+        required: true
+        type: string
 
 jobs:
   deploy:
@@ -30,8 +45,32 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_REF: uzltbbrjidmjwwfakwve
+      DEPLOY_COMMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_COMMIT }}
+          fetch-depth: 0
+      - name: Verify pinned deploy commit
+        shell: bash
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$DEPLOY_COMMIT" ]; then
+            echo "::error::Checked out $actual instead of requested $DEPLOY_COMMIT"
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if ! [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::Manual deploys require an exact 40-character commit SHA"
+              exit 1
+            fi
+            git fetch origin main:refs/remotes/origin/main
+            if ! git merge-base --is-ancestor "$DEPLOY_COMMIT" origin/main; then
+              echo "::error::Manual deploy commit is not on origin/main"
+              exit 1
+            fi
+          fi
+          echo "Deploying Edge Functions from $actual" >> "$GITHUB_STEP_SUMMARY"
       - uses: supabase/setup-cli@v1
         with:
           version: latest
@@ -41,7 +80,7 @@ jobs:
             echo "::error::SUPABASE_ACCESS_TOKEN secret is not set — add it in repo Settings -> Secrets and variables -> Actions."
             exit 1
           fi
-          for fn in onboarding-list ai-onboarding-list legacy-onboarding-list onboarding-full client-credentials filming-plans key-verify; do
+          for fn in onboarding-list ai-onboarding-list legacy-onboarding-list onboarding-full client-credentials client-review-link filming-plans key-verify linear-outbound production-write; do
             echo "Deploying $fn…"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
           done

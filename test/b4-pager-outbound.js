@@ -2,6 +2,8 @@
 
 const {
   NAMES,
+  OUTBOUND_AGE_ALERT_LINE,
+  OUTBOUND_AGE_PARSE_BLOCK,
   OUTBOUND_WATCH_BLOCK,
   OUTBOUND_WORKFLOW_URL,
   OUTBOUND_WORKFLOW_BODY,
@@ -84,12 +86,24 @@ ok(trigger.credentials.httpHeaderAuth.id === 'fixture', 'existing scoped GitHub 
 
 for (const token of [
   'outbound_failed', 'outbound_backlog', 'outbound_volume',
-  'outbound_shadow_mismatch', "outboundMode !== 'off'", 'previousOutboundBacklog',
+  'outbound_shadow_mismatch', 'outbound_oldest_pending',
+  'oldest_pending_alert_threshold_minutes', "outboundMode !== 'off'", 'previousOutboundBacklog',
 ]) {
   ok(OUTBOUND_WATCH_BLOCK.includes(token), 'watcher includes ' + token);
 }
 ok(!/client_slug|client_name/.test(OUTBOUND_WATCH_BLOCK), 'outbound alerts never include client identity');
 ok(transformWorkflow(transformed).nodes.length === transformed.nodes.length, 'pager transform is idempotent');
+const preAgeInstall = JSON.parse(JSON.stringify(transformed));
+const preAgeCode = preAgeInstall.nodes.find(node => node.name === NAMES.check).parameters;
+preAgeCode.jsCode = preAgeCode.jsCode
+  .replace(OUTBOUND_AGE_PARSE_BLOCK, '')
+  .replace(OUTBOUND_AGE_ALERT_LINE, '');
+const upgraded = transformWorkflow(preAgeInstall);
+ok(upgraded.nodes.find(node => node.name === NAMES.check).parameters.jsCode.includes('outbound_oldest_pending'),
+  'existing installed pager is upgraded in place with the age alert');
+let watcherCompiles = true;
+try { new Function(upgraded.nodes.find(node => node.name === NAMES.check).parameters.jsCode); } catch (_) { watcherCompiles = false; }
+ok(watcherCompiles, 'upgraded pager condition code compiles');
 
 if (failures) {
   console.error(`\n${failures} outbound-pager check(s) failed`);

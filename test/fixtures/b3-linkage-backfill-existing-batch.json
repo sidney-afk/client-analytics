@@ -1,0 +1,70 @@
+{
+  "deliverables": [],
+  "calendarPosts": [
+    {
+      "id": "card_existing_batch_pair",
+      "client": "fixture-client",
+      "status": "active",
+      "linear_issue_id": "https://linear.app/synchro/issue/VID-505/archive-only",
+      "video_deliverable_id": "already-linked-video",
+      "graphic_linear_issue_id": "https://linear.app/synchro/issue/GRA-506/archive-only-graphic",
+      "graphic_deliverable_id": ""
+    }
+  ],
+  "sampleReviews": [],
+  "linearArchive": [
+    {
+      "linear_uuid": "66666666-6666-6666-6666-666666666666",
+      "identifier": "GRA-506",
+      "state": "Approved",
+      "team": "GRA",
+      "client_slug": "fixture-client",
+      "parent_uuid": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "parent_identifier": "GRA-500",
+      "title": "Archive-only graphic fixture",
+      "created_at": "2026-07-01T00:00:00.000Z",
+      "raw": {
+        "issue": {
+          "id": "66666666-6666-6666-6666-666666666666",
+          "identifier": "GRA-506",
+          "url": "https://linear.app/synchro/issue/GRA-506/archive-only-graphic",
+          "title": "Archive-only graphic fixture",
+          "description": "Recovered from the archive fixture",
+          "createdAt": "2026-07-01T00:00:00.000Z",
+          "updatedAt": "2026-07-02T00:00:00.000Z",
+          "team": { "key": "GRA" },
+          "state": { "name": "Approved", "type": "completed" },
+          "parent": {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "identifier": "GRA-500",
+            "url": "https://linear.app/synchro/issue/GRA-500/fixture-batch",
+            "title": "Fixture batch",
+            "description": "Fixture parent",
+            "createdAt": "2026-06-30T00:00:00.000Z",
+            "team": { "key": "GRA" }
+          }
+        }
+      }
+    }
+  ],
+  "batches": [
+    {
+      "id": "b1_b_6255a2ba038691a3c66837b9643d",
+      "client_slug": "fixture-client",
+      "team": "video",
+      "name": "Fixture batch",
+      "description": "Fixture parent",
+      "status": "active",
+      "created_by": "linear-backfill",
+      "created_at": "2026-06-30T00:00:00.000Z",
+      "linear_parent_ids": {
+        "video": {
+          "uuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "identifier": "VID-500",
+          "url": "https://linear.app/synchro/issue/VID-500/fixture-batch"
+        }
+      }
+    }
+  ],
+  "members": []
+}

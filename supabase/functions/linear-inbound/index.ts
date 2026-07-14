@@ -676,7 +676,16 @@ function outboundValueMatches(row: JsonMap, payload: JsonMap, issue: JsonMap, co
       || (!!outboundMarker(comment.body) && outboundMarker(comment.body) === clean(row.dedup_key));
   }
   if (operation === "create") return action === "create";
-  if (operation === "status") return clean(objectAt(issue.state).id) === clean(expected.stateId);
+  if (operation === "status") {
+    // Status receipts must always prove their intended state. Historical
+    // due-only acknowledgements are deliberately ineligible for echo-drop;
+    // otherwise a later external state change with the same due date could be
+    // mistaken for our transport echo and silently discarded.
+    if (!Object.prototype.hasOwnProperty.call(expected, "stateId")) return false;
+    return clean(objectAt(issue.state).id) === clean(expected.stateId)
+      && (!Object.prototype.hasOwnProperty.call(expected, "dueDate")
+        || clean(issue.dueDate) === clean(expected.dueDate));
+  }
   if (operation === "due") return clean(issue.dueDate) === clean(expected.dueDate);
   if (operation === "assignee") return clean(objectAt(issue.assignee).id) === clean(expected.assigneeId);
   if (operation === "title") return clean(issue.title) === clean(expected.title);

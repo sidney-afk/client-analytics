@@ -36,8 +36,10 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
       LINEAR_STATE_UUID_MAP: ${{ secrets.LINEAR_STATE_UUID_MAP }}
+      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
       APPLY: ${{ github.event.inputs.apply == 'true' }}
       CAP: ${{ github.event.inputs.cap || '15' }}
+      RECONCILE_RUN_CLASS: ${{ github.event_name == 'schedule' && 'scheduled-monitor' || github.event.inputs.apply == 'true' && 'manual-apply' || 'manual-monitor' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -63,3 +65,16 @@ jobs:
             TEAM_ARG="--team=${{ github.event.inputs.team }}"
           fi
           node scripts/linear-deliverables-reconcile.js "$TEAM_ARG"
+
+      - name: Require non-n8n inbound pager secret
+        if: github.event_name == 'schedule'
+        shell: bash
+        run: |
+          if [ -z "$SLACK_ALERT_WEBHOOK" ]; then
+            echo "::error::Missing SLACK_ALERT_WEBHOOK; refusing a false-green inbound monitor."
+            exit 1
+          fi
+
+      - name: Page persistent inbound diffs outside n8n
+        if: github.event_name == 'schedule'
+        run: node scripts/linear-reconcile-inbound-pager.js

@@ -36,8 +36,13 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
 ## Edge Functions
 
-Live set in `docs/truth/ENDPOINTS.md`. Deploys are path-triggered by
-`.github/workflows/deploy-onboarding-edge-functions.yml` on changes under `supabase/functions/`.
+Live set in `docs/truth/ENDPOINTS.md`. The path-triggered
+`.github/workflows/deploy-onboarding-edge-functions.yml` deploys its explicit function list.
+For #813, changes anywhere under `supabase/functions/linear-outbound/` (including its local mapping
+and monitoring modules), `supabase/functions/production-write/`, or
+`supabase/functions/_shared/` trigger that workflow. Merge-day manual dispatch pins
+one exact main SHA and deploys `linear-outbound` before `production-write`, so the outbound target
+contract and gateway caller cannot drift across releases.
 
 ## Open operational question
 

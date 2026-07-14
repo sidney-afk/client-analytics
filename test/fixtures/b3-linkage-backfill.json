@@ -84,9 +84,9 @@
       "id": "card_archive",
       "client": "fixture-client",
       "status": "active",
-      "linear_issue_id": "VID-505",
+      "linear_issue_id": "https://linear.app/synchro/issue/VID-505/archive-only",
       "video_deliverable_id": "",
-      "graphic_linear_issue_id": "",
+      "graphic_linear_issue_id": "https://linear.app/synchro/issue/GRA-506/archive-only-graphic",
       "graphic_deliverable_id": ""
     }
   ],
@@ -105,7 +105,68 @@
     {
       "linear_uuid": "55555555-5555-5555-5555-555555555555",
       "identifier": "VID-505",
-      "state": "Posted"
+      "state": "Posted",
+      "team": "VID",
+      "client_slug": "fixture-client",
+      "parent_uuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "parent_identifier": "VID-500",
+      "title": "Archive-only fixture",
+      "created_at": "2026-07-01T00:00:00.000Z",
+      "raw": {
+        "issue": {
+          "id": "55555555-5555-5555-5555-555555555555",
+          "identifier": "VID-505",
+          "url": "https://linear.app/synchro/issue/VID-505/archive-only",
+          "title": "Archive-only fixture",
+          "description": "Recovered from the archive fixture",
+          "createdAt": "2026-07-01T00:00:00.000Z",
+          "updatedAt": "2026-07-02T00:00:00.000Z",
+          "team": { "key": "VID" },
+          "state": { "name": "Posted", "type": "completed" },
+          "parent": {
+            "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "identifier": "VID-500",
+            "url": "https://linear.app/synchro/issue/VID-500/fixture-batch",
+            "title": "Fixture batch",
+            "description": "Fixture parent",
+            "createdAt": "2026-06-30T00:00:00.000Z",
+            "team": { "key": "VID" }
+          }
+        }
+      }
+    },
+    {
+      "linear_uuid": "66666666-6666-6666-6666-666666666666",
+      "identifier": "GRA-506",
+      "state": "Approved",
+      "team": "GRA",
+      "client_slug": "fixture-client",
+      "parent_uuid": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "parent_identifier": "GRA-500",
+      "title": "Archive-only graphic fixture",
+      "created_at": "2026-07-01T00:00:00.000Z",
+      "raw": {
+        "issue": {
+          "id": "66666666-6666-6666-6666-666666666666",
+          "identifier": "GRA-506",
+          "url": "https://linear.app/synchro/issue/GRA-506/archive-only-graphic",
+          "title": "Archive-only graphic fixture",
+          "description": "Recovered from the archive fixture",
+          "createdAt": "2026-07-01T00:00:00.000Z",
+          "updatedAt": "2026-07-02T00:00:00.000Z",
+          "team": { "key": "GRA" },
+          "state": { "name": "Approved", "type": "completed" },
+          "parent": {
+            "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "identifier": "GRA-500",
+            "url": "https://linear.app/synchro/issue/GRA-500/fixture-batch",
+            "title": "Fixture batch",
+            "description": "Fixture parent",
+            "createdAt": "2026-06-30T00:00:00.000Z",
+            "team": { "key": "GRA" }
+          }
+        }
+      }
     }
   ]
 }

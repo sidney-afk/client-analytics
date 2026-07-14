@@ -6,16 +6,16 @@ re-audit (live Linear / n8n / Supabase / Sheets diffs vs 2026-07-03, plus the fo
 `2026-07-05-logic-calendar.md`, `-logic-samples.md`, `-logic-reviews.md`, `-logic-sync.md`).
 Read `2026-07-05-reaudit-summary.md` first — it indexes the 20 findings that shaped this revision.
 
-**Status: PLANNING — verified & hardened against the 2026-07-05 re-audit, then adversarially
-re-reviewed by four independent critic passes (execution-readiness / worst-case / consistency /
-fact-check) with all confirmed findings folded in. Owner sign-off needed on §14 decisions before
-B0.** Track A is complete (A1/A2/A4 merged; A3 skipped by decision — the Linear bridges die with
-Linear) but its Edge-Function flags are **TEST-only**: rolling every real client onto the EF write
-paths is now an explicit Track B prerequisite phase (§6.2, "B0.5").
+**Status: EXECUTION — B4 was proved live and returned to the safe D-26 stance; Write-UI Part 2 is
+staged in an owner-reviewed draft-PR stack.** Current live authority is Linear/Linear and outbound
+is off. Track A Calendar/Samples write routing covers the active roster. The authoritative Part 2
+scope, source/live verification states, and remaining exit gates are maintained in
+`LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md`; owner merge/deploy and every authority/flag flip remain
+explicit rollout actions.
 
-> **MANDATORY RE-AUDIT before any code.** These facts are a **2026-07-05** snapshot. Re-pull and
-> diff before B0 (the pattern is established: `docs/audits/2026-07-05-*` diffed vs `-07-03-*`).
-> Never trust a cited line number — re-locate by symbol.
+> **Historical sizing baseline.** The facts below are a **2026-07-05** snapshot. Re-pull and diff
+> runtime state before operational actions, and never trust a cited line number — re-locate by
+> symbol.
 
 **Sizing facts (2026-07-05, MEASURED — replaces the 2026-07-03 estimates):**
 - 2 live teams (Graphics/GRA, Video/VID); 4 dormant (CON/ALE/PC/EA). `workload_issues` also
@@ -97,11 +97,10 @@ Consumed by the same proven `_calRuntimeFlagClients`-style machinery
 gated n8n bridges (§4.5). Flipping a team = **one SQL update**; rollback = the same update
 reversed. Two hardening rules from the critic pass:
 - **Fail-safe direction is phase-aware, not constant-`linear`.** A flag-read failure must never
-  silently reassign authority: every consumer caches the last-known-good value (localStorage /
-  process memory) and keeps using it on read failure, with a loud alert; a cold client with no
-  cached value **freezes Linear-facing writes** (explicit "sync paused — reload" UX) rather than
-  guessing. (A constant `linear` default would, after a flip, quietly re-enable Linear pushes and
-  point editors back at frozen Linear.)
+  silently reassign authority. Last-known-good state is diagnostic/render context only; every
+  mutation requires a fresh live authority read and freezes on failure with explicit
+  "sync paused — reload" UX. (A constant or cached `linear` authorization would, after a flip,
+  quietly re-enable Linear pushes and point editors back at frozen Linear.)
 - **Drill granularity:** the service-only TEST harness supplies a fail-closed request override that
   is accepted only for the active TEST client and privately allowlisted TEST project ids. It never
   writes a runtime flag and cannot authorize a real-client row. Production consumers read only the
@@ -141,10 +140,13 @@ rollout to Graphics first, then Video after an independently boring window. Run 
 team. D-26 keeps every pause/resume per team:
 
 1. Announce freeze to the team (the freeze is social; steps 5–8 are the technical net).
-2. Quiesce app-side outbound: verify both localStorage outboxes are **drained on every staff
-   browser** via the B2 staff diagnostic page (§10.7 — it reads both outbox keys; note
-   `peekLinearOutbox()` exists today but an SXR peek helper does **not** and must be shipped in
-   B2; the only SXR console helper today is the destructive `clearSxrLinearOutbox()`).
+2. Quiesce browser debt: on every staff browser verify the three legacy stores
+   (`syncview_linear_outbox_v1`, `syncview_sxr_linear_outbox_v1`,
+   `syncview_calCardJobs_v1`) are zero, `syncview_native_intake_pending_v1` is absent, the
+   committed-source-repair count is zero, `unknown_records=0`, and every quarantine row has an
+   owner disposition. A corrupt/unparseable local value is an unknown blocking state, never zero.
+   `peekLinearOutbox()`, `peekSxrLinearOutbox()`, `peekWriteUiLegacyQuarantine()`, and the aggregate
+   `peekWriteUiLegacyQueueState()` diagnostic are non-destructive; page-hide only snapshots counts.
 3. Final inbound reconcile; verify **zero diff** for that team (statuses, assignees — via raw
    user id, due dates modulo §1.4 tolerances, titles, engine-tracked comments per §8.1) **and
    zero cards carrying a Linear link with no `*_deliverable_id`** (linkage completeness, §4.3.5).
@@ -507,19 +509,17 @@ client the app has never seen). Live slug sets: `calendar_posts` 21, `caption_pr
 - **Reconciliation (one-off, B1):** union all four sources keyed by normalized slug — the
   normalizer is **`wlNormalizeClient` ported exactly** (index.html:9001: lowercase, strip
   accents, strip leading "dr.", and/&→`&`, strip other non-alphanumerics).
-- **Duplicate Linear projects merge:** `clients.linear_project_ids` holds ALL project ids per
-  client (up to 3 measured), incl. the two live split projects (Baya Voce VID + GRA).
-- **Special rows seeded at B1:** Kasper Hytonen (`kind='internal'`), Sidney Laruel
+- **Duplicate Linear projects merge:** `clients.linear_project_ids` holds all measured project ids
+  per client (up to three measured), including cases with separate team projects.
+- **Special rows seeded at B1:** one reviewer row (`kind='internal'`), one canonical TEST row
   (`kind='test'`), and **`unattributed`** (`kind='internal'`, `active=true` — the repair-queue
   home for the 137 open issues with no project; visible in staff UI, excluded from client-facing
   pickers by `kind`). The roster cutover query stays `where active` (today's effective roster
   already includes the internal/test rows).
-- **Owner review list (B1 gate):** 26 three-source clients; 3 sheet-only (Jenna Phillips
-  Ballard, Alayna Bellquist, Amanda Hanson); 4 seed-only (Nobriga + Marks → `active=false`;
-  Kasper internal; Sidney test); **Jessica Encell Coleman** (SMM+Linear only — owner call);
-  **Morgan Burch** (sheet-active vs Linear-Completed — owner call); `terrinamar`/`terrinammar`
-  merge (canonical `terrinammar`); junk quarantine (Test Project, Client Example, Onboarding
-  Ale, Synchro House…). Expect ~30+ `active=false` entries.
+- **Owner review list (B1 gate):** the private review covered 26 three-source clients, three
+  sheet-only rows, four seed-only rows, two cross-source lifecycle conflicts, one slug merge, and
+  several junk/test projects. Names and source IDs remain in the private evidence. Expect about 30
+  inactive entries.
 - **Tokens:** §6.4 — minted, not moved.
 - **Roster cutover (late, B4→B5):** `getClientRoster()` (index.html:9066) re-points to
   `select slug, display_name from clients where active` — one line, reversible.
@@ -588,9 +588,15 @@ echo channels get explicit treatment:
 
 ### 4.4 Outbound mirror (new EF `linear-outbound` + `mirror_outbox`, B4 per team)
 
-**Part 2 implementation state:** the gateway/parity contract below is built on a draft branch but
-is not deployed or serving production. No runtime flag is changed by the code PR; authority remains
-Linear/Linear and global outbound remains off until owner-reviewed rollout work says otherwise.
+**Part 2 implementation state:** the baseline gateway/parity backend (`production-write` v11 and its
+supporting functions) is deployed dark and TEST service-drill verified. The mirror caller,
+legacy-writer reroutes, and this branch's gateway response/TEST-scope/project-mapping delta are
+stacked draft source and are not deployed. No existing runtime flag is changed: authority remains
+Linear/Linear and global outbound remains off until the owner completes review and D-28 gates.
+
+Owner deployment order is fixed: capture a private snapshot/hash of deployed v11; merge and deploy
+the gateway delta with flags unchanged; run negative auth plus TEST-only proof; only then deploy the
+browser caller. A caller bundle must never depend on an undeployed gateway contract.
 
 - **Authenticated browser gateway:** `production-write` is the only browser-reachable Track-B write
   gateway. It accepts either a staff role key plus an active roster identity or a client token
@@ -601,8 +607,8 @@ Linear/Linear and global outbound remains off until owner-reviewed rollout work 
   tweak transitions for their own client. Staff permissions follow §6. Low-level
   `deliverable-write` and `batch-write` HTTP wrappers are service-only so they cannot bypass this
   policy.
-- **Authority + concurrency gate:** the gateway resolves the target row's team and validates a
-  last-known-good `prod_authority` value before the first write. Normal Production operations are
+- **Authority + concurrency gate:** the gateway resolves the target row's team and validates the
+  exact live `prod_authority` row before the first write. Normal Production operations are
   accepted only for a `syncview`-authoritative team; active TEST-client requests have a bounded,
   fail-closed override that cannot target a real client/project. Writes carry compare-and-set
   (`expected_status` / `expected_updated_at`), stable request/dedup ids, server-derived actor/role,
@@ -614,6 +620,24 @@ Linear/Linear and global outbound remains off until owner-reviewed rollout work 
   `source_edited_at`; retries and outcomes remain server-side, never in a new browser queue.
   Supported native operations are create, status, comment, due, assignee, title, priority, parent,
   archive, and restore.
+- **Caller acknowledgement order:** Calendar/SXR status and mirrored-comment handlers await the
+  gateway's `native_committed=true` acknowledgement before persisting the Calendar/Samples source
+  row. Native ID alone is a valid target after a flipped-team cache strips the Linear URL. Gateway
+  failure leaves a visible retryable source-save error and creates no new v1 browser queue item;
+  successful native intent IDs remain stable if the later source-row save needs retry.
+- **Authenticated ambiguous-response receipt (status/comment only):** a persisted browser
+  acknowledgement is recovery metadata, never proof that a mutation committed. After an attempted
+  request loses its authoritative HTTP result, the caller sends the original authenticated payload,
+  request id, source timestamp, and historical `legacy_parity` bit back to `production-write` with
+  `reconcile_only=true`. This path reads the exact durable outbox intent, current public entity row,
+  and (for comments) the canonical comment row; it does not invoke the authority lane, parity gate,
+  write RPC, drainer, or Linear. It returns `committed_exact`, `absent`, or `conflict`, even when the
+  team's current authority is opposite the historical payload lane. Exact adopts the current row
+  and canonical comment lifecycle without resending. An absent status stays held unless newer
+  native status clearly supersedes it; an absent append-only comment may be reissued through the
+  then-current authority lane with its stable native comment id. Conflict is quarantined for owner
+  review. Cache-only checkpoints can assist diagnostics but never authorize an apply, clear debt,
+  or substitute for this server receipt.
 - **Three-way switch:** `linear_outbound_enabled={"mode":"off"}` remains the global default. `shadow`
   resolves the exact GraphQL mutation and variables, compares them with current Linear state, and
   records `shadow_ok` without sending. `live` sends through the dedicated
@@ -627,8 +651,9 @@ Linear/Linear and global outbound remains off until owner-reviewed rollout work 
   `linear_legacy_parity_enabled` kill switch must be enabled as well as team authority=`linear`.
   This narrow compatibility lane does not turn on global outbound, has terminal no-redrain
   semantics, and is replaced automatically by the normal lane after that team's flip. The caller
-  never performs a second Linear write, so there is no double-write. The legacy +2d overdue status
-  side effect is deliberately not ported.
+  never performs a second Linear write, so there is no double-write. Per D-30, status writes retain
+  the legacy +2d overdue side effect; `write_ui_overdue_due_bump={"enabled":false}` is the explicit
+  no-deploy kill switch, and every other/missing/unreadable value preserves the default-on behavior.
 - **Newest-edit-wins:** every row records the SyncView edit timestamp. Before shadow or live work,
   the drainer reads the relevant current Linear value and its field clock. A newer direct-Linear
   edit marks the queued row `stale` rather than overwriting it. Comments are additive and therefore
@@ -661,7 +686,9 @@ Linear/Linear and global outbound remains off until owner-reviewed rollout work 
   same RPC path when the team is SyncView-authoritative. A missing known Linear comment requeues its
   original idempotent outbox row through the service-only `mirror_outbox_requeue` RPC rather than
   minting a second dedup key.
-- **Dropped side effect:** the +2d overdue bump is NOT replicated (D-8).
+- **Retained side effect (D-30 supersedes D-8):** status writes move an overdue due date to current
+  UTC date +2 days. The behavior defaults on; only
+  `write_ui_overdue_due_bump={"enabled":false}` disables it.
 - **Not synced:** labels, estimates, and cycles.
 
 ### 4.5 The legacy pipes during transition (measured dependencies — gate, don't guess)
@@ -674,18 +701,54 @@ authoritative field can be changed. Workload-only/read-only branches remain unto
 follow the snapshot rule (§1.6 — private export + public-safe stub, disable-not-delete).
 
 The browser reroute is shipped only after those central gates. Production status/comment/due/
-assignee controls are enabled per deliverable team only when its last-known-good authority is
+assignee controls are enabled per deliverable team only when a fresh live authority read is
 `syncview`, except for the bounded active-TEST override. A Linear-authoritative team renders the
 same read-only controls as B3 because inbound would otherwise overwrite the edit. Calendar, SXR,
 SMM bridge callers, and Submit call `production-write`; they do not call both the gateway and an
 n8n Linear mutation webhook. Submit creates batches/deliverables natively and uses returned native
-ids for card jobs instead of polling Linear.
+ids for immediate card materialization instead of polling Linear. Its exact request id, source
+timestamp, and semantic payload survive an ambiguous response so retry cannot double-create. The
+validated native response is checkpointed before telemetry or card writes, and each completed card
+is checkpointed so startup/focus/pageshow/online/visibility/timer resume only missing cards. A
+different submission cannot replace an incomplete job. The durable job is bound to the initiating
+verified roster member; another signed-in staff member cannot resume it. Sign-out deletes an
+uncommitted job and, after native commit, retains only a scrubbed recovery record containing native
+IDs and deterministic card progress (no notes, Drive links, briefs, role key, or duplicated raw
+signature).
+
+Before any Calendar/SXR/Kasper gateway request, the browser writes and reads back the actual minimal
+source-repair payload under a mandatory cross-tab Web Lock in
+`syncview_write_ui_source_repairs_v1`: principal, source clock, exact source field/comment patch,
+the original gateway payload and historical lane, attempt state, and stable intent identity.
+Composite tweak actions reserve both comment and status before the comment request. A quota/full-
+payload or corrupt journal blocks before network I/O. Explicit 4xx pre-commit rejection discards
+that reservation; ambiguous transport/5xx results retain it. A locally persisted acknowledgement
+never proves server commit. Every attempted status/comment whose authoritative response was lost is
+resolved by the authenticated `reconcile_only` receipt in §4.4 before any resend or source apply:
+`committed_exact` adopts the returned current row and canonical comment, `absent` holds status unless
+newer native truth supersedes it while allowing an append-only comment to reissue through the
+current lane, and `conflict` stays quarantined for owner review. No attempted request is blindly
+replayed under its pinned historical lane.
+
+Existing v2/Kasper cache checkpoints remain a secondary diagnostic/paint fast path, including
+repair-only hydration beyond the Kasper display TTL. They are principal-bound but are not durable
+commit receipts: cache-only state never auto-applies a field/comment patch and never clears journal
+debt. Source success clears only the exact journal tokens included in that field-level source write,
+never older/unrelated same-card debt. The journal is source recovery, not a second mutation/outbox
+lane, and never calls a legacy Linear writer.
+
+Native Submit creation, checkpointing, sensitive-state purge, and completion deletion all execute
+under their own mandatory browser Web Lock. A browser without Web Locks refuses native intake and
+Calendar/SXR gateway reservation; on
+sign-out it removes any older sensitive payload instead of attempting an unlocked create/resume.
 
 Existing `syncview_linear_outbox_v1`, `syncview_sxr_linear_outbox_v1`, and
-`syncview_calCardJobs_v1` data is drain-only migration debt. Startup, focus, timer, online,
-visibility, and resume paths re-check server authority before flushing; a gated stale item is
-terminally discarded/logged rather than sent around the gateway. No new item is written to those
-queues. Calendar/SXR cache namespaces are version-bumped so a seven-day cache cannot revive a
+`syncview_calCardJobs_v1` data is migration debt. Historical Calendar/SXR status and comment rows
+lack verifiable initiating-principal provenance and move losslessly to inspectable quarantine rather
+than being replayed under the current session. Legacy Submit card jobs re-check server authority on
+startup, focus, timer, online, visibility, and resume; a gated stale job is terminally
+discarded/logged rather than sent around the gateway. No new item is written to those queues.
+Calendar/SXR cache namespaces are version-bumped so a seven-day cache cannot revive a
 legacy Linear URL or caller. A cold authority read failure freezes writes and asks for reload; it
 never guesses `linear` or `syncview`.
 
@@ -723,7 +786,7 @@ Last-write-wins remains the backstop only.
 | Stale-JS tab / closed-laptop outbox fires post-flip | server-side gates in the n8n bridges refuse it (§1.5.5); refusals logged | centrally refused regardless of client state | `min_app_version` forced reload | none |
 | EF platform outage | "not saved" chips + health probe | reads unaffected; pre-B4 n8n paths unaffected | explicit user retry | none |
 | Realtime outage | staleness watchdog → banner + poll | SWR refetch-on-focus | auto-heals | none |
-| Flag corruption / unreadable | consumer validation; last-known-good cache (§1.1) | freeze writes on cold-no-cache; never reassign authority silently | fix flag; `flag_flips` forensics | none |
+| Flag corruption / unreadable | consumer validation; last-known-good cache (§1.1) | freeze writes on every live-read failure; last-known-good is diagnostic/render context only and never reassigns authority | fix flag; `flag_flips` forensics | none |
 | Backfill crash mid-run | idempotent + re-runnable; dry-run counts gate | additive tables; old world untouched | re-run; verify counts | none |
 | Archive pull rate-limits production bridges | §5.2 throttle budget + off-hours schedule | resume tokens | resume | none |
 | DB nears 500 MB cap | monthly usage check | archive `raw` ~50–150 MB (fits) | prune `linear_raw` post-B5 / upgrade (D-1) | none |
@@ -883,8 +946,11 @@ actual roster/client role, and server timestamp; §2.6 guarantees a row even for
 **6.4 Client review links — mint, don't move; verify server-side.** The sheet column never
 existed; 0/29 tokens; the gate fails open today. B0: mint per-client tokens into `client_access`;
 ship **`client-token-verify` EF** (`{slug, token}` → boolean + an access-log event) — the FE
-client-link boot calls it (result cached per session) because the FE can no longer compare
-locally (tokens are service-role-only). Client **writes** call `production-write` with
+client-link boot calls it because the FE can no longer compare locally (tokens are
+service-role-only). Signed-in Admin/SMM copy actions call the no-store **`client-review-link` EF**
+at copy time; it verifies the role key plus exact active roster identity and returns only the
+requested active client's token. The token is not placed in Clients Info or browser storage.
+Client **writes** call `production-write` with
 `X-Syncview-Client-Token`, validated against `client_access`, scoped to that client's rows and
 client-legal comments/transitions only (D4 rows 8–10); due date, assignee, intake creation, and
 staff-only approval transitions are denied. Then: re-issue fresh links per client via SMMs;
@@ -982,7 +1048,10 @@ the batch and every deliverable **natively first**. Stable request ids make retr
 Each child outbox create depends on the correct team-specific parent create, and the response
 returns native batch/deliverable ids immediately for post-submit card materialization — new card
 jobs do not poll Linear to discover identity. `linear_identifier` is checkpointed later from the
-outbound result; Part 2 does not invent a native display identifier or seed a sequence (§10.3).
+outbound result; under mid-epoch targeted parity the response also returns the checkpointed
+transitional Linear URL. Calendar cards use one deterministic native `card_id` and persist
+`video_deliverable_id` / `graphic_deliverable_id` immediately. Part 2 does not invent a native
+display identifier or seed a sequence (§10.3).
 
 **Mixed-authority window:** every team leg shares the same native batch. A
 SyncView-authoritative leg enters the normal outbox lane. A still-Linear-authoritative leg enters
@@ -991,9 +1060,20 @@ while global outbound remains off. The browser never calls `video-form`/`graphic
 so it cannot double-create. The existing submissions-log Sheets telemetry may remain as a
 non-Linear side effect, but it consumes native response ids.
 
-**Project + assignment policy:** the canonical client row selects the client. Stored project ids
-are validated read-only against their Linear team; during the mapping migration, an absent stored
-id may use one exact normalized native-display-name match and otherwise fails closed. Video
+`reconcile_only` is deliberately not an `intake_create` operation. Submit recovery retains the
+same initiating principal, request id, source timestamp, and semantic payload and relies on the
+gateway/RPC's transactional idempotency check before an exact create retry. A locally cached native
+response is useful only for card materialization after its authenticated gateway response was
+observed; a cache-only checkpoint never proves that create committed and must not synthesize or
+auto-apply deliverables. This is separate from the §4.4 tri-state receipt used for attempted
+status/comment recovery.
+
+**Project + assignment policy:** the browser dropdown reads the canonical native client registry;
+free-typed or ambiguous names cannot submit. Team-tagged `clients.linear_project_ids` is the target
+mapping and each stored id is validated read-only against its Linear team. Real-client create fails
+closed when that persisted team mapping is missing or ambiguous. The read-only readiness tool may
+report exact normalized display-name matches as owner candidates, but the gateway never uses them
+for a production create. Video
 auto-assignment counts only video-team deliverables, excludes `duplicate`, and breaks ties by
 stable roster order. Graphics
 uses the one active `default_for_team` member. A missing/ambiguous mapping or assignee fails closed
@@ -1302,7 +1382,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-13 | Legacy title mismatches at B4 | §9.4 | badge + report, no mass rename | B4 |
 | D-14 | Linear→Slack project integration replacement scope | §11 | owner inspects one channel | B3 |
 | D-15 | Rotate the 7 public per-SMM Linear keys + remove the sheet column | publicly readable via gviz today | **DECLINED by owner 2026-07-05** ("I don't care about it") — risk accepted, same posture as D9 (hardcoded house key). Keys become moot at B5 when Linear is retired; the sheet column is still removed at §13.6 cleanup | — |
-| D-16 | §3 owner review list (Coleman, Burch, terrinamar, junk quarantine) | §3 | — | B1 |
+| D-16 | §3 private owner review list (lifecycle conflicts, slug merge, junk quarantine) | §3 | — | B1 |
 | D-17 | Copy the design-kit behavioral suites into the repo | **RESOLVED 2026-07-05**: owner shared the probe folder via Drive; `behav.js` (138 assertions), `qa-features.js`, `sweep.js`, `build.js`, and the parity-audit workflow are now committed at `docs/syncview-design/tests/` (with run + path-adaptation README). NOTE for owner: the shared Drive folder also contains `.linear-probe-profile` — a saved **Linear login session**; un-share the folder or delete that subfolder | B2 ✅ |
 | D-18 | Mirror identity: dedicated Linear user seat vs OAuth-app actor | §4.2/§4.4 — must be distinct from a human editor for echo-dropping | **IMPLEMENTED in B4:** dedicated SyncView Mirror identity through the `LINEAR_MIRROR_API_KEY` EF secret; the drainer resolves its actor id at runtime and strict echo matching requires that actor plus the acknowledged outbox intent. No secret or personal identity is stored in the repo. | B4 ✅ |
 | D-19 | B4 flip granularity: per-team-global (§1.1) vs. both-teams-together, per-client | §1.1/§9.1 — per-team flipping creates the split-authority-within-a-card window (a card's video slot authoritative in Supabase while its graphic slot is still Linear), the plan's fiddliest adoption path | **SUPERSEDED by D-25 on 2026-07-11.** The earlier decision was both teams together with a per-client allowlist; D-25 replaces the allowlist/pilot with full-roster shadow proof followed by one owner-controlled all-client live flip. Retained here as decision history only. | B4 |
@@ -1317,7 +1397,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-28 | Write-UI epoch human rollout (refines D-25's "both teams live together") | after the outbound pipe was proven live 2026-07-12, flipping the *team-facing write UI* to everyone at once means any real bug pauses the whole company | **RATIFIED by owner 2026-07-12:** roll the write UI to humans in stages, not one flip. (1) **Silent shadow soak** — ship the write-UI epoch but keep the team on Linear and run outbound in `shadow` ~1 week so the bug wave is caught with nobody watching; (2) **graphics team first** — flip `prod_authority.graphics`→`syncview` live while video stays on `linear` as the safety net; (3) roll video once graphics is boring. D-25's full-roster shadow governed proving the *pipe* (done, both teams together on 2026-07-12); D-28 governs the *human* cutover. | write-UI epoch |
 | D-29 | Bug-response policy during the staged cutover | "every bug → flip everyone back to Linear" is operational whiplash the owner flagged | **RATIFIED by owner 2026-07-12:** a bug does not automatically pause anyone. **Cosmetic/UI bugs** (e.g. the description-flicker) → fix in place and ship; the team keeps working. **Data-integrity bugs** (a wrong value written to Linear) → pause *that team* only (authority→`linear`, the D-26 pause) until fixed. The whole-company flip is reserved for a systemic data problem, which the shadow soak should make rare. | write-UI epoch |
 | D-30 | Overdue +2-day auto-bump (supersedes D-8's drop) | the legacy path silently extends overdue due dates by 2 days on status change; the native gateway deliberately did not port it (D-8 assumed "drop", never ratified); the 2026-07-13 audit (F20) surfaced that dropping it was an unratified behavior change | **RATIFIED by owner 2026-07-13: KEEP the bump.** Port the +2d-overdue-on-status-change behavior into the native write path, flag-gated so it can be disabled later without a deploy. D-8's "no auto-bump" stance is superseded. | write-UI epoch |
-| D-31 | Client link token distribution | audit F03: all circulating client links are token-less while the write gateway hard-requires a token; tokens exist (client_access.review_token, minted for the full roster) but the sheet has no column and most copy-link builders never append `&t=` | **RATIFIED by owner 2026-07-13:** wire the minted tokens into the Clients-Info sheet and every copy-link builder; then **each SMM re-shares their own clients' links** from the calendar's "share link with client" button. No central re-send. | write-UI epoch |
+| D-31 | Client link token distribution | audit F03: all circulating client links are token-less while the write gateway hard-requires a token; tokens exist only in service-role-only `client_access`, and the Clients Info CSV is anonymously readable | **RATIFIED owner intent, security-corrected 2026-07-13:** every copy-link builder must obtain the scoped token through a staff-authenticated service-side issuer; the token must never enter Clients Info or another public source. Each SMM then **re-shares their own clients' links** from the calendar's "share link with client" button. No central re-send. The attempted sheet export was cleared immediately and all 32 exposed tokens were rotated. | write-UI epoch |
 | D-32 | Staged reroute rollout via per-client allowlist (amends the #813 merge model; satisfies D-28's soak intent) | audit F02/F23: "#813 ships inert" was false — merging with parity off freezes every Linear-linked approval company-wide, and GitHub Pages deploys to 100% of users at once with no canary | **RATIFIED by owner 2026-07-13:** #813's reroute ships behind a per-client allowlist runtime flag (`write_ui_reroute_clients`, same pattern as `calendar_upsert_ef_clients`) defaulting to the TEST client only. Merge is dark; parity is armed at Phase 1; real clients enroll in staged cohorts with watchers green between cohorts; a full-roster clean week satisfies D-28's soak. Emptying the allowlist is the pre-flip kill switch. | write-UI epoch |
 
 ---

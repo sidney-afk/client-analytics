@@ -1,14 +1,17 @@
 # Linear cutover touchpoint inventory
 
-**Verified:** 2026-07-12 UTC against `main` at `313624b` and the live Linear, n8n,
+**Baseline verified:** 2026-07-12 UTC against `main` at `313624b` and the live Linear, n8n,
 Supabase, and GitHub configurations. **Scope:** every runtime or scheduled path found that reads
 or writes VID/GRA Linear data. Test/audit harnesses are listed separately. This document is
 public-safe: no API-key values, client content, or production comment bodies are included.
 
-The audit was read-only except for one sanctioned comment on the TEST project. That comment was
+The original inventory audit was read-only except for one sanctioned comment on the TEST project. That comment was
 created through the production `linear-add-comment` bridge, observed through the same incremental
 job used by the 30-minute refresh, and then deleted. No runtime flag, workflow, webhook, or
-production row was changed.
+production row was changed at that audit boundary. Subsequent Part 2 evidence is labeled separately:
+four n8n definitions received fail-closed authority gates under private backup/readback on
+2026-07-13 UTC, without a runtime-flag change, workflow activation change, Linear mutation, or
+production authoritative-row write.
 
 ## Disposition vocabulary
 
@@ -21,8 +24,11 @@ production row was changed.
 - **no-action** — no Linear dependency, already authority-safe, or disconnected test/dead code.
 
 `VERIFIED` means the current repo source and the relevant live configuration were both checked.
-Anything the connected identity could not inspect is explicitly marked `UNVERIFIED` and remains an
-owner gate; this applies to the OAuth-application inventory and the `/add-to-calendar` caller.
+`STAGED-SOURCE-VERIFIED` means the draft source and offline behavior were checked, but the change is
+not merged, deployed, or live-proven. A mixed row may say `VERIFIED BASELINE /
+STAGED-SOURCE-VERIFIED`. Anything the connected identity could not inspect is explicitly marked
+`UNVERIFIED` and remains an owner gate; this applies to the OAuth-application inventory and the
+`/add-to-calendar` caller.
 
 ## Live posture at the audit boundary
 
@@ -38,29 +44,51 @@ owner gate; this applies to the OAuth-application inventory and the `/add-to-cal
 ## Mandatory write-UI epoch checklist
 
 - [ ] **Reroute every explicit status, comment, and create intent in the writer table through the
-  server-side outbox.** Do not leave a direct Linear branch beside the new button handler.
+  server-side outbox.** Source-complete in the stacked draft: Calendar/SXR/SMM-shared callers and
+  Submit use `production-write`, await the native commit before source persistence, and do not
+  double-write. Owner merge, gateway-before-caller deploy, and live TEST browser proof remain open.
 - [x] **Make the native comment lane self-contained and visible:** persist body, stable author,
   timestamp, comment/thread IDs, role/audience, and edit/delete state in durable events, then render
   comment bodies in Production issue detail.
 - [x] **Run an idempotent one-time Linear comment backfill.** If all currently discoverable VID/GRA
   issues are in scope, treat 15,000 current comments as the statistical minimum and provision about
   20,000 comment rows; size event/outbox rows and body/attachment bytes separately.
-- [ ] **Drain and then neutralize all three browser queues:** `syncview_linear_outbox_v1`,
-  `syncview_sxr_linear_outbox_v1`, and `syncview_calCardJobs_v1`, including startup, focus, timer,
-  page-hide, resume, and reassert paths.
+- [ ] **Operational closeout: observe all three legacy browser queues at zero, the native intake job
+  and committed-source-repair count at zero, `unknown_records=0`, and quarantine owner-reviewed/dispositioned across
+  staff browsers.** Code is
+  drain/expire-only for `syncview_linear_outbox_v1`, `syncview_sxr_linear_outbox_v1`, and
+  `syncview_calCardJobs_v1`; `syncview_native_intake_pending_v1` must have no incomplete job,
+  the pre-network source-repair journal plus existing v2/Kasper caches must have no principal-bound repair, and
+  every `syncview_write_ui_legacy_quarantine_v1` row needs an owner disposition. Startup, focus,
+  timer, online, visibility, and resume perform fresh authority checks; page-hide only snapshots
+  diagnostics and does not attempt a mutation. The aggregate diagnostic covers all six states and
+  reports corrupt/unparseable storage as `drain_state='unknown'` rather than a false zero,
+  but no undeployed branch can prove every browser closed out.
 - [x] **Install central authority checks before the UI epoch** on `linear-set-status`,
   `linear-add-comment`, `video-form`, and `graphic-form`. Frontend checks alone do not stop old tabs.
-- [x] **Neutralize ungated inbound writers for SyncView-authoritative teams:** the calendar/sample
-  branches of `MJbMZ789B5ExZz9x`, both legacy apply reconcilers, and the B1 incremental apply job.
-- [ ] **Re-source intake project selection and urgent-assignee lookup** to native
-  `clients` / `deliverables` / `team_members` at the epoch.
+- [ ] **Neutralize ungated inbound writers for SyncView-authoritative teams:** the calendar/sample
+  branches of `MJbMZ789B5ExZz9x` are gated in the live inactive workflow definition; both legacy
+  reconcilers and B1 guards remain stacked draft code until owner merge/deploy.
+- [ ] **Re-source the Submit dropdown and returned-ID materialization** to native `clients` and
+  native batch/deliverable IDs. Source-complete in the stacked draft; owner deploy/live proof is
+  open. No new Submit job polls Linear.
+- [ ] **Owner: populate/reconcile team-tagged `clients.linear_project_ids`** before production Submit
+  deploy. The current aggregate-only dry-run covered 62 required mappings across 31 active
+  real-client rows: 0/62 are production-ready, 57 are exact-name owner candidates, and five remain
+  unresolved discovery pairs. All 62 are blocked until persisted with team tags; the production
+  gateway fails closed without one.
+- [ ] **Part 3: re-source urgent-assignee lookup** to native `deliverables` / `team_members`.
 - [ ] **Activate native linkage everywhere, not only in the four Kasper predicates.** Switch link
   slots, status gates, duplicate/move checks, archive identity, focus navigation, urgent references,
   and new audit logs to `video_deliverable_id` / `graphic_deliverable_id` or a native route.
-- [ ] **Neutralize legacy linkage writers:** manual URL edit/adoption, import/bulk-link card writes,
-  and post-submit card jobs. Keep an "Open in Linear" convenience only until B5.
-- [ ] **Version-bump or authority-filter the seven-day Calendar/SXR card caches** and expire
-  `syncview_calLinearMeta_v1`; otherwise cached Linear URLs immediately reactivate old UI behavior.
+- [ ] **Part 3: neutralize legacy linkage writers:** manual URL edit/adoption and import/bulk-link
+  card writes. Keep an "Open in Linear" convenience only until B5.
+- [ ] **Part 2: stop creating post-submit polling jobs.** Source-complete in the stacked draft:
+  checkpointed native response IDs materialize stable Calendar cards and resume per-card;
+  pre-existing `syncview_calCardJobs_v1` entries are drain/expire-only. Owner deploy is open.
+- [ ] **Version-bump and authority-filter the seven-day Calendar/SXR card caches** and expire
+  `syncview_calLinearMeta_v1`. Source-complete in the stacked draft: v2 namespaces strip a flipped
+  team's legacy URLs before cache paint and preserve native IDs; owner deploy is open.
 - [ ] **Owner: locate and disable the D-9 23:45 UTC roller** before authority flips. Disable, do not
   delete, then observe two nights.
 - [ ] **Owner: enumerate Authorized Applications/OAuth apps** with workspace-admin scope and record
@@ -72,18 +100,18 @@ owner gate; this applies to the OAuth-application inventory and the `/add-to-cal
 
 | Status | Surface / trigger | Current browser-to-Linear path and payload | Identity and auth at the call | Epoch disposition | Evidence |
 |---|---|---|---|---|---|
-| VERIFIED | **Calendar status — omitted from the supplied list** | Normal card save, stale-status reassert, and Kasper persistence call `_calPushStatusToLinear`; `{issue,status}` goes to `linear-set-status`, then Linear `issueUpdate`. Calendar does not actually block `Posted`, despite the stale source comment. | A staff role key or client token may exist for the preceding card save, but **none is sent to this webhook**. Linear actor is the house `sidney@` user. | User intent: **reroute-through-outbox**. Helper, reassert, and direct bridge: **neutralize** after queue drain. | `index.html:20208-20268`, `25556-25579`, `43379-43384`; live n8n `VQqqeY9B2GZbh2Bt` v`0976710e`; execution `255235` accepted `Posted`. |
-| VERIFIED | **Calendar comments** — client, SMM, and Kasper | `_calPostLinearComment` sends `{issue,body,author}` to `linear-add-comment`, then Linear `commentCreate`. The Notes modal sends every video/graphic root, reply, plain comment, and tweak; edits/resolves/deletes do not sync. | Client token / role key can authenticate the card save, but **none is sent to the Linear bridge**. `author` is cosmetic Markdown; Linear actor is the house user. | Intent: **reroute-through-outbox** with the authenticated actor/role or verified client identity. Direct helper/bridge: **neutralize**. | `index.html:20269-20292`, `28403-28493`, `29319-29380`, `43640-43643`; n8n `8stSpZUiyG7f2LQX` v`6798ea93`; TEST execution `256233`. |
-| VERIFIED | **Calendar local retry queue** | `syncview_linear_outbox_v1` stores only `{kind,payload,attempts,...}`; retries on load/focus and a 60-second timer, stops automatic retry after six attempts, and retains the row until console cleanup. | No durable authenticated actor context is stored. A later flush sends no role key or client token. | **neutralize** after an all-browser diagnostic and verified drain. Reject stale flushes centrally. | `index.html:20122-20206`, `20414-20418`. |
-| VERIFIED | **SXR status** | Successful sample save plus Kasper save/undo call `_sxrPushStatusToLinear`; there is no live symbol literally named `_sxrLinearPush`. `{issue,status}` reaches the shared status bridge. SXR skips `Scheduled` / `Posted`; `_sxrReassertLinearStatus` exists but has no caller. | Same gap: staff/client auth may exist for the card save but is not forwarded. House Linear actor. | Intent: **reroute-through-outbox**. Active direct helper: **neutralize**; dead reassert helper: **no-action now**, remove at B5. | `index.html:36142-36146`, `37339-37350`, `37848-37929`; dead definition `37385-37396`. |
-| VERIFIED | **SXR comments** | `_sxrPostLinearComment` uses the shared `{issue,body,author}` bridge. Review tweaks, Notes roots/replies/plain messages, and Kasper tweaks all reach Linear. | No Linear-bridge auth; display author is cosmetic; house Linear actor. | Intent: **reroute-through-outbox**. Direct helper/bridge: **neutralize**. | `index.html:36687-36716`, `36943-36959`, `37352-37357`, `37848-37876`. |
-| VERIFIED | **SXR local retry queue** | Separate `syncview_sxr_linear_outbox_v1`, six attempts, 60-second retry, startup/focus drain. | Payload only; no durable role key/client token/actor proof. | **neutralize** after verified drain. | `index.html:34192`, `37319-37338`, `37508-37518`. |
-| VERIFIED | **Shared SMM `linear-set-status` bridge** | Public CORS POST `{issue,status}` resolves the team state and calls `issueUpdate`. If the issue is overdue, it also changes `dueDate` to current UTC date +2 days. There is no `prod_authority` check. | No caller auth. Active Code node embeds a house personal Linear key; value intentionally omitted. | **neutralize** centrally at epoch. The overdue due-date side effect is deliberately not ported. | n8n `VQqqeY9B2GZbh2Bt` v`0976710e`; 339 executions since July 1; `255235` proves status + due mutation. |
-| VERIFIED | **Shared SMM `linear-add-comment` bridge** | Public CORS POST `{issue,body,author}` resolves identifier and calls `commentCreate`; no authority check. | No caller auth. Same embedded house key; actual actor is `sidney@`, regardless of `author`. | **neutralize** centrally at epoch after all callers reroute. | n8n `8stSpZUiyG7f2LQX` v`6798ea93`; 45 executions since July 1; TEST `256233`. |
-| VERIFIED | **Submit — video create** | `submitLinearForm` sends `{clientName,title,notes,filmingPlans,videos[]}` to `video-form`; monolith creates a VID parent plus `Video N` children with descriptions, sort order, due dates, and a picked editor. | Browser sends **no staff role key, client token, or submitter identity**. The workflow selects a per-SMM personal Linear key solely from `clientName`; Linear creator is that SMM. | **reroute-through-outbox**: create native batch/deliverables first, then mirror. Centrally neutralize the direct-create branch. | `index.html:29998-30078`; live `BrJSe8zCKUccfmIq` v`0efdd2c7`, reachable `video-form` graph. |
-| VERIFIED | **Submit — graphic create** | Same payload to `graphic-form`; creates a GRA parent and children with generated descriptions, due dates, and the configured designer. | Same unauthenticated browser call and client-selected per-SMM key. | **reroute-through-outbox** and neutralize the direct-create branch. | `index.html:29998-30078`; live `BrJSe8zCKUccfmIq` v`0efdd2c7`, reachable `graphic-form` graph. |
-| VERIFIED | **Submit log** | `{timestamp,clientName,mode,webhookJson}` to `log-linear-submission`; appends the fallback `Linear Submissions` Sheet. It does **not** mutate Linear. | No browser auth; Google Sheets credential is server-side. | **keep-until-B5** (or retain as non-Linear telemetry). | `index.html:30049-30069`; reachable `Webhook6 -> Append row in sheet` branch in `BrJSe8zCKUccfmIq`. |
-| VERIFIED | **Post-submit Calendar job queue — omitted** | After Linear create, `syncview_calCardJobs_v1` waits and polls `loadLinearIssues(true)` for the new VID/GRA children, derives `p_lin_*` Calendar IDs from Linear identifiers, writes the URL-linked cards, and resumes unfinished jobs on later app loads for up to 48 hours / five runs. | Same unauthenticated intake tab; the follow-up Linear read and queued job contain no role key, client token, or durable submitter identity. | Native create remains **reroute-through-outbox**. Drain/expire this queue and **neutralize** its Linear-poll/materialization follower at epoch; consume native batch/deliverable IDs from the authoritative create response. | `index.html:30080-30093`, `30102-30301`, `30313-30385`. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **Calendar status — omitted from the supplied list** | Deployed code uses the legacy bridge. Part 2 keeps `_calPushStatusToLinear` as the choke point, accepts native ID without a Linear URL, and awaits `production-write` before the Calendar row save. Linear authority uses only targeted parity. | Legacy: no auth/house actor. Part 2 contract requires a staff role key or own-client token; server derives actor/role/timestamp. Positive live browser-principal proof remains an owner gate. | **reroute-through-outbox source-complete in stacked draft**. Reassert shares the gateway; direct bridge is stale-tab-only and centrally gated. | Native-target/durability behavior suite; live n8n gate readback. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **Calendar comments** — client, SMM, and Kasper | Part 2 sends stable native comment ID, body, parent, audience, component, tweak/round metadata and awaits the gateway before source persistence. | Client token or staff role key is the required principal; cosmetic `author` never authorizes. Offline policy/source matrix is green; positive live proof is open. | **reroute-through-outbox source-complete in stacked draft**; no new local retry entry. | Calendar/SXR durability tests and offline auth-policy matrix. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **Calendar local retry queue** | No new item can enqueue. Existing status and comment rows both move to lossless quarantine because neither carries a verifiable initiating principal; malformed rows do the same. Nothing is replayed under the next opener's identity. | Historical status and comment intent cannot be safely reattributed to the current session. | **quarantine source-complete**; all-browser active-queue zero and quarantine owner disposition remain operational gates. | `peekLinearOutbox`, `peekWriteUiLegacyQuarantine`, lifecycle/source tests. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **SXR status** | Part 2 keeps `_sxrPushStatusToLinear` as the choke point, accepts native ID without a URL, and awaits the same native/parity gateway before sample persistence. SXR still skips `Scheduled` / `Posted`. | Required verified staff/client principal; no cosmetic header can elevate. Positive live proof is open. | **reroute-through-outbox source-complete in stacked draft**; stale-tab bridge centrally gated. | Native-target/durability and authority lifecycle tests. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **SXR comments** | `_sxrPostLinearComment` sends normalized native metadata and stable ID; Review, Notes, and Kasper call sites await the gateway before source persistence. | Required staff/client principal becomes the durable author snapshot; offline policy/source proof is green. | **reroute-through-outbox source-complete in stacked draft**; direct bridge caller removed. | Calendar/SXR durability and auth-policy tests. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **SXR local retry queue** | Separate v1 queue is no-new-enqueue and follows the same lossless status/comment quarantine policy as Calendar. | Historical principal is not replayable. | **quarantine source-complete**; expose active, quarantine, intake, and source-repair diagnostics. | Calendar/SXR lifecycle/source tests. |
+| VERIFIED BASELINE / VERIFIED LIVE GATE | **Shared SMM `linear-set-status` bridge** | Baseline public CORS POST `{issue,status}` resolves the team state and calls `issueUpdate`; an overdue issue also gets `dueDate = current UTC date + 2 days`. The live Part 2 definition now resolves the issue's team and fail-closes before mutation unless fresh `prod_authority[team]` is `linear`. | Caller remains unauthenticated and the mutation still uses the workflow's house integration identity; authority is server-read and headers cannot elevate it. | **neutralized live for a SyncView-authoritative team**; retain only as a gated stale-tab bridge while legacy debt drains. The hidden due-date side effect is deliberately not ported. | n8n `VQqqeY9B2GZbh2Bt` v`0976710e`; private pre/post snapshots and public-safe three-node readback in `n8n-backups/2026-07-12-write-ui-authority-gates.md`. |
+| VERIFIED BASELINE / VERIFIED LIVE GATE | **Shared SMM `linear-add-comment` bridge** | Baseline public CORS POST `{issue,body,author}` resolves the issue and calls `commentCreate`. The live Part 2 definition now resolves the issue's team and fail-closes before mutation unless fresh `prod_authority[team]` is `linear`. | Caller remains unauthenticated; `author` is cosmetic and never selects identity. The mutation uses the workflow's house integration identity, while authority is server-read. | **neutralized live for a SyncView-authoritative team**; retain only as a gated stale-tab bridge until callers and debt close out. | n8n `8stSpZUiyG7f2LQX` v`6798ea93`; private pre/post snapshots and public-safe three-node readback in `n8n-backups/2026-07-12-write-ui-authority-gates.md`. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **Submit — video create** | Deployed caller sends the legacy payload to `video-form`. Part 2 sends one authenticated `intake_create`; it checkpoints the validated native response before telemetry/cards, then checkpoints each deterministic card so reload resumes only missing cards. | Legacy: none/client-selected key. Part 2 contract requires Admin/SMM role key + exact roster actor; offline policy/source proof is green and positive live browser proof is open. | **rerouted-through-outbox in draft**; direct-create branch is centrally gated for stale tabs. No double-write. | `submitLinearForm`, `_runNativeIntakeJob`, `handleIntakeCreate`; crash/resume behavior tests. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **Submit — graphic create** | Same durable native request carries graphics items sharing each Calendar `card_id`; the browser cannot send a graphics brief. The server owns descriptions and default assignment. | Same required Admin/SMM principal; positive live proof is open. | **rerouted-through-outbox in draft**; direct `graphic-form` call removed. | Gateway/native intake tests. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **Submit log** | After the native response is durably checkpointed, `{timestamp,clientName,mode,webhookJson}` carries native IDs and mirror state to `log-linear-submission`. It does **not** mutate Linear or receive auth headers. | No webhook auth; authoritative actor is already in the ledger. | **keep-until-B5** as post-commit non-Linear telemetry. | Runner ordering test; reachable Sheets branch. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **Post-submit Calendar job queue — omitted** | New Submit persists a versioned native job with response IDs and completed-card markers, resumes on startup/focus/pageshow/online/visibility/timer, and never polls Linear. Existing `syncview_calCardJobs_v1` remains legacy debt. | New path retains the gateway actor in ledger; Calendar cards persist both native slot IDs and returned transitional URLs. | New polling jobs **neutralized in draft**; native materialization is resumable; old jobs **drain/expire only** under Linear authority. | Native partial-failure/reload behavior plus legacy job tests. |
 | VERIFIED | **B4 server-side outbox — target path** | Native `deliverable-write` / `batch-write` ledger transaction enqueues `mirror_outbox`; scheduled drainer invokes `linear-outbound`, supporting create/status/comment/due/assignee/title/priority/parent/archive/restore. | Durable actor, role, timestamp, dedup key, and source edit clock; dedicated `SyncView Mirror` key and actor. Strict team authority + global mode gates. | **no-action** to backend design; wire every new UI mutation into it. **keep-until-B5** once live. | `TRACK_B_LINEAR_REPLACEMENT_SPEC.md:547-588`; `linear-outbound-drain.yml`; TEST issues created by `SyncView Mirror`. |
 
 ### Auth available versus auth actually sent
@@ -92,11 +120,22 @@ owner gate; this applies to the OAuth-application inventory and the `/add-to-cal
 |---|---|---|---|
 | Client Calendar/SXR link | Verified client token | **none** | Native write verifies client token, persists client actor/role/timestamp, then outbox mirrors. |
 | Signed-in staff / Kasper | Verified staff role key + roster actor | **none** | Native write verifies role key and persists the roster actor/role/timestamp before enqueue. |
-| Old-tab localStorage retry | Only the saved `{issue,status}` or `{issue,body,author}` payload | **none** | Drain, expire old app versions, then reject centrally when team authority is SyncView. |
-| Submit tab | Staff identity is deliberately excluded from the intake entry path | **none** | Require the epoch's approved staff/native-create authorization; never select mutation identity from `clientName`. |
-| Post-submit card job | Saved client/title/mode/video numbers; no submitter proof | **none** | Drain/expire the job and return native linkage directly from the authorized create. |
+| Old-tab localStorage retry | Only the saved `{issue,status}` or `{issue,body,author}` payload | **none** | Quarantine both statuses and comments because neither carries a verifiable initiating principal; never replay under the next opener; reject centrally after flip. |
+| Submit tab | Legacy deployed caller: none. Part 2 draft: verified Admin/SMM role key + roster actor. | Legacy: **none**. Part 2: gateway credentials only. | Implemented in the stacked draft; `clientName`/`client_slug` remains data and never selects mutation identity. |
+| Post-submit card job | Legacy v1 has no submitter proof. New native job contains the already-authorized request/result/card progress. | **none** | Drain/expire legacy jobs; resume native card materialization from checkpointed IDs without another create. |
 
-### Exact submission payload
+### Authentication evidence boundary
+
+The deployed dark baseline returned 401 for missing, garbage, mixed, and invalid staff/client
+credentials; 403 for authenticated wrong-roster, wrong-client, or client-forbidden operations; and
+409 for a valid staff Production write while that team remained Linear-authoritative. The
+service-authenticated disposable TEST drill exercised 18 operations across two teams, saw zero
+unexpected echoes, reconciled `0/0/0`, cleaned up, and left flags unchanged. The draft adds an
+offline policy/source matrix for every operation and auth mode. That is not a successful live
+staff-role-key/client-token browser matrix: positive TEST browser HTTP/UI proof after gateway-delta
+deployment remains a mandatory owner gate.
+
+### Legacy submission payload (pre-Part 2)
 
 ```json
 {
@@ -116,8 +155,52 @@ owner gate; this applies to the OAuth-application inventory and the `/add-to-cal
 }
 ```
 
-The creation workflows fetch a public SMM roster CSV and use its per-client personal Linear key.
-The submitter is not authenticated. This is both an attribution gap and a stale-tab cutover bypass.
+The legacy creation workflows fetch a public SMM roster CSV and use its per-client personal Linear
+key. The submitter is not authenticated. This is both an attribution gap and a stale-tab cutover
+bypass.
+
+### Native submission payload (Part 2 stacked draft)
+
+```json
+{
+  "operation": "intake_create",
+  "surface": "submission",
+  "client_slug": "<canonical native slug>",
+  "request_id": "<stable idempotency id>",
+  "source_edited_at": "<stable ISO timestamp>",
+  "batch": {
+    "name": "<built form title>",
+    "description": "<links plus notes>",
+    "filming_doc_url": "<URL or null>",
+    "footage_folder_url": "<URL or null>"
+  },
+  "items": [
+    {
+      "team": "video",
+      "videoNumber": 1,
+      "title": "Video 1",
+      "brief": "<camera/audio links>",
+      "due_date": "YYYY-MM-DD",
+      "status": "in_progress",
+      "card_id": "<stable native Calendar card id>",
+      "sort_key": 0
+    },
+    {
+      "team": "graphics",
+      "videoNumber": 1,
+      "due_date": "YYYY-MM-DD",
+      "status": "in_progress",
+      "card_id": "<same Calendar card id>",
+      "sort_key": 0
+    }
+  ]
+}
+```
+
+The browser supplies neither assignee nor graphics brief. The verified staff role key/roster actor
+is carried only in gateway headers; the server owns identity, graphics generation, assignment,
+authority/parity selection, and outbox creation. An ambiguous response reuses the exact payload,
+request id, and source timestamp.
 
 ## Critical comment-visibility test
 
@@ -252,14 +335,14 @@ and time; it never reads `payload`, `linear_raw`, or a comment body (`33495-3350
 | VERIFIED | **`linear-tweak-comments`** | Workload posts `{ids}` for tweak-state issues; n8n reads every SMM Linear workspace and up to 50 comments per issue, parses `(via SyncView)` author labels, returns newest 10; browser caches 5 minutes. | Works mid-epoch only while outbound mirrors the needed comments. At B5 read native card/deliverable threads. | **keep-until-B5**. `index.html:13479-13510`; n8n `d7Dod7OuQsVsl1CN` v`107de134`, exec `242240`. |
 | VERIFIED | **`editors-week`** | Browser -> unauthenticated n8n -> VID Linear issue histories; counts work-to-review transitions per issue/day/kind and attributes them to current assignee. | Works mid-epoch if every native status transition mirrors out. At B5 use the `deliverable_events` query in spec section 9.11. | **keep-until-B5**. `index.html:43879-43925`; `rhDX5VfnmOylc8o7` v`892323dc`, exec `232746`. |
 | VERIFIED | **`kasper-queue` feed** | Not a Linear reader. Calendar reads Supabase `calendar_posts`, then n8n `kasper-queue` -> Sheets fallback; SXR reads `sample_reviews`. | Feed survives Linear retirement. Four visibility predicates still require `graphic_linear_issue_id`. | Feed **no-action**; predicate dependency **neutralize/repoint** at epoch. `index.html:42403-42568`, `37610-37635`, `28831-28855`, `37543-37574`; n8n `TcWOfnKd4Csdnnbv` v`6fd805a3`. |
-| VERIFIED | **Calendar Linear Status Sync `MJbMZ789B5ExZz9x`** | One legacy Linear webhook fans into: state -> `calendar_posts`, event -> `workload_issues`, state -> `sample_reviews`. Card/sample writes use Track-A EF/n8n client routing. **No branch checks `prod_authority`.** | Workload branch can stay while Linear is fresh. Card/sample branches are unsafe under SyncView authority and can overwrite native state. | Workload: **keep-until-B5**. Calendar/sample: **neutralize/authority-gate** at epoch. Active v`655b6aa5`, exec `256234`. |
+| VERIFIED | **Calendar Linear Status Sync `MJbMZ789B5ExZz9x`** | One legacy Linear webhook fans into: state -> `calendar_posts`, event -> `workload_issues`, state -> `sample_reviews`. Part 2 installed fresh authority gates on only the card/sample branches; workload code was byte-identical. | Workload branch can stay while Linear is fresh. Calendar/sample writes now fail closed for a SyncView-authoritative team. | Workload: **keep-until-B5**. Calendar/sample: **authority-gated live definition**; workflow remains inactive, as found. Five-node readback and private/public-safe snapshots recorded 2026-07-12. |
 | VERIFIED | **`linear-issue-statuses`** | Browser metadata/status pull and both legacy reconcilers -> unauthenticated `GP8CSZDNcy5sGdFr` -> Linear issue queries. | Pure reads can remain dual-ready; apply callers cannot. | Endpoint **keep-until-B5**; authority-gate callers. Active v`2203cdde`, latest exec `256255`; `index.html:20530-20689`. |
 | VERIFIED | **`linear-subissues`** | Calendar import/bulk-link and Calendar/SXR point-adoption -> `Nk3pwR6Fbl4VAPqH` -> Linear parent/children/status, followed by legacy card create/link/status writes. Post-submit polling does **not** use this endpoint. | Keep lookup read-only as a rollback/import aid; native UI should use a deliverable picker. | Endpoint: **keep-until-B5**. Import/bulk-link card mutations and point-adoption: **neutralize** for SyncView-authoritative clients. Active v`9013d1af`, latest exec `253900`; `index.html:20583-20630`, `20735-21235`, `37358-37382`. |
-| VERIFIED | **`linear-projects`** | Submit dropdown -> `BrJ` branch -> Linear VID projects. | Native intake should not depend on a Linear project list. | **neutralize/re-source at epoch** to native clients/projects. `index.html:11665-11682`; `BrJ` v`0efdd2c7`. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **`linear-projects`** | Deployed Submit dropdown -> `BrJ` branch -> Linear VID projects. The Part 2 draft removes this caller and reads active native `clients` (`slug,display_name,kind`) directly. | Native intake no longer needs the Linear project-list reader after caller deploy. | **re-sourced in Part 2 draft**; keep the unused endpoint only as rollback debt until B5. Canonical team-tagged project mapping remains a blocking owner gate. |
 | VERIFIED | **Urgent tweak Slack lookup, URL gates, and persistence** | Calendar, SXR, and both Kasper surfaces hide or refuse the action without `linear_issue_id`, pass that URL to `send-urgent-slack`, and persist it as `video_urgent_issue`. n8n resolves the current Linear assignee, maps email to Slack, and posts; it does not mutate Linear. | Outbound could keep the issue current, but native notification cannot remain gated, routed, or deduplicated by a Linear URL. | **neutralize** the URL dependency and re-source at epoch to `deliverables -> team_members`. `index.html:20324-20368`, `29710-29720`, `35553-35592`, `37989-38003`, `43010-43034`; n8n `TJVMyfwl85qrFGeK` v`d877feb8`. |
-| VERIFIED | **B1 incremental refresh — omitted** | Every ~30 minutes: Linear changed-issues query -> `b1-linear-backfill.js --incremental --apply` -> `batch_write`, `deliverable_write`, `linear_archive`. It has **no authority check**. | Under SyncView authority it is an ungated inbound writer; it also does not import comments. | **neutralize** operational batch/deliverable apply for SyncView-authoritative teams; retain detect/archive-only or full apply only under Linear authority. `.github/workflows/b1-linear-incremental-refresh.yml`; `scripts/b1-linear-backfill.js:1003-1138`. |
-| VERIFIED | **Legacy calendar reconciler — omitted** | Scheduled and pager-dispatched apply: reads Linear statuses and can pull Linear -> card or POST card -> `linear-set-status`. No authority gate. | Bidirectional writer is unsafe at handoff. | **neutralize/authority-gate** at epoch; detect-only on the non-authority side. `linear-sync-reconcile.js:98-145`, `259-291`; run `29207528715`. |
-| VERIFIED | **Legacy SXR reconciler — omitted** | Calendar twin for `sample_reviews`; scheduled apply and pager dispatch with `dry_run=false`; can POST status to Linear. No authority gate. | Same cutover risk. | **neutralize/authority-gate**. `sample-linear-reconcile.js:128-174`, `260-292`; run `29207382805`. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **B1 incremental refresh — omitted** | Baseline: every ~30 minutes, Linear changed-issues query -> `b1-linear-backfill.js --incremental --apply` -> `batch_write`, `deliverable_write`, `linear_archive`, with no authority check. Part 2 draft adds a fresh per-write authority gate. | Baseline is unsafe under SyncView authority; the staged guard prevents operational batch/deliverable apply while retaining detect/archive-only behavior. | **neutralize/authority-gate staged; owner merge/deploy open.** `.github/workflows/b1-linear-incremental-refresh.yml`; `scripts/b1-linear-backfill.js`. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **Legacy calendar reconciler — omitted** | Baseline scheduled/pager apply can pull Linear -> card or POST card -> `linear-set-status` without an authority gate. The Part 2 draft adds fresh checks before both directions and prevents clock advancement on refusal. | Bidirectional baseline is unsafe; staged code becomes detect-only on the non-authority side. | **neutralize/authority-gate staged; owner merge/deploy open.** `linear-sync-reconcile.js`; baseline run `29207528715`. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **Legacy SXR reconciler — omitted** | Calendar twin for `sample_reviews`; baseline scheduled apply can write either direction without authority. The Part 2 draft adds the same fresh per-write checks. | Same cutover risk and staged mitigation. | **neutralize/authority-gate staged; owner merge/deploy open.** `sample-linear-reconcile.js`; baseline run `29207382805`. |
 | VERIFIED | **Track-B deliverable reconciler** | Reads Linear and Supabase, checks `prod_authority`, heals inward only for Linear authority and enqueues the outbox only for SyncView authority. Scheduled lane is dry-run. | This is the intended dual-ready reconciler. | **keep-until-B5** / **no-action** to direction logic. `linear-deliverables-reconcile.js:186-193`, `341-374`, `457-522`. |
 | VERIFIED | **`linear-inbound` mirror** | Two HMAC Linear webhooks -> EF -> `deliverable_write` / `batch_write`; field/comment echo controls and detect-only behavior. | Needed through dual-ready fallback; detect-only for SyncView-authoritative teams. | **keep-until-B5**. `linear-inbound/index.ts`; four-webhook readback below. |
 | VERIFIED; caller unknown | **`BrJ` `/add-to-calendar` legacy branch — omitted** | Served webhook reads a Linear parent/children/comments and writes a legacy Sheet. No browser caller was found and no recent branch execution appeared in the sample. | External caller/owner remains unverified. It cannot be silently ignored. | **neutralize after owner/caller confirmation**, no later than B5. Active `BrJ` v`0efdd2c7`; reachable `Webhook5` graph. |
@@ -273,9 +356,9 @@ UI epoch so native behavior is not left dependent on Linear linkage.
 | Status | Touchpoint | Current dependency | Epoch disposition | Evidence |
 |---|---|---|---|---|
 | VERIFIED | **Calendar/SXR manual link slots and status gates — omitted** | Staff can open, paste, validate, move, or clear VID/GRA URLs. A fresh URL is saved to the legacy card and calls `linear-subissues` to adopt status. Calendar disables and Set-all skips unlinked video/graphic pills; SXR disables individual pills, although its Set-all bypasses the gate. | URL editing/adoption and URL-gated status controls: **neutralize** at epoch and repoint to native deliverable linkage. Open-in-Linear convenience: **keep-until-B5**. | `index.html:24333-24565`, `24611-24645`, `24790-24897`, `25274-25296`, `35181-35347`, `35434-35459`, `35600-35620`, `35815-35823`. |
-| VERIFIED | **Calendar Linear completeness banners/cache — omitted** | `linear-issue-statuses` supplies parent/sub-issue plus project/due/editor metadata; Calendar persists it for seven days in `syncview_calLinearMeta_v1`, gates warning banners by it, and opens the Linear URL for repair. | Reader can **keep-until-B5**, but the warning data must be re-sourced to native batch/deliverable fields at epoch; cached metadata must **neutralize** through expiry/versioning. | `index.html:20420-20580`, `24615-24625`, `24670`. |
-| VERIFIED | **Seven-day Calendar/SXR card caches — omitted** | `syncview_calCache_v1:*` and `syncview_sxr_cache_v1_*` persist complete legacy card objects, including both Linear URLs and native linkage IDs. Old values can drive buttons, locks, and duplicate warnings before revalidation. | **neutralize** stale link behavior at epoch with a cache-version bump or authority-aware ignore/rewrite. | `index.html:21771-21797`, `34765-34800`. |
-| VERIFIED | **Native linkage fields are transported but unused — omitted** | `video_deliverable_id` / `graphic_deliverable_id` are normalized, saved, rollback/clear-sentinel capable, and Kasper-persisted, but no user-visible linkage consumer reads them. | Field transport: **no-action**. Make these IDs the epoch target for every current Linear-URL predicate, identity, and route. | `index.html:17895`, `23390-23399`, `25274-25296`, `34814-34820`, `35815-35823`, `37111-37119`, `43310`. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **Calendar Linear completeness banners/cache — omitted** | The Linear reader can remain until B5; Part 2 draft moves persistence to `syncview_calLinearMeta_v2`, expires v1, and prunes flipped-team identifiers. | Reader **keep-until-B5**; stale metadata **neutralized in stacked draft**. Part 3 still re-sources warning semantics. | Cache/authority source and banner persistence tests. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **Seven-day Calendar/SXR card caches — omitted** | Part 2 draft uses `syncview_calCache_v2:*` and `syncview_sxr_cache_v2_*`; reads require live authority and blank only the flipped team's legacy URL while preserving native IDs. | **neutralized in stacked draft**; owner deploy open. Part 3 re-points remaining consumers. | Cache source test and full suite. |
+| VERIFIED BASELINE / STAGED-SOURCE-VERIFIED | **Native linkage fields are transported but incompletely consumed — omitted** | `video_deliverable_id` / `graphic_deliverable_id` are normalized and persisted. Part 2 status/comment writers now accept these IDs without a Linear URL; navigation, duplicate/move, archive, urgent, focus, and display linkage still do not. | Writer targeting: **source-complete in Part 2 draft**. Remaining consumer migration: **Part 3**. | Native-target behavior test plus linkage inventory. |
 | VERIFIED | **Archive anti-resurrection identity — omitted** | Calendar recognizes historical Linear-URL archive aliases; SXR writes both VID/GRA URLs into its local archive ledger and uses them to hide or restore cards. | New archive identity: **neutralize** URL keying at epoch and use native card/deliverable IDs. Historical URL aliases: **keep-until-B5** so old cards do not resurrect. | `index.html:19492-19566`, `34807-34853`, `35675-35689`, `35727-35752`. |
 | VERIFIED | **Duplicate-link collision and move semantics — omitted** | Calendar/SXR duplicate detection, warning banners, conflict confirmation, and “move it here” clear the prior owner by comparing VID/GRA URLs. | **neutralize** URL uniqueness at epoch and enforce native deliverable/card linkage instead. | `index.html:19586-19634`, `24491-24542`, `35267-35323`, `35325-35347`. |
 | VERIFIED | **Workload Linear deep links — omitted** | Workload search results, cards, rollup chips, and popover issue rows carry Linear URLs. Ordinary chip click opens the local popover; modifier-click and issue links follow the anchor to Linear. | **keep-until-B5** while `workload_issues` is retained; then point every link to native issue detail. | `index.html:11787-11809`, `12739-12745`, `12979-12985`, `13273-13279`, `13307-13312`, `13451-13454`, `13608-13669`. |
@@ -405,7 +488,10 @@ when all of the following are true at once:
 
 - all explicit UI intents in the writer table enter the native RPC/outbox path with durable
   actor/role/timestamp;
-- all three browser queues are empty across staff browsers and old-version tabs are expired;
+- all three legacy browser queues are empty across staff browsers, no incomplete native intake job
+  or committed-source repair remains, diagnostics report `unknown_records=0`, every legacy
+  quarantine row has an owner disposition, and
+  old-version tabs are expired;
 - seven-day card/meta caches are versioned or authority-filtered so stale Linear URLs cannot revive
   old gates or navigation;
 - native status controls, link pickers, archive/dedupe identity, Workload navigation,
@@ -415,6 +501,8 @@ when all of the following are true at once:
 - the four direct mutation webhooks refuse writes for SyncView-authoritative teams;
 - `MJbMZ`, both legacy reconcilers, and B1 incremental apply cannot write authoritative fields from
   Linear for a SyncView-authoritative team;
+- the daily TEST write drill, nightly full-roster read-only shadow audit, and pager remain green for
+  the D-28 soak window before the owner-authorized Graphics-first flip;
 - D-9 is disabled or the owner-approved key-rotation fallback is complete;
 - an admin-scope Authorized Applications/OAuth inventory has cleared any unlisted VID/GRA writer;
 - the keep-until-B5 readers remain green with outbound freshness, and their B5 replacements have

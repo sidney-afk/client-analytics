@@ -1,6 +1,7 @@
 # Create-Post & Batch Intake Model (LOCKED)
 
-**Status:** Locked decision — owner-confirmed 2026-07-13.
+**Status:** Locked decision — owner-confirmed 2026-07-13; implemented in the
+draft #813 stack, not deployed.
 **Applies to:** how new work (batches + deliverables) is created once SyncView is the
 authority for a team. This is the target model the write-UI intake path (PR #813 and
 its calendar card-materialization) must implement.
@@ -74,15 +75,33 @@ option reuses Submit's intake logic so there is one creation mechanism, two door
 
 ---
 
-## To verify before go-live (implementation gap check)
+## Before-go-live implementation gap check
 
-Confirm the write-UI intake path (PR #813 native `intake_create` + calendar card
-materialization) implements exactly this, and flag/adjust any gap:
+The draft #813 intake path now covers all seven locked points. These checks record
+source/test evidence; they are not a deployment or cutover approval:
 
-- [ ] Create Post is invoked per-client from the calendar (client implicit).
-- [ ] Create Post offers **latest-batch (default)** vs **new-batch**.
-- [ ] Each post creates **both** a Video and a Graphics sub-issue under the chosen batch.
-- [ ] Sub-issues file into the correct **per-team mapped project** (video vs graphics).
-- [ ] The **new-batch** path reuses Submit's native intake (parent + deliverables).
-- [ ] Batch creation works from **both** Submit and Create Post.
-- [ ] No free-form issue/sub-issue creation surface exists in the Linear tab.
+- [x] **Per-client calendar entry:** staff Create Post derives the client from the
+  open calendar; there is no client picker in the dialog.
+- [x] **Batch choice:** the latest active client batch is selected by default, with
+  an explicit create-new-batch alternative (and new batch is the safe fallback when
+  no active batch exists).
+- [x] **Paired work:** one shared item builder emits exactly one Video and one Graphics
+  deliverable with the same calendar-card identity.
+- [x] **Per-team filing:** the gateway resolves and validates Video and Graphics
+  project mappings independently and fails closed on a missing or ambiguous mapping.
+- [x] **One new-batch engine:** calendar new-batch and Submit both use the same
+  authenticated `intake_create` operation, durable intake job, and card materializer.
+- [x] **Two batch-creation doorways:** Submit and calendar Create Post can both create
+  a batch; calendar Create Post can also append to an existing batch with CAS.
+- [x] **No free-form Linear-tab create:** the Linear mirror remains limited to actions
+  on existing work; no issue or sub-issue creation control was added there.
+
+### Dormant rollout stance
+
+This remains an additive, authority-gated draft. No Edge Function or browser bundle
+was deployed for this gap closure, no Linear write was used as evidence, and no runtime
+flag changed. With production authority still Linear/Linear and the independent legacy
+parity allowance disabled, real-client intake fails closed. The existing service-only
+TEST override remains the only pre-flip bypass; browser staff/client credentials cannot
+self-enter TEST scope. The owner controls deployment and any later authority/outbound
+change separately.

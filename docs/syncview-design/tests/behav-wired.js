@@ -2,9 +2,10 @@
 /*
  * Guard-mode behavioral baseline for the wired ?prod=1 tab.
  *
- * This adapts the artifact behav.js assertions to live B1 data. Mutation
- * assertions run in guard mode: the picker/menu opens, clicking a mutating value
- * shows "Preview - read-only", and the adapter state does not change.
+ * This adapts the artifact behav.js assertions to live B1 data. Issue mutations
+ * run signed out: the visible control advertises the staff-sign-in requirement,
+ * the action stops before opening a picker, and the adapter state does not
+ * change. Project-card mutations remain on the older read-only preview guard.
  */
 const fs = require('fs');
 const http = require('http');
@@ -48,6 +49,9 @@ async function txt(page, sel) {
   const port = server.address().port;
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
+  // A stale actionability assumption must fail locally, not stall the rest of
+  // this 168-check sweep behind Playwright's 30-second default.
+  page.setDefaultTimeout(5000);
   const errors = [];
   const requests = [];
   const results = {};
@@ -136,18 +140,32 @@ async function txt(page, sel) {
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     });
   };
-  const guardClick = async (openSelector, valueSelector) => {
-    const before = await page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status, i.assignee, i.due, i.project])));
-    await page.locator(openSelector).first().click();
-    await page.waitForSelector(valueSelector, { timeout: 5000 });
-    await page.locator(valueSelector).first().click();
-    await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+  const SIGNED_OUT_WRITE_COPY = 'Sign in with your staff account to write.';
+  const issueSnapshot = () => page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status, i.assignee, i.due, i.project])));
+  const signedOutWriteGuard = async (trigger, controlSelector) => {
+    const signedOut = await page.evaluate(() => !_syncviewStaffIdentityForHeaders());
+    const affordance = controlSelector ? await page.locator(controlSelector).first().evaluate((el, copy) => {
+      const text = [el.getAttribute('title'), el.getAttribute('data-prod-tip')].filter(Boolean).join(' ');
+      const issueControl = el.getAttribute('aria-disabled') === 'true'
+        && el.getAttribute('data-prod-write') === 'off';
+      const composerControl = el.getAttribute('data-prod-disabled') === 'composer';
+      return (issueControl || composerControl)
+        && text.includes(copy);
+    }, SIGNED_OUT_WRITE_COPY).catch(() => false) : true;
+    const before = await issueSnapshot();
+    await trigger();
+    await page.waitForSelector('#prodToast.show', { timeout: 1500 });
     const toast = await txt(page, '#prodToast');
-    const after = await page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status, i.assignee, i.due, i.project])));
-    await page.keyboard.press('Escape').catch(() => {});
-    return toast.includes('Preview - read-only') && before === after;
+    const after = await issueSnapshot();
+    const pickerCount = await page.locator('#prodLayer [data-prod-pick], #prodLayer .prod-duepop').count();
+    return signedOut && affordance && toast === SIGNED_OUT_WRITE_COPY && before === after && pickerCount === 0;
   };
-
+  const signedOutClick = async selector => signedOutWriteGuard(
+    // Playwright correctly treats aria-disabled="true" as non-actionable. Use a
+    // DOM click to exercise the shipped guard handler without enabling writes.
+    () => page.locator(selector).first().dispatchEvent('click'),
+    selector,
+  );
   try {
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
@@ -175,7 +193,7 @@ async function txt(page, sel) {
       await page.evaluate(() => { linearProjects = ['TEST Workspace']; });
       await page.locator('#navLinear').press('Enter');
       await page.waitForFunction(() => currentNav === 'linear' && location.hash === '#linear' && !new URLSearchParams(location.search).has('prod'));
-      const reachedSubmit = (await page.locator('.linear-form-title').textContent()).trim() === 'Create Linear Issue';
+      const reachedSubmit = (await page.locator('.linear-form-title').textContent()).trim() === 'Create production work';
       await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
       return reachedSubmit;
@@ -459,19 +477,28 @@ async function txt(page, sel) {
       });
       if (!opened) return true;
       await page.waitForSelector('[data-prod-project-detail]', { timeout: 5000 });
-      return await page.evaluate(() => {
+      return await page.evaluate(copy => {
         const row = document.querySelector('[data-prod-project-issue]');
         if (!row) return true;
         const main = document.querySelector('.prod-detail-main');
         const inner = document.querySelector('.prod-detail-inner');
         const emptyDuePills = [...document.querySelectorAll('[data-prod-project-issue] .prod-due.optional')];
         const emptyDueLabel = pill => (pill.querySelector(':scope > span:last-child')?.textContent || '').trim();
+        const locked = ['.prod-status[data-st]', '.prod-due', '[data-prod-assign]'].every(selector => {
+          const control = row.querySelector(selector);
+          return control
+            && control.getAttribute('data-prod-write') === 'off'
+            && control.getAttribute('aria-disabled') === 'true'
+            && control.getAttribute('title') === copy
+            && control.getAttribute('data-prod-tip') === copy;
+        });
         return !!row.querySelector('[data-prod-assign]')
           && !!row.querySelector('.prod-due')
+          && locked
           && emptyDuePills.every(pill => emptyDueLabel(pill) === 'Add date')
           && row.getBoundingClientRect().width >= main.getBoundingClientRect().width * 0.8
           && inner.getBoundingClientRect().width >= main.getBoundingClientRect().width * 0.95;
-      });
+      }, SIGNED_OUT_WRITE_COPY);
     }); await reset();
     await ok('projectToolbarMenusAndDetailsToggle', async () => {
       const opened = await page.evaluate(() => {
@@ -521,16 +548,15 @@ async function txt(page, sel) {
       });
     }); await reset();
     await ok('due', async () => {
-      await page.locator('.prod-row .prod-due').first().click();
-      return await page.locator('#prodLayer .prod-pop').count() === 1 && await page.locator('.prod-detail').count() === 0;
+      return await signedOutClick('.prod-row .prod-due')
+        && await page.locator('.prod-detail').count() === 0;
     }); await reset();
     await ok('avatar', async () => {
-      await page.locator('.prod-row [data-prod-assign]').first().click();
-      return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0;
+      return await signedOutClick('.prod-row [data-prod-assign]');
     }); await reset();
     await ok('rowStatus', async () => {
-      await page.locator('.prod-row .prod-status[data-st]').first().click();
-      return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0 && await page.locator('.prod-detail').count() === 0;
+      return await signedOutClick('.prod-row .prod-status[data-st]')
+        && await page.locator('.prod-detail').count() === 0;
     }); await reset();
     await ok('subLive', async () => {
       const parentId = await page.evaluate(() => {
@@ -541,16 +567,20 @@ async function txt(page, sel) {
       await page.evaluate(id => _prodOpenDeliverable(id), parentId);
       await page.waitForSelector('.prod-detail');
       const before = await txt(page, '[data-prod-section="subissues"] .prod-group-count');
-      const controls = await page.locator('.prod-subrow .prod-status[data-st]').count() > 0
-        && await page.locator('.prod-subrow .prod-due').count() > 0
-        && await page.locator('.prod-subrow [data-prod-assign]').count() > 0;
-      const snapshot = await page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status, i.assignee, i.due, i.project])));
-      await page.locator('.prod-subrow .prod-status[data-st]').first().click();
-      await page.locator('#prodLayer .prod-pop [data-prod-pick]').first().click();
-      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const controls = await page.evaluate(copy => {
+        const row = document.querySelector('.prod-subrow');
+        return !!row && ['.prod-status[data-st]', '.prod-due', '[data-prod-assign]'].every(selector => {
+          const control = row.querySelector(selector);
+          return control
+            && control.getAttribute('data-prod-write') === 'off'
+            && control.getAttribute('aria-disabled') === 'true'
+            && control.getAttribute('title') === copy
+            && control.getAttribute('data-prod-tip') === copy;
+        });
+      }, SIGNED_OUT_WRITE_COPY);
+      const guarded = await signedOutClick('.prod-subrow .prod-status[data-st]');
       const after = await txt(page, '[data-prod-section="subissues"] .prod-group-count');
-      const snapshot2 = await page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status, i.assignee, i.due, i.project])));
-      return controls && before === after && snapshot === snapshot2;
+      return controls && guarded && before === after;
     }); await reset();
     await ok('palette', async () => { await page.locator('.prod-search-btn').click(); return await page.locator('.prod-cmd').count() === 1; }); await reset();
     await ok('paletteSearch', async () => {
@@ -637,9 +667,9 @@ async function txt(page, sel) {
       await page.locator('.prod-nav-btn', { hasText: 'My issues' }).click();
       return await page.evaluate(() => _prodState.view === 'my');
     }); await reset();
-    await ok('kbStatus', async () => { await page.keyboard.press('s'); return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0; }); await reset();
-    await ok('kbAssign', async () => { await page.keyboard.press('a'); return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0; }); await reset();
-    await ok('kbDue', async () => { await page.keyboard.press('Shift+d'); return await page.locator('#prodLayer .prod-duepop').count() > 0; }); await reset();
+    await ok('kbStatus', async () => signedOutWriteGuard(() => page.keyboard.press('s'))); await reset();
+    await ok('kbAssign', async () => signedOutWriteGuard(() => page.keyboard.press('a'))); await reset();
+    await ok('kbDue', async () => signedOutWriteGuard(() => page.keyboard.press('Shift+d'))); await reset();
     await ok('kbProj', async () => { await page.keyboard.press('Shift+p'); return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0; }); await reset();
     await ok('kbSelectAll', async () => {
       await page.keyboard.press('Control+a');
@@ -655,37 +685,28 @@ async function txt(page, sel) {
       return before === after && (await txt(page, '#prodToast')).includes('Preview - read-only');
     }); await reset();
     await ok('pickerNum', async () => {
-      const before = await page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status])));
-      await page.locator('.prod-row .prod-status[data-st]').first().click();
-      await page.locator('#prodLayer [data-prod-search]').press('2');
-      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-      const after = await page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status])));
-      return before === after;
+      const guarded = await signedOutClick('.prod-row .prod-status[data-st]');
+      await page.keyboard.press('2');
+      return guarded && await page.locator('#prodLayer [data-prod-search], #prodLayer [data-prod-pick]').count() === 0;
     }); await reset();
     await ok('pickerArrow', async () => {
-      await page.locator('.prod-row .prod-status[data-st]').first().click();
-      const i0 = await page.locator('#prodLayer [data-prod-pick].sel').first().getAttribute('data-prod-pick');
-      await page.locator('#prodLayer [data-prod-search]').press('ArrowDown');
-      const i1 = await page.locator('#prodLayer [data-prod-pick].sel').first().getAttribute('data-prod-pick');
-      return i0 !== i1;
+      const guarded = await signedOutClick('.prod-row .prod-status[data-st]');
+      await page.keyboard.press('ArrowDown');
+      return guarded && await page.locator('#prodLayer [data-prod-search], #prodLayer [data-prod-pick]').count() === 0;
     }); await reset();
     await ok('composerEsc', async () => {
       await page.locator('.prod-row').first().click();
       await page.waitForSelector('.prod-detail');
-      await page.locator('[data-prod-disabled="composer"]').click();
-      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-      return await page.locator('.prod-detail-title').count() === 1;
+      return await signedOutClick('[data-prod-disabled="composer"]')
+        && await page.locator('.prod-detail-title').count() === 1;
     }); await reset();
     await ok('selPersist', async () => {
       await page.keyboard.press('Control+a');
       const before = await page.evaluate(() => _prodState.selected.size);
       await page.locator('#prodBulkActions').click();
-      await page.locator('#prodLayer [data-prod-ctx="assign"]').click();
-      await page.waitForSelector('#prodLayer [data-prod-pick]', { timeout: 5000 });
-      await page.locator('#prodLayer [data-prod-pick]').first().click();
-      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const guarded = await signedOutWriteGuard(() => page.locator('#prodLayer [data-prod-ctx="assign"]').dispatchEvent('click'));
       const after = await page.evaluate(() => _prodState.selected.size);
-      return before > 1 && after === before;
+      return guarded && before > 1 && after === before;
     }); await reset();
     await ok('copyCount', async () => {
       await page.keyboard.press('Control+a');
@@ -727,8 +748,8 @@ async function txt(page, sel) {
     }); await reset();
     await ok('kfocusShortcut', async () => {
       await page.keyboard.press('j');
-      await page.keyboard.press('s');
-      return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0 && await page.locator('.prod-detail').count() === 0;
+      return await signedOutWriteGuard(() => page.keyboard.press('s'))
+        && await page.locator('.prod-detail').count() === 0;
     }); await reset();
     await ok('groupPartial', async () => await page.evaluate(() => {
       const group = _prodGroupsFor(_prodIssueRows()).find(g => g.items.length > 1);
@@ -800,11 +821,11 @@ async function txt(page, sel) {
     }); await reset();
     await ok('submenuEscape', async () => {
       await page.locator('.prod-row').first().click({ button: 'right' });
-      await page.locator('.prod-pop [data-prod-ctx="status"]').hover();
-      const twoPops = await page.locator('#prodLayer .prod-pop').count();
-      await page.locator('#prodLayer .prod-pop [data-prod-search]').last().press('Escape');
+      const guarded = await signedOutWriteGuard(() => page.locator('.prod-pop [data-prod-ctx="status"]').dispatchEvent('mouseenter'));
       const onePop = await page.locator('#prodLayer .prod-pop').count();
-      return twoPops === 2 && onePop === 1;
+      await page.keyboard.press('Escape');
+      const closed = await page.locator('#prodLayer .prod-pop').count();
+      return guarded && onePop === 1 && closed === 0;
     }); await reset();
     await ok('menuNav', async () => {
       await page.locator('.prod-row').first().click({ button: 'right' });
@@ -820,12 +841,16 @@ async function txt(page, sel) {
     }); await reset();
     await ok('menuNavEnter', async () => {
       await page.locator('.prod-row').first().click({ button: 'right' });
-      return await page.evaluate(() => {
+      const guarded = await signedOutWriteGuard(() => page.evaluate(() => {
         const pop = document.querySelector('#prodLayer .prod-pop');
-        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        const target = pop && pop.querySelector('[data-prod-ctx="status"]');
+        const items = pop ? [...pop.querySelectorAll('.prod-mi')] : [];
+        for (let i = 0; pop && target && pop.querySelector('.prod-mi.sel') !== target && i <= items.length; i++) {
+          pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        }
         pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        return document.querySelectorAll('#prodLayer .prod-pop').length >= 2;
-      });
+      }));
+      return guarded && await page.locator('#prodLayer .prod-pop').count() === 1;
     }); await reset();
     await ok('ppickNav', async () => {
       await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
@@ -840,25 +865,14 @@ async function txt(page, sel) {
       const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
       await page.locator('.prod-row').first().click();
       await page.waitForSelector('[data-prod-detail="' + id + '"]');
-      await page.locator('[data-prod-prop="assignee"]').click();
-      const open = await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Unassigned' }).count() >= 0;
-      const box = await page.locator('[data-prod-prop="status"]').boundingBox();
-      if (!box) return false;
-      await page.mouse.click(box.x + 8, box.y + box.height / 2);
-      await page.waitForTimeout(80);
-      const isStatus = await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Backlog' }).count() > 0;
-      return open && isStatus;
+      const assignGuarded = await signedOutClick('[data-prod-prop="assignee"]');
+      const statusGuarded = await signedOutClick('[data-prod-prop="status"]');
+      return assignGuarded && statusGuarded && await page.locator('#prodLayer .prod-pop').count() === 0;
     }); await reset();
     await ok('tabTrap', async () => {
-      await page.locator('.prod-row .prod-status[data-st]').first().click();
-      return await page.evaluate(() => {
-        const inp = document.querySelector('#prodLayer [data-prod-search]');
-        if (!inp) return false;
-        inp.focus();
-        const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
-        inp.dispatchEvent(ev);
-        return ev.defaultPrevented;
-      });
+      const guarded = await signedOutClick('.prod-row .prod-status[data-st]');
+      await page.keyboard.press('Tab');
+      return guarded && await page.locator('#prodLayer [data-prod-search]').count() === 0;
     }); await reset();
     await ok('groupProjectNav', async () => {
       await page.locator('#prodGroupBtn').click();
@@ -944,16 +958,16 @@ async function txt(page, sel) {
         const row = _prodIssues().find(i => i.parent && _prodIssue(i.parent)) || _prodIssueRows()[0];
         if (row) _prodOpenDeliverable(row.id);
       });
-      return await page.evaluate(() => {
+      return await page.evaluate(copy => {
         const actionable = document.querySelector('[data-prod-prop="due"]');
         const parent = document.querySelector('.prod-parent-link');
-        const okTransition = el => {
-          if (!el) return false;
-          const cs = getComputedStyle(el);
-          return cs.cursor === 'pointer' && cs.transitionDuration !== '0s' && cs.transitionProperty.includes('background');
-        };
-        return okTransition(actionable) && (!parent || okTransition(parent));
-      });
+        const guarded = actionable && getComputedStyle(actionable).cursor === 'default'
+          && actionable.getAttribute('aria-disabled') === 'true'
+          && actionable.getAttribute('data-prod-write') === 'off'
+          && actionable.getAttribute('data-prod-tip') === copy;
+        const parentNavigates = !parent || getComputedStyle(parent).cursor === 'pointer';
+        return guarded && parentNavigates;
+      }, SIGNED_OUT_WRITE_COPY);
     }); await reset();
     await ok('videoParentsStayVideoTeam', async () => {
       return await page.evaluate(() => {
@@ -972,10 +986,8 @@ async function txt(page, sel) {
         _prodState.focusRow = order[2] || '';
         _prodRender();
       });
-      await page.keyboard.press('s');
-      await page.locator('#prodLayer [data-prod-search]').press('Enter');
-      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-      return await page.evaluate(() => _prodState.selected.size === 2);
+      const guarded = await signedOutWriteGuard(() => page.keyboard.press('s'));
+      return guarded && await page.evaluate(() => _prodState.selected.size === 2);
     }); await reset();
     await ok('cardLead', async () => {
       await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
@@ -1058,8 +1070,8 @@ async function txt(page, sel) {
       return await page.locator('[data-prod-section="subissues"]').count() === 0;
     }); await reset();
     await ok('syncFocus', async () => {
-      await page.locator('.prod-row .prod-status[data-st]').first().click();
-      return await page.evaluate(() => document.activeElement === document.querySelector('#prodLayer [data-prod-search]'));
+      return await signedOutClick('.prod-row .prod-status[data-st]')
+        && await page.locator('#prodLayer [data-prod-search]').count() === 0;
     }); await reset();
     await ok('cardMenu', async () => {
       await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
@@ -1084,25 +1096,20 @@ async function txt(page, sel) {
       return collapsed && expanded;
     }); await reset();
     await ok('calArrowNav', async () => {
-      await page.locator('.prod-row .prod-due').first().click();
-      await page.locator('#prodLayer [data-prod-set="__custom__"]').click();
-      const beforeFocus = await page.locator('#prodLayer .prod-cal-d.focus').first().getAttribute('data-prod-day');
-      const beforeState = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.due])));
-      await page.locator('#prodLayer [data-prod-search]').press('ArrowRight');
-      const afterFocus = await page.locator('#prodLayer .prod-cal-d.focus').first().getAttribute('data-prod-day');
-      await page.locator('#prodLayer [data-prod-search]').press('Enter');
-      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-      const afterState = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.due])));
-      return beforeFocus !== afterFocus && beforeState === afterState;
+      const guarded = await signedOutClick('.prod-row .prod-due');
+      await page.keyboard.press('ArrowRight');
+      return guarded && await page.locator('#prodLayer .prod-cal-d, #prodLayer [data-prod-search]').count() === 0;
     }); await reset();
     await ok('calEscape', async () => {
       const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
       await page.evaluate(rowId => _prodOpenDeliverable(rowId), id);
       await page.waitForSelector('.prod-detail');
-      await page.locator('[data-prod-prop="due"]').click();
-      await page.locator('#prodLayer [data-prod-set="__custom__"]').click();
-      await page.locator('#prodLayer [data-prod-search]').press('Escape');
-      return await page.locator('.prod-detail').count() === 1 && await page.locator('#prodLayer .prod-pop').count() === 0;
+      const guarded = await signedOutClick('[data-prod-prop="due"]');
+      const stayedInDetail = await page.locator('.prod-detail').count() === 1;
+      await page.keyboard.press('Escape');
+      return guarded && stayedInDetail
+        && await page.evaluate(() => _prodState.view === 'list')
+        && await page.locator('#prodLayer .prod-pop').count() === 0;
     }); await reset();
     await ok('subDueEmpty', async () => {
       const parentId = await page.evaluate(() => {
@@ -1164,9 +1171,9 @@ async function txt(page, sel) {
       await page.keyboard.press('j');
       const focused = await page.evaluate(() => _prodState.focusRow);
       await page.locator('.prod-row').nth(2).hover();
-      await page.keyboard.press('s');
+      const guarded = await signedOutWriteGuard(() => page.keyboard.press('s'));
       const focusStillWins = await page.evaluate(id => _prodState.focusRow === id && _prodState.hoverRow !== id, focused);
-      return !!focused && focusStillWins && await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0;
+      return guarded && !!focused && focusStillWins;
     }); await reset();
     await ok('clearFilters', async () => {
       await page.evaluate(() => { _prodState.filters = [{ field: 'status', values: ['__none__'] }]; _prodRender(); });
@@ -1234,12 +1241,11 @@ async function txt(page, sel) {
       const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
       await page.evaluate(rowId => _prodOpenDeliverable(rowId), id);
       await page.waitForSelector('.prod-detail');
-      await page.locator('[data-prod-prop="due"]').click();
-      await page.waitForFunction(() => document.activeElement === document.querySelector('#prodLayer [data-prod-search]'), null, { timeout: 1000 }).catch(() => {});
-      return await page.evaluate(() => document.activeElement === document.querySelector('#prodLayer [data-prod-search]'));
+      return await signedOutClick('[data-prod-prop="due"]')
+        && await page.locator('#prodLayer [data-prod-search]').count() === 0;
     }); await reset();
     await ok('ctrlXGuard', async () => {
-      await page.locator('.prod-row').first().hover();
+      await page.locator('.prod-row').first().dispatchEvent('mousemove');
       await page.keyboard.press('Control+x');
       const noSel = await page.evaluate(() => _prodState.selected.size === 0);
       await page.keyboard.press('x');
@@ -1249,12 +1255,12 @@ async function txt(page, sel) {
       const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
       await page.evaluate(rowId => _prodOpenDeliverable(rowId), id);
       await page.waitForSelector('.prod-detail');
-      await page.locator('[data-prod-disabled="composer"]').click();
-      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-      return (await txt(page, '#prodToast')).includes('Preview - read-only');
+      return signedOutClick('[data-prod-disabled="composer"]');
     }); await reset();
     await ok('filterArrowRight', async () => {
-      await page.locator('#prodFilterBtn').click();
+      // The menu render replaces the clicked button's surrounding toolbar;
+      // dispatch avoids Playwright waiting for post-click element stability.
+      await page.locator('#prodFilterBtn').dispatchEvent('click');
       return await page.evaluate(() => {
         const pop = document.querySelector('#prodLayer .prod-pop');
         pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
@@ -1270,14 +1276,11 @@ async function txt(page, sel) {
         _prodRender();
       });
       if (!await page.locator('[data-prod-actionbar]').count()) return true;
-      const before = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.due])));
-      await page.keyboard.press('Shift+d');
-      const opened = await page.locator('#prodLayer .prod-duepop').count() === 1;
-      await page.locator('#prodLayer [data-prod-set="__custom__"]').click();
-      await page.locator('#prodLayer [data-prod-search]').press('Enter');
-      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-      const after = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.due])));
-      return opened && before === after && (await txt(page, '#prodToast')).includes('Preview - read-only');
+      const selectionBefore = await page.evaluate(() => _prodState.selected.size);
+      const guarded = await signedOutWriteGuard(() => page.keyboard.press('Shift+d'));
+      return guarded
+        && await page.evaluate(before => _prodState.selected.size === before, selectionBefore)
+        && await page.locator('#prodLayer [data-prod-set="__custom__"], #prodLayer [data-prod-search]').count() === 0;
     }); await reset();
     await ok('commentBodyWrap', async () => {
       const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
@@ -1409,19 +1412,18 @@ async function txt(page, sel) {
       const shrank = await page.evaluate(o => _prodState.selected.size === 2 && _prodState.selected.has(o[0]) && _prodState.selected.has(o[1]) && !_prodState.selected.has(o[2]), order);
       return grew && shrank;
     }); await reset();
-    await ok('dueSubmenuFlip', async () => await page.evaluate(() => {
-      const id = _prodFlatOrder()[0];
-      if (!id) return true;
-      _prodOpenContextMenu({ preventDefault(){}, stopPropagation(){}, clientX: innerWidth - 198, clientY: 120 }, 'issue', id);
-      const parent = document.querySelector('#prodLayer .prod-pop');
-      const pr = parent.getBoundingClientRect();
-      const dueItem = [...document.querySelectorAll('#prodLayer [data-prod-ctx]')].find(el => el.getAttribute('data-prod-ctx') === 'due');
-      dueItem.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-      const duepop = document.querySelector('#prodLayer .prod-duepop');
-      if (!duepop) return false;
-      const dr = duepop.getBoundingClientRect();
-      return dr.right <= pr.left + 12 && dr.left >= 0;
-    })); await reset();
+    await ok('dueSubmenuFlip', async () => {
+      const opened = await page.evaluate(() => {
+        const id = _prodFlatOrder()[0];
+        if (!id) return false;
+        _prodOpenContextMenu({ preventDefault(){}, stopPropagation(){}, clientX: innerWidth - 198, clientY: 120 }, 'issue', id);
+        return true;
+      });
+      if (!opened) return true;
+      const parentBox = await page.locator('#prodLayer .prod-pop').first().boundingBox();
+      const guarded = await signedOutWriteGuard(() => page.locator('#prodLayer [data-prod-ctx="due"]').dispatchEvent('mouseenter'));
+      return guarded && !!parentBox && parentBox.x >= 0 && parentBox.x + parentBox.width <= 1440;
+    }); await reset();
     await ok('titleTooltip', async () => await page.evaluate(() => {
       const id = _prodFlatOrder()[0];
       const row = _prodIssue(id);
@@ -1520,7 +1522,7 @@ async function txt(page, sel) {
       _prodRender();
       return hasFull && longOk;
     })); await reset();
-    await ok('sideDueTooltip', async () => await page.evaluate(() => {
+    await ok('sideDueTooltip', async () => await page.evaluate(copy => {
       const id = _prodFlatOrder()[0];
       const row = _prodIssue(id);
       if (!row) return true;
@@ -1528,14 +1530,16 @@ async function txt(page, sel) {
       const orig = row.due;
       row.due = 'Aug 3';
       _prodRender();
-      const withDate = (document.querySelector('[data-prod-prop="due"]').getAttribute('data-prod-tip') || '').includes('Aug 3');
+      const withDateEl = document.querySelector('[data-prod-prop="due"]');
+      const withDate = withDateEl.getAttribute('data-prod-tip') === copy && withDateEl.textContent.includes('Aug 3');
       row.due = '';
       _prodRender();
-      const empty = document.querySelector('[data-prod-prop="due"]').getAttribute('data-prod-tip') === 'Set due date';
+      const emptyEl = document.querySelector('[data-prod-prop="due"]');
+      const empty = emptyEl.getAttribute('data-prod-tip') === copy && emptyEl.textContent.includes('Add due date');
       row.due = orig;
       _prodRender();
       return withDate && empty;
-    })); await reset();
+    }, SIGNED_OUT_WRITE_COPY)); await reset();
     await ok('paletteWrap', async () => {
       await page.locator('.prod-search-btn').click();
       const n = await page.locator('.prod-cmd-item').count();
@@ -1569,22 +1573,13 @@ async function txt(page, sel) {
       return await page.evaluate(() => _prodState.tab === 'active' && _prodState.filters.some(f => f.field === 'assignee') && _prodIssueRows().length > 0);
     }); await reset();
     await ok('calMonthNavFocus', async () => {
-      await page.locator('.prod-row .prod-due').first().click();
-      await page.locator('#prodLayer [data-prod-set="__custom__"]').click();
-      const before = await txt(page, '#prodLayer .prod-cal-mo');
-      await page.locator('#prodLayer [data-prod-cal="1"]').click();
-      const after = await txt(page, '#prodLayer .prod-cal-mo');
-      return before !== after && await page.locator('#prodLayer .prod-cal-d.focus').count() === 1;
+      return await signedOutClick('.prod-row .prod-due')
+        && await page.locator('#prodLayer .prod-cal-mo, #prodLayer [data-prod-cal]').count() === 0;
     }); await reset();
     await ok('calTypedDate', async () => {
-      await page.locator('.prod-row .prod-due').first().click();
-      await page.locator('#prodLayer [data-prod-set="__custom__"]').click();
-      const before = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.due])));
-      await page.fill('#prodLayer .prod-duepop [data-prod-search]', 'Jul 25');
-      await page.locator('#prodLayer .prod-duepop [data-prod-search]').press('Enter');
-      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
-      const after = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.due])));
-      return before === after && (await txt(page, '#prodToast')).includes('Preview - read-only');
+      const guarded = await signedOutClick('.prod-row .prod-due');
+      await page.keyboard.type('Jul 25');
+      return guarded && await page.locator('#prodLayer .prod-duepop [data-prod-search]').count() === 0;
     }); await reset();
     await ok('pcardNameTooltip', async () => await page.evaluate(() => {
       _prodState.view = 'board';
@@ -1632,13 +1627,9 @@ async function txt(page, sel) {
       await page.fill('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-search]', 'status');
       const visibleLabels = await page.locator('#prodLayer .prod-pop[data-prod-bulkcmd] [data-prod-ctx]').evaluateAll(els => els.filter(el => el.style.display !== 'none').map(el => el.textContent.trim()).join('|'));
       if (!visibleLabels.includes('Change status...') || visibleLabels.includes('Assign to...')) return false;
-      await page.evaluate(() => document.querySelector('#prodLayer [data-prod-ctx="status"]')?.click());
-      await page.waitForSelector('#prodLayer [data-prod-pick]', { timeout: 5000 });
-      const isStatus = await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Backlog' }).count() > 0;
-      await page.locator('#prodLayer [data-prod-pick]').first().click();
-      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const guarded = await signedOutWriteGuard(() => page.locator('#prodLayer [data-prod-ctx="status"]').dispatchEvent('click'));
       const after = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.status])));
-      return isStatus && before === after && (await txt(page, '#prodToast')).includes('Preview - read-only') && await page.locator('[data-prod-actionbar].menu-open').count() === 0;
+      return guarded && before === after && await page.locator('#prodLayer [data-prod-pick]').count() === 0;
     }); await reset();
     await ok('bulkCopyIssueId', async () => {
       const expected = await page.evaluate(() => {
@@ -1658,14 +1649,16 @@ async function txt(page, sel) {
       return copied === expected && (await txt(page, '#prodToast')).includes('issue IDs copied');
     }); await reset();
     await ok('pickerNoResults', async () => {
-      await page.locator('.prod-row .prod-status[data-st]').first().click();
-      await page.fill('#prodLayer [data-prod-search]', 'qqzzxx');
-      return await page.locator('#prodLayer .prod-pop-empty', { hasText: 'No results' }).count() === 1;
+      const guarded = await signedOutClick('.prod-row .prod-status[data-st]');
+      return guarded && await page.locator('#prodLayer [data-prod-search], #prodLayer .prod-pop-empty').count() === 0;
     }); await reset();
     await ok('composerHint', async () => {
       await page.locator('.prod-row').first().click();
       await page.waitForSelector('.prod-detail');
-      return (await txt(page, '[data-prod-disabled="composer"]')).toLowerCase().includes('comment');
+      const composer = page.locator('[data-prod-disabled="composer"]');
+      return (await txt(page, '[data-prod-disabled="composer"]')) === SIGNED_OUT_WRITE_COPY
+        && (await composer.getAttribute('title')) === SIGNED_OUT_WRITE_COPY
+        && (await composer.getAttribute('data-prod-tip')) === SIGNED_OUT_WRITE_COPY;
     }); await reset();
     await ok('pdetail', async () => await page.evaluate(() => {
       _prodState.view = 'board';
@@ -2001,12 +1994,11 @@ async function txt(page, sel) {
       await page.locator('.prod-row .prod-chip-client').first().click();
       return await page.evaluate(k => _prodState.view === 'project' && _prodState.openProjectId === k && !_prodState.clientSlug, slug);
     }); await reset();
-    await ok('rowStatusGuard', async () => await guardClick('.prod-row .prod-status', '.prod-pop [data-prod-pick]')); await reset();
-    await ok('rowDueGuard', async () => await guardClick('.prod-row .prod-due', '.prod-pop [data-prod-day]')); await reset();
+    await ok('rowStatusGuard', async () => signedOutClick('.prod-row .prod-status')); await reset();
+    await ok('rowDueGuard', async () => signedOutClick('.prod-row .prod-due')); await reset();
     await ok('contextStatusSubmenu', async () => {
       await page.locator('.prod-row').first().click({ button: 'right' });
-      await page.locator('.prod-pop [data-prod-ctx="status"]').hover();
-      return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0;
+      return signedOutWriteGuard(() => page.locator('.prod-pop [data-prod-ctx="status"]').dispatchEvent('mouseenter'));
     }); await reset();
     await ok('contextCopyDeepLink', async () => {
       await page.locator('.prod-row').first().click({ button: 'right' });
@@ -2026,13 +2018,12 @@ async function txt(page, sel) {
     }); await reset();
     await ok('keyboardStatusGuardOpens', async () => {
       await page.keyboard.press('ArrowDown');
-      await page.keyboard.press('s');
-      return await page.locator('.prod-pop [data-prod-pick]').count() > 0;
+      return signedOutWriteGuard(() => page.keyboard.press('s'));
     }); await reset();
     await ok('detailPropertyGuard', async () => {
       await page.locator('.prod-row').first().click();
       await page.waitForSelector('.prod-detail');
-      return await guardClick('[data-prod-prop="assignee"]', '.prod-pop [data-prod-pick]');
+      return signedOutClick('[data-prod-prop="assignee"]');
     }); await reset();
     await ok('boardColumnCollapse', async () => {
       await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();

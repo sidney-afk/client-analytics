@@ -44,6 +44,22 @@ const changed = publicPayload({
   zero_write_proof: { ...base.zero_write_proof, outbox_high_water_after: 21 },
 });
 ok(changed.ok === false && changed.zero_write_proof === false, 'queue movement during the audit is red');
+const liveMovement = publicPayload({
+  ...base,
+  zero_write_proof: {
+    ...base.zero_write_proof,
+    runtime_flag_digest_unchanged: false,
+    protected_flag_digest_unchanged: true,
+    operational_controls_changed: true,
+    queue_stability_required: false,
+    queue_stable: false,
+    outbox_high_water_after: 21,
+  },
+});
+ok(liveMovement.ok === true
+  && liveMovement.zero_write_proof === true
+  && liveMovement.queue_stability_required === false,
+'legitimate live-team queue movement stays green while protected flags and zero-mutation proof hold');
 const drift = publicPayload({ ...base, divergences: { unexpected: 1 } });
 ok(drift.ok === false && drift.unexpected_divergences === 1, 'unexpected divergence is red');
 

@@ -73,6 +73,30 @@ export function normalizeOperation(value) {
   return OPERATIONS.includes(operation) ? operation : "";
 }
 
+export function credentialMode(staffKey, clientToken) {
+  const hasStaffKey = !!clean(staffKey);
+  const hasClientToken = !!clean(clientToken);
+  if (hasStaffKey && hasClientToken) return "ambiguous";
+  if (hasStaffKey) return "staff";
+  if (hasClientToken) return "client";
+  return "none";
+}
+
+export function clientScopeAllowed(authenticatedSlug, targetSlug) {
+  const authenticated = clean(authenticatedSlug);
+  return !!authenticated && authenticated === clean(targetSlug);
+}
+
+export function isCanonicalActiveTestClient(active, kind) {
+  return active === true && lower(kind) === "test";
+}
+
+export function serviceTestOverrideAllowed(staffKey, clientToken, confirm, serviceAuthenticated) {
+  return credentialMode(staffKey, clientToken) === "none"
+    && clean(confirm) === "B4_TEST_ONLY"
+    && serviceAuthenticated === true;
+}
+
 export function roleCompatible(keyRole, memberRole) {
   const key = lower(keyRole);
   const member = lower(memberRole);
@@ -106,7 +130,7 @@ export function legacyParityAllowed(surface, operation) {
   if ((lane === "calendar" || lane === "sxr") && (op === "status" || op === "comment")) {
     return true;
   }
-  return lane === "submission" && op === "intake_create";
+  return (lane === "submission" || lane === "calendar") && op === "intake_create";
 }
 
 // A browser credential and the service-only TEST drill are mutually exclusive
@@ -143,14 +167,34 @@ export function validDateOrNull(value) {
     && date.getUTCDate() === day;
 }
 
-function idFrom(value) {
-  if (typeof value === "string") return clean(value);
-  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
-  for (const key of ["id", "project_id", "linear_project_id"]) {
-    const id = clean(value[key]);
-    if (id) return id;
-  }
-  return "";
+// Match the legacy linear-set-status bridge exactly: an overdue YYYY-MM-DD
+// due date is moved to the current UTC date plus two days. It is deliberately
+// not incremented from the stale due date.
+export function overdueStatusBumpDate(value, now = Date.now()) {
+  if (!validDateOrNull(value) || !clean(value)) return "";
+  const [year, month, day] = clean(value).split("-").map(Number);
+  const dueMs = Date.UTC(year, month - 1, day);
+  const current = new Date(now);
+  const todayMs = Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), current.getUTCDate());
+  if (dueMs >= todayMs) return "";
+  return new Date(todayMs + 2 * 24 * 60 * 60 * 1_000).toISOString().slice(0, 10);
+}
+
+// D-30 preserves the legacy side effect by default. The runtime flag is a
+// kill switch, so only the exact operator value { enabled: false } disables
+// it; missing, malformed, or unreadable values must not freeze status writes.
+export function overdueStatusBumpEnabled(value) {
+  return !(value
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && value.enabled === false);
+}
+
+function idsFrom(value) {
+  if (typeof value === "string") return clean(value) ? [clean(value)] : [];
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return [...new Set(["id", "project_id", "linear_project_id"]
+    .map(key => clean(value[key])).filter(Boolean))];
 }
 
 // Only explicitly team-tagged values are accepted. An arbitrary untagged list
@@ -159,65 +203,146 @@ export function projectIdsForTeam(value, wantedTeam) {
   const wanted = normalizeTeam(wantedTeam);
   if (!wanted) return [];
   const found = new Set();
-  const seen = new Set();
+  const root = value && typeof value === "object" ? value : null;
+  if (!root) return [];
 
-  function visit(current, inheritedTeam = "") {
-    if (current == null) return;
-    if (typeof current === "string") {
-      if (inheritedTeam === wanted && clean(current)) found.add(clean(current));
-      return;
-    }
-    if (typeof current !== "object" || seen.has(current)) return;
-    seen.add(current);
-    if (Array.isArray(current)) {
-      for (const item of current) visit(item, inheritedTeam);
-      return;
-    }
-
-    const explicitTeam = normalizeTeam(
-      current.team || current.team_key || current.key || current.kind || inheritedTeam,
-    );
-    const ownId = idFrom(current);
-    if (explicitTeam === wanted && ownId) found.add(ownId);
-
-    for (const [key, child] of Object.entries(current)) {
-      if (["id", "project_id", "linear_project_id", "team", "team_key", "kind"].includes(key)) continue;
-      const keyedTeam = normalizeTeam(key);
-      visit(child, keyedTeam || explicitTeam || inheritedTeam);
-    }
+  function addExplicit(entry) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return;
+    const team = normalizeTeam(entry.team || entry.team_key || entry.key || entry.kind);
+    if (team === wanted) idsFrom(entry).forEach(id => found.add(id));
   }
 
-  visit(value);
+  if (Array.isArray(root)) {
+    root.forEach(addExplicit);
+  } else {
+    // Canonical mapping: { video: "id", graphics: { id: "id" } }.
+    // Only the direct team value or its recognized ID fields count; arbitrary
+    // nested metadata under a team key is deliberately ignored.
+    for (const [key, entry] of Object.entries(root)) {
+      if (normalizeTeam(key) !== wanted) continue;
+      idsFrom(entry).forEach(id => found.add(id));
+    }
+    addExplicit(root);
+    // Optional explicit list wrapper; entries must carry their own team tag.
+    if (Array.isArray(root.projects)) root.projects.forEach(addExplicit);
+  }
   return [...found].sort();
 }
 
-// Legacy client rows currently contain plain project ids without a team tag.
-// The gateway may inspect those ids, but it must validate their actual Linear
-// team server-side before selecting one for an intake write.
-export function configuredProjectIds(value) {
+function linearIssueIdsFrom(value) {
+  if (typeof value === "string") return clean(value) ? [clean(value)] : [];
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return [...new Set(["id", "uuid", "linear_issue_id"]
+    .map(key => clean(value[key])).filter(Boolean))];
+}
+
+// Batch parent routing is deliberately stricter than the outbound drainer's
+// historical compatibility fallback. Appends may use only an explicitly
+// team-tagged parent; they never borrow the first parent from the other team.
+export function parentIdsForTeam(value, wantedTeam) {
+  const wanted = normalizeTeam(wantedTeam);
+  if (!wanted) return [];
   const found = new Set();
-  const seen = new Set();
-  function visit(current) {
-    if (current == null) return;
-    if (typeof current === "string") {
-      if (clean(current)) found.add(clean(current));
-      return;
+  const root = value && typeof value === "object" ? value : null;
+  if (!root) return [];
+
+  function addExplicit(entry) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return;
+    const team = normalizeTeam(entry.team || entry.team_key || entry.key || entry.kind);
+    if (team === wanted) linearIssueIdsFrom(entry).forEach(id => found.add(id));
+  }
+
+  if (Array.isArray(root)) {
+    root.forEach(addExplicit);
+  } else {
+    for (const [key, entry] of Object.entries(root)) {
+      if (normalizeTeam(key) !== wanted) continue;
+      linearIssueIdsFrom(entry).forEach(id => found.add(id));
     }
-    if (typeof current !== "object" || seen.has(current)) return;
-    seen.add(current);
-    if (Array.isArray(current)) {
-      for (const item of current) visit(item);
-      return;
-    }
-    const ownId = idFrom(current);
-    if (ownId) found.add(ownId);
-    for (const [key, child] of Object.entries(current)) {
-      if (["id", "project_id", "linear_project_id", "team", "team_key", "key", "kind"].includes(key)) continue;
-      visit(child);
+    addExplicit(root);
+    if (Array.isArray(root.parents)) root.parents.forEach(addExplicit);
+  }
+  return [...found].sort();
+}
+
+// The browser may describe the post, but it does not own batch ordering. The
+// gateway allocates one shared ordinal/sort slot per paired card and the SQL
+// append RPC re-checks this plan while holding the batch lock.
+export function planAppendIntakeItems(existingRows, requestItems, requestIds) {
+  if (!Array.isArray(existingRows) || !Array.isArray(requestItems)
+      || !Array.isArray(requestIds) || requestItems.length !== requestIds.length
+      || requestItems.length < 1) {
+    throw new Error("invalid_intake_append_plan");
+  }
+
+  const requestIdSet = new Set(requestIds.map(clean));
+  if (requestIdSet.size !== requestIds.length || requestIdSet.has("")) {
+    throw new Error("invalid_intake_append_plan");
+  }
+  const existingById = new Map(existingRows.map(row => [clean(row && row.id), row]));
+  const groups = new Map();
+  requestItems.forEach((item, index) => {
+    const cardId = clean(item && item.card_id);
+    const team = normalizeTeam(item && item.team);
+    if (!cardId || !team) throw new Error("invalid_intake_append_pair");
+    if (!groups.has(cardId)) groups.set(cardId, []);
+    groups.get(cardId).push({ index, team });
+  });
+  for (const entries of groups.values()) {
+    const teams = new Set(entries.map(entry => entry.team));
+    if (entries.length !== 2 || teams.size !== 2 || !teams.has("video") || !teams.has("graphics")) {
+      throw new Error("invalid_intake_append_pair");
     }
   }
-  visit(value);
-  return [...found].sort();
+
+  let maxSort = -1;
+  let maxOrdinal = 0;
+  for (const row of existingRows) {
+    if (!row || requestIdSet.has(clean(row.id))) continue;
+    const sort = Number(row.sort_key);
+    if (Number.isFinite(sort)) maxSort = Math.max(maxSort, sort);
+    const match = /^Video ([1-9][0-9]*)$/.exec(clean(row.title));
+    if (match) maxOrdinal = Math.max(maxOrdinal, Number(match[1]));
+  }
+
+  const planned = requestItems.map(item => ({ ...item }));
+  let nextGroup = 0;
+  for (const [cardId, entries] of groups.entries()) {
+    nextGroup++;
+    const prior = entries.map(entry => existingById.get(clean(requestIds[entry.index]))).filter(Boolean);
+    let ordinal;
+    let sortKey;
+    if (prior.length) {
+      if (prior.length !== entries.length) throw new Error("intake_id_conflict");
+      const ordinals = new Set(prior.map(row => {
+        const match = /^Video ([1-9][0-9]*)$/.exec(clean(row.title));
+        return match ? Number(match[1]) : 0;
+      }));
+      const sorts = new Set(prior.map(row => Number(row.sort_key)));
+      const teams = new Set(prior.map(row => normalizeTeam(row.team)));
+      if (ordinals.size !== 1 || ordinals.has(0) || sorts.size !== 1
+          || !Number.isFinite([...sorts][0]) || teams.size !== 2
+          || prior.some(row => clean(row.card_id) !== cardId)) {
+        throw new Error("intake_id_conflict");
+      }
+      ordinal = [...ordinals][0];
+      sortKey = [...sorts][0];
+    } else {
+      ordinal = maxOrdinal + nextGroup;
+      sortKey = maxSort + nextGroup;
+    }
+    for (const entry of entries) {
+      planned[entry.index] = {
+        ...planned[entry.index],
+        videoNumber: ordinal,
+        number: ordinal,
+        title: `Video ${ordinal}`,
+        sort_key: sortKey,
+        _intake_ordinal: ordinal,
+      };
+    }
+  }
+  return planned;
 }
 
 export async function deterministicNativeId(prefix, requestId, discriminator) {

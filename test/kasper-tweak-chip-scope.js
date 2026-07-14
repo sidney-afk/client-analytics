@@ -75,6 +75,7 @@ const REAL = [
   grabFunc('_calCommentRoots'),
   grabFunc('_calMsgIsTweak'),
   grabFunc('_calCompHasUnresolvedKasperTweak'),
+  grabFunc('_calCompLinked'),
   grabFunc('_calCompKasperVisible'),
   grabFunc('_calOpenCommentCount'),
   grabFunc('_kasperOpenTweakCount'),

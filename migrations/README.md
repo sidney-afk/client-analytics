@@ -24,6 +24,12 @@ CI, `supabase/config.toml`, or `scripts/` executes these files (see
   legacy-parity outbox intents, seeds their independent reversible kill gate,
   and adds the atomic normalized-comment + outbox writer used by the Write-UI
   gateway. Existing authority and outbound-mode flag values are untouched.
+- **`2026-07-13-production-intake-append.sql`** adds the service-only atomic
+  append-to-existing-batch RPC used by native Calendar intake. It locks and CAS
+  advances the batch cursor, validates exact team-parent routes, and commits the
+  paired Video + Graphics rows/events/outbox intents in one transaction. It
+  changes no runtime flag; its owner-only one-command rollback block is included
+  at the bottom of the file.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

@@ -50,12 +50,16 @@ jobs:
             mode,
             counts,
             backlog,
+            authority,
+            oldest_pending_minutes,
+            oldest_pending_alert_threshold_minutes,
+            oldest_pending_alert_teams,
             alerts
           }'
           {
             echo "## SyncView Linear outbound"
             echo '```json'
-            echo "$response" | jq '{event_id, mode, counts, backlog, alerts}'
+            echo "$response" | jq '{event_id, mode, counts, backlog, authority, oldest_pending_minutes, oldest_pending_alert_threshold_minutes, oldest_pending_alert_teams, alerts}'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$(echo "$response" | jq -r '.ok')" != "true" ]; then

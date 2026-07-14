@@ -1,0 +1,46 @@
+{
+  "calendarPosts": [
+    {
+      "id": "strict_clean_id",
+      "client": "fixture-client",
+      "status": "active",
+      "linear_issue_id": "https://linear.app/synchro/issue/VID-904/clean-id",
+      "video_deliverable_id": "clean-video-id",
+      "graphic_linear_issue_id": "",
+      "graphic_deliverable_id": ""
+    },
+    {
+      "id": "strict_clean_exact_url",
+      "client": "fixture-client",
+      "status": "active",
+      "linear_issue_id": "",
+      "video_deliverable_id": "",
+      "graphic_linear_issue_id": "https://linear.app/synchro/issue/GRA-905/clean-url?view=card#top",
+      "graphic_deliverable_id": ""
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "clean-video-id",
+      "client_slug": "fixture-client",
+      "team": "video",
+      "kind": "video",
+      "status": "in_progress",
+      "linear_identifier": "VID-904",
+      "linear_issue_url": "https://linear.app/synchro/issue/VID-904/clean-id"
+    },
+    {
+      "id": "clean-graphic-url",
+      "client_slug": "fixture-client",
+      "team": "graphics",
+      "kind": "thumbnail",
+      "status": "in_progress",
+      "linear_identifier": "GRA-905",
+      "linear_issue_url": "https://linear.app/synchro/issue/GRA-905/clean-url"
+    }
+  ],
+  "sampleReviews": [],
+  "linearArchive": [],
+  "batches": [],
+  "members": []
+}

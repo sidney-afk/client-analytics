@@ -19,6 +19,9 @@ let TEST_CLIENT = '';
 const CONFIRMED = process.env.B4_CONFIRM_TEST_MUTATIONS === '1';
 const REPORT_PATH = String(process.env.PRODUCTION_WRITE_DRILL_REPORT || '');
 const PRIVATE_LOG_PATH = String(process.env.PRODUCTION_WRITE_DRILL_PRIVATE_LOG || '');
+const REAL_GRAPHIC_GENERATION = /^(1|true|yes)$/i.test(process.env.PRODUCTION_WRITE_DRILL_REAL_GRAPHIC_GENERATION || '');
+const DRILL_TEAMS = String(process.env.PRODUCTION_WRITE_DRILL_TEAMS || 'video,graphics')
+  .split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
 const RUN_ID = `write-ui-drill-${Date.now()}`;
 const STARTED_AT = new Date().toISOString();
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -125,18 +128,39 @@ async function flags() {
   }]));
 }
 
+function assertFlipTolerantStance(snapshot) {
+  const authority = parseJson(snapshot.prod_authority && snapshot.prod_authority.value);
+  const outbound = parseJson(snapshot.linear_outbound_enabled && snapshot.linear_outbound_enabled.value);
+  const inbound = parseJson(snapshot.linear_inbound_enabled && snapshot.linear_inbound_enabled.value);
+  const auth = parseJson(snapshot.auth_enforcement && snapshot.auth_enforcement.value);
+  for (const team of ['video', 'graphics']) {
+    assert(['linear', 'syncview', 'supabase'].includes(clean(authority[team]).toLowerCase()),
+      `production authority is invalid for ${team}`);
+  }
+  assert(['off', 'shadow', 'live'].includes(clean(outbound.mode).toLowerCase()),
+    'production outbound mode is invalid');
+  assert(inbound.enabled === true, 'production inbound must remain enabled');
+  assert(['permissive', 'enforced'].includes(clean(auth.mode).toLowerCase()),
+    'production auth mode is invalid');
+  return { authority, outbound, inbound, auth };
+}
+
 async function preflight() {
   assert(CONFIRMED, 'B4_CONFIRM_TEST_MUTATIONS=1 is required');
   assert(SUPA_KEY && LINEAR_KEY, 'Supabase service role and Linear read credential are required');
+  assert(DRILL_TEAMS.length > 0 && DRILL_TEAMS.every(team => ['video', 'graphics'].includes(team)),
+    'PRODUCTION_WRITE_DRILL_TEAMS must contain only video and/or graphics');
+  assert(new Set(DRILL_TEAMS).size === DRILL_TEAMS.length, 'PRODUCTION_WRITE_DRILL_TEAMS contains duplicates');
+  assert(!REAL_GRAPHIC_GENERATION || DRILL_TEAMS.includes('graphics'),
+    'real graphic generation requires the graphics drill lane');
   const rows = await rest('clients?select=slug,kind,active&kind=eq.test&active=eq.true&order=slug.asc');
   assert(rows.length === 1, `expected exactly one active TEST client, found ${rows.length}`);
   TEST_CLIENT = clean(rows[0].slug);
   assert(TEST_CLIENT, 'active TEST client has no slug');
   const before = await flags();
-  const authority = parseJson(before.prod_authority.value);
-  const outbound = parseJson(before.linear_outbound_enabled.value);
-  assert(authority.video === 'linear' && authority.graphics === 'linear', 'production authority must remain linear/linear');
-  assert(outbound.mode === 'off', 'production outbound must remain off');
+  // The TEST override is isolated from the real-team authority/outbound lane.
+  // Validate the current stance, but do not require a pre-cutover value.
+  assertFlipTolerantStance(before);
   return before;
 }
 
@@ -152,7 +176,7 @@ function rowFrom(response) {
 
 async function createFixture(team) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const response = await gateway({
+  const request = {
     operation: 'intake_create',
     surface: 'submission',
     client_slug: TEST_CLIENT,
@@ -163,8 +187,9 @@ async function createFixture(team) {
       title: team === 'video' ? `Write UI ${team} drill ${stamp}` : undefined,
       brief: team === 'video' ? 'Disposable TEST write-path drill.' : undefined,
     }],
-    skip_graphic_generation: team === 'graphics',
-  });
+  };
+  if (team === 'graphics' && !REAL_GRAPHIC_GENERATION) request.skip_graphic_generation = true;
+  const response = await gateway(request);
   const row = rowFrom(response);
   assert(response.batch && response.batch.id && row && row.id, `${team} native create response is incomplete`);
   return { team, batch: response.batch, row, operations: ['create'] };
@@ -220,7 +245,13 @@ async function verifyFixture(asset) {
   const issue = data.issue;
   assert(issue && issue.id === row.linear_issue_uuid, `${asset.team} mirrored issue is missing`);
   if (asset.team === 'graphics') {
-    assert(row.brief === 'Video 1' && issue.description === 'Video 1', 'graphics fallback description did not round-trip');
+    if (REAL_GRAPHIC_GENERATION) {
+      assert(clean(row.brief) && row.brief !== 'Video 1', 'graphics title provider did not return a generated title');
+      assert(issue.description === row.brief, 'generated graphics title did not round-trip to Linear');
+      asset.graphicGenerationVerified = true;
+    } else {
+      assert(row.brief === 'Video 1' && issue.description === 'Video 1', 'graphics fallback description did not round-trip');
+    }
   }
   assert(!issue.dueDate && !issue.assignee, `${asset.team} due/assignee clear did not reach Linear`);
   assert((issue.comments.nodes || []).filter(comment => clean(comment.body).includes(asset.commentMarker)).length === 1, `${asset.team} Linear comment is missing or duplicated`);
@@ -233,11 +264,13 @@ async function verifyFixture(asset) {
 }
 
 async function reconcile() {
-  const result = spawnSync(process.execPath, [
+  const reconcileArgs = [
     'scripts/linear-deliverables-reconcile.js',
     `--client=${TEST_CLIENT}`,
     `--test-authority-client=${TEST_CLIENT}`,
-  ], {
+  ];
+  if (DRILL_TEAMS.length === 1) reconcileArgs.push(`--team=${DRILL_TEAMS[0]}`);
+  const result = spawnSync(process.execPath, reconcileArgs, {
     cwd: path.join(__dirname, '..'),
     env: { ...process.env, APPLY: 'false', CAP: '15', B4_CONFIRM_TEST_MUTATIONS: '1' },
     encoding: 'utf8',
@@ -311,7 +344,7 @@ async function main() {
   let stage = 'preflight';
   try {
     flagsBefore = await preflight();
-    for (const team of ['video', 'graphics']) {
+    for (const team of DRILL_TEAMS) {
       stage = `${team}_create`;
       const asset = await createFixture(team);
       assets.push(asset);
@@ -352,7 +385,7 @@ async function main() {
     run_id: RUN_ID,
     generated_at: new Date().toISOString(),
     ok: !failure && cleanupOk,
-    team: 'both',
+    team: DRILL_TEAMS.length === 2 ? 'both' : DRILL_TEAMS[0],
     operations_completed: assets.reduce((sum, asset) => sum + asset.operations.length, 0),
     teams_completed: assets.filter(asset => asset.linear).length,
     echo_unexpected: assets.reduce((sum, asset) => sum + Number(asset.echoUnexpected || 0), 0),
@@ -361,6 +394,7 @@ async function main() {
     reconcile_linkage_actionable: reconciliation ? reconciliation.linkage_actionable : -1,
     flags_unchanged: flagsUnchanged,
     cleanup_ok: cleanupOk,
+    graphic_generation_verified: assets.some(asset => asset.graphicGenerationVerified === true),
     error_code: failure ? failureStage || 'drill_failed' : null,
   };
   if (REPORT_PATH) {
@@ -374,7 +408,7 @@ async function main() {
   return payload;
 }
 
-module.exports = { stable, stableJson, writePrivateFailure };
+module.exports = { assertFlipTolerantStance, stable, stableJson, writePrivateFailure };
 
 if (require.main === module) {
   main().catch(error => {

@@ -11,8 +11,9 @@ function ok(value, label) {
   else { failures++; console.error('FAIL  ' + label); }
 }
 function extract(name) {
-  const start = source.indexOf(`function ${name}`);
-  if (start < 0) throw new Error(`missing ${name}`);
+  const match = new RegExp(`function\\s+${name}\\s*\\(`).exec(source);
+  if (!match) throw new Error(`missing ${name}`);
+  const start = match.index;
   const brace = source.indexOf('{', start);
   let depth = 0, quote = '', escaped = false;
   for (let i = brace; i < source.length; i++) {
@@ -35,6 +36,8 @@ const context = {
   clientKind: 'video',
   _prodState: { authority: { video: 'linear', graphics: 'syncview' } },
 };
+context._calEscAttr = value => String(value || '');
+context._prodTeamLabel = value => value === 'graphics' ? 'Graphics' : 'Video';
 context._syncviewStaffIdentityForHeaders = () => context.identity;
 context._prodClient = () => ({ raw: { active: true, kind: context.clientKind } });
 vm.createContext(context);
@@ -44,6 +47,8 @@ vm.runInContext([
   extract('_prodTestWriteOverride'),
   extract('_prodRoleCanWrite'),
   extract('_prodCanWrite'),
+  extract('_prodWriteGateText'),
+  extract('_prodWriteGateAttrs'),
 ].join('\n'), context);
 
 const video = { id: 'v', team: 'video', project: 'client' };
@@ -68,6 +73,20 @@ ok(context._prodCanWrite(video, 'status') === true
 'creative access is own-team status/comment only; due, assignee, and cross-team remain closed');
 context.identity = null;
 ok(context._prodCanWrite(video, 'status') === false, 'missing verified staff identity fails closed');
+const deniedAttrs = context._prodWriteGateAttrs(video, 'due', { tip: 'Set due date' });
+ok(deniedAttrs.includes('data-prod-write="off"')
+  && deniedAttrs.includes('aria-disabled="true"')
+  && deniedAttrs.includes('title="Sign in with your staff account to write."')
+  && deniedAttrs.includes('data-prod-tip="Sign in with your staff account to write."'),
+'signed-out controls expose the exact staff sign-in lock to styling, accessibility, and tooltips');
+context.identity = { role: 'smm', member: { team: null } };
+context._prodState.authority.video = 'syncview';
+const allowedAttrs = context._prodWriteGateAttrs(video, 'assignee', { title: 'Alex Editor', tip: 'Assignee: Alex Editor' });
+ok(allowedAttrs.includes('data-prod-write="on"')
+  && allowedAttrs.includes('aria-disabled="false"')
+  && allowedAttrs.includes('title="Alex Editor"')
+  && allowedAttrs.includes('data-prod-tip="Assignee: Alex Editor"'),
+'writable controls preserve their allowed-state title and tooltip copy');
 
 ok(/PROD_WRITE_EF_URL\s*=\s*CAL_SUPABASE_URL \+ '\/functions\/v1\/production-write'/.test(source), 'browser uses the one authenticated Production write gateway');
 ok(/operation,\s*surface: 'production',\s*entity: 'deliverable',\s*id: issue\.id/.test(source), 'gateway envelope pins Production surface and native deliverable identity');
@@ -97,7 +116,13 @@ ok(/if \(draft\.body !== body\) draft\.requestId = ''/.test(source)
 'an ambiguous comment retry keeps one request id until the semantic draft changes');
 ok(!/localStorage[\s\S]{0,100}commentDrafts|commentDrafts[\s\S]{0,100}localStorage/.test(source), 'comment drafts remain memory-only');
 ok(/code === 'write_conflict'/.test(source) && /Current values were reloaded/.test(source), 'conflicts surface the reloaded-current-row retry path');
-ok(/data-prod-write=\\?"/.test(source) && /aria-disabled=\\?"/.test(source), 'write controls expose their gated state to styling and accessibility');
+const rowRenderers = ['_prodRow', '_prodSubIssueRowHTML', '_prodProjectIssueRowHTML'].map(extract);
+ok(rowRenderers.every(body => /_prodWriteGateAttrs\([^,]+, 'due'/.test(body)
+  && /_prodWriteGateAttrs\([^,]+, 'assignee'/.test(body)),
+'list, sub-issue, and project-issue rows share due and assignee gate attributes');
+ok(/_prodWriteGateAttrs\(issue, 'status'/.test(extract('_prodStatusIcon'))
+  && ['status', 'assignee', 'due'].every(operation => extract('_prodProps').includes(`_prodWriteGateAttrs(d, '${operation}')`)),
+'status icons and detail properties reuse the shared write-gate attribute helper');
 
 if (failures) {
   console.error(`\n${failures} Production write UI check(s) failed`);

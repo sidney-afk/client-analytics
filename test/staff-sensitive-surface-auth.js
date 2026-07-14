@@ -31,13 +31,24 @@ function ok(value, message) {
   'authorizeStaffKey',
   'staffAuthFailureStatus',
 ].forEach(token => ok(SHARED.includes(token), `shared role-key helper missing ${token}`));
-ok(DEPLOY_WORKFLOW.includes("supabase/functions/_shared/staff-role-auth.ts"),
+ok(DEPLOY_WORKFLOW.includes("supabase/functions/_shared/**"),
   'changes to the shared role-key helper must trigger the dependent Edge Function deploy workflow');
 ok(DEPLOY_WORKFLOW.includes("supabase/functions/key-verify/**"),
   'changes to key-verify must trigger its Edge Function deploy workflow');
 const deployLoop = (DEPLOY_WORKFLOW.match(/for fn in ([^;]+); do/) || [])[1] || '';
 ok(/(?:^|\s)key-verify(?:\s|$)/.test(deployLoop),
   'the shared auth deployment loop must deploy key-verify with its dependents');
+ok(DEPLOY_WORKFLOW.includes("supabase/functions/production-write/**")
+  && /(?:^|\s)production-write(?:\s|$)/.test(deployLoop),
+  'production-write and its shared imports deploy through the same workflow');
+ok(DEPLOY_WORKFLOW.includes("supabase/functions/linear-outbound/**")
+  && /(?:^|\s)linear-outbound(?:\s|$)/.test(deployLoop)
+  && deployLoop.indexOf('linear-outbound') < deployLoop.indexOf('production-write'),
+  'linear-outbound local modules deploy before the production-write caller from the same pinned SHA');
+ok(/commit_sha:[\s\S]{0,180}required: true/.test(DEPLOY_WORKFLOW)
+  && /git merge-base --is-ancestor "\$DEPLOY_COMMIT" origin\/main/.test(DEPLOY_WORKFLOW)
+  && /github\.event_name == 'workflow_dispatch' && inputs\.commit_sha \|\| github\.sha/.test(DEPLOY_WORKFLOW),
+  'manual deploys pin an exact main commit while automatic main pushes retain github.sha');
 
 ok(/import \{ matchingRoleForKey, type StaffRoleKey \} from "\.\.\/_shared\/staff-role-auth\.ts"/.test(KEY_VERIFY),
   'key-verify must use the same shared secret-to-role resolver as sensitive surfaces');

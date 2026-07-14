@@ -306,6 +306,10 @@ async function safetySnapshot() {
       linear_inbound_enabled: mapped.linear_inbound_enabled,
       auth_enforcement: mapped.auth_enforcement,
     }),
+    protected_flag_digest: digest({
+      linear_inbound_enabled: mapped.linear_inbound_enabled,
+      auth_enforcement: mapped.auth_enforcement,
+    }),
     active_slugs: activeSlugs,
     flagged_slugs: flaggedSlugs,
     real_slugs: realSlugs,
@@ -322,18 +326,19 @@ async function safetySnapshot() {
 function assertSafe(snapshot) {
   const flags = snapshot.flags || {};
   const outboundMode = clean(flags.linear_outbound_enabled && flags.linear_outbound_enabled.mode).toLowerCase();
-  if (!['off', 'shadow'].includes(outboundMode)) {
-    fail('linear_outbound_enabled must be off or shadow');
+  if (!['off', 'shadow', 'live'].includes(outboundMode)) {
+    fail('linear_outbound_enabled must be off, shadow, or live');
   }
-  if (clean(flags.prod_authority && flags.prod_authority.video).toLowerCase() !== 'linear'
-      || clean(flags.prod_authority && flags.prod_authority.graphics).toLowerCase() !== 'linear') {
-    fail('prod_authority must remain linear/linear');
+  for (const team of ['video', 'graphics']) {
+    if (!['linear', 'syncview', 'supabase'].includes(clean(flags.prod_authority && flags.prod_authority[team]).toLowerCase())) {
+      fail(`prod_authority is invalid for ${team}`);
+    }
   }
   if (!flags.linear_inbound_enabled || flags.linear_inbound_enabled.enabled !== true) {
     fail('linear_inbound_enabled must remain true');
   }
-  if (clean(flags.auth_enforcement && flags.auth_enforcement.mode).toLowerCase() !== 'permissive') {
-    fail('auth_enforcement must remain permissive');
+  if (!['permissive', 'enforced'].includes(clean(flags.auth_enforcement && flags.auth_enforcement.mode).toLowerCase())) {
+    fail('auth_enforcement mode is invalid');
   }
   if (snapshot.active_slugs.size !== snapshot.flagged_slugs.size
       || [...snapshot.active_slugs].some(slug => !snapshot.flagged_slugs.has(slug))) {
@@ -381,11 +386,21 @@ async function main() {
 
   const after = await safetySnapshot();
   assertSafe(after);
-  const unchanged = before.flag_digest === after.flag_digest
-    && before.outbox.total === after.outbox.total
+  const controlsUnchanged = before.flag_digest === after.flag_digest;
+  const protectedFlagsUnchanged = before.protected_flag_digest === after.protected_flag_digest;
+  const queueStable = before.outbox.total === after.outbox.total
     && before.outbox.high_water_id === after.outbox.high_water_id
     && before.outbox.pending === after.outbox.pending
     && before.outbox.written_real === after.outbox.written_real;
+  const syncviewTrafficPossible = [before, after].some(snapshot => ['video', 'graphics'].some(team => {
+    const value = clean(snapshot.flags && snapshot.flags.prod_authority && snapshot.flags.prod_authority[team]).toLowerCase();
+    return value === 'syncview' || value === 'supabase';
+  }));
+  // Once a team flips, ordinary user traffic is expected to enqueue/drain
+  // while this read-only audit runs. Keep the strict queue freeze in the dark
+  // stance, but do not mistake unrelated live traffic for an audit mutation.
+  const queueStabilityRequired = !syncviewTrafficPossible && controlsUnchanged;
+  const unchanged = protectedFlagsUnchanged && (!queueStabilityRequired || queueStable);
   if (!unchanged) fail('read-only proof failed: flags or outbox changed during audit');
 
   const report = {
@@ -394,7 +409,11 @@ async function main() {
     method: 'in-memory authority override over reconciler v2 classifiers; Linear/Supabase reads only',
     ...summarized.public,
     zero_write_proof: {
-      runtime_flag_digest_unchanged: before.flag_digest === after.flag_digest,
+      runtime_flag_digest_unchanged: controlsUnchanged,
+      protected_flag_digest_unchanged: protectedFlagsUnchanged,
+      operational_controls_changed: !controlsUnchanged,
+      queue_stability_required: queueStabilityRequired,
+      queue_stable: queueStable,
       outbox_total_before: before.outbox.total,
       outbox_total_after: after.outbox.total,
       outbox_high_water_before: before.outbox.high_water_id,
@@ -429,6 +448,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  assertSafe,
   classifyDiff,
   classifyRepair,
   main,

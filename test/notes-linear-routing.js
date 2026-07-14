@@ -57,8 +57,8 @@ ok(_calLinearUrlFor({}, 'video') === '', "unlinked video -> empty url (post no-o
 const append = grabFunc('_calAppendComment');
 ok(/_calComponentsFor\(post\)\.indexOf\(_calComposeComp\) >= 0 \? _calComposeComp : 'video'/.test(append),
    "root comp uses the picked _calComposeComp, validated against the card's components (default video)");
-ok(/if \(comp === 'video' \|\| comp === 'graphic'\) \{[\s\S]*?_calPostLinearComment\(_calLinearUrlFor\(post, comp\), body, msg\.author\)/.test(append),
-   "Linear routing is gated on video/graphic and goes through _calLinearUrlFor");
+ok(/if \(comp === 'video' \|\| comp === 'graphic'\) \{[\s\S]*?_calPostLinearComment\(_calLinearUrlFor\(post, comp\), body, msg\.author, \{[\s\S]*?post, component: comp/.test(append),
+   "native comment routing is gated on video/graphic and carries the card/component identity");
 const composer = grabFunc('_calComposerHtml');
 ok(/data-cm-toggle="comp"/.test(composer) && /_calSetComposeComp\(/.test(composer) && /_calComponentsFor\(post\)\.map/.test(composer),
    "composer renders the component picker over the card's active components");

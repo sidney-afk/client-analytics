@@ -34,6 +34,8 @@ const SANDBOX = `
 const _calParentLinks = new Set();
 const _calLinearMetaByIdent = new Map();
 let _calLinearMetaHydrated = false;
+const _authority = { video: 'linear', graphics: 'linear' };
+function _writeUiAuthoritySnapshot(){ return _authority; }
 const _store = Object.create(null);
 const localStorage = {
   getItem(k){ return k in _store ? _store[k] : null; },
@@ -42,6 +44,7 @@ const localStorage = {
 };
 ${grabConst('CAL_LINEAR_META_LS_KEY')}
 ${grabConst('CAL_LINEAR_META_TTL_MS')}
+${grabFunc('_writeUiIdentifierAllowed')}
 ${grabFunc('_calHydrateLinearMeta')}
 ${grabFunc('_calPersistLinearMeta')}
 ${grabFunc('_calIdentFromUrl')}

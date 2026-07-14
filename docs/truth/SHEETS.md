@@ -25,8 +25,10 @@
 
 ## Standing hazards
 
-- **`client_review_token` column does not exist** in Clients Info — all token-gate sites
-  fail open; every client link is unguarded today. Fix direction: mint tokens + re-issue
-  links before flipping fail-closed.
+- **`client_review_token` is forbidden in Clients Info.** The tab is anonymously readable,
+  so review tokens live only in service-role-only `client_access`. The SPA strips that field
+  if it ever appears in a fetched/cached row, and staff copy-link actions request one scoped
+  token from the authenticated `client-review-link` Edge Function at copy time. Release still
+  requires the issuer deployment, link re-share, and the documented fail-closed gate.
 - The Social Media Managers tab carries a `linear_api_key` column (7 per-SMM Linear API
   keys) — **publicly readable** via gviz. Rotation + removal owed.

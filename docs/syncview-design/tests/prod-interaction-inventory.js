@@ -351,20 +351,62 @@ async function selectionChecks(page) {
     failures.push('row checkbox did not select locally without navigating');
   }
   await reset(page, 'list');
+  const lockedWriteState = await page.evaluate(() => {
+    window.__prodInteractionIdentityState = {
+      mem: _syncviewStaffIdentityMem,
+      loaded: _syncviewStaffIdentityLoaded,
+      verified: _syncviewStaffIdentityVerified,
+      authority: _prodState.authority,
+      authorityLoaded: _prodState.authorityLoaded,
+    };
+    _syncviewStaffIdentityMem = {
+      key: 'interaction-fixture-key',
+      role: 'admin',
+      member: { id: 'interaction-admin', name: 'Interaction Admin', role: 'admin', team: 'video' },
+    };
+    _syncviewStaffIdentityLoaded = true;
+    _syncviewStaffIdentityVerified = true;
+    _prodState.authority = { video: 'linear', graphics: 'linear' };
+    _prodState.authorityLoaded = true;
+    _prodRender();
+    const issue = _prodIssueRows()[0] || _prodIssues()[0];
+    return {
+      status: _prodWriteGateText(issue, 'status'),
+      due: _prodWriteGateText(issue, 'due'),
+      assignee: _prodWriteGateText(issue, 'assignee'),
+    };
+  });
+  if (![lockedWriteState.status, lockedWriteState.due, lockedWriteState.assignee]
+    .every(text => text.includes('stays read-only while Linear is authoritative.'))) {
+    failures.push('Linear-authoritative fixture did not expose the locked row-control behavior');
+  }
   await page.locator('#prodRoot .prod-status[onclick]').first().click({ timeout: 2500, force: true });
   await page.waitForTimeout(120);
   const statusLayer = await page.locator('#prodLayer .prod-pop [data-prod-pick]').count();
-  if (!statusLayer) failures.push('row status icon did not open the guarded status picker');
+  const statusToast = await page.locator('#prodToast.show').textContent().catch(() => '');
+  if (statusLayer || !statusToast.includes(lockedWriteState.status)) failures.push('row status icon did not stay locked with the authority guard');
   await reset(page, 'list');
   await page.locator('#prodRoot .prod-due').first().click({ timeout: 2500, force: true });
   await page.waitForTimeout(120);
   const dueLayer = await page.locator('#prodLayer .prod-duepop').count();
-  if (!dueLayer) failures.push('row due pill did not open the guarded due-date picker');
+  const dueToast = await page.locator('#prodToast.show').textContent().catch(() => '');
+  if (dueLayer || !dueToast.includes(lockedWriteState.due)) failures.push('row due pill did not stay locked with the authority guard');
   await reset(page, 'list');
   await page.locator('#prodRoot .prod-assign-hot').first().click({ timeout: 2500, force: true });
   await page.waitForTimeout(120);
   const assignLayer = await page.locator('#prodLayer .prod-pop [data-prod-pick]').count();
-  if (!assignLayer) failures.push('row assignee avatar did not open the guarded assignee picker');
+  const assignToast = await page.locator('#prodToast.show').textContent().catch(() => '');
+  if (assignLayer || !assignToast.includes(lockedWriteState.assignee)) failures.push('row assignee avatar did not stay locked with the authority guard');
+  await page.evaluate(() => {
+    const original = window.__prodInteractionIdentityState || {};
+    _syncviewStaffIdentityMem = original.mem || null;
+    _syncviewStaffIdentityLoaded = !!original.loaded;
+    _syncviewStaffIdentityVerified = !!original.verified;
+    _prodState.authority = original.authority || null;
+    _prodState.authorityLoaded = !!original.authorityLoaded;
+    delete window.__prodInteractionIdentityState;
+    _prodRender();
+  });
   await reset(page, 'list');
   const slug = await page.locator('#prodRoot .prod-chip-client').first().getAttribute('data-prod-crumbclient');
   if (slug) {

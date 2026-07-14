@@ -286,7 +286,7 @@ automated today:
 | 4 | Google Drive "Clients" folder | client folder | ✅ auto (provisioning) |
 | 5 | Slack `#name-creative` | internal creative channel + brief | ✅ auto (provisioning) |
 | 6 | Slack **client channel** | the channel the client is in (weekly reports, tweak pings) | ❌ manual — note the ID `C…` |
-| 7 | SYNCVIEW sheet → `Clients Info` | the row that **puts the client live in SyncView** (allowlist is sheet-driven): name, handles, competitors, keywords, `slack_channel_id`, `client_review_token`, `postforme_account_id` | ❌ manual |
+| 7 | SYNCVIEW sheet → `Clients Info` | the public row that **puts the client live in SyncView** (allowlist is sheet-driven): name, handles, competitors, keywords, `slack_channel_id`, `postforme_account_id`. Never place review tokens here; they live only in service-role-only `client_access`. | ❌ manual |
 | 8 | SYNCVIEW sheet → `Social Media Managers` | client → SMM assignment (+ per-SMM Linear key, Slack id) | ❌ manual |
 | 9 | SYNCVIEW sheet → `Monthly Checkup` | opt-in row for monthly check-in emails | ❌ manual |
 | 10 | Linear | **one project per client**, named exactly the client name, on Video (VID) + Graphics (GRA) teams (duplicate "Client Example"), SMM as lead, Slack channel linked, brand info in description | ❌ manual (→ replaced by Track B) |

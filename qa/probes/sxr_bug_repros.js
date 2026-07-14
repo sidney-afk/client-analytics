@@ -3,8 +3,9 @@
 // that passed WHILE the bugs existed; now flipped to assert the FIX holds:
 //   BUG-3: _sxrLoadComments is defined and opening Notes on a raw-shaped row
 //          does NOT throw.
-//   BUG-4: the copied share URL carries &t=<token> when the client has one.
-// All in-page; no client-config rows are mutated.
+//   BUG-4: the copied share URL carries &t=<token> returned by the
+//          staff-authenticated client-review-link issuer.
+// All in-page; no client-config rows or live issuer state are mutated.
 'use strict';
 const L = require('../sxr_courier_lib.js');
 const { launch, smm, up, archiveSafe } = L;
@@ -21,25 +22,50 @@ const t = (pass, msg, extra) => { console.log(`${pass ? '✓' : '✗'}  ${msg}${
     const page = await smm(browser);
     await page.waitForFunction((cid) => !!document.querySelector(`#sxrStrip .cal-card[data-pid="${cid}"]`), id, { timeout: 15000 }).catch(() => {});
 
-    // ---- BUG-4 FIX: _sxrCopyShareLink carries &t=<token> when the client has one ----
-    // Inject a token for the test client, capture what the Share button copies.
-    const share = await page.evaluate(() => {
-      const client = sxrState.client;
-      const prior = clientMap[client] ? clientMap[client].client_review_token : undefined;
-      if (!clientMap[client]) clientMap[client] = {};
-      clientMap[client].client_review_token = 'TESTTOKEN123';
+    // ---- BUG-4 FIX: _sxrCopyShareLink awaits the authenticated issuer ----
+    // Stub only the staff identity + issuer response and capture the clipboard.
+    // This deliberately never puts a token in the public clientMap or calls the
+    // live issuer.
+    const share = await page.evaluate(async () => {
       let captured = '';
-      const realClip = navigator.clipboard && navigator.clipboard.writeText;
+      let capability = '';
+      const issuerCalls = [];
+      const realRequire = _syncviewRequireStaffIdentity;
+      const realFetch = window.fetch;
+      const ownClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
       try {
-        // stub clipboard to capture the URL the function builds
+        _syncviewRequireStaffIdentity = async requested => {
+          capability = requested;
+          return { key: 'SYNTHETIC_PROBE_ROLE_KEY', member: { id: 'probe-member', name: 'Probe SMM' } };
+        };
+        window.fetch = async (url, options) => {
+          if (String(url) !== String(CLIENT_REVIEW_LINK_URL)) return realFetch(url, options);
+          issuerCalls.push({
+            url: String(url),
+            headers: Object.assign({}, options && options.headers),
+            body: JSON.parse(String(options && options.body || '{}'))
+          });
+          return { ok: true, status: 200, json: async () => ({ ok: true, slug: 'sidneylaruel', token: 'TESTTOKEN123' }) };
+        };
         Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (s) => { captured = s; return Promise.resolve(); } } });
-        _sxrCopyShareLink();
+        await _sxrCopyShareLink();
       } catch (e) { captured = 'ERR:' + (e && e.message); }
-      // restore
-      if (prior === undefined) delete clientMap[client].client_review_token; else clientMap[client].client_review_token = prior;
-      return { captured };
+      finally {
+        _syncviewRequireStaffIdentity = realRequire;
+        window.fetch = realFetch;
+        if (ownClipboard) Object.defineProperty(navigator, 'clipboard', ownClipboard);
+        else delete navigator.clipboard;
+      }
+      return { captured, capability, issuerCalls };
     });
-    t(/[?&]t=TESTTOKEN123\b/.test(share.captured), 'BUG-4 FIX: share URL carries &t=<token> when the client has one', share.captured);
+    const issued = share.issuerCalls[0] || {};
+    t(share.capability === 'review-link'
+      && share.issuerCalls.length === 1
+      && issued.headers && issued.headers['X-Syncview-Key'] === 'SYNTHETIC_PROBE_ROLE_KEY'
+      && issued.headers['X-Syncview-Actor'] === 'Probe SMM'
+      && issued.body && issued.body.member_id === 'probe-member' && !!issued.body.slug
+      && /[?&]t=TESTTOKEN123\b/.test(share.captured),
+    'BUG-4 FIX: share URL carries the token from one staff-authenticated issuer request', share.captured);
     t(/[?&]c=/.test(share.captured) && /v=sample-reviews/.test(share.captured), 'BUG-4 FIX: share URL still carries client + view', share.captured);
 
     // ---- BUG-3 FIX: _sxrLoadComments defined; Notes on a raw-shaped row is safe ----

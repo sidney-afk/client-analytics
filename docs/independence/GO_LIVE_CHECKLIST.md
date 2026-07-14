@@ -51,15 +51,20 @@ Phase 0.5 below, after the fix-pack.
       batch-picker team-filter + duplicate disambiguation (F19), +2d overdue bump ported per
       D-30 (F20), sync-drain lane for flipped teams (F07), oldest-pending-age pager (F16),
       monitors made flip-tolerant (F08).
-- [ ] **production-write EF in the CI deploy workflow** and redeployed from the exact #813
-      merge commit at merge time, then TEST drill green (F06).
+- [ ] **production-write + linear-outbound EFs in the CI deploy workflow** (outbound first,
+      including its local `mapping.mjs` / `monitoring.mjs`) and both redeployed from the exact
+      #813 merge commit at merge time. CI must prove the third targeted body is exactly
+      `{"target_dedup_key":"<exact dedup>","syncview_live":true,"confirm":"WRITE_UI_SYNCVIEW_LIVE"}` on both sides,
+      plus retry-exhausted inclusion in the per-team oldest-pending summary; then the TEST drill
+      must be green (F06/F07/F16).
 - [ ] **Intake migration applied** (`production_intake_append` RPC) and pilot-verified on the
       TEST client.
 - [ ] **Card resolvability sweep = 0 failures**: every active Linear-linked calendar slot
       resolves to exactly one mirror row; the ~60 missing rows backfilled (F11).
-- [ ] **Client tokens wired** (F03/D-31): sheet column populated from the already-minted
-      tokens; ALL copy-link builders append `&t=`; then every SMM re-shares their clients'
-      links from the calendar "share link with client" button.
+- [ ] **Secure client-link issuer deployed** (F03/D-31): Clients Info has no token column;
+      `client-review-link` is deployed from the merge commit; all four copy-link builders fetch
+      one scoped token only at copy time for a verified Admin/SMM; then every SMM re-shares their
+      clients' links from the calendar "share link with client" button.
 - [ ] **Submit graphics path drilled live** against the deployed EF, including real
       GRAPHIC_TITLE_* generation (F12).
 - [ ] **Non-n8n inbound-divergence pager live + pager last-mile proven** with a synthetic DM
@@ -87,9 +92,12 @@ Phase 0.5 below, after the fix-pack.
 
 - [ ] Merge #813 with `write_ui_reroute_clients` = TEST only. **Nothing changes for real
       clients or staff** — their buttons still use the legacy paths.
-- [ ] Same window: redeploy production-write from the merge commit; run the TEST drill; walk
-      the TEST client through Create-Post (latest batch + new batch), Submit, approve, tweak,
-      comment end-to-end.
+- [ ] Same window: use the pinned workflow to redeploy **linear-outbound, then
+      production-write** from the same merge commit and record the run SHA. Run the TEST drill;
+      walk the TEST client through Create-Post (latest batch + new batch), Submit, approve,
+      tweak, comment end-to-end. With outbound still off, dispatch one no-write outbound drain
+      and retain its summary proving `oldest_pending_minutes` has `video` + `graphics`, the
+      configured threshold, alert-team list, and `alerts.oldest_pending_age`.
 - [ ] Verify a real client's calendar still saves/approves through the legacy path (allowlist
       really is dark).
 
@@ -114,8 +122,12 @@ Pick a low-activity window.
        silently.
 3. [ ] `prod_authority.graphics` → `syncview`, then `linear_outbound_enabled` → `live`
        (FLIP_RUNBOOK §F1/§F2). Confirm readbacks.
-4. [ ] Verify her first real write lands in Linear via the sync-drain lane (seconds if F07's
-       lane shipped; otherwise expect 10-60 min and do NOT treat that lag as a failure).
+4. [ ] Verify her first real write lands in Linear in seconds via the targeted sync-drain lane.
+       The corresponding `linear_outbound_summary` must be `targeted:true` with a terminal target;
+       10-60 minute cron-only delivery is a failed F07 gate, not an acceptable steady state.
+5. [ ] Confirm the same summary reports both teams in `oldest_pending_minutes` (including any
+       retry-exhausted failed row) and pages only when the SyncView-authoritative team exceeds the
+       configured threshold (F16).
 
 ## Phase 3 — Watch the Graphics window
 

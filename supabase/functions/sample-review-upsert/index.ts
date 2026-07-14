@@ -10,7 +10,13 @@
 //   SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
-import { captureGraphicTweakBaseline, scanGraphicTweakResolution } from "../_shared/thumbnail-revisions.ts";
+import {
+  captureGraphicTweakBaseline,
+  scanGraphicTweakResolution,
+  shouldScanGraphicTweakResolution,
+  thumbnailRevisionV2AllowsClient,
+  thumbnailRevisionV2Config,
+} from "../_shared/thumbnail-revisions.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -102,6 +108,22 @@ function has(o: JsonMap | ExistingRow, k: string): boolean {
 
 function isoNow(): string {
   return new Date().toISOString();
+}
+
+function mintThumbRev(existing: unknown, updatedAt: string): string {
+  const before = clean(existing);
+  const parsed = Date.parse(updatedAt);
+  const epochMs = Number.isFinite(parsed) ? parsed : Date.now();
+  let token = epochMs.toString(36);
+  if (token === before) token = (epochMs + 1).toString(36);
+  return token;
+}
+
+function shouldMintThumbRev(patch: JsonMap, incoming: JsonMap, existing: ExistingRow): boolean {
+  // Presence is intentional: rewriting the same Drive link is the signal used
+  // when the file behind it changed. Do not reduce this to a value comparison.
+  return has(patch, "thumbnail_url") || has(patch, "asset_url") ||
+    shouldScanGraphicTweakResolution(patch, incoming, existing);
 }
 
 function waitUntil(p: Promise<unknown>): void {
@@ -497,6 +519,16 @@ Deno.serve(async (req: Request) => {
     if (guarded._conflict === true) {
       outcome = guarded.conflict ? "conflict" : "read_failure";
       return json(guarded);
+    }
+
+    if (shouldMintThumbRev(built.row, guarded, existingRead.row)) {
+      let v2Enabled = false;
+      try {
+        v2Enabled = thumbnailRevisionV2AllowsClient(await thumbnailRevisionV2Config(supabase), client);
+      } catch (error) {
+        console.warn("sample-review-upsert thumbnail_revision_v2 flag unavailable", error);
+      }
+      if (v2Enabled) guarded.thumb_rev = mintThumbRev(existingRead.row.thumb_rev, now);
     }
 
     const sample = stripPrivate(guarded);

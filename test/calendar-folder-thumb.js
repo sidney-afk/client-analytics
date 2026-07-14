@@ -55,6 +55,8 @@ const REAL = [
   grabFunc('_calFrameOpenUrl'),
   grabFunc('_calIsFolderLink'),
   grabFunc('_calFolderOpenUrl'),
+  grabFunc('_calDriveFileId'),
+  grabFunc('_calDriveImageUrl'),
   grabFunc('_calDeriveThumb'),
   grabFunc('_calDeriveThumbInfo'),
   grabFunc('_calFrameMarkSvg'),
@@ -104,7 +106,8 @@ const NOSCHEME_FOLDER  = 'drive.google.com/drive/folders/zzz999';
 (() => {
   check('Drive file link is not a folder', _calIsFolderLink(DRIVE_FILE) === false);
   const info = infoFor(DRIVE_FILE);
-  check('Drive file derives a real <img>', /drive\.google\.com\/thumbnail\?id=ABC123/.test(info.url));
+  check('Drive file derives a real final-host <img>',
+        /lh3\.googleusercontent\.com\/d\/ABC123=w640/.test(info.url));
   check('Drive file is not a folder/frame card', info.frame === '' && info.frameKind === '');
 })();
 

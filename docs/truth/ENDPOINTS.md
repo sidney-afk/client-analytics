@@ -76,7 +76,7 @@ Other:
 - `webhook/content-ready` — content-ready notification
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (15 literal URLs + 4 composed onboarding URLs)
+## Supabase Edge Functions (16 literal URLs + 4 composed onboarding URLs)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
@@ -99,6 +99,11 @@ Other:
 - `functions/v1/filming-plans` — filming plans backend
 - `functions/v1/smm-weekly-reports` — SMM weekly reports
 - `functions/v1/thumbnail-folder-resolve` — thumbnail Drive-folder resolution
+- `functions/v1/thumbnail-revision-read` — no-store Calendar/Samples Previous/Current reader. It
+  accepts one `{surface, client, source_id}` scope, verifies either a staff role key plus exact
+  active roster identity or the exact client review token, confirms the source card belongs to that
+  client, and returns only minimal timestamps plus five-minute signed private-snapshot URLs. The SPA
+  never receives raw Storage paths, Drive metadata, requester attribution, or internal scan errors.
 
 The four calls composed from `ONBOARDING_EDGE_BASE` are `functions/v1/onboarding-list`,
 `functions/v1/ai-onboarding-list`, `functions/v1/legacy-onboarding-list`, and
@@ -121,7 +126,10 @@ deactivation. Gate all readers, replace bare discovery, and retire the legacy fu
 - `deliverable-write`, `batch-write` — service-only low-level wrappers over the existing ledger
   RPCs. They are not browser authorization boundaries and must not be exposed to the anon client.
   The Production tab calls `production-write`, never these low-level functions directly.
-- `thumbnail-revision-scan` — scheduled Drive scanner; the browser never calls it.
+- `thumbnail-revision-scan` — bounded scheduled Drive scanner; the browser never calls it. It
+  requires the dedicated `X-Syncview-Scheduler-Signature`, fails closed if the secret is absent or
+  wrong, honors the backend `thumbnail_revision_v2` off/test/on scope, and exposes aggregate counts
+  only. Its GitHub schedule remains dark unless `THUMBNAIL_REVISION_SCAN_ENABLED=true`.
 
 These are documented separately by design. Do not add them to the literal endpoint set checked by
 `test/truth-sync.js` until `index.html` actually calls them.
@@ -147,3 +155,7 @@ by hand; verify before relying on it.
   table-parameterized helper.
 - Event ledgers: `sample_review_events`, `calendar_post_events` — written via backend paths
   *(per `docs/audits/2026-07-05-supabase.md`; UI-source rows only to date)*.
+- Thumbnail comparison history: the SPA does **not** call PostgREST for
+  `thumbnail_media_revisions`. The v2 migration revokes raw browser SELECT and the protected
+  `thumbnail-revision-read` function is the sole browser projection. Treat that as staged source
+  until the migration and negative live readback are recorded.

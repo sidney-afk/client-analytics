@@ -4,6 +4,12 @@
 > rollout checklist. Do not re-run its former SQL or edit a live n8n allowlist from this document.
 > Canonical evidence is the current schema, `supabase/functions/calendar-upsert/index.ts`,
 > `index.html`, and `test/calendar-thumb-cache-bust.js`.
+>
+> **2026-07-14 correction:** this deployed record proved token persistence for normal SyncView
+> writes, but it did not prove that the token survived Google's thumbnail redirect or that a Drive
+> replacement with no SyncView write could be detected. The direct-final-host, continuous watcher,
+> and Previous/Current design is documented in `THUMBNAIL_REVISION_HISTORY.md`; its live status must
+> be read from that document and `EXECUTION_LOG.md`.
 
 ## Contract
 

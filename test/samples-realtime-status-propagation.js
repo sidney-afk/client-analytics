@@ -75,6 +75,7 @@ const REAL = [
   grabFunc('_sxrReconcileHasGenuineTweak'),
   grabFunc('_sxrIsStaleLinearRegress'),
   grabFunc('_sxrRecentSaveReconcile'),
+  grabFunc('_thumbAdoptPersistedRevision'),
   grabFunc('_sxrMergeServerRows'),
 ].join('\n\n');
 

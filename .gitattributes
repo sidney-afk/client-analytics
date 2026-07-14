@@ -9,3 +9,5 @@ index.html text eol=lf
 
 # Temporary F64 privacy-incident guard. Remove immediately after the separately reviewed scrub.
 migrations/legacy-onboarding-migration.sql -diff
+migrations/2026-07-09-filming-plans-source.sql -diff
+migrations/samples-supabase-migration.sql -diff

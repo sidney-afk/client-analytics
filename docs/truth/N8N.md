@@ -44,6 +44,11 @@ historical per-workflow reads: `docs/audits/2026-07-05-n8n.md`.
 - Provider sales callbacks are unsafe (F115/F116): neither has a provider-native verified,
   server-correlated durable inbox; the mirrored stale-snapshot two-gate logic can lose or duplicate
   the onboarding email.
+- Primary onboarding is not just public capture (F128/F129). An unauthenticated submission can
+  launch real Drive/CRM/Slack/vault side effects without a verified-sale/staff-approval job, and the
+  current full-brief builder sends raw account-access answers to a workspace-public channel or
+  fallback DM. Split/authorize provisioning and structurally exclude secret fields; do not run a
+  fake-client drill until provider sandboxes and captured inverses exist.
 - Project Central's active load/save API can turn a failed source tab into a valid partial tree, then
   clear all three live sheets before validating/reappending; its webhooks authenticate no caller and
   it has no revision/staging/transaction/restore receipt. Keep it out of recovery workflows until

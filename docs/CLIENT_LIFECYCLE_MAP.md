@@ -292,7 +292,10 @@ n8n **Client — Onboarding Provisioning** (called by both submit workflows
 with `funnel = standard | ai`):
 
 This dispatch is currently unawaited and has no durable job/step ledger, completion callback, or
-whole-run reconciliation. Each item below is an intended side effect, not a completion guarantee.
+whole-run reconciliation. Worse, the public submit path can launch it from caller-supplied identity/
+email without invitation, verified-sale correlation, authenticated staff approval or provider
+sandbox (F128). Each item below is an intended real-provider side effect, not a completion guarantee.
+Do not run a fictional submission as TEST: there is no complete captured inverse or teardown.
 
 1. **Google Drive**: create folder `{first}-{last}` inside the shared
    **Clients** folder (`17u2c8JMLkrKMRxAXczirMFitNv1wD-JA`).
@@ -300,9 +303,12 @@ whole-run reconciliation. Each item below is an intended side effect, not a comp
    `decisionmakerboughtin` ("onboarded").
 3. **Slack**: create public channel **`#{first-last}-creative`**, invite
    Sidney + Kasper, post a kickoff message (team/resource/timeline
-   placeholders for Kasper to fill) and the **full form-answer brief**
-   (credentials excluded — those live only in Supabase). If channel creation
-   fails, the whole brief falls back to a DM to Sidney.
+   placeholders for Kasper to fill) and the **full form-answer brief**. **P0
+   correction (F129): credentials are not excluded.** The active builder includes
+   account-access and backup/recovery-code answers; if channel creation fails,
+   the same brief falls back to a DM to Sidney. No message/value was inspected,
+   so historical occurrence is unknown. Structurally exclude secrets and send
+   only protected-vault receipt metadata before further credential-bearing use.
 
 ---
 
@@ -316,9 +322,9 @@ automated today:
 | --- | --- | --- | --- |
 | 1 | HubSpot | contact + deal + lifecycle | ✅ auto (booking → gates → provisioning) |
 | 2 | Supabase `client_onboarding` / `ai_client_onboarding` | form submission | ✅ auto (form submit) |
-| 3 | Supabase `client_credentials` | login vault rows (`needs_review`) | ⚠️ fail-soft attempt; no joined receipt/resume (F110) |
+| 3 | Supabase `client_credentials` | login vault rows (`needs_review`) | ⚠️ fail-soft caller-derived owner; no canonical roster readback or joined receipt/resume (F69/F110) |
 | 4 | Google Drive "Clients" folder | client folder | ⚠️ unawaited provisioning attempt; no completion receipt (F110) |
-| 5 | Slack `#name-creative` | internal creative channel + brief | ⚠️ unawaited provisioning attempt; no completion receipt (F110) |
+| 5 | Slack `#name-creative` | internal creative channel + brief | 🚨 public-triggered unawaited provisioning; full brief currently includes raw account-access answers (F128/F129) |
 | 6 | Slack **client channel** | the channel the client is in (weekly reports, tweak pings) | ❌ manual — note the ID `C…` |
 | 7 | SYNCVIEW sheet → `Clients Info` | the **public, non-secret** row that puts the client live in SyncView (allowlist is sheet-driven): name, handles, competitors, keywords, `slack_channel_id`, `postforme_account_id` | ❌ manual |
 | 7a | Supabase `client_access` + authenticated link builder | service-role-only review token and the staff-authorized path that copies one exact client's link; **never put the token in Clients Info** (audit F33) | ❌ Track-B onboarding/distribution gap |
@@ -346,12 +352,13 @@ The onboarding form's sample video (plus brand answers) seeds **sample
 edits** — subtitle styles, thumbnail looks — approved before real content
 starts. ⚠️ Two generations coexist (`client-analytics` docs, `SAMPLES_*`):
 
-- **Content Samples** (gen 1, `content_samples` table, `?sv2` default-on):
-  simple strip — single status, single comment thread, draft → kasper →
-  client → approved. No Linear. Writes via n8n `samples-upsert`
-  (kept on n8n by explicit decision D4).
+- **Content Samples** (gen 1, `content_samples` table): the staff nav/route is retired and the old
+  client URL currently redirects unsafely into generic Sample Review (F117). The dormant strip had
+  one status/thread and `?sv2` default-on reads; its active n8n writers fan out Sheet + Supabase but
+  can continue after a Sheet failure, so `?sv2=0`/automatic Sheet fallback is not writable recovery
+  (F57). Do not restore this generation without one exact-client and coupled-authority boundary.
 - **Sample Review** (gen 2, `sample_reviews` + `sample_review_events`,
-  flag `?sxr=1`, **default OFF** — built, ships dormant): the calendar's
+  **GA default ON** since 2026-07-02 with sticky `?sxr=0` opt-out): the calendar's
   architectural twin. Components video + thumbnail; statuses In Progress →
   For SMM Approval → Kasper Approval → Client Approval → Approved (+ Tweaks
   Needed interrupt); per-component comment threads; Linear VID/GRA
@@ -394,19 +401,19 @@ The recurring engine once a client is live:
    review loop (title_status, no Linear). Thumbnail revisions are
    snapshotted for before/after evidence when tweaks are requested.
 5. **Scheduling & posting** — approved cards get scheduled/posted on the
-   calendar; `add-to-calendar` can ingest a finished Linear issue (pulls the
-   Frame.io link, transcribes via Whisper, drafts a caption via Claude,
-   writes the client-facing calendar sheet). TikTok can auto-post via Post
+   calendar. The retained `add-to-calendar` branch is **not a safe ingestion contract** (F126): it
+   accepts first-page-only children/comments as complete, can omit later work/links, writes the
+   legacy client-facing Sheet, and acknowledges without completeness. Identify and retire its
+   caller or rebuild it as a fully paged durable job. TikTok can auto-post via Post
    For Me or the first-party TikTok pilot. **Content-ready notify** emails
    the client ("Your content is ready for review! 🎉").
 
-**Linear ⇄ SyncView sync** (until Track B lands): Linear workspace webhook →
-n8n `linear-status-sync` (calendar branch + workload branch + an **embedded
-samples branch** — do not delete, §15.8) with most-recent-action-wins
-conflict rules; SyncView → Linear via `linear-set-status`; a GitHub Action
-reconciler sweeps every 10 min (dispatched by an n8n cron) to heal dropped
-webhooks; `workload_issues` is a derived cache rebuilt every 10 min powering
-the Workload view.
+**Linear ⇄ SyncView sync** (until Track B lands): current real-time inbound is the
+`linear-inbound` Edge Function; the combined n8n receiver with Calendar/Samples/Workload branches is
+inactive/unpublished and must not be represented as serving production (F46). SyncView → Linear
+uses legacy mutation routes until reroute; GitHub reconcilers heal Calendar/Samples drift, while
+`workload_issues` remains a derived Linear cache. F29/F126 mean a green reader run is not a
+completeness receipt.
 
 ---
 
@@ -591,8 +598,8 @@ state; Supabase holds ops state; Sheets hold the client roster + analytics
 
 | Migration | Status (2026-07-10) | What changes here when it lands |
 | --- | --- | --- |
-| **Track A — n8n → Supabase Edge Functions** (interactive writes) | A1/A2/A4 merged, per-client canary flags; A3 skipped | §9 write paths; n8n calendar/sample writers become fallback-only |
-| **Track B — replace Linear** with in-app `batches`/`deliverables` | PLANNING, sign-off pending; schema live but empty; Production tab read-only behind `?prod=1` | §7 row 10, §9 (sync section dies), §11 Linear section, Workload source |
+| **Track A — n8n → Supabase Edge Functions** (interactive writes) | A1/A2/A4 merged; current Calendar/SXR/settings allowlists carry the full active roster; unauthenticated fallbacks remain F67 | §9 write paths; n8n calendar/sample writers are fallback-only |
+| **Track B — replace Linear** with in-app `batches`/`deliverables` | mirror tables populated; Production has authority-gated writes but both real teams remain Linear-authoritative; #813 is not merge-safe (F02) | §7 row 10, §9 sync, §11 Linear, Workload source |
 | **Off Google Sheets** | calendar/samples/templates/filming-plans done; **client roster (`Clients Info`) + analytics still on Sheets** | §7 rows 7–9, §10 metrics, §11 Sheets section |
 | **Off Notion** | product path replaced; operator docs corrected in this audit | F60-safe archive of the active-labelled/no-production-trigger legacy object after zero-use proof (§15.10/F111) |
 | **Slack → ro.am** | decided "Slack now, ro.am later" | §6, §11 Slack section |
@@ -640,8 +647,10 @@ table are all slated to become automated/Supabase-native.
     reports no production trigger/manual-only execution, its description says setup is incomplete,
     and retained execution metadata is empty. Do not describe it as polling or healthy; the old form
     is replaced. Archive only after F60 backup/restore and identifier-free zero-use proof.
-11. **Samples: two live generations** (`content_samples` on by default,
-    `sample_reviews` built but default-off). Flip or fold.
+11. **Samples retirement is incomplete** (F57/F117): Sample Review is GA default-on and staff old
+    routes are retired, but the old client redirect loses exact-client binding and dormant
+    `content_samples` routes/state/backends remain. `?sv2=0` is not writable recovery. Fail the old
+    URL closed, inventory stale callers/store parity, then execute owner-approved Phase 2.
 12. **Event/investor bookings (`demo`, `1-1-call-with-kasper`) create no CRM
     record** — the router ignores them by design; those leads live only in
     Kasper's calendar.

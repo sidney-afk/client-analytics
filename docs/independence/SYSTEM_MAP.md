@@ -129,9 +129,12 @@ Everything below is shared by every surface; per-surface sections only note devi
   CDN UMD load, memoized once; failure resolves null and every caller falls back to REST/n8n.
 - **Theme / palette.** `syncview_theme='dark'` opt-in (light default; forced light + toggle hidden
   on client links) and `syncview_status_palette='classic'`, both read pre-paint. One-click rollback.
-- **App-update nudge.** Polls `HEAD` of its own URL every 5 min + on focus, comparing
-  ETag/Last-Modified; never force-reloads; **disabled under `?prod=1`** (which also skips resume of
-  pending calendar-card jobs).
+- **App-update nudge (advisory only; F127).** Polls `HEAD` of `location.pathname` every 5 min + on
+  focus, comparing ETag/Last-Modified; never force-reloads and lets dismissal adopt the new token
+  while old code continues. It is **disabled under `?prod=1`** (which also skips resume of pending
+  calendar-card jobs), clean onboarding aliases probe a public 404 path, and the first network token
+  becomes the baseline even when a cached older document is running. No embedded build/authority
+  epoch, server minimum-version rejection, or build-population telemetry currently expires callers.
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
   constant declared *before* the main Supabase URL constant (TDZ avoidance) — that is why §7 counts
   "15 literal + 4 composed" Edge Functions.
@@ -425,15 +428,17 @@ n8n in the metric read path.*
   client** can select another client while client-link controls remain enabled. The legacy module,
   browser state, endpoints, table, and rows remain present, but the shipped redirect is neither a
   safe old portal nor a token-bound SXR migration.
-- **Reads.** `content_samples` REST is the **default read** (Supabase since Phase 3, 2026-06-15 — v1's
-  "opt-in behind `?sv2`" is stale); n8n `samples-get` is the per-request fallback and primary only
-  under sticky `?sv2=0`. Realtime `sm-<slug>`. Token-verify EF on client links.
+- **Reads.** `content_samples` REST is the dormant renderer's default read (Supabase since Phase 3,
+  2026-06-15); n8n `samples-get` is the automatic fallback and primary under sticky `?sv2=0`.
+  Neither mode currently mounts through the shipped staff/client routes. Realtime `sm-<slug>`.
 - **Writes.** **n8n only** — `samples-upsert` (whole-row: fields + approval + JSON-stringified
-  comments; n8n dual-writes Sheet + Supabase), `samples-reorder`, archive via a `status:Archived`
-  upsert. No Edge-Function write, **no kill switch** for this surface.
+  comments; n8n fans out Sheet + Supabase), `samples-reorder`, archive via a `status:Archived`
+  upsert. Both write graphs continue after a Sheet error and respond only after the Supabase branch;
+  success therefore does not prove the Sheet fallback contains the write. No Edge-Function write,
+  transaction, coupled recovery, or server kill switch exists for this surface.
 - **State.** `syncview_samplesCache_v1:<slug>` (7-day, also the offline write fallback),
   `syncview_samples_prefs_v1`, `syncview_samplesSeen_v1`, `syncview_samples_v2`/`_v2_off`; shares
-  `syncview_calendar_pins`. Only kill = local `?sv2=0` (reads only).
+  `syncview_calendar_pins`. `?sv2=0` changes only the read source; it is not a kill or safe rollback.
 - **Roles.** The dormant old client renderer was review-limited, with approval/request-change/comment
   actions but no organizer editing. The current legacy URL instead reaches generic SXR in client
   mode without an exact-client binding (F117); do not treat the old renderer's restrictions as a
@@ -442,7 +447,8 @@ n8n in the metric read path.*
 - **Failure/fallback.** Cache-first → REST → n8n; both fail + nothing cached → "offline, saved on this
   device" banner; both fail + cache → stale board, silent. **Writes have no outbox/retry** — a failed
   save shows a *green* "Saved on device" and only retries when that card is edited again. Delete/
-  reorder are fire-and-forget with empty catches.
+  reorder are fire-and-forget with empty catches. A Sheet-branch failure with a successful Supabase
+  branch returns success, so sticky-off/automatic-fallback readers can immediately lose sight of it.
 - **Notable.** Whole-row last-write-wins hazard (realtime only suppresses self-echo, doesn't merge).
   Browser token checks still attempt a nonexistent public-Sheet `client_review_token`; protected
   tokens in `client_access` are not wired into the four link builders (F03/F33). `setSmMode` preview
@@ -451,7 +457,7 @@ n8n in the metric read path.*
   shipped, but F117 blocks calling its client-link behavior compatible. Fail the old URL closed or
   restore a token-bound portal before any Phase-2 deletion/redirect decision. Retained backends stay
   outside §13.4 teardown until the owner approves `SAMPLES_LEGACY_REMOVAL_MAP.md` Phase 2. Do not
-  reactivate the old staff route accidentally.
+  reactivate the old staff route accidentally, and do not advertise `?sv2=0` as writable recovery.
 
 ### 4.7 Kasper mode (`#kasper` / `?Kasper=1`)
 
@@ -484,6 +490,8 @@ n8n in the metric read path.*
   secret, never a caller-supplied role header.
 - **Failure/fallback.** Queue 3-tier as above; cached ≤24 h snapshot keeps painting. Stored staff
   identity changes are synchronized across tabs; sign-out purges the sensitive caches everywhere.
+  Cold Review/Messages share one load, but a rejection targets only the Review body; Messages stays
+  on its loading skeleton, while Review's error renders no retry control (F130).
   Persist failures
   revert + per-card error; finish/close failures swallow (local flag hides the card, next write
   reconciles). Linear outbox retry. 401 on key-gated subtabs → clear the shared identity, purge
@@ -493,9 +501,9 @@ n8n in the metric read path.*
 - **Notable / corrections.** "SMM reports" is **not** a Kasper subtab (it's a separate top-level
   route, §4.14). `kasper-queue` is the **middle** fallback, not primary. The role-header quirk
   (§3) misattributes writes made from `#kasper/<subtab>` as `smm`. The Kasper unlock has no
-  password; the verified role key is the sensitive-subtab credential. At a 390 px viewport, the
-  max-content eight-tab strip expands the document to about 1166 px and places later tabs such as
-  Onboarding off-screen; it has no contained horizontal scroller or active-tab reveal (F121).
+  password; the verified role key is the sensitive-subtab credential. At 390 and 768 px, the max-
+  content eight-tab strip expands/pans the whole document, leaves later deep-linked tabs off-screen,
+  and lacks contained touch scrolling, active reveal and accessible tab keyboard semantics (F121).
 - **Track B.** The queue-visibility gates are one of the §9.2 predicate families — missed at flip,
   new thumbnails silently vanish from review. The Messages inbox keeps working on card threads.
 
@@ -690,6 +698,16 @@ separate hidden first-party Direct-Post surface.*
   submit` (or `ai-onboarding-submit`) with one retry → `onboarding-capture` EF → n8n `onboarding-
   fallback` (also the `sendBeacon` target on tab-hide). Sales intake: n8n `sales-intake-submit`
   (preview/create contract + invoice email; **no auth header** — only the client-side Kasper unlock).
+- **Privileged provisioning / P0 (F128).** The public primary submit graphs accept caller-created
+  identity/email and, after intake insert, dispatch an unawaited shared workflow that can create
+  Drive/CRM/Slack objects and invoke vault import. It has no invitation/verified-sale correlation,
+  authenticated staff approval, provider sandbox, durable per-step job, or captured inverse. Do not
+  run a fake-client drill: even fictional input mutates real providers and cannot be proved removed.
+- **Credential egress / P0 (F129).** The shared “full brief” currently includes account-access and
+  backup/recovery-code answers in the workspace-public creative channel, or a fallback DM, despite
+  the form/lifecycle/workflow description saying securely stored/excluded. No message was inspected;
+  occurrence is unknown. Structurally exclude secret-class fields before any message/log and perform
+  private history/rotation review.
 - **Public-capture abuse gap (F81).** `onboarding-capture` accepts caller-selected IDs and unbounded
   payload/note upserts without nonce, rate, strict size/schema/kind, or conditional ownership; its
   fallback action can relay caller text to alerts and every upsert resets creation chronology.

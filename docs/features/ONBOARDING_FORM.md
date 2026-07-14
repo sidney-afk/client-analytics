@@ -2,8 +2,9 @@
 
 > **Current status (verified 2026-07-14): capture and the Kasper inbox are deployed, but the
 > feature is not go-live ready.** F77/F85 block the read boundary, F81 blocks public-capture abuse,
-> F110/F111 block durable completion and operator acknowledgement, and F118 blocks unproved public
-> example-media rights. The current operator surface is Kasper → Onboarding, backed by Supabase
+> F110/F111 block durable completion and operator acknowledgement, F118 blocks unproved public
+> example-media rights, and F128/F129 block privileged provisioning plus credential egress. The
+> current operator surface is Kasper → Onboarding, backed by Supabase
 > Edge readers—not Templates and not the historical n8n list routes.
 
 > **P0 READ-BOUNDARY BLOCKER (F77).** The three currently deployed onboarding-list Edge Functions
@@ -24,6 +25,18 @@
 > clears its draft/id and shows Thank You. Treat 2xx as **captured only** until one durable resumable
 > job proves every step complete. Staff use the SyncView onboarding inbox/job as the current entry;
 > the old Notion intake is replaced and is not an operational fallback.
+>
+> **P0 PROVISIONING/AUTHORIZATION BLOCKER (F128).** The public primary webhooks can dispatch real
+> Drive, CRM, Slack and vault side effects from caller-supplied identity/email without an invitation,
+> verified-sale correlation or authenticated staff approval. Anonymous capture must be separated
+> from one server-owned authorized job. There is no provider sandbox or complete inverse today, so
+> a fictional fake-client submit is not a safe TEST drill.
+>
+> **P0 CREDENTIAL-EGRESS BLOCKER (F129).** “Stored securely” is not true end to end: the active
+> provisioning full-brief builder includes account-access and backup/recovery-code answers in a
+> workspace-public Slack channel, with the same brief used for fallback DM. Stop secret-class fields
+> before all messaging/logging, emit only vault receipt metadata, and complete private history/
+> rotation review. No message or value was read during the audit.
 
 A standalone, private-link onboarding page built into `index.html`. It replaces the
 two old intake systems (the **Notion** "Onboarding Form" for normal clients and the

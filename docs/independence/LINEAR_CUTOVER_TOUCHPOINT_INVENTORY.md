@@ -115,9 +115,9 @@ owner gate; this applies to the OAuth-application inventory and the `/add-to-cal
 |---|---|---|---|
 | Client Calendar/SXR link | Verified client token | **none** | Native write verifies client token, persists client actor/role/timestamp, then outbox mirrors. |
 | Signed-in staff / Kasper | Verified staff role key + roster actor | **none** | Native write verifies role key and persists the roster actor/role/timestamp before enqueue. |
-| Old-tab localStorage retry | Only the saved `{issue,status}` or `{issue,body,author}` payload | **none** | Drain, expire old app versions, then reject centrally when team authority is SyncView. |
+| Old-tab localStorage retry | Only the saved `{issue,status}` or `{issue,body,author}` payload; no running-build/auth-authority epoch | **none** | Drain, then reject centrally by minimum build/epoch before mutation; the advisory update banner is not expiry proof (F127). |
 | Submit tab | The current bypass route deliberately omits staff identity; whether an external shareable intake capability must remain is an OPEN owner decision (F91) | **none** | Contain now: require an active revocable staff principal or an owner-ratified, server-minted, short-lived exact-client capability. Never select mutation identity or target scope from `clientName`. |
-| Post-submit card job | Saved client/title/mode/video numbers; no submitter proof | **none** | Drain/expire the job and return native linkage directly from the authorized create. |
+| Post-submit card job | Saved client/title/mode/video numbers; no submitter proof or running-build/auth-authority epoch | **none** | Drain/expire the job, reject stale epochs centrally, and return native linkage directly from the authorized create. |
 
 ### Exact submission payload
 
@@ -442,7 +442,9 @@ when all of the following are true at once:
 
 - all explicit UI intents in the writer table enter the native RPC/outbox path with durable
   actor/role/timestamp;
-- all three browser queues are empty across staff browsers and old-version tabs are expired;
+- all three browser queues are empty across staff browsers, protected endpoints reject below-minimum
+  build/auth-authority epochs before mutation, and privacy-safe telemetry proves mandatory old callers
+  are zero for the owner-approved window (F127); the advisory update banner is not expiry evidence;
 - seven-day card/meta caches are versioned or authority-filtered so stale Linear URLs cannot revive
   old gates or navigation;
 - native status controls, link pickers, archive/dedupe identity, Workload navigation,

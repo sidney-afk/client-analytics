@@ -152,6 +152,11 @@ Phase 0.5 below, after the fix-pack.
       Bind the server capability to the dedicated client mount and every read/write, or show an
       explicit retired-link state. Pass old-data parity, cross-client denial, fresh/residual cache,
       invalid/rotated token, deep-link, refresh/back, mobile and second-device tests.
+- [ ] **Samples Old read fallback is not used as writable recovery** (F57): `?sv2=0` and automatic
+      REST→Sheet fallback belong to the dormant renderer. Its legacy writers may return success
+      after Supabase updates while the Sheet branch failed. Any temporary old-code restoration is
+      read-only or has one atomic read/write authority; prove stale-build/direct-caller zero and
+      both-store parity before Phase 2 deletion.
 - [ ] **Drive-backed thumbnail jobs enforce auth and CAS** (F78–F80): the scanner fails closed on
       missing/wrong scheduler identity; the resolver enforces originating principal/client scope;
       both are bounded/rate-audited; and the resolver's final write CASes exact URL/version with
@@ -206,9 +211,10 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Production-write TEST contract resolved** (F06): owner/implementation chooses the
       service-only spec contract or a newly justified browser-safe alternative; SPA, gateway, and
       one cross-boundary test agree. F51 additionally requires exact-pinned dependencies/CLI,
-      lock/integrity data, a complete all-24 source-closure/JWT/release manifest, and independent
-      downloaded server fingerprints. Discover and drill a supported exact-artifact restore route;
-      until then, never call a same-SHA rebuild an exact rollback.
+      lock/integrity data, tracked config/deploy commands for all 24 slugs, a complete all-function
+      source-closure/JWT/release manifest, and independent downloaded server fingerprints. Discover
+      and drill a supported exact-artifact restore route; until then, never call a same-SHA rebuild
+      an exact rollback.
 - [ ] **Authority vocabulary is singular** (F55): every browser, EF, reconciler, n8n guard, flag
       writer, and runbook accepts exactly `linear|syncview`. Remove/migrate the backend-only
       `supabase` alias, reject missing/malformed/legacy values consistently, and pass one
@@ -255,6 +261,19 @@ Phase 0.5 below, after the fix-pack.
       mint/revision/revocation, and every required Track-A routing/policy enrollment—or static
       allowlists are replaced. A fake TEST client proves first authenticated writes and teardown
       immediately denies its token with no fallback.
+- [ ] **Public onboarding cannot launch privileged provisioning** (F128): anonymous capture is
+      separated from Drive/CRM/Slack/vault side effects. Owner ratifies invitation-only versus
+      public-capture-plus-staff-approval; one server-correlated sale/capability and immutable staff
+      decision create a bounded idempotent job. Provider sandboxes/intercepts, canonical TEST
+      identity, captured inverses and exact readback make the fake-client drill non-production and
+      fully reversible. Anonymous/replay/wrong-sale/forged-client/duplicate/failure tests create no
+      real provider object.
+- [ ] **No account-access value enters Slack, logs, alerts or exports** (F129): server-side allowlist
+      projection structurally excludes login/recovery fields and future secret-class fields from the
+      channel brief and fallback DM; only a vault receipt/count/status may leave the protected store.
+      Privately inventory/delete/contain prior copies and rotate/revoke as incident review requires.
+      Canary tests cover normal channel, fallback DM, retries, logs and future unknown fields; UI,
+      workflow description and lifecycle docs state the verified boundary.
 - [ ] **Onboarding acknowledgement is truthful and resumable** (F110): persist a server-owned job
       before returning success; distinguish `captured`, `processing`, `complete`, and `failed` in
       the client/staff UX. Duplicate clicks, lost responses, capture-only replay, and a failure at
@@ -282,13 +301,28 @@ Phase 0.5 below, after the fix-pack.
       fresh creative can switch between team Issues and My issues without a crafted URL or hardware
       keyboard. Deep link, back, reload, account switch, zero-row, portrait, and landscape tests pass.
 - [ ] **Every Kasper subtab is touch-mobile discoverable** (F121): the tab row scrolls within the
-      viewport, the active tab is revealed without page-wide overflow, and keyboard focus remains
-      visible. Test all eight tabs, deep link/back/reload, zoom/text scaling, portrait/landscape and
+      viewport, the active tab is revealed without page-wide overflow, and semantic tablist/tab/
+      selected/controls plus roving arrow/Home/End keyboard focus remain visible. Owner ratifies Back
+      history behavior. Test all eight keys at 390/768 and surrounding widths, real touch swipe,
+      direct deep link/back/reload, 200% zoom/text scaling, portrait/landscape, populated layouts and
       second device—especially Onboarding, Sales Intake and Client Credentials.
+- [ ] **Kasper Review/Messages failures are recoverable** (F130): cold and cached refresh failures
+      render in the active tab, preserve any cache under an honest stale banner, and expose a visible
+      keyboard/touch Retry. Pass Review and Messages cold failure, cached failure, retry success/
+      repeat failure, tab-switch/abort race, mobile and keyboard tests; no indefinite skeleton.
 - [ ] **Client links fail closed and revoke reads** (F38): enforced-mode verifier errors cannot
       load/cache client access; the verifier requires an active client/current revision; verdicts
       are short-lived; same-tab reload, focus, second-device, offline-return, offboarding, and
       token-rotation drills purge all client state. F88's direct-read decision is separately closed.
+- [ ] **Old builds are identified and rejected before mutation** (F127): embed the running build
+      plus auth/authority/cache epoch, compare against a fixed same-origin manifest on root/index,
+      direct/in-app Production and every onboarding alias, and send that identity on every protected
+      read/write. Servers return `upgrade_required` before accepting a below-minimum caller. Owner
+      defines the optional stale window and mandatory-release classes; mandatory updates cannot be
+      dismissed, safely checkpoint drafts/queues, reload, and reverify identity. Pass cached-v1-first-
+      check, deploy/revert, BFCache, offline-return, second-device, dirty-draft, queued-write and
+      session-rotation tests; privacy-safe build/epoch telemetry proves population rather than
+      treating the current banner as expiry evidence.
 - [ ] **Auth rollback preserves the security boundary** (F70): after enforcement, there is no
       routine global return to permissive. Fix/revert the failed verifier/caller while auth stays
       enforced; any emergency bypass is scoped, owner-approved as a security incident, monitored,

@@ -12,6 +12,16 @@ three review flows (client / Kasper / SMM), the visible Linear mirror/work surfa
 `production`, `#production`, `?prod=1`), the visible Submit form (internal `linear`, `#linear`),
 onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly reports, TikTok pilot.
 
+## Release and stale callers
+
+- The current app-update banner is advisory, not a caller-expiry control (F127). Direct `?prod=1`
+  skips it; clean onboarding aliases probe a 404 path; a cached old document can adopt the first
+  newer ETag/Last-Modified response as its baseline; and dismissal keeps that old code running.
+- The page embeds no immutable running build/auth-authority epoch, protected requests carry none,
+  and servers do not return `upgrade_required` before mutation. Build-population telemetry is absent.
+  Go-live therefore requires a fixed same-origin manifest plus server minimum-build/epoch enforcement,
+  with owner-defined optional versus mandatory release behavior and draft/queue-safe reauthentication.
+
 ## Calendar
 
 - End-to-end logic map: `docs/audits/2026-07-05-logic-calendar.md` (evidence);
@@ -42,6 +52,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `docs/audits/2026-07-05-logic-reviews.md`.
 - Linear comments are written prefixed `**{Reviewer} (via SyncView):**`.
   That display name is cosmetic on the legacy bridge and does not establish the caller (F91).
+- Kasper's eight-tab strip is not contained or semantically keyboard-operable at 390/768 px; later
+  and deep-linked tabs require whole-page horizontal panning (F121). A failed shared Review/Messages
+  cold load leaves Messages on an indefinite skeleton, and Review renders no Retry (F130).
 
 ## Linear sync surface
 

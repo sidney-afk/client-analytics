@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-14 @ e3961b6 (second-pass current-state reconciliation through F126)
+> Last verified: 2026-07-14 @ 1ce7c91 (second-pass current-state reconciliation through F130)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -74,6 +74,17 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   snapshots and deterministic 100-ID starvation; F126 covers unpaged child/comment expansion that
   can drive Calendar import/link/status writes. Require complete receipts and zero mutation on any
   partial source before merge, flip or B5.
+- The update banner is not stale-caller retirement (F127): direct Production has no check,
+  onboarding aliases probe 404, and cached old code can baseline/dismiss a new ETag while continuing.
+  Require an embedded build/auth-authority epoch, server `upgrade_required` before mutation, and
+  privacy-safe population evidence for every mandatory release.
+- Public onboarding must not be treated as a safe fake-client harness (F128/F129): its primary
+  path can launch real provider/CRM work without invitation/sale/staff approval and can place raw
+  account-access answers in Slack. Separate/authorize the durable job, structurally exclude secrets,
+  and require provider sandboxes plus captured inverses before any live drill.
+- Kasper mobile/recovery is not complete: all eight subtabs require contained accessible navigation
+  at 390/768 px (F121), and Review/Messages need active-tab-aware failure plus visible retry rather
+  than an indefinite skeleton/dead-end error (F130).
 - Known standing hazard: several credentials remain exposed (per-SMM Linear API keys in a
   publicly readable sheet tab and the house Linear key in legacy n8n). F52 reverified one
   reachable Graphics title-generation workflow carrying a plaintext provider key across all 50

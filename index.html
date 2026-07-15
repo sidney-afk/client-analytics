@@ -12788,6 +12788,13 @@
             // WL_ALLOWED_EDITORS). Sub-issues stuck on former editors are
             // silently dropped so they don't pollute the panels.
             if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) continue;
+            // Tweak-family statuses are an exclusive workload bucket. A tweak
+            // can retain its original due date, but that date must not also put
+            // the same sub-issue on the planned calendar (or any other strip).
+            if (needsTweak) {
+                tweaksNeeded.push(s);
+                continue;
+            }
             // Overdue catches sub-issues whose due date has passed and that
             // are still firmly on the editor's plate as fresh work — i.e.
             // status "To Do". A past-due "Tweak Needed" item is kept in the
@@ -12802,8 +12809,7 @@
                 overdue.push(s);
                 continue;
             }
-            if (inProg)     nowWorking.push(s);
-            if (needsTweak) tweaksNeeded.push(s);
+            if (inProg) nowWorking.push(s);
             // Calendar workload tracks work with a real due date. In-progress
             // items keep their slot only if they have a future-or-today due
             // date — they were already on the calendar before status moved

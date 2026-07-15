@@ -45,8 +45,9 @@ sequences; grant `BYPASSRLS` so service-only rows are complete, but do not grant
 table writes or membership in a write-capable role. The preflight fails if RLS
 would hide rows or if the role has a covered-table write privilege.
 Set the password only in the GitHub secret and rotate it after any exposure.
-The workflow runs a privilege preflight before `pg_dump`, and the credential is
-passed through `PGDATABASE` rather than a command-line argument.
+The workflow runs a privilege preflight before `pg_dump`. The validated host,
+port, role, password, database, and TLS mode are passed through isolated libpq
+`PG*` environment variables rather than a command-line connection argument.
 The URL may have no query string or one `sslmode=require`, `verify-ca`, or
 `verify-full` parameter. All redirection/configuration parameters (including
 `host`, `hostaddr`, `user`, `dbname`, `service`, and `options`) are rejected,
@@ -112,7 +113,7 @@ scratch Supabase project, apply the production schema migrations to it, and set:
 
 | Type | Name | Purpose |
 |---|---|---|
-| Secret | `TRACK_B_RESTORE_DATABASE_URL` | Direct or pooler Postgres URL for the scratch project. |
+| Secret | `TRACK_B_RESTORE_DATABASE_URL` | Direct or pooler Postgres URL for a scratch-only restore role. Give it `SELECT`, `INSERT`, and `TRUNCATE` on the exact 14 tables plus `SELECT`, `USAGE`, and `UPDATE` on their six identity sequences; do not grant table `UPDATE` or `DELETE`. |
 | Variable | `TRACK_B_RESTORE_EXPECTED_PROJECT_REF` | Exact scratch project ref parsed from that URL. |
 
 Run `Track-B private backup` manually with `restore_rehearsal=true`. The job:
@@ -126,7 +127,13 @@ Run `Track-B private backup` manually with `restore_rehearsal=true`. The job:
    non-allowlisted table, unsafe identifier, and psql command, then regenerates
    only validated `COPY public.<Track-B table>` sections instead of executing
    the downloaded SQL;
-6. restores those sections in one transaction with identities preserved;
+6. restores those sections in one transaction with identities preserved; a
+   scratch-only `SECURITY DEFINER` helper named
+   `public.track_b_restore_set_user_triggers(boolean)` disables and re-enables
+   only user triggers inside that transaction, while foreign-key constraints
+   remain active. Deferred self-references are forced immediate and validated
+   before user triggers are re-enabled. Revoke the helper from `PUBLIC` and
+   grant it only to the scratch restore role;
 7. verifies every table row count and core foreign-key joins; and
 8. records the elapsed restore time in the private Actions run summary.
 
@@ -138,13 +145,15 @@ Keep the HMAC key outside Drive. A Drive writer cannot create or alter a valid
 package without it; rotating the key makes older packages unverifiable unless
 the retired key is retained in the private recovery procedure.
 
-## Flip-week PITR gate
+## Point-in-time recovery status
 
-This workflow does not enable Supabase point-in-time recovery. Before each flip
-week, the owner must verify in the Supabase dashboard that PITR is enabled and
-current, and record the verification timestamp in the cutover evidence. A green
-six-hour snapshot run and one timed scratch restore rehearsal are both required;
-neither substitutes for the PITR check.
+This workflow does not enable Supabase point-in-time recovery. On 2026-07-15 the
+owner explicitly opted out of the paid PITR add-on for this provisioning round.
+Record PITR as unavailable and as accepted residual risk; do not invent a
+verification timestamp or block the independent snapshot/restore proof on one.
+The owner should revisit the narrower recovery window before a future authority
+cutover. A green private-Drive readback and a timed scratch restore remain
+separate requirements.
 
 ## Rollback
 

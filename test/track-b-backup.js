@@ -138,10 +138,14 @@ process.env.PGSERVICE = 'attacker';
 const scrubbedEnvironment = postgresEnvironment(productionDirect, 'track-b-test');
 if (oldPgHost === undefined) delete process.env.PGHOST; else process.env.PGHOST = oldPgHost;
 if (oldPgService === undefined) delete process.env.PGSERVICE; else process.env.PGSERVICE = oldPgService;
-ok(!scrubbedEnvironment.PGHOST && !scrubbedEnvironment.PGSERVICE
-  && scrubbedEnvironment.PGDATABASE === productionDirect
+ok(!scrubbedEnvironment.PGSERVICE
+  && scrubbedEnvironment.PGHOST === `db.${PRODUCTION_REF}.supabase.co`
+  && scrubbedEnvironment.PGPORT === '5432'
+  && scrubbedEnvironment.PGUSER === 'backup_reader'
+  && scrubbedEnvironment.PGPASSWORD === 'pw'
+  && scrubbedEnvironment.PGDATABASE === 'postgres'
   && scrubbedEnvironment.PGSSLMODE === 'require',
-'PostgreSQL child environment removes inherited redirectors and uses the exact validated URL');
+'PostgreSQL child environment removes inherited redirectors and uses exact validated connection fields');
 const scratchUrl = 'postgresql://restore_reader.scratchref:pw@aws-0-us-east-1.pooler.supabase.com:6543/postgres';
 ok(assertScratchTarget(scratchUrl, 'scratchref', 'SCRATCH_ONLY') === 'scratchref',
 'scratch guard accepts the exact validated non-production target');
@@ -154,6 +158,20 @@ const inspected = inspectPlainDump(dump);
 ok(Object.keys(inspected).length === TABLES.length
   && Object.values(inspected).every(meta => meta.rows === 2),
 'row-count evidence is parsed from every COPY section in the one pg_dump snapshot');
+const currentPgDumpSequence = Buffer.from(dump.toString('utf8').replace(
+  '-- PostgreSQL database dump complete',
+  "SELECT pg_catalog.setval('public.client_access_events_id_seq', 42, true);\n-- PostgreSQL database dump complete",
+));
+ok(parseStrictPgDump(currentPgDumpSequence),
+  'strict parser accepts PostgreSQL 17 setval output without an explicit regclass cast');
+let unexpectedSequenceRejected = false;
+try {
+  parseStrictPgDump(Buffer.from(dump.toString('utf8').replace(
+    '-- PostgreSQL database dump complete',
+    "SELECT pg_catalog.setval('public.unexpected_id_seq', 42, true);\n-- PostgreSQL database dump complete",
+  )));
+} catch (_) { unexpectedSequenceRejected = true; }
+ok(unexpectedSequenceRejected, 'strict parser still rejects sequence state outside the fixed Track-B corpus');
 const emptyDump = fixtureDump(0);
 ok(Object.values(inspectPlainDump(emptyDump)).every(meta => meta.rows === 0),
   'valid zero-row COPY sections remain valid evidence rather than being converted to an error item');
@@ -322,13 +340,14 @@ ok(serviceCred.client_email === 'backup@example.invalid', 'private Drive auth ac
 
 const sql = restoreSql(dump);
 ok(/^begin;/.test(sql)
-  && /session_replication_role = replica/.test(sql)
-  && /truncate table[\s\S]+restart identity cascade/.test(sql)
+  && /track_b_restore_set_user_triggers\(false\)/.test(sql)
+  && /truncate table[\s\S]+cascade/.test(sql)
+  && !/restart identity|session_replication_role/.test(sql)
   && !/\\ir |\\!|DROP TABLE|SET row_security/.test(sql)
   && TABLES.every(config => sql.includes(`COPY public."${config.name}"`))
   && /pg_get_serial_sequence/.test(sql)
-  && /session_replication_role = origin;\ncommit;/.test(sql),
-'restore regenerates only allowlisted COPY data inside one fail-fast scratch transaction');
+  && /set constraints all immediate;\nselect public\.track_b_restore_set_user_triggers\(true\);\ncommit;/.test(sql),
+'restore regenerates only allowlisted COPY data with scratch user triggers disabled transactionally');
 const verificationSql = verifySql();
 ok(Object.keys(INTEGRITY_CHECKS).every(key => verificationSql.includes(`select '${key}'`)),
   'restore verification covers every core foreign-key join in the Track-B graph');
@@ -356,7 +375,9 @@ ok(!/result\.stderr|throw result\.error/.test(postgresToolSources)
   && /runOpaqueTool/.test(backupSource)
   && /runOpaqueTool/.test(restoreSource),
 'PostgreSQL wrappers never copy captured diagnostics into thrown or logged errors');
-ok(/PGDATABASE: info\.url/.test(backupSource)
+ok(/PGHOST: info\.host/.test(backupSource)
+  && /PGPASSWORD: info\.password/.test(backupSource)
+  && /PGDATABASE: info\.database/.test(backupSource)
   && /timingSafeEqual/.test(backupSource)
   && /createHmac\('sha256'/.test(backupSource)
   && /pg_dump/.test(backupSource)
@@ -381,8 +402,8 @@ ok(restoreSource.includes(`const {\n  PRODUCTION_REF,`)
   && /renderSafeCopySections/.test(restoreSource)
   && !/\\ir/.test(restoreSource),
 'restore hard-blocks production and never includes downloaded SQL or psql commands');
-ok(/PITR is enabled and[\s\S]+verification timestamp/.test(opsDoc),
-'runbook keeps the owner-approved flip-week PITR verification as a separate gate');
+ok(/owner explicitly opted out of the paid PITR add-on[\s\S]+do not invent a[\s\S]+verification timestamp/.test(opsDoc),
+'runbook records the owner-approved PITR opt-out without fabricating gate evidence');
 
 async function asyncChecks() {
   const pages = [

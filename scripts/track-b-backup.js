@@ -127,19 +127,35 @@ function strictConnectionInfo(url) {
   if (direct) {
     if (parsed.port && parsed.port !== '5432') throw new Error('Direct Supabase PostgreSQL URL must use port 5432');
     let user;
-    try { user = decodeURIComponent(parsed.username); } catch (_) { throw new Error('PostgreSQL user is invalid'); }
+    let password;
+    try {
+      user = decodeURIComponent(parsed.username);
+      password = decodeURIComponent(parsed.password);
+    } catch (_) { throw new Error('PostgreSQL credentials are invalid'); }
     if (!/^[a-z_][a-z0-9_]*$/i.test(user)) throw new Error('Direct PostgreSQL user is invalid');
-    return { url: parsed.toString(), ref: direct[1], kind: 'direct', user };
+    return {
+      url: parsed.toString(), ref: direct[1], kind: 'direct', user, password,
+      host: parsed.hostname, port: parsed.port || '5432', database: 'postgres',
+      sslmode: parsed.searchParams.get('sslmode') || 'require',
+    };
   }
   if (!/\.pooler\.supabase\.com$/i.test(parsed.hostname)) {
     throw new Error('PostgreSQL connection URL must use an approved Supabase host');
   }
   if (parsed.port && !['5432', '6543'].includes(parsed.port)) throw new Error('Supabase pooler URL must use port 5432 or 6543');
   let user;
-  try { user = decodeURIComponent(parsed.username); } catch (_) { throw new Error('PostgreSQL user is invalid'); }
+  let password;
+  try {
+    user = decodeURIComponent(parsed.username);
+    password = decodeURIComponent(parsed.password);
+  } catch (_) { throw new Error('PostgreSQL credentials are invalid'); }
   const pooled = user.match(/^([a-z_][a-z0-9_]*)\.([a-z0-9]+)$/i);
   if (!pooled) throw new Error('Supabase pooler user must include the project ref');
-  return { url: parsed.toString(), ref: pooled[2], kind: 'pooler', user };
+  return {
+    url: parsed.toString(), ref: pooled[2], kind: 'pooler', user, password,
+    host: parsed.hostname, port: parsed.port || '5432', database: 'postgres',
+    sslmode: parsed.searchParams.get('sslmode') || 'require',
+  };
 }
 
 function connectionProjectRef(url) {
@@ -165,10 +181,14 @@ function postgresEnvironment(url, appName) {
   const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^PG/i.test(key)));
   return {
     ...environment,
-    PGDATABASE: info.url,
+    PGHOST: info.host,
+    PGPORT: info.port,
+    PGUSER: info.user,
+    PGPASSWORD: info.password,
+    PGDATABASE: info.database,
     PGCONNECT_TIMEOUT: '15',
     PGAPPNAME: appName,
-    PGSSLMODE: 'require',
+    PGSSLMODE: info.sslmode,
   };
 }
 
@@ -275,7 +295,7 @@ function allowedDumpControlLine(line) {
   if (/^SET default_tablespace = '';$/.test(line)) return true;
   if (/^SET default_table_access_method = heap;$/.test(line)) return true;
   if (line === "SELECT pg_catalog.set_config('search_path', '', false);") return true;
-  const sequence = line.match(/^SELECT pg_catalog\.setval\('public\.([a-z_][a-z0-9_]*)'::regclass, [0-9]+, (?:true|false)\);$/);
+  const sequence = line.match(/^SELECT pg_catalog\.setval\('public\.([a-z_][a-z0-9_]*)'(?:::regclass)?, [0-9]+, (?:true|false)\);$/);
   if (sequence) {
     const allowedSequences = new Set(TABLES.filter(config => config.identity).map(config => `${config.name}_${config.pk}_seq`));
     return allowedSequences.has(sequence[1]);

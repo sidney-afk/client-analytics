@@ -80,12 +80,13 @@ function restoreSql(parsedDump) {
     'begin;',
     "set local lock_timeout = '20s';",
     "set local statement_timeout = '20min';",
-    'set local session_replication_role = replica;',
-    `truncate table ${names.map(name => `public.${name}`).join(', ')} restart identity cascade;`,
+    'select public.track_b_restore_set_user_triggers(false);',
+    `truncate table ${names.map(name => `public.${name}`).join(', ')} cascade;`,
   ].join('\n');
   const postamble = [
     ...identityResets,
-    'set local session_replication_role = origin;',
+    'set constraints all immediate;',
+    'select public.track_b_restore_set_user_triggers(true);',
     'commit;',
     '',
   ].join('\n');

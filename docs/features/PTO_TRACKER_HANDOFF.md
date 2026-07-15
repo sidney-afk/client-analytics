@@ -64,10 +64,14 @@ This guarantees one source of truth.
 - **Anniversary reset**: at each hire anniversary the wellness balance resets
   to 0 (policy: "does not roll over"), the granted/used counters reset, and
   monthly grants resume on the following 1st.
-- **Company baseline (from the policy doc)**: members with 6+ months tenure on
-  **2026-02-06** were granted **6.0 days on 2026-02-06**, with monthly grants
-  from 2026-03-01. Implement this as a hardcoded baseline grant in the engine
-  (it predates this system; several seeds depend on it).
+- **Company baseline (from the policy doc)**: the policy took effect
+  **2026-02-06**. Hardcode both baseline cases in the engine (they predate
+  this system; several seeds depend on them):
+  - tenure ≥ 6 months on 2026-02-06 → **+6.0 on 2026-02-06**, monthly grants
+    from 2026-03-01;
+  - tenure ≥ 60 days but < 6 months on 2026-02-06 (i.e. eligibility passed
+    before the policy existed) → the **+2.0 initial grant lands on
+    2026-02-06**, monthly grants from 2026-03-01 (see Fixture E).
 - Half-day requests (0.5 increments) are allowed.
 - **Balance = grants in current leave year − approved wellness days in current
   leave year + adjustments.** Requests that would push the balance below 0 are
@@ -98,8 +102,14 @@ A request type with approval flow but zero balance math.
   pending, or by admin any time before the start date).
 - The UI shows a non-blocking warning when start date < 14 days out (policy
   asks 2 weeks notice; Kasper can still approve).
-- Weekends: day counts exclude Sat/Sun (Hrvey behaved this way — e.g. a
-  Wed Jul 22 – Wed Jul 29 2026 range = 6.0 days).
+- Day counting: a request's `days` = weekdays in the range, **excluding
+  Sat/Sun AND the five fixed paid holidays (observed dates)**. Hrvey behaved
+  this way: Wed Jul 22 – Wed Jul 29 2026 = 6.0 days (weekends out), and a
+  Wed Jul 1 – Fri Jul 3 2026 range = 2.0 days because Fri Jul 3 was
+  Independence Day *observed* (Jul 4 2026 is a Saturday). Holiday observance
+  follows US convention: Sat → preceding Fri, Sun → following Mon. The
+  server recomputes the count and rejects mismatches; the calendar renders
+  observed holiday dates.
 - Sick requests may be same-day/past-dated (illness is retroactive by nature).
 
 ### 2.7 Worked examples (use these as unit-test fixtures)
@@ -125,6 +135,10 @@ private Drive doc, NOT in this public repo — see §6):
   wellness requests until positive.
 - **Fixture D** (hired 2026-04-01): eligible 2026-05-31 → +2.0 May 31,
   +0.5 Jun/Jul 1 = 3.0 granted, 0 used → wellness 3.0; 1 sick used → sick 2.0.
+- **Fixture E** (hired 2025-09-16): tenure on 2026-02-06 = 143 days (≥60d,
+  <6mo) → baseline **+2.0 on 2026-02-06**; +0.5 Mar 1 (still 2-6mo); crosses
+  6mo 2026-03-16; +1.0 Apr/May/Jun/Jul 1 = 6.5 granted. 5.0 used →
+  balance 1.5. Leave year 2025-09-16 → 2026-09-15, no reset yet in 2026.
 
 ---
 
@@ -136,9 +150,16 @@ Follow the house idiom from `migrations/2026-07-10-smm-weekly-reports.sql`
 log the apply in `EXECUTION_LOG.md`).
 
 ```sql
--- 1) Hire date on the existing roster (additive)
-alter table public.team_members add column if not exists pto_start_date date;
-alter table public.team_members add column if not exists pto_enabled boolean not null default false;
+-- 1) PTO membership (hire dates) — a SEPARATE LOCKED table, deliberately NOT
+-- columns on team_members: team_members has anon-SELECT RLS and is read over
+-- public REST (see docs/independence/SYSTEM_MAP.md "Supabase REST tables"),
+-- so hire dates there would be world-readable via the committed anon key.
+create table if not exists public.pto_members (
+  member_id uuid primary key references public.team_members(id),
+  pto_start_date date not null,
+  pto_enabled boolean not null default false,
+  updated_at timestamptz not null default now()
+);
 
 -- 2) Requests
 create table if not exists public.pto_requests (
@@ -180,18 +201,21 @@ incident (SMM routes shipped with anonymous access). Copy the
 `sales-intake-migration.sql` posture for both new tables:
 
 ```sql
-alter table public.pto_requests enable row level security;   -- no policies at all
+alter table public.pto_members enable row level security;    -- no policies at all
+alter table public.pto_requests enable row level security;
 alter table public.pto_adjustments enable row level security;
+revoke all on table public.pto_members from anon, authenticated;
 revoke all on table public.pto_requests from anon, authenticated;
 revoke all on table public.pto_adjustments from anon, authenticated;
+grant select, insert, update, delete on table public.pto_members to service_role;
 grant select, insert, update, delete on table public.pto_requests to service_role;
 grant select, insert, update, delete on table public.pto_adjustments to service_role;
 -- NO realtime publication. The tab refetches on mount/actions; polling is unnecessary.
 ```
 
-All reads and writes flow through the edge function. `team_members` keeps its
-existing anon-SELECT policy (it already exposes name/role; `pto_start_date` is
-low-sensitivity, but do not add balance data to it).
+All reads and writes flow through the edge function. `team_members` itself is
+untouched (it keeps its existing anon-SELECT policy); nothing PTO-related is
+readable without a staff key.
 
 ---
 
@@ -219,11 +243,11 @@ Deploy with `--no-verify-jwt` like every other function.
 | Action | Method | Roles | Behavior |
 |---|---|---|---|
 | `?action=overview` | GET (auth via header) | any staff | Returns: the caller's balance detail (wellness granted/used/available, sick used/available, floating-holiday status, next accrual date), all members' `{name, wellness_available, on_leave_today}`, approved absences for the calendar (±3 months), the caller's own request history, and the fixed-holiday list. |
-| `action=request` | POST | any staff | Validates: member has `pto_enabled` + `pto_start_date`; eligibility (60 days) for paid types; `days` matches the weekday count of the range (recompute server-side, don't trust the client); wellness balance sufficient (else 409 `insufficient_balance`); floating holiday not already used this calendar year. Inserts `pending`. |
+| `action=request` | POST | any staff | Validates: member has a `pto_members` row with `pto_enabled=true`; eligibility (60 days) for paid types; `days` matches the server-recomputed weekday-minus-holidays count of the range (don't trust the client); wellness balance sufficient (else 409 `insufficient_balance`); floating holiday not already used this calendar year. Inserts `pending`. |
 | `action=decide` | POST | **admin only** | `{request_id, decision: 'approved'\|'denied', decision_note?}`. Re-validates balance at decision time for wellness. Sets `decided_by` from the verified actor. |
 | `action=cancel` | POST | requester (pending only) or admin (any future) | Sets `cancelled`. |
 | `action=adjust` | POST | **admin only** | Inserts a `pto_adjustments` row (used for Hrvey seeds and corrections). |
-| `action=set_start_date` | POST | **admin only** | `{member_id, pto_start_date, pto_enabled}`. |
+| `action=set_start_date` | POST | **admin only** | `{member_id, pto_start_date, pto_enabled}` — upserts the member's `pto_members` row. |
 
 The accrual engine (§2) is a pure function in the same file — write it as
 **annotation-free plain JS** (valid TS) named `computePtoBalance(member,
@@ -363,16 +387,19 @@ contractors with client accounts).
 
 ## 7. Repo compliance checklist (CI-enforced — the PR fails without these)
 
-- [ ] `docs/truth/ENDPOINTS.md`: add `functions/v1/pto`; bump the
-  `"<N> literal + <M> composed" Edge Functions` count string in
-  `docs/independence/SYSTEM_MAP.md` (checked by `test/truth-sync.js`).
+- [ ] `docs/truth/ENDPOINTS.md`: add `functions/v1/pto`; update the count
+  string in `docs/independence/SYSTEM_MAP.md` — currently
+  `"16 literal + 4 composed" Edge Functions`; a literal `functions/v1/pto`
+  call makes it `"17 literal + 4 composed"` (checked by `test/truth-sync.js`,
+  which also updates the "app calls 20" prose → 21).
 - [ ] Offline unit tests `test/pto-accrual.js` (+ more as needed) in the house
   string-extraction style (`grabFunc`/`grabConst` from `index.html` /
   function sources, sandbox, `ok()` asserts — model: `test/save-indicator-rollout.js`).
   MUST cover: 60-day eligibility; +2 initial grant; 0.5 vs 1.0 monthly rates;
   bucket flip carry-over; caps (6/12); anniversary reset (Fixture A);
-  Feb-6-2026 baseline (Fixture B); negative-seed handling (Fixture C);
-  weekday counting; the §2.7 worked examples verbatim.
+  both Feb-6-2026 baseline cases (Fixtures B and E); negative-seed handling
+  (Fixture C); day counting incl. weekend AND observed-holiday exclusion
+  (the Jul 1–3 2026 = 2.0 case); the §2.7 worked examples verbatim.
 - [ ] `npm test` green; expect the prod-polish **fast lane** to run on any
   `index.html` PR — keep Production surface, nav containment, 390px header,
   and a11y names intact.

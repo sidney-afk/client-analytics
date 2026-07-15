@@ -28,7 +28,6 @@ jobs:
       TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ vars.TRACK_B_BACKUP_DRIVE_FOLDER_ID }}
       SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
       TRACK_B_BACKUP_FRESHNESS_HOURS: '7'
-      BACKUP_PATH: ${{ runner.temp }}/syncview-track-b-latest.snapshot
     steps:
       - uses: actions/checkout@v4
 
@@ -56,7 +55,7 @@ jobs:
 
       - name: Take one transactional Track-B snapshot and upload to private Drive
         id: export
-        run: node scripts/track-b-backup.js export --output="$BACKUP_PATH"
+        run: node scripts/track-b-backup.js export --output="$RUNNER_TEMP/syncview-track-b-latest.snapshot"
 
       - name: Check seven-hour Drive freshness
         if: always()
@@ -65,7 +64,7 @@ jobs:
       - name: Remove runner-local sensitive package
         if: always()
         shell: bash
-        run: rm -f "$BACKUP_PATH"
+        run: rm -f "$RUNNER_TEMP/syncview-track-b-latest.snapshot"
 
   restore_rehearsal:
     if: github.event_name == 'workflow_dispatch' && inputs.restore_rehearsal == true
@@ -79,7 +78,6 @@ jobs:
       TRACK_B_RESTORE_DATABASE_URL: ${{ secrets.TRACK_B_RESTORE_DATABASE_URL }}
       TRACK_B_RESTORE_EXPECTED_PROJECT_REF: ${{ vars.TRACK_B_RESTORE_EXPECTED_PROJECT_REF }}
       TRACK_B_RESTORE_CONFIRM: SCRATCH_ONLY
-      RESTORE_PACKAGE: ${{ runner.temp }}/syncview-track-b-restore.snapshot
     steps:
       - uses: actions/checkout@v4
 
@@ -106,12 +104,12 @@ jobs:
           sudo apt-get install -y -qq postgresql-client
 
       - name: Download and validate latest private package
-        run: node scripts/track-b-backup.js download-latest --output="$RESTORE_PACKAGE"
+        run: node scripts/track-b-backup.js download-latest --output="$RUNNER_TEMP/syncview-track-b-restore.snapshot"
 
       - name: Timed scratch restore and integrity verification
-        run: node scripts/track-b-restore-rehearsal.js --apply --package="$RESTORE_PACKAGE"
+        run: node scripts/track-b-restore-rehearsal.js --apply --package="$RUNNER_TEMP/syncview-track-b-restore.snapshot"
 
       - name: Remove runner-local sensitive package
         if: always()
         shell: bash
-        run: rm -f "$RESTORE_PACKAGE"
+        run: rm -f "$RUNNER_TEMP/syncview-track-b-restore.snapshot"

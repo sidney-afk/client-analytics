@@ -1370,7 +1370,8 @@ behav/sweep adapted to the `_prod*` DOM). The pixel-measurement method doc refer
   controls. The legacy card/Workload fast receiver is **inactive/unpublished** (F46), so scheduled
   reconciliation—not that saved graph—is the current healing path.
 - **Still blocking rollout/retirement:** #813's safe per-client reroute boundary; native intake and
-  Linear-free retirement epoch (F32/F44/F45); canonical card/deliverable status projection (F50),
+  Linear-free retirement epoch (F32/F44/F45 — note: F44 server+browser fix merged & live 2026-07-15
+  (#836), remaining TEST drills only); canonical card/deliverable status projection (F50),
   Graphics artifact delivery (F53), links/predicates/name sync, unified comment threads and client
   audience reads (F42/F43), Workload (F40), archive UI/rescue (F34), reorder/diagnostics, secure
   link distribution/enforcement, notification parity, concurrency, and every other OPEN item in
@@ -1642,6 +1643,9 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-30 | Overdue +2-day auto-bump (supersedes D-8's drop) | the legacy path silently extends overdue due dates by 2 days on status change; the native gateway deliberately did not port it (D-8 assumed "drop", never ratified); the 2026-07-13 audit (F20) surfaced that dropping it was an unratified behavior change | **RATIFIED by owner 2026-07-13: KEEP the bump.** Port the +2d-overdue-on-status-change behavior into the native write path, flag-gated so it can be disabled later without a deploy. D-8's "no auto-bump" stance is superseded. | write-UI epoch |
 | D-31 | Client link token distribution | audit F03: circulating links are token-less while the write gateway hard-requires a token; audit F33 proved the proposed sheet mechanism would expose every bearer token through anonymous GViz | **PARTIALLY RETAINED / MECHANISM REOPENED 2026-07-13:** the owner's human decision remains — **each SMM re-shares their own clients' links**, with no central resend. **Do not put tokens in Clients Info.** Explicit owner question from F33: approve a staff-authenticated exact-client link-builder endpoint instead. Until answered and built, token enforcement/write reroute is blocked. | write-UI epoch |
 | D-32 | Staged reroute rollout via per-client allowlist (amends the #813 merge model; satisfies D-28's soak intent) | audit F02/F23: "#813 ships inert" was false — merging with parity off freezes every Linear-linked approval company-wide, and GitHub Pages deploys to 100% of users at once with no canary | **RATIFIED by owner 2026-07-13:** #813's reroute ships behind a per-client allowlist runtime flag (`write_ui_reroute_clients`, same pattern as `calendar_upsert_ef_clients`) defaulting to the TEST client only. Merge is dark; parity is armed at Phase 1; real clients enroll in staged cohorts with watchers green between cohorts; a full-roster clean week satisfies D-28's soak. Emptying the allowlist is the pre-flip kill switch. | write-UI epoch |
+| D-33 | No notification of the 21 affected people | onboarding contact data was anonymously reachable (F77) | **RATIFIED by owner 2026-07-15:** no notification of the 21 people whose onboarding contact data was anonymously reachable. | privacy / F77 |
+| D-34 | F64 public-history PII purge parked | schema-only clean files are ready, but GitHub still expands deleted rows even behind a diff guard; no live endpoint serves the file | **PARKED by owner 2026-07-15:** accepted residual documented in F64; reopen when the owner schedules the freeze/rewrite. | privacy / F64 |
+| D-35 | F15 slack_user_id backfill deferred | no consumer exists — the post-Linear editor-notify EF is unbuilt; today's pings ride the legacy n8n email→Slack map + Linear | **DEFERRED by owner 2026-07-15:** backfill slack_user_id only when/if a post-Linear notify EF is built. | write-UI epoch / F15 |
 
 ---
 

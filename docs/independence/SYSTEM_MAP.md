@@ -55,9 +55,9 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   census found 20 nonempty anon-selectable operational tables. Client-token/UI verification does
   not constrain direct PostgREST; the owner must explicitly accept the exposed fields as public or
   migrate to scoped projections and revoke raw policies. Raw anon reads are now revoked for
-  `thumbnail_media_revisions`, `social_media_managers`, and `smm_weekly_reports`. Candidate source
-  moves `filming_plans` behind its live staff EF, but current Pages still reads the table, so that
-  revoke is merge-gated. F86 separately blocks raw inactive staff/client rows and internal email/
+  `thumbnail_media_revisions`, `social_media_managers`, and `smm_weekly_reports`. The staff EF
+  now serves `filming_plans` and the raw table anon-SELECT is revoked (2026-07-15, post-#836): direct
+  REST returns 401/42501. F86 separately blocks raw inactive staff/client rows and internal email/
   Slack/Linear/project mappings.
 - **Edge Functions.** 25 are represented under `supabase/functions/`; **the app calls 20** (see
   §7). Five are backend-only: the Linear webhook target (`linear-inbound`), B4 outbox drainer
@@ -632,9 +632,9 @@ n8n in the metric read path.*
 
 > **P1 CONFIDENTIALITY BLOCKER (F82).** Live read-only proof found that both the Edge GET and direct
 > anon REST returned the complete client/document-link roster. The staff-gated Edge GET is now live
-> and denies missing/wrong keys with `401`. This branch moves the SPA to that reader, removes raw REST/
-> realtime/Sheets fallback paths, and adds the narrow F88 anon-SELECT revoke. Current Pages still
-> reads the table, so the revoke waits for merge. The blocker remains open pending intended-role
+> and denies missing/wrong keys with `401`. The SPA now reads via that staff EF, with raw REST/
+> realtime/Sheets fallback paths removed and the narrow F88 anon-SELECT revoke applied (2026-07-15,
+> post-#836): the raw `filming_plans` table anon-SELECT is revoked and direct REST returns 401/42501. The blocker remains open pending intended-role
 > browser proof, direct-table denial, and public-seed/Google-sharing review.
 
 - **Entry.** Team tab `#filming-plans`; Kasper "filming" subtab (read-only). Shared consumers:
@@ -792,9 +792,10 @@ separate hidden first-party Direct-Post surface.*
 
 - **Entry.** Hash-only, no nav button: `#smm-weekly-report` (SMM form) and `#smm-weekly-reports`
   (viewer, labeled "Kasper view"). Viewer filters (`week/smm/client/status`) live in the hash query.
-  Both hide all chrome and `syncview_nav` is deliberately never set to these routes. The candidate
-  caller requires a freshly verified staff identity/key before every API call; current Pages lacks
-  that header and therefore fails closed until merge rather than exposing the route anonymously.
+  Both hide all chrome and `syncview_nav` is deliberately never set to these routes. The staff
+  caller (merged with #836, 2026-07-15) requires a freshly verified staff identity/key before every
+  API call, so current Pages sends that header and the route is served with auth rather than exposed
+  anonymously.
 - **Reads.** Staff-gated `smm-weekly-reports` EF — `?action=options` (roster + current week) and
   `?action=reports` (submitted reports). Client roster for the picker comes from the background
   analytics fetch. Anonymous GET now returns `401`.

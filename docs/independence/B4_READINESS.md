@@ -1,6 +1,7 @@
 # B4 Readiness — gate evidence, auth operationalization, road to writable
 
 **Date:** 2026-07-11 · **Second-pass corrections through:** 2026-07-14 · **Status:** living checklist (update in the same PR as any item it tracks)
+**2026-07-15 update:** PR #836 merged to main as `2a99141` (security containment + F44 browser fix `c7b325e`); F35/F44/F76/F77/F82/F88 live-state reflected below.
 **Authority:** `TRACK_B_LINEAR_REPLACEMENT_SPEC.md` defines every phase, gate, and design here —
 where this file and the spec disagree, THE SPEC WINS. This file is the operational bridge: what
 is live right now, evidence per gate item, who owns each remaining step, and the plain-language
@@ -11,7 +12,7 @@ answers to the owner's standing architecture questions.
 | Metric | Value | Evidence |
 |---|---|---|
 | Mirror faithfulness (`diff_count` / `repair_list_size`) | 0 / 0 sustained; only single-run transients that self-clear on the next 15-min tick | reconciler v2 summary events in `deliverable_events` (e.g. events 7743–7746) |
-| Pending card linkage (`linkage_actionable`) | **0** since 2026-07-11 03:22 UTC (drained 31 additive slot fills; residue 208 all classified non-actionable) | events 7744 (before) → 7746 (after); EXECUTION_LOG 2026-07-11 |
+| Pending card linkage (`linkage_actionable`) | moved 0→1 at ~2026-07-14T16:03Z (1 dry-run calendar:video planned linkage, not written; flagged, benign); prior baseline **0** since 2026-07-11 03:22 UTC (drained 31 additive slot fills; residue 208 all classified non-actionable) | events 7744 (before) → 7746 (after); EXECUTION_LOG 2026-07-11 |
 | Mirror coverage | all 4,323 deliverables checked, zero-row gap closed | event 7746 `deliverables_checked` |
 | History parity | finished-work import complete: 3,187 deliverables + 800 batches, tag `created_by='history-backfill-2026-07-10'`. F62 invalidates the old one-command DELETE because later normalized comments and thousands of ledger events depend on the tagged rows; preserve by default pending a dependency-aware owner-approved rollback rehearsal. | EXECUTION_LOG 2026-07-10/11 plus 2026-07-14 correction; ROLLBACK.md Live State |
 | Inbound mirror | `linear_inbound_enabled={"enabled":true}` since 2026-07-07 23:17; fresh `mirror_in_*` events daily | `syncview_runtime_flags`; `deliverable_events` source=`mirror` |
@@ -23,7 +24,7 @@ answers to the owner's standing architecture questions.
 
 | # | Gate item (spec wording) | Status | Owner |
 |---|---|---|---|
-| 1 | Mirror zero-diff (modulo §1.4) **7 consecutive days** | ❌ **BLOCKED / NOT CURRENTLY MEASURABLE (F90).** The present aggregate mixes planned TEST drill churn into the real-client soak and pager signal. Gate is met only after source separation, when both hold: (i) the separately labeled TEST diagnostic/harness passes green with reconciler v2 at 0/0/0 throughout, and (ii) **real-client-only** diff/repair faithfulness stays clean for a new full dated seven-day interval (§1.4d transients tolerated; linkage remains a maintenance lane). Do not reuse a pre-separation interval or mark this row green from the mixed aggregate. | Owner |
+| 1 | Mirror zero-diff (modulo §1.4) **7 consecutive days** | ❌ **BLOCKED / NOT CURRENTLY MEASURABLE (F90).** The present aggregate mixes planned TEST drill churn into the real-client soak and pager signal. Gate is met only after source separation, when both hold: (i) the separately labeled TEST diagnostic/harness passes green with reconciler v2 at 0/0/0 throughout, and (ii) **real-client-only** diff/repair faithfulness stays clean for a new full dated seven-day interval (§1.4d transients tolerated; linkage remains a maintenance lane). Do not reuse a pre-separation interval or mark this row green from the mixed aggregate. **Observed (2026-07-15):** repair_list_size=0 and outbound_diff_count=0 across all sampled runs for 8 consecutive days (status parity). The F90 measurement-validity concern is unresolved, so the 7-day gate is observed-clean but not formally certified pending F90. | Owner |
 | 2 | Comments webhook subscribed + catch-up pull run (§4.3.4) | ✅ reconciler webhook probe: 4/4 enabled, `missing_comment_resource=0`; comment catch-up ran in B3 stage 3 | evidence in v2 summary `webhooks` block |
 | 3 | Echo probe green (§12) | ✅ 2026-07-11 TEST probe: one app comment produced one Linear comment and remained exactly one app-thread entry after both Comments webhooks settled; zero duplicate `mirror_in_comment_add` events; Linear creation 3.096 s, settled proof 11.543 s; all TEST mutations restored | Codex |
 | 4 | Editor/SMM UX feedback collected | ❌ Bounded fictional/source walks found F133–F138: split native title, browser-only recovery, inaccessible reorder, illegal creative transitions, collapsed Video assets, and absent Activity. F133–F137 must close before the applicable human flip; F138 must close by the owner-ratified first-flip-or-history-retirement gate. Then obtain explicit real-team sign-off. | Owner |

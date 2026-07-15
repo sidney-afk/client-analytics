@@ -35,7 +35,7 @@ Configure these before enabling the schedule on `main`:
 |---|---|---|
 | Secret | `TRACK_B_BACKUP_DATABASE_URL` | Production direct/pooler PostgreSQL URL for a dedicated read-only backup role. The script rejects a non-production project ref and rejects the role if it has `INSERT`, `UPDATE`, `DELETE`, or `TRUNCATE` on any covered table. |
 | Secret | `TRACK_B_BACKUP_HMAC_KEY` | Canonical base64 encoding of at least 32 random bytes, used to authenticate every snapshot package before parsing or restore. Generate separately from Drive credentials, for example with a cryptographically secure 32-byte random generator. |
-| Secret | `TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON` | Google authorized-user refresh JSON, or a service-account JSON/base64 JSON. Authorized-user JSON needs `client_id`, `client_secret`, and `refresh_token`. A service account should target a Shared Drive or otherwise have confirmed upload ownership/quota. |
+| Secret | `TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON` | Google authorized-user refresh JSON, or a service-account JSON/base64 JSON. Authorized-user JSON needs `client_id`, `client_secret`, and `refresh_token`. A service account **must** target a Shared Drive; sharing a normal My Drive folder as Editor does not give a service account storage quota. Otherwise use OAuth 2.0 on behalf of the human owner. |
 | Variable | `TRACK_B_BACKUP_DRIVE_FOLDER_ID` | Existing private backup folder; share it only with the backup principal. |
 | Optional secret | `SLACK_ALERT_WEBHOOK` | Legacy optional transport only. If absent, no Slack request is made. The standard alert is the failed GitHub Actions run and the repository owner's GitHub Actions email notification. |
 

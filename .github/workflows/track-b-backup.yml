@@ -46,6 +46,8 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
           pg_dump --version
 
       - name: Require private backup credentials
@@ -116,6 +118,8 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
           psql --version
 
       - name: Download and validate latest private package

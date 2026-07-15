@@ -16,6 +16,7 @@ const {
   canonicalJson,
   classifyFreshness,
   connectionProjectRef,
+  googleDriveErrorReason,
   inspectPlainDump,
   isSnapshotName,
   listBackups,
@@ -367,8 +368,13 @@ ok(/TRACK_B_BACKUP_DATABASE_URL/.test(workflow)
   && !/for name[^\n]+SLACK_ALERT_WEBHOOK/.test(workflow),
 'workflow requires the read-only database, HMAC, and private Drive credentials without requiring Slack');
 ok(/Install PostgreSQL snapshot client/.test(workflow)
-  && (workflow.match(/postgresql-client-17/g) || []).length === 2,
+  && (workflow.match(/postgresql-client-17/g) || []).length === 2
+  && (workflow.match(/\/usr\/lib\/postgresql\/17\/bin/g) || []).length === 4,
 'GitHub runner explicitly installs the PostgreSQL 17 pg_dump and psql clients');
+ok(googleDriveErrorReason({ error: { errors: [{ reason: 'storageQuotaExceeded', message: 'must not be logged' }] } }) === 'storageQuotaExceeded'
+  && googleDriveErrorReason({ error: { status: 'PERMISSION_DENIED', message: 'must not be logged' } }) === 'PERMISSION_DENIED'
+  && googleDriveErrorReason({ error: { errors: [{ reason: 'unsafe reason with spaces' }] } }) === 'unspecified',
+'Drive failures expose only a bounded provider reason token, never provider messages or identities');
 ok(/TRACK_B_RESTORE_CONFIRM: SCRATCH_ONLY/.test(workflow)
   && /TRACK_B_RESTORE_EXPECTED_PROJECT_REF/.test(workflow),
 'manual restore job is explicitly scratch-bound');

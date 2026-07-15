@@ -622,6 +622,21 @@ async function listBackups(token, fetchImpl = fetch, folderId = DRIVE_FOLDER_ID)
   return files.filter(file => isSnapshotName(file && file.name));
 }
 
+function googleDriveErrorReason(payload) {
+  const error = payload && payload.error;
+  const nested = error && Array.isArray(error.errors)
+    ? error.errors.find(item => clean(item && item.reason))
+    : null;
+  const candidate = clean(nested && nested.reason || error && error.status);
+  return /^[A-Za-z0-9_.-]{1,80}$/.test(candidate) ? candidate : 'unspecified';
+}
+
+async function googleDriveHttpError(stage, response) {
+  let payload = null;
+  try { payload = await response.json(); } catch (_) {}
+  return new Error(`${stage} HTTP ${response.status} (${googleDriveErrorReason(payload)})`);
+}
+
 async function uploadDriveBytes(token, bytes, name) {
   const metadata = Buffer.from(JSON.stringify({ name, parents: [DRIVE_FOLDER_ID] }));
   const boundary = `trackb_${crypto.randomBytes(12).toString('hex')}`;
@@ -633,7 +648,7 @@ async function uploadDriveBytes(token, bytes, name) {
   const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,createdTime,size,md5Checksum', {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` }, body,
   });
-  if (!response.ok) throw new Error(`Google Drive upload HTTP ${response.status}`);
+  if (!response.ok) throw await googleDriveHttpError('Google Drive upload', response);
   return response.json();
 }
 
@@ -971,6 +986,7 @@ module.exports = {
   canonicalJson,
   classifyFreshness,
   connectionProjectRef,
+  googleDriveErrorReason,
   inspectPlainDump,
   isSnapshotName,
   listBackups,

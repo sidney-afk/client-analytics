@@ -89,7 +89,7 @@ Other:
   until the reconciler callers in this PR merge and can be deployed atomically with the managed key.
   Direct legacy n8n writers remain F67.
 - `functions/v1/onboarding-capture` — onboarding funnel capture
-- `functions/v1/client-token-verify`, `functions/v1/client-credentials` — client auth + staff credentials surface. F89: token telemetry logs access-allowed as `ok`, so permissive tokenless opens are not validation evidence. F84: credentials bulk-delivers plaintext before masking and accepts shared/legacy keys without active-member binding.
+- `functions/v1/client-token-verify`, `functions/v1/client-review-link`, `functions/v1/client-credentials` — client auth, staff-only current review-link issuance, and staff credentials surface. F89: token telemetry logs access-allowed as `ok`, so permissive tokenless opens are not validation evidence. F84: credentials bulk-delivers plaintext before masking and accepts shared/legacy keys without active-member binding.
 - `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal pings it at boot to revalidate the stored role key, and sensitive staff EFs share its secret-to-role matcher. F87 requires uniform denials, request controls, bounded audit retention, and explicit audit-outage behavior for both verifiers.
 - `functions/v1/production-comments` — bounded, no-store Production-thread reader; it verifies a
   staff role key and active roster selection before service-role reads, but does not enforce the

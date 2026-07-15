@@ -59,7 +59,8 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   now serves `filming_plans` and the raw table anon-SELECT is revoked (2026-07-15, post-#836): direct
   REST returns 401/42501. F86 separately blocks raw inactive staff/client rows and internal email/
   Slack/Linear/project mappings.
-- **Edge Functions.** 25 are represented under `supabase/functions/`; **the app calls 20** (see
+- **Edge Functions.** 26 are represented under `supabase/functions/`; **the app calls 21**
+  (**"17 literal + 4 composed" Edge Functions**, see
   §7). Five are backend-only: the Linear webhook target (`linear-inbound`), B4 outbox drainer
   (`linear-outbound`), service-only write wrappers (`deliverable-write`, `batch-write`), and the
   scheduled thumbnail Drive scanner (`thumbnail-revision-scan`). `production-write` is app-called
@@ -603,7 +604,9 @@ n8n in the metric read path.*
   (`?v=calendar`), old Samples (`?v=samples`), Sample-Reviews (`?sxr=1&v=sample-reviews`). Boot adds
   `boot-client`, bypasses the password, hides staff chrome.
 - **Reads/Writes.** All shared with the owning surfaces (§4.1/4.2/4.6/4.5), scoped to the one client;
-  the exclusive read gate is **`client-token-verify` EF**. Current Calendar/Samples client
+  the exclusive read gate is **`client-token-verify` EF**. Staff share actions obtain the current
+  exact-client bearer token from the staff-only **`client-review-link` EF**; tokens no longer come
+  from the Clients Info sheet. Current Calendar/Samples client
   approvals/change-requests still reach the legacy `linear-set-status` / `linear-add-comment`
   bridges and browser-local retry queues; they do not use the B4 server outbox. #813's native
   reroute is unmerged and would require a valid protected token (F03/F33).
@@ -952,8 +955,8 @@ they drift — in either direction, including the counts. When it fails: update 
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
 - **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
-- **Edge functions (20):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read`
-- **Not counted above:** 16 of the 20 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
+- **Edge functions (21):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read`
+- **Not counted above:** 17 of the 21 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
 - **Supabase REST tables, literal (7):** `calendar_posts` · `caption_prompts` · `content_samples` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read. A dormant event-loader target names `deliverable_events`, but runtime never invokes it (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (4):** `calendar_upsert_ef_clients` · `prod_authority` · `sample_review_ef_clients` · `settings_ef_clients`

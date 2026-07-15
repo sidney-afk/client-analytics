@@ -64,9 +64,14 @@ files stay under the runner temporary directory and are removed in `finally` or
 the workflow cleanup step. No diagnostic file is persisted or uploaded.
 
 The Google credential must be limited to the backup principal. For a My Drive
-folder, prefer an authorized-user refresh credential. A service account often
-cannot own My Drive files; use it only after a real upload/readback proves the
-folder is compatible.
+folder, use an authorized-user refresh credential. A service account has no My
+Drive storage quota and must target a Shared Drive. Before dumping, the script
+reads the configured folder with `supportsAllDrives=true`, requires add/list
+capabilities, and requires a non-empty Shared Drive `driveId` for a service
+account. Every folder listing uses `corpora=drive`, that exact `driveId`,
+`includeItemsFromAllDrives=true`, and `supportsAllDrives=true`; create, metadata
+readback, and byte download also set `supportsAllDrives=true` and verify the
+exact parent folder plus Shared Drive ID.
 
 After upload, the workflow fetches the file's Drive metadata and content back.
 It requires the exact folder, filename, byte length, Drive MD5, local byte-for-
@@ -99,6 +104,18 @@ A later formatted-email transport such as Resend would require a verified
 sending domain and DNS records, a scoped API key in GitHub Actions, an approved
 From address, the owner recipient, and explicit retry/dedupe handling. None of
 those are required for this zero-extra-service GitHub failure-email design.
+
+## First Shared Drive proof
+
+Manual branch run `29444939853` on 2026-07-15 used source `f9406b8` and remained
+strictly read-only against production. It uploaded one 15,562,462-byte package,
+matched Drive MD5 `130c2ec109239be280453462d81698a1`, downloaded the exact bytes,
+verified the HMAC and exact parent, then independently listed/downloaded the
+same package in the freshness step with zero invalid candidates. Package
+SHA-256 was `3bc3f19d50f4f6c3d64559e15dacb2b1863ffcfbe256538392a12790d7ed66db`.
+A separate Drive connector still listed the same filename and byte length after
+runner cleanup. This proves the manual backup and durable Shared Drive storage;
+the recurring schedule remains inactive until owner review and merge.
 
 ## Fault-injection contract
 

@@ -1,6 +1,6 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-14 @ a1e2622 + live security-remediation deny/allow readback
+> Last verified: 2026-07-15 @ 4f9d919 + F13 independent backup/restore merged & active (backup section)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 ## Tables
@@ -122,8 +122,12 @@ returns aggregate counts only. Repository variable `THUMBNAIL_REVISION_SCAN_ENAB
   must be explicitly enabled and read back before each named risky window; it cannot be assumed.
 - Database disk utilization was **0.45 GiB used**. The old "approaching a 500 MB Free cap" framing is
   obsolete. Capacity monitoring should use the live Pro disk/usage readbacks.
-- No successful scratch restore rehearsal is documented. Backup existence is not restore proof;
-  the timed restore + replay verification remains a hard pre-flip gate.
+- **A successful independent restore rehearsal is now documented (2026-07-15, PR #840).** The
+  independent Track-B backup/restore package (`docs/ops/TRACK_B_BACKUP.md`) is merged and active: a
+  6-hourly HMAC-signed 14-table snapshot to a private Google Shared Drive with independent readback,
+  and a proven 229 s dedicated-scratch restore (exact counts, zero core orphans). This satisfies the
+  D-1 export/restore gate; native Supabase physical-backup restore-to-new-project entitlement remains
+  available as a separate recovery path.
 - The Management API does not settle billed egress or the project's spend-cap posture. Before the
   first flip, the owner must answer from **Dashboard -> Usage/Billing**: what is current egress, and
   is the spend cap enabled or disabled?

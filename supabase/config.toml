@@ -77,6 +77,9 @@ verify_jwt = false
 [functions.client-token-verify]
 verify_jwt = false
 
+[functions.client-review-link]
+verify_jwt = false
+
 [functions.key-verify]
 verify_jwt = false
 

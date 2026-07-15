@@ -9581,7 +9581,7 @@
         }).join('')}</tbody></table></div>`;
     }
 
-    function copyShareLink(encodedName){const url=`${location.origin}${location.pathname}?c=${encodedName}`;navigator.clipboard.writeText(url).then(()=>{const btn=document.getElementById('shareBtn');if(!btn)return;btn.classList.add('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied!`;setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client`;},2500);});}
+    async function copyShareLink(encodedName){try{const url=await _syncviewIssueClientShareUrl(decodeURIComponent(encodedName),'analytics');await navigator.clipboard.writeText(url);const btn=document.getElementById('shareBtn');if(!btn)return;btn.classList.add('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied!`;setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client`;},2500);}catch(e){showToast((e&&e.message)||'Could not issue a secure client link');}}
 
     const _baseOpts=(fmtTip)=>({responsive:true,maintainAspectRatio:false,animation:{duration:600,easing:'easeInOutQuart'},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{backgroundColor:_svCss('--chart-tooltip-bg'),titleColor:_svCss('--chart-tooltip-title'),bodyColor:_svCss('--chart-tooltip-body'),borderColor:_svCss('--chart-tooltip-border'),borderWidth:1,padding:14,cornerRadius:10,boxPadding:4,callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y!=null?fmtTip(c.parsed.y):'—'}`}}}});
     function _svCss(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
@@ -15250,11 +15250,9 @@
         if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => window.prompt('Copy link:', url));
         else window.prompt('Copy link:', url);
     }
-    function smCopyShareLink(){
+    async function smCopyShareLink(){
         if(!smState.client) return;
-        let url = `${location.origin}${location.pathname}?c=${encodeURIComponent(smState.client)}&v=samples`;
-        const token = String((clientMap[smState.client] || {}).client_review_token || '').trim();
-        if(token) url += '&t=' + encodeURIComponent(token);
+        let url; try { url = await _syncviewIssueClientShareUrl(smState.client, 'samples'); } catch(e) { showToast((e&&e.message)||'Could not issue a secure client link'); return; }
         const done = () => { const b = document.getElementById('smShareBtn'); if(!b) return; const o = b.dataset.orig || b.innerHTML; b.dataset.orig = o; b.classList.add('copied'); b.innerHTML = `<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied`; setTimeout(() => { b.classList.remove('copied'); b.innerHTML = o; }, 2200); };
         if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => window.prompt('Copy this link:', url));
         else window.prompt('Copy this link:', url);
@@ -16562,6 +16560,7 @@
     const CAL_SUPABASE_ANON_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA'; // browser-safe publishable key; read-only via RLS
     const CAL_SUPABASE_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; // UMD → window.supabase
     const CLIENT_TOKEN_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/client-token-verify';
+    const CLIENT_REVIEW_LINK_URL = CAL_SUPABASE_URL + '/functions/v1/client-review-link';
     const STAFF_KEY_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/key-verify';
     const THUMBNAIL_FOLDER_RESOLVE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/thumbnail-folder-resolve';
     const THUMBNAIL_REVISION_READ_EF_URL = CAL_SUPABASE_URL + '/functions/v1/thumbnail-revision-read';
@@ -17787,6 +17786,23 @@
     }
     function _syncviewClientWriteToken() {
         try { return String(new URLSearchParams(location.search).get('t') || '').trim(); } catch (e) { return ''; }
+    }
+    async function _syncviewIssueClientShareUrl(clientName, view) {
+        const identity = _syncviewStaffIdentityForHeaders();
+        if (!identity) throw new Error('Sign in with your staff account to create a secure client link.');
+        const resp = await fetch(CLIENT_REVIEW_LINK_URL, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_LINK_URL),
+            body: JSON.stringify({ client: clientName })
+        });
+        let json = null; try { json = await resp.json(); } catch (e) {}
+        if (!resp.ok || !json || !json.ok || !json.token) throw new Error((json && json.error) || ('HTTP ' + resp.status));
+        const q = new URLSearchParams();
+        if (view === 'sample-reviews') q.set('sxr', '1');
+        q.set('c', clientName);
+        if (view && view !== 'analytics') q.set('v', view);
+        q.set('t', json.token);
+        return location.origin + location.pathname + '?' + q.toString();
     }
     function _syncviewEfHeaders(headers, url) {
         const out = Object.assign({}, headers || {});
@@ -20101,9 +20117,9 @@
         loadCalendarPosts();
     }
 
-    function calCopyShareLink() {
+    async function calCopyShareLink() {
         if (!calState.client) return;
-        const url = `${location.origin}${location.pathname}?c=${encodeURIComponent(calState.client)}&v=calendar`;
+        let url; try { url = await _syncviewIssueClientShareUrl(calState.client, 'calendar'); } catch(e) { showToast((e&&e.message)||'Could not issue a secure client link'); return; }
         // The share action lives in the kebab (More options) menu, which closes
         // on click — so confirm with a toast rather than swapping a button label
         // that's no longer on screen.
@@ -36201,14 +36217,9 @@
 
     /* Share-with-client link — carries ?sxr=1 because samples is default-OFF
        (without it a fresh client browser never mounts the surface). */
-    function _sxrCopyShareLink() {
+    async function _sxrCopyShareLink() {
         if (!sxrState.client) return;
-        let url = location.origin + location.pathname + '?sxr=1&c=' + encodeURIComponent(sxrState.client) + '&v=sample-reviews';
-        // Carry the per-client review token when set, or the router rejects the
-        // link with "This link isn't valid" for any token-guarded client (the
-        // router hard-gates on t===client_review_token). Mirrors smCopyShareLink.
-        const token = String((clientMap[sxrState.client] || {}).client_review_token || '').trim();
-        if (token) url += '&t=' + encodeURIComponent(token);
+        let url; try { url = await _syncviewIssueClientShareUrl(sxrState.client, 'sample-reviews'); } catch(e) { showToast((e&&e.message)||'Could not issue a secure client link'); return; }
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => {}, () => window.prompt('Copy this link:', url));
         else window.prompt('Copy this link:', url);
     }

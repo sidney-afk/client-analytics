@@ -37,7 +37,7 @@ owner merging this file (see D-32)._
 | `linear_inbound_enabled` | `enabled` | Linear → SyncView copy (always on until B5) |
 | `linear_legacy_parity_enabled` | `disabled` | Transition write-lane off (armed at Phase 1) |
 | `auth_enforcement` | `permissive` | Client-link verifier permits missing/invalid tokens; this is not a staff-write gate |
-| `write_ui_reroute_clients` | **NOT DEPLOYED** (absent from #813 head `885026a`) | Required D-32 allowlist; no merge until it exists, defaults to TEST-only, and reads back |
+| `write_ui_reroute_clients` | live, TEST-only allowlist (`clients:[<TEST_CLIENT>]`) | Required D-32 allowlist; deployed, defaults to TEST-only, and reads back; #813 reroute code parked at head `e3aa028` (was `885026a`) |
 
 Merged & live: #810 gateway (deployed), #811 guards + daily TEST drill + nightly shadow audit,
 #812 mirror write-UI (locked for real teams), 62/62 client→project mappings, Samples retirement
@@ -93,12 +93,13 @@ Phase 0.5 below, after the fix-pack.
       asset. Owner explicitly answers which existing files may remain publicly hosted.
 - [ ] **P0 weekly-report exposure is contained** (F76): unauthenticated report/roster reads and
       writes now deny `401`, both raw-table reads deny `401`, and the signed service roster caller
-      reaches its authenticated branch. Merge and browser-walk the staged Admin/SMM caller before
-      restoring UI availability. Individual SMM scope, access-log review, integrity reconciliation,
+      reaches its authenticated branch. The staged Admin/SMM caller merged with #836 and was
+      browser-walked 2026-07-15 (Admin/SMM allow, creative/client deny; staff screens restored).
+      Individual SMM scope, access-log review, integrity reconciliation,
       per-human sessions and the owner incident disposition remain required.
 - [ ] **P0 onboarding-reader exposure is contained** (F77): all three onboarding list EFs deny
-      anonymous/wrong-key requests with `401`; the staged Admin caller must merge and pass the full
-      browser/standalone walk before UI availability is restored. CORS is still unconstrained,
+      anonymous/wrong-key requests with `401`; the staged Admin caller merged with #836 and passed the full
+      browser/standalone walk 2026-07-15. CORS is still unconstrained,
       background discovery still needs a minimal opaque projection, and logs/private links/
       credentials plus the owner/legal notification disposition remain open.
 - [ ] **P0 public Linear mutation routes are contained** (F91): status/comment bridges require an
@@ -214,7 +215,7 @@ Phase 0.5 below, after the fix-pack.
       anon policies are revoked behind principal/client/role-scoped projections and direct REST,
       cross-client, inactive, cache/stale-tab/mobile/second-device denial passes. Until then token
       enforcement is not a read-confidentiality gate. The thumbnail and two weekly-report tables now
-      deny raw anon reads; filming is merge-gated; raw `clients` and the seven named direct-use tables
+      deny raw anon reads; filming_plans anon SELECT was revoked 2026-07-15 (post-#836); raw `clients` and the seven named direct-use tables
       remain intentionally unchanged until their minimum projections exist.
 - [ ] **Token validation evidence cannot false-green** (F89): telemetry separates credential-valid
       from access-allowed, binds active client/current token revision, and a machine report requires
@@ -242,7 +243,9 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Intake cannot acknowledge work it has not durably accepted** (F44): every legacy/native
       submit returns an idempotent receipt only after durable persistence, the browser awaits it
       and preserves the draft, and missing mapping/credential/plan/roster plus partial-create,
-      timeout, retry, duplicate-click, dead-letter, alert, and replay drills pass on TEST.
+      timeout, retry, duplicate-click, dead-letter, alert, and replay drills pass on TEST. Server +
+      browser fix merged & live with #836 (`c7b325e`, 2026-07-15); the failure/double-click/timeout
+      drills against the deployed build are the remaining step.
 - [ ] **Intake never invents an unfinishable component** (F101): owner either enforces the locked
       paired Video+Graphics model by removing/rejecting single-team intake, or ratifies explicit
       active-component semantics end to end. Classify and repair/migrate every existing single-link
@@ -266,7 +269,8 @@ Phase 0.5 below, after the fix-pack.
       four copy-link builders; then every SMM re-shares their clients' links. D-31's sheet
       mechanism is blocked pending the explicit owner decision in F33.
 - [ ] **Track-A writers actually enforce auth** (F35): all six Calendar/Samples/settings write
-      functions authenticate and authorize the exact client/operation, derive actor server-side,
+      functions (live post-#836, 2026-07-15; calendar-upsert v38 + sample-review-upsert v39 from the
+      merge SHA) authenticate and authorize the exact client/operation, derive actor server-side,
       and emit real write-attempt telemetry; anonymous negative probes are green and the 72-hour
       zero-unkeyed-write gate is measured from those attempts, not sign-in events.
 - [ ] **Rollback cannot reopen anonymous writers** (F67): authenticate/scope every reachable n8n

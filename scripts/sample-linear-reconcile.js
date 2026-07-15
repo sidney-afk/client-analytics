@@ -69,7 +69,8 @@ const grabFunc = (name) => {
 const grabConst = (name) => SRC.match(new RegExp('^\\s*const ' + name + '\\s*=.*;\\s*$', 'm'))[0];
 const mod = new Function([
   grabConst('CAL_STATUSES'), grabConst('CAL_PRIORITY'), grabConst('SXR_COMPONENTS'),
-  grabFunc('_calNormStatus'), grabFunc('computeSampleOverallStatus'),
+  grabConst('SXR_STATUSES'), grabConst('SXR_PRIORITY'),
+  grabFunc('_calNormStatus'), grabFunc('_sxrNormStatus'), grabFunc('computeSampleOverallStatus'),
   grabFunc('_sxrClearStaleApprovals'), grabFunc('_calMapLinearStatusStrict'), grabFunc('_calIdentFromUrl'),
 ].join('\n') + `;return { CAL_PRIORITY, SXR_COMPONENTS, _calNormStatus, computeSampleOverallStatus, _sxrClearStaleApprovals, _calMapLinearStatusStrict, _calIdentFromUrl };`)();
 const { CAL_PRIORITY, SXR_COMPONENTS, _calNormStatus, computeSampleOverallStatus, _sxrClearStaleApprovals, _calMapLinearStatusStrict, _calIdentFromUrl } = mod;

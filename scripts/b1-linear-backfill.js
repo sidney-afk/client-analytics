@@ -15,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { authorityForTeam, loadAuthority } = require('./prod-authority-guard');
+const { publicB1Artifact } = require('./public-b1-artifact');
 
 const ROOT = path.join(__dirname, '..');
 const LINEAR_API_KEY = String(process.env.LINEAR_API_KEY
@@ -1511,8 +1512,7 @@ async function main() {
     if (jsonPath) {
       const full = path.resolve(jsonPath);
       fs.mkdirSync(path.dirname(full), { recursive: true });
-      const { raw, ...safePlan } = plan;
-      fs.writeFileSync(full, JSON.stringify({ plan: safePlan, apply: applyResult }, null, 2));
+      fs.writeFileSync(full, JSON.stringify(publicB1Artifact(plan, applyResult, null), null, 2));
     }
     const report = renderIncremental(plan, applyResult);
     const out = args.get('--out');
@@ -1535,8 +1535,7 @@ async function main() {
   if (jsonPath) {
     const full = path.resolve(jsonPath);
     fs.mkdirSync(path.dirname(full), { recursive: true });
-    const { raw, ...safePlan } = plan;
-    fs.writeFileSync(full, JSON.stringify({ plan: safePlan, apply: applyResult, verification }, null, 2));
+    fs.writeFileSync(full, JSON.stringify(publicB1Artifact(plan, applyResult, verification), null, 2));
   }
   const report = render(plan, applyResult, verification);
   const out = args.get('--out');

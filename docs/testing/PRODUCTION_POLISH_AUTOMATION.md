@@ -27,7 +27,7 @@ npm run test:prod-review:validate
 npm run test:prod-argos:prepare
 ```
 
-That writes `.codex-tmp/prod-review-packet/index.html`, `manifest.md`, `review-checklist.md`, `review-manifest.json`, plus named desktop, dark, and mobile PNGs for the core Production surfaces. The GitHub workflow uploads this folder as `production-review-packet`.
+That writes `.codex-tmp/prod-review-packet/index.html`, `manifest.md`, `review-checklist.md`, `review-manifest.json`, plus named desktop, dark, and mobile PNGs for the core Production surfaces. These files can contain live customer-visible text. Keep them local and access-controlled; the public GitHub workflow validates them only inside its ephemeral runner and never uploads them.
 The validator checks that the gallery, Markdown manifest, review checklist, JSON manifest, PNG screenshots, required surfaces, viewport metadata, themes, routes, inspection notes, screenshot Production state, and **locked-state** read-only invariant are all present. That screenshot invariant is not a claim that Production lacks native-write capability. It also verifies that the clean Project board/detail screenshots are unfiltered baselines while the Combined filters screenshot records active status/client filter pills and deduped visible rows. The Project board screenshot must prove empty columns stay static and that all board column headers have zero fake add/options controls. The desktop list and Project detail screenshots must record zero fake group-header add controls, and the desktop list, Project detail, and Parent detail screenshots must record zero fake topbar favorite/notification controls. The Project detail screenshot must also prove that the Video baseline contains only Video rows and that its breadcrumb/detail labels stay scoped to Video. Selected-actions screenshots must record the visible action bar, searchable command menu, expected selected-issue command labels, and plural multi-select copy. Parent-detail screenshots must record visible sub-issue rows, a visible `Add sub-issues` guarded affordance, and visible activity evidence in the first desktop viewport.
 The Argos preparation step validates that same packet, then exports only the desktop/dark PNGs plus companion `.argos.json` metadata files to `.codex-tmp/prod-argos-snapshots`. Set `SYNCVIEW_ARGOS_INCLUDE_MOBILE=1` only if the team decides to include mobile screenshots in Argos billing/review.
 
@@ -35,28 +35,17 @@ The Argos preparation step validates that same packet, then exports only the des
 
 `.github/workflows/production-polish-gate.yml` keeps the required `production-polish` PR check under five minutes by running boot, structure, the explicit locked-state live-read/zero-mutation smoke, mocked comment reads, the fully mocked write-gateway lane, accessibility/focus, and layout. The longer interaction inventory, `behav-wired`, pixel parity, review packet, validation, and Argos export run only after relevant pushes to `main`, on weekday schedule, and on manual dispatch—not on pull requests. **F105 is open:** the fast PR job passes while the post-merge interaction/heavy jobs fail because legacy guard-mode assertions still expect pickers to open before a locked write; heavy failure also skips review-packet/Argos generation. A green fast job is not aggregate readiness. A Playwright-version-keyed cache reuses Chromium and skips the apt install on cache hits. The workflow cancels superseded in-progress runs for the same ref so repeated pushes do not leave stale browser jobs queued.
 
-The full `main`/scheduled/manual workflow uploads three visual artifacts:
+The full `main`/scheduled/manual workflow does **not** upload `production-polish-screenshots`, `production-review-packet`, or `production-argos-snapshots`, and does not send the live-derived images to Argos. The packet validator still runs in the ephemeral runner. The job summary contains only fixed inspection guidance, never screenshot pixels, row payloads, descriptions, names, contacts, client identifiers, or manifest evidence copied from the live surface.
 
-- `production-polish-screenshots`: the side-by-side pixel/parity screenshots from `.codex-tmp/prod-pixel-wired`;
-- `production-review-packet`: a compact reviewer packet with `index.html`, `manifest.md`, `review-checklist.md`, `review-manifest.json`, and named screenshots from `.codex-tmp/prod-review-packet`, validated before upload.
-- `production-argos-snapshots`: the clean Argos upload folder with desktop Production PNGs and metadata, generated only after the review packet validates.
+The live SyncView app is already served from GitHub Pages (`main` at `syncview.synchrosocial.com`). Neither Pages nor Actions artifacts are an acceptable distribution path for live-derived review packets.
 
-The full workflow also appends the review-packet manifest and checklist to the GitHub job summary, so reviewers can see the screenshot map and inspectable items before downloading the artifact. Open `index.html` from the artifact for a browsable gallery. Use `review-manifest.json` when another automation agent needs screenshot names, routes, viewport sizes, themes, inspection notes, or the read-only invariant result without parsing Markdown.
+## Visual Diff Distribution
 
-The live SyncView app is already served from GitHub Pages (`main` at `syncview.synchrosocial.com`), so this workflow deliberately does not publish temporary review packets through Pages. The artifact gallery gives reviewers the same single-page scan without changing the production Pages source.
-
-## Optional Argos Visual Diff
-
-The workflow has a guarded Argos upload. It prepares `.codex-tmp/prod-argos-snapshots` and uploads it with `npm exec -- argos upload .codex-tmp/prod-argos-snapshots --build-name production-desktop` only when the repository secret `ARGOS_TOKEN` is configured; otherwise it writes a skip note to the job summary and continues. To activate PR visual diffs:
-
-1. Create/import the `sidney-afk/client-analytics` project in Argos.
-2. Add the project token as the GitHub Actions secret `ARGOS_TOKEN`.
-3. Optionally set the repository Actions variable `ARGOS_PROJECT` to the Argos `account/project` slug if tokenless or multi-project auth ever needs disambiguation.
-4. Run the Production polish workflow on `main` once so Argos has a reference build.
+Argos upload is disabled for the live-derived packet. Re-enable any external or public visual distribution only after every network read is intercepted with a clearly fictional fixture and a canary test proves that no live name, contact, client identifier, title, description, comment, or asset is present.
 
 ## Pull Request Checklist
 
-`.github/pull_request_template.md` includes a Production-specific checklist. For any PR touching `?prod=1`, the `_prod*`-prefixed identifiers inside `index.html` (not a file glob), or `docs/syncview-design/**`, keep the checklist honest: the preview should remain read-only unless a writable milestone is explicit, and visible UI changes should include local `npm run test:prod-polish` plus review of the gallery from a full `main` or manual workflow run when visual evidence is needed before merge.
+`.github/pull_request_template.md` includes a Production-specific checklist. For any PR touching `?prod=1`, the `_prod*`-prefixed identifiers inside `index.html` (not a file glob), or `docs/syncview-design/**`, keep the checklist honest: the preview should remain read-only unless a writable milestone is explicit, and visible UI changes should include local `npm run test:prod-polish` plus a local, access-controlled gallery review when visual evidence is needed before merge.
 
 ## Turning Feedback Into Work
 
@@ -81,6 +70,6 @@ For AI-agent PRs, keep the issue text natural, but include the route and screens
    - `prod-interaction-inventory.js` or `behav-wired.js` for clicks, hovers, menus, routing, or state changes.
 3. Run `npm run test:prod-polish`.
 4. Run `npm run test:prod-review` when the reviewer needs fresh screenshots.
-5. Run `npm run test:prod-review:validate` before using or uploading the packet.
+5. Run `npm run test:prod-review:validate` before using the packet locally; never upload a live-derived packet.
 6. Run `npm run test:prod-argos:prepare` before changing the Argos export contract.
 7. Update the Production parity docs (`docs/syncview-design/WIRED-PARITY.md`) and rollback notes (`ROLLBACK.md`, `EXECUTION_LOG.md`) with what the new check protects.

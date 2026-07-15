@@ -7,6 +7,7 @@
  *
  * Required:
  *   SUPABASE_SERVICE_ROLE_KEY=...
+ *   SYNCVIEW_STAFF_KEY=...
  *   A1_PARITY_CONFIRM=sidneylaruel
  *
  * Optional:
@@ -18,6 +19,7 @@
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co').replace(/\/+$/, '');
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const STAFF_KEY = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
 const OLD_URL = process.env.A1_OLD_UPSERT_URL || 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
 const EF_URL = process.env.A1_EF_UPSERT_URL || `${SUPABASE_URL}/functions/v1/calendar-upsert`;
 const CLIENT = process.env.A1_PARITY_CLIENT || 'sidneylaruel';
@@ -30,6 +32,7 @@ function fail(msg) {
 }
 
 if (!SERVICE_KEY) fail('Missing SUPABASE_SERVICE_ROLE_KEY; refusing to run parity writes.');
+if (!STAFF_KEY) fail('Missing SYNCVIEW_STAFF_KEY; refusing to call the protected Edge writer.');
 if (CLIENT !== 'sidneylaruel' && process.env.A1_PARITY_ALLOW_NON_TEST !== '1') {
   fail(`Refusing to run against non-TEST client "${CLIENT}".`);
 }
@@ -128,14 +131,14 @@ async function restore(client, ids, originalRows) {
 }
 
 async function callEndpoint(url, payload, label) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Syncview-Source': 'qa',
+  };
+  if (url === EF_URL) headers['X-Syncview-Key'] = STAFF_KEY;
   const resp = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Syncview-Actor': 'A1 parity',
-      'X-Syncview-Role': 'system',
-      'X-Syncview-Source': 'qa',
-    },
+    headers,
     body: JSON.stringify(payload),
   });
   const text = await resp.text();

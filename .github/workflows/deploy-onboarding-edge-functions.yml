@@ -1,7 +1,7 @@
-name: Deploy onboarding + credentials edge functions
+name: Deploy staff-sensitive edge functions
 
-# Auto-deploys the onboarding/credentials functions and their shared role-key
-# helper to Supabase whenever they change on main, or on manual
+# Auto-deploys onboarding, credentials, filming-plan, and SMM-report functions
+# plus their shared role-key helper whenever they change on main, or on manual
 # dispatch — so nobody runs `supabase functions deploy` by hand. Uses the existing
 # SUPABASE_ACCESS_TOKEN Actions secret. Role keys and transition-only legacy
 # passphrases live as Supabase function secrets, never in this repository.
@@ -19,6 +19,7 @@ on:
       - 'supabase/functions/onboarding-full/**'
       - 'supabase/functions/client-credentials/**'
       - 'supabase/functions/filming-plans/**'
+      - 'supabase/functions/smm-weekly-reports/**'
       - 'supabase/functions/key-verify/**'
       - 'supabase/functions/_shared/staff-role-auth.ts'
       - '.github/workflows/deploy-onboarding-edge-functions.yml'
@@ -41,7 +42,7 @@ jobs:
             echo "::error::SUPABASE_ACCESS_TOKEN secret is not set — add it in repo Settings -> Secrets and variables -> Actions."
             exit 1
           fi
-          for fn in onboarding-list ai-onboarding-list legacy-onboarding-list onboarding-full client-credentials filming-plans key-verify; do
+          for fn in onboarding-list ai-onboarding-list legacy-onboarding-list onboarding-full client-credentials filming-plans smm-weekly-reports key-verify; do
             echo "Deploying $fn…"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
           done

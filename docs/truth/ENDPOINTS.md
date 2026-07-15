@@ -1,6 +1,6 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-14 @ 08e18e6 + live routing/thumbnail readback
+> Last verified: 2026-07-14 @ a1e2622 + live security-remediation deny/allow readback
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -81,7 +81,13 @@ Other:
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
 - `functions/v1/sample-review-upsert`, `functions/v1/sample-review-reorder` — SXR write ports
-- `functions/v1/templates-save`, `functions/v1/caption-prompts-save` — save-path ports
+- `functions/v1/templates-save`, `functions/v1/caption-prompts-save` — save-path ports. Candidate
+  source applies the same fail-closed policy to all six writers: exactly one configured staff/
+  automation key or active exact-client token, server-derived attribution, and no trust in caller
+  actor/role claims. Reorder/settings writers are deployed with missing/wrong-key `401` plus restored
+  TEST allow proof. `calendar-upsert` and `sample-review-upsert` remain on their prior public source
+  until the reconciler callers in this PR merge and can be deployed atomically with the managed key.
+  Direct legacy n8n writers remain F67.
 - `functions/v1/onboarding-capture` — onboarding funnel capture
 - `functions/v1/client-token-verify`, `functions/v1/client-credentials` — client auth + staff credentials surface. F89: token telemetry logs access-allowed as `ok`, so permissive tokenless opens are not validation evidence. F84: credentials bulk-delivers plaintext before masking and accepts shared/legacy keys without active-member binding.
 - `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal pings it at boot to revalidate the stored role key, and sensitive staff EFs share its secret-to-role matcher. F87 requires uniform denials, request controls, bounded audit retention, and explicit audit-outage behavior for both verifiers.
@@ -96,8 +102,15 @@ Other:
   last-write-wins (F36). Do not claim end-to-end CAS until every mutation sends the version, stale
   requests create no intent, and 409 compare/reapply UX is proved. Successful accepted operations
   commit through the ledger/outbox RPCs before the UI updates.
-- `functions/v1/filming-plans` — filming plans backend
-- `functions/v1/smm-weekly-reports` — SMM weekly reports
+- `functions/v1/filming-plans` — filming plans backend. Source authenticates every GET before
+  constructing the service-role client, accepts verified admin/SMM/creative staff role keys for
+  reads, and keeps writes admin-only. The function is live and missing/wrong keys return `401`.
+  Candidate browser source sends the reverified staff key and has no raw PostgREST or Sheets
+  fallback; current Pages still uses the raw table, so the F88 table revoke waits for this merge.
+- `functions/v1/smm-weekly-reports` — staff-gated SMM weekly reports. Anonymous GET and anonymous
+  `sync_managers` return `401`; Admin/SMM may submit/read as allowed and manager sync is Admin-only.
+  The signed n8n caller reaches the authenticated branch. Candidate browser key plumbing must merge
+  before the currently fail-closed Pages screen becomes usable again.
 - `functions/v1/thumbnail-folder-resolve` — thumbnail Drive-folder resolution
 - `functions/v1/thumbnail-revision-read` — no-store Calendar/Samples Previous/Current reader. It
   accepts one `{surface, client, source_id}` scope, verifies either a staff role key plus exact
@@ -107,13 +120,13 @@ Other:
 
 The four calls composed from `ONBOARDING_EDGE_BASE` are `functions/v1/onboarding-list`,
 `functions/v1/ai-onboarding-list`, `functions/v1/legacy-onboarding-list`, and
-`functions/v1/onboarding-full`. **F77 P0:** the first three
-currently strip dedicated credential fields but remain anonymous service-role readers of real
-contact/questionnaire data; field stripping is not an auth boundary. `onboarding-full` is the
-unstripped inbox and accepts the admin role key plus the legacy onboarding-key fallback during
-transition. **F85:** that key-only check does not bind an active member or audit reads, so retained
-shared/legacy secret possession can export the full corpus and credential arrays after member
-deactivation. Gate all readers, replace bare discovery, and retire the legacy full-reader fallback.
+`functions/v1/onboarding-full`. All four now authenticate before constructing a service-role client;
+the first three are live at v24 and missing/wrong keys return `401`. Candidate SPA callers obtain the
+key only after verified Admin sign-in and never hardcode it, so existing Pages list screens fail
+closed until merge. `onboarding-capture` remains public intake but has no stored-data SELECT/read
+path. **F77 remains partial:** wildcard CORS and full-list background discovery still need closure.
+**F85:** shared/legacy key compatibility does not bind an active member or audit reads, so retained
+secret possession can still export the corpus; retire that fallback behind individual sessions.
 
 ### Backend-only Edge Functions (not part of the machine-enforced `index.html` set)
 
@@ -148,8 +161,7 @@ by hand; verify before relying on it.
 > rows and internal email/Slack/Linear/project mappings.
 
 - String-literal in `index.html`: `syncview_runtime_flags` (kill switches), `calendar_posts`,
-  `workload_issues` (read-only Linear mirror), `templates`, `filming_plans`,
-  `content_samples`, `caption_prompts`.
+  `workload_issues` (read-only Linear mirror), `templates`, `content_samples`, `caption_prompts`.
 - Via dynamic refs: `sample_reviews` (through `SXR_TABLE`), and the visible Linear mirror's
   internal `production` boot reads
   `clients`, `team_members`, `batches`, `deliverables` (plus `deliverable_events`) through a
@@ -161,3 +173,9 @@ by hand; verify before relying on it.
   `thumbnail-revision-read` function is the sole browser projection. The migration is live: raw
   browser table access returns `401`, unsigned private-object access returns `400`, exact authorized
   reads pass, and cross-client scope returns `403`.
+- Filming plans: candidate SPA source calls the live staff-gated `filming-plans` Edge Function and no
+  longer calls raw PostgREST, subscribes anonymously to table changes, or falls back to the Sheet.
+  Current Pages still has the raw reader, so
+  `migrations/2026-07-14-f88-safe-sensitive-read-revocations.sql` must not revoke that table until
+  the caller merges and is proved. `clients` is deliberately not in that safe-subset migration:
+  Production still calls `_prodRestRows('clients', ...)` and needs a scoped projection first.

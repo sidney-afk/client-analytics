@@ -40,15 +40,16 @@ verify_jwt = false
 [functions.caption-prompts-save]
 verify_jwt = false
 
-# Filming plan source of truth. F82 blocks current deployment: both EF GET and anon RLS expose the
-# complete client/document-link roster. Replace with least-field principal/client/role reads and
-# revoke anon SELECT; writes remain function-gated during the separate auth migration.
+# Filming plan source of truth. The deployed EF now authenticates every request; missing/wrong
+# credentials return 401. Candidate Pages source routes its direct read here, so anon table SELECT
+# remains temporarily open until that caller merges and is proved, then the F88 revoke can land.
 [functions.filming-plans]
 verify_jwt = false
 
-# Public HTTP transport for the SMM report form/viewer. F76 blocks the current deployed source:
-# every action needs custom individual/role/service authorization, and underlying tables must not
-# grant anon SELECT. Payload validation/uniqueness do not provide authentication or prevent abuse.
+# Browser-callable transport for the SMM report form/viewer. Every action now
+# requires the shared staff role key: admin/SMM may submit, while report-text
+# reads and manager synchronization are admin-only (plus the transition legacy
+# service key). The underlying tables must not grant anon SELECT.
 [functions.smm-weekly-reports]
 verify_jwt = false
 

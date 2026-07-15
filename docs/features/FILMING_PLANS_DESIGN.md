@@ -1,15 +1,22 @@
 # Filming Plans — Design Spec
 
-**Status:** Implemented; historical design notes retained · **Date:** 2026-06-03, updated 2026-07-11
+**Status:** Implemented; Edge containment live, Pages/table cutover staged; historical design notes retained · **Date:** 2026-06-03, updated 2026-07-14
 **Owner area:** Kasper tab → new **Filming Plans** sub-tab
 
-> **P0 READ-BOUNDARY BLOCKER (F82).** The current Edge GET and independent anonymous table policy
-> both expose the complete client/Doc-link roster without caller identity. Role-gated editing does
-> not protect reads. Revoke both public paths together, replace them with a least-field
-> principal/client/role projection, review Google-Doc sharing/access evidence privately, and prove
-> anonymous and cross-client denial before operating this surface.
+> **P0 READ-BOUNDARY BLOCKER (F82).** Live proof showed the Edge GET and independent anonymous table
+> policy exposing the complete client/Doc-link roster. The staff-gated Edge reader is now live and a
+> missing/wrong key returns `401`. Candidate Pages source requires the reverified staff key, removes
+> browser REST/realtime/Sheet fallbacks, purges caches on sign-out, and carries the narrow anon-SELECT
+> revoke. Current Pages still uses the table directly, so that revoke is intentionally held until the
+> caller merges. F82 remains open pending intended-role browser proof, table denial, and private
+> document-sharing review.
 >
-> **2026-07-11 implementation update:** the original design below used the SYNCVIEW Google Sheet `FilmingPlans` tab as the source. The current implementation promotes Supabase `public.filming_plans` plus the main dashboard **Filming Plans** tab as the source of truth, with the Sheet kept only as a historical/emergency fallback. Templates and Kasper's Filming Plans tab read that same shared source. Editing master Doc links accepts the verified admin role key; the old `ONBOARDING_STAFF_KEY` stays valid in parallel until the TEST/dummy proof and owner-approved retirement gate in `docs/features/CLIENT_CREDENTIALS_DESIGN.md`. SMM and creative/editor/designer role keys cannot write.
+> **2026-07-14 implementation update:** the original design below used the SYNCVIEW Google Sheet
+> `FilmingPlans` tab. Supabase `public.filming_plans` remains the source of truth. In candidate source,
+> all browser reads go through the live staff-gated Edge Function and fail closed; the Sheet is no
+> longer a browser fallback. Admin, SMM, and creative/editor/designer role keys can read; only admin
+> can edit. The old `ONBOARDING_STAFF_KEY` stays as transition compatibility pending its approved
+> retirement gate; `CREDENTIALS_STAFF_KEY` is not accepted.
 
 ---
 
@@ -45,7 +52,7 @@ It pulls two things together that already exist but were never connected:
   **new tab for each month's plan** (Docs tabs, titled e.g. `July 2026`, `June 2026`).
 - The **only** new habit: paste each client's master Doc link **once** through the main
   dashboard **Filming Plans** editor. It persists to `public.filming_plans`; the former Google Sheet
-  is a historical/emergency fallback, not the primary edit surface. After that, every new monthly
+  is historical only and is not a browser read fallback. After that, every new monthly
   tab he adds shows up automatically—no extra data entry per month.
 
 ### What we can and can't get from tabs (important)
@@ -154,8 +161,10 @@ Edge cases:
 > **Historical design below.** Published GViz and unauthenticated backend-reader guidance is not an
 > approved current read boundary. F82's authenticated, least-field contract supersedes it.
 
-### 6a. New Google Sheet tab: `FilmingPlans`
-Read by the dashboard the same way it already reads Clients Info (published-CSV / gviz).
+### 6a. Historical Google Sheet tab: `FilmingPlans`
+
+This was the original read design and is retained only as historical context. The dashboard must
+not fetch this published CSV: it reads the staff-gated `filming-plans` Edge Function instead.
 
 | Column | Example | Notes |
 |---|---|---|
@@ -163,8 +172,7 @@ Read by the dashboard the same way it already reads Clients Info (published-CSV 
 | `doc_url` | `https://docs.google.com/document/d/<id>/edit` | Master filming-plan Doc |
 | `notes` *(optional)* | | Free text, ignored by logic |
 
-New constant in `index.html` alongside the other sheet URLs:
-`FILMING_PLANS_URL = <gviz csv export of the FilmingPlans tab>`.
+The former `FILMING_PLANS_URL` browser constant and fail-open fallback have been removed.
 
 ### 6b. New n8n webhook: read a Doc's tabs
 The dashboard is a static page — it can't call the Google Docs API directly with the
@@ -209,9 +217,11 @@ load, fetch lazily / in small batches and cache; the alert list can render progr
 The Supabase table, dashboard editor, Kasper reader, Templates consumer and Docs-tab lookup are
 already implemented. Do not recreate the original Sheet-first build sequence. Current readiness is:
 
-1. Close F82's public Edge/table read exposure and prove least-field role/client access.
-2. Preserve the former Sheet path only as an explicitly monitored emergency fallback until the
-   owner retires it with usage evidence and restore proof.
+1. Merge/deploy the protected Pages caller and prove all intended staff allow paths; then apply the
+   filming-table clause of the F88 revoke and prove direct anonymous table denial. The Edge reader is
+   already deployed/fingerprinted and denies missing/wrong keys with `401`.
+2. Keep the former Sheet path out of browser fallback logic; privately review whether the source
+   Sheet and linked Google Docs still allow unauthenticated access.
 3. Add/update each master Doc link through the authenticated dashboard editor and verify the
    Supabase readback plus Docs-tab projection.
 4. Keep Google credential/scope values in managed runtime configuration; never copy them into this

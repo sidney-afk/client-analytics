@@ -47,4 +47,5 @@ jobs:
           # qll dispatches with dry_run=false; operator runs honor the input.
           APPLY: ${{ github.event.inputs.dry_run != 'true' }}
           CAP: ${{ github.event.inputs.cap || '15' }}
+          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
         run: node scripts/linear-sync-reconcile.js

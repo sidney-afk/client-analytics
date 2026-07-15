@@ -46,6 +46,7 @@ const AUTHORITY_CACHE_PATH = process.env.PROD_AUTHORITY_CACHE_PATH
   || path.join(path.dirname(LEDGER_PATH), 'sample-linear-reconcile-authority.json');
 const SAFETY_CAP = Number(process.env.CAP || 15);
 const TIE_MS = 120 * 1000;
+const SYNCVIEW_STAFF_KEY = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
 
 const SUPA_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/sample_reviews';
 const SUPA_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';   // publishable/anon key — already public in index.html
@@ -103,8 +104,13 @@ function upsertUrlForClient(client) {
   return UPSERT_EF_CLIENTS.has(routeSlug(client)) ? UPSERT_EF_URL : UPSERT_N8N_URL;
 }
 
-function upsertHeaders() {
-  return { 'Content-Type': 'application/json', 'X-Syncview-Actor': 'Samples reconciler', 'X-Syncview-Role': 'system', 'X-Syncview-Source': 'reconcile' };
+function upsertHeaders(url) {
+  const headers = { 'Content-Type': 'application/json', 'X-Syncview-Source': 'reconcile' };
+  if (url === UPSERT_EF_URL) {
+    if (!SYNCVIEW_STAFF_KEY) throw new Error('SYNCVIEW_STAFF_KEY is required for sample-review-upsert EF writes');
+    headers['X-Syncview-Key'] = SYNCVIEW_STAFF_KEY;
+  }
+  return headers;
 }
 
 async function fetchAllCards() {
@@ -185,7 +191,8 @@ async function pullLinearToCard(card, comp, linCal) {
   for (const k of Object.keys(pending)) if (/_approved_at$/.test(k)) patch[k] = pending[k];
   if (_calNormStatus(card.status || '') !== overall) patch.status = overall;
   // The samples upsert expects { client, sample, comments_base_at } (NOT { client, post }).
-  const res = await fetch(upsertUrlForClient(card.client), { method: 'POST', headers: upsertHeaders(), body: JSON.stringify({ client: card.client, sample: patch, comments_base_at: '' }) }).then(r => r.json());
+  const url = upsertUrlForClient(card.client);
+  const res = await fetch(url, { method: 'POST', headers: upsertHeaders(url), body: JSON.stringify({ client: card.client, sample: patch, comments_base_at: '' }) }).then(r => r.json());
   return { res, patch };
 }
 

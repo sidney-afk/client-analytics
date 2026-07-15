@@ -24,23 +24,28 @@ function ok(value, message) {
 
 Object.entries(files).forEach(([name, source]) => {
   ok(source.includes('x-syncview-key'), `${name} CORS must allow the stored role key`);
-  ok(source.includes('x-syncview-actor'), `${name} must accept actor attribution`);
-  ok(source.includes('x-syncview-role'), `${name} must accept role attribution`);
+  ok(source.includes('x-syncview-actor'), `${name} must retain the current browser transport header in CORS`);
+  ok(source.includes('x-syncview-role'), `${name} must retain the current browser role header in CORS`);
+  ok(source.includes('x-syncview-client-token'), `${name} CORS must allow exact-client token auth`);
+  ok(source.includes('authorizeBrowserWrite'), `${name} must derive a fail-closed server principal`);
+  ok(!source.includes('req.headers.get("x-syncview-actor")')
+    && !source.includes('req.headers.get("x-syncview-role")'),
+  `${name} must never trust transport actor/role for attribution`);
 });
 
-ok(/function actorFrom\(req: Request, body: JsonMap\): Actor/.test(files.calendarUpsert),
-  'calendar upsert must retain its header/body attribution resolver');
+ok(/actor = await authorizeBrowserWrite\(supabase, req, client, "calendar-upsert"\)/.test(files.calendarUpsert),
+  'calendar upsert must authenticate the exact target client before reads/writes');
 ok(/buildEvents\([^;]+actor/.test(files.calendarUpsert)
   && /actor: actor\.actor/.test(files.calendarUpsert)
-  && /role: extra\.role === undefined \? actor\.role/.test(files.calendarUpsert),
-  'calendar upsert events must persist actor and role');
+  && /\.\.\.extra,[\s\S]{0,220}actor: actor\.actor,[\s\S]{0,80}role: actor\.role/.test(files.calendarUpsert),
+  'calendar upsert events must persist the server principal');
 
-ok(/function actorFrom\(req: Request, body: JsonMap\): Actor/.test(files.sampleUpsert),
-  'sample upsert must resolve attribution from headers/body');
+ok(/actor = await authorizeBrowserWrite\(supabase, req, client, "sample-review-upsert"\)/.test(files.sampleUpsert),
+  'sample upsert must authenticate the exact target client before reads/writes');
 ok(/buildEvents\(client, sample, built\.row, existingRead\.row, actor,/.test(files.sampleUpsert),
-  'sample upsert must pass request attribution into event construction');
+  'sample upsert must pass the server principal into event construction');
 ok(/actor: actor\.actor/.test(files.sampleUpsert)
-  && /role: extra\.role === undefined \? actor\.role/.test(files.sampleUpsert)
+  && /\.\.\.extra,[\s\S]{0,220}actor: actor\.actor,[\s\S]{0,80}role: actor\.role/.test(files.sampleUpsert)
   && /source: actor\.source/.test(files.sampleUpsert),
   'sample upsert events must persist actor, role, and source');
 
@@ -48,8 +53,8 @@ for (const [name, source, ledger] of [
   ['calendar reorder', files.calendarReorder, 'calendar_post_events'],
   ['sample reorder', files.sampleReorder, 'sample_review_events'],
 ]) {
-  ok(source.includes('function actorFrom(req: Request, body: JsonMap): Actor'),
-    `${name} must resolve request attribution`);
+  ok(source.includes('const actor = await authorizeBrowserWrite(supabase, req, client,'),
+    `${name} must authenticate and derive attribution before mutation`);
   ok(source.includes(`from("${ledger}").insert(events)`),
     `${name} must append to its card event ledger`);
   ok(source.includes('action: "reorder"')
@@ -68,8 +73,8 @@ for (const [name, source, surface] of [
   ['templates', files.templates, 'templates'],
   ['caption prompts', files.prompts, 'caption_prompts'],
 ]) {
-  ok(source.includes('function actorFrom(req: Request)'),
-    `${name} must resolve request attribution`);
+  ok(source.includes('const actor = await authorizeBrowserWrite(db, req, clientSlug,'),
+    `${name} must authenticate and derive attribution before mutation`);
   ok(source.includes('from("settings_events").insert({'),
     `${name} must append a settings event`);
   ok(source.includes(`surface: "${surface}"`)

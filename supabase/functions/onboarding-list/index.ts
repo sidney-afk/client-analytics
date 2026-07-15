@@ -2,18 +2,20 @@
 //
 // Read API for the dashboard's onboarding inbox (STANDARD funnel). Reads
 // public.client_onboarding (service role; the table has no anon access) and
-// returns submissions with the account-credential fields STRIPPED — no password
-// ever reaches the public dashboard. Replaces the n8n `onboarding-list` webhook.
+// returns submissions with the account-credential fields STRIPPED. Contact and
+// questionnaire data remains private behind the same admin-key gate as
+// onboarding-full. Replaces the n8n `onboarding-list` webhook.
 //
 // Deploy: supabase functions deploy onboarding-list --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
 // (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are auto-injected; no secrets needed.)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key",
   "Cache-Control": "no-store",
 };
 
@@ -32,6 +34,14 @@ function stripAnswers(a: unknown): Record<string, unknown> {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+
+  // Keep this reader's authorization identical to onboarding-full. The
+  // service-role client must never exist on an unauthenticated request path.
+  const legacyKey = (Deno.env.get("ONBOARDING_STAFF_KEY") || Deno.env.get("CREDENTIALS_STAFF_KEY") || "").trim();
+  const given = (req.headers.get("x-syncview-key") || "").trim();
+  const auth = authorizeStaffKey(given, ["admin"], [legacyKey]);
+  if (!auth.ok) return json({ ok: false, error: auth.role ? "forbidden" : "unauthorized" }, staffAuthFailureStatus(auth));
+
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const { data, error } = await supabase
     .from("client_onboarding").select("*").order("created_at", { ascending: false });

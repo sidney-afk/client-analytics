@@ -68,6 +68,8 @@ const filmingAuth = FILMING_PLANS.slice(
 );
 ok(/authorizeStaffKey\(supplied, \["admin"\], \[legacyKey\]\)/.test(filmingAuth),
   'filming-plans writes must allow only the admin role key plus ONBOARDING_STAFF_KEY');
+ok(/authorizeStaffKey\(supplied, \["admin", "smm", "creative"\], \[legacyKey\]\)/.test(filmingAuth),
+  'filming-plans reads must allow every verified staff role plus ONBOARDING_STAFF_KEY');
 ok(/staffAuthFailureStatus\(auth\)/.test(filmingAuth),
   'filming-plans must distinguish a forbidden role from an unmatched key');
 ok(/Deno\.env\.get\("ONBOARDING_STAFF_KEY"\)/.test(filmingAuth)
@@ -111,6 +113,7 @@ const runner = `
   const surfaces = {
     credentials: ['admin', 'smm'],
     onboardingFull: ['admin'],
+    filmingPlansRead: ['admin', 'smm', 'creative'],
     filmingPlansWrite: ['admin'],
   };
   const results = { matrix: {}, legacy: {}, spoof: {}, collision: {}, invalid: {} };
@@ -176,6 +179,7 @@ const runner = `
     filmingSmm: staffAuthFailureStatus(results.matrix.filmingPlansWrite.smm),
     invalidCredentials: staffAuthFailureStatus(results.invalid.credentials.wrong),
     invalidOnboarding: staffAuthFailureStatus(results.invalid.onboardingFull.wrong),
+    invalidFilmingRead: staffAuthFailureStatus(results.invalid.filmingPlansRead.wrong),
     invalidFilming: staffAuthFailureStatus(results.invalid.filmingPlansWrite.wrong),
   };
 
@@ -197,6 +201,7 @@ catch (error) { ok(false, `shared helper returned invalid test output: ${error.m
 const expected = {
   credentials: { admin: true, smm: true, creative: false, editor: false, designer: false },
   onboardingFull: { admin: true, smm: false, creative: false, editor: false, designer: false },
+  filmingPlansRead: { admin: true, smm: true, creative: true, editor: true, designer: true },
   filmingPlansWrite: { admin: true, smm: false, creative: false, editor: false, designer: false },
 };
 for (const [surface, roles] of Object.entries(expected)) {
@@ -238,7 +243,7 @@ ok(results.collision.creativeCannotMasqueradeAsLegacy.ok === false
 for (const name of ['credentialsCreative', 'onboardingSmm', 'onboardingCreative', 'filmingSmm']) {
   ok(results.status[name] === 403, `${name} must return forbidden without invalidating the signed-in role key`);
 }
-for (const name of ['invalidCredentials', 'invalidOnboarding', 'invalidFilming']) {
+for (const name of ['invalidCredentials', 'invalidOnboarding', 'invalidFilmingRead', 'invalidFilming']) {
   ok(results.status[name] === 401, `${name} must return unauthorized for an unmatched key`);
 }
 

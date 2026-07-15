@@ -44,14 +44,12 @@ Merged & live: #810 gateway (deployed), #811 guards + daily TEST drill + nightly
 + rename. Parked: **#813** (reroutes + native Create-Post/Submit intake) — merges only at
 Phase 0.5 below, after the fix-pack.
 
-> **IMMEDIATE PRIVACY CONTAINMENT — do not wait for Phase 0 (F64):** a data-free replacement is
-> prepared locally but intentionally excluded from this docs PR. Do **not** combine the first
-> `-diff` rule and text deletion. Draft guard-only PR #829 changes only `.gitattributes` and is
-> verified but unmerged. Merge it first; then scrub from a base that already has the
-> guard and verify Files changed plus `.patch`/`.diff`; then immediately restore normal diff review.
-> Retain evidence privately; review and
-> revoke/restrict exposed private share links; and record the owner/GitHub decision for history,
-> raw/cache, clone, and fork exposure. Ordinary cutover work does not downgrade this incident.
+> **IMMEDIATE PRIVACY CONTAINMENT — do not wait for Phase 0 (F64):** reviewed schema-only
+> replacements pass the private count-only census but are deliberately excluded from this public
+> candidate. GitHub expanded the historical row deletions even behind the attempted diff guard, so
+> an ordinary scrub PR is unsafe. Use the owner-scheduled freeze and final-GO rewrite procedure in
+> `docs/ops/GIT_HISTORY_PII_PURGE_2026-07-14.md`; restore the hash-matched clean files only inside
+> the rewritten history. Public current files/history/PR refs/caches/forks/clones remain open.
 
 ---
 
@@ -71,35 +69,38 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **The complete Production browser gate is green before merge/flip** (F105): do not accept the
       fast PR subset alone. Locked live-read/zero-mutation and fully intercepted writable states are
       explicit; interaction/behavior/pixel lanes are authority-aware; unsupported operations remain
-      guarded; no suite sends a live mutation; current review-packet/Argos artifacts exist. Require
-      aggregate `npm run test:prod-polish` plus the long lanes on the exact candidate commit.
+      guarded; no suite sends a live mutation. Require aggregate `npm run test:prod-polish` plus the
+      long lanes on the exact candidate commit and review any visual packet locally in an
+      access-controlled workspace. Public review-packet/Argos artifacts are forbidden under F122.
 - [ ] **Public-repo hygiene is enforced** (F64): no new client identity, slug, account address,
-      secret, or private fixture enters a commit. Remove the plaintext onboarding records from the
-      current tree immediately without losing required schema; privately preserve evidence and
-      complete the owner/GitHub exposure, cache/fork, token-link, and history-rewrite assessment.
+      secret, or private fixture enters a commit. Keep the three reviewed schema-only replacements
+      private until the coordinated rewrite; do not expose their row deletions in an ordinary PR.
+      Privately preserve evidence and complete the owner/GitHub exposure, cache/fork, token-link,
+      Support, force-push, reclone/fork, and anonymous post-rewrite assessment.
       A private tracked-exposure inventory and owner disposition exist for the wider repository;
       CI rejects new exposures.
 - [ ] **Public Actions publish aggregates only** (F122): stop B1 row-plan JSON, live Production
-      screenshots/review/Argos bundles, and reconciler roster/identifier logs/job summaries. Keep
-      safety computations running with strict allowlisted aggregates and fictional/intercepted visual
-      fixtures. Privately inventory/delete retained artifacts/runs, determine Argos use/access/
-      retention, and record privacy/legal disposition. Recursive canaries inspect exact archives,
-      stdout and summaries; visual tests fail on any live-host request; private generators refuse
-      worktree paths. Short retention is required after—not instead of—sanitization.
+      screenshots/review/Argos bundles, and reconciler roster/identifier logs/job summaries. The two
+      artifact producers are temporarily disabled and all 414 named bundles are deleted; keep them
+      disabled until the aggregate-only/no-upload PR merges, then prove the first post-merge run and
+      re-enable deliberately. Sanitize the still-open reconciler logs, audit historical Argos builds,
+      and record privacy/legal disposition. Recursive exact-schema canaries inspect archives/stdout;
+      private generators refuse tracked worktree output. Retention is after—not instead of—sanitization.
 - [ ] **Every public onboarding-media asset has proved publication rights** (F118): privacy/legal
       records source, people/voice/brand releases, licence, intended audience, retention and deletion
       duty for every tracked file. Replace uncertain media with fictional/commissioned/licensed
       examples; coordinate removals with F64 history/cache/fork handling; CI rejects any unclassified
       asset. Owner explicitly answers which existing files may remain publicly hosted.
 - [ ] **P0 weekly-report exposure is contained** (F76): unauthenticated report/roster reads and
-      writes are unavailable; anon table SELECT is revoked; individual SMM submit, Kasper/admin
-      view/options, and signed service roster sync are enforced and negatively tested. Access logs
-      are reviewed, integrity is reconciled, and the owner records immediate-disable versus
-      time-boxed incident-containment disposition before any other go-live action.
+      writes now deny `401`, both raw-table reads deny `401`, and the signed service roster caller
+      reaches its authenticated branch. Merge and browser-walk the staged Admin/SMM caller before
+      restoring UI availability. Individual SMM scope, access-log review, integrity reconciliation,
+      per-human sessions and the owner incident disposition remain required.
 - [ ] **P0 onboarding-reader exposure is contained** (F77): all three onboarding list EFs deny
-      anonymous/cross-role requests, CORS is constrained, background discovery uses a minimal
-      authorized/opaque projection, logs are reviewed, embedded private links/credentials are
-      dispositioned, and the owner records disable-now versus expiring incident containment.
+      anonymous/wrong-key requests with `401`; the staged Admin caller must merge and pass the full
+      browser/standalone walk before UI availability is restored. CORS is still unconstrained,
+      background discovery still needs a minimal opaque projection, and logs/private links/
+      credentials plus the owner/legal notification disposition remain open.
 - [ ] **P0 public Linear mutation routes are contained** (F91): status/comment bridges require an
       active immutable principal; video/graphics intake requires staff auth or an owner-ratified,
       server-minted short-lived exact-client capability; target/client/team are resolved server-side;
@@ -173,8 +174,9 @@ Phase 0.5 below, after the fix-pack.
       ownership, rate/CAPTCHA, strict byte/schema/kind limits, conditional/versioned updates,
       immutable creation time, sanitized final-only alerts, and spam/replay/oversize/foreign-ID/
       beacon-race/alert-failure TEST cases are green.
-- [ ] **Filming-plan roster/document links are private** (F82): unauthenticated EF GET and anon
-      table SELECT are removed together; the public seed is handled under F64; least-field,
+- [ ] **Filming-plan roster/document links are private** (F82): unauthenticated EF GET now denies
+      `401`. Merge the protected Pages caller before revoking anon table SELECT; then prove both
+      paths are closed together. The public row-bearing seed remains F64 rewrite work. Least-field,
       principal/client/role-scoped SMM/Kasper/Admin reads pass anonymous/cross-client/mobile/
       second-device tests; Google-document sharing and access logs are privately reviewed.
 - [x] **Thumbnail revision metadata is private** (F83): raw browser table access returns `401` and
@@ -211,7 +213,9 @@ Phase 0.5 below, after the fix-pack.
       explicitly accepts every currently exposed field as public and tokens as UI/write-only, or raw
       anon policies are revoked behind principal/client/role-scoped projections and direct REST,
       cross-client, inactive, cache/stale-tab/mobile/second-device denial passes. Until then token
-      enforcement is not a read-confidentiality gate.
+      enforcement is not a read-confidentiality gate. The thumbnail and two weekly-report tables now
+      deny raw anon reads; filming is merge-gated; raw `clients` and the seven named direct-use tables
+      remain intentionally unchanged until their minimum projections exist.
 - [ ] **Token validation evidence cannot false-green** (F89): telemetry separates credential-valid
       from access-allowed, binds active client/current token revision, and a machine report requires
       a fresh exact valid event for every active client. The present seven-day window has zero valid

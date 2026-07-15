@@ -34,15 +34,17 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
 - **Auth is mixed, not one gate.** The outer app-shell password is client-side/cosmetic and public
   REST/endpoint locations remain visible in source. Protected client-token, staff-key, role, and
   Production gateway checks now enforce several server operations, while `auth_enforcement` is
-  still permissive and six Track-A service-role writers remain publicly callable (F35); legacy n8n
-  doors also remain during transition. Each surface below must name its actual server gate—shell
+  still permissive. Candidate source hardens all six Track-A service-role writers; four are deployed
+  with live deny/TEST-allow proof, while `calendar-upsert` and `sample-review-upsert` retain their
+  previous public deployments until their reconciler callers merge (F35). Legacy n8n doors also
+  remain during transition (F67). Each surface below must name its actual server gate—shell
   visibility is never authorization.
 
 ## 2. Backends
 
 - **Supabase** (one project). REST tables the app reads directly: `calendar_posts`,
-  `content_samples`, `sample_reviews`, `templates`, `caption_prompts`, `filming_plans`,
-  `workload_issues`, `syncview_runtime_flags`; the visible **Linear** mirror (internal
+  `content_samples`, `sample_reviews`, `templates`, `caption_prompts`, `workload_issues`,
+  `syncview_runtime_flags`; the visible **Linear** mirror (internal
   `production` surface) additionally pages `batches`,
   `deliverables`, `deliverable_events`, `team_members`, `clients`. Ledger/mirror tables
   (`*_events`, `mirror_outbox`, `linear_archive`, `client_credentials_rev`,
@@ -52,8 +54,11 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   card reads pass, and cross-client scope returns `403`. F83 closed 2026-07-14. **Systemic F88:** an exhaustive live count-only
   census found 20 nonempty anon-selectable operational tables. Client-token/UI verification does
   not constrain direct PostgREST; the owner must explicitly accept the exposed fields as public or
-  migrate to scoped projections and revoke raw policies. F86 separately blocks raw inactive staff/
-  client rows and internal email/Slack/Linear/project mappings.
+  migrate to scoped projections and revoke raw policies. Raw anon reads are now revoked for
+  `thumbnail_media_revisions`, `social_media_managers`, and `smm_weekly_reports`. Candidate source
+  moves `filming_plans` behind its live staff EF, but current Pages still reads the table, so that
+  revoke is merge-gated. F86 separately blocks raw inactive staff/client rows and internal email/
+  Slack/Linear/project mappings.
 - **Edge Functions.** 25 are represented under `supabase/functions/`; **the app calls 20** (see
   §7). Five are backend-only: the Linear webhook target (`linear-inbound`), B4 outbox drainer
   (`linear-outbound`), service-only write wrappers (`deliverable-write`, `batch-write`), and the
@@ -80,7 +85,8 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   separate kill switch; it is deployed but has no production SPA parity caller and does not change
   global outbound.
 - **Google Sheets** (`gviz` CSV, one workbook). Serves **all analytics numbers** (six tabs), the
-  client roster (`Clients Info`), the SMM directory, and a legacy filming-plans fallback. The review
+  client roster (`Clients Info`), and the SMM directory. Candidate source removes the legacy
+  filming-plans browser fallback; current Pages retains it until this change merges. The review
   token column **does not exist and must not be added**; current browser code still attempts that
   broken public-sheet dependency, while real tokens stay only in protected `client_access` (F03/F33).
 - **GitHub Actions (15 workflow files).** Three reconcilers (`linear-sync`, `sample-linear`,
@@ -130,9 +136,9 @@ Everything below is shared by every surface; per-surface sections only note devi
   `on` admits all. This is not a fourth browser `*_FLAG_KEY` read and is therefore not counted in
   §7's machine-derived runtime-key list. Scheduled calls have a second operational gate,
   repository variable `THUMBNAIL_REVISION_SCAN_ENABLED`.
-- **Realtime channels (13).** `cal-<slug>`, `sm-<slug>`, `sxr-<slug>` (per-client post/sample
+- **Realtime channels (12).** `cal-<slug>`, `sm-<slug>`, `sxr-<slug>` (per-client post/sample
   streams); `kasper-cal`, `kasper-sxr` (unfiltered cross-client Kasper queues);
-  `client-credentials-rev-<slug>` / `-kasper`; `syncview-filming-plans`, `syncview-templates`,
+  `client-credentials-rev-<slug>` / `-kasper`; `syncview-templates`,
   `workload_issues` (declared, dormant); and the three runtime-flag channels. supabase-js is a lazy
   CDN UMD load, memoized once; failure resolves null and every caller falls back to REST/n8n.
 - **Theme / palette.** `syncview_theme='dark'` opt-in (light default; forced light + toggle hidden
@@ -289,8 +295,8 @@ n8n in the metric read path.*
   form (no password, chrome hidden, `navTo` coerced to `linear`). Existing bookmarks stay valid.
 - **Reads.** n8n `linear-projects` (client dropdown, on mount when empty). **Current live caveat
   (F45):** its unpaginated GraphQL query returns only the first 50 of 58 eligible video-team
-  projects and supplies no completeness signal. `filming_plans` REST (+
-  Sheets CSV fallback + `syncview-filming-plans` realtime) to resolve a read-only plan link. Post-
+  projects and supplies no completeness signal. Staff-gated `filming-plans` EF GET resolves the
+  read-only plan link and has no raw REST, Sheets, or anonymous-realtime fallback. Post-
   submit link poll reads `workload_issues` REST (Workload v2 default) → n8n `linear-issues` fallback.
   Calendar-upsert routing flag (read).
 - **Writes.** n8n `video-form` and `graphic-form` are the **live batch submit endpoints** (one POST
@@ -432,7 +438,7 @@ n8n in the metric read path.*
   Shared: SMM-directory CSV, client-token-verify EF, bounded ID-only
   `thumbnail-revision-read` availability checks, and exact-card protected comparison URLs.
 - **Writes.** `sample-review-upsert` (EF iff flagged, else n8n — **no EF→n8n fallback**),
-  `sample-review-reorder` (EF **with** n8n fallback on failure). Linear legs (`linear-set-status`,
+  `sample-review-reorder` (flagged EF failures are fail-closed; no auth downgrade to n8n). Linear legs (`linear-set-status`,
   `linear-add-comment`), `send-urgent-slack`, `thumbnail-folder-resolve` (all shared). URGENT marker
   → `sample-review-upsert` EF directly (bypasses the flag).
 - **Thumbnail refresh/comparison.** SXR shares Calendar's final Drive host, persisted server
@@ -452,7 +458,8 @@ n8n in the metric read path.*
   Kasper authorship stripped.
 - **Failure/fallback.** Per-client read: REST → n8n → cached cards + "couldn't refresh" notice.
   Kasper read: no fallback → keeps items, "try again" only when empty. Upsert: per-card retry chip,
-  no n8n fallback. Reorder: EF→n8n. Archive: optimistic + ledger, restore on failure. Linear outbox
+  no n8n fallback. Reorder: flagged EF failure is visible/fail-closed; unflagged clients retain the
+  legacy n8n route. Archive: optimistic + ledger, restore on failure. Linear outbox
   retry. Token verify fail-open on network error.
 - **Notable / corrections.** v1's "courier" and "filming-tabs stub" attributions are wrong — no
   `courier` symbol exists; filming-tabs belongs to Kasper. `comments_base_at` is hardwired `''`
@@ -510,11 +517,11 @@ n8n in the metric read path.*
   `#kasper/<subtab>`, persisted in `syncview_kasper_subtab_v1`.
 - **Reads.** Review queue is a **3-tier fallback**: `calendar_posts` REST (paginated, v2 default) →
   n8n `kasper-queue` (batched `{slugs}`) → per-client n8n `calendar-get` fan-out (5 workers).
-  Cross-client `sample_reviews` REST (samples subtab). n8n `editors-week` (editors). `filming_plans`
-  REST + n8n `filming-plan-tabs` (filming). `onboarding-full` EF (full sensitive inbox,
+  Cross-client `sample_reviews` REST (samples subtab). n8n `editors-week` (editors). Staff-gated
+  `filming-plans` EF + n8n `filming-plan-tabs` (filming). `onboarding-full` EF (full sensitive inbox,
   shared/legacy-key-gated; active-admin binding and read audit are missing under F85). `client-
   credentials` EF (list/history). SMM-directory CSV. Realtime `kasper-cal`, `kasper-sxr`,
-  `client-credentials-rev-kasper`, plus shared flag/filming channels.
+  `client-credentials-rev-kasper`, plus shared flag channels.
 - **Writes.** Approvals/tweaks/comments/finish-close stamps via the shared calendar & sample upsert
   fetches (flag-routed), field-level patches diffed against a per-card base. Linear `linear-set-
   status` / `linear-add-comment` (tweaks only — plain comments skip Linear). `send-urgent-slack` +
@@ -624,30 +631,30 @@ n8n in the metric read path.*
 ### 4.10 Filming Plans
 
 > **P1 CONFIDENTIALITY BLOCKER (F82).** Live read-only proof found that both the Edge GET and direct
-> anon REST return the complete client/document-link roster. Remove both in one release, scrub the
-> public seed under F64, and replace them with least-field principal/client/role-scoped reads before
-> treating this surface as ready.
+> anon REST returned the complete client/document-link roster. The staff-gated Edge GET is now live
+> and denies missing/wrong keys with `401`. This branch moves the SPA to that reader, removes raw REST/
+> realtime/Sheets fallback paths, and adds the narrow F88 anon-SELECT revoke. Current Pages still
+> reads the table, so the revoke waits for merge. The blocker remains open pending intended-role
+> browser proof, direct-table denial, and public-seed/Google-sharing review.
 
 - **Entry.** Team tab `#filming-plans`; Kasper "filming" subtab (read-only). Shared consumers:
   Templates profile card, Linear form's read-only plan field.
-- **Reads.** `filming_plans` REST (all rows) with **Google Sheets CSV fallback** on failure; realtime
-  `syncview-filming-plans` (subscribed only after a successful REST load — sheet-fallback sessions get
-  no live updates). n8n `filming-plan-tabs` (Kasper only, optional coverage probe of Google-Doc tab
-  names, per doc, concurrency 5). Kasper runway reuses Calendar reads.
-- **Writes.** The app uses `filming-plans` POST for upsert; the deployed EF also has an
-  unauthenticated service-role GET that is not used by the SPA and is part of F82. The app
-  reuses the signed-in Admin role identity and sends its key/roster actor/server-verified role. The
-  old `ONBOARDING_STAFF_KEY` remains backend-only transition compatibility.
-- **State.** `syncview_staff_identity_v1`, `syncview_kasper_filming_v1` (30-min, cleared on
-  any plan save), in-memory `filmingPlansData` + `_linearPlanMap`. **No kill switch** —
+- **Reads.** Staff-gated `filming-plans` GET (all verified staff roles) through the shared,
+  server-reverified identity. There is no browser PostgREST, anonymous realtime, or Sheets fallback.
+  n8n `filming-plan-tabs` remains Kasper's optional per-Doc coverage probe (concurrency 5), and
+  Kasper runway reuses Calendar reads.
+- **Writes.** The app uses `filming-plans` POST for upsert. Writes remain admin-only; SMM and
+  creative keys can read but cannot write. The old `ONBOARDING_STAFF_KEY` remains backend-only
+  transition compatibility and `CREDENTIALS_STAFF_KEY` remains rejected.
+- **State.** `syncview_staff_identity_v1`, `syncview_kasper_filming_v1` (30-min, identity-gated and
+  cleared on plan save/sign-out), in-memory `filmingPlansData` + `_linearPlanMap` (also purged on
+  sign-out). **No kill switch** —
   `FILMING_PLAN_TABS_URL` is a build-time switch only.
-- **Roles.** Team page behind the password; Kasper subtab read-only behind the unlock; writes require
-  the admin role key. SMM and creative/editor/designer role keys are denied.
-- **Failure/fallback.** REST → Sheets CSV → both fail throws (page error card; Templates swallows;
-  Linear field degrades to "No filming plan"; Kasper error card). EF save 401 → clear the shared
-  identity and offer the staff sign-in form once; other
-  failure → inline error, **no fallback/retry/queue**. Runway fetch failure can paint a client
-  falsely "red".
+- **Roles.** Reads require a verified admin, SMM, or creative/editor/designer staff key. Writes
+  require admin. A missing/wrong key is 401; a recognized but write-disallowed role is 403.
+- **Failure/fallback.** EF read/save 401 clears the shared identity and offers the staff sign-in form
+  once. Other failures stay inline and fail closed: **no raw REST, Sheet, retry queue, or stale-cache
+  anonymous fallback**. Runway fetch failure can still paint a client falsely "red".
 - **Notable / corrections.** Batch filming links in the Production surface come from the `batches`
   table's own `filming_doc_url` column — a **separate store** from `filming_plans`; they never sync.
   Templates prefers the `filming_plans` row over the legacy template field.
@@ -726,14 +733,15 @@ separate hidden first-party Direct-Post surface.*
 
 - **Entry.** Public onboarding form: `?onboarding` / `?onboarding=ai` / `/onboarding_form` /
   `/ai_onboarding_form` (each hard-locks nav to `onboarding`, forces its own dark theme). Viewer:
-  `?onboarding_view=<slug>` (standalone, credential-free) + a Kasper "onboarding" inbox subtab. Sales
+  `?onboarding_view=<slug>` (standalone route, but its reader now requires verified Admin auth) + a
+  Kasper "onboarding" inbox subtab. Sales
   intake is **not** a URL form — it is a Kasper subtab only.
-- **Reads / P0 (F77).** Viewer/index: `onboarding-list`, `ai-onboarding-list`,
-  `legacy-onboarding-list` are unauthenticated service-role EFs. Fresh no-header live requests
-  returned real contact data and detailed answers for all three funnels; stripping dedicated
-  credential fields is not authorization. Kasper inbox: `onboarding-full` denies a missing key but
-  F85 proves its shared admin/legacy-secret match does not bind an active member or audit reads; it
-  returns the unstripped corpus including retained legacy credential arrays.
+- **Reads / P0 (F77).** Viewer/index: `onboarding-list`, `ai-onboarding-list`, and
+  `legacy-onboarding-list` are live behind the same pre-service-client gate as `onboarding-full`;
+  missing/wrong keys return `401`. Candidate callers fetch the role key only after verified Admin
+  sign-in and never hardcode it; existing Pages list screens therefore fail closed until merge.
+  F85 remains: shared admin/legacy-secret compatibility does not bind an active member or audit reads,
+  and `onboarding-full` can return the unstripped corpus including retained credential arrays.
   Same-origin media assets (audio/video/thumbnail-style previews). The public tree serves 43 such
   files; the existing implementation record describes many as client-source derivatives and gives
   no rights/provenance classification for others (F118).
@@ -758,9 +766,11 @@ separate hidden first-party Direct-Post surface.*
   `syncview_*_subid_v1` (stable dedupe id across retries/fallbacks, cleared on success),
   `syncview_sales_intake_draft_v1`, shared `syncview_staff_identity_v1` (verified roster member +
   role key). No kill switches.
-- **Roles.** Both submission forms are intentionally public intake, but their list/view readers must
-  not be. Current anonymous viewer access is F77. The full Kasper inbox needs the unlock
-  **and** an Admin staff identity. Sales intake needs only the Kasper unlock; its webhook itself carries no auth.
+- **Roles.** Both submission forms are intentionally public intake; `onboarding-capture` has no
+  stored-data read path. All list/view readers require Admin staff auth (with a temporary legacy
+  onboarding-secret compatibility path); current Pages readers fail closed until their key plumbing
+  merges. The full Kasper inbox needs the unlock **and** an Admin staff identity. Sales intake needs
+  only the Kasper unlock; its webhook itself carries no auth.
 - **Failure/fallback.** Submit chain: any leg's success shows the thank-you (a fallback capture counts
   as delivered); total failure → banner + "Download my answers" JSON + mailto escape hatch, no auto-
   retry. Draft sync is silent-fail with a 25 s throttle; pagehide uses a preflight-free `sendBeacon`.
@@ -782,21 +792,26 @@ separate hidden first-party Direct-Post surface.*
 
 - **Entry.** Hash-only, no nav button: `#smm-weekly-report` (SMM form) and `#smm-weekly-reports`
   (viewer, labeled "Kasper view"). Viewer filters (`week/smm/client/status`) live in the hash query.
-  **Both bypass the staff password** and hide all chrome; `syncview_nav` is deliberately never set to
-  these routes.
-- **Reads.** `smm-weekly-reports` EF — `?action=options` (roster + current week) and `?action=reports`
-  (submitted reports). Client roster for the picker comes from the background analytics fetch.
+  Both hide all chrome and `syncview_nav` is deliberately never set to these routes. The candidate
+  caller requires a freshly verified staff identity/key before every API call; current Pages lacks
+  that header and therefore fails closed until merge rather than exposing the route anonymously.
+- **Reads.** Staff-gated `smm-weekly-reports` EF — `?action=options` (roster + current week) and
+  `?action=reports` (submitted reports). Client roster for the picker comes from the background
+  analytics fetch. Anonymous GET now returns `401`.
 - **Writes.** `smm-weekly-reports` EF POST `{action:'submit', report}` (13 fields required; server
   dedupes via 409 `already_submitted`).
 - **State.** In-memory `_srpState` only (no persistence). Shared theme/palette. No kill switch.
-- **Roles / P0 (F76).** Effectively **roleless / ungated** — fresh unauthenticated live requests
-  returned the active roster and real report content, while source permits submit plus destructive
-  roster sync. Deployed anon table SELECT also bypasses the EF serializer and exposes raw columns.
+- **Roles / P0 (F76).** The active anonymous disclosure/deactivation paths are closed: the EF denies
+  anonymous reads and `sync_managers` with `401`, the existing signed n8n caller reaches its
+  authenticated branch, and anon SELECT on both underlying tables is revoked. Admin/SMM may use the
+  intended form/report actions; roster sync is Admin-only. Candidate browser key plumbing still must
+  merge, and shared-key/per-human identity plus incident review remain open.
 - **Failure/fallback.** Options fail → in-card error, Submit disabled. Submit 409 → "already
   submitted"; other errors → inline, no retry/queue. Reports fail → viewer replaced by an error empty-
   state.
 - **Notable.** The `smm-weekly-reports` EF is the only inventory endpoint using GET-query + POST-JSON
-  on one URL. This is a current disclosure/integrity/availability incident, not a low-priority v1 gap.
+  on one URL. Do not restore anonymous access to recover UI availability while the protected Pages
+  caller is pending.
 - **Track B.** The data model is outside Linear replacement, but F76 is a global go-live security
   blocker: individual SMM submit, Kasper/admin reads, signed service roster sync, and revoked anon
   table access must land before the cutover can claim enforced staff authorization.
@@ -892,10 +907,12 @@ Admin / SMM / creative remain the three tiers, and client links stay no-login wi
 server-verified tokens. Current staff requests use a shared tier key plus roster-picked
 `X-Syncview-Actor`; that cannot individually revoke a departed holder or prove immutable human
 attribution. Built: B0 tables, `client-token-verify` + `key-verify`, roster-backed staff sign-in,
-verified EF header plumbing, and the flag-flip trigger. Credentials allow admin + SMM; full
-onboarding and filming-plan writes allow admin only. Historical surface keys are still accepted
-while `auth_enforcement=permissive`; the unauthenticated Track-A n8n writers are a separate F67
-escape. The Part 2 gateway rejects missing/garbage credentials and keeps low-level wrappers
+verified EF header plumbing, and the flag-flip trigger. Credentials allow admin + SMM; onboarding
+list/full reads and filming-plan writes allow admin only. Weekly reports and four of six Track-A
+writers now have live fail-closed gates; the two upsert deployments wait for their merged scheduled
+callers. Historical surface keys are still accepted while `auth_enforcement=permissive`; the
+unauthenticated Track-A n8n writers are a separate F67 escape. The Part 2 gateway rejects missing/
+garbage credentials and keeps low-level wrappers
 service-only, but F31 still blocks calling a claimed actor trustworthy attribution. F87 adds uniform
 denials, request controls, bounded audit retention, and explicit verifier/audit-outage behavior.
 F89 proves current client telemetry records access-allowed as `ok`, not credential validity: the
@@ -936,7 +953,7 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 - **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
 - **Edge functions (20):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read`
 - **Not counted above:** 16 of the 20 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
-- **Supabase REST tables, literal (8):** `calendar_posts` · `caption_prompts` · `content_samples` · `filming_plans` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
+- **Supabase REST tables, literal (7):** `calendar_posts` · `caption_prompts` · `content_samples` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read. A dormant event-loader target names `deliverable_events`, but runtime never invokes it (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (4):** `calendar_upsert_ef_clients` · `prod_authority` · `sample_review_ef_clients` · `settings_ef_clients`
 - **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. Other plan-side flags remain backend-only.

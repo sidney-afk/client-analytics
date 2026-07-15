@@ -274,8 +274,43 @@ function installGate(workflow, webhookName, gateName, expectedFirst, team, posit
   workflow.connections[names.accepted] = { main: [[edge(expectedFirst)]] };
 }
 
+function durableFormsInstalled(workflow) {
+  const f44 = require('./f44-linear-intake-transform');
+  const installed = f44.INSTALL_NODE_NAMES.filter(name => node(workflow, name));
+  if (!installed.length) return false;
+  if (installed.length !== f44.INSTALL_NODE_NAMES.length) {
+    throw new Error(`F44 partial install detected (${installed.length}/${f44.INSTALL_NODE_NAMES.length}); refusing to guess`);
+  }
+  f44.verify(workflow);
+  return true;
+}
+
+function verifyDurableFormAuthority(workflow) {
+  if (!durableFormsInstalled(workflow)) throw new Error('F44 durable form flow is not installed');
+  for (const [webhookName, gateName, team, normalizeName] of [
+    ['Webhook', 'Authority Gate - Video Form', 'video', 'F44 Normalize Video'],
+    ['Webhook2', 'Authority Gate - Graphics Form', 'graphics', 'F44 Normalize Graphics'],
+  ]) {
+    const names = formNodeNames(gateName);
+    if (node(workflow, webhookName)?.parameters?.responseMode !== 'responseNode') throw new Error(`${webhookName} still responds before authority check`);
+    if (workflow.connections?.[webhookName]?.main?.[0]?.length !== 1
+        || workflow.connections[webhookName].main[0][0].node !== names.gate) throw new Error(`${team} form gate not first`);
+    if (nodeCode(workflow, names.gate) !== formGateCode(team)) throw new Error(`${team} form gate code drifted`);
+    if (workflow.connections?.[names.gate]?.main?.[0]?.length !== 1
+        || workflow.connections[names.gate].main[0][0].node !== names.route) throw new Error(`${team} form authority route missing`);
+    if (workflow.connections?.[names.route]?.main?.[0]?.length !== 1
+        || workflow.connections[names.route].main[0][0].node !== normalizeName) throw new Error(`${team} form authority route is not receipt-first`);
+    if (workflow.connections?.[names.route]?.main?.[1]?.length !== 1
+        || workflow.connections[names.route].main[1][0].node !== names.rejected) throw new Error(`${team} form rejected response missing`);
+    if (node(workflow, names.accepted)) throw new Error(`${team} premature accepted response remains`);
+    if (node(workflow, names.rejected)?.parameters?.options?.responseCode !== '={{ $json._writeUiAuthority.http_status || 503 }}') throw new Error(`${team} form blocked status missing`);
+  }
+  return workflow;
+}
+
 function transformForms(input) {
   const workflow = clone(input);
+  if (durableFormsInstalled(workflow)) return verifyDurableFormAuthority(workflow);
   installGate(workflow, 'Webhook', 'Authority Gate - Video Form', 'Fetch Filming Plans', 'video', [-1240, -640]);
   installGate(workflow, 'Webhook2', 'Authority Gate - Graphics Form', 'Fetch Filming Plans1', 'graphics', [-1240, 80]);
   return workflow;
@@ -324,6 +359,10 @@ function isInstalled(workflow) {
   if (workflow.id === IDS.status) return nodeCode(workflow, 'Apply Status to Linear').includes("reason: 'syncview_authoritative'");
   if (workflow.id === IDS.comment) return nodeCode(workflow, 'Post Comment To Linear').includes("reason: 'syncview_authoritative'");
   if (workflow.id === IDS.forms) {
+    if (durableFormsInstalled(workflow)) {
+      verifyDurableFormAuthority(workflow);
+      return true;
+    }
     return [
       ...Object.values(formNodeNames('Authority Gate - Video Form')),
       ...Object.values(formNodeNames('Authority Gate - Graphics Form')),
@@ -351,6 +390,10 @@ function verifyTransformed(before, after) {
     if (node(after, 'Respond JSON').parameters.options.responseCode !== '={{ $json.http_status || 200 }}') throw new Error(`${before.id} response status gate missing`);
   }
   if (before.id === IDS.forms) {
+    if (durableFormsInstalled(after)) {
+      verifyDurableFormAuthority(after);
+      return after;
+    }
     if (after.connections.Webhook.main[0][0].node !== 'Authority Gate - Video Form') throw new Error('video form gate not first');
     if (after.connections.Webhook2.main[0][0].node !== 'Authority Gate - Graphics Form') throw new Error('graphics form gate not first');
     for (const [webhookName, gateName, team, expectedFirst] of [
@@ -467,6 +510,7 @@ module.exports = {
   IDS,
   LIVE_PRECONDITIONS,
   assertWorkflowPrecondition,
+  durableFormsInstalled,
   formGateCode,
   isInstalled,
   sha,
@@ -476,6 +520,7 @@ module.exports = {
   transformStatus,
   transformWorkflow,
   verifyTransformed,
+  verifyDurableFormAuthority,
   writableSettings,
 };
 

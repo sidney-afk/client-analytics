@@ -212,6 +212,13 @@ before that step (merge / flip / B5); P2 has a workaround; P3 polish/comms.
   documented in F64.
 - **D-35 (owner, 2026-07-15):** F15 slack_user_id backfill deferred until a post-Linear notify EF
   exists.
+- **D-36 (owner, 2026-07-15):** the PTO tracker (`pto_v1`, PR #843) MAY be enabled under the current
+  shared-role-key identity model. The owner explicitly accepts the documented same-role
+  impersonation/visibility risk for launch ("I don't care about making it safer — I just want this
+  to work"). Individually revocable staff sessions remain a roadmap upgrade, not a launch gate.
+  This supersedes the "must stay off until individual sessions" go-live blocker in
+  `docs/features/PTO_TRACKER.md` §Go-live blocker for the launch decision specifically; the private
+  HR-data handling rules there (no roster/values in the public repo or logs) remain binding.
 
 ## G. RESUME — owner-review checkpoint (2026-07-14)
 

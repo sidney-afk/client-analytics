@@ -4,7 +4,7 @@ import { authorizeBrowserWrite, normalizeBrowserWriteClient } from "../_shared/b
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key, x-syncview-actor, x-syncview-role",
   "Cache-Control": "no-store",
 };
 

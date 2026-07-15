@@ -6,6 +6,7 @@ const path = require('path');
 const {
   PRODUCTION_REF,
   TABLES,
+  assertDriveFolderContext,
   alertMarkerName,
   assertDriveReadback,
   assertExactTableManifest,
@@ -284,13 +285,30 @@ try {
   const localMd5 = md5(validPackageBytes);
   const readbackMeta = {
     id: 'drive-file', name: driveName, parents: ['private-folder'],
-    size: String(validPackageBytes.length), md5Checksum: localMd5,
+    driveId: 'shared-drive', size: String(validPackageBytes.length), md5Checksum: localMd5,
   };
-  ok(assertDriveReadback(readbackMeta, validPackageBytes, validPackageBytes, driveName, 'private-folder', 'drive-file'),
+  ok(assertDriveReadback(readbackMeta, validPackageBytes, validPackageBytes, driveName, 'private-folder', 'drive-file', 'shared-drive'),
     'post-upload readback requires matching Drive identity, parent, size, md5, and bytes');
   let readbackMismatchRejected = false;
-  try { assertDriveReadback({ ...readbackMeta, md5Checksum: '0'.repeat(32) }, validPackageBytes, validPackageBytes, driveName, 'private-folder', 'drive-file'); } catch (_) { readbackMismatchRejected = true; }
+  try { assertDriveReadback({ ...readbackMeta, md5Checksum: '0'.repeat(32) }, validPackageBytes, validPackageBytes, driveName, 'private-folder', 'drive-file', 'shared-drive'); } catch (_) { readbackMismatchRejected = true; }
   ok(readbackMismatchRejected, 'post-upload readback rejects untrusted or mismatched Drive metadata');
+  const folderContext = assertDriveFolderContext({
+    id: 'private-folder',
+    mimeType: 'application/vnd.google-apps.folder',
+    driveId: 'shared-drive',
+    capabilities: { canAddChildren: true, canListChildren: true },
+  }, 'private-folder', true);
+  ok(folderContext.sharedDrive && folderContext.driveId === 'shared-drive',
+    'service-account destination resolves to a writable Shared Drive folder');
+  let myDriveRejected = false;
+  try {
+    assertDriveFolderContext({
+      id: 'private-folder',
+      mimeType: 'application/vnd.google-apps.folder',
+      capabilities: { canAddChildren: true, canListChildren: true },
+    }, 'private-folder', true);
+  } catch (_) { myDriveRejected = true; }
+  ok(myDriveRejected, 'service-account destination rejects a writable My Drive folder without driveId');
   const afterReadbackFailure = selectAuthenticatedCandidates([priorCandidate], HMAC_KEY, currentMs);
   ok(afterReadbackFailure.latest && afterReadbackFailure.latest.file.id === 'prior-lkg',
     'a readback mismatch leaves the prior last-known-good package selected');
@@ -394,6 +412,8 @@ ok(/PGHOST: info\.host/.test(backupSource)
 'export uses an authenticated database snapshot without a REST pagination fallback');
 ok(/supportsAllDrives: 'true'/.test(backupSource)
   && /includeItemsFromAllDrives: 'true'/.test(backupSource)
+  && /corpora: driveId \? 'drive' : 'user'/.test(backupSource)
+  && /params\.set\('driveId', driveId\)/.test(backupSource)
   && /uploadType=multipart&supportsAllDrives=true/.test(backupSource)
   && /alt=media&supportsAllDrives=true/.test(backupSource),
 'Drive list, upload, and download explicitly support the configured Shared Drive folder');
@@ -434,12 +454,18 @@ async function asyncChecks() {
   let pageCalls = 0;
   const paged = await listBackups('fixture-token', async url => {
     const expectedToken = pageCalls === 0 ? '' : 'page-2';
-    ok((new URL(url).searchParams.get('pageToken') || '') === expectedToken,
+    const params = new URL(url).searchParams;
+    ok((params.get('pageToken') || '') === expectedToken,
       'Drive pagination passes the exact next-page token');
+    ok(params.get('supportsAllDrives') === 'true'
+      && params.get('includeItemsFromAllDrives') === 'true'
+      && params.get('corpora') === 'drive'
+      && params.get('driveId') === 'fixture-drive',
+    'Shared Drive discovery scopes every page to the resolved drive corpus');
     const body = pages[pageCalls];
     pageCalls += 1;
     return { ok: true, status: 200, json: async () => body };
-  }, 'private-folder');
+  }, 'private-folder', 'fixture-drive');
   ok(pageCalls === 2 && paged.length === 1 && paged[0].id === 'backup',
     'Drive discovery exhausts pagination before deriving last-known-good');
 
@@ -449,7 +475,7 @@ async function asyncChecks() {
       ok: true,
       status: 200,
       json: async () => ({ files: [], nextPageToken: 'repeat' }),
-    }), 'private-folder');
+    }), 'private-folder', 'fixture-drive');
   } catch (_) { repeatedTokenRejected = true; }
   ok(repeatedTokenRejected,
     'repeated Drive pagination tokens fail closed instead of advancing last-known-good from a truncated list');

@@ -587,7 +587,7 @@ async function driveAccessToken(account) {
   return json.access_token;
 }
 
-async function listDriveFiles(token, query, fetchImpl = fetch, folderId = DRIVE_FOLDER_ID) {
+async function listDriveFiles(token, query, fetchImpl = fetch, folderId = DRIVE_FOLDER_ID, driveId = '') {
   if (!folderId) throw new Error('TRACK_B_BACKUP_DRIVE_FOLDER_ID is required');
   const files = [];
   const seenTokens = new Set();
@@ -599,7 +599,9 @@ async function listDriveFiles(token, query, fetchImpl = fetch, folderId = DRIVE_
       orderBy: 'createdTime desc', pageSize: String(DRIVE_PAGE_SIZE), spaces: 'drive',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
+      corpora: driveId ? 'drive' : 'user',
     });
+    if (driveId) params.set('driveId', driveId);
     if (pageToken) params.set('pageToken', pageToken);
     const response = await fetchImpl(`https://www.googleapis.com/drive/v3/files?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -617,8 +619,8 @@ async function listDriveFiles(token, query, fetchImpl = fetch, folderId = DRIVE_
   throw new Error('Google Drive list exceeded the pagination safety cap');
 }
 
-async function listBackups(token, fetchImpl = fetch, folderId = DRIVE_FOLDER_ID) {
-  const files = await listDriveFiles(token, `name contains '${FILE_PREFIX}'`, fetchImpl, folderId);
+async function listBackups(token, fetchImpl = fetch, folderId = DRIVE_FOLDER_ID, driveId = '') {
+  const files = await listDriveFiles(token, `name contains '${FILE_PREFIX}'`, fetchImpl, folderId, driveId);
   return files.filter(file => isSnapshotName(file && file.name));
 }
 
@@ -637,35 +639,57 @@ async function googleDriveHttpError(stage, response) {
   return new Error(`${stage} HTTP ${response.status} (${googleDriveErrorReason(payload)})`);
 }
 
-async function uploadDriveBytes(token, bytes, name) {
-  const metadata = Buffer.from(JSON.stringify({ name, parents: [DRIVE_FOLDER_ID] }));
+async function uploadDriveBytes(token, bytes, name, folderId = DRIVE_FOLDER_ID) {
+  const metadata = Buffer.from(JSON.stringify({ name, parents: [folderId] }));
   const boundary = `trackb_${crypto.randomBytes(12).toString('hex')}`;
   const body = Buffer.concat([
     Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`), metadata,
     Buffer.from(`\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`), bytes,
     Buffer.from(`\r\n--${boundary}--\r\n`),
   ]);
-  const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,createdTime,size,md5Checksum', {
+  const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,parents,driveId,createdTime,size,md5Checksum', {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` }, body,
   });
   if (!response.ok) throw await googleDriveHttpError('Google Drive upload', response);
   return response.json();
 }
 
-async function uploadBackup(token, filePath, name) {
-  return uploadDriveBytes(token, fs.readFileSync(filePath), name);
+async function uploadBackup(token, filePath, name, folderId = DRIVE_FOLDER_ID) {
+  return uploadDriveBytes(token, fs.readFileSync(filePath), name, folderId);
 }
 
-async function driveFileMetadata(token, fileId) {
+async function driveFileMetadata(token, fileId, fetchImpl = fetch) {
   const params = new URLSearchParams({
-    fields: 'id,name,parents,createdTime,modifiedTime,size,md5Checksum',
+    fields: 'id,name,mimeType,parents,driveId,createdTime,modifiedTime,size,md5Checksum,capabilities(canAddChildren,canListChildren)',
     supportsAllDrives: 'true',
   });
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?${params}`, {
+  const response = await fetchImpl(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error(`Google Drive metadata HTTP ${response.status}`);
   return response.json();
+}
+
+function assertDriveFolderContext(metadata, folderId = DRIVE_FOLDER_ID, requireSharedDrive = false) {
+  if (!metadata || clean(metadata.id) !== clean(folderId)
+    || clean(metadata.mimeType) !== 'application/vnd.google-apps.folder') {
+    throw new Error('Configured Google Drive destination is not the expected folder');
+  }
+  if (!metadata.capabilities || metadata.capabilities.canAddChildren !== true
+    || metadata.capabilities.canListChildren !== true) {
+    throw new Error('Backup principal cannot add and list children in the configured Drive folder');
+  }
+  const driveId = clean(metadata.driveId);
+  if (requireSharedDrive && !driveId) {
+    throw new Error('Service-account backup destination must be inside a Google Workspace Shared Drive');
+  }
+  return { folderId: clean(folderId), driveId, sharedDrive: Boolean(driveId) };
+}
+
+async function resolveDriveContext(token, account, fetchImpl = fetch, folderId = DRIVE_FOLDER_ID) {
+  const metadata = await driveFileMetadata(token, folderId, fetchImpl);
+  const serviceAccount = Boolean(clean(account && account.client_email) && !clean(account && account.refresh_token));
+  return assertDriveFolderContext(metadata, folderId, serviceAccount);
 }
 
 async function downloadBackupBytes(token, fileId) {
@@ -676,13 +700,14 @@ async function downloadBackupBytes(token, fileId) {
   return Buffer.from(await response.arrayBuffer());
 }
 
-function assertDriveReadback(metadata, remoteBytes, localBytes, expectedName, expectedFolderId, expectedFileId = '') {
+function assertDriveReadback(metadata, remoteBytes, localBytes, expectedName, expectedFolderId, expectedFileId = '', expectedDriveId = '') {
   const expectedMd5 = md5(localBytes);
   const sameLength = remoteBytes.length === localBytes.length;
   if ((expectedFileId && clean(metadata && metadata.id) !== clean(expectedFileId))
     || clean(metadata && metadata.name) !== expectedName
     || !Array.isArray(metadata && metadata.parents)
     || !metadata.parents.map(clean).includes(expectedFolderId)
+    || (expectedDriveId && clean(metadata && metadata.driveId) !== clean(expectedDriveId))
     || Number(metadata && metadata.size) !== localBytes.length
     || clean(metadata && metadata.md5Checksum).toLowerCase() !== expectedMd5
     || !sameLength
@@ -735,12 +760,12 @@ function readAlertMarker(bytes, staleKey, hmacInput = HMAC_KEY_INPUT) {
   return payload;
 }
 
-async function verifyUploadedBackup(token, fileId, expectedName, filePath, hmacInput = HMAC_KEY_INPUT) {
+async function verifyUploadedBackup(token, fileId, expectedName, filePath, driveContext, hmacInput = HMAC_KEY_INPUT) {
   const localBytes = fs.readFileSync(path.resolve(filePath));
   const localSnapshot = readSnapshotBytes(localBytes, hmacInput);
   const metadata = await driveFileMetadata(token, fileId);
   const remoteBytes = await downloadBackupBytes(token, fileId);
-  assertDriveReadback(metadata, remoteBytes, localBytes, expectedName, DRIVE_FOLDER_ID, fileId);
+  assertDriveReadback(metadata, remoteBytes, localBytes, expectedName, driveContext.folderId, fileId, driveContext.driveId);
   const remoteSnapshot = readSnapshotBytes(remoteBytes, hmacInput);
   if (remoteSnapshot.manifest.snapshot.sha256 !== localSnapshot.manifest.snapshot.sha256) {
     throw new Error('Google Drive backup readback snapshot checksum mismatch');
@@ -754,10 +779,10 @@ async function verifyUploadedBackup(token, fileId, expectedName, filePath, hmacI
   };
 }
 
-async function hasFreshnessMarker(token, staleKey) {
+async function hasFreshnessMarker(token, staleKey, driveContext) {
   const name = alertMarkerName(staleKey);
   const escaped = name.replace(/'/g, "\\'");
-  const files = await listDriveFiles(token, `name = '${escaped}'`);
+  const files = await listDriveFiles(token, `name = '${escaped}'`, fetch, driveContext.folderId, driveContext.driveId);
   for (const file of files) {
     try {
       const bytes = await downloadBackupBytes(token, file.id);
@@ -768,13 +793,13 @@ async function hasFreshnessMarker(token, staleKey) {
   return false;
 }
 
-async function writeFreshnessMarker(token, staleKey, ageHours) {
+async function writeFreshnessMarker(token, staleKey, ageHours, driveContext) {
   const name = alertMarkerName(staleKey);
   const bytes = buildAlertMarker(staleKey, ageHours);
-  const uploaded = await uploadDriveBytes(token, bytes, name);
+  const uploaded = await uploadDriveBytes(token, bytes, name, driveContext.folderId);
   const metadata = await driveFileMetadata(token, uploaded.id);
   const remoteBytes = await downloadBackupBytes(token, uploaded.id);
-  assertDriveReadback(metadata, remoteBytes, bytes, name, DRIVE_FOLDER_ID, uploaded.id);
+  assertDriveReadback(metadata, remoteBytes, bytes, name, driveContext.folderId, uploaded.id, driveContext.driveId);
   readAlertMarker(remoteBytes, staleKey);
 }
 
@@ -829,8 +854,9 @@ async function createAndUpload() {
     verifySnapshotFile(output);
     const account = parseDriveCredentials();
     const token = await driveAccessToken(account);
-    const uploaded = await uploadBackup(token, output, name);
-    const readback = await verifyUploadedBackup(token, uploaded.id, name, output);
+    const driveContext = await resolveDriveContext(token, account);
+    const uploaded = await uploadBackup(token, output, name, driveContext.folderId);
+    const readback = await verifyUploadedBackup(token, uploaded.id, name, output, driveContext);
     console.log(JSON.stringify({
       ok: true,
       file_id: uploaded.id,
@@ -844,6 +870,8 @@ async function createAndUpload() {
       drive_md5: readback.metadata.md5Checksum,
       hmac_verified: true,
       readback_verified: true,
+      parent_verified: true,
+      shared_drive: driveContext.sharedDrive,
     }));
   } finally {
     try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (_) {}
@@ -873,7 +901,8 @@ function classifyFreshness({ fileCount, newestCandidateValid, latestGeneratedMs,
 async function checkFreshness() {
   const account = parseDriveCredentials();
   const token = await driveAccessToken(account);
-  const files = await listBackups(token);
+  const driveContext = await resolveDriveContext(token, account);
+  const files = await listBackups(token, fetch, driveContext.folderId, driveContext.driveId);
   const nowMs = Date.now();
   const candidates = await downloadDriveCandidates(token, files);
   const selection = selectAuthenticatedCandidates(candidates, HMAC_KEY_INPUT, nowMs);
@@ -897,6 +926,7 @@ async function checkFreshness() {
       threshold_hours: FRESHNESS_HOURS,
       invalid_candidates: selection.invalidCount,
       alert_transport: 'github_workflow_failure_email',
+      shared_drive: driveContext.sharedDrive,
     }));
     return;
   }
@@ -906,11 +936,11 @@ async function checkFreshness() {
   let alreadyPaged = false;
   let slackAlerted = false;
   if (SLACK_WEBHOOK) {
-    alreadyPaged = await hasFreshnessMarker(token, staleKey);
+    alreadyPaged = await hasFreshnessMarker(token, staleKey, driveContext);
     if (!alreadyPaged) {
       const ageText = Number.isFinite(freshness.ageHours) ? `${freshness.ageHours.toFixed(1)}h` : 'missing';
       slackAlerted = await postSlack(`SyncView Track-B private backup failed freshness. reason=${freshness.reason}; age=${ageText}; threshold=${FRESHNESS_HOURS}h; backup_handle=${staleKey}`);
-      await writeFreshnessMarker(token, staleKey, freshness.ageHours);
+      await writeFreshnessMarker(token, staleKey, freshness.ageHours, driveContext);
     }
   }
   const ageText = Number.isFinite(freshness.ageHours) ? `${freshness.ageHours.toFixed(1)}h` : 'missing';
@@ -937,7 +967,8 @@ async function downloadLatest() {
   if (!output) throw new Error('download-latest requires --output=PATH');
   const account = parseDriveCredentials();
   const token = await driveAccessToken(account);
-  const files = await listBackups(token);
+  const driveContext = await resolveDriveContext(token, account);
+  const files = await listBackups(token, fetch, driveContext.folderId, driveContext.driveId);
   if (!files.length) throw new Error('No Track-B backup exists in the configured Drive folder');
   const selection = selectAuthenticatedCandidates(await downloadDriveCandidates(token, files));
   if (!selection.latest) throw new Error('No authenticated Track-B backup exists in the configured Drive folder');
@@ -952,6 +983,7 @@ async function downloadLatest() {
     generated_at: manifest.generated_at,
     snapshot_sha256: manifest.snapshot.sha256,
     invalid_candidates: selection.invalidCount,
+    shared_drive: driveContext.sharedDrive,
   }));
 }
 
@@ -978,6 +1010,7 @@ module.exports = {
   PRODUCTION_REF,
   SCHEMA_VERSION,
   TABLES,
+  assertDriveFolderContext,
   assertDriveReadback,
   assertExactTableManifest,
   assertProductionSource,

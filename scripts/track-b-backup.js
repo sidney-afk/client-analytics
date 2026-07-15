@@ -835,13 +835,24 @@ async function createAndUpload() {
   }
 }
 
-async function postSlack(text) {
-  if (!SLACK_WEBHOOK) throw new Error('SLACK_ALERT_WEBHOOK is required for backup freshness alerts');
-  const response = await fetch(SLACK_WEBHOOK, {
+async function postSlack(text, webhook = SLACK_WEBHOOK, fetchImpl = fetch) {
+  if (!clean(webhook)) return false;
+  const response = await fetchImpl(webhook, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
   });
   const body = await response.text();
   if (!response.ok || clean(body).toLowerCase() !== 'ok') throw new Error(`Slack freshness alert failed with HTTP ${response.status}`);
+  return true;
+}
+
+function classifyFreshness({ fileCount, newestCandidateValid, latestGeneratedMs, nowMs, thresholdHours }) {
+  const ageHours = Number.isFinite(latestGeneratedMs) ? (nowMs - latestGeneratedMs) / 3600000 : Infinity;
+  let reason = '';
+  if (!fileCount) reason = 'missing';
+  else if (!newestCandidateValid) reason = 'verification_failed';
+  else if (!Number.isFinite(latestGeneratedMs)) reason = 'missing';
+  else if (ageHours > thresholdHours) reason = 'stale';
+  return { ok: !reason, reason, ageHours };
 }
 
 async function checkFreshness() {
@@ -849,38 +860,57 @@ async function checkFreshness() {
   const token = await driveAccessToken(account);
   const files = await listBackups(token);
   const nowMs = Date.now();
-  const selection = selectAuthenticatedCandidates(await downloadDriveCandidates(token, files), HMAC_KEY_INPUT, nowMs);
+  const candidates = await downloadDriveCandidates(token, files);
+  const selection = selectAuthenticatedCandidates(candidates, HMAC_KEY_INPUT, nowMs);
   const latest = selection.latest;
-  const ageHours = latest ? (nowMs - latest.generatedMs) / 3600000 : Infinity;
-  const stale = !latest || ageHours > FRESHNESS_HOURS;
-  if (!stale) {
+  const newestCandidateValid = !candidates.length
+    || Boolean(selectAuthenticatedCandidates([candidates[0]], HMAC_KEY_INPUT, nowMs).latest);
+  const freshness = classifyFreshness({
+    fileCount: files.length,
+    newestCandidateValid,
+    latestGeneratedMs: latest ? latest.generatedMs : NaN,
+    nowMs,
+    thresholdHours: FRESHNESS_HOURS,
+  });
+  if (freshness.ok) {
     console.log(JSON.stringify({
       ok: true,
       stale: false,
       latest_file_id: latest.file.id,
       authenticated_generated_at: latest.snapshot.manifest.generated_at,
-      age_hours: Number(ageHours.toFixed(2)),
+      age_hours: Number(freshness.ageHours.toFixed(2)),
       threshold_hours: FRESHNESS_HOURS,
       invalid_candidates: selection.invalidCount,
+      alert_transport: 'github_workflow_failure_email',
     }));
     return;
   }
   const staleKey = latest
     ? `snapshot:${latest.snapshot.manifest.snapshot.sha256.slice(0, 24)}`
     : `no-valid-snapshot:${new Date(nowMs).toISOString().slice(0, 10)}`;
-  const alreadyPaged = await hasFreshnessMarker(token, staleKey);
-  if (!alreadyPaged) {
-    const ageText = Number.isFinite(ageHours) ? `${ageHours.toFixed(1)}h` : 'missing';
-    await postSlack(`SyncView Track-B private backup is stale. age=${ageText}; threshold=${FRESHNESS_HOURS}h; backup_handle=${staleKey}`);
-    await writeFreshnessMarker(token, staleKey, ageHours);
+  let alreadyPaged = false;
+  let slackAlerted = false;
+  if (SLACK_WEBHOOK) {
+    alreadyPaged = await hasFreshnessMarker(token, staleKey);
+    if (!alreadyPaged) {
+      const ageText = Number.isFinite(freshness.ageHours) ? `${freshness.ageHours.toFixed(1)}h` : 'missing';
+      slackAlerted = await postSlack(`SyncView Track-B private backup failed freshness. reason=${freshness.reason}; age=${ageText}; threshold=${FRESHNESS_HOURS}h; backup_handle=${staleKey}`);
+      await writeFreshnessMarker(token, staleKey, freshness.ageHours);
+    }
   }
+  const ageText = Number.isFinite(freshness.ageHours) ? `${freshness.ageHours.toFixed(1)}h` : 'missing';
+  console.error(`Track-B backup freshness FAILED: reason=${freshness.reason}; age=${ageText}; threshold=${FRESHNESS_HOURS}h. GitHub Actions must mark this run failed so the repository owner's Actions email notification can fire.`);
   console.log(JSON.stringify({
     ok: false,
     stale: true,
-    alerted: !alreadyPaged,
+    failure_reason: freshness.reason,
+    alerted: slackAlerted,
+    slack_configured: Boolean(SLACK_WEBHOOK),
+    slack_already_paged: alreadyPaged,
+    alert_transport: 'github_workflow_failure_email',
     stale_key: staleKey,
     authenticated_generated_at: latest ? latest.snapshot.manifest.generated_at : null,
-    age_hours: Number.isFinite(ageHours) ? Number(ageHours.toFixed(2)) : null,
+    age_hours: Number.isFinite(freshness.ageHours) ? Number(freshness.ageHours.toFixed(2)) : null,
     threshold_hours: FRESHNESS_HOURS,
     invalid_candidates: selection.invalidCount,
   }));
@@ -920,7 +950,7 @@ async function main() {
 
 if (require.main === module) {
   main().catch(error => {
-    console.error(error && error.stack || error && error.message || String(error));
+    console.error(`Track-B backup workflow FAILED: ${error && error.message || String(error)}`);
     process.exit(1);
   });
 }
@@ -939,6 +969,7 @@ module.exports = {
   authenticatedGeneratedAt,
   buildManifest,
   canonicalJson,
+  classifyFreshness,
   connectionProjectRef,
   inspectPlainDump,
   isSnapshotName,
@@ -951,6 +982,7 @@ module.exports = {
   parseStrictPgDump,
   pgDumpArgs,
   postgresEnvironment,
+  postSlack,
   readOnlyPrivilegeSql,
   readAlertMarker,
   readSnapshotBytes,

@@ -14,6 +14,7 @@ const {
   buildAlertMarker,
   buildManifest,
   canonicalJson,
+  classifyFreshness,
   connectionProjectRef,
   inspectPlainDump,
   isSnapshotName,
@@ -25,6 +26,7 @@ const {
   parseStrictPgDump,
   pgDumpArgs,
   postgresEnvironment,
+  postSlack,
   readOnlyPrivilegeSql,
   readAlertMarker,
   readSnapshotBytes,
@@ -362,8 +364,8 @@ ok(/TRACK_B_BACKUP_DATABASE_URL/.test(workflow)
   && /TRACK_B_BACKUP_HMAC_KEY/.test(workflow)
   && /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON/.test(workflow)
   && /TRACK_B_BACKUP_DRIVE_FOLDER_ID/.test(workflow)
-  && /SLACK_ALERT_WEBHOOK/.test(workflow),
-'workflow names the read-only database, HMAC, private Drive, and freshness credentials');
+  && !/for name[^\n]+SLACK_ALERT_WEBHOOK/.test(workflow),
+'workflow requires the read-only database, HMAC, and private Drive credentials without requiring Slack');
 ok(/Install PostgreSQL snapshot client/.test(workflow)
   && /postgresql-client/.test(workflow),
 'GitHub runner explicitly installs pg_dump and psql');
@@ -406,6 +408,19 @@ ok(/owner explicitly opted out of the paid PITR add-on[\s\S]+do not invent a[\s\
 'runbook records the owner-approved PITR opt-out without fabricating gate evidence');
 
 async function asyncChecks() {
+  const nowMs = Date.now();
+  ok(classifyFreshness({ fileCount: 0, newestCandidateValid: true, latestGeneratedMs: NaN, nowMs, thresholdHours: 7 }).reason === 'missing'
+    && classifyFreshness({ fileCount: 1, newestCandidateValid: false, latestGeneratedMs: nowMs, nowMs, thresholdHours: 7 }).reason === 'verification_failed'
+    && classifyFreshness({ fileCount: 1, newestCandidateValid: true, latestGeneratedMs: nowMs - (8 * 3600000), nowMs, thresholdHours: 7 }).reason === 'stale'
+    && classifyFreshness({ fileCount: 1, newestCandidateValid: true, latestGeneratedMs: nowMs - 60000, nowMs, thresholdHours: 7 }).ok,
+  'freshness classifies missing, newest-verification failure, stale, and fresh states for fail-closed workflow email alerts');
+  let optionalSlackCalls = 0;
+  const optionalSlackSent = await postSlack('fixture', '', async () => {
+    optionalSlackCalls += 1;
+    throw new Error('optional Slack transport must not be called');
+  });
+  ok(optionalSlackSent === false && optionalSlackCalls === 0,
+    'absent optional Slack webhook performs no Slack request and does not block GitHub failure-email alerting');
   const pages = [
     { files: [{ id: 'ignore', name: 'not-a-snapshot.txt' }], nextPageToken: 'page-2' },
     { files: [{ id: 'backup', name: 'syncview-track-b-20260713T123456Z.snapshot' }] },

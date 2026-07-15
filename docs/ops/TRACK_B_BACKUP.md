@@ -37,7 +37,7 @@ Configure these before enabling the schedule on `main`:
 | Secret | `TRACK_B_BACKUP_HMAC_KEY` | Canonical base64 encoding of at least 32 random bytes, used to authenticate every snapshot package before parsing or restore. Generate separately from Drive credentials, for example with a cryptographically secure 32-byte random generator. |
 | Secret | `TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON` | Google authorized-user refresh JSON, or a service-account JSON/base64 JSON. Authorized-user JSON needs `client_id`, `client_secret`, and `refresh_token`. A service account should target a Shared Drive or otherwise have confirmed upload ownership/quota. |
 | Variable | `TRACK_B_BACKUP_DRIVE_FOLDER_ID` | Existing private backup folder; share it only with the backup principal. |
-| Secret | `SLACK_ALERT_WEBHOOK` | Direct, non-n8n Slack incoming webhook for backup freshness alerts. |
+| Optional secret | `SLACK_ALERT_WEBHOOK` | Legacy optional transport only. If absent, no Slack request is made. The standard alert is the failed GitHub Actions run and the repository owner's GitHub Actions email notification. |
 
 Create a dedicated PostgreSQL login for `TRACK_B_BACKUP_DATABASE_URL`. Grant it
 `CONNECT`, `USAGE` on `public`, and `SELECT` on the 14 covered tables plus their
@@ -82,13 +82,23 @@ candidate must pass HMAC, checksum, strict-dump, production-source, canonical
 UTC timestamp, filename-to-signed-timestamp, and future-clock-skew validation.
 The seven-hour age is calculated only from the authenticated manifest
 `generated_at`. A corrupt file, arbitrary new file, or newly uploaded replay of
-an old signed package cannot reset freshness. If no authenticated package is
-fresh, the workflow posts a public-safe alert directly to Slack and fails. A
-successful alert writes an HMAC-authenticated marker to the private Drive
-folder, so the same stale snapshot does not page repeatedly. The backup and
+an old signed package cannot reset freshness. The newest discovered backup must
+authenticate successfully, and the newest authenticated package must be no
+older than seven hours. A missing, unverifiable, or stale newest backup prints
+a public-safe failure reason and exits non-zero. GitHub therefore marks the run
+failed so its built-in Actions email notification can reach the repository
+owner; this requires the owner's GitHub notification settings to permit Actions
+email. Slack is optional and is skipped entirely when its secret is absent. If
+the optional Slack transport is configured, a successful alert writes an
+HMAC-authenticated dedupe marker to the private Drive folder. The backup and
 freshness paths make no write to the production database. Drive discovery
 follows every page token and rejects missing, repeated, or excessive pagination
 instead of silently accepting a truncated listing.
+
+A later formatted-email transport such as Resend would require a verified
+sending domain and DNS records, a scoped API key in GitHub Actions, an approved
+From address, the owner recipient, and explicit retry/dedupe handling. None of
+those are required for this zero-extra-service GitHub failure-email design.
 
 ## Fault-injection contract
 
@@ -158,5 +168,5 @@ separate requirements.
 ## Rollback
 
 Disable `.github/workflows/track-b-backup.yml`. This stops backup scheduling and
-freshness alerts only; it changes no runtime flag, production authority, or live
-write path. The existing weekly private backup continues independently.
+freshness failure emails only; it changes no runtime flag, production authority,
+or live write path. The existing weekly private backup continues independently.

@@ -26,7 +26,6 @@ jobs:
       TRACK_B_BACKUP_HMAC_KEY: ${{ secrets.TRACK_B_BACKUP_HMAC_KEY }}
       TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
       TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ vars.TRACK_B_BACKUP_DRIVE_FOLDER_ID }}
-      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
       TRACK_B_BACKUP_FRESHNESS_HOURS: '7'
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +44,7 @@ jobs:
         shell: bash
         run: |
           missing=0
-          for name in TRACK_B_BACKUP_DATABASE_URL TRACK_B_BACKUP_HMAC_KEY TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON TRACK_B_BACKUP_DRIVE_FOLDER_ID SLACK_ALERT_WEBHOOK; do
+          for name in TRACK_B_BACKUP_DATABASE_URL TRACK_B_BACKUP_HMAC_KEY TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON TRACK_B_BACKUP_DRIVE_FOLDER_ID; do
             if [ -z "${!name}" ]; then
               echo "::error::Missing $name"
               missing=1

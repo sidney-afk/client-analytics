@@ -1,5 +1,18 @@
 # Agent Guide
 
+> ## ⛔ FROZEN — client write gate (owner directive, 2026-07-15). READ BEFORE TOUCHING WRITERS.
+> The Edge Functions **`calendar-upsert`** and **`sample-review-upsert`** are **INTENTIONALLY
+> UN-GATED** (open / tokenless) right now, by explicit owner decision, so that clients' existing
+> review links keep saving approvals and comments. **DO NOT re-gate them, re-apply the F35
+> write-auth lock, revert this, or "secure/clean up" them — not as a fix, a rollback, a
+> follow-up, or a "permanent" hardening — without the owner's EXPLICIT affirmative approval in
+> that same request.** Re-gating them while clients still hold pre-existing links silently
+> `401`s every client's approvals/comments (this broke clients **twice** on 2026-07-15).
+> Re-locking is permitted ONLY after **(a)** the owner says so affirmatively **AND (b)** every
+> active client has been re-issued and confirmed on a fresh link. **If you believe they should
+> be re-gated: STOP and ASK THE OWNER FIRST — do not proceed until they say yes.** Full incident
+> in `EXECUTION_LOG.md` (2026-07-15) and the F35 row of `ROLLBACK.md`.
+
 This repo is a single-file SyncView app served by GitHub Pages from `index.html`.
 
 **New session? Read `docs/truth/BRIEFING.md` first** — it front-loads what you'd otherwise

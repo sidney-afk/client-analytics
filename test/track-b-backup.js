@@ -367,8 +367,8 @@ ok(/TRACK_B_BACKUP_DATABASE_URL/.test(workflow)
   && !/for name[^\n]+SLACK_ALERT_WEBHOOK/.test(workflow),
 'workflow requires the read-only database, HMAC, and private Drive credentials without requiring Slack');
 ok(/Install PostgreSQL snapshot client/.test(workflow)
-  && /postgresql-client/.test(workflow),
-'GitHub runner explicitly installs pg_dump and psql');
+  && (workflow.match(/postgresql-client-17/g) || []).length === 2,
+'GitHub runner explicitly installs the PostgreSQL 17 pg_dump and psql clients');
 ok(/TRACK_B_RESTORE_CONFIRM: SCRATCH_ONLY/.test(workflow)
   && /TRACK_B_RESTORE_EXPECTED_PROJECT_REF/.test(workflow),
 'manual restore job is explicitly scratch-bound');

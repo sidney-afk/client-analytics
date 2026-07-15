@@ -1,10 +1,18 @@
 # PTO / Time Off Tracker — implementation handoff
 
-**Status: DESIGN / HANDOFF — not yet implemented.** This is the complete
-implementation spec for an external coding agent. Nothing described here is
-deployed. When implementation lands, the implementer must write the living
-feature contract `docs/features/PTO_TRACKER.md` (per house convention) and this
-handoff becomes historical.
+**Status: HISTORICAL IMPLEMENTATION HANDOFF.** The source implementation and living
+contract were prepared on the feature branch on 2026-07-15. This does **not** claim the
+manual migration, Edge Function deploy, private seed, or runtime-flag enablement has
+happened. Current behavior, security, rollback, and operator gates live in
+`docs/features/PTO_TRACKER.md`; retain this file as the binding decision record and
+synthetic-fixture source.
+
+**2026-07-15 implementation-audit note:** the repository's three staff role keys authenticate a
+role family, not an individual. The existing `key-verify` member picker and actor/member headers are
+caller claims, so the handoff's "caller's own" HR boundary cannot be safely enabled against
+same-role impersonation without an individually revocable server session. Source therefore remains
+dark; `docs/features/PTO_TRACKER.md` records this as a mandatory go-live prerequisite. This note does
+not change the policy fixtures or authorize personal data in the repository.
 
 **Repo line numbers below are pinned to commit `a1e26224d57643b170db6b42b74f98dd68104727`**
 (2026-07-14). If the tree has moved, re-locate by the quoted symbol names, not

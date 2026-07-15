@@ -37,8 +37,8 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 | Path | What it is |
 |---|---|
-| `supabase/` | Standard Supabase CLI layout: `supabase/config.toml` + `supabase/functions/` (Edge Functions). B4 outbound lives in `supabase/functions/linear-outbound/`, `supabase/functions/deliverable-write/`, `supabase/functions/batch-write/`, and shared write/auth code under `supabase/functions/_shared/`; `supabase/functions/linear-inbound/` owns strict echo suppression. Scoped deploys are path-triggered by `.github/workflows/deploy-onboarding-edge-functions.yml` and `.github/workflows/deploy-thumbnail-edge-functions.yml` — do not move. |
-| `migrations/` | Manually-applied Supabase SQL, kept for provenance (no auto-runner). `2026-07-11-b4-linear-outbound.sql` is the additive durable-outbox/switch delta. See `migrations/README.md` for the baseline-plus-deltas layout. |
+| `supabase/` | Standard Supabase CLI layout: `supabase/config.toml` + `supabase/functions/` (Edge Functions). B4 outbound lives in `supabase/functions/linear-outbound/`, `supabase/functions/deliverable-write/`, `supabase/functions/batch-write/`, and shared write/auth code under `supabase/functions/_shared/`; `supabase/functions/linear-inbound/` owns strict echo suppression. Scoped deploys are path-triggered by `.github/workflows/deploy-onboarding-edge-functions.yml`, `.github/workflows/deploy-thumbnail-edge-functions.yml`, and `.github/workflows/deploy-pto-edge-functions.yml` — do not move. |
+| `migrations/` | Manually-applied Supabase SQL, kept for provenance (no auto-runner). `2026-07-11-b4-linear-outbound.sql` is the additive durable-outbox/switch delta; `2026-07-15-pto-tracker.sql` is the locked PTO schema plus default-off flag source and contains no HR seed data. See `migrations/README.md` for the baseline-plus-deltas layout and source-only-vs-applied distinction. |
 | `n8n-backups/` | Point-in-time n8n workflow snapshots — the rollback anchors required by `ROLLBACK.md` rule 2. Purely archival; read by no code. |
 
 ## Documentation (`docs/`)

@@ -1,6 +1,6 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-14 @ a1e2622 + live security-remediation deny/allow readback
+> Last verified: 2026-07-15 @ 4f9d919 + live security-remediation readback and PTO source inventory (no live PTO deploy claim)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -76,7 +76,7 @@ Other:
 - `webhook/content-ready` — content-ready notification
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (16 literal URLs + 4 composed onboarding URLs)
+## Supabase Edge Functions (17 literal URLs + 4 composed onboarding URLs)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
@@ -111,6 +111,13 @@ Other:
   `sync_managers` return `401`; Admin/SMM may submit/read as allowed and manager sync is Admin-only.
   The signed n8n caller reaches the authenticated branch. Candidate browser key plumbing must merge
   before the currently fail-closed Pages screen becomes usable again.
+- `functions/v1/pto` — staff-key-authenticated PTO overview/request gateway and server-owned
+  accrual engine. It is dark behind `pto_v1`; all private PTO tables remain inaccessible through
+  browser PostgREST, approval uses versioned snapshot/finalize RPCs, and admin-only decisions,
+  adjustments, and member setup are role-checked here. **Do not enable yet:** the shared role keys
+  prove a role but not a unique person, so caller-selected same-role identity cannot safely protect
+  "own" HR detail/request ownership until the individually revocable session gate in
+  `docs/features/PTO_TRACKER.md` is implemented and negatively tested.
 - `functions/v1/thumbnail-folder-resolve` — thumbnail Drive-folder resolution
 - `functions/v1/thumbnail-revision-read` — no-store Calendar/Samples Previous/Current reader. It
   accepts one `{surface, client, source_id}` scope, verifies either a staff role key plus exact
@@ -179,3 +186,7 @@ by hand; verify before relying on it.
   `migrations/2026-07-14-f88-safe-sensitive-read-revocations.sql` must not revoke that table until
   the caller merges and is proved. `clients` is deliberately not in that safe-subset migration:
   Production still calls `_prodRestRows('clients', ...)` and needs a scoped projection first.
+- PTO HR data: the SPA does **not** call PostgREST for `pto_members`, `pto_requests`, or
+  `pto_adjustments`. Their migration contract enables RLS with no anon/authenticated policies,
+  revokes both browser roles, and exposes only the staff-authenticated `pto` projection. This line
+  describes the source contract, not proof that the manual migration or function deploy has run.

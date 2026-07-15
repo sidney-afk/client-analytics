@@ -177,7 +177,7 @@ async function selectMember(page, member) {
     assert(await page.locator('#staffIdentityMemberMenu [data-cc-select-option]').count() === 3, 'modal lists only the two dummy active roster rows plus its placeholder');
     assert(await page.locator('#staffIdentityMember').evaluate(el => el.tagName === 'INPUT' && el.type === 'hidden'), 'custom roster control stores its selected value in a hidden input');
     assert(await page.locator('#staffIdentityOverlay input[type="text"]').count() === 0, 'modal has no free-text name input');
-    assert(await page.locator('#staffIdentityButton').getAttribute('aria-haspopup') === 'dialog', 'signed-out staff button advertises a dialog');
+    assert(await page.locator('#headerMenuButton').getAttribute('aria-haspopup') === 'menu', 'signed-out header button advertises the consolidated staff menu');
     const listboxA11y = await page.evaluate(() => ({
       controls: document.getElementById('staffIdentityMemberBtn').getAttribute('aria-controls'),
       labelled: document.getElementById('staffIdentityMemberMenu').getAttribute('aria-labelledby'),
@@ -303,12 +303,12 @@ async function selectMember(page, member) {
       _syncviewStaffRefreshChrome();
     }, stored);
 
-    await page.click('#staffIdentityButton');
+    await page.click('#headerMenuButton');
     const popover = page.locator('#staffAccountPopover');
     await popover.waitFor({ state: 'visible' });
     assert((await page.locator('.staff-account-line').textContent()).trim() === `Signed in as ${ADMIN.name} · Admin`, 'account popover shows the exact signed-in name and role');
     assert(await page.locator('#staffIdentityOverlay').count() === 0 && await page.getByText('Switch user', { exact: true }).count() === 0, 'signed-in staff button never reopens the form or offers Switch user');
-    assert(await page.locator('#staffIdentityButton').getAttribute('aria-haspopup') === 'menu' && await page.locator('#staffIdentityButton').getAttribute('aria-expanded') === 'true', 'signed-in staff button advertises its open menu');
+    assert(await page.locator('#headerMenuButton').getAttribute('aria-haspopup') === 'menu' && await page.locator('#headerMenuButton').getAttribute('aria-expanded') === 'true', 'signed-in header button advertises its open staff menu');
     assert(await page.evaluate(() => document.activeElement && document.activeElement.id) === 'staffIdentitySignOut', 'account popover moves focus to Sign out');
     await page.waitForTimeout(250);
     if (SCREENSHOT_DIR) await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'b4-staff-account-desktop-light.png'), fullPage: true });
@@ -317,16 +317,20 @@ async function selectMember(page, member) {
     assert((await popover.evaluate(el => getComputedStyle(el).backgroundColor)) !== 'rgb(255, 255, 255)', 'account popover follows dark theme tokens');
     await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
     await page.keyboard.press('Escape');
-    assert(await popover.isHidden() && await page.evaluate(() => document.activeElement.id) === 'staffIdentityButton', 'Escape closes the account popover and restores focus');
-    await page.click('#staffIdentityButton');
+    assert(await popover.isHidden() && await page.evaluate(() => document.activeElement.id) === 'headerMenuButton', 'Escape closes the account popover and restores focus to the header menu button');
+    await page.click('#headerMenuButton');
     await page.waitForFunction(() => document.activeElement?.id === 'staffIdentitySignOut');
     await page.keyboard.press('Tab');
+    assert(await popover.isVisible() && await page.evaluate(() => document.activeElement?.id) === 'themeToggle', 'Tab advances through the consolidated menu theme action without closing it');
+    await page.keyboard.press('Tab');
+    assert(await popover.isVisible() && await page.evaluate(() => document.activeElement?.id) === 'statusPaletteToggle', 'Tab advances through the consolidated menu status-palette action without closing it');
+    await page.keyboard.press('Tab');
     await page.waitForTimeout(30);
-    assert(await popover.isHidden(), 'Tab closes the account popover after focus leaves its wrapper');
+    assert(await popover.isHidden(), 'Tab closes the account popover after focus leaves all consolidated menu actions');
 
     const callsBeforeReload = verifyCalls;
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => document.getElementById('staffIdentityButton')?.getAttribute('aria-haspopup') === 'menu', null, { timeout: 10000 });
+    await page.waitForFunction(name => document.getElementById('headerMenuButton')?.getAttribute('aria-label')?.includes(name), ADMIN.name, { timeout: 10000 });
     assert(verifyCalls > callsBeforeReload, 'stored identity is revalidated through key-verify at boot');
     assert(await page.locator('#staffIdentityOverlay').count() === 0, 'valid boot revalidation does not re-prompt');
 
@@ -334,7 +338,7 @@ async function selectMember(page, member) {
     await sibling.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
     await installMocks(sibling);
     await sibling.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded' });
-    await sibling.waitForFunction(() => document.getElementById('staffIdentityButton')?.getAttribute('aria-haspopup') === 'menu');
+    await sibling.waitForFunction(name => document.getElementById('headerMenuButton')?.getAttribute('aria-label')?.includes(name), ADMIN.name);
     await sibling.evaluate(() => {
       _ccState.modal.open = true;
       _ccState.modal.credentials = [{ id: 'dummy-sibling-secret', password: 'dummy-secret' }];
@@ -374,9 +378,13 @@ async function selectMember(page, member) {
     assert(await page.locator('#ccOverlay').count() === 0 && purged.modalRows === 0 && purged.kasperRows === 0 && purged.reveals === 0, 'Sign out closes credentials UI and purges sensitive credential state');
     assert(purged.onboarding === null && purged.onboardingMode === 'edge', 'Sign out purges full-onboarding cache and returns to stripped mode');
     assert(purged.legacyCredentials === null && purged.legacyFilming === null, 'Sign out removes retired surface-specific keys from browser storage');
-    assert(await page.locator('#staffIdentityOverlay').count() === 0 && await page.locator('#staffIdentityButton').getAttribute('aria-haspopup') === 'dialog', 'Sign out leaves the calm signed-out button without an automatic prompt');
+    assert(await page.locator('#staffIdentityOverlay').count() === 0
+      && await page.locator('#headerMenuButton').getAttribute('aria-haspopup') === 'menu'
+      && await page.locator('#headerMenuButton').getAttribute('aria-expanded') === 'false'
+      && await page.locator('#headerMenuButton').getAttribute('aria-label') === 'Open staff menu', 'Sign out leaves the calm signed-out header menu button without an automatic prompt');
     await sibling.waitForFunction(() => localStorage.getItem('syncview_staff_identity_v1') === null
-      && document.getElementById('staffIdentityButton')?.getAttribute('aria-haspopup') === 'dialog'
+      && document.getElementById('headerMenuButton')?.getAttribute('aria-haspopup') === 'menu'
+      && document.getElementById('headerMenuButton')?.getAttribute('aria-label') === 'Open staff menu'
       && _ccState.modal.credentials.length === 0 && _obvSubs === null
       && !document.getElementById('ccOverlay'));
     assert(true, 'Sign out propagates across tabs and purges sibling sensitive state');
@@ -387,12 +395,19 @@ async function selectMember(page, member) {
     assert(await page.locator('#staffIdentityOverlay').count() === 1, 'a signed-out gated action opens the single global staff sign-in');
     await page.keyboard.press('Escape');
     await page.waitForSelector('#staffIdentityOverlay', { state: 'detached' });
-    assert(await page.evaluate(() => document.activeElement.id) === 'staffIdentityButton', 'Escape closes the sign-in dialog and restores focus');
-    await page.click('#staffIdentityButton');
+    assert(await page.evaluate(() => document.activeElement.id) === 'headerMenuButton', 'Escape closes the sign-in dialog and restores focus to the header menu button');
+    await page.click('#headerMenuButton');
+    await page.locator('#staffAccountPopover').waitFor({ state: 'visible' });
+    assert(await page.locator('#headerMenuButton').getAttribute('aria-expanded') === 'true'
+      && (await page.locator('.staff-account-line').textContent()).trim() === 'SyncView staff'
+      && (await page.locator('#staffIdentityMenuLabel').textContent()).trim() === 'Staff sign in', 'signed-out header click opens the staff menu with its identity action');
+    assert(await page.evaluate(() => document.activeElement.id) === 'staffIdentitySignOut', 'signed-out staff menu moves focus to the identity action');
+    await page.click('#staffIdentitySignOut');
     await page.waitForSelector('#staffIdentityForm');
+    assert(await page.locator('#staffAccountPopover').isHidden(), 'identity action closes the staff menu before opening the sign-in dialog');
     await page.locator('#staffIdentityOverlay').click({ position: { x: 4, y: 4 } });
     await page.waitForSelector('#staffIdentityOverlay', { state: 'detached' });
-    assert(await page.evaluate(() => document.activeElement.id) === 'staffIdentityButton', 'clicking the backdrop closes sign-in and restores focus');
+    assert(await page.evaluate(() => document.activeElement.id) === 'headerMenuButton', 'clicking the backdrop closes sign-in and restores focus to the header menu button');
 
     await page.evaluate(member => {
       localStorage.setItem('syncview_staff_identity_v1', JSON.stringify({ key: 'invalid-dummy-key', role: 'admin', member }));
@@ -413,7 +428,7 @@ async function selectMember(page, member) {
     await seedStaffApp(creativePage, { key: CREATIVE_KEY, role: 'creative', member: CREATIVE });
     await installMocks(creativePage);
     await creativePage.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded' });
-    await creativePage.waitForFunction(() => document.getElementById('staffIdentityButton')?.getAttribute('aria-haspopup') === 'menu');
+    await creativePage.waitForFunction(name => document.getElementById('headerMenuButton')?.getAttribute('aria-label')?.includes(name), CREATIVE.name);
     assert(await creativePage.locator('#navProd').isVisible() && (await creativePage.locator('#navProd').textContent()).trim() === 'Linear', 'creative staff also see the read-only Linear mirror tab');
     await creativePage.evaluate(() => _fpToggleAdd());
     await creativePage.waitForSelector('.sv-toast-msg');
@@ -421,7 +436,7 @@ async function selectMember(page, member) {
     await creativePage.evaluate(async () => { await _ccOpenModal('TEST Client'); });
     await creativePage.waitForFunction(() => document.querySelector('.sv-toast-msg')?.textContent.includes('Admin or SMM'));
     assert((await creativePage.locator('.sv-toast-msg').textContent()).includes('Sign out first') && await creativePage.locator('#ccOverlay').count() === 0, 'creative account cannot expose credentials and receives clear sign-out guidance');
-    await creativePage.click('#staffIdentityButton');
+    await creativePage.click('#headerMenuButton');
     assert((await creativePage.locator('.staff-account-line').textContent()).trim() === `Signed in as ${CREATIVE.name} · Designer`, 'creative account menu shows the person\'s roster role');
     await creativeContext.close();
 
@@ -431,15 +446,18 @@ async function selectMember(page, member) {
     await installMocks(bootRace);
     const releaseBootVerify = holdGate('verify');
     await bootRace.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded' });
-    await bootRace.waitForFunction(() => document.getElementById('staffIdentityButton')?.getAttribute('aria-busy') === 'true');
-    await bootRace.click('#staffIdentityButton');
+    await bootRace.waitForFunction(() => document.getElementById('headerMenuButton')?.getAttribute('aria-busy') === 'true');
+    await bootRace.click('#headerMenuButton');
     await bootRace.waitForTimeout(80);
-    assert(await bootRace.locator('#staffIdentityOverlay').count() === 0, 'slow boot verification never opens the entry form for a stored identity');
-    assert((await bootRace.locator('#staffIdentityButton').getAttribute('aria-label')).includes('Checking saved'), 'returning staff see an explicit checking state during boot verification');
+    assert(await bootRace.locator('#staffIdentityOverlay').count() === 0 && await bootRace.locator('#staffAccountPopover').isVisible(), 'slow boot verification opens only the staff menu, never the entry form for a stored identity');
+    assert((await bootRace.locator('#headerMenuButton').getAttribute('aria-label')).includes('Checking saved'), 'returning staff see an explicit checking state during boot verification');
     releaseBootVerify();
+    await bootRace.waitForFunction(name => document.getElementById('headerMenuButton')?.getAttribute('aria-label')?.includes(name), ADMIN.name);
+    await bootRace.keyboard.press('Escape');
+    await bootRace.click('#headerMenuButton');
     await bootRace.locator('#staffAccountPopover').waitFor({ state: 'visible' });
     assert(await bootRace.locator('#staffIdentityOverlay').count() === 0
-      && (await bootRace.locator('.staff-account-line').textContent()).includes(ADMIN.name), 'boot verification resolves directly to the account popover');
+      && (await bootRace.locator('.staff-account-line').textContent()).includes(ADMIN.name), 'boot verification resolves to the verified account state in the consolidated menu');
     await bootRaceContext.close();
 
     const previewContext = await browser.newContext();
@@ -467,7 +485,7 @@ async function selectMember(page, member) {
     await mobile.fill('#staffIdentityKey', ADMIN_KEY);
     await mobile.click('#staffIdentitySubmit');
     await mobile.waitForSelector('#staffIdentityOverlay', { state: 'detached' });
-    await mobile.click('#staffIdentityButton');
+    await mobile.click('#headerMenuButton');
     const mobilePopover = mobile.locator('#staffAccountPopover');
     await mobilePopover.waitFor({ state: 'visible' });
     const popoverBox = await mobilePopover.boundingBox();

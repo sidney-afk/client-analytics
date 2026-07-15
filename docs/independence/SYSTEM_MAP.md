@@ -49,7 +49,10 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   `deliverables`, `deliverable_events`, `team_members`, `clients`. Ledger/mirror tables
   (`*_events`, `mirror_outbox`, `linear_archive`, `client_credentials_rev`,
   `thumbnail_media_revisions`) are written by Edge Functions / reconcilers, not read directly by the
-  SPA. Thumbnail v2's protected least-field Edge projection and raw-read revocation are live:
+  SPA. PTO's private `pto_members`, `pto_requests`, and `pto_adjustments` tables likewise have no
+  browser REST path; the source contract revokes anon/authenticated access and exposes them only
+  through the staff-authenticated `pto` function. This is not a claim that the manual PTO migration
+  has been applied. Thumbnail v2's protected least-field Edge projection and raw-read revocation are live:
   browser table access returns `401`, unsigned private-object access returns `400`, exact authorized
   card reads pass, and cross-client scope returns `403`. F83 closed 2026-07-14. **Systemic F88:** an exhaustive live count-only
   census found 20 nonempty anon-selectable operational tables. Client-token/UI verification does
@@ -59,8 +62,8 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   now serves `filming_plans` and the raw table anon-SELECT is revoked (2026-07-15, post-#836): direct
   REST returns 401/42501. F86 separately blocks raw inactive staff/client rows and internal email/
   Slack/Linear/project mappings.
-- **Edge Functions.** 26 are represented under `supabase/functions/`; **the app calls 21**
-  (**"17 literal + 4 composed" Edge Functions**, see
+- **Edge Functions.** 27 are represented under `supabase/functions/`; **the app calls 22**
+  (**"18 literal + 4 composed" Edge Functions**, see
   §7). Five are backend-only: the Linear webhook target (`linear-inbound`), B4 outbox drainer
   (`linear-outbound`), service-only write wrappers (`deliverable-write`, `batch-write`), and the
   scheduled thumbnail Drive scanner (`thumbnail-revision-scan`). `production-write` is app-called
@@ -90,11 +93,11 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   filming-plans browser fallback; current Pages retains it until this change merges. The review
   token column **does not exist and must not be added**; current browser code still attempts that
   broken public-sheet dependency, while real tokens stay only in protected `client_access` (F03/F33).
-- **GitHub Actions (15 workflow files).** Three reconcilers (`linear-sync`, `sample-linear`,
+- **GitHub Actions (16 workflow files).** Three reconcilers (`linear-sync`, `sample-linear`,
   `linear-deliverables`), two E2E nightlies, unit tests, production-polish, B1 incremental refresh,
-  B4 outbound drain, two scoped Edge-Function deploy workflows, the thumbnail revision scanner,
-  Production write drill, Production shadow audit, and the n8n execution-quota watchdog—plus
-  Pages hosting itself. **Slack:** alerts + pings.
+  B4 outbound drain, three scoped Edge-Function deploy workflows (onboarding/credentials,
+  thumbnail, PTO), the thumbnail revision scanner, Production write drill, Production shadow
+  audit, and the n8n execution-quota watchdog—plus Pages hosting itself. **Slack:** alerts + pings.
 
 ## 3. App shell & cross-cutting mechanics
 
@@ -125,23 +128,29 @@ Everything below is shared by every surface; per-surface sections only note devi
   route-derived role logic recognizes only exact `#kasper`/`?Kasper=1`, so a legacy write from a
   nested hash can still be stamped `smm`. Never treat a browser header or persisted label alone as
   server authorization.
-- **Runtime-flag machinery.** Three REST reads of `syncview_runtime_flags` (calendar-upsert,
+- **Runtime-flag machinery.** Three Track-A REST reads of `syncview_runtime_flags` (calendar-upsert,
   settings, sample-review keys) are primed unconditionally at script eval — *every* visitor,
   including client links, hits the flags table three times and opens three realtime channels
   (`syncview-runtime-flags`, `syncview-settings-runtime-flags`, `syncview-sample-runtime-flags`)
   lazily after supabase-js loads. Any flag read failure empties the set → all writes route to
   unauthenticated n8n writers. That is an authorization downgrade/fail-open (F67), not fail-safe.
+  PTO separately reads `pto_v1` for a fail-closed staff-surface gate and opens one flag-only
+  realtime channel (`syncview-pto-runtime-flag`) so an off flip retires already-open entry points.
+  It opens no PTO data-table channel: missing, malformed, off, or unreadable state hides/bounces the
+  feature, and the Edge Function independently rejects normal actions while off. PTO has no legacy
+  or n8n fallback.
 - **Thumbnail-v2 backend gate.** Edge/database paths read
   `thumbnail_revision_v2={"mode":"off|test|on","clients":[...]}` server-side. `off` disables the
   protected comparison reader/scanner and v2 token minting; `test` admits only listed client slugs;
   `on` admits all. This is not a fourth browser `*_FLAG_KEY` read and is therefore not counted in
   §7's machine-derived runtime-key list. Scheduled calls have a second operational gate,
   repository variable `THUMBNAIL_REVISION_SCAN_ENABLED`.
-- **Realtime channels (12).** `cal-<slug>`, `sm-<slug>`, `sxr-<slug>` (per-client post/sample
+- **Realtime channels (13).** `cal-<slug>`, `sm-<slug>`, `sxr-<slug>` (per-client post/sample
   streams); `kasper-cal`, `kasper-sxr` (unfiltered cross-client Kasper queues);
   `client-credentials-rev-<slug>` / `-kasper`; `syncview-templates`,
-  `workload_issues` (declared, dormant); and the three runtime-flag channels. supabase-js is a lazy
-  CDN UMD load, memoized once; failure resolves null and every caller falls back to REST/n8n.
+  `workload_issues` (declared, dormant); the three Track-A runtime-flag channels; and the PTO
+  flag-only channel. supabase-js is a lazy CDN UMD load, memoized once; failure resolves null and
+  each caller follows its own fail-open/fail-closed path.
 - **Theme / palette.** `syncview_theme='dark'` opt-in (light default; forced light + toggle hidden
   on client links) and `syncview_status_palette='classic'`, both read pre-paint. One-click rollback.
 - **App-update nudge (advisory only; F127).** Polls `HEAD` of `location.pathname` every 5 min + on
@@ -152,12 +161,12 @@ Everything below is shared by every surface; per-surface sections only note devi
   epoch, server minimum-version rejection, or build-population telemetry currently expires callers.
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
   constant declared *before* the main Supabase URL constant (TDZ avoidance) — that is why §7 counts
-  "16 literal + 4 composed" Edge Functions.
+  "17 literal + 4 composed" Edge Functions.
 
 ## 4. Surface catalog
 
-Fifteen surfaces. Thirteen carry over from v1 (verify items resolved); **SMM Weekly Reports** and
-**Client Credentials** are promoted to their own rows (v1 folded them away). Code references use
+Sixteen surfaces. Thirteen carry over from v1 (verify items resolved); **SMM Weekly Reports**,
+**Client Credentials**, and dark-by-default **Time Off** are promoted to their own rows. Code references use
 stable symbols/routes; any dated line number is evidence history, never a current-file guarantee.
 
 ### 4.1 Analytics (home) — the default tab
@@ -514,31 +523,36 @@ n8n in the metric read path.*
 
 - **Entry.** `?Kasper=1` sets sessionStorage `syncview_kasper_unlocked` and reveals the nav button
   (legacy localStorage unlock is actively deleted at boot). Subtabs: review, samples (only if SXR
-  enabled), replies/messages, editors, filming, sales-intake, onboarding, client-credentials — hash
+  enabled), replies/messages, editors, filming, sales-intake, onboarding, client-credentials, and
+  time-off (only when `pto_v1` is on) — hash
   `#kasper/<subtab>`, persisted in `syncview_kasper_subtab_v1`.
 - **Reads.** Review queue is a **3-tier fallback**: `calendar_posts` REST (paginated, v2 default) →
   n8n `kasper-queue` (batched `{slugs}`) → per-client n8n `calendar-get` fan-out (5 workers).
   Cross-client `sample_reviews` REST (samples subtab). n8n `editors-week` (editors). Staff-gated
   `filming-plans` EF + n8n `filming-plan-tabs` (filming). `onboarding-full` EF (full sensitive inbox,
   shared/legacy-key-gated; active-admin binding and read audit are missing under F85). `client-
-  credentials` EF (list/history). SMM-directory CSV. Realtime `kasper-cal`, `kasper-sxr`,
+  credentials` EF (list/history). `pto` EF overview (pending queue plus protected team balances).
+  SMM-directory CSV. Realtime `kasper-cal`, `kasper-sxr`,
   `client-credentials-rev-kasper`, plus shared flag channels.
 - **Writes.** Approvals/tweaks/comments/finish-close stamps via the shared calendar & sample upsert
   fetches (flag-routed), field-level patches diffed against a per-card base. Linear `linear-set-
   status` / `linear-add-comment` (tweaks only — plain comments skip Linear). `send-urgent-slack` +
   direct EF urgent markers (bypass flags). n8n `sales-intake-submit`. `client-credentials` EF
-  (upsert/delete/reassign/bulk_import/log_reveal).
+  (upsert/delete/reassign/bulk_import/log_reveal). Admin-only `pto` decisions, adjustments, and
+  member start-date/enabled-state updates.
 - **State.** sessionStorage `syncview_kasper_unlocked`; localStorage `syncview_kasper_subtab_v1`,
   `syncview_kasper_review_cache_v1` (24 h), `syncview_kasper_cal_<slug>_v1` (5 min),
   `syncview_kasper_approved_log_v1`, `syncview_kasper_editors_v2`, `syncview_kasper_filming_v1` (30
   min), seen ledgers, both Linear outboxes, `syncview_staff_identity_v1` (verified roster member +
   role key, shared by staff EFs), `syncview_sales_intake_draft_v1`. Kill switches: the calendar
-  & sample flags. `?v2=0` changes Calendar reads/realtime only and is unsafe for writes (F125).
+  & sample flags plus fail-closed `pto_v1` visibility for Time Off. `?v2=0` changes Calendar
+  reads/realtime only and is unsafe for writes (F125).
 - **Roles.** Hidden staff role, **no password for the queue itself** — only the URL param / session
   flag. Kasper comments are role `kasper` + audience `internal`, stripped from client views.
   Sensitive subtabs add a **real** role gate: admin can open onboarding + credentials; SMM can open
-  credentials; creative/editor/designer can open neither. The role is derived from the matching
-  secret, never a caller-supplied role header.
+  credentials; creative/editor/designer can open neither. Time Off administrative controls require
+  admin, while ordinary staff PTO overview/request calls use any recognized staff role. The role is
+  derived from the matching secret, never a caller-supplied role header.
 - **Failure/fallback.** Queue 3-tier as above; cached ≤24 h snapshot keeps painting. Stored staff
   identity changes are synchronized across tabs; sign-out purges the sensitive caches everywhere.
   Cold Review/Messages share one load, but a rejection targets only the Review body; Messages stays
@@ -549,11 +563,12 @@ n8n in the metric read path.*
   sensitive UI/cache state, then show the one staff sign-in form. A recognized but unauthorized
   role gets 403 and keeps its valid staff session. Realtime failure →
   visibility/focus refresh only (no poll despite a stale 30 s comment).
+  PTO errors stay inside that subtab with retry; there is no direct-table or n8n fallback.
 - **Notable / corrections.** "SMM reports" is **not** a Kasper subtab (it's a separate top-level
   route, §4.14). `kasper-queue` is the **middle** fallback, not primary. The role-header quirk
   (§3) misattributes writes made from `#kasper/<subtab>` as `smm`. The Kasper unlock has no
   password; the verified role key is the sensitive-subtab credential. At 390 and 768 px, the max-
-  content eight-tab strip expands/pans the whole document, leaves later deep-linked tabs off-screen,
+  content nine-tab strip expands/pans the whole document, leaves later deep-linked tabs off-screen,
   and lacks contained touch scrolling, active reveal and accessible tab keyboard semantics (F121).
 - **Track B.** The queue-visibility gates are one of the §9.2 predicate families — missed at flip,
   new thumbnails silently vanish from review. The Messages inbox keeps working on card threads.
@@ -860,6 +875,49 @@ separate hidden first-party Direct-Post surface.*
   role-key identity as §6. Both old surface keys remain server-side compatibility until the separate
   owner-approved retirement gate.
 
+### 4.16 Time Off / PTO (new row; source-dark)
+
+- **Entry.** Staff route `#time-off`, reached from the consolidated top-right account menu rather
+  than the crowded main nav; admin queue and member tools at `#kasper/time-off`. Both entries are
+  hidden and direct staff navigation returns home unless `pto_v1={"mode":"on"}`. The source ships
+  with the migration seed off; this map does not claim the migration, deploy, or flag write is live.
+- **Reads.** Staff-key-authenticated `pto?action=overview`. The response projects the caller's
+  wellness/sick/floating-holiday/leave-year detail and request history, approved absences and fixed
+  holidays for the team calendar, plus a minimal all-member summary. The Kasper admin view uses the
+  same protected boundary for pending requests and balance rows. The SPA never reads `pto_members`,
+  `pto_requests`, or `pto_adjustments` through PostgREST.
+- **Writes.** `pto` actions `request` and `cancel` for ordinary staff; admin-only `decide`, `adjust`,
+  and `set_start_date`. The server recomputes request weekdays excluding weekends and observed fixed
+  holidays, rejects paid anniversary-spanning ranges, owns anniversary accrual/balance math, and
+  serializes approval through a per-member state-version snapshot/finalize RPC. A partial unique
+  index reserves one pending/approved floating holiday per member/calendar year. There is no n8n,
+  Sheet, Linear, or public-REST writer and no realtime publication.
+- **State.** In-memory PTO overview/request/month-calendar state plus the browser-read
+  `syncview_runtime_flags.pto_v1` gate. Data refetches on mount and successful actions; there is no
+  polling, local HR cache, or PTO data-table realtime channel. A separate flag-only subscription,
+  bounded resume/entry reads, and monotonic response generations propagate the off switch. The
+  theme/palette preferences remain the shared shell state.
+- **Roles/security.** The secret-matched role wins over actor/role headers; admin remains required
+  for the detailed cross-member table and all administrative mutations. **Go-live blocker:** the
+  three current role keys are shared and `key-verify` accepts a caller-selected same-role roster
+  member, so the current member/actor value is not an immutable person principal. It cannot safely
+  enforce "own" HR detail/request ownership against a same-role key holder. Keep `pto_v1` off until
+  an individually revocable server session derives the member without browser actor/member trust
+  and negative impersonation/revocation tests pass. The additive tables enable RLS with no
+  anon/authenticated policies and grant service role only; `pto_enabled` defaults false. Personal
+  roster/seed data stays outside this public repository.
+- **Failure/rollback.** Unknown key 401 clears/re-prompts identity and retries once; known but
+  insufficient role 403 preserves the valid identity. Other failures remain visible and fail
+  closed—there is no legacy fallback. The one-step user-facing/approval behavior kill is to
+  set/read back `pto_v1={"mode":"off"}`: entry points retire and overview/request/decide/cancel
+  return `503 feature_disabled`, including from stale tabs. The two admin-only direct setup actions
+  intentionally remain available while dark; source reverts and workflow disablement are secondary.
+- **Notable.** Wellness resets on each hire anniversary, not Jan 1; floating-holiday scope is the
+  separate calendar-year v1 default. Negative seeded wellness balances are valid display state and
+  block further wellness requests rather than crashing or being coerced to zero.
+- **Track B.** None. This is a separate staff/HR feature and must not change the Production/Linear-
+  mirror route, authority, data model, or rollout controls.
+
 ## 5. What changes, when (Track B) + auth
 
 Current phase: **B4 outbound staging (dark), with the Part 2 gateway and #812 Production caller live** — B3 evaluation
@@ -941,7 +999,8 @@ enforcement, a global return to permissive is a security incident—not routine 
   URL params, roles, failure paths).
 - **The mechanical sync test** → §7 + §8 (`test/system-map-sync.js`, wired into `npm test`).
 
-Also folded in: two surfaces v1 hid (SMM Weekly Reports §4.14, Client Credentials §4.15); the five
+Also folded in: two surfaces v1 hid (SMM Weekly Reports §4.14, Client Credentials §4.15), plus the
+new source-dark Time Off surface (§4.16); the five
 deployed-but-uncalled Edge Functions (§2); and corrections to stale v1 claims (dead
 `calendar-append/delete-post`, `kasper-queue` demoted to middle fallback, `editors-week` single fetch
 site, SXR default-ON, non-existent `client-links-refresh`, `linear-tweak-comments`/`content-ready`
@@ -955,12 +1014,12 @@ they drift — in either direction, including the counts. When it fails: update 
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
 - **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
-- **Edge functions (21):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read`
-- **Not counted above:** 17 of the 21 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
+- **Edge functions (22):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read`
+- **Not counted above:** 18 of the 22 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
 - **Supabase REST tables, literal (7):** `calendar_posts` · `caption_prompts` · `content_samples` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read. A dormant event-loader target names `deliverable_events`, but runtime never invokes it (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
-- **Runtime kill-switch flags (4):** `calendar_upsert_ef_clients` · `prod_authority` · `sample_review_ef_clients` · `settings_ef_clients`
-- **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. Other plan-side flags remain backend-only.
+- **Runtime kill-switch flags (5):** `calendar_upsert_ef_clients` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients`
+- **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. `pto_v1` is a fail-closed off/on visibility and behavior gate; source ships off and has no n8n fallback. Other plan-side flags remain backend-only.
 
 ## 8. Freshness contract
 

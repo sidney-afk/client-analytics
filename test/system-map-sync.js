@@ -54,7 +54,7 @@ const htmlRest = extract(/rest\/v1\/([A-Za-z_]+)/g, HTML);
 const htmlRestDynamicVars = extract(/\/rest\/v1\/'\s*\+\s*([A-Za-z_$][\w$]*)/g, HTML);
 
 // Runtime kill-switch flag keys (`const *_FLAG_KEY = '<key>'`).
-const htmlFlags = extract(/const\s+\w*FLAG_KEY\s*=\s*'([a-z_]+)'/g, HTML);
+const htmlFlags = extract(/const\s+\w*FLAG_KEY\s*=\s*'([a-z0-9_]+)'/g, HTML);
 
 /* ── 2. Parse the map's "Endpoint inventory" section ─────────────────── */
 

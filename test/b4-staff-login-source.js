@@ -65,7 +65,7 @@ ok(/Signed in as [^']*' \+ _syncviewStaffEsc\(name\) \+ ' · '/.test(functionSou
 ok(/id="staffIdentitySignOut"/.test(source) && !source.includes('Switch user'), 'account popover offers Sign out and no Switch user');
 ok(/identity\.member && identity\.member\.role \|\| _syncviewStaffRoleValue\(identity\)/.test(functionSource('_syncviewOpenStaffAccount')), 'account popover shows the person\'s roster role while authorization keeps the role-key family');
 ok(/if \(identity\) \{[\s\S]{0,180}_syncviewOpenStaffAccount\(\)/.test(functionSource('_syncviewOpenStaffIdentity')), 'valid identity opens the account popover instead of the entry form');
-ok(/button\.setAttribute\('aria-haspopup', valid \? 'menu' : 'dialog'\)/.test(functionSource('_syncviewStaffRefreshChrome')), 'staff button advertises a menu only while signed in');
+ok(/button\.setAttribute\('aria-haspopup', 'menu'\)/.test(functionSource('_syncviewStaffRefreshChrome')), 'consolidated staff button always advertises its menu, including while signed out');
 ok(/event\.key === 'Tab'[\s\S]{0,180}!wrap\.contains\(document\.activeElement\)[\s\S]{0,100}_syncviewCloseStaffAccount/.test(functionSource('_syncviewOpenStaffAccount')), 'account popover closes when Tab leaves its wrapper');
 const purgeSource = functionSource('_syncviewStaffPurgeSensitiveState');
 ok(/_ccCloseModal\(\)/.test(purgeSource) && /_ccRevTeardown\(\)/.test(purgeSource) && /_ccState\.modal\.credentials = \[\]/.test(purgeSource), 'sign-out purge closes credential UI, realtime, and plaintext rows');

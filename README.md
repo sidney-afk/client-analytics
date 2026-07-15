@@ -23,6 +23,12 @@ onboarding, and keeping everything in sync with Linear.
   link + Stripe payment link. See `docs/features/SALES_INTAKE_DESIGN.md`.
 - **SMM weekly reports** — hidden weekly form for social media managers and a
   read-only Kasper viewer grouped by week and SMM. See `docs/features/SMM_WEEKLY_REPORTS.md`.
+- **PTO / time off** — staff balances, requests, and a team absence calendar,
+  plus an admin approval subtab in Kasper. The server-owned policy engine and
+  locked HR tables live behind one Supabase Edge Function; the feature ships
+  dark behind `pto_v1` and must stay off until the documented individually
+  revocable staff-session prerequisite replaces caller-selected shared-role identity.
+  See `docs/features/PTO_TRACKER.md`.
 - **Workload view** — derived per-person workload, rebuilt from Linear.
 - **Linear sync** — two-way status sync between the calendar and Linear issues.
 - **Analytics** — follower/engagement metrics, top videos, and competitor /
@@ -40,10 +46,13 @@ like the body classes they anticipate). The app talks to three backends.
 
 1. **Supabase** (Postgres + realtime) — the live operational store for everything that
    changes frequently: the content calendar, samples, onboarding, Kasper review state,
-   SMM weekly reports, title review, the workload cache, and the TikTok pilot. Reads come straight from the
+   SMM weekly reports, title review, the workload cache, and the TikTok pilot. PTO is deliberately
+   different: its private membership, request, and adjustment tables allow no browser reads and are
+   projected only through a role-key-authenticated Edge Function; individual identity binding is a
+   documented PTO go-live prerequisite. Other reads come straight from the
    Supabase REST API; updates arrive over realtime channels (no polling — an idle tab
    makes no calls). The browser uses a committed publishable (anon) key; row-level
-   security permits anonymous `SELECT` only — writes go through n8n or
+   security controls direct table access, while privileged writes go through n8n or
    Supabase Edge Functions using service-role credentials.
 2. **n8n** (`synchrosocial.app.n8n.cloud`) — the write / integration layer. Webhooks
    handle saves, reorders, onboarding submissions, SMM roster sync/reminders, and the Linear ⇄ Supabase sync.
@@ -71,7 +80,7 @@ The full annotated map lives in **`REPO_MAP.md`** (enforced by
 | `test/` | Fast, offline unit/wiring tests that extract and exercise pieces of the inline script. Run with `npm test`. |
 | `qa/` | Headless (Playwright) end-to-end probes against the live backend. Run with `npm run test:e2e`. |
 | `scripts/` | CI reconcile jobs (Linear ⇄ calendar/samples) and tested one-shot ops tools. |
-| `.github/workflows/` | CI: unit tests on every push, nightly E2E, the Production polish gate, and reconcile crons. |
+| `.github/workflows/` | CI: unit tests on every push, nightly E2E, the Production polish gate, reconcile crons, and scoped Edge-Function deploys. |
 | `migrations/` | One-time, **manually applied** Supabase SQL-editor migrations, kept for provenance — there is no auto-runner. See `migrations/README.md`. |
 | `supabase/` | Supabase CLI config + Edge Function sources (path-triggered deploys). |
 | `n8n-backups/` | Point-in-time snapshots of the n8n workflows (rollback anchors). |

@@ -1,0 +1,117 @@
+name: Track-B private backup
+
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      restore_rehearsal:
+        description: 'Destructively restore the new backup into the configured scratch project'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: track-b-private-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TRACK_B_BACKUP_DATABASE_URL: ${{ secrets.TRACK_B_BACKUP_DATABASE_URL }}
+      TRACK_B_BACKUP_HMAC_KEY: ${{ secrets.TRACK_B_BACKUP_HMAC_KEY }}
+      TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
+      TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ vars.TRACK_B_BACKUP_DRIVE_FOLDER_ID }}
+      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+      TRACK_B_BACKUP_FRESHNESS_HOURS: '7'
+      BACKUP_PATH: ${{ runner.temp }}/syncview-track-b-latest.snapshot
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install PostgreSQL snapshot client
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: Require private backup credentials
+        shell: bash
+        run: |
+          missing=0
+          for name in TRACK_B_BACKUP_DATABASE_URL TRACK_B_BACKUP_HMAC_KEY TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON TRACK_B_BACKUP_DRIVE_FOLDER_ID SLACK_ALERT_WEBHOOK; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Take one transactional Track-B snapshot and upload to private Drive
+        id: export
+        run: node scripts/track-b-backup.js export --output="$BACKUP_PATH"
+
+      - name: Check seven-hour Drive freshness
+        if: always()
+        run: node scripts/track-b-backup.js freshness
+
+      - name: Remove runner-local sensitive package
+        if: always()
+        shell: bash
+        run: rm -f "$BACKUP_PATH"
+
+  restore_rehearsal:
+    if: github.event_name == 'workflow_dispatch' && inputs.restore_rehearsal == true
+    needs: backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
+      TRACK_B_BACKUP_HMAC_KEY: ${{ secrets.TRACK_B_BACKUP_HMAC_KEY }}
+      TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ vars.TRACK_B_BACKUP_DRIVE_FOLDER_ID }}
+      TRACK_B_RESTORE_DATABASE_URL: ${{ secrets.TRACK_B_RESTORE_DATABASE_URL }}
+      TRACK_B_RESTORE_EXPECTED_PROJECT_REF: ${{ vars.TRACK_B_RESTORE_EXPECTED_PROJECT_REF }}
+      TRACK_B_RESTORE_CONFIRM: SCRATCH_ONLY
+      RESTORE_PACKAGE: ${{ runner.temp }}/syncview-track-b-restore.snapshot
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require scratch-only restore credentials
+        shell: bash
+        run: |
+          missing=0
+          for name in TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON TRACK_B_BACKUP_HMAC_KEY TRACK_B_BACKUP_DRIVE_FOLDER_ID TRACK_B_RESTORE_DATABASE_URL TRACK_B_RESTORE_EXPECTED_PROJECT_REF; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: Download and validate latest private package
+        run: node scripts/track-b-backup.js download-latest --output="$RESTORE_PACKAGE"
+
+      - name: Timed scratch restore and integrity verification
+        run: node scripts/track-b-restore-rehearsal.js --apply --package="$RESTORE_PACKAGE"
+
+      - name: Remove runner-local sensitive package
+        if: always()
+        shell: bash
+        run: rm -f "$RESTORE_PACKAGE"

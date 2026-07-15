@@ -1,5 +1,11 @@
 # Track-B private backup and restore rehearsal
 
+> **Status: MERGED & ACTIVE since 2026-07-15 (PR #840, merge `4f9d919`).** The recurring 6-hourly
+> schedule is live on `main`; all repository configuration below is provisioned. Proof run
+> `29444939853` uploaded and independently re-read a real 14-table Shared Drive package, and a 229 s
+> dedicated-scratch restore matched every count with zero orphans. PITR is owner-declined (accepted
+> residual). To roll back, disable the workflow or revert PR #840.
+
 The `Track-B private backup` GitHub Action takes one transactionally consistent
 PostgreSQL snapshot of every Track-B authority, security, state, ledger,
 comment, retry, and archive table, then uploads it to the existing private
@@ -29,7 +35,7 @@ run. The existing weekly full backup remains independent and unchanged.
 
 ## Repository configuration
 
-Configure these before enabling the schedule on `main`:
+These are already configured (the schedule is live on `main`); they are documented here for reference and rotation:
 
 | Type | Name | Purpose |
 |---|---|---|

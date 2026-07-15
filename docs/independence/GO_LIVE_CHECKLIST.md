@@ -484,15 +484,18 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Alert rollback is lane-scoped** (F66): stopping Linear-inbound anomaly delivery cannot
       disable onboarding fallback alerts or any unrelated consumer of a shared project secret;
       both routes pass independent TEST sends and kill/readback drills.
-- [ ] **Backup package built per D-1** (F13/F49): live Pro truth is recorded (2026-07-13: seven
-      completed daily physical backups / seven-day retention, PITR off, database disk 0.45 GiB
-      used). The current weekly n8n run is not evidence: continued critical-node errors and `[]`
-      substitution can produce a green partial set. A 6-hourly export independent of n8n has a
+- [x] **Independent backup package + timed scratch restore built per D-1** (F13): **DONE 2026-07-15
+      (PR #840, merge `4f9d919`).** A 6-hourly export independent of n8n now runs on `main` with a
       versioned expected-corpus/schema/count/byte/hash manifest, fails closed, independently reads
-      back every object, never advances last-known-good on partial output, and alerts independently.
-      PITR is enabled/read back for the risky window; one timed scratch restore + replay succeeds.
-      Owner answers
-      from Dashboard Usage/Billing: **what is current egress, and is the spend cap on or off?**
+      back every object from a private Google Shared Drive, never advances last-known-good on partial
+      output, and alerts via the GitHub failed-run email to the owner (`sidney.laruel@gmail.com`).
+      Proof run `29444939853` plus a 229 s scratch restore (exact counts, zero orphans) confirm it.
+      The current weekly n8n run remains non-evidence and is superseded. PITR is owner-declined
+      (accepted residual), so the flip-week PITR readback is intentionally skipped.
+- [ ] **Capacity/egress evidence recorded** (F49): live Pro truth is recorded (2026-07-13: seven
+      completed daily physical backups / seven-day retention, PITR off, database disk 0.45 GiB used).
+      Owner still answers from Dashboard Usage/Billing: **what is current egress, and is the spend cap
+      on or off?** Then run post-#813 bootstrap/mobile/cache load tests and set thresholds.
 - [ ] **n8n quota fire resolved** (F01): burner identified/killed, hard-stop vs overage known,
       headroom projected past the flip window.
 

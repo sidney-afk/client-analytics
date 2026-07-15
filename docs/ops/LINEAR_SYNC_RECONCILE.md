@@ -1,5 +1,11 @@
 # Linear ⇄ SyncView status reconciler
 
+> **CURRENT-STATE OVERRIDE (2026-07-14; F46/F67/F71).** The combined n8n Linear→card receiver
+> described below is inactive/unpublished, not the event fast path. Pager-dispatched reconcilers are
+> the current healing path. The legacy n8n card writers are unauthenticated and therefore not “safe”
+> fallback or rollback. Do not activate schedules/workflows or remove clients from EF routing from
+> this dated guide; use MONITORING, ROLLBACK, SYSTEM_MAP, and the cutover register.
+
 Keeps each post's **video** and **graphic (thumbnail)** sub-status in agreement
 with its linked Linear issue, automatically and in both directions.
 

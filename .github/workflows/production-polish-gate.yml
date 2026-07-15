@@ -50,7 +50,12 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install chromium
       - name: Run fast Production polish gate
-        run: node docs/syncview-design/tests/prod-polish-gate.js --lane=fast
+        run: |
+          mkdir -p .codex-tmp
+          if ! node docs/syncview-design/tests/prod-polish-gate.js --lane=fast > .codex-tmp/prod-fast-private.log 2>&1; then
+            echo "::error::Production fast gate failed. Live-derived output stayed in the ephemeral runner."
+            exit 1
+          fi
 
   production-polish-interaction:
     if: github.event_name != 'pull_request'
@@ -79,7 +84,12 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install chromium
       - name: Run Production interaction inventory
-        run: node docs/syncview-design/tests/prod-polish-gate.js --lane=interaction
+        run: |
+          mkdir -p .codex-tmp
+          if ! node docs/syncview-design/tests/prod-polish-gate.js --lane=interaction > .codex-tmp/prod-interaction-private.log 2>&1; then
+            echo "::error::Production interaction gate failed. Live-derived output stayed in the ephemeral runner."
+            exit 1
+          fi
 
   production-polish-heavy:
     if: github.event_name != 'pull_request'
@@ -108,62 +118,41 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install chromium
       - name: Run behavior and pixel Production polish gates
-        run: node docs/syncview-design/tests/prod-polish-gate.js --lane=heavy
+        run: |
+          mkdir -p .codex-tmp
+          if ! node docs/syncview-design/tests/prod-polish-gate.js --lane=heavy > .codex-tmp/prod-heavy-private.log 2>&1; then
+            echo "::error::Production heavy gate failed. Live-derived output stayed in the ephemeral runner."
+            exit 1
+          fi
       - name: Build Production review packet
-        run: npm run test:prod-review
+        run: |
+          if ! npm run test:prod-review > .codex-tmp/prod-review-private.log 2>&1; then
+            echo "::error::Production packet build failed. Live-derived output stayed in the ephemeral runner."
+            exit 1
+          fi
       - name: Validate Production review packet
-        run: npm run test:prod-review:validate
-      - name: Prepare Argos Production snapshots
-        run: npm run test:prod-argos:prepare
+        run: |
+          if ! npm run test:prod-review:validate > .codex-tmp/prod-validate-private.log 2>&1; then
+            echo "::error::Production packet validation failed. Live-derived output stayed in the ephemeral runner."
+            exit 1
+          fi
+      - name: Prepare local Production snapshot export
+        run: |
+          if ! npm run test:prod-argos:prepare > .codex-tmp/prod-export-private.log 2>&1; then
+            echo "::error::Production local visual export failed. Live-derived output stayed in the ephemeral runner."
+            exit 1
+          fi
       - name: Summarize Production review packet
         if: always()
         run: |
           if [ -f .codex-tmp/prod-review-packet/manifest.md ]; then
-            cat .codex-tmp/prod-review-packet/manifest.md >> "$GITHUB_STEP_SUMMARY"
-            if [ -f .codex-tmp/prod-review-packet/review-checklist.md ]; then
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-              cat .codex-tmp/prod-review-packet/review-checklist.md >> "$GITHUB_STEP_SUMMARY"
-            fi
+            echo "Production review packet generated and validated inside the ephemeral runner." >> "$GITHUB_STEP_SUMMARY"
+            echo "Detailed manifests, checklists, screenshots, and live-derived text were intentionally not copied into this public job summary." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Production review packet manifest was not generated." >> "$GITHUB_STEP_SUMMARY"
           fi
-      - name: Upload Production snapshots to Argos
-        env:
-          ARGOS_TOKEN: ${{ secrets.ARGOS_TOKEN }}
-          ARGOS_PROJECT: ${{ vars.ARGOS_PROJECT }}
+      - name: Keep visual evidence runner-local
+        if: always()
         run: |
-          if [ ! -d .codex-tmp/prod-argos-snapshots ]; then
-            echo "Argos snapshot export was not generated; skipping Argos visual upload." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          if [ -z "$ARGOS_TOKEN" ]; then
-            echo "ARGOS_TOKEN is not configured; skipping Argos visual upload." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          args=(upload .codex-tmp/prod-argos-snapshots --build-name production-desktop)
-          if [ -n "$ARGOS_PROJECT" ]; then
-            args+=(--project "$ARGOS_PROJECT")
-          fi
-          npm exec -- argos "${args[@]}"
-          echo "Uploaded Production desktop snapshots to Argos." >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload Production polish screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: production-polish-screenshots
-          path: .codex-tmp/prod-pixel-wired
-          if-no-files-found: ignore
-      - name: Upload Production review packet
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: production-review-packet
-          path: .codex-tmp/prod-review-packet
-          if-no-files-found: ignore
-      - name: Upload Argos Production snapshot export
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: production-argos-snapshots
-          path: .codex-tmp/prod-argos-snapshots
-          if-no-files-found: ignore
+          echo "Production screenshots can contain live customer-visible text." >> "$GITHUB_STEP_SUMMARY"
+          echo "They were validated inside this ephemeral runner and are intentionally not uploaded as public artifacts or sent to Argos." >> "$GITHUB_STEP_SUMMARY"

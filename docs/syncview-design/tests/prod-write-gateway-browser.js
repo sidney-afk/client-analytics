@@ -64,6 +64,17 @@ function expect(value, message) { if (!value) throw new Error(message); }
   });
   await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
 
+  await page.route('**/functions/v1/key-verify', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      ok: true,
+      role: 'admin',
+      member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' },
+    }) });
+  });
+  await page.route('**/functions/v1/filming-plans**', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, plans: [] }) });
+  });
+
   await page.route('**/rest/v1/**', async route => {
     const url = new URL(route.request().url());
     const table = url.pathname.split('/').pop();
@@ -237,6 +248,15 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && testWrite.response && testWrite.response.error === 'invalid_test_override'
       && deliverables.find(row => row.id === 'test-fixture-row').status === 'in_progress',
     'browser staff self-entered TEST scope or reached the authority-bypass branch');
+    // The rejected TEST override is an independent negative case. Re-establish
+    // its fixture principal before the later stale-authority/intake scenarios
+    // instead of making those cases depend on error-UI scheduling.
+    await page.evaluate(() => {
+      _syncviewCloseStaffIdentity(null, { restoreFocus: false });
+      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
+      _syncviewStaffIdentityVerified = true;
+      _syncviewStaffRefreshChrome();
+    });
 
     serverAuthority.graphics = 'syncview';
     await page.evaluate(async () => { await _prodRefreshAuthority({ silent: true }); _prodOpenDeliverable('gra-fixture'); });
@@ -288,9 +308,16 @@ function expect(value, message) { if (!value) throw new Error(message); }
     expect(submissionLogs.length === 1 && /native-batch/.test(submissionLogs[0].webhookJson || ''),
       'post-commit submission telemetry omitted the native batch');
     expect(legacyCreateHits.length === 0, 'Submit touched a retired Linear project/create webhook');
+    // The calendar write is observed inside the durable job, before its final
+    // checkpoint removes the pending record and releases the cross-surface lock.
+    // Wait for the same completion boundary the real Submit UI awaits before
+    // programmatically opening the next creation surface.
+    await page.waitForFunction(() => _linearIntakeRead() === null, null, { timeout: 10000 });
 
     const beforeAppendCalendarWrites = calendarWrites.length;
     await page.evaluate(async () => {
+      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
+      _syncviewStaffIdentityVerified = true;
       calState.client = 'Calendar Fixture';
       calState.posts = [];
       await _calOpenNativePost();
@@ -310,20 +337,53 @@ function expect(value, message) { if (!value) throw new Error(message); }
     expect(calendarWrites.length === beforeAppendCalendarWrites,
       'opening Calendar Create Post wrote a local card before native intake');
 
-    const appendResponsePromise = page.waitForResponse(response => {
-      if (!response.url().includes('/functions/v1/production-write')) return false;
-      try {
-        const body = JSON.parse(response.request().postData() || '{}');
-        return body.operation === 'intake_create' && body.surface === 'calendar' && body.batch_id === 'batch-latest';
-      } catch (_error) { return false; }
-    });
-    await page.locator('#calNativePostCreate').click();
-    const appendHttpResponse = await appendResponsePromise;
+    let appendHttpResponse;
+    try {
+      [appendHttpResponse] = await Promise.all([
+        page.waitForResponse(response => {
+          if (!response.url().includes('/functions/v1/production-write')) return false;
+          try {
+            const body = JSON.parse(response.request().postData() || '{}');
+            return body.operation === 'intake_create' && body.surface === 'calendar' && body.batch_id === 'batch-latest';
+          } catch (_error) { return false; }
+        }, { timeout: 10000 }),
+        page.locator('#calNativePostCreate').click(),
+      ]);
+    }
+    catch (error) {
+      throw new Error('Calendar append never reached the gateway: ' + JSON.stringify({
+        page: await page.evaluate(() => ({
+          error: document.getElementById('calNativePostError')?.textContent,
+          busy: document.getElementById('calNativePostOverlay')?.dataset.busy,
+          selected: document.querySelector('input[name="calNativeBatchChoice"]:checked')?.value,
+          pending: _linearIntakeRead(),
+          identity: _syncviewStaffIdentityForHeaders(),
+          state: _calNativePostState,
+        })),
+        writes: writes.map(write => ({ body: write.body, response: write.response })),
+        calendarWrites,
+        networkOrder,
+        pageErrors,
+      }), { cause: error });
+    }
     const appendPayload = JSON.parse(appendHttpResponse.request().postData() || '{}');
     for (let i = 0; i < 100 && calendarWrites.length === beforeAppendCalendarWrites; i++) {
       await new Promise(resolve => setTimeout(resolve, 20));
     }
-    await page.waitForSelector('#calNativePostOverlay', { state: 'detached' });
+    try { await page.waitForSelector('#calNativePostOverlay', { state: 'detached' }); }
+    catch (error) {
+      throw new Error('Calendar append did not complete: ' + JSON.stringify({
+        page: await page.evaluate(() => ({
+          error: document.getElementById('calNativePostError')?.textContent,
+          busy: document.getElementById('calNativePostOverlay')?.dataset.busy,
+          pending: _linearIntakeRead(),
+        })),
+        writes: writes.map(write => ({ body: write.body, response: write.response })),
+        calendarWrites,
+        networkOrder,
+        pageErrors,
+      }), { cause: error });
+    }
     const appendWrite = writes.find(write => write.body.request_id === appendPayload.request_id);
     const appendCardId = appendPayload.items[0] && appendPayload.items[0].card_id;
     const appendCalendar = calendarWrites.find(write => write.post && write.post.id === appendCardId);

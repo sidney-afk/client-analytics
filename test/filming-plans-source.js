@@ -6,6 +6,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const MIGRATION = fs.readFileSync(path.join(ROOT, 'migrations/2026-07-09-filming-plans-source.sql'), 'utf8');
+const F88_MIGRATION = fs.readFileSync(path.join(ROOT, 'migrations/2026-07-14-f88-safe-sensitive-read-revocations.sql'), 'utf8');
 const FN = fs.readFileSync(path.join(ROOT, 'supabase/functions/filming-plans/index.ts'), 'utf8');
 const STAFF_ROLE_AUTH = fs.readFileSync(path.join(ROOT, 'supabase/functions/_shared/staff-role-auth.ts'), 'utf8');
 const CFG = fs.readFileSync(path.join(ROOT, 'supabase/config.toml'), 'utf8');
@@ -34,21 +35,22 @@ function grabFunc(name) {
 
 ok(/create table if not exists public\.filming_plans/.test(MIGRATION), 'migration must create public.filming_plans');
 ok(/client_slug text primary key/.test(MIGRATION), 'filming_plans must key by client_slug');
-ok(/create policy "anon read filming plans"[\s\S]*for select[\s\S]*to anon, authenticated[\s\S]*using \(true\)/.test(MIGRATION),
-  'filming_plans must keep public read parity with the old sheet');
 ok(/alter publication supabase_realtime add table public\.filming_plans/.test(MIGRATION),
   'filming_plans must be added to realtime publication');
-ok(/Chelsey Scaffidi/.test(MIGRATION) && /Amanda Hanson/.test(MIGRATION) && /Adriana Rizzolo/.test(MIGRATION),
-  'migration must seed the live SyncView filming plan rows');
+ok(/revoke select on table public\.filming_plans from anon/.test(F88_MIGRATION),
+  'F88 migration must revoke anonymous filming_plans reads');
 
 ok(/\[functions\.filming-plans\]\s*\nverify_jwt = false/.test(CFG),
   'filming-plans function must be browser-callable because it does its own passphrase check');
 ok(/Deno\.env\.get\("ONBOARDING_STAFF_KEY"\)/.test(FN), 'function must require ONBOARDING_STAFF_KEY');
 ok(!/Deno\.env\.get\("CREDENTIALS_STAFF_KEY"\)/.test(FN), 'function must not accept the credentials staff key');
 ok(/x-syncview-key/.test(FN)
+  && /authorizeStaffKey\(supplied, \["admin", "smm", "creative"\], \[legacyKey\]\)/.test(FN)
   && /authorizeStaffKey\(supplied, \["admin"\], \[legacyKey\]\)/.test(FN)
   && /timingSafeEqual/.test(STAFF_ROLE_AUTH),
-  'function must timing-safely allow the admin role key or legacy onboarding key');
+  'function must timing-safely allow staff reads while preserving admin-only writes');
+ok(FN.indexOf('const authError = req.method === "GET"') < FN.indexOf('createClient(url, serviceKey'),
+  'function must authenticate GET and POST before constructing a service-role client');
 ok(FN.includes('docs\\.google\\.com\\/document\\/d\\/[A-Za-z0-9_-]+'),
   'function must validate Google Docs document links');
 ok(/\.from\("filming_plans"\)[\s\S]*\.upsert/.test(FN), 'function must write filming_plans through Supabase service role');
@@ -57,10 +59,28 @@ ok(/id="navFilmingPlans"/.test(INDEX), 'main nav must include the Filming Plans 
 ok(/navTo\('filming-plans'\)/.test(INDEX), 'Filming Plans nav must route to #filming-plans');
 ok(/FAST_TABS = \[[^\]]*'filming-plans'/.test(INDEX), 'Filming Plans must be a fast tab');
 ok(/var FAST = \[[^\]]*'filming-plans'/.test(INDEX), 'prepaint boot router must know the Filming Plans tab');
-ok(/FILMING_PLANS_EF_URL/.test(INDEX), 'app must call the filming-plans Edge Function for writes');
-ok(/\/rest\/v1\/filming_plans/.test(INDEX), 'app must read filming_plans from Supabase REST');
+ok(/FILMING_PLANS_EF_URL/.test(INDEX), 'app must call the filming-plans Edge Function');
+const loadPlans = grabFunc('_fpLoadFromSupabase');
+ok(/_syncviewRequireStaffIdentity\(\)/.test(loadPlans)
+  && /fetch\(FILMING_PLANS_EF_URL/.test(loadPlans)
+  && /'X-Syncview-Key': ident\.key/.test(loadPlans),
+  'app must load filming plans through the staff-gated Edge Function');
+ok(!/\/rest\/v1\/filming_plans/.test(INDEX), 'app must not read filming_plans through anonymous PostgREST');
+ok(!/fetch\(FILMING_PLANS_URL/.test(INDEX), 'app must not fail open to the public Sheets filming-plan source');
+ok(!/table: 'filming_plans'/.test(INDEX), 'app must not subscribe anonymously to filming_plans realtime');
 ok(/function renderFilmingPlansView/.test(INDEX), 'main Filming Plans view must exist');
 ok(/function _linearInvalidatePlanMap/.test(INDEX), 'Linear filming-plan cache invalidator must exist');
+
+const purgePlans = grabFunc('_fpPurgeSensitiveState');
+ok(/filmingPlansData = null/.test(purgePlans)
+  && /localStorage\.removeItem\(KASPER_FILMING_CACHE_KEY\)/.test(purgePlans)
+  && /_kasperState\.filmingData = null/.test(purgePlans),
+  'staff sign-out must purge in-memory and persisted filming-plan data');
+const staffPurge = grabFunc('_syncviewStaffPurgeSensitiveState');
+ok(/_fpPurgeSensitiveState/.test(staffPurge), 'global staff sign-out must invoke the filming-plan purge');
+const loadKasperCache = grabFunc('_filmsLoadCache');
+ok(/if \(!_syncviewStaffIdentityForHeaders\(\)\) return null/.test(loadKasperCache),
+  'Kasper filming cache must not load before staff identity is reverified');
 
 const setData = grabFunc('_fpSetData');
 ok(/_linearInvalidatePlanMap/.test(setData),

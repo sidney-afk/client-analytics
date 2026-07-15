@@ -457,11 +457,30 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && /oldest_pending_alert_teams/.test(workflow),
     'scheduled drain publishes the persisted watcher summary to the Actions run');
   const deployWorkflow = read('.github/workflows/deploy-onboarding-edge-functions.yml');
-  const deployLoop = (deployWorkflow.match(/for fn in ([^;]+); do/) || [])[1] || '';
-  ok(deployWorkflow.includes("supabase/functions/linear-outbound/**")
-    && /(?:^|\s)linear-outbound(?:\s|$)/.test(deployLoop)
-    && deployLoop.indexOf('linear-outbound') < deployLoop.indexOf('production-write'),
-  'pinned Edge deploy triggers on the whole outbound folder and deploys it before its gateway caller');
+  const pushBlock = (deployWorkflow.match(/  push:\r?\n([\s\S]*?)  workflow_dispatch:/) || [])[1] || '';
+  const forbiddenPushPaths = [
+    'supabase/functions/linear-outbound/**',
+    'supabase/functions/production-write/**',
+    'supabase/functions/client-review-link/**',
+    'supabase/functions/_shared/**',
+  ];
+  ok(!!pushBlock && forbiddenPushPaths.every(path => !pushBlock.includes(`- '${path}'`)),
+    'high-risk functions and broad shared changes never trigger a push deploy');
+
+  const pinnedStepAt = deployWorkflow.indexOf('- name: Deploy pinned Track-B write functions');
+  const pinnedStep = pinnedStepAt >= 0 ? deployWorkflow.slice(pinnedStepAt) : '';
+  const pinnedLoop = (pinnedStep.match(/for fn in ([^;]+); do/) || [])[1] || '';
+  ok(/if: github\.event_name == 'workflow_dispatch'/.test(pinnedStep)
+    && pinnedLoop === 'linear-outbound production-write',
+  'manual deploy step is dispatch-only and deploys the provider before its gateway caller');
+
+  const ancestorGuard = 'git merge-base --is-ancestor "$DEPLOY_COMMIT" origin/main';
+  const ancestorGuardAt = deployWorkflow.indexOf(ancestorGuard);
+  ok(/commit_sha:[\s\S]{0,180}required: true/.test(deployWorkflow)
+    && /\^\[0-9a-f\]\{40\}\$/.test(deployWorkflow)
+    && ancestorGuardAt >= 0
+    && ancestorGuardAt < pinnedStepAt,
+  'manual write-path deploy runs only after the exact-SHA main-ancestry guard');
   ok(/allowMissing && \/\\b\(entity\|issue\|resource\) not found/.test(ef)
     && !/if \(allowMissing\) return null/.test(ef),
   'native create treats only an explicit Linear not-found as absence');

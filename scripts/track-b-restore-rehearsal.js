@@ -27,6 +27,21 @@ const DB_URL = String(process.env.TRACK_B_RESTORE_DATABASE_URL || '');
 const EXPECTED_REF = String(process.env.TRACK_B_RESTORE_EXPECTED_PROJECT_REF || '').trim();
 const CONFIRM = String(process.env.TRACK_B_RESTORE_CONFIRM || '');
 
+const INTEGRITY_CHECKS = Object.freeze({
+  orphan_client_lead: "select count(*)::text from public.clients c left join public.team_members m on m.id=c.lead_member_id where c.lead_member_id is not null and m.id is null;",
+  orphan_client_access: "select count(*)::text from public.client_access a left join public.clients c on c.slug=a.slug where c.slug is null;",
+  orphan_batch_client: "select count(*)::text from public.batches b left join public.clients c on c.slug=b.client_slug where c.slug is null;",
+  orphan_deliverable_batch: "select count(*)::text from public.deliverables d left join public.batches b on b.id=d.batch_id where b.id is null;",
+  orphan_deliverable_client: "select count(*)::text from public.deliverables d left join public.clients c on c.slug=d.client_slug where c.slug is null;",
+  orphan_deliverable_assignee: "select count(*)::text from public.deliverables d left join public.team_members m on m.id=d.assignee_id where d.assignee_id is not null and m.id is null;",
+  orphan_comment_deliverable: "select count(*)::text from public.production_comments p left join public.deliverables d on d.id=p.deliverable_id where p.deliverable_id is not null and d.id is null;",
+  orphan_comment_batch: "select count(*)::text from public.production_comments p left join public.batches b on b.id=p.batch_id where p.batch_id is not null and b.id is null;",
+  orphan_comment_parent: "select count(*)::text from public.production_comments p left join public.production_comments q on q.id=p.parent_id where p.parent_id is not null and q.id is null;",
+  orphan_comment_thread_root: "select count(*)::text from public.production_comments p left join public.production_comments q on q.id=p.thread_root_id where p.thread_root_id is not null and q.id is null;",
+  orphan_comment_author: "select count(*)::text from public.production_comments p left join public.team_members m on m.id=p.author_member_id where p.author_member_id is not null and m.id is null;",
+  orphan_outbox_dependency: "select count(*)::text from public.mirror_outbox o left join public.mirror_outbox q on q.id=o.depends_on_id where o.depends_on_id is not null and q.id is null;",
+});
+
 function clean(value) {
   return String(value == null ? '' : value).trim();
 }
@@ -65,12 +80,13 @@ function restoreSql(parsedDump) {
     'begin;',
     "set local lock_timeout = '20s';",
     "set local statement_timeout = '20min';",
-    'set local session_replication_role = replica;',
-    `truncate table ${names.map(name => `public.${name}`).join(', ')} restart identity cascade;`,
+    'select public.track_b_restore_set_user_triggers(false);',
+    `truncate table ${names.map(name => `public.${name}`).join(', ')} cascade;`,
   ].join('\n');
   const postamble = [
     ...identityResets,
-    'set local session_replication_role = origin;',
+    'set constraints all immediate;',
+    'select public.track_b_restore_set_user_triggers(true);',
     'commit;',
     '',
   ].join('\n');
@@ -83,13 +99,9 @@ function verifySql() {
     const name = safeIdentifier(config.name);
     lines.push(`select '${name}' || E'\\t' || count(*)::text from public.${name};`);
   }
-  lines.push(
-    "select 'orphan_deliverable_batch' || E'\\t' || count(*)::text from public.deliverables d left join public.batches b on b.id=d.batch_id where b.id is null;",
-    "select 'orphan_deliverable_client' || E'\\t' || count(*)::text from public.deliverables d left join public.clients c on c.slug=d.client_slug where c.slug is null;",
-    "select 'orphan_client_access' || E'\\t' || count(*)::text from public.client_access a left join public.clients c on c.slug=a.slug where c.slug is null;",
-    "select 'orphan_comment_deliverable' || E'\\t' || count(*)::text from public.production_comments p left join public.deliverables d on d.id=p.deliverable_id where p.deliverable_id is not null and d.id is null;",
-    "select 'orphan_comment_batch' || E'\\t' || count(*)::text from public.production_comments p left join public.batches b on b.id=p.batch_id where p.batch_id is not null and b.id is null;",
-  );
+  for (const [key, sql] of Object.entries(INTEGRITY_CHECKS)) {
+    lines.push(`select '${key}' || E'\\t' || (${sql.slice(0, -1)});`);
+  }
   return `${lines.join('\n')}\n`;
 }
 
@@ -100,6 +112,7 @@ function parseVerification(text) {
     if (!clean(key)) continue;
     const count = Number(value);
     if (!Number.isFinite(count)) throw new Error('Unexpected restore verification output');
+    if (Object.prototype.hasOwnProperty.call(out, key)) throw new Error('Duplicate restore verification key');
     out[key] = count;
   }
   return out;
@@ -112,8 +125,11 @@ function verifyCounts(manifest, observed) {
       throw new Error(`Restore row-count mismatch for ${config.name}: expected ${expected}, observed ${observed[config.name]}`);
     }
   }
-  for (const [key, value] of Object.entries(observed)) {
-    if (key.startsWith('orphan_') && value !== 0) throw new Error(`Restore integrity check ${key} found ${value} row(s)`);
+  for (const key of Object.keys(INTEGRITY_CHECKS)) {
+    if (!Object.prototype.hasOwnProperty.call(observed, key)) {
+      throw new Error(`Restore integrity check ${key} is missing`);
+    }
+    if (observed[key] !== 0) throw new Error(`Restore integrity check ${key} found ${observed[key]} row(s)`);
   }
   return true;
 }
@@ -178,6 +194,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  INTEGRITY_CHECKS,
   PRODUCTION_REF,
   assertScratchTarget,
   connectionProjectRef,

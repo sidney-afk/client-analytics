@@ -1,7 +1,7 @@
 -- ============================================================
 -- Sales Intake tab → Supabase migration SQL
--- Run in the Supabase SQL editor for project uzltbbrjidmjwwfakwve.
--- Idempotent. (There is no auto-runner — apply this manually.)
+-- CURRENT STATUS: deployed historical idempotent definition, not a live rollout instruction.
+-- F106/F107 block privileged use until caller auth and durable completion/replay exist.
 --
 -- One row per Sales Intake submission (Kasper closes a client, fills the
 -- SyncView Sales Intake form, n8n `sales-intake-submit` writes here before

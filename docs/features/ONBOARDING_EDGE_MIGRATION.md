@@ -1,5 +1,11 @@
 # Onboarding: Edge Functions + Templates merge + Kasper full view
 
+> **F77 PARTIAL CONTAINMENT / F85 OPEN.** All three credential-stripped list readers now authenticate
+> before service-role access and deny missing/wrong keys. Candidate Pages sends the key only after
+> verified Admin sign-in; current Pages fails closed until merge. The full reader and transition
+> compatibility still rely on shared/legacy secret possession without active-member binding or read
+> audit, so this document does not approve those keys as a steady-state identity boundary.
+
 This replaces the n8n onboarding **list** webhooks with Supabase Edge Functions, moves
 the onboarding inbox out of Templates, and gives Kasper a full (credentials-included)
 onboarding view. Builds on `LEGACY_ONBOARDING.md` (the old-forms import).
@@ -12,16 +18,16 @@ anon access):
 
 | Function | Auth | Returns |
 |---|---|---|
-| `onboarding-list` | none | standard `client_onboarding`, **logins stripped** |
-| `ai-onboarding-list` | none | `ai_client_onboarding`, **logins stripped** |
-| `legacy-onboarding-list` | none | `legacy_onboarding` `fields` only (never `credentials`) |
+| `onboarding-list` | **admin role key** + transition legacy fallback | standard `client_onboarding`, **logins stripped** |
+| `ai-onboarding-list` | **admin role key** + transition legacy fallback | `ai_client_onboarding`, **logins stripped** |
+| `legacy-onboarding-list` | **admin role key** + transition legacy fallback | `legacy_onboarding` `fields` only (never `credentials`) |
 | `onboarding-full` | **admin role key** + legacy `X-Syncview-Key` fallback | all three, **UN-stripped** — names, emails, phones, credentials |
 
 The three list functions strip the account-login answer keys
 (`instagram, instagram_backup, tiktok, facebook, linkedin, youtube`) exactly like the old
-n8n "Strip Credentials" node. `onboarding-full` accepts the verified admin role key sent in
-`X-Syncview-Key`; SMM and creative/editor/designer keys are denied. The role is derived from the
-matching secret, never from a caller-supplied role header. For the additive transition, the old
+n8n "Strip Credentials" node. `onboarding-full` accepts the admin role key sent in
+`X-Syncview-Key`; SMM and creative/editor/designer keys are denied. F85 proves secret-derived role
+alone is insufficient because the reader does not bind an active member or audit access. For the additive transition, the old
 `ONBOARDING_STAFF_KEY` remains valid and still falls back to `CREDENTIALS_STAFF_KEY` only when no
 dedicated onboarding key is configured. All comparisons use the shared timing-safe matcher.
 
@@ -33,9 +39,9 @@ clean revert; archive them once the functions are confirmed live.
 The Templates/Onboarding sub-tab toggle is gone — Templates is just templates again. On a
 client's template profile, an **"Onboarding" button next to the name** (shown only when a
 record exists, matched by `slug`) opens that client's onboarding in a **new tab**
-(`?onboarding_view=<slug>`): read-only, credential-free, **no email/phone** — a boot mode
-that mirrors `?onboarding=` (bypasses the staff password, hides chrome, loads no dashboard
-data).
+(`?onboarding_view=<slug>`): read-only and stripped of account credentials/email/phone. Candidate
+source requires verified Admin sign-in before the protected list call; it hides normal chrome and
+loads no analytics dashboard data, but it is no longer an anonymous share link.
 
 ### 3. Kasper gets an Onboarding tab
 A new **Onboarding** subtab in Kasper's area shows the three-section inbox (Standard / AI /
@@ -59,11 +65,9 @@ committed to this repo. Only `onboarding-full` returns them.
    supabase functions deploy legacy-onboarding-list --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
    supabase functions deploy onboarding-full        --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
    ```
-2. **Keep the legacy Kasper passphrase secret during the proof window** (do not rotate it; skip if
-   the existing `CREDENTIALS_STAFF_KEY` fallback already covers it):
-   ```
-   supabase secrets set ONBOARDING_STAFF_KEY='<staff passphrase>' --project-ref uzltbbrjidmjwwfakwve
-   ```
+2. **Do not rotate or re-enter shared role/legacy keys as part of a routine redeploy.** Inventory
+   every caller first; use the already managed project secret during the transition and retire it
+   only through a separately approved active-member/session migration.
 3. **Add the credentials column** (one line, in the Supabase SQL editor):
    ```sql
    alter table public.legacy_onboarding add column if not exists credentials jsonb;

@@ -13,7 +13,18 @@
 //   SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
-import { captureGraphicTweakBaseline, scanGraphicTweakResolution } from "../_shared/thumbnail-revisions.ts";
+import {
+  authorizeBrowserWrite,
+  browserWriteAuthResponse,
+  normalizeBrowserWriteClient,
+} from "../_shared/browser-write-auth.ts";
+import {
+  captureGraphicTweakBaseline,
+  scanGraphicTweakResolution,
+  shouldScanGraphicTweakResolution,
+  thumbnailRevisionV2AllowsClient,
+  thumbnailRevisionV2Config,
+} from "../_shared/thumbnail-revisions.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -98,14 +109,20 @@ function isoNow(): string {
   return new Date().toISOString();
 }
 
-function actorFrom(req: Request, body: JsonMap): Actor {
-  const bodyActor = body.actor && typeof body.actor === "object" ? body.actor as JsonMap : {};
-  const bodyActorName = typeof body.actor === "string" ? body.actor : "";
-  const actor = clean(req.headers.get("x-syncview-actor") || bodyActor.name || body.actor_name || bodyActorName) || null;
-  const role = clean(req.headers.get("x-syncview-role") || bodyActor.role || body.actor_role) || null;
-  const rawSource = clean(req.headers.get("x-syncview-source") || body.source || "ui").toLowerCase();
-  const source = rawSource === "linear" || rawSource === "reconcile" ? rawSource : "ui";
-  return { actor, role, source };
+function mintThumbRev(existing: unknown, updatedAt: string): string {
+  const before = clean(existing);
+  const parsed = Date.parse(updatedAt);
+  const epochMs = Number.isFinite(parsed) ? parsed : Date.now();
+  let token = epochMs.toString(36);
+  if (token === before) token = (epochMs + 1).toString(36);
+  return token;
+}
+
+function shouldMintThumbRev(patch: JsonMap, incoming: JsonMap, existing: ExistingRow): boolean {
+  // Presence is intentional: rewriting the same Drive link is the signal used
+  // when the file behind it changed. Do not reduce this to a value comparison.
+  return has(patch, "thumbnail_url") || has(patch, "asset_url") ||
+    shouldScanGraphicTweakResolution(patch, incoming, existing);
 }
 
 function waitUntil(p: Promise<unknown>): void {
@@ -144,7 +161,7 @@ function responsePayload(row: Row): Row {
 }
 
 function buildIncoming(body: JsonMap, now: string): { client: string; row: JsonMap } {
-  const client = clean(body.client);
+  const client = normalizeBrowserWriteClient(body.client);
   if (!client) throw new Error("client required");
   const post = body.post && typeof body.post === "object" ? body.post as JsonMap : {};
   let id = clean(post.id);
@@ -376,11 +393,13 @@ function buildEvents(client: string, inc: Row, patch: JsonMap, existing: Existin
       client,
       post_id: postId,
       ts: now,
-      actor: actor.actor,
-      role: extra.role === undefined ? actor.role : extra.role || null,
       action,
-      source: actor.source,
       ...extra,
+      // Principal fields stay server-owned even when a semantic event helper
+      // supplies other metadata.
+      actor: actor.actor,
+      role: actor.role,
+      source: actor.source,
     });
   };
 
@@ -401,17 +420,17 @@ function buildEvents(client: string, inc: Row, patch: JsonMap, existing: Existin
   for (const comp of ["video", "graphic", "caption", "title"]) {
     const col = "client_" + comp + "_approved_at";
     if (has(patch, col) && sv(inc, col) && sv(inc, col) !== sv(existing, col)) {
-      ev("approve_" + comp, { component: comp, role: "client" });
+      ev("approve_" + comp, { component: comp });
     }
   }
   if (has(patch, "kasper_approved_at") && sv(inc, "kasper_approved_at") && sv(inc, "kasper_approved_at") !== sv(existing, "kasper_approved_at")) {
-    ev("kasper_approve", { component: null, role: "kasper" });
+    ev("kasper_approve", { component: null });
   }
   if (has(patch, "kasper_finished_at") && sv(inc, "kasper_finished_at") && sv(inc, "kasper_finished_at") !== sv(existing, "kasper_finished_at")) {
-    ev("kasper_finish", { component: null, role: "kasper" });
+    ev("kasper_finish", { component: null });
   }
   if (has(patch, "kasper_closed_at") && sv(inc, "kasper_closed_at") && sv(inc, "kasper_closed_at") !== sv(existing, "kasper_closed_at")) {
-    ev("kasper_close", { component: null, role: "kasper" });
+    ev("kasper_close", { component: null });
   }
   if (has(patch, "video_urgent_pinged_at") && sv(inc, "video_urgent_pinged_at") && sv(inc, "video_urgent_pinged_at") !== sv(existing, "video_urgent_pinged_at")) {
     ev("urgent_ping", {
@@ -464,7 +483,7 @@ Deno.serve(async (req: Request) => {
   catch (_e) { return json({ ok: false, error: "invalid body" }, 400); }
 
   const now = isoNow();
-  const actor = actorFrom(req, body);
+  let actor: Actor = { actor: null, role: null, source: "calendar-upsert" };
   let client = "";
   let id = "";
   let outcome = "error";
@@ -479,6 +498,7 @@ Deno.serve(async (req: Request) => {
     const built = buildIncoming(body, now);
     client = built.client;
     id = clean(built.row.id);
+    actor = await authorizeBrowserWrite(supabase, req, client, "calendar-upsert");
     const existingRead = await readExisting(supabase, client, id);
     const incomingLink = has(built.row, "linear_issue_id") ? clean(built.row.linear_issue_id) : "";
     const twins = await readLinkTwins(supabase, client, incomingLink);
@@ -486,6 +506,15 @@ Deno.serve(async (req: Request) => {
     if (guarded._conflict === true) {
       outcome = guarded.conflict ? "conflict" : "read_failure";
       return json(guarded);
+    }
+    if (shouldMintThumbRev(built.row, guarded, existingRead.row)) {
+      let v2Enabled = false;
+      try {
+        v2Enabled = thumbnailRevisionV2AllowsClient(await thumbnailRevisionV2Config(supabase), client);
+      } catch (error) {
+        console.warn("calendar-upsert thumbnail_revision_v2 flag unavailable", error);
+      }
+      if (v2Enabled) guarded.thumb_rev = mintThumbRev(existingRead.row.thumb_rev, now);
     }
     const post = stripPrivate(guarded);
     const existsAlready = !!(existingRead.row && existingRead.row.id);
@@ -521,6 +550,11 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, post: responsePayload(post) });
   } catch (e) {
     outcome = "error";
+    const auth = browserWriteAuthResponse(e);
+    if (auth) {
+      outcome = "denied";
+      return json({ ok: false, error: auth.code }, auth.status);
+    }
     const msg = e instanceof Error ? e.message : "request failed";
     const status = msg.indexOf("phantom-row guard") === 0 ? 400 : 500;
     return json({ ok: false, error: msg }, status);

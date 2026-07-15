@@ -22,3 +22,5 @@ qa/reports/
 
 # Ad-hoc screenshot output (proof snapshots live in PRs/Argos, not git)
 qa/shots/
+.codex-tmp/
+/artifacts/

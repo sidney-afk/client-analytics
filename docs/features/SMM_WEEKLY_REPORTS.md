@@ -1,5 +1,12 @@
 # SMM Weekly Reports
 
+> **F76 PARTIAL CONTAINMENT — MERGE-GATED UI.** The deployed function now authenticates every action;
+> anonymous report reads and manager synchronization return `401`, the signed n8n caller reaches its
+> authenticated branch, and both underlying tables deny anon SELECT. Candidate Pages source obtains
+> the role key only after verified staff sign-in. Until that caller merges, the existing Pages screens
+> fail closed. Individual staff sessions, access-log review and the owner/legal incident disposition
+> remain required before this is considered closed.
+
 Hidden weekly-report flow for social media managers and Kasper.
 
 ## URLs
@@ -8,7 +15,9 @@ Hidden weekly-report flow for social media managers and Kasper.
 - Kasper viewer: `https://syncview.synchrosocial.com/#smm-weekly-reports`
 - Kasper viewer with a week preselected: `https://syncview.synchrosocial.com/#smm-weekly-reports?week=2026-07-06`
 
-These routes intentionally bypass the staff password gate. There is no login, by request.
+The hash shell itself is public, but data and mutations are not: every API call requires a verified
+staff key. Current Pages does not yet attach that header and therefore receives `401`; candidate
+source prompts/revalidates staff identity and sends the stored role key only after successful sign-in.
 
 ## Data Model
 
@@ -24,7 +33,9 @@ Tables:
   - The unique key is `(week_start_date, smm_slug, client_slug)`.
   - `week_end_date` is generated from `week_start_date + 6`.
 
-Writes are done by the Edge Function using the Supabase service role key. The browser can read through the public function and the open RLS read policies.
+Writes are done by the Edge Function using the Supabase service role key after action-specific
+authorization. Anonymous direct PostgREST reads are revoked on both tables. The remaining shared-key
+compatibility is transitional and must eventually be replaced by active individual staff sessions.
 
 ## Edge Function
 
@@ -49,6 +60,10 @@ Supported calls:
   - `{ "action": "sync_managers", "replace": true, "managers": [...] }`
   - Used by n8n to sync the SMM roster from Google Sheets.
 
+Every call requires `x-syncview-key`. Admin and SMM role keys may submit or load options; report-text
+reads and manager synchronization require Admin (or the managed transition service credential).
+Never place the credential in this document, workflow JSON, request body, or public HTML.
+
 ## n8n Workflow 1: Manager Sync
 
 Purpose: keep `public.social_media_managers` ready for the form dropdown while Google Sheets is still the source.
@@ -67,6 +82,8 @@ Nodes:
    - Normalize rows into unique SMMs.
 4. HTTP Request
    - POST to `https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/smm-weekly-reports`
+   - Attach `x-syncview-key` through the existing managed header credential; never paste the value
+     into the node or export.
    - JSON body from the Code node.
 
 Code node shape:

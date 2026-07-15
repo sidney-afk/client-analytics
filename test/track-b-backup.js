@@ -6,13 +6,21 @@ const path = require('path');
 const {
   PRODUCTION_REF,
   TABLES,
+  assertDriveFolderContext,
+  alertMarkerName,
   assertDriveReadback,
+  assertExactTableManifest,
   assertProductionSource,
   authenticatedGeneratedAt,
+  buildAlertMarker,
+  buildManifest,
   canonicalJson,
+  classifyFreshness,
   connectionProjectRef,
+  googleDriveErrorReason,
   inspectPlainDump,
   isSnapshotName,
+  listBackups,
   md5,
   packSnapshot,
   parseHmacKey,
@@ -20,7 +28,9 @@ const {
   parseStrictPgDump,
   pgDumpArgs,
   postgresEnvironment,
+  postSlack,
   readOnlyPrivilegeSql,
+  readAlertMarker,
   readSnapshotBytes,
   readSnapshotFile,
   renderSafeCopySections,
@@ -32,9 +42,11 @@ const {
   verifySnapshotFile,
 } = require('../scripts/track-b-backup');
 const {
+  INTEGRITY_CHECKS,
   assertScratchTarget,
   restoreSql,
   verifyCounts,
+  verifySql,
 } = require('../scripts/track-b-restore-rehearsal');
 
 function ok(condition, message) {
@@ -130,10 +142,14 @@ process.env.PGSERVICE = 'attacker';
 const scrubbedEnvironment = postgresEnvironment(productionDirect, 'track-b-test');
 if (oldPgHost === undefined) delete process.env.PGHOST; else process.env.PGHOST = oldPgHost;
 if (oldPgService === undefined) delete process.env.PGSERVICE; else process.env.PGSERVICE = oldPgService;
-ok(!scrubbedEnvironment.PGHOST && !scrubbedEnvironment.PGSERVICE
-  && scrubbedEnvironment.PGDATABASE === productionDirect
+ok(!scrubbedEnvironment.PGSERVICE
+  && scrubbedEnvironment.PGHOST === `db.${PRODUCTION_REF}.supabase.co`
+  && scrubbedEnvironment.PGPORT === '5432'
+  && scrubbedEnvironment.PGUSER === 'backup_reader'
+  && scrubbedEnvironment.PGPASSWORD === 'pw'
+  && scrubbedEnvironment.PGDATABASE === 'postgres'
   && scrubbedEnvironment.PGSSLMODE === 'require',
-'PostgreSQL child environment removes inherited redirectors and uses the exact validated URL');
+'PostgreSQL child environment removes inherited redirectors and uses exact validated connection fields');
 const scratchUrl = 'postgresql://restore_reader.scratchref:pw@aws-0-us-east-1.pooler.supabase.com:6543/postgres';
 ok(assertScratchTarget(scratchUrl, 'scratchref', 'SCRATCH_ONLY') === 'scratchref',
 'scratch guard accepts the exact validated non-production target');
@@ -146,9 +162,38 @@ const inspected = inspectPlainDump(dump);
 ok(Object.keys(inspected).length === TABLES.length
   && Object.values(inspected).every(meta => meta.rows === 2),
 'row-count evidence is parsed from every COPY section in the one pg_dump snapshot');
+const currentPgDumpSequence = Buffer.from(dump.toString('utf8').replace(
+  '-- PostgreSQL database dump complete',
+  "SELECT pg_catalog.setval('public.client_access_events_id_seq', 42, true);\n-- PostgreSQL database dump complete",
+));
+ok(parseStrictPgDump(currentPgDumpSequence),
+  'strict parser accepts PostgreSQL 17 setval output without an explicit regclass cast');
+let unexpectedSequenceRejected = false;
+try {
+  parseStrictPgDump(Buffer.from(dump.toString('utf8').replace(
+    '-- PostgreSQL database dump complete',
+    "SELECT pg_catalog.setval('public.unexpected_id_seq', 42, true);\n-- PostgreSQL database dump complete",
+  )));
+} catch (_) { unexpectedSequenceRejected = true; }
+ok(unexpectedSequenceRejected, 'strict parser still rejects sequence state outside the fixed Track-B corpus');
+const emptyDump = fixtureDump(0);
+ok(Object.values(inspectPlainDump(emptyDump)).every(meta => meta.rows === 0),
+  'valid zero-row COPY sections remain valid evidence rather than being converted to an error item');
 let missingTableRejected = false;
 try { inspectPlainDump(Buffer.from(dump.toString('utf8').replace(/COPY public\.clients[\s\S]+?\\\.\n/, ''))); } catch (_) { missingTableRejected = true; }
 ok(missingTableRejected, 'snapshot validation rejects a missing allowlisted table');
+const exactManifest = buildManifest(dump, new Date().toISOString(), productionDirect);
+ok(assertExactTableManifest(exactManifest), 'manifest declares the exact fixed Track-B corpus count');
+let extraManifestTableRejected = false;
+try {
+  assertExactTableManifest({
+    ...exactManifest,
+    table_count: exactManifest.table_count + 1,
+    tables: { ...exactManifest.tables, unexpected_table: { rows: 0, primary_key: 'id' } },
+  });
+} catch (_) { extraManifestTableRejected = true; }
+ok(extraManifestTableRejected,
+  'workflow-count/corpus-count drift and extra manifest tables fail before last-known-good advancement');
 for (const attack of [
   '\\! touch /tmp/track-b-pwned',
   'DROP TABLE public.clients;',
@@ -182,7 +227,8 @@ try {
   const packageFile = path.join(tempDir, 'fixture.snapshot');
   const extractedFile = path.join(tempDir, 'extracted.sql');
   fs.writeFileSync(dumpFile, dump);
-  const manifest = packSnapshot(dumpFile, packageFile, '2026-07-13T00:00:00.000Z', productionDirect, HMAC_KEY);
+  const generatedAt = new Date(Date.now() - 60_000).toISOString();
+  const manifest = packSnapshot(dumpFile, packageFile, generatedAt, productionDirect, HMAC_KEY);
   const verified = verifySnapshotFile(packageFile, extractedFile, HMAC_KEY);
   ok(verified.snapshot.isolation === 'serializable-deferrable'
     && verified.snapshot.sha256 === manifest.snapshot.sha256
@@ -220,16 +266,52 @@ try {
   }], HMAC_KEY, Date.parse(manifest.generated_at) - (11 * 60 * 1000));
   ok(!futureSelection.latest && futureSelection.invalidCount === 1,
     'authenticated timestamps beyond the allowed future skew are rejected');
+  const priorCandidate = {
+    file: { id: 'prior-lkg', name: driveName, createdTime: manifest.generated_at },
+    bytes: validPackageBytes,
+  };
+  const truncatedSelection = selectAuthenticatedCandidates([{
+    file: { id: 'newer-truncated', name: driveName, createdTime: new Date().toISOString() },
+    bytes: validPackageBytes.subarray(0, validPackageBytes.length - 1),
+  }, priorCandidate], HMAC_KEY, currentMs);
+  ok(truncatedSelection.latest && truncatedSelection.latest.file.id === 'prior-lkg',
+    'a truncated newer package fails closed and cannot advance the last-known-good pointer');
+  const errorItemSelection = selectAuthenticatedCandidates([{
+    file: { id: 'newer-error', name: driveName, createdTime: new Date().toISOString() },
+    error: true,
+  }, priorCandidate], HMAC_KEY, currentMs);
+  ok(errorItemSelection.latest && errorItemSelection.latest.file.id === 'prior-lkg',
+    'a Drive error-item fails closed and cannot advance the last-known-good pointer');
   const localMd5 = md5(validPackageBytes);
   const readbackMeta = {
     id: 'drive-file', name: driveName, parents: ['private-folder'],
-    size: String(validPackageBytes.length), md5Checksum: localMd5,
+    driveId: 'shared-drive', size: String(validPackageBytes.length), md5Checksum: localMd5,
   };
-  ok(assertDriveReadback(readbackMeta, validPackageBytes, validPackageBytes, driveName, 'private-folder', 'drive-file'),
+  ok(assertDriveReadback(readbackMeta, validPackageBytes, validPackageBytes, driveName, 'private-folder', 'drive-file', 'shared-drive'),
     'post-upload readback requires matching Drive identity, parent, size, md5, and bytes');
   let readbackMismatchRejected = false;
-  try { assertDriveReadback({ ...readbackMeta, md5Checksum: '0'.repeat(32) }, validPackageBytes, validPackageBytes, driveName, 'private-folder', 'drive-file'); } catch (_) { readbackMismatchRejected = true; }
+  try { assertDriveReadback({ ...readbackMeta, md5Checksum: '0'.repeat(32) }, validPackageBytes, validPackageBytes, driveName, 'private-folder', 'drive-file', 'shared-drive'); } catch (_) { readbackMismatchRejected = true; }
   ok(readbackMismatchRejected, 'post-upload readback rejects untrusted or mismatched Drive metadata');
+  const folderContext = assertDriveFolderContext({
+    id: 'private-folder',
+    mimeType: 'application/vnd.google-apps.folder',
+    driveId: 'shared-drive',
+    capabilities: { canAddChildren: true, canListChildren: true },
+  }, 'private-folder', true);
+  ok(folderContext.sharedDrive && folderContext.driveId === 'shared-drive',
+    'service-account destination resolves to a writable Shared Drive folder');
+  let myDriveRejected = false;
+  try {
+    assertDriveFolderContext({
+      id: 'private-folder',
+      mimeType: 'application/vnd.google-apps.folder',
+      capabilities: { canAddChildren: true, canListChildren: true },
+    }, 'private-folder', true);
+  } catch (_) { myDriveRejected = true; }
+  ok(myDriveRejected, 'service-account destination rejects a writable My Drive folder without driveId');
+  const afterReadbackFailure = selectAuthenticatedCandidates([priorCandidate], HMAC_KEY, currentMs);
+  ok(afterReadbackFailure.latest && afterReadbackFailure.latest.file.id === 'prior-lkg',
+    'a readback mismatch leaves the prior last-known-good package selected');
   let wrongKeyRejected = false;
   try { readSnapshotFile(packageFile, WRONG_HMAC_KEY); } catch (_) { wrongKeyRejected = true; }
   ok(wrongKeyRejected, 'a Drive writer without the HMAC key cannot authenticate a replacement package');
@@ -241,7 +323,7 @@ try {
   ok(tamperRejected, 'package HMAC rejects modified private snapshot data before restore');
 
   const observed = Object.fromEntries(TABLES.map(config => [config.name, 2]));
-  observed.orphan_deliverable_batch = 0;
+  for (const key of Object.keys(INTEGRITY_CHECKS)) observed[key] = 0;
   ok(verifyCounts(manifest, observed), 'restore verification requires exact snapshot row counts and zero relational orphans');
 } finally {
   fs.rmSync(tempDir, { recursive: true, force: true });
@@ -279,13 +361,17 @@ ok(serviceCred.client_email === 'backup@example.invalid', 'private Drive auth ac
 
 const sql = restoreSql(dump);
 ok(/^begin;/.test(sql)
-  && /session_replication_role = replica/.test(sql)
-  && /truncate table[\s\S]+restart identity cascade/.test(sql)
+  && /track_b_restore_set_user_triggers\(false\)/.test(sql)
+  && /truncate table[\s\S]+cascade/.test(sql)
+  && !/restart identity|session_replication_role/.test(sql)
   && !/\\ir |\\!|DROP TABLE|SET row_security/.test(sql)
   && TABLES.every(config => sql.includes(`COPY public."${config.name}"`))
   && /pg_get_serial_sequence/.test(sql)
-  && /session_replication_role = origin;\ncommit;/.test(sql),
-'restore regenerates only allowlisted COPY data inside one fail-fast scratch transaction');
+  && /set constraints all immediate;\nselect public\.track_b_restore_set_user_triggers\(true\);\ncommit;/.test(sql),
+'restore regenerates only allowlisted COPY data with scratch user triggers disabled transactionally');
+const verificationSql = verifySql();
+ok(Object.keys(INTEGRITY_CHECKS).every(key => verificationSql.includes(`select '${key}'`)),
+  'restore verification covers every core foreign-key join in the Track-B graph');
 
 const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'track-b-backup.yml'), 'utf8');
 const backupSource = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'track-b-backup.js'), 'utf8');
@@ -297,11 +383,16 @@ ok(/TRACK_B_BACKUP_DATABASE_URL/.test(workflow)
   && /TRACK_B_BACKUP_HMAC_KEY/.test(workflow)
   && /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON/.test(workflow)
   && /TRACK_B_BACKUP_DRIVE_FOLDER_ID/.test(workflow)
-  && /SLACK_ALERT_WEBHOOK/.test(workflow),
-'workflow names the read-only database, HMAC, private Drive, and freshness credentials');
+  && !/for name[^\n]+SLACK_ALERT_WEBHOOK/.test(workflow),
+'workflow requires the read-only database, HMAC, and private Drive credentials without requiring Slack');
 ok(/Install PostgreSQL snapshot client/.test(workflow)
-  && /postgresql-client/.test(workflow),
-'GitHub runner explicitly installs pg_dump and psql');
+  && (workflow.match(/postgresql-client-17/g) || []).length === 2
+  && (workflow.match(/\/usr\/lib\/postgresql\/17\/bin/g) || []).length === 4,
+'GitHub runner explicitly installs the PostgreSQL 17 pg_dump and psql clients');
+ok(googleDriveErrorReason({ error: { errors: [{ reason: 'storageQuotaExceeded', message: 'must not be logged' }] } }) === 'storageQuotaExceeded'
+  && googleDriveErrorReason({ error: { status: 'PERMISSION_DENIED', message: 'must not be logged' } }) === 'PERMISSION_DENIED'
+  && googleDriveErrorReason({ error: { errors: [{ reason: 'unsafe reason with spaces' }] } }) === 'unspecified',
+'Drive failures expose only a bounded provider reason token, never provider messages or identities');
 ok(/TRACK_B_RESTORE_CONFIRM: SCRATCH_ONLY/.test(workflow)
   && /TRACK_B_RESTORE_EXPECTED_PROJECT_REF/.test(workflow),
 'manual restore job is explicitly scratch-bound');
@@ -310,7 +401,9 @@ ok(!/result\.stderr|throw result\.error/.test(postgresToolSources)
   && /runOpaqueTool/.test(backupSource)
   && /runOpaqueTool/.test(restoreSource),
 'PostgreSQL wrappers never copy captured diagnostics into thrown or logged errors');
-ok(/PGDATABASE: info\.url/.test(backupSource)
+ok(/PGHOST: info\.host/.test(backupSource)
+  && /PGPASSWORD: info\.password/.test(backupSource)
+  && /PGDATABASE: info\.database/.test(backupSource)
   && /timingSafeEqual/.test(backupSource)
   && /createHmac\('sha256'/.test(backupSource)
   && /pg_dump/.test(backupSource)
@@ -319,6 +412,8 @@ ok(/PGDATABASE: info\.url/.test(backupSource)
 'export uses an authenticated database snapshot without a REST pagination fallback');
 ok(/supportsAllDrives: 'true'/.test(backupSource)
   && /includeItemsFromAllDrives: 'true'/.test(backupSource)
+  && /corpora: driveId \? 'drive' : 'user'/.test(backupSource)
+  && /params\.set\('driveId', driveId\)/.test(backupSource)
   && /uploadType=multipart&supportsAllDrives=true/.test(backupSource)
   && /alt=media&supportsAllDrives=true/.test(backupSource),
 'Drive list, upload, and download explicitly support the configured Shared Drive folder');
@@ -328,14 +423,73 @@ ok(/driveFileMetadata/.test(backupSource)
   && /authenticated_generated_at/.test(backupSource)
   && /downloadDriveCandidates/.test(backupSource),
 'upload success requires metadata/content readback and freshness downloads authenticated candidates');
-ok(/FRESHNESS_HOURS[\s\S]+26/.test(backupSource) && /track_b_backup_freshness_alert/.test(backupSource),
-  'freshness monitor pages after 26 hours and deduplicates in the event ledger');
+ok(/FRESHNESS_HOURS[\s\S]+7/.test(backupSource) && /syncview-track-b-alert-/.test(backupSource),
+  'freshness monitor pages after seven hours and deduplicates with a signed private-Drive marker');
 ok(restoreSource.includes(`const {\n  PRODUCTION_REF,`)
   && /Production project ref is forbidden/.test(restoreSource)
   && /renderSafeCopySections/.test(restoreSource)
   && !/\\ir/.test(restoreSource),
 'restore hard-blocks production and never includes downloaded SQL or psql commands');
-ok(/PITR is enabled and[\s\S]+verification timestamp/.test(opsDoc),
-'runbook keeps the owner-approved flip-week PITR verification as a separate gate');
+ok(/owner explicitly opted out of the paid PITR add-on[\s\S]+do not invent a[\s\S]+verification timestamp/.test(opsDoc),
+'runbook records the owner-approved PITR opt-out without fabricating gate evidence');
 
-console.log('track-b-backup checks passed');
+async function asyncChecks() {
+  const nowMs = Date.now();
+  ok(classifyFreshness({ fileCount: 0, newestCandidateValid: true, latestGeneratedMs: NaN, nowMs, thresholdHours: 7 }).reason === 'missing'
+    && classifyFreshness({ fileCount: 1, newestCandidateValid: false, latestGeneratedMs: nowMs, nowMs, thresholdHours: 7 }).reason === 'verification_failed'
+    && classifyFreshness({ fileCount: 1, newestCandidateValid: true, latestGeneratedMs: nowMs - (8 * 3600000), nowMs, thresholdHours: 7 }).reason === 'stale'
+    && classifyFreshness({ fileCount: 1, newestCandidateValid: true, latestGeneratedMs: nowMs - 60000, nowMs, thresholdHours: 7 }).ok,
+  'freshness classifies missing, newest-verification failure, stale, and fresh states for fail-closed workflow email alerts');
+  let optionalSlackCalls = 0;
+  const optionalSlackSent = await postSlack('fixture', '', async () => {
+    optionalSlackCalls += 1;
+    throw new Error('optional Slack transport must not be called');
+  });
+  ok(optionalSlackSent === false && optionalSlackCalls === 0,
+    'absent optional Slack webhook performs no Slack request and does not block GitHub failure-email alerting');
+  const pages = [
+    { files: [{ id: 'ignore', name: 'not-a-snapshot.txt' }], nextPageToken: 'page-2' },
+    { files: [{ id: 'backup', name: 'syncview-track-b-20260713T123456Z.snapshot' }] },
+  ];
+  let pageCalls = 0;
+  const paged = await listBackups('fixture-token', async url => {
+    const expectedToken = pageCalls === 0 ? '' : 'page-2';
+    const params = new URL(url).searchParams;
+    ok((params.get('pageToken') || '') === expectedToken,
+      'Drive pagination passes the exact next-page token');
+    ok(params.get('supportsAllDrives') === 'true'
+      && params.get('includeItemsFromAllDrives') === 'true'
+      && params.get('corpora') === 'drive'
+      && params.get('driveId') === 'fixture-drive',
+    'Shared Drive discovery scopes every page to the resolved drive corpus');
+    const body = pages[pageCalls];
+    pageCalls += 1;
+    return { ok: true, status: 200, json: async () => body };
+  }, 'private-folder', 'fixture-drive');
+  ok(pageCalls === 2 && paged.length === 1 && paged[0].id === 'backup',
+    'Drive discovery exhausts pagination before deriving last-known-good');
+
+  let repeatedTokenRejected = false;
+  try {
+    await listBackups('fixture-token', async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ files: [], nextPageToken: 'repeat' }),
+    }), 'private-folder', 'fixture-drive');
+  } catch (_) { repeatedTokenRejected = true; }
+  ok(repeatedTokenRejected,
+    'repeated Drive pagination tokens fail closed instead of advancing last-known-good from a truncated list');
+
+  const staleKey = 'snapshot:fixture';
+  const marker = buildAlertMarker(staleKey, 8, new Date().toISOString(), HMAC_KEY);
+  ok(alertMarkerName(staleKey).startsWith('syncview-track-b-alert-')
+    && readAlertMarker(marker, staleKey, HMAC_KEY).stale_key === staleKey,
+  'freshness dedupe marker is HMAC-authenticated outside the production database');
+}
+
+asyncChecks().then(() => {
+  console.log('track-b-backup checks passed');
+}).catch(error => {
+  console.error(error && error.stack || error && error.message || String(error));
+  process.exit(1);
+});

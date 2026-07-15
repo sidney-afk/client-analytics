@@ -31,24 +31,59 @@ function ok(value, message) {
   'authorizeStaffKey',
   'staffAuthFailureStatus',
 ].forEach(token => ok(SHARED.includes(token), `shared role-key helper missing ${token}`));
-ok(DEPLOY_WORKFLOW.includes("supabase/functions/_shared/**"),
+ok(DEPLOY_WORKFLOW.includes("supabase/functions/_shared/staff-role-auth.ts"),
   'changes to the shared role-key helper must trigger the dependent Edge Function deploy workflow');
 ok(DEPLOY_WORKFLOW.includes("supabase/functions/key-verify/**"),
   'changes to key-verify must trigger its Edge Function deploy workflow');
-const deployLoop = (DEPLOY_WORKFLOW.match(/for fn in ([^;]+); do/) || [])[1] || '';
-ok(/(?:^|\s)key-verify(?:\s|$)/.test(deployLoop),
+
+const pushBlock = (DEPLOY_WORKFLOW.match(/  push:\r?\n([\s\S]*?)  workflow_dispatch:/) || [])[1] || '';
+const pushPaths = Array.from(pushBlock.matchAll(/^\s+- '([^']+)'\s*$/gm), match => match[1]);
+const expectedPushPaths = [
+  'supabase/functions/onboarding-list/**',
+  'supabase/functions/ai-onboarding-list/**',
+  'supabase/functions/legacy-onboarding-list/**',
+  'supabase/functions/onboarding-full/**',
+  'supabase/functions/client-credentials/**',
+  'supabase/functions/filming-plans/**',
+  'supabase/functions/smm-weekly-reports/**',
+  'supabase/functions/key-verify/**',
+  'supabase/functions/_shared/staff-role-auth.ts',
+  '.github/workflows/deploy-onboarding-edge-functions.yml',
+];
+ok(JSON.stringify(pushPaths) === JSON.stringify(expectedPushPaths),
+  'push paths must retain the current main allowlist exactly');
+for (const forbidden of [
+  'supabase/functions/client-review-link/**',
+  'supabase/functions/linear-outbound/**',
+  'supabase/functions/production-write/**',
+  'supabase/functions/_shared/**',
+]) {
+  ok(!pushPaths.includes(forbidden), `${forbidden} must never trigger a push deploy`);
+}
+
+const deployLoops = Array.from(DEPLOY_WORKFLOW.matchAll(/for fn in ([^;]+); do/g), match => match[1]);
+ok(deployLoops.length === 2, 'safe and pinned functions must use separate deploy loops');
+const safeLoop = deployLoops[0] || '';
+const pinnedLoop = deployLoops[1] || '';
+ok(safeLoop === 'onboarding-list ai-onboarding-list legacy-onboarding-list onboarding-full client-credentials filming-plans smm-weekly-reports key-verify',
+  'push-safe deploy loop must retain the current main function list exactly');
+ok(/(?:^|\s)key-verify(?:\s|$)/.test(safeLoop),
   'the shared auth deployment loop must deploy key-verify with its dependents');
-ok(DEPLOY_WORKFLOW.includes("supabase/functions/production-write/**")
-  && /(?:^|\s)production-write(?:\s|$)/.test(deployLoop),
-  'production-write and its shared imports deploy through the same workflow');
-ok(DEPLOY_WORKFLOW.includes("supabase/functions/linear-outbound/**")
-  && /(?:^|\s)linear-outbound(?:\s|$)/.test(deployLoop)
-  && deployLoop.indexOf('linear-outbound') < deployLoop.indexOf('production-write'),
-  'linear-outbound local modules deploy before the production-write caller from the same pinned SHA');
+ok(pinnedLoop === 'linear-outbound production-write',
+  'manual pinned deploy must run linear-outbound before production-write and nothing else');
+
+const pinnedStepAt = DEPLOY_WORKFLOW.indexOf('- name: Deploy pinned Track-B write functions');
+const pinnedStep = pinnedStepAt >= 0 ? DEPLOY_WORKFLOW.slice(pinnedStepAt) : '';
+ok(pinnedStepAt >= 0 && /if: github\.event_name == 'workflow_dispatch'/.test(pinnedStep),
+  'the high-risk write-path deploy step must be workflow_dispatch-only');
+ok(!DEPLOY_WORKFLOW.includes('client-review-link'),
+  'unchanged live-v2 client-review-link must not be redeployed by this workflow');
 ok(/commit_sha:[\s\S]{0,180}required: true/.test(DEPLOY_WORKFLOW)
+  && /ref: \$\{\{ env\.DEPLOY_COMMIT \}\}/.test(DEPLOY_WORKFLOW)
+  && /\^\[0-9a-f\]\{40\}\$/.test(DEPLOY_WORKFLOW)
   && /git merge-base --is-ancestor "\$DEPLOY_COMMIT" origin\/main/.test(DEPLOY_WORKFLOW)
   && /github\.event_name == 'workflow_dispatch' && inputs\.commit_sha \|\| github\.sha/.test(DEPLOY_WORKFLOW),
-  'manual deploys pin an exact main commit while automatic main pushes retain github.sha');
+  'manual deploys require an exact 40-character commit already on main');
 
 ok(/import \{ matchingRoleForKey, type StaffRoleKey \} from "\.\.\/_shared\/staff-role-auth\.ts"/.test(KEY_VERIFY),
   'key-verify must use the same shared secret-to-role resolver as sensitive surfaces');
@@ -79,6 +114,8 @@ const filmingAuth = FILMING_PLANS.slice(
 );
 ok(/authorizeStaffKey\(supplied, \["admin"\], \[legacyKey\]\)/.test(filmingAuth),
   'filming-plans writes must allow only the admin role key plus ONBOARDING_STAFF_KEY');
+ok(/authorizeStaffKey\(supplied, \["admin", "smm", "creative"\], \[legacyKey\]\)/.test(filmingAuth),
+  'filming-plans reads must allow every verified staff role plus ONBOARDING_STAFF_KEY');
 ok(/staffAuthFailureStatus\(auth\)/.test(filmingAuth),
   'filming-plans must distinguish a forbidden role from an unmatched key');
 ok(/Deno\.env\.get\("ONBOARDING_STAFF_KEY"\)/.test(filmingAuth)
@@ -122,6 +159,7 @@ const runner = `
   const surfaces = {
     credentials: ['admin', 'smm'],
     onboardingFull: ['admin'],
+    filmingPlansRead: ['admin', 'smm', 'creative'],
     filmingPlansWrite: ['admin'],
   };
   const results = { matrix: {}, legacy: {}, spoof: {}, collision: {}, invalid: {} };
@@ -187,6 +225,7 @@ const runner = `
     filmingSmm: staffAuthFailureStatus(results.matrix.filmingPlansWrite.smm),
     invalidCredentials: staffAuthFailureStatus(results.invalid.credentials.wrong),
     invalidOnboarding: staffAuthFailureStatus(results.invalid.onboardingFull.wrong),
+    invalidFilmingRead: staffAuthFailureStatus(results.invalid.filmingPlansRead.wrong),
     invalidFilming: staffAuthFailureStatus(results.invalid.filmingPlansWrite.wrong),
   };
 
@@ -208,6 +247,7 @@ catch (error) { ok(false, `shared helper returned invalid test output: ${error.m
 const expected = {
   credentials: { admin: true, smm: true, creative: false, editor: false, designer: false },
   onboardingFull: { admin: true, smm: false, creative: false, editor: false, designer: false },
+  filmingPlansRead: { admin: true, smm: true, creative: true, editor: true, designer: true },
   filmingPlansWrite: { admin: true, smm: false, creative: false, editor: false, designer: false },
 };
 for (const [surface, roles] of Object.entries(expected)) {
@@ -249,7 +289,7 @@ ok(results.collision.creativeCannotMasqueradeAsLegacy.ok === false
 for (const name of ['credentialsCreative', 'onboardingSmm', 'onboardingCreative', 'filmingSmm']) {
   ok(results.status[name] === 403, `${name} must return forbidden without invalidating the signed-in role key`);
 }
-for (const name of ['invalidCredentials', 'invalidOnboarding', 'invalidFilming']) {
+for (const name of ['invalidCredentials', 'invalidOnboarding', 'invalidFilmingRead', 'invalidFilming']) {
   ok(results.status[name] === 401, `${name} must return unauthorized for an unmatched key`);
 }
 

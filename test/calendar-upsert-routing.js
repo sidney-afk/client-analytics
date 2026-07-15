@@ -34,5 +34,9 @@ ok(/UPSERT_FLAG_URL/.test(RECON) && /calendar_upsert_ef_clients/.test(RECON), 'r
 ok(/loadUpsertEfClients/.test(RECON) && /await loadUpsertEfClients\(\)/.test(RECON), 'reconciler must load flag once per run');
 ok(/upsertUrlForClient\(card\.client\)/.test(RECON), 'reconciler must route by card client');
 ok(/X-Syncview-Source': 'reconcile'/.test(RECON), 'reconciler source header missing');
+ok(/SYNCVIEW_STAFF_KEY/.test(RECON)
+  && /headers\['X-Syncview-Key'\] = SYNCVIEW_STAFF_KEY/.test(RECON)
+  && /if \(url === UPSERT_EF_URL\)/.test(RECON),
+  'reconciler must attach its staff key only to EF writes and fail closed when absent');
 
 console.log('calendar-upsert routing source checks passed');

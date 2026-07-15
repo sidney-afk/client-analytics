@@ -54,6 +54,8 @@ const REAL = [
   grabFunc('_calBumpThumbRev'),
   grabFunc('_calCacheBustThumb'),
   grabFunc('_calThumbSrcBase'),
+  grabFunc('_calDriveFileId'),
+  grabFunc('_calDriveImageUrl'),
   grabFunc('_calDeriveThumb'),
 ].join('\n\n');
 
@@ -66,6 +68,15 @@ const { _calBumpThumbRev, _calThumbSrcBase, _calDeriveThumb } = mod;
 // is constant, so the src-base equality IS the reuse decision.
 const wouldReuse = (a, b) => _calThumbSrcBase(a) === _calThumbSrcBase(b);
 
+function isFirstHopDriveThumbnail(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === 'drive.google.com' || host === 'docs.google.com';
+  } catch (_error) {
+    return true;
+  }
+}
+
 let failures = 0;
 function check(label, cond) {
   if (cond) { console.log('  ok  ' + label); }
@@ -76,6 +87,23 @@ const DRIVE = 'https://drive.google.com/file/d/ABC123/view?usp=sharing';
 const DRIVE2 = 'https://drive.google.com/file/d/XYZ789/view?usp=sharing';
 const DIRECT = 'https://cdn.example.com/pic.jpg';
 const YT = 'https://youtu.be/dQw4w9WgXcQ';
+
+// â”€â”€ 0. Drive cache-bust token must live on the browser's final image URL â”€â”€
+// A token on drive.google.com/thumbnail is a false fix: Drive redirects to a
+// shared lh3 URL and drops the token before the browser chooses its cache key.
+(() => {
+  const p = { id: 'direct-final', thumbnail_url: DRIVE, asset_url: '', updated_at: 'f0', thumb_rev: 'revision-final' };
+  const src = _calDeriveThumb(p);
+  const parsed = new URL(src);
+  check('Drive thumbnail does not use the redirecting drive.google.com first hop',
+        isFirstHopDriveThumbnail(src) === false && !/drive\.google\.com\/thumbnail/i.test(src));
+  check('Drive thumbnail uses a direct Google image host',
+        /(^|\.)googleusercontent\.com$/i.test(parsed.hostname));
+  check('persisted revision is on the final browser URL',
+        parsed.searchParams.get('_r') === 'revision-final');
+  check('final revision-specific URL still identifies the requested Drive file',
+        decodeURIComponent(parsed.pathname).includes('ABC123'));
+})();
 
 // ── 1. No flicker across an unrelated save (Drive link) ────────────────────
 (() => {
@@ -104,7 +132,9 @@ const YT = 'https://youtu.be/dQw4w9WgXcQ';
   const a = _calDeriveThumb(p);
   p.thumbnail_url = DRIVE2; _calBumpThumbRev('p3'); p.updated_at = 'v1';
   const b = _calDeriveThumb(p);
-  check('different Drive file id in src', /id=ABC123/.test(a) && /id=XYZ789/.test(b));
+  check('different Drive file id in final src',
+        decodeURIComponent(new URL(a).pathname).includes('ABC123') &&
+        decodeURIComponent(new URL(b).pathname).includes('XYZ789'));
   check('link text change → strip RELOADS image', wouldReuse(a, b) === false);
 })();
 
@@ -166,14 +196,17 @@ const YT = 'https://youtu.be/dQw4w9WgXcQ';
   check('viewer: thumb_rev change → RELOADS image (live, no hard refresh)', wouldReuse(s1, s2) === false);
 })();
 
-// ── 9. Editing browser: session rev takes priority over persisted ──────────
+// ── 9. Persisted rev is authoritative; session rev is only a fallback ─────
 (() => {
   _calBumpThumbRev('edit1');
   const sessionRev = mod._calThumbRev['edit1'];
   const p = { id: 'edit1', thumbnail_url: DRIVE, asset_url: '', updated_at: 'e0', thumb_rev: 'persisted-yyy' };
   const s = _calDeriveThumb(p);
-  check('editor uses session rev (instant), not the persisted echo',
-        s.includes('_r=' + sessionRev) && !s.includes('persisted-yyy'));
+  check('viewer uses persisted server rev, not a stale session mirror',
+        s.includes('_r=persisted-yyy') && !s.includes('_r=' + sessionRev));
+  const optimistic = _calDeriveThumb({ id: 'edit1', thumbnail_url: DRIVE, asset_url: '', updated_at: 'e1' });
+  check('session rev remains an optimistic fallback before the server echo',
+        optimistic.includes('_r=' + sessionRev));
 })();
 
 // ── 10. Wiring: the shipped index.html persists + patches thumb_rev ─────────
@@ -188,8 +221,8 @@ const YT = 'https://youtu.be/dQw4w9WgXcQ';
         /if \(bumpThumbRev\) _calRefreshCardThumb\(realId\);/.test(INDEX));
   check('samples also bump and refresh on the same condition',
         /const bumpThumbRev = \('thumbnail_url' in edits \|\| 'asset_url' in edits\)[\s\S]*_calShouldBumpThumbRevForGraphicStatus\(edits, prevSnapshot, post\);[\s\S]*if \(bumpThumbRev\) post\.thumb_rev = _sxrBumpThumbRev\(realId\);[\s\S]*if \(bumpThumbRev\) _sxrForceThumbRefresh\(realId\);/.test(INDEX));
-  check('cache-bust prefers session _calThumbRev, falls back to post.thumb_rev',
-        /\(p && p\.id && _calThumbRev\[p\.id\]\) \|\| \(p && p\.thumb_rev\)/.test(INDEX));
+  check('cache-bust prefers persisted post.thumb_rev, falls back to session _calThumbRev',
+        /\(p && p\.thumb_rev\) \|\| \(p && p\.id && _calThumbRev\[p\.id\]\)/.test(INDEX));
 })();
 
 console.log(failures === 0

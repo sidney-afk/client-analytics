@@ -87,12 +87,23 @@ for (const [wrapper, legacy, surface] of [
   assert(body.includes('legacy_transport: true'), wrapper + ' must let the legacy source save continue immediately');
 }
 
+const submitEntry = extract('submitLinearForm');
+const routedSubmit = extract('_submitLinearFormRoutedOnce');
 const legacySubmit = extract('_submitLinearFormLegacy');
-assert(legacySubmit.includes('body: JSON.stringify(payload)'));
-assert(legacySubmit.includes('fetch(VIDEO_FORM_WEBHOOK, sendOptions)'));
-assert(legacySubmit.includes('fetch(GRAPHIC_FORM_WEBHOOK, sendOptions)'));
-assert(legacySubmit.includes('_calCardJobCreate') && legacySubmit.includes('_writeLinearVideoCardsToCalendar'));
-assert(extract('submitLinearForm').includes('await _writeUiRerouteUseGatewayWhenReady'));
+const f44Submit = extract('_submitLinearFormOnce');
+const f44Transport = extract('_linearAwaitCreate');
+assert(submitEntry.includes('_submitLinearFormRoutedOnce(mode)'));
+assert(routedSubmit.includes('localStorage.getItem(LINEAR_RECEIPTS_KEY)'));
+assert(routedSubmit.includes('await _writeUiRerouteUseGatewayWhenReady'));
+assert(routedSubmit.includes('if (!useGateway)') && routedSubmit.includes('return _submitLinearFormLegacy(mode)'));
+assert(legacySubmit.includes('return _submitLinearFormOnce(mode)'));
+assert(f44Submit.includes('_linearPrepareReceipts') && f44Submit.includes('_linearAwaitCreate'));
+assert(f44Submit.includes('_linearApplyReceiptOutcomes'));
+assert(f44Submit.includes('_calCardJobCreate') && f44Submit.includes('_writeLinearVideoCardsToCalendar'));
+assert(f44Transport.includes('idempotency_key: receipt.receipt_key'));
+assert(f44Transport.includes('await fetch(target.url') && f44Transport.includes('_linearConfirmedCreate'));
+assert(!/fetch\((?:VIDEO_FORM_WEBHOOK|GRAPHIC_FORM_WEBHOOK), sendOptions\)/.test(source),
+  'legacy fallback must never restore the pre-F44 fire-and-forget direct fetch');
 const addPost = extract('addCalBlankCard');
 assert(addPost.indexOf("const clientName = String(calState.client || '').trim()")
   < addPost.indexOf('await _writeUiRerouteUseGatewayWhenReady(clientSlug)'));
@@ -236,12 +247,19 @@ assert(batchPicker.includes("batch.name || 'Current batch'"));
 assert(source.includes("const CLIENT_REVIEW_LINK_URL = CAL_SUPABASE_URL + '/functions/v1/client-review-link'"));
 assert(source.includes("const CLIENTS_INFO_FORBIDDEN_FIELDS = new Set(['client_review_token'])"));
 assert(!/clientMap[^\n]{0,100}client_review_token/.test(source));
-const reviewLinkHelper = extract('_clientShareLinkWithReviewToken');
-assert(reviewLinkHelper.includes("_syncviewRequireStaffIdentity('review-link')"));
+const reviewLinkHelper = extract('_syncviewIssueClientShareUrl');
+const reviewLinkHeaders = extract('_syncviewEfHeaders');
+assert(reviewLinkHelper.includes('_syncviewStaffIdentityForHeaders()'));
 assert(reviewLinkHelper.includes('fetch(CLIENT_REVIEW_LINK_URL'));
+assert(reviewLinkHelper.includes("headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_LINK_URL)"));
+assert(reviewLinkHelper.includes('body: JSON.stringify({ client: clientName })'));
+assert(reviewLinkHelper.includes("q.set('t', json.token)"));
 assert(!/localStorage|sessionStorage/.test(reviewLinkHelper));
+assert(reviewLinkHeaders.includes("out['X-Syncview-Key'] = identity.key"));
+assert(reviewLinkHeaders.includes("out['X-Syncview-Actor'] = identity.member.name"));
+assert(reviewLinkHeaders.includes("out['X-Syncview-Role'] = identity.role"));
 for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sxrCopyShareLink']) {
-  assert(extract(name).includes('await _clientShareLinkWithReviewToken'), name + ' must fetch the client review token at copy time');
+  assert(extract(name).includes('await _syncviewIssueClientShareUrl'), name + ' must fetch the client review token at copy time');
 }
 
 (async () => {
@@ -374,6 +392,9 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     document: {
       getElementById: id => id === 'linearClientSearch' ? submitInput : id === 'linearStatus' ? submitStatus : null,
     },
+    LINEAR_RECEIPTS_KEY: 'linear-receipts',
+    localStorage: { getItem: () => null },
+    _linearIntakeRead: () => null,
     _writeUiRerouteUseGatewayWhenReady: () => submitRoute,
     _submitLinearFormLegacy: () => submitRaceCalls.push('legacy'),
     linearClientRows: [{ slug: 'sidneylaruel' }],
@@ -381,8 +402,8 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     _linearResolveClientRow: () => { submitRaceCalls.push('resolve-native'); return { slug: 'realclient' }; },
   };
   vm.createContext(submitRaceContext);
-  vm.runInContext(extract('submitLinearForm'), submitRaceContext);
-  const submitRace = submitRaceContext.submitLinearForm('both');
+  vm.runInContext(extract('_submitLinearFormRoutedOnce'), submitRaceContext);
+  const submitRace = submitRaceContext._submitLinearFormRoutedOnce('both');
   submitInput.value = 'Real Client';
   submitInput.dataset.clientSlug = 'realclient';
   resolveSubmitRoute(true);

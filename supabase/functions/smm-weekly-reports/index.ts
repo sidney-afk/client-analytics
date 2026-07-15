@@ -1,7 +1,8 @@
 // Supabase Edge Function: smm-weekly-reports
 //
-// Public gateway for SyncView's hidden SMM weekly report form and Kasper viewer.
-// Security is intentionally permissive for this v1: no staff key, no JWT.
+// Staff-key gateway for SyncView's hidden SMM weekly report form and Kasper
+// viewer. SMM/admin role keys can load options and submit; report-text reads and
+// manager synchronization require admin (or the transition-only legacy key).
 //
 // Actions:
 //   GET  ?action=options
@@ -13,11 +14,12 @@
 //   supabase functions deploy smm-weekly-reports --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
+import { authorizeStaffKey, staffAuthFailureStatus } from "../_shared/staff-role-auth.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-key",
   "Cache-Control": "no-store",
 };
 
@@ -292,11 +294,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
   try {
+    // Authenticate before parsing a POST body or constructing any service-role
+    // client. Admin/SMM role keys are the human paths; preserve the same exact
+    // legacy staff secrets as onboarding-full for human compatibility. This
+    // service endpoint accepts both when configured because the existing n8n
+    // manager sync intentionally uses the separate credentials-key credential.
+    const legacyKeys = [Deno.env.get("ONBOARDING_STAFF_KEY"), Deno.env.get("CREDENTIALS_STAFF_KEY")]
+      .map((value) => (value || "").trim())
+      .filter(Boolean);
+    const given = (req.headers.get("x-syncview-key") || "").trim();
+    const auth = authorizeStaffKey(given, ["admin", "smm"], legacyKeys);
+    if (!auth.ok) return json({ ok: false, error: auth.role ? "forbidden" : "unauthorized" }, staffAuthFailureStatus(auth));
+
     const url = new URL(req.url);
     if (req.method === "GET") {
       const action = clean(url.searchParams.get("action")) || "reports";
       if (action === "options") return await loadOptions();
-      if (action === "reports") return await listReports(url);
+      if (action === "reports") {
+        if (auth.role && auth.role !== "admin") return json({ ok: false, error: "forbidden" }, 403);
+        return await listReports(url);
+      }
       return json({ ok: false, error: "unknown action" }, 400);
     }
 
@@ -304,7 +321,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const body = await req.json().catch(() => ({})) as JsonMap;
     const action = clean(body.action) || "submit";
     if (action === "submit") return await submitReport(req, body);
-    if (action === "sync_managers") return await syncManagers(body);
+    if (action === "sync_managers") {
+      if (auth.role && auth.role !== "admin") return json({ ok: false, error: "forbidden" }, 403);
+      return await syncManagers(body);
+    }
     return json({ ok: false, error: "unknown action" }, 400);
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : String(e) }, 500);

@@ -1,9 +1,10 @@
 # `migrations/` — manually applied Supabase SQL
 
-Every file here is a **one-time migration that was pasted into the Supabase SQL
-editor by hand** and is kept for provenance. There is no auto-runner: nothing in
-CI, `supabase/config.toml`, or `scripts/` executes these files (see
-`README.md` › Repository layout).
+Every file here is a **one-time migration intended for manual application in the
+Supabase SQL editor**. Applied files are kept for provenance; a newly added delta
+can remain source-only until `EXECUTION_LOG.md` records its actual application.
+There is no auto-runner: nothing in CI, `supabase/config.toml`, or `scripts/`
+executes these files (see `README.md` › Repository layout).
 
 ## How to read this folder
 
@@ -30,6 +31,25 @@ CI, `supabase/config.toml`, or `scripts/` executes these files (see
   paired Video + Graphics rows/events/outbox intents in one transaction. It
   changes no runtime flag; its owner-only one-command rollback block is included
   at the bottom of the file.
+- **`2026-07-14-thumbnail-revision-v2.sql`** revokes direct browser access to
+  raw thumbnail revision metadata, seeds the default-off comparison/refresh
+  gate, adds active Drive-thumbnail watcher/refresh triggers and bounded repair,
+  and defines a locked service-role-only revision-rotation RPC. Dormant watcher
+  placeholders may be seeded, but it does not enable Drive scanning, comparison
+  delivery, or source-row mutation for any client.
+- **`2026-07-14-f88-safe-sensitive-read-revocations.sql`** repeatably removes anon SELECT only
+  from the backend/protected-reader safe subset: thumbnail revision metadata, both SMM weekly-
+  report tables, and filming plans. It intentionally does not touch `clients` or the other raw
+  tables still read by the SPA.
+- **`2026-07-14-linear-intake-receipts.sql`** adds the service-only F44
+  Calendar-to-Linear receipt ledger, team-scoped payload-hash receipt key, and
+  monotonic retry/progress guards. It does not create Linear work or change
+  workflow authority by itself.
+- **`2026-07-15-pto-tracker.sql`** adds the three service-role-only PTO tables,
+  per-member state-version triggers, transactional approval RPCs, and a live-floating-holiday
+  uniqueness guard; it seeds `pto_v1` off. It contains no member/HR seed data and does not prove
+  the migration was applied or the Edge Function deployed. Keep it off until the individual staff
+  session prerequisite in `docs/features/PTO_TRACKER.md` is closed.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

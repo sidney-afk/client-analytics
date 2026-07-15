@@ -226,22 +226,33 @@ const result = {
     && context._linearIntakeRead().payload.request_id === 'submission:replacement',
   'a slower tab cannot checkpoint over or delete a newer intake job');
 
-  const submit = extract('submitLinearForm');
+  const submitEntry = extract('submitLinearForm');
+  const submit = extract('_submitLinearFormRoutedOnce');
   const legacySubmit = extract('_submitLinearFormLegacy');
-  ok(/operation: 'intake_create'/.test(submit)
+  const f44Submit = extract('_submitLinearFormOnce');
+  const f44Transport = extract('_linearAwaitCreate');
+  ok(submitEntry.includes('_submitLinearFormRoutedOnce(mode)')
+    && /operation: 'intake_create'/.test(submit)
     && /surface: 'submission'/.test(submit)
     && /_syncviewRequireStaffIdentity\('intake'\)/.test(submit)
-    && /_writeUiRerouteUseGateway/.test(submit)
+    && /_writeUiRerouteUseGatewayWhenReady/.test(submit)
     && /_submitLinearFormLegacy/.test(submit),
   'Submit uses one authenticated native intake request only for an enrolled client');
   ok(!/VIDEO_FORM_WEBHOOK|GRAPHIC_FORM_WEBHOOK|_calCardJobCreate|_writeLinearVideoCardsToCalendar/.test(submit),
   'the enrolled Submit lane cannot call a legacy create webhook or enqueue a Linear polling job');
-  ok(/fetch\(VIDEO_FORM_WEBHOOK, sendOptions\)/.test(legacySubmit)
-    && /fetch\(GRAPHIC_FORM_WEBHOOK, sendOptions\)/.test(legacySubmit)
-    && /body: JSON\.stringify\(payload\)/.test(legacySubmit)
-    && /_calCardJobCreate/.test(legacySubmit)
-    && /_writeLinearVideoCardsToCalendar/.test(legacySubmit),
-  'the non-enrolled Submit lane retains the pre-#813 n8n payload and Calendar materialization job');
+  ok(/return _submitLinearFormOnce\(mode\)/.test(legacySubmit)
+    && submit.includes('localStorage.getItem(LINEAR_RECEIPTS_KEY)')
+    && submit.includes('if (!useGateway)')
+    && /_linearPrepareReceipts/.test(f44Submit)
+    && /_linearAwaitCreate/.test(f44Submit)
+    && /_linearApplyReceiptOutcomes/.test(f44Submit)
+    && /_calCardJobCreate/.test(f44Submit)
+    && /_writeLinearVideoCardsToCalendar/.test(f44Submit)
+    && /idempotency_key: receipt\.receipt_key/.test(f44Transport)
+    && /await fetch\(target\.url/.test(f44Transport)
+    && /_linearConfirmedCreate/.test(f44Transport)
+    && !/fetch\((?:VIDEO_FORM_WEBHOOK|GRAPHIC_FORM_WEBHOOK), sendOptions\)/.test(source),
+  'the non-enrolled Submit lane retains F44 receipts and never restores the pre-F44 direct fetch');
   ok(!/test_override/.test(submit),
   'Submit never asks a browser credential to self-enter TEST scope');
   const runner = extract('_runNativeIntakeJob');

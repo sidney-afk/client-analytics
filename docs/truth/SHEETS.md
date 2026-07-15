@@ -1,6 +1,6 @@
 # Google Sheets — current truth
 
-> Last verified: 2026-07-11 @ ae8a492
+> Last verified: 2026-07-14 @ e3961b6
 > Live facts from `docs/audits/2026-07-05-sheets.md` (verified 2026-07-05) unless noted.
 > Sheets change outside git and outside CI — treat every claim here as spot-verify-first.
 
@@ -25,10 +25,22 @@
 
 ## Standing hazards
 
-- **`client_review_token` is forbidden in Clients Info.** The tab is anonymously readable,
-  so review tokens live only in service-role-only `client_access`. The SPA strips that field
-  if it ever appears in a fetched/cached row, and staff copy-link actions request one scoped
-  token from the authenticated `client-review-link` Edge Function at copy time. Release still
-  requires the issuer deployment, link re-share, and the documented fail-closed gate.
+- **Project Central's active Sheet API is an unauthenticated destructive replace path (F123).** Its
+  three source reads continue independently, so one failed tab can become a valid-looking partial
+  tree. Save then clears all three live sheets before validating or reappending, with no staging,
+  revision/CAS, transaction, idempotency, or restore receipt. Empty/partial/stale/concurrent saves
+  can erase the hierarchy. Require role/scope auth and an atomically validated staged replacement;
+  never use the current path as a recovery tool.
+
+- **`client_review_token` must never be added** to Clients Info: this sheet is anonymously
+  downloadable. Tokens already exist in service-role-only `client_access`; audit F33 blocks the
+  old sheet-based D-31 mechanism. Fix direction: a staff-authenticated exact-client link builder,
+  then re-issue links before flipping fail-closed.
+
+- **#813 candidate containment:** the SPA strips `client_review_token` if it appears in a fetched
+  or cached public row, and signed-in staff copy actions request one scoped token from the
+  already-live authenticated `client-review-link` v2 function at copy time. Release still requires
+  the guarded caller merge, link re-share, and documented fail-closed proof; the issuer is not
+  redeployed unless its source changes.
 - The Social Media Managers tab carries a `linear_api_key` column (7 per-SMM Linear API
   keys) — **publicly readable** via gviz. Rotation + removal owed.

@@ -1,5 +1,11 @@
 # Samples v2 ↔ Calendar — Parity Log
 
+> **CURRENT-STATE OVERRIDE (2026-07-14; F46/F73).** This is append-only build/parity history, not
+> a live topology or flag contract. SXR is GA default-on; default-off statements describe rollout
+> and exposed a current early-boot/deep-link mismatch. The embedded `MJb...` graph is
+> inactive/unpublished, so its old “live/mandatory” row cannot authorize publish or rollback;
+> scheduled reconcilers currently heal inbound state. Use the current register/System Map.
+
 **Why this file exists.** Samples v2 ("Sample Reviews") is a **fully-isolated fork** of the content
 calendar's review machinery (deliberate decision: no shared code, so a calendar change can never
 break samples and vice-versa). The cost of a fork is **drift**: a bug fixed in the calendar is NOT
@@ -88,6 +94,12 @@ keep them in lock-step (see `docs/archive/SAMPLES_V2_PLAN.md` §13).
 ---
 
 ## 2. Change Log
+
+> **Current correction (2026-07-14, F117):** the historical rows below describe the intended
+> tokened Samples New client surface. They do not prove the later `v=samples` retirement redirect is
+> safe. That old URL now verifies one client and then mounts generic SXR without carrying the
+> binding, so residual pins/Add-client can select another client while client actions remain active.
+> Fail closed or restore an exact-client server-bound handoff before treating old links as parity.
 
 > Add a row whenever you change the calendar side of any registry entry above (or a SHARED artifact in
 > a way that affects only one surface). `Mirror?` = does samples need the same change. `Status` =

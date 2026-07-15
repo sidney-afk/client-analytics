@@ -19,8 +19,6 @@ const zlib = require('zlib');
 
 const PRODUCTION_REF = 'uzltbbrjidmjwwfakwve';
 const DB_URL = String(process.env.TRACK_B_BACKUP_DATABASE_URL || '');
-const SUPA_URL = String(process.env.SUPABASE_URL || `https://${PRODUCTION_REF}.supabase.co`).replace(/\/$/, '');
-const SUPA_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 const DRIVE_FOLDER_ID = String(process.env.TRACK_B_BACKUP_DRIVE_FOLDER_ID || '');
 const DRIVE_CREDENTIALS_INPUT = String(
   process.env.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON
@@ -29,13 +27,15 @@ const DRIVE_CREDENTIALS_INPUT = String(
 );
 const SLACK_WEBHOOK = String(process.env.SLACK_ALERT_WEBHOOK || '');
 const HMAC_KEY_INPUT = String(process.env.TRACK_B_BACKUP_HMAC_KEY || '');
-const FRESHNESS_HOURS = Math.max(1, Number(process.env.TRACK_B_BACKUP_FRESHNESS_HOURS || 26));
+const FRESHNESS_HOURS = Math.max(1, Number(process.env.TRACK_B_BACKUP_FRESHNESS_HOURS || 7));
 const FILE_PREFIX = 'syncview-track-b-';
+const ALERT_MARKER_PREFIX = 'syncview-track-b-alert-';
 const PACKAGE_MAGIC = Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V3\n', 'utf8');
 const HMAC_BYTES = 32;
+const DRIVE_PAGE_SIZE = 1000;
+const MAX_DRIVE_PAGES = 100;
 const MAX_FUTURE_SKEW_MS = 10 * 60 * 1000;
 const SCHEMA_VERSION = 3;
-const MARKER_ACTION = 'track_b_backup_freshness_alert';
 
 const TABLES = Object.freeze([
   { name: 'team_members', pk: 'id' },
@@ -89,6 +89,21 @@ function snapshotName(generatedAt) {
   return name;
 }
 
+function exactTableNames(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const expected = TABLES.map(config => config.name).sort();
+  const actual = Object.keys(value).sort();
+  return actual.length === expected.length && actual.every((name, index) => name === expected[index]);
+}
+
+function assertExactTableManifest(manifest) {
+  if (Number(manifest && manifest.table_count) !== TABLES.length
+    || !exactTableNames(manifest && manifest.tables)) {
+    throw new Error('Track-B snapshot manifest does not contain the exact table allowlist');
+  }
+  return true;
+}
+
 function strictConnectionInfo(url) {
   const raw = clean(url);
   if (!raw) throw new Error('PostgreSQL connection URL is required');
@@ -112,19 +127,35 @@ function strictConnectionInfo(url) {
   if (direct) {
     if (parsed.port && parsed.port !== '5432') throw new Error('Direct Supabase PostgreSQL URL must use port 5432');
     let user;
-    try { user = decodeURIComponent(parsed.username); } catch (_) { throw new Error('PostgreSQL user is invalid'); }
+    let password;
+    try {
+      user = decodeURIComponent(parsed.username);
+      password = decodeURIComponent(parsed.password);
+    } catch (_) { throw new Error('PostgreSQL credentials are invalid'); }
     if (!/^[a-z_][a-z0-9_]*$/i.test(user)) throw new Error('Direct PostgreSQL user is invalid');
-    return { url: parsed.toString(), ref: direct[1], kind: 'direct', user };
+    return {
+      url: parsed.toString(), ref: direct[1], kind: 'direct', user, password,
+      host: parsed.hostname, port: parsed.port || '5432', database: 'postgres',
+      sslmode: parsed.searchParams.get('sslmode') || 'require',
+    };
   }
   if (!/\.pooler\.supabase\.com$/i.test(parsed.hostname)) {
     throw new Error('PostgreSQL connection URL must use an approved Supabase host');
   }
   if (parsed.port && !['5432', '6543'].includes(parsed.port)) throw new Error('Supabase pooler URL must use port 5432 or 6543');
   let user;
-  try { user = decodeURIComponent(parsed.username); } catch (_) { throw new Error('PostgreSQL user is invalid'); }
+  let password;
+  try {
+    user = decodeURIComponent(parsed.username);
+    password = decodeURIComponent(parsed.password);
+  } catch (_) { throw new Error('PostgreSQL credentials are invalid'); }
   const pooled = user.match(/^([a-z_][a-z0-9_]*)\.([a-z0-9]+)$/i);
   if (!pooled) throw new Error('Supabase pooler user must include the project ref');
-  return { url: parsed.toString(), ref: pooled[2], kind: 'pooler', user };
+  return {
+    url: parsed.toString(), ref: pooled[2], kind: 'pooler', user, password,
+    host: parsed.hostname, port: parsed.port || '5432', database: 'postgres',
+    sslmode: parsed.searchParams.get('sslmode') || 'require',
+  };
 }
 
 function connectionProjectRef(url) {
@@ -150,10 +181,14 @@ function postgresEnvironment(url, appName) {
   const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^PG/i.test(key)));
   return {
     ...environment,
-    PGDATABASE: info.url,
+    PGHOST: info.host,
+    PGPORT: info.port,
+    PGUSER: info.user,
+    PGPASSWORD: info.password,
+    PGDATABASE: info.database,
     PGCONNECT_TIMEOUT: '15',
     PGAPPNAME: appName,
-    PGSSLMODE: 'require',
+    PGSSLMODE: info.sslmode,
   };
 }
 
@@ -191,8 +226,7 @@ function readOnlyPrivilegeSql() {
       + `has_table_privilege(current_user, '${relation}', 'UPDATE'), `
       + `has_table_privilege(current_user, '${relation}', 'DELETE'), `
       + `has_table_privilege(current_user, '${relation}', 'TRUNCATE'), `
-      + `(not (select relrowsecurity from pg_class where oid='${relation}'::regclass) `
-      + `or (select rolbypassrls from pg_roles where rolname=current_user))`;
+      + `(select rolbypassrls from pg_roles where rolname=current_user)`;
   }).join(' union all ');
 }
 
@@ -210,7 +244,7 @@ function verifyReadOnlyPrivilegeOutput(text) {
       throw new Error(`Backup database role has a forbidden write privilege on public.${config.name}`);
     }
     if (row.allRows !== 't') {
-      throw new Error(`Backup database role cannot bypass RLS on public.${config.name}`);
+      throw new Error(`Backup database role does not have BYPASSRLS for public.${config.name}`);
     }
   }
   return true;
@@ -261,7 +295,7 @@ function allowedDumpControlLine(line) {
   if (/^SET default_tablespace = '';$/.test(line)) return true;
   if (/^SET default_table_access_method = heap;$/.test(line)) return true;
   if (line === "SELECT pg_catalog.set_config('search_path', '', false);") return true;
-  const sequence = line.match(/^SELECT pg_catalog\.setval\('public\.([a-z_][a-z0-9_]*)'::regclass, [0-9]+, (?:true|false)\);$/);
+  const sequence = line.match(/^SELECT pg_catalog\.setval\('public\.([a-z_][a-z0-9_]*)'(?:::regclass)?, [0-9]+, (?:true|false)\);$/);
   if (sequence) {
     const allowedSequences = new Set(TABLES.filter(config => config.identity).map(config => `${config.name}_${config.pk}_seq`));
     return allowedSequences.has(sequence[1]);
@@ -361,6 +395,7 @@ function buildManifest(dumpBytes, generatedAt = new Date().toISOString(), source
   return {
     format: 'syncview-track-b-postgresql-snapshot',
     schema_version: SCHEMA_VERSION,
+    table_count: TABLES.length,
     generated_at: generatedAt,
     completed_at: new Date().toISOString(),
     source_project_ref: assertProductionSource(sourceUrl),
@@ -464,6 +499,7 @@ function readSnapshotBytes(packageBytesInput, hmacInput = HMAC_KEY_INPUT, nowMs 
   }
   const parsed = parseStrictPgDump(dumpBytes);
   const inspected = inspectPlainDump(dumpBytes);
+  assertExactTableManifest(manifest);
   for (const config of TABLES) {
     const expected = manifest.tables && manifest.tables[config.name];
     const actual = inspected[config.name];
@@ -551,49 +587,109 @@ async function driveAccessToken(account) {
   return json.access_token;
 }
 
-async function listBackups(token) {
-  if (!DRIVE_FOLDER_ID) throw new Error('TRACK_B_BACKUP_DRIVE_FOLDER_ID is required');
-  const params = new URLSearchParams({
-    q: `'${DRIVE_FOLDER_ID.replace(/'/g, "\\'")}' in parents and trashed=false and name contains '${FILE_PREFIX}'`,
-    fields: 'files(id,name,createdTime,modifiedTime,size,md5Checksum)',
-    orderBy: 'createdTime desc', pageSize: '20', spaces: 'drive',
-    supportsAllDrives: 'true',
-    includeItemsFromAllDrives: 'true',
-  });
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!response.ok) throw new Error(`Google Drive list HTTP ${response.status}`);
-  const json = await response.json();
-  return Array.isArray(json.files) ? json.files.filter(file => isSnapshotName(file && file.name)) : [];
+async function listDriveFiles(token, query, fetchImpl = fetch, folderId = DRIVE_FOLDER_ID, driveId = '') {
+  if (!folderId) throw new Error('TRACK_B_BACKUP_DRIVE_FOLDER_ID is required');
+  const files = [];
+  const seenTokens = new Set();
+  let pageToken = '';
+  for (let page = 0; page < MAX_DRIVE_PAGES; page += 1) {
+    const params = new URLSearchParams({
+      q: `'${folderId.replace(/'/g, "\\'")}' in parents and trashed=false and (${query})`,
+      fields: 'nextPageToken,files(id,name,parents,createdTime,modifiedTime,size,md5Checksum)',
+      orderBy: 'createdTime desc', pageSize: String(DRIVE_PAGE_SIZE), spaces: 'drive',
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
+      corpora: driveId ? 'drive' : 'user',
+    });
+    if (driveId) params.set('driveId', driveId);
+    if (pageToken) params.set('pageToken', pageToken);
+    const response = await fetchImpl(`https://www.googleapis.com/drive/v3/files?${params}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(`Google Drive list HTTP ${response.status}`);
+    const json = await response.json();
+    if (!json || !Array.isArray(json.files)) throw new Error('Google Drive list response is incomplete');
+    files.push(...json.files);
+    const next = clean(json.nextPageToken);
+    if (!next) return files;
+    if (seenTokens.has(next)) throw new Error('Google Drive list returned a repeated page token');
+    seenTokens.add(next);
+    pageToken = next;
+  }
+  throw new Error('Google Drive list exceeded the pagination safety cap');
 }
 
-async function uploadBackup(token, filePath, name) {
-  const metadata = Buffer.from(JSON.stringify({ name, parents: [DRIVE_FOLDER_ID] }));
-  const bytes = fs.readFileSync(filePath);
+async function listBackups(token, fetchImpl = fetch, folderId = DRIVE_FOLDER_ID, driveId = '') {
+  const files = await listDriveFiles(token, `name contains '${FILE_PREFIX}'`, fetchImpl, folderId, driveId);
+  return files.filter(file => isSnapshotName(file && file.name));
+}
+
+function googleDriveErrorReason(payload) {
+  const error = payload && payload.error;
+  const nested = error && Array.isArray(error.errors)
+    ? error.errors.find(item => clean(item && item.reason))
+    : null;
+  const candidate = clean(nested && nested.reason || error && error.status);
+  return /^[A-Za-z0-9_.-]{1,80}$/.test(candidate) ? candidate : 'unspecified';
+}
+
+async function googleDriveHttpError(stage, response) {
+  let payload = null;
+  try { payload = await response.json(); } catch (_) {}
+  return new Error(`${stage} HTTP ${response.status} (${googleDriveErrorReason(payload)})`);
+}
+
+async function uploadDriveBytes(token, bytes, name, folderId = DRIVE_FOLDER_ID) {
+  const metadata = Buffer.from(JSON.stringify({ name, parents: [folderId] }));
   const boundary = `trackb_${crypto.randomBytes(12).toString('hex')}`;
   const body = Buffer.concat([
     Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`), metadata,
     Buffer.from(`\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`), bytes,
     Buffer.from(`\r\n--${boundary}--\r\n`),
   ]);
-  const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,createdTime,size,md5Checksum', {
+  const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,parents,driveId,createdTime,size,md5Checksum', {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` }, body,
   });
-  if (!response.ok) throw new Error(`Google Drive upload HTTP ${response.status}`);
+  if (!response.ok) throw await googleDriveHttpError('Google Drive upload', response);
   return response.json();
 }
 
-async function driveFileMetadata(token, fileId) {
+async function uploadBackup(token, filePath, name, folderId = DRIVE_FOLDER_ID) {
+  return uploadDriveBytes(token, fs.readFileSync(filePath), name, folderId);
+}
+
+async function driveFileMetadata(token, fileId, fetchImpl = fetch) {
   const params = new URLSearchParams({
-    fields: 'id,name,parents,createdTime,modifiedTime,size,md5Checksum',
+    fields: 'id,name,mimeType,parents,driveId,createdTime,modifiedTime,size,md5Checksum,capabilities(canAddChildren,canListChildren)',
     supportsAllDrives: 'true',
   });
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?${params}`, {
+  const response = await fetchImpl(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error(`Google Drive metadata HTTP ${response.status}`);
   return response.json();
+}
+
+function assertDriveFolderContext(metadata, folderId = DRIVE_FOLDER_ID, requireSharedDrive = false) {
+  if (!metadata || clean(metadata.id) !== clean(folderId)
+    || clean(metadata.mimeType) !== 'application/vnd.google-apps.folder') {
+    throw new Error('Configured Google Drive destination is not the expected folder');
+  }
+  if (!metadata.capabilities || metadata.capabilities.canAddChildren !== true
+    || metadata.capabilities.canListChildren !== true) {
+    throw new Error('Backup principal cannot add and list children in the configured Drive folder');
+  }
+  const driveId = clean(metadata.driveId);
+  if (requireSharedDrive && !driveId) {
+    throw new Error('Service-account backup destination must be inside a Google Workspace Shared Drive');
+  }
+  return { folderId: clean(folderId), driveId, sharedDrive: Boolean(driveId) };
+}
+
+async function resolveDriveContext(token, account, fetchImpl = fetch, folderId = DRIVE_FOLDER_ID) {
+  const metadata = await driveFileMetadata(token, folderId, fetchImpl);
+  const serviceAccount = Boolean(clean(account && account.client_email) && !clean(account && account.refresh_token));
+  return assertDriveFolderContext(metadata, folderId, serviceAccount);
 }
 
 async function downloadBackupBytes(token, fileId) {
@@ -604,13 +700,14 @@ async function downloadBackupBytes(token, fileId) {
   return Buffer.from(await response.arrayBuffer());
 }
 
-function assertDriveReadback(metadata, remoteBytes, localBytes, expectedName, expectedFolderId, expectedFileId = '') {
+function assertDriveReadback(metadata, remoteBytes, localBytes, expectedName, expectedFolderId, expectedFileId = '', expectedDriveId = '') {
   const expectedMd5 = md5(localBytes);
   const sameLength = remoteBytes.length === localBytes.length;
   if ((expectedFileId && clean(metadata && metadata.id) !== clean(expectedFileId))
     || clean(metadata && metadata.name) !== expectedName
     || !Array.isArray(metadata && metadata.parents)
     || !metadata.parents.map(clean).includes(expectedFolderId)
+    || (expectedDriveId && clean(metadata && metadata.driveId) !== clean(expectedDriveId))
     || Number(metadata && metadata.size) !== localBytes.length
     || clean(metadata && metadata.md5Checksum).toLowerCase() !== expectedMd5
     || !sameLength
@@ -621,17 +718,89 @@ function assertDriveReadback(metadata, remoteBytes, localBytes, expectedName, ex
   return true;
 }
 
-async function verifyUploadedBackup(token, fileId, expectedName, filePath, hmacInput = HMAC_KEY_INPUT) {
+function alertMarkerName(staleKey) {
+  return `${ALERT_MARKER_PREFIX}${sha256(clean(staleKey)).slice(0, 32)}.json`;
+}
+
+function buildAlertMarker(staleKey, ageHours, alertedAt = new Date().toISOString(), hmacInput = HMAC_KEY_INPUT) {
+  const payload = {
+    format: 'syncview-track-b-freshness-alert',
+    schema_version: 1,
+    stale_key: clean(staleKey),
+    age_hours: Number.isFinite(ageHours) ? Number(ageHours.toFixed(2)) : null,
+    threshold_hours: FRESHNESS_HOURS,
+    alerted_at: alertedAt,
+  };
+  const payloadBytes = Buffer.from(canonicalJson(payload), 'utf8');
+  return Buffer.from(canonicalJson({
+    payload,
+    hmac_sha256: hmacSha256(parseHmacKey(hmacInput), payloadBytes).toString('base64'),
+  }), 'utf8');
+}
+
+function readAlertMarker(bytes, staleKey, hmacInput = HMAC_KEY_INPUT) {
+  let envelope;
+  try { envelope = JSON.parse(Buffer.from(bytes || '').toString('utf8')); } catch (_) {
+    throw new Error('Drive freshness marker is not valid JSON');
+  }
+  const payload = envelope && envelope.payload;
+  if (!payload || payload.format !== 'syncview-track-b-freshness-alert'
+    || payload.schema_version !== 1 || clean(payload.stale_key) !== clean(staleKey)) {
+    throw new Error('Drive freshness marker does not match the stale snapshot');
+  }
+  const payloadBytes = Buffer.from(canonicalJson(payload), 'utf8');
+  let actual;
+  try { actual = Buffer.from(clean(envelope.hmac_sha256), 'base64'); } catch (_) {
+    throw new Error('Drive freshness marker authentication is invalid');
+  }
+  const expected = hmacSha256(parseHmacKey(hmacInput), payloadBytes);
+  if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) {
+    throw new Error('Drive freshness marker authentication failed');
+  }
+  return payload;
+}
+
+async function verifyUploadedBackup(token, fileId, expectedName, filePath, driveContext, hmacInput = HMAC_KEY_INPUT) {
   const localBytes = fs.readFileSync(path.resolve(filePath));
   const localSnapshot = readSnapshotBytes(localBytes, hmacInput);
   const metadata = await driveFileMetadata(token, fileId);
   const remoteBytes = await downloadBackupBytes(token, fileId);
-  assertDriveReadback(metadata, remoteBytes, localBytes, expectedName, DRIVE_FOLDER_ID, fileId);
+  assertDriveReadback(metadata, remoteBytes, localBytes, expectedName, driveContext.folderId, fileId, driveContext.driveId);
   const remoteSnapshot = readSnapshotBytes(remoteBytes, hmacInput);
   if (remoteSnapshot.manifest.snapshot.sha256 !== localSnapshot.manifest.snapshot.sha256) {
     throw new Error('Google Drive backup readback snapshot checksum mismatch');
   }
-  return { metadata, manifest: remoteSnapshot.manifest, bytes: remoteBytes.length };
+  return {
+    metadata,
+    manifest: remoteSnapshot.manifest,
+    bytes: remoteBytes.length,
+    package_sha256: sha256(remoteBytes),
+    compressed_sha256: remoteSnapshot.manifest.snapshot.compressed_sha256,
+  };
+}
+
+async function hasFreshnessMarker(token, staleKey, driveContext) {
+  const name = alertMarkerName(staleKey);
+  const escaped = name.replace(/'/g, "\\'");
+  const files = await listDriveFiles(token, `name = '${escaped}'`, fetch, driveContext.folderId, driveContext.driveId);
+  for (const file of files) {
+    try {
+      const bytes = await downloadBackupBytes(token, file.id);
+      readAlertMarker(bytes, staleKey);
+      return true;
+    } catch (_) {}
+  }
+  return false;
+}
+
+async function writeFreshnessMarker(token, staleKey, ageHours, driveContext) {
+  const name = alertMarkerName(staleKey);
+  const bytes = buildAlertMarker(staleKey, ageHours);
+  const uploaded = await uploadDriveBytes(token, bytes, name, driveContext.folderId);
+  const metadata = await driveFileMetadata(token, uploaded.id);
+  const remoteBytes = await downloadBackupBytes(token, uploaded.id);
+  assertDriveReadback(metadata, remoteBytes, bytes, name, driveContext.folderId, uploaded.id, driveContext.driveId);
+  readAlertMarker(remoteBytes, staleKey);
 }
 
 function selectAuthenticatedCandidates(candidates, hmacInput = HMAC_KEY_INPUT, nowMs = Date.now()) {
@@ -685,91 +854,108 @@ async function createAndUpload() {
     verifySnapshotFile(output);
     const account = parseDriveCredentials();
     const token = await driveAccessToken(account);
-    const uploaded = await uploadBackup(token, output, name);
-    const readback = await verifyUploadedBackup(token, uploaded.id, name, output);
+    const driveContext = await resolveDriveContext(token, account);
+    const uploaded = await uploadBackup(token, output, name, driveContext.folderId);
+    const readback = await verifyUploadedBackup(token, uploaded.id, name, output, driveContext);
     console.log(JSON.stringify({
       ok: true,
       file_id: uploaded.id,
       file_name: name,
+      last_known_good_advanced: true,
       snapshot_sha256: manifest.snapshot.sha256,
+      compressed_sha256: readback.compressed_sha256,
+      package_sha256: readback.package_sha256,
       tables: manifest.tables,
       bytes: readback.bytes,
       drive_md5: readback.metadata.md5Checksum,
+      hmac_verified: true,
       readback_verified: true,
+      parent_verified: true,
+      shared_drive: driveContext.sharedDrive,
     }));
   } finally {
     try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (_) {}
   }
 }
 
-async function supabaseEvents(action, limit = 1) {
-  if (!SUPA_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required');
-  const response = await fetch(`${SUPA_URL}/rest/v1/deliverable_events?select=id,ts,payload&action=eq.${encodeURIComponent(action)}&order=id.desc&limit=${limit}`, {
-    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, Accept: 'application/json' },
-  });
-  if (!response.ok) throw new Error(`Supabase freshness marker read HTTP ${response.status}`);
-  return response.json();
-}
-
-async function writeFreshnessMarker(staleKey, ageHours) {
-  const response = await fetch(`${SUPA_URL}/rest/v1/deliverable_events`, {
-    method: 'POST',
-    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify([{
-      client_slug: '_system', action: MARKER_ACTION, source: 'system', actor: 'github-actions-track-b-backup',
-      payload: { stale_key: staleKey, age_hours: ageHours, threshold_hours: FRESHNESS_HOURS },
-    }]),
-  });
-  if (!response.ok) throw new Error(`Supabase freshness marker write HTTP ${response.status}`);
-}
-
-async function postSlack(text) {
-  if (!SLACK_WEBHOOK) throw new Error('SLACK_ALERT_WEBHOOK is required for backup freshness alerts');
-  const response = await fetch(SLACK_WEBHOOK, {
+async function postSlack(text, webhook = SLACK_WEBHOOK, fetchImpl = fetch) {
+  if (!clean(webhook)) return false;
+  const response = await fetchImpl(webhook, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
   });
   const body = await response.text();
   if (!response.ok || clean(body).toLowerCase() !== 'ok') throw new Error(`Slack freshness alert failed with HTTP ${response.status}`);
+  return true;
+}
+
+function classifyFreshness({ fileCount, newestCandidateValid, latestGeneratedMs, nowMs, thresholdHours }) {
+  const ageHours = Number.isFinite(latestGeneratedMs) ? (nowMs - latestGeneratedMs) / 3600000 : Infinity;
+  let reason = '';
+  if (!fileCount) reason = 'missing';
+  else if (!newestCandidateValid) reason = 'verification_failed';
+  else if (!Number.isFinite(latestGeneratedMs)) reason = 'missing';
+  else if (ageHours > thresholdHours) reason = 'stale';
+  return { ok: !reason, reason, ageHours };
 }
 
 async function checkFreshness() {
   const account = parseDriveCredentials();
   const token = await driveAccessToken(account);
-  const files = await listBackups(token);
+  const driveContext = await resolveDriveContext(token, account);
+  const files = await listBackups(token, fetch, driveContext.folderId, driveContext.driveId);
   const nowMs = Date.now();
-  const selection = selectAuthenticatedCandidates(await downloadDriveCandidates(token, files), HMAC_KEY_INPUT, nowMs);
+  const candidates = await downloadDriveCandidates(token, files);
+  const selection = selectAuthenticatedCandidates(candidates, HMAC_KEY_INPUT, nowMs);
   const latest = selection.latest;
-  const ageHours = latest ? (nowMs - latest.generatedMs) / 3600000 : Infinity;
-  const stale = !latest || ageHours > FRESHNESS_HOURS;
-  if (!stale) {
+  const newestCandidateValid = !candidates.length
+    || Boolean(selectAuthenticatedCandidates([candidates[0]], HMAC_KEY_INPUT, nowMs).latest);
+  const freshness = classifyFreshness({
+    fileCount: files.length,
+    newestCandidateValid,
+    latestGeneratedMs: latest ? latest.generatedMs : NaN,
+    nowMs,
+    thresholdHours: FRESHNESS_HOURS,
+  });
+  if (freshness.ok) {
     console.log(JSON.stringify({
       ok: true,
       stale: false,
       latest_file_id: latest.file.id,
       authenticated_generated_at: latest.snapshot.manifest.generated_at,
-      age_hours: Number(ageHours.toFixed(2)),
+      age_hours: Number(freshness.ageHours.toFixed(2)),
       threshold_hours: FRESHNESS_HOURS,
       invalid_candidates: selection.invalidCount,
+      alert_transport: 'github_workflow_failure_email',
+      shared_drive: driveContext.sharedDrive,
     }));
     return;
   }
   const staleKey = latest
     ? `snapshot:${latest.snapshot.manifest.snapshot.sha256.slice(0, 24)}`
     : `no-valid-snapshot:${new Date(nowMs).toISOString().slice(0, 10)}`;
-  const markers = await supabaseEvents(MARKER_ACTION, 20);
-  const alreadyPaged = (markers || []).some(row => clean(row && row.payload && row.payload.stale_key) === staleKey);
-  if (!alreadyPaged) {
-    const ageText = Number.isFinite(ageHours) ? `${ageHours.toFixed(1)}h` : 'missing';
-    await postSlack(`SyncView Track-B private backup is stale. age=${ageText}; threshold=${FRESHNESS_HOURS}h; backup_handle=${staleKey}`);
-    await writeFreshnessMarker(staleKey, Number.isFinite(ageHours) ? Number(ageHours.toFixed(2)) : null);
+  let alreadyPaged = false;
+  let slackAlerted = false;
+  if (SLACK_WEBHOOK) {
+    alreadyPaged = await hasFreshnessMarker(token, staleKey, driveContext);
+    if (!alreadyPaged) {
+      const ageText = Number.isFinite(freshness.ageHours) ? `${freshness.ageHours.toFixed(1)}h` : 'missing';
+      slackAlerted = await postSlack(`SyncView Track-B private backup failed freshness. reason=${freshness.reason}; age=${ageText}; threshold=${FRESHNESS_HOURS}h; backup_handle=${staleKey}`);
+      await writeFreshnessMarker(token, staleKey, freshness.ageHours, driveContext);
+    }
   }
+  const ageText = Number.isFinite(freshness.ageHours) ? `${freshness.ageHours.toFixed(1)}h` : 'missing';
+  console.error(`Track-B backup freshness FAILED: reason=${freshness.reason}; age=${ageText}; threshold=${FRESHNESS_HOURS}h. GitHub Actions must mark this run failed so the repository owner's Actions email notification can fire.`);
   console.log(JSON.stringify({
     ok: false,
     stale: true,
-    alerted: !alreadyPaged,
+    failure_reason: freshness.reason,
+    alerted: slackAlerted,
+    slack_configured: Boolean(SLACK_WEBHOOK),
+    slack_already_paged: alreadyPaged,
+    alert_transport: 'github_workflow_failure_email',
     stale_key: staleKey,
     authenticated_generated_at: latest ? latest.snapshot.manifest.generated_at : null,
-    age_hours: Number.isFinite(ageHours) ? Number(ageHours.toFixed(2)) : null,
+    age_hours: Number.isFinite(freshness.ageHours) ? Number(freshness.ageHours.toFixed(2)) : null,
     threshold_hours: FRESHNESS_HOURS,
     invalid_candidates: selection.invalidCount,
   }));
@@ -781,7 +967,8 @@ async function downloadLatest() {
   if (!output) throw new Error('download-latest requires --output=PATH');
   const account = parseDriveCredentials();
   const token = await driveAccessToken(account);
-  const files = await listBackups(token);
+  const driveContext = await resolveDriveContext(token, account);
+  const files = await listBackups(token, fetch, driveContext.folderId, driveContext.driveId);
   if (!files.length) throw new Error('No Track-B backup exists in the configured Drive folder');
   const selection = selectAuthenticatedCandidates(await downloadDriveCandidates(token, files));
   if (!selection.latest) throw new Error('No authenticated Track-B backup exists in the configured Drive folder');
@@ -796,6 +983,7 @@ async function downloadLatest() {
     generated_at: manifest.generated_at,
     snapshot_sha256: manifest.snapshot.sha256,
     invalid_candidates: selection.invalidCount,
+    shared_drive: driveContext.sharedDrive,
   }));
 }
 
@@ -809,7 +997,7 @@ async function main() {
 
 if (require.main === module) {
   main().catch(error => {
-    console.error(error && error.stack || error && error.message || String(error));
+    console.error(`Track-B backup workflow FAILED: ${error && error.message || String(error)}`);
     process.exit(1);
   });
 }
@@ -822,14 +1010,20 @@ module.exports = {
   PRODUCTION_REF,
   SCHEMA_VERSION,
   TABLES,
+  assertDriveFolderContext,
   assertDriveReadback,
+  assertExactTableManifest,
   assertProductionSource,
   authenticatedGeneratedAt,
   buildManifest,
   canonicalJson,
+  classifyFreshness,
   connectionProjectRef,
+  googleDriveErrorReason,
   inspectPlainDump,
   isSnapshotName,
+  listBackups,
+  listDriveFiles,
   md5,
   packSnapshot,
   parseHmacKey,
@@ -837,7 +1031,9 @@ module.exports = {
   parseStrictPgDump,
   pgDumpArgs,
   postgresEnvironment,
+  postSlack,
   readOnlyPrivilegeSql,
+  readAlertMarker,
   readSnapshotBytes,
   readSnapshotFile,
   renderSafeCopySections,
@@ -848,4 +1044,6 @@ module.exports = {
   strictConnectionInfo,
   verifyReadOnlyPrivilegeOutput,
   verifySnapshotFile,
+  alertMarkerName,
+  buildAlertMarker,
 };

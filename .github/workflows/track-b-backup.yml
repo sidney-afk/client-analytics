@@ -22,15 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       TRACK_B_BACKUP_DATABASE_URL: ${{ secrets.TRACK_B_BACKUP_DATABASE_URL }}
       TRACK_B_BACKUP_HMAC_KEY: ${{ secrets.TRACK_B_BACKUP_HMAC_KEY }}
       TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
       TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ vars.TRACK_B_BACKUP_DRIVE_FOLDER_ID }}
-      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
-      TRACK_B_BACKUP_FRESHNESS_HOURS: '26'
-      BACKUP_PATH: ${{ runner.temp }}/syncview-track-b-latest.snapshot
+      TRACK_B_BACKUP_FRESHNESS_HOURS: '7'
     steps:
       - uses: actions/checkout@v4
 
@@ -41,14 +37,24 @@ jobs:
       - name: Install PostgreSQL snapshot client
         shell: bash
         run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error \
+            --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client
+          sudo apt-get install -y -qq postgresql-client-17
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          pg_dump --version
 
       - name: Require private backup credentials
         shell: bash
         run: |
           missing=0
-          for name in TRACK_B_BACKUP_DATABASE_URL TRACK_B_BACKUP_HMAC_KEY SUPABASE_SERVICE_ROLE_KEY TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON TRACK_B_BACKUP_DRIVE_FOLDER_ID SLACK_ALERT_WEBHOOK; do
+          for name in TRACK_B_BACKUP_DATABASE_URL TRACK_B_BACKUP_HMAC_KEY TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON TRACK_B_BACKUP_DRIVE_FOLDER_ID; do
             if [ -z "${!name}" ]; then
               echo "::error::Missing $name"
               missing=1
@@ -58,16 +64,16 @@ jobs:
 
       - name: Take one transactional Track-B snapshot and upload to private Drive
         id: export
-        run: node scripts/track-b-backup.js export --output="$BACKUP_PATH"
+        run: node scripts/track-b-backup.js export --output="$RUNNER_TEMP/syncview-track-b-latest.snapshot"
 
-      - name: Check 26-hour Drive freshness
+      - name: Check seven-hour Drive freshness
         if: always()
         run: node scripts/track-b-backup.js freshness
 
       - name: Remove runner-local sensitive package
         if: always()
         shell: bash
-        run: rm -f "$BACKUP_PATH"
+        run: rm -f "$RUNNER_TEMP/syncview-track-b-latest.snapshot"
 
   restore_rehearsal:
     if: github.event_name == 'workflow_dispatch' && inputs.restore_rehearsal == true
@@ -81,7 +87,6 @@ jobs:
       TRACK_B_RESTORE_DATABASE_URL: ${{ secrets.TRACK_B_RESTORE_DATABASE_URL }}
       TRACK_B_RESTORE_EXPECTED_PROJECT_REF: ${{ vars.TRACK_B_RESTORE_EXPECTED_PROJECT_REF }}
       TRACK_B_RESTORE_CONFIRM: SCRATCH_ONLY
-      RESTORE_PACKAGE: ${{ runner.temp }}/syncview-track-b-restore.snapshot
     steps:
       - uses: actions/checkout@v4
 
@@ -104,16 +109,26 @@ jobs:
       - name: Install PostgreSQL client
         shell: bash
         run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error \
+            --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client
+          sudo apt-get install -y -qq postgresql-client-17
+          export PATH="/usr/lib/postgresql/17/bin:$PATH"
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          psql --version
 
       - name: Download and validate latest private package
-        run: node scripts/track-b-backup.js download-latest --output="$RESTORE_PACKAGE"
+        run: node scripts/track-b-backup.js download-latest --output="$RUNNER_TEMP/syncview-track-b-restore.snapshot"
 
       - name: Timed scratch restore and integrity verification
-        run: node scripts/track-b-restore-rehearsal.js --apply --package="$RESTORE_PACKAGE"
+        run: node scripts/track-b-restore-rehearsal.js --apply --package="$RUNNER_TEMP/syncview-track-b-restore.snapshot"
 
       - name: Remove runner-local sensitive package
         if: always()
         shell: bash
-        run: rm -f "$RESTORE_PACKAGE"
+        run: rm -f "$RUNNER_TEMP/syncview-track-b-restore.snapshot"

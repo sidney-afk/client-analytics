@@ -1,7 +1,7 @@
 # Create-Post & Batch Intake Model (LOCKED)
 
-**Status:** Locked decision — owner-confirmed 2026-07-13; implemented in the
-draft #813 stack, not deployed.
+**Status:** Locked decision — owner-confirmed 2026-07-13; partially implemented in the
+draft #813 stack, not deployed. Submit's single-team Advanced actions remain open under F101.
 **Applies to:** how new work (batches + deliverables) is created once SyncView is the
 authority for a team. This is the target model the write-UI intake path (PR #813 and
 its calendar card-materialization) must implement.
@@ -77,16 +77,19 @@ option reuses Submit's intake logic so there is one creation mechanism, two door
 
 ## Before-go-live implementation gap check
 
-The draft #813 intake path now covers all seven locked points. These checks record
-source/test evidence; they are not a deployment or cutover approval:
+The reconciled #813 candidate records source/test changes for most of the seven locked points,
+but does not close F101. These checks are candidate evidence only; they are not a deployment,
+merge, or cutover approval, and current `main` remains governed by the F101 release gate below.
 
+### #813 candidate evidence (unmerged)
 - [x] **Per-client calendar entry:** staff Create Post derives the client from the
   open calendar; there is no client picker in the dialog.
 - [x] **Batch choice:** the latest active client batch is selected by default, with
   an explicit create-new-batch alternative (and new batch is the safe fallback when
   no active batch exists).
-- [x] **Paired work:** one shared item builder emits exactly one Video and one Graphics
-  deliverable with the same calendar-card identity.
+- [ ] **Paired work (partial):** Calendar Create Post emits exactly one Video and one Graphics
+  deliverable with the same calendar-card identity. Enrolled Submit still permits Advanced
+  Video-only or Thumbnail-only intake, so the shared candidate does not yet satisfy F101.
 - [x] **Per-team filing:** the gateway resolves and validates Video and Graphics
   project mappings independently and fails closed on a missing or ambiguous mapping.
 - [x] **One new-batch engine:** calendar new-batch and Submit both use the same
@@ -101,7 +104,33 @@ source/test evidence; they are not a deployment or cutover approval:
 This remains an additive, authority-gated draft. No Edge Function or browser bundle
 was deployed for this gap closure, no Linear write was used as evidence, and no runtime
 flag changed. With production authority still Linear/Linear and the independent legacy
-parity allowance disabled, real-client intake fails closed. The existing service-only
-TEST override remains the only pre-flip bypass; browser staff/client credentials cannot
-self-enter TEST scope. The owner controls deployment and any later authority/outbound
-change separately.
+parity allowance disabled, an enrolled real client's native intake fails closed; unlisted
+real clients remain on MAIN's F44 durable-receipt legacy path. The existing service-only TEST
+override remains the only pre-flip bypass; browser staff/client credentials cannot self-enter
+TEST scope. The owner controls deployment and any later authority/outbound change separately.
+
+### Current-main release gate â€” F101
+
+Until the candidate is merged and reverified, the later `main` audit remains authoritative:
+
+- [ ] Create Post is invoked per-client from the calendar (client implicit).
+- [ ] Create Post offers **latest-batch (default)** vs **new-batch**.
+- [ ] Each post creates **both** a Video and a Graphics sub-issue under the chosen batch.
+- [ ] Sub-issues file into the correct **per-team mapped project** (video vs graphics).
+- [ ] The **new-batch** path reuses Submit's native intake (parent + deliverables).
+- [ ] Batch creation works from **both** Submit and Create Post.
+- [ ] No free-form issue/sub-issue creation surface exists in the Linear tab.
+
+### Current implementation correction — F101
+
+The shipped Submit form still exposes Advanced **Video issue only** and **Thumbnail issue only**
+actions. Current card materialization and parked PR #813 create only the selected deliverable but
+initialize the absent sibling as `In Progress`. Calendar then counts that nonexistent leg in overall
+and client-ready state while disabling the control that could advance it.
+
+The locked paired decision above therefore requires those single-team actions to be removed and
+rejected server-side before native intake merges. Existing single-link cards must be classified as
+missing-link repairs versus deliberate exceptions. **Owner question:** are any deliberate
+single-team posts still supported? If yes, ratify that exception and require explicit active/N/A
+component semantics across every review, readiness, queue, comment, alert, artifact, and migration
+path; do not represent absence as approval or unfinished work.

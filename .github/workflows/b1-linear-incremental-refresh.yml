@@ -45,20 +45,29 @@ jobs:
           fi
           exit "$missing"
 
+      - name: Prove public artifact projection
+        run: node test/public-b1-artifact.js
+
       - name: Run incremental refresh
         shell: bash
         run: |
-          mkdir -p artifacts
-          node scripts/b1-linear-backfill.js \
+          mkdir -p artifacts .codex-tmp
+          if ! node scripts/b1-linear-backfill.js \
             --incremental \
             --apply \
             --page-delay-ms 500 \
-            --out artifacts/b1-linear-incremental-refresh.md \
-            --json-out artifacts/b1-linear-incremental-refresh.json
+            --json-out artifacts/b1-linear-incremental-refresh.json \
+            > .codex-tmp/b1-private.log 2>&1; then
+            echo "::error::B1 refresh failed. Detailed output was retained only in the ephemeral runner."
+            exit 1
+          fi
+          echo "B1 refresh completed; only aggregate allowlisted JSON will be uploaded."
+          node test/public-b1-artifact.js artifacts/b1-linear-incremental-refresh.json
 
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: success()
         with:
           name: b1-linear-incremental-refresh
-          path: artifacts/
+          path: artifacts/b1-linear-incremental-refresh.json
           if-no-files-found: ignore
+          retention-days: 1

@@ -7,6 +7,7 @@
  *
  * Required:
  *   SUPABASE_SERVICE_ROLE_KEY=...
+ *   SYNCVIEW_STAFF_KEY=...
  *   A2_PARITY_CONFIRM=sidneylaruel
  *
  * Optional:
@@ -17,6 +18,7 @@
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co').replace(/\/+$/, '');
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const STAFF_KEY = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
 const CLIENT = process.env.A2_PARITY_CLIENT || 'sidneylaruel';
 const CONFIRM = process.env.A2_PARITY_CONFIRM || '';
 const SETTLE_MS = Number(process.env.A2_PARITY_SETTLE_MS || 750);
@@ -34,6 +36,7 @@ function fail(msg) {
 }
 
 if (!SERVICE_KEY) fail('Missing SUPABASE_SERVICE_ROLE_KEY; refusing to run parity writes.');
+if (!STAFF_KEY) fail('Missing SYNCVIEW_STAFF_KEY; refusing to call the protected Edge writers.');
 if (CLIENT !== 'sidneylaruel' && process.env.A2_PARITY_ALLOW_NON_TEST !== '1') {
   fail(`Refusing to run against non-TEST client "${CLIENT}".`);
 }
@@ -132,14 +135,14 @@ async function restoreTable(table, client, ids, originalRows) {
 }
 
 async function callEndpoint(url, payload) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Syncview-Source': 'qa',
+  };
+  if (url.startsWith(`${SUPABASE_URL}/functions/v1/`)) headers['X-Syncview-Key'] = STAFF_KEY;
   const resp = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Syncview-Actor': 'A2 parity',
-      'X-Syncview-Role': 'system',
-      'X-Syncview-Source': 'qa',
-    },
+    headers,
     body: JSON.stringify(payload),
   });
   const text = await resp.text();

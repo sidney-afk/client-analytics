@@ -1,9 +1,10 @@
 // Supabase Edge Function: filming-plans
 //
 // Source-of-truth gateway for client master filming-plan Google Docs.
-// Reads are public through RLS, but writes require the admin role key or the
-// historical onboarding passphrase in X-Syncview-Key. Do not accept
-// CREDENTIALS_STAFF_KEY here: only admins should change master-doc links.
+// Reads require a verified staff role key (or the historical onboarding
+// passphrase during its existing transition window). Writes remain narrower:
+// only the admin role key or that same historical passphrase can change master-
+// doc links. Do not accept CREDENTIALS_STAFF_KEY here.
 //
 // Required env:
 //   SUPABASE_URL
@@ -56,6 +57,14 @@ function requireOnboardingKey(req: Request): Response | null {
   return null;
 }
 
+function requireFilmingPlansReadKey(req: Request): Response | null {
+  const legacyKey = clean(Deno.env.get("ONBOARDING_STAFF_KEY"));
+  const supplied = clean(req.headers.get("x-syncview-key"));
+  const auth = authorizeStaffKey(supplied, ["admin", "smm", "creative"], [legacyKey]);
+  if (!auth.ok) return json({ ok: false, error: auth.role ? "forbidden" : "unauthorized" }, staffAuthFailureStatus(auth));
+  return null;
+}
+
 function serialize(row: JsonMap): JsonMap {
   return {
     client_slug: row.client_slug || "",
@@ -73,6 +82,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "GET" && req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
 
+  // Authenticate before reading service-role configuration or constructing the
+  // privileged client. GET is available to every verified staff role; POST
+  // preserves the existing admin-only write boundary.
+  const authError = req.method === "GET"
+    ? requireFilmingPlansReadKey(req)
+    : requireOnboardingKey(req);
+  if (authError) return authError;
+
   try {
     const url = Deno.env.get("SUPABASE_URL") || "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -89,9 +106,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (error) throw error;
       return json({ ok: true, plans: (data || []).map(serialize) });
     }
-
-    const authError = requireOnboardingKey(req);
-    if (authError) return authError;
 
     const body = await req.json().catch(() => ({})) as JsonMap;
     const clientName = clean(body.clientName || body.client_name);

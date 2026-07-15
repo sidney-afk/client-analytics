@@ -10,7 +10,18 @@
 //   SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
-import { captureGraphicTweakBaseline, scanGraphicTweakResolution } from "../_shared/thumbnail-revisions.ts";
+import {
+  authorizeBrowserWrite,
+  browserWriteAuthResponse,
+  normalizeBrowserWriteClient,
+} from "../_shared/browser-write-auth.ts";
+import {
+  captureGraphicTweakBaseline,
+  scanGraphicTweakResolution,
+  shouldScanGraphicTweakResolution,
+  thumbnailRevisionV2AllowsClient,
+  thumbnailRevisionV2Config,
+} from "../_shared/thumbnail-revisions.ts";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -82,16 +93,6 @@ function clean(v: unknown): string {
   return String(v == null ? "" : v).trim();
 }
 
-function actorFrom(req: Request, body: JsonMap): Actor {
-  const bodyActor = body.actor && typeof body.actor === "object" ? body.actor as JsonMap : {};
-  const bodyActorName = typeof body.actor === "string" ? body.actor : "";
-  const actor = clean(req.headers.get("x-syncview-actor") || bodyActor.name || body.actor_name || bodyActorName) || null;
-  const role = clean(req.headers.get("x-syncview-role") || bodyActor.role || body.actor_role) || null;
-  const rawSource = clean(req.headers.get("x-syncview-source") || body.source || "ui").toLowerCase();
-  const source = rawSource === "linear" || rawSource === "reconcile" ? rawSource : "ui";
-  return { actor, role, source };
-}
-
 function sv(o: JsonMap | ExistingRow | null | undefined, k: string): string {
   return String(o && o[k] == null ? "" : o ? o[k] : "");
 }
@@ -102,6 +103,22 @@ function has(o: JsonMap | ExistingRow, k: string): boolean {
 
 function isoNow(): string {
   return new Date().toISOString();
+}
+
+function mintThumbRev(existing: unknown, updatedAt: string): string {
+  const before = clean(existing);
+  const parsed = Date.parse(updatedAt);
+  const epochMs = Number.isFinite(parsed) ? parsed : Date.now();
+  let token = epochMs.toString(36);
+  if (token === before) token = (epochMs + 1).toString(36);
+  return token;
+}
+
+function shouldMintThumbRev(patch: JsonMap, incoming: JsonMap, existing: ExistingRow): boolean {
+  // Presence is intentional: rewriting the same Drive link is the signal used
+  // when the file behind it changed. Do not reduce this to a value comparison.
+  return has(patch, "thumbnail_url") || has(patch, "asset_url") ||
+    shouldScanGraphicTweakResolution(patch, incoming, existing);
 }
 
 function waitUntil(p: Promise<unknown>): void {
@@ -115,7 +132,7 @@ function waitUntil(p: Promise<unknown>): void {
 }
 
 function buildIncoming(body: JsonMap, now: string): { client: string; row: JsonMap } {
-  const client = clean(body.client);
+  const client = normalizeBrowserWriteClient(body.client);
   if (!client) throw new Error("client required");
   const sample = body.sample && typeof body.sample === "object" ? body.sample as JsonMap : {};
   let id = clean(sample.id);
@@ -390,12 +407,14 @@ function buildEvents(client: string, inc: Row, patch: JsonMap, existing: Existin
       client,
       sample_id: sampleId,
       ts: now,
-      actor: actor.actor,
-      role: extra.role === undefined ? actor.role : extra.role || null,
       action,
-      source: actor.source,
       created_at: now,
       ...extra,
+      // Principal fields stay server-owned even when a semantic event helper
+      // supplies other metadata.
+      actor: actor.actor,
+      role: actor.role,
+      source: actor.source,
     });
   };
 
@@ -414,19 +433,19 @@ function buildEvents(client: string, inc: Row, patch: JsonMap, existing: Existin
   }
 
   if (has(patch, "client_video_approved_at") && sv(inc, "client_video_approved_at") && sv(inc, "client_video_approved_at") !== sv(existing, "client_video_approved_at")) {
-    ev("approve_video", { component: "video", role: "client" });
+    ev("approve_video", { component: "video" });
   }
   if (has(patch, "client_graphic_approved_at") && sv(inc, "client_graphic_approved_at") && sv(inc, "client_graphic_approved_at") !== sv(existing, "client_graphic_approved_at")) {
-    ev("approve_graphic", { component: "graphic", role: "client" });
+    ev("approve_graphic", { component: "graphic" });
   }
   if (has(patch, "kasper_approved_at") && sv(inc, "kasper_approved_at") && sv(inc, "kasper_approved_at") !== sv(existing, "kasper_approved_at")) {
-    ev("kasper_approve", { component: null, role: "kasper" });
+    ev("kasper_approve", { component: null });
   }
   if (has(patch, "kasper_finished_at") && sv(inc, "kasper_finished_at") && sv(inc, "kasper_finished_at") !== sv(existing, "kasper_finished_at")) {
-    ev("kasper_finish", { component: null, role: "kasper" });
+    ev("kasper_finish", { component: null });
   }
   if (has(patch, "kasper_closed_at") && sv(inc, "kasper_closed_at") && sv(inc, "kasper_closed_at") !== sv(existing, "kasper_closed_at")) {
-    ev("kasper_close", { component: null, role: "kasper" });
+    ev("kasper_close", { component: null });
   }
   if (has(patch, "video_urgent_pinged_at") && sv(inc, "video_urgent_pinged_at") && sv(inc, "video_urgent_pinged_at") !== sv(existing, "video_urgent_pinged_at")) {
     ev("urgent_ping", {
@@ -479,7 +498,7 @@ Deno.serve(async (req: Request) => {
   let client = "";
   let id = "";
   let outcome = "error";
-  const actor = actorFrom(req, body);
+  let actor: Actor = { actor: null, role: null, source: "sample-review-upsert" };
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -491,12 +510,23 @@ Deno.serve(async (req: Request) => {
     const built = buildIncoming(body, now);
     client = built.client;
     id = clean(built.row.id);
+    actor = await authorizeBrowserWrite(supabase, req, client, "sample-review-upsert");
     const existingRead = await readExisting(supabase, client, id);
     const twins = await readLinkTwins(supabase, client, built.row);
     const guarded = applyGuards(built.row, existingRead.row, twins, existingRead.failed, Date.now());
     if (guarded._conflict === true) {
       outcome = guarded.conflict ? "conflict" : "read_failure";
       return json(guarded);
+    }
+
+    if (shouldMintThumbRev(built.row, guarded, existingRead.row)) {
+      let v2Enabled = false;
+      try {
+        v2Enabled = thumbnailRevisionV2AllowsClient(await thumbnailRevisionV2Config(supabase), client);
+      } catch (error) {
+        console.warn("sample-review-upsert thumbnail_revision_v2 flag unavailable", error);
+      }
+      if (v2Enabled) guarded.thumb_rev = mintThumbRev(existingRead.row.thumb_rev, now);
     }
 
     const sample = stripPrivate(guarded);
@@ -532,6 +562,11 @@ Deno.serve(async (req: Request) => {
     outcome = "ok";
     return json({ ok: true, sample: responsePayload(sample) });
   } catch (e) {
+    const auth = browserWriteAuthResponse(e);
+    if (auth) {
+      outcome = "denied";
+      return json({ ok: false, error: auth.code }, auth.status);
+    }
     const msg = e instanceof Error ? e.message : "request failed";
     const status = msg.indexOf("phantom-row guard") === 0 ? 400 : 500;
     return json({ ok: false, error: msg }, status);

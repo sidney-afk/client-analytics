@@ -1,8 +1,18 @@
 # Linear comment history backfill playbook
 
+> [!CAUTION]
+> **HISTORICAL EXECUTION RECORD — DO NOT RUN OR RE-RUN.** The accepted 2026-07-12
+> migration is complete. Its one zero-write rerun proved only that historical snapshot. The script
+> still accepts the consumed run ID and can write newer source changes; full rollback is blocked by
+> F68. F103 makes the former apply recipes below inert. Any future import requires a new
+> owner-approved run ID, immutable source checkpoint, current dry-run/review, completion guard, and
+> dependency-safe recovery plan in a new runbook.
+
 **Status:** executed additively on 2026-07-12. The full import reconciled exactly and its
-idempotent rerun performed zero writes. The one-command full rollback remains available and has
-not been executed.
+idempotent rerun performed zero writes. The former full-delete rollback is **withdrawn** (F68):
+current cross-run/self-FK dependencies and non-baseline row versions make its source-only guard
+insufficient. The version-2 timestamps fall inside the import/supplement window; no later mutation
+is inferred from version alone.
 
 This playbook imports the complete discoverable VID/GRA Linear comment history into
 `production_comments`. Linear is read-only throughout. Dry-run is the default, and the only
@@ -31,8 +41,9 @@ comment events are hidden from anonymous reads. This access decision needs expli
 before the UI is merged; relaxing it to match the anonymous mirror-table policies would expose
 comment bodies and is not part of this epoch.
 
-The full-run rollback in section 6 is rehearsed through the identical tag-scoped TEST pilot path
-and remains ready. It was not executed against the full import.
+The original tag-scoped TEST-pilot deletion does not prove that the evolved full import can be
+removed. Section 6 records the current live blockers and the recovery design that must exist before
+any full-import rollback is offered.
 
 ## 1. What is reused, and what was missing
 
@@ -43,8 +54,10 @@ script:
 - `EXECUTION_LOG.md` records the two-client pilot (680 deliverables / 203 batches), the remaining
   rollout (2,507 / 597), exact ledger coverage, zero orphaned batches, no Linear 429s, and a clean
   reconciler before and after. Total: 3,187 deliverables / 800 batches.
-- `ROLLBACK.md` records tag `created_by='history-backfill-2026-07-10'` and the transactional,
-  tag-scoped rollback.
+- `ROLLBACK.md` records tag `created_by='history-backfill-2026-07-10'`. **Do not reuse its former
+  three-DELETE rollback:** after this comment import, NO ACTION comment FKs and thousands of ledger
+  events depend on those history rows, so F62 requires a new dependency-aware disposition and
+  rehearsal. F68 independently withdraws the comment-import rollback in §6 below.
 - `scripts/b1-linear-backfill.js` is reusable for default-dry-run posture, paged service reads,
   public aggregate artifacts, RPC-only writes, and reconciliation. It deliberately writes
   `comments:null` and therefore is not the comment importer.
@@ -130,68 +143,29 @@ Prerequisites:
    node test/b4-linear-comment-backfill.js
    ```
 
-### Gate A — full dry-run
+### Historical Gate A record — full dry-run
 
-Dry-run performs Linear/Supabase reads and zero Supabase writes:
+The accepted run first used a read-only full plan. Its recorded parameters were full scope, the
+2026-07-12 import ID, bounded paging/concurrency, a 20,000-write ceiling, and a local aggregate
+report. The gate required zero conflicts, complete source accounting, and an approved rule for
+every non-zero unmapped/legacy category. This is evidence, not permission to query production now.
 
-```bash
-node scripts/b4-linear-comment-backfill.js \
-  --scope full \
-  --import-run-id linear-comment-backfill-2026-07-12 \
-  --page-delay-ms 500 \
-  --write-concurrency 8 \
-  --cap 20000 \
-  --json-report artifacts/linear-comment-backfill-dry-run.json
-```
+### Historical Gate B record — TEST pilot
 
-Do not proceed unless: conflicts are 0, the planned total is at most 20,000, every source ID is
-accounted for, and every non-zero unmapped/legacy category has an approved handling rule.
+The accepted TEST pilot used the private TEST client/project allowlist, a distinct 2026-07-12 pilot
+ID, explicit local mutation confirmation, and a 500-write ceiling. It was rerun to zero writes, then
+rolled back and re-planned before full apply. The executable command and rollback instruction are
+removed: F68 proves the old recovery assumptions are not a standing safety contract.
 
-### Gate B — TEST pilot
+### Historical Gate C record — full apply and reconciliation
 
-The TEST apply is fail-closed to client `sidneylaruel`, projects `Sidney Laruel` / `Test Project`,
-and VID/GRA issues. The explicit confirmation is mandatory:
+The accepted full apply reused the reviewed 2026-07-12 full-run parameters and a 20,000-write
+ceiling. At that time, its immediate rerun produced zero writes. The script remains capable of
+inserting missing rows and updating same-run rows when source `updatedAt` or lifecycle state moves;
+there is no completed-run ledger that makes the old ID terminal. Therefore the former apply command
+is intentionally not preserved as an executable recipe.
 
-```bash
-B4_CONFIRM_TEST_MUTATIONS=1 node scripts/b4-linear-comment-backfill.js \
-  --apply \
-  --scope test \
-  --import-run-id linear-comment-pilot-2026-07-12 \
-  --page-delay-ms 500 \
-  --write-concurrency 8 \
-  --cap 500 \
-  --json-report artifacts/linear-comment-pilot.json
-```
-
-Re-run the identical command. It must report zero inserts/updates, every pilot row as an exact or
-stale no-op, zero conflicts, and `missing_from_store=0` / `extra_in_store=0`.
-
-Then run the rollback in section 6 with the pilot run ID and repeat the TEST dry-run. The pilot must
-return to its pre-pilot planned count. **Pilot rollback is a hard gate before full apply.** A full
-plan treats any still-present backfill row carrying the pilot run ID as a conflict, so pilot rows
-cannot escape the full rollback tag.
-
-### Gate C — full apply and reconciliation
-
-Use the same approved run ID, cap, and source scope as the full dry-run:
-
-```bash
-node scripts/b4-linear-comment-backfill.js \
-  --apply \
-  --scope full \
-  --import-run-id linear-comment-backfill-2026-07-12 \
-  --page-delay-ms 500 \
-  --write-concurrency 8 \
-  --cap 20000 \
-  --json-report artifacts/linear-comment-backfill-full.json
-```
-
-The script is restartable after interruption. Missing rows insert; a newer Linear
-`updatedAt` on a row from the same run plans an RPC update for edit/delete/resolve convergence;
-older source replays are stale no-ops. A true same-clock/content contradiction is a conflict and is
-never overwritten automatically.
-
-Re-run the identical full command. Required result:
+The historical required reconciliation result was:
 
 - planned inserts = 0;
 - planned updates = 0;
@@ -199,7 +173,7 @@ Re-run the identical full command. Required result:
 - `missing_from_store=0` and `extra_in_store=0`;
 - source count equals the unique stored `linear_comment_id` count.
 
-## 5. Optional recovery of the eight local-only native comments
+## 5. Historical supplement — recovery of eight local-only native comments
 
 This is a separate, explicit supplement. Do not enable it in the TEST pilot or ordinary Linear
 history run.
@@ -220,62 +194,28 @@ When this supplement runs after the full import, those exact matches are narrowl
 same-clock metadata-enrichment updates: body, author, target, thread, and lifecycle fields must all
 remain unchanged. The eight local-only rows remain inserts.
 
-Use a fixed capture timestamp and repeat it on every rerun:
+The executed supplement used the same historical run ID, a fixed 2026-07-12 ingestion-only capture
+time, and a cap of eight standalone additions. Its executable recipe is removed. The count check
+occurred after the write path and cannot make a later rerun safe; any future recovery must use a new
+reviewed plan and reject a consumed run ID before its first RPC.
 
-```bash
-node scripts/b4-linear-comment-backfill.js \
-  --apply \
-  --scope full \
-  --import-run-id linear-comment-backfill-2026-07-12 \
-  --recover-legacy-native \
-  --legacy-native-cap 8 \
-  --legacy-capture-at 2026-07-12T23:00:00Z \
-  --cap 20000 \
-  --json-report artifacts/linear-comment-backfill-with-legacy.json
-```
+## 6. Full-import rollback — blocked pending a dependency-safe design (F68)
 
-Proceed only when `standalone_additions=8` matches the independently verified gap. Any other count
-is a stop-and-review result.
+**Do not run the former DELETE block.** A 2026-07-13 service-role, aggregate-only read found 12,691
+tagged comments still sourced from the backfill, but the import is no longer self-contained:
 
-## 6. One-command rollback
+- 223 current rows reference tagged IDs through `parent_id` and/or `thread_root_id` NO ACTION
+  self-foreign keys; 222 are same-run descendants and one outside-run row references a tagged ID;
+- 41 tagged rows are version 2 (their timestamps remain inside the import/supplement window);
+  checking only that `source='backfill'` cannot classify why a row is non-baseline, while the later
+  outside-run relationship independently proves the import is no longer self-contained.
 
-Replace the run ID in all three predicates. Execute the whole block as one service-role SQL-editor
-command. It refuses to delete a tagged row whose source has since changed away from `backfill`,
-deletes only that run's self-contained events first, then deletes only that run's backfill rows. It
-never touches Linear, deliverables, batches, flags, n8n, or the mirror outbox.
-
-```sql
-begin;
-do $$
-begin
-  if exists (
-    select 1 from public.production_comments
-    where import_run_id = 'linear-comment-backfill-2026-07-12'
-      and source <> 'backfill'
-  ) then
-    raise exception 'rollback refused: tagged comments have non-backfill changes';
-  end if;
-end $$;
-
-delete from public.deliverable_events
-where source = 'backfill'
-  and action in (
-    'comment_add', 'comment_edit', 'comment_delete', 'comment_resolve',
-    'comment_unresolve', 'comment_link_linear', 'comment_link_native'
-  )
-  and coalesce(
-    payload->>'import_run_id',
-    payload#>>'{comment,import_run_id}'
-  ) = 'linear-comment-backfill-2026-07-12';
-
-delete from public.production_comments
-where source = 'backfill'
-  and import_run_id = 'linear-comment-backfill-2026-07-12';
-commit;
-```
-
-Rollback verification: the run-tag count and its event count are zero; pre-existing native/mirror
-comments are unchanged; rerunning the same dry-run reproduces the original planned insert count.
+The safe default is to preserve the import. A future rollback must first capture a fresh private
+dependency/version snapshot; require an owner-approved preserve/relink/delete disposition for
+same-run and cross-run descendants plus events; calculate assertion-bearing dry-run counts; execute
+dependency order inside one transaction; and pass a full TEST/scratch restore rehearsal and exact
+post-rollback readback. Only then may a new command be documented. The small TEST-pilot rollback was
+valid for that then-isolated fixture and is not evidence for deleting today's full import.
 
 ## 7. Stop conditions
 

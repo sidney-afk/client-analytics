@@ -268,9 +268,16 @@ const result = {
   const lifecycle = source.slice(source.indexOf('function _writeUiResumeLegacyQueues'), source.indexOf('/* Point-adoption:', source.indexOf('function _writeUiResumeLegacyQueues')));
   ok(lifecycle.includes('_resumeNativeIntakeJob') && lifecycle.includes("'focus'") && lifecycle.includes("'startup'"),
   'native intake resumes on startup and the shared lifecycle paths');
-  ok(/rest\/v1\/clients\?select=slug,display_name,kind,active/.test(source)
-    && !/webhook\/linear-projects/.test(source),
-  'client selection is sourced from the native registry');
+  const projectSource = extract('fetchLinearProjects');
+  const projectBuilder = extract('_linearRebuildProjectSource');
+  const rerouteSetter = extract('_writeUiSetRerouteFlagValue');
+  ok(/webhook\/linear-projects/.test(source)
+    && /rest\/v1\/clients\?select=slug,display_name,kind,active/.test(projectSource)
+    && projectSource.indexOf('await _writeUiPrimeRerouteFlag()') < projectSource.indexOf('/rest/v1/clients')
+    && projectBuilder.includes('.filter(row => _writeUiRerouteUseGateway(row.slug))')
+    && projectBuilder.includes('linearLegacyProjects.map')
+    && rerouteSetter.includes('_linearRefreshProjectsForRerouteChange(previousClients, nextClients)'),
+  'Submit keeps legacy project names outside the reroute cohort and uses native names only inside it');
   const intakeItems = extract('_linearIntakeItems');
   ok(/team: 'graphics'/.test(intakeItems) && !/team: 'graphics'[\s\S]{0,180}brief:/.test(intakeItems),
   'graphics brief remains server-owned');

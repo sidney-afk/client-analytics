@@ -5,6 +5,7 @@ const path = require('path');
 const vm = require('vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const edge = fs.readFileSync(path.join(__dirname, '..', 'supabase/functions/production-write/index.ts'), 'utf8');
 let failures = 0;
 function ok(value, label) {
   if (value) console.log('  ok  ' + label);
@@ -94,6 +95,34 @@ ok(/payload\.expected_updated_at = issue\.updatedRaw/.test(source)
   && /payload\.expected_status = issue\.sourceStatus/.test(source),
 'scalar writes carry current-row CAS and status transitions carry current status');
 ok(/headers: _syncviewEfHeaders\(\{[\s\S]{0,320}\}, PROD_WRITE_EF_URL\)/.test(source), 'verified staff role key and roster actor are attached by the shared EF header path');
+const corsBlock = (edge.match(/"Access-Control-Allow-Headers":\s*\[([\s\S]*?)\]\.join\("[, ]+"\)/) || [])[1] || '';
+const allowedHeaders = new Set(Array.from(corsBlock.matchAll(/"([^"]+)"/g), match => match[1].toLowerCase()));
+const callerHeaders = new Set();
+const productionWriteCallers = [
+  ['_writeUiGatewayPost', 'WRITE_UI_PRODUCTION_WRITE_URL'],
+  ['_writeUiReadRepairReceipt', 'WRITE_UI_PRODUCTION_WRITE_URL'],
+  ['_runNativeIntakeJob', 'PROD_WRITE_EF_URL'],
+  ['_prodGatewayWrite', 'PROD_WRITE_EF_URL'],
+];
+let parsedProductionWriteCallers = 0;
+for (const [name, urlConstant] of productionWriteCallers) {
+  const body = extract(name);
+  const pattern = new RegExp(`headers:\\s*_syncviewEfHeaders\\(\\{([\\s\\S]*?)\\}\\s*,\\s*${urlConstant}\\)`);
+  const object = (body.match(pattern) || [])[1] || '';
+  if (object) parsedProductionWriteCallers++;
+  for (const match of object.matchAll(/(?:^|[,\n])\s*(?:['"]([^'"]+)['"]|([A-Za-z][A-Za-z0-9-]*))\s*:/g)) {
+    callerHeaders.add(String(match[1] || match[2]).toLowerCase());
+  }
+}
+for (const match of extract('_syncviewEfHeaders').matchAll(/out\[['"]([^'"]+)['"]\]\s*=/g)) {
+  callerHeaders.add(match[1].toLowerCase());
+}
+ok(parsedProductionWriteCallers === productionWriteCallers.length,
+  'the CORS contract enumerates every SPA production-write caller');
+ok(callerHeaders.size > 0 && Array.from(callerHeaders).every(header => allowedHeaders.has(header)),
+  'production-write CORS allows every explicit header added by all SPA callers and the shared credential helper');
+ok(callerHeaders.has('x-syncview-source') && allowedHeaders.has('x-syncview-source'),
+  'write-UI source attribution survives browser preflight');
 ok(/if \(_prodTestWriteOverride\(issue\)\) payload\.test_override = true/.test(source)
   && !/legacy_parity\s*=|legacy_parity:/.test(source.slice(source.indexOf('async function _prodGatewayWrite'), source.indexOf('async function _prodRunPickerWrite'))),
 'TEST override is derived from the target client and Production never requests legacy parity');

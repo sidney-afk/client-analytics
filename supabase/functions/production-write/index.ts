@@ -73,6 +73,7 @@ const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": [
+    "accept",
     "authorization",
     "apikey",
     "content-type",
@@ -80,6 +81,7 @@ const CORS: Record<string, string> = {
     "x-syncview-actor",
     "x-syncview-role",
     "x-syncview-client-token",
+    "x-syncview-source",
   ].join(", "),
   "Cache-Control": "no-store",
 };

@@ -318,9 +318,11 @@ n8n in the metric read path.*
 - **Submit entry.** The visible top-nav label is **Submit** (`navLinear`), while the intentionally unchanged
   internal nav key and hash are `linear` / `#linear`. `?intake=1` hard-locks the whole SPA to this
   form (no password, chrome hidden, `navTo` coerced to `linear`). Existing bookmarks stay valid.
-- **Reads.** Current branch source loads the active Submit dropdown from the literal `clients`
-  REST projection (`slug`, `display_name`, `kind`, `active`), with no `linear-projects` call or
-  n8n fallback. Staff-gated `filming-plans` EF GET resolves the read-only plan link and has no raw
+- **Reads.** Submit retains the n8n `linear-projects` response as the exact dropdown source for
+  non-enrolled clients. Only clients in `write_ui_reroute_clients` overlay that list from the
+  literal `clients` REST projection (`slug`, `display_name`, `kind`, `active`); a pending native
+  intake may load its registry row for recovery without exposing its display name after
+  de-enrollment. Staff-gated `filming-plans` EF GET resolves the read-only plan link and has no raw
   filming-plan REST, Sheets, or anonymous-realtime fallback. Post-
   submit link poll reads `workload_issues` REST (Workload v2 default) → n8n `linear-issues` fallback.
   Calendar-upsert and #813 cohort routing flags are read.
@@ -344,8 +346,11 @@ n8n in the metric read path.*
   status/comment bridges have the same defect. Contain all four now with active immutable identity
   or an owner-ratified short-lived exact-client intake capability; native reroute is not permission
   to leave the transition route public.
-- **Failure/fallback.** The `clients` REST read fails closed to an empty dropdown and retries on the
-  next mount; it does not restore the retired `linear-projects` call. For a non-enrolled client,
+- **Failure/fallback.** A failed `linear-projects` read leaves the non-enrolled dropdown empty rather
+  than substituting Supabase display names; a failed `clients` overlay preserves the exact legacy
+  project list. Realtime de-enrollment restores the one exact legacy match or clears an ambiguous
+  selection before legacy submit, and source reads retry on the next mount or cohort refresh. For a
+  non-enrolled client,
   main's F44 legacy path keeps the draft and returns failure unless the workflow's durable receipt
   confirms the exact creation; it never restores the pre-F44 fire-and-forget fetch. The historical
   F44 incident remains the reason for that boundary: an early-200 run failed parent creation,
@@ -1074,7 +1079,7 @@ so it runs on every push) re-derives every list below from `index.html` and fail
 they drift — in either direction, including the counts. When it fails: update the owning surface's
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
-- **n8n webhooks (54):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
+- **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
 - **Edge functions (22):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read`
 - **Not counted above:** 18 of the 22 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
 - **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`

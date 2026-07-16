@@ -11939,6 +11939,7 @@
 
     const VIDEO_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/video-form';
     const GRAPHIC_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/graphic-form';
+    const LINEAR_PROJECTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-projects';
     const LOG_SUBMISSION_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/log-linear-submission';
     const LAST_LINK_KEY = 'syncview_last_link';
     const LINEAR_FORM_KEY = 'syncview_linear_form';
@@ -11954,35 +11955,124 @@
     let linearJustCreated = false;
     let linearSubmitInFlight = null;
     let linearProjectsLoading = false;
+    let linearProjectsLoaded = false;
+    let linearProjectsLoadGeneration = 0;
+    let linearLegacyProjects = [];
 
 
 
     function getLastLink() { return localStorage.getItem(LAST_LINK_KEY) || ''; }
     function saveLastLink(v) { if (v && v.trim()) localStorage.setItem(LAST_LINK_KEY, v.trim()); }
 
-    async function fetchLinearProjects() {
-        linearProjectsLoading = true;
+    function _linearPendingNativeClientSlug() {
         try {
-            const url = CAL_SUPABASE_URL + '/rest/v1/clients?select=slug,display_name,kind,active&active=eq.true&order=display_name.asc';
-            const resp = await fetch(url, { headers: {
-                apikey: CAL_SUPABASE_ANON_KEY,
-                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
-                Accept: 'application/json'
-            }});
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const rows = await resp.json();
-            linearClientRows = (Array.isArray(rows) ? rows : []).filter(row => row && row.active !== false && row.slug && row.display_name);
-            linearProjects = [...new Set(linearClientRows.map(row => String(row.display_name).trim()).filter(Boolean))];
-            console.log('[SyncView] Loaded', linearProjects.length, 'native clients');
-        } catch (e) {
-            console.error('[SyncView] Failed to fetch native clients:', e);
-            linearClientRows = [];
-            linearProjects = [];
-        }
-        linearProjectsLoading = false;
-        // Re-render dropdowns if open
+            const pending = typeof _linearIntakeRead === 'function' ? _linearIntakeRead() : null;
+            return String(pending && pending.payload && pending.payload.client_slug || '').trim();
+        } catch (e) { return ''; }
+    }
+
+    function _linearRebuildProjectSource() {
+        const enrolledBySlug = new Map(linearClientRows
+            .filter(row => _writeUiRerouteUseGateway(row.slug))
+            .map(row => [calClientSlug(row.slug), row]));
+        const includedNativeSlugs = new Set();
+        const mixedProjects = linearLegacyProjects.map(name => {
+            const slug = calClientSlug(name);
+            const row = enrolledBySlug.get(slug);
+            if (!row) return name;
+            includedNativeSlugs.add(slug);
+            return String(row.display_name).trim();
+        });
+        enrolledBySlug.forEach((row, slug) => {
+            if (!includedNativeSlugs.has(slug)) mixedProjects.push(String(row.display_name).trim());
+        });
+        linearProjects = [...new Set(mixedProjects.filter(Boolean))];
+    }
+
+    function _linearRenderProjectSource() {
         const q = document.getElementById('linearClientSearch')?.value || '';
         renderLinearSearchResults(q);
+    }
+
+    function _linearReconcileProjectSelection(previousClients, nextClients) {
+        const input = document.getElementById('linearClientSearch');
+        if (!input) return;
+        const selectedSlug = calClientSlug(String(input.dataset.clientSlug || input.value || ''));
+        if (!selectedSlug || !previousClients.has(selectedSlug) || nextClients.has(selectedSlug)) return;
+        if (selectedSlug === calClientSlug(_linearPendingNativeClientSlug())) return;
+        const legacyMatches = linearLegacyProjects.filter(name => calClientSlug(name) === selectedSlug);
+        input.value = legacyMatches.length === 1 ? legacyMatches[0] : '';
+        input.dataset.clientSlug = '';
+        if (typeof updateLinearSearchGhost === 'function') updateLinearSearchGhost(input.value);
+        if (typeof updateLinearTitle === 'function') updateLinearTitle();
+        if (typeof updateLinearFilmingPlan === 'function') updateLinearFilmingPlan();
+        if (typeof saveLinearForm === 'function') saveLinearForm();
+    }
+
+    function _linearRefreshProjectsForRerouteChange(previousClients, nextClients) {
+        if (!linearProjectsLoaded && !linearProjectsLoading && !linearLegacyProjects.length && !linearClientRows.length) {
+            return Promise.resolve();
+        }
+        // Rebuild synchronously from the last exact legacy response so a click
+        // after de-enrollment cannot submit the former native display name.
+        _linearRebuildProjectSource();
+        _linearReconcileProjectSelection(previousClients, nextClients);
+        _linearRenderProjectSource();
+        // Refresh both sources in the background. The generation guard inside
+        // fetchLinearProjects prevents an older cohort request from winning.
+        return fetchLinearProjects();
+    }
+
+    async function fetchLinearProjects() {
+        const generation = ++linearProjectsLoadGeneration;
+        linearProjectsLoading = true;
+        let legacyProjects = linearLegacyProjects.slice();
+        let nativeRows = linearClientRows.slice();
+        try {
+            const resp = await fetch(LINEAR_PROJECTS_WEBHOOK, { method: 'POST' });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+            const raw = Array.isArray(data) ? data : (data.projects || []);
+            legacyProjects = [...new Set(raw)];
+            console.log('[SyncView] Loaded', legacyProjects.length, 'Linear projects');
+        } catch (e) {
+            console.error('[SyncView] Failed to fetch Linear projects:', e);
+        }
+        let nativeError = null;
+        try {
+            if (typeof _writeUiPrimeRerouteFlag === 'function') await _writeUiPrimeRerouteFlag();
+            const pendingNativeClientSlug = _linearPendingNativeClientSlug();
+            // The visible native source is cohort-only. A de-enrolled client may
+            // still need its registry row to resume an already-checkpointed native
+            // intake, but that recovery exception never changes dropdown names.
+            if (_writeUiRerouteClients.size || pendingNativeClientSlug) {
+                const url = CAL_SUPABASE_URL + '/rest/v1/clients?select=slug,display_name,kind,active&active=eq.true&order=display_name.asc';
+                const resp = await fetch(url, { headers: {
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json'
+                }});
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const rows = await resp.json();
+                nativeRows = (Array.isArray(rows) ? rows : []).filter(row => row && row.active !== false && row.slug && row.display_name);
+            }
+        } catch (e) {
+            nativeError = e;
+        } finally {
+            if (generation === linearProjectsLoadGeneration) {
+                linearLegacyProjects = legacyProjects;
+                linearClientRows = nativeRows;
+                _linearRebuildProjectSource();
+                linearProjectsLoaded = true;
+                linearProjectsLoading = false;
+                _linearRenderProjectSource();
+                if (nativeError) {
+                    // A registry failure must never replace or blank the legacy
+                    // project names used by every non-enrolled client.
+                    console.error('[SyncView] Failed to fetch enrolled native clients:', nativeError);
+                }
+            }
+        }
     }
 
     /* ── Workload Calendar ── */
@@ -18551,9 +18641,17 @@
         _calUpsertEfClients = new Set(_calRuntimeFlagClients(value));
         _calV2Log('calendar-upsert EF clients:', Array.from(_calUpsertEfClients).join(',') || '(none)');
     }
-    function _writeUiSetRerouteFlagValue(value) {
-        _writeUiRerouteClients = new Set(_calRuntimeFlagClients(value));
+    function _writeUiSetRerouteFlagValue(value, options) {
+        const previousClients = new Set(_writeUiRerouteClients);
+        const nextClients = new Set(_calRuntimeFlagClients(value));
+        const changed = previousClients.size !== nextClients.size
+            || Array.from(previousClients).some(slug => !nextClients.has(slug));
+        _writeUiRerouteClients = nextClients;
         _calV2Log('write-UI reroute clients:', Array.from(_writeUiRerouteClients).join(',') || '(none)');
+        if (changed && options && options.refreshProjects) {
+            return _linearRefreshProjectsForRerouteChange(previousClients, nextClients);
+        }
+        return Promise.resolve();
     }
     async function _calFetchUpsertFlagOnce() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _calSetUpsertFlagValue({ clients: [] }); return; }
@@ -18636,7 +18734,7 @@
                 })
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + WRITE_UI_REROUTE_FLAG_KEY }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
-                    _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] });
+                    _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] }, { refreshProjects: true });
                 })
                 .subscribe();
         } catch (e) {
@@ -40440,6 +40538,7 @@
             [realId, pid].forEach(k => { _sxrNoLinearPush.delete(k); _sxrNoLinearPush.delete(k + '|video'); _sxrNoLinearPush.delete(k + '|graphic'); });
             let gatewayAttempted = false;
             let gatewayCommitted = precommittedForWrite;
+            const deferredLegacyStatusPushes = [];
             const checkpointCommittedSource = () => {
                 if (!gatewayCommitted) return;
                 post._writeUiRetryEdits = Object.assign({}, edits);
@@ -40460,11 +40559,18 @@
                     const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === 'video');
                     const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
                     if (!reconciled) {
+                        const gatewayAttemptedBefore = gatewayAttempted;
                         gatewayAttempted = true;
+                        const sourceEditedAt = companion ? companion.source_at : post.updated_at;
                         const acknowledgement = await _sxrPushStatusToLinear(post.linear_issue_id, post.video_status, {
-                            post, component: 'video', sourceEditedAt: companion ? companion.source_at : post.updated_at,
-                            repairRecord: companion && companion.record
+                            post, component: 'video', sourceEditedAt,
+                            repairRecord: companion && companion.record,
+                            deferLegacyUntilSourceSave: true
                         });
+                        if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                            gatewayAttempted = gatewayAttemptedBefore;
+                            deferredLegacyStatusPushes.push({ component: 'video', sourceEditedAt });
+                        }
                         _writeUiAdoptRepairAck(post, acknowledgement);
                         _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                         gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
@@ -40477,11 +40583,18 @@
                     const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === 'graphic');
                     const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
                     if (!reconciled) {
+                        const gatewayAttemptedBefore = gatewayAttempted;
                         gatewayAttempted = true;
+                        const sourceEditedAt = companion ? companion.source_at : post.updated_at;
                         const acknowledgement = await _sxrPushStatusToLinear(post.graphic_linear_issue_id, post.graphic_status, {
-                            post, component: 'graphic', sourceEditedAt: companion ? companion.source_at : post.updated_at,
-                            repairRecord: companion && companion.record
+                            post, component: 'graphic', sourceEditedAt,
+                            repairRecord: companion && companion.record,
+                            deferLegacyUntilSourceSave: true
                         });
+                        if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                            gatewayAttempted = gatewayAttemptedBefore;
+                            deferredLegacyStatusPushes.push({ component: 'graphic', sourceEditedAt });
+                        }
                         _writeUiAdoptRepairAck(post, acknowledgement);
                         _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                         gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
@@ -40569,6 +40682,16 @@
                 if (isBlank && wasNewRow) {
                     const focusInThisCard = document.activeElement && document.activeElement.closest && document.activeElement.closest(`.cal-card[data-pid="${realId}"]`);
                     if (!focusInThisCard) { try { _sxrRenderBody({ preserveScroll: true }); } catch (e) {} }
+                }
+                if (_okPost) {
+                    deferredLegacyStatusPushes.forEach(push => {
+                        const isGraphic = push.component === 'graphic';
+                        _sxrLegacyPushStatusToLinear(
+                            isGraphic ? _okPost.graphic_linear_issue_id : _okPost.linear_issue_id,
+                            _okPost[(isGraphic ? 'graphic' : 'video') + '_status'],
+                            { post: _okPost, component: push.component, sourceEditedAt: push.sourceEditedAt }
+                        );
+                    });
                 }
             } catch (e) {
                 console.warn('[Samples] save failed', e);
@@ -41156,17 +41279,21 @@
         const mode = _sxrReviewMode();
         const clearsCard = (mode === 'smm' || _isClientLink) && !SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(post, c, mode));
         _sxrReviewRepaintCard(pid);
-        // Hold this action outside the shared save queue until its comment is
-        // committed, so an older save cannot flush a status-only half action.
+        // Hold this action outside the shared save queue while its route is
+        // decided. Enrolled gateway comments commit first; legacy comments wait
+        // for the source save so an older save cannot flush a half action.
         const repairEdits = { [comp + '_status']: post[comp + '_status'], status: post.status, [comp + '_tweaks']: _sxrStringifyComments(list) };
         _sxrClearStaleApprovals(post, repairEdits);
+        let deferredLegacyComment = false;
         Promise.resolve().then(() => _sxrPostLinearComment(_sxrLinearUrlFor(post, comp), body, newComment.author, {
             post, component: comp, comment: newComment, audience: _sxrMsgAudience(newComment),
             isTweak: _sxrMsgIsTweak(newComment), round: newComment.round,
             repairEdits: Object.assign({}, repairEdits),
-            reserveStatusIntent: { status: post[comp + '_status'] }
+            reserveStatusIntent: { status: post[comp + '_status'] },
+            deferLegacyUntilSourceSave: true
         }))
         .then(acknowledgement => {
+            deferredLegacyComment = !!(acknowledgement && acknowledgement.deferred_until_source_save);
             const committedBatch = Object.assign({}, repairEdits);
             _writeUiBindRepairAck(post, committedBatch, acknowledgement);
             const pending = _sxrPendingEdits[pid] || (_sxrPendingEdits[pid] = {});
@@ -41179,6 +41306,12 @@
                 _sxrReviewState.errors[key] = current._saveError || 'Save failed';
                 _sxrReviewRepaintCard(pid);
                 return;
+            }
+            if (deferredLegacyComment) {
+                _sxrLegacyPostLinearComment(_sxrLinearUrlFor(current, comp), body, newComment.author, {
+                    post: current, component: comp, comment: newComment, audience: _sxrMsgAudience(newComment),
+                    isTweak: _sxrMsgIsTweak(newComment), round: newComment.round
+                });
             }
             if (clearsCard) _sxrReviewRemoveCard(pid); else _sxrReviewRepaintCard(pid);
             if (_sxrCommentRole() === 'client' && !post._saveError && typeof showToast === 'function') showToast('Change request sent — the team has been notified');
@@ -41950,6 +42083,9 @@
     }
     async function _sxrPushStatusToLinear(issueUrl, status, meta) {
         if (!(await _writeUiUseGatewayWhenReady('sxr', meta))) {
+            if (meta && meta.deferLegacyUntilSourceSave) {
+                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
+            }
             _sxrLegacyPushStatusToLinear(issueUrl, status, meta);
             return Promise.resolve({ skipped: true, legacy_transport: true });
         }
@@ -41978,6 +42114,9 @@
     }
     async function _sxrPostLinearComment(issueUrl, body, author, meta) {
         if (!(await _writeUiUseGatewayWhenReady('sxr', meta))) {
+            if (meta && meta.deferLegacyUntilSourceSave) {
+                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
+            }
             _sxrLegacyPostLinearComment(issueUrl, body, author, meta);
             return Promise.resolve({ skipped: true, legacy_transport: true });
         }
@@ -43061,6 +43200,8 @@
         _sxrKasperRepaint(pid);
         let gatewayAttempted = false;
         let gatewayCommitted = false;
+        let deferredLegacyComment = false;
+        let deferredLegacyStatus = false;
         const sourceRepairRefsForWrite = [];
         let repair = null;
         const checkpointRepair = () => {
@@ -43083,13 +43224,17 @@
                 // Composite tweak actions are comment-first. The same journal
                 // record reserves the status companion, so a rejected comment
                 // can never leak through a status record's source patch.
+                const gatewayAttemptedBefore = gatewayAttempted;
                 gatewayAttempted = true;
                 const acknowledgement = await _sxrPostLinearComment(url, linearComment, 'Kasper', {
                     post: p, component: comp, comment: linearMeta, audience: 'internal',
                     isTweak: !!(linearMeta && _sxrMsgIsTweak(linearMeta)), round: linearMeta && linearMeta.round,
                     clientSlug: it.slug, repairLane: 'kasper-sxr', repairEdits: patch,
-                    reserveStatusIntent: patch[comp + '_status'] ? { status: patch[comp + '_status'] } : null
+                    reserveStatusIntent: patch[comp + '_status'] ? { status: patch[comp + '_status'] } : null,
+                    deferLegacyUntilSourceSave: true
                 });
+                deferredLegacyComment = !!(acknowledgement && acknowledgement.deferred_until_source_save);
+                if (deferredLegacyComment) gatewayAttempted = gatewayAttemptedBefore;
                 _writeUiAdoptRepairAck(p, acknowledgement);
                 _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                 const commentCommitted = !!(acknowledgement && acknowledgement.native_committed);
@@ -43105,12 +43250,16 @@
                     if (reconciled) gatewayCommitted = true;
                 }
                 if (!reconciled) {
+                    const gatewayAttemptedBefore = gatewayAttempted;
                     gatewayAttempted = true;
                     const acknowledgement = await _sxrPushStatusToLinear(url, patch[comp + '_status'], {
                         post: p, component: comp, sourceEditedAt: companion ? companion.source_at : p.updated_at,
                         clientSlug: it.slug, repairLane: 'kasper-sxr', repairEdits: patch,
-                        repairRecord: companion && companion.record
+                        repairRecord: companion && companion.record,
+                        deferLegacyUntilSourceSave: true
                     });
+                    deferredLegacyStatus = !!(acknowledgement && acknowledgement.deferred_until_source_save);
+                    if (deferredLegacyStatus) gatewayAttempted = gatewayAttemptedBefore;
                     _writeUiAdoptRepairAck(p, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
@@ -43122,6 +43271,17 @@
                 if (gatewayCommitted) { checkpointRepair(); repair.statusCommitted = true; checkpointRepair(); }
             }
             await _sxrKasperPersist(it, patch);
+            const persistedUrl = _sxrLinearUrlFor(p, comp);
+            if (deferredLegacyStatus) {
+                _sxrLegacyPushStatusToLinear(persistedUrl, patch[comp + '_status'], {
+                    post: p, component: comp, sourceEditedAt: p.updated_at, clientSlug: it.slug
+                });
+            }
+            if (deferredLegacyComment) {
+                _sxrLegacyPostLinearComment(persistedUrl, linearComment, 'Kasper', {
+                    post: p, component: comp, comment: linearMeta, audience: 'internal', clientSlug: it.slug
+                });
+            }
             if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(p, sourceRepairRefsForWrite);
             delete p._writeUiKasperRepair;
             _kasperState.sxrRepairs = (_kasperState.sxrRepairs || []).filter(row => row && row.id !== p.id);

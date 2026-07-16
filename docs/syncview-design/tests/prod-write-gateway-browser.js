@@ -50,6 +50,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const calendarWriteRequests = [];
   const submissionLogs = [];
   const legacyCreateHits = [];
+  const legacyProjectReads = [];
   const restHits = [];
   const networkOrder = [];
   let calendarIntakeCount = 0;
@@ -60,7 +61,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.stack || error.message));
   page.on('request', request => {
-    if (/\/webhook\/(video-form|graphic-form|linear-projects)(?:\?|$)/.test(request.url())) legacyCreateHits.push(request.url());
+    if (/\/webhook\/(video-form|graphic-form)(?:\?|$)/.test(request.url())) legacyCreateHits.push(request.url());
   });
   await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
 
@@ -73,6 +74,14 @@ function expect(value, message) { if (!value) throw new Error(message); }
   });
   await page.route('**/functions/v1/filming-plans**', async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, plans: [] }) });
+  });
+  await page.route('**/webhook/linear-projects', async route => {
+    legacyProjectReads.push({ method: route.request().method(), url: route.request().url() });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ projects: clients.map(client => client.display_name) }),
+    });
   });
 
   await page.route('**/rest/v1/**', async route => {
@@ -307,7 +316,9 @@ function expect(value, message) { if (!value) throw new Error(message); }
       'Submit did not materialize the Calendar card from the returned native item index/ID');
     expect(submissionLogs.length === 1 && /native-batch/.test(submissionLogs[0].webhookJson || ''),
       'post-commit submission telemetry omitted the native batch');
-    expect(legacyCreateHits.length === 0, 'Submit touched a retired Linear project/create webhook');
+    expect(legacyProjectReads.length >= 1 && legacyProjectReads.every(read => read.method === 'POST'),
+      'Submit did not retain the mocked legacy project-name read for non-enrolled clients');
+    expect(legacyCreateHits.length === 0, 'Submit touched a legacy Linear create webhook');
     // The calendar write is observed inside the durable job, before its final
     // checkpoint removes the pending record and releases the cross-surface lock.
     // Wait for the same completion boundary the real Submit UI awaits before

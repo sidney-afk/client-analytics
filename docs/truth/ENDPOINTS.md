@@ -24,7 +24,7 @@ Samples (legacy) and sample reviews (SXR):
 - `webhook/sample-review-get`, `webhook/sample-review-upsert`, `webhook/sample-review-reorder`
 
 Linear bridge:
-- `webhook/linear-issues`, `webhook/linear-issue-statuses`,
+- `webhook/linear-issues`, `webhook/linear-issue-statuses`, `webhook/linear-projects`,
   `webhook/linear-subissues`, `webhook/linear-set-status`, `webhook/linear-add-comment`,
   `webhook/linear-tweak-comments`, `webhook/log-linear-submission`
 

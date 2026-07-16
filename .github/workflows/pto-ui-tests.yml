@@ -43,7 +43,7 @@ jobs:
         with:
           deno-version: 'v2.5.2'
       - name: Type-check PTO Edge Function
-        run: deno check supabase/functions/pto/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/pto/index.ts
       - name: Install pinned browser-test dependencies
         run: npm install --no-package-lock
       - name: Install Chromium

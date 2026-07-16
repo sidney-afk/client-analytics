@@ -15,6 +15,12 @@
 
 This repo is a single-file SyncView app served by GitHub Pages from `index.html`.
 
+**Before building or polishing visible UI, read
+`docs/features/UI_DESIGN_STANDARDS.md`.** Browser-native select menus, date
+popups, and number spinners are not acceptable on branded surfaces; reuse the
+documented SyncView controls and verify keyboard, tooltip, theme, and mobile
+states as part of the feature, not as optional cleanup.
+
 **New session? Read `docs/truth/BRIEFING.md` first** — it front-loads what you'd otherwise
 re-discover (system shape, where truth lives, enforced invariants, live-system safety).
 Check `docs/truth/` before re-auditing anything; those docs are current-state,

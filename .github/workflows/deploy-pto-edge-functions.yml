@@ -1,8 +1,8 @@
 name: Deploy PTO edge function
 
-# Auto-deploys the staff-authenticated PTO function when its source or shared
-# role-key helper changes on main. Manual dispatch supports later verified
-# redeploys once this new workflow exists on the default branch.
+# Auto-deploys function-only PTO changes on main. A push that also changes PTO
+# SQL is intentionally held so the private migration can be applied/read back
+# first; the operator then uses the confirmed manual dispatch.
 # The Actions token and role keys stay in managed secret stores, never here.
 on:
   push:
@@ -11,20 +11,73 @@ on:
       - 'supabase/functions/pto/**'
       - 'supabase/functions/_shared/staff-role-auth.ts'
       - '.github/workflows/deploy-pto-edge-functions.yml'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      migration_readback_confirmed:
+        description: 'Required: PTO schema/RPC migration was applied and read back'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Never let an older checkout finish after and overwrite a newer PTO deploy.
+# With cancellation disabled, the running job completes and the newest pending
+# job runs last; GitHub collapses superseded pending jobs in this group.
+concurrency:
+  group: deploy-pto-edge-function-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_REF: uzltbbrjidmjwwfakwve
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Enforce migration-before-function ordering
+        id: deploy_gate
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF_VALUE: ${{ github.ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+          MIGRATION_READBACK_CONFIRMED: ${{ inputs.migration_readback_confirmed }}
+          SCHEMA_CONTRACT: ${{ vars.PTO_SCHEMA_CONTRACT }}
+          REQUIRED_SCHEMA_CONTRACT: transactional-writes-v1
+        run: |
+          should_deploy=true
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$GITHUB_REF_VALUE" != "refs/heads/main" ]]; then
+              echo "::error::Manual PTO deploys must run from the main branch."
+              exit 1
+            fi
+            if [[ "$MIGRATION_READBACK_CONFIRMED" != "true" ]]; then
+              echo "::error::Confirm the private PTO migration readback before deploying the dependent function."
+              exit 1
+            fi
+          elif git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA" -- migrations | grep -Eq '^migrations/.*pto.*\.sql$'; then
+            should_deploy=false
+            echo "PTO SQL changed in this push. Automatic deploy is held until the migration is applied/read back and this workflow is dispatched manually." >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::PTO Edge deploy held for migration-first ordering."
+          fi
+          if [[ "$should_deploy" == "true" && "$SCHEMA_CONTRACT" != "$REQUIRED_SCHEMA_CONTRACT" ]]; then
+            echo "::error::PTO_SCHEMA_CONTRACT must equal $REQUIRED_SCHEMA_CONTRACT after the migration readback."
+            exit 1
+          fi
+          echo "deploy=$should_deploy" >> "$GITHUB_OUTPUT"
       - uses: supabase/setup-cli@v1
+        if: steps.deploy_gate.outputs.deploy == 'true'
         with:
           version: latest
       - name: Deploy functions
+        if: steps.deploy_gate.outputs.deploy == 'true'
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::SUPABASE_ACCESS_TOKEN secret is not set — add it in repo Settings -> Secrets and variables -> Actions."

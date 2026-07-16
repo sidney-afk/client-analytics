@@ -129,7 +129,15 @@ Other:
   PTO tables remain inaccessible through browser PostgREST, approval uses versioned
   snapshot/finalize RPCs, and admin-only decisions, adjustments, and member setup are role-checked
   here. Do NOT "correct" the flag to off based on older docs — off is the behavior kill for a live
-  HR tool the team actively uses.
+  HR tool the team actively uses. Candidate source standardizes the policy day to the IANA zone
+  America/Guatemala, minimizes non-admin calendar absences to rendered name/date fields, and adds
+  an identity-bound read-only `quote` action for server-owned business-day counts outside the
+  overview holiday projection. It also separates approved usage from adjustments in Admin balances,
+  exposes future approved leave plus recent terminal history to Admin, serializes request creation
+  against start-date setup, and preserves approval attribution when Admin cancels future leave. The
+  additive cancellation-audit migration required for dedicated cancellation actor/time fields plus
+  the request/setup RPCs and active-roster approval finalizer is source-only until a value-free
+  apply/readback receipt confirms its columns, functions, and service-role-only grants.
 - `functions/v1/thumbnail-folder-resolve` — thumbnail Drive-folder resolution
 - `functions/v1/thumbnail-revision-read` — no-store Calendar/Samples Previous/Current reader. It
   accepts one `{surface, client, source_id}` scope, verifies either a staff role key plus exact
@@ -198,6 +206,8 @@ by hand; verify before relying on it.
   `clients` is deliberately not in that safe-subset migration:
   Production still calls `_prodRestRows('clients', ...)` and needs a scoped projection first.
 - PTO HR data: the SPA does **not** call PostgREST for `pto_members`, `pto_requests`, or
-  `pto_adjustments`. Their migration contract enables RLS with no anon/authenticated policies,
-  revokes both browser roles, and exposes only the staff-authenticated `pto` projection. This line
-  describes the source contract, not proof that the manual migration or function deploy has run.
+  `pto_adjustments`. The live base migration enables RLS with no anon/authenticated policies,
+  revokes both browser roles, grants service role only, and exposes only the staff-authenticated
+  `pto` projection; go-live readback verified that boundary. The candidate hardening delta reasserts
+  the same boundary, adds only service-role RPC execution, and writes no HR rows or flag state, but
+  is not yet claimed live.

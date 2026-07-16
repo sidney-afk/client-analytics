@@ -25,9 +25,10 @@ onboarding, and keeping everything in sync with Linear.
   read-only Kasper viewer grouped by week and SMM. See `docs/features/SMM_WEEKLY_REPORTS.md`.
 - **PTO / time off** — staff balances, requests, and a team absence calendar,
   plus an admin approval subtab in Kasper. The server-owned policy engine and
-  locked HR tables live behind one Supabase Edge Function; the feature ships
-  dark behind `pto_v1` and must stay off until the documented individually
-  revocable staff-session prerequisite replaces caller-selected shared-role identity.
+  locked HR tables live behind one Supabase Edge Function. The feature is live
+  behind `pto_v1={"mode":"on"}`. Owner decision D-36 explicitly accepted launch
+  under the current shared-role-key identity model; individually revocable staff
+  sessions remain post-launch security hardening, not a launch prerequisite.
   See `docs/features/PTO_TRACKER.md`.
 - **Workload view** — derived per-person workload, rebuilt from Linear.
 - **Linear sync** — two-way status sync between the calendar and Linear issues.
@@ -47,9 +48,10 @@ like the body classes they anticipate). The app talks to three backends.
 1. **Supabase** (Postgres + realtime) — the live operational store for everything that
    changes frequently: the content calendar, samples, onboarding, Kasper review state,
    SMM weekly reports, title review, the workload cache, and the TikTok pilot. PTO is deliberately
-   different: its private membership, request, and adjustment tables allow no browser reads and are
-   projected only through a role-key-authenticated Edge Function; individual identity binding is a
-   documented PTO go-live prerequisite. Other reads come straight from the
+   different: its live private membership, request, and adjustment tables allow no browser reads and
+   are projected only through a role-key-authenticated Edge Function. D-36 accepts the residual
+   same-role impersonation risk for this launch; individual identity binding remains a documented
+   post-launch hardening item. Other reads come straight from the
    Supabase REST API; updates arrive over realtime channels (no polling — an idle tab
    makes no calls). The browser uses a committed publishable (anon) key; row-level
    security controls direct table access, while privileged writes go through n8n or

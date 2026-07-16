@@ -58,6 +58,32 @@
  */
 
 export const FLOATING_HOLIDAY_ALLOWANCE = 1;
+export const PTO_POLICY_TIME_ZONE = "America/Guatemala";
+
+/**
+ * Return the policy date in the company's explicit working timezone. PTO
+ * rules are date-based; using UTC advances the business day during the
+ * Guatemala evening and changes accrual/cancellation outcomes too early.
+ *
+ * @param {Date|string|number} now
+ * @param {string} timeZone
+ * @returns {string}
+ */
+export function ptoPolicyToday(now = new Date(), timeZone = PTO_POLICY_TIME_ZONE) {
+  const instant = now instanceof Date ? now : new Date(now);
+  if (!Number.isFinite(instant.getTime())) throw new Error("invalid policy instant");
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(instant);
+  /** @param {string} type */
+  const read = (type) => parts.find((part) => part.type === type)?.value || "";
+  const result = `${read("year")}-${read("month")}-${read("day")}`;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(result)) throw new Error("invalid policy date");
+  return result;
+}
 
 /**
  * Return the five fixed company holidays and their US-observed dates.

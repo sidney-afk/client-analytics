@@ -16,7 +16,9 @@ const FN = fs.readFileSync(path.join(ROOT, 'supabase/functions/pto/index.ts'), '
 const POLICY = fs.readFileSync(path.join(ROOT, 'supabase/functions/pto/policy.js'), 'utf8');
 const AUTH = fs.readFileSync(path.join(ROOT, 'supabase/functions/_shared/staff-role-auth.ts'), 'utf8');
 const MIGRATION = fs.readFileSync(path.join(ROOT, 'migrations/2026-07-15-pto-tracker.sql'), 'utf8');
+const CANCELLATION_MIGRATION = fs.readFileSync(path.join(ROOT, 'migrations/2026-07-15-pto-cancellation-audit.sql'), 'utf8');
 const FEATURE = fs.readFileSync(path.join(ROOT, 'docs/features/PTO_TRACKER.md'), 'utf8');
+const DEPLOY_WORKFLOW = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy-pto-edge-functions.yml'), 'utf8');
 
 function grabFunc(source, name) {
   const at = source.indexOf('function ' + name + '(');
@@ -41,13 +43,15 @@ function grabConst(source, name) {
 
 const policy = new Function([
   grabConst(POLICY, 'FLOATING_HOLIDAY_ALLOWANCE'),
+  grabConst(POLICY, 'PTO_POLICY_TIME_ZONE'),
+  grabFunc(POLICY, 'ptoPolicyToday'),
   grabFunc(POLICY, 'ptoFixedHolidays'),
   grabFunc(POLICY, 'countPtoDays'),
   grabFunc(POLICY, 'computePtoBalance'),
-  'return { ptoFixedHolidays, countPtoDays, computePtoBalance };',
+  'return { ptoPolicyToday, ptoFixedHolidays, countPtoDays, computePtoBalance };',
 ].join('\n'))();
 
-const { ptoFixedHolidays, countPtoDays, computePtoBalance } = policy;
+const { ptoPolicyToday, ptoFixedHolidays, countPtoDays, computePtoBalance } = policy;
 let failures = 0;
 
 function ok(condition, message) {
@@ -77,6 +81,10 @@ function approved(memberId, type, start, days, extra = {}) {
     ...extra,
   };
 }
+
+same(ptoPolicyToday('2026-07-16T01:30:00Z'), '2026-07-15', 'Guatemala evening does not advance to the UTC date');
+same(ptoPolicyToday('2026-07-16T06:00:00Z'), '2026-07-16', 'policy date advances at Guatemala midnight');
+same(ptoPolicyToday('2026-01-01T05:59:59Z'), '2025-12-31', 'policy timezone remains stable across the winter UTC boundary');
 
 function adjustment(memberId, kind, date, delta) {
   return { member_id: memberId, kind, effective_date: date, delta };
@@ -257,11 +265,13 @@ ok(!/create policy[\s\S]*pto_/i.test(MIGRATION), 'PTO tables deliberately define
 ok(!/alter publication[\s\S]*pto_/i.test(MIGRATION), 'PTO tables are not added to realtime');
 ok(/values \('pto_v1', '\{"mode":"off"\}'::jsonb, 'migration'\)/.test(MIGRATION),
   'pto_v1 is seeded with mode off');
-ok(!/insert into public\.pto_(?:members|requests|adjustments)/i.test(MIGRATION),
+ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i.test(MIGRATION)
+  && !/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(MIGRATION),
   'migration contains no personal or HR seed data');
-ok(/Go-live blocker: individual identity binding/.test(FEATURE)
-  && /pto_v1` must stay `off` until an individually revocable server-side staff session/.test(FEATURE),
-  'living contract keeps the feature dark until shared-role identity is individually bound');
+ok(/Accepted launch risk and post-launch identity hardening/.test(FEATURE)
+  && /Owner decision D-36[\s\S]*accepts that same-role impersonation\/visibility risk for[\s\S]*PTO launch/.test(FEATURE)
+  && /Individually revocable server-side staff sessions remain the recommended post-launch hardening/.test(FEATURE),
+  'living contract records D-36 while retaining individual sessions as post-launch hardening');
 ok(/state_version bigint not null default 0/.test(MIGRATION),
   'PTO members carry a monotonic state version for approval serialization');
 ok(/create unique index if not exists pto_requests_one_live_floating_per_year[\s\S]*floating_holiday[\s\S]*pending[\s\S]*approved/.test(MIGRATION),
@@ -270,8 +280,39 @@ ok(/pto_requests_bump_member_state[\s\S]*pto_adjustments_bump_member_state[\s\S]
   'all balance-affecting tables advance the member state version');
 ok(/pto_decision_snapshot_v1[\s\S]*for update[\s\S]*pto_finalize_decision_v1[\s\S]*p_expected_state_version/.test(MIGRATION),
   'decision snapshot and finalize RPCs lock rows and compare the expected state version');
+ok(/pto_finalize_decision_v1[\s\S]*p_decision = 'approved'[\s\S]*from public\.team_members[\s\S]*active is true[\s\S]*for update[\s\S]*from public\.pto_members[\s\S]*for update/.test(MIGRATION)
+  && /pto_finalize_decision_v1[\s\S]*p_decision = 'approved'[\s\S]*active is true[\s\S]*member_inactive/.test(CANCELLATION_MIGRATION),
+  'approval rechecks the active target under the shared team-then-profile lock order while denial remains available');
 ok(/revoke all on function public\.pto_decision_snapshot_v1[\s\S]*grant execute on function public\.pto_finalize_decision_v1[\s\S]*service_role/.test(MIGRATION),
   'decision RPCs are executable only by service_role');
+ok(/pto_create_request_v1[\s\S]*from public\.team_members[\s\S]*active is true[\s\S]*for update[\s\S]*p_expected_state_version[\s\S]*pto_set_member_start_v1[\s\S]*from public\.team_members[\s\S]*active is true[\s\S]*for update/.test(MIGRATION)
+  && (CANCELLATION_MIGRATION.match(/active is true/g) || []).length >= 2,
+  'request creation and first-time setup serialize on an active roster row and compare state versions');
+ok(/revoke all on function public\.pto_create_request_v1[\s\S]*revoke all on function public\.pto_set_member_start_v1[\s\S]*grant execute[\s\S]*service_role/.test(MIGRATION),
+  'transactional request and setup RPCs are executable only by service_role');
+ok(/add column if not exists cancelled_by text[\s\S]*add column if not exists cancelled_at timestamptz/.test(CANCELLATION_MIGRATION),
+  'cancellation audit delta keeps cancellation attribution separate from decisions');
+ok(/enable row level security[\s\S]*revoke all on table public\.pto_requests from public, anon, authenticated[\s\S]*grant select, insert, update, delete[\s\S]*service_role/.test(CANCELLATION_MIGRATION),
+  'cancellation audit delta reasserts the locked PTO table boundary');
+ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i.test(CANCELLATION_MIGRATION)
+  && !/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(CANCELLATION_MIGRATION)
+  && !/(?:insert|update|delete)[\s\S]{0,120}syncview_runtime_flags/i.test(CANCELLATION_MIGRATION),
+  'cancellation audit delta contains no HR rows or runtime-flag write');
+ok(/push:[\s\S]*branches: \[main\]/.test(DEPLOY_WORKFLOW),
+  'function-only PTO changes retain automatic main deployment');
+ok(/git diff --name-only[\s\S]*migrations\/\.\*pto\.\*\\\.sql[\s\S]*should_deploy=false/.test(DEPLOY_WORKFLOW),
+  'schema-bearing main pushes hold the dependent PTO function deploy');
+ok(/migration_readback_confirmed:[\s\S]*type: boolean/.test(DEPLOY_WORKFLOW)
+  && /MIGRATION_READBACK_CONFIRMED[\s\S]*!= "true"[\s\S]*exit 1/.test(DEPLOY_WORKFLOW),
+  'manual PTO deploy requires an explicit migration readback confirmation');
+ok(/GITHUB_REF_VALUE[\s\S]*refs\/heads\/main[\s\S]*Manual PTO deploys must run from the main branch/.test(DEPLOY_WORKFLOW),
+  'manual PTO deploy rejects a workflow dispatch from any non-main ref');
+ok(/SCHEMA_CONTRACT: \$\{\{ vars\.PTO_SCHEMA_CONTRACT \}\}[\s\S]*REQUIRED_SCHEMA_CONTRACT: transactional-writes-v1[\s\S]*SCHEMA_CONTRACT[\s\S]*REQUIRED_SCHEMA_CONTRACT[\s\S]*exit 1/.test(DEPLOY_WORKFLOW),
+  'every actual deploy requires the read-back transactional schema contract latch');
+ok(/concurrency:[\s\S]*group: deploy-pto-edge-function-production[\s\S]*cancel-in-progress: false/.test(DEPLOY_WORKFLOW),
+  'PTO deploys serialize so an older checkout cannot finish after the newest production deploy');
+ok((DEPLOY_WORKFLOW.match(/if: steps\.deploy_gate\.outputs\.deploy == 'true'/g) || []).length === 2,
+  'CLI setup and deploy both depend on the migration-order gate');
 
 // Edge Function authorization, API, and server-validation contract.
 ok(/authorizeStaffKey\([\s\S]*adminOnly \? \["admin"\] : STAFF_ROLES/.test(FN),
@@ -299,10 +340,19 @@ ok(/const setupOnly = action === "adjust" \|\| action === "set_start_date";[\s\S
 ok(FN.indexOf('await ptoFeatureEnabled(supabase)') < FN.indexOf('const data = await loadPtoData(supabase)'),
   'the server flag gate runs before any PTO/HR tables are loaded');
 
-for (const action of ['overview', 'request', 'decide', 'cancel', 'adjust', 'set_start_date']) {
+for (const action of ['overview', 'quote', 'request', 'decide', 'cancel', 'adjust', 'set_start_date']) {
   ok(FN.includes(`"${action}"`), `Edge Function exposes ${action}`);
 }
 ok(/countPtoDays\(startDate, endDate\)/.test(FN), 'request day count is recomputed server-side');
+ok(/async function quoteTimeOff[\s\S]*requestSpanDays[\s\S]*countPtoDays[\s\S]*partial_day_count/.test(FN)
+  && /action === "quote"[\s\S]*quoteTimeOff/.test(FN),
+  'read-only quote applies the same authenticated server day-count policy outside the overview window');
+ok(/if \(fullDays <= 0\) \{[\s\S]*ok: true,[\s\S]*full_days: 0,[\s\S]*partial_day_count: 0/.test(FN),
+  'a valid weekend/holiday-only quote returns a non-submittable zero count instead of fixture-only failure semantics');
+ok(/MAX_REQUEST_FULL_DAYS = 999/.test(FN)
+  && (FN.match(/fullDays > MAX_REQUEST_FULL_DAYS/g) || []).length === 2
+  && /request_range_too_long/.test(FN),
+  'quote and request reject counts that cannot fit the numeric(4,1) days column');
 ok(/const partialDayCount = Math\.max\(0\.5, fullDays - 0\.5\)/.test(FN)
   && /days !== fullDays && days !== partialDayCount/.test(FN),
   'request days must match the full count or one explicit half-day deduction');
@@ -322,18 +372,47 @@ ok(/const FLOATING_HOLIDAY_ALLOWANCE = 1;/.test(POLICY)
   'floating-holiday allowance is a single config constant and pending requests reserve it');
 ok(/function loadAllPtoRows[\s\S]*\.order\("id"[\s\S]*\.gt\("id", cursor\)/.test(FN)
   && !/\.limit\(10000\)/.test(FN), 'PTO history uses stable UUID keyset paging without a fixed total-row cap');
+ok(/async function loadMemberPolicySnapshot[\s\S]*attempt < 3[\s\S]*const before = await loadPtoMember[\s\S]*Promise\.all\([\s\S]*"pto_requests"[\s\S]*"pto_adjustments"[\s\S]*const after = await loadPtoMember[\s\S]*before\.state_version[\s\S]*after\.state_version[\s\S]*pto_request_snapshot_conflict/.test(FN),
+  'quote/request history is bracketed by matching per-member state versions and retries on concurrent writes');
+ok(/if \(action === "decide" \|\| action === "quote" \|\| action === "request"\)[\s\S]*quoteTimeOff\(supabase, caller[\s\S]*requestTimeOff\(supabase, caller[\s\S]*const data = await loadPtoData/.test(FN),
+  'quote and request avoid the inconsistent global history loader');
 ok(/const asOfMonthStart = asOf\.slice\(0, 8\) \+ "01";[\s\S]*dateShiftMonths\(asOfMonthStart, -3\)[\s\S]*dateShiftMonths\(asOfMonthStart, 4\)/.test(FN),
   'overview returns complete boundary months for the calendar window');
+const absenceBlock = FN.slice(FN.indexOf('const absences ='), FN.indexOf('const year =', FN.indexOf('const absences =')));
+ok(/member_name:[\s\S]*start_date:[\s\S]*end_date:/.test(absenceBlock)
+  && /names\.has\(row\.member_id\)/.test(absenceBlock)
+  && !/\bid:|\bmember_id:|\btype:|\bdays:/.test(absenceBlock),
+  'non-admin calendar absences expose only active-roster names and date ranges');
+ok(/upcoming_approved_requests[\s\S]*row\.status === "approved"[\s\S]*row\.start_date > asOf/.test(FN),
+  'admin overview separately exposes only future approved requests for cancellation');
+ok(/wellness_approved_used:[\s\S]*wellness_adjustment:[\s\S]*sick_approved_used:[\s\S]*sick_adjustment:/.test(FN),
+  'admin balances separate approved leave from balance adjustments');
 ok(/\.from\("pto_requests"\)/.test(FN) && /\.from\("pto_adjustments"\)/.test(FN)
   && /\.from\("pto_members"\)/.test(FN),
   'all PTO persistence routes through the service-role Edge Function');
 ok(/for \(let attempt = 0; attempt < 3; attempt \+= 1\)[\s\S]*\.rpc\("pto_decision_snapshot_v1"[\s\S]*\.rpc\("pto_finalize_decision_v1"[\s\S]*finalStatus === "stale"/.test(FN),
   'approval retries a versioned transactional snapshot instead of racing distinct request rows');
-ok(/type === "floating_holiday" && error\.code === "23505"[\s\S]*floating_holiday_used/.test(FN),
+ok(/createStatus === "floating_holiday_used"[\s\S]*error: "floating_holiday_used"/.test(FN)
+  && /when unique_violation[\s\S]*p_type = 'floating_holiday'[\s\S]*floating_holiday_used/.test(MIGRATION),
   'floating-holiday uniqueness conflicts return a stable 409 policy error');
+ok(/createStatus === "member_not_found"[\s\S]*error: "member_not_found"[\s\S]*setStatus === "member_not_found"[\s\S]*error: "member_not_found"/.test(FN),
+  'a roster deactivation racing request/setup returns a stable inactive-member response');
+ok(/finalStatus === "member_inactive"[\s\S]*error: "member_inactive" \}, 409/.test(FN),
+  'approval of an offboarded target returns a stable conflict instead of a generic failure');
+ok(/request\.status === "pending" \|\| request\.status === "approved"/.test(FN)
+  && /cancelled_by: caller\.name, cancelled_at: now/.test(FN)
+  && /missingAuditColumns[\s\S]*request\.status === "approved"[\s\S]*cancellation_audit_not_ready/.test(FN),
+  'admin cancellation is lifecycle-bounded and fails closed rather than erasing approval attribution before migration');
+ok(/const hasHistory = data\.requests\.some[\s\S]*data\.adjustments\.some[\s\S]*start_date_history_conflict/.test(FN),
+  'member setup refuses to reinterpret an existing leave history under a new start date');
+ok(/\.rpc\("pto_create_request_v1"[\s\S]*p_expected_state_version/.test(FN)
+  && /\.rpc\("pto_set_member_start_v1"[\s\S]*p_expected_state_version/.test(FN),
+  'request insertion and start-date setup use versioned transactional database RPCs');
+ok((FN.match(/ptoPolicyToday\(\)/g) || []).length >= 4 && !/function utcToday/.test(FN),
+  'all date-based Edge rules use the explicit company policy timezone');
 ok(!/n8n/i.test(FN), 'the PTO Edge Function has no n8n dependency');
 ok(/from "\.\/policy\.js"/.test(FN)
-  && /export \{ computePtoBalance, countPtoDays, ptoFixedHolidays \} from "\.\/policy\.js";/.test(FN),
+  && /export \{ computePtoBalance, countPtoDays, ptoFixedHolidays, ptoPolicyToday \} from "\.\/policy\.js";/.test(FN),
   'the Edge Function imports and re-exports the checked policy module used by the offline suite');
 ok(/export function computePtoBalance\(member, requests, adjustments, asOfDate\)/.test(POLICY),
   'computePtoBalance remains annotation-free plain JavaScript for offline extraction');

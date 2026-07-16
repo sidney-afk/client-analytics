@@ -4473,8 +4473,10 @@
         .dp-popup { position: fixed; z-index: 9999; width: 280px; padding: 12px 12px 10px;
             background: var(--white); border: 1px solid var(--border); border-radius: 12px;
             box-shadow: 0 14px 40px var(--sv-shadow-rgba-0-0-0-0_16);
-            font-family: inherit; user-select: none; animation: dpFade 0.13s ease-out; }
-        @keyframes dpFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+            font-family: inherit; user-select: none; animation: dpFade 0.13s ease-out;
+            max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); overflow-y: auto;
+            overscroll-behavior: contain; }
+        @keyframes dpFade { from { opacity: 1; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
         .dp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 2px 10px; }
         .dp-head-label { font-size: 0.86rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
         .dp-head-nav { display: inline-flex; gap: 2px; }
@@ -4484,24 +4486,44 @@
         .dp-nav-btn:hover { background: var(--bg); color: var(--text-primary); }
         .dp-nav-btn svg { width: 12px; height: 12px; }
         .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-        .dp-dow { text-align: center; font-size: 0.62rem; font-weight: 700; color: var(--text-muted);
+        .dp-dow { text-align: center; font-size: 0.62rem; font-weight: 700; color: var(--text-secondary);
             text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 0 6px; }
         .dp-day { aspect-ratio: 1; border: 0; background: transparent; border-radius: 8px;
             font-family: inherit; font-size: 0.78rem; font-weight: 500; color: var(--text-primary); cursor: pointer;
             display: inline-flex; align-items: center; justify-content: center;
             transition: background 0.12s, color 0.12s; }
         .dp-day:hover { background: var(--bg); }
-        .dp-day.is-out { color: var(--text-muted); opacity: 0.45; }
+        .dp-day:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+        .dp-day:disabled { color: var(--text-muted); opacity: 0.24; cursor: not-allowed; background: transparent; }
+        .dp-day.is-out { color: var(--text-secondary); opacity: 1; }
+        .dp-day.is-out:disabled { opacity: 0.18; }
         .dp-day.is-today { box-shadow: inset 0 0 0 1.5px var(--text-secondary); font-weight: 700; }
-        .dp-day.is-selected, .dp-day.is-selected:hover { background: var(--text-primary); color: var(--sv-fg-fff); font-weight: 700;
+        .dp-day.is-selected, .dp-day.is-selected:hover { background: var(--text-primary); color: var(--bg); font-weight: 700;
             box-shadow: none; }
         .dp-foot { display: flex; justify-content: space-between; align-items: center;
             margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border); }
         .dp-foot-btn { background: transparent; border: 0; font-family: inherit; font-size: 0.72rem; font-weight: 600;
-            color: var(--text-secondary); cursor: pointer; padding: 5px 9px; border-radius: 6px;
+            color: var(--text-primary); cursor: pointer; padding: 5px 9px; border-radius: 6px;
             transition: background 0.12s, color 0.12s; }
         .dp-foot-btn:hover { background: var(--bg); color: var(--text-primary); }
         .dp-foot-btn.is-primary { color: var(--text-primary); font-weight: 700; }
+        .dp-foot-btn:disabled { opacity: 0.32; cursor: not-allowed; background: transparent; }
+        @media (max-width: 600px) {
+            .dp-popup { width: min(344px, calc(100vw - 16px)); box-sizing: border-box; padding: 14px 12px 12px; border-radius: 16px; }
+            .dp-nav-btn { width: 34px; height: 34px; }
+            .dp-day { min-height: 40px; }
+        }
+        @media (max-height: 500px) {
+            .dp-popup { padding: 8px; }
+            .dp-head { padding-bottom: 4px; }
+            .dp-nav-btn { width: 28px; height: 28px; }
+            .dp-dow { padding: 2px 0 3px; }
+            .dp-day { min-height: 26px; }
+            .dp-foot { margin-top: 4px; padding-top: 4px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .dp-popup { animation: none !important; transition: none !important; }
+        }
 
         /* Link fields — paste a URL, then it becomes a click-to-open pill */
         .cal-link-field { display: flex; }
@@ -5455,8 +5477,11 @@
         .kasper-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
         .kasper-title { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
         .kasper-sub { font-size: 0.85rem; color: var(--text-secondary); }
-        .kasper-subtabs { display: flex; gap: 4px; padding: 4px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 22px; width: max-content; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_04); }
-        .kasper-subtab { background: transparent; border: none; font-family: inherit; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+        .kasper-subtabs { display: flex; gap: 4px; padding: 4px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 22px; width: max-content; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_04); }
+        .kasper-subtabs::-webkit-scrollbar { height: 5px; }
+        .kasper-subtabs::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
+        .kasper-subtab { background: transparent; border: none; font-family: inherit; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+        .kasper-subtab[hidden] { display: none; }
         .kasper-subtab svg { width: 14px; height: 14px; flex-shrink: 0; }
         .kasper-subtab:hover { color: var(--text-primary); background: var(--bg); }
         .kasper-subtab.active { background: var(--text-primary); color: var(--white); }
@@ -6261,6 +6286,7 @@
         .sm-flash.error { background:var(--dn); }
 
         /* ── PTO / Time Off ─────────────────────────────────────────────── */
+        .pto-wrap, .pto-admin { --text-muted: var(--text-secondary); --pto-positive: var(--sv-fg-166534); --pto-negative: var(--sv-fg-991b1b); }
         .pto-wrap { width: min(1180px, 100%); margin: 0 auto; padding: 10px 0 70px; }
         .pto-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin: 0 0 24px; }
         .pto-eyebrow { color: var(--text-muted); font-size: 0.66rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
@@ -6280,11 +6306,13 @@
         .pto-balance-label { position: relative; z-index: 1; font-size: 0.7rem; font-weight: 700; opacity: 0.7; }
         .pto-balance-number { position: relative; z-index: 1; display: flex; align-items: baseline; gap: 8px; margin: 5px 0 17px; font-size: clamp(3rem, 8vw, 4.7rem); font-weight: 800; letter-spacing: -0.08em; line-height: 1; }
         .pto-balance-number span { font-size: 0.78rem; font-weight: 700; letter-spacing: 0; opacity: 0.68; }
-        .pto-balance-number.negative { color: var(--dn); }
+        .pto-balance-number.negative { color: var(--pto-negative); }
         .pto-balance-metrics { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
         .pto-balance-metric { min-width: 0; border: 1px solid var(--sv-border-rgba-255-255-255-0_15); border-radius: 10px; padding: 10px; background: var(--sv-bg-rgba-255-255-255-0_07); }
         .pto-balance-metric strong { display: block; font-size: 0.92rem; }
         .pto-balance-metric span { display: block; margin-top: 2px; font-size: 0.59rem; opacity: 0.68; line-height: 1.35; }
+        .pto-balance-card .sv-info { border-color: var(--sv-border-rgba-255-255-255-0_15); background: var(--sv-bg-rgba-255-255-255-0_07); color: var(--sv-fg-fff); opacity: 1; }
+        .pto-balance-card .sv-info:hover, .pto-balance-card .sv-info:focus-visible { border-color: var(--sv-fg-fff); background: var(--sv-bg-rgba-255-255-255-0_15); color: var(--sv-fg-fff); }
         .pto-yearline { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: 14px; font-size: 0.62rem; opacity: 0.72; }
         .pto-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
         .pto-field { min-width: 0; display: grid; gap: 6px; }
@@ -6295,23 +6323,78 @@
         .pto-field input:focus, .pto-field select:focus, .pto-field textarea:focus { border-color: var(--text-primary); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-17-17-16-0_07); }
         .pto-field input:disabled, .pto-field select:disabled, .pto-field textarea:disabled { opacity: 0.6; cursor: not-allowed; }
         .pto-field-help { color: var(--text-muted); font-size: 0.61rem; line-height: 1.4; }
+        /* Shared branded controls. Browser-native select/date/number chrome is
+           intentionally kept behind these primitives so staff tools render the
+           same way on every OS. See docs/features/UI_DESIGN_STANDARDS.md. */
+        .sv-label-row { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+        .sv-info { width: 18px; height: 18px; flex: 0 0 18px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 50%; padding: 0; background: var(--bg); color: var(--text-muted); font: inherit; font-size: 0.61rem; font-weight: 850; line-height: 1; cursor: help; }
+        .sv-info:hover, .sv-info:focus-visible { border-color: var(--focus-ring); color: var(--focus-ring); background: var(--white); outline: 0; }
+        .sv-select { position: relative; width: 100%; }
+        .sv-select.is-disabled { opacity: 0.58; pointer-events: none; }
+        .sv-select-trigger, .sv-date-trigger { width: 100%; min-height: 44px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 12px; padding: 9px 12px; background: linear-gradient(180deg, var(--sv-bg-fff), var(--sv-bg-fbfbfa)); color: var(--text-primary); font: inherit; font-size: 0.78rem; font-weight: 700; text-align: left; outline: 0; cursor: pointer; display: flex; align-items: center; gap: 9px; transition: border-color 0.14s, box-shadow 0.14s, background 0.14s, transform 0.14s; }
+        .sv-select-trigger:hover, .sv-date-trigger:hover { border-color: var(--sv-border-b9b9b4); background: var(--white); }
+        .sv-select-trigger:focus-visible, .sv-date-trigger:focus-visible { border-color: var(--focus-ring); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-17-17-16-0_07); }
+        .sv-select-trigger[aria-invalid="true"], .sv-date-trigger[aria-invalid="true"], .sv-stepper-input[aria-invalid="true"], .pto-field input[aria-invalid="true"] { border-color: var(--dn); box-shadow: 0 0 0 3px var(--dn-bg); }
+        .sv-select-trigger > span:not(.sv-control-icon):not(.sv-option-dot), .sv-date-trigger > span:not(.sv-control-icon) { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sv-control-icon { width: 17px; height: 17px; flex: 0 0 17px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); }
+        .sv-control-icon svg { width: 15px; height: 15px; }
+        .sv-select-chevron { margin-left: auto; transition: transform 0.16s ease, color 0.16s ease; }
+        .sv-select.open .sv-select-chevron { transform: rotate(180deg); color: var(--text-primary); }
+        .sv-select-menu { position: absolute; z-index: 680; top: calc(100% + 7px); left: 0; right: 0; max-height: 270px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: var(--white); box-shadow: 0 18px 48px var(--sv-shadow-rgba-17-17-16-0_16); opacity: 1; transform: translateY(-4px) scale(0.985); pointer-events: none; visibility: hidden; transition: transform 0.13s ease, visibility 0s linear 0.13s; }
+        .sv-select.open .sv-select-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; visibility: visible; transition: transform 0.13s ease, visibility 0s; }
+        .sv-select.open-up .sv-select-menu { top: auto; bottom: calc(100% + 7px); transform: translateY(4px) scale(0.985); }
+        .sv-select.open.open-up .sv-select-menu { transform: translateY(0) scale(1); }
+        .sv-select-menu::-webkit-scrollbar { width: 6px; }
+        .sv-select-menu::-webkit-scrollbar-thumb { background: var(--sv-bg-d8d8d4); border-radius: 99px; }
+        .sv-select-option { width: 100%; min-height: 42px; display: flex; align-items: center; gap: 9px; border: 0; border-radius: 10px; padding: 9px 10px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 0.78rem; font-weight: 700; text-align: left; cursor: pointer; outline: 0; }
+        .sv-select-option > span:not(.sv-option-dot):not(.sv-option-check) { min-width: 0; flex: 1; }
+        .sv-select-option:hover, .sv-select-option:focus-visible { background: var(--bg); color: var(--text-primary); }
+        .sv-select-option.active { background: var(--sv-bg-f5f3ff); color: var(--sv-fg-5b21b6); }
+        .sv-select-option[aria-disabled="true"] { opacity: 0.42; cursor: not-allowed; }
+        .sv-option-dot { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; background: var(--text-muted); }
+        .sv-option-dot.wellness { background: var(--sv-bg-7c3aed); }
+        .sv-option-dot.sick { background: var(--dn); }
+        .sv-option-dot.floating { background: var(--sv-bg-eab308); }
+        .sv-option-check { width: 15px; height: 15px; flex: 0 0 15px; margin-left: auto; }
+        .sv-date { position: relative; width: 100%; }
+        .sv-date.is-disabled { opacity: 0.58; pointer-events: none; }
+        .sv-date .sv-date-value { position: absolute; width: 1px; height: 1px; left: 8px; bottom: 0; margin: 0; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+        .sv-date .sv-date-value::-webkit-calendar-picker-indicator { display: none; }
+        .sv-date-placeholder { color: var(--text-muted); font-weight: 600; }
+        .sv-stepper { width: 100%; min-height: 44px; display: grid; grid-template-columns: 42px minmax(0, 1fr) 42px; align-items: stretch; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(180deg, var(--sv-bg-fff), var(--sv-bg-fbfbfa)); transition: border-color 0.14s, box-shadow 0.14s, background 0.14s; }
+        .sv-stepper:focus-within { border-color: var(--focus-ring); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-17-17-16-0_07); background: var(--white); }
+        .sv-stepper.is-disabled { opacity: 0.58; }
+        .sv-stepper-btn { min-width: 42px; border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: 1.12rem; font-weight: 850; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.12s, color 0.12s; }
+        .sv-stepper-btn:hover:not(:disabled) { background: var(--bg); color: var(--text-primary); }
+        .sv-stepper-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -3px; }
+        .sv-stepper-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .sv-stepper .sv-stepper-input { width: 100%; min-width: 0; height: 42px; min-height: 42px; margin: 0; border: 0; border-left: 1px solid var(--border-light); border-right: 1px solid var(--border-light); border-radius: 0; padding: 0 8px; background: transparent; color: var(--text-primary); font: inherit; font-size: 0.84rem; font-weight: 800; text-align: center; outline: 0; box-shadow: none; -moz-appearance: textfield; }
+        .sv-stepper .sv-stepper-input:focus { border-color: var(--border-light); box-shadow: none; }
+        .sv-stepper-input::-webkit-outer-spin-button, .sv-stepper-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .pto-type-pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 8px; background: var(--sv-bg-f5f3ff); color: var(--sv-fg-5b21b6); font-size: 0.59rem; font-weight: 800; }
+        .pto-type-pill.sick { background: var(--dn-bg); color: var(--pto-negative); }
+        .pto-type-pill.floating { background: var(--sv-bg-fef9c3); color: var(--sv-fg-854d0e); }
+        .pto-type-pill.unpaid { background: var(--bg); color: var(--text-secondary); }
+        .pto-card-title-row, .pto-admin-title-row { display: flex; align-items: center; gap: 7px; }
         .pto-notice { grid-column: 1 / -1; display: flex; gap: 8px; border: 1px solid var(--sv-border-fdba74); border-radius: 10px; padding: 9px 11px; background: var(--sv-bg-fff7ed); color: var(--sv-fg-9a3412); font-size: 0.67rem; font-weight: 650; line-height: 1.4; }
         .pto-notice[hidden] { display: none; }
         .pto-submit { grid-column: 1 / -1; min-height: 42px; border: 0; border-radius: 11px; padding: 10px 16px; background: var(--sv-bg-111110); color: var(--sv-fg-fff); font: inherit; font-size: 0.76rem; font-weight: 800; cursor: pointer; }
         .pto-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 7px 18px var(--sv-shadow-rgba-17-17-16-0_16); }
         .pto-submit:disabled { opacity: 0.48; cursor: not-allowed; }
-        .pto-form-error { grid-column: 1 / -1; color: var(--dn); font-size: 0.68rem; font-weight: 650; line-height: 1.4; }
+        .pto-form-error { grid-column: 1 / -1; color: var(--pto-negative); font-size: 0.68rem; font-weight: 650; line-height: 1.4; }
         .pto-status { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 8px; font-size: 0.59rem; font-weight: 800; text-transform: capitalize; white-space: nowrap; }
         .pto-status.pending { background: var(--sv-bg-fff7ed); color: var(--sv-fg-9a3412); }
-        .pto-status.approved { background: var(--up-bg); color: var(--up); }
-        .pto-status.denied, .pto-status.cancelled { background: var(--dn-bg); color: var(--dn); }
+        .pto-status.approved { background: var(--up-bg); color: var(--pto-positive); }
+        .pto-status.denied, .pto-status.cancelled { background: var(--dn-bg); color: var(--pto-negative); }
         .pto-table-scroll { width: 100%; overflow-x: auto; }
         .pto-table { width: 100%; min-width: 620px; border-collapse: collapse; }
         .pto-table th { border-bottom: 1px solid var(--border); padding: 8px 9px; color: var(--text-muted); font-size: 0.59rem; font-weight: 800; letter-spacing: 0.05em; text-align: left; text-transform: uppercase; }
         .pto-table td { border-bottom: 1px solid var(--border-light); padding: 10px 9px; color: var(--text-secondary); font-size: 0.69rem; vertical-align: middle; }
+        .pto-table-note { max-width: 320px; margin-top: 5px; color: var(--text-muted); font-size: 0.6rem; line-height: 1.4; white-space: normal; }
+        .pto-table-note strong { color: var(--text-secondary); }
         .pto-table tr:last-child td { border-bottom: 0; }
         .pto-table strong { color: var(--text-primary); }
-        .pto-negative { color: var(--dn) !important; font-weight: 800; }
+        .pto-negative { color: var(--pto-negative) !important; font-weight: 800; }
         .pto-row-btn { border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.63rem; font-weight: 750; cursor: pointer; }
         .pto-row-btn:hover { border-color: var(--text-muted); color: var(--text-primary); }
         .pto-empty { border: 1px dashed var(--border); border-radius: 12px; padding: 24px 16px; color: var(--text-muted); font-size: 0.72rem; line-height: 1.5; text-align: center; }
@@ -6322,20 +6405,25 @@
         .pto-calendar-nav button { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 9px; background: var(--white); color: var(--text-secondary); cursor: pointer; }
         .pto-calendar-nav button:disabled { opacity: 0.38; cursor: not-allowed; }
         .pto-calendar-scroll { width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+        .pto-calendar-scroll:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
         .pto-calendar { min-width: 720px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--border); gap: 1px; }
         .pto-cal-weekday { background: var(--bg); color: var(--text-muted); padding: 8px; font-size: 0.58rem; font-weight: 800; letter-spacing: 0.04em; text-align: center; text-transform: uppercase; }
         .pto-cal-day { min-height: 104px; overflow: hidden; background: var(--white); padding: 7px; }
         .pto-cal-day.weekend { background: var(--surface-subtle); }
-        .pto-cal-day.outside { opacity: 0.46; }
+        .pto-cal-day.outside { background: var(--bg); }
         .pto-cal-day.today { box-shadow: inset 0 0 0 2px var(--text-primary); }
         .pto-cal-num { margin-bottom: 6px; color: var(--text-muted); font-size: 0.63rem; font-weight: 800; }
-        .pto-cal-event { overflow: hidden; margin-top: 4px; border-radius: 6px; padding: 4px 6px; background: var(--up-bg); color: var(--up); font-size: 0.57rem; font-weight: 750; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+        .pto-cal-event { overflow: hidden; margin-top: 4px; border-radius: 6px; padding: 4px 6px; background: var(--up-bg); color: var(--pto-positive); font-size: 0.57rem; font-weight: 750; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
         .pto-cal-event.holiday { background: var(--ig-light); color: var(--ig-dark); }
         .pto-cal-more { margin-top: 4px; color: var(--text-muted); font-size: 0.55rem; font-weight: 700; }
         .pto-signin { display: grid; justify-items: center; gap: 10px; padding: 44px 18px; text-align: center; }
         .pto-signin strong { font-size: 0.92rem; }
         .pto-signin span { max-width: 420px; color: var(--text-muted); font-size: 0.7rem; line-height: 1.5; }
         .pto-spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--text-primary); border-radius: 50%; animation: spin 0.75s linear infinite; }
+        @media (prefers-reduced-motion: reduce) {
+            .sv-select-menu { animation: none !important; transition: none !important; }
+            .pto-spinner { animation: none !important; }
+        }
 
         .pto-admin { display: grid; gap: 16px; }
         .pto-admin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -6344,16 +6432,33 @@
         .pto-admin-title { margin-bottom: 4px; font-size: 0.82rem; font-weight: 800; }
         .pto-admin-sub { margin-bottom: 14px; color: var(--text-muted); font-size: 0.65rem; line-height: 1.45; }
         .pto-admin-queue { display: grid; gap: 10px; }
+        .pto-admin-section-break { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
+        .pto-upcoming-list { display: grid; gap: 8px; }
+        .pto-upcoming-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid var(--border-light); border-radius: 11px; padding: 11px 12px; background: var(--surface-subtle); }
+        .pto-upcoming-row strong { color: var(--text-primary); font-size: 0.73rem; }
+        .pto-admin-history { margin-top: 14px; border-top: 1px solid var(--border-light); padding-top: 12px; }
+        .pto-admin-history summary { color: var(--text-secondary); font-size: 0.67rem; font-weight: 800; cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .pto-admin-history summary::-webkit-details-marker { display: none; }
+        .pto-admin-history summary span { border-radius: 999px; padding: 3px 7px; background: var(--bg); color: var(--text-muted); font-size: 0.58rem; }
+        .pto-history-list { display: grid; gap: 7px; margin-top: 10px; }
+        .pto-history-row { display: grid; gap: 5px; border: 1px solid var(--border-light); border-radius: 10px; padding: 10px 11px; }
+        .pto-history-row > div { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 7px; color: var(--text-secondary); font-size: 0.65rem; }
+        .pto-history-row strong { color: var(--text-primary); font-size: 0.7rem; }
+        .pto-history-row small { color: var(--text-muted); font-size: 0.59rem; display: grid; gap: 2px; }
         .pto-request-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+        .pto-request-card.type-wellness { border-left: 3px solid var(--sv-border-7c3aed); }
+        .pto-request-card.type-sick { border-left: 3px solid var(--pto-negative); }
+        .pto-request-card.type-floating { border-left: 3px solid var(--sv-border-fde047); }
+        .pto-request-card.type-unpaid { border-left: 3px solid var(--text-muted); }
         .pto-request-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
         .pto-request-name { font-size: 0.78rem; font-weight: 800; }
-        .pto-request-meta { margin-top: 3px; color: var(--text-muted); font-size: 0.63rem; line-height: 1.45; }
+        .pto-request-meta { margin-top: 6px; color: var(--text-muted); font-size: 0.63rem; line-height: 1.45; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
         .pto-request-note { margin-top: 9px; border-radius: 8px; padding: 8px 10px; background: var(--bg); color: var(--text-secondary); font-size: 0.66rem; line-height: 1.45; }
         .pto-decision { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 7px; margin-top: 11px; }
         .pto-decision input { min-width: 0; border: 1px solid var(--border); border-radius: 9px; background: var(--white); color: var(--text-primary); padding: 8px 10px; font: inherit; font-size: 0.68rem; }
         .pto-decision button { border: 0; border-radius: 9px; padding: 8px 11px; font: inherit; font-size: 0.64rem; font-weight: 800; cursor: pointer; }
-        .pto-decision .approve { background: var(--up-bg); color: var(--up); }
-        .pto-decision .deny { background: var(--dn-bg); color: var(--dn); }
+        .pto-decision .approve { background: var(--up-bg); color: var(--pto-positive); }
+        .pto-decision .deny { background: var(--dn-bg); color: var(--pto-negative); }
         .pto-admin-form { display: grid; gap: 10px; }
         .pto-check { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 0.68rem; font-weight: 700; }
         .pto-check input { width: 16px; height: 16px; accent-color: var(--text-primary); }
@@ -6376,6 +6481,7 @@
             .pto-field.full, .pto-notice, .pto-submit, .pto-form-error { grid-column: auto; }
             .pto-decision { grid-template-columns: 1fr 1fr; }
             .pto-decision input { grid-column: 1 / -1; }
+            .pto-upcoming-row { align-items: flex-start; flex-direction: column; }
         }
 
         @media (max-width:760px) {
@@ -17511,6 +17617,7 @@
     let _ptoFlagGeneration = 0;
     let _ptoOverviewGeneration = 0;
     let _ptoAdminOverviewGeneration = 0;
+    let _ptoQuoteGeneration = 0;
     const _ptoState = {
         overview: null,
         loading: false,
@@ -17523,6 +17630,7 @@
     function _ptoInvalidateOverviewCaches() {
         _ptoOverviewGeneration += 1;
         _ptoAdminOverviewGeneration += 1;
+        _ptoQuoteGeneration += 1;
         _ptoState.overview = null;
         _ptoState.error = '';
         _ptoState.loading = false;
@@ -17535,6 +17643,260 @@
         return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
     }
     function _ptoAttr(value) { return _ptoEsc(value); }
+    const SV_ICON_CHEV = '<span class="sv-control-icon sv-select-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg></span>';
+    const SV_ICON_CALENDAR = '<span class="sv-control-icon" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="11" rx="2"/><path d="M5.5 2.5v3M12.5 2.5v3M2.5 7h13"/></svg></span>';
+    const SV_ICON_CHECK = '<svg class="sv-option-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8 3 3 6-6"/></svg>';
+    let _svOpenSelectId = null;
+    let _svSelectTypeahead = '';
+    let _svSelectTypeaheadTimer = 0;
+
+    function _svInfoTip(label, text) {
+        const explanation = String(text || '').trim();
+        return '<button class="sv-info" type="button" aria-label="' + _ptoAttr('About ' + label + ': ' + explanation) + '" data-tip="' + _ptoAttr(explanation) + '">i</button>';
+    }
+    function _svTone(value) {
+        value = String(value || '').toLowerCase();
+        return ['wellness', 'sick', 'floating', 'unpaid'].includes(value) ? value : '';
+    }
+    function _svSelectHtml(id, items, selectedValue, placeholder, opts) {
+        opts = opts || {};
+        items = Array.isArray(items) ? items : [];
+        const active = items.find(item => String(item.value) === String(selectedValue) && !item.disabled) || items.find(item => String(item.value) === String(selectedValue));
+        const label = active ? active.label : (placeholder || 'Choose');
+        const tone = _svTone(active && active.tone);
+        const disabled = opts.disabled ? ' is-disabled' : '';
+        const change = opts.onchange ? ' onchange="' + _ptoAttr(opts.onchange) + '"' : '';
+        const options = items.length ? items.map((item, index) => {
+            const on = !!active && String(item.value) === String(active.value);
+            const itemTone = _svTone(item.tone);
+            const dot = itemTone ? '<span class="sv-option-dot ' + itemTone + '" aria-hidden="true"></span>' : '';
+            return '<button class="sv-select-option' + (on ? ' active' : '') + '" id="' + _ptoAttr(id) + 'Option' + index + '" type="button" role="option" aria-selected="' + (on ? 'true' : 'false') + '" aria-disabled="' + (item.disabled ? 'true' : 'false') + '" tabindex="-1" data-sv-select-option data-value="' + _ptoAttr(item.value) + '" data-label="' + _ptoAttr(item.label) + '" data-tone="' + itemTone + '" onclick="_svSelectPick(event,' + _jsAttrArg(id) + ',' + _jsAttrArg(item.value) + ',' + _jsAttrArg(item.label) + ',' + _jsAttrArg(itemTone) + ')">' + dot + '<span>' + _ptoEsc(item.label) + '</span>' + (on ? SV_ICON_CHECK : '') + '</button>';
+        }).join('') : '<div class="sv-select-option" aria-disabled="true">No options</div>';
+        const triggerDot = tone ? '<span class="sv-option-dot ' + tone + '" aria-hidden="true"></span>' : '';
+        return '<div class="sv-select' + disabled + '" id="' + _ptoAttr(id) + 'Wrap" data-sv-select onkeydown="_svSelectKeydown(event,' + _jsAttrArg(id) + ')"><button class="sv-select-trigger" type="button" role="combobox" id="' + _ptoAttr(id) + 'Btn" aria-haspopup="listbox" aria-controls="' + _ptoAttr(id) + 'Menu" aria-expanded="false"' + (opts.disabled ? ' disabled' : '') + ' onclick="_svSelectToggle(event,' + _jsAttrArg(id) + ')">' + triggerDot + '<span id="' + _ptoAttr(id) + 'Label">' + _ptoEsc(label) + '</span>' + SV_ICON_CHEV + '</button><input type="hidden" id="' + _ptoAttr(id) + '" value="' + _ptoAttr(active ? active.value : '') + '" data-label="' + _ptoAttr(label) + '" data-tone="' + tone + '"' + change + '><div class="sv-select-menu" id="' + _ptoAttr(id) + 'Menu" role="listbox" aria-labelledby="' + _ptoAttr(id) + 'Btn">' + options + '</div></div>';
+    }
+    function _svSelectOptions(id) {
+        const menu = document.getElementById(id + 'Menu');
+        return menu ? Array.from(menu.querySelectorAll('[data-sv-select-option]')).filter(option => option.getAttribute('aria-disabled') !== 'true') : [];
+    }
+    function _svSelectClose(id, returnFocus) {
+        id = id || _svOpenSelectId;
+        if (!id) return;
+        const wrap = document.getElementById(id + 'Wrap');
+        const button = document.getElementById(id + 'Btn');
+        const menu = document.getElementById(id + 'Menu');
+        if (wrap) wrap.classList.remove('open', 'open-up');
+        if (menu) menu.style.removeProperty('max-height');
+        if (button) {
+            button.setAttribute('aria-expanded', 'false');
+            button.removeAttribute('aria-activedescendant');
+            if (returnFocus) button.focus();
+        }
+        if (_svOpenSelectId === id) {
+            document.removeEventListener('mousedown', _svSelectOutside, true);
+            _svOpenSelectId = null;
+        }
+        _svSelectTypeahead = '';
+        if (_svSelectTypeaheadTimer) { clearTimeout(_svSelectTypeaheadTimer); _svSelectTypeaheadTimer = 0; }
+    }
+    function _svSelectOutside(event) {
+        if (!event.target.closest || !event.target.closest('[data-sv-select]')) _svSelectClose();
+    }
+    function _svSelectFocus(id, index) {
+        const options = _svSelectOptions(id);
+        if (!options.length) return;
+        const safe = (Number(index) % options.length + options.length) % options.length;
+        const option = options[safe];
+        option.focus();
+        document.getElementById(id + 'Btn')?.setAttribute('aria-activedescendant', option.id);
+    }
+    function _svSelectPlace(id) {
+        const wrap = document.getElementById(id + 'Wrap');
+        const button = document.getElementById(id + 'Btn');
+        const menu = document.getElementById(id + 'Menu');
+        if (!wrap || !button || !menu) return;
+        wrap.classList.remove('open-up');
+        menu.style.removeProperty('max-height');
+        const rect = button.getBoundingClientRect();
+        const edge = 8;
+        const gap = 7;
+        const below = Math.max(0, window.innerHeight - rect.bottom - edge - gap);
+        const above = Math.max(0, rect.top - edge - gap);
+        const naturalHeight = menu.scrollHeight;
+        const openUp = below < Math.min(naturalHeight, 180) && above > below;
+        wrap.classList.toggle('open-up', openUp);
+        const available = openUp ? above : below;
+        menu.style.maxHeight = Math.max(84, Math.min(270, available)) + 'px';
+    }
+    function _svSelectOpen(id, focusMode) {
+        const wrap = document.getElementById(id + 'Wrap');
+        const button = document.getElementById(id + 'Btn');
+        if (!wrap || !button || button.disabled || wrap.classList.contains('is-disabled')) return;
+        if (_svOpenSelectId && _svOpenSelectId !== id) _svSelectClose(_svOpenSelectId);
+        wrap.classList.add('open');
+        _svSelectPlace(id);
+        button.setAttribute('aria-expanded', 'true');
+        _svOpenSelectId = id;
+        setTimeout(() => document.addEventListener('mousedown', _svSelectOutside, true), 0);
+        if (focusMode) {
+            const options = _svSelectOptions(id);
+            const selected = options.findIndex(option => option.getAttribute('aria-selected') === 'true');
+            _svSelectFocus(id, focusMode === 'last' ? options.length - 1 : (selected >= 0 ? selected : 0));
+        }
+    }
+    function _svSelectToggle(event, id) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const wrap = document.getElementById(id + 'Wrap');
+        if (!wrap) return;
+        if (wrap.classList.contains('open')) _svSelectClose(id, true);
+        else _svSelectOpen(id, false);
+    }
+    function _svSelectKeydown(event, id) {
+        const key = event.key;
+        const wrap = document.getElementById(id + 'Wrap');
+        if (!wrap) return;
+        const open = wrap.classList.contains('open');
+        const options = _svSelectOptions(id);
+        const focused = options.indexOf(document.activeElement);
+        if (key === 'Escape' && open) { event.preventDefault(); _svSelectClose(id, true); return; }
+        if (key === 'Tab') { if (open) _svSelectClose(id, false); return; }
+        if (key === 'ArrowDown' || key === 'ArrowUp') {
+            event.preventDefault();
+            if (!open) { _svSelectOpen(id, key === 'ArrowUp' ? 'last' : 'first'); return; }
+            _svSelectFocus(id, focused < 0 ? (key === 'ArrowUp' ? options.length - 1 : 0) : focused + (key === 'ArrowUp' ? -1 : 1));
+            return;
+        }
+        if ((key === 'Home' || key === 'End') && open) { event.preventDefault(); _svSelectFocus(id, key === 'Home' ? 0 : options.length - 1); return; }
+        if ((key === 'Enter' || key === ' ') && open && focused >= 0) { event.preventDefault(); options[focused].click(); return; }
+        if ((key === 'Enter' || key === ' ') && event.target.id === id + 'Btn') { event.preventDefault(); _svSelectOpen(id, 'first'); return; }
+        if (open && key.length === 1 && !event.altKey && !event.ctrlKey && !event.metaKey) {
+            _svSelectTypeahead += key.toLowerCase();
+            if (_svSelectTypeaheadTimer) clearTimeout(_svSelectTypeaheadTimer);
+            _svSelectTypeaheadTimer = setTimeout(() => { _svSelectTypeahead = ''; }, 650);
+            const match = options.findIndex(option => String(option.getAttribute('data-label') || '').toLowerCase().startsWith(_svSelectTypeahead));
+            if (match >= 0) { event.preventDefault(); _svSelectFocus(id, match); }
+        }
+    }
+    function _svSelectPick(event, id, value, label, tone) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const option = event && event.currentTarget;
+        if (option && option.getAttribute('aria-disabled') === 'true') return;
+        const input = document.getElementById(id);
+        const labelEl = document.getElementById(id + 'Label');
+        const menu = document.getElementById(id + 'Menu');
+        const button = document.getElementById(id + 'Btn');
+        if (input) {
+            input.value = value;
+            input.dataset.label = label || '';
+            input.dataset.tone = _svTone(tone);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (labelEl) labelEl.textContent = label || '';
+        if (button) {
+            button.querySelector('.sv-option-dot')?.remove();
+            const safeTone = _svTone(tone);
+            if (safeTone) button.insertAdjacentHTML('afterbegin', '<span class="sv-option-dot ' + safeTone + '" aria-hidden="true"></span>');
+        }
+        if (menu) menu.querySelectorAll('[data-sv-select-option]').forEach(item => {
+            const on = item.getAttribute('data-value') === String(value);
+            item.classList.toggle('active', on);
+            item.setAttribute('aria-selected', on ? 'true' : 'false');
+            item.querySelector('.sv-option-check')?.remove();
+            if (on) item.insertAdjacentHTML('beforeend', SV_ICON_CHECK);
+        });
+        _svSelectClose(id, true);
+    }
+    function _svDateLabel(value, placeholder) {
+        const date = _ptoDate(value);
+        return date ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date) : (placeholder || 'Choose date');
+    }
+    function _svDateHtml(id, value, opts) {
+        opts = opts || {};
+        const label = _svDateLabel(value, opts.placeholder);
+        const disabled = opts.disabled ? ' is-disabled' : '';
+        const change = opts.onchange ? ' onchange="' + _ptoAttr(opts.onchange) + '"' : '';
+        const requiredDescription = opts.required ? '<span class="sr-only" id="' + _ptoAttr(id) + 'Required">Required field.</span>' : '';
+        return '<div class="sv-date' + disabled + '" id="' + _ptoAttr(id) + 'Wrap" data-sv-date-picker><button class="sv-date-trigger" type="button" id="' + _ptoAttr(id) + 'Btn" data-sv-date-trigger data-placeholder="' + _ptoAttr(opts.placeholder || 'Choose date') + '" aria-haspopup="dialog" aria-controls="svDatePickerPopup" aria-expanded="false"' + (opts.required ? ' aria-describedby="' + _ptoAttr(id) + 'Required"' : '') + (opts.disabled ? ' disabled' : '') + '>' + SV_ICON_CALENDAR + '<span data-sv-date-label class="' + (value ? '' : 'sv-date-placeholder') + '">' + _ptoEsc(label) + '</span>' + SV_ICON_CHEV + '</button>' + requiredDescription + '<input class="sv-date-value" id="' + _ptoAttr(id) + '" type="date" tabindex="-1" aria-hidden="true" value="' + _ptoAttr(value || '') + '"' + (opts.min ? ' min="' + _ptoAttr(opts.min) + '"' : '') + (opts.max ? ' max="' + _ptoAttr(opts.max) + '"' : '') + (opts.today ? ' data-sv-today="' + _ptoAttr(opts.today) + '"' : '') + (opts.required ? ' data-required="true"' : '') + (opts.disabled ? ' disabled' : '') + change + '></div>';
+    }
+    function _svSyncDateControl(id) {
+        const input = document.getElementById(id);
+        const wrap = document.getElementById(id + 'Wrap');
+        if (!input || !wrap) return;
+        const label = wrap.querySelector('[data-sv-date-label]');
+        const button = document.getElementById(id + 'Btn');
+        if (label) {
+            label.textContent = _svDateLabel(input.value, button && button.dataset.placeholder || 'Choose date');
+            label.classList.toggle('sv-date-placeholder', !input.value);
+        }
+        wrap.classList.toggle('is-disabled', !!input.disabled);
+        if (button) button.disabled = !!input.disabled;
+    }
+    function _svStepperHtml(id, value, opts) {
+        opts = opts || {};
+        const step = Number(opts.step) || 1;
+        const disabled = opts.disabled ? ' is-disabled' : '';
+        const inputAttrs = (opts.min != null ? ' min="' + _ptoAttr(opts.min) + '"' : '') + (opts.max != null ? ' max="' + _ptoAttr(opts.max) + '"' : '') + (opts.required ? ' required' : '') + (opts.disabled ? ' disabled' : '') + (opts.placeholder ? ' placeholder="' + _ptoAttr(opts.placeholder) + '"' : '');
+        const change = opts.onchange ? ' onchange="' + _ptoAttr(opts.onchange) + '"' : '';
+        return '<div class="sv-stepper' + disabled + '" id="' + _ptoAttr(id) + 'Wrap"><button class="sv-stepper-btn" id="' + _ptoAttr(id) + 'Down" type="button" aria-label="Decrease by ' + _ptoAttr(step) + '" aria-controls="' + _ptoAttr(id) + '" data-tip="' + _ptoAttr(opts.downTip || 'Decrease by ' + step) + '" onclick="_svStepNumber(' + _jsAttrArg(id) + ',-' + step + ')">−</button><input class="sv-stepper-input" id="' + _ptoAttr(id) + '" type="number" inputmode="decimal" step="' + _ptoAttr(step) + '" value="' + _ptoAttr(value == null ? '' : value) + '"' + inputAttrs + change + ' oninput="_svSyncStepper(' + _jsAttrArg(id) + ')"><button class="sv-stepper-btn" id="' + _ptoAttr(id) + 'Up" type="button" aria-label="Increase by ' + _ptoAttr(step) + '" aria-controls="' + _ptoAttr(id) + '" data-tip="' + _ptoAttr(opts.upTip || 'Increase by ' + step) + '" onclick="_svStepNumber(' + _jsAttrArg(id) + ',' + step + ')">+</button></div>';
+    }
+    function _svSyncStepper(id) {
+        const input = document.getElementById(id);
+        const wrap = document.getElementById(id + 'Wrap');
+        if (!input) return;
+        const value = Number(input.value);
+        const min = input.min === '' ? -Infinity : Number(input.min);
+        const max = input.max === '' ? Infinity : Number(input.max);
+        const down = document.getElementById(id + 'Down');
+        const up = document.getElementById(id + 'Up');
+        if (wrap) wrap.classList.toggle('is-disabled', !!input.disabled);
+        if (down) down.disabled = !!input.disabled || (Number.isFinite(value) && value <= min);
+        if (up) up.disabled = !!input.disabled || (Number.isFinite(value) && value >= max);
+    }
+    function _svStepNumber(id, delta) {
+        const input = document.getElementById(id);
+        if (!input || input.disabled) return;
+        const step = Number(input.step) || Math.abs(Number(delta)) || 1;
+        const min = input.min === '' ? -Infinity : Number(input.min);
+        const max = input.max === '' ? Infinity : Number(input.max);
+        const current = input.value === '' ? 0 : Number(input.value);
+        if (!Number.isFinite(current)) return;
+        let next = current + Number(delta || 0);
+        next = Math.min(max, Math.max(min, next));
+        next = Math.round(next / step) * step;
+        input.value = String(Math.round(next * 1000) / 1000);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        _svSyncStepper(id);
+    }
+    function _ptoClearValidation(errorId, controlIds) {
+        const errorBox = document.getElementById(errorId);
+        if (errorBox) errorBox.textContent = '';
+        String(controlIds || '').split(/\s+/).filter(Boolean).forEach(id => {
+            const control = document.getElementById(id);
+            if (!control) return;
+            control.removeAttribute('aria-invalid');
+            const describedBy = String(control.getAttribute('aria-describedby') || '')
+                .split(/\s+/).filter(value => value && value !== errorId);
+            if (describedBy.length) control.setAttribute('aria-describedby', describedBy.join(' '));
+            else control.removeAttribute('aria-describedby');
+        });
+    }
+    function _ptoShowValidation(errorId, message, focusId, invalidIds) {
+        const ids = String(invalidIds || focusId || '').split(/\s+/).filter(Boolean);
+        _ptoClearValidation(errorId, ids.join(' '));
+        const errorBox = document.getElementById(errorId);
+        if (errorBox) errorBox.textContent = message;
+        ids.forEach(id => {
+            const control = document.getElementById(id);
+            if (!control) return;
+            control.setAttribute('aria-invalid', 'true');
+            const describedBy = new Set(String(control.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+            describedBy.add(errorId);
+            control.setAttribute('aria-describedby', Array.from(describedBy).join(' '));
+        });
+        document.getElementById(focusId || ids[0])?.focus();
+    }
     function _ptoEnabled() { return String(_ptoFlagValue && _ptoFlagValue.mode || 'off').toLowerCase() === 'on'; }
     function _ptoSetFlagValue(value, generation) {
         if (generation == null) generation = ++_ptoFlagGeneration;
@@ -17623,23 +17985,29 @@
         if (code === 'insufficient_balance') return 'This request is larger than the available wellness balance.';
         if (code === 'insufficient_sick_balance') return 'This request is larger than the available sick balance.';
         if (code === 'pto_not_enabled') return 'Your Time Off profile has not been enabled yet. Ask an Admin to finish setup.';
+        if (code === 'member_not_found') return 'This active staff profile is no longer available. Refresh Time Off.';
+        if (code === 'member_inactive') return 'This request belongs to an inactive staff profile and cannot be approved. It can still be denied for cleanup.';
         if (code === 'feature_disabled') return 'Time Off is temporarily unavailable.';
         if (code === 'not_eligible') return 'Paid time off becomes available 60 days after the start date.';
         if (code === 'past_date_not_allowed') return 'Only sick leave can be requested for today or a past date.';
+        if (code === 'request_range_too_long') return 'Split this request into shorter date ranges.';
         if (code === 'floating_holiday_used' || code === 'floating_holiday_unavailable') return 'The floating holiday is already used or awaiting a decision this calendar year.';
         if (code === 'floating_holiday_range') return 'Choose one business date for a floating holiday.';
         if (code === 'crosses_leave_year') return 'Paid requests cannot cross your hire-anniversary leave-year boundary. Submit separate requests.';
+        if (code === 'request_state_changed') return 'Time Off changed while this form was open. Refresh and try again.';
+        if (code === 'cancellation_audit_not_ready') return 'Approved leave cannot be cancelled until the private cancellation-audit migration is ready.';
+        if (code === 'start_date_history_conflict') return 'This start date cannot be changed here because leave history already exists. Use a reviewed data correction so balances are not silently rewritten.';
         if (code === 'days_mismatch' || code === 'day_count_mismatch' || code === 'invalid_days') return 'Choose a half-day amount no larger than the business days in this range.';
         return String(json && (json.message || json.error_description || json.error) || (status === 403 ? 'This action is not available for this staff role.' : 'Time Off could not be updated.'));
     }
     async function _ptoApi(action, method, payload, retried) {
-        const adminAction = action === 'decide' || action === 'adjust' || action === 'set_start_date';
+        const adminAction = action === 'decide' || action === 'adjust' || action === 'set_start_date' || (action === 'cancel' && _syncviewStaffCan('pto-admin'));
         const identity = await _syncviewRequireStaffIdentity(adminAction ? 'pto-admin' : undefined);
         method = method || (action === 'overview' ? 'GET' : 'POST');
         const wire = Object.assign({}, payload || {});
         if (method !== 'GET') wire.action = action;
         if (adminAction) wire.actor_member_id = identity.member.id;
-        if ((action === 'request' || action === 'cancel') && !wire.member_id) wire.member_id = identity.member.id;
+        if ((action === 'quote' || action === 'request' || action === 'cancel') && !wire.member_id) wire.member_id = identity.member.id;
         let url = PTO_EF_URL + '?action=' + encodeURIComponent(action);
         if (action === 'overview') url += '&member_id=' + encodeURIComponent(identity.member.id);
         const options = {
@@ -17681,10 +18049,29 @@
         return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
     }
     function _ptoTodayIso() { return _ptoIso(new Date()); }
+    function _ptoLeaveYearEndFor(startIso, ptoStartIso) {
+        const start = _ptoDate(startIso);
+        const ptoStart = _ptoDate(ptoStartIso);
+        if (!start || !ptoStart) return '';
+        const anniversary = year => {
+            const lastDay = new Date(year, ptoStart.getMonth() + 1, 0, 12).getDate();
+            return new Date(year, ptoStart.getMonth(), Math.min(ptoStart.getDate(), lastDay), 12);
+        };
+        let cycleStart = anniversary(start.getFullYear());
+        if (cycleStart > start) cycleStart = anniversary(start.getFullYear() - 1);
+        const next = anniversary(cycleStart.getFullYear() + 1);
+        next.setDate(next.getDate() - 1);
+        return _ptoIso(next);
+    }
     function _ptoFmtDate(value, options) {
         const date = _ptoDate(value);
         if (!date) return '—';
         return new Intl.DateTimeFormat('en-US', options || { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+    }
+    function _ptoFmtDateTime(value) {
+        const date = new Date(String(value || ''));
+        if (Number.isNaN(date.getTime())) return '';
+        return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date);
     }
     function _ptoNumber(value, fallback) {
         const n = Number(value);
@@ -17696,6 +18083,10 @@
     }
     function _ptoTypeLabel(value) {
         return ({ wellness: 'Wellness', sick: 'Sick', floating_holiday: 'Floating holiday', unpaid: 'Unpaid' })[String(value || '')] || String(value || 'Time off').replace(/_/g, ' ');
+    }
+    function _ptoTypePill(value) {
+        const tone = _svTone(value === 'floating_holiday' ? 'floating' : value);
+        return '<span class="pto-type-pill ' + tone + '"><span class="sv-option-dot ' + tone + '" aria-hidden="true"></span>' + _ptoEsc(_ptoTypeLabel(value)) + '</span>';
     }
     function _ptoStatusHtml(status) {
         const value = String(status || 'pending').toLowerCase();
@@ -17709,11 +18100,17 @@
         const leaveYear = raw.leave_year || raw.current_leave_year || {};
         return {
             pto_enabled: raw.pto_enabled != null ? raw.pto_enabled : overview && overview.pto_enabled,
+            pto_start_date: raw.pto_start_date || raw.start_date || '',
             eligible: raw.eligible,
+            eligibility_date: raw.eligibility_date || '',
             wellness_granted: _ptoNumber(raw.wellness_granted != null ? raw.wellness_granted : wellness.granted),
+            wellness_approved_used: _ptoNumber(raw.wellness_approved_used != null ? raw.wellness_approved_used : (wellness.approved_used != null ? wellness.approved_used : raw.wellness_used)),
+            wellness_adjustment: _ptoNumber(raw.wellness_adjustment != null ? raw.wellness_adjustment : wellness.adjustment),
             wellness_used: _ptoNumber(raw.wellness_used != null ? raw.wellness_used : wellness.used),
             wellness_available: _ptoNumber(raw.wellness_available != null ? raw.wellness_available : wellness.available),
             sick_used: _ptoNumber(raw.sick_used != null ? raw.sick_used : sick.used),
+            sick_approved_used: _ptoNumber(raw.sick_approved_used != null ? raw.sick_approved_used : (sick.approved_used != null ? sick.approved_used : raw.sick_used)),
+            sick_adjustment: _ptoNumber(raw.sick_adjustment != null ? raw.sick_adjustment : sick.adjustment),
             sick_available: _ptoNumber(raw.sick_available != null ? raw.sick_available : sick.available),
             floating_holiday_used: !!(raw.floating_holiday_used != null ? raw.floating_holiday_used : floating.used),
             floating_holiday_pending: !!(raw.floating_holiday_pending != null ? raw.floating_holiday_pending : floating.pending),
@@ -17764,9 +18161,14 @@
             const overview = await _ptoApi('overview', 'GET');
             if (generation !== _ptoOverviewGeneration) return;
             _ptoState.overview = overview;
-            if (!_ptoState.monthInitialized) {
-                const asOf = _ptoDate(_ptoState.overview && _ptoState.overview.as_of_date);
-                if (asOf) _ptoState.month = new Date(asOf.getFullYear(), asOf.getMonth(), 1);
+            const asOf = _ptoDate(_ptoState.overview && _ptoState.overview.as_of_date);
+            if (asOf) {
+                const currentMonth = new Date(asOf.getFullYear(), asOf.getMonth(), 1);
+                const minMonth = new Date(asOf.getFullYear(), asOf.getMonth() - 3, 1);
+                const maxMonth = new Date(asOf.getFullYear(), asOf.getMonth() + 3, 1);
+                if (!_ptoState.monthInitialized) _ptoState.month = currentMonth;
+                else if (_ptoState.month < minMonth) _ptoState.month = minMonth;
+                else if (_ptoState.month > maxMonth) _ptoState.month = maxMonth;
                 _ptoState.monthInitialized = true;
             }
         } catch (error) {
@@ -17792,7 +18194,7 @@
         }
         if (_ptoState.loading && !_ptoState.overview) { root.innerHTML = _ptoLoadingHtml('Loading your balance'); return; }
         if (_ptoState.error && !_ptoState.overview) {
-            root.innerHTML = '<div class="pto-card pto-signin"><strong>Time Off is locked to staff sign-in</strong><span>' + _ptoEsc(_ptoState.error) + '</span><button class="pto-refresh" type="button" onclick="_ptoLoadOverview(true)">Sign in or try again</button></div>';
+            root.innerHTML = '<div class="pto-card pto-signin"><strong>Could not load Time Off</strong><span>' + _ptoEsc(_ptoState.error) + '</span><button class="pto-refresh" type="button" onclick="_ptoLoadOverview(true)">Try again</button></div>';
             return;
         }
         const overview = _ptoState.overview;
@@ -17804,30 +18206,82 @@
         const availableClass = balance.wellness_available < 0 ? ' negative' : '';
         const floatingLabel = balance.floating_holiday_pending ? 'Pending' : (balance.floating_holiday_used ? 'Used' : (balance.floating_holiday_status === 'ineligible' ? 'Not eligible' : 'Available'));
         const floatingUnavailable = balance.floating_holiday_used || balance.floating_holiday_pending;
-        const balanceHtml = '<section class="pto-card pto-balance-card"><div class="pto-balance-label">Wellness available</div>'
+        const asOf = String(overview.as_of_date || _ptoTodayIso());
+        const typeItems = [
+            { value: 'wellness', label: 'Wellness', tone: 'wellness' },
+            { value: 'sick', label: 'Sick', tone: 'sick' },
+            { value: 'floating_holiday', label: 'Floating holiday' + (balance.floating_holiday_pending ? ' (pending)' : ''), tone: 'floating', disabled: floatingUnavailable },
+            { value: 'unpaid', label: 'Unpaid', tone: 'unpaid' },
+        ];
+        const wellnessAdjustmentMetric = balance.wellness_adjustment === 0 ? '' : '<div class="pto-balance-metric"><strong>' + (balance.wellness_adjustment > 0 ? '+' : '') + _ptoFmtDays(balance.wellness_adjustment) + '</strong><span class="sv-label-row">adjustments ' + _svInfoTip('wellness adjustments', 'Credits add to your balance and deductions reduce it; approved leave is shown separately.') + '</span></div>';
+        const balanceHtml = '<section class="pto-card pto-balance-card"><div class="pto-balance-label"><span class="sv-label-row"><span>Wellness available</span>' + _svInfoTip('wellness available', 'Days you can request now after grants, approved leave, and adjustments.') + '</span></div>'
             + '<div class="pto-balance-number' + availableClass + '">' + _ptoFmtDays(balance.wellness_available) + '<span>days</span></div>'
-            + '<div class="pto-balance-metrics"><div class="pto-balance-metric"><strong>' + _ptoFmtDays(balance.wellness_granted) + '</strong><span>granted this leave year</span></div>'
-            + '<div class="pto-balance-metric"><strong>' + _ptoFmtDays(balance.wellness_used) + '</strong><span>wellness used</span></div>'
-            + '<div class="pto-balance-metric"><strong class="' + (balance.sick_available < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(balance.sick_available) + '</strong><span>sick days remaining</span></div>'
-            + '<div class="pto-balance-metric"><strong>' + floatingLabel + '</strong><span>floating holiday</span></div>'
-            + '<div class="pto-balance-metric"><strong>' + _ptoFmtDate(balance.next_accrual_date, { month: 'short', day: 'numeric' }) + '</strong><span>next wellness grant</span></div></div>'
-            + '<div class="pto-yearline"><span>Leave year ' + _ptoEsc(_ptoFmtDate(balance.leave_year_start, { month: 'short', day: 'numeric', year: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(balance.leave_year_end, { month: 'short', day: 'numeric', year: 'numeric' })) + '</span><span>Sick used ' + _ptoFmtDays(balance.sick_used) + '</span></div></section>';
+            + '<div class="pto-balance-metrics"><div class="pto-balance-metric"><strong>' + _ptoFmtDays(balance.wellness_granted) + '</strong><span class="sv-label-row">granted this leave year ' + _svInfoTip('granted days', 'Wellness days earned in your current leave year.') + '</span></div>'
+            + '<div class="pto-balance-metric"><strong>' + _ptoFmtDays(balance.wellness_approved_used) + '</strong><span class="sv-label-row">approved leave ' + _svInfoTip('approved leave', 'Wellness days in approved requests during this leave year.') + '</span></div>' + wellnessAdjustmentMetric
+            + '<div class="pto-balance-metric"><strong class="' + (balance.sick_available < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(balance.sick_available) + '</strong><span class="sv-label-row">sick days remaining ' + _svInfoTip('sick days remaining', 'Sick days still available in your current leave year.') + '</span></div>'
+            + '<div class="pto-balance-metric"><strong>' + floatingLabel + '</strong><span class="sv-label-row">floating holiday ' + _svInfoTip('floating holiday', 'One flexible paid holiday is available each calendar year; a pending request reserves it.') + '</span></div>'
+            + '<div class="pto-balance-metric"><strong>' + _ptoFmtDate(balance.next_accrual_date, { month: 'short', day: 'numeric' }) + '</strong><span class="sv-label-row">next wellness grant ' + _svInfoTip('next wellness grant', 'The next date your policy adds wellness time, if you have not reached the cap.') + '</span></div></div>'
+            + '<div class="pto-yearline"><span>Leave year ' + _ptoEsc(_ptoFmtDate(balance.leave_year_start, { month: 'short', day: 'numeric', year: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(balance.leave_year_end, { month: 'short', day: 'numeric', year: 'numeric' })) + '</span><span>Sick approved ' + _ptoFmtDays(balance.sick_approved_used) + (balance.sick_adjustment ? ' · adjustments ' + (balance.sick_adjustment > 0 ? '+' : '') + _ptoFmtDays(balance.sick_adjustment) : '') + '</span></div></section>';
         const setupNote = enabled ? '' : '<div class="pto-notice">Your Time Off profile is not enabled yet. An Admin can finish setup from Kasper → Time Off.</div>';
-        const requestHtml = '<section class="pto-card"><div class="pto-card-head"><div><div class="pto-card-title">Request time off</div><div class="pto-card-sub">Business days exclude weekends and observed company holidays. Choose the full count, or reduce it by 0.5 for one half-day endpoint.</div></div></div>'
-            + '<form class="pto-form" id="ptoRequestForm" onsubmit="_ptoSubmitRequest(event)">' + setupNote
-            + '<div class="pto-field full"><label for="ptoRequestType">Type</label><select id="ptoRequestType" onchange="_ptoSyncRequestForm(false)"' + (enabled ? '' : ' disabled') + '><option value="wellness">Wellness</option><option value="sick">Sick</option><option value="floating_holiday"' + (floatingUnavailable ? ' disabled' : '') + '>Floating holiday' + (balance.floating_holiday_pending ? ' (pending)' : '') + '</option><option value="unpaid">Unpaid</option></select></div>'
-            + '<div class="pto-field"><label for="ptoStartDate">Start date</label><input id="ptoStartDate" type="date" onchange="_ptoSyncRequestForm(true)"' + (enabled ? '' : ' disabled') + '></div>'
-            + '<div class="pto-field"><label for="ptoEndDate">End date</label><input id="ptoEndDate" type="date" onchange="_ptoSyncRequestForm(true)"' + (enabled ? '' : ' disabled') + '></div>'
-            + '<div class="pto-field full"><label for="ptoDays">Days requested</label><input id="ptoDays" type="number" min="0.5" step="0.5" inputmode="decimal"' + (enabled ? '' : ' disabled') + '><div class="pto-field-help" id="ptoDaysHelp">Choose a date range to count business days.</div></div>'
+        const requestHtml = '<section class="pto-card"><div class="pto-card-head"><div><div class="pto-card-title-row"><div class="pto-card-title">Request time off</div>' + _svInfoTip('request dates', 'Weekends and observed company holidays are skipped automatically. The server checks the final count again when you submit.') + '</div><div class="pto-card-sub">Pick your dates and SyncView will count the business days.</div></div></div>'
+            + '<form class="pto-form" id="ptoRequestForm" onsubmit="_ptoSubmitRequest(event)" oninput="_ptoClearValidation(\'ptoFormError\', \'ptoRequestTypeBtn ptoStartDateBtn ptoEndDateBtn ptoDays\')" onchange="_ptoClearValidation(\'ptoFormError\', \'ptoRequestTypeBtn ptoStartDateBtn ptoEndDateBtn ptoDays\')">' + setupNote
+            + '<div class="pto-field full"><label for="ptoRequestTypeBtn"><span class="sv-label-row"><span>Type</span>' + _svInfoTip('request type', 'Wellness and sick use their matching balances. A floating holiday is one flexible paid day; unpaid leave does not change a balance.') + '</span></label>' + _svSelectHtml('ptoRequestType', typeItems, 'wellness', 'Choose type', { disabled: !enabled, onchange: '_ptoSyncRequestForm(false)' }) + '</div>'
+            + '<div class="pto-field"><label for="ptoStartDateBtn">Start date</label>' + _svDateHtml('ptoStartDate', '', { disabled: !enabled, required: true, today: asOf, onchange: '_ptoSyncRequestForm(true)' }) + '</div>'
+            + '<div class="pto-field"><label for="ptoEndDateBtn">End date</label>' + _svDateHtml('ptoEndDate', '', { disabled: !enabled, required: true, today: asOf, onchange: '_ptoSyncRequestForm(true)' }) + '</div>'
+            + '<div class="pto-field full"><label for="ptoDays"><span class="sv-label-row"><span>Days requested</span>' + _svInfoTip('days requested', 'This is calculated from your dates. Use minus or plus only when one endpoint is a half day.') + '</span></label>' + _svStepperHtml('ptoDays', '', { min: 0.5, step: 0.5, disabled: true, downTip: 'Use one half-day endpoint', upTip: 'Return to the full business-day count' }) + '<div class="pto-field-help" id="ptoDaysHelp">Choose a date range to count business days.</div></div>'
             + '<div class="pto-notice" id="ptoNotice" hidden>Less than 14 days’ notice. This is allowed, but the policy asks for two weeks when possible.</div>'
             + '<div class="pto-field full"><label for="ptoNote">Note <span style="font-weight:500;color:var(--text-muted);">(optional)</span></label><textarea id="ptoNote" maxlength="1000" placeholder="Anything Kasper should know"' + (enabled ? '' : ' disabled') + '></textarea></div>'
             + '<div class="pto-form-error" id="ptoFormError" role="alert"></div><button class="pto-submit" id="ptoSubmit" type="submit"' + (enabled ? '' : ' disabled') + '>Send request</button></form></section>';
-        const requestRows = requests.length ? '<div class="pto-table-scroll"><table class="pto-table"><thead><tr><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th></th></tr></thead><tbody>' + requests.map(row => '<tr><td><strong>' + _ptoEsc(_ptoTypeLabel(row.type)) + '</strong></td><td>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + '</td><td>' + _ptoFmtDays(row.days) + '</td><td>' + _ptoStatusHtml(row.status) + '</td><td>' + (String(row.status) === 'pending' ? '<button class="pto-row-btn" type="button" onclick="_ptoCancelRequest(' + _jsAttrArg(row.id) + ')">Cancel</button>' : '') + '</td></tr>').join('') + '</tbody></table></div>' : '<div class="pto-empty">No requests yet. Your submitted and past requests will stay here.</div>';
+        const requestRows = requests.length ? '<div class="pto-table-scroll"><table class="pto-table"><thead><tr><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th></th></tr></thead><tbody>' + requests.map(row => '<tr><td>' + _ptoTypePill(row.type) + '</td><td>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + (row.decision_note ? '<div class="pto-table-note"><strong>Decision note:</strong> ' + _ptoEsc(row.decision_note) + '</div>' : '') + '</td><td>' + _ptoFmtDays(row.days) + '</td><td>' + _ptoStatusHtml(row.status) + '</td><td>' + (String(row.status) === 'pending' ? '<button class="pto-row-btn" type="button" onclick="_ptoCancelRequest(' + _jsAttrArg(row.id) + ')">Cancel</button>' : '') + '</td></tr>').join('') + '</tbody></table></div>' : '<div class="pto-empty">No requests yet. Your submitted and past requests will stay here.</div>';
         const historyHtml = '<section class="pto-card"><div class="pto-card-head"><div><div class="pto-card-title">My requests</div><div class="pto-card-sub">Pending requests can be cancelled before Kasper decides.</div></div></div>' + requestRows + '</section>';
         const memberRows = members.length ? members.map(member => '<tr><td><strong>' + _ptoEsc(member.name || 'Staff member') + '</strong></td><td class="' + (_ptoNumber(member.wellness_available) < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(member.wellness_available) + '</td><td>' + (member.on_leave_today ? '<span class="pto-status approved">Away today</span>' : '—') + '</td></tr>').join('') : '';
         const teamHtml = '<section class="pto-card"><div class="pto-card-head"><div><div class="pto-card-title">Team snapshot</div><div class="pto-card-sub">Available wellness days and who is away today.</div></div></div>' + (memberRows ? '<div class="pto-table-scroll"><table class="pto-table" style="min-width:420px"><thead><tr><th>Team member</th><th>Available</th><th>Today</th></tr></thead><tbody>' + memberRows + '</tbody></table></div>' : '<div class="pto-empty">No enabled team members yet.</div>') + '</section>';
-        root.innerHTML = '<div class="pto-layout"><div class="pto-stack">' + balanceHtml + requestHtml + '</div><div class="pto-stack">' + historyHtml + teamHtml + '</div><section class="pto-card pto-calendar-card">' + _ptoRenderCalendar(overview) + '</section></div>';
+        const refreshErrorHtml = _ptoState.error ? '<div class="pto-notice">Could not refresh Time Off. The data below may be out of date: ' + _ptoEsc(_ptoState.error) + '</div>' : '';
+        root.innerHTML = '<div class="pto-layout">' + refreshErrorHtml + '<div class="pto-stack">' + balanceHtml + requestHtml + '</div><div class="pto-stack">' + historyHtml + teamHtml + '</div><section class="pto-card pto-calendar-card">' + _ptoRenderCalendar(overview) + '</section></div>';
         _ptoSyncRequestForm(false);
+    }
+    function _ptoApplyRequestDayBounds(fullDays, isFloating, resetDays, profileEnabled) {
+        const days = document.getElementById('ptoDays');
+        const help = document.getElementById('ptoDaysHelp');
+        if (!days) return;
+        fullDays = _ptoNumber(fullDays);
+        const allowedDays = isFloating ? Math.min(1, fullDays) : fullDays;
+        const partialDayCount = Math.max(0.5, allowedDays - 0.5);
+        days.min = allowedDays > 0 ? String(partialDayCount) : '0.5';
+        days.max = allowedDays > 0 ? String(allowedDays) : '';
+        if (resetDays || !days.value || _ptoNumber(days.value) > allowedDays || _ptoNumber(days.value) < partialDayCount) {
+            days.value = allowedDays > 0 ? String(allowedDays) : '';
+        }
+        days.disabled = !profileEnabled || allowedDays <= 0;
+        _svSyncStepper('ptoDays');
+        if (help) help.textContent = fullDays > 0
+            ? (isFloating ? 'A floating holiday uses one business date; 0.5 or 1.0 day is allowed.' : fullDays.toFixed(1) + ' business days; use ' + partialDayCount.toFixed(1) + ' when one endpoint is a half-day.')
+            : 'Choose a valid range containing at least one business day.';
+    }
+    function _ptoSetRequestQuotePending(pending, profileEnabled) {
+        const button = document.getElementById('ptoSubmit');
+        const days = document.getElementById('ptoDays');
+        if (!button) return;
+        button.dataset.quotePending = pending ? 'true' : 'false';
+        button.disabled = !!pending || !profileEnabled || !days || days.disabled || !String(days.value || '').trim();
+    }
+    async function _ptoQuoteRequest(generation, type, start, end, isFloating, resetDays, profileEnabled) {
+        const help = document.getElementById('ptoDaysHelp');
+        try {
+            const quote = await _ptoApi('quote', 'POST', { type, start_date: start, end_date: end });
+            if (generation !== _ptoQuoteGeneration) return;
+            if (document.getElementById('ptoRequestType')?.value !== type
+                || document.getElementById('ptoStartDate')?.value !== start
+                || document.getElementById('ptoEndDate')?.value !== end) return;
+            _ptoApplyRequestDayBounds(Number(quote.full_days || 0), isFloating, resetDays, profileEnabled);
+            _ptoSetRequestQuotePending(false, profileEnabled);
+        } catch (error) {
+            if (generation !== _ptoQuoteGeneration) return;
+            const days = document.getElementById('ptoDays');
+            if (days) { days.value = ''; days.disabled = true; _svSyncStepper('ptoDays'); }
+            if (help) help.textContent = error && error.message ? error.message : 'SyncView could not count this range. Try again.';
+            _ptoSetRequestQuotePending(false, profileEnabled);
+        }
     }
     function _ptoSyncRequestForm(resetDays) {
         const start = document.getElementById('ptoStartDate');
@@ -17838,14 +18292,46 @@
         const type = document.getElementById('ptoRequestType');
         if (!start || !end || !days) return;
         const isFloating = !!(type && type.value === 'floating_holiday');
+        const balance = _ptoBalance(_ptoState.overview);
+        const profileEnabled = balance.pto_enabled !== false;
+        const asOfIso = String(_ptoState.overview && _ptoState.overview.as_of_date || _ptoTodayIso());
+        const afterAsOf = _ptoDate(asOfIso);
+        if (afterAsOf) afterAsOf.setDate(afterAsOf.getDate() + 1);
+        const futureMin = afterAsOf ? _ptoIso(afterAsOf) : '';
+        const paidEnd = type && type.value !== 'unpaid'
+            ? _ptoLeaveYearEndFor(start.value, balance.pto_start_date)
+            : '';
+        start.min = type && type.value === 'sick' ? String(balance.eligibility_date || balance.pto_start_date || '') : futureMin;
+        start.max = '';
+        if (start.value && ((start.min && start.value < start.min) || (start.max && start.value > start.max))) {
+            start.value = '';
+            end.value = '';
+        }
+        if (!start.value) end.value = '';
         if (isFloating && start.value && end.value !== start.value) end.value = start.value;
-        const fullDays = _ptoCountRequestDays(start.value, end.value, _ptoState.overview && _ptoState.overview.holidays);
-        const allowedDays = isFloating ? Math.min(1, fullDays) : fullDays;
-        const partialDayCount = Math.max(0.5, allowedDays - 0.5);
-        days.min = allowedDays > 0 ? String(partialDayCount) : '0.5';
-        days.max = allowedDays > 0 ? String(allowedDays) : '';
-        if (resetDays || !days.value || _ptoNumber(days.value) > allowedDays || _ptoNumber(days.value) < partialDayCount) days.value = allowedDays > 0 ? String(allowedDays) : '';
-        if (help) help.textContent = fullDays > 0 ? (isFloating ? 'A floating holiday uses one business date; 0.5 or 1.0 day is allowed.' : fullDays.toFixed(1) + ' business days; use ' + partialDayCount.toFixed(1) + ' when one endpoint is a half-day.') : 'Choose a valid range containing at least one business day.';
+        end.min = start.value || start.min;
+        end.max = paidEnd;
+        if (end.value && ((end.min && end.value < end.min) || (end.max && end.value > end.max))) end.value = '';
+        end.disabled = !profileEnabled || isFloating || !start.value;
+        _svSyncDateControl('ptoStartDate');
+        _svSyncDateControl('ptoEndDate');
+        const asOfYear = Number(asOfIso.slice(0, 4));
+        const holidayMin = String(_ptoState.overview && _ptoState.overview.holiday_date_min || ((asOfYear - 1) + '-01-01'));
+        const holidayMax = String(_ptoState.overview && _ptoState.overview.holiday_date_max || ((asOfYear + 1) + '-12-31'));
+        const needsServerQuote = !!(start.value && end.value && (start.value < holidayMin || end.value > holidayMax));
+        const generation = ++_ptoQuoteGeneration;
+        if (needsServerQuote) {
+            days.value = '';
+            days.disabled = true;
+            _svSyncStepper('ptoDays');
+            if (help) help.textContent = 'Counting business days with the server…';
+            _ptoSetRequestQuotePending(true, profileEnabled);
+            _ptoQuoteRequest(generation, type && type.value || '', start.value, end.value, isFloating, resetDays, profileEnabled);
+        } else {
+            const fullDays = _ptoCountRequestDays(start.value, end.value, _ptoState.overview && _ptoState.overview.holidays);
+            _ptoApplyRequestDayBounds(fullDays, isFloating, resetDays, profileEnabled);
+            _ptoSetRequestQuotePending(false, profileEnabled);
+        }
         if (notice) {
             const selected = _ptoDate(start.value);
             const today = _ptoDate(_ptoState.overview && _ptoState.overview.as_of_date || _ptoTodayIso());
@@ -17861,19 +18347,25 @@
         const type = document.getElementById('ptoRequestType').value;
         const start = document.getElementById('ptoStartDate').value;
         const end = document.getElementById('ptoEndDate').value;
-        const days = _ptoNumber(document.getElementById('ptoDays').value, NaN);
+        const daysInput = document.getElementById('ptoDays');
+        const days = _ptoNumber(daysInput.value, NaN);
         const note = document.getElementById('ptoNote').value.trim();
-        const fullDays = _ptoCountRequestDays(start, end, _ptoState.overview && _ptoState.overview.holidays);
-        if (!start || !end || end < start) { errorBox.textContent = 'Choose a valid start and end date.'; return; }
+        const requestControls = 'ptoRequestTypeBtn ptoStartDateBtn ptoEndDateBtn ptoDays';
+        _ptoClearValidation('ptoFormError', requestControls);
+        if (!start || !end || end < start) {
+            const invalid = [!start ? 'ptoStartDateBtn' : '', (!end || end < start) ? 'ptoEndDateBtn' : ''].filter(Boolean).join(' ');
+            _ptoShowValidation('ptoFormError', 'Choose a valid start and end date.', invalid.split(' ')[0], invalid);
+            return;
+        }
         const asOf = String(_ptoState.overview && _ptoState.overview.as_of_date || _ptoTodayIso());
-        if (type !== 'sick' && start <= asOf) { errorBox.textContent = 'Only sick leave can start today or in the past.'; return; }
-        const leaveYearEnd = _ptoBalance(_ptoState.overview).leave_year_end;
-        if (type !== 'unpaid' && leaveYearEnd && start <= leaveYearEnd && end > leaveYearEnd) { errorBox.textContent = 'Paid requests cannot cross your hire-anniversary leave-year boundary. Submit separate requests.'; return; }
-        if (type === 'floating_holiday' && (start !== end || fullDays !== 1)) { errorBox.textContent = 'Choose one business date for a floating holiday.'; return; }
-        const allowedDays = type === 'floating_holiday' ? Math.min(1, fullDays) : fullDays;
-        const partialDayCount = Math.max(0.5, allowedDays - 0.5);
-        if (!Number.isFinite(days) || Math.round(days * 2) !== days * 2 || (days !== allowedDays && days !== partialDayCount)) { errorBox.textContent = 'Use the full business-day count, or subtract 0.5 for one half-day endpoint.'; return; }
-        errorBox.textContent = '';
+        if (type !== 'sick' && start <= asOf) { _ptoShowValidation('ptoFormError', 'Only sick leave can start today or in the past.', 'ptoStartDateBtn'); return; }
+        const leaveYearEnd = type === 'unpaid' ? '' : _ptoLeaveYearEndFor(start, _ptoBalance(_ptoState.overview).pto_start_date);
+        if (leaveYearEnd && end > leaveYearEnd) { _ptoShowValidation('ptoFormError', 'Paid requests cannot cross your hire-anniversary leave-year boundary. Submit separate requests.', 'ptoEndDateBtn'); return; }
+        const allowedDays = _ptoNumber(daysInput.max, NaN);
+        const partialDayCount = _ptoNumber(daysInput.min, NaN);
+        if (daysInput.disabled || !String(daysInput.value || '').trim() || !(days > 0) || !(allowedDays > 0)) { _ptoShowValidation('ptoFormError', 'Wait for SyncView to count at least one business day before sending.', 'ptoDays'); return; }
+        if (type === 'floating_holiday' && (start !== end || allowedDays !== 1)) { _ptoShowValidation('ptoFormError', 'Choose one business date for a floating holiday.', 'ptoStartDateBtn', 'ptoStartDateBtn ptoEndDateBtn'); return; }
+        if (!Number.isFinite(days) || Math.round(days * 2) !== days * 2 || (days !== allowedDays && days !== partialDayCount)) { _ptoShowValidation('ptoFormError', 'Use the full business-day count, or subtract 0.5 for one half-day endpoint.', 'ptoDays'); return; }
         button.disabled = true;
         button.textContent = 'Sending…';
         try {
@@ -17921,10 +18413,10 @@
             const events = holidayRows.map(row => ({ holiday: true, label: row.name || row.label || 'Company holiday' }))
                 .concat(away.map(row => ({ holiday: false, label: row.member_name || row.name || 'Team member' })));
             const visible = events.slice(0, 3).map(event => '<div class="pto-cal-event' + (event.holiday ? ' holiday' : '') + '" title="' + _ptoAttr(event.label) + '">' + _ptoEsc(event.label) + '</div>').join('');
-            cells.push('<div class="pto-cal-day' + (date.getMonth() !== month.getMonth() ? ' outside' : '') + ((date.getDay() === 0 || date.getDay() === 6) ? ' weekend' : '') + (iso === today ? ' today' : '') + '" role="gridcell" aria-label="' + _ptoAttr(_ptoFmtDate(iso)) + '"><div class="pto-cal-num">' + date.getDate() + '</div>' + visible + (events.length > 3 ? '<div class="pto-cal-more">+' + (events.length - 3) + ' more</div>' : '') + '</div>');
+            cells.push('<div class="pto-cal-day' + (date.getMonth() !== month.getMonth() ? ' outside' : '') + ((date.getDay() === 0 || date.getDay() === 6) ? ' weekend' : '') + (iso === today ? ' today' : '') + '"><span class="sr-only">' + _ptoEsc(_ptoFmtDate(iso)) + '</span><div class="pto-cal-num" aria-hidden="true">' + date.getDate() + '</div>' + visible + (events.length > 3 ? '<div class="pto-cal-more">+' + (events.length - 3) + ' more</div>' : '') + '</div>');
         }
-        const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => '<div class="pto-cal-weekday" role="columnheader">' + day + '</div>').join('');
-        return '<div class="pto-calendar-toolbar"><div><div class="pto-card-title">Team calendar</div><div class="pto-card-sub">Approved absences and observed paid holidays.</div></div><div class="pto-calendar-nav"><button type="button" onclick="_ptoShiftMonth(-1)" aria-label="Previous month"' + (canPrev ? '' : ' disabled') + '>‹</button><span class="pto-calendar-title">' + _ptoEsc(monthLabel) + '</span><button type="button" onclick="_ptoShiftMonth(1)" aria-label="Next month"' + (canNext ? '' : ' disabled') + '>›</button></div></div><div class="pto-calendar-scroll"><div class="pto-calendar" role="grid" aria-label="Team time off for ' + _ptoAttr(monthLabel) + '">' + weekdays + cells.join('') + '</div></div>';
+        const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => '<div class="pto-cal-weekday" aria-hidden="true">' + day + '</div>').join('');
+        return '<div class="pto-calendar-toolbar"><div><div class="pto-card-title">Team calendar</div><div class="pto-card-sub">Approved absences and observed paid holidays.</div></div><div class="pto-calendar-nav"><button type="button" onclick="_ptoShiftMonth(-1)" aria-label="Previous month"' + (canPrev ? '' : ' disabled') + '>‹</button><span class="pto-calendar-title">' + _ptoEsc(monthLabel) + '</span><button type="button" onclick="_ptoShiftMonth(1)" aria-label="Next month"' + (canNext ? '' : ' disabled') + '>›</button></div></div><div class="pto-calendar-scroll" tabindex="0" aria-label="Scrollable team time off calendar for ' + _ptoAttr(monthLabel) + '"><div class="pto-calendar" role="group" aria-label="Team time off for ' + _ptoAttr(monthLabel) + '">' + weekdays + cells.join('') + '</div></div>';
     }
     function _ptoShiftMonth(delta) {
         const asOf = _ptoDate(_ptoState.overview && _ptoState.overview.as_of_date) || new Date();
@@ -17932,11 +18424,21 @@
         const maxMonth = new Date(asOf.getFullYear(), asOf.getMonth() + 3, 1);
         const next = new Date(_ptoState.month.getFullYear(), _ptoState.month.getMonth() + Number(delta || 0), 1);
         _ptoState.month = next < minMonth ? minMonth : (next > maxMonth ? maxMonth : next);
-        _ptoPaint();
+        const card = document.querySelector('#ptoRoot .pto-calendar-card');
+        if (!card) { _ptoPaint(); return; }
+        card.innerHTML = _ptoRenderCalendar(_ptoState.overview);
+        const direction = Number(delta || 0) < 0 ? 'Previous month' : 'Next month';
+        requestAnimationFrame(() => {
+            const same = card.querySelector('.pto-calendar-nav button[aria-label="' + direction + '"]:not([disabled])');
+            const fallback = card.querySelector('.pto-calendar-nav button:not([disabled])');
+            (same || fallback)?.focus();
+        });
     }
 
     function _ptoAdminMemberRows(overview) { return Array.isArray(overview && overview.admin_members) ? overview.admin_members : []; }
     function _ptoAdminPending(overview) { return Array.isArray(overview && overview.pending_requests) ? overview.pending_requests : (Array.isArray(overview && overview.pending) ? overview.pending : []); }
+    function _ptoAdminUpcoming(overview) { return Array.isArray(overview && overview.upcoming_approved_requests) ? overview.upcoming_approved_requests : []; }
+    function _ptoAdminRecent(overview) { return Array.isArray(overview && overview.recent_requests) ? overview.recent_requests : []; }
     async function _ptoLoadAdmin(force) {
         if (!_ptoEnabled() || !_syncviewStaffCan('pto-admin') || (_ptoAdminState.loading && !force)) return;
         if (_ptoAdminState.overview && !force) { _ptoRenderAdmin(); return; }
@@ -17982,16 +18484,41 @@
         const overview = _ptoAdminState.overview;
         if (!overview) { root.innerHTML = _ptoLoadingHtml('Preparing Time Off approvals'); _ptoLoadAdmin(false); return; }
         const pending = _ptoAdminPending(overview);
+        const upcoming = _ptoAdminUpcoming(overview);
+        const recent = _ptoAdminRecent(overview);
         const members = _ptoAdminMemberRows(overview);
         _kasperSetTabCount('time-off', pending.length);
-        const queue = pending.length ? pending.map(row => '<article class="pto-request-card"><div class="pto-request-top"><div><div class="pto-request-name">' + _ptoEsc(row.member_name || row.name || 'Team member') + '</div><div class="pto-request-meta">' + _ptoEsc(_ptoTypeLabel(row.type)) + ' · ' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + ' · ' + _ptoFmtDays(row.days) + ' days</div></div>' + _ptoStatusHtml(row.status || 'pending') + '</div>' + (row.note ? '<div class="pto-request-note">' + _ptoEsc(row.note) + '</div>' : '') + '<div class="pto-decision"><input type="text" maxlength="1000" data-pto-decision-note placeholder="Decision note (optional)" aria-label="Decision note for ' + _ptoAttr(row.member_name || row.name || 'request') + '"><button class="approve" type="button" onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'approved\',this)">Approve</button><button class="deny" type="button" onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'denied\',this)">Deny</button></div></article>').join('') : '<div class="pto-empty">No pending requests.</div>';
-        const balanceRows = members.length ? members.map(member => '<tr><td><strong>' + _ptoEsc(member.name || 'Team member') + '</strong></td><td>' + _ptoEsc(_ptoFmtDate(member.pto_start_date)) + '</td><td>' + _ptoFmtDays(member.wellness_granted) + '</td><td>' + _ptoFmtDays(member.wellness_used) + '</td><td class="' + (_ptoNumber(member.wellness_available) < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(member.wellness_available) + '</td><td class="' + (_ptoNumber(member.sick_available) < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(member.sick_available) + '</td><td>' + (member.pto_enabled ? 'Enabled' : 'Off') + '</td></tr>').join('') : '';
-        const memberOptions = members.map(member => '<option value="' + _ptoAttr(member.member_id) + '">' + _ptoEsc(member.name || 'Team member') + '</option>').join('');
+        const queue = pending.length ? pending.map(row => '<article class="pto-request-card type-' + _svTone(row.type === 'floating_holiday' ? 'floating' : row.type) + '"><div class="pto-request-top"><div><div class="pto-request-name">' + _ptoEsc(row.member_name || row.name || 'Team member') + '</div><div class="pto-request-meta">' + _ptoTypePill(row.type) + '<span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + ' · ' + _ptoFmtDays(row.days) + ' days</span></div></div>' + _ptoStatusHtml(row.status || 'pending') + '</div>' + (row.note ? '<div class="pto-request-note">' + _ptoEsc(row.note) + '</div>' : '') + '<div class="pto-decision"><input type="text" maxlength="1000" data-pto-decision-note placeholder="Decision note (optional)" aria-label="Decision note for ' + _ptoAttr(row.member_name || row.name || 'request') + '"><button class="approve" type="button" onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'approved\',this)">Approve</button><button class="deny" type="button" onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'denied\',this)">Deny</button></div></article>').join('') : '<div class="pto-empty">No pending requests.</div>';
+        const upcomingRows = upcoming.length ? upcoming.map(row => '<div class="pto-upcoming-row"><div><strong>' + _ptoEsc(row.member_name || row.name || 'Team member') + '</strong><div class="pto-request-meta">' + _ptoTypePill(row.type) + '<span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + ' · ' + _ptoFmtDays(row.days) + ' days</span></div></div><button class="pto-row-btn" type="button" onclick="_ptoAdminCancel(' + _jsAttrArg(row.id) + ',this)">Cancel leave</button></div>').join('') : '<div class="pto-empty">No upcoming approved leave.</div>';
+        const recentRows = recent.length ? recent.map(row => {
+            const wasCancelled = String(row.status) === 'cancelled';
+            const decisionAttribution = wasCancelled && row.cancelled_by && row.decided_by
+                ? '<span>' + _ptoEsc('Approved by ' + row.decided_by) + (row.decided_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.decided_at)) : '') + '</span>'
+                : '';
+            const currentAttribution = wasCancelled
+                ? (row.cancelled_by ? _ptoEsc('Cancelled by ' + row.cancelled_by) + (row.cancelled_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.cancelled_at)) : '') : 'Cancellation attribution unavailable')
+                : (row.decided_by ? _ptoEsc('Decided by ' + row.decided_by) + (row.decided_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.decided_at)) : '') : 'Decision attribution unavailable');
+            return '<div class="pto-history-row"><div><strong>' + _ptoEsc(row.member_name || row.name || 'Team member') + '</strong><span>' + _ptoTypePill(row.type) + '</span></div><div><span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + '</span><span>' + _ptoStatusHtml(row.status) + '</span></div><small>' + decisionAttribution + '<span>' + currentAttribution + '</span></small></div>';
+        }).join('') : '<div class="pto-empty">No completed requests yet.</div>';
+        const balanceRows = members.length ? members.map(member => '<tr><td><strong>' + _ptoEsc(member.name || 'Team member') + '</strong></td><td>' + _ptoEsc(_ptoFmtDate(member.pto_start_date)) + '</td><td>' + _ptoFmtDays(member.wellness_granted) + '</td><td>' + _ptoFmtDays(member.wellness_approved_used != null ? member.wellness_approved_used : member.wellness_used) + '</td><td>' + (_ptoNumber(member.wellness_adjustment) > 0 ? '+' : '') + _ptoFmtDays(member.wellness_adjustment) + '</td><td class="' + (_ptoNumber(member.wellness_available) < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(member.wellness_available) + '</td><td class="' + (_ptoNumber(member.sick_available) < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(member.sick_available) + '</td><td>' + (member.pto_enabled ? 'Enabled' : 'Off') + '</td></tr>').join('') : '';
+        const memberNameCounts = members.reduce((counts, member) => {
+            const key = String(member.name || 'Team member').trim().toLowerCase();
+            counts[key] = (counts[key] || 0) + 1;
+            return counts;
+        }, {});
+        const memberItems = members.map(member => {
+            const base = member.name || 'Team member';
+            const duplicate = memberNameCounts[String(base).trim().toLowerCase()] > 1;
+            const context = [_syncviewStaffRoleLabel(member.role), member.team ? String(member.team).charAt(0).toUpperCase() + String(member.team).slice(1) : ''].filter(Boolean).join(' · ');
+            return { value: String(member.member_id || ''), label: duplicate ? base + ' · ' + context : base };
+        });
+        const kindItems = [{ value: 'wellness', label: 'Wellness', tone: 'wellness' }, { value: 'sick', label: 'Sick', tone: 'sick' }];
+        const asOf = String(overview.as_of_date || _ptoTodayIso());
         root.innerHTML = '<div class="pto-admin"><div class="pto-card-head"><div><div class="pto-card-title">Time Off</div><div class="pto-card-sub">Approve requests, review balances, and maintain contractor PTO setup.</div></div><button class="pto-refresh" type="button" onclick="_ptoLoadAdmin(true)">Refresh</button></div><div class="pto-admin-grid">'
-            + '<section class="pto-admin-card full"><div class="pto-admin-title">Pending requests <span class="pto-status pending">' + pending.length + '</span></div><div class="pto-admin-sub">Balances are re-checked by the server when a wellness request is approved.</div><div class="pto-admin-queue">' + queue + '</div></section>'
-            + '<section class="pto-admin-card full"><div class="pto-admin-title">Member balances</div><div class="pto-admin-sub">Negative seeded wellness balances stay visible in red.</div>' + (balanceRows ? '<div class="pto-table-scroll"><table class="pto-table"><thead><tr><th>Member</th><th>Start date</th><th>Granted</th><th>Used</th><th>Available</th><th>Sick left</th><th>PTO</th></tr></thead><tbody>' + balanceRows + '</tbody></table></div>' : '<div class="pto-empty">No PTO members have been configured.</div>') + '</section>'
-            + '<section class="pto-admin-card"><div class="pto-admin-title">Member setup</div><div class="pto-admin-sub">Set the private PTO start date and enable only confirmed contractors.</div><form class="pto-admin-form" onsubmit="_ptoAdminSetMember(event)"><div class="pto-field"><label for="ptoAdminMember">Team member</label><select id="ptoAdminMember" required onchange="_ptoAdminPickMember(this.value)"><option value="">Choose member</option>' + memberOptions + '</select></div><div class="pto-field"><label for="ptoAdminStart">PTO start date</label><input id="ptoAdminStart" type="date" required></div><label class="pto-check"><input id="ptoAdminEnabled" type="checkbox"> PTO enabled</label><button class="pto-submit" type="submit">Save member</button><div class="pto-form-error" id="ptoAdminMemberError" role="alert"></div></form></section>'
-            + '<section class="pto-admin-card"><div class="pto-admin-title">Add adjustment</div><div class="pto-admin-sub">Use positive or negative half-day entries for migrations and corrections.</div><form class="pto-admin-form" onsubmit="_ptoAdminAdjust(event)"><div class="pto-field"><label for="ptoAdjustMember">Team member</label><select id="ptoAdjustMember" required><option value="">Choose member</option>' + memberOptions + '</select></div><div class="pto-form"><div class="pto-field"><label for="ptoAdjustKind">Balance</label><select id="ptoAdjustKind"><option value="wellness">Wellness</option><option value="sick">Sick</option></select></div><div class="pto-field"><label for="ptoAdjustDelta">Days</label><input id="ptoAdjustDelta" type="number" step="0.5" required placeholder="-1.0"></div></div><div class="pto-field"><label for="ptoAdjustDate">Effective date</label><input id="ptoAdjustDate" type="date" value="' + _ptoAttr(overview.as_of_date || _ptoTodayIso()) + '" required></div><div class="pto-field"><label for="ptoAdjustReason">Reason</label><input id="ptoAdjustReason" type="text" maxlength="500" required placeholder="hrvey_migration or correction note"></div><button class="pto-submit" type="submit">Add adjustment</button><div class="pto-form-error" id="ptoAdjustError" role="alert"></div></form></section>'
+            + '<section class="pto-admin-card full"><div class="pto-admin-title-row"><div class="pto-admin-title">Pending requests <span class="pto-status pending">' + pending.length + '</span></div>' + _svInfoTip('approval checks', 'The server re-checks policy and available balance at the moment an approval is saved.') + '</div><div class="pto-admin-sub">Review the request, then approve or deny it.</div><div class="pto-admin-queue">' + queue + '</div><div class="pto-admin-section-break"><div><div class="pto-admin-title">Upcoming approved leave</div><div class="pto-admin-sub">Future approvals can be cancelled here without erasing the original decision record.</div></div><span class="pto-status approved">' + upcoming.length + '</span></div><div class="pto-upcoming-list">' + upcomingRows + '</div><details class="pto-admin-history"><summary>Recent decisions and cancellations <span>' + recent.length + '</span></summary><div class="pto-history-list">' + recentRows + '</div></details></section>'
+            + '<section class="pto-admin-card full"><div class="pto-admin-title-row"><div class="pto-admin-title">Member balances</div>' + _svInfoTip('balance accounting', 'Available equals granted minus approved leave, plus or minus adjustments. Credits are shown separately so usage stays understandable.') + '</div><div class="pto-admin-sub">Approved leave and corrections are separated; negative availability stays red.</div>' + (balanceRows ? '<div class="pto-table-scroll"><table class="pto-table"><thead><tr><th>Member</th><th>Start date</th><th>Granted</th><th>Approved</th><th>Adjustments</th><th>Available</th><th>Sick left</th><th>PTO</th></tr></thead><tbody>' + balanceRows + '</tbody></table></div>' : '<div class="pto-empty">No PTO members have been configured.</div>') + '</section>'
+            + '<section class="pto-admin-card"><div class="pto-admin-title-row"><div class="pto-admin-title">Member setup</div>' + _svInfoTip('member setup', 'The start date is private. Enabling PTO lets this person view balances and submit requests.') + '</div><div class="pto-admin-sub">Set a confirmed contractor\'s private PTO start date.</div><form class="pto-admin-form" onsubmit="_ptoAdminSetMember(event)" oninput="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')" onchange="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')"><div class="pto-field"><label for="ptoAdminMemberBtn">Team member</label>' + _svSelectHtml('ptoAdminMember', memberItems, '', 'Choose member', { onchange: '_ptoAdminPickMember(this.value)' }) + '</div><div class="pto-field"><label for="ptoAdminStartBtn">PTO start date</label>' + _svDateHtml('ptoAdminStart', '', { required: true, today: asOf, max: asOf }) + '</div><label class="pto-check"><input id="ptoAdminEnabled" type="checkbox"> <span class="sv-label-row">PTO enabled ' + _svInfoTip('PTO enabled', 'Lets this person view balances and submit Time Off requests.') + '</span></label><button class="pto-submit" type="submit">Save member</button><div class="pto-form-error" id="ptoAdminMemberError" role="alert"></div></form></section>'
+            + '<section class="pto-admin-card"><div class="pto-admin-title-row"><div class="pto-admin-title">Add adjustment</div>' + _svInfoTip('adjustments', 'Corrections are auditable balance entries. Positive adds days; negative removes days.') + '</div><div class="pto-admin-sub">Add a signed correction in half-day steps.</div><form class="pto-admin-form" onsubmit="_ptoAdminAdjust(event)" oninput="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')" onchange="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')"><div class="pto-field"><label for="ptoAdjustMemberBtn">Team member</label>' + _svSelectHtml('ptoAdjustMember', memberItems, '', 'Choose member') + '</div><div class="pto-form"><div class="pto-field"><label for="ptoAdjustKindBtn">Balance</label>' + _svSelectHtml('ptoAdjustKind', kindItems, 'wellness', 'Choose balance') + '</div><div class="pto-field"><label for="ptoAdjustDelta"><span class="sv-label-row"><span>Days</span>' + _svInfoTip('adjustment days', 'Positive adds days; negative removes days. Zero is not allowed, and half-day steps are accepted.') + '</span></label>' + _svStepperHtml('ptoAdjustDelta', '', { step: 0.5, required: true, placeholder: '-1.0', downTip: 'Remove half a day', upTip: 'Add half a day' }) + '</div></div><div class="pto-field"><label for="ptoAdjustDateBtn"><span class="sv-label-row"><span>Effective date</span>' + _svInfoTip('effective date', 'This date decides which anniversary leave year receives the correction.') + '</span></label>' + _svDateHtml('ptoAdjustDate', asOf, { required: true, today: asOf }) + '</div><div class="pto-field"><label for="ptoAdjustReason">Reason</label><input id="ptoAdjustReason" type="text" maxlength="500" required placeholder="Migration or correction note"></div><button class="pto-submit" type="submit">Add adjustment</button><div class="pto-form-error" id="ptoAdjustError" role="alert"></div></form></section>'
             + '</div></div>';
     }
     function _ptoAdminPickMember(memberId) {
@@ -18000,6 +18527,7 @@
         const enabled = document.getElementById('ptoAdminEnabled');
         if (date) date.value = member && member.pto_start_date || '';
         if (enabled) enabled.checked = !!(member && member.pto_enabled);
+        _svSyncDateControl('ptoAdminStart');
     }
     async function _ptoAdminDecide(requestId, decision, button) {
         const card = button && button.closest('.pto-request-card');
@@ -18015,12 +18543,28 @@
             if (card) card.querySelectorAll('button, input').forEach(element => { element.disabled = false; });
         }
     }
+    function _ptoAdminCancel(requestId, button) {
+        showConfirm('Cancel approved leave', 'Remove this future approved leave from the team calendar? The original approval record will be preserved.', async () => {
+            if (button) button.disabled = true;
+            try {
+                await _ptoApi('cancel', 'POST', { request_id: requestId });
+                showToast('Approved leave cancelled');
+                _ptoInvalidateOverviewCaches();
+                await _ptoLoadAdmin(true);
+            } catch (error) {
+                if (button) button.disabled = false;
+                showToast(error && error.message ? error.message : 'Could not cancel this leave');
+            }
+        }, 'Cancel leave');
+    }
     async function _ptoAdminSetMember(event) {
         event.preventDefault();
         const errorBox = document.getElementById('ptoAdminMemberError');
         const button = event.currentTarget.querySelector('button[type="submit"]');
         const payload = { member_id: document.getElementById('ptoAdminMember').value, pto_start_date: document.getElementById('ptoAdminStart').value, pto_enabled: document.getElementById('ptoAdminEnabled').checked };
-        errorBox.textContent = '';
+        _ptoClearValidation('ptoAdminMemberError', 'ptoAdminMemberBtn ptoAdminStartBtn');
+        if (!payload.member_id) { _ptoShowValidation('ptoAdminMemberError', 'Choose a team member.', 'ptoAdminMemberBtn'); return; }
+        if (!_ptoDate(payload.pto_start_date)) { _ptoShowValidation('ptoAdminMemberError', 'Choose a valid PTO start date.', 'ptoAdminStartBtn'); return; }
         button.disabled = true;
         try {
             await _ptoApi('set_start_date', 'POST', payload);
@@ -18033,10 +18577,15 @@
         event.preventDefault();
         const errorBox = document.getElementById('ptoAdjustError');
         const button = event.currentTarget.querySelector('button[type="submit"]');
+        const memberId = document.getElementById('ptoAdjustMember').value;
         const delta = _ptoNumber(document.getElementById('ptoAdjustDelta').value, NaN);
-        if (!Number.isFinite(delta) || delta === 0 || Math.round(delta * 2) !== delta * 2) { errorBox.textContent = 'Use a non-zero amount in half-day steps.'; return; }
-        const payload = { member_id: document.getElementById('ptoAdjustMember').value, kind: document.getElementById('ptoAdjustKind').value, delta, effective_date: document.getElementById('ptoAdjustDate').value, reason: document.getElementById('ptoAdjustReason').value.trim() };
-        errorBox.textContent = '';
+        _ptoClearValidation('ptoAdjustError', 'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason');
+        if (!memberId) { _ptoShowValidation('ptoAdjustError', 'Choose a team member.', 'ptoAdjustMemberBtn'); return; }
+        if (!Number.isFinite(delta) || delta === 0 || Math.round(delta * 2) !== delta * 2) { _ptoShowValidation('ptoAdjustError', 'Use a non-zero amount in half-day steps.', 'ptoAdjustDelta'); return; }
+        const payload = { member_id: memberId, kind: document.getElementById('ptoAdjustKind').value, delta, effective_date: document.getElementById('ptoAdjustDate').value, reason: document.getElementById('ptoAdjustReason').value.trim() };
+        if (!['wellness', 'sick'].includes(payload.kind)) { _ptoShowValidation('ptoAdjustError', 'Choose the balance to adjust.', 'ptoAdjustKindBtn'); return; }
+        if (!_ptoDate(payload.effective_date)) { _ptoShowValidation('ptoAdjustError', 'Choose a valid effective date.', 'ptoAdjustDateBtn'); return; }
+        if (!payload.reason) { _ptoShowValidation('ptoAdjustError', 'Add a reason for this adjustment.', 'ptoAdjustReason'); return; }
         button.disabled = true;
         try {
             await _ptoApi('adjust', 'POST', payload);
@@ -46065,9 +46614,9 @@
     } catch (e) {}
 
     function renderKasperView() {
-        if (_kasperState.tab === 'time-off' && !_ptoEnabled()) _kasperState.tab = 'review';
+        if (_kasperState.tab === 'time-off' && (!_ptoEnabled() || !_syncviewStaffCan('pto-admin'))) _kasperState.tab = 'review';
         const tabsHtml = KASPER_SUBTABS.filter(t => t.key !== 'time-off' || _ptoEnabled()).map(t => {
-            const capability = t.key === 'client-credentials' ? 'credentials' : (t.key === 'onboarding' ? 'onboarding' : '');
+            const capability = t.key === 'client-credentials' ? 'credentials' : (t.key === 'onboarding' ? 'onboarding' : (t.key === 'time-off' ? 'pto-admin' : ''));
             const gated = capability ? ` data-staff-capability="${capability}"${_syncviewStaffCan(capability) ? '' : ' hidden'}` : '';
             return `
             <button type="button" class="kasper-subtab${_kasperState.tab === t.key ? ' active' : ''}" data-kasper-tab="${t.key}"${gated} onclick="_kasperGotoTab('${t.key}')">
@@ -46400,6 +46949,7 @@
     function _kasperGotoTab(tab) {
         if (!KASPER_SUBTABS.some(t => t.key === tab)) return;
         if (tab === 'time-off' && !_ptoEnabled()) return;
+        if (tab === 'time-off' && !_syncviewStaffCan('pto-admin')) return;
         if (tab === 'client-credentials' && !_syncviewStaffCan('credentials')) { _syncviewOfferStaffSignIn('credentials'); return; }
         if (tab === 'onboarding' && !_syncviewStaffCan('onboarding')) { _syncviewOfferStaffSignIn('onboarding'); return; }
         if (tab === 'time-off') {
@@ -46414,6 +46964,7 @@
 
     function _kasperRenderTab() {
         if (_kasperState.tab === 'time-off' && !_ptoEnabled()) _kasperState.tab = 'review';
+        if (_kasperState.tab === 'time-off' && !_syncviewStaffCan('pto-admin')) _kasperState.tab = 'review';
         if (_kasperState.tab === 'client-credentials' && !_syncviewStaffCan('credentials')) {
             _syncviewOfferStaffSignIn('credentials'); _kasperState.tab = 'review';
         }
@@ -50404,13 +50955,36 @@
             hide();
         }, true);
 
-        // Any click / keyboard escape / scroll / resize should drop the
-        // tip immediately — keeping it floating during interaction
-        // looks broken.
+        // Keyboard and touch users receive the same supplemental explanation
+        // when a focusable help trigger gains focus. Essential validation copy
+        // remains visible in the form; these tips only remove repetitive noise.
+        document.addEventListener('focusin', function (e) {
+            const bearer = findBearer(e.target);
+            if (bearer) show(bearer);
+        }, true);
+        document.addEventListener('focusout', function (e) {
+            if (!activeTarget) return;
+            const next = e.relatedTarget;
+            if (next && activeTarget.contains(next)) return;
+            hide();
+        }, true);
+
+        function viewportChange() {
+            // Focusing an off-screen help control can itself scroll the page.
+            // Keep keyboard help attached to its focused trigger; ordinary
+            // hover tips still dismiss as soon as their viewport moves.
+            const focusInside = activeTarget && (document.activeElement === activeTarget
+                || activeTarget.contains(document.activeElement));
+            if (focusInside && tipEl && tipEl.parentNode) position(tipEl, activeTarget);
+            else hide();
+        }
+
+        // Any click / keyboard escape should drop the tip immediately.
+        // Viewport changes preserve only a keyboard-focused explanation.
         document.addEventListener('mousedown', hide, true);
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hide(); });
-        window.addEventListener('scroll', hide, true);
-        window.addEventListener('resize', hide);
+        window.addEventListener('scroll', viewportChange, true);
+        window.addEventListener('resize', viewportChange);
         // When the page is hidden (tab switch) drop the tip so it
         // doesn't reappear stale when the tab is restored.
         document.addEventListener('visibilitychange', function () { if (document.hidden) hide(); });
@@ -50420,7 +50994,8 @@
        Modern date picker — replaces the OS-rendered native popup that
        <input type="date"> opens with a styled in-app calendar. One
        shared popover, portaled to <body>, opened when the user clicks
-       a .cal-date-chip and dismissed on outside click / Esc / scroll.
+       a .cal-date-chip and dismissed on outside click / Esc. While open,
+       scroll and resize events keep it anchored to its trigger.
 
        It treats the existing <input type="date"> purely as the storage
        sink + change-event source: the chip's click bubbles into the
@@ -50437,17 +51012,49 @@
     (function setupDatePicker() {
         'use strict';
         let dpEl = null;
+        let focusedISO = null;
+        let minISO = null;
+        let maxISO = null;
         let dpInput = null;        // hidden <input type="date"> driving the chip
         let dpTriggerEl = null;    // the .cal-date-chip we opened from
         let cursorISO = null;      // 'YYYY-MM-01' — the month currently in view
         let selectedISO = null;    // 'YYYY-MM-DD' or null
+        let dpPositionFrame = 0;
+        let dpDisconnectObserver = null;
 
         function pad(n) { return String(n).padStart(2, '0'); }
         function todayISO() {
+            const pinned = dpInput && String(dpInput.dataset && dpInput.dataset.svToday || '');
+            if (/^\d{4}-\d{2}-\d{2}$/.test(pinned)) return pinned;
             const d = new Date();
             return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
         }
         function isoOf(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+        function dateOf(iso) {
+            const match = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12) : null;
+        }
+        function inBounds(iso) { return !!iso && (!minISO || iso >= minISO) && (!maxISO || iso <= maxISO); }
+        function clampISO(iso) {
+            if (minISO && iso < minISO) return minISO;
+            if (maxISO && iso > maxISO) return maxISO;
+            return iso;
+        }
+        function shiftDay(iso, delta) {
+            const d = dateOf(iso);
+            if (!d) return iso;
+            d.setDate(d.getDate() + delta);
+            return isoOf(d);
+        }
+        function shiftFocusedMonth(iso, delta) {
+            const d = dateOf(iso);
+            if (!d) return iso;
+            const day = d.getDate();
+            const target = new Date(d.getFullYear(), d.getMonth() + delta, 1, 12);
+            const last = new Date(target.getFullYear(), target.getMonth() + 1, 0, 12).getDate();
+            target.setDate(Math.min(day, last));
+            return isoOf(target);
+        }
         function firstOfMonth(iso) { return iso.slice(0, 7) + '-01'; }
         function shiftMonth(iso, delta) {
             const [y, m] = iso.split('-').map(Number);
@@ -50459,6 +51066,7 @@
             if (dpEl) return dpEl;
             dpEl = document.createElement('div');
             dpEl.className = 'dp-popup';
+            dpEl.id = 'svDatePickerPopup';
             dpEl.setAttribute('role', 'dialog');
             dpEl.setAttribute('aria-label', 'Pick a date');
             return dpEl;
@@ -50486,7 +51094,7 @@
             dpEl.style.left = left + 'px';
         }
 
-        function render() {
+        function render(focusDay) {
             if (!dpEl) return;
             const [y, m] = cursorISO.split('-').map(Number);
             const monthLabel = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -50504,11 +51112,12 @@
                 const isOut = d.getMonth() !== (m - 1);
                 const isToday = dIso === today;
                 const isSelected = dIso === selectedISO;
+                const isDisabled = !inBounds(dIso);
                 const cls = ['dp-day'];
                 if (isOut) cls.push('is-out');
                 if (isToday) cls.push('is-today');
                 if (isSelected) cls.push('is-selected');
-                return `<button type="button" class="${cls.join(' ')}" data-dp-day="${dIso}">${d.getDate()}</button>`;
+                return `<button type="button" class="${cls.join(' ')}" data-dp-day="${dIso}" aria-label="${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}" aria-pressed="${isSelected ? 'true' : 'false'}"${isToday ? ' aria-current="date"' : ''} tabindex="${dIso === focusedISO ? '0' : '-1'}"${isDisabled ? ' disabled' : ''}>${d.getDate()}</button>`;
             }).join('');
             dpEl.innerHTML = `
                 <div class="dp-head">
@@ -50518,62 +51127,96 @@
                         <button type="button" class="dp-nav-btn" data-dp-nav="1" aria-label="Next month"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg></button>
                     </div>
                 </div>
-                <div class="dp-grid">
-                    ${dows.map(function (d) { return `<div class="dp-dow">${d}</div>`; }).join('')}
+                <div class="dp-grid" role="group" aria-label="${monthLabel}">
+                    ${dows.map(function (d) { return `<div class="dp-dow" aria-hidden="true">${d}</div>`; }).join('')}
                     ${cellHtml}
                 </div>
                 <div class="dp-foot">
                     <button type="button" class="dp-foot-btn" data-dp-act="clear">Clear</button>
-                    <button type="button" class="dp-foot-btn is-primary" data-dp-act="today">Today</button>
+                    <button type="button" class="dp-foot-btn is-primary" data-dp-act="today"${inBounds(today) ? '' : ' disabled'}>Today</button>
                 </div>`;
             // Reposition AFTER innerHTML in case content height changed
             // (the grid is always 6 rows so this is mostly a no-op).
             position();
+            if (focusDay) dpEl.querySelector(`[data-dp-day="${focusedISO}"]`)?.focus();
         }
 
         function commit(iso) {
             if (!dpInput) return;
+            if (iso && !inBounds(iso)) return;
             dpInput.value = iso || '';
+            dpInput.dispatchEvent(new Event('input', { bubbles: true }));
             // bubbles:true so any delegated change listeners still fire.
             dpInput.dispatchEvent(new Event('change', { bubbles: true }));
+            if (typeof _svSyncDateControl === 'function' && dpInput.id) _svSyncDateControl(dpInput.id);
         }
 
-        function close() {
+        function close(returnFocus) {
+            const trigger = dpTriggerEl;
+            if (trigger && trigger.hasAttribute('aria-expanded')) trigger.setAttribute('aria-expanded', 'false');
+            if (dpPositionFrame) cancelAnimationFrame(dpPositionFrame);
+            dpPositionFrame = 0;
+            if (dpDisconnectObserver) dpDisconnectObserver.disconnect();
+            dpDisconnectObserver = null;
             if (dpEl && dpEl.parentNode) dpEl.parentNode.removeChild(dpEl);
             dpEl = null;
             dpInput = null;
             dpTriggerEl = null;
             cursorISO = null;
             selectedISO = null;
+            focusedISO = null;
+            minISO = null;
+            maxISO = null;
             document.removeEventListener('mousedown', outsideMouse, true);
             document.removeEventListener('keydown', keyHandler);
-            window.removeEventListener('scroll', close, true);
-            window.removeEventListener('resize', close);
+            window.removeEventListener('scroll', viewportChange, true);
+            window.removeEventListener('resize', viewportChange);
+            if (returnFocus && trigger && document.contains(trigger)) trigger.focus();
+        }
+        function viewportChange() {
+            if (!dpEl || !dpTriggerEl || !document.contains(dpTriggerEl)) {
+                close(false);
+                return;
+            }
+            if (dpPositionFrame) cancelAnimationFrame(dpPositionFrame);
+            dpPositionFrame = requestAnimationFrame(function () {
+                dpPositionFrame = 0;
+                if (!dpEl || !dpTriggerEl || !document.contains(dpTriggerEl)) close(false);
+                else position();
+            });
         }
 
         function open(chip) {
-            const wrap = chip && chip.closest('.cal-fld-date-wrap');
-            if (!wrap || wrap.classList.contains('is-readonly')) return;
+            const wrap = chip && chip.closest('.cal-fld-date-wrap, [data-sv-date-picker]');
+            if (!wrap || wrap.classList.contains('is-readonly') || wrap.classList.contains('is-disabled') || chip.disabled) return;
             const input = wrap.querySelector('input[type="date"]');
-            if (!input) return;
-            close();   // any previous one
+            if (!input || input.disabled) return;
+            close(false);   // any previous one
             dpInput = input;
             dpTriggerEl = chip;
-            const startIso = (input.value || '').slice(0, 10) || todayISO();
+            minISO = /^\d{4}-\d{2}-\d{2}$/.test(input.min || '') ? input.min : null;
+            maxISO = /^\d{4}-\d{2}-\d{2}$/.test(input.max || '') ? input.max : null;
+            const startIso = clampISO((input.value || '').slice(0, 10) || todayISO());
             selectedISO = (input.value || '').slice(0, 10) || null;
+            focusedISO = startIso;
             cursorISO = firstOfMonth(startIso);
             ensureEl();
+            if (chip.hasAttribute('aria-expanded')) chip.setAttribute('aria-expanded', 'true');
             document.body.appendChild(dpEl);
-            render();
+            render(true);
             // Clicks on the popover itself shouldn't bubble to the outside
             // handler — but plain delegation handles the inner buttons.
             dpEl.addEventListener('click', onPopupClick);
             document.addEventListener('mousedown', outsideMouse, true);
             document.addEventListener('keydown', keyHandler);
-            // Scroll / resize close (a scroll could move the chip out from
-            // under the popover, leaving it floating in the wrong place).
-            window.addEventListener('scroll', close, true);
-            window.addEventListener('resize', close);
+            // Keep the body-portaled popover attached during mobile/ancestor
+            // scrolling, and close it if a rerender removes its trigger.
+            window.addEventListener('scroll', viewportChange, true);
+            window.addEventListener('resize', viewportChange);
+            dpDisconnectObserver = new MutationObserver(function () {
+                if (dpTriggerEl && !document.contains(dpTriggerEl)) close(false);
+            });
+            dpDisconnectObserver.observe(document.body, { childList: true, subtree: true });
         }
 
         function onPopupClick(e) {
@@ -50582,14 +51225,16 @@
             if (t.hasAttribute('data-dp-day')) {
                 selectedISO = t.getAttribute('data-dp-day');
                 commit(selectedISO);
-                close();
+                close(true);
             } else if (t.hasAttribute('data-dp-nav')) {
-                cursorISO = shiftMonth(cursorISO, Number(t.getAttribute('data-dp-nav')) || 0);
-                render();
+                const delta = Number(t.getAttribute('data-dp-nav')) || 0;
+                focusedISO = clampISO(shiftFocusedMonth(focusedISO, delta));
+                cursorISO = firstOfMonth(focusedISO);
+                render(true);
             } else if (t.hasAttribute('data-dp-act')) {
                 const act = t.getAttribute('data-dp-act');
-                if (act === 'clear') { commit(''); close(); }
-                else if (act === 'today') { commit(todayISO()); close(); }
+                if (act === 'clear') { commit(''); close(true); }
+                else if (act === 'today' && inBounds(todayISO())) { commit(todayISO()); close(true); }
             }
         }
 
@@ -50598,12 +51243,54 @@
             if (dpEl.contains(e.target)) return;
             // Re-clicking the same chip should toggle closed (and let the
             // chip-open handler reopen) instead of leaving a stale popup.
-            if (dpTriggerEl && dpTriggerEl.contains(e.target)) { close(); return; }
-            close();
+            if (dpTriggerEl && dpTriggerEl.contains(e.target)) return;
+            close(false);
         }
 
         function keyHandler(e) {
-            if (e.key === 'Escape') { e.preventDefault(); close(); }
+            if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
+            if (!dpEl || !dpEl.contains(e.target)) return;
+            if (e.key === 'Tab') {
+                const focusable = Array.from(dpEl.querySelectorAll('button:not([disabled])'));
+                if (!focusable.length) { e.preventDefault(); return; }
+                const activeIndex = focusable.indexOf(document.activeElement);
+                if (e.shiftKey && activeIndex <= 0) {
+                    e.preventDefault();
+                    focusable[focusable.length - 1].focus();
+                } else if (!e.shiftKey && activeIndex === focusable.length - 1) {
+                    e.preventDefault();
+                    focusable[0].focus();
+                }
+                return;
+            }
+            if (!focusedISO) return;
+            const dayTarget = e.target.closest && e.target.closest('[data-dp-day]');
+            if (!dayTarget) return;
+            let next = null;
+            if (e.key === 'ArrowLeft') next = shiftDay(focusedISO, -1);
+            else if (e.key === 'ArrowRight') next = shiftDay(focusedISO, 1);
+            else if (e.key === 'ArrowUp') next = shiftDay(focusedISO, -7);
+            else if (e.key === 'ArrowDown') next = shiftDay(focusedISO, 7);
+            else if (e.key === 'Home') {
+                const d = dateOf(focusedISO);
+                next = shiftDay(focusedISO, -(d ? d.getDay() : 0));
+            } else if (e.key === 'End') {
+                const d = dateOf(focusedISO);
+                next = shiftDay(focusedISO, 6 - (d ? d.getDay() : 0));
+            } else if (e.key === 'PageUp') next = shiftFocusedMonth(focusedISO, -1);
+            else if (e.key === 'PageDown') next = shiftFocusedMonth(focusedISO, 1);
+            else if ((e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('[data-dp-day]')) {
+                e.preventDefault();
+                commit(focusedISO);
+                close(true);
+                return;
+            }
+            if (next) {
+                e.preventDefault();
+                focusedISO = clampISO(next);
+                cursorISO = firstOfMonth(focusedISO);
+                render(true);
+            }
         }
 
         // Capture-phase click on date chips. The chip is inside a card and
@@ -50611,12 +51298,13 @@
         // catch in the capture phase and stop propagation to keep the
         // open() call clean.
         document.addEventListener('click', function (e) {
-            const chip = e.target && e.target.closest && e.target.closest('.cal-date-chip');
+            const chip = e.target && e.target.closest && e.target.closest('.cal-date-chip, [data-sv-date-trigger]');
             if (!chip) return;
-            const wrap = chip.closest('.cal-fld-date-wrap');
-            if (!wrap || wrap.classList.contains('is-readonly')) return;
+            const wrap = chip.closest('.cal-fld-date-wrap, [data-sv-date-picker]');
+            if (!wrap || wrap.classList.contains('is-readonly') || wrap.classList.contains('is-disabled') || chip.disabled) return;
             e.preventDefault();
             e.stopPropagation();
+            if (chip === dpTriggerEl || chip.getAttribute('aria-expanded') === 'true') { close(true); return; }
             open(chip);
         }, true);
     })();

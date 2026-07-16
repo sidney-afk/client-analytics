@@ -1,0 +1,52 @@
+name: PTO UI browser checks
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'package.json'
+      - 'docs/syncview-design/tests/pto-ui-polish.js'
+      - 'supabase/functions/pto/**'
+      - 'supabase/functions/_shared/staff-role-auth.ts'
+      - 'migrations/*pto*.sql'
+      - '.github/workflows/pto-ui-tests.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'package.json'
+      - 'docs/syncview-design/tests/pto-ui-polish.js'
+      - 'supabase/functions/pto/**'
+      - 'supabase/functions/_shared/staff-role-auth.ts'
+      - 'migrations/*pto*.sql'
+      - '.github/workflows/pto-ui-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pto-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 'v2.5.2'
+      - name: Type-check PTO Edge Function
+        run: deno check supabase/functions/pto/index.ts
+      - name: Install pinned browser-test dependencies
+        run: npm install --no-package-lock
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run synthetic PTO interactions
+        run: npm run test:pto-ui

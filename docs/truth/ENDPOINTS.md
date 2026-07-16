@@ -1,6 +1,6 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-15 @ 4f9d919 + live security-remediation readback and PTO source inventory (no live PTO deploy claim)
+> Last verified: 2026-07-16 @ 139a4c8 (EF count 18 reconciled; webhooks remain 55 — linear-projects restored by the Part C legacy Submit gating; PTO live-on D-36; freeze markers; onboarding callers live)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -76,7 +76,7 @@ Other:
 - `webhook/content-ready` — content-ready notification
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (17 literal URLs + 4 composed onboarding URLs)
+## Supabase Edge Functions (18 literal URLs + 4 composed onboarding URLs)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
@@ -85,9 +85,10 @@ Other:
   source applies the same fail-closed policy to all six writers: exactly one configured staff/
   automation key or active exact-client token, server-derived attribution, and no trust in caller
   actor/role claims. Reorder/settings writers are deployed with missing/wrong-key `401` plus restored
-  TEST allow proof. `calendar-upsert` and `sample-review-upsert` remain on their prior public source
-  until the reconciler callers in this PR merge and can be deployed atomically with the managed key.
-  Direct legacy n8n writers remain F67.
+  TEST allow proof. `calendar-upsert` and `sample-review-upsert` are ⛔ FROZEN OWNER-UN-GATED live
+  (2026-07-15 double-outage directive — AGENTS.md callout + ROLLBACK.md F35 row): intentionally
+  tokenless so existing client links keep saving. DO NOT deploy or re-gate them without explicit
+  owner approval AND full fresh-link re-issue. Direct legacy n8n writers remain F67.
 - `functions/v1/onboarding-capture` — onboarding funnel capture
 - `functions/v1/client-token-verify`, `functions/v1/client-review-link`, `functions/v1/client-credentials` — client auth, staff-only current review-link issuance, and staff credentials surface. F89: token telemetry logs access-allowed as `ok`, so permissive tokenless opens are not validation evidence. F84: credentials bulk-delivers plaintext before masking and accepts shared/legacy keys without active-member binding.
 - `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal pings it at boot to revalidate the stored role key, and sensitive staff EFs share its secret-to-role matcher. F87 requires uniform denials, request controls, bounded audit retention, and explicit audit-outage behavior for both verifiers.
@@ -122,12 +123,13 @@ Other:
   The signed n8n caller reaches the authenticated branch, and current Pages already sends the
   verified staff key for browser calls.
 - `functions/v1/pto` — staff-key-authenticated PTO overview/request gateway and server-owned
-  accrual engine. It is dark behind `pto_v1`; all private PTO tables remain inaccessible through
-  browser PostgREST, approval uses versioned snapshot/finalize RPCs, and admin-only decisions,
-  adjustments, and member setup are role-checked here. **Do not enable yet:** the shared role keys
-  prove a role but not a unique person, so caller-selected same-role identity cannot safely protect
-  "own" HR detail/request ownership until the individually revocable session gate in
-  `docs/features/PTO_TRACKER.md` is implemented and negatively tested.
+  accrual engine. **LIVE-ON since 2026-07-15**: `pto_v1={"mode":"on"}` under owner decision D-36
+  (the owner explicitly accepted launching on shared role keys; the individually revocable session
+  gate in `docs/features/PTO_TRACKER.md` stays a roadmap upgrade, not a launch gate). All private
+  PTO tables remain inaccessible through browser PostgREST, approval uses versioned
+  snapshot/finalize RPCs, and admin-only decisions, adjustments, and member setup are role-checked
+  here. Do NOT "correct" the flag to off based on older docs — off is the behavior kill for a live
+  HR tool the team actively uses.
 - `functions/v1/thumbnail-folder-resolve` — thumbnail Drive-folder resolution
 - `functions/v1/thumbnail-revision-read` — no-store Calendar/Samples Previous/Current reader. It
   accepts one `{surface, client, source_id}` scope, verifies either a staff role key plus exact
@@ -138,9 +140,9 @@ Other:
 The four calls composed from `ONBOARDING_EDGE_BASE` are `functions/v1/onboarding-list`,
 `functions/v1/ai-onboarding-list`, `functions/v1/legacy-onboarding-list`, and
 `functions/v1/onboarding-full`. All four now authenticate before constructing a service-role client;
-the first three are live at v24 and missing/wrong keys return `401`. Candidate SPA callers obtain the
-key only after verified Admin sign-in and never hardcode it, so existing Pages list screens fail
-closed until merge. `onboarding-capture` remains public intake but has no stored-data SELECT/read
+the first three are live at v24 and missing/wrong keys return `401`. The SPA callers (live on Pages
+since the 2026-07-15 #836 merge) obtain the key only after verified Admin sign-in and never
+hardcode it. `onboarding-capture` remains public intake but has no stored-data SELECT/read
 path. **F77 remains partial:** wildcard CORS and full-list background discovery still need closure.
 **F85:** shared/legacy key compatibility does not bind an active member or audit reads, so retained
 secret possession can still export the corpus; retire that fallback behind individual sessions.

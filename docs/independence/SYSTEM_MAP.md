@@ -162,7 +162,7 @@ Everything below is shared by every surface; per-surface sections only note devi
   epoch, server minimum-version rejection, or build-population telemetry currently expires callers.
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
   constant declared *before* the main Supabase URL constant (TDZ avoidance) — that is why §7 counts
-  "17 literal + 4 composed" Edge Functions.
+  "18 literal + 4 composed" Edge Functions.
 
 ## 4. Surface catalog
 

@@ -1,6 +1,6 @@
 # Linear — current truth
 
-> Last verified: 2026-07-14 @ e3961b6 (live n8n configuration and execution readback)
+> Last verified: 2026-07-16 @ bb0ee4b (Phase-2 candidate reconciliation; live n8n readback retained from 2026-07-14)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -65,5 +65,7 @@ system-wide view: `docs/independence/SYSTEM_MAP.md`. The visible **Linear** tab 
 `production`, route `#production`, alias `?prod=1`) is the native mirror surface. #812 ships
 authority-gated status/comment/due/assignee controls: real teams remain read-only while authority is
 Linear; the bounded active-TEST lane can write. The visible **Submit** tab retains internal key
-`linear` and route `#linear`; its #813 native reroute is still unmerged and not dark-gated (F02),
-while the serving legacy intake is caller-unauthenticated (F91).
+`linear` and route `#linear`; its #813 native reroute is merged in the Phase-2 candidate and
+dark-gated behind `write_ui_reroute_clients` (TEST-only allowlist; a missing/unreadable flag
+deliberately fails to the LEGACY lane), while the serving legacy intake for non-enrolled clients
+remains caller-unauthenticated (F91).

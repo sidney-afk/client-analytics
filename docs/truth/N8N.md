@@ -1,6 +1,6 @@
 # n8n — current truth
 
-> Last verified: 2026-07-14 @ 1ce7c91 (live configuration/execution readback + second-pass reconciliation)
+> Last verified: 2026-07-16 @ 139a4c8 (webhook surface re-verified at 55: linear-projects retained for the legacy Submit lane)
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
 > full-active-roster Calendar/SXR/settings writes now use Edge Functions. Snapshot workflows

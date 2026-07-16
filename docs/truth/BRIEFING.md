@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-14 @ 1ce7c91 (second-pass current-state reconciliation through F138)
+> Last verified: 2026-07-16 @ bb0ee4b (current-state reconciliation through F138; flag story: write_ui_reroute_clients + pto_v1 added)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -58,8 +58,12 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 
 - Runtime kill-switches live in Supabase `syncview_runtime_flags`. The three Track-A client
   allowlists carry the full active roster; Track-B authority remains Linear/Linear, outbound is
-  off, and auth is permissive. The exact TEST fixture identity stays in private operator config;
-  `ROLLBACK.md` has the public-safe live-state table.
+  off, and auth is permissive. Two more live flags matter: `write_ui_reroute_clients` — the
+  Phase-2 write-UI dark-launch allowlist (TEST client only; a missing/unreadable read fails to
+  the LEGACY lane, the OPPOSITE fail direction from the Track-A allowlists) — and `pto_v1`
+  (staff PTO tracker, live ON since 2026-07-15 under owner decision D-36). The exact TEST
+  fixture identity stays in private operator config; `ROLLBACK.md` has the public-safe
+  live-state table.
 - Permissive auth is a pre-enforcement posture only. GO_LIVE Phase 0.75 must execute and prove the
   F5 forward CAS before any real-client parity cohort; the old canonical sequence omitted it (F97).
 - The first human authority handoff uses fail-safe F2→F1 order: normal outbound is armed/read back

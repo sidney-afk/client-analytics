@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-14 @ 08e18e6 + live topology/thumbnail browser proof
+> Last verified: 2026-07-16 @ bb0ee4b (Phase-2 cohort scoping for status-pill/transport/parent_id invariants)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -30,7 +30,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   Posted/Scheduled (they ARE pushed; a stale code comment claims otherwise).
 - The active `linear-set-status` and `linear-add-comment` bridges receive no verified caller
   identity (F91). Team authority constrains direction only; it is not authentication.
-- Status pills require a linked Linear sub-issue ("Link a Linear sub-issue first").
+- Status pills require a linked Linear sub-issue ("Link a Linear sub-issue first") — **legacy-lane
+  invariant**: it holds for clients NOT in `write_ui_reroute_clients`. Enrolled clients (TEST-only
+  today) route status/comments/Create Post through the authenticated `production-write` gateway,
+  which accepts native deliverable IDs without Linear URLs.
 - `?v2=0` is **not writable rollback** (F125): it selects Sheet reads while full-roster
   upsert/reorder routing still targets Supabase-only Edge Functions. Normal Supabase-read failure
   automatically selects the same Sheet fallback. Either state must remain read-only until one
@@ -72,8 +75,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - Comment truth remains split across card JSON and normalized rows (F43). Canonical persistence must
   succeed before any Linear/mirror side effect; a failure keeps the draft/queue with visible retry,
   and retry must produce exactly one canonical mutation plus exactly one applicable mirror intent
-  while mirroring is enabled; retired mode produces zero mirror/outbox intents. Production currently
-  has no Reply action/`parent_id` send path and client links do not read Client-visible normalized rows.
+  while mirroring is enabled; retired mode produces zero mirror/outbox intents. Production's legacy lane
+  has no Reply action/`parent_id` send path (the Phase-2 gateway lane for enrolled clients does send
+  `parent_id` in comment payloads) and client links do not read Client-visible normalized rows.
 - Kasper's eight-tab strip is not contained or semantically keyboard-operable at 390/768 px; later
   and deep-linked tabs require whole-page horizontal panning (F121). A failed shared Review/Messages
   cold load leaves Messages on an indefinite skeleton, and Review renders no Retry (F130).

@@ -1,6 +1,6 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-15 @ 4f9d919 + F13 independent backup/restore merged & active (backup section)
+> Last verified: 2026-07-16 @ bb0ee4b (freeze marker on the two upserts; flag story extended)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 ## Tables
@@ -44,7 +44,10 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   B0's `BEFORE UPDATE` trigger maintains `updated_at`, and the separate `flag_flips` trigger records
   old/new value plus actor/time; read both after every change. Canonical `prod_authority` sides are
   only `linear`/`syncview`. F55 remains open because several backends also accept legacy `supabase`
-  while the browser rejects it; do not use that alias.
+  while the browser rejects it; do not use that alias. Two additional live flags:
+  `write_ui_reroute_clients` (Phase-2 write-UI dark-launch allowlist, TEST-only; missing/unreadable
+  reads fail to the LEGACY lane — opposite of the Track-A fail direction) and `pto_v1` (staff PTO
+  tracker, live ON since 2026-07-15, owner decision D-36).
 - Event ledgers `sample_review_events` (~22k rows) + `calendar_post_events` (~473):
   **100% `source='ui'` to date** — the `linear_in`/`linear_out`/`reconcile` paths have never
   written events; inbound/reconcile bypass the ledger. `deliverable_events` (Track B) must
@@ -66,9 +69,12 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   staff/automation key or active client token scoped to the written client; the server derives
   attribution and ignores caller actor/role claims. `calendar-reorder`, `sample-review-reorder`,
   `templates-save`, and `caption-prompts-save` are live with missing/wrong-key `401` and restored
-  TEST allow proof. `calendar-upsert` and `sample-review-upsert` deliberately remain on their prior
-  public source until the merged reconciler callers send the managed key; deploy those two only as
-  one caller/function change after merge. Direct legacy n8n writers remain F67.
+  TEST allow proof. `calendar-upsert` and `sample-review-upsert` are ⛔ FROZEN OWNER-UN-GATED live
+  (2026-07-15 double-outage directive — see the AGENTS.md callout and the ROLLBACK.md F35 row): the
+  live functions are intentionally tokenless so existing client review links keep saving. DO NOT
+  deploy or re-gate them — not even "atomically after merge" — without the owner's explicit
+  approval AND confirmed fresh-link re-issue for every active client. Direct legacy n8n writers
+  remain F67.
 - The EF ports string-extract 11 symbols from `index.html` **by name** (`grabFunc`) — renaming
   those symbols silently breaks the port. Check `supabase/functions/` before renaming
   anything the write path touches.

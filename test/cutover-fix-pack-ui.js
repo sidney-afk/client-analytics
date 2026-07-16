@@ -185,8 +185,7 @@ assert(count(extract('_calCompKasperVisible') + extract('_kasperUndecidedComps')
 assert(extract('_calRenderInlineCard').includes('!_calCompLinked(p, c)'));
 assert(extract('_sxrRenderInlineCard').includes('!_calCompLinked(p, c)'));
 
-// F10/F21: a 401 opens the existing staff dialog, and startup debt is visible
-// with the owner-approved wording and a deduplicated count.
+// F10: a 401 opens the existing staff dialog.
 const failure = extract('_writeUiReportFailure');
 assert(failure.includes("_syncviewOpenStaffIdentity({ reason: 'required' })"));
 assert(failure.includes('_syncviewStaffIdentityClear()'));
@@ -216,20 +215,11 @@ vm.createContext(staleIdentityContext);
 vm.runInContext(failure, staleIdentityContext);
 staleIdentityContext._writeUiReportFailure('calendar', 'status', { status: 401, code: 'credentials_required' });
 assert.deepStrictEqual(staleIdentityContext.events, ['clear', 'sign-in']);
-const noticeContext = {
-  _writeUiLegacyPendingNotified: false,
-  _linearOutboxRead: () => [{ id: 'same' }],
-  _sxrLinearOutboxRead: () => [{ id: 'sxr-1' }],
-  _writeUiLegacyQuarantineRead: () => [{ surface: 'calendar', item: { id: 'same' } }],
-  notices: [],
-};
-noticeContext.showNotify = (title, body) => noticeContext.notices.push({ title, body });
-vm.createContext(noticeContext);
-vm.runInContext(extract('_writeUiLegacyPendingCount') + '\n' + extract('_writeUiNotifyLegacyPending'), noticeContext);
-assert.strictEqual(noticeContext._writeUiLegacyPendingCount(), 2);
-assert.strictEqual(noticeContext._writeUiNotifyLegacyPending(), 2);
-assert.strictEqual(noticeContext.notices[0].body, '2 pending Linear updates from before the upgrade were parked \u2014 redo them or tell Sidney.');
-assert(source.indexOf('_writeUiNotifyLegacyPending();') < source.indexOf("_writeUiResumeLegacyQueues('startup')"));
+
+// F21 owner decision: the startup notice is gone, while ops inspection remains.
+assert(!source.includes('_writeUiNotifyLegacyPending'));
+assert(!source.includes('pending Linear updates from before the upgrade'));
+assert(source.includes('window.peekWriteUiLegacyQuarantine'));
 
 // F19: paired VID+GRA can select only mixed-team batches. Every rendered row
 // carries the name plus created time/team, so duplicate names are distinguishable.

@@ -223,10 +223,13 @@ Phase 0.5 below, after the fix-pack.
       events and is not go-live evidence.
 - [ ] **Fix-pack landed in #813** (audit B-section): per-client allowlist gate (F02/F23),
       Kasper linkage predicate (F04), protected-write 401 session invalidation/reverification with
-      draft/action-intent preservation and retry only after fresh sign-in (F10), quarantine notice (F21),
+      draft/action-intent preservation and retry only after fresh sign-in (F10),
       batch-picker team-filter + duplicate disambiguation (F19), +2d overdue bump ported per
       D-30 (F20), sync-drain lane for flipped teams (F07), oldest-pending-age pager (F16),
       monitors made flip-tolerant (F08).
+- [x] **F21 startup popup removed by owner decision (2026-07-16):** stale pre-upgrade leftovers
+      remain parked, silently and without auto-send; agents/ops can inspect the queue if ever needed,
+      while scheduled reconcilers remain the Linear/SyncView drift-healing mechanism.
 - [ ] **Production-write TEST contract resolved** (F06): owner/implementation chooses the
       service-only spec contract or a newly justified browser-safe alternative; SPA, gateway, and
       one cross-boundary test agree. F51 additionally requires exact-pinned dependencies/CLI,

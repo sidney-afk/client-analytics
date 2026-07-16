@@ -22045,28 +22045,6 @@
             return Array.isArray(rows) ? rows : [];
         } catch (e) { return []; }
     }
-    let _writeUiLegacyPendingNotified = false;
-    function _writeUiLegacyPendingCount() {
-        const seen = new Set();
-        const add = (surface, item, fallback) => {
-            const id = String(item && (item.requestId || item.id) || fallback || '');
-            seen.add(String(surface || '') + '|' + id);
-        };
-        _linearOutboxRead().forEach((item, index) => add('calendar', item, 'outbox-' + index));
-        _sxrLinearOutboxRead().forEach((item, index) => add('sxr', item, 'outbox-' + index));
-        _writeUiLegacyQuarantineRead().forEach((row, index) => add(row && row.surface, row && row.item, 'quarantine-' + index));
-        return seen.size;
-    }
-    function _writeUiNotifyLegacyPending() {
-        if (_writeUiLegacyPendingNotified) return 0;
-        const count = _writeUiLegacyPendingCount();
-        if (!count) return 0;
-        _writeUiLegacyPendingNotified = true;
-        if (typeof showNotify === 'function') {
-            showNotify('Pending Linear updates', count + ' pending Linear updates from before the upgrade were parked \u2014 redo them or tell Sidney.');
-        }
-        return count;
-    }
     window.peekWriteUiLegacyQuarantine = function () { return _writeUiLegacyQuarantineRead(); };
     function _linearOutboxScheduleRetry() {
         if (_linearOutboxFlushTimer) return;
@@ -42655,7 +42633,6 @@
     });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') _writeUiResumeLegacyQueues('visible'); });
     setInterval(() => { _writeUiResumeLegacyQueues('timer'); }, 60 * 1000);
-    _writeUiNotifyLegacyPending();
     _writeUiResumeLegacyQueues('startup');
     window.peekWriteUiLegacyQueueState = function () {
         const repairState = _writeUiStoredSourceRepairState();

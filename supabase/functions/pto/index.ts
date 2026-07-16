@@ -19,9 +19,10 @@ import {
   computePtoBalance,
   countPtoDays,
   ptoFixedHolidays,
+  ptoPolicyToday,
 } from "./policy.js";
 
-export { computePtoBalance, countPtoDays, ptoFixedHolidays } from "./policy.js";
+export { computePtoBalance, countPtoDays, ptoFixedHolidays, ptoPolicyToday } from "./policy.js";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -32,6 +33,10 @@ const CORS: Record<string, string> = {
 
 const STAFF_ROLES: readonly StaffRoleKey[] = ["admin", "smm", "creative"];
 const PTO_TYPES = ["wellness", "sick", "floating_holiday", "unpaid"];
+const MAX_REQUEST_SPAN_DAYS = 3660;
+// pto_requests.days is numeric(4,1). Keep the server-derived full-day count
+// below the column ceiling so both a full request and its half-day option fit.
+const MAX_REQUEST_FULL_DAYS = 999;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -64,6 +69,8 @@ type PtoRequestRow = JsonMap & {
   source: string;
   requested_at: string;
   decided_at: string | null;
+  cancelled_by?: string | null;
+  cancelled_at?: string | null;
 };
 type PtoAdjustmentRow = JsonMap & {
   id: string;
@@ -78,6 +85,11 @@ type PtoAdjustmentRow = JsonMap & {
 type PtoData = {
   members: MemberRow[];
   ptoMembers: PtoMemberRow[];
+  requests: PtoRequestRow[];
+  adjustments: PtoAdjustmentRow[];
+};
+type MemberPolicySnapshot = {
+  ptoMember: PtoMemberRow | null;
   requests: PtoRequestRow[];
   adjustments: PtoAdjustmentRow[];
 };
@@ -106,8 +118,8 @@ function parseIsoDate(value: unknown): string | null {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === raw ? raw : null;
 }
 
-function utcToday(): string {
-  return new Date().toISOString().slice(0, 10);
+function requestSpanDays(startDate: string, endDate: string): number {
+  return Math.round((Date.parse(endDate + "T00:00:00Z") - Date.parse(startDate + "T00:00:00Z")) / 86400000) + 1;
 }
 
 function roleCompatible(keyRole: StaffRoleKey, member: MemberRow): boolean {
@@ -161,9 +173,13 @@ function emptyBalance(member: MemberRow, ptoMember: PtoMemberRow | null): JsonMa
     leave_year_end: null,
     wellness_cap: 0,
     wellness_granted: 0,
+    wellness_approved_used: 0,
+    wellness_adjustment: 0,
     wellness_used: 0,
     wellness_available: 0,
     sick_granted: 0,
+    sick_approved_used: 0,
+    sick_adjustment: 0,
     sick_used: 0,
     sick_available: 0,
     floating_holiday_used: false,
@@ -206,6 +222,8 @@ function serializeRequest(row: PtoRequestRow, memberName = ""): JsonMap {
     source: row.source || "syncview",
     requested_at: row.requested_at || "",
     decided_at: row.decided_at || null,
+    cancelled_by: row.cancelled_by || null,
+    cancelled_at: row.cancelled_at || null,
   };
 }
 
@@ -251,6 +269,7 @@ async function loadAllPtoRows(
   supabase: SupabaseClient,
   table: "pto_requests" | "pto_adjustments",
   orderColumn: "requested_at" | "created_at",
+  memberId = "",
 ): Promise<JsonMap[]> {
   const rows: JsonMap[] = [];
   const pageSize = 1000;
@@ -261,6 +280,7 @@ async function loadAllPtoRows(
       .select("*")
       .order("id", { ascending: true })
       .limit(pageSize);
+    if (memberId) query = query.eq("member_id", memberId);
     if (cursor) query = query.gt("id", cursor);
     const { data, error } = await query;
     if (error) throw new Error("pto_read_failed");
@@ -273,6 +293,50 @@ async function loadAllPtoRows(
   }
   rows.sort((a, b) => clean(b[orderColumn], 80).localeCompare(clean(a[orderColumn], 80)) || clean(b.id, 80).localeCompare(clean(a.id, 80)));
   return rows;
+}
+
+async function loadPtoMember(
+  supabase: SupabaseClient,
+  memberId: string,
+): Promise<PtoMemberRow | null> {
+  const { data, error } = await supabase
+    .from("pto_members")
+    .select("member_id,pto_start_date,pto_enabled,state_version,updated_at")
+    .eq("member_id", memberId)
+    .maybeSingle();
+  if (error) throw new Error("pto_read_failed");
+  return (data || null) as PtoMemberRow | null;
+}
+
+// Request and quote validation need one coherent per-member policy view. Every
+// request, adjustment, or profile mutation advances state_version, so bracketing
+// the paged history reads catches an intervening write. The create RPC repeats
+// the version check under a row lock before inserting.
+async function loadMemberPolicySnapshot(
+  supabase: SupabaseClient,
+  memberId: string,
+): Promise<MemberPolicySnapshot> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const before = await loadPtoMember(supabase, memberId);
+    const [requests, adjustments] = await Promise.all([
+      loadAllPtoRows(supabase, "pto_requests", "requested_at", memberId),
+      loadAllPtoRows(supabase, "pto_adjustments", "created_at", memberId),
+    ]);
+    const after = await loadPtoMember(supabase, memberId);
+    const stable = before === null && after === null
+      || before !== null && after !== null
+        && String(before.state_version) === String(after.state_version)
+        && before.pto_start_date === after.pto_start_date
+        && before.pto_enabled === after.pto_enabled;
+    if (stable) {
+      return {
+        ptoMember: after,
+        requests: requests as PtoRequestRow[],
+        adjustments: adjustments as PtoAdjustmentRow[],
+      };
+    }
+  }
+  throw new Error("pto_request_snapshot_conflict");
 }
 
 async function loadAllMembers(supabase: SupabaseClient): Promise<MemberRow[]> {
@@ -346,7 +410,7 @@ async function overview(
   caller: MemberRow,
   keyRole: StaffRoleKey,
 ): Promise<Response> {
-  const asOf = utcToday();
+  const asOf = ptoPolicyToday();
   const names = memberNameMap(data.members);
   const ptoByMember = new Map(data.ptoMembers.map((row) => [row.member_id, row]));
   const balances = new Map<string, JsonMap>();
@@ -376,7 +440,6 @@ async function overview(
     .map((member) => {
       const balance = balances.get(member.id) || emptyBalance(member, null);
       return {
-        member_id: member.id,
         name: member.name,
         wellness_available: Number(balance.wellness_available || 0),
         on_leave_today: isBusinessDay && approvedToday.has(member.id),
@@ -396,17 +459,14 @@ async function overview(
   const absences = data.requests
     .filter((row) =>
       row.status === "approved"
+      && names.has(row.member_id)
       && row.start_date <= windowEnd
       && row.end_date >= windowStart
     )
     .map((row) => ({
-      id: row.id,
-      member_id: row.member_id,
       member_name: names.get(row.member_id) || "Team member",
-      type: row.type,
       start_date: row.start_date,
       end_date: row.end_date,
-      days: Number(row.days || 0),
     }));
 
   const year = Number(asOf.slice(0, 4));
@@ -432,6 +492,8 @@ async function overview(
     requests: myRequests,
     my_requests: myRequests,
     holidays,
+    holiday_date_min: `${year - 1}-01-01`,
+    holiday_date_max: `${year + 1}-12-31`,
   };
 
   if (keyRole === "admin") {
@@ -439,18 +501,33 @@ async function overview(
       .filter((row) => row.status === "pending")
       .map((row) => serializeRequest(row, names.get(row.member_id) || "Team member"));
     response.pending = response.pending_requests;
+    response.upcoming_approved_requests = data.requests
+      .filter((row) => row.status === "approved" && row.start_date > asOf)
+      .map((row) => serializeRequest(row, names.get(row.member_id) || "Team member"));
+    response.recent_requests = data.requests
+      .filter((row) => row.status !== "pending")
+      .sort((a, b) => String(b.cancelled_at || b.decided_at || b.requested_at || "")
+        .localeCompare(String(a.cancelled_at || a.decided_at || a.requested_at || "")))
+      .slice(0, 50)
+      .map((row) => serializeRequest(row, names.get(row.member_id) || "Team member"));
     response.admin_members = data.members.map((member) => {
       const ptoMember = ptoByMember.get(member.id) || null;
       const balance = balances.get(member.id) || emptyBalance(member, ptoMember);
       return {
         member_id: member.id,
         name: member.name,
+        role: member.role,
+        team: member.team,
         pto_start_date: ptoMember?.pto_start_date || null,
         pto_enabled: !!ptoMember?.pto_enabled,
         wellness_granted: Number(balance.wellness_granted || 0),
+        wellness_approved_used: Number(balance.wellness_approved_used || 0),
+        wellness_adjustment: Number(balance.wellness_adjustment || 0),
         wellness_used: Number(balance.wellness_used || 0),
         wellness_available: Number(balance.wellness_available || 0),
         sick_used: Number(balance.sick_used || 0),
+        sick_approved_used: Number(balance.sick_approved_used || 0),
+        sick_adjustment: Number(balance.sick_adjustment || 0),
         sick_available: Number(balance.sick_available || 0),
       };
     });
@@ -480,11 +557,11 @@ function floatingAlreadyClaimed(
 
 async function requestTimeOff(
   supabase: SupabaseClient,
-  data: PtoData,
   caller: MemberRow,
   body: JsonMap,
 ): Promise<Response> {
-  const ptoMember = data.ptoMembers.find((row) => row.member_id === caller.id);
+  const snapshot = await loadMemberPolicySnapshot(supabase, caller.id);
+  const ptoMember = snapshot.ptoMember;
   if (!ptoMember || !ptoMember.pto_enabled) {
     return json({ ok: false, error: "pto_not_enabled" }, 403);
   }
@@ -499,12 +576,22 @@ async function requestTimeOff(
     return json({ ok: false, error: "invalid_date_range" }, 400);
   }
   if (days == null) return json({ ok: false, error: "invalid_days" }, 400);
+  if (requestSpanDays(startDate, endDate) > MAX_REQUEST_SPAN_DAYS) {
+    return json({ ok: false, error: "request_range_too_long" }, 400);
+  }
+  const today = ptoPolicyToday();
+  if (type !== "sick" && startDate <= today) {
+    return json({ ok: false, error: "past_date_not_allowed" }, 400);
+  }
 
   let fullDays: number;
   try {
     fullDays = countPtoDays(startDate, endDate);
   } catch (_error) {
     return json({ ok: false, error: "invalid_date_range" }, 400);
+  }
+  if (fullDays > MAX_REQUEST_FULL_DAYS) {
+    return json({ ok: false, error: "request_range_too_long" }, 400);
   }
   // A partial request may subtract half-day increments from the server-derived
   // full count. It may never invent a day outside that recomputed range.
@@ -518,20 +605,15 @@ async function requestTimeOff(
     return json({ ok: false, error: "floating_holiday_range" }, 400);
   }
 
-  const today = utcToday();
-  if (type !== "sick" && startDate <= today) {
-    return json({ ok: false, error: "past_date_not_allowed" }, 400);
-  }
-
-  const currentBalance = computePtoBalance(ptoMember, data.requests, data.adjustments, today);
+  const currentBalance = computePtoBalance(ptoMember, snapshot.requests, snapshot.adjustments, today);
   if (paidType(type) && (!currentBalance.eligible || startDate < currentBalance.eligibility_date)) {
     return json({ ok: false, error: "not_eligible" }, 403);
   }
 
   const requestYearBalance = computePtoBalance(
     ptoMember,
-    data.requests,
-    data.adjustments,
+    snapshot.requests,
+    snapshot.adjustments,
     startDate,
   );
   if (paidType(type) && endDate > String(requestYearBalance.leave_year_end || "")) {
@@ -544,37 +626,109 @@ async function requestTimeOff(
     return json({ ok: false, error: "insufficient_sick_balance" }, 409);
   }
   if (type === "floating_holiday") {
-    if (days > FLOATING_HOLIDAY_ALLOWANCE || floatingAlreadyClaimed(data.requests, caller.id, startDate.slice(0, 4))) {
+    if (days > FLOATING_HOLIDAY_ALLOWANCE || floatingAlreadyClaimed(snapshot.requests, caller.id, startDate.slice(0, 4))) {
       return json({ ok: false, error: "floating_holiday_used" }, 409);
     }
   }
 
-  const { data: inserted, error } = await supabase
-    .from("pto_requests")
-    .insert({
-      member_id: caller.id,
-      type,
-      start_date: startDate,
-      end_date: endDate,
-      days,
-      note,
-      status: "pending",
-      source: "syncview",
-    })
-    .select("*")
-    .single();
-  if (error) {
-    if (type === "floating_holiday" && error.code === "23505") {
-      return json({ ok: false, error: "floating_holiday_used" }, 409);
-    }
+  const expectedStateVersion = Number(ptoMember.state_version);
+  if (!Number.isSafeInteger(expectedStateVersion) || expectedStateVersion < 0) {
+    throw new Error("pto_request_state_invalid");
+  }
+  const { data: createdRaw, error } = await supabase.rpc("pto_create_request_v1", {
+    p_member_id: caller.id,
+    p_type: type,
+    p_start_date: startDate,
+    p_end_date: endDate,
+    p_days: days,
+    p_note: note,
+    p_source: "syncview",
+    p_expected_state_version: expectedStateVersion,
+  });
+  if (error || !createdRaw || typeof createdRaw !== "object") {
     throw new Error("pto_request_insert_failed");
   }
-  if (!inserted) throw new Error("pto_request_insert_failed");
+  const created = createdRaw as JsonMap;
+  const createStatus = clean(created.status, 40);
+  if (createStatus === "stale") return json({ ok: false, error: "request_state_changed" }, 409);
+  if (createStatus === "member_not_found") {
+    return json({ ok: false, error: "member_not_found" }, 409);
+  }
+  if (createStatus === "not_enabled") {
+    return json({ ok: false, error: "pto_not_enabled" }, 409);
+  }
+  if (createStatus === "floating_holiday_used") {
+    return json({ ok: false, error: "floating_holiday_used" }, 409);
+  }
+  if (createStatus !== "ok" || !created.request || typeof created.request !== "object") {
+    throw new Error("pto_request_insert_failed");
+  }
+  const inserted = created.request as PtoRequestRow;
   return json({
     ok: true,
-    request: serializeRequest(inserted as PtoRequestRow, caller.name),
+    request: serializeRequest(inserted, caller.name),
     full_days: fullDays,
   }, 201);
+}
+
+async function quoteTimeOff(
+  supabase: SupabaseClient,
+  caller: MemberRow,
+  body: JsonMap,
+): Promise<Response> {
+  const snapshot = await loadMemberPolicySnapshot(supabase, caller.id);
+  const ptoMember = snapshot.ptoMember;
+  if (!ptoMember || !ptoMember.pto_enabled) {
+    return json({ ok: false, error: "pto_not_enabled" }, 403);
+  }
+  const type = clean(body.type, 40);
+  const startDate = parseIsoDate(body.start_date);
+  const endDate = parseIsoDate(body.end_date);
+  if (!PTO_TYPES.includes(type)) return json({ ok: false, error: "invalid_type" }, 400);
+  if (!startDate || !endDate || endDate < startDate) {
+    return json({ ok: false, error: "invalid_date_range" }, 400);
+  }
+  if (requestSpanDays(startDate, endDate) > MAX_REQUEST_SPAN_DAYS) {
+    return json({ ok: false, error: "request_range_too_long" }, 400);
+  }
+  const today = ptoPolicyToday();
+  if (type !== "sick" && startDate <= today) {
+    return json({ ok: false, error: "past_date_not_allowed" }, 400);
+  }
+  const currentBalance = computePtoBalance(ptoMember, snapshot.requests, snapshot.adjustments, today);
+  if (paidType(type) && (!currentBalance.eligible || startDate < currentBalance.eligibility_date)) {
+    return json({ ok: false, error: "not_eligible" }, 403);
+  }
+  const requestYearBalance = computePtoBalance(ptoMember, snapshot.requests, snapshot.adjustments, startDate);
+  if (paidType(type) && endDate > String(requestYearBalance.leave_year_end || "")) {
+    return json({ ok: false, error: "crosses_leave_year" }, 400);
+  }
+  let fullDays: number;
+  try {
+    fullDays = countPtoDays(startDate, endDate);
+  } catch (_error) {
+    return json({ ok: false, error: "invalid_date_range" }, 400);
+  }
+  if (fullDays > MAX_REQUEST_FULL_DAYS) {
+    return json({ ok: false, error: "request_range_too_long" }, 400);
+  }
+  if (fullDays <= 0) {
+    return json({
+      ok: true,
+      full_days: 0,
+      partial_day_count: 0,
+      leave_year_end: requestYearBalance.leave_year_end || null,
+    });
+  }
+  if (type === "floating_holiday" && (startDate !== endDate || fullDays !== 1)) {
+    return json({ ok: false, error: "floating_holiday_range" }, 400);
+  }
+  return json({
+    ok: true,
+    full_days: fullDays,
+    partial_day_count: Math.max(0.5, fullDays - 0.5),
+    leave_year_end: requestYearBalance.leave_year_end || null,
+  });
 }
 
 async function decideRequest(
@@ -651,6 +805,9 @@ async function decideRequest(
     const finalStatus = clean(finalized.status, 40);
     if (finalStatus === "stale") continue;
     if (finalStatus === "not_found") return json({ ok: false, error: "request_not_found" }, 404);
+    if (finalStatus === "member_inactive") {
+      return json({ ok: false, error: "member_inactive" }, 409);
+    }
     if (finalStatus === "request_not_pending") {
       return json({ ok: false, error: "request_not_pending" }, 409);
     }
@@ -676,20 +833,42 @@ async function cancelRequest(
 
   const requesterCanCancel = request.member_id === caller.id && request.status === "pending";
   const adminCanCancel = keyRole === "admin"
-    && request.status !== "cancelled"
-    && utcToday() < request.start_date;
+    && (request.status === "pending" || request.status === "approved")
+    && ptoPolicyToday() < request.start_date;
   if (!requesterCanCancel && !adminCanCancel) {
     return json({ ok: false, error: "cancel_not_allowed" }, 403);
   }
 
   const now = new Date().toISOString();
-  const { data: updated, error } = await supabase
+  let updateResult = await supabase
     .from("pto_requests")
-    .update({ status: "cancelled", decided_by: caller.name, decided_at: now })
+    .update({ status: "cancelled", cancelled_by: caller.name, cancelled_at: now })
     .eq("id", request.id)
     .eq("status", request.status)
     .select("*")
     .maybeSingle();
+  // Main deploys can briefly precede the manually applied additive migration.
+  // Fall back without destroying an existing approval decision; once the new
+  // columns exist, cancellation receives its own actor/timestamp fields.
+  const missingAuditColumns = !!updateResult.error && (
+    updateResult.error.code === "PGRST204"
+    || updateResult.error.code === "42703"
+    || /cancelled_(?:by|at)/i.test(clean(updateResult.error.message, 500))
+  );
+  if (missingAuditColumns) {
+    if (request.status === "approved") {
+      return json({ ok: false, error: "cancellation_audit_not_ready" }, 503);
+    }
+    const legacyUpdate = { status: "cancelled", decided_by: caller.name, decided_at: now };
+    updateResult = await supabase
+      .from("pto_requests")
+      .update(legacyUpdate)
+      .eq("id", request.id)
+      .eq("status", request.status)
+      .select("*")
+      .maybeSingle();
+  }
+  const { data: updated, error } = updateResult;
   if (error) throw new Error("pto_request_cancel_failed");
   if (!updated) return json({ ok: false, error: "request_state_changed" }, 409);
   return json({ ok: true, request: serializeRequest(updated as PtoRequestRow) });
@@ -751,28 +930,44 @@ async function setStartDate(
   if (!UUID.test(memberId)) return json({ ok: false, error: "invalid_member_id" }, 400);
   const member = data.members.find((row) => row.id === memberId);
   if (!member) return json({ ok: false, error: "member_not_found" }, 404);
-  if (!startDate || startDate > utcToday()) {
+  if (!startDate || startDate > ptoPolicyToday()) {
     return json({ ok: false, error: "invalid_pto_start_date" }, 400);
+  }
+  const existing = data.ptoMembers.find((row) => row.member_id === memberId);
+  const hasHistory = data.requests.some((row) => row.member_id === memberId)
+    || data.adjustments.some((row) => row.member_id === memberId);
+  if (hasHistory && (!existing || existing.pto_start_date !== startDate)) {
+    return json({ ok: false, error: "start_date_history_conflict" }, 409);
   }
   if (typeof body.pto_enabled !== "boolean") {
     return json({ ok: false, error: "invalid_pto_enabled" }, 400);
   }
 
-  const now = new Date().toISOString();
-  const { data: upserted, error } = await supabase
-    .from("pto_members")
-    .upsert({
-      member_id: memberId,
-      pto_start_date: startDate,
-      pto_enabled: body.pto_enabled,
-      updated_at: now,
-    }, { onConflict: "member_id" })
-    .select("member_id,pto_start_date,pto_enabled,state_version,updated_at")
-    .single();
-  if (error || !upserted) throw new Error("pto_member_upsert_failed");
+  const expectedStateVersion = existing == null ? null : Number(existing.state_version);
+  if (existing && (!Number.isSafeInteger(expectedStateVersion) || Number(expectedStateVersion) < 0)) {
+    throw new Error("pto_member_state_invalid");
+  }
+  const { data: setRaw, error } = await supabase.rpc("pto_set_member_start_v1", {
+    p_member_id: memberId,
+    p_start_date: startDate,
+    p_enabled: body.pto_enabled,
+    p_expected_state_version: expectedStateVersion,
+  });
+  if (error || !setRaw || typeof setRaw !== "object") throw new Error("pto_member_upsert_failed");
+  const setResult = setRaw as JsonMap;
+  const setStatus = clean(setResult.status, 40);
+  if (setStatus === "stale") return json({ ok: false, error: "request_state_changed" }, 409);
+  if (setStatus === "member_not_found") return json({ ok: false, error: "member_not_found" }, 404);
+  if (setStatus === "history_conflict") {
+    return json({ ok: false, error: "start_date_history_conflict" }, 409);
+  }
+  if (setStatus !== "ok" || !setResult.member || typeof setResult.member !== "object") {
+    throw new Error("pto_member_upsert_failed");
+  }
+  const upserted = setResult.member as PtoMemberRow;
   return json({
     ok: true,
-    member: { name: member.name, ...(upserted as PtoMemberRow) },
+    member: { name: member.name, ...upserted },
   });
 }
 
@@ -797,7 +992,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (req.method === "GET" && action !== "overview") {
       return json({ ok: false, error: "unknown_action" }, 400);
     }
-    if (req.method === "POST" && !["request", "decide", "cancel", "adjust", "set_start_date"].includes(action)) {
+    if (req.method === "POST" && !["quote", "request", "decide", "cancel", "adjust", "set_start_date"].includes(action)) {
       return json({ ok: false, error: "unknown_action" }, 400);
     }
 
@@ -823,17 +1018,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     let callerMemberId: unknown = body.actor_member_id;
     if (action === "overview") callerMemberId = url.searchParams.get("member_id");
-    if ((action === "request" || action === "cancel") && !callerMemberId) {
+    if ((action === "quote" || action === "request" || action === "cancel") && !callerMemberId) {
       callerMemberId = body.member_id;
     }
 
-    // Approval gets a per-member transactional snapshot from the database RPC;
-    // it must not depend on the global overview/history loader.
-    if (action === "decide") {
+    // Approval gets a transactional snapshot from its database RPC. Quote and
+    // request use a state-version-bracketed per-member snapshot. None of these
+    // paths depend on the global overview/history loader.
+    if (action === "decide" || action === "quote" || action === "request") {
       const members = await loadAllMembers(supabase);
       const caller = resolveCaller(members, req, callerMemberId, auth.role);
       if (!caller) return json({ ok: false, error: "forbidden" }, 403);
-      return await decideRequest(supabase, caller, body);
+      if (action === "decide") return await decideRequest(supabase, caller, body);
+      if (action === "quote") return await quoteTimeOff(supabase, caller, body);
+      return await requestTimeOff(supabase, caller, body);
     }
 
     const data = await loadPtoData(supabase);
@@ -841,7 +1039,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (!caller) return json({ ok: false, error: "forbidden" }, 403);
 
     if (action === "overview") return await overview(data, caller, auth.role);
-    if (action === "request") return await requestTimeOff(supabase, data, caller, body);
     if (action === "cancel") return await cancelRequest(supabase, data, caller, auth.role, body);
     if (action === "adjust") return await addAdjustment(supabase, data, caller, body);
     if (action === "set_start_date") return await setStartDate(supabase, data, body);

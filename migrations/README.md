@@ -47,9 +47,19 @@ executes these files (see `README.md` › Repository layout).
   workflow authority by itself.
 - **`2026-07-15-pto-tracker.sql`** adds the three service-role-only PTO tables,
   per-member state-version triggers, transactional approval RPCs, and a live-floating-holiday
-  uniqueness guard; it seeds `pto_v1` off. It contains no member/HR seed data and does not prove
-  the migration was applied or the Edge Function deployed. Keep it off until the individual staff
-  session prerequisite in `docs/features/PTO_TRACKER.md` is closed.
+  uniqueness guard; it seeds `pto_v1` off and contains no member/HR seed data. The migration was
+  applied and its schema, RLS, grants, browser denial, and initial off state were read back on
+  2026-07-15; the later owner-authorized enablement is recorded separately in `EXECUTION_LOG.md`.
+- **`2026-07-15-pto-cancellation-audit.sql`** additively gives cancellations their own verified
+  actor and timestamp fields without overwriting an earlier approval/denial decision. It also
+  installs `pto_create_request_v1` and `pto_set_member_start_v1`; both serialize on the stable roster
+  row and compare the private profile state version. It replaces `pto_finalize_decision_v1` so an
+  approval atomically requires an active target while denial remains available for cleanup. All
+  three hardened functions are executable only by service role. The file
+  reasserts RLS plus the anon/authenticated denial and service-role table grant, contains no HR rows,
+  and does not change `pto_v1`. This delta is **source-only** until a value-free apply/readback entry
+  confirms both columns, all three function bodies (including the active-target guard), and their
+  service-role-only grants in `EXECUTION_LOG.md`.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

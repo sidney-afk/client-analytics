@@ -1,11 +1,12 @@
 # PTO / Time Off Tracker
 
-> **Current status (2026-07-15): implemented in source, dark by default, and not yet a live-deployment claim.**
-> The migration is manual, the Edge Function must be deployed and verified separately, real member
-> setup stays in the owner's private system, and the feature must remain hidden until the
-> individually bound staff-session blocker below is implemented and every owner gate passes.
-> Record each live migration, deploy, seed, and flag action in `EXECUTION_LOG.md` when it actually
-> happens.
+> **Current status (2026-07-15): LIVE and enabled.** The base migration and `pto` Edge Function were
+> applied/deployed and verified, private setup completed, `pto_v1` was read back as `{"mode":"on"}`,
+> and Admin/non-admin plus disposable TEST browser paths passed. Value-free receipts are in
+> `EXECUTION_LOG.md`. Owner decision D-36 explicitly accepted launch under the current shared-role-
+> key identity model. Individually revocable sessions remain post-launch hardening, not a launch
+> prerequisite. The cancellation-attribution migration and the UI/contract refinements described as
+> **candidate source** below are not live until separately merged, applied/deployed, and evidenced.
 
 This is the living contract for SyncView's staff PTO and time-off feature. It replaces the historical
 implementation brief as the source for placement, policy behavior, authorization, data boundaries,
@@ -40,14 +41,14 @@ counts.
   reads are treated as off.
 - **Outer shell:** the existing app password remains a visibility gate only. Every PTO read and
   mutation independently requires a valid staff role key at the Edge Function, but that key proves
-  only a role family, not a unique person; see the go-live blocker below.
+  only a role family, not a unique person; see the accepted launch risk below.
 
 The top-right consolidation preserves the existing identity flow, theme and original-status-color
 functions, local-storage keys, and the DOM IDs `themeToggle` and `statusPaletteToggle`. The menu
 button owns accessible menu state and keeps the established outside-click, Escape, focus-return,
 desktop-containment, and two-row mobile-header behavior.
 
-### Go-live blocker: individual identity binding
+### Accepted launch risk and post-launch identity hardening
 
 The current `ROLE_KEY_ADMIN`, `ROLE_KEY_SMM`, and `ROLE_KEY_CREATIVE` secrets are shared role keys.
 `key-verify` validates a caller-selected roster member only for role compatibility, and PTO receives
@@ -56,19 +57,29 @@ holder of a shared SMM or creative key from claiming another same-role member. T
 therefore adequate for role authorization and audit labels, but it cannot securely enforce "my"
 HR history, requester ownership, or immutable decision attribution.
 
-`pto_v1` must stay `off` until an individually revocable server-side staff session derives the
-member identity without trusting actor/member fields from the browser. A secure enrollment must
-include trusted owner/admin approval; automatically signing the current caller-selected identity
-would preserve the same impersonation flaw. This prerequisite may use a service-role-only session
-table with hashed random device tokens and expiry/revocation; it requires no personal data in this
-public repository and no new fixed Edge secret. Do not seed real HR rows or cancel Hrvey before the
-negative same-role impersonation test passes.
+Owner decision D-36 (2026-07-15) explicitly accepts that same-role impersonation/visibility risk for
+the PTO launch. That decision supersedes the prior requirement to keep `pto_v1` off until individual
+sessions exist; it does not claim the risk is fixed and does not relax the private-data rules.
+
+Individually revocable server-side staff sessions remain the recommended post-launch hardening: the
+server should derive the member identity without trusting actor/member fields from the browser. A
+secure enrollment must include trusted owner/admin approval; automatically signing the current
+caller-selected identity would preserve the same flaw. This work may use a service-role-only session
+table with hashed random device tokens and expiry/revocation, requires no personal data in this
+public repository, and remains subject to same-role impersonation, revoked/expired-session,
+inactive-member, and role/session mismatch tests.
 
 ## Policy contract
 
 All policy math runs in the server-side pure function
 `computePtoBalance(member, requests, adjustments, asOfDate)`. The frontend displays the returned
 values; it must not independently accrue or authorize leave.
+
+The **candidate source** defines the company policy day in the IANA zone `America/Guatemala` and
+routes overview, request-date, cancellation, and member-start-date decisions through
+`ptoPolicyToday()`. This prevents UTC midnight from advancing PTO rules during the Guatemala
+evening. That timezone refinement is not a live-deployment claim until the updated function is
+deployed and evidenced.
 
 ### Eligibility and leave years
 
@@ -116,31 +127,52 @@ values; it must not independently accrue or authorize leave.
 
 - Types are `wellness`, `sick`, `floating_holiday`, and `unpaid`.
 - Status transitions are `pending` to `approved` or `denied`, plus `cancelled` by the requester while
-  pending or by an admin before the start date.
+  their own request is pending or by an Admin before the start date while status is pending/approved.
+  Candidate source keeps cancellation actor/time separate so cancelling future approved leave does
+  not erase the original approval decision.
 - The form warns, but does not block, when a start date is fewer than 14 days away.
 - Server day count includes weekdays in the inclusive range and excludes weekends plus observed
   fixed holidays. The submitted total must equal that count or be exactly 0.5 lower for one half-day
   endpoint. Paid ranges crossing a hire-anniversary boundary are rejected and must be split; unpaid
   ranges may span the boundary.
+- Overview includes the holiday projection for the previous, current, and next calendar year. When
+  a selected range falls outside that projection, the browser calls the authenticated read-only
+  `quote` action instead of guessing. Quote and final request both run `countPtoDays`, enforce the
+  same eligibility/leave-year rules, and reject a computed count above 999 business days so the
+  value always fits `pto_requests.days numeric(4,1)`.
 - Approval reads a transactionally locked per-member snapshot, evaluates the JavaScript policy,
   and finalizes only if the member's monotonic state version is unchanged. A stale snapshot reloads
   and recomputes up to two times before returning `409 decision_conflict`. This serializes distinct
-  concurrent approvals without duplicating accrual math in SQL.
+  concurrent approvals without duplicating accrual math in SQL. The finalizer also locks and
+  rechecks that the target remains active before approval; denial remains available for cleanup.
+- Candidate request creation and member setup run through paired service-role-only RPCs. Both lock
+  the stable roster row and compare `pto_members.state_version`, so a request/history insert cannot
+  race a first-time or existing start-date change. Setup refuses to change a start date after request
+  or adjustment history (`409 start_date_history_conflict`). A stale concurrent form returns 409 and
+  asks the operator to refresh rather than silently reinterpreting history.
 
 ## Data model and security boundary
 
-The additive manual migration is `migrations/2026-07-15-pto-tracker.sql`. It creates:
+The applied additive base migration is `migrations/2026-07-15-pto-tracker.sql`. It creates:
 
 | Table | Purpose | Browser access |
 |---|---|---|
 | `pto_members` | Private start date, explicit enablement, and balance-state version. | None. |
-| `pto_requests` | Requested dates, type, server day count, status, and decision audit fields. | None. |
+| `pto_requests` | Requested dates, type, server day count, status, and decision audit fields; the candidate delta adds separate cancellation audit fields. | None. |
 | `pto_adjustments` | Dated wellness/sick migration entries and admin corrections. | None. |
 
 All three tables have RLS enabled with no anon or authenticated policy, explicit revoked access for
 `anon` and `authenticated`, and explicit service-role grants. They are not added to realtime. The
 publicly readable `team_members` table is unchanged; private hire dates never become columns there.
 All reads and writes go through the Edge Function's service-role client after staff-key authorization.
+
+The base migration's schema, RLS, grants, browser-role denials, and initial off flag were read back
+at go-live. The additive `migrations/2026-07-15-pto-cancellation-audit.sql` delta is **candidate
+source only**: it adds `cancelled_by` and `cancelled_at`; installs `pto_create_request_v1` and
+`pto_set_member_start_v1`; replaces `pto_finalize_decision_v1` with its active-target guard; grants
+all three hardened functions only to service role; reasserts the locked
+`pto_requests` boundary; contains no member/HR seed or flag write; and must not be described as
+applied until a value-free receipt is appended to `EXECUTION_LOG.md`.
 
 `pto_enabled` defaults to false. That is a data-safety gate, not an invitation to copy a roster into
 the repository. The real roster, start dates, prior leave, and migration adjustments are owner-side
@@ -152,6 +184,12 @@ same order and compare that version. A partial unique index permits at most one 
 floating-holiday request per member/calendar year. History reads use UUID keyset pagination rather
 than a silent fixed row limit.
 
+Candidate `pto_create_request_v1` and `pto_set_member_start_v1` take the stable `team_members` row
+lock before the private profile lock and compare the expected state version. This also serializes
+first-time setup, when no `pto_members` row exists yet. Approved cancellation fails closed with 503
+if the dedicated cancellation columns are not ready; it never falls back to an update that would
+erase the original approval actor or timestamp.
+
 ## Edge Function contract
 
 Entry source: `supabase/functions/pto/index.ts`; the Deno-checked pure policy engine lives beside it
@@ -162,36 +200,52 @@ Unknown keys return 401, known but insufficient roles return 403, responses are 
 allows the required staff headers. `OPTIONS` returns 204.
 
 Those actor/member fields remain caller claims under the current shared-key verifier; they are not
-an immutable human principal. The API below is the implemented contract but must remain dark until
-the individual-session prerequisite derives the member server-side.
+an immutable human principal. D-36 accepts that residual risk for the live PTO launch, while
+individual server-derived sessions remain post-launch hardening.
 
 | Action | Method | Authorized roles | Contract |
 |---|---|---|---|
-| `overview` | GET | Any staff role | Caller balances and request history, minimal all-member balance/today summary, approved calendar absences for ±3 months, fixed holidays, and next grant. |
-| `request` | POST | Any staff role | Validates enabled membership, eligibility, type/range/day count, balance, and floating-holiday availability; inserts pending. |
+| `overview` | GET | Any staff role | Caller balances and request history, minimal all-member balance/today summary, approved calendar absences for ±3 months, fixed holidays, and next grant. Candidate source minimizes each team-calendar absence to rendered member name + date range; Admin additionally receives pending requests, future approved requests, recent terminal history, and granted/approved/adjustment balance components. |
+| `quote` | POST | Any staff role | Read-only, identity-bound server count for ranges outside the overview holiday projection; applies type/date/eligibility/leave-year/range limits and returns full plus one-half-day counts. |
+| `request` | POST | Any staff role | Validates active/enabled membership, eligibility, type/range/day count, balance, and floating-holiday availability; inserts pending through the versioned transactional RPC, which rechecks the active roster row under lock. |
 | `decide` | POST | Admin | Approves or denies a pending request, rechecking wellness and recording the verified actor. |
-| `cancel` | POST | Requester for pending; admin for a future request | Applies only the allowed cancellation transition. |
+| `cancel` | POST | Requester for own pending; Admin before start date for pending/approved | Applies only the lifecycle-bounded cancellation transition. Candidate source writes cancellation attribution separately and preserves an earlier approval decision. |
 | `adjust` | POST | Admin | Inserts a dated wellness or sick adjustment. |
-| `set_start_date` | POST | Admin | Upserts private start date and enabled state for one roster member. |
+| `set_start_date` | POST | Admin | Transactionally upserts private start date and enabled state for one active roster member; rejects deactivation, history, and concurrent-state conflicts under lock. |
 
-The browser URL contract is the project Edge base plus `functions/v1/pto`. The dedicated
-workflow `.github/workflows/deploy-pto-edge-functions.yml` deploys only `pto` with JWT verification
-disabled because the function enforces the repository's staff-role-key contract itself.
+The browser URL contract is the project Edge base plus `functions/v1/pto`. The dedicated workflow
+`.github/workflows/deploy-pto-edge-functions.yml` deploys only `pto` with JWT verification disabled
+because the function enforces the repository's staff-role-key contract itself. Function-only main
+pushes still auto-deploy. A push that also changes PTO SQL is deliberately held: apply and read back
+the migration first, set and read back the Actions repository variable
+`PTO_SCHEMA_CONTRACT=transactional-writes-v1`, then manually dispatch from `main` with
+`migration_readback_confirmed=true`. Every deploy also requires that exact contract latch, preventing
+this Edge version from preceding its database contract. A later schema-dependent Edge revision must
+bump `REQUIRED_SCHEMA_CONTRACT` and the operator-read-back variable together; reusing the old value
+would not prove a newer contract.
 
-The function also reads `pto_v1` server-side. Off, missing, malformed, or unreadable state returns
-`503 feature_disabled` before PTO/HR tables are loaded for `overview`, `request`, `decide`, and
+The function also reads `pto_v1` server-side. The evidenced live state is on. Off, missing,
+malformed, or unreadable state returns
+`503 feature_disabled` before PTO/HR tables are loaded for `overview`, `quote`, `request`, `decide`, and
 `cancel`. Only the already-admin-only `set_start_date` and `adjust` setup actions remain callable
-while dark, allowing private prelaunch setup without exposing either UI entry point.
+while off, allowing private maintenance without exposing either UI entry point.
 
 ## Frontend behavior and failures
 
 - The balance card emphasizes available wellness while retaining granted, used, sick, floating-
   holiday, next-grant, and leave-year detail.
 - The request form previews the inclusive weekday-minus-holiday count and permits one half-day
-  endpoint. Floating holidays stay on one business date. The server remains authoritative.
+  endpoint. Floating holidays stay on one business date. Out-of-window ranges show a pending state
+  while the server quote runs; pending, failed, zero-day, and oversized quotes cannot be submitted.
+  The final request recomputes everything server-side.
+- Candidate source replaces browser-native selects, date inputs, and number spinners on both staff
+  and Kasper PTO surfaces with branded controls. The select supports arrow/Home/End/Enter and
+  typeahead use; the in-app calendar enforces bounds and keyboard date movement; the half-day
+  stepper keeps an underlying numeric input; plain-English help appears on hover and keyboard focus.
 - Request history shows statuses and offers cancellation only when the server contract permits it.
 - The team month grid shades weekends and renders only approved absences plus observed fixed
-  holidays. It refetches on mount and after actions; there is no polling or PTO data-table realtime
+  holidays. Candidate source limits absence projection to the name and date range the grid renders.
+  It refetches on mount and after actions; there is no polling or PTO data-table realtime
   channel. A separate `pto_v1` flag-only subscription propagates the behavior kill to open tabs;
   focus/visibility and route entry re-read the flag with a bounded timeout, and stale responses
   cannot overwrite newer flag/cache generations.
@@ -199,12 +253,17 @@ while dark, allowing private prelaunch setup without exposing either UI entry po
   identity and explains the role boundary. Other errors stay visible with a retry path; they never
   fall back to public REST or n8n.
 - Negative migrated wellness remains renderable and conspicuous rather than being coerced to zero.
+- Candidate Kasper UI separates granted days, approved usage, adjustments, and availability; adds a
+  future-approved-leave cancellation list; and keeps recent decisions/cancellations in a collapsed
+  history section so the normal approval queue stays concise.
 
 ## Runtime flag and rollback
 
-The migration seeds `syncview_runtime_flags.pto_v1` as `{"mode":"off"}`. Source ships dark and
-must fail closed for a missing or unreadable flag in both the browser and normal server actions.
-Do not turn it on while individual identity binding remains open.
+The base migration seeded `syncview_runtime_flags.pto_v1` as `{"mode":"off"}`. After private setup
+and verification, the owner-authorized D-36 launch changed and read it back as `{"mode":"on"}`; the
+value-free flag receipt is in `EXECUTION_LOG.md`. Missing or unreadable flag state still fails closed
+in both the browser and normal server actions. Individual identity binding remains post-launch
+hardening rather than a prerequisite for retaining on mode under D-36.
 
 **One-step behavior kill:** set `pto_v1` back to `{"mode":"off"}` and read it back. This hides the
 menu entry and Kasper subtab, bounces direct staff navigation home, and makes the Edge Function
@@ -215,50 +274,53 @@ the runtime kill. Keep the server authorization boundary and locked tables intac
 
 ## Release and compliance checklist
 
-Code review and CI:
+Live launch baseline (completed; evidence is value-free):
 
-- [x] The migration is additive, defaults `pto_enabled=false`, seeds `pto_v1` off, and gives no
-  anon/authenticated table access or realtime publication.
-- [x] `pto` uses only the shared role-key authorization path, no caller-selected role elevation, no
-  n8n route, and no secret or personal data in source.
-- [x] Offline tests cover 60-day eligibility, initial grant, both monthly rates, bucket carry-over,
-  6/12 caps, anniversary reset, both 2026-02-06 baselines, negative adjustments, weekend/observed-
-  holiday counting, and all five synthetic worked examples.
-- [x] `docs/truth/ENDPOINTS.md`, `docs/independence/SYSTEM_MAP.md`, `README.md`, `REPO_MAP.md`,
-  `ROLLBACK.md`, and `EXECUTION_LOG.md` describe the source state without claiming a live action.
-- [x] `npm test` is green, including truth/repo-map checks.
-- [x] `npm run test:prod-polish -- --lane=fast` is green for the `index.html` change.
-- [x] `index.html` retains LF line endings for the string-extracting suites.
-- [x] No Production/Linear-mirror route, authority, flag, or behavior changed.
-- [ ] Replace caller-selected shared-role identity with an individually revocable server session;
-  prove same-role impersonation, revoked/expired session, inactive-member, and role/session mismatch
-  all fail before any real HR seed or `pto_v1` enablement.
+- [x] The additive base migration was applied; its three-table schema, decision RPCs, RLS, service-
+  role grants, browser-role denials, and initial `pto_v1={"mode":"off"}` were read back.
+- [x] The scoped workflow deployed `pto` with the intended JWT setting and public-safe fingerprint;
+  missing/wrong credentials returned 401, insufficient role returned 403, and a valid dark-state
+  request returned `503 feature_disabled`.
+- [x] The private roster was checked and configured outside the repository; aggregate completion and
+  all target checks were recorded without identities, dates, notes, balances, or keys.
+- [x] D-36 recorded the owner's explicit acceptance of the shared-role-key risk for launch.
+- [x] `pto_v1` changed from off to on after private verification, and database readback plus the
+  `flag_flips` receipt were confirmed.
+- [x] Browser verification covered the menu, Admin and one non-admin overview, and an exact-cleanup
+  disposable TEST submit → approve path with zero residual TEST rows.
+- [x] No Production/Linear-mirror route, authority, flag, client surface, or n8n path changed.
 
-Owner-run release (not completed merely by merging source):
+Current UI/hardening PR (candidate source; not a live-action claim):
 
-- [ ] Confirm the individual-session prerequisite above is deployed and its negative tests pass.
-- [ ] Confirm the contractor roster privately and ensure every intended person already has an active
-  `team_members` row; never copy the roster or dates into this repository.
-- [ ] Apply the migration manually; capture a public-safe schema/RLS/flag-off readback in
-  `EXECUTION_LOG.md` without member rows or HR values.
-- [ ] Verify the main-triggered PTO deploy workflow (or a later manual redeploy) at the release SHA;
-  record the deployed function version, JWT setting, and no-secret fingerprint/evidence.
-- [ ] Provision Kasper's admin role key outside the repository.
-- [ ] Prove missing/wrong-key 401, insufficient-role 403, off-mode normal-action denial, the two
-  admin-only setup actions, same-role impersonation denial, and locked direct-table access on
-  non-personal TEST data.
-- [ ] Rehearse `on -> off` using only the designated non-personal TEST member, prove both entry-point
-  retirement and server-side `feature_disabled`, then return to off. Remove only the exact
-  correlation-tagged TEST PTO rows, disable that TEST membership, and privately prove zero residue
-  before any real seed is loaded.
-- [ ] While `pto_v1` remains off, seed real membership and historical adjustments from the owner's
-  private source through authenticated direct admin `set_start_date` / `adjust` calls; log aggregate
-  completion, never identities, dates, notes, balances, or keys. The hidden Kasper UI is not the
-  prelaunch seed path.
-- [ ] Flip `pto_v1` to `{"mode":"on"}` only after owner approval and record the exact timestamp,
-  readback, actor label, and rollback proof; then announce Time Off to the team.
-- [ ] After two clean weeks, cancel Hrvey and delete the interim "PTO Accrual Tracker (Synchro
-  Social)" Google Sheet.
+- [x] The hardening migration is additive, value-free, leaves `pto_v1` untouched, adds separate
+  cancellation attribution, installs the request/setup RPCs plus the active-roster approval
+  finalizer, and reasserts the locked `pto_requests` table boundary.
+- [x] Candidate policy/API tests cover the Guatemala policy day, minimized absence projection,
+  balance breakdown, lifecycle-bounded admin cancellation, preserved decision attribution, and
+  transactional request/setup conflicts plus server quotes.
+- [x] Candidate UI wiring covers branded select/calendar/stepper controls, keyboard operation,
+  hover/focus help, Admin future-leave cancellation, and recent terminal history.
+- [x] `npm test`, the PTO browser/type/source lanes, staff-login browser lane, and every required fast
+  Production-polish component are green; the frozen Production/Linear/client paths have no diff.
+  The optional interaction-inventory residual documented in the release audit reproduces unchanged
+  on `origin/main`.
+- [ ] Before merge, apply `2026-07-15-pto-cancellation-audit.sql`; read back its two columns, three
+  hardened functions, service-role-only EXECUTE grants, RLS/table grants, and browser denials; append only a
+  value-free receipt to `EXECUTION_LOG.md`. Then set and read back the value-free Actions variable
+  `PTO_SCHEMA_CONTRACT=transactional-writes-v1`.
+- [ ] Merge only after that readback. The schema-bearing push will hold its automatic deploy; then
+  manually dispatch `Deploy PTO edge function` from `main` with migration readback confirmed, verify its source
+  fingerprint and safe auth/API probes, and
+  browser-check the branded controls, Admin cancellation/history, and zero-residue TEST lifecycle.
+
+Post-launch follow-up:
+
+- [ ] Replace caller-selected shared-role identity with individually revocable server sessions and
+  pass same-role impersonation, revoked/expired-session, inactive-member, and role/session mismatch
+  tests. Under D-36 this remains hardening, not a retroactive launch prerequisite.
+- [ ] Rehearse the live `on → off → on` behavior kill in an approved window and retain only
+  value-free flag/readback evidence.
+- [ ] After two clean weeks, cancel Hrvey and delete the interim PTO tracking sheet.
 
 ## Out of scope for v1
 

@@ -50,9 +50,10 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   (`*_events`, `mirror_outbox`, `linear_archive`, `client_credentials_rev`,
   `thumbnail_media_revisions`) are written by Edge Functions / reconcilers, not read directly by the
   SPA. PTO's private `pto_members`, `pto_requests`, and `pto_adjustments` tables likewise have no
-  browser REST path; the source contract revokes anon/authenticated access and exposes them only
-  through the staff-authenticated `pto` function. This is not a claim that the manual PTO migration
-  has been applied. Thumbnail v2's protected least-field Edge projection and raw-read revocation are live:
+  browser REST path; the live base migration revokes anon/authenticated access and exposes them only
+  through the staff-authenticated `pto` function. Its schema/RLS/grants and browser denials were read
+  back at go-live. The candidate cancellation-attribution delta remains source-only and reasserts the
+  same boundary. Thumbnail v2's protected least-field Edge projection and raw-read revocation are live:
   browser table access returns `401`, unsigned private-object access returns `400`, exact authorized
   card reads pass, and cross-client scope returns `403`. F83 closed 2026-07-14. **Systemic F88:** an exhaustive live count-only
   census found 20 nonempty anon-selectable operational tables. Client-token/UI verification does
@@ -138,8 +139,8 @@ Everything below is shared by every surface; per-surface sections only note devi
   PTO separately reads `pto_v1` for a fail-closed staff-surface gate and opens one flag-only
   realtime channel (`syncview-pto-runtime-flag`) so an off flip retires already-open entry points.
   It opens no PTO data-table channel: missing, malformed, off, or unreadable state hides/bounces the
-  feature, and the Edge Function independently rejects normal actions while off. PTO has no legacy
-  or n8n fallback.
+  feature, and the Edge Function independently rejects normal actions while off. The evidenced live
+  state is on under D-36; PTO has no legacy or n8n fallback.
 - **Thumbnail-v2 backend gate.** Edge/database paths read
   `thumbnail_revision_v2={"mode":"off|test|on","clients":[...]}` server-side. `off` disables the
   protected comparison reader/scanner and v2 token minting; `test` admits only listed client slugs;
@@ -167,7 +168,7 @@ Everything below is shared by every surface; per-surface sections only note devi
 ## 4. Surface catalog
 
 Sixteen surfaces. Thirteen carry over from v1 (verify items resolved); **SMM Weekly Reports**,
-**Client Credentials**, and dark-by-default **Time Off** are promoted to their own rows. Code references use
+**Client Credentials**, and live flag-gated **Time Off** are promoted to their own rows. Code references use
 stable symbols/routes; any dated line number is evidence history, never a current-file guarantee.
 
 ### 4.1 Analytics (home) — the default tab
@@ -592,7 +593,9 @@ n8n in the metric read path.*
   Cross-client `sample_reviews` REST (samples subtab). n8n `editors-week` (editors). Staff-gated
   `filming-plans` EF + n8n `filming-plan-tabs` (filming). `onboarding-full` EF (full sensitive inbox,
   shared/legacy-key-gated; active-admin binding and read audit are missing under F85). `client-
-  credentials` EF (list/history). `pto` EF overview (pending queue plus protected team balances).
+  credentials` EF (list/history). `pto` EF overview (pending queue plus protected team balances;
+  candidate source also projects future approved leave, recent terminal history, and separated
+  granted/approved/adjustment balance components for Admin).
   SMM-directory CSV. Realtime `kasper-cal`, `kasper-sxr`,
   `client-credentials-rev-kasper`, plus shared flag channels.
 - **Writes.** Approvals/tweaks/comments/finish-close stamps via the shared calendar & sample upsert
@@ -600,7 +603,8 @@ n8n in the metric read path.*
   status` / `linear-add-comment` (tweaks only — plain comments skip Linear). `send-urgent-slack` +
   direct EF urgent markers (bypass flags). n8n `sales-intake-submit`. `client-credentials` EF
   (upsert/delete/reassign/bulk_import/log_reveal). Admin-only `pto` decisions, adjustments, and
-  member start-date/enabled-state updates.
+  member start-date/enabled-state updates; candidate source adds lifecycle-bounded cancellation of
+  future approved leave while preserving the original decision record.
 - **State.** sessionStorage `syncview_kasper_unlocked`; localStorage `syncview_kasper_subtab_v1`,
   `syncview_kasper_review_cache_v1` (24 h), `syncview_kasper_cal_<slug>_v1` (5 min),
   `syncview_kasper_approved_log_v1`, `syncview_kasper_editors_v2`, `syncview_kasper_filming_v1` (30
@@ -939,46 +943,56 @@ separate hidden first-party Direct-Post surface.*
   role-key identity as §6. Both old surface keys remain server-side compatibility until the separate
   owner-approved retirement gate.
 
-### 4.16 Time Off / PTO (new row; source-dark)
+### 4.16 Time Off / PTO (**LIVE**)
 
 - **Entry.** Staff route `#time-off`, reached from the consolidated top-right account menu rather
   than the crowded main nav; admin queue and member tools at `#kasper/time-off`. Both entries are
-  hidden and direct staff navigation returns home unless `pto_v1={"mode":"on"}`. The source ships
-  with the migration seed off; this map does not claim the migration, deploy, or flag write is live.
-- **Reads.** Staff-key-authenticated `pto?action=overview`. The response projects the caller's
+  hidden and direct staff navigation returns home unless `pto_v1={"mode":"on"}`. The base migration
+  seeded off; the value-free go-live receipt records the later owner-authorized change/readback to
+  on plus Admin/non-admin and disposable TEST browser proof.
+- **Reads.** Staff-key-authenticated `pto?action=overview` plus identity-bound `quote` range checks.
+  The overview response projects the caller's
   wellness/sick/floating-holiday/leave-year detail and request history, approved absences and fixed
   holidays for the team calendar, plus a minimal all-member summary. The Kasper admin view uses the
-  same protected boundary for pending requests and balance rows. The SPA never reads `pto_members`,
-  `pto_requests`, or `pto_adjustments` through PostgREST.
+  same protected boundary for pending requests and balance rows. Candidate source minimizes each
+  general team-calendar absence to rendered member name + date range; Admin additionally receives
+  future approved requests, recent terminal history, and separated granted/approved/adjustment
+  balance components. The SPA never reads `pto_members`, `pto_requests`, or `pto_adjustments`
+  through PostgREST.
 - **Writes.** `pto` actions `request` and `cancel` for ordinary staff; admin-only `decide`, `adjust`,
   and `set_start_date`. The server recomputes request weekdays excluding weekends and observed fixed
   holidays, rejects paid anniversary-spanning ranges, owns anniversary accrual/balance math, and
-  serializes approval through a per-member state-version snapshot/finalize RPC. A partial unique
-  index reserves one pending/approved floating holiday per member/calendar year. There is no n8n,
-  Sheet, Linear, or public-REST writer and no realtime publication.
+  serializes approval through a per-member state-version snapshot/finalize RPC. Candidate source
+  uses the `America/Guatemala` policy day, lets Admin cancel future pending or approved leave without
+  erasing the approval actor/time, and rejects a start-date change once history exists. The separate
+  cancellation actor/time columns are an additive source-only migration until value-free apply/
+  readback evidence exists. A partial unique index reserves one pending/approved floating holiday
+  per member/calendar year. There is no n8n, Sheet, Linear, or public-REST writer and no realtime
+  publication.
 - **State.** In-memory PTO overview/request/month-calendar state plus the browser-read
   `syncview_runtime_flags.pto_v1` gate. Data refetches on mount and successful actions; there is no
   polling, local HR cache, or PTO data-table realtime channel. A separate flag-only subscription,
   bounded resume/entry reads, and monotonic response generations propagate the off switch. The
   theme/palette preferences remain the shared shell state.
 - **Roles/security.** The secret-matched role wins over actor/role headers; admin remains required
-  for the detailed cross-member table and all administrative mutations. **Go-live blocker:** the
-  three current role keys are shared and `key-verify` accepts a caller-selected same-role roster
-  member, so the current member/actor value is not an immutable person principal. It cannot safely
-  enforce "own" HR detail/request ownership against a same-role key holder. Keep `pto_v1` off until
-  an individually revocable server session derives the member without browser actor/member trust
-  and negative impersonation/revocation tests pass. The additive tables enable RLS with no
-  anon/authenticated policies and grant service role only; `pto_enabled` defaults false. Personal
-  roster/seed data stays outside this public repository.
+  for the detailed cross-member table and all administrative mutations. The three current role keys
+  are shared and `key-verify` accepts a caller-selected same-role roster member, so the current
+  member/actor value is not an immutable person principal and cannot prevent same-role visibility/
+  impersonation. Owner decision D-36 explicitly accepts that risk for launch. Individually revocable
+  server sessions remain post-launch hardening, not a prerequisite. The live additive tables enable
+  RLS with no anon/authenticated policies and grant service role only; `pto_enabled` defaults false.
+  Personal roster/seed data stays outside this public repository and value-free logs.
 - **Failure/rollback.** Unknown key 401 clears/re-prompts identity and retries once; known but
   insufficient role 403 preserves the valid identity. Other failures remain visible and fail
   closed—there is no legacy fallback. The one-step user-facing/approval behavior kill is to
-  set/read back `pto_v1={"mode":"off"}`: entry points retire and overview/request/decide/cancel
+  set/read back `pto_v1={"mode":"off"}`: entry points retire and overview/quote/request/decide/cancel
   return `503 feature_disabled`, including from stale tabs. The two admin-only direct setup actions
-  intentionally remain available while dark; source reverts and workflow disablement are secondary.
+  intentionally remain available while off; source reverts and workflow disablement are secondary.
 - **Notable.** Wellness resets on each hire anniversary, not Jan 1; floating-holiday scope is the
   separate calendar-year v1 default. Negative seeded wellness balances are valid display state and
-  block further wellness requests rather than crashing or being coerced to zero.
+  block further wellness requests rather than crashing or being coerced to zero. Candidate UI uses
+  branded, keyboard-operable select/calendar/stepper controls and hover/focus help on both staff and
+  Kasper views; Kasper adds future-approved cancellation and collapsed decision/cancellation history.
 - **Track B.** None. This is a separate staff/HR feature and must not change the Production/Linear-
   mirror route, authority, data model, or rollout controls.
 
@@ -1066,7 +1080,7 @@ enforcement, a global return to permissive is a security incident—not routine 
 - **The mechanical sync test** → §7 + §8 (`test/system-map-sync.js`, wired into `npm test`).
 
 Also folded in: two surfaces v1 hid (SMM Weekly Reports §4.14, Client Credentials §4.15), plus the
-new source-dark Time Off surface (§4.16); the five
+live flag-gated Time Off surface (§4.16); the five
 deployed-but-uncalled Edge Functions (§2); and corrections to stale v1 claims (dead
 `calendar-append/delete-post`, `kasper-queue` demoted to middle fallback, `editors-week` single fetch
 site, SXR default-ON, non-existent `client-links-refresh`, `linear-tweak-comments`/`content-ready`
@@ -1085,7 +1099,7 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 - **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read. A dormant event-loader target names `deliverable_events`, but runtime never invokes it (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (6):** `calendar_upsert_ef_clients` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`
-- **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `write_ui_reroute_clients` is the separate #813 status/comment/intake cohort: it is seeded for TEST only, and missing/malformed/read-failed state selects the exact legacy lane. `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. `pto_v1` is a fail-closed off/on visibility and behavior gate; source ships off and has no n8n fallback. Other plan-side flags remain backend-only.
+- **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `write_ui_reroute_clients` is the separate #813 status/comment/intake cohort: it is seeded for TEST only, and missing/malformed/read-failed state selects the exact legacy lane. `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. `pto_v1` is a fail-closed off/on visibility and behavior gate; the base migration seeded off, the evidenced live state is on under D-36, and there is no n8n fallback. Other plan-side flags remain backend-only.
 
 ## 8. Freshness contract
 

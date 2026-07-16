@@ -54,6 +54,22 @@ const loadOverview = functionSource('_ptoLoadOverview');
 const loadAdmin = functionSource('_ptoLoadAdmin');
 const syncRequest = functionSource('_ptoSyncRequestForm');
 const submitRequest = functionSource('_ptoSubmitRequest');
+const applyRequestDayBounds = functionSource('_ptoApplyRequestDayBounds');
+const quoteRequest = functionSource('_ptoQuoteRequest');
+const setQuotePending = functionSource('_ptoSetRequestQuotePending');
+const selectHtml = functionSource('_svSelectHtml');
+const selectKeydown = functionSource('_svSelectKeydown');
+const selectPlace = functionSource('_svSelectPlace');
+const dateHtml = functionSource('_svDateHtml');
+const stepperHtml = functionSource('_svStepperHtml');
+const stepNumber = functionSource('_svStepNumber');
+const globalTooltip = source.slice(source.indexOf('(function setupGlobalTooltip'), source.indexOf('(function setupDatePicker'));
+const datePicker = source.slice(source.indexOf('(function setupDatePicker'), source.indexOf('</script>', source.indexOf('(function setupDatePicker')));
+const adminCancel = functionSource('_ptoAdminCancel');
+const adminSetMember = functionSource('_ptoAdminSetMember');
+const adminAdjust = functionSource('_ptoAdminAdjust');
+const showValidation = functionSource('_ptoShowValidation');
+const clearValidation = functionSource('_ptoClearValidation');
 
 // The six route/boot registration touchpoints from the binding handoff.
 ok(/else if \(page === 'time-off'\) \{[\s\S]{0,220}renderTimeOffView\(\)[\s\S]{0,120}mountTimeOffView\(\)/.test(nav), 'route 1/6: nav dispatch renders and mounts Time Off');
@@ -80,6 +96,11 @@ ok(/_kasperState\.tab = 'review'/.test(setFlag) && /navTo\('home'\)/.test(setFla
 ok(/KASPER_SUBTABS\.filter\(t => t\.key !== 'time-off' \|\| _ptoEnabled\(\)\)/.test(kasperView)
   && /tab === 'time-off' && !_ptoEnabled\(\)/.test(kasperGoto)
   && /_kasperState\.tab === 'time-off' && !_ptoEnabled\(\)/.test(kasperTab), 'Kasper Time Off tab is filtered and guarded while disabled');
+ok(/t\.key === 'time-off' \? 'pto-admin'/.test(kasperView)
+  && /tab === 'time-off' && !_syncviewStaffCan\('pto-admin'\)/.test(kasperGoto)
+  && /_kasperState\.tab === 'time-off' && !_syncviewStaffCan\('pto-admin'\)/.test(kasperTab)
+  && /\.kasper-subtab\[hidden\] \{ display: none; \}/.test(source),
+  'Kasper Time Off is hidden and unrestorable without the admin capability');
 ok(/await _ptoFlagReady/.test(source) && /hashRaw === 'kasper\/time-off'/.test(source), 'boot awaits the flag before restoring PTO routes');
 ok(/feature_disabled[\s\S]{0,140}_ptoSetFlagValue\(\{ mode: 'off' \}\)/.test(api), 'server feature_disabled response closes stale clients');
 ok(/AbortController/.test(fetchFlag) && /setTimeout\(\(\) => controller\.abort\(\), 5000\)/.test(fetchFlag), 'runtime flag boot read times out and fails closed');
@@ -105,24 +126,73 @@ ok(!/localStorage\.(?:setItem|getItem)\([^\n]*(?:_ptoState|_ptoAdminState|PTO_EF
 
 // Staff balance, request, history, team, and calendar surfaces.
 ok(/pto-balance-card/.test(paint) && /Wellness available/.test(paint) && /sick days remaining/.test(paint) && /floating holiday/.test(paint), 'staff view renders complete balance detail');
-ok(/id="ptoRequestForm"/.test(paint) && /id="ptoRequestType"/.test(paint) && /id="ptoDays"[^>]+step="0\.5"/.test(paint) && /id="ptoNotice"[^>]+hidden/.test(paint), 'staff request form supports types, half days, and notice warning');
+ok(/id="ptoRequestForm"/.test(paint) && /_svSelectHtml\('ptoRequestType'/.test(paint)
+  && /_svDateHtml\('ptoStartDate'/.test(paint) && /_svDateHtml\('ptoEndDate'/.test(paint)
+  && /_svStepperHtml\('ptoDays'/.test(paint) && /id="ptoNotice"[^>]+hidden/.test(paint), 'staff request form uses branded type, date, half-day, and notice controls');
+ok(/role="combobox"/.test(selectHtml) && /role="listbox"/.test(selectHtml) && /role="option"/.test(selectHtml)
+  && /aria-disabled/.test(selectHtml), 'branded select exposes combobox/listbox semantics and disabled options');
+ok(/ArrowDown/.test(selectKeydown) && /ArrowUp/.test(selectKeydown) && /Home/.test(selectKeydown)
+  && /End/.test(selectKeydown) && /Enter/.test(selectKeydown) && /_svSelectTypeahead/.test(selectKeydown), 'branded select supports arrow, boundary, enter, and typeahead keyboard use');
+ok(/window\.innerHeight/.test(selectPlace) && /open-up/.test(selectPlace) && /menu\.style\.maxHeight/.test(selectPlace)
+  && /\.sv-select\.open-up \.sv-select-menu/.test(source), 'branded select flips and constrains itself to short viewports');
+ok(/data-sv-date-trigger/.test(dateHtml) && /data-sv-today/.test(dateHtml) && /aria-haspopup="dialog"/.test(dateHtml)
+  && /\.cal-date-chip, \[data-sv-date-trigger\]/.test(datePicker), 'branded dates reuse the in-app calendar and pin the server policy date');
+ok(/minISO/.test(datePicker) && /maxISO/.test(datePicker) && /ArrowLeft/.test(datePicker)
+  && /PageUp/.test(datePicker) && /e\.key === 'Tab'/.test(datePicker) && /button:not\(\[disabled\]\)/.test(datePicker)
+  && /const dayTarget/.test(datePicker) && /close\(true\)/.test(datePicker), 'date picker enforces bounds, traps dialog focus, limits day keys, and restores focus');
+ok(/viewportChange/.test(datePicker) && /requestAnimationFrame/.test(datePicker) && /position\(\)/.test(datePicker)
+  && /MutationObserver/.test(datePicker) && /!document\.contains\(dpTriggerEl\)/.test(datePicker),
+  'date picker stays anchored through scroll and closes when rerender removes its trigger');
+ok(/max-height: calc\(100dvh - 16px\)/.test(source) && /@media \(max-height: 500px\)/.test(source)
+  && /overscroll-behavior: contain/.test(source), 'date picker remains operable at short viewport heights and browser zoom');
+ok(/sv-stepper-input/.test(stepperHtml) && /type="number"/.test(stepperHtml)
+  && /Math\.min\(max, Math\.max\(min, next\)\)/.test(stepNumber), 'branded stepper preserves numeric input and clamps explicit minus/plus controls');
+ok(/focusin/.test(globalTooltip) && /focusout/.test(globalTooltip) && /_svInfoTip/.test(paint), 'plain-English help works on hover and keyboard focus');
+ok(/prefers-reduced-motion: reduce[\s\S]{0,260}\.sv-select-menu/.test(source)
+  && /prefers-reduced-motion: reduce[\s\S]{0,260}\.dp-popup/.test(source)
+  && /prefers-reduced-motion: reduce[\s\S]{0,260}\.pto-spinner/.test(source),
+  'PTO menus, date popup, and loading spinner respect reduced-motion preferences');
 ok(/isFloating[\s\S]*end\.value = start\.value/.test(syncRequest)
-  && /type === 'floating_holiday' && \(start !== end \|\| fullDays !== 1\)/.test(submitRequest), 'floating holidays stay on one business-date calendar cell');
-ok(/const partialDayCount = Math\.max\(0\.5, allowedDays - 0\.5\)/.test(syncRequest)
+  && /type === 'floating_holiday' && \(start !== end \|\| allowedDays !== 1\)/.test(submitRequest), 'floating holidays stay on one business-date calendar cell');
+ok(/const partialDayCount = Math\.max\(0\.5, allowedDays - 0\.5\)/.test(applyRequestDayBounds)
   && /days !== allowedDays && days !== partialDayCount/.test(submitRequest), 'request UI allows the full count or one half-day endpoint only');
+ok(/holiday_date_min/.test(syncRequest) && /holiday_date_max/.test(syncRequest)
+  && /_ptoApi\('quote', 'POST'/.test(quoteRequest) && /generation !== _ptoQuoteGeneration/.test(quoteRequest),
+  'out-of-overview request ranges use a generation-safe server day-count quote');
+ok(/button\.disabled = !!pending/.test(setQuotePending)
+  && /daysInput\.disabled \|\| !String\(daysInput\.value/.test(submitRequest) && /!\(days > 0\)/.test(submitRequest),
+  'pending, failed, and zero-day quotes cannot submit a request');
+ok(/aria-invalid/.test(showValidation) && /aria-describedby/.test(showValidation) && /\.focus\(\)/.test(showValidation)
+  && /removeAttribute\('aria-invalid'\)/.test(clearValidation) && /_ptoShowValidation\('ptoFormError'/.test(submitRequest),
+  'staff validation marks, describes, focuses, and clears the visible branded controls');
+ok(/end\.value && \(\(end\.min && end\.value < end\.min\) \|\| \(end\.max && end\.value > end\.max\)\)[\s\S]*end\.value = ''/.test(syncRequest),
+  'request form clears an end date invalidated by a start-date or leave-type change');
 ok(/_ptoState\.overview[\s\S]*as_of_date/.test(syncRequest) && /const asOf = String\(_ptoState\.overview[\s\S]*as_of_date/.test(submitRequest)
   && /overview && overview\.as_of_date/.test(calendar), 'PTO comparisons and calendar today use the server date');
-ok(/My requests/.test(paint) && /_ptoCancelRequest/.test(paint) && /Team snapshot/.test(paint) && /_ptoRenderCalendar\(overview\)/.test(paint), 'staff view renders history, cancellation, team snapshot, and calendar');
+ok(/My requests/.test(paint) && /decision_note/.test(paint) && /_ptoCancelRequest/.test(paint) && /Team snapshot/.test(paint) && /_ptoRenderCalendar\(overview\)/.test(paint), 'staff view renders decision notes, cancellation, team snapshot, and calendar');
 ok(/overview\.absences/.test(calendar) && /overview\.holidays/.test(calendar) && /getMonth\(\) - 3/.test(calendar) && /getMonth\(\) \+ 3/.test(calendar), 'calendar consumes server absences/holidays within the API window');
 
 // Kasper approval queue, balance table, and admin maintenance controls.
 ok(/\{ key: 'time-off', label: 'Time Off', showCount: true/.test(source) && /_ptoRenderAdmin\(\)/.test(kasperTab), 'Kasper registers and renders the Time Off subtab');
 ok(/_syncviewStaffCan\('pto-admin'\)/.test(admin) && /Admin sign-in required/.test(admin), 'Kasper admin data is hidden without an admin identity');
 ok(/Pending requests/.test(admin) && /_ptoAdminDecide/.test(admin) && />Approve<\/button>/.test(admin) && />Deny<\/button>/.test(admin), 'Kasper queue exposes approve and deny controls');
-ok(/Member balances/.test(admin) && /<th>Granted<\/th>/.test(admin) && /<th>Used<\/th>/.test(admin) && /pto-negative/.test(admin), 'Kasper balance table includes required fields and negative styling');
+ok(/Member balances/.test(admin) && /<th>Granted<\/th>/.test(admin) && /<th>Approved<\/th>/.test(admin)
+  && /<th>Adjustments<\/th>/.test(admin) && /pto-negative/.test(admin), 'Kasper balance table separates approved leave, adjustments, availability, and negative styling');
 ok(/member\.sick_available\) < 0 \? 'pto-negative'/.test(admin), 'negative sick balances are styled red in Kasper');
-ok(/_ptoAdminSetMember/.test(admin) && /id="ptoAdminStart"/.test(admin) && /id="ptoAdminEnabled"/.test(admin)
-  && /_ptoAdminAdjust/.test(admin) && /id="ptoAdjustDelta"/.test(admin) && /id="ptoAdjustReason"/.test(admin), 'Kasper exposes member setup and adjustment controls');
+ok(/_ptoAdminSetMember/.test(admin) && /_svSelectHtml\('ptoAdminMember'/.test(admin) && /_svDateHtml\('ptoAdminStart'/.test(admin) && /id="ptoAdminEnabled"/.test(admin)
+  && /_ptoAdminAdjust/.test(admin) && /_svStepperHtml\('ptoAdjustDelta'/.test(admin) && /id="ptoAdjustReason"/.test(admin), 'Kasper uses branded member setup and signed adjustment controls');
+ok(/_svDateHtml\('ptoAdminStart', '', \{ required: true, today: asOf, max: asOf \}\)/.test(admin),
+  'Kasper member setup calendar blocks future dates before the server validates them');
+ok(/Choose a team member/.test(adminSetMember) && /Choose a valid PTO start date/.test(adminSetMember)
+  && /_ptoShowValidation\('ptoAdminMemberError'/.test(adminSetMember)
+  && /Choose a team member/.test(adminAdjust) && /valid effective date/.test(adminAdjust)
+  && /_ptoShowValidation\('ptoAdjustError',[\s\S]*'ptoAdjustDelta'/.test(adminAdjust),
+  'custom admin controls have described, focusable validation including invalid signed amounts');
+ok(/upcoming_approved_requests/.test(source) && /Recent decisions and cancellations/.test(admin) && /Upcoming approved leave/.test(admin) && /_ptoAdminCancel/.test(admin)
+  && /_ptoApi\('cancel'/.test(adminCancel), 'Kasper exposes future approved leave, recent history, and the server-backed admin cancellation path');
+ok(/wasCancelled && row\.cancelled_by && row\.decided_by/.test(admin)
+  && /Approved by /.test(admin) && /Cancelled by /.test(admin)
+  && /Cancellation attribution unavailable/.test(admin), 'pre-migration approved cancellations never misattribute the original approver');
 ok(/_kasperSetTabCount\('time-off', pending\.length\)/.test(admin), 'Kasper badge is driven by pending request count');
 
 if (failures) {

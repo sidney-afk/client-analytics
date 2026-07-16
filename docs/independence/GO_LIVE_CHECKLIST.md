@@ -526,9 +526,11 @@ Phase 0.5 below, after the fix-pack.
 - [ ] Create/deploy/read back `write_ui_reroute_clients`, prove its absent/malformed state fails
       safely, then merge #813 with the value = TEST only. **Nothing changes for real
       clients or staff** — their buttons still use the legacy paths.
-- [ ] Same window: redeploy production-write from the merge commit; run the TEST drill; walk
-      the TEST client through Create-Post (latest batch + new batch), Submit, approve, tweak,
-      comment end-to-end.
+- [ ] Same window: from `main`, invoke `workflow_dispatch` with a 40-character `commit_sha`
+      pinned to the exact merge commit and require the workflow's ancestor-of-main guard to pass.
+      The manual-only deployment order is `linear-outbound` before `production-write`; an ordinary
+      merge/push deploys neither. Then run the TEST drill and walk the TEST client through
+      Create-Post (latest batch + new batch), Submit, approve, tweak, and comment end-to-end.
 - [ ] Passively observe one organic real-client save/approval through the legacy path, or prove
       the dark behavior with a non-enrolled TEST fixture. Do not induce a production write.
 

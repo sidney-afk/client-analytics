@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const vm = require('vm');
 const {
   D27_LIVE_ERA_START,
   classifyOutboundDeliverable,
@@ -31,6 +32,13 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     'linear-outbound',
     'mapping.mjs',
   )).href);
+  const monitoring = await import(pathToFileURL(path.join(
+    ROOT,
+    'supabase',
+    'functions',
+    'linear-outbound',
+    'monitoring.mjs',
+  )).href);
 
   const baseRow = {
     operation: 'status',
@@ -58,6 +66,38 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   const status = mapping.buildMutation(baseRow, { state_id: 'state_approved', linear_issue_id: 'issue_fixture' });
   ok(status.kind === 'issueUpdate' && status.variables.input.stateId === 'state_approved',
     'status maps to issueUpdate.stateId');
+  const bumpedStatus = mapping.buildMutation({
+    ...baseRow,
+    payload: { ...baseRow.payload, due_date: '2026-07-15' },
+  }, { state_id: 'state_approved', linear_issue_id: 'issue_fixture' });
+  ok(bumpedStatus.variables.input.stateId === 'state_approved'
+    && bumpedStatus.variables.input.dueDate === '2026-07-15',
+  'overdue status bump is one atomic Linear state + dueDate update');
+  const sameStateBump = mapping.buildMutation({
+    ...baseRow,
+    payload: { ...baseRow.payload, due_date: '2026-07-15' },
+  }, { state_id: 'state_approved', status_already_applied: true, linear_issue_id: 'issue_fixture' });
+  ok(sameStateBump.variables.input.stateId === 'state_approved'
+    && sameStateBump.variables.input.dueDate === '2026-07-15',
+  'same-state overdue bumps retain the full state + due intent in the acknowledged mutation');
+  ok(mapping.decideConflict(
+    { ...baseRow, payload: { ...baseRow.payload, due_date: '2026-07-15' } },
+    { ...issue, state: { id: 'state_approved' }, dueDate: '2026-07-14' },
+    { state_id: 'state_approved' },
+  ).decision === 'apply', 'matching state does not suppress a still-pending due bump');
+  ok(mapping.decideConflict(
+    { ...baseRow, payload: { ...baseRow.payload, due_date: '2026-07-15' } },
+    { ...issue, state: { id: 'state_approved' }, dueDate: '2026-07-15' },
+    { state_id: 'state_approved' },
+  ).decision === 'already_applied', 'combined status + due bump is idempotent only when both fields match');
+  ok(monitoring.pendingAgeThresholdMinutes({ minutes: 45 }) === 45
+    && monitoring.pendingAgeThresholdMinutes({ minutes: 0 }) === 30,
+  'pending-age threshold is runtime-configurable with a 30-minute safe default');
+  ok(JSON.stringify(monitoring.pendingAgeAlertTeams(
+    { video: 31, graphics: 120 },
+    { video: 'syncview', graphics: 'linear' },
+    30,
+  )) === JSON.stringify(['video']), 'pending-age alerts page only SyncView-authoritative teams');
   const twoSlotParents = mapping.mergeBatchParentIds(
     { video: { uuid: 'video-parent', identifier: 'VID-1', url: 'https://example.invalid/video' } },
     'graphics',
@@ -318,6 +358,20 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && /echo_dropped/.test(ef)
     && /shadow_vs_actual_divergence/.test(ef),
   'each run writes the required watcher metrics');
+  const oldestPending = ef.match(/async function oldestPendingMinutesByTeam\([^]*?\n\}/);
+  ok(oldestPending
+    && /\["pending", "failed", "shadow_ok"\]/.test(oldestPending[0])
+    && /attempts/.test(oldestPending[0])
+    && !/\.lt\("attempts"|MAX_ATTEMPTS/.test(oldestPending[0]),
+  'per-team oldest pending age includes retry-exhausted failed rows');
+  ok(/oldest_pending_minutes/.test(ef)
+    && /oldest_pending_alert_threshold_minutes/.test(ef)
+    && /oldest_pending_age/.test(ef),
+  'drain summaries publish age, runtime threshold, and pager state');
+  ok(/syncview_live/.test(ef)
+    && /WRITE_UI_SYNCVIEW_LIVE/.test(ef)
+    && /targetedSyncviewLive && mode === "live"/.test(ef),
+  'normal targeted requests are accepted only through the confirmed live SyncView lane');
 
   const inbound = read('supabase/functions/linear-inbound/index.ts');
   ok(/mirror_actor_id/.test(inbound)
@@ -326,6 +380,37 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   'inbound echo drop requires mirror identity plus matching written intent');
   ok(/return \{ ok: true, dropped: "syncview_mirror_echo"/.test(inbound),
     'matched mirror echoes stop before inbound write handling');
+  const outboundMatcherSource = inbound.match(/function outboundValueMatches\([^]*?\n\}/);
+  ok(!!outboundMatcherSource, 'inbound exact-value echo matcher is present');
+  if (outboundMatcherSource) {
+    const echoContext = {
+      clean: value => String(value == null ? '' : value).trim(),
+      lower: value => String(value == null ? '' : value).trim().toLowerCase(),
+      objectAt: value => value && typeof value === 'object' && !Array.isArray(value) ? value : {},
+      payloadAction: payload => String(payload && payload.action || '').toLowerCase(),
+      outboundExpected: row => row.linear_result.expected.input,
+      outboundMarker: () => '',
+    };
+    vm.createContext(echoContext);
+    vm.runInContext(outboundMatcherSource[0].replace(
+      /function outboundValueMatches\([^\n]+\): boolean \{/,
+      'function outboundValueMatches(row, payload, issue, comment) {',
+    ), echoContext);
+    const dueOnlyReceipt = {
+      operation: 'status', status: 'written', processed_at: '2026-07-13T12:00:00Z',
+      linear_result: { expected: { input: { dueDate: '2026-07-15' } } },
+    };
+    const fullReceipt = {
+      operation: 'status', status: 'written', processed_at: '2026-07-13T12:00:00Z',
+      linear_result: { expected: { input: { stateId: 'state_approved', dueDate: '2026-07-15' } } },
+    };
+    const exactIssue = { state: { id: 'state_approved' }, dueDate: '2026-07-15' };
+    const laterExternalState = { state: { id: 'state_tweak' }, dueDate: '2026-07-15' };
+    ok(echoContext.outboundValueMatches(dueOnlyReceipt, { action: 'update' }, laterExternalState, {}) === false
+      && echoContext.outboundValueMatches(fullReceipt, { action: 'update' }, laterExternalState, {}) === false
+      && echoContext.outboundValueMatches(fullReceipt, { action: 'update' }, exactIssue, {}) === true,
+    'due-only receipts and different-state/same-due webhooks never echo-drop; exact state + due does');
+  }
 
   const sharedWrite = read('supabase/functions/_shared/b4-write.ts');
   ok(/rpc\/b4_service_role_probe/.test(ef)
@@ -367,8 +452,35 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   ok(/curl --fail-with-body --silent --show-error \\\r?\n/.test(workflow)
     && !/--show-error \+/.test(workflow),
   'scheduled drain uses valid shell continuations');
-  ok(/GITHUB_STEP_SUMMARY/.test(workflow) && /event_id, mode, counts, backlog, alerts/.test(workflow),
+  ok(/GITHUB_STEP_SUMMARY/.test(workflow)
+    && /oldest_pending_minutes/.test(workflow)
+    && /oldest_pending_alert_teams/.test(workflow),
     'scheduled drain publishes the persisted watcher summary to the Actions run');
+  const deployWorkflow = read('.github/workflows/deploy-onboarding-edge-functions.yml');
+  const pushBlock = (deployWorkflow.match(/  push:\r?\n([\s\S]*?)  workflow_dispatch:/) || [])[1] || '';
+  const forbiddenPushPaths = [
+    'supabase/functions/linear-outbound/**',
+    'supabase/functions/production-write/**',
+    'supabase/functions/client-review-link/**',
+    'supabase/functions/_shared/**',
+  ];
+  ok(!!pushBlock && forbiddenPushPaths.every(path => !pushBlock.includes(`- '${path}'`)),
+    'high-risk functions and broad shared changes never trigger a push deploy');
+
+  const pinnedStepAt = deployWorkflow.indexOf('- name: Deploy pinned Track-B write functions');
+  const pinnedStep = pinnedStepAt >= 0 ? deployWorkflow.slice(pinnedStepAt) : '';
+  const pinnedLoop = (pinnedStep.match(/for fn in ([^;]+); do/) || [])[1] || '';
+  ok(/if: github\.event_name == 'workflow_dispatch'/.test(pinnedStep)
+    && pinnedLoop === 'linear-outbound production-write',
+  'manual deploy step is dispatch-only and deploys the provider before its gateway caller');
+
+  const ancestorGuard = 'git merge-base --is-ancestor "$DEPLOY_COMMIT" origin/main';
+  const ancestorGuardAt = deployWorkflow.indexOf(ancestorGuard);
+  ok(/commit_sha:[\s\S]{0,180}required: true/.test(deployWorkflow)
+    && /\^\[0-9a-f\]\{40\}\$/.test(deployWorkflow)
+    && ancestorGuardAt >= 0
+    && ancestorGuardAt < pinnedStepAt,
+  'manual write-path deploy runs only after the exact-SHA main-ancestry guard');
   ok(/allowMissing && \/\\b\(entity\|issue\|resource\) not found/.test(ef)
     && !/if \(allowMissing\) return null/.test(ef),
   'native create treats only an explicit Linear not-found as absence');

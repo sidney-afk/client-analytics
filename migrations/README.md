@@ -25,6 +25,12 @@ executes these files (see `README.md` › Repository layout).
   legacy-parity outbox intents, seeds their independent reversible kill gate,
   and adds the atomic normalized-comment + outbox writer used by the Write-UI
   gateway. Existing authority and outbound-mode flag values are untouched.
+- **`2026-07-13-production-intake-append.sql`** adds the service-only atomic
+  append-to-existing-batch RPC used by native Calendar intake. It locks and CAS
+  advances the batch cursor, validates exact team-parent routes, and commits the
+  paired Video + Graphics rows/events/outbox intents in one transaction. It
+  changes no runtime flag; its owner-only one-command rollback block is included
+  at the bottom of the file.
 - **`2026-07-14-thumbnail-revision-v2.sql`** revokes direct browser access to
   raw thumbnail revision metadata, seeds the default-off comparison/refresh
   gate, adds active Drive-thumbnail watcher/refresh triggers and bounded repair,

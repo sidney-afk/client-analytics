@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const {
+  assertSafe,
   classifyDiff,
   classifyRepair,
   summarizeShadow,
@@ -30,6 +31,20 @@ ok(classifyDiff(
 ).disposition === 'unexpected', 'ordinary field mismatch remains unexpected');
 ok(classifyRepair({ reason: 'outbound_assignee_mapping_missing' }).disposition === 'expected_explainable',
   'unknown assignee linkage is an explainable repair row');
+let mixedLiveAccepted = true;
+try {
+  assertSafe({
+    flags: {
+      linear_outbound_enabled: { mode: 'live' },
+      prod_authority: { video: 'syncview', graphics: 'linear' },
+      linear_inbound_enabled: { enabled: true },
+      auth_enforcement: { mode: 'enforced' },
+    },
+    active_slugs: new Set(['fixture']),
+    flagged_slugs: new Set(['fixture']),
+  });
+} catch (_) { mixedLiveAccepted = false; }
+ok(mixedLiveAccepted, 'read-only shadow audit accepts a mixed live cutover stance');
 
 const plan = {
   summary: { entities_checked: 3, deliverables_checked: 2, batches_checked: 1 },
@@ -79,9 +94,9 @@ ok(summary.public.tolerated_historical.total === 1
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'b4-outbound-shadow-audit.js'), 'utf8');
 ok(/B4_CONFIRM_READ_ONLY_SHADOW/.test(source), 'live audit requires explicit read-only confirmation');
-ok(/linear_outbound_enabled must be off or shadow/.test(source)
-  && /prod_authority must remain linear\/linear/.test(source),
-'live audit accepts only the D-28 off/shadow soak modes and Linear team authority');
+ok(/linear_outbound_enabled must be off, shadow, or live/.test(source)
+  && /prod_authority is invalid for/.test(source),
+'live audit validates but does not freeze outbound mode or team authority');
 ok(/data\.prodAuthority = \{ video: 'syncview', graphics: 'syncview' \}/.test(source),
   'authority override exists only in the in-memory classifier data');
 ok(!/supabaseRpc|supabaseInsert|linearGraphql|\bmutation\s+[A-Za-z]/.test(source),
@@ -89,7 +104,10 @@ ok(!/supabaseRpc|supabaseInsert|linearGraphql|\bmutation\s+[A-Za-z]/.test(source
 ok(/private evidence path must be outside the repository/.test(source),
   'row-level evidence is forced outside the public repository');
 ok(/outbox_high_water_before/.test(source) && /linear_mutation_calls: 0/.test(source),
-  'report proves queue immutability and zero Linear mutation calls');
+  'report records queue movement and zero Linear mutation calls');
+ok(/queueStabilityRequired = !syncviewTrafficPossible && controlsUnchanged/.test(source)
+  && /protected_flag_digest_unchanged/.test(source),
+'live-team traffic may move the global queue without invalidating the audit read-only proof');
 
 if (failures) {
   console.error(`\n${failures} B4 outbound shadow audit check(s) failed`);

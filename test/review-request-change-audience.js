@@ -55,6 +55,9 @@ function _calClearStaleApprovals(){}
 function _calFlushCardSave(){ return Promise.resolve(); }
 function _calLinearUrlFor(){ return ''; }     // no Linear counterpart → no push
 function _calPostLinearComment(){}
+function _writeUiBindRepairAck(){}
+function _writeUiMergeCommittedBatch(pending, committed){ Object.assign(pending, committed); }
+function _writeUiReportFailure(){}
 function showToast(){}
 function _calV2Log(){}
 function setClient(b){ _isClientLink = b; }

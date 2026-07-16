@@ -90,12 +90,19 @@ uniform denials, bounded event retention, and explicit audit-outage behavior. F8
 `client_access_events.ok` means access-allowed rather than credential-valid; the current seven-day
 window has zero valid-token events and cannot satisfy the spec's active-client validation gate.
 
-Live set in `docs/truth/ENDPOINTS.md`. Source now represents 25 functions. The existing onboarding
-deploy Action covers 7 and still uses an unpinned latest CLI. The separate pinned `2.109.0`
+The #813 candidate does not broaden the workflow's current push paths: `linear-outbound` and
+`production-write` are absent from the merge/push trigger and can deploy only from a manual
+`workflow_dispatch` pinned to one exact 40-character SHA already on `main`. The guarded manual step
+deploys `linear-outbound` before `production-write`, so the provider contract precedes its caller;
+an ordinary merge can deploy neither function.
+
+Live set in `docs/truth/ENDPOINTS.md`. Source now represents 27 functions. The existing onboarding
+deploy Action covers 8 push-safe functions plus 2 guarded manual-only functions and still uses an
+unpinned latest CLI. The separate pinned `2.109.0`
 thumbnail workflow deployed and read back `calendar-upsert` v32, `sample-review-upsert` v33,
 `thumbnail-revision-read` v12, and `thumbnail-revision-scan` v17 from the merged release. Seven
 functions use floating `supabase-js@2` (six npm aliases plus one `esm.sh` alias), and no function
-has a committed lock/import map. Treat every deployment/rebuild/rollback as F51-gated until all 25
+has a committed lock/import map. Treat every deployment/rebuild/rollback as F51-gated until all 27
 source closures, dependencies, JWT settings, toolchain, release SHA, and downloaded server
 fingerprints are manifested and independently read back.
 

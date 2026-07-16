@@ -15,11 +15,15 @@ const n = value => Number(value || 0);
 
 function publicPayload(report) {
   const zero = report.zero_write_proof || {};
-  const zeroWrite = zero.runtime_flag_digest_unchanged === true
-    && n(zero.outbox_total_before) === n(zero.outbox_total_after)
+  const protectedFlagsUnchanged = zero.protected_flag_digest_unchanged === undefined
+    ? zero.runtime_flag_digest_unchanged === true
+    : zero.protected_flag_digest_unchanged === true;
+  const queueStable = n(zero.outbox_total_before) === n(zero.outbox_total_after)
     && n(zero.outbox_high_water_before) === n(zero.outbox_high_water_after)
     && n(zero.pending_before) === n(zero.pending_after)
-    && n(zero.real_written_before) === n(zero.real_written_after)
+    && n(zero.real_written_before) === n(zero.real_written_after);
+  const zeroWrite = protectedFlagsUnchanged
+    && (zero.queue_stability_required === false || queueStable)
     && n(zero.linear_mutation_calls) === 0;
   const payload = {
     run_id: report.run_id,
@@ -35,6 +39,9 @@ function publicPayload(report) {
     unexpected_repairs: n(report.repairs && report.repairs.unexpected),
     tolerated_historical: n(report.tolerated_historical && report.tolerated_historical.total),
     zero_write_proof: zeroWrite,
+    queue_stability_required: zero.queue_stability_required !== false,
+    queue_stable: zero.queue_stable === undefined ? queueStable : zero.queue_stable === true,
+    operational_controls_changed: zero.operational_controls_changed === true,
     by_team: report.by_team || {},
     private_artifact_sha256: report.private_artifact_sha256,
   };

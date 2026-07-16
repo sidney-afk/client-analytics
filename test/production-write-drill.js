@@ -3,7 +3,11 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { stableJson, writePrivateFailure } = require('../scripts/production-write-drill');
+const {
+  assertFlipTolerantStance,
+  stableJson,
+  writePrivateFailure,
+} = require('../scripts/production-write-drill');
 
 let failures = 0;
 function ok(condition, message) {
@@ -12,6 +16,18 @@ function ok(condition, message) {
 }
 
 ok(stableJson({ b: 2, a: 1 }) === stableJson({ a: 1, b: 2 }), 'flag comparison is key-order independent');
+const stance = (authority, mode) => ({
+  prod_authority: { value: authority, updated_at: 'one' },
+  linear_outbound_enabled: { value: { mode }, updated_at: 'two' },
+  linear_inbound_enabled: { value: { enabled: true }, updated_at: 'three' },
+  auth_enforcement: { value: { mode: 'enforced' }, updated_at: 'four' },
+});
+let mixedAccepted = true;
+try { assertFlipTolerantStance(stance({ video: 'syncview', graphics: 'linear' }, 'live')); } catch (_) { mixedAccepted = false; }
+ok(mixedAccepted, 'daily TEST drill accepts mixed authority and live outbound without changing them');
+let malformedRejected = false;
+try { assertFlipTolerantStance(stance({ video: 'unknown', graphics: 'linear' }, 'live')); } catch (_) { malformedRejected = true; }
+ok(malformedRejected, 'daily TEST drill still rejects a malformed authority stance');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'production-write-drill.js'), 'utf8');
 const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'production-write-drill.yml'), 'utf8');
@@ -31,12 +47,25 @@ ok(!source.includes('PRODUCTION_WRITE_TEST_'), 'drill adds no unavailable GitHub
 ok(source.includes('production_comments?select=id'), 'drill verifies exactly-once native comment storage');
 ok(source.includes("audience: 'internal'") && !source.includes("audience: 'staff'"), 'drill uses the gateway comment-audience vocabulary');
 ok(source.includes("row.brief === 'Video 1' && issue.description === 'Video 1'"), 'drill verifies the TEST graphics fallback in native and Linear');
+ok(source.includes('PRODUCTION_WRITE_DRILL_REAL_GRAPHIC_GENERATION')
+  && source.includes("row.brief !== 'Video 1'")
+  && source.includes('issue.description === row.brief'),
+'one-shot mode omits the skip path and proves the generated graphics title round-trips');
+ok(source.includes("if (team === 'graphics' && !REAL_GRAPHIC_GENERATION) request.skip_graphic_generation = true"),
+  'real generation request omits the skip flag instead of sending false');
+ok(source.includes('PRODUCTION_WRITE_DRILL_TEAMS') && source.includes('for (const team of DRILL_TEAMS)'),
+  'one-shot drill can scope mutations to graphics only');
+ok(source.includes("reconcileArgs.push(`--team=${DRILL_TEAMS[0]}`)"),
+  'one-shot reconciliation is scoped to the exercised team');
 ok(source.includes('foreign_write_detected'), 'drill checks for echo/foreign-write storms');
 ok(source.includes('--test-authority-client='), 'drill runs the TEST-only authority reconciler');
 ok(source.includes('diff_count') && source.includes('repair_list_size') && source.includes('linkage_actionable'), 'drill requires final 0/0/0 reconciliation');
 ok(source.includes("operation: 'archive'") && source.includes("test_override: { client_slug: TEST_CLIENT, mode: 'live', authority: 'syncview' }"), 'cleanup archives through the TEST-only outbox path');
 ok(source.includes('stableJson(flagsBefore) === stableJson(flagsAfter)'), 'drill proves runtime flags unchanged');
 ok(source.includes('select=key,value,updated_at'), 'flag proof detects a flip-away-and-back during the drill');
+ok(!source.includes('production authority must remain linear/linear')
+  && !source.includes('production outbound must remain off'),
+'drill no longer hard-codes the pre-flip production stance');
 ok(source.includes("action: 'production_write_drill'"), 'drill emits the pager summary event');
 ok(source.includes('error_code:') && !source.includes('clean(failure.message).slice'), 'public drill telemetry reports an aggregate stage code, never a raw failure body');
 const privateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'production-write-drill-private-'));

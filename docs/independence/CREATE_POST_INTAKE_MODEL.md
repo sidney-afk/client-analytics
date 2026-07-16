@@ -1,6 +1,7 @@
 # Create-Post & Batch Intake Model (LOCKED)
 
-**Status:** Locked decision — owner-confirmed 2026-07-13.
+**Status:** Locked decision — owner-confirmed 2026-07-13; partially implemented in the
+draft #813 stack, not deployed. Submit's single-team Advanced actions remain open under F101.
 **Applies to:** how new work (batches + deliverables) is created once SyncView is the
 authority for a team. This is the target model the write-UI intake path (PR #813 and
 its calendar card-materialization) must implement.
@@ -74,10 +75,43 @@ option reuses Submit's intake logic so there is one creation mechanism, two door
 
 ---
 
-## To verify before go-live (implementation gap check)
+## Before-go-live implementation gap check
 
-Confirm the write-UI intake path (PR #813 native `intake_create` + calendar card
-materialization) implements exactly this, and flag/adjust any gap:
+The reconciled #813 candidate records source/test changes for most of the seven locked points,
+but does not close F101. These checks are candidate evidence only; they are not a deployment,
+merge, or cutover approval, and current `main` remains governed by the F101 release gate below.
+
+### #813 candidate evidence (unmerged)
+- [x] **Per-client calendar entry:** staff Create Post derives the client from the
+  open calendar; there is no client picker in the dialog.
+- [x] **Batch choice:** the latest active client batch is selected by default, with
+  an explicit create-new-batch alternative (and new batch is the safe fallback when
+  no active batch exists).
+- [ ] **Paired work (partial):** Calendar Create Post emits exactly one Video and one Graphics
+  deliverable with the same calendar-card identity. Enrolled Submit still permits Advanced
+  Video-only or Thumbnail-only intake, so the shared candidate does not yet satisfy F101.
+- [x] **Per-team filing:** the gateway resolves and validates Video and Graphics
+  project mappings independently and fails closed on a missing or ambiguous mapping.
+- [x] **One new-batch engine:** calendar new-batch and Submit both use the same
+  authenticated `intake_create` operation, durable intake job, and card materializer.
+- [x] **Two batch-creation doorways:** Submit and calendar Create Post can both create
+  a batch; calendar Create Post can also append to an existing batch with CAS.
+- [x] **No free-form Linear-tab create:** the Linear mirror remains limited to actions
+  on existing work; no issue or sub-issue creation control was added there.
+
+### Dormant rollout stance
+
+This remains an additive, authority-gated draft. No Edge Function or browser bundle
+was deployed for this gap closure, no Linear write was used as evidence, and no runtime
+flag changed. With production authority still Linear/Linear and the independent legacy
+parity allowance disabled, an enrolled real client's native intake fails closed; unlisted
+real clients remain on MAIN's F44 durable-receipt legacy path. The existing service-only TEST
+override remains the only pre-flip bypass; browser staff/client credentials cannot self-enter
+TEST scope. The owner controls deployment and any later authority/outbound change separately.
+
+### Current-main release gate â€” F101
+
+Until the candidate is merged and reverified, the later `main` audit remains authoritative:
 
 - [ ] Create Post is invoked per-client from the calendar (client implicit).
 - [ ] Create Post offers **latest-batch (default)** vs **new-batch**.

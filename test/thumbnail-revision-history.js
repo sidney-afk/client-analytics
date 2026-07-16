@@ -264,8 +264,27 @@ ok(!/console\.log[^\n]*(?:client|sourceId|source_id)/.test(READ),
 ok(/version:\s*2\.109\.0/.test(DEPLOY) && /timeout-minutes:\s*15/.test(DEPLOY)
   && /group:\s*deploy-thumbnail-edge-functions/.test(DEPLOY),
   'thumbnail deploy must pin its CLI and have bounded non-overlapping runs');
-for (const fn of ['calendar-upsert', 'sample-review-upsert', 'thumbnail-revision-read', 'thumbnail-revision-scan']) {
-  ok(DEPLOY.includes(fn), `thumbnail deploy missing ${fn}`);
+const deployLoop = DEPLOY.match(/for fn in ([^;\r\n]+);\s*do/);
+ok(deployLoop && deployLoop[1].trim() === 'thumbnail-revision-read thumbnail-revision-scan',
+  'thumbnail deploy loop must contain only the two thumbnail function slugs');
+ok(!/supabase\/functions\/(?:calendar-upsert|sample-review-upsert)\/\*\*/.test(DEPLOY),
+  'frozen writers must not be main-push trigger paths');
+ok(/workflow_dispatch:\s*\r?\n\s+inputs:\s*\r?\n\s+confirm:[\s\S]*?OWNER_APPROVED_REGATE[\s\S]*?type:\s*string/.test(DEPLOY),
+  'manual dispatch must reserve the explicit owner-approved re-gate confirmation');
+
+const deploySteps = DEPLOY.split(/(?=^      - (?:name|uses):)/m)
+  .filter(step => /\bsupabase\s+functions\s+deploy\b/.test(step));
+for (const step of deploySteps) {
+  const loop = step.match(/for\s+fn\s+in\s+([^;\r\n]+);\s*do/);
+  const literalSlugs = Array.from(step.matchAll(/\bsupabase\s+functions\s+deploy\s+["']?([a-z0-9][a-z0-9-]*)["']?/g),
+    match => match[1]);
+  const deployedSlugs = [...(loop ? loop[1].trim().split(/\s+/) : []), ...literalSlugs];
+  if (deployedSlugs.some(slug => slug === 'calendar-upsert' || slug === 'sample-review-upsert')) {
+    const ifLine = (step.match(/^ {8}if:\s*(.+)$/m) || [])[1] || '';
+    ok(/github\.event_name\s*==\s*['"]workflow_dispatch['"]/.test(ifLine)
+      && /inputs\.confirm\s*==\s*['"]OWNER_APPROVED_REGATE['"]/.test(ifLine),
+      'any future frozen-writer deploy step must require dispatch plus exact owner confirmation');
+  }
 }
 ok(!/for fn in[^\n]*(?:onboarding|client-credentials|filming-plans)/.test(DEPLOY),
   'thumbnail deploy must not redeploy unrelated functions');

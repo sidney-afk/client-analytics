@@ -4,8 +4,9 @@
  *
  * The frozen artifact is docs/syncview-design/SyncView.html. This lane drives the
  * artifact and wired ?prod=1 tab through matched states, then checks the visual
- * contracts that are safe in B2 read-only preview. Typography differences are
- * intentionally excluded per the owner exception.
+ * contracts that are safe while signed out. Write affordances are compared at
+ * their disabled/sign-in boundary; no staff identity or write path is enabled.
+ * Typography differences are intentionally excluded per the owner exception.
  */
 const fs = require('fs');
 const http = require('http');
@@ -13,6 +14,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
+const SIGNED_OUT_WRITE_COPY = 'Sign in with your staff account to write.';
 const outDir = process.env.SYNCVIEW_PROD_PIXEL_SHOTS
   ? path.resolve(process.env.SYNCVIEW_PROD_PIXEL_SHOTS)
   : path.join(root, '.codex-tmp', 'prod-pixel-wired');
@@ -75,6 +77,23 @@ async function shotElement(page, selector, name) {
   if (await loc.count()) await loc.screenshot({ path: path.join(outDir, shotPrefix + name + '.png') });
 }
 
+async function signedOutGuardState(page, trigger, controlSelector) {
+  const signedOut = await page.evaluate(() => !_syncviewStaffIdentityForHeaders());
+  const affordance = controlSelector ? await page.locator(controlSelector).first().evaluate((el, copy) => {
+    const copySurface = [el.getAttribute('title'), el.getAttribute('data-prod-tip')].filter(Boolean).join(' ');
+    return el.getAttribute('aria-disabled') === 'true'
+      && el.getAttribute('data-prod-write') === 'off'
+      && copySurface.includes(copy);
+  }, SIGNED_OUT_WRITE_COPY).catch(() => false) : true;
+  const before = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.status, i.assignee, i.due, i.project])));
+  await trigger();
+  await page.waitForSelector('#prodToast.show', { timeout: 1500 });
+  const toast = (await page.locator('#prodToast').textContent() || '').trim();
+  const after = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.status, i.assignee, i.due, i.project])));
+  const pickerCount = await page.locator('#prodLayer [data-prod-pick], #prodLayer .prod-duepop').count();
+  return { signedOut, affordance, toast, same: before === after, pickerCount };
+}
+
 function cleanPaths(paths) {
   return paths.map(p => String(p || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
 }
@@ -120,20 +139,6 @@ async function emptyStateInventory(page, selector) {
   }));
 }
 
-function comparePickerInventory(gaps, state, artifactRows, wiredRows) {
-  if (artifactRows.length !== wiredRows.length) {
-    gaps.push({ rank: 1, state, message: `picker row count mismatch artifact=${artifactRows.length} wired=${wiredRows.length}` });
-    return;
-  }
-  artifactRows.forEach((a, i) => {
-    const w = wiredRows[i] || {};
-    if (a.label !== w.label) gaps.push({ rank: 1, state, message: `row ${i} label artifact=${a.label} wired=${w.label}` });
-    if (a.kbd !== w.kbd) gaps.push({ rank: 1, state, message: `row ${i} kbd artifact=${a.kbd || '(empty)'} wired=${w.kbd || '(empty)'}` });
-    if (a.cursor !== w.cursor) gaps.push({ rank: 2, state, message: `row ${i} cursor artifact=${a.cursor} wired=${w.cursor}` });
-    if (a.paths.join('|') !== w.paths.join('|')) gaps.push({ rank: 1, state, message: `row ${i} icon path drift for ${a.label}` });
-  });
-}
-
 function comparePaletteCommandRows(gaps, state, artifactRows, wiredRows, startIndex) {
   const aCmd = artifactRows.slice(startIndex);
   const wCmd = wiredRows.slice(startIndex);
@@ -158,19 +163,6 @@ function compareMenuInventory(gaps, state, artifactRows, wiredRows) {
     const w = wiredRows[i] || {};
     if (a.label !== w.label) gaps.push({ rank: 1, state, message: `row ${i} label artifact=${a.label} wired=${w.label}` });
     if (a.kbd !== w.kbd) gaps.push({ rank: 1, state, message: `row ${i} kbd artifact=${a.kbd || '(empty)'} wired=${w.kbd || '(empty)'}` });
-    if (a.paths.join('|') !== w.paths.join('|')) gaps.push({ rank: 1, state, message: `row ${i} icon path drift for ${a.label}` });
-  });
-}
-
-function compareDueInventory(gaps, state, artifactRows, wiredRows) {
-  if (artifactRows.length !== wiredRows.length) {
-    gaps.push({ rank: 1, state, message: `due row count mismatch artifact=${artifactRows.length} wired=${wiredRows.length}` });
-    return;
-  }
-  artifactRows.forEach((a, i) => {
-    const w = wiredRows[i] || {};
-    if (a.label !== w.label) gaps.push({ rank: 1, state, message: `row ${i} label artifact=${a.label} wired=${w.label}` });
-    if (i > 1 && a.dres !== w.dres) gaps.push({ rank: 1, state, message: `row ${i} date hint artifact=${a.dres || '(empty)'} wired=${w.dres || '(empty)'}` });
     if (a.paths.join('|') !== w.paths.join('|')) gaps.push({ rank: 1, state, message: `row ${i} icon path drift for ${a.label}` });
   });
 }
@@ -262,6 +254,15 @@ async function runTheme(port, browser, theme) {
   shotPrefix = theme + '-';
   const artifact = await browser.newPage({ viewport: { width: 1440, height: 950 } });
   const wired = await browser.newPage({ viewport: { width: 1440, height: 950 } });
+  artifact.setDefaultTimeout(5000);
+  wired.setDefaultTimeout(5000);
+  const wiredErrors = [];
+  const wiredRequests = [];
+  wired.on('pageerror', error => wiredErrors.push('pageerror: ' + error.message));
+  wired.on('console', message => {
+    if (message.type() === 'error') wiredErrors.push('console: ' + message.text());
+  });
+  wired.on('request', request => wiredRequests.push({ method: request.method(), url: request.url() }));
   await artifact.addInitScript(mode => {
     if (mode === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
     else document.documentElement.removeAttribute('data-theme');
@@ -458,38 +459,25 @@ async function runTheme(port, browser, theme) {
     await artifact.waitForSelector('#layer .pop [data-ctx="status"]');
     await wired.waitForSelector('#prodLayer .prod-pop [data-prod-ctx="status"]');
     await artifact.evaluate(() => document.querySelector('#layer .pop [data-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
-    await wired.evaluate(() => document.querySelector('#prodLayer .prod-pop [data-prod-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
-    if (await wired.locator('#prodLayer [data-prod-pick]').count()) gaps.push({ rank: 1, state: 'bulk command hover', message: 'wired bulk command hover should not open a blocking picker' });
-    await wired.locator('#prodLayer .prod-pop [data-prod-ctx="status"]').click();
-    await artifact.waitForSelector('#layer .pop');
-    await wired.waitForSelector('#prodLayer .prod-pop [data-prod-pick]');
-    const artifactStatusRows = await pickerInventory(artifact, '#layer .pop [data-i]');
-    const wiredStatusRows = await pickerInventory(wired, '#prodLayer .prod-pop [data-prod-pick]');
-    comparePickerInventory(gaps, 'status picker inventory', artifactStatusRows, wiredStatusRows);
-    const statusOrder = wiredStatusRows.map(r => r.label);
-    if (statusOrder[0] !== 'Backlog' || statusOrder[statusOrder.length - 1] !== 'Triage') {
-      gaps.push({ rank: 1, state: 'status picker order', message: `wired order starts/ends ${statusOrder[0]} / ${statusOrder[statusOrder.length - 1]}` });
-    }
-    const statusHints = wiredStatusRows.map(r => r.kbd);
-    const expectedHints = artifactStatusRows.map(r => r.kbd);
-    if (statusHints.join('|') !== expectedHints.join('|')) {
-      gaps.push({ rank: 1, state: 'status picker kbd hints', message: `wired ${statusHints.join(',')} vs artifact ${expectedHints.join(',')}` });
-    }
-    await compareStyles(gaps, 'status picker selected tick', artifact, wired, '#layer .pop .tick', '#prodLayer .prod-pop .tick', ['color', 'marginLeft', 'order', 'display']);
+    await artifact.waitForSelector('#layer .pop [data-i]');
+    const bulkGuard = await signedOutGuardState(
+      wired,
+      () => wired.locator('#prodLayer .prod-pop [data-prod-ctx="status"]').dispatchEvent('click'),
+    );
+    if (!bulkGuard.signedOut) gaps.push({ rank: 1, state: 'bulk status sign-in guard', message: 'wired fixture unexpectedly has a staff identity' });
+    if (bulkGuard.toast !== SIGNED_OUT_WRITE_COPY) gaps.push({ rank: 1, state: 'bulk status sign-in guard', message: `wired toast was ${bulkGuard.toast || '(empty)'}` });
+    if (!bulkGuard.same) gaps.push({ rank: 1, state: 'bulk status sign-in guard', message: 'guarded bulk status action changed issue state' });
+    if (bulkGuard.pickerCount) gaps.push({ rank: 1, state: 'bulk status sign-in guard', message: `guarded bulk status action opened ${bulkGuard.pickerCount} write picker(s)` });
     const actionRects = {
-      aPop: await artifact.locator('#layer .pop:last-child').first().boundingBox(),
-      aBar: await artifact.locator('.actionbar').first().boundingBox(),
-      wPop: await wired.locator('#prodLayer .prod-pop:last-child').first().boundingBox(),
+      wPop: await wired.locator('#prodLayer .prod-pop[data-prod-bulkcmd]').first().boundingBox(),
       wBar: await wired.locator('.prod-actionbar').first().boundingBox(),
     };
-    if (actionRects.wPop.y + actionRects.wPop.height > actionRects.wBar.y - 4) gaps.push({ rank: 1, state: 'bulk picker', message: 'wired bulk picker is not anchored above the action bar' });
-    if (actionRects.wPop.y < 0 || actionRects.wPop.y + actionRects.wPop.height > 950) gaps.push({ rank: 1, state: 'bulk picker', message: 'wired bulk picker is off-screen' });
-    // PORT-DELTA: owner-reported embedded-tab fix requires the wired picker to sit
-    // above the action bar even when the standalone artifact overlaps it here.
+    if (!actionRects.wPop || !actionRects.wBar || actionRects.wPop.y + actionRects.wPop.height > actionRects.wBar.y - 4) gaps.push({ rank: 1, state: 'bulk command menu', message: 'wired bulk command menu is not anchored above the action bar' });
+    if (actionRects.wPop && (actionRects.wPop.y < 0 || actionRects.wPop.y + actionRects.wPop.height > 950)) gaps.push({ rank: 1, state: 'bulk command menu', message: 'wired bulk command menu is off-screen' });
     await shot(artifact, 'artifact-actionbar-status-picker');
-    await shot(wired, 'wired-actionbar-status-picker');
+    await shot(wired, 'wired-actionbar-status-signin-guard');
     await shotElement(artifact, '#layer .pop:last-child', 'artifact-crop-status-picker');
-    await shotElement(wired, '#prodLayer .prod-pop:last-child', 'wired-crop-status-picker');
+    await shotElement(wired, '#prodToast', 'wired-crop-status-signin-guard');
     await artifact.keyboard.press('Escape');
     await artifact.evaluate(() => { if (typeof clearLayer === 'function') clearLayer(); });
     await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
@@ -521,12 +509,18 @@ async function runTheme(port, browser, theme) {
     await shotElement(wired, '#prodLayer .prod-pop', 'wired-crop-row-context-menu');
     compareMenuInventory(gaps, 'row context menu inventory', await pickerInventory(artifact, '#layer .pop .mi'), await pickerInventory(wired, '#prodLayer .prod-pop .prod-mi'));
     await artifact.locator('#layer .pop [data-ctx="status"]').hover();
-    await wired.locator('#prodLayer .prod-pop [data-prod-ctx="status"]').hover();
     await artifact.waitForSelector('#layer .pop [data-i]');
-    await wired.waitForSelector('#prodLayer .prod-pop [data-prod-pick]');
+    const contextGuard = await signedOutGuardState(
+      wired,
+      () => wired.locator('#prodLayer .prod-pop [data-prod-ctx="status"]').dispatchEvent('mouseenter'),
+    );
+    if (!contextGuard.signedOut) gaps.push({ rank: 1, state: 'context status sign-in guard', message: 'wired fixture unexpectedly has a staff identity' });
+    if (contextGuard.toast !== SIGNED_OUT_WRITE_COPY) gaps.push({ rank: 1, state: 'context status sign-in guard', message: `wired toast was ${contextGuard.toast || '(empty)'}` });
+    if (!contextGuard.same) gaps.push({ rank: 1, state: 'context status sign-in guard', message: 'guarded context status action changed issue state' });
+    if (contextGuard.pickerCount) gaps.push({ rank: 1, state: 'context status sign-in guard', message: `guarded context status action opened ${contextGuard.pickerCount} write picker(s)` });
     await shotElement(artifact, '#layer .pop:last-child', 'artifact-crop-context-status-submenu');
-    await shotElement(wired, '#prodLayer .prod-pop:last-child', 'wired-crop-context-status-submenu');
-    comparePickerInventory(gaps, 'context status submenu inventory', await pickerInventory(artifact, '#layer .pop [data-i]'), await pickerInventory(wired, '#prodLayer .prod-pop [data-prod-pick]'));
+    await shot(wired, 'wired-context-status-signin-guard');
+    await shotElement(wired, '#prodToast', 'wired-crop-context-status-signin-guard');
     await artifact.keyboard.press('Escape');
     await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
 
@@ -555,27 +549,23 @@ async function runTheme(port, browser, theme) {
       _prodRender();
     });
     await artifact.locator('.due.due-empty').first().click();
-    await wired.locator('.prod-due.optional').first().click();
     await artifact.waitForSelector('#layer .pop.duepop .mi');
-    await wired.waitForSelector('#prodLayer .prod-duepop .prod-mi');
+    const dueGuard = await signedOutGuardState(
+      wired,
+      () => wired.locator('.prod-due.optional').first().dispatchEvent('click'),
+      '.prod-due.optional',
+    );
+    if (!dueGuard.signedOut) gaps.push({ rank: 1, state: 'due sign-in guard', message: 'wired fixture unexpectedly has a staff identity' });
+    if (!dueGuard.affordance) gaps.push({ rank: 1, state: 'due sign-in guard', message: 'wired due control does not advertise its disabled staff-sign-in guard' });
+    if (dueGuard.toast !== SIGNED_OUT_WRITE_COPY) gaps.push({ rank: 1, state: 'due sign-in guard', message: `wired toast was ${dueGuard.toast || '(empty)'}` });
+    if (!dueGuard.same) gaps.push({ rank: 1, state: 'due sign-in guard', message: 'guarded due action changed issue state' });
+    if (dueGuard.pickerCount) gaps.push({ rank: 1, state: 'due sign-in guard', message: `guarded due action opened ${dueGuard.pickerCount} write picker(s)` });
     await shotElement(artifact, '#layer .pop.duepop', 'artifact-crop-due-popover');
-    await shotElement(wired, '#prodLayer .prod-duepop', 'wired-crop-due-popover');
-    compareDueInventory(gaps, 'due quick inventory', await pickerInventory(artifact, '#layer .pop.duepop .mi'), await pickerInventory(wired, '#prodLayer .prod-duepop .prod-mi'));
-    const duePlaceholderA = await artifact.locator('#layer .pop.duepop [data-search]').first().getAttribute('placeholder');
-    const duePlaceholderW = await wired.locator('#prodLayer .prod-duepop [data-prod-search]').first().getAttribute('placeholder');
-    if (duePlaceholderA !== duePlaceholderW) gaps.push({ rank: 1, state: 'due popover placeholder', message: `artifact=${duePlaceholderA} wired=${duePlaceholderW}` });
+    await shot(wired, 'wired-due-signin-guard');
+    await shotElement(wired, '#prodToast', 'wired-crop-due-signin-guard');
     await artifact.locator('#layer .pop.duepop [data-set="__custom__"]').first().click();
-    await wired.locator('#prodLayer .prod-duepop [data-prod-set="__custom__"]').first().click();
     await artifact.waitForSelector('#layer .pop.duepop .cal');
-    await wired.waitForSelector('#prodLayer .prod-duepop .prod-cal');
     await shotElement(artifact, '#layer .pop.duepop', 'artifact-crop-due-calendar');
-    await shotElement(wired, '#prodLayer .prod-duepop', 'wired-crop-due-calendar');
-    const dueMonthA = (await artifact.locator('#layer .pop.duepop .cal-mo').first().innerText()).trim();
-    const dueMonthW = (await wired.locator('#prodLayer .prod-duepop .prod-cal-mo').first().innerText()).trim();
-    if (dueMonthA !== dueMonthW) gaps.push({ rank: 1, state: 'due calendar month', message: `artifact=${dueMonthA} wired=${dueMonthW}` });
-    const dueTodayA = (await artifact.locator('#layer .pop.duepop .cal-d.today').first().innerText()).trim();
-    const dueTodayW = (await wired.locator('#prodLayer .prod-duepop .prod-cal-d.today').first().innerText()).trim();
-    if (dueTodayA !== dueTodayW) gaps.push({ rank: 1, state: 'due calendar today', message: `artifact=${dueTodayA} wired=${dueTodayW}` });
     await artifact.evaluate(() => { if (typeof clearLayer === 'function') clearLayer(); });
     await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
 
@@ -815,13 +805,17 @@ async function runTheme(port, browser, theme) {
     if (!refreshRestored) gaps.push({ rank: 1, state: 'browser refresh', message: 'wired detail deep link did not restore after refresh' });
     await shot(wired, 'wired-history-refresh-detail');
 
+    const writeRequests = wiredRequests.filter(request => !['GET', 'HEAD', 'OPTIONS'].includes(request.method));
+    if (writeRequests.length) gaps.push({ rank: 1, state: 'write silence', message: `wired fixture sent ${writeRequests.length} write-like request(s)` });
+    if (wiredErrors.length) gaps.push({ rank: 1, state: 'console silence', message: wiredErrors.slice(0, 5).join(' | ') });
+
     gaps.sort((a, b) => a.rank - b.rank || a.state.localeCompare(b.state));
     if (gaps.length) {
       console.error('pixel-wired gaps:');
       gaps.forEach(g => console.error(`  [P${g.rank}] ${g.state}: ${g.message}`));
       throw new Error(`${gaps.length} pixel parity gap(s) found`);
     }
-    console.log(`pixel-wired (${theme}): list, icon paths, palette, selection/actionbar, status picker inventory, row context menu, context status submenu, due popover, bulk picker anchor, filter pill, filtered empty state, board drag/scroll, detail, and browser history parity checks passed`);
+    console.log(`pixel-wired (${theme}): list, icon paths, palette, selection/actionbar, signed-out status/context/due guards, bulk menu anchor, filter pill, filtered empty state, board drag/scroll, detail, browser history, no-write, and console checks passed`);
   } finally {
     await artifact.close().catch(() => {});
     await wired.close().catch(() => {});

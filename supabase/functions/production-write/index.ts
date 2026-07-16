@@ -16,7 +16,8 @@ import {
   browserCredentialTestOverride,
   clean,
   clientOperationAllowed,
-  configuredProjectIds,
+  clientScopeAllowed,
+  credentialMode,
   deterministicNativeId,
   intentFingerprint,
   legacyParityAllowed,
@@ -24,7 +25,14 @@ import {
   normalizeActor,
   normalizeOperation,
   normalizeTeam,
+  overdueStatusBumpDate,
+  overdueStatusBumpEnabled as overdueStatusBumpPolicyEnabled,
+  parentIdsForTeam,
+  planAppendIntakeItems,
+  projectIdsForTeam,
   roleCompatible,
+  isCanonicalActiveTestClient,
+  serviceTestOverrideAllowed,
   sourceTimestamp,
   staffOperationAllowed,
   validDateOrNull,
@@ -59,11 +67,13 @@ type Principal = {
   client: ClientRow | null;
   testOnly: boolean;
 };
+type TargetDrainLane = "test" | "legacy_parity" | "syncview_live";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": [
+    "accept",
     "authorization",
     "apikey",
     "content-type",
@@ -71,12 +81,15 @@ const CORS: Record<string, string> = {
     "x-syncview-actor",
     "x-syncview-role",
     "x-syncview-client-token",
+    "x-syncview-source",
   ].join(", "),
   "Cache-Control": "no-store",
 };
 const SURFACES = new Set(["production", "calendar", "sxr", "submission"]);
 const MAX_COMMENT_BODY = 20_000;
 const MAX_INTAKE_ITEMS = 100;
+const OUTBOUND_FLAG = "linear_outbound_enabled";
+const OVERDUE_STATUS_BUMP_FLAG = "write_ui_overdue_due_bump";
 
 class GatewayError extends Error {
   status: number;
@@ -96,6 +109,18 @@ function json(body: JsonMap, status = 200): Response {
     status,
     headers: { ...CORS, "Content-Type": "application/json" },
   });
+}
+
+function waitUntil(promise: Promise<unknown>): void {
+  const edge = (globalThis as unknown as {
+    EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+  try {
+    if (edge && typeof edge.waitUntil === "function") edge.waitUntil(promise.catch(() => null));
+    else promise.catch(() => null);
+  } catch (_error) {
+    promise.catch(() => null);
+  }
 }
 
 function parseJson(value: unknown): JsonMap {
@@ -167,17 +192,18 @@ async function authenticate(
 ): Promise<Principal> {
   const key = clean(req.headers.get("x-syncview-key"));
   const token = clean(req.headers.get("x-syncview-client-token"));
-  if (key && token) throw new GatewayError(401, "ambiguous_credentials");
+  const credentials = credentialMode(key, token);
+  if (credentials === "ambiguous") throw new GatewayError(401, "ambiguous_credentials");
 
   if (body.test_override === true) {
     if (browserCredentialTestOverride(body.test_override, key, token)) {
       throw new GatewayError(401, "invalid_test_override");
     }
-    if (clean(body.confirm) !== "B4_TEST_ONLY" || !(await serviceRoleRequest(req))) {
+    if (!serviceTestOverrideAllowed(key, token, body.confirm, await serviceRoleRequest(req))) {
       throw new GatewayError(401, "invalid_test_override");
     }
     const client = await clientBySlug(supabase, targetClientSlug);
-    if (!client || client.active !== true || lower(client.kind) !== "test") {
+    if (!client || !isCanonicalActiveTestClient(client.active, client.kind)) {
       throw new GatewayError(403, "test_client_scope_required");
     }
     return {
@@ -194,7 +220,7 @@ async function authenticate(
     };
   }
 
-  if (key) {
+  if (credentials === "staff") {
     const keyRole = matchingRoleForKey(key);
     if (!keyRole) throw new GatewayError(401, "invalid_staff_key");
     const requestedActor = normalizeActor(req.headers.get("x-syncview-actor"));
@@ -224,7 +250,7 @@ async function authenticate(
     return principal;
   }
 
-  if (token) {
+  if (credentials === "client") {
     const { data, error } = await supabase.from("client_access")
       .select("slug,review_token");
     if (error) throw new GatewayError(503, "client_auth_unavailable");
@@ -235,7 +261,7 @@ async function authenticate(
     if (matches.length === 0) throw new GatewayError(401, "invalid_client_token");
     if (matches.length !== 1) throw new GatewayError(403, "ambiguous_client_token");
     const matchedSlug = clean(matches[0].slug);
-    if (!matchedSlug || matchedSlug !== targetClientSlug) {
+    if (!clientScopeAllowed(matchedSlug, targetClientSlug)) {
       throw new GatewayError(403, "client_scope_mismatch");
     }
     const client = await clientBySlug(supabase, matchedSlug);
@@ -274,6 +300,35 @@ async function authorityFor(supabase: SupabaseClient, team: string): Promise<"li
   throw new GatewayError(503, "authority_unavailable");
 }
 
+async function outboundLiveForDrain(supabase: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from("syncview_runtime_flags")
+      .select("value")
+      .eq("key", OUTBOUND_FLAG)
+      .maybeSingle();
+    if (error || !data) return false;
+    return lower(parseJson((data as JsonMap).value).mode) === "live";
+  } catch (_error) {
+    // The native write is already durable. A missing fast-drain decision must
+    // not turn that success into a failure; the scheduled drainer remains the
+    // recovery path.
+    return false;
+  }
+}
+
+async function overdueStatusBumpEnabled(supabase: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from("syncview_runtime_flags")
+      .select("value")
+      .eq("key", OVERDUE_STATUS_BUMP_FLAG)
+      .maybeSingle();
+    if (error || !data) return true;
+    return overdueStatusBumpPolicyEnabled((data as JsonMap).value);
+  } catch (_error) {
+    return true;
+  }
+}
+
 async function assertLegacyParityEnabled(supabase: SupabaseClient): Promise<void> {
   const { data, error } = await supabase.from("syncview_runtime_flags")
     .select("value")
@@ -292,7 +347,9 @@ function surfaceFor(body: JsonMap): string {
 
 function assertSurfaceOperation(surface: string, operation: string): void {
   if (operation === "intake_create") {
-    if (surface !== "submission") throw new GatewayError(400, "invalid_surface_operation");
+    if (surface !== "submission" && surface !== "calendar") {
+      throw new GatewayError(400, "invalid_surface_operation");
+    }
     return;
   }
   if (surface === "submission") throw new GatewayError(400, "invalid_surface_operation");
@@ -379,6 +436,20 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
     if (/test_client_scope_required/i.test(clean(error.message))) {
       throw new GatewayError(403, "test_client_scope_required");
     }
+    if (/batch_not_active|batch_team_mismatch|batch_parent_mapping_(missing|ambiguous)/i.test(clean(error.message))) {
+      const code = /batch_not_active/i.test(clean(error.message))
+        ? "batch_not_active"
+        : /batch_team_mismatch/i.test(clean(error.message))
+          ? "batch_team_mismatch"
+          : /ambiguous/i.test(clean(error.message))
+            ? "batch_parent_mapping_ambiguous"
+            : "batch_parent_mapping_missing";
+      throw new GatewayError(409, code);
+    }
+    if (/invalid_intake_append_(payload|pair|order|route)/i.test(clean(error.message))) {
+      throw new GatewayError(400, clean(error.message).match(/invalid_intake_append_(payload|pair|order|route)/i)?.[0].toLowerCase()
+        || "invalid_intake_append_payload");
+    }
     console.error("production-write RPC failed", name, error.code || "unknown");
     throw new GatewayError(500, "native_write_failed");
   }
@@ -399,8 +470,28 @@ function publicRow(value: unknown): JsonMap {
     status_at: clean(row.status_at) || null,
     due_date: clean(row.due_date) || null,
     assignee_id: clean(row.assignee_id) || null,
+    origin: clean(row.origin) || null,
+    card_id: clean(row.card_id) || null,
+    linear_identifier: clean(row.linear_identifier) || null,
+    linear_issue_url: clean(row.linear_issue_url) || null,
     updated_at: clean(row.updated_at) || null,
   };
+}
+
+function publicComment(value: unknown): JsonMap {
+  const row = parseJson(value);
+  const fields = [
+    "id", "native_comment_id", "deliverable_id", "batch_id", "client_slug", "team",
+    "linear_issue_uuid", "linear_identifier", "linear_comment_id",
+    "parent_id", "thread_root_id", "linear_parent_comment_id", "linear_thread_root_id",
+    "author_key", "author_member_id", "linear_author_id", "author_name", "role",
+    "transport_actor", "transport_role", "transport_linear_user_id",
+    "body", "body_format", "attachments", "audience", "component", "is_tweak", "round",
+    "origin", "source", "source_created_at", "source_updated_at", "edited_at", "deleted_at",
+    "deleted_by_key", "deleted_by_name", "resolved_at", "resolved_by_key", "resolved_by_name",
+    "version", "created_at", "updated_at", "ingested_at",
+  ];
+  return Object.fromEntries(fields.map(field => [field, row[field] ?? null]));
 }
 
 function assertCas(body: JsonMap, existing: JsonMap): void {
@@ -417,21 +508,28 @@ function assertCas(body: JsonMap, existing: JsonMap): void {
 async function targetedDrain(
   dedup: string,
   principal: Principal,
+  lane: TargetDrainLane = principal.testOnly ? "test" : "legacy_parity",
 ): Promise<JsonMap> {
   const url = clean(Deno.env.get("SUPABASE_URL"));
   const key = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
   if (!url || !key) return { attempted: false, acknowledged: false, error: "drainer_unavailable" };
-  const body = principal.testOnly
+  const body = lane === "test"
     ? {
       target_dedup_key: dedup,
       test_override: { client_slug: principal.clientSlug, mode: "live", authority: "syncview" },
       confirm: "B4_TEST_ONLY",
     }
-    : {
+    : lane === "legacy_parity"
+      ? {
       target_dedup_key: dedup,
       legacy_parity: true,
       confirm: "WRITE_UI_LEGACY_PARITY",
-    };
+      }
+      : {
+        target_dedup_key: dedup,
+        syncview_live: true,
+        confirm: "WRITE_UI_SYNCVIEW_LIVE",
+      };
   try {
     const response = await fetch(`${url}/functions/v1/linear-outbound`, {
       method: "POST",
@@ -457,6 +555,16 @@ async function targetedDrain(
   } catch (_error) {
     return { attempted: true, acknowledged: false, error: "drainer_unavailable" };
   }
+}
+
+function scheduleSyncviewLiveDrains(dedupKeys: string[], principal: Principal): void {
+  const unique = [...new Set(dedupKeys.map(clean).filter(Boolean))];
+  if (!unique.length) return;
+  waitUntil((async () => {
+    // Keep create dependencies ordered (batch parent before child). A failed
+    // background attempt remains durable for the scheduled drainer.
+    for (const dedup of unique) await targetedDrain(dedup, principal, "syncview_live");
+  })());
 }
 
 async function findOutboxId(supabase: SupabaseClient, dedup: string): Promise<number> {
@@ -512,11 +620,290 @@ function dedupExpectation(
     team,
     actor: principal.actorName,
     role: principal.actorRole,
+    actor_key: principal.actorKey,
     source_edited_at: sourceEditedAt,
     legacy_parity: outbound.legacy_parity === true,
     test_only: outbound.test_only === true,
     intent_fingerprint: fingerprint,
+    payload: parseJson(outbound.payload),
   };
+}
+
+type ReceiptOutcome = "committed_exact" | "absent" | "conflict";
+type OutboxReceipt = {
+  outcome: ReceiptOutcome;
+  row: JsonMap | null;
+};
+
+async function readOutboxReceipt(
+  supabase: SupabaseClient,
+  dedup: string,
+  expected: JsonMap,
+): Promise<OutboxReceipt> {
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("id,status,entity,entity_id,comment_id,operation,client_slug,team,source_edited_at,payload,legacy_parity,test_only,attempts,next_retry_at,last_error,processed_at")
+    .eq("dedup_key", dedup)
+    .maybeSingle();
+  if (error) throw new GatewayError(503, "reconcile_receipt_unavailable");
+  if (!data) return { outcome: "absent", row: null };
+  const row = data as JsonMap;
+  const payload = parseJson(row.payload);
+  const expectedPayload = parseJson(expected.payload);
+  const operation = clean(expected.operation);
+  const operationPayloadMatches = operation === "status"
+    ? clean(expectedPayload.status) !== "" && lower(payload.status) === lower(expectedPayload.status)
+    : operation === "comment"
+      ? typeof payload.body === "string"
+        && typeof expectedPayload.body === "string"
+        && payload.body === expectedPayload.body
+      : false;
+  const storedSourceAt = Date.parse(clean(row.source_edited_at));
+  const expectedSourceAt = Date.parse(clean(expected.source_edited_at));
+  const sourceClockMatches = Number.isFinite(storedSourceAt)
+    && Number.isFinite(expectedSourceAt)
+    && storedSourceAt === expectedSourceAt;
+  // The intent fingerprint is reconstructed from the stable actorKey. Outbox
+  // actor/role columns are mutable display snapshots and are not receipt identity.
+  const stableActorBound = clean(expected.actor_key) !== ""
+    && clean(expected.intent_fingerprint) !== "";
+  const matches = clean(row.entity) === clean(expected.entity)
+    && clean(row.entity_id) === clean(expected.entity_id)
+    && clean(row.operation) === clean(expected.operation)
+    && clean(row.client_slug) === clean(expected.client_slug)
+    && normalizeTeam(row.team) === normalizeTeam(expected.team)
+    && sourceClockMatches
+    && row.legacy_parity === expected.legacy_parity
+    && row.test_only === expected.test_only
+    && stableActorBound
+    && operationPayloadMatches
+    && clean(payload._intent_fingerprint) === clean(expected.intent_fingerprint);
+  return { outcome: matches ? "committed_exact" : "conflict", row };
+}
+
+async function currentEntityRow(
+  supabase: SupabaseClient,
+  table: string,
+  id: string,
+): Promise<JsonMap> {
+  const { data, error } = await supabase.from(table).select("*").eq("id", id).maybeSingle();
+  if (error || !data) throw new GatewayError(503, "reconcile_current_row_unavailable");
+  return data as JsonMap;
+}
+
+async function findReceiptComment(
+  supabase: SupabaseClient,
+  dedup: string,
+  productionCommentId: string,
+  nativeCommentId: string,
+): Promise<JsonMap | null> {
+  const lookups: Array<[string, string]> = [["idempotency_key", dedup], ["id", productionCommentId]];
+  if (nativeCommentId) lookups.push(["native_comment_id", nativeCommentId]);
+  for (const [column, value] of lookups) {
+    const { data, error } = await supabase.from("production_comments")
+      .select("*")
+      .eq(column, value)
+      .maybeSingle();
+    if (error) throw new GatewayError(503, "reconcile_comment_unavailable");
+    if (data) return data as JsonMap;
+  }
+  return null;
+}
+
+function canonicalCommentMatchesReceipt(
+  value: unknown,
+  expected: JsonMap,
+  outboxCommentId: unknown,
+): boolean {
+  const comment = parseJson(value);
+  const canonicalId = clean(comment.id);
+  return canonicalId !== ""
+    && clean(outboxCommentId) === canonicalId
+    && clean(comment.idempotency_key) === clean(expected.idempotency_key)
+    && clean(comment.deliverable_id) === clean(expected.deliverable_id)
+    && clean(comment.batch_id) === clean(expected.batch_id)
+    && clean(comment.client_slug) === clean(expected.client_slug)
+    && normalizeTeam(comment.team) === normalizeTeam(expected.team)
+    && clean(comment.author_key) === clean(expected.author_key)
+    && clean(comment.native_comment_id) === clean(expected.native_comment_id);
+}
+
+async function reconcileEntityOperation(
+  supabase: SupabaseClient,
+  body: JsonMap,
+  operation: string,
+  surface: string,
+  requestId: string,
+  sourceEditedAt: string,
+  entity: Entity,
+  id: string,
+  table: string,
+  targetClientSlug: string,
+  team: string,
+  principal: Principal,
+): Promise<Response> {
+  if (operation !== "status" && operation !== "comment") {
+    throw new GatewayError(400, "reconcile_operation_unsupported");
+  }
+  const historicalLegacyParity = body.legacy_parity === true;
+  const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
+  const authorityReadAt = new Date().toISOString();
+  let dedup = dedupKey(operation, entity, id, requestId);
+  let fingerprint = "";
+  let canonicalComment: JsonMap | null = null;
+  let productionCommentId = "";
+  let nativeCommentId = "";
+  let expectedOperationPayload: JsonMap = {};
+  let expectedComment: JsonMap | null = null;
+
+  if (operation === "status") {
+    if (entity !== "deliverable") throw new GatewayError(400, "unsupported_batch_operation");
+    const nextStatus = lower(body.status || parseJson(body.patch).status);
+    if (!DELIVERABLE_STATUSES.includes(nextStatus)) throw new GatewayError(400, "invalid_status");
+    if (principal.kind === "client"
+        && !clientOperationAllowed("status", "client_approval", nextStatus)) {
+      throw new GatewayError(403, "operation_forbidden");
+    }
+    fingerprint = await intentFingerprint({
+      operation, entity, id, requestId, surface, legacyParity: historicalLegacyParity,
+      actorKey: principal.actorKey,
+      patch: { status: nextStatus, status_at: sourceEditedAt },
+    });
+    expectedOperationPayload = { status: nextStatus };
+  } else {
+    const commentInput = parseJson(body.comment);
+    const commentBody = String(commentInput.body == null ? body.body || "" : commentInput.body).trim();
+    if (!commentBody || commentBody.length > MAX_COMMENT_BODY) {
+      throw new GatewayError(400, "invalid_comment_body");
+    }
+    const audience = principal.kind === "client" ? "client" : lower(commentInput.audience || "internal");
+    if (!["internal", "client"].includes(audience)) throw new GatewayError(400, "invalid_comment_audience");
+    const suppliedNativeId = clean(commentInput.native_comment_id);
+    if (suppliedNativeId
+        && (!(surface === "calendar" || surface === "sxr")
+          || !/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(suppliedNativeId))) {
+      throw new GatewayError(400, "invalid_native_comment_id");
+    }
+    if (suppliedNativeId) dedup = dedupKey("comment", entity, id, `native:${suppliedNativeId}`);
+    const rawParentId = clean(commentInput.parent_id);
+    let parentId = rawParentId;
+    if (rawParentId) {
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(rawParentId)) {
+        throw new GatewayError(400, "invalid_comment_parent");
+      }
+      const { data: parents, error: parentError } = await supabase.from("production_comments")
+        .select("id,native_comment_id,deliverable_id,batch_id,client_slug,audience")
+        .or(`id.eq.${rawParentId},native_comment_id.eq.${rawParentId}`)
+        .limit(2);
+      if (parentError) throw new GatewayError(503, "comment_parent_lookup_unavailable");
+      if (!Array.isArray(parents) || parents.length !== 1) {
+        throw new GatewayError(409, "comment_parent_ambiguous");
+      }
+      const parent = parents[0] as JsonMap;
+      if (clean(parent.client_slug) !== targetClientSlug
+          || clean(parent.deliverable_id) !== (entity === "deliverable" ? id : "")
+          || clean(parent.batch_id) !== (entity === "batch" ? id : "")
+          || (principal.kind === "client" && clean(parent.audience) !== "client")) {
+        throw new GatewayError(403, "comment_parent_forbidden");
+      }
+      parentId = clean(parent.id);
+    }
+    productionCommentId = suppliedNativeId
+      ? await deterministicNativeId("pc", `${entity}:${id}`, suppliedNativeId)
+      : await deterministicNativeId("pc", requestId, `${entity}:${id}:production`);
+    nativeCommentId = suppliedNativeId || productionCommentId;
+    const round = commentInput.round == null || commentInput.round === ""
+      ? null
+      : Number(commentInput.round);
+    if (round != null && (!Number.isInteger(round) || round < 0)) {
+      throw new GatewayError(400, "invalid_comment_round");
+    }
+    fingerprint = await intentFingerprint({
+      operation, entity, id,
+      ...(suppliedNativeId ? {} : { requestId, surface, legacyParity: historicalLegacyParity }),
+      actorKey: principal.actorKey,
+      comment: {
+        body: commentBody,
+        audience,
+        native_comment_id: nativeCommentId,
+        parent_id: parentId || null,
+        component: clean(commentInput.component) || null,
+        is_tweak: commentInput.is_tweak === true,
+        round,
+      },
+    });
+    expectedOperationPayload = { body: commentBody };
+    expectedComment = {
+      id: productionCommentId,
+      idempotency_key: dedup,
+      deliverable_id: entity === "deliverable" ? id : null,
+      batch_id: entity === "batch" ? id : null,
+      client_slug: targetClientSlug,
+      team,
+      author_key: principal.actorKey,
+      native_comment_id: nativeCommentId,
+    };
+  }
+
+  const outbound: JsonMap = {
+    entity: operation === "comment" ? "comment" : entity,
+    entity_id: id,
+    operation,
+    legacy_parity: historicalLegacyParity,
+    test_only: principal.testOnly,
+    payload: { ...expectedOperationPayload, _intent_fingerprint: fingerprint },
+  };
+  const receipt = await readOutboxReceipt(
+    supabase,
+    dedup,
+    dedupExpectation(principal, team, sourceEditedAt, outbound, fingerprint),
+  );
+
+  if (operation === "comment") {
+    canonicalComment = await findReceiptComment(supabase, dedup, productionCommentId, nativeCommentId);
+    if (receipt.outcome === "committed_exact") {
+      if (!canonicalComment || !expectedComment
+          || !canonicalCommentMatchesReceipt(
+            canonicalComment,
+            expectedComment,
+            receipt.row?.comment_id,
+          )) {
+        receipt.outcome = "conflict";
+      }
+    } else if (canonicalComment) {
+      // Comment/outbox creation is one transaction. A row without its exact
+      // receipt is either a native-id collision or inconsistent durable state.
+      receipt.outcome = "conflict";
+    }
+  }
+
+  const current = await currentEntityRow(supabase, table, id);
+  const receiptPublic = receipt.row ? {
+    id: Number(receipt.row.id) || null,
+    dedup_key: dedup,
+    status: clean(receipt.row.status) || null,
+    source_edited_at: clean(receipt.row.source_edited_at) || null,
+    legacy_parity: receipt.row.legacy_parity === true,
+    test_only: receipt.row.test_only === true,
+    attempts: Number(receipt.row.attempts || 0),
+    processed_at: clean(receipt.row.processed_at) || null,
+  } : null;
+  const response: JsonMap = {
+    ok: receipt.outcome !== "conflict",
+    reconcile_only: true,
+    outcome: receipt.outcome,
+    authority,
+    authority_read_at: authorityReadAt,
+    historical_legacy_parity: historicalLegacyParity,
+    row: publicRow(current),
+    receipt: receiptPublic,
+    comment: receipt.outcome === "committed_exact" && canonicalComment
+      ? publicComment(canonicalComment)
+      : null,
+  };
+  return json(
+    receipt.outcome === "conflict" ? { ...response, error: "intent_conflict" } : response,
+    receipt.outcome === "conflict" ? 409 : 200,
+  );
 }
 
 function configuredTestProjectIds(): Set<string> {
@@ -550,9 +937,13 @@ function linearReadKey(): string {
   );
 }
 
-async function linearRead(query: string, variables: JsonMap): Promise<JsonMap> {
+async function linearRead(
+  query: string,
+  variables: JsonMap,
+  unavailableCode = "project_mapping_validation_unavailable",
+): Promise<JsonMap> {
   const apiKey = linearReadKey();
-  if (!apiKey) throw new GatewayError(503, "project_mapping_validation_unavailable");
+  if (!apiKey) throw new GatewayError(503, unavailableCode);
   let response: Response;
   try {
     response = await fetch("https://api.linear.app/graphql", {
@@ -561,11 +952,11 @@ async function linearRead(query: string, variables: JsonMap): Promise<JsonMap> {
       body: JSON.stringify({ query, variables }),
     });
   } catch (_error) {
-    throw new GatewayError(503, "project_mapping_validation_unavailable");
+    throw new GatewayError(503, unavailableCode);
   }
   const result = await response.json().catch(() => null) as JsonMap | null;
   if (!response.ok || !result || Array.isArray(result.errors)) {
-    throw new GatewayError(503, "project_mapping_validation_unavailable");
+    throw new GatewayError(503, unavailableCode);
   }
   return parseJson(result.data);
 }
@@ -599,28 +990,93 @@ async function readLinearProject(projectId: string): Promise<JsonMap> {
   return project;
 }
 
-async function listLinearProjects(): Promise<JsonMap[]> {
-  const projects: JsonMap[] = [];
-  let after: string | null = null;
-  for (let page = 0; page < 20; page++) {
-    const data = await linearRead(
-      "query ProductionWriteProjectList($after: String) { projects(first: 100, after: $after, includeArchived: false) { nodes { id name teams { nodes { id key } } } pageInfo { hasNextPage endCursor } } }",
-      { after },
-    );
-    const connection = parseJson(data.projects);
-    if (Array.isArray(connection.nodes)) {
-      for (const project of connection.nodes) projects.push(compactLinearProject(project));
-    }
-    const pageInfo = parseJson(connection.pageInfo);
-    if (pageInfo.hasNextPage !== true) return projects;
-    after = clean(pageInfo.endCursor) || null;
-    if (!after) throw new GatewayError(503, "project_mapping_validation_unavailable");
-  }
-  throw new GatewayError(503, "project_mapping_validation_unavailable");
-}
-
 function projectMatchesTeam(project: JsonMap, team: string): boolean {
   return Array.isArray(project.teams) && project.teams.includes(normalizeTeam(team));
+}
+
+async function validateLinearBatchParent(
+  parentId: string,
+  team: string,
+  projectId: string,
+): Promise<void> {
+  const data = await linearRead(
+    "query ProductionWriteBatchParentScope($id: String!) { issue(id: $id) { id team { key } project { id } } }",
+    { id: parentId },
+    "batch_parent_validation_unavailable",
+  );
+  const issue = parseJson(data.issue);
+  if (clean(issue.id) !== parentId
+      || normalizeTeam(parseJson(issue.team).key) !== normalizeTeam(team)
+      || clean(parseJson(issue.project).id) !== projectId) {
+    throw new GatewayError(409, "batch_parent_mapping_missing");
+  }
+}
+
+async function parentRouteForAppend(
+  supabase: SupabaseClient,
+  batch: JsonMap,
+  clientSlug: string,
+  team: string,
+  projectId: string,
+  principal: Principal,
+  legacyParity: boolean,
+  validateExternal = true,
+): Promise<JsonMap> {
+  const directIds = parentIdsForTeam(batch.linear_parent_ids, team);
+  if (directIds.length > 1) throw new GatewayError(409, "batch_parent_mapping_ambiguous");
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("id,dedup_key,status,entity,entity_id,operation,client_slug,team,payload,linear_result,test_only,legacy_parity")
+    .eq("entity", "batch")
+    .eq("entity_id", clean(batch.id))
+    .eq("operation", "create")
+    .eq("client_slug", clientSlug)
+    .eq("team", normalizeTeam(team))
+    .eq("test_only", principal.testOnly)
+    .eq("legacy_parity", legacyParity);
+  if (error) throw new GatewayError(503, "batch_parent_lookup_unavailable");
+  const candidates = ((data || []) as JsonMap[]).filter(row => {
+    const payload = parseJson(row.payload);
+    const eligibleStatuses = validateExternal
+      ? ["pending", "failed", "shadow_ok", "written"]
+      : ["pending", "failed", "shadow_ok", "written", "skipped", "stale"];
+    return clean(payload.project_id) === projectId
+      && row.test_only === principal.testOnly
+      && row.legacy_parity === legacyParity
+      && eligibleStatuses.includes(lower(row.status));
+  });
+  if (candidates.length > 1) throw new GatewayError(409, "batch_parent_mapping_ambiguous");
+  if (candidates.length === 1) {
+    const parent = candidates[0];
+    const dependencyId = Number(parent.id);
+    const dependencyDedup = clean(parent.dedup_key);
+    if (!Number.isSafeInteger(dependencyId) || dependencyId < 1 || !dependencyDedup) {
+      throw new GatewayError(409, "batch_parent_mapping_missing");
+    }
+    const result = parseJson(parent.linear_result);
+    const writtenParentId = clean(
+      result.issue_id || result.linear_issue_id || parseJson(result.issue).id,
+    );
+    if (directIds.length === 1 && writtenParentId !== directIds[0]) {
+      throw new GatewayError(409, "batch_parent_mapping_ambiguous");
+    }
+    if (validateExternal && lower(parent.status) === "written") {
+      if (!writtenParentId) throw new GatewayError(409, "batch_parent_mapping_missing");
+      await validateLinearBatchParent(writtenParentId, team, projectId);
+    }
+    // A native batch keeps its original team-parent dependency forever. This
+    // is stable across pending -> written/linkage and therefore keeps an exact
+    // child retry's route and intent fingerprint unchanged.
+    return {
+      parent_linear_issue_id: null,
+      depends_on_id: dependencyId,
+      dependency_dedup_key: dependencyDedup,
+    };
+  }
+  if (directIds.length === 1) {
+    if (validateExternal) await validateLinearBatchParent(directIds[0], team, projectId);
+    return { parent_linear_issue_id: directIds[0], depends_on_id: null, dependency_dedup_key: null };
+  }
+  throw new GatewayError(409, "batch_parent_mapping_missing");
 }
 
 async function projectForIntake(client: ClientRow, team: string, principal: Principal): Promise<string> {
@@ -637,28 +1093,18 @@ async function projectForIntake(client: ClientRow, team: string, principal: Prin
     }
     return projectId;
   }
-  let candidates = configuredProjectIds(client.linear_project_ids);
-
-  let matching: JsonMap[];
-  if (candidates.length > 0) {
-    matching = [];
-    for (const id of candidates) {
-      const project = await readLinearProject(id);
-      if (projectMatchesTeam(project, team)) matching.push(project);
-    }
-  } else {
-    const clientName = normalizeActor(client.display_name);
-    const projects = await listLinearProjects();
-    matching = projects.filter(project =>
-      normalizeActor(project.name) === clientName && projectMatchesTeam(project, team)
-    );
+  const tagged = projectIdsForTeam(client.linear_project_ids, team);
+  if (tagged.length > 1) throw new GatewayError(409, "project_mapping_ambiguous");
+  if (tagged.length === 1) {
+    const project = await readLinearProject(tagged[0]);
+    if (!projectMatchesTeam(project, team)) throw new GatewayError(409, "project_mapping_missing");
+    return tagged[0];
   }
-
-  if (matching.length !== 1) {
-    throw new GatewayError(409, matching.length > 1 ? "project_mapping_ambiguous" : "project_mapping_missing");
-  }
-  const projectId = clean(matching[0].id);
-  return projectId;
+  // Real-client intake never guesses from a display name or an untagged list.
+  // The read-only census may propose exact-name candidates to the owner, but
+  // production create remains blocked until the reviewed per-team mapping is
+  // persisted on the client row.
+  throw new GatewayError(409, "project_mapping_missing");
 }
 
 function teamIdFor(team: string): string {
@@ -913,6 +1359,22 @@ async function handleEntityOperation(
       && !staffOperationAllowed(principal.keyRole, operation, principal.memberTeam, team, nextStatus)) {
     throw new GatewayError(403, "operation_forbidden");
   }
+  if (body.reconcile_only === true) {
+    return await reconcileEntityOperation(
+      supabase,
+      body,
+      operation,
+      surface,
+      requestId,
+      sourceEditedAt,
+      entity,
+      id,
+      table,
+      targetClientSlug,
+      team,
+      principal,
+    );
+  }
   const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
   const legacyParity = authorityLane(
     authority,
@@ -1059,25 +1521,37 @@ async function handleEntityOperation(
   } else {
     let patch: JsonMap;
     let payload: JsonMap;
+    let fingerprintPatch: JsonMap;
     if (operation === "status") {
       if (!DELIVERABLE_STATUSES.includes(nextStatus)) throw new GatewayError(400, "invalid_status");
       patch = { status: nextStatus, status_at: sourceEditedAt };
       payload = { status: nextStatus };
+      // The idempotency fingerprint represents the caller's status intent.
+      // The due bump is server-derived from the first locked row and stays in
+      // the durable outbox payload without making retries state-dependent.
+      fingerprintPatch = { ...patch };
+      const bumpedDueDate = overdueStatusBumpDate(existing.due_date);
+      if (bumpedDueDate && await overdueStatusBumpEnabled(supabase)) {
+        patch.due_date = bumpedDueDate;
+        payload.due_date = bumpedDueDate;
+      }
     } else if (operation === "due") {
       const dueDate = body.due_date == null ? parseJson(body.patch).due_date : body.due_date;
       if (!validDateOrNull(dueDate)) throw new GatewayError(400, "invalid_due_date");
       patch = { due_date: clean(dueDate) || null };
       payload = { due_date: clean(dueDate) || null };
+      fingerprintPatch = patch;
     } else {
       const assigneeId = clean(body.assignee_id == null ? parseJson(body.patch).assignee_id : body.assignee_id);
       await validateAssignee(supabase, assigneeId, team);
       patch = { assignee_id: assigneeId || null };
       payload = { assignee_id: assigneeId || null };
+      fingerprintPatch = patch;
     }
     const fingerprint = await intentFingerprint({
       operation, entity, id, requestId, surface, legacyParity,
       actorKey: principal.actorKey,
-      patch,
+      patch: fingerprintPatch,
     });
     payload._intent_fingerprint = fingerprint;
     const outbound = { ...outboundBase, payload };
@@ -1115,11 +1589,19 @@ async function handleEntityOperation(
     }
   }
 
-  const shouldDrain = legacyParity || principal.testOnly;
-  const mirror = shouldDrain
+  const syncviewLiveDrain = authority === "syncview"
+    && !principal.testOnly
+    && !legacyParity
+    && await outboundLiveForDrain(supabase);
+  const shouldDrain = legacyParity || principal.testOnly || syncviewLiveDrain;
+  const awaitedDrain = legacyParity || principal.testOnly;
+  const mirror = awaitedDrain
     ? await targetedDrain(dedup, principal)
-    : { attempted: false, acknowledged: false };
-  const mirrorPending = shouldDrain ? mirror.acknowledged !== true : true;
+    : syncviewLiveDrain
+      ? { attempted: true, acknowledged: false, asynchronous: true }
+      : { attempted: false, acknowledged: false };
+  if (shouldDrain && !awaitedDrain) scheduleSyncviewLiveDrains([dedup], principal);
+  const mirrorPending = awaitedDrain ? mirror.acknowledged !== true : true;
   return json({
     ok: true,
     native_committed: true,
@@ -1131,7 +1613,7 @@ async function handleEntityOperation(
     // cannot replace the caller's deliverable/CAS cursor with a comment id.
     row: operation === "comment" ? publicRow(existing) : publicRow(result),
     ...(operation === "comment" ? { comment: parseJson(result) } : {}),
-  }, mirrorPending && shouldDrain ? 202 : 200);
+  }, mirrorPending && awaitedDrain ? 202 : 200);
 }
 
 async function ensureBatch(
@@ -1172,6 +1654,8 @@ async function ensureDeliverable(
     || normalizeTeam(data.team) !== normalizeTeam(row.team)
     || clean(data.batch_id) !== clean(row.batch_id)
     || clean(data.title) !== clean(row.title)
+    || clean(data.origin) !== clean(row.origin)
+    || clean(data.card_id) !== clean(row.card_id)
   )) throw new GatewayError(409, "intake_id_conflict");
   if (replay && !data) throw new GatewayError(500, "idempotent_result_missing");
   return parseJson(replay ? data : await rpc(supabase, "production_deliverable_write", { p_row: data || row, p_event: event }));
@@ -1194,9 +1678,17 @@ async function handleIntakeCreate(
     clientSlug = (await uniqueActiveTestClient(supabase)).slug;
   }
   const batchInput = parseJson(body.batch);
-  const items = Array.isArray(body.items) ? body.items.map(parseJson) : [];
-  if (!clientSlug || !clean(batchInput.name) || items.length < 1 || items.length > MAX_INTAKE_ITEMS) {
+  const requestedBatchId = clean(body.batch_id);
+  const hasNewBatchInput = body.batch != null && Object.keys(batchInput).length > 0;
+  const appendToBatch = !!requestedBatchId;
+  let items = Array.isArray(body.items) ? body.items.map(parseJson) : [];
+  if (!clientSlug || items.length < 1 || items.length > MAX_INTAKE_ITEMS
+      || (appendToBatch && hasNewBatchInput)
+      || (!appendToBatch && !clean(batchInput.name))) {
     throw new GatewayError(400, "invalid_intake_payload");
+  }
+  if (appendToBatch && !clean(body.expected_batch_updated_at)) {
+    throw new GatewayError(400, "cas_required");
   }
   const teams = new Set(items.map(item => normalizeTeam(item.team)).filter(Boolean));
   if (teams.size < 1 || teams.size > 2 || items.some(item => !normalizeTeam(item.team))) {
@@ -1206,9 +1698,9 @@ async function handleIntakeCreate(
   // The provider response is matched by these already-validated video numbers.
   for (let index = 0; index < items.length; index++) {
     const item = items[index];
-    const videoNumber = Number(item.videoNumber ?? item.number ?? index + 1);
+    const videoNumber = appendToBatch ? index + 1 : Number(item.videoNumber ?? item.number ?? index + 1);
     const priority = item.priority == null || item.priority === "" ? null : Number(item.priority);
-    const sortKey = item.sort_key == null ? index : Number(item.sort_key);
+    const sortKey = appendToBatch ? index : (item.sort_key == null ? index : Number(item.sort_key));
     const status = lower(item.status || "in_progress");
     const videoTitle = normalizeTeam(item.team) === "video" ? clean(item.title) : "";
     if (!Number.isInteger(videoNumber) || videoNumber < 1) {
@@ -1217,7 +1709,7 @@ async function handleIntakeCreate(
     if (clean(item.assignee_id)) {
       throw new GatewayError(400, "intake_assignee_override_not_allowed", { item_index: index });
     }
-    if ((videoTitle && videoTitle.length > 500)
+    if ((!appendToBatch && videoTitle && videoTitle.length > 500)
         || !validDateOrNull(item.due_date)
         || (priority != null && (!Number.isInteger(priority) || priority < 0 || priority > 4))
         || !Number.isFinite(sortKey) || sortKey < 0
@@ -1239,14 +1731,38 @@ async function handleIntakeCreate(
   for (const team of teamList) {
     projectByTeam[team] = await projectForIntake(client, team, principal);
     authorityByTeam[team] = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
-    // Submission is already an authenticated native-first flow. The server
+    // Native intake is already an authenticated native-first flow. The server
     // selects parity only for the still-Linear-authoritative leg; a mixed
     // graphics-first request therefore takes one normal and one parity lane.
     parityByTeam[team] = !principal.testOnly && authorityByTeam[team] === "linear";
   }
   if (Object.values(parityByTeam).some(Boolean)) await assertLegacyParityEnabled(supabase);
 
-  const batchId = await deterministicNativeId("bat", requestId, "submission");
+  let appendBatch: JsonMap | null = null;
+  let appendBatchRows: JsonMap[] = [];
+  if (appendToBatch) {
+    const [{ data: batchData, error: batchError }, { data: batchDeliverables, error: batchDeliverablesError }] = await Promise.all([
+      supabase.from("batches").select("*").eq("id", requestedBatchId).maybeSingle(),
+      supabase.from("deliverables").select("*").eq("batch_id", requestedBatchId),
+    ]);
+    if (batchError || batchDeliverablesError) throw new GatewayError(503, "batch_lookup_unavailable");
+    if (!batchData) throw new GatewayError(404, "batch_not_found");
+    appendBatch = batchData as JsonMap;
+    appendBatchRows = (batchDeliverables || []) as JsonMap[];
+    if (clean(appendBatch.client_slug) !== clientSlug) throw new GatewayError(403, "batch_client_mismatch");
+    if (lower(appendBatch.status) !== "active") throw new GatewayError(409, "batch_not_active");
+    const batchTeam = normalizeTeam(appendBatch.team);
+    if (batchTeam && teamList.some(team => team !== batchTeam)) {
+      throw new GatewayError(409, "batch_team_mismatch");
+    }
+    if (!Number.isFinite(Date.parse(clean(body.expected_batch_updated_at)))) {
+      throw new GatewayError(400, "invalid_expected_batch_updated_at");
+    }
+  }
+
+  const batchId = appendToBatch
+    ? requestedBatchId
+    : await deterministicNativeId("bat", requestId, "submission");
   const deliverableIds = await Promise.all(items.map((_item, index) =>
     deterministicNativeId("del", requestId, `${normalizeTeam(items[index].team)}:${index}`)
   ));
@@ -1255,6 +1771,14 @@ async function handleIntakeCreate(
     .in("id", deliverableIds);
   if (existingError) throw new GatewayError(503, "deliverable_lookup_unavailable");
   const existingById = new Map(((existingDeliverables || []) as JsonMap[]).map(row => [clean(row.id), row]));
+  if (appendToBatch) {
+    try {
+      items = planAppendIntakeItems(appendBatchRows, items, deliverableIds).map(parseJson);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "invalid_intake_append_plan";
+      throw new GatewayError(code === "intake_id_conflict" ? 409 : 400, code);
+    }
+  }
   const skipGraphicGeneration = body.skip_graphic_generation === true;
   if (skipGraphicGeneration && principal.kind !== "test") {
     throw new GatewayError(403, "skip_graphic_generation_forbidden");
@@ -1266,8 +1790,11 @@ async function handleIntakeCreate(
       throw new GatewayError(400, "graphics_brief_server_owned", { item_index: index });
     }
   }
+  const graphicBatchContext = appendToBatch && appendBatch
+    ? { name: appendBatch.name, notes: appendBatch.description }
+    : { ...batchInput, notes: clean(batchInput.notes || body.notes) };
   const generatedDescriptions = await graphicDescriptions(
-    supabase, client, { ...batchInput, notes: clean(batchInput.notes || body.notes) },
+    supabase, client, graphicBatchContext,
     items, existingById, deliverableIds, skipGraphicGeneration,
   );
   const assigneeByTeam: Record<string, string> = {};
@@ -1326,9 +1853,10 @@ async function handleIntakeCreate(
       assignee_id: assigneeId,
       due_date: clean(item.due_date) || null,
       priority,
-      origin: "manual",
+      origin: "calendar",
       card_id: clean(item.card_id) || null,
       sort_key: sortKey,
+      ...(appendToBatch ? { _intake_ordinal: Number(item._intake_ordinal) } : {}),
       created_by: principal.actorKey,
       created_at: sourceEditedAt,
     };
@@ -1341,9 +1869,198 @@ async function handleIntakeCreate(
       || clean(existing.status) !== status
       || clean(existing.assignee_id) !== assigneeId
       || clean(existing.due_date) !== clean(row.due_date)
+      || clean(existing.origin) !== clean(row.origin)
+      || clean(existing.card_id) !== clean(row.card_id)
+      || Number(existing.sort_key) !== Number(row.sort_key)
       || Number(existing.priority == null ? 0 : existing.priority) !== Number(priority == null ? 0 : priority)
     )) throw new GatewayError(409, "intake_id_conflict", { item_index: index });
     plannedItems.push({ item_index: index, video_number: videoNumber, source_brief: sourceBrief, row });
+  }
+
+  if (appendToBatch) {
+    if (!appendBatch) throw new GatewayError(500, "batch_lookup_unavailable");
+    const exactRowRetry = existingById.size === deliverableIds.length;
+    const parentRouteByTeam: Record<string, JsonMap> = {};
+    for (const team of teamList) {
+      parentRouteByTeam[team] = await parentRouteForAppend(
+        supabase,
+        appendBatch,
+        clientSlug,
+        team,
+        projectByTeam[team],
+        principal,
+        parityByTeam[team],
+        !exactRowRetry,
+      );
+    }
+
+    const appendEvents: JsonMap[] = [];
+    for (const planned of plannedItems) {
+      const index = Number(planned.item_index);
+      const row = planned.row as JsonMap;
+      const team = normalizeTeam(row.team);
+      const projectId = projectByTeam[team];
+      const legacyParity = parityByTeam[team];
+      const parentRoute = parentRouteByTeam[team];
+      const childDedup = dedupKey("create", "deliverable", clean(row.id), requestId);
+      const routeFingerprint = {
+        parent_linear_issue_id: clean(parentRoute.parent_linear_issue_id) || null,
+        depends_on_id: Number(parentRoute.depends_on_id) || null,
+        dependency_dedup_key: clean(parentRoute.dependency_dedup_key) || null,
+      };
+      const childFingerprint = await intentFingerprint({
+        operation: "intake_create", mode: "append", requestId, surface, legacyParity,
+        actorKey: principal.actorKey, clientSlug, team, projectId, batchId,
+        expectedBatchUpdatedAt: clean(body.expected_batch_updated_at),
+        parentRoute: routeFingerprint,
+        item_index: index,
+        row: {
+          id: row.id, title: row.title, source_brief: planned.source_brief,
+          video_number: planned.video_number, status: row.status,
+          assignee_id: row.assignee_id, due_date: row.due_date, priority: row.priority,
+          card_id: row.card_id, sort_key: row.sort_key,
+        },
+      });
+      const childOutbound: JsonMap = {
+        entity: "deliverable",
+        entity_id: row.id,
+        team,
+        operation: "create",
+        dedup_key: childDedup,
+        source_edited_at: sourceEditedAt,
+        test_only: principal.testOnly,
+        legacy_parity: legacyParity,
+        ...(routeFingerprint.depends_on_id ? { depends_on_id: routeFingerprint.depends_on_id } : {}),
+        payload: {
+          team_id: teamIdFor(team) || undefined,
+          project_id: projectId,
+          ...(routeFingerprint.parent_linear_issue_id
+            ? { parent_linear_issue_id: routeFingerprint.parent_linear_issue_id }
+            : {}),
+          title: row.title,
+          description: row.brief || undefined,
+          status: row.status,
+          assignee_id: row.assignee_id,
+          due_date: row.due_date || undefined,
+          priority: row.priority == null ? undefined : row.priority,
+          _intent_fingerprint: childFingerprint,
+        },
+      };
+      const childEvent = eventFor(
+        "intake_create", principal, sourceEditedAt, surface, childOutbound, null, clean(row.status),
+      );
+      planned.child_dedup = childDedup;
+      planned.child_outbound = childOutbound;
+      planned.child_event = childEvent;
+      planned.child_replay = await assertDedupIntent(
+        supabase,
+        childDedup,
+        dedupExpectation(principal, team, sourceEditedAt, childOutbound, childFingerprint),
+      );
+      appendEvents.push(childEvent);
+    }
+
+    const replayCount = plannedItems.filter(item => item.child_replay === true).length;
+    if (replayCount > 0 && replayCount !== plannedItems.length) {
+      throw new GatewayError(409, "idempotency_conflict");
+    }
+    const exactReplay = replayCount === plannedItems.length;
+    if (exactReplay && deliverableIds.some(id => !existingById.has(id))) {
+      throw new GatewayError(500, "idempotent_result_missing");
+    }
+    if (!exactReplay) {
+      const expectedAt = Date.parse(clean(body.expected_batch_updated_at));
+      const currentAt = Date.parse(clean(appendBatch.updated_at));
+      if (!Number.isFinite(currentAt) || currentAt !== expectedAt) {
+        throw new GatewayError(409, "write_conflict", {
+          conflict: true,
+          batch: publicRow(appendBatch),
+        });
+      }
+      await rpc(supabase, "production_intake_append", {
+        p_batch_id: batchId,
+        p_expected_updated_at: clean(body.expected_batch_updated_at),
+        p_rows: plannedItems.map(item => item.row),
+        p_events: appendEvents,
+      });
+    }
+
+    const drainPlans: JsonMap[] = [];
+    const seenDrainDedups = new Set<string>();
+    for (const team of teamList) {
+      const route = parentRouteByTeam[team];
+      const dependencyDedup = clean(route.dependency_dedup_key);
+      if (dependencyDedup && !seenDrainDedups.has(dependencyDedup)) {
+        seenDrainDedups.add(dependencyDedup);
+        drainPlans.push({
+          dedup_key: dependencyDedup,
+          team,
+          targeted: principal.testOnly || parityByTeam[team] === true,
+        });
+      }
+    }
+    for (const planned of plannedItems) {
+      const childDedup = clean(planned.child_dedup);
+      if (!seenDrainDedups.has(childDedup)) {
+        seenDrainDedups.add(childDedup);
+        drainPlans.push({
+          dedup_key: childDedup,
+          team: normalizeTeam((planned.row as JsonMap).team),
+          targeted: principal.testOnly || (planned.child_outbound as JsonMap).legacy_parity === true,
+        });
+      }
+    }
+
+    const mirrorResults: JsonMap[] = [];
+    for (const plan of drainPlans) {
+      if (plan.targeted === true) {
+        mirrorResults.push({ dedup_key: plan.dedup_key, ...await targetedDrain(clean(plan.dedup_key), principal) });
+      }
+    }
+    const syncviewLiveDrain = drainPlans.some(plan => plan.targeted !== true
+      && authorityByTeam[normalizeTeam(plan.team)] === "syncview")
+      && await outboundLiveForDrain(supabase);
+    if (syncviewLiveDrain) {
+      scheduleSyncviewLiveDrains(
+        drainPlans.filter(plan => plan.targeted !== true
+          && authorityByTeam[normalizeTeam(plan.team)] === "syncview")
+          .map(plan => clean(plan.dedup_key)),
+        principal,
+      );
+    }
+    const targetedFailure = mirrorResults.some(result => result.acknowledged !== true);
+    const hasNormalPending = drainPlans.some(plan => plan.targeted !== true);
+    const mirrorPending = targetedFailure || hasNormalPending;
+    const [currentBatchResult, currentItemsResult] = await Promise.all([
+      supabase.from("batches").select("*").eq("id", batchId).maybeSingle(),
+      supabase.from("deliverables").select("*").in("id", deliverableIds),
+    ]);
+    if (currentBatchResult.error || currentItemsResult.error || !currentBatchResult.data) {
+      throw new GatewayError(500, "native_response_refresh_failed");
+    }
+    const currentItemsById = new Map(
+      ((currentItemsResult.data || []) as JsonMap[]).map(row => [clean(row.id), row]),
+    );
+    const responseItems = plannedItems.map(planned => {
+      const row = currentItemsById.get(clean((planned.row as JsonMap).id));
+      if (!row) throw new GatewayError(500, "idempotent_result_missing");
+      return {
+        item_index: planned.item_index,
+        video_number: Number(planned.video_number),
+        ...publicRow(row),
+      };
+    });
+    return json({
+      ok: true,
+      native_committed: true,
+      authority: authorityByTeam,
+      legacy_parity: parityByTeam,
+      mirror_pending: mirrorPending,
+      mirror: mirrorResults,
+      batch_mode: "existing",
+      batch: publicRow(currentBatchResult.data),
+      items: responseItems,
+    }, targetedFailure ? 202 : (exactReplay ? 200 : 201));
   }
 
   const batchRow: JsonMap = {
@@ -1479,6 +2196,7 @@ async function handleIntakeCreate(
   const responseItems: JsonMap[] = [];
   const drainPlans: JsonMap[] = parentPlans.map(parent => ({
     dedup_key: parent.dedup,
+    team: parent.team,
     targeted: principal.testOnly || (parent.outbound as JsonMap).legacy_parity === true,
   }));
   for (const planned of plannedItems) {
@@ -1494,8 +2212,12 @@ async function handleIntakeCreate(
     const written = await ensureDeliverable(
       supabase, row, childEvent, childDedup, planned.child_replay === true,
     );
-    responseItems.push({ item_index: index, ...publicRow(written) });
-    drainPlans.push({ dedup_key: childDedup, targeted: principal.testOnly || childOutbound.legacy_parity === true });
+    responseItems.push({ item_index: index, video_number: Number(planned.video_number), ...publicRow(written) });
+    drainPlans.push({
+      dedup_key: childDedup,
+      team: itemTeam,
+      targeted: principal.testOnly || childOutbound.legacy_parity === true,
+    });
   }
 
   const mirrorResults: JsonMap[] = [];
@@ -1503,6 +2225,17 @@ async function handleIntakeCreate(
     if (plan.targeted === true) {
       mirrorResults.push({ dedup_key: plan.dedup_key, ...await targetedDrain(clean(plan.dedup_key), principal) });
     }
+  }
+  const syncviewLiveDrain = drainPlans.some(plan => plan.targeted !== true
+    && authorityByTeam[normalizeTeam(plan.team)] === "syncview")
+    && await outboundLiveForDrain(supabase);
+  if (syncviewLiveDrain) {
+    scheduleSyncviewLiveDrains(
+      drainPlans.filter(plan => plan.targeted !== true
+        && authorityByTeam[normalizeTeam(plan.team)] === "syncview")
+        .map(plan => clean(plan.dedup_key)),
+      principal,
+    );
   }
   const targetedFailure = mirrorResults.some(result => result.acknowledged !== true);
   const hasNormalPending = drainPlans.some(plan => plan.targeted !== true);
@@ -1522,7 +2255,9 @@ async function handleIntakeCreate(
   );
   const currentResponseItems = responseItems.map(item => {
     const current = currentItemsById.get(clean(item.id));
-    return current ? { item_index: item.item_index, ...publicRow(current) } : item;
+    return current
+      ? { item_index: item.item_index, video_number: Number(item.video_number), ...publicRow(current) }
+      : item;
   });
   return json({
     ok: true,

@@ -5,10 +5,13 @@ Supabase, and GitHub configurations. **Scope:** every runtime or scheduled path 
 or writes VID/GRA Linear data. Test/audit harnesses are listed separately. This document is
 public-safe: no API-key values, client content, or production comment bodies are included.
 
-The audit was read-only except for one sanctioned comment on the TEST project. That comment was
+The original inventory audit was read-only except for one sanctioned comment on the TEST project. That comment was
 created through the production `linear-add-comment` bridge, observed through the same incremental
 job used by the 30-minute refresh, and then deleted. No runtime flag, workflow, webhook, or
-production row was changed.
+production row was changed at that audit boundary. Subsequent Part 2 evidence is labeled separately:
+four n8n definitions received fail-closed authority gates under private backup/readback on
+2026-07-13 UTC, without a runtime-flag change, workflow activation change, Linear mutation, or
+production authoritative-row write.
 
 ## Disposition vocabulary
 
@@ -21,8 +24,11 @@ production row was changed.
 - **no-action** — no Linear dependency, already authority-safe, or disconnected test/dead code.
 
 `VERIFIED` means the current repo source and the relevant live configuration were both checked.
-Anything the connected identity could not inspect is explicitly marked `UNVERIFIED` and remains an
-owner gate; this applies to the OAuth-application inventory and the `/add-to-calendar` caller.
+`STAGED-SOURCE-VERIFIED` means the draft source and offline behavior were checked, but the change is
+not merged, deployed, or live-proven. A mixed row may say `VERIFIED BASELINE /
+STAGED-SOURCE-VERIFIED`. Anything the connected identity could not inspect is explicitly marked
+`UNVERIFIED` and remains an owner gate; this applies to the OAuth-application inventory and the
+`/add-to-calendar` caller.
 
 ## Live posture at the audit boundary
 
@@ -119,7 +125,18 @@ owner gate; this applies to the OAuth-application inventory and the `/add-to-cal
 | Submit tab | The current bypass route deliberately omits staff identity; whether an external shareable intake capability must remain is an OPEN owner decision (F91) | **none** | Contain now: require an active revocable staff principal or an owner-ratified, server-minted, short-lived exact-client capability. Never select mutation identity or target scope from `clientName`. |
 | Post-submit card job | Saved client/title/mode/video numbers; no submitter proof or running-build/auth-authority epoch | **none** | Drain/expire the job, reject stale epochs centrally, and return native linkage directly from the authorized create. |
 
-### Exact submission payload
+### Authentication evidence boundary
+
+The deployed dark baseline returned 401 for missing, garbage, mixed, and invalid staff/client
+credentials; 403 for authenticated wrong-roster, wrong-client, or client-forbidden operations; and
+409 for a valid staff Production write while that team remained Linear-authoritative. The
+service-authenticated disposable TEST drill exercised 18 operations across two teams, saw zero
+unexpected echoes, reconciled `0/0/0`, cleaned up, and left flags unchanged. The draft adds an
+offline policy/source matrix for every operation and auth mode. That is not a successful live
+staff-role-key/client-token browser matrix: positive TEST browser HTTP/UI proof after gateway-delta
+deployment remains a mandatory owner gate.
+
+### Legacy submission payload (pre-Part 2)
 
 ```json
 {
@@ -139,8 +156,52 @@ owner gate; this applies to the OAuth-application inventory and the `/add-to-cal
 }
 ```
 
-The creation workflows fetch a public SMM roster CSV and use its per-client personal Linear key.
-The submitter is not authenticated. This is both an attribution gap and a stale-tab cutover bypass.
+The legacy creation workflows fetch a public SMM roster CSV and use its per-client personal Linear
+key. The submitter is not authenticated. This is both an attribution gap and a stale-tab cutover
+bypass.
+
+### Native submission payload (Part 2 stacked draft)
+
+```json
+{
+  "operation": "intake_create",
+  "surface": "submission",
+  "client_slug": "<canonical native slug>",
+  "request_id": "<stable idempotency id>",
+  "source_edited_at": "<stable ISO timestamp>",
+  "batch": {
+    "name": "<built form title>",
+    "description": "<links plus notes>",
+    "filming_doc_url": "<URL or null>",
+    "footage_folder_url": "<URL or null>"
+  },
+  "items": [
+    {
+      "team": "video",
+      "videoNumber": 1,
+      "title": "Video 1",
+      "brief": "<camera/audio links>",
+      "due_date": "YYYY-MM-DD",
+      "status": "in_progress",
+      "card_id": "<stable native Calendar card id>",
+      "sort_key": 0
+    },
+    {
+      "team": "graphics",
+      "videoNumber": 1,
+      "due_date": "YYYY-MM-DD",
+      "status": "in_progress",
+      "card_id": "<same Calendar card id>",
+      "sort_key": 0
+    }
+  ]
+}
+```
+
+The browser supplies neither assignee nor graphics brief. The verified staff role key/roster actor
+is carried only in gateway headers; the server owns identity, graphics generation, assignment,
+authority/parity selection, and outbox creation. An ambiguous response reuses the exact payload,
+request id, and source timestamp.
 
 ## Critical comment-visibility test
 

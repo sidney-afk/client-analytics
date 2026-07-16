@@ -458,9 +458,18 @@ async function writeSummaryEvent(plan, startedAt, finishedAt) {
       identifier_filter: IDENTIFIER_FILTER || null,
       client_filter: CLIENT_FILTER || null,
       test_authority_client: TEST_AUTHORITY_CLIENT || null,
+      run_class: clean(process.env.RECONCILE_RUN_CLASS || 'manual'),
+      github_event_name: clean(process.env.GITHUB_EVENT_NAME) || null,
+      github_run_id: clean(process.env.GITHUB_RUN_ID) || null,
+      github_run_attempt: clean(process.env.GITHUB_RUN_ATTEMPT) || null,
       started_at: startedAt,
       finished_at: finishedAt,
       summary: plan.summary,
+      inbound_identifier_sample: plan.results
+        .filter(row => row.authority === 'linear' && row.diffs.length)
+        .map(row => ({ identifier: clean(row.identifier), team: clean(row.team) }))
+        .filter(row => row.identifier)
+        .slice(0, 20),
       linkage_sample: plan.linkageRows.slice(0, 20),
       tolerated_sample: plan.results.flatMap(r => r.tolerated.map(t => ({ id: r.id, team: r.team, ...t }))).slice(0, 20),
       repair_sample: plan.results.flatMap(r => r.repairs.map(p => ({ id: r.id, team: r.team, ...p }))).slice(0, 20),

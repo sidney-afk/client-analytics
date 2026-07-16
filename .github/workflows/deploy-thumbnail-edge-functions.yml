@@ -4,15 +4,18 @@ on:
   push:
     branches: [main]
     paths:
-      - 'supabase/functions/calendar-upsert/**'
-      - 'supabase/functions/sample-review-upsert/**'
       - 'supabase/functions/thumbnail-revision-read/**'
       - 'supabase/functions/thumbnail-revision-scan/**'
       - 'supabase/functions/_shared/thumbnail-revisions.ts'
       - 'supabase/functions/_shared/staff-role-auth.ts'
       - 'supabase/config.toml'
       - '.github/workflows/deploy-thumbnail-edge-functions.yml'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Reserved for a future owner-approved frozen-writer re-gate: OWNER_APPROVED_REGATE'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -45,7 +48,7 @@ jobs:
       - name: Deploy thumbnail functions
         shell: bash
         run: |
-          for fn in calendar-upsert sample-review-upsert thumbnail-revision-read thumbnail-revision-scan; do
+          for fn in thumbnail-revision-read thumbnail-revision-scan; do
             echo "Deploying $fn…"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
           done

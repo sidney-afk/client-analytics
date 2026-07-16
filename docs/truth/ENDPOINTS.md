@@ -24,7 +24,7 @@ Samples (legacy) and sample reviews (SXR):
 - `webhook/sample-review-get`, `webhook/sample-review-upsert`, `webhook/sample-review-reorder`
 
 Linear bridge:
-- `webhook/linear-projects`, `webhook/linear-issues`, `webhook/linear-issue-statuses`,
+- `webhook/linear-issues`, `webhook/linear-issue-statuses`, `webhook/linear-projects`,
   `webhook/linear-subissues`, `webhook/linear-set-status`, `webhook/linear-add-comment`,
   `webhook/linear-tweak-comments`, `webhook/log-linear-submission`
 
@@ -102,15 +102,25 @@ Other:
   last-write-wins (F36). Do not claim end-to-end CAS until every mutation sends the version, stale
   requests create no intent, and 409 compare/reapply UX is proved. Successful accepted operations
   commit through the ledger/outbox RPCs before the UI updates.
+  The #813 candidate extends this same endpoint—without creating another function—with shared
+  Submit/Calendar `intake_create`. Calendar provides paired Video/Graphics creation and append to
+  an active same-client `batch_id` under batch CAS; Submit still permits Advanced single-team
+  intake until F101 closes. It validates persisted project and parent routes before
+  the service-only atomic append RPC commits. Its principal-bound source-repair path permits only
+  authenticated read-only `reconcile_only` receipt lookup for historical status/comment payloads;
+  it bypasses no scope, authority, parity, RPC, drainer, or Linear gate and does not support intake.
+  Browser credentials still cannot enter the service-only TEST override. This is candidate source,
+  not a live deployment claim; eventual release requires exact-main-SHA manual dispatch with
+  `linear-outbound` deployed before `production-write`, while merge/push deploys neither.
 - `functions/v1/filming-plans` — filming plans backend. Source authenticates every GET before
   constructing the service-role client, accepts verified admin/SMM/creative staff role keys for
   reads, and keeps writes admin-only. The function is live and missing/wrong keys return `401`.
-  Candidate browser source sends the reverified staff key and has no raw PostgREST or Sheets
-  fallback; current Pages still uses the raw table, so the F88 table revoke waits for this merge.
+  Current Pages sends the reverified staff key and has no raw PostgREST, realtime-table, or Sheets
+  fallback; the F88 raw-table revoke is already live.
 - `functions/v1/smm-weekly-reports` — staff-gated SMM weekly reports. Anonymous GET and anonymous
   `sync_managers` return `401`; Admin/SMM may submit/read as allowed and manager sync is Admin-only.
-  The signed n8n caller reaches the authenticated branch. Candidate browser key plumbing must merge
-  before the currently fail-closed Pages screen becomes usable again.
+  The signed n8n caller reaches the authenticated branch, and current Pages already sends the
+  verified staff key for browser calls.
 - `functions/v1/pto` — staff-key-authenticated PTO overview/request gateway and server-owned
   accrual engine. It is dark behind `pto_v1`; all private PTO tables remain inaccessible through
   browser PostgREST, approval uses versioned snapshot/finalize RPCs, and admin-only decisions,
@@ -180,11 +190,10 @@ by hand; verify before relying on it.
   `thumbnail-revision-read` function is the sole browser projection. The migration is live: raw
   browser table access returns `401`, unsigned private-object access returns `400`, exact authorized
   reads pass, and cross-client scope returns `403`.
-- Filming plans: candidate SPA source calls the live staff-gated `filming-plans` Edge Function and no
-  longer calls raw PostgREST, subscribes anonymously to table changes, or falls back to the Sheet.
-  Current Pages still has the raw reader, so
-  `migrations/2026-07-14-f88-safe-sensitive-read-revocations.sql` must not revoke that table until
-  the caller merges and is proved. `clients` is deliberately not in that safe-subset migration:
+- Filming plans: current Pages calls the live staff-gated `filming-plans` Edge Function and no longer
+  calls raw PostgREST, subscribes anonymously to table changes, or falls back to the Sheet. The
+  `migrations/2026-07-14-f88-safe-sensitive-read-revocations.sql` table revoke is already live.
+  `clients` is deliberately not in that safe-subset migration:
   Production still calls `_prodRestRows('clients', ...)` and needs a scoped projection first.
 - PTO HR data: the SPA does **not** call PostgREST for `pto_members`, `pto_requests`, or
   `pto_adjustments`. Their migration contract enables RLS with no anon/authenticated policies,

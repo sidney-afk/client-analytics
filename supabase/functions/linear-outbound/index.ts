@@ -14,6 +14,10 @@ import {
   mergeBatchParentIds,
   stateIdForSlug,
 } from "./mapping.mjs";
+import {
+  pendingAgeAlertTeams,
+  pendingAgeThresholdMinutes,
+} from "./monitoring.mjs";
 
 type JsonMap = Record<string, unknown>;
 type OutboxRow = JsonMap & {
@@ -41,6 +45,7 @@ const LINEAR_URL = "https://api.linear.app/graphql";
 const OUTBOUND_FLAG = "linear_outbound_enabled";
 const AUTHORITY_FLAG = "prod_authority";
 const LEGACY_PARITY_FLAG = "linear_legacy_parity_enabled";
+const PENDING_AGE_ALERT_FLAG = "linear_outbound_pending_age_alert";
 const LEGACY_PARITY_OPERATIONS = new Set(["create", "status", "comment"]);
 const MAX_LIMIT = 50;
 const MAX_ATTEMPTS = 8;
@@ -48,6 +53,7 @@ const RATE_DELAY_MS = 1_000;
 const LOCK_TIMEOUT_MS = 10 * 60 * 1_000;
 const BACKLOG_ALERT_THRESHOLD = 100;
 const VOLUME_ALERT_THRESHOLD = 50;
+const DEFAULT_PENDING_AGE_ALERT_MINUTES = 30;
 const CREATE_UUID_NAMESPACE = "8ec6f2de-20f4-4dc3-8f21-8b3298e780db";
 
 function clean(value: unknown): string {
@@ -581,6 +587,47 @@ async function backlogCount(supabase: SupabaseClient): Promise<number> {
   return Number(count || 0);
 }
 
+async function oldestPendingMinutesByTeam(
+  supabase: SupabaseClient,
+  now = Date.now(),
+): Promise<Record<string, number | null>> {
+  const statuses = ["pending", "failed", "shadow_ok"];
+  const entries = await Promise.all(["video", "graphics"].map(async team => {
+    const { data, error } = await supabase.from("mirror_outbox")
+      .select("created_at,source_edited_at,status,attempts")
+      .eq("team", team)
+      .eq("test_only", false)
+      .eq("legacy_parity", false)
+      .in("status", statuses)
+      // Deliberately no attempts filter: retry-exhausted failed rows must age
+      // into the pager instead of disappearing from monitoring.
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(`oldest pending ${team} read failed`);
+    if (!data) return [team, null] as const;
+    const started = Date.parse(clean((data as JsonMap).created_at || (data as JsonMap).source_edited_at));
+    const minutes = Number.isFinite(started)
+      ? Math.max(0, Math.floor((now - started) / 60_000))
+      : null;
+    return [team, minutes] as const;
+  }));
+  return Object.fromEntries(entries);
+}
+
+async function pendingAgeThreshold(supabase: SupabaseClient): Promise<number> {
+  try {
+    return pendingAgeThresholdMinutes(
+      await readFlag(supabase, PENDING_AGE_ALERT_FLAG),
+      DEFAULT_PENDING_AGE_ALERT_MINUTES,
+    );
+  } catch (_error) {
+    // The migration seeds the flag, but an older deployment still gets the
+    // documented conservative default instead of losing age monitoring.
+    return DEFAULT_PENDING_AGE_ALERT_MINUTES;
+  }
+}
+
 async function writeSummary(supabase: SupabaseClient, summary: JsonMap): Promise<number | null> {
   const { data, error } = await supabase.from("deliverable_events")
     .insert({
@@ -606,6 +653,7 @@ async function readRows(
   testClient: string,
   parityEnabled: boolean,
   targetDedupKey: string,
+  targetedSyncviewLive: boolean,
 ): Promise<OutboxRow[]> {
   const normalStatuses = mode === "live" ? ["pending", "failed", "shadow_ok"] : ["pending", "failed"];
   const parityStatuses = ["pending", "failed", "shadow_ok"];
@@ -632,7 +680,8 @@ async function readRows(
   let data: OutboxRow[] = [];
   if (targetDedupKey) {
     if (testClient && mode !== "off") data = await fetchLane(false, normalStatuses, 1, "test");
-    else if (parityEnabled) data = await fetchLane(true, parityStatuses, 1, "any");
+    else if (targetedSyncviewLive && mode === "live") data = await fetchLane(false, normalStatuses, 1, "real");
+    else if (!targetedSyncviewLive && parityEnabled) data = await fetchLane(true, parityStatuses, 1, "any");
   } else if (testClient) {
     if (mode !== "off") data = await fetchLane(false, normalStatuses, limit * 3, "test");
   } else {
@@ -722,6 +771,7 @@ Deno.serve(async (req: Request) => {
   const testMode = lower(testOverride.mode);
   const targetDedupKey = clean(body.target_dedup_key);
   const targetedParity = body.legacy_parity === true;
+  const targetedSyncviewLive = body.syncview_live === true;
   if (testClient && clean(body.confirm) !== "B4_TEST_ONLY") {
     return json({ ok: false, error: "TEST override confirmation missing" }, 400);
   }
@@ -729,11 +779,18 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: "invalid TEST override mode" }, 400);
   }
   if (targetDedupKey && testClient) {
-    if (body.legacy_parity !== undefined && body.legacy_parity !== false) {
+    if ((body.legacy_parity !== undefined && body.legacy_parity !== false)
+        || body.syncview_live !== undefined) {
       return json({ ok: false, error: "invalid TEST target" }, 400);
     }
-  } else if (targetDedupKey || body.legacy_parity !== undefined) {
+  } else if (targetDedupKey && targetedSyncviewLive) {
+    if (body.legacy_parity !== undefined
+        || clean(body.confirm) !== "WRITE_UI_SYNCVIEW_LIVE") {
+      return json({ ok: false, error: "invalid SyncView live target" }, 400);
+    }
+  } else if (targetDedupKey || body.legacy_parity !== undefined || body.syncview_live !== undefined) {
     if (!targetDedupKey || !targetedParity
+        || targetedSyncviewLive
         || clean(body.confirm) !== "WRITE_UI_LEGACY_PARITY") {
       return json({ ok: false, error: "invalid legacy parity target" }, 400);
     }
@@ -776,6 +833,7 @@ Deno.serve(async (req: Request) => {
       testClient,
       parityEnabled,
       targetDedupKey,
+      targetedSyncviewLive,
     );
     counts.enqueued = rows.length;
     if (initialMode === "live" || rows.some(row => row.legacy_parity === true)) {
@@ -950,8 +1008,22 @@ Deno.serve(async (req: Request) => {
   }
 
   counts.echo_dropped = await echoDropCount(supabase, since);
-  const backlog = await backlogCount(supabase);
-  const target = await targetResult(supabase, targetDedupKey);
+  const [backlog, target, oldestPendingMinutes, authorityFlag, pendingAgeAlertMinutes] = await Promise.all([
+    backlogCount(supabase),
+    targetResult(supabase, targetDedupKey),
+    oldestPendingMinutesByTeam(supabase),
+    readFlag(supabase, AUTHORITY_FLAG),
+    pendingAgeThreshold(supabase),
+  ]);
+  const authority = {
+    video: authorityFor("video", authorityFlag),
+    graphics: authorityFor("graphics", authorityFlag),
+  };
+  const oldestPendingAlertTeams = pendingAgeAlertTeams(
+    oldestPendingMinutes,
+    authority,
+    pendingAgeAlertMinutes,
+  );
   const summary: JsonMap = {
     ok: counts.failed === 0,
     mode: initialMode,
@@ -962,11 +1034,16 @@ Deno.serve(async (req: Request) => {
     finished_at: new Date().toISOString(),
     counts,
     backlog,
+    authority,
+    oldest_pending_minutes: oldestPendingMinutes,
+    oldest_pending_alert_threshold_minutes: pendingAgeAlertMinutes,
+    oldest_pending_alert_teams: oldestPendingAlertTeams,
     alerts: {
       failed_write: counts.failed > 0,
       backlog_growth: backlog > BACKLOG_ALERT_THRESHOLD,
       write_volume_spike: counts.written > VOLUME_ALERT_THRESHOLD,
       shadow_mismatch: counts.shadow_vs_actual_divergence > 0,
+      oldest_pending_age: oldestPendingAlertTeams.length > 0,
     },
   };
   const eventId = await writeSummary(supabase, summary);

@@ -62,7 +62,7 @@ const REAL = [
   grabFunc('_calCommentsFor'), grabFunc('_calSetCommentsFor'), grabFunc('_calStringifyComments'),
   grabFunc('_calMsgIsTweak'), grabFunc('_calNextTweakRound'), grabFunc('_calLinearUrlFor'),
   grabFunc('_calReviewComponentActive'),
-  grabFunc('_calCompHasUnresolvedKasperTweak'), grabFunc('_calCompKasperVisible'),
+  grabFunc('_calCompHasUnresolvedKasperTweak'), grabFunc('_calCompLinked'), grabFunc('_calCompKasperVisible'),
   grabFunc('_calPostKasperVisible'), grabFunc('_kasperUndecidedComps'),
 ].join('\n\n');
 

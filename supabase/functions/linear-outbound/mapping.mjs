@@ -168,7 +168,12 @@ export function mergeBatchParentIds(raw, team, issue = {}) {
 export function actualValueForOperation(operation, issue, payload = {}) {
   const op = lower(operation);
   const row = issue && typeof issue === "object" ? issue : {};
-  if (op === "status") return clean(row.state && row.state.id);
+  if (op === "status") {
+    const stateId = clean(row.state && row.state.id);
+    return Object.prototype.hasOwnProperty.call(payload, "due_date")
+      ? JSON.stringify([stateId, clean(row.dueDate) || null])
+      : stateId;
+  }
   if (op === "due") return clean(row.dueDate) || null;
   if (op === "assignee") return clean(row.assignee && row.assignee.id) || null;
   if (op === "title") return clean(row.title);
@@ -185,7 +190,12 @@ export function actualValueForOperation(operation, issue, payload = {}) {
 
 export function intendedValueForOperation(operation, payload = {}, context = {}) {
   const op = lower(operation);
-  if (op === "status") return clean(payload.state_id || context.state_id);
+  if (op === "status") {
+    const stateId = clean(payload.state_id || context.state_id);
+    return Object.prototype.hasOwnProperty.call(payload, "due_date")
+      ? JSON.stringify([stateId, clean(payload.due_date) || null])
+      : stateId;
+  }
   if (op === "due") return clean(payload.due_date) || null;
   if (op === "assignee") return clean(payload.linear_user_id || context.linear_user_id) || null;
   if (op === "title") return clean(payload.title);
@@ -318,7 +328,14 @@ export function buildMutation(row, context = {}) {
   if (operation === "status") {
     const value = clean(payload.state_id || context.state_id);
     if (!value) throw new Error("state id required");
+    // Keep the full status intent in both the mutation and its persisted
+    // linear_result.expected receipt. Even when Linear already has this state,
+    // a due bump must not become a due-only acknowledgement: inbound echo
+    // matching needs state + due to distinguish a later external state edit.
     input.stateId = value;
+    if (Object.prototype.hasOwnProperty.call(payload, "due_date")) {
+      input.dueDate = clean(payload.due_date) || null;
+    }
   } else if (operation === "due") {
     input.dueDate = clean(payload.due_date) || null;
   } else if (operation === "assignee") {

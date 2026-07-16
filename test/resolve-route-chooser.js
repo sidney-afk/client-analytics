@@ -73,7 +73,7 @@ const approve = grabFunc('_calReviewApprove');
 check('SMM + open change-requests opens the chooser',
   /_calReviewMode\(\) === 'smm' && _calCanResolveComment\(\)[\s\S]*?_calOpenTweaksForComp\(post, comp\)[\s\S]*?_calShowResolveDest/.test(approve), true);
 check('chooser resolves ticked, THEN runs the real approve',
-  /_calResolveTweaksDone\(post, comp, ids\);[\s\S]*?_calReviewApplyApprove\(pid, comp, pickDest\)/.test(approve), true);
+  /_calResolveTweaksDone\(post, comp, ids\);[\s\S]*?_calReviewApplyApprove\(pid, comp, pickDest(?:, resolvedBefore)?\)/.test(approve), true);
 check('no open change-requests → routes directly (unchanged path)',
   /_calReviewApplyApprove\(pid, comp, dest\);/.test(approve), true);
 const apply = grabFunc('_calReviewApplyApprove');

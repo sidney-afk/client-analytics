@@ -137,6 +137,8 @@ This is the part that's easy to forget the *method* for. You're producing three 
 
 **Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` (Slack workspace id, for deep-links). **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
 
+The #813 candidate wires signed-in Admin/SMM copy actions to the already-live v2 exact-client issuer at copy time. It still requires the guarded caller merge and link re-share proof before the distribution path is treated as live; `client-review-link` is not redeployed unless its source changes.
+
 > 💡 The `instagram_handle` is **not** the slug. The slug comes from `client_name` (see below). A
 > fictional display name `Example Alpha` might use handle `@example.alpha.media` while its slug is
 > `examplealpha`.

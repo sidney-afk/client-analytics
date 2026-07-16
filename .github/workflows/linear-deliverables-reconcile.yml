@@ -36,8 +36,10 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
       LINEAR_STATE_UUID_MAP: ${{ secrets.LINEAR_STATE_UUID_MAP }}
+      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
       APPLY: ${{ github.event.inputs.apply == 'true' }}
       CAP: ${{ github.event.inputs.cap || '15' }}
+      RECONCILE_RUN_CLASS: ${{ github.event_name == 'schedule' && 'scheduled-monitor' || github.event.inputs.apply == 'true' && 'manual-apply' || 'manual-monitor' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -63,3 +65,19 @@ jobs:
             TEAM_ARG="--team=${{ github.event.inputs.team }}"
           fi
           node scripts/linear-deliverables-reconcile.js "$TEAM_ARG"
+
+      - name: Require non-n8n inbound pager secret
+        id: inbound_pager_secret
+        if: github.event_name == 'schedule'
+        shell: bash
+        run: |
+          if [ -z "$SLACK_ALERT_WEBHOOK" ]; then
+            echo "::warning::SLACK_ALERT_WEBHOOK is not configured; skipping the optional non-n8n inbound pager. Reconcile failures still fail the run and use GitHub failed-run email."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Page persistent inbound diffs outside n8n
+        if: github.event_name == 'schedule' && steps.inbound_pager_secret.outputs.configured == 'true'
+        run: node scripts/linear-reconcile-inbound-pager.js

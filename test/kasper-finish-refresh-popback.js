@@ -97,6 +97,7 @@ const REAL = [
   grabFunc('_calLatestMsgAt'),
   grabFunc('_calLatestMsgCreatedAt'),
   grabFunc('_calCompHasUnresolvedKasperTweak'),
+  grabFunc('_calCompLinked'),
   grabFunc('_calCompKasperVisible'),
   grabFunc('_calPostKasperVisible'),
   grabFunc('_calPostHasUnresolvedKasperTweak'),

@@ -25,6 +25,21 @@ const NAMES = Object.freeze({
 const OUTBOUND_WORKFLOW_URL = 'https://api.github.com/repos/sidney-afk/client-analytics/actions/workflows/linear-outbound-drain.yml/dispatches';
 const OUTBOUND_WORKFLOW_BODY = '{"ref":"main","inputs":{"limit":"15"}}';
 
+const OUTBOUND_AGE_PARSE_BLOCK = `let outboundOldest = outboundPayload.oldest_pending_minutes || {};
+if (typeof outboundOldest === 'string') {
+  try { outboundOldest = JSON.parse(outboundOldest); } catch (_e) { outboundOldest = {}; }
+}
+let outboundAuthority = outboundPayload.authority || {};
+if (typeof outboundAuthority === 'string') {
+  try { outboundAuthority = JSON.parse(outboundAuthority); } catch (_e) { outboundAuthority = {}; }
+}
+const outboundAgeThreshold = n(outboundPayload.oldest_pending_alert_threshold_minutes) || 30;
+const outboundAgedTeams = ['video', 'graphics'].filter(team => clean(outboundAuthority[team]).toLowerCase() === 'syncview'
+  && n(outboundOldest[team]) > outboundAgeThreshold);
+`;
+const OUTBOUND_AGE_ALERT_LINE = `if (outboundAgedTeams.length) out.push(alert('outbound_oldest_pending', \`Linear outbound oldest pending threshold_min=\${outboundAgeThreshold} teams=\${outboundAgedTeams.map(team => team + ':' + n(outboundOldest[team]) + 'm').join(',')} latest_event=\${outboundEventId}\`));
+`;
+
 const OUTBOUND_WATCH_BLOCK = `const outbound = first('Fetch Outbound Summary');
 const outboundAge = ageMinutes(outbound?.ts);
 let outboundPayload = outbound?.payload || {};
@@ -39,9 +54,11 @@ const outboundMode = clean(outboundPayload.mode || 'off').toLowerCase();
 const outboundEventId = clean(outbound?.id || 'none');
 const outboundBacklog = n(outboundPayload.backlog);
 const previousOutboundBacklog = n(staticData.outboundBacklog);
+${OUTBOUND_AGE_PARSE_BLOCK}
 if (outboundMode !== 'off' && (!outbound || outboundAge > 90)) out.push(alert('outbound_stale', \`Linear outbound summary stale age_min=\${outboundAge} latest_event=\${outboundEventId}\`));
 if (n(outboundCounts.failed) > 0) out.push(alert('outbound_failed', \`Linear outbound failed_write_count=\${n(outboundCounts.failed)} latest_event=\${outboundEventId}\`));
 if (outboundBacklog > 100 && outboundBacklog > previousOutboundBacklog) out.push(alert('outbound_backlog', \`Linear outbound backlog growing backlog=\${outboundBacklog} previous=\${previousOutboundBacklog} latest_event=\${outboundEventId}\`));
+${OUTBOUND_AGE_ALERT_LINE}
 if (n(outboundCounts.written) > 50) out.push(alert('outbound_volume', \`Linear outbound write-volume spike written=\${n(outboundCounts.written)} latest_event=\${outboundEventId}\`));
 if (n(outboundCounts.shadow_vs_actual_divergence) > 0) out.push(alert('outbound_shadow_mismatch', \`Linear outbound shadow mismatch count=\${n(outboundCounts.shadow_vs_actual_divergence)} latest_event=\${outboundEventId}\`));
 staticData.outboundBacklog = outboundBacklog;
@@ -88,7 +105,7 @@ function verify(workflow) {
     throw new Error('Watcher chain does not continue after outbound summary');
   }
   const code = node(workflow, NAMES.check).parameters.jsCode || '';
-  for (const token of ['outbound_failed', 'outbound_backlog', 'outbound_volume', 'outbound_shadow_mismatch', 'outboundMode !== \'off\'']) {
+  for (const token of ['outbound_failed', 'outbound_backlog', 'outbound_oldest_pending', 'outbound_volume', 'outbound_shadow_mismatch', 'outboundMode !== \'off\'']) {
     if (!code.includes(token)) throw new Error(`Outbound watcher missing: ${token}`);
   }
   return workflow;
@@ -106,6 +123,17 @@ function transformWorkflow(input) {
     // Before this PR merges, GitHub cannot dispatch a workflow absent from main.
     // Once outbound mode is active, the 90-minute summary watchdog pages on a real failure.
     trigger.onError = 'continueRegularOutput';
+    const check = node(workflow, NAMES.check);
+    if (!(check.parameters.jsCode || '').includes('outbound_oldest_pending')) {
+      const parseAnchor = "if (outboundMode !== 'off' && (!outbound || outboundAge > 90))";
+      const alertAnchor = "if (n(outboundCounts.written) > 50)";
+      if (!check.parameters.jsCode.includes(parseAnchor) || !check.parameters.jsCode.includes(alertAnchor)) {
+        throw new Error('Outbound age watcher insertion anchor drifted');
+      }
+      check.parameters.jsCode = check.parameters.jsCode
+        .replace(parseAnchor, OUTBOUND_AGE_PARSE_BLOCK + parseAnchor)
+        .replace(alertAnchor, OUTBOUND_AGE_ALERT_LINE + alertAnchor);
+    }
     return verify(workflow);
   }
 
@@ -189,6 +217,8 @@ async function main() {
 
 module.exports = {
   NAMES,
+  OUTBOUND_AGE_ALERT_LINE,
+  OUTBOUND_AGE_PARSE_BLOCK,
   OUTBOUND_WATCH_BLOCK,
   OUTBOUND_WORKFLOW_URL,
   OUTBOUND_WORKFLOW_BODY,

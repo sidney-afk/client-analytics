@@ -8,7 +8,7 @@
  * written by the submitting browser in a background task that waits ~15s,
  * polls Linear for up to ~110s, then POSTs one card per video. That task used
  * to live only in the tab's memory — closing/refreshing the tab in that
- * window silently lost every card (Jesse Israel, 2026-06-30: Linear issues
+ * window silently lost every card (historical production incident: Linear issues
  * created, zero calendar-upsert-post executions). This change:
  *   1. records each submission as a job in localStorage
  *      (syncview_calCardJobs_v1) and marks video numbers off as their card
@@ -73,6 +73,10 @@ globalThis._calUpsertFetch = async (_clientOrSlug, payload) => {
 let notifications = [];
 globalThis.showNotify = (title, msg) => notifications.push({ title, msg });
 globalThis._calCacheRead = () => ({ posts: [{ order_index: 10 }] }); // baseOrder = 10
+let authorityState = { video: 'linear', graphics: 'linear' };
+let queueDiagnostics = [];
+globalThis._writeUiRefreshAuthority = async () => authorityState;
+globalThis._writeUiQueueDiagnostic = (surface, outcome, item) => queueDiagnostics.push({ surface, outcome, item });
 
 let fetchLog = [];
 let fetchOkFor = () => true; // per-test override: post => bool
@@ -98,14 +102,15 @@ def('_calCardJobsWrite');
 def('_calCardJobSave');
 def('_calCardJobRemove');
 const _calCardJobCreate = def('_calCardJobCreate');
+def('_calCardJobTeams');
 const _resumePendingCalCardJobs = def('_resumePendingCalCardJobs');
 const _writeLinearVideoCardsToCalendar = def('_writeLinearVideoCardsToCalendar');
 
 const LIN = 'https://linear.app/acme/issue/';
 function issuesFor(title, nums) {
   const out = [
-    { id: 'vp', isSubIssue: false, clientName: 'Jesse Israel', title, teamKey: 'VID' },
-    { id: 'gp', isSubIssue: false, clientName: 'Jesse Israel', title, teamKey: 'GRA' },
+    { id: 'vp', isSubIssue: false, clientName: 'Fixture Client', title, teamKey: 'VID' },
+    { id: 'gp', isSubIssue: false, clientName: 'Fixture Client', title, teamKey: 'GRA' },
   ];
   nums.forEach(n => {
     out.push({ id: 'v' + n, isSubIssue: true, parentId: 'vp', identifier: 'VID-' + n, title: 'Video ' + n, url: LIN + 'VID-' + n + '/video-' + n });
@@ -117,7 +122,9 @@ function reset() {
   _store.clear(); fetchLog = []; notifications = [];
   fetchOkFor = () => true;
   linearResponses = [issuesFor('T', [1, 2, 3])];
-  globalThis._calCardJobsResumed = false;
+  globalThis._calCardJobsResumePromise = null;
+  authorityState = { video: 'linear', graphics: 'linear' };
+  queueDiagnostics = [];
 }
 const videos3 = [{ number: 1 }, { number: 2 }, { number: 3 }];
 
@@ -128,7 +135,7 @@ console.log('1) job store — create / persist / remove round-trip');
 console.log('============================================================');
 reset();
 {
-  const job = _calCardJobCreate('Jesse Israel', videos3, 'T', 'both');
+  const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
   const stored = _calCardJobsRead();
   ok(stored.length === 1 && stored[0].id === job.id, 'created job is persisted to localStorage');
   ok(JSON.stringify(stored[0].videos) === JSON.stringify([{ number: 1 }, { number: 2 }, { number: 3 }]), 'job stores the video numbers');
@@ -142,10 +149,10 @@ console.log('2) happy path — all cards land, job is removed');
 console.log('============================================================');
 reset();
 {
-  const job = _calCardJobCreate('Jesse Israel', videos3, 'T', 'both');
-  await _writeLinearVideoCardsToCalendar('Jesse Israel', videos3, 'T', { mode: 'both', job });
+  const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
+  await _writeLinearVideoCardsToCalendar('Fixture Client', videos3, 'T', { mode: 'both', job });
   ok(fetchLog.length === 3, 'one upsert POST per video');
-  ok(fetchLog[0].body.client === 'jesseisrael', 'client slug is normalized (jesseisrael)');
+  ok(fetchLog[0].body.client === 'fixtureclient', 'client slug is normalized (fixtureclient)');
   ok(fetchLog[0].body.post.id === 'p_lin_vid1', 'deterministic p_lin_ id from the VID sub-issue');
   ok(fetchLog[0].body.post.linear_issue_id === LIN + 'VID-1/video-1'
     && fetchLog[0].body.post.graphic_linear_issue_id === LIN + 'GRA-1/video-1', 'both Linear links paired by "Video N" title');
@@ -160,8 +167,8 @@ console.log('============================================================');
 reset();
 {
   fetchOkFor = (post) => post.name !== 'Video 2'; // Video 2 write fails
-  const job = _calCardJobCreate('Jesse Israel', videos3, 'T', 'both');
-  await _writeLinearVideoCardsToCalendar('Jesse Israel', videos3, 'T', { mode: 'both', job });
+  const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
+  await _writeLinearVideoCardsToCalendar('Fixture Client', videos3, 'T', { mode: 'both', job });
   const stored = _calCardJobsRead();
   ok(stored.length === 1, 'incomplete job stays queued');
   ok(JSON.stringify(stored[0].done.slice().sort()) === JSON.stringify([1, 3]), 'done records exactly the numbers that landed');
@@ -179,10 +186,8 @@ console.log('============================================================');
   aged[0].heartbeatAt = Date.now() - 4 * 60 * 1000;
   globalThis._calCardJobsWrite(aged);
   fetchOkFor = () => true; fetchLog = []; notifications = [];
-  globalThis._calCardJobsResumed = false;
-  _resumePendingCalCardJobs();
-  await new Promise(r => process.nextTick(r)); // let the async writer settle
-  await new Promise(r => setImmediate(r));
+  globalThis._calCardJobsResumePromise = null;
+  await _resumePendingCalCardJobs(authorityState);
   ok(fetchLog.length === 1 && fetchLog[0].body.post.name === 'Video 2', 'resume writes only the missing Video 2');
   ok(fetchLog[0].body.post.id === 'p_lin_vid2', 'resumed card still gets its deterministic id (no duplicate)');
   ok(_calCardJobsRead().length === 0, 'job removed once the last card lands');
@@ -194,7 +199,7 @@ console.log('============================================================');
 reset();
 {
   const mk = (over) => Object.assign({
-    id: 'ccj_' + Math.random().toString(36).slice(2), clientName: 'Jesse Israel', formTitle: 'T',
+    id: 'ccj_' + Math.random().toString(36).slice(2), clientName: 'Fixture Client', formTitle: 'T',
     mode: 'both', videos: [{ number: 1 }], done: [], runs: 0, createdAt: Date.now(), heartbeatAt: 0,
   }, over);
   globalThis._calCardJobsWrite([
@@ -204,16 +209,33 @@ reset();
     mk({ id: 'ccj_done', done: [1] }),                                                // finished
   ]);
   fetchLog = []; notifications = [];
-  globalThis._calCardJobsResumed = false;
-  _resumePendingCalCardJobs();
-  await new Promise(r => setImmediate(r));
+  globalThis._calCardJobsResumePromise = null;
+  await _resumePendingCalCardJobs(authorityState);
   const left = _calCardJobsRead().map(j => j.id);
   ok(JSON.stringify(left) === JSON.stringify(['ccj_live']), 'expired/spent/finished jobs are dropped; live-heartbeat job is left for its owner');
   ok(fetchLog.length === 0, 'none of the guarded jobs triggered a write');
   ok(notifications.length === 2 && notifications.every(n => /Import from Linear/.test(n.msg)), 'expired + spent jobs surface the manual backfill path');
-  globalThis._calCardJobsResumed = false;
-  _resumePendingCalCardJobs();
-  ok(globalThis._calCardJobsResumed === true, 'resume latch sets so boot paths cannot double-run it');
+  globalThis._calCardJobsResumePromise = null;
+  const firstResume = _resumePendingCalCardJobs(authorityState);
+  const secondResume = _resumePendingCalCardJobs(authorityState);
+  ok(firstResume === secondResume, 'concurrent lifecycle paths share one serialized resume promise');
+  await firstResume;
+}
+
+console.log('\n============================================================');
+console.log('5b) authority guard — stale jobs discard after flip; outage preserves');
+console.log('============================================================');
+reset();
+{
+  const job = _calCardJobCreate('Fixture Client', [{ number: 1 }], 'T', 'both');
+  authorityState = null;
+  await _resumePendingCalCardJobs();
+  ok(_calCardJobsRead().length === 1, 'authority read failure leaves the legacy job untouched');
+  authorityState = { video: 'linear', graphics: 'syncview' };
+  await _resumePendingCalCardJobs(authorityState);
+  ok(_calCardJobsRead().length === 0, 'a job requiring a flipped team is terminally discarded');
+  ok(queueDiagnostics.some(row => row.outcome === 'discarded_authority' && row.item.id === job.id),
+    'authority discard is retained in the local public-safe diagnostic');
 }
 
 console.log('\n============================================================');
@@ -222,8 +244,8 @@ console.log('============================================================');
 reset();
 {
   linearResponses = ['throw', issuesFor('T', [1, 2, 3])]; // attempt 0 fails, attempt 1 succeeds
-  const job = _calCardJobCreate('Jesse Israel', videos3, 'T', 'both');
-  await _writeLinearVideoCardsToCalendar('Jesse Israel', videos3, 'T', { mode: 'both', job });
+  const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
+  await _writeLinearVideoCardsToCalendar('Fixture Client', videos3, 'T', { mode: 'both', job });
   ok(fetchLog.length === 3, 'all cards still written after a transient poll error');
   ok(fetchLog.every(f => f.body.post.id.startsWith('p_lin_')), 'cards keep their deterministic Linear-derived ids (not random fallback)');
   ok(fetchLog.every(f => f.body.post.linear_issue_id && f.body.post.graphic_linear_issue_id), 'cards keep both Linear links');
@@ -233,8 +255,8 @@ console.log('\n============================================================');
 console.log('7) WIRING — the shipped index.html carries the fix');
 console.log('============================================================');
 ok(INDEX.includes("const CAL_CARD_JOBS_KEY = 'syncview_calCardJobs_v1'"), 'job store key is defined');
-ok(/const cardJob = _calCardJobCreate\(client, videos, title, mode\);/.test(INDEX), 'submitLinearForm records a durable job');
-ok(/_writeLinearVideoCardsToCalendar\(client, videos, title, \{ mode, job: cardJob \}\)/.test(INDEX), 'submitLinearForm passes the job to the writer');
+ok(/pending = await _linearIntakeWithLock\(\(\) => _linearIntakePending\(signature,/.test(INDEX), 'submitLinearForm records one cross-tab-locked durable native intake intent');
+ok(/_writeNativeSubmissionCardsToCalendar\(job\)/.test(INDEX), 'native intake consumes checkpointed native IDs from the create response');
 ok(/_resumePendingCalCardJobs\(\);/.test(INDEX), 'init() resumes pending jobs on boot');
 ok(/if \(doneSet\.has\(n\)\) continue;/.test(INDEX), 'writer skips video numbers that already landed');
 ok(INDEX.includes("pollTrace.push({ attempt, error: 'fetch: '"), 'per-attempt poll error isolation is in place');

@@ -36,5 +36,11 @@
   downloadable. Tokens already exist in service-role-only `client_access`; audit F33 blocks the
   old sheet-based D-31 mechanism. Fix direction: a staff-authenticated exact-client link builder,
   then re-issue links before flipping fail-closed.
+
+- **#813 candidate containment:** the SPA strips `client_review_token` if it appears in a fetched
+  or cached public row, and signed-in staff copy actions request one scoped token from the
+  already-live authenticated `client-review-link` v2 function at copy time. Release still requires
+  the guarded caller merge, link re-share, and documented fail-closed proof; the issuer is not
+  redeployed unless its source changes.
 - The Social Media Managers tab carries a `linear_api_key` column (7 per-SMM Linear API
   keys) — **publicly readable** via gviz. Rotation + removal owed.

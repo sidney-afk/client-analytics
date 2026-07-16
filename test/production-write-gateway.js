@@ -3,12 +3,14 @@
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 const edge = read('supabase/functions/production-write/index.ts');
 const lowLevel = read('supabase/functions/_shared/b4-write.ts');
 const migration = read('migrations/2026-07-12-write-ui-outbox-parity.sql');
+const fixPackFlags = read('migrations/2026-07-13-write-ui-fix-pack-flags.sql');
 const inbound = read('supabase/functions/linear-inbound/index.ts');
 const config = read('supabase/config.toml');
 let failures = 0;
@@ -16,6 +18,28 @@ let failures = 0;
 function ok(condition, message) {
   if (condition) console.log('  ok  ' + message);
   else { failures++; console.error('FAIL  ' + message); }
+}
+
+function extractFunction(name) {
+  const marker = 'function ' + name + '(';
+  let start = edge.indexOf(marker);
+  if (start < 0) throw new Error('missing ' + name);
+  if (edge.slice(start - 6, start) === 'async ') start -= 6;
+  const brace = edge.indexOf('{', start);
+  let depth = 0, quote = '', escaped = false;
+  for (let index = brace; index < edge.length; index++) {
+    const char = edge[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') { quote = char; continue; }
+    if (char === '{') depth++;
+    else if (char === '}' && --depth === 0) return edge.slice(start, index + 1);
+  }
+  throw new Error('unclosed ' + name);
 }
 
 (async () => {
@@ -58,10 +82,12 @@ function ok(condition, message) {
 
   ok(policy.legacyParityAllowed('calendar', 'status')
     && policy.legacyParityAllowed('calendar', 'comment')
+    && policy.legacyParityAllowed('calendar', 'intake_create')
     && policy.legacyParityAllowed('sxr', 'status')
     && policy.legacyParityAllowed('submission', 'intake_create')
     && !policy.legacyParityAllowed('production', 'status')
-    && !policy.legacyParityAllowed('calendar', 'due'),
+    && !policy.legacyParityAllowed('calendar', 'due')
+    && !policy.legacyParityAllowed('sxr', 'intake_create'),
   'legacy parity is a closed surface/operation allowlist');
 
   ok(policy.browserCredentialTestOverride(true, 'staff-role-key', '')
@@ -74,12 +100,12 @@ function ok(condition, message) {
       === JSON.stringify(['project-v'])
     && JSON.stringify(policy.projectIdsForTeam([{ team: 'GRA', project_id: 'project-g' }], 'graphics'))
       === JSON.stringify(['project-g'])
-    && policy.projectIdsForTeam(['legacy-a', 'legacy-b'], 'video').length === 0,
-  'only tagged native project mappings are accepted without Linear validation');
-
-  ok(JSON.stringify(policy.configuredProjectIds(['legacy-a', { id: 'legacy-b' }]))
-      === JSON.stringify(['legacy-a', 'legacy-b']),
-  'legacy untagged native project ids remain discoverable for read-only validation');
+    && policy.projectIdsForTeam(['legacy-a', 'legacy-b'], 'video').length === 0
+    && policy.projectIdsForTeam({ video: { backup: 'metadata-project' } }, 'video').length === 0
+    && JSON.stringify(policy.projectIdsForTeam({ video: { id: 'project-v', note: 'metadata-project' } }, 'video')) === JSON.stringify(['project-v'])
+    && JSON.stringify(policy.projectIdsForTeam({ video: { id: 'project-a', project_id: 'project-b' } }, 'video')) === JSON.stringify(['project-a', 'project-b'])
+    && policy.projectIdsForTeam({ team: 'video', metadata: 'metadata-project' }, 'video').length === 0,
+  'only tagged native project mappings are accepted, and conflicting aliases stay ambiguous');
 
   const id1 = await policy.deterministicNativeId('del', 'request-123', 'video:0');
   const id2 = await policy.deterministicNativeId('del', 'request-123', 'video:0');
@@ -96,8 +122,51 @@ function ok(condition, message) {
     && !policy.validDateOrNull('2026-02-29')
     && !policy.validDateOrNull('2026-02-31'),
   'due dates must be real UTC calendar dates');
+  const legacyNow = Date.UTC(2026, 6, 13, 23, 59, 59);
+  ok(policy.overdueStatusBumpDate('2026-07-01', legacyNow) === '2026-07-15'
+    && policy.overdueStatusBumpDate('2026-07-13', legacyNow) === ''
+    && policy.overdueStatusBumpDate('2026-07-14', legacyNow) === ''
+    && policy.overdueStatusBumpDate('invalid', legacyNow) === '',
+  'overdue bump matches the legacy UTC today-plus-two rule, not prior-due-plus-two');
+  ok(policy.overdueStatusBumpEnabled({ enabled: false }) === false
+    && policy.overdueStatusBumpEnabled({ enabled: true }) === true
+    && policy.overdueStatusBumpEnabled({}) === true
+    && policy.overdueStatusBumpEnabled({ enabled: 'false' }) === true
+    && policy.overdueStatusBumpEnabled(false) === true
+    && policy.overdueStatusBumpEnabled(null) === true,
+  'overdue bump is default-on and only exact object enabled:false disables it');
 
-  ok(/if \(key && token\) throw new GatewayError\(401, "ambiguous_credentials"\)/.test(edge),
+  const overdueReaderContext = {
+    OVERDUE_STATUS_BUMP_FLAG: 'write_ui_overdue_due_bump',
+    overdueStatusBumpPolicyEnabled: policy.overdueStatusBumpEnabled,
+  };
+  vm.createContext(overdueReaderContext);
+  vm.runInContext(extractFunction('overdueStatusBumpEnabled')
+    .replace('supabase: SupabaseClient', 'supabase')
+    .replace(': Promise<boolean>', '')
+    .replace(/\(data as JsonMap\)/g, 'data'), overdueReaderContext);
+  const flagClient = (result, thrown) => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({ maybeSingle: async () => { if (thrown) throw thrown; return result; } }),
+      }),
+    }),
+  });
+  ok(await overdueReaderContext.overdueStatusBumpEnabled(flagClient({ data: { value: { enabled: false } }, error: null })) === false
+    && await overdueReaderContext.overdueStatusBumpEnabled(flagClient({ data: { value: { enabled: true } }, error: null })) === true
+    && await overdueReaderContext.overdueStatusBumpEnabled(flagClient({ data: { value: 'malformed' }, error: null })) === true
+    && await overdueReaderContext.overdueStatusBumpEnabled(flagClient({ data: null, error: { message: 'offline' } })) === true
+    && await overdueReaderContext.overdueStatusBumpEnabled(flagClient(null, new Error('network down'))) === true,
+  'missing, malformed, read-error, and thrown flag reads keep the overdue bump on without rejecting status writes');
+  ok(/write_ui_overdue_due_bump/.test(fixPackFlags)
+    && /\{"enabled":true\}/.test(fixPackFlags)
+    && /linear_outbound_pending_age_alert/.test(fixPackFlags)
+    && /\{"minutes":30\}/.test(fixPackFlags)
+    && /on conflict \(key\) do nothing/.test(fixPackFlags),
+  'fix-pack runtime controls seed additively with bump on and a 30-minute age threshold');
+
+  ok(/credentialMode\(key, token\)/.test(edge)
+    && /credentials === "ambiguous"[\s\S]{0,80}ambiguous_credentials/.test(edge),
     'both-auth-header ambiguity is rejected');
   ok(/matchingRoleForKey\(key\)/.test(edge)
     && /normalizeActor\(req\.headers\.get\("x-syncview-actor"\)\)/.test(edge)
@@ -116,8 +185,8 @@ function ok(condition, message) {
   ok(!/auth_enforcement/.test(edge),
     'global permissive auth cannot weaken the fail-closed gateway');
   const browserOverrideGuardPos = edge.indexOf('browserCredentialTestOverride(body.test_override, key, token)');
-  const staffPrincipalPos = edge.indexOf('if (key) {');
-  const clientPrincipalPos = edge.indexOf('if (token) {');
+  const staffPrincipalPos = edge.indexOf('if (credentials === "staff") {');
+  const clientPrincipalPos = edge.indexOf('if (credentials === "client") {');
   const authorityBypassPos = edge.indexOf('const authority = principal.testOnly ? "syncview"');
   ok(browserOverrideGuardPos > 0
     && /browserCredentialTestOverride\(body\.test_override, key, token\)[\s\S]{0,120}invalid_test_override/.test(edge)
@@ -127,8 +196,8 @@ function ok(condition, message) {
     && clientPrincipalPos < authorityBypassPos
     && !/deriveBrowserTestScope/.test(edge),
   'staff/client TEST override is rejected before principal auth and cannot reach the authority bypass');
-  ok(/body\.test_override === true[\s\S]{0,320}clean\(body\.confirm\) !== "B4_TEST_ONLY"[\s\S]{0,100}serviceRoleRequest\(req\)/.test(edge)
-    && /lower\(client\.kind\) !== "test"/.test(edge)
+  ok(/body\.test_override === true[\s\S]{0,320}serviceTestOverrideAllowed\(key, token, body\.confirm, await serviceRoleRequest\(req\)\)/.test(edge)
+    && /isCanonicalActiveTestClient\(client\.active, client\.kind\)/.test(edge)
     && /uniqueActiveTestClient/.test(edge),
   'legitimate TEST mode requires service authentication, explicit confirmation, and an active TEST client');
   ok(/B4_TEST_PROJECT_BY_TEAM/.test(edge)
@@ -168,6 +237,23 @@ function ok(condition, message) {
   ok(/target_dedup_key: dedup[\s\S]{0,120}legacy_parity: true[\s\S]{0,120}WRITE_UI_LEGACY_PARITY/.test(edge)
     && /target_dedup_key: dedup[\s\S]{0,180}test_override:[\s\S]{0,140}B4_TEST_ONLY/.test(edge),
   'parity and TEST writes invoke only the targeted service-authenticated drainer forms');
+  ok(/target_dedup_key: dedup[\s\S]{0,120}syncview_live: true[\s\S]{0,120}WRITE_UI_SYNCVIEW_LIVE/.test(edge)
+    && /authority === "syncview"[\s\S]{0,180}outboundLiveForDrain\(supabase\)/.test(edge)
+    && /waitUntil\(\(async \(\) =>/.test(edge),
+  'flipped live writes schedule the third exact-dedup drain shape in EdgeRuntime background work');
+  ok(/const shouldDrain = legacyParity \|\| principal\.testOnly \|\| syncviewLiveDrain/.test(edge)
+    && /mirrorPending && awaitedDrain \? 202 : 200/.test(edge),
+  'background drains extend shouldDrain without turning a durable native success into a pending HTTP response');
+  ok(/overdueStatusBumpDate\(existing\.due_date\)/.test(edge)
+    && /overdueStatusBumpEnabled\(supabase\)/.test(edge)
+    && !/overdue_bump_gate_unavailable/.test(edge)
+    && /payload\.due_date = bumpedDueDate/.test(edge)
+    && /fingerprintPatch = \{ \.\.\.patch \}/.test(edge),
+  'status writes atomically carry the flag-gated server-derived bump while retries retain the caller fingerprint');
+  ok(/if \(!Object\.prototype\.hasOwnProperty\.call\(expected, "stateId"\)\) return false;/.test(inbound)
+    && /clean\(objectAt\(issue\.state\)\.id\) === clean\(expected\.stateId\)/.test(inbound)
+    && /hasOwnProperty\.call\(expected, "dueDate"\)/.test(inbound),
+    'inbound echo proof requires both fields for a combined status and due bump');
   ok(/const target = parseJson\(result\.target\)/.test(edge)
     && /targetStatus === "written"/.test(edge)
     && /already_applied/.test(edge)
@@ -176,15 +262,165 @@ function ok(condition, message) {
   ok(/mirror_pending: mirrorPending/.test(edge) && /native_committed: true/.test(edge),
     'a committed native write reports mirror-pending state explicitly');
 
+  const reconcile = extractFunction('reconcileEntityOperation');
+  const receiptReader = extractFunction('readOutboxReceipt');
+  const entityHandlerStart = edge.indexOf('async function handleEntityOperation(');
+  const entityHandlerEnd = edge.indexOf('\nasync function ensureBatch(', entityHandlerStart);
+  const entityHandler = edge.slice(entityHandlerStart, entityHandlerEnd);
+  ok(/body\.reconcile_only === true/.test(entityHandler)
+    && entityHandler.indexOf('reconcileEntityOperation(') < entityHandler.indexOf('const authority = principal.testOnly')
+    && /historicalLegacyParity = body\.legacy_parity === true/.test(reconcile)
+    && /authority = principal\.testOnly \? "syncview" : await authorityFor/.test(reconcile),
+  'read-only reconciliation authenticates first, preserves the historical lane, and may report opposite current authority');
+  ok(!/authorityLane\(|assertLegacyParityEnabled\(|targetedDrain\(|\brpc\(|linearRead\(/.test(reconcile)
+    && !/\.insert\(|\.update\(|\.upsert\(|\.delete\(/.test(reconcile + receiptReader + extractFunction('findReceiptComment') + extractFunction('currentEntityRow')),
+  'reconcile-only path contains reads only and cannot invoke authority gates, RPCs, drainers, or mutations');
+  ok(/"committed_exact" \| "absent" \| "conflict"/.test(edge)
+    && /outcome: receipt\.outcome/.test(reconcile)
+    && /receipt\.outcome === "conflict" \? 409 : 200/.test(reconcile)
+    && /comment: receipt\.outcome === "committed_exact"/.test(reconcile)
+    && /canonicalCommentMatchesReceipt\([\s\S]{0,120}canonicalComment,[\s\S]{0,120}expectedComment,[\s\S]{0,120}receipt\.row\?\.comment_id/.test(reconcile),
+  'receipt contract is explicit tri-state and returns canonical comments only for an exact commit');
+  ok(/stable actorKey/.test(receiptReader)
+    && /expected\.actor_key/.test(receiptReader)
+    && /payload\._intent_fingerprint/.test(receiptReader)
+    && /entity_id,comment_id,operation/.test(receiptReader)
+    && !/row\.actor|row\.role/.test(receiptReader)
+    && /operationPayloadMatches/.test(receiptReader),
+  'receipt exactness binds the stable actor fingerprint and persisted operation payload, not mutable actor labels');
+  const publicComment = extractFunction('publicComment');
+  ok(publicComment.includes('"native_comment_id"')
+    && publicComment.includes('"author_key"')
+    && publicComment.includes('"body"')
+    && publicComment.includes('"edited_at", "deleted_at"')
+    && publicComment.includes('"resolved_at"'),
+    'reconcile receipt exposes the canonical comment identity and edit/delete/resolve lifecycle fields');
+
+  let executableReceipt = receiptReader
+    .replace(/async function readOutboxReceipt\([\s\S]*?\): Promise<OutboxReceipt> \{/, 'async function readOutboxReceipt(supabase, dedup, expected) {')
+    .replace(/ as JsonMap/g, '');
+  const receiptContext = {
+    GatewayError: class GatewayError extends Error { constructor(status, code) { super(code); this.status = status; this.code = code; } },
+    parseJson: value => value && typeof value === 'object' ? value : {},
+    clean: value => String(value == null ? '' : value).trim(),
+    lower: value => String(value == null ? '' : value).trim().toLowerCase(),
+    normalizeTeam: value => ({ vid: 'video', video: 'video', gra: 'graphics', graphics: 'graphics' })[String(value || '').toLowerCase()] || '',
+    Date, Number,
+  };
+  vm.createContext(receiptContext);
+  vm.runInContext(executableReceipt, receiptContext);
+  const receiptExpected = {
+    entity: 'deliverable', entity_id: 'del-1', operation: 'status', client_slug: 'client-a', team: 'video',
+    actor: 'Current Actor Label', role: 'smm', actor_key: 'member-stable-1',
+    source_edited_at: '2026-07-12T00:00:00.000Z', legacy_parity: true, test_only: false,
+    intent_fingerprint: 'fingerprint-1', payload: { status: 'approved' },
+  };
+  const receiptRow = {
+    ...receiptExpected,
+    actor: 'Historical Actor Label',
+    role: 'creative',
+    source_edited_at: '2026-07-12T00:00:00+00:00',
+    payload: { status: 'approved', _intent_fingerprint: 'fingerprint-1' },
+  };
+  const receiptSupabase = data => ({
+    from: () => ({ select() { return this; }, eq() { return this; }, async maybeSingle() { return { data, error: null }; } }),
+  });
+  const exactReceipt = await receiptContext.readOutboxReceipt(receiptSupabase(receiptRow), 'dedup-1', receiptExpected);
+  const absentReceipt = await receiptContext.readOutboxReceipt(receiptSupabase(null), 'dedup-1', receiptExpected);
+  const conflictReceipt = await receiptContext.readOutboxReceipt(receiptSupabase({ ...receiptRow, legacy_parity: false }), 'dedup-1', receiptExpected);
+  const corruptPayloadReceipt = await receiptContext.readOutboxReceipt(receiptSupabase({
+    ...receiptRow,
+    payload: { status: 'posted', _intent_fingerprint: 'fingerprint-1' },
+  }), 'dedup-1', receiptExpected);
+  const differentActorReceipt = await receiptContext.readOutboxReceipt(
+    receiptSupabase(receiptRow),
+    'dedup-1',
+    { ...receiptExpected, actor_key: 'member-stable-2', intent_fingerprint: 'fingerprint-2' },
+  );
+  const commentReceiptExpected = {
+    ...receiptExpected,
+    entity: 'comment', operation: 'comment', intent_fingerprint: 'fingerprint-comment-1',
+    payload: { body: 'Original comment body' },
+  };
+  const commentReceiptRow = {
+    ...commentReceiptExpected,
+    comment_id: 'comment-1',
+    payload: { body: 'Original comment body', _intent_fingerprint: 'fingerprint-comment-1' },
+  };
+  const exactCommentPayloadReceipt = await receiptContext.readOutboxReceipt(
+    receiptSupabase(commentReceiptRow), 'dedup-comment-1', commentReceiptExpected,
+  );
+  const corruptCommentPayloadReceipt = await receiptContext.readOutboxReceipt(receiptSupabase({
+    ...commentReceiptRow,
+    payload: { body: 'Corrupted original body', _intent_fingerprint: 'fingerprint-comment-1' },
+  }), 'dedup-comment-1', commentReceiptExpected);
+  ok(exactReceipt.outcome === 'committed_exact'
+    && absentReceipt.outcome === 'absent'
+    && conflictReceipt.outcome === 'conflict'
+    && corruptPayloadReceipt.outcome === 'conflict'
+    && differentActorReceipt.outcome === 'conflict'
+    && exactCommentPayloadReceipt.outcome === 'committed_exact'
+    && corruptCommentPayloadReceipt.outcome === 'conflict',
+  'receipt classifier keeps harmless actor-label changes exact but rejects status or original-comment outbox payload corruption');
+
+  let executableCanonicalComment = extractFunction('canonicalCommentMatchesReceipt')
+    .replace(/function canonicalCommentMatchesReceipt\([\s\S]*?\): boolean \{/, 'function canonicalCommentMatchesReceipt(value, expected, outboxCommentId) {');
+  ok(!/expected\.id(?![A-Za-z0-9_])/.test(executableCanonicalComment),
+    'canonical receipt trusts the atomic outbox comment id rather than a recomputed requested id');
+  vm.runInContext(executableCanonicalComment, receiptContext);
+  const expectedCanonicalComment = {
+    id: 'comment-1', idempotency_key: 'dedup-comment-1', deliverable_id: 'del-1', batch_id: null,
+    client_slug: 'client-a', team: 'video', author_key: 'member-stable-1',
+    native_comment_id: 'native-comment-1', body: 'Exact body', audience: 'internal',
+    component: 'caption', parent_id: 'parent-1', is_tweak: true, round: 2,
+  };
+  const canonicalComment = { ...expectedCanonicalComment };
+  const adoptedCanonicalComment = { ...canonicalComment, id: 'existing-comment-9' };
+  const adoptedRequestExpectation = { ...expectedCanonicalComment, id: 'requested-comment-9' };
+  const editedCanonicalComment = {
+    ...canonicalComment,
+    body: 'Edited current body',
+    audience: 'client',
+    component: 'thumbnail',
+    parent_id: 'parent-2',
+    is_tweak: false,
+    round: 3,
+    edited_at: '2026-07-13T00:00:00Z',
+    deleted_at: '2026-07-14T00:00:00Z',
+    resolved_at: '2026-07-15T00:00:00Z',
+  };
+  const corruptImmutableFields = [
+    ['id', 'comment-2'],
+    ['native_comment_id', 'native-comment-2'],
+    ['author_key', 'member-stable-2'],
+    ['deliverable_id', 'del-2'],
+    ['idempotency_key', 'dedup-comment-2'],
+  ];
+  ok(receiptContext.canonicalCommentMatchesReceipt(editedCanonicalComment, expectedCanonicalComment, 'comment-1')
+    && receiptContext.canonicalCommentMatchesReceipt(
+      adoptedCanonicalComment,
+      adoptedRequestExpectation,
+      'existing-comment-9',
+    )
+    && corruptImmutableFields.every(([field, value]) => !receiptContext.canonicalCommentMatchesReceipt(
+      { ...canonicalComment, [field]: value },
+      expectedCanonicalComment,
+      'comment-1',
+    ))
+    && !receiptContext.canonicalCommentMatchesReceipt(canonicalComment, expectedCanonicalComment, 'comment-2')
+    && !receiptContext.canonicalCommentMatchesReceipt(canonicalComment, expectedCanonicalComment, null),
+  'canonical association accepts edited or atomically adopted rows but rejects immutable identity drift or wrong/missing outbox comment id');
+
   const validationPos = edge.indexOf('await projectForIntake(client, team, principal)');
   const firstWritePos = edge.indexOf('const batch = await ensureBatch(');
   ok(/project\(id: \$id\) \{ id name teams \{ nodes \{ id key \} \} \}/.test(edge)
-    && /projects\(first: 100, after: \$after/.test(edge)
-    && /configuredProjectIds\(client\.linear_project_ids\)/.test(edge)
+    && /projectIdsForTeam\(client\.linear_project_ids, team\)/.test(edge)
     && validationPos > 0 && firstWritePos > validationPos,
-  'untagged configured projects are read-only validated by Linear team before any native write');
-  ok(/matching\.length !== 1/.test(edge) && /project_mapping_ambiguous/.test(edge),
-    'missing or ambiguous project/team mappings fail closed');
+  'team-tagged projects are read-only validated by Linear team before any native write');
+  ok(/tagged\.length > 1/.test(edge) && /project_mapping_ambiguous/.test(edge)
+    && /throw new GatewayError\(409, "project_mapping_missing"\)/.test(edge)
+    && !/matching = projects\.filter/.test(edge.slice(edge.indexOf('async function projectForIntake'), edge.indexOf('function teamIdFor'))),
+  'missing, ambiguous, or untagged real-client mappings fail closed without exact-name create fallback');
   ok(/LINEAR_VIDEO_TEAM_ID/.test(edge) && /LINEAR_GRAPHICS_TEAM_ID/.test(edge),
     'optional team UUIDs come from Edge secrets, never source literals');
   ok(/identifier: null/.test(edge)
@@ -264,6 +500,17 @@ function ok(condition, message) {
   ok(/linear_issue_url/.test(edge) && /linear_issue_uuid", "linear_identifier/.test(edge)
     && /legacy_link_ambiguous/.test(edge),
   'legacy queue issue links resolve to exactly one native deliverable only on parity surfaces');
+  ok(/linear_identifier: clean\(row\.linear_identifier\)/.test(edge)
+    && /linear_issue_url: clean\(row\.linear_issue_url\)/.test(edge),
+  'intake response returns transitional Linear linkage alongside native identity');
+  ok(/origin: "calendar"/.test(edge)
+    && /clean\(existing\.card_id\) !== clean\(row\.card_id\)/.test(edge),
+  'submission deliverables use the canonical Calendar card-slot identity and protect it on replay');
+  ok(/browserCredentialTestOverride\(body\.test_override, key, token\)/.test(edge)
+    && /serviceTestOverrideAllowed\(key, token, body\.confirm, await serviceRoleRequest\(req\)\)/.test(edge)
+    && !/deriveBrowserTestScope/.test(edge)
+    && !/testOnly: canonicalTest/.test(edge),
+  'canonical TEST rows enter bounded TEST scope only through the service-authenticated override');
   ok(/comment_parent_forbidden/.test(edge)
     && /clean\(parent\.audience\) !== "client"/.test(edge)
     && /native_comment_id/.test(edge),

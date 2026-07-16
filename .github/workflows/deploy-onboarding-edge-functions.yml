@@ -59,12 +59,18 @@ jobs:
               echo "::error::Manual deploy commit is not on origin/main"
               exit 1
             fi
+            if [ ! -f scripts/ef-fingerprint.js ]; then
+              echo "::error::Pinned commit predates the required Edge Function fingerprint attestor"
+              exit 1
+            fi
+            node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --expected-only --format=json > /dev/null
           fi
           echo "Deploying Edge Functions from $actual" >> "$GITHUB_STEP_SUMMARY"
       - uses: supabase/setup-cli@v1
         with:
           version: latest
       - name: Deploy push-safe staff-sensitive functions
+        id: push_safe_deploy
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::SUPABASE_ACCESS_TOKEN secret is not set — add it in repo Settings -> Secrets and variables -> Actions."
@@ -75,9 +81,28 @@ jobs:
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
           done
       - name: Deploy pinned Track-B write functions
+        id: track_b_deploy
         if: github.event_name == 'workflow_dispatch'
         run: |
           for fn in linear-outbound production-write; do
             echo "Deploying $fn…"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
           done
+      - name: Attest pinned manual release
+        if: always() && github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            echo "## Edge Function release attestation"
+            echo
+            echo "- Pinned SHA: \`$DEPLOY_COMMIT\`"
+            echo "- Push-safe deploy step: \`${{ steps.push_safe_deploy.outcome }}\`"
+            echo "- Track-B deploy step: \`${{ steps.track_b_deploy.outcome }}\`"
+            echo "- Fingerprint scope: 10 functions deployed by this workflow"
+            echo "- Drill outcome: \`PENDING\` (the separate service-only TEST drill does not run in this deploy job)"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
+            --slugs=onboarding-list,ai-onboarding-list,legacy-onboarding-list,onboarding-full,client-credentials,filming-plans,smm-weekly-reports,key-verify,linear-outbound,production-write \
+            --format=markdown | tee -a "$GITHUB_STEP_SUMMARY"

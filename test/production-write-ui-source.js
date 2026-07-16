@@ -61,7 +61,7 @@ ok(context._prodAuthorityValue({ video: 'linear' }) === null
 ok(context._prodCanWrite(video, 'status') === false && context._prodCanWrite(graphics, 'status') === true,
 'team controls follow independent video/graphics authority stances');
 context.clientKind = 'test';
-ok(context._prodCanWrite(video, 'status') === true, 'active TEST clients can exercise the pre-flip browser override');
+ok(context._prodCanWrite(video, 'status') === true, 'active TEST clients reach the fail-closed pre-flip browser override boundary');
 context.clientKind = 'video';
 context.identity = { role: 'creative', member: { team: 'video' } };
 ok(context._prodCanWrite(video, 'status') === false, 'authority still blocks an otherwise compatible creative');

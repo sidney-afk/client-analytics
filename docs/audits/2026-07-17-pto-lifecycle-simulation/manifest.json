@@ -1,0 +1,1692 @@
+{
+  "generated_for": "PTO lifecycle simulation",
+  "source_commit": "da84dcf745eef4467b5fc0392e552f2a9a4fab87",
+  "source_tree_sha256": "db94a50630d1b5abd223eac744b813ff04afeef55562fad278e193eb06784ac3",
+  "backend": "stateful synthetic mock using the production PTO policy module",
+  "privacy": "synthetic TEST data only; no live identities, dates, balances, notes, keys, or responses",
+  "screenshot_count": 101,
+  "visual_review_complete": true,
+  "visual_verdict_counts": {
+    "ok": 101
+  },
+  "coverage": [
+    "admin_cancel_future_approved",
+    "anniversary_reset",
+    "approve_with_note",
+    "balance_after_decision",
+    "connection_drop_lock",
+    "delayed_inflight",
+    "deny_with_note",
+    "desktop",
+    "double_click_single_call",
+    "floating_holiday_request",
+    "floating_second_blocked",
+    "guatemala_evening_boundary",
+    "history_accumulates",
+    "http_500_retry",
+    "hung_request_lock",
+    "inactive_approval_blocked",
+    "insufficient_balance",
+    "keyboard_only",
+    "mobile_390",
+    "month_rollover",
+    "pending_cancel",
+    "persona_admin",
+    "persona_staff_a",
+    "persona_staff_b_same_role",
+    "post_commit_loss_reconcile",
+    "quote_far",
+    "quote_near",
+    "sick_backdated_request",
+    "sign_out_in_mid_flow",
+    "team_calendar",
+    "team_snapshot",
+    "tenure_rate_change",
+    "two_tab_stale_then_refresh",
+    "unpaid_request",
+    "wellness_request"
+  ],
+  "flows": [
+    {
+      "scenario": "desktop-full-lifecycle",
+      "shots": [
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 1,
+          "action": "open staff Time Off",
+          "expected_visible_result": "The signed-in staff member sees an enabled balance, request form, own history, team snapshot, and calendar.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-01-open-staff-time-off.jpg",
+          "sha256": "01f4fcbe583b8b394368a628c378213617f44b9b9c8c28471b97f06cfaeb3b15",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 2,
+          "action": "open branded request-type menu",
+          "expected_visible_result": "The custom request-type list opens with clear colored options and no native browser dropdown.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-02-open-branded-request-type-menu.jpg",
+          "sha256": "f501bab68fc5527901f64992163e0e095a1920d2bbd100301c61a961e6f629e8",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 3,
+          "action": "choose unpaid request type",
+          "expected_visible_result": "Unpaid becomes the selected branded option and the menu closes.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-03-choose-unpaid-request-type.jpg",
+          "sha256": "1648861e39c7fbcaa5e67e331a86e7348fe9f8d1e8609163abeaccb4e1f9a9d6",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 4,
+          "action": "open branded start-date calendar",
+          "expected_visible_result": "The SyncView calendar opens with month navigation, weekday headers, and a clear date grid.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-04-open-branded-start-date-calendar.jpg",
+          "sha256": "e520d539735ad09bd48b93a9d5debd5eff59c1feac7297f534605bc13fbff7a1",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 5,
+          "action": "choose near start date",
+          "expected_visible_result": "The selected start date is shown in the branded field and the calendar closes.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-05-choose-near-start-date.jpg",
+          "sha256": "8e78f092d961cd63c39b9964d444f9e5bf961ecd011027a7cbcad97180638761",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 6,
+          "action": "open branded end-date calendar",
+          "expected_visible_result": "The end-date calendar opens in SyncView style with dates before the selected start disabled.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-06-open-branded-end-date-calendar.jpg",
+          "sha256": "e6ae4416a32e010a56359c28d47c258bfbad79458d564b548e934c24a46d5acb",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 7,
+          "action": "quote a near range",
+          "expected_visible_result": "Choosing the end date closes the calendar and the branded day stepper shows the local business-day total.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-07-quote-a-near-range.jpg",
+          "sha256": "e3e31feeaed6fa8a5d204c09b2052bde0cf70fd571f91a820caadaaa6b10c758",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 8,
+          "action": "decrease the quoted day count",
+          "expected_visible_result": "The down-arrow changes the count by one half-day and keeps the control visually coherent.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-08-decrease-the-quoted-day-count.jpg",
+          "sha256": "62bc0ee9bd65fb90500f0b99f8931431fa35e7da7e5a0176f8e2615f0e2748f2",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 9,
+          "action": "restore the full quoted day count",
+          "expected_visible_result": "The up-arrow restores the original full-day count without sending a request.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-09-restore-the-full-quoted-day-count.jpg",
+          "sha256": "75a1f817e6d7e8f5992c966176c1128624e1514a3c14da4c26e6da42001c75cb",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 10,
+          "action": "enter a request note",
+          "expected_visible_result": "The note field visibly accepts plain-language context without submitting a request.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-10-enter-a-request-note.jpg",
+          "sha256": "c7cdf567d68c505935fc8d03059e7cd35bf785ed16dd8bd5dca5c3a76095c36c",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 11,
+          "action": "clear the request-note draft",
+          "expected_visible_result": "The note field returns to a clean empty draft without changing PTO state.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-11-clear-the-request-note-draft.jpg",
+          "sha256": "575221bad4e55162f526b1315b7d9efef1bcc8b82edd138506db70f5330fd0c5",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 12,
+          "action": "quote a far range",
+          "expected_visible_result": "The form waits for the authenticated server quote, then shows a real business-day total without creating a request.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-12-quote-a-far-range.jpg",
+          "sha256": "94e24e0348ddbcb20c9095514905e961187703f186e442b88610f14b805cbeea",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 13,
+          "action": "submit wellness request",
+          "expected_visible_result": "The request appears as Pending in My requests while the visible wellness balance stays unchanged.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-13-submit-wellness-request.jpg",
+          "sha256": "f9ec0d790b0e2cf212dbbb1a02fed967056f3be6a41d1459c5c43ce8f6e2f10f",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 14,
+          "action": "Kasper opens pending queue",
+          "expected_visible_result": "Kasper sees the submitted request with decision-note, Approve, and Deny controls.",
+          "persona": "admin",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-14-kasper-opens-pending-queue.jpg",
+          "sha256": "4c2fcaf14d412116d01adddcbc80107e32be313fbfce574526415519e1d22a94",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 15,
+          "action": "enter wellness approval note",
+          "expected_visible_result": "Kasper can add a plain-English decision note before taking action.",
+          "persona": "admin",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-15-enter-wellness-approval-note.jpg",
+          "sha256": "4ec49a0df99151d53ba3db4eefe6eeebc45d3086feab11360e96eda5f8e3f95b",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 16,
+          "action": "approve wellness request",
+          "expected_visible_result": "The request leaves Pending, appears in Upcoming Approved Leave, and the member balance visibly decreases.",
+          "persona": "admin",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-16-approve-wellness-request.jpg",
+          "sha256": "e6705fd7cb5bfa65e0d2bd2bac1ac76162723acfbd7cc4ea17cedd8267c2b964",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 17,
+          "action": "staff refreshes after approval",
+          "expected_visible_result": "The staff member sees Approved with the decision note and a lower wellness balance.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-17-staff-refreshes-after-approval.jpg",
+          "sha256": "ea4606927fc5066c9c6b8cee6815835a0a4896370bd9f3857d1831d6ab6a64eb",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 18,
+          "action": "inspect approved team calendar",
+          "expected_visible_result": "The approved future leave is visible on the shared team calendar and the Team snapshot shows the updated availability.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-18-inspect-approved-team-calendar.jpg",
+          "sha256": "5a8076f2c5e2bca1171cb8c150763ee2ba3ad8571582711d93e893df079fa521",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 19,
+          "action": "open approved-leave cancellation confirmation",
+          "expected_visible_result": "Kasper sees a clear confirmation explaining that the calendar block will be removed while history remains.",
+          "persona": "admin",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-19-open-approved-leave-cancellation-confirmation.jpg",
+          "sha256": "0bc2fee3d67bd060e4c6e620872bf1c5c3d86e8ef2af2e6ee9891dc3a7c49ea8",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 20,
+          "action": "confirm admin cancellation",
+          "expected_visible_result": "The approved block disappears from Upcoming Leave and history preserves both approval and cancellation attribution.",
+          "persona": "admin",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-20-confirm-admin-cancellation.jpg",
+          "sha256": "932324caf4b74338d809a17ba3ec338fb425c3d0c2e7f0f2cae5bba51a14f091",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 21,
+          "action": "staff refreshes after admin cancellation",
+          "expected_visible_result": "The wellness balance is restored and the cancelled block is gone from the team calendar.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-21-staff-refreshes-after-admin-cancellation.jpg",
+          "sha256": "ff9fecbe45973fb319c7d1fc77607aee2eb21ceb8936910e1273942400f52965",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 22,
+          "action": "submit backdated sick request",
+          "expected_visible_result": "Sick leave accepts the past business date and appears Pending without deducting the sick balance.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-22-submit-backdated-sick-request.jpg",
+          "sha256": "784193515b3c50d288ed7418b3501a235e32d9919c4db2f57f18f2361262198a",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 23,
+          "action": "approve backdated sick request",
+          "expected_visible_result": "Kasper approves with a note and the visible sick balance decreases after the decision.",
+          "persona": "admin",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-23-approve-backdated-sick-request.jpg",
+          "sha256": "8a0040318223a31cb07ac94de16b4a2dece181009545776cfa6ff7ab33932cf9",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 24,
+          "action": "staff sees sick decision",
+          "expected_visible_result": "The sick request is Approved with its note and the sick-days metric visibly reads two.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-24-staff-sees-sick-decision.jpg",
+          "sha256": "cfa86ac3762e423d30a49b90db28ffa0a55a733f30f5a68207e857892a5c5dc4",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 25,
+          "action": "submit unpaid request",
+          "expected_visible_result": "The unpaid request appears Pending and neither paid balance changes.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-25-submit-unpaid-request.jpg",
+          "sha256": "9ef14272269c92ab964fc0b85bd42089b039c1794bca8539b0459b0d311b07a2",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 26,
+          "action": "enter unpaid denial note",
+          "expected_visible_result": "Kasper can enter the reason for a denial while Approve and Deny remain clearly distinct.",
+          "persona": "admin",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-26-enter-unpaid-denial-note.jpg",
+          "sha256": "18bc167796a8a278027b631e7260eba88f0bafc7aa373865e992f9004eddf1ac",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 27,
+          "action": "deny unpaid request",
+          "expected_visible_result": "The request moves to Recent Decisions as Denied, the note is retained, and balances stay unchanged.",
+          "persona": "admin",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-27-deny-unpaid-request.jpg",
+          "sha256": "862ee318054b8aeef510a5ac37c4ca119c986b8291ac2974dad3ee451dae94ed",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 28,
+          "action": "submit floating holiday",
+          "expected_visible_result": "The first floating holiday becomes Pending and visibly reserves the annual allowance.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-28-submit-floating-holiday.jpg",
+          "sha256": "0a09748dae5c43c6152df3d3afd9c5b44cbfbcd66050d3e3c664ea2c1e403b8f",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 29,
+          "action": "stale tab tries a second floating holiday",
+          "expected_visible_result": "The server rejects the stale second request in plain English; no duplicate row is created.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-29-stale-tab-tries-a-second-floating-holiday.jpg",
+          "sha256": "f6d75529eccda910f8e5ebd9954ae234648d9c951a6b93f9f4a58809db46f30e",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 30,
+          "action": "approve floating holiday",
+          "expected_visible_result": "Kasper approves the reserved floating holiday and it moves to Upcoming Leave.",
+          "persona": "admin",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-30-approve-floating-holiday.jpg",
+          "sha256": "b35a41dbe37c4860f4baff9b9a8d7f11918d33f6576b5751cbfc55dd2afa80ff",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 31,
+          "action": "staff sees floating holiday used",
+          "expected_visible_result": "The floating metric reads Used and the approved day renders on the calendar.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-31-staff-sees-floating-holiday-used.jpg",
+          "sha256": "098dc3ea4aa340c6c1a8ce9d8aafd05761267dd8b302301cdc4b8a436fed86ff",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 32,
+          "action": "submit half-day pending request",
+          "expected_visible_result": "A half-day wellness request appears Pending and does not yet reduce the balance.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-32-submit-half-day-pending-request.jpg",
+          "sha256": "0e75110df22cffc1b037ca07c07b01c8c12d369faf0d4cde35ef6a83d5cbe44f",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 33,
+          "action": "open pending-request cancellation confirmation",
+          "expected_visible_result": "The staff member sees a clear confirmation before the pending request is cancelled.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-33-open-pending-request-cancellation-confirmation.jpg",
+          "sha256": "bc133412be60241f8e64d7919c2fb7ff03923ae6357348ec4390b5e71a7ef307",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 34,
+          "action": "confirm own pending cancellation",
+          "expected_visible_result": "The pending request becomes Cancelled and the balance/calendar remain unchanged.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-34-confirm-own-pending-cancellation.jpg",
+          "sha256": "241f46a981cd40342a7720f5e8c8e8337492c3f343ec3c4c9551cde6f1a2a6f0",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 35,
+          "action": "try request above available balance",
+          "expected_visible_result": "The request is rejected in plain English, the form remains usable, and no row is created.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-35-try-request-above-available-balance.jpg",
+          "sha256": "0eb0d634b72b1f0eee3baa6d3a7517be86664d4270334afb9b5d862369fd19ec",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 36,
+          "action": "second same-role staff submits unpaid",
+          "expected_visible_result": "A second creative-role persona sees only their own request history and submits one pending unpaid request.",
+          "persona": "staffB",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-36-second-same-role-staff-submits-unpaid.jpg",
+          "sha256": "718245f5c7c1101f5635c130083d430ccbb681768c2610783d886db9862913fd",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 37,
+          "action": "inactive-member approval is blocked",
+          "expected_visible_result": "Kasper sees a plain-English inactive-profile error and the pending card remains available for cleanup.",
+          "persona": "admin",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-37-inactive-member-approval-is-blocked.jpg",
+          "sha256": "e36f03edc4be81fdd69cc517957608d1ebb8bda14074388e2fd3e2a1e549d842",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "desktop-full-lifecycle",
+          "step": 38,
+          "action": "deny inactive request for cleanup",
+          "expected_visible_result": "Kasper can deny the inactive member request and Recent Decisions accumulates the terminal row.",
+          "persona": "admin",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/desktop-full-lifecycle-38-deny-inactive-request-for-cleanup.jpg",
+          "sha256": "fe2194006b22b9341b259f9434e43c7593e966205fbaa669ab44929c1d2ea6ff",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        }
+      ]
+    },
+    {
+      "scenario": "resilience-session-and-tabs",
+      "shots": [
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 1,
+          "action": "server 500 shows retryable error",
+          "expected_visible_result": "A temporary server failure appears in the form and Send request is enabled for an explicit retry.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-01-server-500-shows-retryable-error.jpg",
+          "sha256": "8d06e27add217fe0cba62e2aa04254045c6d43a07cc3a30988ccd3a6ffdeb4d5",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 2,
+          "action": "retry succeeds after 500",
+          "expected_visible_result": "The unchanged form retries successfully and the pending row appears once.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-02-retry-succeeds-after-500.jpg",
+          "sha256": "ffc8ca26cd8da01a49056c3cd2103f88c433309c337eb09a5a594beddfd866c8",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 3,
+          "action": "connection drop locks unknown write outcome",
+          "expected_visible_result": "A dropped mutating connection says SyncView could not confirm the save and requires Refresh before another submission.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-03-connection-drop-locks-unknown-write-outcome.jpg",
+          "sha256": "d0e7b14b97998cd75e7e50f57d344efabc2b7b8c50e94149355a44d2cb9e6e7b",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 4,
+          "action": "refresh reconciles connection drop",
+          "expected_visible_result": "Refresh confirms that no request was saved, clears the safety lock, and restores Send request.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-04-refresh-reconciles-connection-drop.jpg",
+          "sha256": "504b397cb37eecb88a3653d850cca64bb58d6c08b935265d749a5c069862acef",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 5,
+          "action": "saved request loses its response",
+          "expected_visible_result": "Even when the server saved the row before the response disappeared, the UI locks and does not invite a duplicate retry.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-05-saved-request-loses-its-response.jpg",
+          "sha256": "0efdbea28833d57657722ad239c8fb8c3cd1d09a6b6c1de1684bfbb6698c3599",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 6,
+          "action": "refresh finds the saved request once",
+          "expected_visible_result": "Refresh reconciles the uncertain result and reveals exactly one Pending row without resubmission.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-06-refresh-finds-the-saved-request-once.jpg",
+          "sha256": "2b5c3d6ccdce027d2d6e4b61f7f71dacd00cefb4ba701f77d6dea2da21ce0b30",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 7,
+          "action": "slow request stays visibly in flight",
+          "expected_visible_result": "A genuinely delayed response keeps Send disabled with an in-progress label and does not create an early row.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-07-slow-request-stays-visibly-in-flight.jpg",
+          "sha256": "153e1755f04d40e7e99f094bde8eb0a5ec59224d2ea31937da4f96d7ffbba3e7",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 8,
+          "action": "slow request completes once",
+          "expected_visible_result": "The delayed response finishes normally and produces exactly one Pending request.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-08-slow-request-completes-once.jpg",
+          "sha256": "12d747db624abf65648b9c65e690548aaddf20d765f9e1fe894ddad37757ac53",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 9,
+          "action": "hung request times out into safe lock",
+          "expected_visible_result": "A request that outlives the client timeout becomes an unknown write outcome and remains locked until Refresh.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-09-hung-request-times-out-into-safe-lock.jpg",
+          "sha256": "734cdfbedc19b2c19dc4ac2ff3f84dcc42dddbf2b43f3a769d6be7ce72d220ec",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 10,
+          "action": "refresh clears hung-request lock",
+          "expected_visible_result": "A successful read confirms no row and restores the request form without writing anything.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-10-refresh-clears-hung-request-lock.jpg",
+          "sha256": "3932462813ef9d7b3e270925d7e8047f8e4e2752d8a508025f7b9f606074ebe2",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 11,
+          "action": "double-click Send request",
+          "expected_visible_result": "A human double-click produces one API call and one pending request, with no duplicate row.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-11-double-click-send-request.jpg",
+          "sha256": "55911c489c4ac85a5e48e5ca1625b237d51363a82de32e9a811e32bb8c327540",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 12,
+          "action": "submit request in first tab",
+          "expected_visible_result": "The first tab shows the new pending request while the already-open second tab stays stale.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-12-submit-request-in-first-tab.jpg",
+          "sha256": "fee672bbafba25ac9e5142b8db43c15be7878518887c59528580259b30dd837e",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 13,
+          "action": "second tab refreshes",
+          "expected_visible_result": "The second tab explicitly refreshes and converges on the new pending request.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-13-second-tab-refreshes.jpg",
+          "sha256": "2896d3a7f2ca7a15eba14013599136f4550954bcbfdadf63f162a951ad7574a2",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 14,
+          "action": "second tab cancels pending request",
+          "expected_visible_result": "The second tab cancels the request; the first tab remains stale until its own Refresh.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-14-second-tab-cancels-pending-request.jpg",
+          "sha256": "d2b70f1a3bb98fca257a3d1992348c3a10cc8b755dfcea209e31e63c77d9f423",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 15,
+          "action": "first tab refreshes after cancellation",
+          "expected_visible_result": "The first tab converges on the cancelled state after an explicit Refresh.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-15-first-tab-refreshes-after-cancellation.jpg",
+          "sha256": "9d68c712a21f4ba45432463deb7008ab27a25a7549b383569783959fd19fe0b0",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 16,
+          "action": "sign out with a draft in progress",
+          "expected_visible_result": "Signing out immediately removes the private PTO data and the unsent draft from every open tab.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-16-sign-out-with-a-draft-in-progress.jpg",
+          "sha256": "5aeda725dfb080b3231d885ef860abec6e1d2472233616eecc31d490de1218bc",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "resilience-session-and-tabs",
+          "step": 17,
+          "action": "sign in as second same-role persona",
+          "expected_visible_result": "A different same-role staff member signs in and receives only their own fresh overview; the first draft is gone.",
+          "persona": "staffA",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/resilience-session-and-tabs-17-sign-in-as-second-same-role-persona.jpg",
+          "sha256": "ce7b2d238f24bb72210a5e7acb472a3e4d61583f465804cb741db5b7bf84dc07",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        }
+      ]
+    },
+    {
+      "scenario": "policy-time-travel",
+      "shots": [
+        {
+          "scenario": "policy-time-travel",
+          "step": 1,
+          "action": "before month rollover",
+          "expected_visible_result": "Refresh makes the policy-date balance transition visible using the production accrual engine.",
+          "persona": "staffB",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/policy-time-travel-01-before-month-rollover.jpg",
+          "sha256": "867e58dfcb8303e3c7d98f107432881770e8fe2b31515b4a313481c1adc38344",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "policy-time-travel",
+          "step": 2,
+          "action": "month rollover half-day grant",
+          "expected_visible_result": "Refresh makes the policy-date balance transition visible using the production accrual engine.",
+          "persona": "staffB",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/policy-time-travel-02-month-rollover-half-day-grant.jpg",
+          "sha256": "8534015c4ec7f00a0bb93e0585aca2db9922480f52a25f26a204fc239433b8fd",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "policy-time-travel",
+          "step": 3,
+          "action": "last day of lower-rate month",
+          "expected_visible_result": "Refresh makes the policy-date balance transition visible using the production accrual engine.",
+          "persona": "staffB",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/policy-time-travel-03-last-day-of-lower-rate-month.jpg",
+          "sha256": "276f1c4d690837fb95a4c069abee1c62d7d14ba129742219a360fefdd85aa888",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "policy-time-travel",
+          "step": 4,
+          "action": "first upper-rate monthly grant",
+          "expected_visible_result": "Refresh makes the policy-date balance transition visible using the production accrual engine.",
+          "persona": "staffB",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/policy-time-travel-04-first-upper-rate-monthly-grant.jpg",
+          "sha256": "45f833a1412a842e23c7a3e58cda6dffd09efcf11e23f50e7d608584d7a421ef",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "policy-time-travel",
+          "step": 5,
+          "action": "last day before anniversary",
+          "expected_visible_result": "Refresh makes the policy-date balance transition visible using the production accrual engine.",
+          "persona": "staffB",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/policy-time-travel-05-last-day-before-anniversary.jpg",
+          "sha256": "5519aba1d0bbba17e15ebdd887905120ef35198021718dc9746f8842f5fdb4eb",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "policy-time-travel",
+          "step": 6,
+          "action": "anniversary reset",
+          "expected_visible_result": "Refresh makes the policy-date balance transition visible using the production accrual engine.",
+          "persona": "staffB",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/policy-time-travel-06-anniversary-reset.jpg",
+          "sha256": "a665913c1445439f2ffd9b39c6683872aa44a2684903ffa6c917a0c24db75b57",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "policy-time-travel",
+          "step": 7,
+          "action": "first post-reset monthly grant",
+          "expected_visible_result": "Refresh makes the policy-date balance transition visible using the production accrual engine.",
+          "persona": "staffB",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/policy-time-travel-07-first-post-reset-monthly-grant.jpg",
+          "sha256": "baa882529294eb79cbe391115af33bc057907217c311522ffe34c18720ceb099",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "policy-time-travel",
+          "step": 8,
+          "action": "Guatemala 18:00 stays on the local policy date",
+          "expected_visible_result": "The server policy date keeps the request minimum and calendar Today marker on the Guatemala business day.",
+          "persona": "staffB",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/policy-time-travel-08-guatemala-18-00-stays-on-the-local-policy-date.jpg",
+          "sha256": "8ade0efda44c920f883b2c184759a7197af9548a1524f0c0af87cc6349499254",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "policy-time-travel",
+          "step": 9,
+          "action": "Guatemala 23:59 stays on the local policy date",
+          "expected_visible_result": "The server policy date keeps the request minimum and calendar Today marker on the Guatemala business day.",
+          "persona": "staffB",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/policy-time-travel-09-guatemala-23-59-stays-on-the-local-policy-date.jpg",
+          "sha256": "31735c2c924c871044b2f080320c1afc3983e96645ea463d17c90d4224a66996",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "policy-time-travel",
+          "step": 10,
+          "action": "Guatemala midnight advances the policy date",
+          "expected_visible_result": "The server policy date keeps the request minimum and calendar Today marker on the Guatemala business day.",
+          "persona": "staffB",
+          "profile": "desktop",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/policy-time-travel-10-guatemala-midnight-advances-the-policy-date.jpg",
+          "sha256": "2c0fd4330e364d0c3bebb99643f1277c48d03225d147ff2ed8198dd721c98774",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        }
+      ]
+    },
+    {
+      "scenario": "mobile-390-happy-path",
+      "shots": [
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 1,
+          "action": "tap open the mobile staff menu",
+          "expected_visible_result": "The staff menu opens beside its trigger and the Time Off item is visible inside the phone viewport.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-01-tap-open-the-mobile-staff-menu.jpg",
+          "sha256": "cfebdc3ef41a51ab1c09acb96e49dc551c783f60be1cd4bcff25866f4889259a",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 2,
+          "action": "tap Time Off in the mobile staff menu",
+          "expected_visible_result": "The balance, request form, history, and scrollable calendar fit the mobile viewport without page overflow.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-02-tap-time-off-in-the-mobile-staff-menu.jpg",
+          "sha256": "4780de0c31c3140d89322a1cd819d358af876e8c7f6a0f45d50dfa1551400209",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 3,
+          "action": "tap open the mobile request-type menu",
+          "expected_visible_result": "The branded type menu opens inside the 390px viewport without a native picker or clipping.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-03-tap-open-the-mobile-request-type-menu.jpg",
+          "sha256": "401a86f92bb846990c4a63ce6b87e38950deb8160e2a0bd5b1a8d3b5877e37b7",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 4,
+          "action": "tap the mobile unpaid option",
+          "expected_visible_result": "Unpaid is selected and the touch menu closes cleanly.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-04-tap-the-mobile-unpaid-option.jpg",
+          "sha256": "52e752203899ecc81f61da410c1ca6ff576d5412e6efab3f02bf89e600b3fbce",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 5,
+          "action": "tap open the mobile date calendar",
+          "expected_visible_result": "The branded calendar opens as a touch-friendly, viewport-contained panel.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-05-tap-open-the-mobile-date-calendar.jpg",
+          "sha256": "e6a35ef04f39a696851c7c7b8c8b67fe502d6ac8fcff56d88537152404c46b59",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 6,
+          "action": "tap the mobile calendar next-month arrow",
+          "expected_visible_result": "The calendar advances one month and keeps its touch target and layout visible.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-06-tap-the-mobile-calendar-next-month-arrow.jpg",
+          "sha256": "7399642b1710971b51a37f8c4a67518b1c98bd420f4f45161701651097964faa",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 7,
+          "action": "tap the mobile request date",
+          "expected_visible_result": "The selected start day closes the calendar and appears in the branded field.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-07-tap-the-mobile-request-date.jpg",
+          "sha256": "df49c037dcc276eb94e46a44d12e18ad8915d50b09f76476180861db083c7da0",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 8,
+          "action": "tap open the mobile end-date calendar",
+          "expected_visible_result": "The end-date calendar opens in May with earlier dates disabled and remains inside the phone viewport.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-08-tap-open-the-mobile-end-date-calendar.jpg",
+          "sha256": "4a2665c9104a45bcbbecc6153dd7186c4040ea7eff602b1f82f52e678c0de1f4",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 9,
+          "action": "tap the matching mobile end date",
+          "expected_visible_result": "The matching end date closes the calendar and produces the exact one-day quote.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-09-tap-the-matching-mobile-end-date.jpg",
+          "sha256": "7a8ed196b55540e4fbbf79fa8a36bed07a15ee931c3dc7012e19bd95cabe32b4",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 10,
+          "action": "tap the mobile half-day arrow",
+          "expected_visible_result": "The touch-friendly down arrow visibly changes the one-day quote to a half day.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-10-tap-the-mobile-half-day-arrow.jpg",
+          "sha256": "089c593da84f900b89a37404d302cc311b14d8e35cfbc6a737abe60eaa789e72",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 11,
+          "action": "tap the mobile full-day arrow",
+          "expected_visible_result": "The touch-friendly up arrow visibly restores the full one-day quote.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-11-tap-the-mobile-full-day-arrow.jpg",
+          "sha256": "986bdeb34e49dbc55e283940159dd98cb9cb8b12ffd95bc1cefdebc4c6babf3e",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 12,
+          "action": "enter the mobile request note",
+          "expected_visible_result": "The mobile note field accepts the request context without horizontal overflow.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-12-enter-the-mobile-request-note.jpg",
+          "sha256": "81298f65faea8b81ba1aa5f92898c957ba9fbcbe402bf8dc3285b973b35fc37c",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 13,
+          "action": "submit mobile unpaid request",
+          "expected_visible_result": "The branded mobile controls submit one unpaid request and the Pending row is readable without native widgets.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-13-submit-mobile-unpaid-request.jpg",
+          "sha256": "9c5000bd693d78c2b1391bb59467c1e152b09ef5c3470615eccb817ae9376ffd",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 14,
+          "action": "Kasper approves on mobile",
+          "expected_visible_result": "Kasper reviews and approves the mobile request with controls contained at 390px.",
+          "persona": "admin-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-14-kasper-approves-on-mobile.jpg",
+          "sha256": "bc48fb8ac7c9cfac590ce511d22e19dab150a7c3555cbcfbf6e2024aa533cf2f",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "mobile-390-happy-path",
+          "step": 15,
+          "action": "mobile staff sees approved result",
+          "expected_visible_result": "After Refresh, the mobile history shows Approved and unpaid leave leaves paid balances unchanged.",
+          "persona": "staffA-mobile",
+          "profile": "mobile-390",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "file": "screenshots/mobile-390-happy-path-15-mobile-staff-sees-approved-result.jpg",
+          "sha256": "537450aa71b13875eb1837149ea45024d7c6dcff077878c2ffe35fb08b587d0f",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        }
+      ]
+    },
+    {
+      "scenario": "keyboard-only-journey",
+      "shots": [
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 1,
+          "action": "keyboard enters Time Off and reaches request type",
+          "expected_visible_result": "Tab and Enter open the staff menu route, then natural tab order reaches the request-type control with a visible focus ring.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-01-keyboard-enters-time-off-and-reaches-request-type.jpg",
+          "sha256": "9893460c6745f17a32753dc55bd442811a384684d5af25392a139ac79847cfe1",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 2,
+          "action": "keyboard opens request-type menu",
+          "expected_visible_result": "Enter opens the branded option list and keeps focus inside the custom control.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-02-keyboard-opens-request-type-menu.jpg",
+          "sha256": "02c50bf90195b83e506b1fb1ff42c65ed4afdff901fc27d42a67101ea7bf3407",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 3,
+          "action": "keyboard focuses unpaid option",
+          "expected_visible_result": "End moves the visible focus ring to the Unpaid option without selecting it prematurely.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-03-keyboard-focuses-unpaid-option.jpg",
+          "sha256": "49e937b3e52c6097318e494a2b058e48d097e91761ca6b1bf71b48b5d98d2d4b",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 4,
+          "action": "keyboard selects unpaid type",
+          "expected_visible_result": "Enter selects Unpaid and closes the branded list.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-04-keyboard-selects-unpaid-type.jpg",
+          "sha256": "3d56f5654589368adc6020c7319203c0ead013d47bcb4cb3172a5cbfc131fd33",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 5,
+          "action": "keyboard reaches start-date control",
+          "expected_visible_result": "Natural Tab order reaches the branded start-date button with a visible focus ring.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-05-keyboard-reaches-start-date-control.jpg",
+          "sha256": "0dd379678dfdcf35cdbf7bcfb5bd72e988eb58d2398199ce9f745142e550945e",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 6,
+          "action": "keyboard opens start-date calendar",
+          "expected_visible_result": "Enter opens the branded calendar and visibly focuses a date.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-06-keyboard-opens-start-date-calendar.jpg",
+          "sha256": "ce3c9a07300c746ebbdd852efebb96063df19295cb88815d347703622f4e512b",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 7,
+          "action": "keyboard chooses start date",
+          "expected_visible_result": "Arrow/Page navigation and Enter select the exact start date and close the calendar.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-07-keyboard-chooses-start-date.jpg",
+          "sha256": "4d459644b84b1ad07c55fe1dde5347eed313643a9a8e04ef393cae8f0724e9f9",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 8,
+          "action": "keyboard reaches end-date control",
+          "expected_visible_result": "Natural Tab order reaches the branded end-date button with a visible focus ring.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-08-keyboard-reaches-end-date-control.jpg",
+          "sha256": "a0f7019f59f9db309b3b35710a70eb097246432da83da3e2bca674d4c7f471a6",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 9,
+          "action": "keyboard opens end-date calendar",
+          "expected_visible_result": "Enter opens the end-date calendar without losing visible keyboard focus.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-09-keyboard-opens-end-date-calendar.jpg",
+          "sha256": "8ea75946bbe0870c92486372213b32f16faa0ab57246c8f7d5def6bb003af7f1",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 10,
+          "action": "keyboard chooses end date",
+          "expected_visible_result": "Enter chooses the exact end date and the one-day quote becomes available.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-10-keyboard-chooses-end-date.jpg",
+          "sha256": "f63f67f625f5f773cb09dc2316037bc59072ce46cd135a0f054d0de304aa2228",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 11,
+          "action": "keyboard reaches request note",
+          "expected_visible_result": "Natural Tab order reaches the note field with a visible focus ring.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-11-keyboard-reaches-request-note.jpg",
+          "sha256": "089d566a4eafb2f292639ea0b2932c6e451325d9915bbc55124efbd95a0ed824",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 12,
+          "action": "keyboard types request note",
+          "expected_visible_result": "Typing visibly fills the note field without moving focus.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-12-keyboard-types-request-note.jpg",
+          "sha256": "4233274be2a68b9fa0172130c952f1d2745d79e202ed7901a5c24dc65affe57b",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 13,
+          "action": "keyboard reaches send button",
+          "expected_visible_result": "Natural Tab order reaches Send request with a visible focus ring.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-13-keyboard-reaches-send-button.jpg",
+          "sha256": "68dbc4ff1bf4de8e8b40dafbb7e8eae535dd0d9ec529dbde165d940b94612e21",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 14,
+          "action": "keyboard submits request",
+          "expected_visible_result": "Enter sends exactly one request and lands on a visible Pending row.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-14-keyboard-submits-request.jpg",
+          "sha256": "7a48fb0fb921d298a826001aa654404874b75b22bfaa6274f6e1e52c63ddecca",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 15,
+          "action": "keyboard enters Kasper decision note",
+          "expected_visible_result": "Tab and Enter open Kasper Time Off, then natural tab order reaches the exact request note with visible focus.",
+          "persona": "admin-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-15-keyboard-enters-kasper-decision-note.jpg",
+          "sha256": "6aac60caa6479ceea9d1ea5f2643539bc78a1af2a0ce5dea44255902fa5a68b0",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 16,
+          "action": "keyboard types decision note",
+          "expected_visible_result": "Typing visibly fills the exact Kasper decision-note field without changing state.",
+          "persona": "admin-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-16-keyboard-types-decision-note.jpg",
+          "sha256": "c52ef901a7455eeaa4e6c6b1f101119e846b668b102dd0b6535ec852b06c6f5b",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 17,
+          "action": "keyboard reaches Approve",
+          "expected_visible_result": "Tab reaches Approve with a visible focus ring and does not decide yet.",
+          "persona": "admin-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-17-keyboard-reaches-approve.jpg",
+          "sha256": "4e63052f0265934a47fad3064568f07805ffd2853502ef0238ea686fc691ea9c",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 18,
+          "action": "keyboard reaches Deny",
+          "expected_visible_result": "A second Tab reaches the distinct Deny action with a visible focus ring.",
+          "persona": "admin-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-18-keyboard-reaches-deny.jpg",
+          "sha256": "4f1a8ed76ef91937c3469d8e242ed179c3a627abead52a2f09dc39c6eabe29b4",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 19,
+          "action": "keyboard denies request",
+          "expected_visible_result": "Enter saves exactly one denial and the Recent Decisions count updates.",
+          "persona": "admin-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-19-keyboard-denies-request.jpg",
+          "sha256": "99cc23034860169281d5b9c511a0a3f58dcba7d045ff7b183fd0d07dabf704ac",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 20,
+          "action": "keyboard opens recent decision",
+          "expected_visible_result": "Tab and Enter expand Recent Decisions and reveal the exact denied request and note.",
+          "persona": "admin-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-20-keyboard-opens-recent-decision.jpg",
+          "sha256": "3ebdba41598c85355ae15dff430011b7c510bc538cba9aeb691307a33ca796eb",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        },
+        {
+          "scenario": "keyboard-only-journey",
+          "step": 21,
+          "action": "keyboard staff sees denial",
+          "expected_visible_result": "After a keyboard-activated Refresh, the staff history shows the Denied result and decision note.",
+          "persona": "staffA-keyboard",
+          "profile": "keyboard-only",
+          "viewport": {
+            "width": 1360,
+            "height": 920
+          },
+          "file": "screenshots/keyboard-only-journey-21-keyboard-staff-sees-denial.jpg",
+          "sha256": "82edc0e0bbcecda1fd975487ddaba10b6783ddd4bca2f49d0e133416ad32519b",
+          "visual_verdict": "ok",
+          "visual_note": ""
+        }
+      ]
+    }
+  ]
+}

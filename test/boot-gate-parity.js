@@ -74,13 +74,33 @@ if (gateFast && appFast) {
   check('gate FAST === init FAST_TABS (' + norm(appFast) + ')', norm(gateFast) === norm(appFast));
 }
 
-// 4. The strict sxr boot flag: the gate's copy must match the app's inline
-//    boot-path copies token-for-token (there are two app-side copies: the
-//    #sample-reviews deep link and the ?c= sxr portal).
-const SXR_EXPR = "(sv === '1' || sv === 'true') || (sv !== '0' && sv !== 'false' && localStorage.getItem('syncview_sxr_on') === '1' && localStorage.getItem('syncview_sxr_off') !== '1')";
-check('gate carries the strict sxr boot flag', GATE.includes(SXR_EXPR));
-check('app still has >=2 inline strict sxr boot checks (deep link + portal)',
-  count(APP, "localStorage.getItem('syncview_sxr_on') === '1'") >= 2);
+// 4. The sxr boot flag: the gate's copy must match the app's inline boot-path
+//    copies token-for-token (two app-side copies: the #sample-reviews deep link
+//    and the ?c= sxr portal), and ALL copies must carry _sxrEnabled()'s GA
+//    default-ON semantics. F73: the old strict default-OFF copies (which also
+//    required the legacy 'syncview_sxr_on' key) broke fresh-browser deep links
+//    and reloads while _sxrEnabled() was already default-on — a copy that reads
+//    'syncview_sxr_on' is the regression this section exists to catch.
+const SXR_EXPR = "(sv === '1' || sv === 'true') || (sv !== '0' && sv !== 'false' && localStorage.getItem('syncview_sxr_off') !== '1')";
+const SXR_EXPR_INLINE = SXR_EXPR.replace(/\bsv\b/g, '_q');
+check('gate carries the GA default-on sxr boot flag', GATE.includes(SXR_EXPR));
+check('app has >=2 inline GA default-on sxr boot checks (deep link + portal)',
+  count(APP, SXR_EXPR_INLINE) >= 2);
+check('no boot copy reads the legacy syncview_sxr_on key (stale default-OFF gate)',
+  !GATE.includes("localStorage.getItem('syncview_sxr_on')")
+  && count(APP, "localStorage.getItem('syncview_sxr_on')") === 0);
+check('gate sxr copy defaults ON when storage throws (catch returns true, like _sxrEnabled)',
+  /var sxrOn = function \(\) \{[\s\S]{0,400}catch \(e\) \{ return true; \}/.test(GATE));
+
+// 4b. Semantic cases for the shared expression — the routes F73 broke.
+function evalSxr(sv, offVal) {
+  const storage = { getItem: (k) => (k === 'syncview_sxr_off' ? offVal : null) };
+  return Function('sv', 'localStorage', 'return ' + SXR_EXPR)(sv, storage);
+}
+check('semantic: fresh browser (no ?sxr, empty storage) boots samples ON', evalSxr(null, null) === true);
+check('semantic: ?sxr=0 opts out', evalSxr('0', null) === false);
+check('semantic: sticky opt-out (syncview_sxr_off=1) honored', evalSxr(null, '1') === false);
+check('semantic: ?sxr=1 overrides the sticky opt-out', evalSxr('1', '1') === true);
 
 // 5. Lift points: every removable tag the gate sets must have its app-side lift.
 check('gate can set data-boot-nav', GATE.includes("de.setAttribute('data-boot-nav'"));

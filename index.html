@@ -2788,7 +2788,7 @@
         .prod-project-detail .prod-detail-inner { width: 100%; max-width: none; margin: 0; padding-right: 32px; }
         .prod-detail-id { margin-bottom: 10px; font-size: 13px; font-weight: 450; color: var(--prod-muted); letter-spacing: 0; }
         .prod-detail-title { margin: 0 0 14px; font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: 0; color: var(--prod-text); }
-        .prod-detail-context { margin: -2px 0 22px; min-width: 0; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; color: var(--prod-muted); font-size: 12.5px; line-height: 20px; }
+        .prod-detail-context { margin: 2px 0 10px; min-width: 0; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; color: var(--prod-muted); font-size: 12.5px; line-height: 20px; }
         .prod-detail-context-link, .prod-context-project { min-width: 0; border: 0; border-radius: 6px; background: transparent; color: var(--prod-strong); font: inherit; padding: 1px 3px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
         .prod-detail-context-link:hover, .prod-context-project:hover { background: var(--prod-hover); }
         .prod-detail-context-link b { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -38724,8 +38724,9 @@
             const subSection = _prodSubIssuesSectionHTML(kids);
             const descLoaded = !!d.descLoaded || (_prodState.linearRaw.has(d.id) && _prodState.linearRaw.get(d.id) !== null);
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
-                + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div><h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
+                + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div>'
                 + _prodSubIssueContextHTML(d, parent)
+                + '<h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
                 + '<div class="prod-desc">' + _prodDescriptionHTML(d.desc, descLoaded, 'No description.', true) + '</div>'
                 + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" data-prod-file-link="1" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener" title="' + _calEscAttr(file) + '">' + _calEsc(_prodFileLinkLabel(file)) + '</a></p>' : '')
                 + subSection

@@ -375,6 +375,16 @@ async function assertNoWriteRequests(requests) {
     }
     await expectExactCount(page, '.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]', 0, 'fake topbar favorite/notification controls');
 
+    const subIssueOrder = await page.evaluate(() => {
+      const child = window._prodIssues().find(i => i.parent);
+      if (!child) return 'no-sub-issue';
+      window._prodOpenDeliverable(child.id);
+      const ctx = document.querySelector('.prod-detail-context');
+      const title = document.querySelector('.prod-detail-title');
+      if (!ctx || !title) return 'missing:' + (!ctx ? 'context ' : '') + (!title ? 'title' : '');
+      return ctx.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING ? 'above' : 'below';
+    });
+    if (subIssueOrder !== 'above' && subIssueOrder !== 'no-sub-issue') throw new Error('Sub-issue parent breadcrumb must render above the detail title (Linear placement), got: ' + subIssueOrder);
     await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
     await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
     const linkified = await page.evaluate(() => _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com\n---\n## Client Resources\n**Instagram: [theopenposturedoc](<https://www.instagram.com/theopenposturedoc/#>)**\n**Brand Guidelines:** **[Document](<https://docs.google.com/document/d/abc/edit>)\n****Personal Pictures:** [**Folder**](<https://drive.google.com/drive/folders/abc>)'));

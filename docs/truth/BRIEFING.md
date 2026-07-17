@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-16 @ bb0ee4b (current-state reconciliation through F138; flag story: write_ui_reroute_clients + pto_v1 added)
+> Last verified: 2026-07-17 @ 2703ccd (current-state reconciliation through F141; first /site-assurance run — coverage state in docs/testing/ASSURANCE_LEDGER.md)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -98,6 +98,12 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   browser-owned recovery (F133/F134); Calendar/Samples reorder has no touch/keyboard path (F135);
   creatives can regress reviewer/terminal work (F136); Video assets collapse into one mislabeled
   link (F137); and persisted native activity is never loaded or shown (F138).
+- The samples nightly has been red since 2026-07-13 with two deterministic open staff-workflow
+  defects nobody triaged: Kasper Finish stays disabled after a graphic tweak request (F140) and a
+  drag reorder can be lost with DOM and DB agreeing on the wrong order (F141). A stored UUID-form
+  Linear link also poisons the shared status batch and intermittently fails the 15-min calendar
+  reconcile (F139; repo-side fix staged). Check `docs/testing/ASSURANCE_LEDGER.md` — the per-surface
+  proof ledger — before trusting any "surface X works" claim.
 - Known standing hazard: several credentials remain exposed (per-SMM Linear API keys in a
   publicly readable sheet tab and the house Linear key in legacy n8n). F52 reverified one
   reachable Graphics title-generation workflow carrying a plaintext provider key across all 50

@@ -6,6 +6,8 @@ on:
       - 'index.html'
       - 'package.json'
       - 'docs/syncview-design/tests/pto-ui-polish.js'
+      - 'qa/pto-lifecycle/**'
+      - 'docs/audits/2026-07-17-pto-lifecycle-simulation/**'
       - 'supabase/functions/pto/**'
       - 'supabase/functions/_shared/staff-role-auth.ts'
       - 'migrations/*pto*.sql'
@@ -17,6 +19,8 @@ on:
       - 'index.html'
       - 'package.json'
       - 'docs/syncview-design/tests/pto-ui-polish.js'
+      - 'qa/pto-lifecycle/**'
+      - 'docs/audits/2026-07-17-pto-lifecycle-simulation/**'
       - 'supabase/functions/pto/**'
       - 'supabase/functions/_shared/staff-role-auth.ts'
       - 'migrations/*pto*.sql'
@@ -33,7 +37,7 @@ concurrency:
 jobs:
   synthetic-browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -50,3 +54,7 @@ jobs:
         run: deno check --node-modules-dir=auto supabase/functions/pto/index.ts
       - name: Run synthetic PTO interactions
         run: npm run test:pto-ui
+      - name: Run stateful PTO lifecycle simulation
+        run: npm run test:pto-lifecycle
+      - name: Validate committed PTO lifecycle evidence
+        run: node qa/pto-lifecycle/run.js --validate-public-evidence

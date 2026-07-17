@@ -1,0 +1,507 @@
+{
+  "desktop-full-lifecycle-01-open-staff-time-off.jpg": {
+    "sha256": "01f4fcbe583b8b394368a628c378213617f44b9b9c8c28471b97f06cfaeb3b15",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-02-open-branded-request-type-menu.jpg": {
+    "sha256": "f501bab68fc5527901f64992163e0e095a1920d2bbd100301c61a961e6f629e8",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-03-choose-unpaid-request-type.jpg": {
+    "sha256": "1648861e39c7fbcaa5e67e331a86e7348fe9f8d1e8609163abeaccb4e1f9a9d6",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-04-open-branded-start-date-calendar.jpg": {
+    "sha256": "e520d539735ad09bd48b93a9d5debd5eff59c1feac7297f534605bc13fbff7a1",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-05-choose-near-start-date.jpg": {
+    "sha256": "8e78f092d961cd63c39b9964d444f9e5bf961ecd011027a7cbcad97180638761",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-06-open-branded-end-date-calendar.jpg": {
+    "sha256": "e6ae4416a32e010a56359c28d47c258bfbad79458d564b548e934c24a46d5acb",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-07-quote-a-near-range.jpg": {
+    "sha256": "e3e31feeaed6fa8a5d204c09b2052bde0cf70fd571f91a820caadaaa6b10c758",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-08-decrease-the-quoted-day-count.jpg": {
+    "sha256": "62bc0ee9bd65fb90500f0b99f8931431fa35e7da7e5a0176f8e2615f0e2748f2",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-09-restore-the-full-quoted-day-count.jpg": {
+    "sha256": "75a1f817e6d7e8f5992c966176c1128624e1514a3c14da4c26e6da42001c75cb",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-10-enter-a-request-note.jpg": {
+    "sha256": "c7cdf567d68c505935fc8d03059e7cd35bf785ed16dd8bd5dca5c3a76095c36c",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-11-clear-the-request-note-draft.jpg": {
+    "sha256": "575221bad4e55162f526b1315b7d9efef1bcc8b82edd138506db70f5330fd0c5",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-12-quote-a-far-range.jpg": {
+    "sha256": "94e24e0348ddbcb20c9095514905e961187703f186e442b88610f14b805cbeea",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-13-submit-wellness-request.jpg": {
+    "sha256": "f9ec0d790b0e2cf212dbbb1a02fed967056f3be6a41d1459c5c43ce8f6e2f10f",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-14-kasper-opens-pending-queue.jpg": {
+    "sha256": "936eabf9328007086c7c54199ad085da231fea445a31613621c7b75d0266eab0",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-15-enter-wellness-approval-note.jpg": {
+    "sha256": "72d006faaa954928169354f2e8c688698f7ce2651bbb66ecdb742423c679ab38",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-16-approve-wellness-request.jpg": {
+    "sha256": "e6705fd7cb5bfa65e0d2bd2bac1ac76162723acfbd7cc4ea17cedd8267c2b964",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-17-staff-refreshes-after-approval.jpg": {
+    "sha256": "ea4606927fc5066c9c6b8cee6815835a0a4896370bd9f3857d1831d6ab6a64eb",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-18-inspect-approved-team-calendar.jpg": {
+    "sha256": "5a8076f2c5e2bca1171cb8c150763ee2ba3ad8571582711d93e893df079fa521",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-19-open-approved-leave-cancellation-confirmation.jpg": {
+    "sha256": "0bc2fee3d67bd060e4c6e620872bf1c5c3d86e8ef2af2e6ee9891dc3a7c49ea8",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-20-confirm-admin-cancellation.jpg": {
+    "sha256": "932324caf4b74338d809a17ba3ec338fb425c3d0c2e7f0f2cae5bba51a14f091",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-21-staff-refreshes-after-admin-cancellation.jpg": {
+    "sha256": "ff9fecbe45973fb319c7d1fc77607aee2eb21ceb8936910e1273942400f52965",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-22-submit-backdated-sick-request.jpg": {
+    "sha256": "784193515b3c50d288ed7418b3501a235e32d9919c4db2f57f18f2361262198a",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-23-approve-backdated-sick-request.jpg": {
+    "sha256": "8a0040318223a31cb07ac94de16b4a2dece181009545776cfa6ff7ab33932cf9",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-24-staff-sees-sick-decision.jpg": {
+    "sha256": "cfa86ac3762e423d30a49b90db28ffa0a55a733f30f5a68207e857892a5c5dc4",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-25-submit-unpaid-request.jpg": {
+    "sha256": "9ef14272269c92ab964fc0b85bd42089b039c1794bca8539b0459b0d311b07a2",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-26-enter-unpaid-denial-note.jpg": {
+    "sha256": "f0302260271737ca6b826469c186a0db47e76a1650e5eda387b1ef1686bfb724",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-27-deny-unpaid-request.jpg": {
+    "sha256": "862ee318054b8aeef510a5ac37c4ca119c986b8291ac2974dad3ee451dae94ed",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-28-submit-floating-holiday.jpg": {
+    "sha256": "0a09748dae5c43c6152df3d3afd9c5b44cbfbcd66050d3e3c664ea2c1e403b8f",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-29-stale-tab-tries-a-second-floating-holiday.jpg": {
+    "sha256": "f6d75529eccda910f8e5ebd9954ae234648d9c951a6b93f9f4a58809db46f30e",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-30-approve-floating-holiday.jpg": {
+    "sha256": "b35a41dbe37c4860f4baff9b9a8d7f11918d33f6576b5751cbfc55dd2afa80ff",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-31-staff-sees-floating-holiday-used.jpg": {
+    "sha256": "098dc3ea4aa340c6c1a8ce9d8aafd05761267dd8b302301cdc4b8a436fed86ff",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-32-submit-half-day-pending-request.jpg": {
+    "sha256": "0e75110df22cffc1b037ca07c07b01c8c12d369faf0d4cde35ef6a83d5cbe44f",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-33-open-pending-request-cancellation-confirmation.jpg": {
+    "sha256": "bc133412be60241f8e64d7919c2fb7ff03923ae6357348ec4390b5e71a7ef307",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-34-confirm-own-pending-cancellation.jpg": {
+    "sha256": "241f46a981cd40342a7720f5e8c8e8337492c3f343ec3c4c9551cde6f1a2a6f0",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-35-try-request-above-available-balance.jpg": {
+    "sha256": "0eb0d634b72b1f0eee3baa6d3a7517be86664d4270334afb9b5d862369fd19ec",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-36-second-same-role-staff-submits-unpaid.jpg": {
+    "sha256": "977cb8ad591e0c0470d174b9b8ed2fe433ce116f415642dd7c64d98a6585f58a",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-37-inactive-member-approval-is-blocked.jpg": {
+    "sha256": "f6d2293c50e0dbd12107943b89a69dcfb98ad444ad9312b50a145f6ae995794f",
+    "verdict": "ok",
+    "note": ""
+  },
+  "desktop-full-lifecycle-38-deny-inactive-request-for-cleanup.jpg": {
+    "sha256": "fe2194006b22b9341b259f9434e43c7593e966205fbaa669ab44929c1d2ea6ff",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-01-server-500-shows-retryable-error.jpg": {
+    "sha256": "8d06e27add217fe0cba62e2aa04254045c6d43a07cc3a30988ccd3a6ffdeb4d5",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-02-retry-succeeds-after-500.jpg": {
+    "sha256": "ffc8ca26cd8da01a49056c3cd2103f88c433309c337eb09a5a594beddfd866c8",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-03-connection-drop-locks-unknown-write-outcome.jpg": {
+    "sha256": "d0e7b14b97998cd75e7e50f57d344efabc2b7b8c50e94149355a44d2cb9e6e7b",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-04-refresh-reconciles-connection-drop.jpg": {
+    "sha256": "504b397cb37eecb88a3653d850cca64bb58d6c08b935265d749a5c069862acef",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-05-saved-request-loses-its-response.jpg": {
+    "sha256": "0efdbea28833d57657722ad239c8fb8c3cd1d09a6b6c1de1684bfbb6698c3599",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-06-refresh-finds-the-saved-request-once.jpg": {
+    "sha256": "2b5c3d6ccdce027d2d6e4b61f7f71dacd00cefb4ba701f77d6dea2da21ce0b30",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-07-slow-request-stays-visibly-in-flight.jpg": {
+    "sha256": "153e1755f04d40e7e99f094bde8eb0a5ec59224d2ea31937da4f96d7ffbba3e7",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-08-slow-request-completes-once.jpg": {
+    "sha256": "12d747db624abf65648b9c65e690548aaddf20d765f9e1fe894ddad37757ac53",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-09-hung-request-times-out-into-safe-lock.jpg": {
+    "sha256": "734cdfbedc19b2c19dc4ac2ff3f84dcc42dddbf2b43f3a769d6be7ce72d220ec",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-10-refresh-clears-hung-request-lock.jpg": {
+    "sha256": "3932462813ef9d7b3e270925d7e8047f8e4e2752d8a508025f7b9f606074ebe2",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-11-double-click-send-request.jpg": {
+    "sha256": "55911c489c4ac85a5e48e5ca1625b237d51363a82de32e9a811e32bb8c327540",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-12-submit-request-in-first-tab.jpg": {
+    "sha256": "fee672bbafba25ac9e5142b8db43c15be7878518887c59528580259b30dd837e",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-13-second-tab-refreshes.jpg": {
+    "sha256": "2896d3a7f2ca7a15eba14013599136f4550954bcbfdadf63f162a951ad7574a2",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-14-second-tab-cancels-pending-request.jpg": {
+    "sha256": "d2b70f1a3bb98fca257a3d1992348c3a10cc8b755dfcea209e31e63c77d9f423",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-15-first-tab-refreshes-after-cancellation.jpg": {
+    "sha256": "9d68c712a21f4ba45432463deb7008ab27a25a7549b383569783959fd19fe0b0",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-16-sign-out-with-a-draft-in-progress.jpg": {
+    "sha256": "5aeda725dfb080b3231d885ef860abec6e1d2472233616eecc31d490de1218bc",
+    "verdict": "ok",
+    "note": ""
+  },
+  "resilience-session-and-tabs-17-sign-in-as-second-same-role-persona.jpg": {
+    "sha256": "ce7b2d238f24bb72210a5e7acb472a3e4d61583f465804cb741db5b7bf84dc07",
+    "verdict": "ok",
+    "note": ""
+  },
+  "policy-time-travel-01-before-month-rollover.jpg": {
+    "sha256": "d50692ced315b30330ed999783ce5accb1c29937c53895dd708bcd3734374a6e",
+    "verdict": "ok",
+    "note": ""
+  },
+  "policy-time-travel-02-month-rollover-half-day-grant.jpg": {
+    "sha256": "731cd13e4ee3f86c4db66b23daea8cb999b3345ee7f46917234f08388f7028f0",
+    "verdict": "ok",
+    "note": ""
+  },
+  "policy-time-travel-03-last-day-of-lower-rate-month.jpg": {
+    "sha256": "432255955916d7797f254f552c7ebb581bcc925f7cb8cc67215d0b5d4dc12b2c",
+    "verdict": "ok",
+    "note": ""
+  },
+  "policy-time-travel-04-first-upper-rate-monthly-grant.jpg": {
+    "sha256": "792c0ac3769cd3d04d3e7078d010260af19755fd029429a45186fa960e170455",
+    "verdict": "ok",
+    "note": ""
+  },
+  "policy-time-travel-05-last-day-before-anniversary.jpg": {
+    "sha256": "8141f1d21ddb2651a135624b9e5648a5287eec664ac54391d94569071c23453a",
+    "verdict": "ok",
+    "note": ""
+  },
+  "policy-time-travel-06-anniversary-reset.jpg": {
+    "sha256": "68ca8d40f19467890d72fcd67db111fddf5843c407ed43971b1d99b11e660721",
+    "verdict": "ok",
+    "note": ""
+  },
+  "policy-time-travel-07-first-post-reset-monthly-grant.jpg": {
+    "sha256": "4660178b61ff716adf39e0cfa4bcae5b3a4e28848781d04693b13daeee756f44",
+    "verdict": "ok",
+    "note": ""
+  },
+  "policy-time-travel-08-guatemala-18-00-stays-on-the-local-policy-date.jpg": {
+    "sha256": "03bf5b4d0324b615732c288830946672187db5ad890eb94d24ad7d9456674f23",
+    "verdict": "ok",
+    "note": ""
+  },
+  "policy-time-travel-09-guatemala-23-59-stays-on-the-local-policy-date.jpg": {
+    "sha256": "6f84dfc411c5a3e94deba08599ba7160dad405eb1ef421708083b88ea127484e",
+    "verdict": "ok",
+    "note": ""
+  },
+  "policy-time-travel-10-guatemala-midnight-advances-the-policy-date.jpg": {
+    "sha256": "968067c72bfb7fa31829b4f72d6b2d1b7a24e3589eded9f622bcef8f3ed7d4bc",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-01-tap-open-the-mobile-staff-menu.jpg": {
+    "sha256": "cfebdc3ef41a51ab1c09acb96e49dc551c783f60be1cd4bcff25866f4889259a",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-02-tap-time-off-in-the-mobile-staff-menu.jpg": {
+    "sha256": "4780de0c31c3140d89322a1cd819d358af876e8c7f6a0f45d50dfa1551400209",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-03-tap-open-the-mobile-request-type-menu.jpg": {
+    "sha256": "401a86f92bb846990c4a63ce6b87e38950deb8160e2a0bd5b1a8d3b5877e37b7",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-04-tap-the-mobile-unpaid-option.jpg": {
+    "sha256": "52e752203899ecc81f61da410c1ca6ff576d5412e6efab3f02bf89e600b3fbce",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-05-tap-open-the-mobile-date-calendar.jpg": {
+    "sha256": "238b508c7a599855f89326afe71e7ae5994aeb15b48c639d3f4fc663be993e57",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-06-tap-the-mobile-calendar-next-month-arrow.jpg": {
+    "sha256": "2c22fac04f7ff368a3170033568c3ccce5ffe7fffc6c771fd35302139b7aa6f1",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-07-tap-the-mobile-request-date.jpg": {
+    "sha256": "619bea7b9e55aa3004212558262280c76923fa8a7bb6587aecaec7362535804c",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-08-tap-open-the-mobile-end-date-calendar.jpg": {
+    "sha256": "dd3059077d3cc17ccf7d1e3dc745bceb556afc1233ed8e9a628d598da8eec510",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-09-tap-the-matching-mobile-end-date.jpg": {
+    "sha256": "fdedf8390febdb38c1c958ca27e531388d3f3dfbdc436dedf3d9d59007022562",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-10-tap-the-mobile-half-day-arrow.jpg": {
+    "sha256": "f9babee6d6c07f0f0dcaeecf18c247b2114ec40631e51342d15784de78aa7bef",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-11-tap-the-mobile-full-day-arrow.jpg": {
+    "sha256": "6574831b4a9ba71be69eb375a9b87e59ac2136c6027c05e03c8723451499067f",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-12-enter-the-mobile-request-note.jpg": {
+    "sha256": "81298f65faea8b81ba1aa5f92898c957ba9fbcbe402bf8dc3285b973b35fc37c",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-13-submit-mobile-unpaid-request.jpg": {
+    "sha256": "9c5000bd693d78c2b1391bb59467c1e152b09ef5c3470615eccb817ae9376ffd",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-14-kasper-approves-on-mobile.jpg": {
+    "sha256": "bc48fb8ac7c9cfac590ce511d22e19dab150a7c3555cbcfbf6e2024aa533cf2f",
+    "verdict": "ok",
+    "note": ""
+  },
+  "mobile-390-happy-path-15-mobile-staff-sees-approved-result.jpg": {
+    "sha256": "537450aa71b13875eb1837149ea45024d7c6dcff077878c2ffe35fb08b587d0f",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-01-keyboard-enters-time-off-and-reaches-request-type.jpg": {
+    "sha256": "9893460c6745f17a32753dc55bd442811a384684d5af25392a139ac79847cfe1",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-02-keyboard-opens-request-type-menu.jpg": {
+    "sha256": "02c50bf90195b83e506b1fb1ff42c65ed4afdff901fc27d42a67101ea7bf3407",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-03-keyboard-focuses-unpaid-option.jpg": {
+    "sha256": "49e937b3e52c6097318e494a2b058e48d097e91761ca6b1bf71b48b5d98d2d4b",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-04-keyboard-selects-unpaid-type.jpg": {
+    "sha256": "3d56f5654589368adc6020c7319203c0ead013d47bcb4cb3172a5cbfc131fd33",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-05-keyboard-reaches-start-date-control.jpg": {
+    "sha256": "0dd379678dfdcf35cdbf7bcfb5bd72e988eb58d2398199ce9f745142e550945e",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-06-keyboard-opens-start-date-calendar.jpg": {
+    "sha256": "ce3c9a07300c746ebbdd852efebb96063df19295cb88815d347703622f4e512b",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-07-keyboard-chooses-start-date.jpg": {
+    "sha256": "4d459644b84b1ad07c55fe1dde5347eed313643a9a8e04ef393cae8f0724e9f9",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-08-keyboard-reaches-end-date-control.jpg": {
+    "sha256": "a0f7019f59f9db309b3b35710a70eb097246432da83da3e2bca674d4c7f471a6",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-09-keyboard-opens-end-date-calendar.jpg": {
+    "sha256": "8ea75946bbe0870c92486372213b32f16faa0ab57246c8f7d5def6bb003af7f1",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-10-keyboard-chooses-end-date.jpg": {
+    "sha256": "f63f67f625f5f773cb09dc2316037bc59072ce46cd135a0f054d0de304aa2228",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-11-keyboard-reaches-request-note.jpg": {
+    "sha256": "8ddf101b5f29400730509e09d9ded912dfc89053f7173bdb4c8adf943f6dcc43",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-12-keyboard-types-request-note.jpg": {
+    "sha256": "18adf84a0cec67138de6bfcc60cbbb02f39dd03bb9bbc873e59ca54cc63a44a0",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-13-keyboard-reaches-send-button.jpg": {
+    "sha256": "68dbc4ff1bf4de8e8b40dafbb7e8eae535dd0d9ec529dbde165d940b94612e21",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-14-keyboard-submits-request.jpg": {
+    "sha256": "7a48fb0fb921d298a826001aa654404874b75b22bfaa6274f6e1e52c63ddecca",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-15-keyboard-enters-kasper-decision-note.jpg": {
+    "sha256": "51e38d842d188a554eedbe802197975795fd7e9cb04e45c23ddc95d431fa918e",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-16-keyboard-types-decision-note.jpg": {
+    "sha256": "c9ce8dffaab51f6629c715b117c0da9b74447891adc0f4e66d3a936fa936d277",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-17-keyboard-reaches-approve.jpg": {
+    "sha256": "d549456b1d3ee207206629948d0480268d0bce57379b3c606f63d7433e0ec1e7",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-18-keyboard-reaches-deny.jpg": {
+    "sha256": "8d0d6b40f1c59b92173a7b726f42c9939fe703e796b0d48889b118c2c2d435e6",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-19-keyboard-denies-request.jpg": {
+    "sha256": "6664761630f1296fe3b1b462e6c0aa846b66721265cd26e12006c87e5c39be7c",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-20-keyboard-opens-recent-decision.jpg": {
+    "sha256": "3ebdba41598c85355ae15dff430011b7c510bc538cba9aeb691307a33ca796eb",
+    "verdict": "ok",
+    "note": ""
+  },
+  "keyboard-only-journey-21-keyboard-staff-sees-denial.jpg": {
+    "sha256": "82edc0e0bbcecda1fd975487ddaba10b6783ddd4bca2f49d0e133416ad32519b",
+    "verdict": "ok",
+    "note": ""
+  }
+}

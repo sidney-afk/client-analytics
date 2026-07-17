@@ -10,6 +10,7 @@ only remember one file about testing, remember this one.
 | **Live-backend QA** | `test/`, `qa/` (probes, scenarios, master) | Mutating the backend is *expected* — but ONLY the test client `sidneylaruel`, unique ids, archive on exit, Linear always mocked, 0 app JS errors | `HEADLESS-TESTING-GUIDE.md` §5 (+ the mocked-Linear / 0-JS-errors clauses in `qa/MASTER_TESTER.md` → Safety) |
 | **Production locked-state safety** | `prod-readonly-smoke.js` and authority-aware guard coverage | Read-only live observation is allowed, including the bounded comment-read POST; ZERO live mutations, runtime-flag changes, n8n writes, or Linear writes; guarded controls stay guarded | `AGENTS.md` + `docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md` §10.8 |
 | **Production native-write capability** | `test/production-write-ui-source.js` and `prod-write-gateway-browser.js` | Status/comment/due/assignee are real authority-gated capabilities. Browser coverage uses a fully intercepted local mock only; it proves role/team/authority/TEST/CAS/stale-tab behavior without reaching a live backend | `docs/truth/APP.md` + `ROLLBACK.md` write-UI rows |
+| **PTO lifecycle simulation** | `qa/pto-lifecycle/` | Lane A is fully intercepted and synthetic, but uses the production PTO policy engine; Lane B is opt-in and may touch only pre-existing dedicated TEST identities, one disposable unpaid request, and exact cleanup in `finally`. Live screenshots stay untracked and no HR values are printed. | `qa/pto-lifecycle/README.md` |
 
 The TEST client, locked mirror state, and mocked writable state answer different questions:
 "which live fixture may a probe mutate?", "does a locked tab stay network-read-only?", and "does
@@ -32,10 +33,12 @@ no design-kit suite may send a live mutation.
 |---|---|---|
 | `npm test` | Every `test/*.js` — offline pure-logic suites, auto-discovered (includes `test/port-fidelity-check.js` and `test/repo-map-sync.js`) | Every push (CI) and before every commit |
 | `npm run test:e2e` | Live probes in `qa/probes/nightly-manifest.txt` | Nightly CI; on demand |
-| `npm run test:master` | `qa/master.js` fast profile (smoke subset + visual capture); `npm run test:master:full` runs every lane — see `qa/MASTER_TESTER.md` | Big changes; nightly subset |
+| `npm run test:master` | `qa/master.js` fast profile (smoke subset + visual capture); `npm run test:master:full` runs every master-registered lane — see `qa/MASTER_TESTER.md`. Feature-scoped PTO runs separately. | Big changes; nightly subset |
 | `npm run test:prod-polish` | Aggregate Production gate: boot, structure, locked live-read/zero-mutation smoke, comment reads, fully mocked write gateway, interactions, a11y, layout, behavior, pixels. **F105: aggregate currently red because interaction/heavy still assert the superseded picker-open guard model; the fast PR subset alone is not a go-live pass.** | Any Production-tab change; must be green before go-live |
 | `node docs/syncview-design/tests/prod-readonly-smoke.js` | Production read-only invariant (zero non-GET) | Production parity work; samples nightly |
 | `node docs/syncview-design/tests/prod-write-gateway-browser.js` | Fully mocked authority-gated status/comment/due/assignee capability; no live backend | Production write-gateway or authority work |
+| `npm run test:pto-lifecycle` | Stateful three-person PTO lifecycle, error/retry, tabs/session, responsive/keyboard, and policy time travel; screenshots for each lifecycle action plus transient controls | PTO UI, Edge policy, or lifecycle work; fully mocked and CI-safe |
+| `npm run test:pto-live-drill` | One opt-in production unpaid TEST request → approve → exact delete → zero matching request-row residue | Release drill only; requires dedicated TEST staff/admin private variables and never runs in CI |
 
 ## The six Claude skills (a 2×2 + two conductors)
 

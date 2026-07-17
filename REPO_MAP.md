@@ -61,7 +61,9 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 |---|---|---|
 | `npm test` | `test/run-all.js` → every `test/*.js` (offline, no network) | Runs on every push (`calendar-unit-tests.yml`). Run before every commit. |
 | `npm run test:e2e` | `qa/run-probes.js` → probes in `qa/probes/nightly-manifest.txt` | **Live backend**, test client only. Nightly (`calendar-e2e-nightly.yml`). |
-| `npm run test:master` | `qa/master.js` — all lanes (unit, parity, probes, scenarios, temporal, visual) | Samples nightly runs a lane subset (`samples-e2e-nightly.yml`). |
+| `npm run test:master` | `qa/master.js` — all master-registered lanes (unit, parity, probes, scenarios, temporal, visual); feature-scoped PTO runs separately | Samples nightly runs a lane subset (`samples-e2e-nightly.yml`). |
+| `npm run test:pto-lifecycle` | `qa/pto-lifecycle/run.js` — stateful synthetic PTO human journeys with action/result screenshots and policy time travel | Fully mocked and CI-safe (`pto-ui-tests.yml`); curated synthetic evidence lives in the dated PTO lifecycle audit. |
+| `npm run test:pto-live-drill` | `qa/pto-lifecycle/live-drill.js` — one privately gated disposable unpaid TEST request, approval, exact deletion, zero request-row residue, and flag readback | Local release drill only; never CI, never a real staff profile, screenshots remain untracked. |
 | `npm run test:prod-polish` | `docs/syncview-design/tests/prod-polish-gate.js` — 10 Production-surface suites: locked live-read/zero-mutation, fully mocked authority/write gateway, interaction, behavior, and visual lanes | PR fast gate plus post-merge/scheduled long lanes (`production-polish-gate.yml`); no suite may mutate a live backend. F105 records that the fast PR lane is green while interaction/heavy remain red after the write milestone. |
 | `qa/overnight_runner.sh` | Continuous unattended QA loop | Local only; see the `/overnight-test` skill. |
 | Reconcile crons | `scripts/linear-sync-reconcile.js`, `scripts/sample-linear-reconcile.js`, `scripts/linear-deliverables-reconcile.js`, `scripts/b1-linear-backfill.js` | Scheduled GitHub Actions; `scripts/` also holds tested one-shot ops tools. |
@@ -77,7 +79,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `.github/` | CI workflows (unit, nightlies, prod-polish gate, reconcile crons, edge-function deploy), PR template, Copilot instructions. |
 | `.claude/` | Claude Code config: hooks (README-drift + repo-map reminders) and the six quality skills (`master-test`, `overnight-test`, `human-audit`, `feedback-expansion`, `bug-archaeology`, `site-assurance`) — each a general protocol + target binding; when to use which: `docs/testing/README.md`; the shared prioritization contract: `docs/QUALITY_TIERS.md`. |
 | `test/` | Fast offline unit/wiring suites — auto-discovered by `test/run-all.js` (every `test/*.js` runs; fixtures live in `test/fixtures/`). |
-| `qa/` | Live headless E2E: orchestrators, probes, the scenario engine, shared libs. See `qa/README.md`. |
+| `qa/` | Headless browser QA: live test-client probes/scenarios plus the fully mocked PTO lifecycle simulator and its separately gated disposable live lane. See `qa/README.md`. |
 | `scripts/` | Ops jobs run by CI crons + one-shot migration tools (each guarded by a `test/*.js` counterpart). |
 
 ## Where does a new file go?
@@ -87,6 +89,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - **SQL migration** → `migrations/YYYY-MM-DD-<slug>.sql` (additive-only; log it in `EXECUTION_LOG.md`).
 - **Offline test** → `test/` (it runs automatically; no registration needed).
 - **Live probe** → `qa/probes/` + add it to `qa/probes/nightly-manifest.txt` if it should gate the nightly.
+- **Stateful feature journey** → a feature-scoped folder under `qa/`; make its live-vs-mocked contract explicit and keep any live lane separately gated.
 - **Production-tab (design-kit) test** → `docs/syncview-design/tests/` + wire it into `prod-polish-gate.js` or `package.json`.
 - **Finished / superseded doc** → `docs/archive/` (don't delete history).
 - **New top-level anything** → think twice, then document it here (CI will remind you).

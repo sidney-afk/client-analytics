@@ -330,3 +330,22 @@ identifiers and secrets.
   work. Reconciler logs and external Argos history remain F122 work.
 - **Owner decisions:** OWNER DECISION 2026-07-15: no notification (see D-33); do not rotate
   the shared Form Linear API key without a complete consumer inventory and controlled migration.
+
+### 2026-07-17 bug-archaeology addendum (F142–F144)
+
+History-driven preventive sweep over the last 3 weeks of incidents (`/bug-archaeology`; corpus:
+this register, `EXECUTION_LOG.md` incidents, fix PRs, regression suites). 14 scored candidates,
+8 refuted with evidence, 3 parked undecided, 3 confirmed below. All live checks were read-only
+(OPTIONS preflights and key-only flag reads); no live state was changed by the run.
+
+| ID | Grade | Evidence | Recommended fix | Status |
+|---|---|---|---|---|
+| F142 | P2 | **CONFIRMED-LIVE (read-only OPTIONS probe) + SOURCE.** `thumbnail-folder-resolve`'s `Access-Control-Allow-Headers` (source and deployed) omits `x-syncview-key`, but `_syncviewEfHeaders` (index.html) has attached `X-Syncview-Key` to every signed-in-staff `functions/v1` call since the 2026-07-14 hardening. The browser preflight is rejected, so staff thumbnail-folder resolution silently no-ops (catch → console.warn only; Node callers unaffected — CORS is browser-only, same blindness as the 2026-07-15 share-button incident). The EF's allowlist predates the helper change: two individually-correct changes colliding. | Add `x-syncview-key` to the EF allowlist (parity with `thumbnail-revision-read`) and keep the new class guard `test/ef-cors-allow-headers.js` (derives browser-sent headers from index.html call sites, asserts every targeted EF allowlist covers them). The live EF must then be redeployed manually — no deploy workflow covers `thumbnail-folder-resolve`, and the thumbnail deploy loop is deliberately pinned to two slugs. | OPEN — FIX STAGED (draft PR); LIVE REDEPLOY OWED (manual; not covered by any deploy workflow) |
+| F143 | P1 until the pinned production-write redeploy lands | **CONFIRMED-LIVE (read-only OPTIONS probe).** Deployed `production-write` still serves `Access-Control-Allow-Headers` without `x-syncview-source`; the Part C item-1 source fix (`139a4c8`) is on `main` but the EF is manual-dispatch-only (F06 pinned pair), and no dispatch has run since. The write-UI reroute lane (dark, TEST-only allowlist) sends `X-Syncview-Source` on every browser gateway write, so browser writes through the reroute lane preflight-fail today, and enrollment of any real client would fail the same way; Node drills bypass CORS and stay green (the F44/#838 blindness pattern). Production-tab writers do not send the header and are unaffected. | OWNER ACTION (live-state change; RECOMMENDED, not executed by this run): run the pinned manual dispatch of `deploy-onboarding-edge-functions` at a `main` SHA ≥ `139a4c8` (deploys `linear-outbound` before `production-write`; also redeploys the eight push-safe reader functions). This is NOT one of the two ⛔ FROZEN client writers; the freeze is untouched. Re-verify with a read-only OPTIONS probe after deploy. | OPEN — DEPLOY OWED; gates any write-UI enrollment |
+| F144 | P2 current / P1 on any F44 worker reinstall | **SOURCE + LIVE READBACK.** Linear removed `Project.team` (singular) — the 2026-07-16 intake outage. The live F44 workers were hand-patched to `Project.teams.nodes` (workflow `BrJSe8zCKUccfmIq`, active version `9e5abc46`), but `scripts/f44-linear-intake-transform.js` — the tested installer/source-of-truth for those workers — still emitted the removed singular query, and `test/f44-linear-intake-transform.js` mocks pinned the stale shape, so the drift was invisible offline. Any reinstall from the repo would re-halt every form batch at the project check. | Port the live workers' plural membership check verbatim into the installer and pin the plural shape in the test (staged in draft PR). Class rule: after any live n8n hand-patch, diff the repo-side installer the same day. | OPEN — FIX STAGED (draft PR); live workers already correct |
+
+Related non-register outputs of the same run: `ROLLBACK.md` Live State gained the missing
+`write_ui_reroute_clients` kill-switch row (the newest live flag was absent from the emergency
+runbook); `test/linear-sync-reconcile-extraction.js` now guards the calendar reconciler's eval
+sandbox (the `_sxrNormStatus` crash class had a guard only on the samples twin). Full run report:
+`docs/audits/2026-07-17-bug-archaeology.md`.

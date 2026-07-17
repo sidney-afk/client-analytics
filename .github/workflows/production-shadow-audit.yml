@@ -22,7 +22,6 @@ jobs:
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
       B4_CONFIRM_READ_ONLY_SHADOW: '1'
       APPLY: 'false'
-      B4_SHADOW_PRIVATE_JSON: ${{ runner.temp }}/production-shadow-private.json
       PRODUCTION_SHADOW_PUBLIC_JSON: artifacts/production-shadow-audit.json
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +41,12 @@ jobs:
           exit "$missing"
 
       - name: Run read-only full-roster shadow audit
+        env:
+          # runner.temp is a step-level context; naming it in the job env block
+          # is invalid and made GitHub reject the whole file, logging an instant
+          # failed run on EVERY push to EVERY branch since 2026-07-13 (and the
+          # daily audit itself never ran).
+          B4_SHADOW_PRIVATE_JSON: ${{ runner.temp }}/production-shadow-private.json
         run: node scripts/production-shadow-audit.js
 
       - name: Upload public-safe aggregate

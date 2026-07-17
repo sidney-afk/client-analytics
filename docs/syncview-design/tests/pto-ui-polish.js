@@ -775,9 +775,9 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
       && adminNative.rogueNumbers === 0 && adminNative.badSteppers === 0 && adminNative.spinnerRule,
     'Kasper forms expose no browser-native select, calendar, or spinner chrome');
     await assertExplainerContract(page, '.pto-admin', KASPER_EXPLAIN_KEYS, 'Kasper Time Off');
-    await assertDesktopExplainer(page, '[data-pto-explain="member-balances"]', '.kasper-subtabs',
+    await assertDesktopExplainer(page, '[data-pto-explain="member-balances"]', '.kasper-head',
       'Kasper section label');
-    await assertDesktopExplainer(page, '[data-pto-explain="adjustment-days"]', '.kasper-subtabs',
+    await assertDesktopExplainer(page, '[data-pto-explain="adjustment-days"]', '.kasper-head',
       'Kasper adjustment field label');
     const hybridTouch = await page.locator('[data-pto-explain="pto-enabled"]').evaluate(element => {
       const checkbox = document.getElementById('ptoAdminEnabled');

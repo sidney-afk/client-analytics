@@ -587,7 +587,10 @@ n8n in the metric read path.*
   (legacy localStorage unlock is actively deleted at boot). Subtabs: review, samples (only if SXR
   enabled), replies/messages, editors, filming, sales-intake, onboarding, client-credentials, and
   time-off (only when `pto_v1` is on) — hash
-  `#kasper/<subtab>`, persisted in `syncview_kasper_subtab_v1`.
+  `#kasper/<subtab>`, persisted in `syncview_kasper_subtab_v1`. Review, Samples, Messages, and
+  Filming Plans stay in the priority row. More groups Editors/Time Off under **Team** and Sales
+  Intake/Onboarding/Client Credentials under **Pipeline & Admin**; a selected overflow destination
+  replaces the generic More label.
 - **Reads.** Review queue is a **3-tier fallback**: `calendar_posts` REST (paginated, v2 default) →
   n8n `kasper-queue` (batched `{slugs}`) → per-client n8n `calendar-get` fan-out (5 workers).
   Cross-client `sample_reviews` REST (samples subtab). n8n `editors-week` (editors). Staff-gated
@@ -632,9 +635,11 @@ n8n in the metric read path.*
 - **Notable / corrections.** "SMM reports" is **not** a Kasper subtab (it's a separate top-level
   route, §4.14). `kasper-queue` is the **middle** fallback, not primary. The role-header quirk
   (§3) misattributes writes made from `#kasper/<subtab>` as `smm`. The Kasper unlock has no
-  password; the verified role key is the sensitive-subtab credential. At 390 and 768 px, the max-
-  content nine-tab strip expands/pans the whole document, leaves later deep-linked tabs off-screen,
-  and lacks contained touch scrolling, active reveal and accessible tab keyboard semantics (F121).
+  password; the verified role key is the sensitive-subtab credential. The priority + More
+  navigation is viewport-contained at 390/768 px, exposes visible focus and menu-button keyboard
+  behavior, keeps the active overflow destination explicit, and canonicalizes denied sensitive
+  routes to Review in memory, storage, and the hash. Subtab routing still uses `replaceState`, so
+  Back does not traverse subtab changes; that product/history decision remains open under F121.
 - **Track B.** The queue-visibility gates are one of the §9.2 predicate families — missed at flip,
   new thumbnails silently vanish from review. The Messages inbox keeps working on card threads.
 

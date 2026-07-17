@@ -207,10 +207,12 @@ ok(/\.sv-select-trigger, \.sv-select-option, \.sv-date-trigger, \.sv-stepper-btn
 ok(/\.pto-submit:focus-visible \{ outline: 2px solid var\(--focus-ring\); outline-offset: 3px; \}/.test(source),
   'PTO submit actions expose a visible keyboard focus ring');
 ok(/showToast\(message\)/.test(ptoShowToast) && /window\.visualViewport/.test(ptoShowToast)
-  && /viewport\.offsetLeft/.test(ptoShowToast) && /viewport\.width - 24/.test(ptoShowToast)
-  && /viewport\.offsetTop \+ viewport\.height/.test(ptoShowToast)
-  && /viewport\.addEventListener\('resize', placeInVisibleViewport\)/.test(ptoShowToast)
-  && /window\.addEventListener\('resize', placeInVisibleViewport\)/.test(ptoShowToast),
+  && /const current = window\.visualViewport/.test(ptoShowToast)
+  && /calc\(50% \+ /.test(ptoShowToast) && /100vw - 24px/.test(ptoShowToast)
+  && /window\.innerHeight - \(current\.offsetTop \+ current\.height\)/.test(ptoShowToast)
+  && /requestAnimationFrame\(placeInVisibleViewport\)/.test(ptoShowToast)
+  && /viewport\.addEventListener\('resize', syncVisibleViewport\)/.test(ptoShowToast)
+  && /window\.addEventListener\('resize', syncVisibleViewport\)/.test(ptoShowToast),
   'PTO confirmations remain inside the mobile visual viewport');
 ok([blockWrites, refreshAfterConflict, submitRequest, cancelRequest, adminDecide, adminCancel, adminSetMember, adminAdjust]
   .every(fn => !/(?<!_pto)showToast\(/.test(fn)),

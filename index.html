@@ -17707,21 +17707,27 @@
         if (!toast || !viewport) return;
         const placeInVisibleViewport = () => {
             if (!toast.isConnected) return;
-            toast.style.left = (viewport.offsetLeft + (viewport.width / 2)) + 'px';
-            toast.style.maxWidth = Math.max(0, viewport.width - 24) + 'px';
-            toast.style.bottom = 'auto';
-            const height = toast.getBoundingClientRect().height;
-            toast.style.top = Math.max(viewport.offsetTop + 12, viewport.offsetTop + viewport.height - height - 24) + 'px';
+            const current = window.visualViewport;
+            if (!current) return;
+            const centerDelta = current.offsetLeft + (current.width / 2) - (window.innerWidth / 2);
+            const bottomInset = Math.max(0, window.innerHeight - (current.offsetTop + current.height));
+            toast.style.left = 'calc(50% + ' + centerDelta + 'px)';
+            toast.style.maxWidth = 'min(calc(100vw - 24px), ' + Math.max(0, current.width - 24) + 'px)';
+            toast.style.top = 'auto';
+            toast.style.bottom = (bottomInset + 24) + 'px';
         };
-        placeInVisibleViewport();
-        requestAnimationFrame(placeInVisibleViewport);
-        viewport.addEventListener('resize', placeInVisibleViewport);
-        viewport.addEventListener('scroll', placeInVisibleViewport);
-        window.addEventListener('resize', placeInVisibleViewport);
+        const syncVisibleViewport = () => {
+            placeInVisibleViewport();
+            requestAnimationFrame(placeInVisibleViewport);
+        };
+        syncVisibleViewport();
+        viewport.addEventListener('resize', syncVisibleViewport);
+        viewport.addEventListener('scroll', syncVisibleViewport);
+        window.addEventListener('resize', syncVisibleViewport);
         setTimeout(() => {
-            viewport.removeEventListener('resize', placeInVisibleViewport);
-            viewport.removeEventListener('scroll', placeInVisibleViewport);
-            window.removeEventListener('resize', placeInVisibleViewport);
+            viewport.removeEventListener('resize', syncVisibleViewport);
+            viewport.removeEventListener('scroll', syncVisibleViewport);
+            window.removeEventListener('resize', syncVisibleViewport);
         }, 4000);
     }
     function _ptoBlockWrites(surface) {

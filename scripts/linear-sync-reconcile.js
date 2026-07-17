@@ -117,7 +117,13 @@ async function postStatuses(slice) {
 // can only ever drop itself, never its batch-mates. (Caller passes LIVE links only — see
 // the main block — so in practice this fallback rarely fires.)
 async function resolveLinear(urls) {
-  const uniq = [...new Set(urls.filter(Boolean))]; const statuses = {}; const C = 50;
+  // Only links with a resolvable ABC-123 ident may enter a batch: a UUID-form
+  // link yields a garbage ident inside the webhook, which poisons the whole
+  // aliased batch and triggers its slow per-id fallback (F139).
+  const all = [...new Set(urls.filter(Boolean))];
+  const uniq = all.filter(u => _calIdentFromUrl(u));
+  if (uniq.length !== all.length) log(`  resolveLinear: ${all.length - uniq.length} link(s) skipped — no ABC-123 ident in the URL (UUID-form or malformed Linear link, F139)`);
+  const statuses = {}; const C = 50;
   for (let i = 0; i < uniq.length; i += C) {
     const slice = uniq.slice(i, i + C);
     Object.assign(statuses, await postStatuses(slice));

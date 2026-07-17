@@ -23061,8 +23061,17 @@
         Array.from(_calLinearMetaByIdent.keys()).forEach(id => { if (!_writeUiIdentifierAllowed(id, authority)) _calLinearMetaByIdent.delete(id); });
     }
     function _calIdentFromUrl(url) {
-        const m = String(url || '').toUpperCase().match(/([A-Z]+-\d+)/);
-        return m ? m[1] : '';
+        // Linear links can carry a raw UUID instead of ABC-123. A loose match
+        // fabricates a garbage ident from inside the UUID (e.g. "A-94" out of
+        // ...be1a-94e6...), and one garbage id poisons the whole aliased batch
+        // that the linear-issue-statuses webhook sends to Linear (F139). URL
+        // inputs must take the ident from their /issue/<ident> segment; bare
+        // inputs must BE an ident.
+        const s = String(url || '');
+        const seg = s.match(/\/issue\/([^/?#]+)/i);
+        const cand = (seg ? seg[1] : s).trim();
+        const m = cand.match(/^([A-Za-z]+-\d+)$/);
+        return m ? m[1].toUpperCase() : '';
     }
     function _calIsParentLinked(url) {
         const id = _calIdentFromUrl(url);
@@ -23252,8 +23261,10 @@
         if (!linked.length) return;
         const urls = [];
         linked.forEach(p => {
-            if (String(p.linear_issue_id || '').trim()) urls.push(p.linear_issue_id);
-            if (String(p.graphic_linear_issue_id || '').trim()) urls.push(p.graphic_linear_issue_id);
+            // Only links with a resolvable ABC-123 ident may enter the shared
+            // status batch — a UUID-form link poisons the whole batch (F139).
+            if (_calIdentFromUrl(p.linear_issue_id)) urls.push(p.linear_issue_id);
+            if (_calIdentFromUrl(p.graphic_linear_issue_id)) urls.push(p.graphic_linear_issue_id);
         });
         let statuses;
         try {
@@ -23267,12 +23278,12 @@
         } catch (e) { return; }
         let changed = 0;
         for (const post of linked) {
-            const vM = String(post.linear_issue_id || '').toUpperCase().match(/([A-Z]+-\d+)/);
-            const gM = String(post.graphic_linear_issue_id || '').toUpperCase().match(/([A-Z]+-\d+)/);
+            const vIdent = _calIdentFromUrl(post.linear_issue_id);
+            const gIdent = _calIdentFromUrl(post.graphic_linear_issue_id);
             let touched = false;
             const rowFresh = _calIsRowRecentlyTouched(post);
-            if (vM && !rowFresh && !_calIsLocalStatusFresh(post.id, 'video')) {
-                const linState = statuses[vM[1]];
+            if (vIdent && !rowFresh && !_calIsLocalStatusFresh(post.id, 'video')) {
+                const linState = statuses[vIdent];
                 const mapped = (linState !== undefined) ? _calMapLinearStatusStrict(linState) : null;
                 if (mapped && _calNormStatus(post.video_status || '') !== mapped
                     && !(post.video_status === 'Posted' && mapped !== 'Posted')) {
@@ -23283,8 +23294,8 @@
                     touched = true;
                 }
             }
-            if (gM && !rowFresh && !_calIsLocalStatusFresh(post.id, 'graphic')) {
-                const linState = statuses[gM[1]];
+            if (gIdent && !rowFresh && !_calIsLocalStatusFresh(post.id, 'graphic')) {
+                const linState = statuses[gIdent];
                 const mapped = (linState !== undefined) ? _calMapLinearStatusStrict(linState) : null;
                 if (mapped && _calNormStatus(post.graphic_status || '') !== mapped
                     && !(post.graphic_status === 'Posted' && mapped !== 'Posted')) {

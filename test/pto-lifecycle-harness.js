@@ -99,6 +99,7 @@ ok(/page\.screenshot\([\s\S]*animations: 'disabled'[\s\S]*caret: 'hide'/.test(HA
 ok(/meaningfulTextBlockers/.test(HARNESS)
   && /Node\.TEXT_NODE/.test(HARNESS)
   && /\.header \*, \.kasper-head \*, \.pto-wrap \*, \.pto-admin \*/.test(HARNESS)
+  && /\.confirm-overlay\.active \.confirm-box/.test(HARNESS)
   && /button:not\(\[hidden\]\), a\[href\]/.test(HARNESS)
   && /ptoLifecycleClockCue/.test(HARNESS)
   && /setSyntheticClockCue\(page, instant/.test(SCENARIOS)
@@ -123,12 +124,16 @@ ok(/screenshot target is visible/.test(HARNESS)
 
 ok(!/_ptoSetFlagValue/.test(HARNESS)
   && /runtime_flag_read/.test(SCENARIOS)
-  && /locator\('#navKasper'\)\.click/.test(HARNESS),
-'mocked entry uses the normal pto_v1 read, staff menu, and real Kasper navigation');
+  && /locator\('#navKasper'\)\.click/.test(HARNESS)
+  && /locator\('\[data-kasper-more-trigger\]'\)/.test(HARNESS)
+  && /#kasperMoreMenu \.kasper-more-item\[data-kasper-tab="time-off"\]/.test(HARNESS),
+'mocked entry uses the normal pto_v1 read, staff menu, and real Kasper More navigation');
 
 ok(/options\.keyboard/.test(HARNESS)
   && /tabToControl\(page, '#headerMenuButton'\)/.test(HARNESS)
   && /tabToControl\(page, '#navKasper'\)/.test(HARNESS)
+  && /tabToControl\(page, '\[data-kasper-more-trigger\]'\)/.test(HARNESS)
+  && /page\.keyboard\.press\('ArrowDown'\)/.test(HARNESS)
   && /openStaff\(staff, p, \{ keyboard: true \}\)/.test(SCENARIOS)
   && /openAdmin\(admin, p, \{ keyboard: true \}\)/.test(SCENARIOS),
 'keyboard-only journey enters staff Time Off and Kasper through natural tab navigation');
@@ -321,6 +326,11 @@ ok(/PTO_LIVE_CONFIRM/.test(LIVE)
   && /DISPOSABLE_UNPAID_ONLY/.test(LIVE)
   && /Both live drill identities must be dedicated TEST roster rows/.test(LIVE),
 'live lane fails closed without the exact confirmation and dedicated TEST identities');
+
+ok(/locator\('\[data-kasper-more-trigger\]'\)/.test(LIVE)
+  && /#kasperMoreMenu \.kasper-more-item\[data-kasper-tab="time-off"\]/.test(LIVE)
+  && /released More menu/.test(LIVE),
+'live lane reaches Kasper Time Off through the released More menu');
 
 ok(/exactMarkerFilters/.test(LIVE)
   && /member_id=eq\./.test(LIVE)

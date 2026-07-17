@@ -506,9 +506,17 @@ async function exactCleanup(config, state) {
       && typeof _kasperState !== 'undefined'
       && document.getElementById('navKasper')?.style.display !== 'none');
     await admin.locator('#navKasper').click();
-    const timeOffTab = admin.locator('.kasper-subtab[data-kasper-tab="time-off"]');
+    const moreTrigger = admin.locator('[data-kasper-more-trigger]');
+    await moreTrigger.waitFor({ state: 'visible' });
+    await moreTrigger.click();
+    const timeOffTab = admin.locator(
+      '#kasperMoreMenu .kasper-more-item[data-kasper-tab="time-off"]',
+    );
     await timeOffTab.waitFor({ state: 'visible' });
     await timeOffTab.click();
+    assert(await timeOffTab.getAttribute('aria-current') === 'page'
+      || await timeOffTab.evaluate(element => element.classList.contains('active')),
+    'live drill opens Kasper Time Off through the released More menu');
     await waitAdminReady(admin);
     const card = admin.locator('.pto-request-card', { hasText: 'TEST disposable unpaid drill' }).first();
     await card.locator('button.approve').click();

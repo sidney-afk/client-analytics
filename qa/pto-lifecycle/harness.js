@@ -96,7 +96,7 @@ async function injectSyntheticBanner(page) {
     const viewportRight = viewportLeft + viewportWidth;
     const viewportBottom = viewportTop + viewportHeight;
     const controlBlockers = [...document.querySelectorAll(
-      '.sv-toast.show, button:not([hidden]), a[href], input:not([type="hidden"]), textarea, select, [role="button"]',
+      '.sv-toast.show, .confirm-overlay.active .confirm-box, button:not([hidden]), a[href], input:not([type="hidden"]), textarea, select, [role="button"]',
     )];
     const meaningfulTextBlockers = [...document.querySelectorAll('.header *, .kasper-head *, .pto-wrap *, .pto-admin *')]
       .filter(element => [...element.childNodes].some(node =>
@@ -331,18 +331,34 @@ class LifecycleHarness {
     } else {
       await page.locator('#navKasper').click();
     }
-    const timeOffTab = page.locator('.kasper-subtab[data-kasper-tab="time-off"]');
-    await timeOffTab.waitFor({ state: 'visible', timeout: 10000 });
+    const moreTrigger = page.locator('[data-kasper-more-trigger]');
+    await moreTrigger.waitFor({ state: 'visible', timeout: 10000 });
+    const timeOffTab = page.locator('#kasperMoreMenu .kasper-more-item[data-kasper-tab="time-off"]');
     if (options.keyboard) {
-      await tabToControl(page, '.kasper-subtab[data-kasper-tab="time-off"]');
+      await tabToControl(page, '[data-kasper-more-trigger]');
+      await page.keyboard.press('Enter');
+      await timeOffTab.waitFor({ state: 'visible', timeout: 5000 });
+      for (let guard = 0; guard < 12; guard += 1) {
+        if (await page.evaluate(() => document.activeElement?.matches(
+          '#kasperMoreMenu .kasper-more-item[data-kasper-tab="time-off"]',
+        ))) break;
+        await page.keyboard.press('ArrowDown');
+      }
+      assert(await page.evaluate(() => document.activeElement?.matches(
+        '#kasperMoreMenu .kasper-more-item[data-kasper-tab="time-off"]',
+      )), 'keyboard navigation reaches Time Off inside the real Kasper More menu');
+      assert(await page.evaluate(() => document.activeElement.matches(':focus-visible')),
+        'Kasper Time Off More item has a visible keyboard-focus affordance');
       await page.keyboard.press('Enter');
     } else {
+      await moreTrigger.click();
+      await timeOffTab.waitFor({ state: 'visible', timeout: 5000 });
       await timeOffTab.click();
     }
     assert(await timeOffTab.getAttribute('aria-selected') === 'true'
       || await timeOffTab.getAttribute('aria-current') === 'page'
       || await timeOffTab.evaluate(element => element.classList.contains('active')),
-    'Kasper Time Off opens through the real subtab control');
+    'Kasper Time Off opens through the real More-menu control');
     await page.waitForSelector('#ptoAdminMemberBtn', { timeout: 15000 });
     await page.waitForFunction(() => typeof _ptoAdminState !== 'undefined'
       && !!_ptoAdminState.overview && !_ptoAdminState.loading);

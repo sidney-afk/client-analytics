@@ -55,7 +55,9 @@ included in this public packet.
   screen.
 - **Evidence labels could hide the very result they were meant to qualify.**
   The synthetic-data banner now avoids visible PTO text, controls, toasts, and
-  the app header before any screenshot is accepted.
+  the app header before any screenshot is accepted. The final review also
+  caught the label crossing a cancellation explanation, so an active
+  confirmation dialog is now protected as one complete surface.
 - **Two different policy dates could look identical when the balance did not
   change.** Every time-travel frame now carries a distinct synthetic Guatemala
   clock and policy date, making month, anniversary, and evening-boundary
@@ -67,8 +69,8 @@ included in this public packet.
   render behind an existing approval.
 - **Mock setup bypassed real entry paths.** The lifecycle now consumes the
   normal read-only `pto_v1` response, opens staff Time Off through the real
-  menu, enters Kasper through its real navigation control, and uses natural
-  Tab/Enter entry for the keyboard lane.
+  menu, enters Kasper Time Off through the current More menu, and uses natural
+  Tab/Enter/arrow-key entry for the keyboard lane.
 - **Transient controls were underrepresented in the first screenshot packet.**
   Branded dropdown, calendar, day arrows, note fields, both confirmation
   dialogs, touch states, and keyboard focus states now each receive their own

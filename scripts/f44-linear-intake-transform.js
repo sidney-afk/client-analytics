@@ -629,8 +629,9 @@ try {
 ${rosterPreflight}
   const viewer = await graph('query F44Viewer { viewer { id } }', {}, false);
   if (!viewer.data.viewer || !viewer.data.viewer.id) fail('invalid SMM credential for ' + client);
-  const projectCheck = await graph('query F44Project($id: String!) { project(id: $id) { id team { id } } }', { id: projectId }, false);
-  if (!projectCheck.data.project || projectCheck.data.project.id !== projectId || !projectCheck.data.project.team || projectCheck.data.project.team.id !== teamId) {
+  const projectCheck = await graph('query F44Project($id: String!) { project(id: $id) { id teams { nodes { id } } } }', { id: projectId }, false);
+  const projectTeams = projectCheck.data.project && projectCheck.data.project.teams && projectCheck.data.project.teams.nodes;
+  if (!projectCheck.data.project || projectCheck.data.project.id !== projectId || !Array.isArray(projectTeams) || !projectTeams.some(projectTeam => projectTeam && projectTeam.id === teamId)) {
     fail('project/team mismatch for ' + client);
   }
   const assigneeCheck = await graph('query F44Assignee($id: String!) { user(id: $id) { id active } }', { id: assigneeId }, false);

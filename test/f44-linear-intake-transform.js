@@ -154,7 +154,7 @@ async function simulateReadBeforeCreate(workflow) {
     const query = String(body && body.query || '');
     const variables = body && body.variables || {};
     if (query.includes('F44Viewer')) return { data: { viewer: { id: 'viewer' } } };
-    if (query.includes('F44Project')) return { data: { project: { id: 'simulation-project', team: { id: BRANCHES[0].teamId } } } };
+    if (query.includes('F44Project')) return { data: { project: { id: 'simulation-project', teams: { nodes: [{ id: BRANCHES[0].teamId }] } } } };
     if (query.includes('F44Assignee')) return { data: { user: { id: 'simulation-assignee', active: true } } };
     if (query.includes('F44ReadIssue')) {
       if (!parentId) parentId = variables.id;
@@ -259,7 +259,7 @@ async function simulateWorkerPlanDependency(workflow, mode) {
     const query = String(body && body.query || '');
     const variables = body && body.variables || {};
     if (query.includes('F44Viewer')) return { data: { viewer: { id: 'viewer' } } };
-    if (query.includes('F44Project')) return { data: { project: { id: 'proof-project', team: { id: BRANCHES[0].teamId } } } };
+    if (query.includes('F44Project')) return { data: { project: { id: 'proof-project', teams: { nodes: [{ id: BRANCHES[0].teamId }] } } } };
     if (query.includes('F44Assignee')) return { data: { user: { id: 'proof-assignee', active: true } } };
     if (query.includes('F44ReadIssue')) {
       if (!parentId) parentId = variables.id;
@@ -355,6 +355,13 @@ if (after) {
       && workerCode.includes('if (!mappedPlanUrl)')
       && workerCode.includes('no current filming plan mapping for ')
       && workerCode.includes('no ' + branch.team + ' roster'), `${suffix}: complete preflight forbids null project and missing credential/plan/roster`);
+    // Linear removed Project.team (singular) — the 2026-07-16 intake outage.
+    // The emitted project check must use the plural teams membership shape
+    // that the live workers were patched to; Issue.team elsewhere stays valid.
+    ok(workerCode.includes('project(id: $id) { id teams { nodes { id } } }')
+      && workerCode.includes('projectTeams.some(projectTeam => projectTeam && projectTeam.id === teamId)')
+      && !workerCode.includes('project(id: $id) { id team { id } }'),
+      `${suffix}: project check queries Project.teams (plural) membership, not the removed Project.team`);
     ok(workerCode.includes("const description = String(ctx.payload.notes || '')")
       && workerCode.includes("title: String(ctx.payload.title || '')")
       && !workerCode.includes('mappedPlanUrl !== submittedPlanUrl'), `${suffix}: immutable payload stays bound while current nonempty plan mapping may advance`);

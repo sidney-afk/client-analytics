@@ -43,6 +43,7 @@ const apiMessage = functionSource('_ptoApiMessage');
 const api = functionSource('_ptoApi');
 const unknownWrite = functionSource('_ptoUnknownWrite');
 const stateConflict = functionSource('_ptoStateConflict');
+const ptoShowToast = functionSource('_ptoShowToast');
 const blockWrites = functionSource('_ptoBlockWrites');
 const refreshAfterConflict = functionSource('_ptoRefreshAfterConflict');
 const paint = functionSource('_ptoPaint');
@@ -191,13 +192,29 @@ ok(/data-sv-date-trigger/.test(dateHtml) && /data-sv-today/.test(dateHtml) && /a
 ok(/minISO/.test(datePicker) && /maxISO/.test(datePicker) && /ArrowLeft/.test(datePicker)
   && /PageUp/.test(datePicker) && /e\.key === 'Tab'/.test(datePicker) && /button:not\(\[disabled\]\)/.test(datePicker)
   && /const dayTarget/.test(datePicker) && /close\(true\)/.test(datePicker), 'date picker enforces bounds, traps dialog focus, limits day keys, and restores focus');
+ok(/day\.focus\(\{ preventScroll: true \}\)/.test(datePicker),
+  'date-picker focus never pans the mobile visual viewport away from its visible controls');
 ok(/viewportChange/.test(datePicker) && /requestAnimationFrame/.test(datePicker) && /position\(\)/.test(datePicker)
+  && /window\.visualViewport/.test(datePicker) && /viewportBottom/.test(datePicker)
   && /MutationObserver/.test(datePicker) && /!document\.contains\(dpTriggerEl\)/.test(datePicker),
-  'date picker stays anchored through scroll and closes when rerender removes its trigger');
+  'date picker stays inside the visual viewport through scroll and closes when rerender removes its trigger');
 ok(/max-height: calc\(100dvh - 16px\)/.test(source) && /@media \(max-height: 500px\)/.test(source)
   && /overscroll-behavior: contain/.test(source), 'date picker remains operable at short viewport heights and browser zoom');
 ok(/sv-stepper-input/.test(stepperHtml) && /type="number"/.test(stepperHtml)
   && /Math\.min\(max, Math\.max\(min, next\)\)/.test(stepNumber), 'branded stepper preserves numeric input and clamps explicit minus/plus controls');
+ok(/\.sv-select-trigger, \.sv-select-option, \.sv-date-trigger, \.sv-stepper-btn \{ -webkit-tap-highlight-color: transparent; \}/.test(source),
+  'branded PTO controls suppress persistent mobile tap-highlight artifacts');
+ok(/\.pto-submit:focus-visible \{ outline: 2px solid var\(--focus-ring\); outline-offset: 3px; \}/.test(source),
+  'PTO submit actions expose a visible keyboard focus ring');
+ok(/showToast\(message\)/.test(ptoShowToast) && /window\.visualViewport/.test(ptoShowToast)
+  && /viewport\.offsetLeft/.test(ptoShowToast) && /viewport\.width - 24/.test(ptoShowToast)
+  && /viewport\.offsetTop \+ viewport\.height/.test(ptoShowToast)
+  && /viewport\.addEventListener\('resize', placeInVisibleViewport\)/.test(ptoShowToast)
+  && /window\.addEventListener\('resize', placeInVisibleViewport\)/.test(ptoShowToast),
+  'PTO confirmations remain inside the mobile visual viewport');
+ok([blockWrites, refreshAfterConflict, submitRequest, cancelRequest, adminDecide, adminCancel, adminSetMember, adminAdjust]
+  .every(fn => !/(?<!_pto)showToast\(/.test(fn)),
+  'every PTO lifecycle mutation uses the visible-viewport toast helper');
 for (const key of STAFF_EXPLAIN_KEYS) {
   ok(paint.includes(key), `staff label-attached explainer retains stable marker ${key}`);
 }
@@ -242,6 +259,8 @@ ok(/pto-request-history-cards/.test(paint) && /pto-request-history-top/.test(pai
   && /\.pto-staff-history-table \{ display: none; \}/.test(source)
   && /\.pto-request-history-cards \{ display: grid;/.test(source),
   'staff mobile history uses complete readable cards with status and cancellation visible');
+ok(/@media \(max-width: 520px\)[\s\S]*\.staff-account-popover \{ position: absolute; top: calc\(100% \+ 10px\); right: 0;/.test(source),
+  'mobile staff menu stays anchored to its visible trigger instead of the expanded layout viewport');
 ok(/overview\.absences/.test(calendar) && /overview\.holidays/.test(calendar) && /getMonth\(\) - 3/.test(calendar) && /getMonth\(\) \+ 3/.test(calendar), 'calendar consumes server absences/holidays within the API window');
 
 // Kasper approval queue, balance table, and admin maintenance controls.

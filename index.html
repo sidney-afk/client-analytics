@@ -1406,7 +1406,7 @@
         @keyframes staff-spin { to { transform: rotate(360deg); } }
         @keyframes staff-identity-check { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
         @media (max-width: 520px) {
-            .staff-account-popover { position: fixed; top: 56px; right: 14px; width: min(286px, calc(100vw - 28px)); }
+            .staff-account-popover { position: absolute; top: calc(100% + 10px); right: 0; width: min(286px, calc(100vw - 28px)); }
             .staff-auth-overlay { align-items: flex-end; padding: 12px; }
             .staff-auth-card { width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; border-radius: 18px; padding: 21px 18px calc(18px + env(safe-area-inset-bottom)); }
             .staff-auth-actions { display: grid; grid-template-columns: 1fr 1.25fr; }
@@ -6363,6 +6363,7 @@
         .sv-explain-label:focus-visible { background: var(--surface-subtle); box-shadow: 0 0 0 2px var(--focus-ring); text-decoration-color: currentColor; }
         .sv-select { position: relative; width: 100%; }
         .sv-select.is-disabled { opacity: 0.58; pointer-events: none; }
+        .sv-select-trigger, .sv-select-option, .sv-date-trigger, .sv-stepper-btn { -webkit-tap-highlight-color: transparent; }
         .sv-select-trigger, .sv-date-trigger { width: 100%; min-height: 44px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 12px; padding: 9px 12px; background: linear-gradient(180deg, var(--sv-bg-fff), var(--sv-bg-fbfbfa)); color: var(--text-primary); font: inherit; font-size: 0.78rem; font-weight: 700; text-align: left; outline: 0; cursor: pointer; display: flex; align-items: center; gap: 9px; transition: border-color 0.14s, box-shadow 0.14s, background 0.14s, transform 0.14s; }
         .sv-select-trigger:hover, .sv-date-trigger:hover { border-color: var(--sv-border-b9b9b4); background: var(--white); }
         .sv-select-trigger:focus-visible, .sv-date-trigger:focus-visible { border-color: var(--focus-ring); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-17-17-16-0_07); }
@@ -6412,6 +6413,7 @@
         .pto-notice[hidden] { display: none; }
         .pto-submit { grid-column: 1 / -1; min-height: 42px; border: 0; border-radius: 11px; padding: 10px 16px; background: var(--sv-bg-111110); color: var(--sv-fg-fff); font: inherit; font-size: 0.76rem; font-weight: 800; cursor: pointer; }
         .pto-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 7px 18px var(--sv-shadow-rgba-17-17-16-0_16); }
+        .pto-submit:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
         .pto-submit:disabled { opacity: 0.48; cursor: not-allowed; }
         .pto-form-error { grid-column: 1 / -1; color: var(--pto-negative); font-size: 0.68rem; font-weight: 650; line-height: 1.4; }
         .pto-status { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 8px; font-size: 0.59rem; font-weight: 800; text-transform: capitalize; white-space: nowrap; }
@@ -17698,14 +17700,38 @@
         return ['request_state_changed', 'request_not_pending', 'decision_conflict', 'cancel_not_allowed', 'request_not_found']
             .includes(String(error && error.code || ''));
     }
+    function _ptoShowToast(message) {
+        showToast(message);
+        const toast = _toastEl;
+        const viewport = window.visualViewport;
+        if (!toast || !viewport) return;
+        const placeInVisibleViewport = () => {
+            if (!toast.isConnected) return;
+            toast.style.left = (viewport.offsetLeft + (viewport.width / 2)) + 'px';
+            toast.style.maxWidth = Math.max(0, viewport.width - 24) + 'px';
+            toast.style.bottom = 'auto';
+            const height = toast.getBoundingClientRect().height;
+            toast.style.top = Math.max(viewport.offsetTop + 12, viewport.offsetTop + viewport.height - height - 24) + 'px';
+        };
+        placeInVisibleViewport();
+        requestAnimationFrame(placeInVisibleViewport);
+        viewport.addEventListener('resize', placeInVisibleViewport);
+        viewport.addEventListener('scroll', placeInVisibleViewport);
+        window.addEventListener('resize', placeInVisibleViewport);
+        setTimeout(() => {
+            viewport.removeEventListener('resize', placeInVisibleViewport);
+            viewport.removeEventListener('scroll', placeInVisibleViewport);
+            window.removeEventListener('resize', placeInVisibleViewport);
+        }, 4000);
+    }
     function _ptoBlockWrites(surface) {
         const state = surface === 'admin' ? _ptoAdminState : _ptoState;
         if (!state.writeOutcomeUnknown) return false;
-        showToast('Refresh Time Off to confirm the last change before trying another update.');
+        _ptoShowToast('Refresh Time Off to confirm the last change before trying another update.');
         return true;
     }
     async function _ptoRefreshAfterConflict(surface, message) {
-        showToast(message || 'Time Off changed. Refreshing the latest state.');
+        _ptoShowToast(message || 'Time Off changed. Refreshing the latest state.');
         _ptoInvalidateOverviewCaches();
         if (surface === 'admin') await _ptoLoadAdmin(true);
         else await _ptoLoadOverview(true);
@@ -18476,7 +18502,7 @@
         try {
             await _ptoApi('request', 'POST', { type, start_date: start, end_date: end, days, note });
             form.reset();
-            showToast('Time off request sent');
+            _ptoShowToast('Time off request sent');
             _ptoInvalidateOverviewCaches();
             await _ptoLoadOverview(true);
         } catch (error) {
@@ -18498,21 +18524,21 @@
             if (button) button.disabled = true;
             try {
                 await _ptoApi('cancel', 'POST', { request_id: requestId });
-                showToast('Request cancelled');
+                _ptoShowToast('Request cancelled');
                 _ptoInvalidateOverviewCaches();
                 await _ptoLoadOverview(true);
             } catch (error) {
                 const message = error && error.message ? error.message : 'Could not cancel this request';
                 if (_ptoUnknownWrite(error)) {
                     _ptoState.writeOutcomeUnknown = true;
-                    showToast(message);
+                    _ptoShowToast(message);
                     return;
                 }
                 if (_ptoStateConflict(error)) {
                     await _ptoRefreshAfterConflict('staff', message);
                     return;
                 }
-                showToast(message);
+                _ptoShowToast(message);
                 if (button) button.disabled = false;
             }
         }, 'Cancel request');
@@ -18667,13 +18693,13 @@
         if (card) card.querySelectorAll('button, input').forEach(element => { element.disabled = true; });
         try {
             await _ptoApi('decide', 'POST', { request_id: requestId, decision, decision_note: note ? note.value.trim() : '' });
-            showToast(decision === 'approved' ? 'Request approved' : 'Request denied');
+            _ptoShowToast(decision === 'approved' ? 'Request approved' : 'Request denied');
             _ptoInvalidateOverviewCaches();
             await _ptoLoadAdmin(true);
         } catch (error) {
             const message = error && error.message ? error.message : 'Could not decide this request';
             if (error && error.code === 'member_inactive' && decision === 'approved' && card) {
-                showToast(message);
+                _ptoShowToast(message);
                 const approve = card.querySelector('button.approve');
                 const deny = card.querySelector('button.deny');
                 if (approve) {
@@ -18695,14 +18721,14 @@
             }
             if (_ptoUnknownWrite(error)) {
                 _ptoAdminState.writeOutcomeUnknown = true;
-                showToast(message);
+                _ptoShowToast(message);
                 return;
             }
             if (_ptoStateConflict(error)) {
                 await _ptoRefreshAfterConflict('admin', message);
                 return;
             }
-            showToast(message);
+            _ptoShowToast(message);
             if (card) card.querySelectorAll('button, input').forEach(element => { element.disabled = false; });
         }
     }
@@ -18712,21 +18738,21 @@
             if (button) button.disabled = true;
             try {
                 await _ptoApi('cancel', 'POST', { request_id: requestId });
-                showToast('Approved leave cancelled');
+                _ptoShowToast('Approved leave cancelled');
                 _ptoInvalidateOverviewCaches();
                 await _ptoLoadAdmin(true);
             } catch (error) {
                 const message = error && error.message ? error.message : 'Could not cancel this leave';
                 if (_ptoUnknownWrite(error)) {
                     _ptoAdminState.writeOutcomeUnknown = true;
-                    showToast(message);
+                    _ptoShowToast(message);
                     return;
                 }
                 if (_ptoStateConflict(error)) {
                     await _ptoRefreshAfterConflict('admin', message);
                     return;
                 }
-                showToast(message);
+                _ptoShowToast(message);
                 if (button) button.disabled = false;
             }
         }, 'Cancel leave');
@@ -18743,7 +18769,7 @@
         button.disabled = true;
         try {
             await _ptoApi('set_start_date', 'POST', payload);
-            showToast('PTO member saved');
+            _ptoShowToast('PTO member saved');
             _ptoInvalidateOverviewCaches();
             await _ptoLoadAdmin(true);
         } catch (error) {
@@ -18776,7 +18802,7 @@
         button.disabled = true;
         try {
             await _ptoApi('adjust', 'POST', payload);
-            showToast('Balance adjustment added');
+            _ptoShowToast('Balance adjustment added');
             _ptoInvalidateOverviewCaches();
             await _ptoLoadAdmin(true);
         } catch (error) {
@@ -51541,17 +51567,22 @@
             dpEl.style.left = '0px';
             const t = dpTriggerEl.getBoundingClientRect();
             const r = dpEl.getBoundingClientRect();
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
+            const viewport = window.visualViewport;
+            const viewportLeft = viewport ? viewport.offsetLeft : 0;
+            const viewportTop = viewport ? viewport.offsetTop : 0;
+            const viewportWidth = viewport ? viewport.width : (document.documentElement.clientWidth || window.innerWidth);
+            const viewportHeight = viewport ? viewport.height : (document.documentElement.clientHeight || window.innerHeight);
+            const viewportRight = viewportLeft + viewportWidth;
+            const viewportBottom = viewportTop + viewportHeight;
             const margin = 6, edge = 8;
             // Prefer below the chip; flip above when there isn't room.
             let top = t.bottom + margin;
-            if (top + r.height > vh - edge) {
-                top = Math.max(edge, t.top - r.height - margin);
+            if (top + r.height > viewportBottom - edge) {
+                top = Math.max(viewportTop + edge, t.top - r.height - margin);
             }
             let left = t.left;
-            if (left + r.width > vw - edge) left = vw - r.width - edge;
-            if (left < edge) left = edge;
+            if (left + r.width > viewportRight - edge) left = viewportRight - r.width - edge;
+            if (left < viewportLeft + edge) left = viewportLeft + edge;
             dpEl.style.top = top + 'px';
             dpEl.style.left = left + 'px';
         }
@@ -51600,7 +51631,13 @@
             // Reposition AFTER innerHTML in case content height changed
             // (the grid is always 6 rows so this is mostly a no-op).
             position();
-            if (focusDay) dpEl.querySelector(`[data-dp-day="${focusedISO}"]`)?.focus();
+            if (focusDay) {
+                const day = dpEl.querySelector(`[data-dp-day="${focusedISO}"]`);
+                if (day) {
+                    try { day.focus({ preventScroll: true }); }
+                    catch (_) { day.focus(); }
+                }
+            }
         }
 
         function commit(iso) {
@@ -51633,6 +51670,10 @@
             document.removeEventListener('keydown', keyHandler);
             window.removeEventListener('scroll', viewportChange, true);
             window.removeEventListener('resize', viewportChange);
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('scroll', viewportChange);
+                window.visualViewport.removeEventListener('resize', viewportChange);
+            }
             if (returnFocus && trigger && document.contains(trigger)) trigger.focus();
         }
         function viewportChange() {
@@ -51675,6 +51716,10 @@
             // scrolling, and close it if a rerender removes its trigger.
             window.addEventListener('scroll', viewportChange, true);
             window.addEventListener('resize', viewportChange);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('scroll', viewportChange);
+                window.visualViewport.addEventListener('resize', viewportChange);
+            }
             dpDisconnectObserver = new MutationObserver(function () {
                 if (dpTriggerEl && !document.contains(dpTriggerEl)) close(false);
             });

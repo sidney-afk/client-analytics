@@ -34,3 +34,20 @@ jobs:
         env:
           PROBE_ATTEMPTS: '3'
         run: node qa/run-probes.js ${{ github.event.inputs.probes }}
+      # A red nightly must PAGE, not just email (owner directive 2026-07-17 —
+      # the samples nightly sat red four nights with nobody consuming the
+      # signal). Posts through the same SyncView Bot webhook the reconcile
+      # pager uses; degrades to a warning if the secret is absent.
+      - name: Page the SyncView Bot on scheduled failure
+        if: failure() && github.event_name == 'schedule'
+        shell: bash
+        env:
+          SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+        run: |
+          if [ -z "$SLACK_ALERT_WEBHOOK" ]; then
+            echo "::warning::SLACK_ALERT_WEBHOOK not configured; failed-run email only."
+            exit 0
+          fi
+          curl -sS -X POST -H 'Content-Type: application/json' --data \
+            "{\"text\":\"[SyncView watcher] ❌ Calendar E2E nightly FAILED on main — the practice robot found real trouble or needs care. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "$SLACK_ALERT_WEBHOOK"

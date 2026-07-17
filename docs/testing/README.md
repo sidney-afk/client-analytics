@@ -37,12 +37,24 @@ no design-kit suite may send a live mutation.
 | `node docs/syncview-design/tests/prod-readonly-smoke.js` | Production read-only invariant (zero non-GET) | Production parity work; samples nightly |
 | `node docs/syncview-design/tests/prod-write-gateway-browser.js` | Fully mocked authority-gated status/comment/due/assignee capability; no live backend | Production write-gateway or authority work |
 
-## The four Claude skills (a 2×2)
+## The six Claude skills (a 2×2 + two conductors)
 
 |  | **Whole app** (Samples/Calendar, live backend) | **Production tab** (vs its reference) |
 |---|---|---|
 | **One-shot check** | `/master-test` — run every lane, then judge screenshots with eyes | `/human-audit` — hand-and-eyes parity loop vs the reference artifact |
 | **Continuous loop** | `/overnight-test` — autonomous probe-writing QA loop, morning report | `/feedback-expansion` — owner observations → rules → sweep → prove |
+
+Outside the 2×2: `/bug-archaeology` — preventive, history-driven. Mines past
+incidents into fracture patterns, sweeps the codebase for latent siblings,
+adversarially verifies every candidate, ships survivors as fixes + regression
+guards. Use after heavy change periods ("find the bugs before they happen").
+
+And the conductor: `/site-assurance` — the umbrella loop that holds the WHOLE
+site to the owner-ratified contract in `docs/QUALITY_TIERS.md`. Each cycle it
+scores every surface (tier × proof staleness × churn), proves the top ones by
+dispatching the right skill above (or writing the missing probe), and updates
+the coverage ledger `docs/testing/ASSURANCE_LEDGER.md` — so "does the website
+work?" always has a current, honest, surface-by-surface answer.
 
 `/human-audit`, `/feedback-expansion`, and `/overnight-test` are written as a
 **general protocol plus a target binding** — the protocol survives feature

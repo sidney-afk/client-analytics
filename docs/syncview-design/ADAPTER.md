@@ -17,7 +17,7 @@ Each `deliverables` row becomes one artifact-shaped issue:
 - `title`: deliverable title.
 - `status`: artifact status key.
 - `assignee`: `team_members.id`.
-- `due`: display date.
+- `due`: display date in Linear's written format ("Jul 15", with ", YYYY" appended for non-current years).
 - `dueRaw`: original date for overdue comparison.
 - `created`: display creation date.
 - `desc`: deliverable brief.

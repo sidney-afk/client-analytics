@@ -83,6 +83,8 @@ Full report: `docs/audits/2026-07-09-production-foundation-audit.md`.
 | Missing project emoji falls back to project glyph | `I.project`, project card markup | ✅ | No `S` fallback remains in project/card/detail client glyphs. |
 | Status glyph vocabulary | `statusSVG` | ✅ | Existing glyph family preserved; adapter feeds artifact status keys (`prog`, `smm`, `kasper`, `client`). |
 | Canceled issues stay visible (Canceled group in project + All views) | `STATUS.canceled`, `groupsFor` | ✅ | `_prodDeliverableLive()` no longer treats `canceledAt` as deleted; archive/delete markers still hide rows (owner feedback 2026-07-17). |
+| Written date format on all date pills ("Jul 15", ", YYYY" for other years) | `fmtDue`, seed date strings | ✅ | `_prodFmtDate` renders Linear's written format for due/created/updated/target; raw ISO fields still drive ordering and overdue math (owner feedback 2026-07-17). |
+| Informational tips survive the write gate (status name, due + overdue-by-N-days, assignee, created) | `rowHTML`/`renderDetail` `data-tip` strings, `overdueText` | ✅ | `_prodWriteGateAttrs` composes `info|action-or-gate` instead of replacing the tip; artifact gained `overdueDays`/`overdueText` and all four due-tip sites use them (owner feedback 2026-07-17). |
 | Context menu shell | `CTX`, `openContextMenu`, `layerPop` | ✅ | Row/detail/batch/project context menus open; Copy link remains active. |
 | Context menu mutation entries | `openSub`, `stdMenu`, picker wiring | 🔒 | Status/Assignee/Due/Project submenus render current values; clicking values routes to `Preview - read-only`. |
 | Detail Properties pickers | `renderDetail` side-card rows | 🔒 | Status, assignee, due, and project rows open the same guarded picker layer. |

@@ -2988,6 +2988,7 @@
         .prod-side-card-head { display: flex; align-items: center; gap: 8px; min-height: 28px; color: var(--prod-strong); font-size: 13px; font-weight: 600; }
         .prod-side-row { min-height: 32px; display: flex; align-items: center; gap: 8px; color: var(--prod-strong); font-size: 13px; }
         .prod-side-row.muted { color: var(--prod-muted); }
+        .prod-side-row.dueover > .prod-prop-btn > svg { color: var(--prod-overdue, #eb5757); }
         button.prod-filter-pill { font-family: inherit; }
         .prod-prop-btn { min-width: 0; width: 100%; min-height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-strong); font: inherit; display: flex; align-items: center; gap: 8px; padding: 0 6px; box-sizing: border-box; text-align: left; cursor: pointer; transition: background .12s ease, color .12s ease, transform .12s ease; }
         .prod-prop-btn:hover { background: var(--prod-hover); transform: translateX(1px); }
@@ -35582,7 +35583,10 @@
             if (!v) return '';
             const s = String(v).slice(0, 10);
             const p = s.split('-');
-            return p.length === 3 ? (p[1] + '/' + p[2]) : s;
+            if (p.length !== 3) return s;
+            // Linear's written date format: "Jul 15" this year, "Jul 15, 2025" otherwise (owner feedback 2026-07-17).
+            const label = PROD_MON[Math.min(11, Math.max(0, (+p[1] || 1) - 1))] + ' ' + (+p[2] || 1);
+            return +p[0] === PROD_TODAY.getFullYear() ? label : label + ', ' + p[0];
         }
         function _prodStatusType(status) {
             const m = PROD_STATUS_META[_prodArtifactStatus(status)] || {};
@@ -35610,7 +35614,7 @@
         function _prodStatusIcon(status, id) {
             const issue = id ? _prodIssue(id) : null;
             const attrs = issue
-                ? _prodWriteGateAttrs(issue, 'status', { title: 'Change status', tip: 'Change status' })
+                ? _prodWriteGateAttrs(issue, 'status', { title: 'Change status', tip: 'Change status · S', info: _prodStatusLabel(status) })
                 : ' title="' + _calEscAttr(_prodStatusLabel(status)) + '"';
             return '<span class="prod-status" data-status="' + _calEscAttr(_prodArtifactStatus(status)) + '" data-st="' + _calEscAttr(id || _prodArtifactStatus(status)) + '"' + attrs + (id ? ' onclick="return _prodStatusIconClick(event,' + _jsAttrArg(id) + ')"' : '') + '>' + _prodStatusSVG(status) + '</span>';
         }
@@ -35664,6 +35668,17 @@
             if (!v || _prodIsDone(status)) return false;
             const day = String(v).slice(0, 10);
             return /^\d{4}-\d{2}-\d{2}$/.test(day) && day < new Date().toISOString().slice(0, 10);
+        }
+        // PORT-DELTA: artifact overdueDays/overdueText parse pretty strings against the frozen TODAY; live rows carry ISO dueRaw and stay status-aware via _prodOverdue.
+        function _prodOverdueDays(v, status) {
+            if (!_prodOverdue(v, status)) return 0;
+            const day = String(v).slice(0, 10);
+            const diff = Math.round((Date.parse(new Date().toISOString().slice(0, 10)) - Date.parse(day)) / 864e5);
+            return Math.max(1, diff);
+        }
+        function _prodOverdueText(v, status) {
+            const n = _prodOverdueDays(v, status);
+            return n ? ' · overdue by ' + n + ' day' + (n > 1 ? 's' : '') : '';
         }
         function _prodSameTitle(a, b) {
             return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
@@ -36414,8 +36429,12 @@
             const allowed = !!(issue && _prodCanWrite(issue, operation));
             const surface = allowedSurface || {};
             const gate = allowed ? '' : _prodWriteGateText(issue, operation);
-            const title = allowed ? String(surface.title || '') : gate;
-            const tip = allowed ? String(surface.tip || '') : gate;
+            // surface.info carries the artifact informational tip text (status name, due date, assignee);
+            // it survives the write gate, with the action shortcut or gate sentence riding as the hint segment.
+            const info = String(surface.info || '');
+            const hint = allowed ? String(surface.tip || '') : gate;
+            const title = allowed ? String(surface.title || surface.info || '') : (info ? info + ' · ' + gate : gate);
+            const tip = info ? (hint ? info + '|' + hint : info) : hint;
             return ' data-prod-write="' + (allowed ? 'on' : 'off') + '" aria-disabled="' + (allowed ? 'false' : 'true') + '"'
                 + (title ? ' title="' + _calEscAttr(title) + '"' : '')
                 + (tip ? ' data-prod-tip="' + _calEscAttr(tip) + '"' : '');
@@ -37432,7 +37451,8 @@
         // still pass through the per-team authority gate and Production gateway.
         function _prodBuildDue(pop, cur, ids, anchor) {
             let view = 'quick';
-            const parsed = cur && cur.due ? _prodParseDue(cur.due) : null;
+            const rawParts = cur && /^\d{4}-\d{2}-\d{2}/.test(String(cur.dueRaw || '')) ? String(cur.dueRaw).slice(0, 10).split('-') : null;
+            const parsed = rawParts ? new Date(+rawParts[0], +rawParts[1] - 1, +rawParts[2]) : (cur && cur.due ? _prodParseDue(cur.due) : null);
             const todayRef = _prodToday();
             let calM = new Date((parsed || todayRef).getFullYear(), (parsed || todayRef).getMonth(), 1);
             let focusDay = parsed || new Date(todayRef);
@@ -38512,18 +38532,20 @@
             const selected = _prodState.selected && _prodState.selected.has(d.id);
             const focused = _prodState.focusRow === d.id;
             const assigneeTip = assignee ? ('Assignee: ' + assignee.name) : 'Unassigned';
-            const dueWriteAttrs = _prodWriteGateAttrs(d, 'due', { tip: 'Set due date' });
-            const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { title: assignee ? assignee.name : 'Unassigned', tip: assigneeTip });
+            const dueWriteAttrs = _prodWriteGateAttrs(d, 'due', d.due
+                ? { info: 'Due ' + d.due + _prodOverdueText(d.dueRaw, d.status), tip: 'Change due date · ⇧D' }
+                : { tip: 'Set due date|⇧D' });
+            const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { title: assignee ? assignee.name : 'Unassigned', info: assigneeTip, tip: 'Assign · A' });
             return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + (selected ? ' selected' : '') + (focused ? ' kfocus' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" onmousemove="_prodSetFocusRow(' + _jsAttrArg(d.id) + ',false)" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
                 + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ')" aria-hidden="true"></span>'
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + _prodStatusIcon(d.status, d.id)
-                + '<span class="prod-title"' + _prodTitleAttrs(d.title || 'Untitled deliverable') + '><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
+                + '<span class="prod-title"' + _prodTitleAttrs(parent ? (d.title || 'Untitled deliverable') + ' › ' + (parent.title || '') : (d.title || 'Untitled deliverable')) + '><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
                 + (sub ? '<span class="prod-subchip" title="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>' : '')
                 + '<span class="prod-spacer"></span><span class="prod-chip optional prod-chip-client" data-prod-crumbclient="' + _calEscAttr(d.project || '') + '" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(d.project || '') + ')" data-prod-tip="Client: ' + _calEscAttr(clientName) + '"><span class="prod-client-dot">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(clientName) + '</span></span>'
                 + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '</span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '</span>'
-                + '<span class="prod-created">' + _calEsc(d.created) + '</span>'
+                + (d.created ? '<span class="prod-created" data-prod-tip="Created ' + _calEscAttr(d.created) + '">' + _calEsc(d.created) + '</span>' : '<span class="prod-created"></span>')
                 + '</div>';
         }
         function _prodProjectStatusIcon(status) {
@@ -38596,8 +38618,10 @@
             const ka = _prodMember(k.assignee);
             const title = k.title || 'Untitled sub-issue';
             const assigneeTip = ka ? ('Assignee: ' + ka.name) : 'Unassigned';
-            const dueWriteAttrs = _prodWriteGateAttrs(k, 'due', { tip: 'Set due date' });
-            const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { tip: assigneeTip });
+            const dueWriteAttrs = _prodWriteGateAttrs(k, 'due', k.due
+                ? { info: 'Due ' + k.due + _prodOverdueText(k.dueRaw, k.status) }
+                : { tip: 'Set due date' });
+            const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { info: assigneeTip });
             return '<div class="prod-subrow prod-subissue-row" data-prod-subrow="' + _calEscAttr(k.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
                 + _prodStatusIcon(k.status, k.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b></span>'
@@ -38616,10 +38640,11 @@
             const assignee = _prodMember(d.assignee);
             const parent = d.parent ? _prodIssue(d.parent) : null;
             const title = d.title || 'Untitled issue';
-            const dueTip = d.due ? 'Set due date' : 'Add due date';
             const assigneeTip = assignee ? ('Assignee: ' + assignee.name) : 'Unassigned';
-            const dueWriteAttrs = _prodWriteGateAttrs(d, 'due', { tip: dueTip });
-            const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { tip: assigneeTip });
+            const dueWriteAttrs = _prodWriteGateAttrs(d, 'due', d.due
+                ? { info: 'Due ' + d.due + _prodOverdueText(d.dueRaw, d.status) }
+                : { tip: 'Add due date' });
+            const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { info: assigneeTip });
             return '<div class="prod-subrow prod-project-issue-row" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
@@ -38627,7 +38652,7 @@
                 + '<span class="prod-spacer"></span>'
                 + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" data-prod-empty-due="label"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>Add date</span></span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '</span>'
-                + '<span class="prod-created optional">' + _calEsc(d.created) + '</span></div>';
+                + (d.created ? '<span class="prod-created optional" data-prod-tip="Created ' + _calEscAttr(d.created) + '">' + _calEsc(d.created) + '</span>' : '<span class="prod-created optional"></span>') + '</div>';
         }
         function _prodProjectGroupHTML(group) {
             const items = group.items || [];
@@ -38705,13 +38730,13 @@
         }
         function _prodProps(d, parent, assignee, file) {
             const client = _prodClient(d.project);
-            const sideRow = value => '<div class="prod-side-row">' + value + '</div>';
+            const sideRow = (value, cls) => '<div class="prod-side-row' + (cls ? ' ' + cls : '') + '">' + value + '</div>';
             const muted = text => '<span class="muted">' + _calEsc(text) + '</span>';
             return '<div class="prod-props">'
                 + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
-                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="status"' + _prodWriteGateAttrs(d, 'status') + ' onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span></button>')
-                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="assignee"' + _prodWriteGateAttrs(d, 'assignee') + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span></button>')
-                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + _prodWriteGateAttrs(d, 'due') + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="status"' + _prodWriteGateAttrs(d, 'status', { info: 'Status: ' + _prodStatusLabel(d.status) }) + ' onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span></button>')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="assignee"' + _prodWriteGateAttrs(d, 'assignee', { info: assignee ? ('Assignee: ' + assignee.name) : 'Unassigned' }) + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span></button>')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + _prodWriteGateAttrs(d, 'due', d.due ? { info: 'Due ' + d.due + _prodOverdueText(d.dueRaw, d.status) } : { tip: 'Set due date' }) + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>', d.due && _prodOverdue(d.dueRaw, d.status) ? 'dueover' : '')
                 + '</div>'
                 + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</span></button></div></div>' : '')
                 + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-prop="project" onclick="return _prodOpenProjectMenu(event,' + _jsAttrArg(d.id) + ')"><span class="prod-card-ico">' + _prodProjectGlyph(client) + '</span><span>' + _calEsc(_prodDisplayClient(d.project)) + '</span></button></div></div>'

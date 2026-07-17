@@ -132,7 +132,7 @@ async function assertNoWriteRequests(requests) {
           { id: 'parent', identifier: 'VID-1', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Root Batch', status: 'in_progress', assignee_id: 'm1' },
           { id: 'child-a', identifier: 'VID-2', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child A', status: 'smm_approval', assignee_id: 'm1' },
           { id: 'child-b', identifier: 'VID-3', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child B', status: 'client_approval', assignee_id: 'm1' },
-          { id: 'child-c', identifier: 'VID-4', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child C', status: 'canceled', assignee_id: 'm1', raw_issue_canceled_at: '2026-07-08T20:26:05.371Z' },
+          { id: 'child-c', identifier: 'VID-4', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child C', status: 'canceled', assignee_id: 'm1', raw_issue_canceled_at: '2026-07-08T20:26:05.371Z', due_date: '2025-06-04' },
           { id: 'child-d', identifier: 'VID-5', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child D', status: 'approved', assignee_id: 'm1', raw_issue_archived_at: '2026-07-08T20:26:05.371Z' },
         ],
       });
@@ -142,6 +142,10 @@ async function assertNoWriteRequests(requests) {
         statusKeys: adapted.ISSUES.map(i => i.status),
         canceledIssue: adapted.ISSUES.some(i => i.id === 'child-c' && i.status === 'canceled'),
         archivedDropped: !adapted.ISSUES.some(i => i.id === 'child-d'),
+        pastYearDue: (adapted.ISSUES.find(i => i.id === 'child-c') || {}).due,
+        currentYearDue: window._prodFmtDate(new Date().toISOString().slice(0, 10)),
+        overdueText: window._prodOverdueText('2020-01-01', 'todo'),
+        overdueTextDone: window._prodOverdueText('2020-01-01', 'posted'),
         projectEmoji: adapted.PROJECTS.noemoji.emoji,
         boardStatus: adapted.CLIENTS[0].status,
         editorInit: adapted.EDITORS.m1.init,
@@ -153,6 +157,14 @@ async function assertNoWriteRequests(requests) {
     if (!adapterFixture.statusKeys.includes('prog') || !adapterFixture.statusKeys.includes('smm') || !adapterFixture.statusKeys.includes('client')) throw new Error('Adapter did not map B1 status slugs to artifact keys');
     if (!adapterFixture.canceledIssue) throw new Error('Adapter dropped a canceled deliverable; canceled is a visible status (Canceled group), not a deleted row');
     if (!adapterFixture.archivedDropped) throw new Error('Adapter kept a deliverable with an archived marker; archive/delete markers must hide rows');
+    if (adapterFixture.pastYearDue !== 'Jun 4, 2025') throw new Error('Adapter due display is not the written Linear format with year ("Jun 4, 2025"), got: ' + adapterFixture.pastYearDue);
+    if (!/^[A-Z][a-z]{2} \d{1,2}$/.test(adapterFixture.currentYearDue)) throw new Error('Current-year dates must render "Mon D" without a year, got: ' + adapterFixture.currentYearDue);
+    if (!/^ · overdue by \d+ days$/.test(adapterFixture.overdueText)) throw new Error('Overdue tip text must read " · overdue by N days", got: ' + adapterFixture.overdueText);
+    if (adapterFixture.overdueTextDone !== '') throw new Error('Done statuses must never produce overdue tip text');
+    const dueTipSample = await page.locator('.prod-row .prod-due[data-prod-tip^="Due "]').count();
+    const statusTipSample = await page.locator('.prod-row .prod-status[data-prod-tip]').first().getAttribute('data-prod-tip').catch(() => '');
+    if (!dueTipSample) throw new Error('No list due pill carries an informational "Due ..." tooltip');
+    if (!statusTipSample || statusTipSample.indexOf('|') < 1 || /^Sign in|^Your staff|^Write controls/.test(statusTipSample)) throw new Error('Row status tooltip must lead with the status name before the action/gate hint, got: ' + statusTipSample);
     if (adapterFixture.projectEmoji !== '') throw new Error('Adapter should preserve missing emoji as empty so the project glyph fallback renders');
     if (adapterFixture.boardStatus !== 'prog') throw new Error('Adapter did not map board in_progress to artifact prog');
     if (adapterFixture.editorInit !== 'MS' || !/^#[0-9a-f]{6}$/i.test(adapterFixture.editorColor)) throw new Error('Adapter did not produce artifact editor initials/color');

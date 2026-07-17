@@ -37,12 +37,17 @@ no design-kit suite may send a live mutation.
 | `node docs/syncview-design/tests/prod-readonly-smoke.js` | Production read-only invariant (zero non-GET) | Production parity work; samples nightly |
 | `node docs/syncview-design/tests/prod-write-gateway-browser.js` | Fully mocked authority-gated status/comment/due/assignee capability; no live backend | Production write-gateway or authority work |
 
-## The four Claude skills (a 2×2)
+## The five Claude skills (a 2×2 + one preventive)
 
 |  | **Whole app** (Samples/Calendar, live backend) | **Production tab** (vs its reference) |
 |---|---|---|
 | **One-shot check** | `/master-test` — run every lane, then judge screenshots with eyes | `/human-audit` — hand-and-eyes parity loop vs the reference artifact |
 | **Continuous loop** | `/overnight-test` — autonomous probe-writing QA loop, morning report | `/feedback-expansion` — owner observations → rules → sweep → prove |
+
+Outside the 2×2: `/bug-archaeology` — preventive, history-driven. Mines past
+incidents into fracture patterns, sweeps the codebase for latent siblings,
+adversarially verifies every candidate, ships survivors as fixes + regression
+guards. Use after heavy change periods ("find the bugs before they happen").
 
 `/human-audit`, `/feedback-expansion`, and `/overnight-test` are written as a
 **general protocol plus a target binding** — the protocol survives feature

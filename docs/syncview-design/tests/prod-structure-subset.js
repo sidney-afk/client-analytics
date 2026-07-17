@@ -132,7 +132,7 @@ async function assertNoWriteRequests(requests) {
           { id: 'parent', identifier: 'VID-1', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Root Batch', status: 'in_progress', assignee_id: 'm1' },
           { id: 'child-a', identifier: 'VID-2', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child A', status: 'smm_approval', assignee_id: 'm1' },
           { id: 'child-b', identifier: 'VID-3', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child B', status: 'client_approval', assignee_id: 'm1' },
-          { id: 'child-c', identifier: 'VID-4', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child C', status: 'canceled', assignee_id: 'm1', raw_issue_canceled_at: '2026-07-08T20:26:05.371Z', due_date: '2025-06-04' },
+          { id: 'child-c', identifier: 'VID-4', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child C', status: 'canceled', assignee_id: 'm1', raw_issue_canceled_at: '2026-07-08T20:26:05.371Z', due_date: '2025-06-04', status_at: '2026-07-08T20:26:06.986067+00:00' },
           { id: 'child-d', identifier: 'VID-5', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child D', status: 'approved', assignee_id: 'm1', raw_issue_archived_at: '2026-07-08T20:26:05.371Z' },
         ],
       });
@@ -146,6 +146,23 @@ async function assertNoWriteRequests(requests) {
         currentYearDue: window._prodFmtDate(new Date().toISOString().slice(0, 10)),
         overdueText: window._prodOverdueText('2020-01-01', 'todo'),
         overdueTextDone: window._prodOverdueText('2020-01-01', 'posted'),
+        statusAtRaw: (adapted.ISSUES.find(i => i.id === 'child-c') || {}).statusAtRaw,
+        durationDays: window._prodDurationText(8 * 86400000),
+        durationHours: window._prodDurationText(3 * 3600000),
+        breakdown: window._prodStatusBreakdown(
+          [{ action: 'status_change', ts: '2026-07-09T00:00:00Z', from_status: 'posted', to_status: 'todo' }],
+          '2026-07-01T00:00:00Z',
+          Date.parse('2026-07-09T03:00:00Z')
+        ),
+        breakdownMirror: window._prodStatusBreakdown(
+          [
+            { action: 'mirror_in_status_change', ts: '2026-07-16T00:00:00Z', from_status: 'canceled', to_status: 'canceled' },
+            { action: 'mirror_in_status_change', ts: '2026-07-08T00:00:00Z', from_status: 'todo', to_status: 'canceled' },
+            { action: 'create', ts: '2026-07-06T00:00:00Z', from_status: null, to_status: 'todo' },
+          ],
+          null,
+          Date.parse('2026-07-17T00:00:00Z')
+        ),
         projectEmoji: adapted.PROJECTS.noemoji.emoji,
         boardStatus: adapted.CLIENTS[0].status,
         editorInit: adapted.EDITORS.m1.init,
@@ -165,6 +182,12 @@ async function assertNoWriteRequests(requests) {
     const statusTipSample = await page.locator('.prod-row .prod-status[data-prod-tip]').first().getAttribute('data-prod-tip').catch(() => '');
     if (!dueTipSample) throw new Error('No list due pill carries an informational "Due ..." tooltip');
     if (!statusTipSample || statusTipSample.indexOf('|') < 1 || /^Sign in|^Your staff|^Write controls/.test(statusTipSample)) throw new Error('Row status tooltip must lead with the status name before the action/gate hint, got: ' + statusTipSample);
+    if (adapterFixture.statusAtRaw !== '2026-07-08T20:26:06.986067+00:00') throw new Error('Adapter must expose status_at as statusAtRaw for time-in-status hovers');
+    if (adapterFixture.durationDays !== '8 days' || adapterFixture.durationHours !== '3 hours') throw new Error('Duration text must humanize to "8 days"/"3 hours", got: ' + adapterFixture.durationDays + '/' + adapterFixture.durationHours);
+    if (adapterFixture.breakdown !== 'Posted 8 days, Todo 3 hours') throw new Error('Status breakdown must compose Linear\'s time-in-status text, got: ' + adapterFixture.breakdown);
+    if (adapterFixture.breakdownMirror !== 'Todo 2 days, Canceled 9 days') throw new Error('Status breakdown must read mirror_in_status_change + create events and skip no-op changes, got: ' + adapterFixture.breakdownMirror);
+    const agedStatusTip = await page.locator('.prod-row .prod-status[data-prod-tip*=" day"], .prod-row .prod-status[data-prod-tip*=" hour"], .prod-row .prod-status[data-prod-tip*=" minute"]').count();
+    if (!agedStatusTip) throw new Error('No row status tooltip carries a time-in-status duration');
     if (adapterFixture.projectEmoji !== '') throw new Error('Adapter should preserve missing emoji as empty so the project glyph fallback renders');
     if (adapterFixture.boardStatus !== 'prog') throw new Error('Adapter did not map board in_progress to artifact prog');
     if (adapterFixture.editorInit !== 'MS' || !/^#[0-9a-f]{6}$/i.test(adapterFixture.editorColor)) throw new Error('Adapter did not produce artifact editor initials/color');

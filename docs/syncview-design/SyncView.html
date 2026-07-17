@@ -339,7 +339,7 @@ const DRIVE="https://drive.google.com/drive/folders/1uzpdm9tSg2NF8C1UWdF4Ock";
 function P(id,team,cl,title,status,ass,due,created,sub,desc,comments){return{id:"VID-"+id,team,project:cl,title,parent:null,status,assignee:ass,due,created,sub,desc:desc||"",file:DRIVE,comments:comments||[]};}
 function C(id,team,cl,title,parentId,status,ass,due,created){return{id:"VID-"+id,team,project:cl,title,parent:"VID-"+parentId,status,assignee:ass,due,created,sub:null,desc:"",file:DRIVE,comments:[]};}
 let ISSUES=[
-  P(12586,"video","wineland","John Wineland | June 5 | Long forms YT","client","et","Jun 12","Jun 5",[0,4],"Four long-form YouTube edits from the June 5 shoot."),
+  Object.assign(P(12586,"video","wineland","John Wineland | June 5 | Long forms YT","client","et","Jun 12","Jun 5",[0,4],"Four long-form YouTube edits from the June 5 shoot."),{statusAge:"3 hours",statusHistory:"Posted 8 days, For Client Approval 3 hours"}),
   C(12587,"video","wineland","Long Form 1",12586,"client","et","Jun 12","Jun 5"),
   C(12588,"video","wineland","Long Form 2",12586,"client","et","Jun 12","Jun 5"),
   C(12589,"video","wineland","Long Form 3",12586,"client","et","Jun 12","Jun 5"),
@@ -475,7 +475,7 @@ function rowHTML(i){const sel=S.selected.has(i.id),proj=PROJECTS[i.project];
   return '<div class="row '+(sel?"sel":"")+(i.id===S.focusRow?" kfocus":"")+'" data-row="'+i.id+'">'+
     '<span class="check '+(sel?"on":"")+'" data-check="'+i.id+'"></span>'+
     '<span class="rid">'+i.id+'</span>'+
-    '<span class="st" data-st="'+i.id+'" data-tip="'+STATUS[i.status].name+'|Change status · S">'+statusSVG(i.status)+'</span>'+
+    '<span class="st" data-st="'+i.id+'" data-tip="'+STATUS[i.status].name+(i.statusAge?" "+i.statusAge:"")+'|Change status · S">'+statusSVG(i.status)+'</span>'+
     '<span class="rtitle" data-fulltitle="'+esc(parent?i.title+" › "+parent.title:i.title)+'">'+title+'</span>'+sub+'<span class="rspacer"></span>'+
     (showClient?'<span class="chip clk" data-crumbclient="'+i.project+'" data-tip="Client: '+esc(proj.name)+'"><span class="cdot">'+proj.emoji+'</span><span>'+esc(proj.name)+'</span></span>':"")+
     (i.due?'<span class="due '+(overdue(i.due)?"over":"")+'" data-due="'+i.id+'" data-tip="Due '+i.due+overdueText(i.due)+'|Change due date · ⇧D">'+I.cal+i.due+'</span>':'<span class="due due-empty" data-due="'+i.id+'" data-tip="Set due date|⇧D">'+I.cal+'</span>')+
@@ -537,7 +537,7 @@ function renderDetail(){const i=byId(S.open);if(!i)return renderList();const st=
       '<div class="d-activity"><div class="d-act-hd">Activity</div>'+(comments||'<div style="color:var(--faint);font-size:12.5px;margin-bottom:12px">No comments yet — this is where feedback and delivered file links live.</div>')+'<div class="composer"><span>'+avatar("sl",18)+'</span><div class="composer-box"><textarea id="cinput" placeholder="Leave a comment…" rows="1"></textarea><div class="composer-actions"><span class="composer-hint"><span class="kbd">⌘↵</span> to comment</span><button class="btn-primary" id="csend" disabled>Comment</button></div></div></div></div></div></div>'+
       '<div class="detail-side"><button class="ds-back" data-act="close-detail">'+I.back+' Back to list</button>'+
         '<div class="ds-card"><div class="ds-card-hd" data-cardtoggle><span>Properties</span><span class="ds-cv">'+I.chevD+'</span></div>'+
-          '<div class="ds-row" data-st="'+i.id+'" data-tip="Status: '+st.name+'">'+statusSVG(i.status)+'<span>'+st.name+'</span></div>'+
+          '<div class="ds-row" data-st="'+i.id+'" data-tip="'+(i.statusHistory?esc(i.statusHistory):"Status: "+st.name+(i.statusAge?" "+i.statusAge:""))+'">'+statusSVG(i.status)+'<span>'+st.name+'</span></div>'+
           '<div class="ds-row" data-assign="'+i.id+'" data-tip="'+(i.assignee?"Assignee: "+EDITORS[i.assignee].name:"Unassigned")+'">'+avatar(i.assignee,18)+'<span class="'+(i.assignee?"":"muted")+'">'+(i.assignee?EDITORS[i.assignee].name:"No assignee")+'</span></div>'+
           '<div class="ds-row'+(i.due&&overdue(i.due)?" dueover":"")+'" data-due="'+i.id+'" data-tip="'+(i.due?("Due "+i.due+overdueText(i.due)):"Set due date")+'">'+I.cal+'<span class="'+(i.due?"":"muted")+'">'+(i.due?i.due:"Add due date")+'</span></div>'+
         '</div>'+

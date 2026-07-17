@@ -35405,11 +35405,11 @@
             const raw = _prodLinearRaw(d && d.linear_raw);
             const projectedMarkers = ['raw_issue_archived_at','raw_issue_canceled_at','raw_webhook_delete','raw_deleted','raw_delete','raw_removed','raw_archived'];
             const hasProjectedMarkers = projectedMarkers.some(key => _prodHasOwn(d, key));
+            // Canceled is a visible status (Linear renders a Canceled group); only archive/delete markers hide rows.
             if (_prodNormKey(d && d.status) === 'archived') return false;
             if (!hasProjectedMarkers && _prodRawHasAny(raw, ['webhook_delete', 'deleted', 'delete', 'removed', 'archived'])) return false;
-            if (!hasProjectedMarkers && raw.issue && (raw.issue.archivedAt || raw.issue.canceledAt)) return false;
+            if (!hasProjectedMarkers && raw.issue && raw.issue.archivedAt) return false;
             if (_prodRawMarkerTruthy(d && d.raw_issue_archived_at)) return false;
-            if (_prodRawMarkerTruthy(d && d.raw_issue_canceled_at)) return false;
             if (_prodRawMarkerTruthy(d && d.raw_webhook_delete)) return false;
             if (_prodRawMarkerTruthy(d && d.raw_deleted)) return false;
             if (_prodRawMarkerTruthy(d && d.raw_delete)) return false;

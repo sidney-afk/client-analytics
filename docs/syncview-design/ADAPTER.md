@@ -93,4 +93,4 @@ The artifact is a standalone document. The wired Production tab is embedded insi
 
 - Typography remains the host SyncView type scale by owner decision on 2026-07-06. Structure and behavior follow the artifact; font sizing is intentionally not pixel-copied.
 - Live deep links and event reads require the database deliverable id, so adapter issues retain live `id` values and expose `displayId` for the artifact-style visible issue label.
-- `_prodDeliverableLive()` filters rows whose `linear_raw` carries Linear webhook delete/archive markers before `_prodAdapter()` shapes issues. This is a wired data-layer PORT-DELTA: the standalone artifact has no Supabase mirror-delete payload to interpret.
+- `_prodDeliverableLive()` filters rows whose `linear_raw` carries Linear webhook delete/archive markers before `_prodAdapter()` shapes issues. This is a wired data-layer PORT-DELTA: the standalone artifact has no Supabase mirror-delete payload to interpret. A `canceledAt` marker does NOT hide a row: canceled is a visible status key (Linear renders a Canceled group in project and All views); only archive/delete markers make a row dead.

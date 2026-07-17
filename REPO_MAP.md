@@ -75,7 +75,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | Path | What it is |
 |---|---|
 | `.github/` | CI workflows (unit, nightlies, prod-polish gate, reconcile crons, edge-function deploy), PR template, Copilot instructions. |
-| `.claude/` | Claude Code config: hooks (README-drift + repo-map reminders) and the five quality skills (`master-test`, `overnight-test`, `human-audit`, `feedback-expansion`, `bug-archaeology`) — each a general protocol + target binding; when to use which: `docs/testing/README.md`. |
+| `.claude/` | Claude Code config: hooks (README-drift + repo-map reminders) and the six quality skills (`master-test`, `overnight-test`, `human-audit`, `feedback-expansion`, `bug-archaeology`, `site-assurance`) — each a general protocol + target binding; when to use which: `docs/testing/README.md`; the shared prioritization contract: `docs/QUALITY_TIERS.md`. |
 | `test/` | Fast offline unit/wiring suites — auto-discovered by `test/run-all.js` (every `test/*.js` runs; fixtures live in `test/fixtures/`). |
 | `qa/` | Live headless E2E: orchestrators, probes, the scenario engine, shared libs. See `qa/README.md`. |
 | `scripts/` | Ops jobs run by CI crons + one-shot migration tools (each guarded by a `test/*.js` counterpart). |

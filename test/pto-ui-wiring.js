@@ -113,7 +113,7 @@ ok(!source.includes('id="staffIdentityButton"'), 'legacy standalone identity but
 ok(/let _ptoFlagValue = \{ mode: 'off' \}/.test(source) && /const PTO_FLAG_KEY = 'pto_v1'/.test(source), 'pto_v1 defaults off');
 ok(/if \(page === 'time-off' && !_ptoEnabled\(\)\) page = 'home'/.test(nav), 'direct navigation bounces home while disabled');
 ok(/menuItem\.hidden = !enabled/.test(setFlag) && /_ptoInvalidateOverviewCaches\(\)/.test(setFlag), 'flag disable hides entry and purges cached PTO data');
-ok(/_kasperState\.tab = 'review'/.test(setFlag) && /navTo\('home'\)/.test(setFlag), 'flag disable retires open top-level and Kasper views');
+ok(/_kasperFallbackToReview\(\)/.test(setFlag) && /navTo\('home'\)/.test(setFlag), 'flag disable retires open top-level and Kasper views');
 ok(/KASPER_SUBTABS\.filter\(t => t\.key !== 'time-off' \|\| _ptoEnabled\(\)\)/.test(kasperView)
   && /tab === 'time-off' && !_ptoEnabled\(\)/.test(kasperGoto)
   && /_kasperState\.tab === 'time-off' && !_ptoEnabled\(\)/.test(kasperTab), 'Kasper Time Off tab is filtered and guarded while disabled');

@@ -5480,16 +5480,43 @@
         .kasper-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
         .kasper-title { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
         .kasper-sub { font-size: 0.85rem; color: var(--text-secondary); }
-        .kasper-subtabs { display: flex; gap: 4px; padding: 4px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 22px; width: max-content; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_04); }
-        .kasper-subtabs::-webkit-scrollbar { height: 5px; }
-        .kasper-subtabs::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
-        .kasper-subtab { background: transparent; border: none; font-family: inherit; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+        .kasper-subtabs { display: flex; align-items: center; gap: 4px; padding: 4px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 22px; width: 100%; max-width: 100%; box-sizing: border-box; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_04); }
+        .kasper-subtab { background: transparent; border: none; font-family: inherit; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: color 0.15s, background 0.15s; display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; white-space: nowrap; }
         .kasper-subtab[hidden] { display: none; }
         .kasper-subtab svg { width: 14px; height: 14px; flex-shrink: 0; }
         .kasper-subtab:hover { color: var(--text-primary); background: var(--bg); }
         .kasper-subtab.active { background: var(--text-primary); color: var(--white); }
         .kasper-subtab .kasper-tab-count { background: var(--sv-bg-rgba-255-255-255-0_18); color: inherit; font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 99px; font-variant-numeric: tabular-nums; }
         .kasper-subtab:not(.active) .kasper-tab-count { background: var(--bg); color: var(--text-muted); }
+        .kasper-tab-count[hidden] { display: none; }
+        .kasper-tab-label-short { display: none; }
+        .kasper-more { position: relative; margin-left: auto; flex: 0 0 auto; }
+        .kasper-more-trigger { min-width: 86px; justify-content: center; }
+        .kasper-more-trigger .kasper-more-icon { display: inline-flex; }
+        .kasper-more-trigger .kasper-more-chevron { width: 12px; height: 12px; margin-left: 2px; transition: transform 0.15s; }
+        .kasper-more.open .kasper-more-chevron { transform: rotate(180deg); }
+        .kasper-more-menu { position: absolute; z-index: 80; top: calc(100% + 8px); right: 0; width: 258px; max-width: calc(100vw - 32px); padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--white); box-shadow: 0 16px 38px var(--sv-shadow-rgba-0-0-0-0_18); }
+        .kasper-more-menu[hidden] { display: none; }
+        .kasper-more-group + .kasper-more-group { border-top: 1px solid var(--border); margin-top: 7px; padding-top: 7px; }
+        .kasper-more-heading { padding: 5px 10px 4px; color: var(--text-muted); font-size: 0.65rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+        .kasper-more-item { width: 100%; justify-content: flex-start; padding: 9px 10px; text-align: left; }
+        .kasper-more-item.active { background: var(--bg); color: var(--text-primary); }
+        .kasper-more-item .kasper-tab-count { margin-left: auto; }
+        .kasper-subtab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        @media (max-width: 900px) {
+            .kasper-subtabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .kasper-primary-tab { min-width: 0; justify-content: center; padding-inline: 8px; overflow: hidden; }
+            .kasper-primary-tab .kasper-tab-label-full { display: none; }
+            .kasper-primary-tab .kasper-tab-label-short { display: inline; }
+            .kasper-more { grid-column: 1 / -1; width: 100%; margin-left: 0; }
+            .kasper-more-trigger { width: 100%; }
+        }
+        @media (max-width: 420px) {
+            .kasper-subtabs { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+            .kasper-primary-tab { padding-inline: 8px; }
+            .kasper-subtab .kasper-tab-count { padding-inline: 5px; }
+            .kasper-more-trigger { min-width: 0; padding-inline: 8px; }
+        }
         /* Replies inbox */
         .kasper-replies-list { display: flex; flex-direction: column; gap: 14px; }
         .kasper-replies-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--white); }
@@ -17210,8 +17237,7 @@
                 || (tab === 'onboarding' && !_syncviewStaffCan('onboarding'))
                 || (tab === 'filming' && !valid);
             if (blocked) {
-                _kasperState.tab = 'review';
-                document.querySelectorAll('.kasper-subtab').forEach(item => item.classList.toggle('active', item.getAttribute('data-kasper-tab') === 'review'));
+                _kasperFallbackToReview();
                 if (typeof currentNav !== 'undefined' && currentNav === 'kasper' && typeof _kasperRenderTab === 'function') _kasperRenderTab();
             }
         } catch (e) {}
@@ -17915,8 +17941,7 @@
             _ptoInvalidateOverviewCaches();
             try {
                 if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'time-off') {
-                    _kasperState.tab = 'review';
-                    localStorage.setItem(KASPER_SUBTAB_KEY, 'review');
+                    _kasperFallbackToReview();
                 }
             } catch (e) {}
             if (typeof currentNav !== 'undefined' && currentNav === 'time-off') {
@@ -46543,12 +46568,20 @@
         { key: 'replies', label: 'Messages',       icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>' },
         { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' },
         { key: 'filming', label: 'Filming Plans',  icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"/><path d="M11 7l2.5-1.6v5.2L11 9z"/></svg>' },
-        { key: 'time-off', label: 'Time Off', showCount: true, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.6"/><path d="M2.5 6.5h11M5 1.8v3M11 1.8v3"/><path d="m5.2 9 1.4 1.4 3.4-3.2"/></svg>' },
+        { key: 'time-off', label: 'Time Off', showCount: true, hideZero: true, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.6"/><path d="M2.5 6.5h11M5 1.8v3M11 1.8v3"/><path d="m5.2 9 1.4 1.4 3.4-3.2"/></svg>' },
         { key: 'sales-intake', label: 'Sales Intake', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h7l3 3V13.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8 6v5M6.3 10.1c.4.5 1 .8 1.7.8 1 0 1.7-.5 1.7-1.3 0-1.6-3.3-.9-3.3-2.5 0-.8.7-1.3 1.6-1.3.7 0 1.3.3 1.6.7"/></svg>' },
         { key: 'onboarding', label: 'Onboarding', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M9.5 2.5V5h2.5"/><path d="M6 8.2h4M6 10.6h4"/></svg>' },
         { key: 'client-credentials', label: 'Client Credentials', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>' }
     ];
     if (typeof _sxrEnabled === 'function' && _sxrEnabled()) KASPER_SUBTABS.splice(1, 0, { key: 'samples', label: 'Samples', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2"/><path d="M5 8.2L7 10.2L11 5.8"/></svg>' }); // SXR_LINE
+    const KASPER_PRIMARY_SUBTAB_KEYS = ['review', 'samples', 'replies', 'filming'];
+    const KASPER_PRIMARY_SHORT_LABELS = { review: 'Review', samples: 'Samples', replies: 'Messages', filming: 'Filming' };
+    const KASPER_MORE_GROUPS = [
+        { label: 'Team', keys: ['editors', 'time-off'] },
+        { label: 'Pipeline & Admin', keys: ['sales-intake', 'onboarding', 'client-credentials'] },
+    ];
+    const KASPER_MORE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="3" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="13" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="6.5"/></svg>';
+    const KASPER_MORE_CHEVRON = '<svg class="kasper-more-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>';
     const KASPER_SMM_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Social%20Media%20Managers`;
     // Optional override — if your workspace's primary domain is known, set it here.
     // Without it the Slack button falls back to opening Slack and searching the SMM's name.
@@ -46613,33 +46646,193 @@
     // "Both combined" alert thresholds, in days of content runway left.
     const FILMING_RED_DAYS = 10;
     const FILMING_AMBER_DAYS = 21;
+    function _kasperFallbackToReview() {
+        _kasperState.tab = 'review';
+        try { localStorage.setItem(KASPER_SUBTAB_KEY, 'review'); } catch (e) {}
+        try {
+            if (typeof currentNav !== 'undefined' && currentNav === 'kasper') {
+                history.replaceState({ nav: 'kasper' }, '', location.pathname + location.search + '#kasper');
+            }
+        } catch (e) {}
+        if (typeof _kasperSyncTabNav === 'function') _kasperSyncTabNav();
+    }
     try {
         const _kSavedSub = localStorage.getItem(KASPER_SUBTAB_KEY);
         if (_kSavedSub && KASPER_SUBTABS.some(t => t.key === _kSavedSub)) _kasperState.tab = _kSavedSub;
     } catch (e) {}
 
     function renderKasperView() {
-        if (_kasperState.tab === 'time-off' && (!_ptoEnabled() || !_syncviewStaffCan('pto-admin'))) _kasperState.tab = 'review';
-        const tabsHtml = KASPER_SUBTABS.filter(t => t.key !== 'time-off' || _ptoEnabled()).map(t => {
+        if (_kasperState.tab === 'time-off' && (!_ptoEnabled() || !_syncviewStaffCan('pto-admin'))) _kasperFallbackToReview();
+        const visibleTabs = KASPER_SUBTABS.filter(t => t.key !== 'time-off' || _ptoEnabled());
+        const tabButtonHtml = (t, inMore) => {
             const capability = t.key === 'client-credentials' ? 'credentials' : (t.key === 'onboarding' ? 'onboarding' : (t.key === 'time-off' ? 'pto-admin' : ''));
             const gated = capability ? ` data-staff-capability="${capability}"${_syncviewStaffCan(capability) ? '' : ' hidden'}` : '';
+            const active = _kasperState.tab === t.key;
+            const count = t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}"${t.hideZero ? ' data-kasper-hide-zero' : ''}>·</span>`;
+            const shortLabel = KASPER_PRIMARY_SHORT_LABELS[t.key] || t.label;
             return `
-            <button type="button" class="kasper-subtab${_kasperState.tab === t.key ? ' active' : ''}" data-kasper-tab="${t.key}"${gated} onclick="_kasperGotoTab('${t.key}')">
-                ${t.icon}<span>${_calEsc(t.label)}</span>${t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}">·</span>`}
+            <button type="button" class="kasper-subtab ${inMore ? 'kasper-more-item' : 'kasper-primary-tab'}${active ? ' active' : ''}" data-kasper-tab="${t.key}"${gated}${inMore ? ' role="menuitem" tabindex="-1"' : ''}${active ? ' aria-current="page"' : ''} title="${_calEsc(t.label)}" onclick="_kasperGotoTab('${t.key}')">
+                ${t.icon}<span class="kasper-tab-label-full">${_calEsc(t.label)}</span><span class="kasper-tab-label-short">${_calEsc(shortLabel)}</span>${count}
             </button>`;
+        };
+        const primaryTabs = KASPER_PRIMARY_SUBTAB_KEYS
+            .map(key => visibleTabs.find(t => t.key === key))
+            .filter(Boolean);
+        const primaryTabsHtml = primaryTabs.map(t => tabButtonHtml(t, false)).join('');
+        const moreGroupsHtml = KASPER_MORE_GROUPS.map(group => {
+            const groupTabs = group.keys.map(key => visibleTabs.find(t => t.key === key)).filter(Boolean);
+            if (!groupTabs.length) return '';
+            return `<div class="kasper-more-group" role="presentation">
+                <div class="kasper-more-heading">${_calEsc(group.label)}</div>
+                ${groupTabs.map(t => tabButtonHtml(t, true)).join('')}
+            </div>`;
         }).join('');
+        const moreKeys = new Set(KASPER_MORE_GROUPS.flatMap(group => group.keys));
+        const activeMoreTab = visibleTabs.find(t => t.key === _kasperState.tab && moreKeys.has(t.key));
+        const moreIcon = activeMoreTab ? activeMoreTab.icon : KASPER_MORE_ICON;
+        const moreLabel = activeMoreTab ? activeMoreTab.label : 'More';
         return `<div class="kasper-wrap">
             <div class="kasper-head">
                 <div class="kasper-title">Kasper</div>
                 <div class="kasper-sub">Things waiting for your call.</div>
             </div>
-            <div class="kasper-subtabs">${tabsHtml}</div>
+            <nav class="kasper-subtabs" aria-label="Kasper sections">
+                ${primaryTabsHtml}
+                <div class="kasper-more" onkeydown="_kasperOnMoreKeydown(event)">
+                    <button type="button" class="kasper-subtab kasper-more-trigger${activeMoreTab ? ' active' : ''}" data-kasper-more-trigger aria-haspopup="menu" aria-expanded="false" aria-controls="kasperMoreMenu"${activeMoreTab ? ' aria-current="page"' : ''} onclick="_kasperToggleMore(event)">
+                        <span class="kasper-more-icon" data-kasper-more-icon aria-hidden="true">${moreIcon}</span>
+                        <span data-kasper-more-label>${_calEsc(moreLabel)}</span>
+                        ${KASPER_MORE_CHEVRON}
+                    </button>
+                    <div class="kasper-more-menu" id="kasperMoreMenu" role="menu" aria-label="More Kasper sections" hidden>
+                        ${moreGroupsHtml}
+                    </div>
+                </div>
+            </nav>
             <div id="kasperContent"></div>
             <div class="kasper-lightbox" id="kasperLightbox" onclick="_kasperCloseLightbox()">
                 <img alt="" onclick="event.stopPropagation()">
                 <button class="kasper-lightbox-close" type="button" onclick="_kasperCloseLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
         </div>`;
+    }
+
+    let _kasperMoreWired = false;
+    function _kasperVisibleMoreItems() {
+        return [...document.querySelectorAll('#kasperMoreMenu .kasper-more-item:not([hidden])')];
+    }
+    function _kasperSetMoreOpen(open, focusMenu, restoreTrigger) {
+        const wrap = document.querySelector('.kasper-more');
+        const trigger = document.querySelector('[data-kasper-more-trigger]');
+        const menu = document.getElementById('kasperMoreMenu');
+        if (!wrap || !trigger || !menu) return;
+        const shouldOpen = !!open;
+        wrap.classList.toggle('open', shouldOpen);
+        trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        menu.hidden = !shouldOpen;
+        const items = _kasperVisibleMoreItems();
+        if (!shouldOpen) {
+            items.forEach(item => { item.tabIndex = -1; });
+            if (restoreTrigger) trigger.focus();
+            return;
+        }
+        if (focusMenu && items.length) {
+            const target = items.find(item => item.getAttribute('aria-current') === 'page') || items[0];
+            items.forEach(item => { item.tabIndex = item === target ? 0 : -1; });
+            target.focus();
+        }
+    }
+    function _kasperToggleMore(event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        const trigger = document.querySelector('[data-kasper-more-trigger]');
+        _kasperSetMoreOpen(!trigger || trigger.getAttribute('aria-expanded') !== 'true', false, false);
+    }
+    function _kasperFocusMoreItem(items, index) {
+        if (!items.length) return;
+        const next = (index + items.length) % items.length;
+        items.forEach((item, itemIndex) => { item.tabIndex = itemIndex === next ? 0 : -1; });
+        items[next].focus();
+    }
+    function _kasperOnMoreKeydown(event) {
+        if (!event) return;
+        const key = event.key;
+        const trigger = event.target.closest && event.target.closest('[data-kasper-more-trigger]');
+        const menu = document.getElementById('kasperMoreMenu');
+        const items = _kasperVisibleMoreItems();
+        if (trigger && (key === 'Enter' || key === ' ')) {
+            event.preventDefault();
+            _kasperSetMoreOpen(true, true, false);
+            return;
+        }
+        if (trigger && (key === 'ArrowDown' || key === 'ArrowUp')) {
+            event.preventDefault();
+            _kasperSetMoreOpen(true, false, false);
+            _kasperFocusMoreItem(items, key === 'ArrowUp' ? items.length - 1 : 0);
+            return;
+        }
+        if (!menu || menu.hidden || !menu.contains(event.target)) return;
+        const current = items.indexOf(event.target.closest('.kasper-more-item'));
+        if (key === 'ArrowDown' || key === 'ArrowUp') {
+            event.preventDefault();
+            _kasperFocusMoreItem(items, current + (key === 'ArrowDown' ? 1 : -1));
+        } else if (key === 'Home' || key === 'End') {
+            event.preventDefault();
+            _kasperFocusMoreItem(items, key === 'Home' ? 0 : items.length - 1);
+        } else if (key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            _kasperSetMoreOpen(false, false, true);
+        } else if (key === 'Tab') {
+            _kasperSetMoreOpen(false, false, false);
+        }
+    }
+    function _kasperDismissMore(event) {
+        const wrap = document.querySelector('.kasper-more');
+        if (wrap && !wrap.contains(event.target)) _kasperSetMoreOpen(false, false, false);
+    }
+    function _kasperMoreDocumentKeydown(event) {
+        const menu = document.getElementById('kasperMoreMenu');
+        if (event.key === 'Escape' && menu && !menu.hidden) {
+            event.preventDefault();
+            _kasperSetMoreOpen(false, false, true);
+        }
+    }
+    function _kasperWireMoreNav() {
+        if (_kasperMoreWired) return;
+        document.addEventListener('pointerdown', _kasperDismissMore, true);
+        document.addEventListener('keydown', _kasperMoreDocumentKeydown);
+        _kasperMoreWired = true;
+    }
+    function _kasperUnwireMoreNav() {
+        if (!_kasperMoreWired) return;
+        document.removeEventListener('pointerdown', _kasperDismissMore, true);
+        document.removeEventListener('keydown', _kasperMoreDocumentKeydown);
+        _kasperMoreWired = false;
+    }
+    function _kasperSyncTabNav() {
+        const activeKey = _kasperState.tab;
+        document.querySelectorAll('.kasper-subtab[data-kasper-tab]').forEach(button => {
+            const active = button.getAttribute('data-kasper-tab') === activeKey;
+            button.classList.toggle('active', active);
+            if (active) button.setAttribute('aria-current', 'page');
+            else button.removeAttribute('aria-current');
+        });
+        const activeMoreTab = KASPER_SUBTABS.find(tab => tab.key === activeKey && !KASPER_PRIMARY_SUBTAB_KEYS.includes(tab.key));
+        const trigger = document.querySelector('[data-kasper-more-trigger]');
+        if (trigger) {
+            const icon = trigger.querySelector('[data-kasper-more-icon]');
+            const label = trigger.querySelector('[data-kasper-more-label]');
+            if (icon) icon.innerHTML = activeMoreTab ? activeMoreTab.icon : KASPER_MORE_ICON;
+            if (label) label.textContent = activeMoreTab ? activeMoreTab.label : 'More';
+            trigger.classList.toggle('active', !!activeMoreTab);
+            trigger.title = activeMoreTab ? activeMoreTab.label : 'More sections';
+            if (activeMoreTab) trigger.setAttribute('aria-current', 'page');
+            else trigger.removeAttribute('aria-current');
+        }
+        _kasperSetMoreOpen(false, false, false);
     }
 
     function _kasperOpenLightbox(pid) {
@@ -46665,6 +46858,8 @@
     });
 
     function mountKasperView() {
+        _kasperWireMoreNav();
+        _kasperSyncTabNav();
         // Hydrate cached state once per page-load so the very first visit
         // shows last-known cards while the network re-validation is in
         // flight. Subsequent tab switches in the same page reuse the
@@ -46795,6 +46990,8 @@
        when leaving the Kasper page. Mirrors how the TikTok upload tab tears
        its own poller down. Called from navTo() on every navigation away. */
     function _kasperTeardown() {
+        _kasperSetMoreOpen(false, false, false);
+        _kasperUnwireMoreNav();
         if (_kasperPollTimer) { clearInterval(_kasperPollTimer); _kasperPollTimer = null; }
         if (_kasperWiredVisibility) {
             document.removeEventListener('visibilitychange', _kasperMaybeBackgroundRefresh);
@@ -46960,23 +47157,29 @@
         if (tab === 'time-off') {
             _ptoInvalidateOverviewCaches();
         }
+        const returnFocusToMore = !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('.kasper-more-item'));
+        _kasperSetMoreOpen(false, false, false);
         _kasperState.tab = tab;
         try { localStorage.setItem(KASPER_SUBTAB_KEY, tab); } catch (e) {}
         try { history.replaceState({ nav: 'kasper' }, '', location.pathname + location.search + '#kasper' + (tab === 'review' ? '' : '/' + tab)); } catch {}
-        document.querySelectorAll('.kasper-subtab').forEach(b => b.classList.toggle('active', b.getAttribute('data-kasper-tab') === tab));
+        _kasperSyncTabNav();
         _kasperRenderTab();
+        if (returnFocusToMore) {
+            const trigger = document.querySelector('[data-kasper-more-trigger]');
+            if (trigger) trigger.focus();
+        }
     }
 
     function _kasperRenderTab() {
-        if (_kasperState.tab === 'time-off' && !_ptoEnabled()) _kasperState.tab = 'review';
-        if (_kasperState.tab === 'time-off' && !_syncviewStaffCan('pto-admin')) _kasperState.tab = 'review';
+        if (_kasperState.tab === 'time-off' && !_ptoEnabled()) _kasperFallbackToReview();
+        if (_kasperState.tab === 'time-off' && !_syncviewStaffCan('pto-admin')) _kasperFallbackToReview();
         if (_kasperState.tab === 'client-credentials' && !_syncviewStaffCan('credentials')) {
-            _syncviewOfferStaffSignIn('credentials'); _kasperState.tab = 'review';
+            _syncviewOfferStaffSignIn('credentials'); _kasperFallbackToReview();
         }
         if (_kasperState.tab === 'onboarding' && !_syncviewStaffCan('onboarding')) {
-            _syncviewOfferStaffSignIn('onboarding'); _kasperState.tab = 'review';
+            _syncviewOfferStaffSignIn('onboarding'); _kasperFallbackToReview();
         }
-        document.querySelectorAll('.kasper-subtab').forEach(button => button.classList.toggle('active', button.getAttribute('data-kasper-tab') === _kasperState.tab));
+        _kasperSyncTabNav();
         if (_kasperState.tab === 'samples' && typeof _sxrKasperRenderQueue === 'function') return _sxrKasperRenderQueue(); // SXR_LINE
         if (_kasperState.tab === 'review')  return _kasperRenderReview();
         if (_kasperState.tab === 'replies') return _kasperRenderReplies();
@@ -47975,8 +48178,10 @@
        background load; _kasperEnsureAllTabCounts fetches the data behind every
        counted tab once on entry so the numbers appear without opening each tab. */
     function _kasperSetTabCount(key, n) {
-        const el = document.querySelector('[data-kasper-count="' + key + '"]');
-        if (el) el.textContent = String(n);
+        document.querySelectorAll('[data-kasper-count="' + key + '"]').forEach(el => {
+            el.textContent = String(n);
+            if (el.hasAttribute('data-kasper-hide-zero')) el.hidden = Number(n) === 0;
+        });
     }
     function _kasperRefreshTabCounts() {
         // review = cards still waiting on Kasper's decision. _kasperState.items is

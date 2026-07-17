@@ -78,9 +78,13 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   while mirroring is enabled; retired mode produces zero mirror/outbox intents. Production's legacy lane
   has no Reply action/`parent_id` send path (the Phase-2 gateway lane for enrolled clients does send
   `parent_id` in comment payloads) and client links do not read Client-visible normalized rows.
-- Kasper's eight-tab strip is not contained or semantically keyboard-operable at 390/768 px; later
-  and deep-linked tabs require whole-page horizontal panning (F121). A failed shared Review/Messages
-  cold load leaves Messages on an indefinite skeleton, and Review renders no Retry (F130).
+- Kasper keeps Review Session, Samples, Messages, and Filming Plans in a stable priority row. Editors
+  and Time Off sit under **Team** in an accessible More menu; Sales Intake, Onboarding, and Client
+  Credentials sit under **Pipeline & Admin**. The active More destination replaces the generic label,
+  responsive grids contain the navigation at 390/768 px and 200% text scaling, and denied staff-only
+  routes canonicalize both the saved tab and URL (F121 is partially corrected; Back/history policy
+  remains unchanged). A failed shared Review/Messages cold load leaves Messages on an indefinite
+  skeleton, and Review renders no Retry (F130).
 - Calendar/SXR review cards use the same persisted revision cache key as the editing strips, so a
   server or scanner bump replaces collapsed thumbnails, graphic previews, and backdrop images even
   while a comment field defers the full card rebuild. The comparison dialog is modal, Escape/focus

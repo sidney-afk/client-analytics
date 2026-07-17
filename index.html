@@ -92,10 +92,12 @@
             var kasperOk = function () { return q.get('Kasper') === '1' || ses('syncview_kasper_unlocked'); };
             var ttpOk = function () { return q.get('ttpilot') === '1' || ses('syncview_ttpilot_unlocked'); };
             var sxrOn = function () {
+                // Must mirror _sxrEnabled(): GA default-ON, ?sxr=0 / sticky
+                // opt-out off, storage failure = ON (F73).
                 try {
                     var sv = q.get('sxr');
-                    return (sv === '1' || sv === 'true') || (sv !== '0' && sv !== 'false' && localStorage.getItem('syncview_sxr_on') === '1' && localStorage.getItem('syncview_sxr_off') !== '1');
-                } catch (e) { return false; }
+                    return (sv === '1' || sv === 'true') || (sv !== '0' && sv !== 'false' && localStorage.getItem('syncview_sxr_off') !== '1');
+                } catch (e) { return true; }
             };
             var target = '';
             if (!hash && q.get('Kasper') === '1' && !ses('syncview_kasper_unlocked')) {
@@ -38547,8 +38549,8 @@
             // The flag is read INLINE (no SXR symbols) so this is safe even though
             // it runs before the SXR module block evaluates.
             if (hashRaw === 'sample-reviews' || hashRaw.startsWith('sample-reviews/')) {
-                let _sxrOn = false;
-                try { const _q = new URLSearchParams(location.search).get('sxr'); _sxrOn = (_q === '1' || _q === 'true') || (_q !== '0' && _q !== 'false' && localStorage.getItem('syncview_sxr_on') === '1' && localStorage.getItem('syncview_sxr_off') !== '1'); } catch (e) {}
+                let _sxrOn = true; // GA default-ON; a storage throw leaves it on, matching _sxrEnabled() (F73)
+                try { const _q = new URLSearchParams(location.search).get('sxr'); _sxrOn = (_q === '1' || _q === 'true') || (_q !== '0' && _q !== 'false' && localStorage.getItem('syncview_sxr_off') !== '1'); } catch (e) {}
                 if (_sxrOn) { try { window.__sxrDeepHash = hashRaw; } catch (e) {} setTimeout(function () { try { navTo('sample-reviews', false); } catch (e) {} }, 0); return; }
             }
             // <<< SXR_END
@@ -38679,13 +38681,14 @@
 
             // >>> SXR_BEGIN
             // Client share link for Sample Reviews: ?sxr=1&c=<name>&v=sample-reviews[&t=<token>].
-            // Requires the flag (samples is default-OFF); validates the scoped
-            // token through the service-role verifier, then mounts the portal.
+            // The flag is GA default-ON (?sxr=0 sticky opt-out still applies — F73);
+            // validates the scoped token through the service-role verifier, then
+            // mounts the portal.
             // Flag is read INLINE (no SXR symbols) so this stays TDZ-safe before the
             // SXR module block evaluates; mountSxrClientView runs post-await (safe).
             {
-                let _sxrOn = false;
-                try { const _q = qp.get('sxr'); _sxrOn = (_q === '1' || _q === 'true') || (_q !== '0' && _q !== 'false' && localStorage.getItem('syncview_sxr_on') === '1' && localStorage.getItem('syncview_sxr_off') !== '1'); } catch (e) {}
+                let _sxrOn = true; // GA default-ON; a storage throw leaves it on, matching _sxrEnabled() (F73)
+                try { const _q = qp.get('sxr'); _sxrOn = (_q === '1' || _q === 'true') || (_q !== '0' && _q !== 'false' && localStorage.getItem('syncview_sxr_off') !== '1'); } catch (e) {}
                 if (_sxrOn && !!qp.get('c') && qp.get('v') === 'sample-reviews') {
                     await fetchEssentials();
                     const clientFromQuery = decodeURIComponent(qp.get('c'));

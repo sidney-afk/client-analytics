@@ -132,21 +132,27 @@ async function assertNoWriteRequests(requests) {
           { id: 'parent', identifier: 'VID-1', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Root Batch', status: 'in_progress', assignee_id: 'm1' },
           { id: 'child-a', identifier: 'VID-2', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child A', status: 'smm_approval', assignee_id: 'm1' },
           { id: 'child-b', identifier: 'VID-3', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child B', status: 'client_approval', assignee_id: 'm1' },
+          { id: 'child-c', identifier: 'VID-4', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child C', status: 'canceled', assignee_id: 'm1', raw_issue_canceled_at: '2026-07-08T20:26:05.371Z' },
+          { id: 'child-d', identifier: 'VID-5', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child D', status: 'approved', assignee_id: 'm1', raw_issue_archived_at: '2026-07-08T20:26:05.371Z' },
         ],
       });
       return {
         parentChildren: adapted.ISSUES.filter(i => i.parent === 'parent').map(i => i.id).sort(),
         childAChildren: adapted.ISSUES.filter(i => i.parent === 'child-a').length,
         statusKeys: adapted.ISSUES.map(i => i.status),
+        canceledIssue: adapted.ISSUES.some(i => i.id === 'child-c' && i.status === 'canceled'),
+        archivedDropped: !adapted.ISSUES.some(i => i.id === 'child-d'),
         projectEmoji: adapted.PROJECTS.noemoji.emoji,
         boardStatus: adapted.CLIENTS[0].status,
         editorInit: adapted.EDITORS.m1.init,
         editorColor: adapted.EDITORS.m1.color,
       };
     });
-    if (adapterFixture.parentChildren.join(',') !== 'child-a,child-b') throw new Error('Adapter did not put children only under the batch-parent issue');
+    if (adapterFixture.parentChildren.join(',') !== 'child-a,child-b,child-c') throw new Error('Adapter did not put children only under the batch-parent issue');
     if (adapterFixture.childAChildren !== 0) throw new Error('Adapter let a sibling list another sibling as a child');
     if (!adapterFixture.statusKeys.includes('prog') || !adapterFixture.statusKeys.includes('smm') || !adapterFixture.statusKeys.includes('client')) throw new Error('Adapter did not map B1 status slugs to artifact keys');
+    if (!adapterFixture.canceledIssue) throw new Error('Adapter dropped a canceled deliverable; canceled is a visible status (Canceled group), not a deleted row');
+    if (!adapterFixture.archivedDropped) throw new Error('Adapter kept a deliverable with an archived marker; archive/delete markers must hide rows');
     if (adapterFixture.projectEmoji !== '') throw new Error('Adapter should preserve missing emoji as empty so the project glyph fallback renders');
     if (adapterFixture.boardStatus !== 'prog') throw new Error('Adapter did not map board in_progress to artifact prog');
     if (adapterFixture.editorInit !== 'MS' || !/^#[0-9a-f]{6}$/i.test(adapterFixture.editorColor)) throw new Error('Adapter did not produce artifact editor initials/color');

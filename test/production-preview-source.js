@@ -102,9 +102,11 @@ check('preview maps project and batch descriptions through the shared loaded-sta
   /descField = _prodHasOwn\(c, 'board_desc'\)/.test(prodBlock)
   && /_prodDescriptionHTML\(c\.desc, !!c\.descLoaded, 'No project description\.', false\)/.test(prodBlock)
   && /_prodDescriptionHTML\(desc, !!descField, 'No batch description\.', false\)/.test(prodBlock));
-check('preview filters Linear webhook delete/archive markers out of live issues', /function _prodDeliverableLive\(d\)/.test(prodBlock)
+check('preview filters Linear webhook delete/archive markers out of live issues but keeps canceled rows visible', /function _prodDeliverableLive\(d\)/.test(prodBlock)
   && /webhook_delete/.test(prodBlock)
-  && /raw\.issue && \(raw\.issue\.archivedAt \|\| raw\.issue\.canceledAt\)/.test(prodBlock)
+  && /raw\.issue && raw\.issue\.archivedAt/.test(prodBlock)
+  && !/raw\.issue\.canceledAt/.test(prodBlock)
+  && !/_prodRawMarkerTruthy\(d && d\.raw_issue_canceled_at\)/.test(prodBlock)
   && /hasProjectedMarkers = projectedMarkers\.some/.test(prodBlock)
   && /!hasProjectedMarkers && _prodRawHasAny/.test(prodBlock)
   && /raw_issue_archived_at/.test(prodBlock)

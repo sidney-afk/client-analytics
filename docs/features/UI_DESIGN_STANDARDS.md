@@ -21,13 +21,26 @@ finished merely because its data and happy-path click work.
   buttons. It must clamp to the current business bounds; signed admin controls
   and bounded end-user controls are different configurations.
 
-## Explain without adding noise
+## Explain through the label, not an icon
 
 - Keep warnings, validation, policy boundaries, and recovery actions visible.
   Never put information required to complete a task only in a tooltip.
-- Move supplemental definitions into short, plain-English `data-tip` help on a
-  focusable info button. The shared tooltip must work on pointer hover and
-  keyboard focus.
+- Labels are hover-explainable. When a stat, field, or section needs
+  supplemental explanation, make its visible label or title the help trigger
+  and put the short, plain-English explanation in shared `data-tip` help.
+- Do not add info-icon badges: no circled `i`, standalone `i`, question mark, or
+  separate help-icon control beside the label. Give the label itself a subtle,
+  non-layout-shifting hover and focus affordance.
+- The shared SyncView explanation must stay visible while the pointer remains
+  over its label and show the same content on keyboard focus. Pointer leave,
+  blur, or Escape dismisses it.
+- On touch or other no-hover devices, tapping the label toggles its explanation
+  and tapping elsewhere dismisses it. A help tap must not accidentally open or
+  change the associated field. Explainable labels must remain keyboard
+  reachable and expose the same explanation to assistive technology.
+- Explanation placement must stay inside the viewport in light and dark themes.
+  Decorative explanation motion must be disabled under
+  `prefers-reduced-motion`.
 - Prefer a short heading plus contextual help over repeating a paragraph under
   every card. Labels should say what a value is; tooltips may explain how it is
   calculated or when it changes.
@@ -59,8 +72,11 @@ desktop width. Acceptance includes:
 - meaningful labels and ARIA state, logical tab order, Escape behavior, and
   focus restoration;
 - reduced-motion-safe transitions and no interaction that depends on hover;
-- open-dropdown, open-calendar, focused-stepper, tooltip, validation, empty,
-  dark-theme, and mobile visual checks in the feature's review evidence.
+- open-dropdown, open-calendar, focused-stepper, validation, empty, dark-theme,
+  and mobile visual checks in the feature's review evidence;
+- explainable-label checks for sustained pointer hover, keyboard focus with
+  Escape and blur dismissal, touch tap with tap-away dismissal, no accidental
+  field activation, viewport containment, and reduced-motion behavior.
 
 For sensitive features, use synthetic examples in tests, mockups, screenshots,
 and public documentation. Never use real client, staff, HR, credential, or

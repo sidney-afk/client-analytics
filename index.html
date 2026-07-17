@@ -4907,6 +4907,9 @@
             border: 5px solid transparent; }
         .global-tip[data-placement="above"]::before { top: 100%; border-top-color: var(--sv-border-0f172a); }
         .global-tip[data-placement="below"]::before { bottom: 100%; border-bottom-color: var(--sv-border-0f172a); }
+        @media (prefers-reduced-motion: reduce) {
+            .global-tip[data-label-explainer="true"] { animation: none !important; transition: none !important; }
+        }
 
         /* Month + Week shared header */
         .cal-month-header { display: flex; align-items: center; gap: 12px; padding: 4px 4px 14px; }
@@ -6311,8 +6314,8 @@
         .pto-balance-metric { min-width: 0; border: 1px solid var(--sv-border-rgba-255-255-255-0_15); border-radius: 10px; padding: 10px; background: var(--sv-bg-rgba-255-255-255-0_07); }
         .pto-balance-metric strong { display: block; font-size: 0.92rem; }
         .pto-balance-metric span { display: block; margin-top: 2px; font-size: 0.59rem; opacity: 0.68; line-height: 1.35; }
-        .pto-balance-card .sv-info { border-color: var(--sv-border-rgba-255-255-255-0_15); background: var(--sv-bg-rgba-255-255-255-0_07); color: var(--sv-fg-fff); opacity: 1; }
-        .pto-balance-card .sv-info:hover, .pto-balance-card .sv-info:focus-visible { border-color: var(--sv-fg-fff); background: var(--sv-bg-rgba-255-255-255-0_15); color: var(--sv-fg-fff); }
+        .pto-balance-card .sv-explain-label { text-decoration-color: var(--sv-border-rgba-255-255-255-0_15); }
+        .pto-balance-card .sv-explain-label:hover, .pto-balance-card .sv-explain-label:focus-visible { background: var(--sv-bg-rgba-255-255-255-0_07); text-decoration-color: currentColor; }
         .pto-yearline { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 7px 14px; margin-top: 14px; font-size: 0.62rem; opacity: 0.72; }
         .pto-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
         .pto-field { min-width: 0; display: grid; gap: 6px; }
@@ -6326,9 +6329,9 @@
         /* Shared branded controls. Browser-native select/date/number chrome is
            intentionally kept behind these primitives so staff tools render the
            same way on every OS. See docs/features/UI_DESIGN_STANDARDS.md. */
-        .sv-label-row { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-        .sv-info { width: 18px; height: 18px; flex: 0 0 18px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 50%; padding: 0; background: var(--bg); color: var(--text-muted); font: inherit; font-size: 0.61rem; font-weight: 850; line-height: 1; cursor: help; }
-        .sv-info:hover, .sv-info:focus-visible { border-color: var(--focus-ring); color: var(--focus-ring); background: var(--white); outline: 0; }
+        .sv-explain-label { display: inline; border-radius: 3px; cursor: help; outline: 0; text-decoration-line: underline; text-decoration-style: dotted; text-decoration-thickness: 1px; text-decoration-color: var(--text-muted); text-underline-offset: 3px; touch-action: manipulation; transition: background-color 0.12s ease, text-decoration-color 0.12s ease; }
+        .sv-explain-label:hover { background: var(--surface-subtle); text-decoration-color: currentColor; }
+        .sv-explain-label:focus-visible { background: var(--surface-subtle); box-shadow: 0 0 0 2px var(--focus-ring); text-decoration-color: currentColor; }
         .sv-select { position: relative; width: 100%; }
         .sv-select.is-disabled { opacity: 0.58; pointer-events: none; }
         .sv-select-trigger, .sv-date-trigger { width: 100%; min-height: 44px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 12px; padding: 9px 12px; background: linear-gradient(180deg, var(--sv-bg-fff), var(--sv-bg-fbfbfa)); color: var(--text-primary); font: inherit; font-size: 0.78rem; font-weight: 700; text-align: left; outline: 0; cursor: pointer; display: flex; align-items: center; gap: 9px; transition: border-color 0.14s, box-shadow 0.14s, background 0.14s, transform 0.14s; }
@@ -6422,6 +6425,7 @@
         .pto-spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--text-primary); border-radius: 50%; animation: spin 0.75s linear infinite; }
         @media (prefers-reduced-motion: reduce) {
             .sv-select-menu { animation: none !important; transition: none !important; }
+            .sv-explain-label { transition: none !important; }
             .pto-spinner { animation: none !important; }
         }
 
@@ -17650,9 +17654,10 @@
     let _svSelectTypeahead = '';
     let _svSelectTypeaheadTimer = 0;
 
-    function _svInfoTip(label, text) {
+    function _svExplainLabel(key, label, text, className) {
         const explanation = String(text || '').trim();
-        return '<button class="sv-info" type="button" aria-label="' + _ptoAttr('About ' + label + ': ' + explanation) + '" data-tip="' + _ptoAttr(explanation) + '">i</button>';
+        const classes = ['sv-explain-label', String(className || '').trim()].filter(Boolean).join(' ');
+        return '<span class="' + _ptoAttr(classes) + '" tabindex="0" data-sv-explain data-pto-explain="' + _ptoAttr(key) + '" data-tip="' + _ptoAttr(explanation) + '">' + _ptoEsc(label) + '</span>';
     }
     function _svTone(value) {
         value = String(value || '').toLowerCase();
@@ -18213,22 +18218,22 @@
             { value: 'floating_holiday', label: 'Floating holiday' + (balance.floating_holiday_pending ? ' (pending)' : ''), tone: 'floating', disabled: floatingUnavailable },
             { value: 'unpaid', label: 'Unpaid', tone: 'unpaid' },
         ];
-        const wellnessAdjustmentMetric = balance.wellness_adjustment === 0 ? '' : '<div class="pto-balance-metric"><strong>' + (balance.wellness_adjustment > 0 ? '+' : '') + _ptoFmtDays(balance.wellness_adjustment) + '</strong><span class="sv-label-row">adjustments ' + _svInfoTip('wellness adjustments', 'Credits add to your balance and deductions reduce it; approved leave is shown separately.') + '</span></div>';
-        const balanceHtml = '<section class="pto-card pto-balance-card"><div class="pto-balance-label"><span class="sv-label-row"><span>Wellness available</span>' + _svInfoTip('wellness available', 'Days you can request now after grants, approved leave, and adjustments.') + '</span></div>'
+        const wellnessAdjustmentMetric = balance.wellness_adjustment === 0 ? '' : '<div class="pto-balance-metric"><strong>' + (balance.wellness_adjustment > 0 ? '+' : '') + _ptoFmtDays(balance.wellness_adjustment) + '</strong>' + _svExplainLabel('wellness-adjustments', 'adjustments', 'Credits add to your balance and deductions reduce it; approved leave is shown separately.') + '</div>';
+        const balanceHtml = '<section class="pto-card pto-balance-card"><div class="pto-balance-label">' + _svExplainLabel('wellness-available', 'Wellness available', 'Days you can request now after grants, approved leave, and adjustments.') + '</div>'
             + '<div class="pto-balance-number' + availableClass + '">' + _ptoFmtDays(balance.wellness_available) + '<span>days</span></div>'
-            + '<div class="pto-balance-metrics"><div class="pto-balance-metric"><strong>' + _ptoFmtDays(balance.wellness_granted) + '</strong><span class="sv-label-row">granted this leave year ' + _svInfoTip('granted days', 'Wellness days earned in your current leave year.') + '</span></div>'
-            + '<div class="pto-balance-metric"><strong>' + _ptoFmtDays(balance.wellness_approved_used) + '</strong><span class="sv-label-row">approved leave ' + _svInfoTip('approved leave', 'Wellness days in approved requests during this leave year.') + '</span></div>' + wellnessAdjustmentMetric
-            + '<div class="pto-balance-metric"><strong class="' + (balance.sick_available < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(balance.sick_available) + '</strong><span class="sv-label-row">sick days remaining ' + _svInfoTip('sick days remaining', 'Sick days still available in your current leave year.') + '</span></div>'
-            + '<div class="pto-balance-metric"><strong>' + floatingLabel + '</strong><span class="sv-label-row">floating holiday ' + _svInfoTip('floating holiday', 'One flexible paid holiday is available each calendar year; a pending request reserves it.') + '</span></div>'
-            + '<div class="pto-balance-metric"><strong>' + _ptoFmtDate(balance.next_accrual_date, { month: 'short', day: 'numeric' }) + '</strong><span class="sv-label-row">next wellness grant ' + _svInfoTip('next wellness grant', 'The next date your policy adds wellness time, if you have not reached the cap.') + '</span></div></div>'
+            + '<div class="pto-balance-metrics"><div class="pto-balance-metric"><strong>' + _ptoFmtDays(balance.wellness_granted) + '</strong>' + _svExplainLabel('granted-this-leave-year', 'granted this leave year', 'Wellness days earned in your current leave year.') + '</div>'
+            + '<div class="pto-balance-metric"><strong>' + _ptoFmtDays(balance.wellness_approved_used) + '</strong>' + _svExplainLabel('approved-leave', 'approved leave', 'Wellness days in approved requests during this leave year.') + '</div>' + wellnessAdjustmentMetric
+            + '<div class="pto-balance-metric"><strong class="' + (balance.sick_available < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(balance.sick_available) + '</strong>' + _svExplainLabel('sick-days-remaining', 'sick days remaining', 'Sick days still available in your current leave year.') + '</div>'
+            + '<div class="pto-balance-metric"><strong>' + floatingLabel + '</strong>' + _svExplainLabel('floating-holiday', 'floating holiday', 'One flexible paid holiday is available each calendar year; a pending request reserves it.') + '</div>'
+            + '<div class="pto-balance-metric"><strong>' + _ptoFmtDate(balance.next_accrual_date, { month: 'short', day: 'numeric' }) + '</strong>' + _svExplainLabel('next-wellness-grant', 'next wellness grant', 'The next date your policy adds wellness time, if you have not reached the cap.') + '</div></div>'
             + '<div class="pto-yearline"><span>Leave year ' + _ptoEsc(_ptoFmtDate(balance.leave_year_start, { month: 'short', day: 'numeric', year: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(balance.leave_year_end, { month: 'short', day: 'numeric', year: 'numeric' })) + '</span><span>Sick approved ' + _ptoFmtDays(balance.sick_approved_used) + (balance.sick_adjustment ? ' · adjustments ' + (balance.sick_adjustment > 0 ? '+' : '') + _ptoFmtDays(balance.sick_adjustment) : '') + '</span></div></section>';
         const setupNote = enabled ? '' : '<div class="pto-notice">Your Time Off profile is not enabled yet. An Admin can finish setup from Kasper → Time Off.</div>';
-        const requestHtml = '<section class="pto-card"><div class="pto-card-head"><div><div class="pto-card-title-row"><div class="pto-card-title">Request time off</div>' + _svInfoTip('request dates', 'Weekends and observed company holidays are skipped automatically. The server checks the final count again when you submit.') + '</div><div class="pto-card-sub">Pick your dates and SyncView will count the business days.</div></div></div>'
+        const requestHtml = '<section class="pto-card"><div class="pto-card-head"><div><div class="pto-card-title-row">' + _svExplainLabel('request-time-off', 'Request time off', 'Weekends and observed company holidays are skipped automatically. The server checks the final count again when you submit.', 'pto-card-title') + '</div><div class="pto-card-sub">Pick your dates and SyncView will count the business days.</div></div></div>'
             + '<form class="pto-form" id="ptoRequestForm" onsubmit="_ptoSubmitRequest(event)" oninput="_ptoClearValidation(\'ptoFormError\', \'ptoRequestTypeBtn ptoStartDateBtn ptoEndDateBtn ptoDays\')" onchange="_ptoClearValidation(\'ptoFormError\', \'ptoRequestTypeBtn ptoStartDateBtn ptoEndDateBtn ptoDays\')">' + setupNote
-            + '<div class="pto-field full"><label for="ptoRequestTypeBtn"><span class="sv-label-row"><span>Type</span>' + _svInfoTip('request type', 'Wellness and sick use their matching balances. A floating holiday is one flexible paid day; unpaid leave does not change a balance.') + '</span></label>' + _svSelectHtml('ptoRequestType', typeItems, 'wellness', 'Choose type', { disabled: !enabled, onchange: '_ptoSyncRequestForm(false)' }) + '</div>'
+            + '<div class="pto-field full"><label for="ptoRequestTypeBtn">' + _svExplainLabel('request-type', 'Type', 'Wellness and sick use their matching balances. A floating holiday is one flexible paid day; unpaid leave does not change a balance.') + '</label>' + _svSelectHtml('ptoRequestType', typeItems, 'wellness', 'Choose type', { disabled: !enabled, onchange: '_ptoSyncRequestForm(false)' }) + '</div>'
             + '<div class="pto-field"><label for="ptoStartDateBtn">Start date</label>' + _svDateHtml('ptoStartDate', '', { disabled: !enabled, required: true, today: asOf, onchange: '_ptoSyncRequestForm(true)' }) + '</div>'
             + '<div class="pto-field"><label for="ptoEndDateBtn">End date</label>' + _svDateHtml('ptoEndDate', '', { disabled: !enabled, required: true, today: asOf, onchange: '_ptoSyncRequestForm(true)' }) + '</div>'
-            + '<div class="pto-field full"><label for="ptoDays"><span class="sv-label-row"><span>Days requested</span>' + _svInfoTip('days requested', 'This is calculated from your dates. Use minus or plus only when one endpoint is a half day.') + '</span></label>' + _svStepperHtml('ptoDays', '', { min: 0.5, step: 0.5, disabled: true, downTip: 'Use one half-day endpoint', upTip: 'Return to the full business-day count' }) + '<div class="pto-field-help" id="ptoDaysHelp">Choose a date range to count business days.</div></div>'
+            + '<div class="pto-field full"><label for="ptoDays">' + _svExplainLabel('days-requested', 'Days requested', 'This is calculated from your dates. Use minus or plus only when one endpoint is a half day.') + '</label>' + _svStepperHtml('ptoDays', '', { min: 0.5, step: 0.5, disabled: true, downTip: 'Use one half-day endpoint', upTip: 'Return to the full business-day count' }) + '<div class="pto-field-help" id="ptoDaysHelp">Choose a date range to count business days.</div></div>'
             + '<div class="pto-notice" id="ptoNotice" hidden>Less than 14 days’ notice. This is allowed, but the policy asks for two weeks when possible.</div>'
             + '<div class="pto-field full"><label for="ptoNote">Note <span style="font-weight:500;color:var(--text-muted);">(optional)</span></label><textarea id="ptoNote" maxlength="1000" placeholder="Anything Kasper should know"' + (enabled ? '' : ' disabled') + '></textarea></div>'
             + '<div class="pto-form-error" id="ptoFormError" role="alert"></div><button class="pto-submit" id="ptoSubmit" type="submit"' + (enabled ? '' : ' disabled') + '>Send request</button></form></section>';
@@ -18515,10 +18520,10 @@
         const kindItems = [{ value: 'wellness', label: 'Wellness', tone: 'wellness' }, { value: 'sick', label: 'Sick', tone: 'sick' }];
         const asOf = String(overview.as_of_date || _ptoTodayIso());
         root.innerHTML = '<div class="pto-admin"><div class="pto-card-head"><div><div class="pto-card-title">Time Off</div><div class="pto-card-sub">Approve requests, review balances, and maintain contractor PTO setup.</div></div><button class="pto-refresh" type="button" onclick="_ptoLoadAdmin(true)">Refresh</button></div><div class="pto-admin-grid">'
-            + '<section class="pto-admin-card full"><div class="pto-admin-title-row"><div class="pto-admin-title">Pending requests <span class="pto-status pending">' + pending.length + '</span></div>' + _svInfoTip('approval checks', 'The server re-checks policy and available balance at the moment an approval is saved.') + '</div><div class="pto-admin-sub">Review the request, then approve or deny it.</div><div class="pto-admin-queue">' + queue + '</div><div class="pto-admin-section-break"><div><div class="pto-admin-title">Upcoming approved leave</div><div class="pto-admin-sub">Future approvals can be cancelled here without erasing the original decision record.</div></div><span class="pto-status approved">' + upcoming.length + '</span></div><div class="pto-upcoming-list">' + upcomingRows + '</div><details class="pto-admin-history"><summary>Recent decisions and cancellations <span>' + recent.length + '</span></summary><div class="pto-history-list">' + recentRows + '</div></details></section>'
-            + '<section class="pto-admin-card full"><div class="pto-admin-title-row"><div class="pto-admin-title">Member balances</div>' + _svInfoTip('balance accounting', 'Available equals granted minus approved leave, plus or minus adjustments. Credits are shown separately so usage stays understandable.') + '</div><div class="pto-admin-sub">Approved leave and corrections are separated; negative availability stays red.</div>' + (balanceRows ? '<div class="pto-table-scroll"><table class="pto-table"><thead><tr><th>Member</th><th>Start date</th><th>Granted</th><th>Approved</th><th>Adjustments</th><th>Available</th><th>Sick left</th><th>PTO</th></tr></thead><tbody>' + balanceRows + '</tbody></table></div>' : '<div class="pto-empty">No PTO members have been configured.</div>') + '</section>'
-            + '<section class="pto-admin-card"><div class="pto-admin-title-row"><div class="pto-admin-title">Member setup</div>' + _svInfoTip('member setup', 'The start date is private. Enabling PTO lets this person view balances and submit requests.') + '</div><div class="pto-admin-sub">Set a confirmed contractor\'s private PTO start date.</div><form class="pto-admin-form" onsubmit="_ptoAdminSetMember(event)" oninput="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')" onchange="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')"><div class="pto-field"><label for="ptoAdminMemberBtn">Team member</label>' + _svSelectHtml('ptoAdminMember', memberItems, '', 'Choose member', { onchange: '_ptoAdminPickMember(this.value)' }) + '</div><div class="pto-field"><label for="ptoAdminStartBtn">PTO start date</label>' + _svDateHtml('ptoAdminStart', '', { required: true, today: asOf, max: asOf }) + '</div><label class="pto-check"><input id="ptoAdminEnabled" type="checkbox"> <span class="sv-label-row">PTO enabled ' + _svInfoTip('PTO enabled', 'Lets this person view balances and submit Time Off requests.') + '</span></label><button class="pto-submit" type="submit">Save member</button><div class="pto-form-error" id="ptoAdminMemberError" role="alert"></div></form></section>'
-            + '<section class="pto-admin-card"><div class="pto-admin-title-row"><div class="pto-admin-title">Add adjustment</div>' + _svInfoTip('adjustments', 'Corrections are auditable balance entries. Positive adds days; negative removes days.') + '</div><div class="pto-admin-sub">Add a signed correction in half-day steps.</div><form class="pto-admin-form" onsubmit="_ptoAdminAdjust(event)" oninput="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')" onchange="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')"><div class="pto-field"><label for="ptoAdjustMemberBtn">Team member</label>' + _svSelectHtml('ptoAdjustMember', memberItems, '', 'Choose member') + '</div><div class="pto-form"><div class="pto-field"><label for="ptoAdjustKindBtn">Balance</label>' + _svSelectHtml('ptoAdjustKind', kindItems, 'wellness', 'Choose balance') + '</div><div class="pto-field"><label for="ptoAdjustDelta"><span class="sv-label-row"><span>Days</span>' + _svInfoTip('adjustment days', 'Positive adds days; negative removes days. Zero is not allowed, and half-day steps are accepted.') + '</span></label>' + _svStepperHtml('ptoAdjustDelta', '', { step: 0.5, required: true, placeholder: '-1.0', downTip: 'Remove half a day', upTip: 'Add half a day' }) + '</div></div><div class="pto-field"><label for="ptoAdjustDateBtn"><span class="sv-label-row"><span>Effective date</span>' + _svInfoTip('effective date', 'This date decides which anniversary leave year receives the correction.') + '</span></label>' + _svDateHtml('ptoAdjustDate', asOf, { required: true, today: asOf }) + '</div><div class="pto-field"><label for="ptoAdjustReason">Reason</label><input id="ptoAdjustReason" type="text" maxlength="500" required placeholder="Migration or correction note"></div><button class="pto-submit" type="submit">Add adjustment</button><div class="pto-form-error" id="ptoAdjustError" role="alert"></div></form></section>'
+            + '<section class="pto-admin-card full"><div class="pto-admin-title-row">' + _svExplainLabel('pending-requests', 'Pending requests', 'The server re-checks policy and available balance at the moment an approval is saved.', 'pto-admin-title') + '<span class="pto-status pending">' + pending.length + '</span></div><div class="pto-admin-sub">Review the request, then approve or deny it.</div><div class="pto-admin-queue">' + queue + '</div><div class="pto-admin-section-break"><div><div class="pto-admin-title">Upcoming approved leave</div><div class="pto-admin-sub">Future approvals can be cancelled here without erasing the original decision record.</div></div><span class="pto-status approved">' + upcoming.length + '</span></div><div class="pto-upcoming-list">' + upcomingRows + '</div><details class="pto-admin-history"><summary>Recent decisions and cancellations <span>' + recent.length + '</span></summary><div class="pto-history-list">' + recentRows + '</div></details></section>'
+            + '<section class="pto-admin-card full"><div class="pto-admin-title-row">' + _svExplainLabel('member-balances', 'Member balances', 'Available equals granted minus approved leave, plus or minus adjustments. Credits are shown separately so usage stays understandable.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Approved leave and corrections are separated; negative availability stays red.</div>' + (balanceRows ? '<div class="pto-table-scroll"><table class="pto-table"><thead><tr><th>Member</th><th>Start date</th><th>Granted</th><th>Approved</th><th>Adjustments</th><th>Available</th><th>Sick left</th><th>PTO</th></tr></thead><tbody>' + balanceRows + '</tbody></table></div>' : '<div class="pto-empty">No PTO members have been configured.</div>') + '</section>'
+            + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('member-setup', 'Member setup', 'The start date is private. Enabling PTO lets this person view balances and submit requests.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Set a confirmed contractor\'s private PTO start date.</div><form class="pto-admin-form" onsubmit="_ptoAdminSetMember(event)" oninput="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')" onchange="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')"><div class="pto-field"><label for="ptoAdminMemberBtn">Team member</label>' + _svSelectHtml('ptoAdminMember', memberItems, '', 'Choose member', { onchange: '_ptoAdminPickMember(this.value)' }) + '</div><div class="pto-field"><label for="ptoAdminStartBtn">PTO start date</label>' + _svDateHtml('ptoAdminStart', '', { required: true, today: asOf, max: asOf }) + '</div><label class="pto-check"><input id="ptoAdminEnabled" type="checkbox"> ' + _svExplainLabel('pto-enabled', 'PTO enabled', 'Lets this person view balances and submit Time Off requests.') + '</label><button class="pto-submit" type="submit">Save member</button><div class="pto-form-error" id="ptoAdminMemberError" role="alert"></div></form></section>'
+            + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('add-adjustment', 'Add adjustment', 'Corrections are auditable balance entries. Positive adds days; negative removes days.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Add a signed correction in half-day steps.</div><form class="pto-admin-form" onsubmit="_ptoAdminAdjust(event)" oninput="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')" onchange="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')"><div class="pto-field"><label for="ptoAdjustMemberBtn">Team member</label>' + _svSelectHtml('ptoAdjustMember', memberItems, '', 'Choose member') + '</div><div class="pto-form"><div class="pto-field"><label for="ptoAdjustKindBtn">Balance</label>' + _svSelectHtml('ptoAdjustKind', kindItems, 'wellness', 'Choose balance') + '</div><div class="pto-field"><label for="ptoAdjustDelta">' + _svExplainLabel('adjustment-days', 'Days', 'Positive adds days; negative removes days. Zero is not allowed, and half-day steps are accepted.') + '</label>' + _svStepperHtml('ptoAdjustDelta', '', { step: 0.5, required: true, placeholder: '-1.0', downTip: 'Remove half a day', upTip: 'Add half a day' }) + '</div></div><div class="pto-field"><label for="ptoAdjustDateBtn">' + _svExplainLabel('adjustment-effective-date', 'Effective date', 'This date decides which anniversary leave year receives the correction.') + '</label>' + _svDateHtml('ptoAdjustDate', asOf, { required: true, today: asOf }) + '</div><div class="pto-field"><label for="ptoAdjustReason">Reason</label><input id="ptoAdjustReason" type="text" maxlength="500" required placeholder="Migration or correction note"></div><button class="pto-submit" type="submit">Add adjustment</button><div class="pto-form-error" id="ptoAdjustError" role="alert"></div></form></section>'
             + '</div></div>';
     }
     function _ptoAdminPickMember(memberId) {
@@ -50818,14 +50823,20 @@
         'use strict';
         const SHOW_DELAY_MS = 0;   // instant — matches the snappy feel of the old editor tooltip
         const TIP_CLASS = 'global-tip';
+        const TIP_ID = 'globalTooltip';
         let tipEl = null;
         let activeTarget = null;
         let savedTitle = null;
+        let savedDescribedBy;
         let showTimer = 0;
+        let touchTapStartedActive = false;
+        let touchPinnedTarget = null;
+        let lastPointerType = '';
 
         function ensureTipEl() {
             if (tipEl) return tipEl;
             tipEl = document.createElement('div');
+            tipEl.id = TIP_ID;
             tipEl.className = TIP_CLASS;
             tipEl.setAttribute('role', 'tooltip');
             return tipEl;
@@ -50865,6 +50876,11 @@
                 el = el.parentElement;
             }
             return null;
+        }
+
+        function isNoHoverDevice() {
+            return Number(navigator.maxTouchPoints || 0) > 0
+                && !!(window.matchMedia && window.matchMedia('(hover: none)').matches);
         }
 
         function position(el, target) {
@@ -50915,7 +50931,14 @@
             }
             const el = ensureTipEl();
             el.textContent = text;
+            el.dataset.labelExplainer = target.hasAttribute('data-sv-explain') ? 'true' : 'false';
             document.body.appendChild(el);
+            if (target.hasAttribute('data-sv-explain')) {
+                savedDescribedBy = target.getAttribute('aria-describedby');
+                const ids = String(savedDescribedBy || '').split(/\s+/).filter(Boolean);
+                if (!ids.includes(TIP_ID)) ids.push(TIP_ID);
+                target.setAttribute('aria-describedby', ids.join(' '));
+            }
             position(el, target);
         }
 
@@ -50926,8 +50949,14 @@
                 activeTarget.setAttribute('title', savedTitle);
                 savedTitle = null;
             }
+            if (savedDescribedBy !== undefined) {
+                if (savedDescribedBy === null) activeTarget.removeAttribute('aria-describedby');
+                else activeTarget.setAttribute('aria-describedby', savedDescribedBy);
+                savedDescribedBy = undefined;
+            }
             if (tipEl && tipEl.parentNode) tipEl.parentNode.removeChild(tipEl);
             activeTarget = null;
+            touchPinnedTarget = null;
         }
 
         document.addEventListener('mouseover', function (e) {
@@ -50936,13 +50965,19 @@
             if (activeTarget && !document.contains(activeTarget)) hide();
             const bearer = findBearer(e.target);
             if (!bearer) return;
+            if (bearer.hasAttribute('data-sv-explain') && isNoHoverDevice()) return;
             if (bearer === activeTarget) return;
+            if (bearer.hasAttribute('data-sv-explain')) {
+                show(bearer);
+                return;
+            }
             if (showTimer) clearTimeout(showTimer);
             showTimer = setTimeout(function () { show(bearer); }, SHOW_DELAY_MS);
         }, true);
 
         document.addEventListener('mouseout', function (e) {
             if (!activeTarget && !showTimer) return;
+            if (touchPinnedTarget && activeTarget === touchPinnedTarget) return;
             const next = e.relatedTarget;
             // Moving inside the bearer (e.g., over its icon child) is
             // not a leave — keep the tip showing.
@@ -50969,6 +51004,44 @@
             hide();
         }, true);
 
+        // Explainable labels opt into touch pinning. The pointer-down snapshot
+        // lets a second tap toggle the current explanation without making the
+        // first tap disappear after focusin. Preventing the label's default
+        // click keeps a help tap from opening or changing its form control.
+        document.addEventListener('pointerdown', function (e) {
+            const bearer = findBearer(e.target);
+            lastPointerType = String(e.pointerType || (isNoHoverDevice() ? 'touch' : 'mouse'));
+            if (lastPointerType === 'touch' && bearer && bearer.hasAttribute('data-sv-explain')) {
+                touchTapStartedActive = bearer === touchPinnedTarget
+                    && bearer === activeTarget && !!(tipEl && tipEl.parentNode);
+                if (bearer !== activeTarget) hide();
+                return;
+            }
+            touchTapStartedActive = false;
+            hide();
+        }, true);
+        document.addEventListener('click', function (e) {
+            const touchClick = lastPointerType === 'touch'
+                || (!lastPointerType && isNoHoverDevice());
+            lastPointerType = '';
+            if (!touchClick) return;
+            const bearer = findBearer(e.target);
+            if (!bearer || !bearer.hasAttribute('data-sv-explain')) return;
+            e.preventDefault();
+            if (touchTapStartedActive) {
+                touchTapStartedActive = false;
+                hide();
+                return;
+            }
+            touchTapStartedActive = false;
+            if (document.activeElement !== bearer) {
+                try { bearer.focus({ preventScroll: true }); } catch (_) { bearer.focus(); }
+            }
+            if (bearer !== activeTarget) show(bearer);
+            else if (tipEl && tipEl.parentNode) position(tipEl, bearer);
+            touchPinnedTarget = bearer;
+        }, true);
+
         function viewportChange() {
             // Focusing an off-screen help control can itself scroll the page.
             // Keep keyboard help attached to its focused trigger; ordinary
@@ -50981,7 +51054,11 @@
 
         // Any click / keyboard escape should drop the tip immediately.
         // Viewport changes preserve only a keyboard-focused explanation.
-        document.addEventListener('mousedown', hide, true);
+        document.addEventListener('mousedown', function (e) {
+            if (activeTarget && activeTarget.hasAttribute('data-sv-explain')
+                && activeTarget.contains(e.target) && lastPointerType === 'touch') return;
+            hide();
+        }, true);
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hide(); });
         window.addEventListener('scroll', viewportChange, true);
         window.addEventListener('resize', viewportChange);

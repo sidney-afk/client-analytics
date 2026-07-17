@@ -26,6 +26,27 @@ const MEMBER = Object.freeze({
 const FUTURE_MEMBER_NAME = 'TEST Future Leave Fixture';
 const ADMIN_KEY = 'test-browser-admin-role-key';
 const MEMBER_KEY = 'test-browser-creative-role-key';
+const STAFF_EXPLAIN_KEYS = Object.freeze([
+  'wellness-available',
+  'granted-this-leave-year',
+  'approved-leave',
+  'wellness-adjustments',
+  'sick-days-remaining',
+  'floating-holiday',
+  'next-wellness-grant',
+  'request-time-off',
+  'request-type',
+  'days-requested',
+]);
+const KASPER_EXPLAIN_KEYS = Object.freeze([
+  'pending-requests',
+  'member-balances',
+  'member-setup',
+  'pto-enabled',
+  'add-adjustment',
+  'adjustment-days',
+  'adjustment-effective-date',
+]);
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -367,6 +388,100 @@ async function assertNoGlobalOverflow(page, label) {
     : `${label} stays inside the mobile viewport (${JSON.stringify(metrics)})`);
 }
 
+async function assertExplainerContract(page, rootSelector, expectedKeys, label) {
+  const audit = await page.locator(rootSelector).evaluate((root, expected) => {
+    const triggers = [...root.querySelectorAll('.sv-explain-label[data-sv-explain][data-pto-explain]')];
+    const keys = triggers.map(trigger => trigger.getAttribute('data-pto-explain')).sort();
+    const badContracts = triggers.map(trigger => {
+      const explanation = String(trigger.getAttribute('data-tip') || trigger.getAttribute('data-sv-explain') || '').trim();
+      const text = String(trigger.textContent || '').replace(/\s+/g, ' ').trim();
+      return {
+        key: trigger.getAttribute('data-pto-explain') || '',
+        focusable: trigger.tabIndex >= 0,
+        explanation,
+        text,
+      };
+    }).filter(item => !item.key || !item.focusable || item.explanation.length < 20
+      || /undefined|null/i.test(item.explanation) || !item.text || /^[iⓘℹ]$/i.test(item.text));
+    const iconSelectors = [
+      '.sv-info',
+      'button[aria-label^="About "]',
+      '.sv-label-row > button[data-tip]',
+      '.pto-card-title-row > button[data-tip]',
+      '.pto-admin-title-row > button[data-tip]',
+    ].join(',');
+    const iconBadges = [...root.querySelectorAll(iconSelectors)].map(element => ({
+      tag: element.tagName,
+      cls: String(element.className || ''),
+      text: String(element.textContent || '').trim(),
+    }));
+    const glyphBadges = [...root.querySelectorAll('button,[role="button"]')]
+      .filter(element => /^[iⓘℹ]$/i.test(String(element.textContent || '').trim()))
+      .map(element => String(element.className || element.getAttribute('aria-label') || element.tagName));
+    return {
+      keys,
+      expected: [...expected].sort(),
+      badContracts,
+      iconBadges,
+      glyphBadges,
+      duplicateKeys: keys.filter((key, index) => keys.indexOf(key) !== index),
+    };
+  }, expectedKeys);
+  assert(JSON.stringify(audit.keys) === JSON.stringify(audit.expected)
+    && audit.badContracts.length === 0 && audit.iconBadges.length === 0
+    && audit.glyphBadges.length === 0 && audit.duplicateKeys.length === 0,
+  `${label} attaches every explanation to a focusable plain-English label and exposes no info-icon badges`
+    + (JSON.stringify(audit.keys) === JSON.stringify(audit.expected)
+      && audit.badContracts.length === 0 && audit.iconBadges.length === 0
+      && audit.glyphBadges.length === 0 && audit.duplicateKeys.length === 0
+      ? '' : ` (${JSON.stringify(audit)})`));
+}
+
+async function assertDesktopExplainer(page, selector, outsideSelector, label) {
+  const trigger = page.locator(selector);
+  const expected = await trigger.evaluate(element => String(
+    element.getAttribute('data-tip') || element.getAttribute('data-sv-explain') || ''
+  ).trim());
+  await trigger.hover();
+  // The app's tooltip listener is delegated on document. Explicitly dispatch
+  // the same bubbling event after Playwright positions the real pointer so the
+  // contract remains deterministic after prior portaled controls are removed.
+  await trigger.dispatchEvent('mouseover');
+  await page.waitForFunction(text => document.querySelector('.global-tip')?.textContent.trim() === text, expected);
+  const hoverState = await trigger.evaluate(element => {
+    const style = getComputedStyle(element);
+    return {
+      cursor: style.cursor,
+      decorated: String(style.textDecorationLine || '').includes('underline')
+        || !['', 'none', '0px'].includes(String(style.borderBottomStyle || '')),
+    };
+  });
+  await page.waitForTimeout(150);
+  assert((await page.locator('.global-tip').textContent()).trim() === expected
+    && hoverState.cursor === 'help' && hoverState.decorated,
+  `${label} hover keeps the matching explanation visible with a subtle label affordance`);
+  await page.locator(outsideSelector).hover();
+  await page.waitForFunction(() => !document.querySelector('.global-tip'));
+  assert(await page.locator('.global-tip').count() === 0, `${label} tooltip closes when pointer hover leaves its label`);
+
+  const focusState = await trigger.evaluate(element => {
+    element.focus();
+    const tip = document.querySelector('.global-tip');
+    return {
+      active: document.activeElement === element,
+      expected: String(element.getAttribute('data-tip') || element.getAttribute('data-sv-explain') || '').trim(),
+      actual: String(tip && tip.textContent || '').trim(),
+      visible: !!(tip && tip.getClientRects().length),
+    };
+  });
+  assert(focusState.active && focusState.visible && focusState.actual === focusState.expected,
+    `${label} keyboard focus shows the same plain-English explanation`);
+  await page.keyboard.press('Escape');
+  assert(await page.locator('.global-tip').count() === 0
+    && await trigger.evaluate(element => document.activeElement === element),
+  `${label} Escape dismisses the explanation without moving focus`);
+}
+
 (async () => {
   const state = {
     overview: initialOverview(),
@@ -381,6 +496,7 @@ async function assertNoGlobalOverflow(page, label) {
   const port = server.address().port;
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1360, height: 980 }, colorScheme: 'light' });
+  let touchContext = null;
   const page = await context.newPage();
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
@@ -398,6 +514,7 @@ async function assertNoGlobalOverflow(page, label) {
     assert(staffNative.selects === 0 && staffNative.visibleDates === 0 && staffNative.badDateContract === 0
       && staffNative.rogueNumbers === 0 && staffNative.badSteppers === 0 && staffNative.spinnerRule,
     'staff form exposes no browser-native select, calendar, or spinner chrome');
+    await assertExplainerContract(page, '.pto-wrap', STAFF_EXPLAIN_KEYS, 'staff Time Off');
     await assertNoSeriousAxe(page, '.pto-wrap', 'staff Time Off');
     assert((await page.locator('.pto-empty', { hasText: 'No requests yet' }).count()) === 1,
       'staff request history has a clear empty state');
@@ -455,24 +572,13 @@ async function assertNoGlobalOverflow(page, label) {
     await page.locator('#ptoRequestTypeBtn').click();
     await page.locator('#ptoRequestTypeMenu [data-value="wellness"]').click();
 
-    // Help text is available to keyboard users through the styled global tip.
-    const infoTip = page.locator('.pto-card .sv-info').first();
-    const focusTip = await infoTip.evaluate(element => {
-      // focusin paints the shared tooltip synchronously. Read it in this same
-      // browser task so a legitimate later refresh cannot replace the card in
-      // the one-instruction gap between focus() and a second locator query.
-      element.focus();
-      const tip = document.querySelector('.global-tip');
-      return {
-        active: document.activeElement === element,
-        text: String(tip && tip.textContent || '').trim(),
-        visible: !!(tip && tip.getClientRects().length),
-      };
-    });
-    assert(focusTip.active && focusTip.visible && focusTip.text.length > 20 && !/undefined|null/i.test(focusTip.text),
-      'focused help icon shows a plain-English styled tooltip');
-    await page.keyboard.press('Escape');
-    assert(await page.locator('.global-tip').count() === 0, 'Escape dismisses the focus tooltip');
+    // The visible label is the explainer: no adjacent icon badge. Exercise a
+    // stat and a form field so both label shapes keep the same pointer and
+    // keyboard contract.
+    await assertDesktopExplainer(page, '[data-pto-explain="wellness-available"]', '.pto-title',
+      'staff balance label');
+    await assertDesktopExplainer(page, '[data-pto-explain="request-type"]', '.pto-title',
+      'staff request field label');
 
     // Styled date picker derives today/min/max from the server-provided as-of date.
     assert(await page.locator('#ptoStartDate').getAttribute('min') === '2030-04-11'
@@ -668,6 +774,32 @@ async function assertNoGlobalOverflow(page, label) {
     assert(adminNative.selects === 0 && adminNative.visibleDates === 0 && adminNative.badDateContract === 0
       && adminNative.rogueNumbers === 0 && adminNative.badSteppers === 0 && adminNative.spinnerRule,
     'Kasper forms expose no browser-native select, calendar, or spinner chrome');
+    await assertExplainerContract(page, '.pto-admin', KASPER_EXPLAIN_KEYS, 'Kasper Time Off');
+    await assertDesktopExplainer(page, '[data-pto-explain="member-balances"]', '.kasper-subtabs',
+      'Kasper section label');
+    await assertDesktopExplainer(page, '[data-pto-explain="adjustment-days"]', '.kasper-subtabs',
+      'Kasper adjustment field label');
+    const hybridTouch = await page.locator('[data-pto-explain="pto-enabled"]').evaluate(element => {
+      const checkbox = document.getElementById('ptoAdminEnabled');
+      const before = checkbox.checked;
+      element.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        pointerType: 'touch',
+      }));
+      element.click();
+      const tip = document.querySelector('.global-tip');
+      return {
+        hoverCapable: !matchMedia('(hover: none)').matches,
+        unchanged: checkbox.checked === before,
+        text: String(tip && tip.textContent || '').trim(),
+        expected: String(element.getAttribute('data-tip') || '').trim(),
+      };
+    });
+    assert(hybridTouch.hoverCapable && hybridTouch.unchanged
+      && hybridTouch.text === hybridTouch.expected,
+    'a touch pointer on a hover-capable device opens help without toggling the Kasper field');
+    await page.keyboard.press('Escape');
     await assertNoSeriousAxe(page, '.pto-admin', 'Kasper Time Off');
     await page.evaluate(() => _syncviewApplyTheme('dark'));
     await page.locator('#ptoAdminMemberBtn').click();
@@ -844,6 +976,18 @@ async function assertNoGlobalOverflow(page, label) {
     assert(/^0s(?:, 0s)*$/.test(reducedMenuMotion) && reducedCalendarMotion === 'none',
       'dropdown and calendar disable decorative motion for reduced-motion users');
     await page.keyboard.press('Escape');
+    await page.locator('[data-pto-explain="request-type"]').hover();
+    await page.locator('[data-pto-explain="request-type"]').dispatchEvent('mouseover');
+    await page.waitForSelector('.global-tip');
+    const reducedTooltipMotion = await page.locator('.global-tip').evaluate(element => {
+      const style = getComputedStyle(element);
+      return { animationName: style.animationName, transitionDuration: style.transitionDuration };
+    });
+    assert(reducedTooltipMotion.animationName === 'none'
+      && /^0s(?:, 0s)*$/.test(reducedTooltipMotion.transitionDuration),
+    'label explanations disable decorative tooltip motion for reduced-motion users');
+    await page.locator('.pto-title').hover();
+    await page.waitForFunction(() => !document.querySelector('.global-tip'));
     await page.emulateMedia({ reducedMotion: 'no-preference' });
 
     await page.evaluate(() => {
@@ -944,10 +1088,74 @@ async function assertNoGlobalOverflow(page, label) {
     assert(await page.evaluate(() => _ptoIso(_ptoState.month)) === '2032-07-01',
       'a later server date clamps a previously selected Team calendar month back into its data window');
 
+    // Touch-only devices must not depend on synthetic hover. A tap on the
+    // explainable text opens help without activating the associated form field;
+    // a tap elsewhere dismisses it. Run both public staff and private Kasper
+    // shapes in a real touch-capable browser context.
+    touchContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      colorScheme: 'light',
+      hasTouch: true,
+      isMobile: true,
+    });
+    const touchPage = await touchContext.newPage();
+    const touchPageErrors = [];
+    touchPage.on('pageerror', error => touchPageErrors.push(error.message));
+    await installFixture(touchPage, state);
+    await openStaffTimeOff(touchPage, port);
+    const touchStaffLabel = touchPage.locator('[data-pto-explain="request-type"]');
+    await touchStaffLabel.dispatchEvent('mouseover');
+    await touchPage.waitForTimeout(40);
+    assert(await touchPage.locator('.global-tip').count() === 0,
+      'touch-only staff labels do not depend on synthetic hover');
+    const staffTypeBeforeTap = await touchPage.locator('#ptoRequestType').inputValue();
+    const staffMenuBeforeTap = await touchPage.locator('#ptoRequestTypeBtn').getAttribute('aria-expanded');
+    await touchStaffLabel.tap();
+    await touchPage.waitForSelector('.global-tip');
+    const touchStaffTip = await touchPage.locator('.global-tip').textContent();
+    assert(touchStaffTip.trim() === String(await touchStaffLabel.getAttribute('data-tip')
+      || await touchStaffLabel.getAttribute('data-sv-explain') || '').trim()
+      && await touchPage.locator('#ptoRequestType').inputValue() === staffTypeBeforeTap
+      && await touchPage.locator('#ptoRequestTypeBtn').getAttribute('aria-expanded') === staffMenuBeforeTap,
+    'tapping the staff field label opens its explanation without activating the field');
+    await touchStaffLabel.tap();
+    await touchPage.waitForFunction(() => !document.querySelector('.global-tip'));
+    assert(await touchPage.locator('.global-tip').count() === 0,
+      'tapping the active staff label toggles its explanation closed');
+    await touchStaffLabel.tap();
+    await touchPage.waitForSelector('.global-tip');
+    await touchPage.locator('.pto-title').tap();
+    await touchPage.waitForFunction(() => !document.querySelector('.global-tip'));
+    assert(await touchPage.locator('.global-tip').count() === 0,
+      'tapping away dismisses the staff label explanation');
+
+    await touchPage.evaluate(() => {
+      _kasperState.tab = 'time-off';
+      navTo('kasper', false);
+    });
+    await touchPage.waitForSelector('[data-pto-explain="pto-enabled"]', { timeout: 15000 });
+    const touchKasperLabel = touchPage.locator('[data-pto-explain="pto-enabled"]');
+    const enabledBeforeTap = await touchPage.locator('#ptoAdminEnabled').isChecked();
+    await touchKasperLabel.tap();
+    await touchPage.waitForSelector('.global-tip');
+    const touchKasperTip = await touchPage.locator('.global-tip').textContent();
+    assert(touchKasperTip.trim() === String(await touchKasperLabel.getAttribute('data-tip')
+      || await touchKasperLabel.getAttribute('data-sv-explain') || '').trim()
+      && await touchPage.locator('#ptoAdminEnabled').isChecked() === enabledBeforeTap,
+    'tapping the Kasper checkbox label opens its explanation without toggling the field');
+    await touchPage.locator('.pto-admin-sub').first().tap();
+    await touchPage.waitForFunction(() => !document.querySelector('.global-tip'));
+    assert(await touchPage.locator('.global-tip').count() === 0,
+      'tapping away dismisses the Kasper label explanation');
+    assert(touchPageErrors.length === 0, 'touch browser produced no page errors: ' + touchPageErrors.join(' | '));
+    await touchContext.close();
+    touchContext = null;
+
     assert(state.unexpectedWrites.length === 0, 'test triggered no unrelated external writes');
     assert(pageErrors.length === 0, 'browser produced no page errors: ' + pageErrors.join(' | '));
     console.log(`PTO UI polish browser checks passed (${state.ptoCalls.length} mocked PTO calls)`);
   } finally {
+    if (touchContext) await touchContext.close();
     await context.close();
     await browser.close();
     await new Promise(resolve => server.close(resolve));

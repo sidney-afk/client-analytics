@@ -70,6 +70,27 @@ const adminSetMember = functionSource('_ptoAdminSetMember');
 const adminAdjust = functionSource('_ptoAdminAdjust');
 const showValidation = functionSource('_ptoShowValidation');
 const clearValidation = functionSource('_ptoClearValidation');
+const STAFF_EXPLAIN_KEYS = [
+  'wellness-available',
+  'granted-this-leave-year',
+  'approved-leave',
+  'wellness-adjustments',
+  'sick-days-remaining',
+  'floating-holiday',
+  'next-wellness-grant',
+  'request-time-off',
+  'request-type',
+  'days-requested',
+];
+const KASPER_EXPLAIN_KEYS = [
+  'pending-requests',
+  'member-balances',
+  'member-setup',
+  'pto-enabled',
+  'add-adjustment',
+  'adjustment-days',
+  'adjustment-effective-date',
+];
 
 // The six route/boot registration touchpoints from the binding handoff.
 ok(/else if \(page === 'time-off'\) \{[\s\S]{0,220}renderTimeOffView\(\)[\s\S]{0,120}mountTimeOffView\(\)/.test(nav), 'route 1/6: nav dispatch renders and mounts Time Off');
@@ -147,7 +168,23 @@ ok(/max-height: calc\(100dvh - 16px\)/.test(source) && /@media \(max-height: 500
   && /overscroll-behavior: contain/.test(source), 'date picker remains operable at short viewport heights and browser zoom');
 ok(/sv-stepper-input/.test(stepperHtml) && /type="number"/.test(stepperHtml)
   && /Math\.min\(max, Math\.max\(min, next\)\)/.test(stepNumber), 'branded stepper preserves numeric input and clamps explicit minus/plus controls');
-ok(/focusin/.test(globalTooltip) && /focusout/.test(globalTooltip) && /_svInfoTip/.test(paint), 'plain-English help works on hover and keyboard focus');
+for (const key of STAFF_EXPLAIN_KEYS) {
+  ok(paint.includes(key), `staff label-attached explainer retains stable marker ${key}`);
+}
+for (const key of KASPER_EXPLAIN_KEYS) {
+  ok(admin.includes(key), `Kasper label-attached explainer retains stable marker ${key}`);
+}
+ok(/sv-explain-label/.test(source) && /data-sv-explain/.test(source) && /data-pto-explain/.test(source),
+  'staff and Kasper attach plain-English explanations to the visible labels');
+ok(!/\bsv-info\b|_svInfoTip/.test(paint + admin),
+  'PTO markup contains no legacy info-icon badges or helper');
+ok(/(?:mouseover|pointerover)/.test(globalTooltip) && /(?:mouseout|pointerout)/.test(globalTooltip)
+  && /focusin/.test(globalTooltip) && /focusout/.test(globalTooltip),
+  'label explanations work on pointer hover and keyboard focus');
+ok(/(?:pointerdown|pointerup|touchstart|touchend|click)/.test(globalTooltip)
+  && /pointerType/.test(globalTooltip) && /=== 'touch'/.test(globalTooltip)
+  && /data-sv-explain/.test(globalTooltip),
+  'label explanations expose a touch tap path with tap-away dismissal');
 ok(/prefers-reduced-motion: reduce[\s\S]{0,260}\.sv-select-menu/.test(source)
   && /prefers-reduced-motion: reduce[\s\S]{0,260}\.dp-popup/.test(source)
   && /prefers-reduced-motion: reduce[\s\S]{0,260}\.pto-spinner/.test(source),

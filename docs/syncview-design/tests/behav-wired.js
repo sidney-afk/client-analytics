@@ -486,11 +486,12 @@ async function txt(page, sel) {
         const emptyDueLabel = pill => (pill.querySelector(':scope > span:last-child')?.textContent || '').trim();
         const locked = ['.prod-status[data-st]', '.prod-due', '[data-prod-assign]'].every(selector => {
           const control = row.querySelector(selector);
+          const gated = attr => attr === copy || String(attr || '').endsWith(' \u00b7 ' + copy) || String(attr || '').endsWith('|' + copy);
           return control
             && control.getAttribute('data-prod-write') === 'off'
             && control.getAttribute('aria-disabled') === 'true'
-            && control.getAttribute('title') === copy
-            && control.getAttribute('data-prod-tip') === copy;
+            && gated(control.getAttribute('title'))
+            && gated(control.getAttribute('data-prod-tip'));
         });
         return !!row.querySelector('[data-prod-assign]')
           && !!row.querySelector('.prod-due')
@@ -571,11 +572,12 @@ async function txt(page, sel) {
         const row = document.querySelector('.prod-subrow');
         return !!row && ['.prod-status[data-st]', '.prod-due', '[data-prod-assign]'].every(selector => {
           const control = row.querySelector(selector);
+          const gated = attr => attr === copy || String(attr || '').endsWith(' \u00b7 ' + copy) || String(attr || '').endsWith('|' + copy);
           return control
             && control.getAttribute('data-prod-write') === 'off'
             && control.getAttribute('aria-disabled') === 'true'
-            && control.getAttribute('title') === copy
-            && control.getAttribute('data-prod-tip') === copy;
+            && gated(control.getAttribute('title'))
+            && gated(control.getAttribute('data-prod-tip'));
         });
       }, SIGNED_OUT_WRITE_COPY);
       const guarded = await signedOutClick('.prod-subrow .prod-status[data-st]');
@@ -964,7 +966,7 @@ async function txt(page, sel) {
         const guarded = actionable && getComputedStyle(actionable).cursor === 'default'
           && actionable.getAttribute('aria-disabled') === 'true'
           && actionable.getAttribute('data-prod-write') === 'off'
-          && actionable.getAttribute('data-prod-tip') === copy;
+          && (actionable.getAttribute('data-prod-tip') === copy || String(actionable.getAttribute('data-prod-tip') || '').endsWith('|' + copy));
         const parentNavigates = !parent || getComputedStyle(parent).cursor === 'pointer';
         return guarded && parentNavigates;
       }, SIGNED_OUT_WRITE_COPY);
@@ -1531,7 +1533,8 @@ async function txt(page, sel) {
       row.due = 'Aug 3';
       _prodRender();
       const withDateEl = document.querySelector('[data-prod-prop="due"]');
-      const withDate = withDateEl.getAttribute('data-prod-tip') === copy && withDateEl.textContent.includes('Aug 3');
+      const withDateTip = withDateEl.getAttribute('data-prod-tip') || '';
+      const withDate = /^Due Aug 3( \u00b7 overdue by \d+ days?)?\|/.test(withDateTip) && withDateTip.endsWith(copy) && withDateEl.textContent.includes('Aug 3');
       row.due = '';
       _prodRender();
       const emptyEl = document.querySelector('[data-prod-prop="due"]');

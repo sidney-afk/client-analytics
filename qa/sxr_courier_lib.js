@@ -213,7 +213,11 @@ function appErrs(page) {
 }
 
 async function _ctx(browser, opts) {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...(opts || {}) });
+  // opts.writeUiRerouteLive: p95's guard probe opts back into the LIVE
+  // write_ui_reroute_clients flag; every other probe gets it stubbed dark
+  // (see the route case below). Strip the custom key before newContext.
+  const { writeUiRerouteLive, ...ctxOpts } = opts || {};
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...ctxOpts });
   await ctx.addInitScript((theme) => {
     try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {}
     // These scenarios exercise Samples/Calendar behavior, not the optional
@@ -230,6 +234,18 @@ async function _ctx(browser, opts) {
   await ctx.route('**/*', async (route) => {
     const req = route.request();
     const url = req.url();
+    // 0) write_ui_reroute_clients flag → DARK for the harness. The TEST
+    //    client is the sole live allowlist member; with the flag loaded the
+    //    page takes the #850 gateway lane, which fails Linear-linkless
+    //    harness cards closed (kind='test' → native_link_required) before
+    //    the source save the probes assert on. Real clients run legacy —
+    //    keep the stand-in faithful. Only this flag is stubbed; p95 opts
+    //    back in via writeUiRerouteLive to cover the guard itself.
+    if (!writeUiRerouteLive && url.includes('syncview_runtime_flags') && url.includes('write_ui_reroute_clients')) {
+      const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,OPTIONS', 'cache-control': 'no-store' };
+      if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '[]' });
+    }
     // 1) Linear webhooks → MOCK + capture (never reach real Linear).
     const lh = url.match(LINEAR_HOOK);
     if (lh) {

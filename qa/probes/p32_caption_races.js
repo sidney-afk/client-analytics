@@ -14,6 +14,7 @@ const seed = (id) => Q.up({ id, name: 'CR ' + id.slice(-6), platforms: 'youtube'
   const S = Q.makeOk('P32 caption-races');
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
+  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   const respFor = {};
   const cancelledJobs = new Set();   // jobIds the user requested cancel on (production-accurate: backend then returns cancelled)

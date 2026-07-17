@@ -204,6 +204,16 @@ async function makeCtx(browser, opts = {}) {
     if (method !== 'OPTIONS') rec.requests.push(entry);
     // CORS preflight -> answer locally
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
+    // write_ui_reroute_clients flag -> DARK for the harness: the TEST client
+    // is the sole live allowlist member, so the real flag would put it on the
+    // #850 gateway lane, which fails Linear-linkless harness cards closed
+    // before the source save. Real clients run legacy; keep the stand-in
+    // faithful. Only this one flag is stubbed — the Track-A rosters this
+    // suite exists to exercise stay live. (Rationale: qa/probes/lib.js.)
+    if (url.includes('syncview_runtime_flags') && url.includes('write_ui_reroute_clients')) {
+      entry.status = 200;
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '[]' });
+    }
     // Speed/robustness: STUB the heavy analytics Google-Sheets (Metrics/TopVideos/
     // briefs/summaries) — they are irrelevant to the write path and otherwise
     // serialize the single-threaded curl courier behind ~1MB of CSV, stalling the

@@ -37,6 +37,26 @@ updated in place, and drift-checked by `test/truth-sync.js`.
 Repo layout is documented in `REPO_MAP.md` — when you add, move, or remove files,
 update the map in the same change (`test/repo-map-sync.js` enforces it in CI).
 
+**The test robots are part of the product (owner directive, 2026-07-17).** The
+nightly E2E probes (`qa/probes/`, `qa/ef-writepath/`, driven by the harness libs
+in `qa/`) simulate real staff and clients on the TEST client. If your change
+affects how anything saves or loads, which transport/lane a client uses, a
+runtime flag the page reads, or an endpoint the harness exercises:
+
+1. **Run the affected probes on your branch BEFORE merge** — the nightly E2E
+   workflows accept manual dispatch on any branch; smaller changes can run the
+   relevant `node qa/probes/<probe>.js` subset directly.
+2. **Update the harness in the same PR when the road moves.** The harness must
+   keep simulating what REAL clients/staff experience (archetype: the 2026-07-17
+   incident — #850 put the TEST client on the dark gateway lane, the probes were
+   never told, and the nightly went red for a product behavior that was correct;
+   see `EXECUTION_LOG.md` 2026-07-17). If your change deliberately makes the
+   TEST client behave differently from real clients, the harness needs a
+   matching decision, not silence.
+3. **A change that leaves the nightly red is not finished** — either the probes
+   are updated with it, or the PR explains exactly why the red is expected and
+   what will clear it.
+
 For the visible **Linear** mirror (internal key/module `production`) polish:
 
 - Keep the deliberate label/route split: **Linear** = `navProd` / `production` / `#production` with `?prod=1`; **Submit** = `navLinear` / `linear` / `#linear`. Never derive routing from the visible labels.

@@ -94,3 +94,5 @@ p92_sxr_resolve_pill_inplace.js
 p93_sxr_stale_cache_heal.js
 # --- navigation survives a FULL localStorage (QuotaExceededError in navTo) ---
 p94_nav_full_quota.js
+# --- #850 dark lane: TEST-client card without a Linear link fails CLOSED (native_link_required) ---
+p95_write_ui_test_guard.js

@@ -18,6 +18,7 @@ Each `deliverables` row becomes one artifact-shaped issue:
 - `status`: artifact status key.
 - `assignee`: `team_members.id`.
 - `due`: display date in Linear's written format ("Jul 15", with ", YYYY" appended for non-current years).
+- `statusAtRaw`: raw `status_at` timestamp of the last status change; drives the row-level time-in-status hover. The detail Properties status hover upgrades to a full per-status breakdown ("Posted 8 days, Todo 3 hours") once `_prodLoadEventsFor()` has read the row's `deliverable_events` (lazy GET, cached, capped at 30 events — the created_at-anchored first segment is only added when history is complete).
 - `dueRaw`: original date for overdue comparison.
 - `created`: display creation date.
 - `desc`: deliverable brief.

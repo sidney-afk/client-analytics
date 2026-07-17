@@ -35496,6 +35496,7 @@
                     createdRaw: d.created_at || '',
                     updated: _prodFmtDate(d.updated_at),
                     updatedRaw: d.updated_at || '',
+                    statusAtRaw: d.status_at || '',
                     sub: null,
                     desc: descField ? (d[descField] == null ? '' : d[descField]) : '',
                     descLoaded: !!descField,
@@ -35614,7 +35615,7 @@
         function _prodStatusIcon(status, id) {
             const issue = id ? _prodIssue(id) : null;
             const attrs = issue
-                ? _prodWriteGateAttrs(issue, 'status', { title: 'Change status', tip: 'Change status · S', info: _prodStatusLabel(status) })
+                ? _prodWriteGateAttrs(issue, 'status', { title: 'Change status', tip: 'Change status · S', info: _prodStatusLabel(status) + (_prodStatusAge(issue) ? ' ' + _prodStatusAge(issue) : '') })
                 : ' title="' + _calEscAttr(_prodStatusLabel(status)) + '"';
             return '<span class="prod-status" data-status="' + _calEscAttr(_prodArtifactStatus(status)) + '" data-st="' + _calEscAttr(id || _prodArtifactStatus(status)) + '"' + attrs + (id ? ' onclick="return _prodStatusIconClick(event,' + _jsAttrArg(id) + ')"' : '') + '>' + _prodStatusSVG(status) + '</span>';
         }
@@ -35679,6 +35680,47 @@
         function _prodOverdueText(v, status) {
             const n = _prodOverdueDays(v, status);
             return n ? ' · overdue by ' + n + ' day' + (n > 1 ? 's' : '') : '';
+        }
+        // PORT-DELTA: the artifact carries static statusAge/statusHistory seed strings; the wired
+        // copy derives the same tooltip text live from status_at and deliverable_events timestamps.
+        function _prodDurationText(ms) {
+            if (!(ms > 0)) return '';
+            const minutes = Math.floor(ms / 60000);
+            if (minutes < 60) return Math.max(1, minutes) + ' minute' + (minutes === 1 ? '' : 's');
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return hours + ' hour' + (hours === 1 ? '' : 's');
+            const days = Math.floor(hours / 24);
+            return days + ' day' + (days === 1 ? '' : 's');
+        }
+        function _prodStatusAge(issue) {
+            const ts = issue && issue.statusAtRaw ? Date.parse(issue.statusAtRaw) : NaN;
+            if (!isFinite(ts)) return '';
+            return _prodDurationText(Date.now() - ts);
+        }
+        function _prodStatusBreakdown(events, createdAtRaw, nowMs) {
+            const now = isFinite(nowMs) ? nowMs : Date.now();
+            // Native writes log action=status_change; Linear-synced changes log action=mirror_in_status_change.
+            const changes = (events || [])
+                .filter(e => e && (e.action === 'status_change' || e.action === 'mirror_in_status_change') && e.ts && e.to_status && e.from_status !== e.to_status)
+                .map(e => ({ ts: Date.parse(e.ts), from: e.from_status, to: e.to_status }))
+                .filter(e => isFinite(e.ts))
+                .sort((a, b) => a.ts - b.ts);
+            if (!changes.length) return '';
+            const segments = [];
+            const createEvt = (events || []).find(e => e && e.action === 'create' && e.ts && e.to_status);
+            const anchorTs = createEvt ? Date.parse(createEvt.ts) : (createdAtRaw && (events || []).length < 30 ? Date.parse(createdAtRaw) : NaN);
+            const anchorStatus = createEvt ? createEvt.to_status : changes[0].from;
+            if (isFinite(anchorTs) && anchorStatus && changes[0].ts > anchorTs) {
+                segments.push({ status: anchorStatus, ms: changes[0].ts - anchorTs });
+            }
+            changes.forEach((c, ix) => {
+                const end = ix + 1 < changes.length ? changes[ix + 1].ts : now;
+                if (end > c.ts) segments.push({ status: c.to, ms: end - c.ts });
+            });
+            return segments.slice(-4)
+                .map(s => _prodStatusLabel(s.status) + ' ' + _prodDurationText(s.ms))
+                .filter(s => / \d/.test(s))
+                .join(', ');
         }
         function _prodSameTitle(a, b) {
             return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
@@ -38673,6 +38715,7 @@
         function _prodDetail() {
             const d = _prodIssue(_prodState.openId);
             if (!d) return '<div class="prod-empty">Deliverable not found.</div>';
+            _prodLoadEventsFor(d.id);
             const assignee = _prodMember(d.assignee);
             const kids = _prodChildrenOf(d.id);
             const parent = d.parent ? _prodIssue(d.parent) : null;
@@ -38730,11 +38773,12 @@
         }
         function _prodProps(d, parent, assignee, file) {
             const client = _prodClient(d.project);
+            const statusHistory = _prodStatusBreakdown((_prodState.events && _prodState.events.get ? _prodState.events.get(d.id) : null) || [], d.createdRaw);
             const sideRow = (value, cls) => '<div class="prod-side-row' + (cls ? ' ' + cls : '') + '">' + value + '</div>';
             const muted = text => '<span class="muted">' + _calEsc(text) + '</span>';
             return '<div class="prod-props">'
                 + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
-                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="status"' + _prodWriteGateAttrs(d, 'status', { info: 'Status: ' + _prodStatusLabel(d.status) }) + ' onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span></button>')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="status"' + _prodWriteGateAttrs(d, 'status', { info: (statusHistory ? statusHistory : 'Status: ' + _prodStatusLabel(d.status) + (_prodStatusAge(d) ? ' ' + _prodStatusAge(d) : '')) }) + ' onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span></button>')
                 + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="assignee"' + _prodWriteGateAttrs(d, 'assignee', { info: assignee ? ('Assignee: ' + assignee.name) : 'Unassigned' }) + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span></button>')
                 + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + _prodWriteGateAttrs(d, 'due', d.due ? { info: 'Due ' + d.due + _prodOverdueText(d.dueRaw, d.status) } : { tip: 'Set due date' }) + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>', d.due && _prodOverdue(d.dueRaw, d.status) ? 'dueover' : '')
                 + '</div>'

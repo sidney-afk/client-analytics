@@ -150,7 +150,7 @@ ok(rowRenderers.every(body => /_prodWriteGateAttrs\([^,]+, 'due'/.test(body)
   && /_prodWriteGateAttrs\([^,]+, 'assignee'/.test(body)),
 'list, sub-issue, and project-issue rows share due and assignee gate attributes');
 ok(/_prodWriteGateAttrs\(issue, 'status'/.test(extract('_prodStatusIcon'))
-  && ['status', 'assignee', 'due'].every(operation => extract('_prodProps').includes(`_prodWriteGateAttrs(d, '${operation}')`)),
+  && ['status', 'assignee', 'due'].every(operation => extract('_prodProps').includes(`_prodWriteGateAttrs(d, '${operation}'`)),
 'status icons and detail properties reuse the shared write-gate attribute helper');
 
 if (failures) {

@@ -8,6 +8,10 @@ const VISUAL_VERDICTS = new Set(['ok', 'warning', 'broken', 'pending_visual_revi
 const REVIEW_INPUT_VERDICTS = new Set(['ok', 'warning', 'broken']);
 const REVIEW_ENTRY_KEYS = ['note', 'sha256', 'verdict'];
 
+function canonicalSourceText(value) {
+  return String(value).replace(/\r\n?/g, '\n');
+}
+
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -370,6 +374,7 @@ function writeReviewArtifacts(shots, artifactDir, metadata = {}) {
 }
 
 module.exports = {
+  canonicalSourceText,
   grouped,
   writeReviewArtifacts,
   assertPublicTextSafe,

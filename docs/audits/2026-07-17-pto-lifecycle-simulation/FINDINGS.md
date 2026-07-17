@@ -67,6 +67,10 @@ included in this public packet.
   the screen looked identical. The publisher now verifies and promotes the
   exact private candidate that was reviewed; it never substitutes a fresh
   render behind an existing approval.
+- **Evidence freshness depended on the checkout's line endings.** Windows
+  generated a different source fingerprint than GitHub's Linux runner even
+  though the tracked text was identical. Source hashing now canonicalizes text
+  line endings, and a regression check covers mixed CRLF/LF input.
 - **Mock setup bypassed real entry paths.** The lifecycle now consumes the
   normal read-only `pto_v1` response, opens staff Time Off through the real
   menu, enters Kasper Time Off through the current More menu, and uses natural

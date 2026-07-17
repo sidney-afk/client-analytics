@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const {
+  canonicalSourceText,
   readVisualReviewFile,
   validatePublicEvidence,
   writeReviewArtifacts,
@@ -77,7 +78,7 @@ function sourceTreeFingerprint() {
     if (!fs.existsSync(full)) continue;
     hash.update(relative.replace(/\\/g, '/'));
     hash.update('\0');
-    hash.update(fs.readFileSync(full));
+    hash.update(canonicalSourceText(fs.readFileSync(full, 'utf8')));
     hash.update('\0');
   }
   return hash.digest('hex');

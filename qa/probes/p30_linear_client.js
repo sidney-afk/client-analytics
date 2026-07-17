@@ -10,6 +10,7 @@ const vurl = (id) => 'https://linear.app/sidtest/issue/' + id;
   const S = Q.makeOk('P30 linear-client');
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
+  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   const setCalls = [], addCalls = [];
   await ctx.route('**/webhook/linear-set-status', async (r) => { try { setCalls.push(JSON.parse(r.request().postData() || '{}')); } catch (e) {} await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });

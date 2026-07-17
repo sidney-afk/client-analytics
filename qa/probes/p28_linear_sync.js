@@ -20,6 +20,7 @@ const ADD = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
   // SMM page with interception of the two Linear webhooks
   const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
+  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   const setCalls = [], addCalls = [];
   await ctx.route('**/webhook/linear-set-status', async (route) => {

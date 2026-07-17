@@ -16,6 +16,7 @@ const overall = (page, pid) => page.evaluate((pid) => { const p = (calState.post
   const browser = await Q.launch();
   // Kasper context with Linear interception so we can prove title never pushes.
   const kctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
+  await Q.stubRerouteFlagDark(kctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
   await kctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   const linearCalls = [];
   for (const wh of ['linear-set-status', 'linear-add-comment']) {

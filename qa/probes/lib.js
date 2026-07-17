@@ -25,9 +25,26 @@ function capture(page) {
   page.on('pageerror', e => page._errs.push('[pageerror] ' + (e && e.message)));
   page.on('requestfailed', r => { const u = r.url(); if (/synchrosocial|supabase/.test(u)) page._errs.push('[reqfail] ' + u); });
 }
+// The TEST client stands in for a REAL client in these probes, but it is the
+// sole member of the live write_ui_reroute_clients allowlist — with that flag
+// loaded the page takes the #850 gateway lane, which fails the harness's
+// deliberately fake-or-absent Linear targets closed (kind='test' →
+// native_link_required) BEFORE the source save / legacy push the probes
+// assert on. Real clients run the legacy lane, so the faithful simulation is
+// flag-dark. Stub only this one flag read; every other runtime flag (Track-A
+// rosters etc.) stays live. Probes that build their OWN context must call
+// this on it too. Dark-lane guard coverage: p95_write_ui_test_guard.js.
+async function stubRerouteFlagDark(ctx) {
+  await ctx.route(u => { const s = u.toString(); return s.includes('syncview_runtime_flags') && s.includes('write_ui_reroute_clients'); }, async (route) => {
+    const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,OPTIONS', 'cache-control': 'no-store' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '[]' });
+  });
+}
 async function _ctx(browser, opts = {}) {
   const c = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true, ...opts });
   await c.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await stubRerouteFlagDark(c);
   return c;
 }
 async function _open(browser, url, opts) { const c = await _ctx(browser, opts); const p = await c.newPage(); capture(p);
@@ -112,5 +129,6 @@ async function clientCompActive(cli, pid, comp) {
 module.exports = Object.assign({}, G, {
   up, rawRow, pollRaw, capture, smmPage, clientPage, kasperPage, waitForPost, makeOk,
   smmResolveTweak, clientApprove, clientRequest, overallOn, clientCompActive,
+  stubRerouteFlagDark,
   ORIGIN, UPSERT, SUPA, KEY, launch: G.launch,
 });

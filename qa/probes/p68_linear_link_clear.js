@@ -12,6 +12,7 @@ const URL = 'https://linear.app/syn/issue/TEST-68/clip-' + PID.slice(-5);
   const browser = await Q.launch();
   // intercept Linear webhooks defensively (link writes shouldn't push, but be safe)
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
+  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   const linear = [];
   for (const wh of ['linear-set-status', 'linear-add-comment']) await ctx.route('**/webhook/' + wh, async (r) => { linear.push(wh); await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });

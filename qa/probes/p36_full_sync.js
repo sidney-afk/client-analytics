@@ -15,6 +15,7 @@ function intercept(ctx, setCalls, addCalls) {
 }
 async function mkPage(browser, setCalls, addCalls) {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
+  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   await intercept(ctx, setCalls, addCalls);
   const p = await ctx.newPage(); p._errs = [];

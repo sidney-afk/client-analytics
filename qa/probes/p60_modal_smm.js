@@ -30,6 +30,7 @@ const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid
   const browser = await Q.launch();
   // SMM context with Linear interception
   const sctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
+  await Q.stubRerouteFlagDark(sctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
   await sctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   const linear = [];
   for (const wh of ['linear-add-comment', 'linear-set-status']) await sctx.route('**/webhook/' + wh, async (r) => { let b = {}; try { b = JSON.parse(r.request().postData() || '{}'); } catch (e) {} linear.push({ wh, b }); await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });

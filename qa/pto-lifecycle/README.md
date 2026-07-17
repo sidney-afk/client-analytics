@@ -32,15 +32,19 @@ The default run:
 No live API, roster, runtime flag, migration, n8n workflow, Linear project, or
 Production surface is read or changed.
 
-Maintainers may deliberately refresh the curated, synthetic-only evidence:
+After reviewing the private candidate, maintainers may deliberately publish
+that exact curated, synthetic-only evidence:
 
 ```bash
 node qa/pto-lifecycle/run.js --update-public
 ```
 
-That command first builds the complete candidate packet under
-`.codex-tmp/pto-lifecycle/public-stage/`. It replaces the generated
-screenshots, manifest, gallery, and checklist inside
+The publisher does not launch a second browser or silently substitute a new
+render. It verifies that `.codex-tmp/pto-lifecycle/latest/` was produced from
+the current screenshot-affecting source, copies those exact reviewed bytes
+into `.codex-tmp/pto-lifecycle/public-stage/`, and binds every image to its
+review hash. It replaces the generated screenshots, manifest, gallery, and
+checklist inside
 `docs/audits/2026-07-17-pto-lifecycle-simulation/` only after the browser run
 passes and every current screenshot has a complete, hash-matching visual
 review with no `broken` verdict. If either gate fails, the command exits
@@ -124,7 +128,8 @@ non-empty note. Bare-string verdicts, extra fields, unsafe text, stale hashes,
 and entries for screenshots outside the current run fail closed. A changed
 image invalidates its prior verdict even when the filename stays the same.
 
-Review the private candidate, update the hash-bound verdict file, then rerun
+Review the private candidate, update the hash-bound verdict file, then publish
+that exact candidate with
 `node qa/pto-lifecycle/run.js --update-public`. The committed manifest must
 report a complete review with no pending or broken frame, and
 `--validate-public-evidence` must pass before the packet is committed.

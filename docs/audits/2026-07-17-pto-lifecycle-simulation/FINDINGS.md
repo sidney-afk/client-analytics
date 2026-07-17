@@ -60,6 +60,11 @@ included in this public packet.
   change.** Every time-travel frame now carries a distinct synthetic Guatemala
   clock and policy date, making month, anniversary, and evening-boundary
   checkpoints visually auditable.
+- **Publishing launched a second browser render after visual approval.** Tiny
+  platform text-antialiasing differences changed exact image hashes even when
+  the screen looked identical. The publisher now verifies and promotes the
+  exact private candidate that was reviewed; it never substitutes a fresh
+  render behind an existing approval.
 - **Mock setup bypassed real entry paths.** The lifecycle now consumes the
   normal read-only `pto_v1` response, opens staff Time Off through the real
   menu, enters Kasper through its real navigation control, and uses natural

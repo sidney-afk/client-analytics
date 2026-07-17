@@ -98,7 +98,7 @@ ok(/page\.screenshot\([\s\S]*animations: 'disabled'[\s\S]*caret: 'hide'/.test(HA
 
 ok(/meaningfulTextBlockers/.test(HARNESS)
   && /Node\.TEXT_NODE/.test(HARNESS)
-  && /\.header \*, \.pto-wrap \*, \.pto-admin \*/.test(HARNESS)
+  && /\.header \*, \.kasper-head \*, \.pto-wrap \*, \.pto-admin \*/.test(HARNESS)
   && /button:not\(\[hidden\]\), a\[href\]/.test(HARNESS)
   && /ptoLifecycleClockCue/.test(HARNESS)
   && /setSyntheticClockCue\(page, instant/.test(SCENARIOS)
@@ -159,15 +159,21 @@ ok(/expected_visible_result/.test(REVIEW)
 
 ok(/sourceTreeFingerprint/.test(RUN)
   && /visual-review\.json/.test(RUN)
+  && /file !== 'visual-review\.json'/.test(RUN)
   && /public-stage/.test(RUN)
+  && /reviewedCandidate/.test(RUN)
+  && /publishReviewedCandidate/.test(RUN)
+  && /Private PTO lifecycle candidate is stale for the current source/.test(RUN)
+  && /fs\.copyFileSync\(shot\.path, stagedPath\)/.test(RUN)
   && /publishStagedEvidence/.test(RUN)
   && /fs\.renameSync\(publicArtifactDir, backupDir\)/.test(RUN)
   && /visual_review_complete/.test(RUN)
   && /--validate-public-evidence/.test(RUN)
   && /manifest\.json/.test(RUN)
   && /VISUAL_REVIEW\.md/.test(RUN)
+  && /if \(updatePublic\) \{\s*publishReviewedCandidate\(\);\s*return;/.test(RUN)
   && !/cleanPrivateDirectory\(publicArtifactDir\)/.test(RUN),
-'public evidence refresh stages privately, validates current source, and atomically preserves authored files');
+'public evidence publishes the exact reviewed candidate, validates current source, and atomically preserves authored files');
 
 let strictReviewPassed = true;
 try {

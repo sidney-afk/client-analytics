@@ -98,7 +98,7 @@ async function injectSyntheticBanner(page) {
     const controlBlockers = [...document.querySelectorAll(
       '.sv-toast.show, button:not([hidden]), a[href], input:not([type="hidden"]), textarea, select, [role="button"]',
     )];
-    const meaningfulTextBlockers = [...document.querySelectorAll('.header *, .pto-wrap *, .pto-admin *')]
+    const meaningfulTextBlockers = [...document.querySelectorAll('.header *, .kasper-head *, .pto-wrap *, .pto-admin *')]
       .filter(element => [...element.childNodes].some(node =>
         node.nodeType === Node.TEXT_NODE && String(node.textContent || '').trim()
       ));

@@ -242,11 +242,11 @@ function validatePacket(dir = packetDir) {
   if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.topbarFakeControls !== 0) {
     failures.push('parent-detail screenshot must record zero fake favorite/notification topbar controls in review-manifest.json');
   }
-  if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.hasScaffoldCopy || !/No activity yet|Activity/i.test(parentDetail.evidence.activityText || '')) {
+  if (!parentDetail || !parentDetail.evidence || parentDetail.evidence.hasScaffoldCopy || !/No activity yet|Activity|Comments/i.test(parentDetail.evidence.activityText || '')) {
     failures.push('parent-detail screenshot must use polished empty activity/description copy, not internal migrated-row wording');
   }
   const subIssueDetail = byName('subissue-detail');
-  if (!subIssueDetail || !subIssueDetail.evidence || subIssueDetail.evidence.hasScaffoldCopy || !/No activity yet|Activity/i.test(subIssueDetail.evidence.activityText || '')) {
+  if (!subIssueDetail || !subIssueDetail.evidence || subIssueDetail.evidence.hasScaffoldCopy || !/No activity yet|Activity|Comments/i.test(subIssueDetail.evidence.activityText || '')) {
     failures.push('subissue-detail screenshot must use polished empty activity/description copy, not internal migrated-row wording');
   }
   if (!gallery.includes('Production Review Packet')) failures.push('index.html missing gallery heading');

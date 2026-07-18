@@ -54,6 +54,8 @@
 
 | 15 | 05:38 | Client samples | THUMB DERIVATION honest-state contract: Drive share link → derived image or the DESIGNED announced warn ("share the folder with Anyone with the link"), never a broken img; YouTube watch asset → img.youtube.com thumb with real bytes | ✅ pass=4 fail=0 | `ot4_t0_client_thumb_derivation.js` |
 
+| 16 | 05:55 | Cross | Guard classification + modernization: `p88_realtime_handler` 4/4 green · `p07_client_guards` reds = ENVIRONMENT (its lib.js harness has no courier — open-egress-only family, not product) · `sxr_bug_repros` BUG-4 guard was STALE (stubbed the retired `_syncviewRequireStaffIdentity` path) — modernized to the current verified-identity + issuer mechanism, now 4/4 green, which also freshly proves the SAMPLES-surface share button issues correctly | ✅ | probe fix committed |
+
 ### F140 status note (documentation only — no product code touched)
 - The registered deterministic repro (`kasper.finish() → disabled` after a Kasper tweak request
   on a graphic-only card) **did NOT reproduce tonight**: tree path green 8/8 at 04:50 UTC under

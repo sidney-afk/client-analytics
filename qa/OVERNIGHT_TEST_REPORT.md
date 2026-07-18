@@ -36,6 +36,7 @@
 | 2 | 04:09 | Client samples | SAVES-ALWAYS-LAND: 3 sequential approvals (each ~2 s to DB), 3 rapid typed request-changes fired 0.9 s apart (all landed with text), same-tick double-click → ONE status change, exactly one audit event per action (7/7) | ✅ pass=10 fail=0 | `ot4_t0_client_saves_reliability.js` |
 | 3 | 04:14 | Client calendar | FULL journey on `?c=…&v=calendar`: load → panels → thumbnail bytes → typed comment (status kept) → approve video (+stamp) → typed request-change (status+text+worst-of+toast) → fresh reload reads back persisted statuses → 0 JS errors → tombstone + archive | ✅ pass=18 fail=0 | `ot4_t0_client_calendar.js` |
 | 4 | 04:20 | Client both | Failure-injection scoping (dbg): approve-fail = rollback + visible panel error + button re-enabled (GOOD); request-change-fail = SILENT on samples AND calendar (→ BUG F-1) | 🔎 | dbg4/dbg5, then probe #5 |
+| 5 | 04:35 | Client samples | EDGE CONDITIONS: token link (?t=) loads + approve lands · mobile 390×844 controls fit + typed request lands · slow network (4 s delay) honest saving state + save lands + no error · failure injection = F-1 characterized (detected internally, invisible to client, DB untouched) + reload/recovery re-send lands | ✅ pass=21 fail=0 | `ot4_t0_client_edge_conditions.js` |
 
 ## BUGS FOUND
 

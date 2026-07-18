@@ -45,6 +45,8 @@
 
 | 10 | 05:12 | SMM calendar | SHARE-LINK ISSUANCE via real kebab → "Share with client": signed-out = fail-closed toast, no clipboard write, no request; signed-in (key-verify + issuance EF MOCKED, no real token) = X-Syncview-Key sent, URL shape `?c=Sidney Laruel&v=calendar&t=<token>`, "copied" toast; the minted URL boots as a client link | ✅ pass=16 fail=0 | `ot4_t1_sharelink_issuance.js` |
 
+| 11 | 05:22 | Submit intake | FAIL-CLOSED guards through the real form: no-client → announced, zero egress; client + unresolved filming plan → "No create request was sent", zero egress; typed notes survive hard reload; belt-and-braces route blocked any create/intake endpoint (none fired) | ✅ pass=13 fail=0 | `ot4_t1_submit_intake_guards.js` |
+
 ### F140 status note (documentation only — no product code touched)
 - The registered deterministic repro (`kasper.finish() → disabled` after a Kasper tweak request
   on a graphic-only card) **did NOT reproduce tonight**: tree path green 8/8 at 04:50 UTC under

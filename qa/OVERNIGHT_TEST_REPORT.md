@@ -41,6 +41,8 @@
 | 7 | 04:42 | Kasper samples | Queue load + request-change (video) + approve-after-tweaks + split approve-v/request-g (real Kasper sub-tab clicks) | ✅ 3/3 scn, 10/10 | `run_scenarios.js kasper_*` |
 | 8 | 04:50 | Kasper samples | Finish documentation (F140 hands-off): flat `kasper_finish_video` green 4/4 AND the F140 tree path `graphic__smm_approve__kasper_request__finish` green 8/8 under the courier on today's main | ✅ (see F140 note) | scenario runner |
 
+| 9 | 05:05 | SMM calendar | DAILY PLANNING journey, cold-open via real Sheet UI: "+" → typed name born as DB row → date control → thumbnail paste (blur) → caption typed → VID Linear link paste unlocks the pill (design gate: "Link a Linear sub-issue first") → status pill menu flip → all writes polled into `calendar_posts` → hard reload renders every value → 0 JS errors | ✅ pass=22 fail=0 | `ot4_t1_smm_calendar_writes.js` |
+
 ### F140 status note (documentation only — no product code touched)
 - The registered deterministic repro (`kasper.finish() → disabled` after a Kasper tweak request
   on a graphic-only card) **did NOT reproduce tonight**: tree path green 8/8 at 04:50 UTC under

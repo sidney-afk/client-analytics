@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-17 @ 2703ccd (current-state reconciliation through F144; first /site-assurance run — coverage state in docs/testing/ASSURANCE_LEDGER.md; 2026-07-17 bug-archaeology addendum: F142 folder-resolve CORS, F143 production-write deploy owed, F144 F44 installer schema drift)
+> Last verified: 2026-07-18 @ 2703ccd (current-state reconciliation through F145; first /site-assurance run — coverage state in docs/testing/ASSURANCE_LEDGER.md; 2026-07-17 bug-archaeology addendum: F142 folder-resolve CORS (fixed + live-verified 07-17), F143 production-write deploy (landed + live-verified 07-17), F144 F44 installer schema drift; F145 mirror batch-vs-parent hierarchy registered 07-18)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.

@@ -11,6 +11,7 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
+const { installReadConsoleAudit } = require('./prod-test-utils');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 const TOTAL = 168;
@@ -52,7 +53,7 @@ async function txt(page, sel) {
   // A stale actionability assumption must fail locally, not stall the rest of
   // this 168-check sweep behind Playwright's 30-second default.
   page.setDefaultTimeout(5000);
-  const errors = [];
+  const readConsoleAudit = installReadConsoleAudit(page);
   const requests = [];
   const results = {};
   const deferred = {
@@ -83,13 +84,6 @@ async function txt(page, sel) {
     commentDeleteUndo: 'deferred-B3: comment deletion and undo mutate comments',
     childActivityLogged: 'deferred-B3: child activity log assertion depends on applying a status mutation',
   };
-  page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-  page.on('console', msg => {
-    if (msg.type() !== 'error') return;
-    const loc = msg.location && msg.location();
-    const where = loc && loc.url ? ` @ ${loc.url}:${loc.lineNumber || 0}` : '';
-    errors.push('console: ' + msg.text() + where);
-  });
   page.on('request', req => requests.push({ method: req.method(), url: req.url() }));
   await page.addInitScript(() => {
     localStorage.setItem('syncview_auth_v1', 'ok');
@@ -181,6 +175,14 @@ async function txt(page, sel) {
       // corpus data-independent by falling back to a real row on the All tab,
       // rather than letting dozens of control checks fail on an empty fixture.
       if (!document.querySelector('#prodRoot .prod-row')) {
+        const ownerActiveStatuses = new Set(['todo', 'prog', 'smm', 'kasper', 'client', 'tweak', 'scheduled']);
+        const eligibleVideoRows = _prodIssues().filter(row => row
+          && row.id
+          && row.team === 'video'
+          && ownerActiveStatuses.has(_prodArtifactStatus(row.status))).length;
+        if (eligibleVideoRows) {
+          throw new Error(`Production reset hid ${eligibleVideoRows} owner-active Video row(s)`);
+        }
         const fallback = _prodIssues().find(row => row
           && row.id
           && !row.parent
@@ -2127,11 +2129,14 @@ async function txt(page, sel) {
     if (await page.locator('.prod-error').count()) throw new Error('dark Production preview rendered an error card');
     const darkSmoke = await page.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && !!document.querySelector('.prod-view'));
     if (!darkSmoke) throw new Error('dark Production preview did not follow syncview_theme=dark');
+    const readConsole = await readConsoleAudit.settle();
     await ok('noWriteRequests', async () => requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)).length === 0);
-    await ok('noConsoleErrors', async () => errors.length ? errors.slice(0, 10).join(' | ') : true);
+    await ok('noConsoleErrors', async () => readConsole.ok ? true : readConsole.error);
 
     const failed = Object.entries(results).filter(([, v]) => v !== true);
     console.log(JSON.stringify(results));
+    console.log('behav-wired recovered read retries: ' + readConsole.recoveredReadAttempts
+      + '; navigation-aborted reads: ' + readConsole.navigationAborts);
     console.log('behav-wired deferred-B3: ' + Object.keys(deferred).join(', '));
     const passed = Object.keys(results).length - failed.length;
     console.log('behav-wired: ' + passed + '/' + TOTAL + ' (guard mode)');

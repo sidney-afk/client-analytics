@@ -1508,8 +1508,11 @@ provably — as the floor on which later improvements are built.
   packet assertions must declare which state they test; unsupported mutations remain guarded.
   The exact candidate commit must pass the aggregate `npm run test:prod-polish`, not only the fast
   PR subset, and a REVIEWER examines fresh runner-local evidence. F105 repaired the superseded
-  picker and empty-fixture assertions without relaxing the live-mutation audit; future candidates
-  must preserve the explicit non-TEST locked fixture and fully intercepted writable fixture split.
+  picker, inline project-parent layout, empty-fixture synchronization, and shared read/console audit
+  without relaxing the live-mutation invariant. Future candidates must preserve the explicit
+  non-TEST locked fixture and fully intercepted writable fixture split; only exact eligible
+  method+URL recovery may clear a matching resource error, while persistent, pending, unrelated,
+  unproven-abort, page/console, and write-like failures stay red.
 
 ---
 

@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-18 @ 0cdcb43 (F105 test-epoch audit against current main; app/product source unchanged)
+> Last verified: 2026-07-18 @ 6a8416c (F105 test-epoch/read-audit repair against current main; app/product source unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.

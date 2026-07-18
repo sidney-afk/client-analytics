@@ -5,6 +5,7 @@ const { AxeBuilder } = require('@axe-core/playwright');
 const {
   serveStatic,
   isWriteLikeRequest,
+  installReadConsoleAudit,
   installProductionInit,
   openProduction,
   formatFailures,
@@ -16,37 +17,8 @@ const {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 950 } });
   const page = await context.newPage();
-  const pageErrors = [];
-  const consoleErrors = [];
-  const readOutcomes = new Map();
   const requests = [];
-  const recordReadOutcome = (request, outcome) => {
-    if (!request || !['GET', 'HEAD'].includes(request.method())) return;
-    const key = `${request.method()} ${request.url()}`;
-    const outcomes = readOutcomes.get(key) || [];
-    outcomes.push(outcome);
-    readOutcomes.set(key, outcomes);
-  };
-  const describeRead = ([key, outcomes]) => {
-    const rawUrl = key.replace(/^[A-Z]+ /, '');
-    try {
-      const url = new URL(rawUrl);
-      return {
-        host: url.hostname,
-        path: /supabase\.co$/i.test(url.hostname) ? url.pathname : '',
-        queryKeys: [...url.searchParams.keys()],
-        outcomes,
-      };
-    } catch (_) {
-      return { host: 'unparseable', path: '', queryKeys: [], outcomes };
-    }
-  };
-  page.on('pageerror', e => pageErrors.push(e.message));
-  page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
-  page.on('response', response => {
-    recordReadOutcome(response.request(), response.status());
-  });
-  page.on('requestfailed', request => recordReadOutcome(request, 'network-error'));
+  const readConsoleAudit = installReadConsoleAudit(page);
   page.on('request', req => requests.push(req));
   await installProductionInit(page);
 
@@ -281,34 +253,12 @@ const {
       if (!paletteJumped) failures.push('Command palette did not jump to the searched issue');
     }
 
+    const readConsole = await readConsoleAudit.settle();
     const writes = requests.filter(isWriteLikeRequest);
     if (writes.length) failures.push('Write-like requests during a11y/focus pass: ' + writes.slice(0, 5).map(r => `${r.method()} ${r.url()}`).join(' | '));
-    const hasFailedRead = outcomes => outcomes.some(outcome => outcome === 'network-error' || outcome >= 400);
-    if ([...readOutcomes.values()].some(hasFailedRead)) {
-      await page.waitForTimeout(1500);
-    }
-    const readEntries = [...readOutcomes.entries()];
-    const persistentReadFailures = readEntries.filter(([, outcomes]) => {
-      if (!hasFailedRead(outcomes)) return false;
-      const final = outcomes[outcomes.length - 1];
-      return final === 'network-error' || final >= 400;
-    });
-    const persistentReadKeys = new Set(persistentReadFailures.map(([key]) => key));
-    const recoveredReadAttempts = readEntries
-      .filter(([key, outcomes]) => hasFailedRead(outcomes) && !persistentReadKeys.has(key))
-      .reduce((count, [, outcomes]) => count + outcomes.filter(outcome => outcome === 'network-error' || outcome >= 400).length, 0);
-    const resourceErrors = consoleErrors.filter(message => /^Failed to load resource:/i.test(message));
-    const otherConsoleErrors = consoleErrors.filter(message => !/^Failed to load resource:/i.test(message));
-    const unexplainedResourceErrors = resourceErrors.slice(recoveredReadAttempts);
-    if (pageErrors.length || otherConsoleErrors.length || unexplainedResourceErrors.length || persistentReadFailures.length) {
-      failures.push('Console/page errors during a11y/focus pass: '
-        + [...pageErrors, ...otherConsoleErrors, ...unexplainedResourceErrors].slice(0, 5).join(' | ')
-        + (persistentReadFailures.length
-          ? ' | persistent read failures: ' + JSON.stringify(persistentReadFailures.slice(0, 8).map(describeRead))
-          : ''));
-    }
+    if (!readConsole.ok) failures.push('Console/page errors during a11y/focus pass: ' + readConsole.error);
     if (failures.length) throw new Error(formatFailures('prod-a11y-focus failures', failures));
-    console.log(`prod-a11y-focus: ${axe.violations.length} axe findings (${serious.length} serious/critical after scoped rules), control names, containment, focus/scroll, palette jump, Escape, keyboard navigation, ${recoveredReadAttempts} recovered read retries passed`);
+    console.log(`prod-a11y-focus: ${axe.violations.length} axe findings (${serious.length} serious/critical after scoped rules), control names, containment, focus/scroll, palette jump, Escape, keyboard navigation, ${readConsole.recoveredReadAttempts} recovered read retries and ${readConsole.navigationAborts} navigation-aborted reads passed`);
   } finally {
     await context.close().catch(() => {});
     await browser.close().catch(() => {});

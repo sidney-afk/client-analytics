@@ -11,6 +11,7 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
+const { installReadConsoleAudit } = require('./prod-test-utils');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 const mime = {
@@ -98,11 +99,9 @@ async function assertNoWriteRequests(requests) {
   const server = await serve();
   const port = server.address().port;
   const browser = await chromium.launch({ headless: true });
-  const errors = [];
   const requests = [];
   const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
-  page.on('pageerror', err => errors.push(err.message));
-  page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+  const readConsoleAudit = installReadConsoleAudit(page);
   page.on('request', req => requests.push({ method: req.method(), url: req.url(), postData: req.postData() || '' }));
   await page.addInitScript(() => {
     localStorage.setItem('syncview_auth_v1', 'ok');
@@ -635,9 +634,10 @@ async function assertNoWriteRequests(requests) {
     const darkSmoke = await page.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && !!document.querySelector('.prod-view'));
     if (!darkSmoke) throw new Error('Production preview did not follow syncview_theme=dark');
 
+    const readConsole = await readConsoleAudit.settle();
     await assertNoWriteRequests(requests);
-    if (errors.length) throw new Error('Browser errors: ' + errors.slice(0, 3).join(' | '));
-    console.log('prod-structure-subset: artifact sidebar, list rows, status glyphs, detail cards, projects board, and read-only controls passed');
+    if (!readConsole.ok) throw new Error('Browser errors: ' + readConsole.error);
+    console.log(`prod-structure-subset: artifact sidebar, list rows, status glyphs, detail cards, projects board, read-only controls, ${readConsole.recoveredReadAttempts} recovered read retries, and ${readConsole.navigationAborts} navigation-aborted reads passed`);
   } finally {
     await browser.close().catch(() => {});
     server.close();

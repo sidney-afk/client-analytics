@@ -56,6 +56,9 @@
 
 | 16 | 05:55 | Cross | Guard classification + modernization: `p88_realtime_handler` 4/4 green · `p07_client_guards` reds = ENVIRONMENT (its lib.js harness has no courier — open-egress-only family, not product) · `sxr_bug_repros` BUG-4 guard was STALE (stubbed the retired `_syncviewRequireStaffIdentity` path) — modernized to the current verified-identity + issuer mechanism, now 4/4 green, which also freshly proves the SAMPLES-surface share button issues correctly | ✅ | probe fix committed |
 
+| 17 | 06:00 | Realtime | `sxr_realtime_twin` 9/9: recent-save window protects a fresh edit against a concurrent push; pending unsaved edit survives a push-driven background reload; 0 JS errors | ✅ pass=9 fail=0 | existing probe |
+| 18 | 06:05 | Client samples | Client-focused scenario batch: `client_request_both_roundtrip` 13/13 · `client_comment_then_approve_video` 6/6 · `client_mixed_gating_video` 8/8 (OBS-2 pin) · `audience_leak_guard_video` 5/5 (internal notes NEVER visible to the client) | ✅ 4/4 scn, 32/32 | `run_scenarios.js` |
+
 ### F140 status note (documentation only — no product code touched)
 - The registered deterministic repro (`kasper.finish() → disabled` after a Kasper tweak request
   on a graphic-only card) **did NOT reproduce tonight**: tree path green 8/8 at 04:50 UTC under

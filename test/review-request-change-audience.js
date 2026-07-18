@@ -52,9 +52,13 @@ function _calReviewComponentActive(){ return true; }   // keep card → repaint 
 function _calReviewRemoveCard(){}
 function _calReviewRepaintCard(){}
 function _calClearStaleApprovals(){}
+const _calNoLinearPush = new Set();
 function _calFlushCardSave(){ return Promise.resolve(); }
 function _calLinearUrlFor(){ return ''; }     // no Linear counterpart → no push
 function _calPostLinearComment(){}
+function _writeUiSourceClientSlug(){ return 'fixture'; }
+function _writeUiLegacyPendingTweak(){ return null; }
+function _writeUiScheduleDeferredLegacyTweak(){}
 function _writeUiBindRepairAck(){}
 function _writeUiMergeCommittedBatch(pending, committed){ Object.assign(pending, committed); }
 function _writeUiReportFailure(){}

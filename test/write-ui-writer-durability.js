@@ -159,6 +159,15 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     && calFlush.includes('deferredLegacyStatusPushes')
     && calFlush.indexOf('_calLegacyPushStatusToLinear') > calFlush.indexOf('await _calUpsertFetch'),
   'Calendar request-change status notification waits until its source save succeeds');
+  assert(calFlush.includes('_writeUiPinnedSourceTransport')
+    && calFlush.includes('await _calUpsertFetchPinned')
+    && sxrFlush.includes('_writeUiPinnedSourceTransport')
+    && sxrFlush.includes('await _sxrUpsertFetchPinned')
+    && extract('_calUpsertFetchPinned').includes('CALENDAR_UPSERT_EF_URL')
+    && extract('_calUpsertFetchPinned').includes('CALENDAR_UPSERT_N8N_URL')
+    && extract('_sxrUpsertFetchPinned').includes('SXR_UPSERT_EF_URL')
+    && extract('_sxrUpsertFetchPinned').includes('SXR_UPSERT_N8N_URL'),
+  'source-gated legacy actions write through the exact source transport recorded before staging');
   assert(calFlush.includes('_writeUiAdoptReplayStatus') && sxrFlush.includes('_writeUiAdoptReplayStatus'), 'source retries project the current native row, not a stale cached status');
   assert(calFlush.includes('_calCacheWrite(_saveSlug, calState.posts)') && sxrFlush.includes('_sxrCacheWrite(_saveSlug, sxrState.posts)'), 'source-repair checkpoints are crash-durable in the v2 caches');
 
@@ -173,35 +182,414 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   assert(extract('_sxrAppendComment').indexOf('await _sxrPostLinearComment') < extract('_sxrAppendComment').indexOf('arr.push(msg)'));
   assert(extract('_kasperPersistPostWrite').indexOf('await _calPushStatusToLinear') < extract('_kasperPersistPostWrite').indexOf('await _calUpsertFetch'));
   assert(extract('_sxrKasperApplyAndPersist').indexOf('await _sxrPushStatusToLinear') < extract('_sxrKasperApplyAndPersist').indexOf('await _sxrKasperPersist'));
-  const calTweakAck = calReview.indexOf('.then(acknowledgement =>');
-  const sxrTweakAck = sxrReview.indexOf('.then(acknowledgement =>');
+  const calTweakAck = calReview.indexOf('.then(async acknowledgement =>');
+  const sxrTweakAck = sxrReview.indexOf('.then(async acknowledgement =>');
   const calSourceError = calReview.indexOf("_calReviewState.errors[key] = current._saveError || 'Save failed';");
   const sxrSourceError = sxrReview.indexOf("_sxrReviewState.errors[key] = current._saveError || 'Save failed';");
   assert(calReview.includes('const body = rawDraft.trim()')
     && calReview.includes('_calReviewState.drafts[key] = rawDraft')
     && calReview.includes('deferLegacyUntilSourceSave: true')
-    && calReview.includes('_writeUiDeferLegacyStatusUntilSourceSave')
-    && calReview.includes('_calLegacyPostLinearComment')
+    && calReview.includes('await _writeUiQueueDeferredLegacyTweak')
+    && calReview.includes("_writeUiLegacyPinnedSourceTransport('calendar', deferredLegacyOutboxIds)")
+    && calReview.includes("_calNoLinearPush.add(pid + '|' + comp)")
+    && calReview.includes("_writeUiFlushDeferredLegacyTweak('calendar', deferredLegacyOutboxIds)")
+    && calReview.includes("_writeUiScheduleDeferredLegacyTweak('calendar')")
+    && !calReview.includes('_writeUiDiscardDeferredLegacyTweak')
     && ['client_video_approved_at', 'client_graphic_approved_at', 'client_caption_approved_at',
       'client_title_approved_at', 'kasper_approved_at'].every(field => calReview.includes(field + ': post.' + field))
     && calSourceError >= 0
     && calReview.indexOf('_calRenderBody({ preserveScroll: true });', calSourceError) > calSourceError
+    && calTweakAck >= 0
     && calReview.indexOf('_calPendingEdits[pid]') > calTweakAck
     && calReview.indexOf('_writeUiBindRepairAck(post, committedBatch, acknowledgement)') > calTweakAck
+    && calReview.indexOf('await _writeUiQueueDeferredLegacyTweak')
+      < calReview.indexOf('return _calFlushCardSave(pid)')
     && calReview.indexOf('_writeUiMergeCommittedBatch(pending, committedBatch)')
       > calReview.indexOf('_writeUiBindRepairAck(post, committedBatch, acknowledgement)'),
-  'Calendar preserves the raw draft, defers legacy notification, and keeps the composite tweak private until acknowledgement');
+  'Calendar preserves the raw draft and durably stages its exact legacy pair before source IO');
   assert(sxrReview.includes('const body = rawDraft.trim()')
     && sxrReview.includes('_sxrReviewState.drafts[key] = rawDraft')
+    && sxrReview.includes('await _writeUiQueueDeferredLegacyTweak')
+    && sxrReview.includes("_writeUiLegacyPinnedSourceTransport('sxr', deferredLegacyOutboxIds)")
+    && sxrReview.includes("_sxrNoLinearPush.add(pid + '|' + comp)")
+    && sxrReview.includes("_writeUiFlushDeferredLegacyTweak('sxr', deferredLegacyOutboxIds)")
+    && sxrReview.includes("_writeUiScheduleDeferredLegacyTweak('sxr')")
+    && !sxrReview.includes('_writeUiDiscardDeferredLegacyTweak')
     && ['client_video_approved_at', 'client_graphic_approved_at', 'kasper_approved_at']
       .every(field => sxrReview.includes(field + ': post.' + field))
     && sxrSourceError >= 0
     && sxrReview.indexOf('_sxrRenderBody({ preserveScroll: true });', sxrSourceError) > sxrSourceError
+    && sxrTweakAck >= 0
     && sxrReview.indexOf('_sxrPendingEdits[pid]') > sxrTweakAck
     && sxrReview.indexOf('_writeUiBindRepairAck(post, committedBatch, acknowledgement)') > sxrTweakAck
+    && sxrReview.indexOf('await _writeUiQueueDeferredLegacyTweak')
+      < sxrReview.indexOf('return _sxrFlushCardSave(pid)')
     && sxrReview.indexOf('_writeUiMergeCommittedBatch(pending, committedBatch)')
       > sxrReview.indexOf('_writeUiBindRepairAck(post, committedBatch, acknowledgement)'),
-  'Samples preserves the raw draft and every approval stamp cleared by the composite tweak');
+  'Samples preserves the raw draft, stages its exact legacy pair, and restores every cleared approval stamp');
+  const legacyStage = extract('_writeUiQueueDeferredLegacyTweak');
+  const legacyGate = extract('_writeUiLegacySourceGateState');
+  const legacyReconcile = extract('_writeUiLegacyReconcileCommittedTweak');
+  const legacyFinalize = extract('_writeUiLegacyFinalizeFlush');
+  assert(legacyStage.includes('await _sxrPrimeSampleRoutingFlag()')
+    && legacyStage.includes('await _calPrimeUpsertRoutingFlag()')
+    && legacyStage.includes("source_transport: surface === 'sxr'")
+    && legacyStage.includes('const records = [{')
+    && legacyStage.includes('_writeUiLegacyOutboxWrite(surface, next)')
+    && legacyStage.includes('const readback = _writeUiLegacyOutboxItems(surface)')
+    && legacyStage.includes('principal: _writeUiPrincipalKey()'),
+  'legacy request-change recovery pins the actual source route and verifies both intents in one durable write');
+  assert(legacyGate.includes("return 'principal_mismatch'")
+    && legacyGate.includes("return 'conflict'")
+    && legacyGate.includes("last = 'pending'")
+    && legacyGate.includes("'committed' : 'superseded'")
+    && legacyGate.includes('WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS'),
+  'legacy drains require the exact principal/comment semantics and retain propagation-lag reads');
+  const calLegacyOutbox = extract('_linearOutboxFlushRun');
+  const sxrLegacyOutbox = extract('_sxrLinearOutboxFlushRun');
+  assert(calLegacyOutbox.indexOf("_writeUiLegacyRememberCommittedTweak('calendar', it)")
+      > calLegacyOutbox.indexOf("if (gateState !== 'committed')")
+    && calLegacyOutbox.indexOf("_writeUiLegacyRememberCommittedTweak('calendar', it)")
+      < calLegacyOutbox.indexOf("_writeUiLegacyReconcileCommittedTweak('calendar', it)")
+    && calLegacyOutbox.indexOf("_writeUiLegacyReconcileCommittedTweak('calendar', it)")
+      < calLegacyOutbox.indexOf('const resp = await fetch(endpoint')
+    && sxrLegacyOutbox.indexOf("_writeUiLegacyRememberCommittedTweak('sxr', it)")
+      > sxrLegacyOutbox.indexOf("if (gateState !== 'committed')")
+    && sxrLegacyOutbox.indexOf("_writeUiLegacyRememberCommittedTweak('sxr', it)")
+      < sxrLegacyOutbox.indexOf("_writeUiLegacyReconcileCommittedTweak('sxr', it)")
+    && sxrLegacyOutbox.indexOf("_writeUiLegacyReconcileCommittedTweak('sxr', it)")
+      < sxrLegacyOutbox.indexOf('const resp = await fetch(endpoint'),
+  'authoritative confirmation is durably remembered and reconciled before the team drain can remove its gate');
+  assert(legacyFinalize.includes('const latest of _writeUiLegacyOutboxItems(surface)')
+    && legacyFinalize.includes('_writeUiLegacyItemMatches(latest, prior)'),
+  'outbox finalization preserves records staged while an older flush was in flight');
+
+  const gateContext = {
+    WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS: 1000,
+    _writeUiPrincipalKey: () => 'client:fixture',
+    _sxrMigrateShape: () => {}, _calMigratePostShape: () => {},
+    _sxrCommentsFor: (post, comp) => post[comp + '_comments'] || [],
+    _calCommentsFor: (post, comp) => post[comp + '_comments'] || [],
+    _sxrLinearUrlFor: (post, comp) => post[comp + '_linear_issue_id'] || '',
+    _calLinearUrlFor: (post, comp) => post[comp + '_linear_issue_id'] || '',
+    _sxrNormStatus: value => String(value || '').toLowerCase(),
+    _calNormStatus: value => String(value || '').toLowerCase(),
+    _writeUiLegacySourceRows: async () => [],
+    Date, Number, Object, Array, Promise, setTimeout,
+  };
+  vm.createContext(gateContext);
+  vm.runInContext(legacyGate, gateContext);
+  const gateItem = {
+    id: 'deferred_calendar_comment-1_comment', kind: 'comment', queuedAt: Date.now(),
+    payload: { issue: 'https://linear.invalid/GRA-1', body: 'Please revise', author: 'Client' },
+    source_gate: {
+      surface: 'calendar', client_slug: 'fixture', post_id: 'post-1', component: 'graphic',
+      comment_id: 'comment-1', comment_body: 'Please revise', comment_author: 'Client',
+      comment_role: 'client', comment_audience: 'client', comment_is_tweak: true,
+      linear_issue: 'https://linear.invalid/GRA-1',
+      intended_status: 'Tweaks Needed',
+      principal: 'client:fixture'
+    }
+  };
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(gateItem, 1), 'pending',
+    'a fresh authoritative miss remains pending instead of deleting commit-lag recovery debt');
+  gateContext._writeUiLegacySourceRows = async () => [{
+    id: 'post-1', graphic_status: 'Tweaks Needed', graphic_linear_issue_id: 'https://linear.invalid/GRA-1',
+    graphic_comments: [{ id: 'comment-1', body: 'Please revise', author: 'Client', role: 'client', audience: 'client', is_tweak: true }]
+  }];
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(gateItem, 1), 'committed',
+    'the exact canonical source comment authorizes its queued notification');
+  for (const field of ['author', 'role', 'audience', 'is_tweak']) {
+    const missingField = {
+      id: 'post-1', graphic_status: 'Tweaks Needed',
+      graphic_linear_issue_id: 'https://linear.invalid/GRA-1',
+      graphic_comments: [{
+        id: 'comment-1', body: 'Please revise', author: 'Client',
+        role: 'client', audience: 'client', is_tweak: true
+      }]
+    };
+    delete missingField.graphic_comments[0][field];
+    gateContext._writeUiLegacySourceRows = async () => [missingField];
+    assert.strictEqual(await gateContext._writeUiLegacySourceGateState(gateItem, 1), 'conflict',
+      'a persisted comment missing canonical ' + field + ' fails closed');
+  }
+  gateContext._writeUiLegacySourceRows = async () => [{
+    id: 'post-1', graphic_status: 'Tweaks Needed', graphic_linear_issue_id: 'https://linear.invalid/GRA-1',
+    graphic_comments: [{ id: 'comment-1', body: 'Please revise', author: 'Client', role: 'client', audience: 'client', is_tweak: true }]
+  }];
+  const statusGateItem = Object.assign({}, gateItem, {
+    id: 'deferred_calendar_comment-1_status', kind: 'status',
+    payload: { issue: 'https://linear.invalid/GRA-1', status: 'Tweaks Needed' }
+  });
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(statusGateItem, 1), 'committed');
+  gateContext._writeUiLegacySourceRows = async () => [{
+    id: 'post-1', graphic_status: 'Approved', graphic_linear_issue_id: 'https://linear.invalid/GRA-1',
+    graphic_comments: [{ id: 'comment-1', body: 'Please revise', author: 'Client', role: 'client', audience: 'client', is_tweak: true }]
+  }];
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(statusGateItem, 1), 'superseded',
+    'a delayed status notification cannot overwrite newer source truth');
+  gateContext._writeUiLegacySourceRows = async () => [{
+    id: 'post-1', graphic_status: 'Tweaks Needed', graphic_linear_issue_id: 'https://linear.invalid/GRA-1',
+    graphic_comments: [{ id: 'comment-1', body: 'Different text', author: 'Client', role: 'client', audience: 'client', is_tweak: true }]
+  }];
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(gateItem, 1), 'conflict',
+    'a matching ID with different source semantics fails closed');
+  gateContext._writeUiLegacySourceRows = async () => [{
+    id: 'post-1', graphic_status: 'Tweaks Needed', graphic_linear_issue_id: 'https://linear.invalid/GRA-2',
+    graphic_comments: [{ id: 'comment-1', body: 'Please revise', author: 'Client', role: 'client', audience: 'client', is_tweak: true }]
+  }];
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(gateItem, 1), 'target_changed',
+    'a relinked source row cannot drain feedback to its obsolete issue');
+  const wrongPrincipal = Object.assign({}, gateItem, { source_gate: Object.assign({}, gateItem.source_gate, { principal: 'client:other' }) });
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(wrongPrincipal, 1), 'principal_mismatch');
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(wrongPrincipal, 1, { sourceAcknowledged: true }), 'principal_mismatch',
+    'an ephemeral source acknowledgement cannot bypass principal validation');
+  const corruptAckPayload = Object.assign({}, gateItem, {
+    payload: Object.assign({}, gateItem.payload, { issue: 'https://linear.invalid/GRA-999' })
+  });
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(corruptAckPayload, 1, { sourceAcknowledged: true }), 'conflict',
+    'an ephemeral source acknowledgement cannot authorize a changed queued payload');
+  gateContext._writeUiLegacySourceRows = async () => [];
+  const expired = Object.assign({}, gateItem, { queuedAt: Date.now() - 5000 });
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(expired, 1), 'expired',
+    'only an aged authoritative miss expires an uncommitted action');
+  assert(extract('_linearOutboxFlushRun').includes("_writeUiLegacyQuarantine('calendar', it, 'source_gate_expired')")
+    && extract('_sxrLinearOutboxFlushRun').includes("_writeUiLegacyQuarantine('sxr', it, 'source_gate_expired')"),
+  'aged unresolved source gates move to auditable quarantine instead of disappearing');
+
+  let reconcileRenders = 0;
+  const reconcileContext = {
+    _isClientLink: true,
+    calState: {
+      posts: [{
+        id: 'post-1', graphic_status: 'Client Approval', status: 'Client Approval',
+        graphic_comments: [], client_graphic_approved_at: '2026-07-18T00:00:00Z',
+        kasper_approved_at: '2026-07-18T00:00:00Z', _saveError: 'Failed to fetch'
+      }]
+    },
+    _calReviewState: {
+      drafts: { 'post-1|graphic': '  Please revise\n' },
+      errors: { 'post-1|graphic': 'Failed to fetch' },
+      saving: { 'post-1|graphic': false }
+    },
+    _writeUiPrincipalKey: () => 'client:fixture',
+    _calCommentsFor: post => post.graphic_comments || [],
+    _calSetCommentsFor: (post, _comp, comments) => { post.graphic_comments = comments; },
+    _calNextTweakRound: () => 1,
+    computeOverallStatus: () => 'Tweaks Needed',
+    _calRenderBody: () => { reconcileRenders++; },
+    _calCacheWrite: () => true,
+    _sxrCommentsFor: () => [], _sxrSetCommentsFor: () => {},
+    _sxrNextTweakRound: () => 1, computeSampleOverallStatus: () => 'Tweaks Needed',
+    _sxrRenderBody: () => {},
+    _sxrCacheWrite: () => true,
+    Date, String, Number, Array,
+  };
+  vm.createContext(reconcileContext);
+  vm.runInContext(legacyReconcile, reconcileContext);
+  assert.strictEqual(reconcileContext._writeUiLegacyReconcileCommittedTweak(
+    'calendar',
+    Object.assign({}, statusGateItem, { queuedAt: Date.now() })
+  ), true);
+  const reconciled = reconcileContext.calState.posts[0];
+  assert(reconciled.graphic_status === 'Tweaks Needed'
+    && reconciled.status === 'Tweaks Needed'
+    && reconciled.graphic_comments.length === 1
+    && reconciled.graphic_comments[0].id === 'comment-1'
+    && reconciled.client_graphic_approved_at === ''
+    && reconciled.kasper_approved_at === ''
+    && reconcileContext._calReviewState.drafts['post-1|graphic'] === ''
+    && reconcileContext._calReviewState.errors['post-1|graphic'] === ''
+    && reconcileRenders === 1,
+  'same-page source confirmation replaces the stale retry surface with committed source truth');
+
+  reconciled.graphic_status = 'Client Approval';
+  reconciled.status = 'Client Approval';
+  reconciled.client_graphic_approved_at = '2026-07-18T01:00:00Z';
+  reconciled.kasper_approved_at = '2026-07-18T01:00:00Z';
+  reconciled._saveError = 'overlapping retry failed';
+  reconcileContext._calReviewState.drafts['post-1|graphic'] = '  Please revise\n';
+  reconcileContext._calReviewState.errors['post-1|graphic'] = 'overlapping retry failed';
+  reconcileContext._calReviewState.saving['post-1|graphic'] = true;
+  assert.strictEqual(reconcileContext._writeUiLegacyReconcileCommittedTweak(
+    'calendar',
+    Object.assign({}, statusGateItem, { queuedAt: Date.now() })
+  ), true);
+  assert(reconciled.graphic_status === 'Tweaks Needed'
+    && reconciled.status === 'Tweaks Needed'
+    && reconciled.client_graphic_approved_at === ''
+    && reconciled.kasper_approved_at === ''
+    && !reconciled._saveError
+    && reconcileContext._calReviewState.saving['post-1|graphic'] === true
+    && reconcileContext._calReviewState.drafts['post-1|graphic'] === '  Please revise\n'
+    && reconcileContext._calReviewState.errors['post-1|graphic'] === 'overlapping retry failed'
+    && reconcileRenders === 2,
+  'authoritative reconciliation preserves an overlapping retry owner and its in-flight draft/error state');
+
+  const committedStorage = new Map();
+  let rejectCommittedWrite = false;
+  const committedContext = {
+    WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY: 'committed-tweaks',
+    _writeUiPrincipalKey: () => 'client:fixture',
+    _writeUiLegacyOutboxItems: () => [],
+    _sxrCommentsFor: post => post.graphic_comments || [],
+    _calCommentsFor: post => post.graphic_comments || [],
+    _sxrNormStatus: value => String(value || '').toLowerCase(),
+    _calNormStatus: value => String(value || '').toLowerCase(),
+    localStorage: {
+      getItem: key => committedStorage.has(key) ? committedStorage.get(key) : null,
+      setItem: (key, value) => {
+        if (rejectCommittedWrite) throw new Error('quota');
+        committedStorage.set(key, String(value));
+      }
+    },
+    Date, JSON, Object, String, Number, Array, Map,
+  };
+  vm.createContext(committedContext);
+  for (const name of [
+    '_writeUiLegacyItemSignature', '_writeUiLegacyItemMatches',
+    '_writeUiLegacyCommittedTweakRead', '_writeUiLegacyCommittedTweakWrite',
+    '_writeUiLegacyTweakKey', '_writeUiLegacyRememberCommittedTweak',
+    '_writeUiLegacyCommittedTweak', '_writeUiLegacyPendingTweak'
+  ]) {
+    vm.runInContext(extract(name), committedContext);
+  }
+  const committedItem = Object.assign({}, statusGateItem, {
+    queuedAt: Date.now(),
+    transport: 'legacy_n8n',
+    client_slug: 'fixture'
+  });
+  assert.strictEqual(committedContext._writeUiLegacyRememberCommittedTweak('calendar', committedItem), true);
+  const staleCachedPost = {
+    id: 'post-1', graphic_status: 'Client Approval', graphic_comments: []
+  };
+  const durablePending = committedContext._writeUiLegacyPendingTweak(
+    'calendar', 'fixture', 'post-1', 'graphic', staleCachedPost, 'Please revise'
+  );
+  assert(durablePending && durablePending.delivered
+    && durablePending.comment_id === 'comment-1'
+    && durablePending.body === 'Please revise'
+    && committedContext._writeUiLegacyCommittedTweakRead().length === 1,
+  'a durable confirmation suppresses a stale retry after a cache-only reload');
+  const followupGate = Object.assign({}, gateItem.source_gate, {
+    comment_id: 'comment-2',
+    comment_body: 'One more change'
+  });
+  const confirmedDebt = Object.assign({}, committedItem, {
+    id: 'deferred_calendar_comment-1_comment',
+    kind: 'comment',
+    payload: {
+      issue: 'https://linear.invalid/GRA-1',
+      body: 'Please revise',
+      author: 'Client'
+    }
+  });
+  const activeFollowupItem = {
+    id: 'deferred_calendar_comment-2_comment',
+    kind: 'comment',
+    queuedAt: Date.now(),
+    transport: 'legacy_n8n',
+    client_slug: 'fixture',
+    payload: {
+      issue: 'https://linear.invalid/GRA-1',
+      body: 'One more change',
+      author: 'Client'
+    },
+    source_gate: followupGate
+  };
+  committedContext._writeUiLegacyOutboxItems = () => [confirmedDebt, activeFollowupItem];
+  const activeFollowup = committedContext._writeUiLegacyPendingTweak(
+    'calendar', 'fixture', 'post-1', 'graphic', staleCachedPost, 'One more change'
+  );
+  assert(activeFollowup && !activeFollowup.delivered
+    && activeFollowup.comment_id === 'comment-2'
+    && activeFollowup.body === 'One more change',
+  'older confirmed delivery debt cannot mask a newer same-body retry gate');
+  committedContext._writeUiLegacyOutboxItems = () => [];
+  const laterRoundPost = {
+    id: 'post-1',
+    graphic_status: 'Client Approval',
+    graphic_comments: [{ id: 'comment-1', body: 'Please revise' }]
+  };
+  assert.strictEqual(committedContext._writeUiLegacyCommittedTweak(
+    'calendar', 'fixture', 'post-1', 'graphic', laterRoundPost
+  ), null);
+  assert.strictEqual(committedContext._writeUiLegacyCommittedTweakRead().length, 0,
+    'a later approval round retires the old confirmation after its comment is present locally');
+  rejectCommittedWrite = true;
+  assert.strictEqual(committedContext._writeUiLegacyRememberCommittedTweak('calendar', committedItem), false,
+    'confirmation storage failure keeps the active source gate fail-closed');
+
+  for (const [surface, handler] of [['calendar', calReview], ['sxr', sxrReview]]) {
+    const marker = `_writeUiLegacyCommittedTweak('${surface}'`;
+    const firstMarker = handler.indexOf(marker);
+    const secondMarker = handler.indexOf(marker, firstMarker + marker.length);
+    const resolvedRollback = handler.indexOf('Object.assign(current, prev)');
+    const rejectedRollback = handler.indexOf('Object.assign(post, prev)');
+    assert(firstMarker >= 0 && firstMarker < resolvedRollback
+      && secondMarker > firstMarker && secondMarker < rejectedRollback,
+    `${surface} checks durable source confirmation before either failure rollback`);
+    assert(handler.includes('_legacyPending.delivered && _legacyPending.body === body')
+      && handler.includes('_legacyPending && !_legacyPending.delivered && _legacyPending.body !== body')
+      && handler.includes('_legacyPending && !_legacyPending.delivered')
+      && handler.includes('? _legacyPending.comment_id'),
+    `${surface} suppresses only the same confirmed retry and mints a fresh id for distinct follow-up feedback`);
+  }
+
+  let stagedItems = [], stageWrites = 0;
+  const stageContext = {
+    _sxrLinearUrlFor: () => '', _calLinearUrlFor: () => 'https://linear.invalid/GRA-1',
+    _sxrPrimeSampleRoutingFlag: async () => {}, _calPrimeUpsertRoutingFlag: async () => {},
+    _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true,
+    _writeUiSourceClientSlug: () => 'fixture', _writeUiPrincipalKey: () => 'client:fixture',
+    _sxrCurrentAuthor: () => 'Client', _calCurrentAuthor: () => 'Client',
+    _writeUiLegacyOutboxItems: () => JSON.parse(JSON.stringify(stagedItems)),
+    _writeUiLegacyOutboxWrite: (_surface, items) => { stageWrites++; stagedItems = JSON.parse(JSON.stringify(items)); return true; },
+    Date, JSON, Object, String, Array, Error,
+  };
+  vm.createContext(stageContext);
+  vm.runInContext(extract('_writeUiLegacyItemSignature') + '\n'
+    + extract('_writeUiLegacyItemMatches') + '\n' + legacyStage, stageContext);
+  const stagedIds = await stageContext._writeUiQueueDeferredLegacyTweak(
+    'calendar',
+    { id: 'post-1', graphic_status: 'Tweaks Needed' },
+    'graphic',
+    { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
+    'Please revise',
+    'Client'
+  );
+  assert(stagedIds.length === 2 && stagedItems.length === 2 && stageWrites === 1,
+    'comment and status are staged together in one storage write');
+  await stageContext._writeUiQueueDeferredLegacyTweak(
+    'calendar',
+    { id: 'post-1', graphic_status: 'Tweaks Needed' },
+    'graphic',
+    { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
+    'Please revise',
+    'Client'
+  );
+  assert.strictEqual(stageWrites, 1, 'a same-action retry reuses the verified pair without rewriting it');
+
+  let finalizedItems = [
+    { id: 'old', kind: 'status', payload: { status: 'A' } },
+    { id: 'new', kind: 'comment', payload: { body: 'staged during flush' } }
+  ];
+  const finalizeContext = {
+    _writeUiLegacyOutboxItems: () => finalizedItems,
+    _writeUiLegacyOutboxWrite: (_surface, items) => { finalizedItems = items; return true; },
+    JSON, Object, String, Map,
+  };
+  vm.createContext(finalizeContext);
+  vm.runInContext(extract('_writeUiLegacyItemSignature') + '\n'
+    + extract('_writeUiLegacyItemMatches') + '\n' + legacyFinalize, finalizeContext);
+  finalizeContext._writeUiLegacyFinalizeFlush(
+    'calendar',
+    [{ id: 'old', kind: 'status', payload: { status: 'A' } }],
+    []
+  );
+  assert.strictEqual(finalizedItems.map(item => item.id).join(','), 'new',
+    'finishing an old snapshot removes only processed IDs and preserves newly staged debt');
+
   const calApprove = extract('_calReviewApplyApprove');
   const sxrApprove = extract('_sxrReviewApplyApprove');
   assert(calApprove.indexOf('_calFlushCardSave') < calApprove.indexOf('_calReviewRemoveCard'), 'Calendar review card is removed only after acknowledgement');

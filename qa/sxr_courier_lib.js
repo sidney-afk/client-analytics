@@ -23,7 +23,7 @@
 // mutate the test client `sidneylaruel`; unique `sr_*` ids; archive what you
 // create; assert 0 app JS errors.
 // ============================================================================
-const { execSync } = require('child_process');
+const { exec, execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 let PW; try { PW = require('playwright'); } catch { PW = require('/opt/node22/lib/node_modules/playwright'); }
@@ -73,10 +73,15 @@ const FILMING_TABS_HOOK = /\/webhook\/filming-plan-tabs\b/;
 const LIVE_FILMING_TABS = process.env.SYNCVIEW_QA_LIVE_FILMING_TABS === '1';
 const LINEAR_CALLS_FILE = `${TMP}/linear_calls.jsonl`;
 const SUBISSUES_RESP_FILE = `${TMP}/linear_subissues_resp.json`;
+let _courierCommitThenFailEvents = [];
 function resetLinearCalls() { try { fs.unlinkSync(LINEAR_CALLS_FILE); } catch {} }
 function linearCalls() {
   try { return fs.readFileSync(LINEAR_CALLS_FILE, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); }
   catch { return []; }
+}
+function resetCourierCommitThenFailEvents() { _courierCommitThenFailEvents = []; }
+function courierCommitThenFailEvents() {
+  return _courierCommitThenFailEvents.map(event => Object.assign({}, event));
 }
 // Configure what linear-subissues returns next (point-adoption source status).
 function setSubissuesResp(obj) { try { fs.writeFileSync(SUBISSUES_RESP_FILE, JSON.stringify(obj || {})); } catch {} }
@@ -190,6 +195,50 @@ function _courierFetch(method, url, headers, postData) {
   return { status, ctype: (ct || 'application/json').trim(), body };
 }
 
+// Playwright route callbacks must leave the protocol loop free while a fault
+// injector forwards the source write. A synchronous curl can commit upstream
+// but prevent route.fulfill() from delivering the deliberately lost
+// acknowledgement to the page. Keep the normal courier unchanged; use this
+// async twin only for courierCommitThenFail.
+function _courierFetchAsync(method, url, headers, postData) {
+  const bodyFile = `${TMP}/_resp_${process.pid}_${++_seq}.bin`;
+  const args = ['-s', '-D', '-', '-o', bodyFile, '-X', method];
+  for (const [k, v] of Object.entries(headers || {})) {
+    if (/^(host|origin|referer|connection|content-length|accept-encoding)$/i.test(k)) continue;
+    args.push('-H', `${k}: ${v}`);
+  }
+  if (postData) {
+    const pf = `${TMP}/_pd_${process.pid}_${_seq}.bin`;
+    fs.writeFileSync(pf, postData);
+    args.push('--data-binary', '@' + pf);
+  }
+  args.push(url);
+  return new Promise(resolve => {
+    exec(
+      'curl ' + args.map(_q).join(' '),
+      Object.assign({ encoding: 'utf8', timeout: 60000, maxBuffer: 64 * 1024 * 1024 }, _SHELL),
+      (error, head) => {
+        if (error) {
+          resolve({
+            status: 502,
+            ctype: 'text/plain',
+            body: Buffer.from('courier-failed: ' + (error.message || ''))
+          });
+          return;
+        }
+        const re = /HTTP\/[\d.]+\s+(\d{3})\b/g;
+        let match;
+        let last = null;
+        while ((match = re.exec(head)) !== null) last = match[1];
+        const status = last ? parseInt(last, 10) : 200;
+        const ct = (head.match(/content-type:\s*([^\r\n]+)/i) || [])[1];
+        const body = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile) : Buffer.from('');
+        resolve({ status, ctype: (ct || 'application/json').trim(), body });
+      }
+    );
+  });
+}
+
 async function launch() {
   // Windows headless Chromium can intermittently tile the second screenshot of
   // a page with black GPU layers. The master vision lane needs deterministic
@@ -215,8 +264,14 @@ function appErrs(page) {
 async function _ctx(browser, opts) {
   // opts.writeUiRerouteLive: p95's guard probe opts back into the LIVE
   // write_ui_reroute_clients flag; every other probe gets it stubbed dark
-  // (see the route case below). Strip the custom key before newContext.
-  const { writeUiRerouteLive, ...ctxOpts } = opts || {};
+  // (see the route case below).
+  //
+  // opts.courierCommitThenFail: one-shot lost-ack injection. For the first
+  // matching POST whose forwarded JSON response confirms a 2xx commit, record
+  // that proof and abort only the browser-visible acknowledgement.
+  // Strip both harness-only keys before newContext.
+  const { writeUiRerouteLive, courierCommitThenFail, ...ctxOpts } = opts || {};
+  let courierCommitThenFailUsed = false;
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...ctxOpts });
   await ctx.addInitScript((theme) => {
     try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {}
@@ -267,8 +322,31 @@ async function _ctx(browser, opts) {
       });
     }
     // 3) Other backend hosts → courier to live (when the courier is on).
-    if (COURIER && EXT.test(url)) {
-      const r = _courierFetch(req.method(), url, req.headers(), req.postData());
+    // The fault path always forwards through Node, even with SXR_COURIER=0,
+    // because the marker is authoritative only after a parsed successful reply.
+    const commitThenFailMatch = !courierCommitThenFailUsed && courierCommitThenFail &&
+      req.method() === 'POST' && url.includes(String(courierCommitThenFail));
+    if (EXT.test(url) && (COURIER || commitThenFailMatch)) {
+      const r = commitThenFailMatch
+        ? await _courierFetchAsync(req.method(), url, req.headers(), req.postData())
+        : _courierFetch(req.method(), url, req.headers(), req.postData());
+      let forwardedJson = null;
+      try { forwardedJson = JSON.parse(Buffer.from(r.body || '').toString('utf8')); } catch {}
+      const sourceCommitted = commitThenFailMatch &&
+        r.status >= 200 && r.status < 300 &&
+        forwardedJson && typeof forwardedJson === 'object' &&
+        forwardedJson.ok !== false;
+      if (sourceCommitted) {
+        courierCommitThenFailUsed = true;
+        _courierCommitThenFailEvents.push({
+          url,
+          method: req.method(),
+          sourceCommitted: true,
+          forwardStatus: r.status,
+          at: Date.now()
+        });
+        return route.abort('failed');
+      }
       return route.fulfill({ status: r.status, contentType: r.ctype, headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' }, body: r.body });
     }
     return route.continue();
@@ -417,4 +495,4 @@ async function kasper(browser, opts) {
   return page;
 }
 
-module.exports = { PW, launch, open, smm, client, kasper, smmCal, clientCal, kasperCal, up, archiveSafe, upCal, archiveCalSafe, reorder, supa, supaCal, supaEvents, poll, appErrs, ORIGIN, SUPA, KEY, COURIER, linearCalls, resetLinearCalls, setSubissuesResp };
+module.exports = { PW, launch, open, smm, client, kasper, smmCal, clientCal, kasperCal, up, archiveSafe, upCal, archiveCalSafe, reorder, supa, supaCal, supaEvents, poll, appErrs, ORIGIN, SUPA, KEY, COURIER, linearCalls, resetLinearCalls, courierCommitThenFailEvents, resetCourierCommitThenFailEvents, setSubissuesResp };

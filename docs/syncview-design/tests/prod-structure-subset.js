@@ -132,21 +132,62 @@ async function assertNoWriteRequests(requests) {
           { id: 'parent', identifier: 'VID-1', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Root Batch', status: 'in_progress', assignee_id: 'm1' },
           { id: 'child-a', identifier: 'VID-2', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child A', status: 'smm_approval', assignee_id: 'm1' },
           { id: 'child-b', identifier: 'VID-3', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child B', status: 'client_approval', assignee_id: 'm1' },
+          { id: 'child-c', identifier: 'VID-4', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child C', status: 'canceled', assignee_id: 'm1', raw_issue_canceled_at: '2026-07-08T20:26:05.371Z', due_date: '2025-06-04', status_at: '2026-07-08T20:26:06.986067+00:00' },
+          { id: 'child-d', identifier: 'VID-5', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child D', status: 'approved', assignee_id: 'm1', raw_issue_archived_at: '2026-07-08T20:26:05.371Z' },
         ],
       });
       return {
         parentChildren: adapted.ISSUES.filter(i => i.parent === 'parent').map(i => i.id).sort(),
         childAChildren: adapted.ISSUES.filter(i => i.parent === 'child-a').length,
         statusKeys: adapted.ISSUES.map(i => i.status),
+        canceledIssue: adapted.ISSUES.some(i => i.id === 'child-c' && i.status === 'canceled'),
+        archivedDropped: !adapted.ISSUES.some(i => i.id === 'child-d'),
+        pastYearDue: (adapted.ISSUES.find(i => i.id === 'child-c') || {}).due,
+        currentYearDue: window._prodFmtDate(new Date().toISOString().slice(0, 10)),
+        overdueText: window._prodOverdueText('2020-01-01', 'todo'),
+        overdueTextDone: window._prodOverdueText('2020-01-01', 'posted'),
+        statusAtRaw: (adapted.ISSUES.find(i => i.id === 'child-c') || {}).statusAtRaw,
+        durationDays: window._prodDurationText(8 * 86400000),
+        durationHours: window._prodDurationText(3 * 3600000),
+        breakdown: window._prodStatusBreakdown(
+          [{ action: 'status_change', ts: '2026-07-09T00:00:00Z', from_status: 'posted', to_status: 'todo' }],
+          '2026-07-01T00:00:00Z',
+          Date.parse('2026-07-09T03:00:00Z')
+        ),
+        breakdownMirror: window._prodStatusBreakdown(
+          [
+            { action: 'mirror_in_status_change', ts: '2026-07-16T00:00:00Z', from_status: 'canceled', to_status: 'canceled' },
+            { action: 'mirror_in_status_change', ts: '2026-07-08T00:00:00Z', from_status: 'todo', to_status: 'canceled' },
+            { action: 'create', ts: '2026-07-06T00:00:00Z', from_status: null, to_status: 'todo' },
+          ],
+          null,
+          Date.parse('2026-07-17T00:00:00Z')
+        ),
         projectEmoji: adapted.PROJECTS.noemoji.emoji,
         boardStatus: adapted.CLIENTS[0].status,
         editorInit: adapted.EDITORS.m1.init,
         editorColor: adapted.EDITORS.m1.color,
       };
     });
-    if (adapterFixture.parentChildren.join(',') !== 'child-a,child-b') throw new Error('Adapter did not put children only under the batch-parent issue');
+    if (adapterFixture.parentChildren.join(',') !== 'child-a,child-b,child-c') throw new Error('Adapter did not put children only under the batch-parent issue');
     if (adapterFixture.childAChildren !== 0) throw new Error('Adapter let a sibling list another sibling as a child');
     if (!adapterFixture.statusKeys.includes('prog') || !adapterFixture.statusKeys.includes('smm') || !adapterFixture.statusKeys.includes('client')) throw new Error('Adapter did not map B1 status slugs to artifact keys');
+    if (!adapterFixture.canceledIssue) throw new Error('Adapter dropped a canceled deliverable; canceled is a visible status (Canceled group), not a deleted row');
+    if (!adapterFixture.archivedDropped) throw new Error('Adapter kept a deliverable with an archived marker; archive/delete markers must hide rows');
+    if (adapterFixture.pastYearDue !== 'Jun 4, 2025') throw new Error('Adapter due display is not the written Linear format with year ("Jun 4, 2025"), got: ' + adapterFixture.pastYearDue);
+    if (!/^[A-Z][a-z]{2} \d{1,2}$/.test(adapterFixture.currentYearDue)) throw new Error('Current-year dates must render "Mon D" without a year, got: ' + adapterFixture.currentYearDue);
+    if (!/^ · overdue by \d+ days$/.test(adapterFixture.overdueText)) throw new Error('Overdue tip text must read " · overdue by N days", got: ' + adapterFixture.overdueText);
+    if (adapterFixture.overdueTextDone !== '') throw new Error('Done statuses must never produce overdue tip text');
+    const dueTipSample = await page.locator('.prod-row .prod-due[data-prod-tip^="Due "]').count();
+    const statusTipSample = await page.locator('.prod-row .prod-status[data-prod-tip]').first().getAttribute('data-prod-tip').catch(() => '');
+    if (!dueTipSample) throw new Error('No list due pill carries an informational "Due ..." tooltip');
+    if (!statusTipSample || statusTipSample.indexOf('|') < 1 || /^Sign in|^Your staff|^Write controls/.test(statusTipSample)) throw new Error('Row status tooltip must lead with the status name before the action/gate hint, got: ' + statusTipSample);
+    if (adapterFixture.statusAtRaw !== '2026-07-08T20:26:06.986067+00:00') throw new Error('Adapter must expose status_at as statusAtRaw for time-in-status hovers');
+    if (adapterFixture.durationDays !== '8 days' || adapterFixture.durationHours !== '3 hours') throw new Error('Duration text must humanize to "8 days"/"3 hours", got: ' + adapterFixture.durationDays + '/' + adapterFixture.durationHours);
+    if (adapterFixture.breakdown !== 'Posted 8 days, Todo 3 hours') throw new Error('Status breakdown must compose Linear\'s time-in-status text, got: ' + adapterFixture.breakdown);
+    if (adapterFixture.breakdownMirror !== 'Todo 2 days, Canceled 9 days') throw new Error('Status breakdown must read mirror_in_status_change + create events and skip no-op changes, got: ' + adapterFixture.breakdownMirror);
+    const agedStatusTip = await page.locator('.prod-row .prod-status[data-prod-tip*=" day"], .prod-row .prod-status[data-prod-tip*=" hour"], .prod-row .prod-status[data-prod-tip*=" minute"]').count();
+    if (!agedStatusTip) throw new Error('No row status tooltip carries a time-in-status duration');
     if (adapterFixture.projectEmoji !== '') throw new Error('Adapter should preserve missing emoji as empty so the project glyph fallback renders');
     if (adapterFixture.boardStatus !== 'prog') throw new Error('Adapter did not map board in_progress to artifact prog');
     if (adapterFixture.editorInit !== 'MS' || !/^#[0-9a-f]{6}$/i.test(adapterFixture.editorColor)) throw new Error('Adapter did not produce artifact editor initials/color');
@@ -334,6 +375,27 @@ async function assertNoWriteRequests(requests) {
     }
     await expectExactCount(page, '.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]', 0, 'fake topbar favorite/notification controls');
 
+    const subIssueOrder = await page.evaluate(() => {
+      const child = window._prodIssues().find(i => i.parent);
+      if (!child) return 'no-sub-issue';
+      window._prodOpenDeliverable(child.id);
+      const ctx = document.querySelector('.prod-detail-context');
+      const title = document.querySelector('.prod-detail-title');
+      if (!ctx || !title) return 'missing:' + (!ctx ? 'context ' : '') + (!title ? 'title' : '');
+      return ctx.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING ? 'above' : 'below';
+    });
+    if (subIssueOrder !== 'above' && subIssueOrder !== 'no-sub-issue') throw new Error('Sub-issue parent breadcrumb must render above the detail title (Linear placement), got: ' + subIssueOrder);
+    const projectParentInline = await page.evaluate(() => {
+      const child = window._prodIssues().find(i => i.parent);
+      if (!child) return 'no-sub-issue';
+      window._prodOpenProject(child.project);
+      const row = [...document.querySelectorAll('.prod-project-issue-row')].find(r => r.querySelector('.prod-parent-title'));
+      if (!row) return 'no-parent-row';
+      const b = row.querySelector('.prod-title b').getBoundingClientRect();
+      const p = row.querySelector('.prod-parent-title').getBoundingClientRect();
+      return Math.abs(b.top - p.top) < 4 ? 'inline' : 'stacked';
+    });
+    if (projectParentInline === 'stacked') throw new Error('Project-view sub-issue rows must render the parent breadcrumb inline on the same row as the title (Linear), not stacked below it');
     await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
     await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
     const linkified = await page.evaluate(() => _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com\n---\n## Client Resources\n**Instagram: [theopenposturedoc](<https://www.instagram.com/theopenposturedoc/#>)**\n**Brand Guidelines:** **[Document](<https://docs.google.com/document/d/abc/edit>)\n****Personal Pictures:** [**Folder**](<https://drive.google.com/drive/folders/abc>)'));

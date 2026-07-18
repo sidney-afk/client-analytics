@@ -17,7 +17,8 @@ Each `deliverables` row becomes one artifact-shaped issue:
 - `title`: deliverable title.
 - `status`: artifact status key.
 - `assignee`: `team_members.id`.
-- `due`: display date.
+- `due`: display date in Linear's written format ("Jul 15", with ", YYYY" appended for non-current years).
+- `statusAtRaw`: raw `status_at` timestamp of the last status change; drives the row-level time-in-status hover. The detail Properties status hover upgrades to a full per-status breakdown ("Posted 8 days, Todo 3 hours") once `_prodLoadEventsFor()` has read the row's `deliverable_events` (lazy GET, cached, capped at 30 events — the created_at-anchored first segment is only added when history is complete).
 - `dueRaw`: original date for overdue comparison.
 - `created`: display creation date.
 - `desc`: deliverable brief.
@@ -93,4 +94,4 @@ The artifact is a standalone document. The wired Production tab is embedded insi
 
 - Typography remains the host SyncView type scale by owner decision on 2026-07-06. Structure and behavior follow the artifact; font sizing is intentionally not pixel-copied.
 - Live deep links and event reads require the database deliverable id, so adapter issues retain live `id` values and expose `displayId` for the artifact-style visible issue label.
-- `_prodDeliverableLive()` filters rows whose `linear_raw` carries Linear webhook delete/archive markers before `_prodAdapter()` shapes issues. This is a wired data-layer PORT-DELTA: the standalone artifact has no Supabase mirror-delete payload to interpret.
+- `_prodDeliverableLive()` filters rows whose `linear_raw` carries Linear webhook delete/archive markers before `_prodAdapter()` shapes issues. This is a wired data-layer PORT-DELTA: the standalone artifact has no Supabase mirror-delete payload to interpret. A `canceledAt` marker does NOT hide a row: canceled is a visible status key (Linear renders a Canceled group in project and All views); only archive/delete markers make a row dead.

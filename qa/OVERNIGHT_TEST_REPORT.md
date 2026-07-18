@@ -2,6 +2,75 @@
 
 ---
 
+# RUN 4 — 2026-07-18 · Quality-tier contract run (Tier 0 client-first)
+
+**Branch:** `claude/overnight-quality-tier-test-yicxg8` · **Test client:** `sidneylaruel` ONLY · Linear MOCKED via harness · `write_ui_reroute` stubbed DARK (test client behaves like a real client) · courier ON. Window 03:45–07:45 UTC (hard stop; calendar nightly fires 08:00 UTC).
+
+## Mission (owner's priority order)
+1. **Tier 0 — CLIENT EXPERIENCE** (most of the night): the `?c=` review links exactly as a real
+   client uses them — loads, approve/comment/request-change, saves proven in the backend every
+   time, thumbnails/media, token link, reload/mobile, slow network.
+2. **Tier 1 — SMM**: calendar planning + writes, resolve/route, share-link issuance, Submit intake.
+3. **Tier 1 — Kasper (light)**: queue/approve/request-change; **document** Finish only (F140 in flight — hands off).
+4. Rest of the app if time remains. Findings + probe fixes only — NO product-code changes.
+
+## Field conditions found at start (03:45 UTC)
+- Backend reachable through the proxy; harness (courier + Linear mock + archiveSafe) verified
+  green via `sxr_client_persist_guard.js` (pass=5) before any new probe.
+- **Pre-existing non-archived debris on the test client** (NOT created by this run):
+  - `sr_scn_*` scenario rows created 2026-07-18 01:05 and 03:36–03:37 UTC (a scheduled/manual
+    scenario run leaked them minutes before this session), plus two older `sr_scn_video__smm_request_*`
+    from 07-15/07-17. → archived at end-of-run cleanup (clearly QA-pattern ids).
+  - `sr_mrgu*` "UI Batch/Workflow/Create…" rows from 2026-07-11 21:05–21:09 UTC — cold-open
+    UI-journey probes that never archived. → archived at end-of-run cleanup.
+  - `Sample 1 ` (sr_mqvenh27, 06-26) and calendar `TEST 1/2/3` — look owner-created; LEFT ALONE.
+- **The samples nightly (`samples-e2e-nightly.yml`) fires 06:00 UTC — inside this window.**
+  Mitigation: no samples-backend mutations ~05:55–06:30; monitored for its rows.
+
+## Interaction log
+
+| # | UTC | Surface | Interaction | Result | Evidence |
+|---|-----|---------|-------------|--------|----------|
+| 0 | 03:50 | Client samples | Harness smoke: legit approve persists; forced non-review columns land only via page funnel (known OBS-4) | ✅ pass=5 | `sxr_client_persist_guard.js` |
+| 1 | 04:05 | Client samples | FULL journey: load → both panels render → thumbnail real bytes → typed comment (status unchanged) → approve video (DB + `client_video_approved_at`) → typed request-change (DB status+text) → worst-of overall → toast + designed card hand-off → audit events both comps → fresh reload keeps queue emptied → 0 JS errors → archive verified | ✅ pass=21 fail=0 | `ot4_t0_client_samples.js` |
+
+## BUGS FOUND
+_(none so far)_
+
+## PROBE BUGS FIXED (tester-side, not product)
+- P-1: probes queried `graphic_comments` — the real column is `{comp}_tweaks`
+  (`_sxrStringifyComments` → `video_tweaks`/`graphic_tweaks`). A bad column in a PostgREST
+  `select` poisons the WHOLE query (42703) → every assert sharing that select read as
+  "write never landed". Chased as a Tier-0 silent-loss suspect for ~20 min before the
+  column check exonerated the app. Lesson recorded below.
+- P-2: toast + card-removal asserts must be read immediately after the acting click —
+  toasts expire and the client card hand-off is instant; reading after a 35 s DB poll flakes.
+
+## OBSERVATIONS (design truths verified in code, not bugs)
+- OBS-R4-1: for a CLIENT link, a component is review-active ONLY at `Client Approval`
+  (`_sxrReviewComponentActive` explicitly excludes Tweaks Needed for `_isClientLink`).
+  After the client's own request-change the card leaves their queue — live AND on fresh
+  reload — until the team routes it back. "Change request sent — the team has been
+  notified" toast is the designed hand-off signal.
+
+## NOT YET COVERED (resume here)
+- Tier 0: saves-reliability loop (N approvals/requests, 100% landing + same-tick double-click);
+  calendar client share journey; token link; mobile viewport; slow-network + failure-injection
+  (announced, input preserved); reload persistence for still-active cards.
+- Tier 1 SMM: calendar planning writes; resolve/route chooser; share-link issuance (mock EF);
+  Submit intake receipts.
+- Tier 1 Kasper: queue/approve/request-change; Finish behavior DOCUMENTATION only (F140).
+
+## Lessons for the next run
+- `sample_reviews` comments columns are `video_tweaks`/`graphic_tweaks` — NOT `*_comments`
+  (that's the in-memory name). A wrong column inside `select=` fails the whole PostgREST read.
+- `pkill -f "http.server 8000"` from inside a compound Bash command kills the CALLER (the
+  pattern matches your own command line). Kill by port: `fuser -k 8000/tcp`.
+
+---
+
+---
+
 # RUN 3 — 2026-07-03 · Full SyncView overnight QA loop
 
 **Branch:** `claude/overnight-syncview-qa-20260702-204925` · **Test client:** `sidneylaruel` ONLY · Linear MOCKED via harness.

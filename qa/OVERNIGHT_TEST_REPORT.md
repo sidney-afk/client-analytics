@@ -33,9 +33,33 @@
 |---|-----|---------|-------------|--------|----------|
 | 0 | 03:50 | Client samples | Harness smoke: legit approve persists; forced non-review columns land only via page funnel (known OBS-4) | ✅ pass=5 | `sxr_client_persist_guard.js` |
 | 1 | 04:05 | Client samples | FULL journey: load → both panels render → thumbnail real bytes → typed comment (status unchanged) → approve video (DB + `client_video_approved_at`) → typed request-change (DB status+text) → worst-of overall → toast + designed card hand-off → audit events both comps → fresh reload keeps queue emptied → 0 JS errors → archive verified | ✅ pass=21 fail=0 | `ot4_t0_client_samples.js` |
+| 2 | 04:09 | Client samples | SAVES-ALWAYS-LAND: 3 sequential approvals (each ~2 s to DB), 3 rapid typed request-changes fired 0.9 s apart (all landed with text), same-tick double-click → ONE status change, exactly one audit event per action (7/7) | ✅ pass=10 fail=0 | `ot4_t0_client_saves_reliability.js` |
+| 3 | 04:14 | Client calendar | FULL journey on `?c=…&v=calendar`: load → panels → thumbnail bytes → typed comment (status kept) → approve video (+stamp) → typed request-change (status+text+worst-of+toast) → fresh reload reads back persisted statuses → 0 JS errors → tombstone + archive | ✅ pass=18 fail=0 | `ot4_t0_client_calendar.js` |
+| 4 | 04:20 | Client both | Failure-injection scoping (dbg): approve-fail = rollback + visible panel error + button re-enabled (GOOD); request-change-fail = SILENT on samples AND calendar (→ BUG F-1) | 🔎 | dbg4/dbg5, then probe #5 |
 
 ## BUGS FOUND
-_(none so far)_
+
+### F-1 · Tier 0 · A FAILED client "Request change" is completely SILENT (samples + calendar client links)
+**Repro (probe-verified):** client link, component at `Client Approval`; make the save endpoint
+fail (5xx / offline); type a change request and click **Request change**.
+**What happens (both surfaces, verified live 04:18–04:21 UTC):**
+- The optimistic flip to `Tweaks Needed` is NOT rolled back in the page (approve's `_saveError`
+  branch rolls back; `_sxrReviewRequestTweak`/`_calReviewRequestTweak`'s does not).
+- At `Tweaks Needed` a client-link panel is no longer review-active → the panel body that would
+  display `_sxrReviewState.errors[key]` ("HTTP 500") is **not rendered** — the recorded error is
+  invisible. No toast (correctly no success toast, but no failure toast either), no card-level
+  "Save failed · Retry" control on the client card, and the typed draft is cleared.
+- The DB is untouched. On reload the server truth returns (`Client Approval`) and every trace of
+  the client's request is gone.
+**Impact:** a client on a flaky connection believes they sent a change request; the team never
+receives it. Exactly the "approval/feedback silently vanishes" class the owner called worst-case.
+**Contrast:** the client APPROVE failure path is healthy — rollback + visible `HTTP 500` panel
+error + re-enabled button (verified same session).
+**Suggested fix (NOT applied — findings-only run):** in the `_saveError` branch of both
+request-tweak handlers, mirror the approve path (`Object.assign(current, prev)` + restore
+`drafts[key]`), so the panel re-renders active with the error visible and the text recoverable;
+or render review-save errors at card level when the acted panel is inactive. Add a regression
+probe either way (probe #5 characterizes today's behavior).
 
 ## PROBE BUGS FIXED (tester-side, not product)
 - P-1: probes queried `graphic_comments` — the real column is `{comp}_tweaks`

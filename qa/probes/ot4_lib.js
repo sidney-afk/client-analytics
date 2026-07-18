@@ -97,7 +97,7 @@ async function panelState(page, name, comp) {
       textarea: !!q('.cal-review-textarea'),
       thread: (q('.cal-review-thread') || { textContent: '' }).textContent,
       text: (p.textContent || '').slice(0, 500),
-      error: (q('.cal-review-error') || { textContent: '' }).textContent
+      error: (q('.cal-review-panel-err') || { textContent: '' }).textContent
     };
   }, [name, comp]);
 }

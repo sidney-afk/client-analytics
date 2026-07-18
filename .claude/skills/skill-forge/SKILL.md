@@ -72,11 +72,20 @@ This step applies to every owner brief, skill-related or not (vision doctrine #4
 
 ## Agent-initiated skills (the owner's "skills for yourself")
 
-The agent may DRAFT a skill unprompted when it catches itself or another session
-re-deriving the same method a second time — that repetition is the signal. The
-draft ships as a PR with the trigger story in its description; **the owner's merge
-is the ratification**. No skill self-applies silently, and no skill edits another
-skill's mandate without an owner one-liner.
+The agent may DRAFT a skill unprompted on either of two signals (owner directive,
+2026-07-18):
+
+1. **Repetition** — the agent catches itself or another session re-deriving the
+   same method a second time.
+2. **Owner speech** — the owner articulates an idea or way of working that
+   deserves to outlive the conversation (a method, a standard, a "this is how I
+   want things done"), even in passing and even without the word "skill". The
+   agent PROPOSES it — "that sounds like a skill; want me to forge it?" — or, when
+   the intent is unambiguous, drafts it directly.
+
+Either way the draft ships as a PR with the trigger story in its description;
+**the owner's merge is the ratification**. No skill self-applies silently, and no
+skill edits another skill's mandate without an owner one-liner.
 
 ## Invocation
 

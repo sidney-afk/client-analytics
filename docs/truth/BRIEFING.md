@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-18 @ 2703ccd (current-state reconciliation through F145; first /site-assurance run — coverage state in docs/testing/ASSURANCE_LEDGER.md; 2026-07-17 bug-archaeology addendum: F142 folder-resolve CORS (fixed + live-verified 07-17), F143 production-write deploy (landed + live-verified 07-17), F144 F44 installer schema drift; F145 mirror batch-vs-parent hierarchy registered 07-18)
+> Last verified: 2026-07-18 @ 2703ccd (current-state reconciliation through F145; first /site-assurance run — coverage state in docs/testing/ASSURANCE_LEDGER.md; 2026-07-17 bug-archaeology addendum: F142 folder-resolve CORS (fixed + live-verified 07-17), F143 production-write deploy (landed + live-verified 07-17), F144 F44 installer schema drift; F145 mirror batch-vs-parent hierarchy registered 07-18; F140 owner-ratified regression fixed on this branch — Samples Finish matches Calendar)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -98,9 +98,11 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   browser-owned recovery (F133/F134); Calendar/Samples reorder has no touch/keyboard path (F135);
   creatives can regress reviewer/terminal work (F136); Video assets collapse into one mislabeled
   link (F137); and persisted native activity is never loaded or shown (F138).
-- The samples nightly has been red since 2026-07-13 with two deterministic open staff-workflow
-  defects nobody triaged: Kasper Finish stays disabled after a graphic tweak request (F140) and a
-  drag reorder can be lost with DOM and DB agreeing on the wrong order (F141). A stored UUID-form
+- F140 is owner-ratified and fixed on the review branch: Samples matches Calendar, so Kasper may
+  stack change requests and then Finish hands the card to the SMM. The strict Finish gate remains;
+  the fix prevents a fresh status companion from being mistaken for recovery debt before its first
+  send/source save. Branch run `29629528360` passed the exact owner-ratified tree leaf 8/8. The
+  independent drag-reorder loss (F141) remains open. A stored UUID-form
   Linear link also poisons the shared status batch and intermittently fails the 15-min calendar
   reconcile (F139; repo-side fix staged). Check `docs/testing/ASSURANCE_LEDGER.md` — the per-surface
   proof ledger — before trusting any "surface X works" claim.

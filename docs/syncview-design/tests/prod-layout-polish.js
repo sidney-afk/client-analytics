@@ -89,27 +89,46 @@ async function collectLayoutFailures(page, label) {
       });
       failures.push(...await collectLayoutFailures(page, `${vp.name} combined filters`));
 
-      const projectId = await page.evaluate(() => Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent)) || '');
+      const filtersBeforeProject = await page.evaluate(() => JSON.parse(JSON.stringify(_prodState.filters || [])));
+      const projectId = await page.evaluate(() => {
+        const child = _prodIssues().find(i => i.project && i.parent);
+        return (child && child.project)
+          || Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent))
+          || '';
+      });
       if (projectId) {
         await page.evaluate(id => _prodOpenProject(id), projectId);
         await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
         failures.push(...await collectLayoutFailures(page, `${vp.name} project detail`));
+        await page.evaluate(() => {
+          const hasChild = _prodIssues().some(i => i.project === _prodState.openProjectId && i.parent);
+          const childVisible = !!document.querySelector('[data-prod-project-parent]:not([data-prod-project-parent=""])');
+          if (hasChild && !childVisible) {
+            _prodState.filters = [];
+            _prodRender();
+          }
+        });
         const projectIssueTitleHierarchy = await page.evaluate(() => {
           const row = document.querySelector('[data-prod-project-parent]:not([data-prod-project-parent=""])');
           if (!row) return true;
-          const title = row.querySelector('.prod-project-title-main');
+          const holder = row.querySelector('.prod-title');
+          const title = holder && holder.querySelector(':scope > b');
           const parent = row.querySelector('.prod-parent-title');
-          if (!title || !parent) return false;
+          if (!holder || !title || !parent || parent.parentElement !== holder) return false;
           const rowRect = row.getBoundingClientRect();
           const titleRect = title.getBoundingClientRect();
           const parentRect = parent.getBoundingClientRect();
-          return parentRect.top >= titleRect.bottom - 2
+          return Math.abs(parentRect.top - titleRect.top) < 4
             && titleRect.left >= rowRect.left - 1
             && parentRect.left >= rowRect.left - 1
             && titleRect.right <= rowRect.right + 1
             && parentRect.right <= rowRect.right + 1;
         });
-        if (!projectIssueTitleHierarchy) failures.push(`${vp.name} project detail parent issue trail should render as a secondary line inside the row`);
+        if (!projectIssueTitleHierarchy) failures.push(`${vp.name} project detail parent issue trail should render inline beside the title`);
+        await page.evaluate(filters => {
+          _prodState.filters = filters;
+          _prodRender();
+        }, filtersBeforeProject);
         const projectFilterEmptyExplained = await page.evaluate(() => {
           const filterCount = (_prodState.filters || []).length;
           const id = _prodState.openProjectId || '';

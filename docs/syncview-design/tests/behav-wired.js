@@ -720,7 +720,10 @@ async function txt(page, sel) {
     }); await reset();
     await ok('personCross', async () => {
       const name = await page.evaluate(() => {
-        const id = _prodIssues().find(i => i.assignee)?.assignee;
+        // Pick a person with at least one Active-tab-visible row: approved is
+        // hidden from Active (owner decision 2026-07-18), so an approved-only
+        // assignee would legitimately filter to zero rows.
+        const id = _prodIssues().find(i => i.assignee && _prodTabAllows(i.status))?.assignee;
         const ed = id && _prodEditors()[id];
         return ed ? ed.name.split(' ')[0].toLowerCase() : '';
       });
@@ -1530,7 +1533,11 @@ async function txt(page, sel) {
       if (!row) return true;
       _prodOpenDeliverable(id);
       const orig = row.due;
+      const origRaw = row.dueRaw;
+      // Display derives from dueRaw at adapter time; tips read the full form from dueRaw,
+      // so the fixture mutates both like a real adapted row.
       row.due = 'Aug 3';
+      row.dueRaw = new Date().getFullYear() + '-08-03';
       _prodRender();
       const withDateEl = document.querySelector('[data-prod-prop="due"]');
       const withDateTip = withDateEl.getAttribute('data-prod-tip') || '';
@@ -1540,6 +1547,7 @@ async function txt(page, sel) {
       const emptyEl = document.querySelector('[data-prod-prop="due"]');
       const empty = emptyEl.getAttribute('data-prod-tip') === copy && emptyEl.textContent.includes('Add due date');
       row.due = orig;
+      row.dueRaw = origRaw;
       _prodRender();
       return withDate && empty;
     }, SIGNED_OUT_WRITE_COPY)); await reset();

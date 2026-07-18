@@ -187,6 +187,143 @@ async function sxrKasperCommentFirstCase() {
   assert.strictEqual(sourceWrites, 0, 'a rejected comment cannot leak through the Samples source patch');
 }
 
+async function sxrKasperFreshCompanionExecutesStatusCase() {
+  const sourceAt = '2026-07-17T12:00:00.000Z';
+  let nativeReads = 0, statusCalls = 0;
+  const persisted = [];
+  const post = {
+    id: 'card',
+    video_status: 'Approved',
+    graphic_status: 'Kasper Approval',
+    graphic_comments: []
+  };
+  const item = { slug: 'fixture', post };
+  const companionRecord = {
+    version: 1,
+    key: 'sxr|kasper-sxr|fixture|card|comment',
+    token: 'repair-token',
+    source_at: sourceAt,
+    primary_intent_key: 'status:graphic:Tweaks Needed:' + sourceAt,
+    edits: { graphic_status: 'Tweaks Needed' },
+    intents: []
+  };
+  const companion = {
+    operation: 'status',
+    component: 'graphic',
+    source_at: sourceAt,
+    intent: {
+      key: companionRecord.primary_intent_key,
+      operation: 'status',
+      component: 'graphic',
+      source_at: sourceAt,
+      status: 'Tweaks Needed',
+      attempted: false,
+      native_committed: false,
+      _repair_key: companionRecord.key,
+      _repair_token: companionRecord.token
+    },
+    record: companionRecord
+  };
+  const nativeStatus = value => String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+  const ctx = {
+    _sxrKasperState: { items: [item], saving: {}, drafts: {}, errors: {} },
+    _kasperState: { sxrRepairs: [] },
+    _sxrKasperFindItem: () => item,
+    _sxrKasperRepaint: () => {},
+    _sxrLastLocalWriteAt: 0,
+    _sxrCommentsFor: value => value.graphic_comments || [],
+    _sxrMsgIsTweak: () => true,
+    _writeUiPrincipalKey: () => 'staff:fixture:kasper',
+    _kasperPersistCache: () => true,
+    _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+    _sxrLinearUrlFor: () => 'https://linear.invalid/GRA-1',
+    _sxrPostLinearComment: async () => ({
+      native_committed: true,
+      source_repair: { key: companionRecord.key, token: companionRecord.token }
+    }),
+    _writeUiRepairCompanions: () => [companion],
+    _writeUiAdoptRepairAck: () => {},
+    _writeUiAppendRepairRef: (refs, ref) => { if (ref) refs.push(ref); return refs; },
+    _writeUiReadCurrentNativeStatus: async () => {
+      nativeReads++;
+      return { status: 'kasper_approval', status_at: '2026-07-17T12:00:01.000Z' };
+    },
+    _writeUiNativeStatus: nativeStatus,
+    _writeUiDisplayStatus: value => ({
+      kasper_approval: 'Kasper Approval',
+      tweaks_needed: 'Tweaks Needed'
+    })[value] || '',
+    _writeUiMarkRepairCommitted: async ref => ref,
+    _sxrPushStatusToLinear: async (_url, status, meta) => {
+      statusCalls++;
+      assert.strictEqual(status, 'Tweaks Needed');
+      assert.strictEqual(meta.repairRecord, companionRecord);
+      return {
+        native_committed: true,
+        source_repair: { key: companionRecord.key, token: companionRecord.token }
+      };
+    },
+    _sxrKasperPersist: async (_item, patch) => { persisted.push(clone(patch)); },
+    _writeUiCompleteSourceRepairRefs: async () => true,
+    _writeUiRemoveCompletedRepairRefs: () => {},
+    _writeUiReportFailure: () => {},
+    SXR_REVIEW_COMPONENTS: ['video', 'graphic'],
+    _calCompLinked: () => true,
+    _sxrNormStatus: value => String(value || ''),
+    JSON, Date, Object, Array, Set, Promise, console
+  };
+  vm.createContext(ctx);
+  vm.runInContext(extract('_writeUiReconcileReplayStatus'), ctx);
+  vm.runInContext(extractUntil('_sxrKasperApplyAndPersist', '_sxrKasperResumeSourceRepairs'), ctx);
+  vm.runInContext(extract('_sxrKasperUndecidedComps'), ctx);
+
+  await ctx._sxrKasperApplyAndPersist('card', 'graphic', value => {
+    value.graphic_status = 'Tweaks Needed';
+    value.graphic_comments = [{
+      id: 'comment-1',
+      body: 'change',
+      author: 'Kasper',
+      role: 'kasper',
+      is_tweak: true,
+      done: false
+    }];
+    return {
+      graphic_status: 'Tweaks Needed',
+      status: 'Tweaks Needed',
+      graphic_tweaks: '[{"id":"comment-1"}]'
+    };
+  }, 'change', null);
+
+  assert.strictEqual(nativeReads, 0,
+    'a fresh, never-attempted status companion is not misclassified as recovery debt');
+  assert.strictEqual(statusCalls, 1, 'the fresh Tweaks Needed status reaches the gateway exactly once');
+  assert.strictEqual(persisted.length, 1, 'the Samples source patch persists after the gateway commit');
+  assert.strictEqual(persisted[0].graphic_status, 'Tweaks Needed');
+  assert.strictEqual(post.graphic_status, 'Tweaks Needed');
+  assert.deepStrictEqual(Array.from(ctx._sxrKasperUndecidedComps(post)), [],
+    'the real Finish gate sees no undecided component after the persisted change request');
+
+  companion.intent.attempted = true;
+  nativeReads = 0;
+  statusCalls = 0;
+  persisted.length = 0;
+  post.graphic_status = 'Kasper Approval';
+  post.graphic_comments = [];
+  await ctx._sxrKasperApplyAndPersist('card', 'graphic', value => {
+    value.graphic_status = 'Tweaks Needed';
+    value.graphic_comments = [{ id: 'comment-2', body: 'change again', author: 'Kasper' }];
+    return {
+      graphic_status: 'Tweaks Needed',
+      status: 'Tweaks Needed',
+      graphic_tweaks: '[{"id":"comment-2"}]'
+    };
+  }, 'change again', null);
+  assert.strictEqual(nativeReads, 1, 'an already-attempted companion still reconciles native truth');
+  assert.strictEqual(statusCalls, 0, 'a reconciled recovery companion is not written again');
+  assert.strictEqual(persisted[0].graphic_status, 'Kasper Approval',
+    'recovery reconciliation may still adopt a provably newer native status');
+}
+
 async function kasperInvocationIsolationCase() {
   const post = { id: 'card', video_status: 'Kasper Approval', graphic_status: 'Kasper Approval' };
   const item = { slug: 'fixture', post };
@@ -567,6 +704,7 @@ async function absentCommentReissuesCurrentLaneCase() {
   await runCase('Samples cache-only retry debt is held outside the source funnel', () => cacheOnlyRetryBlockedCase('sxr'));
   await runCase('Calendar Kasper cache-only retry debt is blocked', calendarKasperCacheOnlyBlockedCase);
   await runCase('Samples Kasper composite tweak commits comment before status', sxrKasperCommentFirstCase);
+  await runCase('Samples Kasper fresh status companion executes before source persistence', sxrKasperFreshCompanionExecutesStatusCase);
   await runCase('concurrent Kasper invocations complete only their own repair refs', kasperInvocationIsolationCase);
   await runCase('queued Calendar Kasper invocations retain separate repair contexts', calendarKasperInvocationIsolationCase);
   await runCase('journal resume binds the exact group refs into the source save', resumeExactRefBindingCase);

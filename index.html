@@ -44013,7 +44013,12 @@
             }
             if (patch[comp + '_status']) {
                 let reconciled = false;
-                if (companion) {
+                // A freshly reserved status companion belongs to this in-flight
+                // action and has never reached the gateway. Reconciliation is
+                // only for a companion recovered after an earlier attempt;
+                // otherwise a newer native clock can incorrectly overwrite this
+                // fresh Samples decision before the source save (F140).
+                if (companion && companion.intent && companion.intent.attempted === true) {
                     reconciled = await _writeUiReconcileReplayStatus({ edits: patch, source_at: companion.source_at }, companion.intent, p);
                     if (reconciled) gatewayCommitted = true;
                 }

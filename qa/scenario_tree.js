@@ -118,6 +118,9 @@ function samplesReviewTree(comp) {
             steps: [['kasper.request', comp, 'Kasper: needs a tweak'], ['expect', sub, 'Tweaks Needed'], ['expectComment', comp, { role: 'kasper', is_tweak: true }]],
             children: [
               {
+                // F140 OWNER RULING (2026-07-17): Samples matches Calendar.
+                // Kasper may stack change requests, then Finish must hand the
+                // card to the SMM. A disabled Finish here is a regression.
                 key: 'finish', title: 'Kasper finishes reviewing → Sent to SMM',
                 steps: [['kasper.finish'], ['expectKasperCard', 'finished']],
               },

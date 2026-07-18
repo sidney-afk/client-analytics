@@ -2,6 +2,177 @@
 
 ---
 
+# RUN 4 — 2026-07-18 · Quality-tier contract run (Tier 0 client-first)
+
+**Branch:** `claude/overnight-quality-tier-test-yicxg8` · **Test client:** `sidneylaruel` ONLY · Linear MOCKED via harness · `write_ui_reroute` stubbed DARK (test client behaves like a real client) · courier ON. Window 03:45–07:45 UTC (hard stop; calendar nightly fires 08:00 UTC).
+
+## Mission (owner's priority order)
+1. **Tier 0 — CLIENT EXPERIENCE** (most of the night): the `?c=` review links exactly as a real
+   client uses them — loads, approve/comment/request-change, saves proven in the backend every
+   time, thumbnails/media, token link, reload/mobile, slow network.
+2. **Tier 1 — SMM**: calendar planning + writes, resolve/route, share-link issuance, Submit intake.
+3. **Tier 1 — Kasper (light)**: queue/approve/request-change; **document** Finish only (F140 in flight — hands off).
+4. Rest of the app if time remains. Findings + probe fixes only — NO product-code changes.
+
+## Field conditions found at start (03:45 UTC)
+- Backend reachable through the proxy; harness (courier + Linear mock + archiveSafe) verified
+  green via `sxr_client_persist_guard.js` (pass=5) before any new probe.
+- **Pre-existing non-archived debris on the test client** (NOT created by this run):
+  - `sr_scn_*` scenario rows created 2026-07-18 01:05 and 03:36–03:37 UTC (a scheduled/manual
+    scenario run leaked them minutes before this session), plus two older `sr_scn_video__smm_request_*`
+    from 07-15/07-17. → archived at end-of-run cleanup (clearly QA-pattern ids).
+  - `sr_mrgu*` "UI Batch/Workflow/Create…" rows from 2026-07-11 21:05–21:09 UTC — cold-open
+    UI-journey probes that never archived. → archived at end-of-run cleanup.
+  - `Sample 1 ` (sr_mqvenh27, 06-26) and calendar `TEST 1/2/3` — look owner-created; LEFT ALONE.
+- **The samples nightly (`samples-e2e-nightly.yml`) fires 06:00 UTC — inside this window.**
+  Mitigation: no samples-backend mutations ~05:55–06:30; monitored for its rows.
+
+## Interaction log
+
+| # | UTC | Surface | Interaction | Result | Evidence |
+|---|-----|---------|-------------|--------|----------|
+| 0 | 03:50 | Client samples | Harness smoke: legit approve persists; forced non-review columns land only via page funnel (known OBS-4) | ✅ pass=5 | `sxr_client_persist_guard.js` |
+| 1 | 04:05 | Client samples | FULL journey: load → both panels render → thumbnail real bytes → typed comment (status unchanged) → approve video (DB + `client_video_approved_at`) → typed request-change (DB status+text) → worst-of overall → toast + designed card hand-off → audit events both comps → fresh reload keeps queue emptied → 0 JS errors → archive verified | ✅ pass=21 fail=0 | `ot4_t0_client_samples.js` |
+| 2 | 04:09 | Client samples | SAVES-ALWAYS-LAND: 3 sequential approvals (each ~2 s to DB), 3 rapid typed request-changes fired 0.9 s apart (all landed with text), same-tick double-click → ONE status change, exactly one audit event per action (7/7) | ✅ pass=10 fail=0 | `ot4_t0_client_saves_reliability.js` |
+| 3 | 04:14 | Client calendar | FULL journey on `?c=…&v=calendar`: load → panels → thumbnail bytes → typed comment (status kept) → approve video (+stamp) → typed request-change (status+text+worst-of+toast) → fresh reload reads back persisted statuses → 0 JS errors → tombstone + archive | ✅ pass=18 fail=0 | `ot4_t0_client_calendar.js` |
+| 4 | 04:20 | Client both | Failure-injection scoping (dbg): approve-fail = rollback + visible panel error + button re-enabled (GOOD); request-change-fail = SILENT on samples AND calendar (→ BUG F-1) | 🔎 | dbg4/dbg5, then probe #5 |
+| 5 | 04:35 | Client samples | EDGE CONDITIONS: token link (?t=) loads + approve lands · mobile 390×844 controls fit + typed request lands · slow network (4 s delay) honest saving state + save lands + no error · failure injection = F-1 characterized (detected internally, invisible to client, DB untouched) + reload/recovery re-send lands | ✅ pass=21 fail=0 | `ot4_t0_client_edge_conditions.js` |
+| 6 | 04:33 | SMM samples | Resolve-destination chooser, ALL routes: kasper / client / approved / stay on video + kasper on graphic (scenario library, real DOM) | ✅ 5/5 scn, 25/25 | `run_scenarios.js resolve_via` |
+| 7 | 04:42 | Kasper samples | Queue load + request-change (video) + approve-after-tweaks + split approve-v/request-g (real Kasper sub-tab clicks) | ✅ 3/3 scn, 10/10 | `run_scenarios.js kasper_*` |
+| 8 | 04:50 | Kasper samples | Finish documentation (F140 hands-off): flat `kasper_finish_video` green 4/4 AND the F140 tree path `graphic__smm_approve__kasper_request__finish` green 8/8 under the courier on today's main | ✅ (see F140 note) | scenario runner |
+
+| 9 | 05:05 | SMM calendar | DAILY PLANNING journey, cold-open via real Sheet UI: "+" → typed name born as DB row → date control → thumbnail paste (blur) → caption typed → VID Linear link paste unlocks the pill (design gate: "Link a Linear sub-issue first") → status pill menu flip → all writes polled into `calendar_posts` → hard reload renders every value → 0 JS errors | ✅ pass=22 fail=0 | `ot4_t1_smm_calendar_writes.js` |
+
+| 10 | 05:12 | SMM calendar | SHARE-LINK ISSUANCE via real kebab → "Share with client": signed-out = fail-closed toast, no clipboard write, no request; signed-in (key-verify + issuance EF MOCKED, no real token) = X-Syncview-Key sent, URL shape `?c=Sidney Laruel&v=calendar&t=<token>`, "copied" toast; the minted URL boots as a client link | ✅ pass=16 fail=0 | `ot4_t1_sharelink_issuance.js` |
+
+| 11 | 05:22 | Submit intake | FAIL-CLOSED guards through the real form: no-client → announced, zero egress; client + unresolved filming plan → "No create request was sent", zero egress; typed notes survive hard reload; belt-and-braces route blocked any create/intake endpoint (none fired) | ✅ pass=13 fail=0 | `ot4_t1_submit_intake_guards.js` |
+
+| 12 | 05:32 | Client samples | TWO SITTINGS: approve video, close tab; fresh context still queues the card, approved comp renders NO panel (nothing clickable), graphic still actionable → approve completes card out of queue; both stamps in DB; overall → Approved | ✅ pass=12 fail=0 | `ot4_t0_client_two_sittings.js` |
+
+| 13 | 05:45 | Cross | FRESHNESS PROOFS of existing guards: `sxr_gating_flags` 13/13 (flag-off isolation + client render-gating) · `sxr_concurrency` 8/8 (double-approve dedupe, cross-tab comment merge, cross-actor field merge) · `sxr_cold_open` 13/13 (samples create-from-zero UI journey) · unit gate `test/run-all.js` ALL 131 SUITES PASS | ✅ | existing probes |
+| 14 | 05:50 | Code audit | Calendar client APPROVE failure path verified in code: rolls back (`Object.assign(current, prev)`) like samples — F-1 stays scoped to the two REQUEST-CHANGE handlers only | ✅ | `index.html:31972` |
+
+| 15 | 05:38 | Client samples | THUMB DERIVATION honest-state contract: Drive share link → derived image or the DESIGNED announced warn ("share the folder with Anyone with the link"), never a broken img; YouTube watch asset → img.youtube.com thumb with real bytes | ✅ pass=4 fail=0 | `ot4_t0_client_thumb_derivation.js` |
+
+| 16 | 05:55 | Cross | Guard classification + modernization: `p88_realtime_handler` 4/4 green · `p07_client_guards` reds = ENVIRONMENT (its lib.js harness has no courier — open-egress-only family, not product) · `sxr_bug_repros` BUG-4 guard was STALE (stubbed the retired `_syncviewRequireStaffIdentity` path) — modernized to the current verified-identity + issuer mechanism, now 4/4 green, which also freshly proves the SAMPLES-surface share button issues correctly | ✅ | probe fix committed |
+
+| 17 | 06:00 | Realtime | `sxr_realtime_twin` 9/9: recent-save window protects a fresh edit against a concurrent push; pending unsaved edit survives a push-driven background reload; 0 JS errors | ✅ pass=9 fail=0 | existing probe |
+| 18 | 06:05 | Client samples | Client-focused scenario batch: `client_request_both_roundtrip` 13/13 · `client_comment_then_approve_video` 6/6 · `client_mixed_gating_video` 8/8 (OBS-2 pin) · `audience_leak_guard_video` 5/5 (internal notes NEVER visible to the client) | ✅ 4/4 scn, 32/32 | `run_scenarios.js` |
+
+### F140 status note (documentation only — no product code touched)
+- The registered deterministic repro (`kasper.finish() → disabled` after a Kasper tweak request
+  on a graphic-only card) **did NOT reproduce tonight**: tree path green 8/8 at 04:50 UTC under
+  the courier harness on this branch (= main of 07-18).
+- GitHub Actions truth: samples nightly red 5 consecutive scheduled nights (07-13 → 07-17, all
+  on main), AND a `workflow_dispatch` on branch **`agent/f140-kasper-finish-reviewing`** ran at
+  03:50 UTC today and FAILED — the separate F140 fix effort is active right now. The leaked
+  03:36–03:37 `sr_scn_*` rows found at session start almost certainly belong to that effort.
+- Read carefully: the nightly's red may be multi-cause (F141 drag-reorder is also registered);
+  a green F140 path under the courier does not prove the nightly path (SXR_COURIER=0, open
+  egress) is green. Morning triage should diff tonight's 08:2x nightly result against this note.
+- Ops reality check: the "06:00 UTC" nightly actually STARTS ~08:20 UTC (GitHub cron delay,
+  5/5 recent runs) — i.e. after this run's 07:45 hard stop, not inside it as feared.
+
+## BUGS FOUND
+
+### F-1 · Tier 0 · A FAILED client "Request change" is completely SILENT (samples + calendar client links)
+**Repro (probe-verified):** client link, component at `Client Approval`; make the save endpoint
+fail (5xx / offline); type a change request and click **Request change**.
+**What happens (both surfaces, verified live 04:18–04:21 UTC):**
+- The optimistic flip to `Tweaks Needed` is NOT rolled back in the page (approve's `_saveError`
+  branch rolls back; `_sxrReviewRequestTweak`/`_calReviewRequestTweak`'s does not).
+- At `Tweaks Needed` a client-link panel is no longer review-active → the panel body that would
+  display `_sxrReviewState.errors[key]` ("HTTP 500") is **not rendered** — the recorded error is
+  invisible. No toast (correctly no success toast, but no failure toast either), no card-level
+  "Save failed · Retry" control on the client card, and the typed draft is cleared.
+- The DB is untouched. On reload the server truth returns (`Client Approval`) and every trace of
+  the client's request is gone.
+**Impact:** a client on a flaky connection believes they sent a change request; the team never
+receives it. Exactly the "approval/feedback silently vanishes" class the owner called worst-case.
+**Contrast:** the client APPROVE failure path is healthy — rollback + visible `HTTP 500` panel
+error + re-enabled button (verified same session).
+**Suggested fix (NOT applied — findings-only run):** in the `_saveError` branch of both
+request-tweak handlers, mirror the approve path (`Object.assign(current, prev)` + restore
+`drafts[key]`), so the panel re-renders active with the error visible and the text recoverable;
+or render review-save errors at card level when the acted panel is inactive. Add a regression
+probe either way (probe #5 characterizes today's behavior).
+
+## PROBE BUGS FIXED (tester-side, not product)
+- P-1: probes queried `graphic_comments` — the real column is `{comp}_tweaks`
+  (`_sxrStringifyComments` → `video_tweaks`/`graphic_tweaks`). A bad column in a PostgREST
+  `select` poisons the WHOLE query (42703) → every assert sharing that select read as
+  "write never landed". Chased as a Tier-0 silent-loss suspect for ~20 min before the
+  column check exonerated the app. Lesson recorded below.
+- P-2: toast + card-removal asserts must be read immediately after the acting click —
+  toasts expire and the client card hand-off is instant; reading after a 35 s DB poll flakes.
+
+## OBSERVATIONS (design truths verified in code, not bugs)
+- OBS-R4-1: for a CLIENT link, a component is review-active ONLY at `Client Approval`
+  (`_sxrReviewComponentActive` explicitly excludes Tweaks Needed for `_isClientLink`).
+  After the client's own request-change the card leaves their queue — live AND on fresh
+  reload — until the team routes it back. "Change request sent — the team has been
+  notified" toast is the designed hand-off signal.
+
+## RUN 4 FINAL SUMMARY (written 17:0x UTC after the usage-pause — see honesty note)
+
+**Totals:** 9 new probe files + 1 shared driver (`ot4_lib.js`), 137 probe assertions all green
+after probe-bug fixes · 14 scenario-library runs (79/79 assertions) · 6 freshness re-runs of
+existing guards (52/52 where runnable) · unit gate `test/run-all.js` **131/131 suites** ·
+1 stale regression guard modernized (`sxr_bug_repros` BUG-4) · **1 real Tier-0 bug filed (F-1)**
+· 1 F140 status note for the separate fix effort · 0 product-code changes (contract honored).
+
+**Coverage vs the owner's priority list:**
+- Tier 0 client experience: samples + calendar `?c=` journeys (load/approve/comment/
+  request-change, saves DB-proven every time), saves-reliability burst + double-click dedupe,
+  token link, mobile 390px, slow network, failure injection (→ F-1), two-sittings persistence,
+  thumbnails/media incl. Drive/YouTube derivation honest-states, audience-leak guard,
+  render-gating, persist-guard, realtime recent-save window. **Done.**
+- Tier 1 SMM: daily planning journey (create → fields → Linear link → status pill),
+  resolve-destination chooser all 4 routes + graphic, share-link issuance deny/mint/boot
+  (EFs mocked), Submit intake fail-closed guards + draft preservation. **Done.**
+- Tier 1 Kasper (light): queue load, request-change, AAT, split approve/request; Finish
+  DOCUMENTED only (F140 note; hands off product code). **Done.**
+- Rest of the app: not reached (time went to Tier-0 depth as instructed).
+
+**PAUSE HONESTY NOTE:** the session hit the shared usage-pool limit at ~05:30 UTC (after
+interaction #18) and resumed at ~17:01 UTC. All work through #18 was already committed and
+pushed before the pause; nothing was lost or redone. The 07:45 hard-stop cleanup therefore ran
+LATE (at ~17:05 UTC) — after today's ~08:20 nightlies, which ran on a field still carrying the
+PRE-EXISTING debris listed under "Field conditions" (not this run's rows — this run's rows were
+archived probe-by-probe throughout the night; the 05:30 sweep-state was already clean).
+
+**End-of-run safety sweep (17:05 UTC):** archived 15 stale pre-existing QA rows (10× July-11
+`sr_mrgu*` "UI …" cold-open leftovers, 5× leaked `sr_scn_*` scenario rows, all ≥13h stale;
+>1h-stale rule protected any active agent's rows). Left untouched: owner-looking `Sample 1 `,
+calendar `TEST 1/2/3`, `__cal_settings__`. Final verification: **zero QA-pattern rows live** on
+either table.
+
+## NOT YET COVERED (resume here)
+- "Rest of the app" breadth (Tier 2+): PTO UI, Workload, analytics views, templates, filming
+  plans, TikTok pilot, onboarding form — none touched this run.
+- Submit intake HAPPY PATH end-to-end with a fully mocked n8n/Linear chain (receipts landing,
+  `_resumeNativeIntakeJob` recovery) — only the fail-closed guards + draft preservation are
+  proven. The mock surface needed (filming-plan resolution, team routing, receipt shapes) is
+  documented in the probe header.
+- F-1 regression probe flip: when the silent request-change failure is fixed, flip the
+  CHARACTERIZED asserts in `ot4_t0_client_edge_conditions.js` P4 to demand a visible
+  announcement + preserved draft (samples AND calendar variants).
+- Drive thumbnail derivation with a REAL shared file id (bytes assert, not just honest-state).
+- Calendar client mobile/slow-network variants (samples variants proven; calendar assumed
+  symmetric — verify).
+- p07-family calendar probes are open-egress-only (lib.js has no courier) — port them to the
+  courier harness or keep them CI-only.
+
+## Lessons for the next run
+- `sample_reviews` comments columns are `video_tweaks`/`graphic_tweaks` — NOT `*_comments`
+  (that's the in-memory name). A wrong column inside `select=` fails the whole PostgREST read.
+- `pkill -f "http.server 8000"` from inside a compound Bash command kills the CALLER (the
+  pattern matches your own command line). Kill by port: `fuser -k 8000/tcp`.
+
+---
+
+---
+
 # RUN 3 — 2026-07-03 · Full SyncView overnight QA loop
 
 **Branch:** `claude/overnight-syncview-qa-20260702-204925` · **Test client:** `sidneylaruel` ONLY · Linear MOCKED via harness.

@@ -23,21 +23,23 @@ const t = (pass, msg, extra) => { console.log(`${pass ? '✓' : '✗'}  ${msg}${
     await page.waitForFunction((cid) => !!document.querySelector(`#sxrStrip .cal-card[data-pid="${cid}"]`), id, { timeout: 15000 }).catch(() => {});
 
     // ---- BUG-4 FIX: _sxrCopyShareLink awaits the authenticated issuer ----
-    // Stub only the staff identity + issuer response and capture the clipboard.
-    // This deliberately never puts a token in the public clientMap or calls the
-    // live issuer.
+    // MODERNIZED 2026-07-18 (RUN 4): the flow now goes through
+    // _syncviewIssueClientShareUrl + a VERIFIED staff identity
+    // (_syncviewStaffIdentityForHeaders), not _syncviewRequireStaffIdentity —
+    // the old stub made this guard fail for mechanism reasons while the fix
+    // itself still held. Stub the CURRENT internals: seed the module identity
+    // vars, verify flag, and intercept only the issuer fetch. Still never
+    // calls the live issuer or stores a real token.
     const share = await page.evaluate(async () => {
       let captured = '';
-      let capability = '';
       const issuerCalls = [];
-      const realRequire = _syncviewRequireStaffIdentity;
       const realFetch = window.fetch;
       const ownClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+      const prevMem = _syncviewStaffIdentityMem, prevLoaded = _syncviewStaffIdentityLoaded, prevVerified = _syncviewStaffIdentityVerified;
       try {
-        _syncviewRequireStaffIdentity = async requested => {
-          capability = requested;
-          return { key: 'SYNTHETIC_PROBE_ROLE_KEY', member: { id: 'probe-member', name: 'Probe SMM' } };
-        };
+        _syncviewStaffIdentityMem = { key: 'SYNTHETIC_PROBE_ROLE_KEY', role: 'smm', member: { id: 'probe-member', name: 'Probe SMM', role: 'smm', team: null } };
+        _syncviewStaffIdentityLoaded = true;
+        _syncviewStaffIdentityVerified = true;
         window.fetch = async (url, options) => {
           if (String(url) !== String(CLIENT_REVIEW_LINK_URL)) return realFetch(url, options);
           issuerCalls.push({
@@ -51,19 +53,18 @@ const t = (pass, msg, extra) => { console.log(`${pass ? '✓' : '✗'}  ${msg}${
         await _sxrCopyShareLink();
       } catch (e) { captured = 'ERR:' + (e && e.message); }
       finally {
-        _syncviewRequireStaffIdentity = realRequire;
         window.fetch = realFetch;
+        _syncviewStaffIdentityMem = prevMem; _syncviewStaffIdentityLoaded = prevLoaded; _syncviewStaffIdentityVerified = prevVerified;
         if (ownClipboard) Object.defineProperty(navigator, 'clipboard', ownClipboard);
         else delete navigator.clipboard;
       }
-      return { captured, capability, issuerCalls };
+      return { captured, issuerCalls };
     });
     const issued = share.issuerCalls[0] || {};
-    t(share.capability === 'review-link'
-      && share.issuerCalls.length === 1
+    t(share.issuerCalls.length === 1
       && issued.headers && issued.headers['X-Syncview-Key'] === 'SYNTHETIC_PROBE_ROLE_KEY'
       && issued.headers['X-Syncview-Actor'] === 'Probe SMM'
-      && issued.body && issued.body.member_id === 'probe-member' && !!issued.body.slug
+      && issued.body && issued.body.client === 'Sidney Laruel'
       && /[?&]t=TESTTOKEN123\b/.test(share.captured),
     'BUG-4 FIX: share URL carries the token from one staff-authenticated issuer request', share.captured);
     t(/[?&]c=/.test(share.captured) && /v=sample-reviews/.test(share.captured), 'BUG-4 FIX: share URL still carries client + view', share.captured);

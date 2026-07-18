@@ -32113,6 +32113,8 @@
             _calReviewState.saving[key] = false;
             const current = calState.posts.find(p => p.id === pid) || post;
             if (current._saveError) {
+                if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
+                _calReviewState.drafts[key] = body;
                 _calReviewState.errors[key] = current._saveError || 'Save failed';
                 _calReviewRepaintCard(pid);
                 return;
@@ -32121,7 +32123,7 @@
             else _calReviewRepaintCard(pid);
             // The client gets explicit reassurance their request reached the
             // team — the status pill change alone reads as ambiguous.
-            if (_calCommentRole() === 'client' && !post._saveError) {
+            if (_calCommentRole() === 'client' && !current._saveError) {
                 showToast('Change request sent — the team has been notified');
             }
         }).catch(e => {
@@ -42139,6 +42141,8 @@
             _sxrReviewState.saving[key] = false;
             const current = sxrState.posts.find(p => p.id === pid) || post;
             if (current._saveError) {
+                if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
+                _sxrReviewState.drafts[key] = body;
                 _sxrReviewState.errors[key] = current._saveError || 'Save failed';
                 _sxrReviewRepaintCard(pid);
                 return;
@@ -42150,7 +42154,7 @@
                 });
             }
             if (clearsCard) _sxrReviewRemoveCard(pid); else _sxrReviewRepaintCard(pid);
-            if (_sxrCommentRole() === 'client' && !post._saveError && typeof showToast === 'function') showToast('Change request sent — the team has been notified');
+            if (_sxrCommentRole() === 'client' && !current._saveError && typeof showToast === 'function') showToast('Change request sent — the team has been notified');
         }).catch(e => {
             Object.assign(post, prev);
             _sxrReviewState.drafts[key] = body;

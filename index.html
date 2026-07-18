@@ -35528,6 +35528,7 @@
                     lead: c.lead_member_id || '',
                     issues: issueCounts[slug] || 0,
                     target: _prodFmtDate(c.target_date),
+                    targetRaw: c.target_date || '',
                     desc: c.board_desc || '',
                     emoji: c.emoji || '',
                     raw: c
@@ -35578,11 +35579,19 @@
             return d && (d.displayId || d.identifier || d.linear_identifier || d.id) || '';
         }
         function _prodFmtDate(v) {
+            // Compact written display ("Jul 15") for every column/pill; year accuracy lives in the
+            // hover via _prodFmtDateFull (owner decisions 2026-07-17/18: no two-line wrap on desktop).
             if (!v) return '';
             const s = String(v).slice(0, 10);
             const p = s.split('-');
             if (p.length !== 3) return s;
-            // Linear's written date format: "Jul 15" this year, "Jul 15, 2025" otherwise (owner feedback 2026-07-17).
+            return PROD_MON[Math.min(11, Math.max(0, (+p[1] || 1) - 1))] + ' ' + (+p[2] || 1);
+        }
+        function _prodFmtDateFull(v) {
+            if (!v) return '';
+            const s = String(v).slice(0, 10);
+            const p = s.split('-');
+            if (p.length !== 3) return s;
             const label = PROD_MON[Math.min(11, Math.max(0, (+p[1] || 1) - 1))] + ' ' + (+p[2] || 1);
             return +p[0] === PROD_TODAY.getFullYear() ? label : label + ', ' + p[0];
         }
@@ -37656,7 +37665,8 @@
         function _prodTabAllows(status) {
             if (_prodState.tab === 'backlog') return status === 'backlog' || status === 'triage';
             if (_prodState.tab === 'all') return true;
-            return ['todo','prog','smm','kasper','client','tweak','approved','scheduled'].includes(_prodArtifactStatus(status));
+            // Active hides approved (owner decision 2026-07-18) - matches the artifact active set.
+            return ['todo','prog','smm','kasper','client','tweak','scheduled'].includes(_prodArtifactStatus(status));
         }
         function _prodMyMemberId() {
             const withRows = new Set(_prodIssues().map(d => d.assignee).filter(Boolean));
@@ -38572,7 +38582,7 @@
             const focused = _prodState.focusRow === d.id;
             const assigneeTip = assignee ? ('Assignee: ' + assignee.name) : 'Unassigned';
             const dueWriteAttrs = _prodWriteGateAttrs(d, 'due', d.due
-                ? { info: 'Due ' + d.due + _prodOverdueText(d.dueRaw, d.status), tip: 'Change due date · ⇧D' }
+                ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status), tip: 'Change due date · ⇧D' }
                 : { tip: 'Set due date|⇧D' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { title: assignee ? assignee.name : 'Unassigned', info: assigneeTip, tip: 'Assign · A' });
             return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + (selected ? ' selected' : '') + (focused ? ' kfocus' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" onmousemove="_prodSetFocusRow(' + _jsAttrArg(d.id) + ',false)" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
@@ -38584,7 +38594,7 @@
                 + '<span class="prod-spacer"></span><span class="prod-chip optional prod-chip-client" data-prod-crumbclient="' + _calEscAttr(d.project || '') + '" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(d.project || '') + ')" data-prod-tip="Client: ' + _calEscAttr(clientName) + '"><span class="prod-client-dot">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(clientName) + '</span></span>'
                 + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '</span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '</span>'
-                + (d.created ? '<span class="prod-created" data-prod-tip="Created ' + _calEscAttr(d.created) + '">' + _calEsc(d.created) + '</span>' : '<span class="prod-created"></span>')
+                + (d.created ? '<span class="prod-created" data-prod-tip="Created ' + _calEscAttr(_prodFmtDateFull(d.createdRaw)) + '">' + _calEsc(d.created) + '</span>' : '<span class="prod-created"></span>')
                 + '</div>';
         }
         function _prodProjectStatusIcon(status) {
@@ -38629,7 +38639,7 @@
             const countLabel = count + (filtered ? ' matching issue' : ' issue') + (count === 1 ? '' : 's');
             const titleAttrs = ' data-fulltitle="' + _calEscAttr(title) + '"' + (String(title || '').length > 120 ? ' title="' + _calEscAttr(title) + '"' : '');
             const targetHtml = c.target
-                ? '<span class="prod-card-target" data-prod-ptarget="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Target: ' + _calEscAttr(c.target) + '">' + _prodIcon('cal') + '<span>' + _calEsc(c.target) + '</span></span>'
+                ? '<span class="prod-card-target" data-prod-ptarget="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Target: ' + _calEscAttr(_prodFmtDateFull(c.targetRaw) || c.target) + '">' + _prodIcon('cal') + '<span>' + _calEsc(c.target) + '</span></span>'
                 : '<span class="prod-card-target is-empty" data-prod-ptarget="' + _calEscAttr(id) + '" data-prod-target-empty="true" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Set target" aria-label="Set target">' + _prodIcon('cal') + '</span>';
             return '<article class="prod-card pcard' + (focused ? ' pcard-kfocus' : '') + (selected ? ' pcard-sel' : '') + '" draggable="true" data-prod-client-card="' + _calEscAttr(id) + '" data-project="' + _calEscAttr(id) + '" onclick="return _prodCardClick(event,' + _jsAttrArg(id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')"><div class="prod-card-head"><span class="prod-card-check pcard-check' + (selected ? ' on' : '') + '" data-prod-cardcheck="' + _calEscAttr(id) + '" data-cardcheck="' + _calEscAttr(id) + '" onclick="event.stopPropagation(); _prodToggleCardSelection(' + _jsAttrArg(id) + ',false)" aria-hidden="true"></span><span class="prod-card-ico pcard-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title pcard-nm" data-prod-card-title="' + _calEscAttr(id) + '"' + titleAttrs + '>' + _calEsc(title) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
                 + '<div class="prod-card-meta"><span data-prod-card-count="' + _calEscAttr(id) + '">' + _calEsc(countLabel) + '</span><span class="prod-spacer"></span>' + targetHtml + '</div></article>';
@@ -38658,7 +38668,7 @@
             const title = k.title || 'Untitled sub-issue';
             const assigneeTip = ka ? ('Assignee: ' + ka.name) : 'Unassigned';
             const dueWriteAttrs = _prodWriteGateAttrs(k, 'due', k.due
-                ? { info: 'Due ' + k.due + _prodOverdueText(k.dueRaw, k.status) }
+                ? { info: 'Due ' + _prodFmtDateFull(k.dueRaw) + _prodOverdueText(k.dueRaw, k.status) }
                 : { tip: 'Set due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { info: assigneeTip });
             return '<div class="prod-subrow prod-subissue-row" data-prod-subrow="' + _calEscAttr(k.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
@@ -38681,7 +38691,7 @@
             const title = d.title || 'Untitled issue';
             const assigneeTip = assignee ? ('Assignee: ' + assignee.name) : 'Unassigned';
             const dueWriteAttrs = _prodWriteGateAttrs(d, 'due', d.due
-                ? { info: 'Due ' + d.due + _prodOverdueText(d.dueRaw, d.status) }
+                ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status) }
                 : { tip: 'Add due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { info: assigneeTip });
             return '<div class="prod-subrow prod-project-issue-row" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
@@ -38691,7 +38701,7 @@
                 + '<span class="prod-spacer"></span>'
                 + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" data-prod-empty-due="label"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>Add date</span></span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '</span>'
-                + (d.created ? '<span class="prod-created optional" data-prod-tip="Created ' + _calEscAttr(d.created) + '">' + _calEsc(d.created) + '</span>' : '<span class="prod-created optional"></span>') + '</div>';
+                + (d.created ? '<span class="prod-created optional" data-prod-tip="Created ' + _calEscAttr(_prodFmtDateFull(d.createdRaw)) + '">' + _calEsc(d.created) + '</span>' : '<span class="prod-created optional"></span>') + '</div>';
         }
         function _prodProjectGroupHTML(group) {
             const items = group.items || [];
@@ -38745,7 +38755,7 @@
                 + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
                 + '<div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-pstatus="' + _calEscAttr(c.id) + '" data-pstatus="' + _calEscAttr(c.id) + '" data-prod-tip="Status: ' + _calEscAttr(_prodBoardLabel(c.status)) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(c.id) + ')">' + _prodProjectStatusIcon(c.status) + '<span>' + _calEsc(_prodBoardLabel(c.status)) + '</span></button></div>'
                 + '<div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-plead="' + _calEscAttr(c.id) + '" data-plead="' + _calEscAttr(c.id) + '" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(c.id) + ')">' + _prodAvatar(lead, 18) + '<span class="' + (lead ? '' : 'muted') + '">' + _calEsc(lead ? lead.name : 'No lead') + '</span></button></div>'
-                + '<div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-ptarget="' + _calEscAttr(c.id) + '" data-ptarget="' + _calEscAttr(c.id) + '" data-prod-tip="Target date" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(c.id) + ')">' + _prodIcon('cal') + '<span class="' + (c.target ? '' : 'muted') + '">' + _calEsc(c.target || 'No target') + '</span></button></div>'
+                + '<div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-ptarget="' + _calEscAttr(c.id) + '" data-ptarget="' + _calEscAttr(c.id) + '" data-prod-tip="' + _calEscAttr(c.target ? 'Target ' + _prodFmtDateFull(c.targetRaw) : 'Target date') + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(c.id) + ')">' + _prodIcon('cal') + '<span class="' + (c.target ? '' : 'muted') + '">' + _calEsc(c.target || 'No target') + '</span></button></div>'
                 + '</div>'
                 + '<div class="prod-side-card" data-prod-detail-card="project-issues"><div class="prod-side-card-head"><span>Issues</span></div><div class="prod-side-row muted">' + _calEsc(String(rows.length)) + ' issue' + (rows.length === 1 ? '' : 's') + '</div></div></div></aside>';
             return '<div class="prod-detail prod-project-detail" data-prod-project-detail="' + _calEscAttr(c.id) + '"><div class="prod-detail-main"><div class="prod-detail-inner">'
@@ -38766,7 +38776,7 @@
                 + '<div class="prod-prop"><span class="prod-prop-label">Client</span><span>' + _calEsc(_prodDisplayClient(batch.client_slug)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Team</span><span>' + _calEsc(_prodTeamLabel(batch.team)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Status</span><span>' + _calEsc(batch.status || 'active') + '</span></div>'
-                + '<div class="prod-prop"><span class="prod-prop-label">Updated</span><span>' + _calEsc(_prodFmtDate(batch.updated_at)) + '</span></div>'
+                + '<div class="prod-prop"><span class="prod-prop-label">Updated</span><span data-prod-tip="Updated ' + _calEscAttr(_prodFmtDateFull(batch.updated_at)) + '">' + _calEsc(_prodFmtDate(batch.updated_at)) + '</span></div>'
                 + '</div></aside></div>';
         }
         function _prodProps(d, parent, assignee, file) {
@@ -38778,7 +38788,7 @@
                 + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
                 + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="status"' + _prodWriteGateAttrs(d, 'status', { info: (statusHistory ? statusHistory : 'Status: ' + _prodStatusLabel(d.status) + (_prodStatusAge(d) ? ' ' + _prodStatusAge(d) : '')) }) + ' onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span></button>')
                 + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="assignee"' + _prodWriteGateAttrs(d, 'assignee', { info: assignee ? ('Assignee: ' + assignee.name) : 'Unassigned' }) + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span></button>')
-                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + _prodWriteGateAttrs(d, 'due', d.due ? { info: 'Due ' + d.due + _prodOverdueText(d.dueRaw, d.status) } : { tip: 'Set due date' }) + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>', d.due && _prodOverdue(d.dueRaw, d.status) ? 'dueover' : '')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + _prodWriteGateAttrs(d, 'due', d.due ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status) } : { tip: 'Set due date' }) + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>', d.due && _prodOverdue(d.dueRaw, d.status) ? 'dueover' : '')
                 + '</div>'
                 + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</span></button></div></div>' : '')
                 + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-prop="project" onclick="return _prodOpenProjectMenu(event,' + _jsAttrArg(d.id) + ')"><span class="prod-card-ico">' + _prodProjectGlyph(client) + '</span><span>' + _calEsc(_prodDisplayClient(d.project)) + '</span></button></div></div>'

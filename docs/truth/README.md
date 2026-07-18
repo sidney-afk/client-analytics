@@ -6,6 +6,10 @@
 moment the code changes, so each new session re-audits the same ground. These docs are the
 opposite: they describe the **current** state of the system and are **updated in place**.
 
+**Above this layer:** the company-wide root of the single source of truth is the
+[Enterprise Atlas (ATLAS.md in the `synchrosocial` repo)](https://github.com/sidney-afk/synchrosocial/blob/main/docs/ATLAS.md),
+whose bottom floor links back down into these docs.
+
 ## The contract
 
 1. **One doc per area**, always current. History and evidence live in `docs/audits/`

@@ -52,6 +52,8 @@
 | 13 | 05:45 | Cross | FRESHNESS PROOFS of existing guards: `sxr_gating_flags` 13/13 (flag-off isolation + client render-gating) · `sxr_concurrency` 8/8 (double-approve dedupe, cross-tab comment merge, cross-actor field merge) · `sxr_cold_open` 13/13 (samples create-from-zero UI journey) · unit gate `test/run-all.js` ALL 131 SUITES PASS | ✅ | existing probes |
 | 14 | 05:50 | Code audit | Calendar client APPROVE failure path verified in code: rolls back (`Object.assign(current, prev)`) like samples — F-1 stays scoped to the two REQUEST-CHANGE handlers only | ✅ | `index.html:31972` |
 
+| 15 | 05:38 | Client samples | THUMB DERIVATION honest-state contract: Drive share link → derived image or the DESIGNED announced warn ("share the folder with Anyone with the link"), never a broken img; YouTube watch asset → img.youtube.com thumb with real bytes | ✅ pass=4 fail=0 | `ot4_t0_client_thumb_derivation.js` |
+
 ### F140 status note (documentation only — no product code touched)
 - The registered deterministic repro (`kasper.finish() → disabled` after a Kasper tweak request
   on a graphic-only card) **did NOT reproduce tonight**: tree path green 8/8 at 04:50 UTC under

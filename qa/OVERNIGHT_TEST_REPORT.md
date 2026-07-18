@@ -113,13 +113,55 @@ probe either way (probe #5 characterizes today's behavior).
   reload — until the team routes it back. "Change request sent — the team has been
   notified" toast is the designed hand-off signal.
 
+## RUN 4 FINAL SUMMARY (written 17:0x UTC after the usage-pause — see honesty note)
+
+**Totals:** 9 new probe files + 1 shared driver (`ot4_lib.js`), 137 probe assertions all green
+after probe-bug fixes · 14 scenario-library runs (79/79 assertions) · 6 freshness re-runs of
+existing guards (52/52 where runnable) · unit gate `test/run-all.js` **131/131 suites** ·
+1 stale regression guard modernized (`sxr_bug_repros` BUG-4) · **1 real Tier-0 bug filed (F-1)**
+· 1 F140 status note for the separate fix effort · 0 product-code changes (contract honored).
+
+**Coverage vs the owner's priority list:**
+- Tier 0 client experience: samples + calendar `?c=` journeys (load/approve/comment/
+  request-change, saves DB-proven every time), saves-reliability burst + double-click dedupe,
+  token link, mobile 390px, slow network, failure injection (→ F-1), two-sittings persistence,
+  thumbnails/media incl. Drive/YouTube derivation honest-states, audience-leak guard,
+  render-gating, persist-guard, realtime recent-save window. **Done.**
+- Tier 1 SMM: daily planning journey (create → fields → Linear link → status pill),
+  resolve-destination chooser all 4 routes + graphic, share-link issuance deny/mint/boot
+  (EFs mocked), Submit intake fail-closed guards + draft preservation. **Done.**
+- Tier 1 Kasper (light): queue load, request-change, AAT, split approve/request; Finish
+  DOCUMENTED only (F140 note; hands off product code). **Done.**
+- Rest of the app: not reached (time went to Tier-0 depth as instructed).
+
+**PAUSE HONESTY NOTE:** the session hit the shared usage-pool limit at ~05:30 UTC (after
+interaction #18) and resumed at ~17:01 UTC. All work through #18 was already committed and
+pushed before the pause; nothing was lost or redone. The 07:45 hard-stop cleanup therefore ran
+LATE (at ~17:05 UTC) — after today's ~08:20 nightlies, which ran on a field still carrying the
+PRE-EXISTING debris listed under "Field conditions" (not this run's rows — this run's rows were
+archived probe-by-probe throughout the night; the 05:30 sweep-state was already clean).
+
+**End-of-run safety sweep (17:05 UTC):** archived 15 stale pre-existing QA rows (10× July-11
+`sr_mrgu*` "UI …" cold-open leftovers, 5× leaked `sr_scn_*` scenario rows, all ≥13h stale;
+>1h-stale rule protected any active agent's rows). Left untouched: owner-looking `Sample 1 `,
+calendar `TEST 1/2/3`, `__cal_settings__`. Final verification: **zero QA-pattern rows live** on
+either table.
+
 ## NOT YET COVERED (resume here)
-- Tier 0: saves-reliability loop (N approvals/requests, 100% landing + same-tick double-click);
-  calendar client share journey; token link; mobile viewport; slow-network + failure-injection
-  (announced, input preserved); reload persistence for still-active cards.
-- Tier 1 SMM: calendar planning writes; resolve/route chooser; share-link issuance (mock EF);
-  Submit intake receipts.
-- Tier 1 Kasper: queue/approve/request-change; Finish behavior DOCUMENTATION only (F140).
+- "Rest of the app" breadth (Tier 2+): PTO UI, Workload, analytics views, templates, filming
+  plans, TikTok pilot, onboarding form — none touched this run.
+- Submit intake HAPPY PATH end-to-end with a fully mocked n8n/Linear chain (receipts landing,
+  `_resumeNativeIntakeJob` recovery) — only the fail-closed guards + draft preservation are
+  proven. The mock surface needed (filming-plan resolution, team routing, receipt shapes) is
+  documented in the probe header.
+- F-1 regression probe flip: when the silent request-change failure is fixed, flip the
+  CHARACTERIZED asserts in `ot4_t0_client_edge_conditions.js` P4 to demand a visible
+  announcement + preserved draft (samples AND calendar variants).
+- Drive thumbnail derivation with a REAL shared file id (bytes assert, not just honest-state).
+- Calendar client mobile/slow-network variants (samples variants proven; calendar assumed
+  symmetric — verify).
+- p07-family calendar probes are open-egress-only (lib.js has no courier) — port them to the
+  courier harness or keep them CI-only.
 
 ## Lessons for the next run
 - `sample_reviews` comments columns are `video_tweaks`/`graphic_tweaks` — NOT `*_comments`

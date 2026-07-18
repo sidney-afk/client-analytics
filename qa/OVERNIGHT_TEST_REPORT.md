@@ -47,6 +47,8 @@
 
 | 11 | 05:22 | Submit intake | FAIL-CLOSED guards through the real form: no-client → announced, zero egress; client + unresolved filming plan → "No create request was sent", zero egress; typed notes survive hard reload; belt-and-braces route blocked any create/intake endpoint (none fired) | ✅ pass=13 fail=0 | `ot4_t1_submit_intake_guards.js` |
 
+| 12 | 05:32 | Client samples | TWO SITTINGS: approve video, close tab; fresh context still queues the card, approved comp renders NO panel (nothing clickable), graphic still actionable → approve completes card out of queue; both stamps in DB; overall → Approved | ✅ pass=12 fail=0 | `ot4_t0_client_two_sittings.js` |
+
 ### F140 status note (documentation only — no product code touched)
 - The registered deterministic repro (`kasper.finish() → disabled` after a Kasper tweak request
   on a graphic-only card) **did NOT reproduce tonight**: tree path green 8/8 at 04:50 UTC under

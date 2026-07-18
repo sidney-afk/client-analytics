@@ -37,6 +37,23 @@
 | 3 | 04:14 | Client calendar | FULL journey on `?c=…&v=calendar`: load → panels → thumbnail bytes → typed comment (status kept) → approve video (+stamp) → typed request-change (status+text+worst-of+toast) → fresh reload reads back persisted statuses → 0 JS errors → tombstone + archive | ✅ pass=18 fail=0 | `ot4_t0_client_calendar.js` |
 | 4 | 04:20 | Client both | Failure-injection scoping (dbg): approve-fail = rollback + visible panel error + button re-enabled (GOOD); request-change-fail = SILENT on samples AND calendar (→ BUG F-1) | 🔎 | dbg4/dbg5, then probe #5 |
 | 5 | 04:35 | Client samples | EDGE CONDITIONS: token link (?t=) loads + approve lands · mobile 390×844 controls fit + typed request lands · slow network (4 s delay) honest saving state + save lands + no error · failure injection = F-1 characterized (detected internally, invisible to client, DB untouched) + reload/recovery re-send lands | ✅ pass=21 fail=0 | `ot4_t0_client_edge_conditions.js` |
+| 6 | 04:33 | SMM samples | Resolve-destination chooser, ALL routes: kasper / client / approved / stay on video + kasper on graphic (scenario library, real DOM) | ✅ 5/5 scn, 25/25 | `run_scenarios.js resolve_via` |
+| 7 | 04:42 | Kasper samples | Queue load + request-change (video) + approve-after-tweaks + split approve-v/request-g (real Kasper sub-tab clicks) | ✅ 3/3 scn, 10/10 | `run_scenarios.js kasper_*` |
+| 8 | 04:50 | Kasper samples | Finish documentation (F140 hands-off): flat `kasper_finish_video` green 4/4 AND the F140 tree path `graphic__smm_approve__kasper_request__finish` green 8/8 under the courier on today's main | ✅ (see F140 note) | scenario runner |
+
+### F140 status note (documentation only — no product code touched)
+- The registered deterministic repro (`kasper.finish() → disabled` after a Kasper tweak request
+  on a graphic-only card) **did NOT reproduce tonight**: tree path green 8/8 at 04:50 UTC under
+  the courier harness on this branch (= main of 07-18).
+- GitHub Actions truth: samples nightly red 5 consecutive scheduled nights (07-13 → 07-17, all
+  on main), AND a `workflow_dispatch` on branch **`agent/f140-kasper-finish-reviewing`** ran at
+  03:50 UTC today and FAILED — the separate F140 fix effort is active right now. The leaked
+  03:36–03:37 `sr_scn_*` rows found at session start almost certainly belong to that effort.
+- Read carefully: the nightly's red may be multi-cause (F141 drag-reorder is also registered);
+  a green F140 path under the courier does not prove the nightly path (SXR_COURIER=0, open
+  egress) is green. Morning triage should diff tonight's 08:2x nightly result against this note.
+- Ops reality check: the "06:00 UTC" nightly actually STARTS ~08:20 UTC (GitHub cron delay,
+  5/5 recent runs) — i.e. after this run's 07:45 hard stop, not inside it as feared.
 
 ## BUGS FOUND
 

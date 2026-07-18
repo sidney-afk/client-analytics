@@ -144,7 +144,13 @@ async function runReviewTweakCase({ gateway, saveOk, pending = null }) {
   let stagedLegacy = null;
   const context = {
     sxrState: { posts: [post] },
-    _sxrReviewState: { drafts: { [key]: 'Please revise this cut' }, saving: {}, errors: {} },
+    _sxrReviewState: {
+      drafts: { [key]: 'Please revise this cut' },
+      saving: {},
+      errors: {},
+      draftActionIds: {},
+      errorActionIds: {}
+    },
     _sxrPendingEdits: Object.create(null),
     _sxrNoLinearPush: new Set(),
     _sxrLinearPushChain: Object.create(null),

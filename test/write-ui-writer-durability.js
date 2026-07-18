@@ -228,25 +228,66 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       > sxrReview.indexOf('_writeUiBindRepairAck(post, committedBatch, acknowledgement)'),
   'Samples preserves the raw draft, stages its exact legacy pair, and restores every cleared approval stamp');
   const legacyStage = extract('_writeUiQueueDeferredLegacyTweak');
+  const legacySignature = extract('_writeUiLegacyItemSignature');
+  const legacyApprovalClears = extract('_writeUiLegacyApprovalClears');
+  const legacyApprovalClearsFromEdits = extract('_writeUiLegacyApprovalClearsFromEdits');
+  const legacyApprovalClearsValid = extract('_writeUiLegacyApprovalClearsValid');
+  const legacyApprovalClearsForReconcile = extract('_writeUiLegacyApprovalClearsForReconcile');
   const legacyGate = extract('_writeUiLegacySourceGateState');
   const legacyReconcile = extract('_writeUiLegacyReconcileCommittedTweak');
+  const legacyOutboxLock = extract('_writeUiLegacyOutboxWithLock');
+  const legacyDrainLock = extract('_writeUiLegacyDrainWithLock');
+  const legacyAppend = extract('_writeUiLegacyAppendOutboxItem');
   const legacyFinalize = extract('_writeUiLegacyFinalizeFlush');
+  for (const [surface, handler] of [['Calendar', calReview], ['Samples', sxrReview]]) {
+    const stageAt = handler.indexOf('await _writeUiQueueDeferredLegacyTweak');
+    const stageCall = handler.slice(stageAt, handler.indexOf(');', stageAt) + 2);
+    assert(stageAt >= 0 && stageCall.includes('repairEdits'),
+      surface + ' stages the exact approval clears from its committed source edits');
+  }
   assert(legacyStage.includes('await _sxrPrimeSampleRoutingFlag()')
     && legacyStage.includes('await _calPrimeUpsertRoutingFlag()')
     && legacyStage.includes("source_transport: surface === 'sxr'")
     && legacyStage.includes('const records = [{')
-    && legacyStage.includes('_writeUiLegacyOutboxWrite(surface, next)')
-    && legacyStage.includes('const readback = _writeUiLegacyOutboxItems(surface)')
+    && legacyStage.includes('_writeUiLegacyOutboxWithLock(surface')
+    && legacyStage.includes('committedEdits')
     && legacyStage.includes('principal: _writeUiPrincipalKey()'),
-  'legacy request-change recovery pins the actual source route and verifies both intents in one durable write');
+  'legacy request-change recovery pins the source route, exact committed clears, and locked durable pair');
+  assert(legacySignature.includes('approval_clears')
+    && legacyGate.includes('approval_clears')
+    && legacyReconcile.includes('_writeUiLegacyApprovalClearsForReconcile'),
+  'approval clears participate in the durable signature, authoritative source gate, and local reconciliation');
+  assert(legacyOutboxLock.includes('navigator.locks.request')
+    && legacyFinalize.startsWith('async function ')
+    && legacyFinalize.includes('_writeUiLegacyOutboxWithLock(surface')
+    && extract('_linearOutboxFlushRun').includes('await _writeUiLegacyFinalizeFlush')
+    && extract('_sxrLinearOutboxFlushRun').includes('await _writeUiLegacyFinalizeFlush'),
+  'deferred staging and both finalizers serialize through the same required Web Lock');
   assert(legacyGate.includes("return 'principal_mismatch'")
     && legacyGate.includes("return 'conflict'")
     && legacyGate.includes("last = 'pending'")
-    && legacyGate.includes("'committed' : 'superseded'")
+    && legacyGate.includes("return 'superseded'")
+    && legacyGate.includes("return 'committed'")
     && legacyGate.includes('WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS'),
   'legacy drains require the exact principal/comment semantics and retain propagation-lag reads');
   const calLegacyOutbox = extract('_linearOutboxFlushRun');
   const sxrLegacyOutbox = extract('_sxrLinearOutboxFlushRun');
+  const calLegacyEnqueue = extract('_linearOutboxEnqueue');
+  const sxrLegacyEnqueue = extract('_sxrLinearOutboxEnqueue');
+  assert(calLegacyEnqueue.includes("await _writeUiLegacyAppendOutboxItem('calendar', record)")
+    && sxrLegacyEnqueue.includes("await _writeUiLegacyAppendOutboxItem('sxr', record)")
+    && legacyAppend.includes('_writeUiLegacyOutboxWithLock(surface')
+    && legacyAppend.includes('_writeUiLegacyOutboxWrite(surface, next)')
+    && legacyAppend.includes('_writeUiLegacyOutboxItems(surface)'),
+  'all legacy enqueue paths append and verify their record under the surface mutation lock');
+  const calDrainLockAt = calLegacyOutbox.indexOf("_writeUiLegacyDrainWithLock('calendar'");
+  const sxrDrainLockAt = sxrLegacyOutbox.indexOf("_writeUiLegacyDrainWithLock('sxr'");
+  assert(legacyDrainLock.includes('navigator.locks.request')
+    && calDrainLockAt >= 0
+    && calDrainLockAt < calLegacyOutbox.indexOf('await _writeUiPrimeRerouteFlag()')
+    && sxrDrainLockAt >= 0
+    && sxrDrainLockAt < sxrLegacyOutbox.indexOf('await _writeUiPrimeRerouteFlag()'),
+  'both complete drains acquire the surface drain lock before source reads or team deliveries');
   assert(calLegacyOutbox.indexOf("_writeUiLegacyRememberCommittedTweak('calendar', it)")
       > calLegacyOutbox.indexOf("if (gateState !== 'committed')")
     && calLegacyOutbox.indexOf("_writeUiLegacyRememberCommittedTweak('calendar', it)")
@@ -278,7 +319,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     Date, Number, Object, Array, Promise, setTimeout,
   };
   vm.createContext(gateContext);
-  vm.runInContext(legacyGate, gateContext);
+  vm.runInContext(legacyApprovalClears + '\n' + legacyApprovalClearsValid + '\n' + legacyGate, gateContext);
   const gateItem = {
     id: 'deferred_calendar_comment-1_comment', kind: 'comment', queuedAt: Date.now(),
     payload: { issue: 'https://linear.invalid/GRA-1', body: 'Please revise', author: 'Client' },
@@ -288,6 +329,12 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       comment_role: 'client', comment_audience: 'client', comment_is_tweak: true,
       linear_issue: 'https://linear.invalid/GRA-1',
       intended_status: 'Tweaks Needed',
+      approval_clears: [
+        'client_video_approved_at',
+        'client_graphic_approved_at',
+        'client_title_approved_at',
+        'kasper_approved_at'
+      ],
       principal: 'client:fixture'
     }
   };
@@ -295,6 +342,16 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     'a fresh authoritative miss remains pending instead of deleting commit-lag recovery debt');
   gateContext._writeUiLegacySourceRows = async () => [{
     id: 'post-1', graphic_status: 'Tweaks Needed', graphic_linear_issue_id: 'https://linear.invalid/GRA-1',
+    client_video_approved_at: '', client_graphic_approved_at: '',
+    client_title_approved_at: '2026-07-18T00:00:00Z', kasper_approved_at: '',
+    graphic_comments: [{ id: 'comment-1', body: 'Please revise', author: 'Client', role: 'client', audience: 'client', is_tweak: true }]
+  }];
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(gateItem, 1), 'pending',
+    'a canonical comment waits until every approval clear committed by the action is authoritative');
+  gateContext._writeUiLegacySourceRows = async () => [{
+    id: 'post-1', graphic_status: 'Tweaks Needed', graphic_linear_issue_id: 'https://linear.invalid/GRA-1',
+    client_video_approved_at: '', client_graphic_approved_at: '',
+    client_title_approved_at: '', kasper_approved_at: '',
     graphic_comments: [{ id: 'comment-1', body: 'Please revise', author: 'Client', role: 'client', audience: 'client', is_tweak: true }]
   }];
   assert.strictEqual(await gateContext._writeUiLegacySourceGateState(gateItem, 1), 'committed',
@@ -344,6 +401,13 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   assert.strictEqual(await gateContext._writeUiLegacySourceGateState(wrongPrincipal, 1), 'principal_mismatch');
   assert.strictEqual(await gateContext._writeUiLegacySourceGateState(wrongPrincipal, 1, { sourceAcknowledged: true }), 'principal_mismatch',
     'an ephemeral source acknowledgement cannot bypass principal validation');
+  const invalidApprovalClears = Object.assign({}, gateItem, {
+    source_gate: Object.assign({}, gateItem.source_gate, {
+      approval_clears: gateItem.source_gate.approval_clears.concat('arbitrary_post_field')
+    })
+  });
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(invalidApprovalClears, 1, { sourceAcknowledged: true }), 'conflict',
+    'an ephemeral source acknowledgement cannot authorize an approval clear outside the surface allowlist');
   const corruptAckPayload = Object.assign({}, gateItem, {
     payload: Object.assign({}, gateItem.payload, { issue: 'https://linear.invalid/GRA-999' })
   });
@@ -357,76 +421,284 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     && extract('_sxrLinearOutboxFlushRun').includes("_writeUiLegacyQuarantine('sxr', it, 'source_gate_expired')"),
   'aged unresolved source gates move to auditable quarantine instead of disappearing');
 
-  let reconcileRenders = 0;
-  const reconcileContext = {
-    _isClientLink: true,
-    calState: {
-      posts: [{
-        id: 'post-1', graphic_status: 'Client Approval', status: 'Client Approval',
-        graphic_comments: [], client_graphic_approved_at: '2026-07-18T00:00:00Z',
-        kasper_approved_at: '2026-07-18T00:00:00Z', _saveError: 'Failed to fetch'
-      }]
+  for (const fixture of [
+    {
+      surface: 'calendar',
+      stateName: 'calState',
+      reviewName: '_calReviewState',
+      approvalClears: [
+        'client_video_approved_at',
+        'client_graphic_approved_at',
+        'client_title_approved_at'
+      ],
+      preservedApprovals: ['client_caption_approved_at', 'kasper_approved_at']
     },
-    _calReviewState: {
+    {
+      surface: 'sxr',
+      stateName: 'sxrState',
+      reviewName: '_sxrReviewState',
+      approvalClears: [
+        'client_video_approved_at',
+        'client_graphic_approved_at',
+        'kasper_approved_at'
+      ],
+      preservedApprovals: []
+    }
+  ]) {
+    let reconcileRenders = 0;
+    let reconcileCacheWrites = 0;
+    const reconcileCacheSnapshots = [];
+    const post = {
+      id: 'post-1',
+      graphic_status: 'Client Approval',
+      status: 'Client Approval',
+      graphic_comments: [],
+      client_video_approved_at: '2026-07-18T00:00:00Z',
+      client_graphic_approved_at: '2026-07-18T00:00:00Z',
+      client_caption_approved_at: '2026-07-18T00:00:00Z',
+      client_title_approved_at: '2026-07-18T00:00:00Z',
+      kasper_approved_at: '2026-07-18T00:00:00Z',
+      _saveError: 'Failed to fetch'
+    };
+    const review = {
       drafts: { 'post-1|graphic': '  Please revise\n' },
       errors: { 'post-1|graphic': 'Failed to fetch' },
-      saving: { 'post-1|graphic': false }
-    },
-    _writeUiPrincipalKey: () => 'client:fixture',
-    _calCommentsFor: post => post.graphic_comments || [],
-    _calSetCommentsFor: (post, _comp, comments) => { post.graphic_comments = comments; },
-    _calNextTweakRound: () => 1,
-    computeOverallStatus: () => 'Tweaks Needed',
-    _calRenderBody: () => { reconcileRenders++; },
-    _calCacheWrite: () => true,
-    _sxrCommentsFor: () => [], _sxrSetCommentsFor: () => {},
-    _sxrNextTweakRound: () => 1, computeSampleOverallStatus: () => 'Tweaks Needed',
-    _sxrRenderBody: () => {},
-    _sxrCacheWrite: () => true,
-    Date, String, Number, Array,
-  };
-  vm.createContext(reconcileContext);
-  vm.runInContext(legacyReconcile, reconcileContext);
-  assert.strictEqual(reconcileContext._writeUiLegacyReconcileCommittedTweak(
-    'calendar',
-    Object.assign({}, statusGateItem, { queuedAt: Date.now() })
-  ), true);
-  const reconciled = reconcileContext.calState.posts[0];
-  assert(reconciled.graphic_status === 'Tweaks Needed'
-    && reconciled.status === 'Tweaks Needed'
-    && reconciled.graphic_comments.length === 1
-    && reconciled.graphic_comments[0].id === 'comment-1'
-    && reconciled.client_graphic_approved_at === ''
-    && reconciled.kasper_approved_at === ''
-    && reconcileContext._calReviewState.drafts['post-1|graphic'] === ''
-    && reconcileContext._calReviewState.errors['post-1|graphic'] === ''
-    && reconcileRenders === 1,
-  'same-page source confirmation replaces the stale retry surface with committed source truth');
+      draftActionIds: { 'post-1|graphic': 'comment-1' },
+      errorActionIds: { 'post-1|graphic': 'comment-1' },
+      saving: {
+        'post-1|graphic': false,
+        'different-post|video': true
+      }
+    };
+    const reconcileContext = {
+      _isClientLink: true,
+      calState: { posts: fixture.surface === 'calendar' ? [post] : [] },
+      sxrState: { posts: fixture.surface === 'sxr' ? [post] : [] },
+      _calReviewState: fixture.surface === 'calendar'
+        ? review
+        : { drafts: {}, errors: {}, draftActionIds: {}, errorActionIds: {}, saving: {} },
+      _sxrReviewState: fixture.surface === 'sxr'
+        ? review
+        : { drafts: {}, errors: {}, draftActionIds: {}, errorActionIds: {}, saving: {} },
+      _writeUiPrincipalKey: () => 'client:fixture',
+      _calCommentsFor: row => row.graphic_comments || [],
+      _calSetCommentsFor: (row, _comp, comments) => { row.graphic_comments = comments; },
+      _calNextTweakRound: () => 1,
+      computeOverallStatus: () => 'Tweaks Needed',
+      _calRenderBody: () => { reconcileRenders++; },
+      _calCacheWrite: (_slug, posts) => {
+        reconcileCacheWrites++;
+        reconcileCacheSnapshots.push(JSON.parse(JSON.stringify(posts)));
+        return true;
+      },
+      _sxrCommentsFor: row => row.graphic_comments || [],
+      _sxrSetCommentsFor: (row, _comp, comments) => { row.graphic_comments = comments; },
+      _sxrNextTweakRound: () => 1,
+      computeSampleOverallStatus: () => 'Tweaks Needed',
+      _sxrRenderBody: () => { reconcileRenders++; },
+      _sxrCacheWrite: (_slug, posts) => {
+        reconcileCacheWrites++;
+        reconcileCacheSnapshots.push(JSON.parse(JSON.stringify(posts)));
+        return true;
+      },
+      Date, String, Number, Array, Object,
+    };
+    vm.createContext(reconcileContext);
+    vm.runInContext([
+      legacyApprovalClears,
+      legacyApprovalClearsValid,
+      legacyApprovalClearsForReconcile,
+      legacyReconcile
+    ].join('\n'), reconcileContext);
+    const reconcileItem = Object.assign({}, statusGateItem, {
+      queuedAt: Date.now(),
+      source_gate: Object.assign({}, statusGateItem.source_gate, {
+        surface: fixture.surface,
+        approval_clears: fixture.approvalClears.slice()
+      })
+    });
+    const beforeBusy = JSON.stringify({
+      posts: reconcileContext[fixture.stateName].posts,
+      review: reconcileContext[fixture.reviewName]
+    });
+    assert.strictEqual(
+      reconcileContext._writeUiLegacyReconcileCommittedTweak(fixture.surface, reconcileItem),
+      false,
+      fixture.surface + ' reconciliation waits while any request-change save on the surface is active'
+    );
+    assert.strictEqual(
+      JSON.stringify({
+        posts: reconcileContext[fixture.stateName].posts,
+        review: reconcileContext[fixture.reviewName]
+      }),
+      beforeBusy,
+      fixture.surface + ' active-save deferral has zero in-memory mutation'
+    );
+    assert(reconcileRenders === 0 && reconcileCacheWrites === 0,
+      fixture.surface + ' active-save deferral has zero render or cache writes');
 
-  reconciled.graphic_status = 'Client Approval';
-  reconciled.status = 'Client Approval';
-  reconciled.client_graphic_approved_at = '2026-07-18T01:00:00Z';
-  reconciled.kasper_approved_at = '2026-07-18T01:00:00Z';
-  reconciled._saveError = 'overlapping retry failed';
-  reconcileContext._calReviewState.drafts['post-1|graphic'] = '  Please revise\n';
-  reconcileContext._calReviewState.errors['post-1|graphic'] = 'overlapping retry failed';
-  reconcileContext._calReviewState.saving['post-1|graphic'] = true;
-  assert.strictEqual(reconcileContext._writeUiLegacyReconcileCommittedTweak(
-    'calendar',
-    Object.assign({}, statusGateItem, { queuedAt: Date.now() })
-  ), true);
-  assert(reconciled.graphic_status === 'Tweaks Needed'
-    && reconciled.status === 'Tweaks Needed'
-    && reconciled.client_graphic_approved_at === ''
-    && reconciled.kasper_approved_at === ''
-    && !reconciled._saveError
-    && reconcileContext._calReviewState.saving['post-1|graphic'] === true
-    && reconcileContext._calReviewState.drafts['post-1|graphic'] === '  Please revise\n'
-    && reconcileContext._calReviewState.errors['post-1|graphic'] === 'overlapping retry failed'
-    && reconcileRenders === 2,
-  'authoritative reconciliation preserves an overlapping retry owner and its in-flight draft/error state');
+    review.saving['different-post|video'] = false;
+    assert.strictEqual(
+      reconcileContext._writeUiLegacyReconcileCommittedTweak(fixture.surface, reconcileItem),
+      true,
+      fixture.surface + ' reconciliation resumes once every request-change save is clear'
+    );
+    const reconciled = reconcileContext[fixture.stateName].posts[0];
+    assert(reconciled.graphic_status === 'Tweaks Needed'
+      && reconciled.status === 'Tweaks Needed'
+      && reconciled.graphic_comments.length === 1
+      && reconciled.graphic_comments[0].id === 'comment-1'
+      && fixture.approvalClears.every(field => reconciled[field] === '')
+      && fixture.preservedApprovals.every(field => reconciled[field] === '2026-07-18T00:00:00Z')
+      && !reconciled._saveError
+      && review.drafts['post-1|graphic'] === ''
+      && review.errors['post-1|graphic'] === ''
+      && !review.draftActionIds['post-1|graphic']
+      && !review.errorActionIds['post-1|graphic']
+      && reconcileRenders === 1
+      && reconcileCacheWrites === 1,
+    fixture.surface + ' clear-state reconciliation applies the exact committed approval clears once');
+
+    const distinctDraft = '  Please use a different transition\n';
+    const distinctError = 'Distinct follow-up failed to save';
+    reconciled._saveError = distinctError;
+    review.drafts['post-1|graphic'] = distinctDraft;
+    review.errors['post-1|graphic'] = distinctError;
+    review.draftActionIds['post-1|graphic'] = 'comment-distinct';
+    review.errorActionIds['post-1|graphic'] = 'comment-distinct';
+    const rendersBeforeDistinct = reconcileRenders;
+    const writesBeforeDistinct = reconcileCacheWrites;
+    assert.strictEqual(
+      reconcileContext._writeUiLegacyReconcileCommittedTweak(fixture.surface, reconcileItem),
+      true,
+      fixture.surface + ' can reconcile the older committed gate after a distinct retry rolls back'
+    );
+    assert(reconciled._saveError === distinctError
+      && review.drafts['post-1|graphic'] === distinctDraft
+      && review.errors['post-1|graphic'] === distinctError
+      && review.draftActionIds['post-1|graphic'] === 'comment-distinct'
+      && review.errorActionIds['post-1|graphic'] === 'comment-distinct'
+      && reconcileRenders === rendersBeforeDistinct
+      && reconcileCacheWrites === writesBeforeDistinct + 1,
+    fixture.surface + ' older-gate reconciliation preserves the distinct failed retry surface');
+
+    const identicalDraft = '  Please revise\n';
+    const identicalError = 'Same-body follow-up failed to save';
+    reconciled._saveError = identicalError;
+    review.drafts['post-1|graphic'] = identicalDraft;
+    review.errors['post-1|graphic'] = identicalError;
+    review.draftActionIds['post-1|graphic'] = 'comment-newer';
+    review.errorActionIds['post-1|graphic'] = 'comment-newer';
+    const rendersBeforeIdentical = reconcileRenders;
+    const writesBeforeIdentical = reconcileCacheWrites;
+    assert.strictEqual(
+      reconcileContext._writeUiLegacyReconcileCommittedTweak(fixture.surface, reconcileItem),
+      true,
+      fixture.surface + ' can reconcile an older gate beside a same-body newer failed action'
+    );
+    assert(reconciled._saveError === identicalError
+      && review.drafts['post-1|graphic'] === identicalDraft
+      && review.errors['post-1|graphic'] === identicalError
+      && review.draftActionIds['post-1|graphic'] === 'comment-newer'
+      && review.errorActionIds['post-1|graphic'] === 'comment-newer'
+      && !reconcileCacheSnapshots[reconcileCacheSnapshots.length - 1][0]._saveError
+      && reconcileRenders === rendersBeforeIdentical
+      && reconcileCacheWrites === writesBeforeIdentical + 1,
+    fixture.surface + ' keeps the newer same-body failure live but excludes it from the older gate cache snapshot');
+
+    review.draftActionIds['post-1|graphic'] = 'comment-1';
+    review.errorActionIds['post-1|graphic'] = 'comment-1';
+    const rendersBeforeOwned = reconcileRenders;
+    const writesBeforeOwned = reconcileCacheWrites;
+    assert.strictEqual(
+      reconcileContext._writeUiLegacyReconcileCommittedTweak(fixture.surface, reconcileItem),
+      true,
+      fixture.surface + ' reconciles the retry surface owned by the confirmed comment id'
+    );
+    assert(!reconciled._saveError
+      && review.drafts['post-1|graphic'] === ''
+      && review.errors['post-1|graphic'] === ''
+      && !review.draftActionIds['post-1|graphic']
+      && !review.errorActionIds['post-1|graphic']
+      && reconcileRenders === rendersBeforeOwned + 1
+      && reconcileCacheWrites === writesBeforeOwned + 1,
+    fixture.surface + ' reconciliation clears draft and errors only when their action ids match');
+
+    reconciled._saveError = distinctError;
+    review.drafts['post-1|graphic'] = distinctDraft;
+    review.errors['post-1|graphic'] = distinctError;
+    review.draftActionIds['post-1|graphic'] = 'comment-fallback';
+    review.errorActionIds['post-1|graphic'] = 'comment-fallback';
+    reconciled.client_video_approved_at = 'preserve-video';
+    reconciled.client_graphic_approved_at = 'clear-acted';
+    reconciled.kasper_approved_at = 'clear-kasper';
+    const legacyGateWithoutClears = Object.assign({}, reconcileItem.source_gate);
+    delete legacyGateWithoutClears.approval_clears;
+    assert.strictEqual(
+      reconcileContext._writeUiLegacyReconcileCommittedTweak(fixture.surface, Object.assign(
+        {},
+        reconcileItem,
+        { source_gate: legacyGateWithoutClears }
+      )),
+      true,
+      fixture.surface + ' reconciles an older gate that predates explicit approval clears'
+    );
+    assert(reconciled.client_graphic_approved_at === ''
+      && reconciled.kasper_approved_at === ''
+      && reconciled.client_video_approved_at === 'preserve-video'
+      && reconciled._saveError === distinctError
+      && review.drafts['post-1|graphic'] === distinctDraft
+      && review.errors['post-1|graphic'] === distinctError,
+    fixture.surface + ' absent approval_clears falls back only to the acted component and Kasper');
+
+    reconciled.client_graphic_approved_at = 'preserve-explicit';
+    reconciled.kasper_approved_at = 'preserve-explicit';
+    assert.strictEqual(
+      reconcileContext._writeUiLegacyReconcileCommittedTweak(fixture.surface, Object.assign(
+        {},
+        reconcileItem,
+        {
+          source_gate: Object.assign({}, reconcileItem.source_gate, {
+            approval_clears: []
+          })
+        }
+      )),
+      true,
+      fixture.surface + ' accepts an explicit empty approval-clear set'
+    );
+    assert(reconciled.client_graphic_approved_at === 'preserve-explicit'
+      && reconciled.kasper_approved_at === 'preserve-explicit',
+    fixture.surface + ' explicit empty approval_clears does not trigger the legacy fallback');
+
+    for (const takeover of ['approve', 'plain comment']) {
+      const takeoverError = takeover + ' save failed after request A';
+      reconciled._saveError = takeoverError;
+      review.drafts['post-1|graphic'] = '';
+      review.errors['post-1|graphic'] = takeoverError;
+      review.draftActionIds['post-1|graphic'] = 'comment-1';
+      review.errorActionIds['post-1|graphic'] = 'comment-1';
+      // The newer handler owns this surface now; its takeover must invalidate
+      // request A's markers before that handler can publish its own error.
+      delete review.draftActionIds['post-1|graphic'];
+      delete review.errorActionIds['post-1|graphic'];
+      const writesBeforeTakeover = reconcileCacheWrites;
+      assert.strictEqual(
+        reconcileContext._writeUiLegacyReconcileCommittedTweak(fixture.surface, reconcileItem),
+        true,
+        fixture.surface + ' reconciles request A after a newer ' + takeover + ' failure'
+      );
+      assert(reconciled._saveError === takeoverError
+        && review.errors['post-1|graphic'] === takeoverError
+        && !review.draftActionIds['post-1|graphic']
+        && !review.errorActionIds['post-1|graphic']
+        && !reconcileCacheSnapshots[reconcileCacheSnapshots.length - 1][0]._saveError
+        && reconcileCacheWrites === writesBeforeTakeover + 1,
+      fixture.surface + ' request A cannot clear the newer ' + takeover + ' error after ownership reset');
+    }
+  }
 
   const committedStorage = new Map();
+  const retirementLocks = createWebLockHarness(true);
   let rejectCommittedWrite = false;
   const committedContext = {
     WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY: 'committed-tweaks',
@@ -436,6 +708,8 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     _calCommentsFor: post => post.graphic_comments || [],
     _sxrNormStatus: value => String(value || '').toLowerCase(),
     _calNormStatus: value => String(value || '').toLowerCase(),
+    _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+    navigator: { locks: retirementLocks.locks },
     localStorage: {
       getItem: key => committedStorage.has(key) ? committedStorage.get(key) : null,
       setItem: (key, value) => {
@@ -443,10 +717,12 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
         committedStorage.set(key, String(value));
       }
     },
-    Date, JSON, Object, String, Number, Array, Map,
+    Date, JSON, Object, String, Number, Array, Map, Promise, Error,
   };
   vm.createContext(committedContext);
   for (const name of [
+    '_writeUiLegacyApprovalClears',
+    '_writeUiLegacyDrainWithLock', '_writeUiLegacyRetireCommittedTweak',
     '_writeUiLegacyItemSignature', '_writeUiLegacyItemMatches',
     '_writeUiLegacyCommittedTweakRead', '_writeUiLegacyCommittedTweakWrite',
     '_writeUiLegacyTweakKey', '_writeUiLegacyRememberCommittedTweak',
@@ -459,6 +735,16 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     transport: 'legacy_n8n',
     client_slug: 'fixture'
   });
+  const changedApprovalSignature = Object.assign({}, committedItem, {
+    source_gate: Object.assign({}, committedItem.source_gate, {
+      approval_clears: ['client_graphic_approved_at', 'kasper_approved_at']
+    })
+  });
+  assert.notStrictEqual(
+    committedContext._writeUiLegacyItemSignature(committedItem),
+    committedContext._writeUiLegacyItemSignature(changedApprovalSignature),
+    'changing the exact approval clears changes the durable action signature'
+  );
   assert.strictEqual(committedContext._writeUiLegacyRememberCommittedTweak('calendar', committedItem), true);
   const staleCachedPost = {
     id: 'post-1', graphic_status: 'Client Approval', graphic_comments: []
@@ -506,6 +792,21 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     && activeFollowup.body === 'One more change',
   'older confirmed delivery debt cannot mask a newer same-body retry gate');
   committedContext._writeUiLegacyOutboxItems = () => [];
+  const concurrentCommittedItem = Object.assign({}, committedItem, {
+    id: 'deferred_calendar_comment-concurrent_status',
+    source_gate: Object.assign({}, committedItem.source_gate, {
+      post_id: 'post-concurrent',
+      comment_id: 'comment-concurrent',
+      comment_body: 'Concurrent confirmation'
+    })
+  });
+  assert.strictEqual(
+    committedContext._writeUiLegacyRememberCommittedTweak('calendar', concurrentCommittedItem),
+    true,
+    'a second bounded confirmation can share the durable ledger'
+  );
+  const ledgerBeforeRetirementRead = committedStorage.get('committed-tweaks');
+  assert.strictEqual(committedContext._writeUiLegacyCommittedTweakRead().length, 2);
   const laterRoundPost = {
     id: 'post-1',
     graphic_status: 'Client Approval',
@@ -514,8 +815,36 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   assert.strictEqual(committedContext._writeUiLegacyCommittedTweak(
     'calendar', 'fixture', 'post-1', 'graphic', laterRoundPost
   ), null);
-  assert.strictEqual(committedContext._writeUiLegacyCommittedTweakRead().length, 0,
-    'a later approval round retires the old confirmation after its comment is present locally');
+  assert(retirementLocks.names.length === 1
+    && committedContext._writeUiLegacyCommittedTweakRead().length === 2
+    && committedStorage.get('committed-tweaks') === ledgerBeforeRetirementRead,
+  'a stale confirmation read returns null and queues retirement without synchronously rewriting the ledger');
+  const newerSameKeyItem = Object.assign({}, committedItem, {
+    id: 'deferred_calendar_comment-newer_status',
+    queuedAt: Date.now() + 1,
+    source_gate: Object.assign({}, committedItem.source_gate, {
+      comment_id: 'comment-newer',
+      comment_body: 'Newer same-key confirmation'
+    })
+  });
+  assert.strictEqual(
+    committedContext._writeUiLegacyRememberCommittedTweak('calendar', newerSameKeyItem),
+    true,
+    'a newer confirmation can replace the stale row while its retirement waits for the drain lock'
+  );
+  const ledgerAfterReplacement = committedStorage.get('committed-tweaks');
+  retirementLocks.releaseFirst();
+  await retirementLocks.idle();
+  const ledgerAfterRetirement = committedContext._writeUiLegacyCommittedTweakRead();
+  assert(ledgerAfterRetirement.length === 2
+    && ledgerAfterRetirement.some(row => row && row.item
+      && row.item.source_gate
+      && row.item.source_gate.comment_id === 'comment-newer')
+    && ledgerAfterRetirement.some(row => row && row.item
+      && row.item.source_gate
+      && row.item.source_gate.comment_id === 'comment-concurrent')
+    && committedStorage.get('committed-tweaks') === ledgerAfterReplacement,
+  'locked retirement re-reads and cannot erase a newer same-key replacement or another ledger row');
   rejectCommittedWrite = true;
   assert.strictEqual(committedContext._writeUiLegacyRememberCommittedTweak('calendar', committedItem), false,
     'confirmation storage failure keeps the active source gate fail-closed');
@@ -534,9 +863,84 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       && handler.includes('_legacyPending && !_legacyPending.delivered')
       && handler.includes('? _legacyPending.comment_id'),
     `${surface} suppresses only the same confirmed retry and mints a fresh id for distinct follow-up feedback`);
+    const draftActionBinding = "draftActionIds[key] = String(newComment.id || '')";
+    const errorActionBinding = "errorActionIds[key] = String(newComment.id || '')";
+    assert(handler.split(draftActionBinding).length - 1 === 2
+      && handler.split(errorActionBinding).length - 1 === 2,
+    `${surface} binds both rollback paths' restored draft and error to the exact attempted comment`);
   }
+  const calDraftInputAt = source.indexOf('function _calReviewOnDraftInput(');
+  const sxrDraftInputAt = source.indexOf('function _sxrReviewOnDraftInput(');
+  assert(source.slice(calDraftInputAt, calDraftInputAt + 1800)
+      .includes('delete _calReviewState.draftActionIds[key]')
+    && source.slice(sxrDraftInputAt, sxrDraftInputAt + 1800)
+      .includes('delete _sxrReviewState.draftActionIds[key]'),
+  'typing after rollback invalidates the saved action identity on both client review surfaces');
+
+  function createWebLockHarness(holdFirst) {
+    let tail = Promise.resolve();
+    let active = 0;
+    let maxActive = 0;
+    let requestCount = 0;
+    let releaseFirst = () => {};
+    const firstBarrier = holdFirst
+      ? new Promise(resolve => { releaseFirst = resolve; })
+      : Promise.resolve();
+    const names = [];
+    return {
+      names,
+      releaseFirst: () => releaseFirst(),
+      maxActive: () => maxActive,
+      idle: () => tail,
+      locks: {
+        request(name, options, callback) {
+          const cb = typeof options === 'function' ? options : callback;
+          const ordinal = requestCount++;
+          names.push(String(name));
+          const run = tail.then(async () => {
+            active++;
+            maxActive = Math.max(maxActive, active);
+            try {
+              if (holdFirst && ordinal === 0) await firstBarrier;
+              return await cb({ name: String(name), mode: 'exclusive' });
+            } finally {
+              active--;
+            }
+          });
+          tail = run.catch(() => {});
+          return run;
+        }
+      }
+    };
+  }
+  const legacyVmBundle = [
+    legacyApprovalClears,
+    legacyApprovalClearsFromEdits,
+    legacyApprovalClearsValid,
+    legacySignature,
+    extract('_writeUiLegacyItemMatches'),
+    legacyOutboxLock,
+    legacyStage,
+    legacyFinalize
+  ].join('\n');
+  const committedApprovalEdits = {
+    graphic_status: 'Tweaks Needed',
+    status: 'Tweaks Needed',
+    client_video_approved_at: '',
+    client_graphic_approved_at: '',
+    client_title_approved_at: '',
+    kasper_approved_at: '',
+    unrelated_field: ''
+  };
+  const expectedCalendarApprovalClears = [
+    'client_video_approved_at',
+    'client_graphic_approved_at',
+    'client_title_approved_at',
+    'kasper_approved_at'
+  ];
 
   let stagedItems = [], stageWrites = 0;
+  const stageLocks = createWebLockHarness(false);
   const stageContext = {
     _sxrLinearUrlFor: () => '', _calLinearUrlFor: () => 'https://linear.invalid/GRA-1',
     _sxrPrimeSampleRoutingFlag: async () => {}, _calPrimeUpsertRoutingFlag: async () => {},
@@ -545,55 +949,327 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     _sxrCurrentAuthor: () => 'Client', _calCurrentAuthor: () => 'Client',
     _writeUiLegacyOutboxItems: () => JSON.parse(JSON.stringify(stagedItems)),
     _writeUiLegacyOutboxWrite: (_surface, items) => { stageWrites++; stagedItems = JSON.parse(JSON.stringify(items)); return true; },
-    Date, JSON, Object, String, Array, Error,
+    _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+    navigator: { locks: stageLocks.locks },
+    Date, JSON, Object, String, Array, Error, Promise,
   };
   vm.createContext(stageContext);
-  vm.runInContext(extract('_writeUiLegacyItemSignature') + '\n'
-    + extract('_writeUiLegacyItemMatches') + '\n' + legacyStage, stageContext);
+  vm.runInContext(legacyVmBundle, stageContext);
   const stagedIds = await stageContext._writeUiQueueDeferredLegacyTweak(
     'calendar',
     { id: 'post-1', graphic_status: 'Tweaks Needed' },
     'graphic',
     { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
     'Please revise',
-    'Client'
+    'Client',
+    committedApprovalEdits
   );
-  assert(stagedIds.length === 2 && stagedItems.length === 2 && stageWrites === 1,
-    'comment and status are staged together in one storage write');
+  assert(stagedIds.length === 2
+    && stagedItems.length === 2
+    && stageWrites === 1
+    && stagedItems.every(item =>
+      JSON.stringify(item.source_gate.approval_clears) === JSON.stringify(expectedCalendarApprovalClears)),
+  'comment and status are staged together with the exact allowlisted committed approval clears');
   await stageContext._writeUiQueueDeferredLegacyTweak(
     'calendar',
     { id: 'post-1', graphic_status: 'Tweaks Needed' },
     'graphic',
     { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
     'Please revise',
-    'Client'
+    'Client',
+    committedApprovalEdits
   );
   assert.strictEqual(stageWrites, 1, 'a same-action retry reuses the verified pair without rewriting it');
 
-  let finalizedItems = [
-    { id: 'old', kind: 'status', payload: { status: 'A' } },
-    { id: 'new', kind: 'comment', payload: { body: 'staged during flush' } }
-  ];
-  const finalizeContext = {
-    _writeUiLegacyOutboxItems: () => finalizedItems,
-    _writeUiLegacyOutboxWrite: (_surface, items) => { finalizedItems = items; return true; },
-    JSON, Object, String, Map,
+  const concurrentStageLocks = createWebLockHarness(true);
+  let concurrentStageWrites = 0;
+  let concurrentStageItems = [];
+  const concurrentStageContext = {
+    _sxrLinearUrlFor: () => '', _calLinearUrlFor: post => post.linear_issue,
+    _sxrPrimeSampleRoutingFlag: async () => {}, _calPrimeUpsertRoutingFlag: async () => {},
+    _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true,
+    _writeUiSourceClientSlug: () => 'fixture', _writeUiPrincipalKey: () => 'client:fixture',
+    _sxrCurrentAuthor: () => 'Client', _calCurrentAuthor: () => 'Client',
+    _writeUiLegacyOutboxItems: () => JSON.parse(JSON.stringify(concurrentStageItems)),
+    _writeUiLegacyOutboxWrite: (_surface, items) => {
+      concurrentStageWrites++;
+      concurrentStageItems = JSON.parse(JSON.stringify(items));
+      return true;
+    },
+    _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+    navigator: { locks: concurrentStageLocks.locks },
+    Date, JSON, Object, String, Array, Error, Promise, Map,
   };
-  vm.createContext(finalizeContext);
-  vm.runInContext(extract('_writeUiLegacyItemSignature') + '\n'
-    + extract('_writeUiLegacyItemMatches') + '\n' + legacyFinalize, finalizeContext);
-  finalizeContext._writeUiLegacyFinalizeFlush(
+  vm.createContext(concurrentStageContext);
+  vm.runInContext(legacyVmBundle, concurrentStageContext);
+  const concurrentA = concurrentStageContext._writeUiQueueDeferredLegacyTweak(
+    'calendar',
+    { id: 'post-a', graphic_status: 'Tweaks Needed', linear_issue: 'https://linear.invalid/GRA-1' },
+    'graphic',
+    { id: 'comment-a', role: 'client', audience: 'client', is_tweak: true },
+    'First tab request',
+    'Client',
+    committedApprovalEdits
+  );
+  const concurrentB = concurrentStageContext._writeUiQueueDeferredLegacyTweak(
+    'calendar',
+    { id: 'post-b', graphic_status: 'Tweaks Needed', linear_issue: 'https://linear.invalid/GRA-2' },
+    'graphic',
+    { id: 'comment-b', role: 'client', audience: 'client', is_tweak: true },
+    'Second tab request',
+    'Client',
+    committedApprovalEdits
+  );
+  for (let tick = 0; tick < 10 && concurrentStageLocks.names.length < 2; tick++) await Promise.resolve();
+  assert.strictEqual(concurrentStageLocks.names.length, 2,
+    'two tabs stage their source-gated pairs through the same surface lock');
+  concurrentStageLocks.releaseFirst();
+  await Promise.all([concurrentA, concurrentB]);
+  assert(concurrentStageLocks.maxActive() === 1
+    && concurrentStageWrites === 2
+    && concurrentStageItems.length === 4
+    && concurrentStageItems.filter(item => item.id.indexOf('deferred_calendar_comment-a_') === 0).length === 2
+    && concurrentStageItems.filter(item => item.id.indexOf('deferred_calendar_comment-b_') === 0).length === 2,
+  'serialized two-tab staging preserves both complete comment/status pairs');
+
+  let noLockItems = [], noLockWrites = 0;
+  const noLockContext = {
+    _sxrLinearUrlFor: () => '', _calLinearUrlFor: () => 'https://linear.invalid/GRA-1',
+    _sxrPrimeSampleRoutingFlag: async () => {}, _calPrimeUpsertRoutingFlag: async () => {},
+    _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true,
+    _writeUiSourceClientSlug: () => 'fixture', _writeUiPrincipalKey: () => 'client:fixture',
+    _sxrCurrentAuthor: () => 'Client', _calCurrentAuthor: () => 'Client',
+    _writeUiLegacyOutboxItems: () => JSON.parse(JSON.stringify(noLockItems)),
+    _writeUiLegacyOutboxWrite: (_surface, items) => { noLockWrites++; noLockItems = JSON.parse(JSON.stringify(items)); return true; },
+    _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+    navigator: {},
+    Date, JSON, Object, String, Array, Error, Promise, Map,
+  };
+  vm.createContext(noLockContext);
+  vm.runInContext(legacyVmBundle, noLockContext);
+  let missingStageLockError = null;
+  try {
+    await noLockContext._writeUiQueueDeferredLegacyTweak(
+      'calendar',
+      { id: 'post-lockless', graphic_status: 'Tweaks Needed' },
+      'graphic',
+      { id: 'comment-lockless', role: 'client', audience: 'client', is_tweak: true },
+      'Do not stage without a lock',
+      'Client',
+      committedApprovalEdits
+    );
+  } catch (error) {
+    missingStageLockError = error;
+  }
+  assert(missingStageLockError
+    && missingStageLockError.code === 'legacy_outbox_lock_unavailable'
+    && noLockItems.length === 0
+    && noLockWrites === 0,
+  'missing Web Locks fail staging closed before any outbox write');
+  noLockItems = [{ id: 'old', kind: 'status', payload: { status: 'A' } }];
+  noLockWrites = 0;
+  let missingFinalizeLockError = null;
+  try {
+    await noLockContext._writeUiLegacyFinalizeFlush(
+      'calendar',
+      [{ id: 'old', kind: 'status', payload: { status: 'A' } }],
+      []
+    );
+  } catch (error) {
+    missingFinalizeLockError = error;
+  }
+  assert(missingFinalizeLockError
+    && missingFinalizeLockError.code === 'legacy_outbox_lock_unavailable'
+    && noLockItems.length === 1
+    && noLockItems[0].id === 'old'
+    && noLockWrites === 0,
+  'missing Web Locks fail finalization closed before any outbox write');
+
+  const overlapLocks = createWebLockHarness(true);
+  let overlapWrites = 0;
+  let overlapItems = [{ id: 'old', kind: 'status', payload: { status: 'A' } }];
+  const overlapContext = {
+    _sxrLinearUrlFor: () => '', _calLinearUrlFor: () => 'https://linear.invalid/GRA-1',
+    _sxrPrimeSampleRoutingFlag: async () => {}, _calPrimeUpsertRoutingFlag: async () => {},
+    _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true,
+    _writeUiSourceClientSlug: () => 'fixture', _writeUiPrincipalKey: () => 'client:fixture',
+    _sxrCurrentAuthor: () => 'Client', _calCurrentAuthor: () => 'Client',
+    _writeUiLegacyOutboxItems: () => JSON.parse(JSON.stringify(overlapItems)),
+    _writeUiLegacyOutboxWrite: (_surface, items) => { overlapWrites++; overlapItems = JSON.parse(JSON.stringify(items)); return true; },
+    _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+    navigator: { locks: overlapLocks.locks },
+    Date, JSON, Object, String, Array, Error, Promise, Map,
+  };
+  vm.createContext(overlapContext);
+  vm.runInContext(legacyVmBundle, overlapContext);
+  const finalizePromise = overlapContext._writeUiLegacyFinalizeFlush(
     'calendar',
     [{ id: 'old', kind: 'status', payload: { status: 'A' } }],
     []
   );
-  assert.strictEqual(finalizedItems.map(item => item.id).join(','), 'new',
-    'finishing an old snapshot removes only processed IDs and preserves newly staged debt');
+  const overlapStagePromise = overlapContext._writeUiQueueDeferredLegacyTweak(
+    'calendar',
+    { id: 'post-1', graphic_status: 'Tweaks Needed' },
+    'graphic',
+    { id: 'comment-new', role: 'client', audience: 'client', is_tweak: true },
+    'Staged while finalizing',
+    'Client',
+    committedApprovalEdits
+  );
+  for (let tick = 0; tick < 10 && overlapLocks.names.length < 2; tick++) await Promise.resolve();
+  assert.strictEqual(overlapLocks.names.length, 2,
+    'the overlapping finalizer and stager both wait on the outbox lock');
+  overlapLocks.releaseFirst();
+  await Promise.all([finalizePromise, overlapStagePromise]);
+  assert(new Set(overlapLocks.names).size === 1
+    && overlapLocks.maxActive() === 1
+    && overlapWrites === 2
+    && overlapItems.length === 2
+    && overlapItems.every(item => item.id.indexOf('deferred_calendar_comment-new_') === 0),
+  'the shared exclusive lock preserves a pair staged during an overlapping old-snapshot finalization');
+
+  let missingDrainCallbackEntries = 0;
+  let missingDrainDeliveries = 0;
+  const missingDrainContext = {
+    navigator: {},
+    _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+    _writeUiPrimeRerouteFlag: async () => { missingDrainCallbackEntries++; },
+    fetch: async () => {
+      missingDrainDeliveries++;
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    },
+    Promise, Object, Error,
+  };
+  vm.createContext(missingDrainContext);
+  vm.runInContext([
+    legacyDrainLock,
+    calLegacyOutbox,
+    sxrLegacyOutbox
+  ].join('\n'), missingDrainContext);
+  const missingDrainErrors = [];
+  for (const name of ['_linearOutboxFlushRun', '_sxrLinearOutboxFlushRun']) {
+    try {
+      await missingDrainContext[name]();
+    } catch (error) {
+      missingDrainErrors.push(error);
+    }
+  }
+  assert(missingDrainErrors.length === 2
+    && missingDrainErrors.every(error => error.code === 'legacy_outbox_lock_unavailable')
+    && missingDrainCallbackEntries === 0
+    && missingDrainDeliveries === 0,
+  'without Web Locks neither full drain enters its callback nor attempts a team delivery');
+
+  for (const fixture of [
+    {
+      surface: 'calendar',
+      functionName: '_linearOutboxFlushRun',
+      functionSource: calLegacyOutbox
+    },
+    {
+      surface: 'sxr',
+      functionName: '_sxrLinearOutboxFlushRun',
+      functionSource: sxrLegacyOutbox
+    }
+  ]) {
+    const drainLocks = createWebLockHarness(true);
+    let drainEntries = 0;
+    let drainDeliveries = 0;
+    let sharedDebt = [{
+      id: fixture.surface + '-shared-debt',
+      kind: 'comment',
+      payload: {
+        issue: 'https://linear.invalid/GRA-1',
+        body: 'Deliver exactly once',
+        author: 'Client'
+      },
+      attempts: 0,
+      queuedAt: Date.now(),
+      transport: 'legacy_n8n',
+      client_slug: 'fixture'
+    }];
+    const drainContext = {
+      navigator: { locks: drainLocks.locks },
+      _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+      _writeUiPrimeRerouteFlag: async () => { drainEntries++; },
+      _linearOutboxRead: () => JSON.parse(JSON.stringify(sharedDebt)),
+      _sxrLinearOutboxRead: () => JSON.parse(JSON.stringify(sharedDebt)),
+      _writeUiRerouteUseGateway: () => false,
+      _writeUiLegacyFinalizeFlush: async (_surface, _snapshot, remaining) => {
+        sharedDebt = JSON.parse(JSON.stringify(remaining));
+        return JSON.parse(JSON.stringify(sharedDebt));
+      },
+      _linearOutboxScheduleRetry: () => {},
+      _sxrLinearOutboxScheduleRetry: () => {},
+      fetch: async () => {
+        drainDeliveries++;
+        return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      },
+      LINEAR_OUTBOX_MAX_ATTEMPTS: 6,
+      SXR_LINEAR_OUTBOX_MAX: 6,
+      LINEAR_ADD_COMMENT_URL: 'https://writer.invalid/comment',
+      LINEAR_SET_STATUS_URL: 'https://writer.invalid/status',
+      Date, JSON, Object, String, Number, Array, Error, Promise, Map, Set,
+    };
+    vm.createContext(drainContext);
+    vm.runInContext(legacyDrainLock + '\n' + fixture.functionSource, drainContext);
+    const firstDrain = drainContext[fixture.functionName]();
+    const secondDrain = drainContext[fixture.functionName]();
+    for (let tick = 0; tick < 10 && drainLocks.names.length < 2; tick++) await Promise.resolve();
+    assert.strictEqual(drainLocks.names.length, 2,
+      fixture.surface + ' simultaneous full drains both contend on the drain lock');
+    drainLocks.releaseFirst();
+    await Promise.all([firstDrain, secondDrain]);
+    assert(new Set(drainLocks.names).size === 1
+      && drainLocks.maxActive() === 1
+      && drainEntries === 2
+      && drainDeliveries === 1
+      && sharedDebt.length === 0,
+    fixture.surface + ' serialized drains deliver one shared debt exactly once');
+  }
 
   const calApprove = extract('_calReviewApplyApprove');
   const sxrApprove = extract('_sxrReviewApplyApprove');
   assert(calApprove.indexOf('_calFlushCardSave') < calApprove.indexOf('_calReviewRemoveCard'), 'Calendar review card is removed only after acknowledgement');
   assert(sxrApprove.indexOf('_sxrFlushCardSave') < sxrApprove.indexOf('_sxrReviewRemoveCard'), 'Samples review card is removed only after acknowledgement');
+  const calCommentAt = source.indexOf('function _calReviewComment(');
+  const calRequestAt = source.indexOf('function _calReviewRequestTweak(', calCommentAt);
+  const sxrCommentAt = source.indexOf('function _sxrReviewComment(');
+  const sxrRequestAt = source.indexOf('function _sxrReviewRequestTweak(', sxrCommentAt);
+  const calPlainComment = source.slice(calCommentAt, calRequestAt);
+  const sxrPlainComment = source.slice(sxrCommentAt, sxrRequestAt);
+  for (const fixture of [
+    {
+      surface: 'Calendar',
+      state: '_calReviewState',
+      approve: calApprove,
+      comment: calPlainComment,
+      approveSave: '_calFlushCardSave(pid)',
+      commentSave: '_calFlushCardSave(pid)'
+    },
+    {
+      surface: 'Samples',
+      state: '_sxrReviewState',
+      approve: sxrApprove,
+      comment: sxrPlainComment,
+      approveSave: '_sxrFlushCardSave(pid)',
+      commentSave: '_sxrFlushCardSave(pid)'
+    }
+  ]) {
+    for (const [action, handler, saveMarker] of [
+      ['approve', fixture.approve, fixture.approveSave],
+      ['plain comment', fixture.comment, fixture.commentSave]
+    ]) {
+      const draftReset = handler.indexOf('delete ' + fixture.state + '.draftActionIds[key]');
+      const errorReset = handler.indexOf('delete ' + fixture.state + '.errorActionIds[key]');
+      const saveAt = handler.indexOf(saveMarker);
+      assert(errorReset >= 0
+        && saveAt >= 0
+        && errorReset < saveAt
+        && (action === 'approve' || (draftReset >= 0 && draftReset < saveAt)),
+      fixture.surface + ' ' + action + ' invalidates the request ownership it supersedes before saving');
+    }
+  }
   const resumeRepairs = extract('_writeUiResumeSourceRepairs');
   assert(resumeRepairs.includes('_writeUiRetryPrincipal !== principal'), 'automatic source repair is bound to the initiating principal');
   assert(extract('_kasperPersistPostWrite').includes('_kasperPersistCache()'), 'Calendar Kasper repair is checkpointed in the existing Kasper cache');
@@ -680,6 +1356,162 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', video_status: 'Approved' }], { clearRepairIds: ['repair-1'] });
   assert(!cacheContext._calCacheRead('fixture').posts[0]._writeUiRetrySourceAt && !cacheContext._sxrCacheRead('fixture').posts[0]._writeUiRetrySourceAt,
     'source acknowledgement explicitly clears both durable repair checkpoints');
+
+  let hydrationAuthority = null;
+  let hydrationRecords = [];
+  let calendarHydrationCache = null;
+  let samplesHydrationCache = null;
+  let calendarHydrationLoads = 0;
+  let samplesHydrationLoads = 0;
+  let calendarHydrationReads = 0;
+  let samplesHydrationReads = 0;
+  const hydrationContext = {
+    _isClientLink: true,
+    _writeUiAuthoritySnapshot: () => hydrationAuthority,
+    _writeUiLegacyCommittedTweakRead: () => hydrationRecords,
+    _writeUiPrincipalKey: () => 'client:fixture',
+    calState: { client: { slug: 'fixture' }, posts: [] },
+    sxrState: { client: { slug: 'fixture' }, posts: [] },
+    calClientSlug: client => String(client && client.slug || ''),
+    sxrClientSlug: client => String(client && client.slug || ''),
+    _calCacheRead: () => {
+      calendarHydrationReads++;
+      return calendarHydrationCache;
+    },
+    _sxrCacheRead: () => {
+      samplesHydrationReads++;
+      return samplesHydrationCache;
+    },
+    loadCalendarPosts: () => { calendarHydrationLoads++; },
+    loadSxrCards: () => { samplesHydrationLoads++; },
+    Array, Object, String,
+  };
+  vm.createContext(hydrationContext);
+  vm.runInContext(extract('_writeUiLegacyHydrateConfirmedCacheAfterAuthority'), hydrationContext);
+  const hydrationRecord = (surface, overrides) => ({
+    item: {
+      source_gate: Object.assign({
+        surface,
+        client_slug: 'fixture',
+        post_id: surface === 'calendar' ? 'cal-post' : 'sxr-post',
+        principal: 'client:fixture'
+      }, overrides || {})
+    }
+  });
+  const resetHydrationEvidence = () => {
+    calendarHydrationLoads = 0;
+    samplesHydrationLoads = 0;
+    calendarHydrationReads = 0;
+    samplesHydrationReads = 0;
+    hydrationContext.calState.posts = [];
+    hydrationContext.sxrState.posts = [];
+    calendarHydrationCache = { posts: [{ id: 'cal-post' }] };
+    samplesHydrationCache = { posts: [{ id: 'sxr-post' }] };
+  };
+
+  resetHydrationEvidence();
+  hydrationRecords = [hydrationRecord('calendar'), hydrationRecord('sxr')];
+  hydrationContext._writeUiLegacyHydrateConfirmedCacheAfterAuthority();
+  assert(calendarHydrationLoads === 0
+    && samplesHydrationLoads === 0
+    && calendarHydrationReads === 0
+    && samplesHydrationReads === 0,
+  'confirmed-cache recovery fails closed before live authority exists');
+
+  hydrationAuthority = { video: 'linear', graphics: 'linear' };
+  resetHydrationEvidence();
+  hydrationRecords = [hydrationRecord('calendar', { principal: 'client:other' })];
+  hydrationContext._writeUiLegacyHydrateConfirmedCacheAfterAuthority();
+  assert(calendarHydrationLoads === 0 && calendarHydrationReads === 0,
+    'confirmed-cache recovery ignores another principal tombstone');
+
+  resetHydrationEvidence();
+  hydrationRecords = [hydrationRecord('calendar', { client_slug: 'other-client' })];
+  hydrationContext._writeUiLegacyHydrateConfirmedCacheAfterAuthority();
+  assert(calendarHydrationLoads === 0 && calendarHydrationReads === 0,
+    'confirmed-cache recovery ignores a tombstone for another client');
+
+  resetHydrationEvidence();
+  hydrationRecords = [hydrationRecord('calendar')];
+  calendarHydrationCache = { posts: [{ id: 'different-post' }] };
+  hydrationContext._writeUiLegacyHydrateConfirmedCacheAfterAuthority();
+  assert(calendarHydrationLoads === 0 && calendarHydrationReads === 1,
+    'confirmed-cache recovery requires the exact tombstoned post in cache');
+
+  resetHydrationEvidence();
+  hydrationRecords = [hydrationRecord('calendar')];
+  hydrationContext.calState.posts = [{ id: 'already-live' }];
+  hydrationContext._writeUiLegacyHydrateConfirmedCacheAfterAuthority();
+  assert(calendarHydrationLoads === 0 && calendarHydrationReads === 0,
+    'confirmed-cache recovery never replaces nonempty Calendar state');
+
+  resetHydrationEvidence();
+  hydrationRecords = [hydrationRecord('sxr')];
+  hydrationContext.sxrState.posts = [{ id: 'already-live' }];
+  hydrationContext._writeUiLegacyHydrateConfirmedCacheAfterAuthority();
+  assert(samplesHydrationLoads === 0 && samplesHydrationReads === 0,
+    'confirmed-cache recovery never replaces nonempty Samples state');
+
+  resetHydrationEvidence();
+  hydrationRecords = [hydrationRecord('calendar')];
+  hydrationContext._writeUiLegacyHydrateConfirmedCacheAfterAuthority();
+  assert(calendarHydrationLoads === 1
+    && samplesHydrationLoads === 0
+    && calendarHydrationReads === 1
+    && samplesHydrationReads === 0,
+  'live authority hydrates only Calendar for its exact committed tombstone and cached post');
+
+  resetHydrationEvidence();
+  hydrationRecords = [hydrationRecord('sxr')];
+  hydrationContext._writeUiLegacyHydrateConfirmedCacheAfterAuthority();
+  assert(samplesHydrationLoads === 1
+    && calendarHydrationLoads === 0
+    && samplesHydrationReads === 1
+    && calendarHydrationReads === 0,
+  'live authority hydrates only Samples for its exact committed tombstone and cached post');
+
+  const legacyResume = extract('_writeUiResumeLegacyQueues');
+  const authorityReadAt = legacyResume.indexOf('const authority = await _writeUiRefreshAuthority()');
+  const authorityGuardAt = legacyResume.indexOf('if (!authority)', authorityReadAt);
+  const hydrateAfterAuthorityAt = legacyResume.indexOf('_writeUiLegacyHydrateConfirmedCacheAfterAuthority()', authorityGuardAt);
+  assert(authorityReadAt >= 0
+    && authorityGuardAt > authorityReadAt
+    && hydrateAfterAuthorityAt > authorityGuardAt,
+  'legacy resume places confirmed-cache recovery behind its successful live-authority guard');
+  let resumeAuthority = null;
+  let resumeHydrationCalls = 0;
+  const resumeTrace = [];
+  const resumeContext = {
+    _writeUiLegacyResumePromise: null,
+    _writeUiExpireV1Caches: () => {},
+    _writeUiPrimeRerouteFlag: async () => {},
+    _linearIntakeRead: () => null,
+    _linearOutboxRead: () => [],
+    _sxrLinearOutboxRead: () => [],
+    _writeUiRefreshAuthority: async () => {
+      resumeTrace.push('authority');
+      return resumeAuthority;
+    },
+    _writeUiLegacyHydrateConfirmedCacheAfterAuthority: () => {
+      resumeTrace.push('hydrate');
+      resumeHydrationCalls++;
+    },
+    _calPruneLinearMetaForAuthority: () => {},
+    _calHydrateLinearMeta: () => {},
+    _calCardJobsRead: () => [],
+    _writeUiResumeSourceRepairs: async () => {},
+    Promise,
+  };
+  vm.createContext(resumeContext);
+  vm.runInContext(legacyResume, resumeContext);
+  await resumeContext._writeUiResumeLegacyQueues('authority-outage');
+  assert(resumeHydrationCalls === 0 && resumeTrace.join(',') === 'authority',
+    'legacy resume does not hydrate a confirmed cache when the live authority read fails');
+  resumeAuthority = { video: 'linear', graphics: 'linear' };
+  resumeTrace.length = 0;
+  await resumeContext._writeUiResumeLegacyQueues('authority-live');
+  assert(resumeHydrationCalls === 1 && resumeTrace.join(',') === 'authority,hydrate',
+    'legacy resume hydrates confirmed cache only after live authority succeeds');
 
   const repairStorage = new Map();
   let rejectRepairWrite = false;

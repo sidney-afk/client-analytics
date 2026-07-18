@@ -22789,9 +22789,8 @@
             return true;
         } catch { return false; }
     }
-    function _linearOutboxEnqueue(kind, payload, errMsg, clientSlug) {
-        const items = _linearOutboxRead();
-        items.push({
+    async function _linearOutboxEnqueue(kind, payload, errMsg, clientSlug) {
+        const record = {
             id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('lob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
             kind: kind,
             payload: payload,
@@ -22801,8 +22800,8 @@
             queuedAt: Date.now(),
             transport: 'legacy_n8n',
             client_slug: String(clientSlug || '')
-        });
-        if (!_linearOutboxWrite(items)) return false;
+        };
+        await _writeUiLegacyAppendOutboxItem('calendar', record);
         _linearOutboxScheduleRetry();
         return true;
     }
@@ -22814,6 +22813,76 @@
     }
     function _writeUiLegacyOutboxWrite(surface, items) {
         return surface === 'sxr' ? _sxrLinearOutboxWrite(items) : _linearOutboxWrite(items);
+    }
+    function _writeUiLegacyOutboxWithLock(surface, callback) {
+        if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
+            const error = _writeUiGatewayError(503, 'legacy_outbox_lock_unavailable');
+            error.message = 'Unable to safely preserve the deferred team notification';
+            return Promise.reject(error);
+        }
+        const key = surface === 'sxr'
+            ? 'syncview-legacy-outbox:sxr'
+            : 'syncview-legacy-outbox:calendar';
+        return navigator.locks.request(key, { mode: 'exclusive' }, callback);
+    }
+    function _writeUiLegacyDrainWithLock(surface, callback) {
+        if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
+            const error = _writeUiGatewayError(503, 'legacy_outbox_lock_unavailable');
+            error.message = 'Unable to safely deliver the deferred team notification';
+            return Promise.reject(error);
+        }
+        // Both surfaces also share committed-tweak and quarantine ledgers, so
+        // one origin-wide drain lock serializes delivery and every linked RMW.
+        return navigator.locks.request('syncview-legacy-outbox-drain', { mode: 'exclusive' }, callback);
+    }
+    async function _writeUiLegacyAppendOutboxItem(surface, record) {
+        await _writeUiLegacyOutboxWithLock(surface, () => {
+            const before = _writeUiLegacyOutboxItems(surface);
+            const matches = before.filter(item => item && String(item.id || '') === String(record && record.id || ''));
+            if (matches.length > 1) throw new Error('Duplicate deferred team notification records require review');
+            if (matches[0] && !_writeUiLegacyItemMatches(matches[0], record)) {
+                throw new Error('A different deferred team notification already owns this request');
+            }
+            const next = matches.length ? before : before.concat([record]);
+            if (!matches.length && !_writeUiLegacyOutboxWrite(surface, next)) {
+                throw new Error('Unable to preserve the deferred team notification');
+            }
+            const readback = _writeUiLegacyOutboxItems(surface)
+                .filter(item => item && String(item.id || '') === String(record && record.id || ''));
+            if (readback.length !== 1 || !_writeUiLegacyItemMatches(readback[0], record)) {
+                throw new Error('Deferred team notification could not be verified');
+            }
+        });
+        return true;
+    }
+    function _writeUiLegacyApprovalClears(surface, value) {
+        const allowed = surface === 'sxr'
+            ? ['client_video_approved_at', 'client_graphic_approved_at', 'kasper_approved_at']
+            : ['client_video_approved_at', 'client_graphic_approved_at', 'client_caption_approved_at', 'client_title_approved_at', 'kasper_approved_at'];
+        const requested = new Set((Array.isArray(value) ? value : []).map(field => String(field || '')));
+        return allowed.filter(field => requested.has(field));
+    }
+    function _writeUiLegacyApprovalClearsFromEdits(surface, edits) {
+        const batch = edits && typeof edits === 'object' ? edits : {};
+        const allowed = _writeUiLegacyApprovalClears(surface, surface === 'sxr'
+            ? ['client_video_approved_at', 'client_graphic_approved_at', 'kasper_approved_at']
+            : ['client_video_approved_at', 'client_graphic_approved_at', 'client_caption_approved_at', 'client_title_approved_at', 'kasper_approved_at']);
+        return allowed.filter(field => Object.prototype.hasOwnProperty.call(batch, field) && batch[field] === '');
+    }
+    function _writeUiLegacyApprovalClearsValid(surface, value) {
+        if (!Array.isArray(value)) return false;
+        const sanitized = _writeUiLegacyApprovalClears(surface, value);
+        return sanitized.length === value.length
+            && sanitized.every((field, index) => field === value[index]);
+    }
+    function _writeUiLegacyApprovalClearsForReconcile(surface, gate) {
+        if (Object.prototype.hasOwnProperty.call(gate || {}, 'approval_clears')) {
+            return _writeUiLegacyApprovalClears(surface, gate.approval_clears);
+        }
+        return _writeUiLegacyApprovalClears(surface, [
+            'client_' + String(gate && gate.component || '') + '_approved_at',
+            'kasper_approved_at'
+        ]);
     }
     function _writeUiLegacyItemSignature(item) {
         const gate = item && item.source_gate;
@@ -22841,6 +22910,9 @@
                 comment_audience: String(gate.comment_audience || ''),
                 comment_is_tweak: gate.comment_is_tweak === true,
                 intended_status: String(gate.intended_status || ''),
+                approval_clears: Array.isArray(gate.approval_clears)
+                    ? gate.approval_clears.map(field => String(field || ''))
+                    : [],
                 linear_issue: String(gate.linear_issue || ''),
                 principal: String(gate.principal || '')
             } : null
@@ -22896,6 +22968,26 @@
         return saved.length === 1
             && _writeUiLegacyItemMatches(saved[0].item, record.item);
     }
+    function _writeUiLegacyRetireCommittedTweak(surface, record) {
+        if (!record || !record.item) return Promise.resolve(false);
+        return _writeUiLegacyDrainWithLock(surface, () => {
+            const rows = _writeUiLegacyCommittedTweakRead();
+            const current = rows.find(row => row
+                && String(row.key || '') === String(record.key || '')
+                && _writeUiLegacyItemMatches(row.item, record.item));
+            if (!current) return false;
+            if (!_writeUiLegacyCommittedTweakWrite(rows.filter(row => row !== current))) {
+                throw _writeUiGatewayError(507, 'legacy_committed_tweak_retire_failed');
+            }
+            const saved = _writeUiLegacyCommittedTweakRead();
+            if (saved.some(row => row
+                && String(row.key || '') === String(record.key || '')
+                && _writeUiLegacyItemMatches(row.item, record.item))) {
+                throw _writeUiGatewayError(507, 'legacy_committed_tweak_retire_unverified');
+            }
+            return true;
+        }).catch(() => false);
+    }
     function _writeUiLegacyCommittedTweak(surface, slug, pid, comp, post) {
         const key = [String(surface || ''), String(slug || ''), String(pid || ''), String(comp || '')].join('|');
         const rows = _writeUiLegacyCommittedTweakRead();
@@ -22916,7 +23008,11 @@
                 ? _sxrNormStatus(gate.intended_status || '')
                 : _calNormStatus(gate.intended_status || '');
             if (containsCommitted && currentStatus !== intendedStatus) {
-                _writeUiLegacyCommittedTweakWrite(rows.filter(row => row !== record));
+                // Do not rewrite this whole shared ledger from a read path. A
+                // concurrent locked drain may be adding another confirmation;
+                // retire only after reacquiring that same lock and re-reading
+                // the exact record, so a newer confirmation cannot be erased.
+                _writeUiLegacyRetireCommittedTweak(surface, record);
                 return null;
             }
         }
@@ -22994,6 +23090,8 @@
         if (!gate) return 'committed';
         const opts = options || {};
         if (gate.principal && gate.principal !== _writeUiPrincipalKey()) return 'principal_mismatch';
+        if (Object.prototype.hasOwnProperty.call(gate, 'approval_clears')
+            && !_writeUiLegacyApprovalClearsValid(gate.surface, gate.approval_clears)) return 'conflict';
         if (String(item.payload && item.payload.issue || '').trim() !== String(gate.linear_issue || '').trim()
             || (item.kind === 'comment'
                 && (String(item.payload && item.payload.body || '').trim() !== String(gate.comment_body || '').trim()
@@ -23044,7 +23142,15 @@
                             const intended = gate.surface === 'sxr'
                                 ? _sxrNormStatus(gate.intended_status || '')
                                 : _calNormStatus(gate.intended_status || '');
-                            return current === intended ? 'committed' : 'superseded';
+                            if (current !== intended) return 'superseded';
+                            const approvalClears = Object.prototype.hasOwnProperty.call(gate, 'approval_clears')
+                                ? _writeUiLegacyApprovalClears(gate.surface, gate.approval_clears)
+                                : [];
+                            if (approvalClears.some(field => String(post[field] == null ? '' : post[field]).trim() !== '')) {
+                                last = 'pending';
+                            } else {
+                                return 'committed';
+                            }
                         }
                     }
                 }
@@ -23069,6 +23175,12 @@
             if (!post || !review) return false;
             const comp = String(gate.component || '');
             const key = String(gate.post_id || '') + '|' + comp;
+            // A cache write snapshots every post on the surface. Defer confirmed
+            // reconciliation until all optimistic actions have either committed
+            // or rolled back, so no unrelated in-flight state becomes durable.
+            if (Object.values(review.saving || {}).some(Boolean)) return false;
+            if (Object.prototype.hasOwnProperty.call(gate, 'approval_clears')
+                && !_writeUiLegacyApprovalClearsValid(surface, gate.approval_clears)) return false;
             const comments = surface === 'sxr'
                 ? _sxrCommentsFor(post, comp).slice()
                 : _calCommentsFor(post, comp).slice();
@@ -23101,27 +23213,47 @@
                 post[comp + '_status'] = String(gate.intended_status || '');
                 changed = true;
             }
-            const approvalKey = 'client_' + comp + '_approved_at';
-            if (post[approvalKey]) { post[approvalKey] = ''; changed = true; }
-            if (post.kasper_approved_at) { post.kasper_approved_at = ''; changed = true; }
+            const approvalClears = _writeUiLegacyApprovalClearsForReconcile(surface, gate);
+            approvalClears.forEach(field => {
+                if (post[field]) { post[field] = ''; changed = true; }
+            });
             const overall = surface === 'sxr' ? computeSampleOverallStatus(post) : computeOverallStatus(post);
             if (post.status !== overall) { post.status = overall; changed = true; }
-            if (post._saveError) { post._saveError = ''; changed = true; }
-            if (!review.saving[key]) {
-                const draft = String(review.drafts[key] || '');
-                if (draft && draft.trim() === String(gate.comment_body || '').trim()) {
+            const draft = String(review.drafts[key] || '');
+            const gateActionId = String(gate.comment_id || '');
+            const draftActionId = String(review.draftActionIds && review.draftActionIds[key] || '');
+            const errorActionId = String(review.errorActionIds && review.errorActionIds[key] || '');
+            const ownsDraft = !!draftActionId && draftActionId === gateActionId;
+            const ownsError = (errorActionId && errorActionId === gateActionId)
+                || (!draft.trim() && !String(review.errors[key] || ''));
+            if (ownsError) {
+                if (post._saveError) { post._saveError = ''; changed = true; }
+                if (review.errors[key]) { review.errors[key] = ''; changed = true; }
+                if (review.errorActionIds) delete review.errorActionIds[key];
+            }
+            if (ownsDraft) {
+                if (draft) {
                     review.drafts[key] = '';
                     changed = true;
                 }
-                if (review.errors[key]) { review.errors[key] = ''; changed = true; }
+                if (review.draftActionIds) delete review.draftActionIds[key];
             }
             if (changed) {
                 if (surface === 'sxr') _sxrRenderBody({ preserveScroll: true });
                 else _calRenderBody({ preserveScroll: true });
             }
-            return surface === 'sxr'
-                ? !!_sxrCacheWrite(String(gate.client_slug || ''), state.posts)
-                : !!_calCacheWrite(String(gate.client_slug || ''), state.posts);
+            // A newer failed action keeps its live error, but that transient
+            // failure must not contaminate the canonical cache snapshot for
+            // this older confirmed action.
+            const preservedSaveError = !ownsError ? post._saveError : '';
+            if (preservedSaveError) post._saveError = '';
+            try {
+                return surface === 'sxr'
+                    ? !!_sxrCacheWrite(String(gate.client_slug || ''), state.posts)
+                    : !!_calCacheWrite(String(gate.client_slug || ''), state.posts);
+            } finally {
+                if (preservedSaveError) post._saveError = preservedSaveError;
+            }
         } catch (e) {
             // The caller retains the active source gate when either the page or
             // cache cannot durably reconcile the confirmed request.
@@ -23150,7 +23282,43 @@
             if (current && current.item) _writeUiLegacyReconcileCommittedTweak(gate.surface, current.item);
         }
     }
-    async function _writeUiQueueDeferredLegacyTweak(surface, post, comp, comment, body, author) {
+    function _writeUiLegacyHydrateConfirmedCacheAfterAuthority() {
+        if (!_isClientLink || !_writeUiAuthoritySnapshot()) return;
+        const records = _writeUiLegacyCommittedTweakRead();
+        let retryCalendar = false;
+        let retrySxr = false;
+        for (const record of records) {
+            const gate = record && record.item && record.item.source_gate;
+            if (!gate || gate.principal !== _writeUiPrincipalKey()) continue;
+            if (gate.surface === 'sxr'
+                && typeof sxrState === 'object' && sxrState
+                && Array.isArray(sxrState.posts) && sxrState.posts.length === 0
+                && sxrClientSlug(sxrState.client) === String(gate.client_slug || '')) {
+                const cached = _sxrCacheRead(String(gate.client_slug || ''));
+                if (cached && Array.isArray(cached.posts)
+                    && cached.posts.some(post => post && String(post.id || '') === String(gate.post_id || ''))) {
+                    retrySxr = true;
+                }
+            }
+            if (gate.surface === 'calendar'
+                && typeof calState === 'object' && calState
+                && Array.isArray(calState.posts) && calState.posts.length === 0
+                && calClientSlug(calState.client) === String(gate.client_slug || '')) {
+                const cached = _calCacheRead(String(gate.client_slug || ''));
+                if (cached && Array.isArray(cached.posts)
+                    && cached.posts.some(post => post && String(post.id || '') === String(gate.post_id || ''))) {
+                    retryCalendar = true;
+                }
+            }
+        }
+        // The initial surface mount can race the live authority read. Its first
+        // cache read then fails closed and an offline source leaves an empty
+        // view. Once authority is live, retry only a confirmed-tombstone cache;
+        // each loader hydrates synchronously before its network revalidation.
+        if (retryCalendar && typeof loadCalendarPosts === 'function') loadCalendarPosts();
+        if (retrySxr && typeof loadSxrCards === 'function') loadSxrCards();
+    }
+    async function _writeUiQueueDeferredLegacyTweak(surface, post, comp, comment, body, author, committedEdits) {
         const issue = surface === 'sxr' ? _sxrLinearUrlFor(post, comp) : _calLinearUrlFor(post, comp);
         if (!String(issue || '').trim()) return [];
         if (surface === 'sxr') await _sxrPrimeSampleRoutingFlag();
@@ -23171,6 +23339,7 @@
             comment_audience: String(comment && comment.audience || ''),
             comment_is_tweak: !!(comment && comment.is_tweak),
             intended_status: String(post && post[comp + '_status'] || ''),
+            approval_clears: _writeUiLegacyApprovalClearsFromEdits(surface, committedEdits),
             linear_issue: String(issue || '').trim(),
             principal: _writeUiPrincipalKey()
         };
@@ -23199,25 +23368,27 @@
             client_slug: gate.client_slug,
             source_gate: Object.assign({}, gate)
         }];
-        const before = _writeUiLegacyOutboxItems(surface);
-        const next = before.slice();
-        for (const record of records) {
-            const matches = next.filter(item => item && String(item.id || '') === record.id);
-            if (matches.length > 1) throw new Error('Duplicate deferred team notification records require review');
-            const existing = matches[0];
-            if (existing && !_writeUiLegacyItemMatches(existing, record)) {
-                throw new Error('A different deferred team notification already owns this request');
+        await _writeUiLegacyOutboxWithLock(surface, () => {
+            const before = _writeUiLegacyOutboxItems(surface);
+            const next = before.slice();
+            for (const record of records) {
+                const matches = next.filter(item => item && String(item.id || '') === record.id);
+                if (matches.length > 1) throw new Error('Duplicate deferred team notification records require review');
+                const existing = matches[0];
+                if (existing && !_writeUiLegacyItemMatches(existing, record)) {
+                    throw new Error('A different deferred team notification already owns this request');
+                }
+                if (!existing) next.push(record);
             }
-            if (!existing) next.push(record);
-        }
-        if (next.length !== before.length && !_writeUiLegacyOutboxWrite(surface, next)) {
-            throw new Error('Unable to preserve the deferred team notification');
-        }
-        const readback = _writeUiLegacyOutboxItems(surface);
-        if (!records.every(record => {
-            const saved = readback.filter(item => item && String(item.id || '') === record.id);
-            return saved.length === 1 && _writeUiLegacyItemMatches(saved[0], record);
-        })) throw new Error('Deferred team notification could not be verified');
+            if (next.length !== before.length && !_writeUiLegacyOutboxWrite(surface, next)) {
+                throw new Error('Unable to preserve the deferred team notification');
+            }
+            const readback = _writeUiLegacyOutboxItems(surface);
+            if (!records.every(record => {
+                const saved = readback.filter(item => item && String(item.id || '') === record.id);
+                return saved.length === 1 && _writeUiLegacyItemMatches(saved[0], record);
+            })) throw new Error('Deferred team notification could not be verified');
+        });
         return records.map(record => record.id);
     }
     function _writeUiScheduleDeferredLegacyTweak(surface) {
@@ -23253,19 +23424,28 @@
             await flush();
         }
     }
-    function _writeUiLegacyFinalizeFlush(surface, snapshot, remaining) {
-        const original = new Map((snapshot || []).map(item => [String(item && item.id || ''), item]));
-        const keep = new Map((remaining || []).map(item => [String(item && item.id || ''), item]));
-        const next = [];
-        for (const latest of _writeUiLegacyOutboxItems(surface)) {
-            const id = String(latest && latest.id || '');
-            const prior = original.get(id);
-            if (!prior) { next.push(latest); continue; }
-            if (!_writeUiLegacyItemMatches(latest, prior)) { next.push(latest); continue; }
-            if (keep.has(id)) next.push(keep.get(id));
-        }
-        _writeUiLegacyOutboxWrite(surface, next);
-        return next;
+    async function _writeUiLegacyFinalizeFlush(surface, snapshot, remaining) {
+        return _writeUiLegacyOutboxWithLock(surface, () => {
+            const original = new Map((snapshot || []).map(item => [String(item && item.id || ''), item]));
+            const keep = new Map((remaining || []).map(item => [String(item && item.id || ''), item]));
+            const next = [];
+            for (const latest of _writeUiLegacyOutboxItems(surface)) {
+                const id = String(latest && latest.id || '');
+                const prior = original.get(id);
+                if (!prior) { next.push(latest); continue; }
+                if (!_writeUiLegacyItemMatches(latest, prior)) { next.push(latest); continue; }
+                if (keep.has(id)) next.push(keep.get(id));
+            }
+            if (!_writeUiLegacyOutboxWrite(surface, next)) {
+                throw _writeUiGatewayError(507, 'legacy_outbox_finalize_failed');
+            }
+            const readback = _writeUiLegacyOutboxItems(surface);
+            if (readback.length !== next.length
+                || readback.some((item, index) => !_writeUiLegacyItemMatches(item, next[index]))) {
+                throw _writeUiGatewayError(507, 'legacy_outbox_finalize_unverified');
+            }
+            return readback;
+        });
     }
     function _writeUiLegacyQuarantine(surface, item, reason) {
         try {
@@ -23309,6 +23489,7 @@
         return _linearOutboxFlushPromise;
     }
     async function _linearOutboxFlushRun() {
+        return _writeUiLegacyDrainWithLock('calendar', async () => {
         await _writeUiPrimeRerouteFlag();
         const items = _linearOutboxRead();
         if (!items.length) return;
@@ -23427,8 +23608,9 @@
                 remaining.push(it);
             }
         }
-        const finalized = _writeUiLegacyFinalizeFlush('calendar', items, remaining);
+        const finalized = await _writeUiLegacyFinalizeFlush('calendar', items, remaining);
         if (finalized.length) _linearOutboxScheduleRetry();
+        });
     }
     /* Manual escape hatch (console only) — for the rare case where a
        payload's Linear URL is permanently broken and an admin wants to
@@ -23464,7 +23646,11 @@
                 if (!ok) throw new Error('http ' + (resp && resp.status));
             } catch (e) {
                 console.warn('[Calendar] Linear status push failed - queued for retry', e);
-                _linearOutboxEnqueue('status', payload, (e && e.message) ? e.message : String(e), clientSlug);
+                try {
+                    await _linearOutboxEnqueue('status', payload, (e && e.message) ? e.message : String(e), clientSlug);
+                } catch (queueError) {
+                    console.warn('[Calendar] Linear status retry could not be preserved', queueError);
+                }
             }
         };
         _calLinearPushChain[url] = (_calLinearPushChain[url] || Promise.resolve()).then(run, run);
@@ -23486,7 +23672,11 @@
                 if (!ok) throw new Error('http ' + (resp && resp.status));
             } catch (e) {
                 console.warn('[Calendar] Linear comment post failed - queued for retry', e);
-                _linearOutboxEnqueue('comment', payload, (e && e.message) ? e.message : String(e), clientSlug);
+                try {
+                    await _linearOutboxEnqueue('comment', payload, (e && e.message) ? e.message : String(e), clientSlug);
+                } catch (queueError) {
+                    console.warn('[Calendar] Linear comment retry could not be preserved', queueError);
+                }
             }
         })();
     }
@@ -31554,7 +31744,14 @@
        Approval, and posts with no media are hidden). */
     const COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'Title' };
     const COMP_PILL_COLORS = { video: 'var(--cal-comp-video-dot)', graphic: 'var(--cal-comp-graphic-dot)', caption: 'var(--cal-comp-caption-dot)', title: 'var(--cal-comp-title-dot)' };
-    const _calReviewState = { expanded: new Set(), drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
+    const _calReviewState = {
+        expanded: new Set(),
+        drafts: Object.create(null),
+        saving: Object.create(null),
+        errors: Object.create(null),
+        draftActionIds: Object.create(null),
+        errorActionIds: Object.create(null)
+    };
 
     /* ── Review audience (client vs SMM) ──────────────────────────────
        The same review machinery powers two surfaces: the client-link
@@ -32367,6 +32564,7 @@
     function _calReviewOnDraftInput(ta, pid, comp) {
         const key = pid + '|' + comp;
         _calReviewState.drafts[key] = ta.value;
+        delete _calReviewState.draftActionIds[key];
         const nowHasDraft = !!ta.value.trim();
         // Don't repaint on every keystroke — just toggle the two action
         // buttons in place. Approve is gated off while a draft is in
@@ -32480,6 +32678,7 @@
         post.updated_at = new Date().toISOString();
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
+        delete _calReviewState.errorActionIds[key];
         // Stamp the local-mutation clock so the post-load Linear reconcile
         // doesn't immediately revert this change if Linear is still showing
         // the stale state.
@@ -32550,6 +32749,8 @@
         _calReviewState.drafts[key] = '';
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
+        delete _calReviewState.draftActionIds[key];
+        delete _calReviewState.errorActionIds[key];
         _calReviewRepaintCard(pid);
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, {
             [comp + '_tweaks']: _calStringifyComments(list),
@@ -32585,6 +32786,7 @@
         }
         if (_legacyPending && !_legacyPending.delivered && _legacyPending.body !== body) {
             _calReviewState.errors[key] = 'Still checking your previous request. Please retry it before sending different feedback.';
+            _calReviewState.errorActionIds[key] = String(_legacyPending.comment_id || '');
             _writeUiScheduleDeferredLegacyTweak('calendar');
             _calReviewRepaintCard(pid);
             return;
@@ -32638,6 +32840,8 @@
         _calReviewState.drafts[key] = '';
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
+        delete _calReviewState.draftActionIds[key];
+        delete _calReviewState.errorActionIds[key];
         _calMarkLocalStatus(pid, comp);
         // On the SMM surface a tweak request hands the card back to the
         // editor, so if nothing else on it is awaiting SMM sign-off the card
@@ -32674,7 +32878,7 @@
             _writeUiBindRepairAck(post, committedBatch, acknowledgement);
             if (deferredLegacyComment) {
                 deferredLegacyOutboxIds = await _writeUiQueueDeferredLegacyTweak(
-                    'calendar', post, comp, newComment, body, newComment.author
+                    'calendar', post, comp, newComment, body, newComment.author, repairEdits
                 );
                 committedBatch._writeUiPinnedSourceTransport =
                     _writeUiLegacyPinnedSourceTransport('calendar', deferredLegacyOutboxIds);
@@ -32696,6 +32900,8 @@
                 if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
                 _calReviewState.drafts[key] = rawDraft;
                 _calReviewState.errors[key] = current._saveError || 'Save failed';
+                _calReviewState.draftActionIds[key] = String(newComment.id || '');
+                _calReviewState.errorActionIds[key] = String(newComment.id || '');
                 // The generic save failure renderer may already have removed
                 // this card after the optimistic last-active-component flip.
                 // Rebuild the queue from the restored row so the retry panel,
@@ -32725,6 +32931,8 @@
             _calReviewState.drafts[key] = rawDraft;
             _writeUiReportFailure('calendar', 'comment', e);
             _calReviewState.errors[key] = (e && e.message) || 'Save failed';
+            _calReviewState.draftActionIds[key] = String(newComment.id || '');
+            _calReviewState.errorActionIds[key] = String(newComment.id || '');
             _calRenderBody({ preserveScroll: true });
         });
     }
@@ -42288,7 +42496,14 @@
     function _sxrHasMedia(p) { return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim()); }
 
     /* ── Review render ── */
-    const _sxrReviewState = { expanded: new Set(), drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
+    const _sxrReviewState = {
+        expanded: new Set(),
+        drafts: Object.create(null),
+        saving: Object.create(null),
+        errors: Object.create(null),
+        draftActionIds: Object.create(null),
+        errorActionIds: Object.create(null)
+    };
     const _SXR_REVIEW_CFG = { client: { reviewStatus: 'Client Approval', approveTo: 'Approved' }, smm: { reviewStatus: 'For SMM Approval', approveTo: 'Kasper Approval' } };
     function _sxrReviewMode() { return (!_isClientLink && sxrState.view === 'smmreview') ? 'smm' : 'client'; }
     function _sxrReviewComponentActive(p, c, mode) { const cs = _sxrNormStatus(p[c + '_status'] || ''); if (cs === _SXR_REVIEW_CFG[mode].reviewStatus) return true; return mode !== 'smm' && cs === 'Tweaks Needed' && !_isClientLink; }
@@ -42498,6 +42713,7 @@
     function _sxrReviewOnDraftInput(ta, pid, comp) {
         const key = pid + '|' + comp;
         _sxrReviewState.drafts[key] = ta.value;
+        delete _sxrReviewState.draftActionIds[key];
         const nowHasDraft = !!ta.value.trim();
         const card = ta.closest('.cal-review-card'); if (!card) return;
         const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]'); if (!panel) return;
@@ -42673,6 +42889,7 @@
         post.status = computeSampleOverallStatus(post);
         post.updated_at = new Date().toISOString();
         _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
+        delete _sxrReviewState.errorActionIds[key];
         _sxrMarkLocalStatus(pid, comp);
         const clearsCard = (mode === 'smm' || _isClientLink) && !SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(post, c, mode));
         _sxrReviewRepaintCard(pid);
@@ -42702,6 +42919,8 @@
         _sxrSetCommentsFor(post, comp, list);
         post.updated_at = _now;
         _sxrReviewState.drafts[key] = ''; _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
+        delete _sxrReviewState.draftActionIds[key];
+        delete _sxrReviewState.errorActionIds[key];
         _sxrReviewRepaintCard(pid);
         _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
         Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = (e && e.message) || 'Save failed'; _sxrReviewRepaintCard(pid); });
@@ -42723,6 +42942,7 @@
         }
         if (_legacyPending && !_legacyPending.delivered && _legacyPending.body !== body) {
             _sxrReviewState.errors[key] = 'Still checking your previous request. Please retry it before sending different feedback.';
+            _sxrReviewState.errorActionIds[key] = String(_legacyPending.comment_id || '');
             _writeUiScheduleDeferredLegacyTweak('sxr');
             _sxrReviewRepaintCard(pid);
             return;
@@ -42749,6 +42969,8 @@
         post.status = computeSampleOverallStatus(post);
         post.updated_at = _now;
         _sxrReviewState.drafts[key] = ''; _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
+        delete _sxrReviewState.draftActionIds[key];
+        delete _sxrReviewState.errorActionIds[key];
         _sxrMarkLocalStatus(pid, comp);
         const mode = _sxrReviewMode();
         const clearsCard = (mode === 'smm' || _isClientLink) && !SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(post, c, mode));
@@ -42773,7 +42995,7 @@
             _writeUiBindRepairAck(post, committedBatch, acknowledgement);
             if (deferredLegacyComment) {
                 deferredLegacyOutboxIds = await _writeUiQueueDeferredLegacyTweak(
-                    'sxr', post, comp, newComment, body, newComment.author
+                    'sxr', post, comp, newComment, body, newComment.author, repairEdits
                 );
                 committedBatch._writeUiPinnedSourceTransport =
                     _writeUiLegacyPinnedSourceTransport('sxr', deferredLegacyOutboxIds);
@@ -42795,6 +43017,8 @@
                 if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
                 _sxrReviewState.drafts[key] = rawDraft;
                 _sxrReviewState.errors[key] = current._saveError || 'Save failed';
+                _sxrReviewState.draftActionIds[key] = String(newComment.id || '');
+                _sxrReviewState.errorActionIds[key] = String(newComment.id || '');
                 // A full save-error render can drop the optimistic final review
                 // card before this handler restores it. Rebuild from restored
                 // state so the client keeps an actionable retry surface.
@@ -42818,6 +43042,8 @@
             _sxrReviewState.drafts[key] = rawDraft;
             _writeUiReportFailure('sxr', 'comment', e);
             _sxrReviewState.errors[key] = (e && e.message) || 'Save failed';
+            _sxrReviewState.draftActionIds[key] = String(newComment.id || '');
+            _sxrReviewState.errorActionIds[key] = String(newComment.id || '');
             _sxrRenderBody({ preserveScroll: true });
         });
     }
@@ -43457,14 +43683,13 @@
     let _sxrLinearOutboxTimer = null, _sxrLinearOutboxPromise = null;
     function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
     function _sxrLinearOutboxWrite(a) { try { const items = Array.isArray(a) ? a : []; if (items.length) localStorage.setItem(SXR_LINEAR_OUTBOX_KEY, JSON.stringify(items)); else localStorage.removeItem(SXR_LINEAR_OUTBOX_KEY); return true; } catch (e) { return false; } }
-    function _sxrLinearOutboxEnqueue(kind, payload, err, clientSlug) {
-        const items = _sxrLinearOutboxRead();
-        items.push({
+    async function _sxrLinearOutboxEnqueue(kind, payload, err, clientSlug) {
+        const record = {
             id: 'slob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             kind, payload, attempts: 0, lastError: err || '', queuedAt: Date.now(),
             transport: 'legacy_n8n', client_slug: String(clientSlug || '')
-        });
-        if (!_sxrLinearOutboxWrite(items)) return false;
+        };
+        await _writeUiLegacyAppendOutboxItem('sxr', record);
         _sxrLinearOutboxScheduleRetry();
         return true;
     }
@@ -43475,6 +43700,7 @@
         return _sxrLinearOutboxPromise;
     }
     async function _sxrLinearOutboxFlushRun() {
+        return _writeUiLegacyDrainWithLock('sxr', async () => {
         await _writeUiPrimeRerouteFlag();
         const items = _sxrLinearOutboxRead(); if (!items.length) return;
         let enriched = false;
@@ -43561,8 +43787,9 @@
                 remaining.push(it);
             }
         }
-        const finalized = _writeUiLegacyFinalizeFlush('sxr', items, remaining);
+        const finalized = await _writeUiLegacyFinalizeFlush('sxr', items, remaining);
         if (finalized.length) _sxrLinearOutboxScheduleRetry();
+        });
     }
     window.clearSxrLinearOutbox = function () { const n = _sxrLinearOutboxRead().length; _sxrLinearOutboxWrite([]); return 'cleared ' + n; };
     window.peekSxrLinearOutbox = function () { return _sxrLinearOutboxRead(); };
@@ -43583,7 +43810,11 @@
                 if (!ok) throw new Error('http ' + (resp && resp.status));
             } catch (e) {
                 console.warn('[Samples] Linear status push failed - queued', e);
-                _sxrLinearOutboxEnqueue('status', payload, (e && e.message) || String(e), clientSlug);
+                try {
+                    await _sxrLinearOutboxEnqueue('status', payload, (e && e.message) || String(e), clientSlug);
+                } catch (queueError) {
+                    console.warn('[Samples] Linear status retry could not be preserved', queueError);
+                }
             }
         };
         _sxrLinearPushChain[url] = (_sxrLinearPushChain[url] || Promise.resolve()).then(run, run);
@@ -43601,7 +43832,11 @@
                 if (!ok) throw new Error('http ' + (resp && resp.status));
             } catch (e) {
                 console.warn('[Samples] Linear comment failed - queued', e);
-                _sxrLinearOutboxEnqueue('comment', payload, (e && e.message) || String(e), clientSlug);
+                try {
+                    await _sxrLinearOutboxEnqueue('comment', payload, (e && e.message) || String(e), clientSlug);
+                } catch (queueError) {
+                    console.warn('[Samples] Linear comment retry could not be preserved', queueError);
+                }
             }
         })();
     }
@@ -44153,6 +44388,7 @@
                 await Promise.all([linearQueueResume, nativeIntakeResume]);
                 return;
             }
+            _writeUiLegacyHydrateConfirmedCacheAfterAuthority();
             _calPruneLinearMetaForAuthority();
             _calHydrateLinearMeta();
             await Promise.all([

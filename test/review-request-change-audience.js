@@ -39,7 +39,14 @@ function grabFunc(name) {
 const HARNESS = `
 let _isClientLink = false;
 const calState = { posts: [], view: 'smmreview' };
-const _calReviewState = { expanded: new Set(), drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
+const _calReviewState = {
+  expanded: new Set(),
+  drafts: Object.create(null),
+  saving: Object.create(null),
+  errors: Object.create(null),
+  draftActionIds: Object.create(null),
+  errorActionIds: Object.create(null)
+};
 const _calPendingEdits = Object.create(null);
 let _mintN = 0;
 function _calMintCommentId(){ return 'c_' + (++_mintN); }

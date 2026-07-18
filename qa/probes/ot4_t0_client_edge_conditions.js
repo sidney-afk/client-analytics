@@ -28,6 +28,10 @@ const IDS = {
   fail: `sr_ot4e_fail_${TS}`,
   failCal: `p_ot4e_failcal_${TS}`
 };
+const ISSUES = {
+  fail: `https://linear.app/sidtest/issue/GRA-${TS}/ot4-samples-failure`,
+  failCal: `https://linear.app/sidtest/issue/GRA-${TS + 1}/ot4-calendar-failure`
+};
 const NAMES = {
   tok: `OT4 Token ${TS}`,
   mob: `OT4 Mobile ${TS}`,
@@ -40,7 +44,8 @@ const TOMORROW = new Date(Date.now() + 86400e3).toISOString().slice(0, 10);
 function seed(key, i) {
   up({ id: IDS[key], name: NAMES[key], order_index: i + 1,
     video_status: 'Client Approval', graphic_status: 'Client Approval', status: 'Client Approval',
-    thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg' });
+    thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+    graphic_linear_issue_id: key === 'fail' ? ISSUES.fail : '' });
 }
 
 function seedCalendarFailure() {
@@ -48,15 +53,40 @@ function seedCalendarFailure() {
     video_status: 'Client Approval', graphic_status: 'Client Approval',
     caption_status: 'Approved', status: 'Client Approval',
     thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
-    asset_url: 'https://example.com/ot4-failure.mp4' });
+    asset_url: 'https://example.com/ot4-failure.mp4',
+    graphic_linear_issue_id: ISSUES.failCal });
+}
+
+function tweakBodies(value) {
+  let rows = value;
+  if (typeof rows === 'string') {
+    try { rows = JSON.parse(rows || '[]'); } catch { rows = []; }
+  }
+  return Array.isArray(rows) ? rows.map(row => String(row && row.body || '')) : [];
+}
+
+function matchingNotifications(issueUrl, body) {
+  return H.linearCalls().filter(call =>
+    call && call.path === 'linear-add-comment' &&
+    call.payload && call.payload.issue === issueUrl && call.payload.body === body
+  );
+}
+
+function matchingStatusPushes(issueUrl) {
+  return H.linearCalls().filter(call =>
+    call && call.path === 'linear-set-status' &&
+    call.payload && call.payload.issue === issueUrl && call.payload.status === 'Tweaks Needed'
+  );
 }
 
 async function exerciseRequestFailure(opts) {
-  const { browser, label, openPage, routePattern, id, name, row } = opts;
+  const { browser, label, openPage, routePattern, id, name, row, issueUrl } = opts;
   const comp = 'graphic';
   const statusKey = comp + '_status';
   const tweaksKey = comp + '_tweaks';
-  const reqText = `OT4 ${label} fail-then-retry ${TS}`;
+  const submittedBody = `OT4 ${label} fail-then-retry ${TS}`;
+  const rawDraft = `  \n${submittedBody}\n\n  `;
+  H.resetLinearCalls();
   const p = await openPage(browser);
   let block = true;
   let blockedWrites = 0;
@@ -73,7 +103,7 @@ async function exerciseRequestFailure(opts) {
     await route.fallback();
   });
 
-  const clicked = await H.clientAct(p, name, comp, 'request', reqText);
+  const clicked = await H.clientAct(p, name, comp, 'request', rawDraft);
   t(clicked === 'ok', `P4/${label}: request-change clicked while backend is down`, clicked);
 
   // Wait for the save promise to settle. Inspect both the actual rendered
@@ -123,7 +153,7 @@ async function exerciseRequestFailure(opts) {
       retryEnabled: !!(retry && !retry.disabled),
       exactDraft: !!(textarea && textarea.value === expectedDraft)
     };
-  }, [label, id, name, comp, reqText], { timeout: 15000 }).then(h => h.jsonValue()).catch(() => null);
+  }, [label, id, name, comp, rawDraft], { timeout: 15000 }).then(h => h.jsonValue()).catch(() => null);
 
   t(blockedWrites > 0, `P4/${label}: failure injection intercepted the source save`, blockedWrites);
   t(!!st && st.localStatus === 'Client Approval' && st.card && st.panel &&
@@ -137,10 +167,17 @@ async function exerciseRequestFailure(opts) {
     `P4/${label}: Request change is re-enabled for retry`, JSON.stringify(st));
 
   const mid = row(`${statusKey},status,${tweaksKey}`);
-  const midTweaks = JSON.stringify((mid && mid[tweaksKey]) || '');
+  const midBodies = tweakBodies(mid && mid[tweaksKey]);
   t(!!mid && mid[statusKey] === 'Client Approval' && mid.status === 'Client Approval' &&
-      !midTweaks.includes(reqText),
+      !midBodies.includes(submittedBody),
     `P4/${label}: DB status and request text stay untouched before resend`, JSON.stringify(mid));
+  await H.sleep(500);
+  const failedNotifications = matchingNotifications(issueUrl, submittedBody);
+  t(failedNotifications.length === 0,
+    `P4/${label}: failed source save sends no premature team notification`, failedNotifications.length);
+  const failedStatusPushes = matchingStatusPushes(issueUrl);
+  t(failedStatusPushes.length === 0,
+    `P4/${label}: failed source save sends no premature team status`, failedStatusPushes.length);
 
   // Recover the endpoint, then click the already-enabled button directly. Do
   // not call clientAct here: it would type again and weaken the draft-retention
@@ -158,7 +195,7 @@ async function exerciseRequestFailure(opts) {
     if (button.disabled) return 'disabled';
     button.click();
     return 'ok';
-  }, [name, comp, reqText]);
+  }, [name, comp, rawDraft]);
   t(resent === 'ok', `P4/${label}: preserved request re-sent without retyping`, resent);
 
   const successToast = await p.waitForFunction(() => {
@@ -170,14 +207,25 @@ async function exerciseRequestFailure(opts) {
 
   const landed = await H.pollRow(
     () => row(`${statusKey},status,${tweaksKey}`),
-    x => x[statusKey] === 'Tweaks Needed' && JSON.stringify(x[tweaksKey] || '').includes(reqText),
+    x => x[statusKey] === 'Tweaks Needed' && tweakBodies(x[tweaksKey]).includes(submittedBody),
     POLL
   );
-  const landedTweaks = JSON.stringify((landed && landed[tweaksKey]) || '');
-  const occurrences = landedTweaks.split(reqText).length - 1;
+  const occurrences = tweakBodies(landed && landed[tweaksKey])
+    .filter(body => body === submittedBody).length;
   t(!!landed && landed[statusKey] === 'Tweaks Needed' && landed.status === 'Tweaks Needed' &&
       occurrences === 1,
     `P4/${label}: re-sent preserved request lands exactly once`, JSON.stringify(landed));
+  await H.poll(() =>
+    matchingNotifications(issueUrl, submittedBody).length > 0 &&
+    matchingStatusPushes(issueUrl).length > 0,
+  10000, 200);
+  await H.sleep(500);
+  const notifications = matchingNotifications(issueUrl, submittedBody);
+  t(notifications.length === 1,
+    `P4/${label}: successful retry notifies the linked team issue exactly once`, notifications.length);
+  const statusPushes = matchingStatusPushes(issueUrl);
+  t(statusPushes.length === 1,
+    `P4/${label}: successful retry mirrors the linked team status exactly once`, statusPushes.length);
   t(appErrs(p).length === 0, `P4/${label}: 0 app JS errors`, (appErrs(p)[0] || ''));
   await p.context().close();
 }
@@ -264,7 +312,8 @@ async function exerciseRequestFailure(opts) {
       routePattern: '**/sample-review-upsert*',
       id: IDS.fail,
       name: NAMES.fail,
-      row: cols => H.rowSxr(IDS.fail, cols)
+      row: cols => H.rowSxr(IDS.fail, cols),
+      issueUrl: ISSUES.fail
     });
     await exerciseRequestFailure({
       browser,
@@ -273,7 +322,8 @@ async function exerciseRequestFailure(opts) {
       routePattern: '**/calendar-upsert*',
       id: IDS.failCal,
       name: NAMES.failCal,
-      row: cols => H.rowCal(IDS.failCal, cols)
+      row: cols => H.rowCal(IDS.failCal, cols),
+      issueUrl: ISSUES.failCal
     });
   } catch (e) {
     t(false, 'EXCEPTION: ' + (e && e.message || e));

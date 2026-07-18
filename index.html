@@ -22992,6 +22992,9 @@
     }
     async function _calPushStatusToLinear(issueUrl, status, meta) {
         if (!(await _writeUiUseGatewayWhenReady('calendar', meta))) {
+            if (meta && meta.deferLegacyUntilSourceSave) {
+                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
+            }
             _calLegacyPushStatusToLinear(issueUrl, status, meta);
             return Promise.resolve({ skipped: true, legacy_transport: true });
         }
@@ -23064,6 +23067,9 @@
     /* Commit a client/Kasper comment through the authenticated gateway. */
     async function _calPostLinearComment(issueUrl, body, author, meta) {
         if (!(await _writeUiUseGatewayWhenReady('calendar', meta))) {
+            if (meta && meta.deferLegacyUntilSourceSave) {
+                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
+            }
             _calLegacyPostLinearComment(issueUrl, body, author, meta);
             return Promise.resolve({ skipped: true, legacy_transport: true });
         }
@@ -28631,9 +28637,11 @@
         const precommittedForWrite = edits._writeUiPrecommittedNative === true
             || !!(retryPost && retryPost._writeUiRetrySourceAt);
         const companionRepairsForWrite = (Array.isArray(edits._writeUiCompanionRepairs) ? edits._writeUiCompanionRepairs : []).slice();
+        const deferLegacyStatusForWrite = edits._writeUiDeferLegacyStatusUntilSourceSave === true;
         delete edits._writeUiRepairRefs;
         delete edits._writeUiPrecommittedNative;
         delete edits._writeUiCompanionRepairs;
+        delete edits._writeUiDeferLegacyStatusUntilSourceSave;
         // Pin the destination client at the moment the save starts, BEFORE any
         // await. calClientSlug(calState.client) read later (post-await) could
         // resolve to a DIFFERENT client if the user switched tabs while this
@@ -28709,6 +28717,7 @@
         // so a later status/source failure becomes a durable source repair,
         // never an optimistic rollback that hides the committed comment.
         let gatewayCommitted = precommittedForWrite;
+        const deferredLegacyStatusPushes = [];
         const checkpointCommittedSource = () => {
             if (!gatewayCommitted) return;
             post._writeUiRetryEdits = Object.assign({}, edits);
@@ -28733,11 +28742,18 @@
                 const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === 'video');
                 const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
                 if (!reconciled) {
+                    const gatewayAttemptedBefore = gatewayAttempted;
                     gatewayAttempted = true;
+                    const sourceEditedAt = companion ? companion.source_at : post.updated_at;
                     const acknowledgement = await _calPushStatusToLinear(post.linear_issue_id, post.video_status, {
-                        post, component: 'video', sourceEditedAt: companion ? companion.source_at : post.updated_at,
-                        repairRecord: companion && companion.record
+                        post, component: 'video', sourceEditedAt,
+                        repairRecord: companion && companion.record,
+                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite
                     });
+                    if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                        gatewayAttempted = gatewayAttemptedBefore;
+                        deferredLegacyStatusPushes.push({ component: 'video', sourceEditedAt });
+                    }
                     _writeUiAdoptRepairAck(post, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
@@ -28750,11 +28766,18 @@
                 const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === 'graphic');
                 const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
                 if (!reconciled) {
+                    const gatewayAttemptedBefore = gatewayAttempted;
                     gatewayAttempted = true;
+                    const sourceEditedAt = companion ? companion.source_at : post.updated_at;
                     const acknowledgement = await _calPushStatusToLinear(post.graphic_linear_issue_id, post.graphic_status, {
-                        post, component: 'graphic', sourceEditedAt: companion ? companion.source_at : post.updated_at,
-                        repairRecord: companion && companion.record
+                        post, component: 'graphic', sourceEditedAt,
+                        repairRecord: companion && companion.record,
+                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite
                     });
+                    if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                        gatewayAttempted = gatewayAttemptedBefore;
+                        deferredLegacyStatusPushes.push({ component: 'graphic', sourceEditedAt });
+                    }
                     _writeUiAdoptRepairAck(post, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
@@ -28937,6 +28960,16 @@
                 delete _okPost._writeUiRetryPrincipal;
                 if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
                 else delete _okPost._writeUiPrecommittedNative;
+            }
+            if (_okPost) {
+                deferredLegacyStatusPushes.forEach(push => {
+                    const isGraphic = push.component === 'graphic';
+                    _calLegacyPushStatusToLinear(
+                        isGraphic ? _okPost.graphic_linear_issue_id : _okPost.linear_issue_id,
+                        _okPost[(isGraphic ? 'graphic' : 'video') + '_status'],
+                        { post: _okPost, component: push.component, sourceEditedAt: push.sourceEditedAt }
+                    );
+                });
             }
             _calCacheWrite(_saveSlug, calState.posts, { clearRepairIds: [realId] });
             _calSetCardStatus(realId, 'saved');
@@ -32026,7 +32059,8 @@
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
-        const body = String(_calReviewState.drafts[key] || '').trim();
+        const rawDraft = String(_calReviewState.drafts[key] || '');
+        const body = rawDraft.trim();
         if (!body || _calReviewState.saving[key]) return;
         // Same surface guard as approve: a client can only request a change on a
         // component on their review surface (Client Approval / Tweaks Needed), not
@@ -32086,9 +32120,9 @@
         const clearsCard = (_tweakMode === 'smm' || _isClientLink)
             && !_calComponentsFor(post).some(c => _calReviewComponentActive(post, c, _tweakMode));
         _calReviewRepaintCard(pid);
-        // Commit the native comment before the Calendar row. A failed gateway
-        // acknowledgement restores the optimistic card and keeps the action
-        // visibly unsaved; no browser retry queue is created.
+        // Commit an enrolled native comment before the Calendar row. On the
+        // legacy lane, defer the Linear notification until the source save
+        // succeeds so a failed attempt plus retry cannot notify the team twice.
         // Keep the composite tweak batch private until the comment is durably
         // acknowledged. An older in-flight card save must not discover and
         // flush the status/source half of this action on its own.
@@ -32098,14 +32132,18 @@
             [comp + '_tweaks']: _calStringifyComments(list),
         };
         _calClearStaleApprovals(post, repairEdits);
+        let deferredLegacyComment = false;
         Promise.resolve().then(() => _calPostLinearComment(_calLinearUrlFor(post, comp), body, newComment.author, {
             post, component: comp, comment: newComment, audience: _calMsgAudience(newComment),
             isTweak: _calMsgIsTweak(newComment), round: newComment.round,
             repairEdits: Object.assign({}, repairEdits),
-            reserveStatusIntent: { status: post[comp + '_status'] }
+            reserveStatusIntent: { status: post[comp + '_status'] },
+            deferLegacyUntilSourceSave: true
         })).then(acknowledgement => {
+            deferredLegacyComment = !!(acknowledgement && acknowledgement.deferred_until_source_save);
             const committedBatch = Object.assign({}, repairEdits);
             _writeUiBindRepairAck(post, committedBatch, acknowledgement);
+            if (deferredLegacyComment) committedBatch._writeUiDeferLegacyStatusUntilSourceSave = true;
             const pending = _calPendingEdits[pid] || (_calPendingEdits[pid] = {});
             _writeUiMergeCommittedBatch(pending, committedBatch);
             return _calFlushCardSave(pid);
@@ -32114,10 +32152,16 @@
             const current = calState.posts.find(p => p.id === pid) || post;
             if (current._saveError) {
                 if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
-                _calReviewState.drafts[key] = body;
+                _calReviewState.drafts[key] = rawDraft;
                 _calReviewState.errors[key] = current._saveError || 'Save failed';
                 _calReviewRepaintCard(pid);
                 return;
+            }
+            if (deferredLegacyComment) {
+                _calLegacyPostLinearComment(_calLinearUrlFor(current, comp), body, newComment.author, {
+                    post: current, component: comp, comment: newComment, audience: _calMsgAudience(newComment),
+                    isTweak: _calMsgIsTweak(newComment), round: newComment.round
+                });
             }
             if (clearsCard) _calReviewRemoveCard(pid);
             else _calReviewRepaintCard(pid);
@@ -32128,7 +32172,7 @@
             }
         }).catch(e => {
             Object.assign(post, prev);
-            _calReviewState.drafts[key] = body;
+            _calReviewState.drafts[key] = rawDraft;
             _writeUiReportFailure('calendar', 'comment', e);
             _calReviewState.saving[key] = false;
             _calReviewState.errors[key] = (e && e.message) || 'Save failed';
@@ -42099,7 +42143,8 @@
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
-        const body = String(_sxrReviewState.drafts[key] || '').trim();
+        const rawDraft = String(_sxrReviewState.drafts[key] || '');
+        const body = rawDraft.trim();
         if (!body || _sxrReviewState.saving[key]) return;
         if (_isClientLink) { const cur = String(post[comp + '_status'] || '').trim().toLowerCase(); if (cur !== 'client approval' && cur !== 'tweaks needed') return; }
         const role = _sxrCommentRole();
@@ -42142,7 +42187,7 @@
             const current = sxrState.posts.find(p => p.id === pid) || post;
             if (current._saveError) {
                 if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
-                _sxrReviewState.drafts[key] = body;
+                _sxrReviewState.drafts[key] = rawDraft;
                 _sxrReviewState.errors[key] = current._saveError || 'Save failed';
                 _sxrReviewRepaintCard(pid);
                 return;
@@ -42157,7 +42202,7 @@
             if (_sxrCommentRole() === 'client' && !current._saveError && typeof showToast === 'function') showToast('Change request sent — the team has been notified');
         }).catch(e => {
             Object.assign(post, prev);
-            _sxrReviewState.drafts[key] = body;
+            _sxrReviewState.drafts[key] = rawDraft;
             _writeUiReportFailure('sxr', 'comment', e);
             _sxrReviewState.saving[key] = false;
             _sxrReviewState.errors[key] = (e && e.message) || 'Save failed';

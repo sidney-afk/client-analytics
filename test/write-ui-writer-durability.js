@@ -76,6 +76,22 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   assert(calls.every(call => call.nativeId && !call.issue), 'native ID is sufficient when the flipped-team cache removes Linear URLs');
   assert.deepStrictEqual(calls.map(call => call.operation), ['status', 'comment', 'status', 'comment']);
 
+  context._writeUiUseGatewayWhenReady = async () => false;
+  const calStatusDeferred = await context._calPushStatusToLinear('https://linear.invalid/GRA-0', 'Tweaks Needed', {
+    post: { id: 'legacy-cal-status' }, component: 'graphic', deferLegacyUntilSourceSave: true
+  });
+  const calDeferred = await context._calPostLinearComment('https://linear.invalid/GRA-1', 'Calendar legacy', 'Fixture', {
+    post: { id: 'legacy-cal' }, component: 'graphic', deferLegacyUntilSourceSave: true
+  });
+  const sxrDeferred = await context._sxrPostLinearComment('https://linear.invalid/GRA-2', 'Samples legacy', 'Fixture', {
+    post: { id: 'legacy-sxr' }, component: 'graphic', deferLegacyUntilSourceSave: true
+  });
+  assert(calStatusDeferred && calStatusDeferred.deferred_until_source_save === true
+    && calDeferred && calDeferred.deferred_until_source_save === true
+    && sxrDeferred && sxrDeferred.deferred_until_source_save === true,
+  'Calendar and Samples can defer legacy status/comment effects until the source row is durable');
+  context._writeUiUseGatewayWhenReady = async () => true;
+
   calls.length = 0;
   await context._calPushStatusToLinear('', 'Approved', { post: { id: 'none' }, component: 'video' });
   await context._sxrPostLinearComment('', 'No target', 'Fixture', { post: { id: 'none' }, component: 'video' });
@@ -139,6 +155,10 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   assert(calFlush.includes('return _calAwaitCardSave(pid)') && sxrFlush.includes('return _sxrAwaitCardSave(pid)'), 'review acknowledgements wait through any trailing serialized save');
   assert(calFlush.indexOf('checkpointCommittedSource()') < calFlush.indexOf('await _calUpsertFetch'), 'Calendar checkpoints native acknowledgement before source IO');
   assert(sxrFlush.indexOf('checkpointCommittedSource()') < sxrFlush.indexOf('await _sxrUpsertFetch'), 'Samples checkpoints native acknowledgement before source IO');
+  assert(calFlush.includes('_writeUiDeferLegacyStatusUntilSourceSave')
+    && calFlush.includes('deferredLegacyStatusPushes')
+    && calFlush.indexOf('_calLegacyPushStatusToLinear') > calFlush.indexOf('await _calUpsertFetch'),
+  'Calendar request-change status notification waits until its source save succeeds');
   assert(calFlush.includes('_writeUiAdoptReplayStatus') && sxrFlush.includes('_writeUiAdoptReplayStatus'), 'source retries project the current native row, not a stale cached status');
   assert(calFlush.includes('_calCacheWrite(_saveSlug, calState.posts)') && sxrFlush.includes('_sxrCacheWrite(_saveSlug, sxrState.posts)'), 'source-repair checkpoints are crash-durable in the v2 caches');
 
@@ -155,18 +175,23 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   assert(extract('_sxrKasperApplyAndPersist').indexOf('await _sxrPushStatusToLinear') < extract('_sxrKasperApplyAndPersist').indexOf('await _sxrKasperPersist'));
   const calTweakAck = calReview.indexOf('.then(acknowledgement =>');
   const sxrTweakAck = sxrReview.indexOf('.then(acknowledgement =>');
-  assert(calReview.includes('_calReviewState.drafts[key] = body')
+  assert(calReview.includes('const body = rawDraft.trim()')
+    && calReview.includes('_calReviewState.drafts[key] = rawDraft')
+    && calReview.includes('deferLegacyUntilSourceSave: true')
+    && calReview.includes('_writeUiDeferLegacyStatusUntilSourceSave')
+    && calReview.includes('_calLegacyPostLinearComment')
     && calReview.indexOf('_calPendingEdits[pid]') > calTweakAck
     && calReview.indexOf('_writeUiBindRepairAck(post, committedBatch, acknowledgement)') > calTweakAck
     && calReview.indexOf('_writeUiMergeCommittedBatch(pending, committedBatch)')
       > calReview.indexOf('_writeUiBindRepairAck(post, committedBatch, acknowledgement)'),
-  'Calendar keeps the composite tweak private until comment acknowledgement, then merges and binds it into pending');
-  assert(sxrReview.includes('_sxrReviewState.drafts[key] = body')
+  'Calendar preserves the raw draft, defers legacy notification, and keeps the composite tweak private until acknowledgement');
+  assert(sxrReview.includes('const body = rawDraft.trim()')
+    && sxrReview.includes('_sxrReviewState.drafts[key] = rawDraft')
     && sxrReview.indexOf('_sxrPendingEdits[pid]') > sxrTweakAck
     && sxrReview.indexOf('_writeUiBindRepairAck(post, committedBatch, acknowledgement)') > sxrTweakAck
     && sxrReview.indexOf('_writeUiMergeCommittedBatch(pending, committedBatch)')
       > sxrReview.indexOf('_writeUiBindRepairAck(post, committedBatch, acknowledgement)'),
-  'Samples keeps the composite tweak private until comment acknowledgement, then merges and binds it into pending');
+  'Samples preserves the raw draft and keeps the composite tweak private until comment acknowledgement');
   const calApprove = extract('_calReviewApplyApprove');
   const sxrApprove = extract('_sxrReviewApplyApprove');
   assert(calApprove.indexOf('_calFlushCardSave') < calApprove.indexOf('_calReviewRemoveCard'), 'Calendar review card is removed only after acknowledgement');

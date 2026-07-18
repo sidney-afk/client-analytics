@@ -1406,7 +1406,7 @@
         @keyframes staff-spin { to { transform: rotate(360deg); } }
         @keyframes staff-identity-check { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
         @media (max-width: 520px) {
-            .staff-account-popover { position: fixed; top: 56px; right: 14px; width: min(286px, calc(100vw - 28px)); }
+            .staff-account-popover { position: absolute; top: calc(100% + 10px); right: 0; width: min(286px, calc(100vw - 28px)); }
             .staff-auth-overlay { align-items: flex-end; padding: 12px; }
             .staff-auth-card { width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; border-radius: 18px; padding: 21px 18px calc(18px + env(safe-area-inset-bottom)); }
             .staff-auth-actions { display: grid; grid-template-columns: 1fr 1.25fr; }
@@ -6363,6 +6363,7 @@
         .sv-explain-label:focus-visible { background: var(--surface-subtle); box-shadow: 0 0 0 2px var(--focus-ring); text-decoration-color: currentColor; }
         .sv-select { position: relative; width: 100%; }
         .sv-select.is-disabled { opacity: 0.58; pointer-events: none; }
+        .sv-select-trigger, .sv-select-option, .sv-date-trigger, .sv-stepper-btn { -webkit-tap-highlight-color: transparent; }
         .sv-select-trigger, .sv-date-trigger { width: 100%; min-height: 44px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 12px; padding: 9px 12px; background: linear-gradient(180deg, var(--sv-bg-fff), var(--sv-bg-fbfbfa)); color: var(--text-primary); font: inherit; font-size: 0.78rem; font-weight: 700; text-align: left; outline: 0; cursor: pointer; display: flex; align-items: center; gap: 9px; transition: border-color 0.14s, box-shadow 0.14s, background 0.14s, transform 0.14s; }
         .sv-select-trigger:hover, .sv-date-trigger:hover { border-color: var(--sv-border-b9b9b4); background: var(--white); }
         .sv-select-trigger:focus-visible, .sv-date-trigger:focus-visible { border-color: var(--focus-ring); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-17-17-16-0_07); }
@@ -6412,6 +6413,7 @@
         .pto-notice[hidden] { display: none; }
         .pto-submit { grid-column: 1 / -1; min-height: 42px; border: 0; border-radius: 11px; padding: 10px 16px; background: var(--sv-bg-111110); color: var(--sv-fg-fff); font: inherit; font-size: 0.76rem; font-weight: 800; cursor: pointer; }
         .pto-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 7px 18px var(--sv-shadow-rgba-17-17-16-0_16); }
+        .pto-submit:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
         .pto-submit:disabled { opacity: 0.48; cursor: not-allowed; }
         .pto-form-error { grid-column: 1 / -1; color: var(--pto-negative); font-size: 0.68rem; font-weight: 650; line-height: 1.4; }
         .pto-status { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 8px; font-size: 0.59rem; font-weight: 800; text-transform: capitalize; white-space: nowrap; }
@@ -6426,9 +6428,19 @@
         .pto-table-note strong { color: var(--text-secondary); }
         .pto-table tr:last-child td { border-bottom: 0; }
         .pto-table strong { color: var(--text-primary); }
+        .pto-request-history-cards { display: none; }
+        .pto-request-history-card { display: grid; gap: 9px; border: 1px solid var(--border-light); border-left: 3px solid var(--text-muted); border-radius: 11px; padding: 12px; background: var(--surface-subtle); }
+        .pto-request-history-card.type-wellness { border-left-color: var(--sv-border-7c3aed); }
+        .pto-request-history-card.type-sick { border-left-color: var(--pto-negative); }
+        .pto-request-history-card.type-floating { border-left-color: var(--sv-border-fde047); }
+        .pto-request-history-top, .pto-request-history-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .pto-request-history-dates { color: var(--text-primary); font-size: 0.72rem; font-weight: 800; line-height: 1.4; }
+        .pto-request-history-meta { color: var(--text-muted); font-size: 0.63rem; font-weight: 700; }
+        .pto-request-history-actions { min-height: 30px; }
         .pto-negative { color: var(--pto-negative) !important; font-weight: 800; }
         .pto-row-btn { border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.63rem; font-weight: 750; cursor: pointer; }
         .pto-row-btn:hover { border-color: var(--text-muted); color: var(--text-primary); }
+        .pto-row-btn:disabled { opacity: 0.48; cursor: not-allowed; }
         .pto-empty { border: 1px dashed var(--border); border-radius: 12px; padding: 24px 16px; color: var(--text-muted); font-size: 0.72rem; line-height: 1.5; text-align: center; }
         .pto-calendar-card { grid-column: 1 / -1; }
         .pto-calendar-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
@@ -6478,6 +6490,9 @@
         .pto-history-row > div { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 7px; color: var(--text-secondary); font-size: 0.65rem; }
         .pto-history-row strong { color: var(--text-primary); font-size: 0.7rem; }
         .pto-history-row small { color: var(--text-muted); font-size: 0.59rem; display: grid; gap: 2px; }
+        .pto-history-note { border-radius: 8px; padding: 7px 9px; background: var(--bg); color: var(--text-secondary); font-size: 0.61rem; line-height: 1.4; }
+        .pto-history-note strong { font-size: inherit; }
+        .pto-table-scroll-cue { display: none; margin-bottom: 7px; color: var(--text-muted); font-size: 0.61rem; font-weight: 750; line-height: 1.35; }
         .pto-request-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
         .pto-request-card.type-wellness { border-left: 3px solid var(--sv-border-7c3aed); }
         .pto-request-card.type-sick { border-left: 3px solid var(--pto-negative); }
@@ -6490,8 +6505,10 @@
         .pto-decision { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 7px; margin-top: 11px; }
         .pto-decision input { min-width: 0; border: 1px solid var(--border); border-radius: 9px; background: var(--white); color: var(--text-primary); padding: 8px 10px; font: inherit; font-size: 0.68rem; }
         .pto-decision button { border: 0; border-radius: 9px; padding: 8px 11px; font: inherit; font-size: 0.64rem; font-weight: 800; cursor: pointer; }
+        .pto-decision button:disabled { opacity: 0.48; cursor: not-allowed; }
         .pto-decision .approve { background: var(--up-bg); color: var(--pto-positive); }
         .pto-decision .deny { background: var(--dn-bg); color: var(--pto-negative); }
+        .pto-request-card > .pto-notice { margin-top: 10px; }
         .pto-admin-form { display: grid; gap: 10px; }
         .pto-check { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 0.68rem; font-weight: 700; }
         .pto-check input { width: 16px; height: 16px; accent-color: var(--text-primary); }
@@ -6515,6 +6532,10 @@
             .pto-decision { grid-template-columns: 1fr 1fr; }
             .pto-decision input { grid-column: 1 / -1; }
             .pto-upcoming-row { align-items: flex-start; flex-direction: column; }
+            .pto-staff-history-table { display: none; }
+            .pto-request-history-cards { display: grid; gap: 9px; }
+            .pto-request-history-actions .pto-row-btn { min-width: 88px; min-height: 34px; }
+            .pto-table-scroll-cue { display: block; }
         }
 
         @media (max-width:760px) {
@@ -17650,14 +17671,16 @@
     let _ptoOverviewGeneration = 0;
     let _ptoAdminOverviewGeneration = 0;
     let _ptoQuoteGeneration = 0;
+    const PTO_API_TIMEOUT_MS = 20000;
     const _ptoState = {
         overview: null,
         loading: false,
         error: '',
         month: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
         monthInitialized: false,
+        writeOutcomeUnknown: false,
     };
-    const _ptoAdminState = { overview: null, loading: false, error: '' };
+    const _ptoAdminState = { overview: null, loading: false, error: '', writeOutcomeUnknown: false };
 
     function _ptoInvalidateOverviewCaches() {
         _ptoOverviewGeneration += 1;
@@ -17669,6 +17692,55 @@
         _ptoAdminState.overview = null;
         _ptoAdminState.error = '';
         _ptoAdminState.loading = false;
+    }
+    function _ptoUnknownWrite(error) {
+        return !!(error && error.ptoWriteOutcomeUnknown);
+    }
+    function _ptoStateConflict(error) {
+        return ['request_state_changed', 'request_not_pending', 'decision_conflict', 'cancel_not_allowed', 'request_not_found']
+            .includes(String(error && error.code || ''));
+    }
+    function _ptoShowToast(message) {
+        showToast(message);
+        const toast = _toastEl;
+        const viewport = window.visualViewport;
+        if (!toast || !viewport) return;
+        const placeInVisibleViewport = () => {
+            if (!toast.isConnected) return;
+            const current = window.visualViewport;
+            if (!current) return;
+            const centerDelta = current.offsetLeft + (current.width / 2) - (window.innerWidth / 2);
+            const bottomInset = Math.max(0, window.innerHeight - (current.offsetTop + current.height));
+            toast.style.left = 'calc(50% + ' + centerDelta + 'px)';
+            toast.style.maxWidth = 'min(calc(100vw - 24px), ' + Math.max(0, current.width - 24) + 'px)';
+            toast.style.top = 'auto';
+            toast.style.bottom = (bottomInset + 24) + 'px';
+        };
+        const syncVisibleViewport = () => {
+            placeInVisibleViewport();
+            requestAnimationFrame(placeInVisibleViewport);
+        };
+        syncVisibleViewport();
+        viewport.addEventListener('resize', syncVisibleViewport);
+        viewport.addEventListener('scroll', syncVisibleViewport);
+        window.addEventListener('resize', syncVisibleViewport);
+        setTimeout(() => {
+            viewport.removeEventListener('resize', syncVisibleViewport);
+            viewport.removeEventListener('scroll', syncVisibleViewport);
+            window.removeEventListener('resize', syncVisibleViewport);
+        }, 4000);
+    }
+    function _ptoBlockWrites(surface) {
+        const state = surface === 'admin' ? _ptoAdminState : _ptoState;
+        if (!state.writeOutcomeUnknown) return false;
+        _ptoShowToast('Refresh Time Off to confirm the last change before trying another update.');
+        return true;
+    }
+    async function _ptoRefreshAfterConflict(surface, message) {
+        _ptoShowToast(message || 'Time Off changed. Refreshing the latest state.');
+        _ptoInvalidateOverviewCaches();
+        if (surface === 'admin') await _ptoLoadAdmin(true);
+        else await _ptoLoadOverview(true);
     }
 
     function _ptoEsc(value) {
@@ -18027,6 +18099,11 @@
         if (code === 'floating_holiday_range') return 'Choose one business date for a floating holiday.';
         if (code === 'crosses_leave_year') return 'Paid requests cannot cross your hire-anniversary leave-year boundary. Submit separate requests.';
         if (code === 'request_state_changed') return 'Time Off changed while this form was open. Refresh and try again.';
+        if (code === 'request_not_pending') return 'This request was already decided or cancelled. SyncView will refresh the latest status.';
+        if (code === 'decision_conflict') return 'Another Time Off change happened during this decision. SyncView will refresh before you try again.';
+        if (code === 'cancel_not_allowed') return 'This request can no longer be cancelled. SyncView will refresh its current status.';
+        if (code === 'request_not_found') return 'This request is no longer available. SyncView will refresh the list.';
+        if (code === 'pto_service_failed') return 'Time Off is temporarily unavailable. Try again in a moment.';
         if (code === 'cancellation_audit_not_ready') return 'Approved leave cannot be cancelled until the private cancellation-audit migration is ready.';
         if (code === 'start_date_history_conflict') return 'This start date cannot be changed here because leave history already exists. Use a reviewed data correction so balances are not silently rewritten.';
         if (code === 'days_mismatch' || code === 'day_count_mismatch' || code === 'invalid_days') return 'Choose a half-day amount no larger than the business days in this range.';
@@ -18047,7 +18124,29 @@
             headers: _syncviewEfHeaders(method === 'GET' ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' }, PTO_EF_URL),
         };
         if (method !== 'GET') options.body = JSON.stringify(wire);
-        const response = await fetch(url, options);
+        const mutating = method !== 'GET' && action !== 'quote';
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        let timedOut = false;
+        const timeout = controller ? setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+        }, PTO_API_TIMEOUT_MS) : null;
+        if (controller) options.signal = controller.signal;
+        let response;
+        try {
+            response = await fetch(url, options);
+        } catch (cause) {
+            const error = new Error(mutating
+                ? 'SyncView could not confirm whether this change was saved. Refresh Time Off before trying again.'
+                : (timedOut
+                    ? 'Time Off took too long to respond. Try again.'
+                    : 'SyncView could not reach Time Off. Check your connection and try again.'));
+            error.code = mutating ? 'write_outcome_unknown' : (timedOut ? 'request_timeout' : 'network_error');
+            error.ptoWriteOutcomeUnknown = mutating;
+            throw error;
+        } finally {
+            if (timeout) clearTimeout(timeout);
+        }
         let json = null;
         try { json = await response.json(); } catch (e) {}
         if (json && (json.error === 'feature_disabled' || json.code === 'feature_disabled')) _ptoSetFlagValue({ mode: 'off' });
@@ -18193,6 +18292,7 @@
             const overview = await _ptoApi('overview', 'GET');
             if (generation !== _ptoOverviewGeneration) return;
             _ptoState.overview = overview;
+            _ptoState.writeOutcomeUnknown = false;
             const asOf = _ptoDate(_ptoState.overview && _ptoState.overview.as_of_date);
             if (asOf) {
                 const currentMonth = new Date(asOf.getFullYear(), asOf.getMonth(), 1);
@@ -18233,6 +18333,7 @@
         if (!overview) { root.innerHTML = _ptoLoadingHtml('Preparing Time Off'); return; }
         const balance = _ptoBalance(overview);
         const enabled = balance.pto_enabled !== false;
+        const writeLocked = _ptoState.writeOutcomeUnknown;
         const requests = (overview.my_requests || overview.requests || []).slice().sort((a, b) => String(b.requested_at || '').localeCompare(String(a.requested_at || '')));
         const members = Array.isArray(overview.members) ? overview.members : [];
         const availableClass = balance.wellness_available < 0 ? ' negative' : '';
@@ -18263,13 +18364,16 @@
             + '<div class="pto-field full"><label for="ptoDays">' + _svExplainLabel('days-requested', 'Days requested', 'This is calculated from your dates. Use minus or plus only when one endpoint is a half day.') + '</label>' + _svStepperHtml('ptoDays', '', { min: 0.5, step: 0.5, disabled: true, downTip: 'Use one half-day endpoint', upTip: 'Return to the full business-day count' }) + '<div class="pto-field-help" id="ptoDaysHelp">Choose a date range to count business days.</div></div>'
             + '<div class="pto-notice" id="ptoNotice" hidden>Less than 14 days’ notice. This is allowed, but the policy asks for two weeks when possible.</div>'
             + '<div class="pto-field full"><label for="ptoNote">Note <span style="font-weight:500;color:var(--text-muted);">(optional)</span></label><textarea id="ptoNote" maxlength="1000" placeholder="Anything Kasper should know"' + (enabled ? '' : ' disabled') + '></textarea></div>'
-            + '<div class="pto-form-error" id="ptoFormError" role="alert"></div><button class="pto-submit" id="ptoSubmit" type="submit"' + (enabled ? '' : ' disabled') + '>Send request</button></form></section>';
-        const requestRows = requests.length ? '<div class="pto-table-scroll"><table class="pto-table"><thead><tr><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th></th></tr></thead><tbody>' + requests.map(row => '<tr><td>' + _ptoTypePill(row.type) + '</td><td>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + (row.decision_note ? '<div class="pto-table-note"><strong>Decision note:</strong> ' + _ptoEsc(row.decision_note) + '</div>' : '') + '</td><td>' + _ptoFmtDays(row.days) + '</td><td>' + _ptoStatusHtml(row.status) + '</td><td>' + (String(row.status) === 'pending' ? '<button class="pto-row-btn" type="button" onclick="_ptoCancelRequest(' + _jsAttrArg(row.id) + ')">Cancel</button>' : '') + '</td></tr>').join('') + '</tbody></table></div>' : '<div class="pto-empty">No requests yet. Your submitted and past requests will stay here.</div>';
+            + '<div class="pto-form-error" id="ptoFormError" role="alert"></div><button class="pto-submit" id="ptoSubmit" type="submit"' + (enabled && !writeLocked ? '' : ' disabled') + '>' + (writeLocked ? 'Refresh to verify' : 'Send request') + '</button></form></section>';
+        const requestRows = requests.length ? '<div class="pto-table-scroll pto-staff-history-table"><table class="pto-table"><thead><tr><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th></th></tr></thead><tbody>' + requests.map(row => '<tr><td>' + _ptoTypePill(row.type) + '</td><td>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + (row.decision_note ? '<div class="pto-table-note"><strong>Decision note:</strong> ' + _ptoEsc(row.decision_note) + '</div>' : '') + '</td><td>' + _ptoFmtDays(row.days) + '</td><td>' + _ptoStatusHtml(row.status) + '</td><td>' + (String(row.status) === 'pending' ? '<button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoCancelRequest(' + _jsAttrArg(row.id) + ',this)">Cancel</button>' : '') + '</td></tr>').join('') + '</tbody></table></div>'
+            + '<div class="pto-request-history-cards">' + requests.map(row => '<article class="pto-request-history-card type-' + _svTone(row.type === 'floating_holiday' ? 'floating' : row.type) + '"><div class="pto-request-history-top">' + _ptoTypePill(row.type) + _ptoStatusHtml(row.status) + '</div><div class="pto-request-history-dates">' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + '</div>' + (row.decision_note ? '<div class="pto-table-note"><strong>Decision note:</strong> ' + _ptoEsc(row.decision_note) + '</div>' : '') + '<div class="pto-request-history-actions"><span class="pto-request-history-meta">' + _ptoFmtDays(row.days) + ' days requested</span>' + (String(row.status) === 'pending' ? '<button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoCancelRequest(' + _jsAttrArg(row.id) + ',this)">Cancel request</button>' : '') + '</div></article>').join('') + '</div>'
+            : '<div class="pto-empty">No requests yet. Your submitted and past requests will stay here.</div>';
         const historyHtml = '<section class="pto-card"><div class="pto-card-head"><div><div class="pto-card-title">My requests</div><div class="pto-card-sub">Pending requests can be cancelled before Kasper decides.</div></div></div>' + requestRows + '</section>';
         const memberRows = members.length ? members.map(member => '<tr><td><strong>' + _ptoEsc(member.name || 'Staff member') + '</strong></td><td class="' + (_ptoNumber(member.wellness_available) < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(member.wellness_available) + '</td><td>' + (member.on_leave_today ? '<span class="pto-status approved">Away today</span>' : '—') + '</td></tr>').join('') : '';
         const teamHtml = '<section class="pto-card"><div class="pto-card-head"><div><div class="pto-card-title">Team snapshot</div><div class="pto-card-sub">Available wellness days and who is away today.</div></div></div>' + (memberRows ? '<div class="pto-table-scroll"><table class="pto-table" style="min-width:420px"><thead><tr><th>Team member</th><th>Available</th><th>Today</th></tr></thead><tbody>' + memberRows + '</tbody></table></div>' : '<div class="pto-empty">No enabled team members yet.</div>') + '</section>';
         const refreshErrorHtml = _ptoState.error ? '<div class="pto-notice">Could not refresh Time Off. The data below may be out of date: ' + _ptoEsc(_ptoState.error) + '</div>' : '';
-        root.innerHTML = '<div class="pto-layout">' + refreshErrorHtml + '<div class="pto-stack">' + balanceHtml + requestHtml + '</div><div class="pto-stack">' + historyHtml + teamHtml + '</div><section class="pto-card pto-calendar-card">' + _ptoRenderCalendar(overview) + '</section></div>';
+        const writeUnknownHtml = writeLocked ? '<div class="pto-notice" role="status">SyncView could not confirm the last change. Select Refresh before sending or cancelling another request.</div>' : '';
+        root.innerHTML = '<div class="pto-layout">' + writeUnknownHtml + refreshErrorHtml + '<div class="pto-stack">' + balanceHtml + requestHtml + '</div><div class="pto-stack">' + historyHtml + teamHtml + '</div><section class="pto-card pto-calendar-card">' + _ptoRenderCalendar(overview) + '</section></div>';
         _ptoSyncRequestForm(false);
     }
     function _ptoApplyRequestDayBounds(fullDays, isFloating, resetDays, profileEnabled) {
@@ -18295,7 +18399,7 @@
         const days = document.getElementById('ptoDays');
         if (!button) return;
         button.dataset.quotePending = pending ? 'true' : 'false';
-        button.disabled = !!pending || !profileEnabled || !days || days.disabled || !String(days.value || '').trim();
+        button.disabled = _ptoState.writeOutcomeUnknown || !!pending || !profileEnabled || !days || days.disabled || !String(days.value || '').trim();
     }
     async function _ptoQuoteRequest(generation, type, start, end, isFloating, resetDays, profileEnabled) {
         const help = document.getElementById('ptoDaysHelp');
@@ -18373,6 +18477,7 @@
     }
     async function _ptoSubmitRequest(event) {
         event.preventDefault();
+        if (_ptoBlockWrites('staff')) return;
         const form = event.currentTarget;
         const button = document.getElementById('ptoSubmit');
         const errorBox = document.getElementById('ptoFormError');
@@ -18403,23 +18508,45 @@
         try {
             await _ptoApi('request', 'POST', { type, start_date: start, end_date: end, days, note });
             form.reset();
-            showToast('Time off request sent');
+            _ptoShowToast('Time off request sent');
             _ptoInvalidateOverviewCaches();
             await _ptoLoadOverview(true);
         } catch (error) {
             errorBox.textContent = error && error.message ? error.message : 'Could not send this request.';
+            if (_ptoUnknownWrite(error)) {
+                _ptoState.writeOutcomeUnknown = true;
+                button.disabled = true;
+                button.textContent = 'Refresh to verify';
+                return;
+            }
             button.disabled = false;
             button.textContent = 'Send request';
+            if (_ptoStateConflict(error)) await _ptoRefreshAfterConflict('staff', error.message);
         }
     }
-    function _ptoCancelRequest(requestId) {
+    function _ptoCancelRequest(requestId, button) {
+        if (_ptoBlockWrites('staff')) return;
         showConfirm('Cancel request', 'Cancel this pending time off request?', async () => {
+            if (button) button.disabled = true;
             try {
                 await _ptoApi('cancel', 'POST', { request_id: requestId });
-                showToast('Request cancelled');
+                _ptoShowToast('Request cancelled');
                 _ptoInvalidateOverviewCaches();
                 await _ptoLoadOverview(true);
-            } catch (error) { showToast(error && error.message ? error.message : 'Could not cancel this request'); }
+            } catch (error) {
+                const message = error && error.message ? error.message : 'Could not cancel this request';
+                if (_ptoUnknownWrite(error)) {
+                    _ptoState.writeOutcomeUnknown = true;
+                    _ptoShowToast(message);
+                    return;
+                }
+                if (_ptoStateConflict(error)) {
+                    await _ptoRefreshAfterConflict('staff', message);
+                    return;
+                }
+                _ptoShowToast(message);
+                if (button) button.disabled = false;
+            }
         }, 'Cancel request');
     }
     function _ptoRenderCalendar(overview) {
@@ -18482,6 +18609,7 @@
             const overview = await _ptoApi('overview', 'GET');
             if (generation !== _ptoAdminOverviewGeneration) return;
             _ptoAdminState.overview = overview;
+            _ptoAdminState.writeOutcomeUnknown = false;
             _kasperSetTabCount('time-off', _ptoAdminPending(_ptoAdminState.overview).length);
         } catch (error) {
             if (generation !== _ptoAdminOverviewGeneration) return;
@@ -18519,9 +18647,10 @@
         const upcoming = _ptoAdminUpcoming(overview);
         const recent = _ptoAdminRecent(overview);
         const members = _ptoAdminMemberRows(overview);
+        const writeLocked = _ptoAdminState.writeOutcomeUnknown;
         _kasperSetTabCount('time-off', pending.length);
-        const queue = pending.length ? pending.map(row => '<article class="pto-request-card type-' + _svTone(row.type === 'floating_holiday' ? 'floating' : row.type) + '"><div class="pto-request-top"><div><div class="pto-request-name">' + _ptoEsc(row.member_name || row.name || 'Team member') + '</div><div class="pto-request-meta">' + _ptoTypePill(row.type) + '<span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + ' · ' + _ptoFmtDays(row.days) + ' days</span></div></div>' + _ptoStatusHtml(row.status || 'pending') + '</div>' + (row.note ? '<div class="pto-request-note">' + _ptoEsc(row.note) + '</div>' : '') + '<div class="pto-decision"><input type="text" maxlength="1000" data-pto-decision-note placeholder="Decision note (optional)" aria-label="Decision note for ' + _ptoAttr(row.member_name || row.name || 'request') + '"><button class="approve" type="button" onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'approved\',this)">Approve</button><button class="deny" type="button" onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'denied\',this)">Deny</button></div></article>').join('') : '<div class="pto-empty">No pending requests.</div>';
-        const upcomingRows = upcoming.length ? upcoming.map(row => '<div class="pto-upcoming-row"><div><strong>' + _ptoEsc(row.member_name || row.name || 'Team member') + '</strong><div class="pto-request-meta">' + _ptoTypePill(row.type) + '<span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + ' · ' + _ptoFmtDays(row.days) + ' days</span></div></div><button class="pto-row-btn" type="button" onclick="_ptoAdminCancel(' + _jsAttrArg(row.id) + ',this)">Cancel leave</button></div>').join('') : '<div class="pto-empty">No upcoming approved leave.</div>';
+        const queue = pending.length ? pending.map(row => '<article class="pto-request-card type-' + _svTone(row.type === 'floating_holiday' ? 'floating' : row.type) + '"><div class="pto-request-top"><div><div class="pto-request-name">' + _ptoEsc(row.member_name || row.name || 'Team member') + '</div><div class="pto-request-meta">' + _ptoTypePill(row.type) + '<span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + ' · ' + _ptoFmtDays(row.days) + ' days</span></div></div>' + _ptoStatusHtml(row.status || 'pending') + '</div>' + (row.note ? '<div class="pto-request-note">' + _ptoEsc(row.note) + '</div>' : '') + '<div class="pto-decision"><input type="text" maxlength="1000" data-pto-decision-note placeholder="Decision note (optional)" aria-label="Decision note for ' + _ptoAttr(row.member_name || row.name || 'request') + '"><button class="approve" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'approved\',this)">Approve</button><button class="deny" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'denied\',this)">Deny</button></div></article>').join('') : '<div class="pto-empty">No pending requests.</div>';
+        const upcomingRows = upcoming.length ? upcoming.map(row => '<div class="pto-upcoming-row"><div><strong>' + _ptoEsc(row.member_name || row.name || 'Team member') + '</strong><div class="pto-request-meta">' + _ptoTypePill(row.type) + '<span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + ' · ' + _ptoFmtDays(row.days) + ' days</span></div></div><button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminCancel(' + _jsAttrArg(row.id) + ',this)">Cancel leave</button></div>').join('') : '<div class="pto-empty">No upcoming approved leave.</div>';
         const recentRows = recent.length ? recent.map(row => {
             const wasCancelled = String(row.status) === 'cancelled';
             const decisionAttribution = wasCancelled && row.cancelled_by && row.decided_by
@@ -18530,7 +18659,8 @@
             const currentAttribution = wasCancelled
                 ? (row.cancelled_by ? _ptoEsc('Cancelled by ' + row.cancelled_by) + (row.cancelled_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.cancelled_at)) : '') : 'Cancellation attribution unavailable')
                 : (row.decided_by ? _ptoEsc('Decided by ' + row.decided_by) + (row.decided_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.decided_at)) : '') : 'Decision attribution unavailable');
-            return '<div class="pto-history-row"><div><strong>' + _ptoEsc(row.member_name || row.name || 'Team member') + '</strong><span>' + _ptoTypePill(row.type) + '</span></div><div><span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + '</span><span>' + _ptoStatusHtml(row.status) + '</span></div><small>' + decisionAttribution + '<span>' + currentAttribution + '</span></small></div>';
+            const decisionNote = String(row.decision_note || '').trim();
+            return '<div class="pto-history-row"><div><strong>' + _ptoEsc(row.member_name || row.name || 'Team member') + '</strong><span>' + _ptoTypePill(row.type) + '</span></div><div><span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + '</span><span>' + _ptoStatusHtml(row.status) + '</span></div>' + (decisionNote ? '<div class="pto-history-note"><strong>Decision note:</strong> ' + _ptoEsc(decisionNote) + '</div>' : '') + '<small>' + decisionAttribution + '<span>' + currentAttribution + '</span></small></div>';
         }).join('') : '<div class="pto-empty">No completed requests yet.</div>';
         const balanceRows = members.length ? members.map(member => '<tr><td><strong>' + _ptoEsc(member.name || 'Team member') + '</strong></td><td>' + _ptoEsc(_ptoFmtDate(member.pto_start_date)) + '</td><td>' + _ptoFmtDays(member.wellness_granted) + '</td><td>' + _ptoFmtDays(member.wellness_approved_used != null ? member.wellness_approved_used : member.wellness_used) + '</td><td>' + (_ptoNumber(member.wellness_adjustment) > 0 ? '+' : '') + _ptoFmtDays(member.wellness_adjustment) + '</td><td class="' + (_ptoNumber(member.wellness_available) < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(member.wellness_available) + '</td><td class="' + (_ptoNumber(member.sick_available) < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(member.sick_available) + '</td><td>' + (member.pto_enabled ? 'Enabled' : 'Off') + '</td></tr>').join('') : '';
         const memberNameCounts = members.reduce((counts, member) => {
@@ -18546,11 +18676,12 @@
         });
         const kindItems = [{ value: 'wellness', label: 'Wellness', tone: 'wellness' }, { value: 'sick', label: 'Sick', tone: 'sick' }];
         const asOf = String(overview.as_of_date || _ptoTodayIso());
-        root.innerHTML = '<div class="pto-admin"><div class="pto-card-head"><div><div class="pto-card-title">Time Off</div><div class="pto-card-sub">Approve requests, review balances, and maintain contractor PTO setup.</div></div><button class="pto-refresh" type="button" onclick="_ptoLoadAdmin(true)">Refresh</button></div><div class="pto-admin-grid">'
+        const writeUnknownHtml = writeLocked ? '<div class="pto-notice" role="status">SyncView could not confirm the last admin change. Select Refresh before making another update.</div>' : '';
+        root.innerHTML = '<div class="pto-admin"><div class="pto-card-head"><div><div class="pto-card-title">Time Off</div><div class="pto-card-sub">Approve requests, review balances, and maintain contractor PTO setup.</div></div><button class="pto-refresh" type="button" onclick="_ptoLoadAdmin(true)">Refresh</button></div>' + writeUnknownHtml + '<div class="pto-admin-grid">'
             + '<section class="pto-admin-card full"><div class="pto-admin-title-row">' + _svExplainLabel('pending-requests', 'Pending requests', 'The server re-checks policy and available balance at the moment an approval is saved.', 'pto-admin-title') + '<span class="pto-status pending">' + pending.length + '</span></div><div class="pto-admin-sub">Review the request, then approve or deny it.</div><div class="pto-admin-queue">' + queue + '</div><div class="pto-admin-section-break"><div><div class="pto-admin-title">Upcoming approved leave</div><div class="pto-admin-sub">Future approvals can be cancelled here without erasing the original decision record.</div></div><span class="pto-status approved">' + upcoming.length + '</span></div><div class="pto-upcoming-list">' + upcomingRows + '</div><details class="pto-admin-history"><summary>Recent decisions and cancellations <span>' + recent.length + '</span></summary><div class="pto-history-list">' + recentRows + '</div></details></section>'
-            + '<section class="pto-admin-card full"><div class="pto-admin-title-row">' + _svExplainLabel('member-balances', 'Member balances', 'Available equals granted minus approved leave, plus or minus adjustments. Credits are shown separately so usage stays understandable.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Approved leave and corrections are separated; negative availability stays red.</div>' + (balanceRows ? '<div class="pto-table-scroll"><table class="pto-table"><thead><tr><th>Member</th><th>Start date</th><th>Granted</th><th>Approved</th><th>Adjustments</th><th>Available</th><th>Sick left</th><th>PTO</th></tr></thead><tbody>' + balanceRows + '</tbody></table></div>' : '<div class="pto-empty">No PTO members have been configured.</div>') + '</section>'
-            + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('member-setup', 'Member setup', 'The start date is private. Enabling PTO lets this person view balances and submit requests.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Set a confirmed contractor\'s private PTO start date.</div><form class="pto-admin-form" onsubmit="_ptoAdminSetMember(event)" oninput="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')" onchange="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')"><div class="pto-field"><label for="ptoAdminMemberBtn">Team member</label>' + _svSelectHtml('ptoAdminMember', memberItems, '', 'Choose member', { onchange: '_ptoAdminPickMember(this.value)' }) + '</div><div class="pto-field"><label for="ptoAdminStartBtn">PTO start date</label>' + _svDateHtml('ptoAdminStart', '', { required: true, today: asOf, max: asOf }) + '</div><label class="pto-check"><input id="ptoAdminEnabled" type="checkbox"> ' + _svExplainLabel('pto-enabled', 'PTO enabled', 'Lets this person view balances and submit Time Off requests.') + '</label><button class="pto-submit" type="submit">Save member</button><div class="pto-form-error" id="ptoAdminMemberError" role="alert"></div></form></section>'
-            + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('add-adjustment', 'Add adjustment', 'Corrections are auditable balance entries. Positive adds days; negative removes days.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Add a signed correction in half-day steps.</div><form class="pto-admin-form" onsubmit="_ptoAdminAdjust(event)" oninput="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')" onchange="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')"><div class="pto-field"><label for="ptoAdjustMemberBtn">Team member</label>' + _svSelectHtml('ptoAdjustMember', memberItems, '', 'Choose member') + '</div><div class="pto-form"><div class="pto-field"><label for="ptoAdjustKindBtn">Balance</label>' + _svSelectHtml('ptoAdjustKind', kindItems, 'wellness', 'Choose balance') + '</div><div class="pto-field"><label for="ptoAdjustDelta">' + _svExplainLabel('adjustment-days', 'Days', 'Positive adds days; negative removes days. Zero is not allowed, and half-day steps are accepted.') + '</label>' + _svStepperHtml('ptoAdjustDelta', '', { step: 0.5, required: true, placeholder: '-1.0', downTip: 'Remove half a day', upTip: 'Add half a day' }) + '</div></div><div class="pto-field"><label for="ptoAdjustDateBtn">' + _svExplainLabel('adjustment-effective-date', 'Effective date', 'This date decides which anniversary leave year receives the correction.') + '</label>' + _svDateHtml('ptoAdjustDate', asOf, { required: true, today: asOf }) + '</div><div class="pto-field"><label for="ptoAdjustReason">Reason</label><input id="ptoAdjustReason" type="text" maxlength="500" required placeholder="Migration or correction note"></div><button class="pto-submit" type="submit">Add adjustment</button><div class="pto-form-error" id="ptoAdjustError" role="alert"></div></form></section>'
+            + '<section class="pto-admin-card full"><div class="pto-admin-title-row">' + _svExplainLabel('member-balances', 'Member balances', 'Available equals granted minus approved leave, plus or minus adjustments. Credits are shown separately so usage stays understandable.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Approved leave and corrections are separated; negative availability stays red.</div>' + (balanceRows ? '<div class="pto-table-scroll-cue">Swipe sideways to view all balance columns →</div><div class="pto-table-scroll" tabindex="0" aria-label="Member balances; scroll horizontally to view all columns"><table class="pto-table"><thead><tr><th>Member</th><th>Start date</th><th>Granted</th><th>Approved</th><th>Adjustments</th><th>Available</th><th>Sick left</th><th>PTO</th></tr></thead><tbody>' + balanceRows + '</tbody></table></div>' : '<div class="pto-empty">No PTO members have been configured.</div>') + '</section>'
+            + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('member-setup', 'Member setup', 'The start date is private. Enabling PTO lets this person view balances and submit requests.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Set a confirmed contractor\'s private PTO start date.</div><form class="pto-admin-form" onsubmit="_ptoAdminSetMember(event)" oninput="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')" onchange="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')"><div class="pto-field"><label for="ptoAdminMemberBtn">Team member</label>' + _svSelectHtml('ptoAdminMember', memberItems, '', 'Choose member', { onchange: '_ptoAdminPickMember(this.value)' }) + '</div><div class="pto-field"><label for="ptoAdminStartBtn">PTO start date</label>' + _svDateHtml('ptoAdminStart', '', { required: true, today: asOf, max: asOf }) + '</div><label class="pto-check"><input id="ptoAdminEnabled" type="checkbox"> ' + _svExplainLabel('pto-enabled', 'PTO enabled', 'Lets this person view balances and submit Time Off requests.') + '</label><button class="pto-submit" type="submit"' + (writeLocked ? ' disabled' : '') + '>Save member</button><div class="pto-form-error" id="ptoAdminMemberError" role="alert"></div></form></section>'
+            + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('add-adjustment', 'Add adjustment', 'Corrections are auditable balance entries. Positive adds days; negative removes days.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Add a signed correction in half-day steps.</div><form class="pto-admin-form" onsubmit="_ptoAdminAdjust(event)" oninput="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')" onchange="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')"><div class="pto-field"><label for="ptoAdjustMemberBtn">Team member</label>' + _svSelectHtml('ptoAdjustMember', memberItems, '', 'Choose member') + '</div><div class="pto-form"><div class="pto-field"><label for="ptoAdjustKindBtn">Balance</label>' + _svSelectHtml('ptoAdjustKind', kindItems, 'wellness', 'Choose balance') + '</div><div class="pto-field"><label for="ptoAdjustDelta">' + _svExplainLabel('adjustment-days', 'Days', 'Positive adds days; negative removes days. Zero is not allowed, and half-day steps are accepted.') + '</label>' + _svStepperHtml('ptoAdjustDelta', '', { step: 0.5, required: true, placeholder: '-1.0', downTip: 'Remove half a day', upTip: 'Add half a day' }) + '</div></div><div class="pto-field"><label for="ptoAdjustDateBtn">' + _svExplainLabel('adjustment-effective-date', 'Effective date', 'This date decides which anniversary leave year receives the correction.') + '</label>' + _svDateHtml('ptoAdjustDate', asOf, { required: true, today: asOf }) + '</div><div class="pto-field"><label for="ptoAdjustReason">Reason</label><input id="ptoAdjustReason" type="text" maxlength="500" required placeholder="Migration or correction note"></div><button class="pto-submit" type="submit"' + (writeLocked ? ' disabled' : '') + '>Add adjustment</button><div class="pto-form-error" id="ptoAdjustError" role="alert"></div></form></section>'
             + '</div></div>';
     }
     function _ptoAdminPickMember(memberId) {
@@ -18562,35 +18693,79 @@
         _svSyncDateControl('ptoAdminStart');
     }
     async function _ptoAdminDecide(requestId, decision, button) {
+        if (_ptoBlockWrites('admin')) return;
         const card = button && button.closest('.pto-request-card');
         const note = card && card.querySelector('[data-pto-decision-note]');
         if (card) card.querySelectorAll('button, input').forEach(element => { element.disabled = true; });
         try {
             await _ptoApi('decide', 'POST', { request_id: requestId, decision, decision_note: note ? note.value.trim() : '' });
-            showToast(decision === 'approved' ? 'Request approved' : 'Request denied');
+            _ptoShowToast(decision === 'approved' ? 'Request approved' : 'Request denied');
             _ptoInvalidateOverviewCaches();
             await _ptoLoadAdmin(true);
         } catch (error) {
-            showToast(error && error.message ? error.message : 'Could not decide this request');
+            const message = error && error.message ? error.message : 'Could not decide this request';
+            if (error && error.code === 'member_inactive' && decision === 'approved' && card) {
+                _ptoShowToast(message);
+                const approve = card.querySelector('button.approve');
+                const deny = card.querySelector('button.deny');
+                if (approve) {
+                    approve.disabled = true;
+                    approve.title = 'Inactive staff profiles cannot be approved';
+                }
+                if (note) note.disabled = false;
+                if (deny) deny.disabled = false;
+                let notice = card.querySelector('[data-pto-inactive-note]');
+                if (!notice) {
+                    notice = document.createElement('div');
+                    notice.className = 'pto-notice';
+                    notice.dataset.ptoInactiveNote = 'true';
+                    notice.setAttribute('role', 'status');
+                    card.insertBefore(notice, card.querySelector('.pto-decision'));
+                }
+                notice.textContent = 'This profile is inactive. Approval is unavailable; deny the request to close it.';
+                return;
+            }
+            if (_ptoUnknownWrite(error)) {
+                _ptoAdminState.writeOutcomeUnknown = true;
+                _ptoShowToast(message);
+                return;
+            }
+            if (_ptoStateConflict(error)) {
+                await _ptoRefreshAfterConflict('admin', message);
+                return;
+            }
+            _ptoShowToast(message);
             if (card) card.querySelectorAll('button, input').forEach(element => { element.disabled = false; });
         }
     }
     function _ptoAdminCancel(requestId, button) {
+        if (_ptoBlockWrites('admin')) return;
         showConfirm('Cancel approved leave', 'Remove this future approved leave from the team calendar? The original approval record will be preserved.', async () => {
             if (button) button.disabled = true;
             try {
                 await _ptoApi('cancel', 'POST', { request_id: requestId });
-                showToast('Approved leave cancelled');
+                _ptoShowToast('Approved leave cancelled');
                 _ptoInvalidateOverviewCaches();
                 await _ptoLoadAdmin(true);
             } catch (error) {
+                const message = error && error.message ? error.message : 'Could not cancel this leave';
+                if (_ptoUnknownWrite(error)) {
+                    _ptoAdminState.writeOutcomeUnknown = true;
+                    _ptoShowToast(message);
+                    return;
+                }
+                if (_ptoStateConflict(error)) {
+                    await _ptoRefreshAfterConflict('admin', message);
+                    return;
+                }
+                _ptoShowToast(message);
                 if (button) button.disabled = false;
-                showToast(error && error.message ? error.message : 'Could not cancel this leave');
             }
         }, 'Cancel leave');
     }
     async function _ptoAdminSetMember(event) {
         event.preventDefault();
+        if (_ptoBlockWrites('admin')) return;
         const errorBox = document.getElementById('ptoAdminMemberError');
         const button = event.currentTarget.querySelector('button[type="submit"]');
         const payload = { member_id: document.getElementById('ptoAdminMember').value, pto_start_date: document.getElementById('ptoAdminStart').value, pto_enabled: document.getElementById('ptoAdminEnabled').checked };
@@ -18600,13 +18775,25 @@
         button.disabled = true;
         try {
             await _ptoApi('set_start_date', 'POST', payload);
-            showToast('PTO member saved');
+            _ptoShowToast('PTO member saved');
             _ptoInvalidateOverviewCaches();
             await _ptoLoadAdmin(true);
-        } catch (error) { errorBox.textContent = error && error.message ? error.message : 'Could not save this member.'; button.disabled = false; }
+        } catch (error) {
+            errorBox.textContent = error && error.message ? error.message : 'Could not save this member.';
+            if (_ptoUnknownWrite(error)) {
+                _ptoAdminState.writeOutcomeUnknown = true;
+                return;
+            }
+            if (_ptoStateConflict(error)) {
+                await _ptoRefreshAfterConflict('admin', error.message);
+                return;
+            }
+            button.disabled = false;
+        }
     }
     async function _ptoAdminAdjust(event) {
         event.preventDefault();
+        if (_ptoBlockWrites('admin')) return;
         const errorBox = document.getElementById('ptoAdjustError');
         const button = event.currentTarget.querySelector('button[type="submit"]');
         const memberId = document.getElementById('ptoAdjustMember').value;
@@ -18621,10 +18808,21 @@
         button.disabled = true;
         try {
             await _ptoApi('adjust', 'POST', payload);
-            showToast('Balance adjustment added');
+            _ptoShowToast('Balance adjustment added');
             _ptoInvalidateOverviewCaches();
             await _ptoLoadAdmin(true);
-        } catch (error) { errorBox.textContent = error && error.message ? error.message : 'Could not add this adjustment.'; button.disabled = false; }
+        } catch (error) {
+            errorBox.textContent = error && error.message ? error.message : 'Could not add this adjustment.';
+            if (_ptoUnknownWrite(error)) {
+                _ptoAdminState.writeOutcomeUnknown = true;
+                return;
+            }
+            if (_ptoStateConflict(error)) {
+                await _ptoRefreshAfterConflict('admin', error.message);
+                return;
+            }
+            button.disabled = false;
+        }
     }
 
     const SRP_OVERALL = ['On track', 'Minor friction', 'Needs your attention', 'Blocked'];
@@ -51375,17 +51573,22 @@
             dpEl.style.left = '0px';
             const t = dpTriggerEl.getBoundingClientRect();
             const r = dpEl.getBoundingClientRect();
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
+            const viewport = window.visualViewport;
+            const viewportLeft = viewport ? viewport.offsetLeft : 0;
+            const viewportTop = viewport ? viewport.offsetTop : 0;
+            const viewportWidth = viewport ? viewport.width : (document.documentElement.clientWidth || window.innerWidth);
+            const viewportHeight = viewport ? viewport.height : (document.documentElement.clientHeight || window.innerHeight);
+            const viewportRight = viewportLeft + viewportWidth;
+            const viewportBottom = viewportTop + viewportHeight;
             const margin = 6, edge = 8;
             // Prefer below the chip; flip above when there isn't room.
             let top = t.bottom + margin;
-            if (top + r.height > vh - edge) {
-                top = Math.max(edge, t.top - r.height - margin);
+            if (top + r.height > viewportBottom - edge) {
+                top = Math.max(viewportTop + edge, t.top - r.height - margin);
             }
             let left = t.left;
-            if (left + r.width > vw - edge) left = vw - r.width - edge;
-            if (left < edge) left = edge;
+            if (left + r.width > viewportRight - edge) left = viewportRight - r.width - edge;
+            if (left < viewportLeft + edge) left = viewportLeft + edge;
             dpEl.style.top = top + 'px';
             dpEl.style.left = left + 'px';
         }
@@ -51434,7 +51637,13 @@
             // Reposition AFTER innerHTML in case content height changed
             // (the grid is always 6 rows so this is mostly a no-op).
             position();
-            if (focusDay) dpEl.querySelector(`[data-dp-day="${focusedISO}"]`)?.focus();
+            if (focusDay) {
+                const day = dpEl.querySelector(`[data-dp-day="${focusedISO}"]`);
+                if (day) {
+                    try { day.focus({ preventScroll: true }); }
+                    catch (_) { day.focus(); }
+                }
+            }
         }
 
         function commit(iso) {
@@ -51467,6 +51676,10 @@
             document.removeEventListener('keydown', keyHandler);
             window.removeEventListener('scroll', viewportChange, true);
             window.removeEventListener('resize', viewportChange);
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('scroll', viewportChange);
+                window.visualViewport.removeEventListener('resize', viewportChange);
+            }
             if (returnFocus && trigger && document.contains(trigger)) trigger.focus();
         }
         function viewportChange() {
@@ -51509,6 +51722,10 @@
             // scrolling, and close it if a rerender removes its trigger.
             window.addEventListener('scroll', viewportChange, true);
             window.addEventListener('resize', viewportChange);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('scroll', viewportChange);
+                window.visualViewport.addEventListener('resize', viewportChange);
+            }
             dpDisconnectObserver = new MutationObserver(function () {
                 if (dpTriggerEl && !document.contains(dpTriggerEl)) close(false);
             });

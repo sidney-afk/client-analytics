@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PTO lifecycle simulation · synthetic visual evidence</title>
+  <style>
+    :root{color-scheme:light dark;font-family:Inter,system-ui,sans-serif}
+    body{margin:0;background:#101114;color:#f8fafc}
+    header{position:sticky;top:0;z-index:2;padding:22px 28px;background:rgba(16,17,20,.95);border-bottom:1px solid #30333a;backdrop-filter:blur(12px)}
+    h1,h2,p{margin:0} h1{font-size:20px} header p{margin-top:7px;color:#aeb5c2;font-size:13px}
+    main{padding:28px} section+section{margin-top:38px} h2{margin-bottom:15px;font-size:16px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px}
+    figure{margin:0;overflow:hidden;border:1px solid #30333a;border-radius:14px;background:#17191e}
+    img{display:block;width:100%;height:auto;max-height:760px;object-fit:contain;object-position:top;background:#fff}
+    figcaption{display:grid;gap:5px;padding:12px 14px} figcaption span,small{color:#aeb5c2;font-size:12px;line-height:1.4}
+    @media(max-width:600px){main{padding:16px}.grid{grid-template-columns:1fr}header{padding:18px}}
+  </style>
+</head>
+<body>
+  <header><h1>PTO lifecycle simulation</h1><p>Synthetic-only screenshots. Every frame follows an action and a visible-result assertion.</p></header>
+  <main>
+    <section>
+      <h2>desktop-full-lifecycle</h2>
+      <div class="grid">
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-01-open-staff-time-off.jpg"><img src="screenshots/desktop-full-lifecycle-01-open-staff-time-off.jpg" loading="lazy" alt="desktop-full-lifecycle, step 1, open staff Time Off"></a>
+            <figcaption><strong>01 · open staff Time Off</strong><span>The signed-in staff member sees an enabled balance, request form, own history, team snapshot, and calendar.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-02-open-branded-request-type-menu.jpg"><img src="screenshots/desktop-full-lifecycle-02-open-branded-request-type-menu.jpg" loading="lazy" alt="desktop-full-lifecycle, step 2, open branded request-type menu"></a>
+            <figcaption><strong>02 · open branded request-type menu</strong><span>The custom request-type list opens with clear colored options and no native browser dropdown.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-03-choose-unpaid-request-type.jpg"><img src="screenshots/desktop-full-lifecycle-03-choose-unpaid-request-type.jpg" loading="lazy" alt="desktop-full-lifecycle, step 3, choose unpaid request type"></a>
+            <figcaption><strong>03 · choose unpaid request type</strong><span>Unpaid becomes the selected branded option and the menu closes.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-04-open-branded-start-date-calendar.jpg"><img src="screenshots/desktop-full-lifecycle-04-open-branded-start-date-calendar.jpg" loading="lazy" alt="desktop-full-lifecycle, step 4, open branded start-date calendar"></a>
+            <figcaption><strong>04 · open branded start-date calendar</strong><span>The SyncView calendar opens with month navigation, weekday headers, and a clear date grid.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-05-choose-near-start-date.jpg"><img src="screenshots/desktop-full-lifecycle-05-choose-near-start-date.jpg" loading="lazy" alt="desktop-full-lifecycle, step 5, choose near start date"></a>
+            <figcaption><strong>05 · choose near start date</strong><span>The selected start date is shown in the branded field and the calendar closes.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-06-open-branded-end-date-calendar.jpg"><img src="screenshots/desktop-full-lifecycle-06-open-branded-end-date-calendar.jpg" loading="lazy" alt="desktop-full-lifecycle, step 6, open branded end-date calendar"></a>
+            <figcaption><strong>06 · open branded end-date calendar</strong><span>The end-date calendar opens in SyncView style with dates before the selected start disabled.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-07-quote-a-near-range.jpg"><img src="screenshots/desktop-full-lifecycle-07-quote-a-near-range.jpg" loading="lazy" alt="desktop-full-lifecycle, step 7, quote a near range"></a>
+            <figcaption><strong>07 · quote a near range</strong><span>Choosing the end date closes the calendar and the branded day stepper shows the local business-day total.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-08-decrease-the-quoted-day-count.jpg"><img src="screenshots/desktop-full-lifecycle-08-decrease-the-quoted-day-count.jpg" loading="lazy" alt="desktop-full-lifecycle, step 8, decrease the quoted day count"></a>
+            <figcaption><strong>08 · decrease the quoted day count</strong><span>The down-arrow changes the count by one half-day and keeps the control visually coherent.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-09-restore-the-full-quoted-day-count.jpg"><img src="screenshots/desktop-full-lifecycle-09-restore-the-full-quoted-day-count.jpg" loading="lazy" alt="desktop-full-lifecycle, step 9, restore the full quoted day count"></a>
+            <figcaption><strong>09 · restore the full quoted day count</strong><span>The up-arrow restores the original full-day count without sending a request.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-10-enter-a-request-note.jpg"><img src="screenshots/desktop-full-lifecycle-10-enter-a-request-note.jpg" loading="lazy" alt="desktop-full-lifecycle, step 10, enter a request note"></a>
+            <figcaption><strong>10 · enter a request note</strong><span>The note field visibly accepts plain-language context without submitting a request.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-11-clear-the-request-note-draft.jpg"><img src="screenshots/desktop-full-lifecycle-11-clear-the-request-note-draft.jpg" loading="lazy" alt="desktop-full-lifecycle, step 11, clear the request-note draft"></a>
+            <figcaption><strong>11 · clear the request-note draft</strong><span>The note field returns to a clean empty draft without changing PTO state.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-12-quote-a-far-range.jpg"><img src="screenshots/desktop-full-lifecycle-12-quote-a-far-range.jpg" loading="lazy" alt="desktop-full-lifecycle, step 12, quote a far range"></a>
+            <figcaption><strong>12 · quote a far range</strong><span>The form waits for the authenticated server quote, then shows a real business-day total without creating a request.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-13-submit-wellness-request.jpg"><img src="screenshots/desktop-full-lifecycle-13-submit-wellness-request.jpg" loading="lazy" alt="desktop-full-lifecycle, step 13, submit wellness request"></a>
+            <figcaption><strong>13 · submit wellness request</strong><span>The request appears as Pending in My requests while the visible wellness balance stays unchanged.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-14-kasper-opens-pending-queue.jpg"><img src="screenshots/desktop-full-lifecycle-14-kasper-opens-pending-queue.jpg" loading="lazy" alt="desktop-full-lifecycle, step 14, Kasper opens pending queue"></a>
+            <figcaption><strong>14 · Kasper opens pending queue</strong><span>Kasper sees the submitted request with decision-note, Approve, and Deny controls.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-15-enter-wellness-approval-note.jpg"><img src="screenshots/desktop-full-lifecycle-15-enter-wellness-approval-note.jpg" loading="lazy" alt="desktop-full-lifecycle, step 15, enter wellness approval note"></a>
+            <figcaption><strong>15 · enter wellness approval note</strong><span>Kasper can add a plain-English decision note before taking action.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-16-approve-wellness-request.jpg"><img src="screenshots/desktop-full-lifecycle-16-approve-wellness-request.jpg" loading="lazy" alt="desktop-full-lifecycle, step 16, approve wellness request"></a>
+            <figcaption><strong>16 · approve wellness request</strong><span>The request leaves Pending, appears in Upcoming Approved Leave, and the member balance visibly decreases.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-17-staff-refreshes-after-approval.jpg"><img src="screenshots/desktop-full-lifecycle-17-staff-refreshes-after-approval.jpg" loading="lazy" alt="desktop-full-lifecycle, step 17, staff refreshes after approval"></a>
+            <figcaption><strong>17 · staff refreshes after approval</strong><span>The staff member sees Approved with the decision note and a lower wellness balance.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-18-inspect-approved-team-calendar.jpg"><img src="screenshots/desktop-full-lifecycle-18-inspect-approved-team-calendar.jpg" loading="lazy" alt="desktop-full-lifecycle, step 18, inspect approved team calendar"></a>
+            <figcaption><strong>18 · inspect approved team calendar</strong><span>The approved future leave is visible on the shared team calendar and the Team snapshot shows the updated availability.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-19-open-approved-leave-cancellation-confirmation.jpg"><img src="screenshots/desktop-full-lifecycle-19-open-approved-leave-cancellation-confirmation.jpg" loading="lazy" alt="desktop-full-lifecycle, step 19, open approved-leave cancellation confirmation"></a>
+            <figcaption><strong>19 · open approved-leave cancellation confirmation</strong><span>Kasper sees a clear confirmation explaining that the calendar block will be removed while history remains.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-20-confirm-admin-cancellation.jpg"><img src="screenshots/desktop-full-lifecycle-20-confirm-admin-cancellation.jpg" loading="lazy" alt="desktop-full-lifecycle, step 20, confirm admin cancellation"></a>
+            <figcaption><strong>20 · confirm admin cancellation</strong><span>The approved block disappears from Upcoming Leave and history preserves both approval and cancellation attribution.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-21-staff-refreshes-after-admin-cancellation.jpg"><img src="screenshots/desktop-full-lifecycle-21-staff-refreshes-after-admin-cancellation.jpg" loading="lazy" alt="desktop-full-lifecycle, step 21, staff refreshes after admin cancellation"></a>
+            <figcaption><strong>21 · staff refreshes after admin cancellation</strong><span>The wellness balance is restored and the cancelled block is gone from the team calendar.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-22-submit-backdated-sick-request.jpg"><img src="screenshots/desktop-full-lifecycle-22-submit-backdated-sick-request.jpg" loading="lazy" alt="desktop-full-lifecycle, step 22, submit backdated sick request"></a>
+            <figcaption><strong>22 · submit backdated sick request</strong><span>Sick leave accepts the past business date and appears Pending without deducting the sick balance.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-23-approve-backdated-sick-request.jpg"><img src="screenshots/desktop-full-lifecycle-23-approve-backdated-sick-request.jpg" loading="lazy" alt="desktop-full-lifecycle, step 23, approve backdated sick request"></a>
+            <figcaption><strong>23 · approve backdated sick request</strong><span>Kasper approves with a note and the visible sick balance decreases after the decision.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-24-staff-sees-sick-decision.jpg"><img src="screenshots/desktop-full-lifecycle-24-staff-sees-sick-decision.jpg" loading="lazy" alt="desktop-full-lifecycle, step 24, staff sees sick decision"></a>
+            <figcaption><strong>24 · staff sees sick decision</strong><span>The sick request is Approved with its note and the sick-days metric visibly reads two.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-25-submit-unpaid-request.jpg"><img src="screenshots/desktop-full-lifecycle-25-submit-unpaid-request.jpg" loading="lazy" alt="desktop-full-lifecycle, step 25, submit unpaid request"></a>
+            <figcaption><strong>25 · submit unpaid request</strong><span>The unpaid request appears Pending and neither paid balance changes.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-26-enter-unpaid-denial-note.jpg"><img src="screenshots/desktop-full-lifecycle-26-enter-unpaid-denial-note.jpg" loading="lazy" alt="desktop-full-lifecycle, step 26, enter unpaid denial note"></a>
+            <figcaption><strong>26 · enter unpaid denial note</strong><span>Kasper can enter the reason for a denial while Approve and Deny remain clearly distinct.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-27-deny-unpaid-request.jpg"><img src="screenshots/desktop-full-lifecycle-27-deny-unpaid-request.jpg" loading="lazy" alt="desktop-full-lifecycle, step 27, deny unpaid request"></a>
+            <figcaption><strong>27 · deny unpaid request</strong><span>The request moves to Recent Decisions as Denied, the note is retained, and balances stay unchanged.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-28-submit-floating-holiday.jpg"><img src="screenshots/desktop-full-lifecycle-28-submit-floating-holiday.jpg" loading="lazy" alt="desktop-full-lifecycle, step 28, submit floating holiday"></a>
+            <figcaption><strong>28 · submit floating holiday</strong><span>The first floating holiday becomes Pending and visibly reserves the annual allowance.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-29-stale-tab-tries-a-second-floating-holiday.jpg"><img src="screenshots/desktop-full-lifecycle-29-stale-tab-tries-a-second-floating-holiday.jpg" loading="lazy" alt="desktop-full-lifecycle, step 29, stale tab tries a second floating holiday"></a>
+            <figcaption><strong>29 · stale tab tries a second floating holiday</strong><span>The server rejects the stale second request in plain English; no duplicate row is created.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-30-approve-floating-holiday.jpg"><img src="screenshots/desktop-full-lifecycle-30-approve-floating-holiday.jpg" loading="lazy" alt="desktop-full-lifecycle, step 30, approve floating holiday"></a>
+            <figcaption><strong>30 · approve floating holiday</strong><span>Kasper approves the reserved floating holiday and it moves to Upcoming Leave.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-31-staff-sees-floating-holiday-used.jpg"><img src="screenshots/desktop-full-lifecycle-31-staff-sees-floating-holiday-used.jpg" loading="lazy" alt="desktop-full-lifecycle, step 31, staff sees floating holiday used"></a>
+            <figcaption><strong>31 · staff sees floating holiday used</strong><span>The floating metric reads Used and the approved day renders on the calendar.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-32-submit-half-day-pending-request.jpg"><img src="screenshots/desktop-full-lifecycle-32-submit-half-day-pending-request.jpg" loading="lazy" alt="desktop-full-lifecycle, step 32, submit half-day pending request"></a>
+            <figcaption><strong>32 · submit half-day pending request</strong><span>A half-day wellness request appears Pending and does not yet reduce the balance.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-33-open-pending-request-cancellation-confirmation.jpg"><img src="screenshots/desktop-full-lifecycle-33-open-pending-request-cancellation-confirmation.jpg" loading="lazy" alt="desktop-full-lifecycle, step 33, open pending-request cancellation confirmation"></a>
+            <figcaption><strong>33 · open pending-request cancellation confirmation</strong><span>The staff member sees a clear confirmation before the pending request is cancelled.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-34-confirm-own-pending-cancellation.jpg"><img src="screenshots/desktop-full-lifecycle-34-confirm-own-pending-cancellation.jpg" loading="lazy" alt="desktop-full-lifecycle, step 34, confirm own pending cancellation"></a>
+            <figcaption><strong>34 · confirm own pending cancellation</strong><span>The pending request becomes Cancelled and the balance/calendar remain unchanged.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-35-try-request-above-available-balance.jpg"><img src="screenshots/desktop-full-lifecycle-35-try-request-above-available-balance.jpg" loading="lazy" alt="desktop-full-lifecycle, step 35, try request above available balance"></a>
+            <figcaption><strong>35 · try request above available balance</strong><span>The request is rejected in plain English, the form remains usable, and no row is created.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-36-second-same-role-staff-submits-unpaid.jpg"><img src="screenshots/desktop-full-lifecycle-36-second-same-role-staff-submits-unpaid.jpg" loading="lazy" alt="desktop-full-lifecycle, step 36, second same-role staff submits unpaid"></a>
+            <figcaption><strong>36 · second same-role staff submits unpaid</strong><span>A second creative-role persona sees only their own request history and submits one pending unpaid request.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-37-inactive-member-approval-is-blocked.jpg"><img src="screenshots/desktop-full-lifecycle-37-inactive-member-approval-is-blocked.jpg" loading="lazy" alt="desktop-full-lifecycle, step 37, inactive-member approval is blocked"></a>
+            <figcaption><strong>37 · inactive-member approval is blocked</strong><span>Kasper sees a plain-English inactive-profile error and the pending card remains available for cleanup.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/desktop-full-lifecycle-38-deny-inactive-request-for-cleanup.jpg"><img src="screenshots/desktop-full-lifecycle-38-deny-inactive-request-for-cleanup.jpg" loading="lazy" alt="desktop-full-lifecycle, step 38, deny inactive request for cleanup"></a>
+            <figcaption><strong>38 · deny inactive request for cleanup</strong><span>Kasper can deny the inactive member request and Recent Decisions accumulates the terminal row.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+      </div>
+    </section>
+    <section>
+      <h2>resilience-session-and-tabs</h2>
+      <div class="grid">
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-01-server-500-shows-retryable-error.jpg"><img src="screenshots/resilience-session-and-tabs-01-server-500-shows-retryable-error.jpg" loading="lazy" alt="resilience-session-and-tabs, step 1, server 500 shows retryable error"></a>
+            <figcaption><strong>01 · server 500 shows retryable error</strong><span>A temporary server failure appears in the form and Send request is enabled for an explicit retry.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-02-retry-succeeds-after-500.jpg"><img src="screenshots/resilience-session-and-tabs-02-retry-succeeds-after-500.jpg" loading="lazy" alt="resilience-session-and-tabs, step 2, retry succeeds after 500"></a>
+            <figcaption><strong>02 · retry succeeds after 500</strong><span>The unchanged form retries successfully and the pending row appears once.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-03-connection-drop-locks-unknown-write-outcome.jpg"><img src="screenshots/resilience-session-and-tabs-03-connection-drop-locks-unknown-write-outcome.jpg" loading="lazy" alt="resilience-session-and-tabs, step 3, connection drop locks unknown write outcome"></a>
+            <figcaption><strong>03 · connection drop locks unknown write outcome</strong><span>A dropped mutating connection says SyncView could not confirm the save and requires Refresh before another submission.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-04-refresh-reconciles-connection-drop.jpg"><img src="screenshots/resilience-session-and-tabs-04-refresh-reconciles-connection-drop.jpg" loading="lazy" alt="resilience-session-and-tabs, step 4, refresh reconciles connection drop"></a>
+            <figcaption><strong>04 · refresh reconciles connection drop</strong><span>Refresh confirms that no request was saved, clears the safety lock, and restores Send request.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-05-saved-request-loses-its-response.jpg"><img src="screenshots/resilience-session-and-tabs-05-saved-request-loses-its-response.jpg" loading="lazy" alt="resilience-session-and-tabs, step 5, saved request loses its response"></a>
+            <figcaption><strong>05 · saved request loses its response</strong><span>Even when the server saved the row before the response disappeared, the UI locks and does not invite a duplicate retry.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-06-refresh-finds-the-saved-request-once.jpg"><img src="screenshots/resilience-session-and-tabs-06-refresh-finds-the-saved-request-once.jpg" loading="lazy" alt="resilience-session-and-tabs, step 6, refresh finds the saved request once"></a>
+            <figcaption><strong>06 · refresh finds the saved request once</strong><span>Refresh reconciles the uncertain result and reveals exactly one Pending row without resubmission.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-07-slow-request-stays-visibly-in-flight.jpg"><img src="screenshots/resilience-session-and-tabs-07-slow-request-stays-visibly-in-flight.jpg" loading="lazy" alt="resilience-session-and-tabs, step 7, slow request stays visibly in flight"></a>
+            <figcaption><strong>07 · slow request stays visibly in flight</strong><span>A genuinely delayed response keeps Send disabled with an in-progress label and does not create an early row.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-08-slow-request-completes-once.jpg"><img src="screenshots/resilience-session-and-tabs-08-slow-request-completes-once.jpg" loading="lazy" alt="resilience-session-and-tabs, step 8, slow request completes once"></a>
+            <figcaption><strong>08 · slow request completes once</strong><span>The delayed response finishes normally and produces exactly one Pending request.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-09-hung-request-times-out-into-safe-lock.jpg"><img src="screenshots/resilience-session-and-tabs-09-hung-request-times-out-into-safe-lock.jpg" loading="lazy" alt="resilience-session-and-tabs, step 9, hung request times out into safe lock"></a>
+            <figcaption><strong>09 · hung request times out into safe lock</strong><span>A request that outlives the client timeout becomes an unknown write outcome and remains locked until Refresh.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-10-refresh-clears-hung-request-lock.jpg"><img src="screenshots/resilience-session-and-tabs-10-refresh-clears-hung-request-lock.jpg" loading="lazy" alt="resilience-session-and-tabs, step 10, refresh clears hung-request lock"></a>
+            <figcaption><strong>10 · refresh clears hung-request lock</strong><span>A successful read confirms no row and restores the request form without writing anything.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-11-double-click-send-request.jpg"><img src="screenshots/resilience-session-and-tabs-11-double-click-send-request.jpg" loading="lazy" alt="resilience-session-and-tabs, step 11, double-click Send request"></a>
+            <figcaption><strong>11 · double-click Send request</strong><span>A human double-click produces one API call and one pending request, with no duplicate row.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-12-submit-request-in-first-tab.jpg"><img src="screenshots/resilience-session-and-tabs-12-submit-request-in-first-tab.jpg" loading="lazy" alt="resilience-session-and-tabs, step 12, submit request in first tab"></a>
+            <figcaption><strong>12 · submit request in first tab</strong><span>The first tab shows the new pending request while the already-open second tab stays stale.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-13-second-tab-refreshes.jpg"><img src="screenshots/resilience-session-and-tabs-13-second-tab-refreshes.jpg" loading="lazy" alt="resilience-session-and-tabs, step 13, second tab refreshes"></a>
+            <figcaption><strong>13 · second tab refreshes</strong><span>The second tab explicitly refreshes and converges on the new pending request.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-14-second-tab-cancels-pending-request.jpg"><img src="screenshots/resilience-session-and-tabs-14-second-tab-cancels-pending-request.jpg" loading="lazy" alt="resilience-session-and-tabs, step 14, second tab cancels pending request"></a>
+            <figcaption><strong>14 · second tab cancels pending request</strong><span>The second tab cancels the request; the first tab remains stale until its own Refresh.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-15-first-tab-refreshes-after-cancellation.jpg"><img src="screenshots/resilience-session-and-tabs-15-first-tab-refreshes-after-cancellation.jpg" loading="lazy" alt="resilience-session-and-tabs, step 15, first tab refreshes after cancellation"></a>
+            <figcaption><strong>15 · first tab refreshes after cancellation</strong><span>The first tab converges on the cancelled state after an explicit Refresh.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-16-sign-out-with-a-draft-in-progress.jpg"><img src="screenshots/resilience-session-and-tabs-16-sign-out-with-a-draft-in-progress.jpg" loading="lazy" alt="resilience-session-and-tabs, step 16, sign out with a draft in progress"></a>
+            <figcaption><strong>16 · sign out with a draft in progress</strong><span>Signing out immediately removes the private PTO data and the unsent draft from every open tab.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/resilience-session-and-tabs-17-sign-in-as-second-same-role-persona.jpg"><img src="screenshots/resilience-session-and-tabs-17-sign-in-as-second-same-role-persona.jpg" loading="lazy" alt="resilience-session-and-tabs, step 17, sign in as second same-role persona"></a>
+            <figcaption><strong>17 · sign in as second same-role persona</strong><span>A different same-role staff member signs in and receives only their own fresh overview; the first draft is gone.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+      </div>
+    </section>
+    <section>
+      <h2>policy-time-travel</h2>
+      <div class="grid">
+          <figure>
+            <a href="screenshots/policy-time-travel-01-before-month-rollover.jpg"><img src="screenshots/policy-time-travel-01-before-month-rollover.jpg" loading="lazy" alt="policy-time-travel, step 1, before month rollover"></a>
+            <figcaption><strong>01 · before month rollover</strong><span>Refresh makes the policy-date balance transition visible using the production accrual engine.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/policy-time-travel-02-month-rollover-half-day-grant.jpg"><img src="screenshots/policy-time-travel-02-month-rollover-half-day-grant.jpg" loading="lazy" alt="policy-time-travel, step 2, month rollover half-day grant"></a>
+            <figcaption><strong>02 · month rollover half-day grant</strong><span>Refresh makes the policy-date balance transition visible using the production accrual engine.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/policy-time-travel-03-last-day-of-lower-rate-month.jpg"><img src="screenshots/policy-time-travel-03-last-day-of-lower-rate-month.jpg" loading="lazy" alt="policy-time-travel, step 3, last day of lower-rate month"></a>
+            <figcaption><strong>03 · last day of lower-rate month</strong><span>Refresh makes the policy-date balance transition visible using the production accrual engine.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/policy-time-travel-04-first-upper-rate-monthly-grant.jpg"><img src="screenshots/policy-time-travel-04-first-upper-rate-monthly-grant.jpg" loading="lazy" alt="policy-time-travel, step 4, first upper-rate monthly grant"></a>
+            <figcaption><strong>04 · first upper-rate monthly grant</strong><span>Refresh makes the policy-date balance transition visible using the production accrual engine.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/policy-time-travel-05-last-day-before-anniversary.jpg"><img src="screenshots/policy-time-travel-05-last-day-before-anniversary.jpg" loading="lazy" alt="policy-time-travel, step 5, last day before anniversary"></a>
+            <figcaption><strong>05 · last day before anniversary</strong><span>Refresh makes the policy-date balance transition visible using the production accrual engine.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/policy-time-travel-06-anniversary-reset.jpg"><img src="screenshots/policy-time-travel-06-anniversary-reset.jpg" loading="lazy" alt="policy-time-travel, step 6, anniversary reset"></a>
+            <figcaption><strong>06 · anniversary reset</strong><span>Refresh makes the policy-date balance transition visible using the production accrual engine.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/policy-time-travel-07-first-post-reset-monthly-grant.jpg"><img src="screenshots/policy-time-travel-07-first-post-reset-monthly-grant.jpg" loading="lazy" alt="policy-time-travel, step 7, first post-reset monthly grant"></a>
+            <figcaption><strong>07 · first post-reset monthly grant</strong><span>Refresh makes the policy-date balance transition visible using the production accrual engine.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/policy-time-travel-08-guatemala-18-00-stays-on-the-local-policy-date.jpg"><img src="screenshots/policy-time-travel-08-guatemala-18-00-stays-on-the-local-policy-date.jpg" loading="lazy" alt="policy-time-travel, step 8, Guatemala 18:00 stays on the local policy date"></a>
+            <figcaption><strong>08 · Guatemala 18:00 stays on the local policy date</strong><span>The server policy date keeps the request minimum and calendar Today marker on the Guatemala business day.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/policy-time-travel-09-guatemala-23-59-stays-on-the-local-policy-date.jpg"><img src="screenshots/policy-time-travel-09-guatemala-23-59-stays-on-the-local-policy-date.jpg" loading="lazy" alt="policy-time-travel, step 9, Guatemala 23:59 stays on the local policy date"></a>
+            <figcaption><strong>09 · Guatemala 23:59 stays on the local policy date</strong><span>The server policy date keeps the request minimum and calendar Today marker on the Guatemala business day.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/policy-time-travel-10-guatemala-midnight-advances-the-policy-date.jpg"><img src="screenshots/policy-time-travel-10-guatemala-midnight-advances-the-policy-date.jpg" loading="lazy" alt="policy-time-travel, step 10, Guatemala midnight advances the policy date"></a>
+            <figcaption><strong>10 · Guatemala midnight advances the policy date</strong><span>The server policy date keeps the request minimum and calendar Today marker on the Guatemala business day.</span><small>desktop · 1360×920 · ok</small></figcaption>
+          </figure>
+      </div>
+    </section>
+    <section>
+      <h2>mobile-390-happy-path</h2>
+      <div class="grid">
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-01-tap-open-the-mobile-staff-menu.jpg"><img src="screenshots/mobile-390-happy-path-01-tap-open-the-mobile-staff-menu.jpg" loading="lazy" alt="mobile-390-happy-path, step 1, tap open the mobile staff menu"></a>
+            <figcaption><strong>01 · tap open the mobile staff menu</strong><span>The staff menu opens beside its trigger and the Time Off item is visible inside the phone viewport.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-02-tap-time-off-in-the-mobile-staff-menu.jpg"><img src="screenshots/mobile-390-happy-path-02-tap-time-off-in-the-mobile-staff-menu.jpg" loading="lazy" alt="mobile-390-happy-path, step 2, tap Time Off in the mobile staff menu"></a>
+            <figcaption><strong>02 · tap Time Off in the mobile staff menu</strong><span>The balance, request form, history, and scrollable calendar fit the mobile viewport without page overflow.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-03-tap-open-the-mobile-request-type-menu.jpg"><img src="screenshots/mobile-390-happy-path-03-tap-open-the-mobile-request-type-menu.jpg" loading="lazy" alt="mobile-390-happy-path, step 3, tap open the mobile request-type menu"></a>
+            <figcaption><strong>03 · tap open the mobile request-type menu</strong><span>The branded type menu opens inside the 390px viewport without a native picker or clipping.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-04-tap-the-mobile-unpaid-option.jpg"><img src="screenshots/mobile-390-happy-path-04-tap-the-mobile-unpaid-option.jpg" loading="lazy" alt="mobile-390-happy-path, step 4, tap the mobile unpaid option"></a>
+            <figcaption><strong>04 · tap the mobile unpaid option</strong><span>Unpaid is selected and the touch menu closes cleanly.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-05-tap-open-the-mobile-date-calendar.jpg"><img src="screenshots/mobile-390-happy-path-05-tap-open-the-mobile-date-calendar.jpg" loading="lazy" alt="mobile-390-happy-path, step 5, tap open the mobile date calendar"></a>
+            <figcaption><strong>05 · tap open the mobile date calendar</strong><span>The branded calendar opens as a touch-friendly, viewport-contained panel.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-06-tap-the-mobile-calendar-next-month-arrow.jpg"><img src="screenshots/mobile-390-happy-path-06-tap-the-mobile-calendar-next-month-arrow.jpg" loading="lazy" alt="mobile-390-happy-path, step 6, tap the mobile calendar next-month arrow"></a>
+            <figcaption><strong>06 · tap the mobile calendar next-month arrow</strong><span>The calendar advances one month and keeps its touch target and layout visible.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-07-tap-the-mobile-request-date.jpg"><img src="screenshots/mobile-390-happy-path-07-tap-the-mobile-request-date.jpg" loading="lazy" alt="mobile-390-happy-path, step 7, tap the mobile request date"></a>
+            <figcaption><strong>07 · tap the mobile request date</strong><span>The selected start day closes the calendar and appears in the branded field.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-08-tap-open-the-mobile-end-date-calendar.jpg"><img src="screenshots/mobile-390-happy-path-08-tap-open-the-mobile-end-date-calendar.jpg" loading="lazy" alt="mobile-390-happy-path, step 8, tap open the mobile end-date calendar"></a>
+            <figcaption><strong>08 · tap open the mobile end-date calendar</strong><span>The end-date calendar opens in May with earlier dates disabled and remains inside the phone viewport.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-09-tap-the-matching-mobile-end-date.jpg"><img src="screenshots/mobile-390-happy-path-09-tap-the-matching-mobile-end-date.jpg" loading="lazy" alt="mobile-390-happy-path, step 9, tap the matching mobile end date"></a>
+            <figcaption><strong>09 · tap the matching mobile end date</strong><span>The matching end date closes the calendar and produces the exact one-day quote.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-10-tap-the-mobile-half-day-arrow.jpg"><img src="screenshots/mobile-390-happy-path-10-tap-the-mobile-half-day-arrow.jpg" loading="lazy" alt="mobile-390-happy-path, step 10, tap the mobile half-day arrow"></a>
+            <figcaption><strong>10 · tap the mobile half-day arrow</strong><span>The touch-friendly down arrow visibly changes the one-day quote to a half day.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-11-tap-the-mobile-full-day-arrow.jpg"><img src="screenshots/mobile-390-happy-path-11-tap-the-mobile-full-day-arrow.jpg" loading="lazy" alt="mobile-390-happy-path, step 11, tap the mobile full-day arrow"></a>
+            <figcaption><strong>11 · tap the mobile full-day arrow</strong><span>The touch-friendly up arrow visibly restores the full one-day quote.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-12-enter-the-mobile-request-note.jpg"><img src="screenshots/mobile-390-happy-path-12-enter-the-mobile-request-note.jpg" loading="lazy" alt="mobile-390-happy-path, step 12, enter the mobile request note"></a>
+            <figcaption><strong>12 · enter the mobile request note</strong><span>The mobile note field accepts the request context without horizontal overflow.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-13-submit-mobile-unpaid-request.jpg"><img src="screenshots/mobile-390-happy-path-13-submit-mobile-unpaid-request.jpg" loading="lazy" alt="mobile-390-happy-path, step 13, submit mobile unpaid request"></a>
+            <figcaption><strong>13 · submit mobile unpaid request</strong><span>The branded mobile controls submit one unpaid request and the Pending row is readable without native widgets.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-14-kasper-approves-on-mobile.jpg"><img src="screenshots/mobile-390-happy-path-14-kasper-approves-on-mobile.jpg" loading="lazy" alt="mobile-390-happy-path, step 14, Kasper approves on mobile"></a>
+            <figcaption><strong>14 · Kasper approves on mobile</strong><span>Kasper reviews and approves the mobile request with controls contained at 390px.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/mobile-390-happy-path-15-mobile-staff-sees-approved-result.jpg"><img src="screenshots/mobile-390-happy-path-15-mobile-staff-sees-approved-result.jpg" loading="lazy" alt="mobile-390-happy-path, step 15, mobile staff sees approved result"></a>
+            <figcaption><strong>15 · mobile staff sees approved result</strong><span>After Refresh, the mobile history shows Approved and unpaid leave leaves paid balances unchanged.</span><small>mobile-390 · 390×844 · ok</small></figcaption>
+          </figure>
+      </div>
+    </section>
+    <section>
+      <h2>keyboard-only-journey</h2>
+      <div class="grid">
+          <figure>
+            <a href="screenshots/keyboard-only-journey-01-keyboard-enters-time-off-and-reaches-request-type.jpg"><img src="screenshots/keyboard-only-journey-01-keyboard-enters-time-off-and-reaches-request-type.jpg" loading="lazy" alt="keyboard-only-journey, step 1, keyboard enters Time Off and reaches request type"></a>
+            <figcaption><strong>01 · keyboard enters Time Off and reaches request type</strong><span>Tab and Enter open the staff menu route, then natural tab order reaches the request-type control with a visible focus ring.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-02-keyboard-opens-request-type-menu.jpg"><img src="screenshots/keyboard-only-journey-02-keyboard-opens-request-type-menu.jpg" loading="lazy" alt="keyboard-only-journey, step 2, keyboard opens request-type menu"></a>
+            <figcaption><strong>02 · keyboard opens request-type menu</strong><span>Enter opens the branded option list and keeps focus inside the custom control.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-03-keyboard-focuses-unpaid-option.jpg"><img src="screenshots/keyboard-only-journey-03-keyboard-focuses-unpaid-option.jpg" loading="lazy" alt="keyboard-only-journey, step 3, keyboard focuses unpaid option"></a>
+            <figcaption><strong>03 · keyboard focuses unpaid option</strong><span>End moves the visible focus ring to the Unpaid option without selecting it prematurely.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-04-keyboard-selects-unpaid-type.jpg"><img src="screenshots/keyboard-only-journey-04-keyboard-selects-unpaid-type.jpg" loading="lazy" alt="keyboard-only-journey, step 4, keyboard selects unpaid type"></a>
+            <figcaption><strong>04 · keyboard selects unpaid type</strong><span>Enter selects Unpaid and closes the branded list.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-05-keyboard-reaches-start-date-control.jpg"><img src="screenshots/keyboard-only-journey-05-keyboard-reaches-start-date-control.jpg" loading="lazy" alt="keyboard-only-journey, step 5, keyboard reaches start-date control"></a>
+            <figcaption><strong>05 · keyboard reaches start-date control</strong><span>Natural Tab order reaches the branded start-date button with a visible focus ring.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-06-keyboard-opens-start-date-calendar.jpg"><img src="screenshots/keyboard-only-journey-06-keyboard-opens-start-date-calendar.jpg" loading="lazy" alt="keyboard-only-journey, step 6, keyboard opens start-date calendar"></a>
+            <figcaption><strong>06 · keyboard opens start-date calendar</strong><span>Enter opens the branded calendar and visibly focuses a date.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-07-keyboard-chooses-start-date.jpg"><img src="screenshots/keyboard-only-journey-07-keyboard-chooses-start-date.jpg" loading="lazy" alt="keyboard-only-journey, step 7, keyboard chooses start date"></a>
+            <figcaption><strong>07 · keyboard chooses start date</strong><span>Arrow/Page navigation and Enter select the exact start date and close the calendar.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-08-keyboard-reaches-end-date-control.jpg"><img src="screenshots/keyboard-only-journey-08-keyboard-reaches-end-date-control.jpg" loading="lazy" alt="keyboard-only-journey, step 8, keyboard reaches end-date control"></a>
+            <figcaption><strong>08 · keyboard reaches end-date control</strong><span>Natural Tab order reaches the branded end-date button with a visible focus ring.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-09-keyboard-opens-end-date-calendar.jpg"><img src="screenshots/keyboard-only-journey-09-keyboard-opens-end-date-calendar.jpg" loading="lazy" alt="keyboard-only-journey, step 9, keyboard opens end-date calendar"></a>
+            <figcaption><strong>09 · keyboard opens end-date calendar</strong><span>Enter opens the end-date calendar without losing visible keyboard focus.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-10-keyboard-chooses-end-date.jpg"><img src="screenshots/keyboard-only-journey-10-keyboard-chooses-end-date.jpg" loading="lazy" alt="keyboard-only-journey, step 10, keyboard chooses end date"></a>
+            <figcaption><strong>10 · keyboard chooses end date</strong><span>Enter chooses the exact end date and the one-day quote becomes available.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-11-keyboard-reaches-request-note.jpg"><img src="screenshots/keyboard-only-journey-11-keyboard-reaches-request-note.jpg" loading="lazy" alt="keyboard-only-journey, step 11, keyboard reaches request note"></a>
+            <figcaption><strong>11 · keyboard reaches request note</strong><span>Natural Tab order reaches the note field with a visible focus ring.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-12-keyboard-types-request-note.jpg"><img src="screenshots/keyboard-only-journey-12-keyboard-types-request-note.jpg" loading="lazy" alt="keyboard-only-journey, step 12, keyboard types request note"></a>
+            <figcaption><strong>12 · keyboard types request note</strong><span>Typing visibly fills the note field without moving focus.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-13-keyboard-reaches-send-button.jpg"><img src="screenshots/keyboard-only-journey-13-keyboard-reaches-send-button.jpg" loading="lazy" alt="keyboard-only-journey, step 13, keyboard reaches send button"></a>
+            <figcaption><strong>13 · keyboard reaches send button</strong><span>Natural Tab order reaches Send request with a visible focus ring.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-14-keyboard-submits-request.jpg"><img src="screenshots/keyboard-only-journey-14-keyboard-submits-request.jpg" loading="lazy" alt="keyboard-only-journey, step 14, keyboard submits request"></a>
+            <figcaption><strong>14 · keyboard submits request</strong><span>Enter sends exactly one request and lands on a visible Pending row.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-15-keyboard-enters-kasper-decision-note.jpg"><img src="screenshots/keyboard-only-journey-15-keyboard-enters-kasper-decision-note.jpg" loading="lazy" alt="keyboard-only-journey, step 15, keyboard enters Kasper decision note"></a>
+            <figcaption><strong>15 · keyboard enters Kasper decision note</strong><span>Tab and Enter open Kasper Time Off, then natural tab order reaches the exact request note with visible focus.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-16-keyboard-types-decision-note.jpg"><img src="screenshots/keyboard-only-journey-16-keyboard-types-decision-note.jpg" loading="lazy" alt="keyboard-only-journey, step 16, keyboard types decision note"></a>
+            <figcaption><strong>16 · keyboard types decision note</strong><span>Typing visibly fills the exact Kasper decision-note field without changing state.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-17-keyboard-reaches-approve.jpg"><img src="screenshots/keyboard-only-journey-17-keyboard-reaches-approve.jpg" loading="lazy" alt="keyboard-only-journey, step 17, keyboard reaches Approve"></a>
+            <figcaption><strong>17 · keyboard reaches Approve</strong><span>Tab reaches Approve with a visible focus ring and does not decide yet.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-18-keyboard-reaches-deny.jpg"><img src="screenshots/keyboard-only-journey-18-keyboard-reaches-deny.jpg" loading="lazy" alt="keyboard-only-journey, step 18, keyboard reaches Deny"></a>
+            <figcaption><strong>18 · keyboard reaches Deny</strong><span>A second Tab reaches the distinct Deny action with a visible focus ring.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-19-keyboard-denies-request.jpg"><img src="screenshots/keyboard-only-journey-19-keyboard-denies-request.jpg" loading="lazy" alt="keyboard-only-journey, step 19, keyboard denies request"></a>
+            <figcaption><strong>19 · keyboard denies request</strong><span>Enter saves exactly one denial and the Recent Decisions count updates.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-20-keyboard-opens-recent-decision.jpg"><img src="screenshots/keyboard-only-journey-20-keyboard-opens-recent-decision.jpg" loading="lazy" alt="keyboard-only-journey, step 20, keyboard opens recent decision"></a>
+            <figcaption><strong>20 · keyboard opens recent decision</strong><span>Tab and Enter expand Recent Decisions and reveal the exact denied request and note.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+          <figure>
+            <a href="screenshots/keyboard-only-journey-21-keyboard-staff-sees-denial.jpg"><img src="screenshots/keyboard-only-journey-21-keyboard-staff-sees-denial.jpg" loading="lazy" alt="keyboard-only-journey, step 21, keyboard staff sees denial"></a>
+            <figcaption><strong>21 · keyboard staff sees denial</strong><span>After a keyboard-activated Refresh, the staff history shows the Denied result and decision note.</span><small>keyboard-only · 1360×920 · ok</small></figcaption>
+          </figure>
+      </div>
+    </section></main>
+</body>
+</html>

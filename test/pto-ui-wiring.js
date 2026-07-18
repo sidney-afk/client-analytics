@@ -39,7 +39,13 @@ function functionSource(name) {
 
 const nav = functionSource('navTo');
 const setFlag = functionSource('_ptoSetFlagValue');
+const apiMessage = functionSource('_ptoApiMessage');
 const api = functionSource('_ptoApi');
+const unknownWrite = functionSource('_ptoUnknownWrite');
+const stateConflict = functionSource('_ptoStateConflict');
+const ptoShowToast = functionSource('_ptoShowToast');
+const blockWrites = functionSource('_ptoBlockWrites');
+const refreshAfterConflict = functionSource('_ptoRefreshAfterConflict');
 const paint = functionSource('_ptoPaint');
 const calendar = functionSource('_ptoRenderCalendar');
 const kasperView = functionSource('renderKasperView');
@@ -54,6 +60,7 @@ const loadOverview = functionSource('_ptoLoadOverview');
 const loadAdmin = functionSource('_ptoLoadAdmin');
 const syncRequest = functionSource('_ptoSyncRequestForm');
 const submitRequest = functionSource('_ptoSubmitRequest');
+const cancelRequest = functionSource('_ptoCancelRequest');
 const applyRequestDayBounds = functionSource('_ptoApplyRequestDayBounds');
 const quoteRequest = functionSource('_ptoQuoteRequest');
 const setQuotePending = functionSource('_ptoSetRequestQuotePending');
@@ -66,6 +73,7 @@ const stepNumber = functionSource('_svStepNumber');
 const globalTooltip = source.slice(source.indexOf('(function setupGlobalTooltip'), source.indexOf('(function setupDatePicker'));
 const datePicker = source.slice(source.indexOf('(function setupDatePicker'), source.indexOf('</script>', source.indexOf('(function setupDatePicker')));
 const adminCancel = functionSource('_ptoAdminCancel');
+const adminDecide = functionSource('_ptoAdminDecide');
 const adminSetMember = functionSource('_ptoAdminSetMember');
 const adminAdjust = functionSource('_ptoAdminAdjust');
 const showValidation = functionSource('_ptoShowValidation');
@@ -136,6 +144,29 @@ ok(/_syncviewRequireStaffIdentity\(adminAction \? 'pto-admin' : undefined\)/.tes
 ok(/_syncviewEfHeaders\([\s\S]{0,260}PTO_EF_URL\)/.test(api), 'PTO requests use the shared staff header injector');
 ok(/response\.status === 401[\s\S]{0,500}_syncviewStaffIdentityClear\(\)[\s\S]{0,500}_syncviewOpenStaffIdentity\(\{ reason: 'expired' \}\)[\s\S]{0,260}_ptoApi\(action, method, payload, true\)/.test(api), '401 clears identity, re-prompts, and retries once');
 ok(/actor_member_id = identity\.member\.id/.test(api) && /wire\.member_id = identity\.member\.id/.test(api), 'wire payload binds admin and requester actions to verified identities');
+ok(/const PTO_API_TIMEOUT_MS = 20000/.test(source)
+  && /const mutating = method !== 'GET' && action !== 'quote'/.test(api)
+  && /AbortController/.test(api) && /controller\.abort\(\)/.test(api) && /options\.signal = controller\.signal/.test(api)
+  && /write_outcome_unknown/.test(api) && /ptoWriteOutcomeUnknown = mutating/.test(api),
+  'PTO transport has a deadline and treats only unconfirmed mutations as unknown outcomes');
+ok(/ptoWriteOutcomeUnknown/.test(unknownWrite)
+  && /writeOutcomeUnknown/.test(blockWrites) && /Refresh Time Off to confirm/.test(blockWrites)
+  && /_ptoState\.writeOutcomeUnknown = false/.test(loadOverview)
+  && /_ptoAdminState\.writeOutcomeUnknown = false/.test(loadAdmin)
+  && /_ptoUnknownWrite\(error\)/.test(submitRequest) && /Refresh to verify/.test(submitRequest)
+  && /_ptoBlockWrites\('staff'\)/.test(submitRequest + cancelRequest)
+  && /_ptoBlockWrites\('admin'\)/.test(adminDecide + adminCancel + adminSetMember + adminAdjust),
+  'unknown write outcomes stay locked until a successful staff or admin overview reconciliation');
+for (const code of ['request_not_pending', 'decision_conflict', 'cancel_not_allowed', 'request_not_found', 'pto_service_failed']) {
+  ok(apiMessage.includes(code), `PTO maps ${code} to a plain-English lifecycle message`);
+}
+ok(/request_state_changed/.test(stateConflict) && /request_not_pending/.test(stateConflict)
+  && /decision_conflict/.test(stateConflict) && /cancel_not_allowed/.test(stateConflict)
+  && /_ptoInvalidateOverviewCaches\(\)/.test(refreshAfterConflict)
+  && /_ptoLoadAdmin\(true\)/.test(refreshAfterConflict) && /_ptoLoadOverview\(true\)/.test(refreshAfterConflict)
+  && /_ptoRefreshAfterConflict\('staff'/.test(submitRequest + cancelRequest)
+  && /_ptoRefreshAfterConflict\('admin'/.test(adminDecide + adminCancel + adminSetMember),
+  'known terminal and concurrency conflicts refresh stale staff and Kasper state');
 ok(!/n8n|webhook/i.test(api) && !/\/rest\/v1\/pto_(?:members|requests|adjustments)/.test(source), 'browser never calls n8n or PTO tables directly');
 ok(/_ptoInvalidateOverviewCaches\(\)/.test(purgeSensitive)
   && /if \(!valid\)[\s\S]*_ptoPaint\(\)[\s\S]*_ptoRenderAdmin\(\)/.test(refreshChrome), 'sign-out and identity changes immediately replace mounted PTO data');
@@ -161,13 +192,31 @@ ok(/data-sv-date-trigger/.test(dateHtml) && /data-sv-today/.test(dateHtml) && /a
 ok(/minISO/.test(datePicker) && /maxISO/.test(datePicker) && /ArrowLeft/.test(datePicker)
   && /PageUp/.test(datePicker) && /e\.key === 'Tab'/.test(datePicker) && /button:not\(\[disabled\]\)/.test(datePicker)
   && /const dayTarget/.test(datePicker) && /close\(true\)/.test(datePicker), 'date picker enforces bounds, traps dialog focus, limits day keys, and restores focus');
+ok(/day\.focus\(\{ preventScroll: true \}\)/.test(datePicker),
+  'date-picker focus never pans the mobile visual viewport away from its visible controls');
 ok(/viewportChange/.test(datePicker) && /requestAnimationFrame/.test(datePicker) && /position\(\)/.test(datePicker)
+  && /window\.visualViewport/.test(datePicker) && /viewportBottom/.test(datePicker)
   && /MutationObserver/.test(datePicker) && /!document\.contains\(dpTriggerEl\)/.test(datePicker),
-  'date picker stays anchored through scroll and closes when rerender removes its trigger');
+  'date picker stays inside the visual viewport through scroll and closes when rerender removes its trigger');
 ok(/max-height: calc\(100dvh - 16px\)/.test(source) && /@media \(max-height: 500px\)/.test(source)
   && /overscroll-behavior: contain/.test(source), 'date picker remains operable at short viewport heights and browser zoom');
 ok(/sv-stepper-input/.test(stepperHtml) && /type="number"/.test(stepperHtml)
   && /Math\.min\(max, Math\.max\(min, next\)\)/.test(stepNumber), 'branded stepper preserves numeric input and clamps explicit minus/plus controls');
+ok(/\.sv-select-trigger, \.sv-select-option, \.sv-date-trigger, \.sv-stepper-btn \{ -webkit-tap-highlight-color: transparent; \}/.test(source),
+  'branded PTO controls suppress persistent mobile tap-highlight artifacts');
+ok(/\.pto-submit:focus-visible \{ outline: 2px solid var\(--focus-ring\); outline-offset: 3px; \}/.test(source),
+  'PTO submit actions expose a visible keyboard focus ring');
+ok(/showToast\(message\)/.test(ptoShowToast) && /window\.visualViewport/.test(ptoShowToast)
+  && /const current = window\.visualViewport/.test(ptoShowToast)
+  && /calc\(50% \+ /.test(ptoShowToast) && /100vw - 24px/.test(ptoShowToast)
+  && /window\.innerHeight - \(current\.offsetTop \+ current\.height\)/.test(ptoShowToast)
+  && /requestAnimationFrame\(placeInVisibleViewport\)/.test(ptoShowToast)
+  && /viewport\.addEventListener\('resize', syncVisibleViewport\)/.test(ptoShowToast)
+  && /window\.addEventListener\('resize', syncVisibleViewport\)/.test(ptoShowToast),
+  'PTO confirmations remain inside the mobile visual viewport');
+ok([blockWrites, refreshAfterConflict, submitRequest, cancelRequest, adminDecide, adminCancel, adminSetMember, adminAdjust]
+  .every(fn => !/(?<!_pto)showToast\(/.test(fn)),
+  'every PTO lifecycle mutation uses the visible-viewport toast helper');
 for (const key of STAFF_EXPLAIN_KEYS) {
   ok(paint.includes(key), `staff label-attached explainer retains stable marker ${key}`);
 }
@@ -196,7 +245,7 @@ ok(/const partialDayCount = Math\.max\(0\.5, allowedDays - 0\.5\)/.test(applyReq
 ok(/holiday_date_min/.test(syncRequest) && /holiday_date_max/.test(syncRequest)
   && /_ptoApi\('quote', 'POST'/.test(quoteRequest) && /generation !== _ptoQuoteGeneration/.test(quoteRequest),
   'out-of-overview request ranges use a generation-safe server day-count quote');
-ok(/button\.disabled = !!pending/.test(setQuotePending)
+ok(/button\.disabled = _ptoState\.writeOutcomeUnknown \|\| !!pending/.test(setQuotePending)
   && /daysInput\.disabled \|\| !String\(daysInput\.value/.test(submitRequest) && /!\(days > 0\)/.test(submitRequest),
   'pending, failed, and zero-day quotes cannot submit a request');
 ok(/aria-invalid/.test(showValidation) && /aria-describedby/.test(showValidation) && /\.focus\(\)/.test(showValidation)
@@ -207,12 +256,23 @@ ok(/end\.value && \(\(end\.min && end\.value < end\.min\) \|\| \(end\.max && end
 ok(/_ptoState\.overview[\s\S]*as_of_date/.test(syncRequest) && /const asOf = String\(_ptoState\.overview[\s\S]*as_of_date/.test(submitRequest)
   && /overview && overview\.as_of_date/.test(calendar), 'PTO comparisons and calendar today use the server date');
 ok(/My requests/.test(paint) && /decision_note/.test(paint) && /_ptoCancelRequest/.test(paint) && /Team snapshot/.test(paint) && /_ptoRenderCalendar\(overview\)/.test(paint), 'staff view renders decision notes, cancellation, team snapshot, and calendar');
+ok(/pto-request-history-cards/.test(paint) && /pto-request-history-top/.test(paint)
+  && /_ptoStatusHtml\(row\.status\)/.test(paint) && /Cancel request/.test(paint)
+  && /\.pto-staff-history-table \{ display: none; \}/.test(source)
+  && /\.pto-request-history-cards \{ display: grid;/.test(source),
+  'staff mobile history uses complete readable cards with status and cancellation visible');
+ok(/@media \(max-width: 520px\)[\s\S]*\.staff-account-popover \{ position: absolute; top: calc\(100% \+ 10px\); right: 0;/.test(source),
+  'mobile staff menu stays anchored to its visible trigger instead of the expanded layout viewport');
 ok(/overview\.absences/.test(calendar) && /overview\.holidays/.test(calendar) && /getMonth\(\) - 3/.test(calendar) && /getMonth\(\) \+ 3/.test(calendar), 'calendar consumes server absences/holidays within the API window');
 
 // Kasper approval queue, balance table, and admin maintenance controls.
 ok(/\{ key: 'time-off', label: 'Time Off', showCount: true/.test(source) && /_ptoRenderAdmin\(\)/.test(kasperTab), 'Kasper registers and renders the Time Off subtab');
 ok(/_syncviewStaffCan\('pto-admin'\)/.test(admin) && /Admin sign-in required/.test(admin), 'Kasper admin data is hidden without an admin identity');
 ok(/Pending requests/.test(admin) && /_ptoAdminDecide/.test(admin) && />Approve<\/button>/.test(admin) && />Deny<\/button>/.test(admin), 'Kasper queue exposes approve and deny controls');
+ok(/member_inactive/.test(adminDecide) && /approve\.disabled = true/.test(adminDecide)
+  && /note\.disabled = false/.test(adminDecide) && /deny\.disabled = false/.test(adminDecide)
+  && /Approval is unavailable; deny the request to close it/.test(adminDecide),
+  'inactive approval remains visibly blocked while the denial cleanup path stays usable');
 ok(/Member balances/.test(admin) && /<th>Granted<\/th>/.test(admin) && /<th>Approved<\/th>/.test(admin)
   && /<th>Adjustments<\/th>/.test(admin) && /pto-negative/.test(admin), 'Kasper balance table separates approved leave, adjustments, availability, and negative styling');
 ok(/member\.sick_available\) < 0 \? 'pto-negative'/.test(admin), 'negative sick balances are styled red in Kasper');
@@ -227,6 +287,13 @@ ok(/Choose a team member/.test(adminSetMember) && /Choose a valid PTO start date
   'custom admin controls have described, focusable validation including invalid signed amounts');
 ok(/upcoming_approved_requests/.test(source) && /Recent decisions and cancellations/.test(admin) && /Upcoming approved leave/.test(admin) && /_ptoAdminCancel/.test(admin)
   && /_ptoApi\('cancel'/.test(adminCancel), 'Kasper exposes future approved leave, recent history, and the server-backed admin cancellation path');
+ok(/const decisionNote = String\(row\.decision_note/.test(admin)
+  && /pto-history-note/.test(admin) && /Decision note:/.test(admin),
+  'Kasper Recent Decisions visibly preserves the decision note');
+ok(/pto-table-scroll-cue/.test(admin) && /Swipe sideways to view all balance columns/.test(admin)
+  && /tabindex="0"/.test(admin) && /scroll horizontally to view all columns/.test(admin)
+  && /\.pto-table-scroll-cue \{ display: block; \}/.test(source),
+  'Kasper mobile balance table exposes a visible and keyboard-accessible horizontal-scroll cue');
 ok(/wasCancelled && row\.cancelled_by && row\.decided_by/.test(admin)
   && /Approved by /.test(admin) && /Cancelled by /.test(admin)
   && /Cancellation attribution unavailable/.test(admin), 'pre-migration approved cancellations never misattribute the original approver');

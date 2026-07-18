@@ -266,15 +266,27 @@ async function installFixture(page, state) {
         };
         state.overview.my_requests.unshift(row);
         state.overview.pending_requests.push(row);
+        if (state.loseNextRequestResponse) {
+          state.loseNextRequestResponse = false;
+          return route.abort('timedout');
+        }
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, request: row }) });
       }
       if (action === 'decide') {
+        if (body.request_id === 'test-existing-pending' && body.decision === 'approved') {
+          return route.fulfill({
+            status: 409,
+            contentType: 'application/json',
+            body: JSON.stringify({ ok: false, error: 'member_inactive' }),
+          });
+        }
         const index = state.overview.pending_requests.findIndex(row => row.id === body.request_id);
         const row = index >= 0 ? state.overview.pending_requests.splice(index, 1)[0] : null;
         if (row) {
           row.status = body.decision;
           row.decided_by = ADMIN.name;
           row.decided_at = '2030-04-10T14:00:00.000Z';
+          row.decision_note = body.decision_note || '';
           const mine = state.overview.my_requests.find(item => item.id === row.id);
           if (mine) Object.assign(mine, row);
           if (body.decision === 'approved') state.overview.upcoming_approved_requests.push(row);
@@ -491,6 +503,7 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     unexpectedWrites: [],
     requestSequence: 0,
     failNextOverview: false,
+    loseNextRequestResponse: false,
   };
   const server = await serveStatic();
   const port = server.address().port;
@@ -755,13 +768,33 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     await page.keyboard.press('Escape');
     await page.evaluate(() => _syncviewApplyTheme('light'));
 
+    state.loseNextRequestResponse = true;
+    const requestCallsBeforeUnknownRetry = state.ptoCalls.filter(call => call.action === 'request').length;
     await page.locator('#ptoSubmit').click();
+    await page.waitForFunction(() => document.getElementById('ptoFormError')?.textContent.includes('could not confirm'));
+    assert(await page.locator('#ptoSubmit').isDisabled()
+      && (await page.locator('#ptoSubmit').textContent()).includes('Refresh to verify'),
+    'an unconfirmed request outcome locks immediate retry behind reconciliation');
+    await page.locator('#ptoRequestForm').evaluate(form => form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true })));
+    assert(state.ptoCalls.filter(call => call.action === 'request').length === requestCallsBeforeUnknownRetry + 1,
+      'the unknown-outcome lock prevents a duplicate request before refresh');
+    await page.locator('#ptoRefresh').click();
     await page.waitForFunction(() => [...document.querySelectorAll('.pto-table tbody tr')].some(row => row.textContent.includes('Apr 15')));
+    assert(await page.evaluate(() => _ptoState.writeOutcomeUnknown === false),
+      'a successful staff overview refresh reconciles and clears the unknown-outcome lock');
     const submitCall = state.ptoCalls.find(call => call.action === 'request');
     assert(submitCall && submitCall.body.member_id === ADMIN.id && submitCall.body.type === 'wellness'
       && submitCall.body.start_date === '2030-04-15' && submitCall.body.end_date === '2030-04-16'
       && submitCall.body.days === 2 && submitCall.headers['x-syncview-key'] === ADMIN_KEY,
     'staff submit sends the mocked Edge Function the verified member, dates, type, and day count');
+    await page.setViewportSize({ width: 390, height: 844 });
+    const mobilePendingCard = page.locator('.pto-request-history-card', { hasText: 'Apr 15' });
+    assert(await mobilePendingCard.isVisible()
+      && await mobilePendingCard.locator('.pto-status.pending').isVisible()
+      && await mobilePendingCard.getByRole('button', { name: 'Cancel request' }).isVisible()
+      && await page.locator('.pto-staff-history-table').isHidden(),
+    'staff mobile request history shows complete pending status and cancellation controls as a card');
+    await page.setViewportSize({ width: 1360, height: 980 });
 
     // Open Kasper directly on Time Off. The same mocked overview now contains
     // the staff submission, making the submit -> approve path end-to-end.
@@ -891,7 +924,23 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
       && adjustmentCall.body.actor_member_id === ADMIN.id,
     'signed Kasper adjustment reaches the mocked Edge Function with actor attribution');
 
+    const inactiveCard = page.locator('.pto-request-card', { hasText: 'TEST fixture request' });
+    await inactiveCard.locator('button.approve').click();
+    await page.waitForFunction(() => document.querySelector('[data-pto-inactive-note]')?.textContent.includes('inactive'));
+    assert(await inactiveCard.locator('button.approve').isDisabled()
+      && await inactiveCard.locator('button.deny').isEnabled()
+      && await inactiveCard.locator('[data-pto-decision-note]').isEnabled()
+      && (await inactiveCard.locator('[data-pto-inactive-note]').textContent()).includes('deny the request'),
+    'inactive approval stays visibly disabled while note and denial cleanup remain usable');
+    await inactiveCard.locator('[data-pto-decision-note]').fill('TEST inactive cleanup');
+    await inactiveCard.locator('button.deny').click();
+    await page.waitForFunction(() => ![...document.querySelectorAll('.pto-request-card')].some(card => card.textContent.includes('TEST fixture request')));
+    assert(state.ptoCalls.some(call => call.action === 'decide'
+      && call.body.request_id === 'test-existing-pending' && call.body.decision === 'denied'),
+    'Kasper can deny the inactive request after approval is blocked');
+
     const submittedCard = page.locator('.pto-request-card', { hasText: ADMIN.name });
+    await submittedCard.locator('[data-pto-decision-note]').fill('TEST approval note');
     await submittedCard.locator('button.approve').click();
     await page.waitForFunction(name => ![...document.querySelectorAll('.pto-request-card')].some(card => card.textContent.includes(name)), ADMIN.name);
     const approveCall = state.ptoCalls.find(call => call.action === 'decide' && call.body.request_id.startsWith('test-browser-request-'));
@@ -916,6 +965,10 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     assert((await cancelledHistory.textContent()).includes('Approved by ' + ADMIN.name)
       && (await cancelledHistory.textContent()).includes('Cancelled by ' + ADMIN.name),
     'cancelled approval history shows both the original decision and the cancellation attribution');
+    const approvedHistory = page.locator('.pto-history-row', { hasText: 'TEST approval note' });
+    assert(await approvedHistory.isVisible()
+      && (await approvedHistory.textContent()).includes('Decision note: TEST approval note'),
+    'Kasper Recent Decisions visibly includes the saved decision note');
 
     // Mobile layout checks both admin and staff, in dark and light themes. The
     // custom popovers must stay in the viewport while intentional tables scroll
@@ -923,6 +976,9 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => _syncviewApplyTheme('dark'));
     await assertNoGlobalOverflow(page, 'dark Kasper Time Off');
+    assert(await page.locator('.pto-table-scroll-cue').isVisible()
+      && (await page.locator('.pto-table-scroll-cue').textContent()).includes('Swipe sideways'),
+    'Kasper mobile balance table gives a clear horizontal-scroll cue');
     await page.locator('#ptoAdjustKindBtn').click();
     const mobileMenu = await page.locator('#ptoAdjustKindMenu').boundingBox();
     assert(mobileMenu && mobileMenu.x >= 0 && mobileMenu.x + mobileMenu.width <= 390,

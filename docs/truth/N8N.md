@@ -1,6 +1,6 @@
 # n8n — current truth
 
-> Last verified: 2026-07-16 @ 139a4c8 (webhook surface re-verified at 55: linear-projects retained for the legacy Submit lane)
+> Last verified: 2026-07-18 @ 2703ccd (webhook surface unchanged at 55; inbound instant-sync state updated after the 2026-07-17 Linear outage aftermath)
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
 > full-active-roster Calendar/SXR/settings writes now use Edge Functions. Snapshot workflows
@@ -19,13 +19,21 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
 
 ## Known state (spot-verify before relying — n8n changes outside git)
 
-- Inbound Linear sync workflow `MJbMZ789B5ExZz9x` is **inactive/unpublished**
-  (`activeVersionId=null`). Its five-node saved graph contains the A1/A2 routing and the later
-  authority gates, but that graph is not serving traffic. A 24-execution crash cluster ended before
-  the last saved version and no later execution was present at the 2026-07-13 readback. Do not call
-  Calendar/Samples/Workload inbound "real-time" and do not publish this saved graph as an automatic
-  fix: first explain the crash/soft-error topology, then deliberately choose and drill either a
-  published fast path or the existing reconciler-only latency.
+- Inbound Linear sync workflow `MJbMZ789B5ExZz9x` (`SyncView Calendar - Linear Status Sync`,
+  the `/webhook/linear-status-sync` intake carrying the calendar handler + workload branch +
+  embedded samples handler) is **inactive/unpublished** (`activeVersionId=null`) and its Linear-side
+  doorbells are now **gone**: the workflow's executions crashed 2026-07-12 ~23:03Z, it was
+  deactivated 2026-07-13 02:15Z, Linear auto-disabled its two delivery webhooks (labels "Workload"
+  and "Workload — Graphics") on 2026-07-17 after four days of failed deliveries to the dead
+  endpoint, and the owner deleted both webhook registrations on 2026-07-18 so the mirror
+  webhook-health monitor reads clean (2 checked / 2 enabled — only the EF `linear-inbound` pair
+  remains registered). **Inbound instant sync is therefore retired de facto**: Calendar, Samples,
+  and Workload inbound all ride the reconcilers (10–15 min lag — status reconcile */15, samples
+  */10 + pager, Workload reconcile */10), which carried the system unaided 07-13 → 07-18 including
+  through the 2026-07-17 Linear API outage. Do not call inbound "real-time". Revive-vs-formally-
+  retire is a Phase-3 decision: reviving requires explaining the crash topology, republishing, and
+  re-creating the Linear webhooks (~1 min each); retiring means the EF inbound lane becomes the
+  only fast path at enrollment.
 - The old dedicated Samples n8n trigger (`ZJOtYpQZj73DcBB1`) remains inactive, but Samples drift
   protection is **on twice**: pager `qllIDZPkdNAPRj0b` dispatches the GitHub workflow every 15
   minutes and `sample-linear-reconcile.yml` still has its own `*/10` schedule. Recent executions

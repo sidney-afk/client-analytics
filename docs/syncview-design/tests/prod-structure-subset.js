@@ -144,6 +144,8 @@ async function assertNoWriteRequests(requests) {
         archivedDropped: !adapted.ISSUES.some(i => i.id === 'child-d'),
         pastYearDue: (adapted.ISSUES.find(i => i.id === 'child-c') || {}).due,
         currentYearDue: window._prodFmtDate(new Date().toISOString().slice(0, 10)),
+        pastYearFull: window._prodFmtDateFull('2025-06-04'),
+        currentYearFull: window._prodFmtDateFull(new Date().toISOString().slice(0, 10)),
         overdueText: window._prodOverdueText('2020-01-01', 'todo'),
         overdueTextDone: window._prodOverdueText('2020-01-01', 'posted'),
         statusAtRaw: (adapted.ISSUES.find(i => i.id === 'child-c') || {}).statusAtRaw,
@@ -174,8 +176,18 @@ async function assertNoWriteRequests(requests) {
     if (!adapterFixture.statusKeys.includes('prog') || !adapterFixture.statusKeys.includes('smm') || !adapterFixture.statusKeys.includes('client')) throw new Error('Adapter did not map B1 status slugs to artifact keys');
     if (!adapterFixture.canceledIssue) throw new Error('Adapter dropped a canceled deliverable; canceled is a visible status (Canceled group), not a deleted row');
     if (!adapterFixture.archivedDropped) throw new Error('Adapter kept a deliverable with an archived marker; archive/delete markers must hide rows');
-    if (adapterFixture.pastYearDue !== 'Jun 4, 2025') throw new Error('Adapter due display is not the written Linear format with year ("Jun 4, 2025"), got: ' + adapterFixture.pastYearDue);
+    if (adapterFixture.pastYearDue !== 'Jun 4') throw new Error('Displayed dates must stay compact ("Jun 4") for every year (owner decision 2026-07-18), got: ' + adapterFixture.pastYearDue);
     if (!/^[A-Z][a-z]{2} \d{1,2}$/.test(adapterFixture.currentYearDue)) throw new Error('Current-year dates must render "Mon D" without a year, got: ' + adapterFixture.currentYearDue);
+    if (adapterFixture.pastYearFull !== 'Jun 4, 2025') throw new Error('Full date form must carry the year for non-current years ("Jun 4, 2025"), got: ' + adapterFixture.pastYearFull);
+    if (!/^[A-Z][a-z]{2} \d{1,2}$/.test(adapterFixture.currentYearFull)) throw new Error('Full date form must omit the year for the current year, got: ' + adapterFixture.currentYearFull);
+    const activeTabExcludesApproved = await page.evaluate(() => {
+      const savedTab = _prodState.tab;
+      _prodState.tab = 'active';
+      const excluded = !_prodTabAllows('approved') && _prodTabAllows('todo') && _prodTabAllows('scheduled');
+      _prodState.tab = savedTab;
+      return excluded;
+    });
+    if (!activeTabExcludesApproved) throw new Error('Active tab must hide approved items but keep todo/scheduled (owner decision 2026-07-18)');
     if (!/^ · overdue by \d+ days$/.test(adapterFixture.overdueText)) throw new Error('Overdue tip text must read " · overdue by N days", got: ' + adapterFixture.overdueText);
     if (adapterFixture.overdueTextDone !== '') throw new Error('Done statuses must never produce overdue tip text');
     const dueTipSample = await page.locator('.prod-row .prod-due[data-prod-tip^="Due "]').count();

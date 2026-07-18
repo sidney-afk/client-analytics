@@ -20,6 +20,7 @@ const { launch, client, clientCal, up, upCal, archiveSafe, archiveCalSafe, appEr
 const C = H.counter(); const t = C.t;
 const TS = Date.now();
 const POLL = 35000;
+const APPROVAL_STAMP = '2026-07-18T00:00:00.000Z';
 const SXR_KEYS = ['tok', 'mob', 'slow', 'fail'];
 const IDS = {
   tok: `sr_ot4e_tok_${TS}`,
@@ -42,19 +43,26 @@ const NAMES = {
 const TOMORROW = new Date(Date.now() + 86400e3).toISOString().slice(0, 10);
 
 function seed(key, i) {
+  const failure = key === 'fail';
   up({ id: IDS[key], name: NAMES[key], order_index: i + 1,
-    video_status: 'Client Approval', graphic_status: 'Client Approval', status: 'Client Approval',
+    video_status: failure ? 'In Progress' : 'Client Approval',
+    graphic_status: 'Client Approval',
+    status: failure ? 'In Progress' : 'Client Approval',
     thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
-    graphic_linear_issue_id: key === 'fail' ? ISSUES.fail : '' });
+    graphic_linear_issue_id: failure ? ISSUES.fail : '',
+    client_graphic_approved_at: failure ? APPROVAL_STAMP : '',
+    kasper_approved_at: failure ? APPROVAL_STAMP : '' });
 }
 
 function seedCalendarFailure() {
   upCal({ id: IDS.failCal, name: NAMES.failCal, platforms: 'youtube', scheduled_date: TOMORROW,
-    video_status: 'Client Approval', graphic_status: 'Client Approval',
-    caption_status: 'Approved', status: 'Client Approval',
+    video_status: 'In Progress', graphic_status: 'Client Approval',
+    caption_status: 'In Progress', status: 'In Progress',
     thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
     asset_url: 'https://example.com/ot4-failure.mp4',
-    graphic_linear_issue_id: ISSUES.failCal });
+    graphic_linear_issue_id: ISSUES.failCal,
+    client_graphic_approved_at: APPROVAL_STAMP,
+    kasper_approved_at: APPROVAL_STAMP });
 }
 
 function tweakBodies(value) {
@@ -80,7 +88,7 @@ function matchingStatusPushes(issueUrl) {
 }
 
 async function exerciseRequestFailure(opts) {
-  const { browser, label, openPage, routePattern, id, name, row, issueUrl } = opts;
+  const { browser, label, openPage, routePattern, id, name, row, issueUrl, initialStatus } = opts;
   const comp = 'graphic';
   const statusKey = comp + '_status';
   const tweaksKey = comp + '_tweaks';
@@ -142,6 +150,8 @@ async function exerciseRequestFailure(opts) {
     return {
       detected,
       localStatus: current && current[comp + '_status'],
+      localClientApprovalStamp: current && current['client_' + comp + '_approved_at'],
+      localKasperApprovalStamp: current && current.kasper_approved_at,
       card: !!card,
       panel: !!panel,
       panelState: panel && panel.dataset.state,
@@ -159,6 +169,9 @@ async function exerciseRequestFailure(opts) {
   t(!!st && st.localStatus === 'Client Approval' && st.card && st.panel &&
       st.panelState === 'pending' && st.textareaReadonly === false,
     `P4/${label}: failed save rolls back to the review-active Client Approval UI`, JSON.stringify(st));
+  t(!!st && st.localClientApprovalStamp === APPROVAL_STAMP &&
+      st.localKasperApprovalStamp === APPROVAL_STAMP,
+    `P4/${label}: failed save restores optimistic approval-stamp clears`, JSON.stringify(st));
   t(!!st && st.errorVisible && /500|fail|error/i.test(st.errorText),
     `P4/${label}: client sees the save failure`, st && st.errorText);
   t(!!st && st.exactDraft,
@@ -166,10 +179,12 @@ async function exerciseRequestFailure(opts) {
   t(!!st && st.retryPresent && st.retryEnabled,
     `P4/${label}: Request change is re-enabled for retry`, JSON.stringify(st));
 
-  const mid = row(`${statusKey},status,${tweaksKey}`);
+  const mid = row(`${statusKey},status,${tweaksKey},client_${comp}_approved_at,kasper_approved_at`);
   const midBodies = tweakBodies(mid && mid[tweaksKey]);
-  t(!!mid && mid[statusKey] === 'Client Approval' && mid.status === 'Client Approval' &&
-      !midBodies.includes(submittedBody),
+  t(!!mid && mid[statusKey] === 'Client Approval' && mid.status === initialStatus &&
+      !midBodies.includes(submittedBody) &&
+      mid['client_' + comp + '_approved_at'] === APPROVAL_STAMP &&
+      mid.kasper_approved_at === APPROVAL_STAMP,
     `P4/${label}: DB status and request text stay untouched before resend`, JSON.stringify(mid));
   await H.sleep(500);
   const failedNotifications = matchingNotifications(issueUrl, submittedBody);
@@ -206,8 +221,10 @@ async function exerciseRequestFailure(opts) {
     `P4/${label}: successful retry confirms the request reached the team`, successToast);
 
   const landed = await H.pollRow(
-    () => row(`${statusKey},status,${tweaksKey}`),
-    x => x[statusKey] === 'Tweaks Needed' && tweakBodies(x[tweaksKey]).includes(submittedBody),
+    () => row(`${statusKey},status,${tweaksKey},client_${comp}_approved_at,kasper_approved_at`),
+    x => x[statusKey] === 'Tweaks Needed' && tweakBodies(x[tweaksKey]).includes(submittedBody) &&
+      !String(x['client_' + comp + '_approved_at'] || '').trim() &&
+      !String(x.kasper_approved_at || '').trim(),
     POLL
   );
   const occurrences = tweakBodies(landed && landed[tweaksKey])
@@ -215,6 +232,9 @@ async function exerciseRequestFailure(opts) {
   t(!!landed && landed[statusKey] === 'Tweaks Needed' && landed.status === 'Tweaks Needed' &&
       occurrences === 1,
     `P4/${label}: re-sent preserved request lands exactly once`, JSON.stringify(landed));
+  t(!!landed && !String(landed['client_' + comp + '_approved_at'] || '').trim() &&
+      !String(landed.kasper_approved_at || '').trim(),
+    `P4/${label}: successful retry durably clears stale approval stamps`, JSON.stringify(landed));
   await H.poll(() =>
     matchingNotifications(issueUrl, submittedBody).length > 0 &&
     matchingStatusPushes(issueUrl).length > 0,
@@ -235,8 +255,16 @@ async function exerciseRequestFailure(opts) {
   try {
     SXR_KEYS.forEach((k, i) => seed(k, i));
     seedCalendarFailure();
-    await H.pollRow(() => H.rowSxr(IDS.fail, 'id,status'), r => r.status === 'Client Approval');
-    await H.pollRow(() => H.rowCal(IDS.failCal, 'id,status'), r => r.status === 'Client Approval');
+    await H.pollRow(
+      () => H.rowSxr(IDS.fail, 'id,status,graphic_status,client_graphic_approved_at,kasper_approved_at'),
+      r => r.status === 'In Progress' && r.graphic_status === 'Client Approval' &&
+        r.client_graphic_approved_at === APPROVAL_STAMP && r.kasper_approved_at === APPROVAL_STAMP
+    );
+    await H.pollRow(
+      () => H.rowCal(IDS.failCal, 'id,status,graphic_status,client_graphic_approved_at,kasper_approved_at'),
+      r => r.status === 'In Progress' && r.graphic_status === 'Client Approval' &&
+        r.client_graphic_approved_at === APPROVAL_STAMP && r.kasper_approved_at === APPROVAL_STAMP
+    );
 
     // ---- P1: token link ----------------------------------------------------
     {
@@ -313,7 +341,8 @@ async function exerciseRequestFailure(opts) {
       id: IDS.fail,
       name: NAMES.fail,
       row: cols => H.rowSxr(IDS.fail, cols),
-      issueUrl: ISSUES.fail
+      issueUrl: ISSUES.fail,
+      initialStatus: 'In Progress'
     });
     await exerciseRequestFailure({
       browser,
@@ -323,7 +352,8 @@ async function exerciseRequestFailure(opts) {
       id: IDS.failCal,
       name: NAMES.failCal,
       row: cols => H.rowCal(IDS.failCal, cols),
-      issueUrl: ISSUES.failCal
+      issueUrl: ISSUES.failCal,
+      initialStatus: 'In Progress'
     });
   } catch (e) {
     t(false, 'EXCEPTION: ' + (e && e.message || e));

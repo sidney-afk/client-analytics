@@ -175,11 +175,17 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   assert(extract('_sxrKasperApplyAndPersist').indexOf('await _sxrPushStatusToLinear') < extract('_sxrKasperApplyAndPersist').indexOf('await _sxrKasperPersist'));
   const calTweakAck = calReview.indexOf('.then(acknowledgement =>');
   const sxrTweakAck = sxrReview.indexOf('.then(acknowledgement =>');
+  const calSourceError = calReview.indexOf("_calReviewState.errors[key] = current._saveError || 'Save failed';");
+  const sxrSourceError = sxrReview.indexOf("_sxrReviewState.errors[key] = current._saveError || 'Save failed';");
   assert(calReview.includes('const body = rawDraft.trim()')
     && calReview.includes('_calReviewState.drafts[key] = rawDraft')
     && calReview.includes('deferLegacyUntilSourceSave: true')
     && calReview.includes('_writeUiDeferLegacyStatusUntilSourceSave')
     && calReview.includes('_calLegacyPostLinearComment')
+    && ['client_video_approved_at', 'client_graphic_approved_at', 'client_caption_approved_at',
+      'client_title_approved_at', 'kasper_approved_at'].every(field => calReview.includes(field + ': post.' + field))
+    && calSourceError >= 0
+    && calReview.indexOf('_calRenderBody({ preserveScroll: true });', calSourceError) > calSourceError
     && calReview.indexOf('_calPendingEdits[pid]') > calTweakAck
     && calReview.indexOf('_writeUiBindRepairAck(post, committedBatch, acknowledgement)') > calTweakAck
     && calReview.indexOf('_writeUiMergeCommittedBatch(pending, committedBatch)')
@@ -187,11 +193,15 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   'Calendar preserves the raw draft, defers legacy notification, and keeps the composite tweak private until acknowledgement');
   assert(sxrReview.includes('const body = rawDraft.trim()')
     && sxrReview.includes('_sxrReviewState.drafts[key] = rawDraft')
+    && ['client_video_approved_at', 'client_graphic_approved_at', 'kasper_approved_at']
+      .every(field => sxrReview.includes(field + ': post.' + field))
+    && sxrSourceError >= 0
+    && sxrReview.indexOf('_sxrRenderBody({ preserveScroll: true });', sxrSourceError) > sxrSourceError
     && sxrReview.indexOf('_sxrPendingEdits[pid]') > sxrTweakAck
     && sxrReview.indexOf('_writeUiBindRepairAck(post, committedBatch, acknowledgement)') > sxrTweakAck
     && sxrReview.indexOf('_writeUiMergeCommittedBatch(pending, committedBatch)')
       > sxrReview.indexOf('_writeUiBindRepairAck(post, committedBatch, acknowledgement)'),
-  'Samples preserves the raw draft and keeps the composite tweak private until comment acknowledgement');
+  'Samples preserves the raw draft and every approval stamp cleared by the composite tweak');
   const calApprove = extract('_calReviewApplyApprove');
   const sxrApprove = extract('_sxrReviewApplyApprove');
   assert(calApprove.indexOf('_calFlushCardSave') < calApprove.indexOf('_calReviewRemoveCard'), 'Calendar review card is removed only after acknowledgement');

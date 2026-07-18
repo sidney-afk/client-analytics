@@ -32101,6 +32101,11 @@
             title_comments:   post.title_comments,
             [comp + '_status']: post[comp + '_status'],
             status: post.status,
+            client_video_approved_at: post.client_video_approved_at,
+            client_graphic_approved_at: post.client_graphic_approved_at,
+            client_caption_approved_at: post.client_caption_approved_at,
+            client_title_approved_at: post.client_title_approved_at,
+            kasper_approved_at: post.kasper_approved_at,
         };
         _calSetCommentsFor(post, comp, list);
         post[comp + '_status'] = 'Tweaks Needed';
@@ -32154,7 +32159,11 @@
                 if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
                 _calReviewState.drafts[key] = rawDraft;
                 _calReviewState.errors[key] = current._saveError || 'Save failed';
-                _calReviewRepaintCard(pid);
+                // The generic save failure renderer may already have removed
+                // this card after the optimistic last-active-component flip.
+                // Rebuild the queue from the restored row so the retry panel,
+                // exact draft and visible error all come back.
+                _calRenderBody({ preserveScroll: true });
                 return;
             }
             if (deferredLegacyComment) {
@@ -42152,7 +42161,15 @@
         const _now = new Date().toISOString();
         const newComment = { id: _sxrMintCommentId(), parent_id: null, author: _sxrCurrentAuthor(), role, is_tweak: true, audience: (role === 'client') ? 'client' : 'internal', round: _sxrNextTweakRound(post, comp), body, created_at: _now, updated_at: _now, done: false, done_at: '', done_by: '' };
         list.push(newComment);
-        const prev = { video_comments: post.video_comments, graphic_comments: post.graphic_comments, [comp + '_status']: post[comp + '_status'], status: post.status };
+        const prev = {
+            video_comments: post.video_comments,
+            graphic_comments: post.graphic_comments,
+            [comp + '_status']: post[comp + '_status'],
+            status: post.status,
+            client_video_approved_at: post.client_video_approved_at,
+            client_graphic_approved_at: post.client_graphic_approved_at,
+            kasper_approved_at: post.kasper_approved_at
+        };
         _sxrSetCommentsFor(post, comp, list);
         post[comp + '_status'] = 'Tweaks Needed';
         post.status = computeSampleOverallStatus(post);
@@ -42189,7 +42206,10 @@
                 if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
                 _sxrReviewState.drafts[key] = rawDraft;
                 _sxrReviewState.errors[key] = current._saveError || 'Save failed';
-                _sxrReviewRepaintCard(pid);
+                // A full save-error render can drop the optimistic final review
+                // card before this handler restores it. Rebuild from restored
+                // state so the client keeps an actionable retry surface.
+                _sxrRenderBody({ preserveScroll: true });
                 return;
             }
             if (deferredLegacyComment) {

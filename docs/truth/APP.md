@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-16 @ bb0ee4b (Phase-2 cohort scoping for status-pill/transport/parent_id invariants)
+> Last verified: 2026-07-18 @ 0cdcb43 (F105 test-epoch audit against current main; app/product source unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -126,9 +126,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   are non-operative tombstones under F56/F64. UI changes must pass `npm run test:prod-polish`.
   Deep-links: `?prod=1`, `team`, `view`, `client`, `d` params.
 - The Production polish visual lanes remain sensitive under F122, but public distribution is
-  contained: the workflow is disabled, retained named bundles are deleted, and candidate source
-  uploads no screenshots/review packets or Argos payloads while keeping detailed output runner-
-  local. Re-enable only after merge and prove the first run creates no public visual delivery;
+  contained: the workflow was re-enabled after #836, retained named bundles remain deleted, and
+  current source uploads no screenshots/review packets or Argos payloads while keeping detailed
+  output runner-local. The first post-merge run proved no public visual/Argos delivery;
   fictional interception and exact-archive privacy tests remain the longer-term gate.
 - Foundation audit evidence: `docs/audits/2026-07-09-production-foundation-audit.md`.
 

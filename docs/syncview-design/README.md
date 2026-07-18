@@ -13,7 +13,8 @@ prototype reference. Do not confuse the two.
 3. [`ADAPTER.md`](ADAPTER.md) — current database-to-view model and mutation boundary.
 4. [`tests/README.md`](tests/README.md) — runnable repository suites. Use `npm test` and
    `npm run test:prod-polish`; locked lanes may read live data, but no design-kit suite may mutate
-   a live backend. F105 keeps the aggregate gate open until legacy guard-mode lanes are repaired.
+   a live backend. F105 repaired the post-#813 guard/fixture test epoch; the exact candidate must
+   still pass the complete aggregate before merge.
 5. [`../truth/APP.md`](../truth/APP.md) and
    [`../independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md`](../independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md)
    — current app/cutover truth. Runtime authority always requires an immediate live readback.

@@ -43,6 +43,8 @@
 
 | 9 | 05:05 | SMM calendar | DAILY PLANNING journey, cold-open via real Sheet UI: "+" → typed name born as DB row → date control → thumbnail paste (blur) → caption typed → VID Linear link paste unlocks the pill (design gate: "Link a Linear sub-issue first") → status pill menu flip → all writes polled into `calendar_posts` → hard reload renders every value → 0 JS errors | ✅ pass=22 fail=0 | `ot4_t1_smm_calendar_writes.js` |
 
+| 10 | 05:12 | SMM calendar | SHARE-LINK ISSUANCE via real kebab → "Share with client": signed-out = fail-closed toast, no clipboard write, no request; signed-in (key-verify + issuance EF MOCKED, no real token) = X-Syncview-Key sent, URL shape `?c=Sidney Laruel&v=calendar&t=<token>`, "copied" toast; the minted URL boots as a client link | ✅ pass=16 fail=0 | `ot4_t1_sharelink_issuance.js` |
+
 ### F140 status note (documentation only — no product code touched)
 - The registered deterministic repro (`kasper.finish() → disabled` after a Kasper tweak request
   on a graphic-only card) **did NOT reproduce tonight**: tree path green 8/8 at 04:50 UTC under

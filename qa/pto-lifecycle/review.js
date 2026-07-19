@@ -12,6 +12,22 @@ function canonicalSourceText(value) {
   return String(value).replace(/\r\n?/g, '\n');
 }
 
+// index.html is one ~44k-line file, so fingerprinting the WHOLE of it made the
+// PTO public-evidence guard go stale on any edit anywhere (F141 reorder,
+// analytics, workload — none of them PTO), which turned it permanently red and
+// therefore meaningless. ptoSourceSlice keeps only the PTO-bearing lines, so the
+// guard trips when PTO code changes and stays quiet for unrelated edits. Tokens
+// are PTO-specific — never bare "pto" — so "crypto"/"adaptor" never match. If PTO
+// grows a new identifier shape, add it here AND regenerate the manifest;
+// test/pto-fingerprint-slice.js pins the anchors and the exclusions.
+const PTO_SOURCE_TOKEN = /_pto|pto-|pto_|ptoRoot|ptoRefresh|ptoV1|'pto'|"pto"|\[PTO\]|PTO \/|Time Off/;
+function ptoSourceSlice(indexText) {
+  return canonicalSourceText(indexText)
+    .split('\n')
+    .filter(line => PTO_SOURCE_TOKEN.test(line))
+    .join('\n');
+}
+
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -375,6 +391,7 @@ function writeReviewArtifacts(shots, artifactDir, metadata = {}) {
 
 module.exports = {
   canonicalSourceText,
+  ptoSourceSlice,
   grouped,
   writeReviewArtifacts,
   assertPublicTextSafe,

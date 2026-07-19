@@ -1639,6 +1639,13 @@
         .gp-ig .gains-platform-name { color: var(--ig-dark); }
         .gp-tt .gains-platform-name { color: var(--tt-dark); }
         .gp-yt .gains-platform-name { color: var(--yt-dark); }
+        .analytics-state-badge { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--sv-border-f59e0b); border-radius: 999px; padding: 2px 7px; color: var(--sv-fg-f59e0b); background: var(--white); font-size: 0.56rem; font-weight: 800; letter-spacing: 0.04em; line-height: 1.2; white-space: nowrap; }
+        .gains-platform-card.is-degraded { border: 1px dashed var(--sv-border-f59e0b); }
+        .gains-platform-card.is-degraded .gains-platform-header { justify-content: space-between; flex-wrap: wrap; }
+        .platform-section .analytics-state-badge, .card-platform .analytics-state-badge { color: var(--sv-fg-rgba-255-255-255-0_9); background: var(--sv-bg-rgba-0-0-0-0_25); border-color: var(--sv-border-rgba-255-255-255-0_18); }
+        .card-platform.is-degraded { border: 1px dashed var(--sv-border-rgba-255-255-255-0_18); }
+        .overview-table .analytics-state-badge { margin-left: 6px; vertical-align: middle; }
+        .analytics-degraded-note { padding: 0 20px 15px; color: var(--sv-fg-rgba-255-255-255-0_7); font-size: 0.72rem; font-weight: 600; }
         .gains-metrics-row { display: flex; gap: 10px; flex-wrap: wrap; }
         .gain-chip { display: inline-flex; flex-direction: column; gap: 2px; }
         .gain-chip-label { font-size: 0.56rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
@@ -7888,6 +7895,106 @@
     function fmt(v){const x=n(v);if(!x)return null;if(x>=1e6)return(x/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(x>=1e3)return(x/1e3).toFixed(1).replace(/\.0$/,'')+'K';return x.toLocaleString();}
     function fmtDate(d){if(!d)return'';const p=d.split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d;}
     function fmtCompact(v){const x=n(v);if(v===''||v===undefined||v===null)return'—';if(!x&&v!=='0'&&v!==0)return'—';if(x>=1e6)return(x/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(x>=1e3)return(x/1e3).toFixed(1).replace(/\.0$/,'')+'K';return x.toLocaleString();}
+    const ANALYTICS_RECEIPT_SCHEMA='syncview.analytics.receipt.v1';
+    const ANALYTICS_RECEIPT_STATES=new Set(['success','genuinely_empty','provider_failed','not_configured']);
+    const ANALYTICS_RECEIPT_PLATFORMS=['instagram','tiktok','youtube'];
+    const ANALYTICS_RECEIPT_ERROR_CLASSES={
+        instagram:new Set(['apify_no_items','apify_request_blocked','apify_http_error','apify_schema_invalid','apify_provider_error','receipt_missing']),
+        tiktok:new Set(['apify_no_items','apify_request_blocked','apify_http_error','apify_provider_error','receipt_missing']),
+        youtube:new Set(['youtube_provider_error','receipt_missing'])
+    };
+    function _analyticsPlatformValue(value,platform){
+        if(!value||typeof value!=='object'||Array.isArray(value)||!ANALYTICS_RECEIPT_STATES.has(value.state))return null;
+        if(typeof value.expected!=='boolean'||typeof value.attempted!=='boolean'||typeof value.used_last_good!=='boolean')return null;
+        if(!Number.isInteger(value.item_count)||value.item_count<0)return null;
+        const hasFetchedAt=typeof value.fetched_at==='string'&&value.fetched_at.length>0;
+        const hasSourceDate=typeof value.source_date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value.source_date);
+        if(!Object.prototype.hasOwnProperty.call(value,'error_class')||(value.error_class!==null&&typeof value.error_class!=='string'))return null;
+        if(value.state==='not_configured'){
+            if(value.expected||value.attempted||value.used_last_good||value.item_count!==0||value.fetched_at!==null||value.source_date!==null||value.error_class!==null)return null;
+        }else if(value.state==='provider_failed'){
+            if(!value.expected||!value.attempted||value.item_count!==0||!hasFetchedAt||!ANALYTICS_RECEIPT_ERROR_CLASSES[platform]?.has(value.error_class))return null;
+            if(value.used_last_good?!hasSourceDate:value.source_date!==null)return null;
+        }else{
+            if(!value.expected||!value.attempted||value.used_last_good||!hasFetchedAt||!hasSourceDate||value.error_class!==null)return null;
+            if(value.state==='success'&&value.item_count<1)return null;
+            if(value.state==='genuinely_empty'&&value.item_count!==0)return null;
+        }
+        return value;
+    }
+    function _analyticsReceipt(row){
+        if(!row)return null;
+        let receipt=row.analytics_receipt;
+        if(!receipt)return null;
+        if(typeof receipt==='string'){
+            try{receipt=JSON.parse(receipt);}catch{return null;}
+        }
+        if(!receipt||typeof receipt!=='object'||Array.isArray(receipt))return null;
+        if(receipt.schema!==ANALYTICS_RECEIPT_SCHEMA||receipt.terminal!==true||receipt.metrics_written!==true||!receipt.platforms||typeof receipt.platforms!=='object'||Array.isArray(receipt.platforms))return null;
+        if(!receipt.client_name||!row.client_name||String(receipt.client_name)!==String(row.client_name))return null;
+        if(!receipt.run_date||!row.date||!/^\d{4}-\d{2}-\d{2}$/.test(String(receipt.run_date))||String(receipt.run_date)!==String(row.date).slice(0,10))return null;
+        if(typeof receipt.client_key!=='string'||!receipt.client_key.trim())return null;
+        const rowNumber=receipt.row_number;
+        const rowKeyValid=Number.isInteger(Number(rowNumber))&&Number(rowNumber)>0&&receipt.client_key==='row:'+String(rowNumber);
+        const nameKeyValid=(rowNumber===null||rowNumber==='')&&receipt.client_key==='name:'+String(receipt.client_name).trim().toLowerCase();
+        if(!rowKeyValid&&!nameKeyValid)return null;
+        if(typeof receipt.completed_at!=='string'||!receipt.completed_at)return null;
+        if(!ANALYTICS_RECEIPT_PLATFORMS.every(platform=>_analyticsPlatformValue(receipt.platforms[platform],platform)))return null;
+        const expectedResult=ANALYTICS_RECEIPT_PLATFORMS.some(platform=>receipt.platforms[platform].state==='provider_failed')?'degraded':'success';
+        if(receipt.result!==expectedResult)return null;
+        return receipt;
+    }
+    function _analyticsPlatformReceipt(row,platform){
+        const receipt=_analyticsReceipt(row);
+        return _analyticsPlatformValue(receipt?.platforms?.[platform],platform);
+    }
+    function _analyticsProviderFailed(row,platform){return _analyticsPlatformReceipt(row,platform)?.state==='provider_failed';}
+    function _analyticsMetricNumber(row,platform,key){
+        if(!row)return null;
+        const raw=row[key];
+        if(raw===''||raw===null||raw===undefined||!Number.isFinite(Number(raw)))return null;
+        const receipt=_analyticsPlatformReceipt(row,platform);
+        if(receipt){
+            const trustedFresh=receipt.state==='success'||receipt.state==='genuinely_empty';
+            const trustedFallback=receipt.state==='provider_failed'&&receipt.used_last_good===true;
+            return trustedFresh||trustedFallback?Number(raw):null;
+        }
+        const value=Number(raw);
+        return value===0?null:value;
+    }
+    function _analyticsHasTrustedMetrics(row,platform,keys){
+        return keys.some(key=>_analyticsMetricNumber(row,platform,key)!==null);
+    }
+    function _analyticsTrustedReference(today,candidate,platform,key){
+        if(_analyticsMetricNumber(candidate,platform,key)!==null)return candidate;
+        if(!today?.client_name||!today.date||typeof clientHistory!=='function')return null;
+        const cutoff=String(candidate?.date||today.date);
+        const history=clientHistory(today.client_name);
+        for(let i=history.length-1;i>=0;i--){
+            const row=history[i];
+            if(!row?.date||String(row.date)>=String(today.date)||String(row.date)>cutoff)continue;
+            if(_analyticsMetricNumber(row,platform,key)!==null)return row;
+        }
+        return null;
+    }
+    function _analyticsPlatformVisible(row,platform,legacyVisible){
+        const state=_analyticsPlatformReceipt(row,platform)?.state;
+        if(state==='success'||state==='genuinely_empty'||state==='provider_failed')return true;
+        if(state==='not_configured')return false;
+        return!!legacyVisible;
+    }
+    function _analyticsMetricFmt(row,platform,key){
+        const receipt=_analyticsPlatformReceipt(row,platform);
+        const value=_analyticsMetricNumber(row,platform,key);
+        if(receipt)return value===null?null:(fmt(value)||'0');
+        return fmt(row?.[key]);
+    }
+    function _analyticsStateBadge(row,platform){
+        const receipt=_analyticsPlatformReceipt(row,platform);
+        if(receipt?.state!=='provider_failed')return'';
+        const label=receipt.used_last_good===true?'Degraded · last-known':'Degraded · no fresh data';
+        return`<span class="analytics-state-badge">${label}</span>`;
+    }
     function fmtIsoDate(iso){if(!iso)return'';try{const m=iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);if(m){const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${parseInt(m[3])} ${months[parseInt(m[2])-1]} ${m[1]}, ${m[4]}:${m[5]}`;}return iso;}catch{return iso;}}
     function parseViewCount(v){if(!v)return 0;const s=String(v).replace(/,/g,'').trim();if(s.endsWith('M'))return parseFloat(s)*1e6;if(s.endsWith('K'))return parseFloat(s)*1e3;return parseFloat(s)||0;}
     function isPhrase(text){return(text||'').split(/\s+/).filter(w=>w.length>0).length>=3;}
@@ -8236,6 +8343,7 @@
     function _blankAnalyticsRow(name){
         return {
             client_name:name,date:'',
+            analytics_receipt:'',
             ig_followers:'',ig_avg_views:'',ig_avg_likes:'',ig_views_this_month:'',ig_views_gained_today:'',
             tiktok_followers:'',tiktok_avg_plays:'',tiktok_plays_this_month:'',tiktok_plays_gained_today:'',
             yt_subscribers:'',yt_total_views:'',yt_views_gained_today:''
@@ -9402,16 +9510,17 @@
         const prevMap=gainPeriod==='week'?weekPrevPerClient():prevPerClient();
         const mPrevMap=monthPrevPerClient();
         function val(r,col){
-            if(col==='_ig_fol_delta'){const p=prevMap[r.client_name];if(!p)return -Infinity;return n(r.ig_followers)-n(p.ig_followers);}
+            if((col.startsWith('ig_')||col.startsWith('_ig_'))&&_analyticsProviderFailed(r,'instagram'))return -Infinity;
+            if(col==='_ig_fol_delta'){const p=_analyticsTrustedReference(r,prevMap[r.client_name],'instagram','ig_followers');if(!p)return -Infinity;return n(r.ig_followers)-n(p.ig_followers);}
             if(col==='_tt_fol_delta'){const p=prevMap[r.client_name];if(!p)return -Infinity;return n(r.tiktok_followers)-n(p.tiktok_followers);}
             // Day mode: use the direct gained_today field (accurate single-day value from sheet)
             // Week mode: use _safeWeekViewDelta to handle month-boundary resets
-            if(col==='_ig_view_delta'){if(!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;if(gainPeriod==='day'){return n(r.ig_views_gained_today)||0;}const p=prevMap[r.client_name];if(!p)return -Infinity;return _safeWeekViewDelta(r,p,r.client_name,'ig_views_this_month','ig_views_gained_today')||0;}
+            if(col==='_ig_view_delta'){if(!_analyticsHasTrustedMetrics(r,'instagram',['ig_followers','ig_views_this_month']))return -Infinity;if(gainPeriod==='day'){return n(r.ig_views_gained_today)||0;}const p=_analyticsTrustedReference(r,prevMap[r.client_name],'instagram','ig_views_this_month');if(!p)return -Infinity;return _safeWeekViewDelta(r,p,r.client_name,'ig_views_this_month','ig_views_gained_today')||0;}
             if(col==='_tt_view_delta'){if(!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;if(gainPeriod==='day'){return n(r.tiktok_plays_gained_today)||0;}const p=prevMap[r.client_name];if(!p)return -Infinity;return _safeWeekViewDelta(r,p,r.client_name,'tiktok_plays_this_month','tiktok_plays_gained_today')||0;}
             // Views/30d columns: sort by 30-day delta
-            if(col==='ig_views_this_month'){const mp=mPrevMap[r.client_name];if(!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;if(!mp)return n(r.ig_views_this_month);return n(r.ig_views_this_month)-n(mp.ig_views_this_month);}
+            if(col==='ig_views_this_month'){const mp=_analyticsTrustedReference(r,mPrevMap[r.client_name],'instagram','ig_views_this_month');if(!_analyticsHasTrustedMetrics(r,'instagram',['ig_followers','ig_views_this_month']))return -Infinity;if(!mp)return n(r.ig_views_this_month);return n(r.ig_views_this_month)-n(mp.ig_views_this_month);}
             if(col==='tiktok_plays_this_month'){const mp=mPrevMap[r.client_name];if(!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;if(!mp)return n(r.tiktok_plays_this_month);return n(r.tiktok_plays_this_month)-n(mp.tiktok_plays_this_month);}
-            if(col.startsWith('ig_')&&!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;
+            if(col.startsWith('ig_')&&!_analyticsHasTrustedMetrics(r,'instagram',['ig_followers','ig_views_this_month']))return -Infinity;
             if(col.startsWith('tiktok_')&&!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;
             if(col==='_yt_sub_delta'){const p=prevMap[r.client_name];if(!n(r.yt_subscribers)&&!n(r.yt_total_views))return -Infinity;if(!p)return -Infinity;return n(r.yt_subscribers)-n(p.yt_subscribers);}
             if(col==='_yt_view_delta'){const p=prevMap[r.client_name];if(!n(r.yt_subscribers)&&!n(r.yt_total_views))return -Infinity;if(!p)return -Infinity;return n(r.yt_total_views)-n(p.yt_total_views);}
@@ -9460,22 +9569,24 @@
             const mp=mPrevMap[r.client_name]||null;
             const rankBadge=idx<3?`<span class="card-rank card-rank-${idx+1}">${idx+1}</span>`:'';
             // ── FIX: mh uses correct '-' sign for losses
-            const mh=(label,key)=>{const f=fmt(r[key]);if(!f)return'';let gh='';if(p){const d=n(r[key])-n(p[key]);if(d===0)gh=`<span class="card-metric-gain flat">±0</span>`;else{const s=d>0?'+':'-';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
+            const mh=(label,key,platform)=>{const f=platform?_analyticsMetricFmt(r,platform,key):fmt(r[key]);if(!f)return'';let gh='';const ref=platform?_analyticsTrustedReference(r,p,platform,key):p;const suppressDelta=platform&&_analyticsProviderFailed(r,platform);if(ref&&!suppressDelta){const d=n(r[key])-n(ref[key]);if(d===0)gh=`<span class="card-metric-gain flat">±0</span>`;else{const s=d>0?'+':'-';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
             // mhValDiff: delta from monthly totals vs prev row (used for week mode)
             const mhValDiff=(label,valueKey)=>{const f=fmt(r[valueKey]);if(!f)return'';let gh='';if(p){const d=n(r[valueKey])-n(p[valueKey]);const s=d>0?'+':'-';const cls=d>0?'up':d<0?'down':'flat';gh=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
             // mhWithDelta: show a pre-computed delta value (used for day mode with gained_today field)
             const mhWithDelta=(label,valueKey,deltaVal)=>{const f=fmt(r[valueKey]);if(!f)return'';let gh='';if(deltaVal!==null&&deltaVal!==undefined){const d=n(deltaVal);const s=d>0?'+':'-';const cls=d>0?'up':d<0?'down':'flat';gh=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
             // mhViews30d: show 30-day rolling views (computed delta) with day/week gain indicator
-            const mhViews30d=(label,curKey,monthPrev,deltaVal)=>{const views30d=monthPrev?n(r[curKey])-n(monthPrev[curKey]):n(r[curKey]);const f=views30d>0?fmt(views30d):null;if(!f)return'';let gh='';if(deltaVal!==null&&deltaVal!==undefined){const d=n(deltaVal);const s=d>0?'+':'-';const cls=d>0?'up':d<0?'down':'flat';gh=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
-            const hasIG=n(r.ig_followers)||n(r.ig_views_this_month),hasTT=n(r.tiktok_followers)||n(r.tiktok_plays_this_month),hasYT=n(r.yt_subscribers)||n(r.yt_total_views);
+            const mhViews30d=(label,curKey,monthPrev,deltaVal,platform)=>{const typed=platform&&_analyticsPlatformReceipt(r,platform);if(typed?.state==='provider_failed'&&typed.used_last_good!==true)return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">—</span></div>`;const ref=platform?_analyticsTrustedReference(r,monthPrev,platform,curKey):monthPrev;const views30d=ref?n(r[curKey])-n(ref[curKey]):n(r[curKey]);const trusted=platform?_analyticsMetricNumber(r,platform,curKey)!==null:false;const f=trusted?(fmt(views30d)||'0'):(views30d>0?fmt(views30d):null);if(!f)return'';let gh='';const suppressDelta=platform&&_analyticsProviderFailed(r,platform);if(!suppressDelta&&deltaVal!==null&&deltaVal!==undefined){const d=n(deltaVal);const s=d>0?'+':'-';const cls=d>0?'up':d<0?'down':'flat';gh=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
+            const hasIG=_analyticsPlatformVisible(r,'instagram',n(r.ig_followers)||n(r.ig_views_this_month)),hasTT=n(r.tiktok_followers)||n(r.tiktok_plays_this_month),hasYT=n(r.yt_subscribers)||n(r.yt_total_views);
             let pl='';
             const cardIsAgeRestricted=r.client_name.toLowerCase()==='john wineland';
             const cardInfo=clientMap[r.client_name]||{};
             const cardIgH=cardInfo.instagram_handle||'',cardTtH=cardInfo.tiktok_handle||'',cardYtId=cardInfo.youtube_channel_id||'';
             const platLink=(url,label)=>url?`<a href="${url}" target="_blank" rel="noopener" style="font-size:0.58rem;font-weight:600;color:var(--sv-fg-rgba-255-255-255-0_55);text-decoration:none;letter-spacing:0.02em;white-space:nowrap;transition:color 0.15s;" onmouseover="this.style.color='var(--sv-fg-rgba-255-255-255-0_9)'" onmouseout="this.style.color='var(--sv-fg-rgba-255-255-255-0_55)'">${label}</a>`:'';
-            const igViewsDelta=gainPeriod==='day'?n(r.ig_views_gained_today):_safeWeekViewDelta(r,p,r.client_name,'ig_views_this_month','ig_views_gained_today');
+            const igFailed=_analyticsProviderFailed(r,'instagram');
+            const igViewsRef=_analyticsTrustedReference(r,p,'instagram','ig_views_this_month');
+            const igViewsDelta=igFailed?null:(gainPeriod==='day'?n(r.ig_views_gained_today):_safeWeekViewDelta(r,igViewsRef,r.client_name,'ig_views_this_month','ig_views_gained_today'));
             const ttViewsDelta=gainPeriod==='day'?n(r.tiktok_plays_gained_today):_safeWeekViewDelta(r,p,r.client_name,'tiktok_plays_this_month','tiktok_plays_gained_today');
-            if(hasIG){pl+=`<div class="card-platform cp-ig"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">Instagram</span>${platLink(cardIgH?'https://instagram.com/'+cardIgH:null,'@'+cardIgH)}</div>${mh('Followers','ig_followers')}${mhViews30d('Views Last 30d','ig_views_this_month',mp,igViewsDelta)}</div>`;}
+            if(hasIG){pl+=`<div class="card-platform cp-ig${igFailed?' is-degraded':''}"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span style="display:inline-flex;align-items:center;gap:6px;"><span class="card-platform-label" style="margin-bottom:0">Instagram</span>${_analyticsStateBadge(r,'instagram')}</span>${platLink(cardIgH?'https://instagram.com/'+cardIgH:null,'@'+cardIgH)}</div>${mh('Followers','ig_followers','instagram')}${mhViews30d('Views Last 30d','ig_views_this_month',mp,igViewsDelta,'instagram')}</div>`;}
             else if(cardIsAgeRestricted){pl+=`<div class="card-platform cp-ig" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;"><span class="card-platform-label" style="width:auto;margin:0;">Instagram</span><span style="font-size:0.6rem;font-weight:700;color:var(--ig-dark);background:var(--ig-mid);border-radius:4px;padding:2px 7px;white-space:nowrap;">🔞 Age-restricted</span></div>`;}
             if(hasTT)pl+=`<div class="card-platform cp-tt"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">TikTok</span>${platLink(cardTtH?'https://tiktok.com/@'+cardTtH:null,'@'+cardTtH)}</div>${mh('Followers','tiktok_followers')}${mhViews30d('Views Last 30d','tiktok_plays_this_month',mp,ttViewsDelta)}</div>`;
             const cardYtSplit=r.client_name==='Dr. Sonia Chopra';
@@ -9507,14 +9618,16 @@
         const sign=diff>0?'+':'-',cls=diff>0?'up':'down',arr=diff>0?'↑':'↓';
         return`<span class="m-delta ${cls}">${arr} ${sign}${fmt(Math.abs(diff))||Math.abs(diff).toLocaleString()}</span>`;
     }
-    function mBlock(label,today,prev,key){const f=fmt(today[key]);return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div>${f?deltaBadge(today,prev,key):''}</div>`;}
-    function mBlockNoD(label,today,key){const f=fmt(today[key]);return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div></div>`;}
+    function mBlock(label,today,prev,key,platform){const f=platform?_analyticsMetricFmt(today,platform,key):fmt(today[key]);const ref=platform?_analyticsTrustedReference(today,prev,platform,key):prev;const suppressDelta=platform&&_analyticsProviderFailed(today,platform);return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div>${f&&!suppressDelta?deltaBadge(today,ref,key):''}</div>`;}
+    function mBlockNoD(label,today,key,platform){const f=platform?_analyticsMetricFmt(today,platform,key):fmt(today[key]);return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div></div>`;}
 
     // ── FIX: gainCell now shows '-' for negative deltas
-    function gainCell(today,prev,key,cls){
-        const f=fmt(today[key]);
-        if(!f||!prev)return`<td class="${cls}"><span class="g-none">—</span></td>`;
-        const diff=n(today[key])-n(prev[key]);
+    function gainCell(today,prev,key,cls,platform){
+        const f=platform?_analyticsMetricFmt(today,platform,key):fmt(today[key]);
+        const ref=platform?_analyticsTrustedReference(today,prev,platform,key):prev;
+        if(platform&&_analyticsProviderFailed(today,platform))return`<td class="${cls}"><span class="g-none">—</span></td>`;
+        if(!f||!ref)return`<td class="${cls}"><span class="g-none">—</span></td>`;
+        const diff=n(today[key])-n(ref[key]);
         if(diff===0)return`<td class="${cls}"><span class="g-none">±0</span></td>`;
         const sign=diff>0?'+':'-';
         return`<td class="${cls}"><span class="${diff>0?'g-up':'g-down'}">${sign}${fmt(Math.abs(diff))||Math.abs(diff).toLocaleString()}</span></td>`;
@@ -9538,10 +9651,15 @@
         }}
         return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div>${delta}</div>`;
     }
-    function mBlockViews30d(label,today,monthRow,valueKey,diffKey){
-        const views30d=monthRow?(n(today[valueKey])-n(monthRow[valueKey])):n(today[valueKey]);
-        const f=views30d>0?fmt(views30d):null;const diff=n(today[diffKey]);let delta='';
-        if(f){if(diff===0)delta=`<span class="m-delta flat">no change today</span>`;else if(diff>0){
+    function mBlockViews30d(label,today,monthRow,valueKey,diffKey,platform){
+        const receipt=platform&&_analyticsPlatformReceipt(today,platform);
+        if(receipt?.state==='provider_failed'&&receipt.used_last_good!==true)return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value empty">—</div></div>`;
+        const ref=platform?_analyticsTrustedReference(today,monthRow,platform,valueKey):monthRow;
+        const views30d=ref?(n(today[valueKey])-n(ref[valueKey])):n(today[valueKey]);
+        const trusted=platform?_analyticsMetricNumber(today,platform,valueKey)!==null:false;
+        const f=trusted?(fmt(views30d)||'0'):(views30d>0?fmt(views30d):null);const diff=n(today[diffKey]);let delta='';
+        const suppressDelta=platform&&_analyticsProviderFailed(today,platform);
+        if(f&&!suppressDelta){if(diff===0)delta=`<span class="m-delta flat">no change today</span>`;else if(diff>0){
             delta=`<span class="m-delta up">↑ +${fmt(diff)||diff.toLocaleString()}</span>`;
         }else if(diff<0){delta=`<span class="m-delta down">↓ -${fmt(Math.abs(diff))||Math.abs(diff).toLocaleString()}</span>`;}}
         return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div>${delta}</div>`;
@@ -9551,22 +9669,26 @@
         function chip(label,value,delta){const numFmt=fmt(value);const numHtml=numFmt?`<span class="gain-chip-num">${numFmt}</span>`:`<span class="gain-chip-num empty">—</span>`;let deltaHtml='';if(delta!==null&&delta!==undefined){const d=n(delta);if(d>0)deltaHtml=`<span class="gain-delta up">↑ +${fmt(d)||d.toLocaleString()}</span>`;else if(d<0)deltaHtml=`<span class="gain-delta down">↓ ${fmt(d)||d.toLocaleString()}</span>`;else deltaHtml=`<span class="gain-delta flat">±0</span>`;}return`<div class="gain-chip"><span class="gain-chip-label">${label}</span><div class="gain-chip-val">${numHtml}${deltaHtml}</div></div>`;}
         function chipDiff(label,diffVal){if(diffVal===null||diffVal===undefined)return'';const d=n(diffVal);let deltaHtml='';if(d>0)deltaHtml=`<span class="gain-delta up">+${fmt(d)||d.toLocaleString()}</span>`;else if(d<0)deltaHtml=`<span class="gain-delta down">${fmt(d)||d.toLocaleString()}</span>`;else deltaHtml=`<span class="gain-delta flat">±0</span>`;return`<div class="gain-chip"><span class="gain-chip-label">${label}</span><div class="gain-chip-val">${deltaHtml}</div></div>`;}
         function chipDeltaOnly(label,diff){let deltaHtml='';if(diff===null||diff===undefined){deltaHtml=`<span class="gain-chip-num empty">—</span>`;}else{const d=n(diff);if(d>0)deltaHtml=`<span class="gain-delta up">+${fmt(d)||d.toLocaleString()}</span>`;else if(d<0)deltaHtml=`<span class="gain-delta down">${fmt(d)||d.toLocaleString()}</span>`;else deltaHtml=`<span class="gain-delta flat">±0</span>`;}return`<div class="gain-chip"><span class="gain-chip-label">${label}</span><div class="gain-chip-val">${deltaHtml}</div></div>`;}
-        const hasIG=n(today.ig_followers)||n(today.ig_views_this_month);
+        const hasIG=_analyticsPlatformVisible(today,'instagram',n(today.ig_followers)||n(today.ig_views_this_month));
         const hasTT=n(today.tiktok_followers)||n(today.tiktok_plays_this_month);
         const hasYT=n(today.yt_subscribers)||n(today.yt_total_views);
         const activePeriod=forcePeriod||gainPeriod;
         const dRow=activePeriod==='week'?weekRow:prev;
-        const igFolDiff=dRow?n(today.ig_followers)-n(dRow.ig_followers):null;
+        const igFailed=_analyticsProviderFailed(today,'instagram');
+        const igTyped=_analyticsPlatformReceipt(today,'instagram');
+        const igFolRef=_analyticsTrustedReference(today,dRow,'instagram','ig_followers');
+        const igViewsRef=_analyticsTrustedReference(today,dRow,'instagram','ig_views_this_month');
+        const igFolDiff=!igFailed&&igFolRef?n(today.ig_followers)-n(igFolRef.ig_followers):null;
         const ttFolDiff=dRow?n(today.tiktok_followers)-n(dRow.tiktok_followers):null;
         const ytSubDiff=dRow?n(today.yt_subscribers)-n(dRow.yt_subscribers):null;
         const ytViewDiff=dRow?n(today.yt_total_views)-n(dRow.yt_total_views):null;
         // Day mode: use the direct gained_today field from the sheet
         // Week mode: use _safeWeekViewDelta to handle month-boundary resets
-        const igViewsGain=activePeriod==='week'?_safeWeekViewDelta(today,dRow,clientName,'ig_views_this_month','ig_views_gained_today'):(n(today.ig_views_gained_today)||null);
+        const igViewsGain=igFailed?null:(activePeriod==='week'?_safeWeekViewDelta(today,igViewsRef,clientName,'ig_views_this_month','ig_views_gained_today'):(igTyped?n(today.ig_views_gained_today):(n(today.ig_views_gained_today)||null)));
         const ttViewsGain=activePeriod==='week'?_safeWeekViewDelta(today,dRow,clientName,'tiktok_plays_this_month','tiktok_plays_gained_today'):(n(today.tiktok_plays_gained_today)||null);
         const periodLabel=activePeriod==='week'?"This Week's":"Today's";
         let cards='';
-        if(hasIG)cards+=`<div class="gains-platform-card gp-ig"><div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">Instagram</span></div><div class="gains-metrics-row">${chipDeltaOnly('Followers',igFolDiff)}${chipDiff('Views',igViewsGain)}</div></div>`;
+        if(hasIG)cards+=`<div class="gains-platform-card gp-ig${igFailed?' is-degraded':''}"><div class="gains-platform-header"><span style="display:inline-flex;align-items:center;gap:6px;"><span class="gains-platform-dot"></span><span class="gains-platform-name">Instagram</span></span>${_analyticsStateBadge(today,'instagram')}</div><div class="gains-metrics-row">${chipDeltaOnly('Followers',igFolDiff)}${chipDiff('Views',igViewsGain)}</div></div>`;
         if(hasTT)cards+=`<div class="gains-platform-card gp-tt"><div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">TikTok</span></div><div class="gains-metrics-row">${chipDeltaOnly('Followers',ttFolDiff)}${chipDiff('Views',ttViewsGain)}</div></div>`;
         if(hasYT)cards+=`<div class="gains-platform-card gp-yt"><div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">YouTube</span></div><div class="gains-metrics-row">${chipDeltaOnly('Subscribers',ytSubDiff)}${chipDeltaOnly('Total Views',ytViewDiff)}</div></div>`;
         const note=dRow?'':`<span class="gains-no-data-note">Gains show after ${activePeriod==='week'?'7+':'2+'} days</span>`;
@@ -9757,7 +9879,8 @@
         const monthRow=getMonthRow(history);
         const info=clientMap[name]||{};
         const igHandle=info.instagram_handle||'',ttHandle=info.tiktok_handle||'',ytId=info.youtube_channel_id||'';
-        const hasIG=n(today.ig_followers)||n(today.ig_avg_views),hasTT=n(today.tiktok_followers)||n(today.tiktok_avg_plays),hasYT=n(today.yt_subscribers)||n(today.yt_total_views);
+        const igFailed=_analyticsProviderFailed(today,'instagram');
+        const hasIG=_analyticsPlatformVisible(today,'instagram',n(today.ig_followers)||n(today.ig_avg_views)),hasTT=n(today.tiktok_followers)||n(today.tiktok_avg_plays),hasYT=n(today.yt_subscribers)||n(today.yt_total_views);
         const hasAnyAnalytics=!!(hasIG||hasTT||hasYT);
         const compareNote=prev?`comparing vs ${fmtDate(prev.date)}`:(hasAnyAnalytics?`<em>daily changes show after 2+ days</em>`:`<em>no analytics yet</em>`);
         const availPlats=[hasIG&&'ig',hasTT&&'tt',hasYT&&'yt'].filter(Boolean);
@@ -9775,7 +9898,9 @@
         const ytTopVids=buildTopVideosSection(name,'youtube',`tv-yt-${name.replace(/\s+/g,'_')}`);
         const igAgeRestricted=name.toLowerCase()==='john wineland';
         const igAgeBadge=igAgeRestricted?`<span style="display:inline-flex;align-items:center;gap:5px;background:var(--sv-bg-rgba-0-0-0-0_25);border:1px solid var(--sv-border-rgba-255-255-255-0_18);border-radius:20px;padding:3px 10px;font-size:0.65rem;font-weight:700;color:var(--sv-fg-rgba-255-255-255-0_7);letter-spacing:0.04em;">🔞 Age-restricted · not scraped</span>`:'';
-        const igSection=(hasIG||igAgeRestricted)?`<div class="platform-section ig"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>Instagram</span><div style="display:flex;align-items:center;gap:10px;">${igAgeBadge}${handleLink(igUrl(igHandle),igHandle?`@${igHandle}`:'')}</div></div>${hasIG?`<div class="metrics-row">${mBlock('Total Followers',today,prev,'ig_followers')}${mBlockNoD('Avg Views',today,'ig_avg_views')}${mBlockViews30d('Views Last 30d',today,monthRow,'ig_views_this_month','ig_views_gained_today')}${mBlockNoD('Avg Likes',today,'ig_avg_likes')}</div>${igTopVids}`:''}${igAgeRestricted&&!hasIG?`<div style="padding:4px 20px 18px;color:var(--sv-fg-rgba-255-255-255-0_5);font-size:0.79rem;font-style:italic;">Instagram data unavailable — this account is age-restricted and cannot be scraped.</div>`:''}</div>`:'';
+        const igStateBadge=_analyticsStateBadge(today,'instagram');
+        const igDegradedNote=igFailed?`<div class="analytics-degraded-note">Instagram could not be refreshed. ${_analyticsPlatformReceipt(today,'instagram')?.used_last_good===true?'Showing the last-known values; changes are paused for this scrape.':'No prior value was available; changes are paused for this scrape.'}</div>`:'';
+        const igSection=(hasIG||igAgeRestricted)?`<div class="platform-section ig"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>Instagram</span><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;">${igStateBadge}${igAgeBadge}${handleLink(igUrl(igHandle),igHandle?`@${igHandle}`:'')}</div></div>${hasIG?`<div class="metrics-row">${mBlock('Total Followers',today,prev,'ig_followers','instagram')}${mBlockNoD('Avg Views',today,'ig_avg_views','instagram')}${mBlockViews30d('Views Last 30d',today,monthRow,'ig_views_this_month','ig_views_gained_today','instagram')}${mBlockNoD('Avg Likes',today,'ig_avg_likes','instagram')}</div>${igDegradedNote}${igTopVids}`:''}${igAgeRestricted&&!hasIG?`<div style="padding:4px 20px 18px;color:var(--sv-fg-rgba-255-255-255-0_5);font-size:0.79rem;font-style:italic;">Instagram data unavailable — this account is age-restricted and cannot be scraped.</div>`:''}</div>`:'';
         const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlockNoD('Avg Views',today,'tiktok_avg_plays')}${mBlockViews30d('Views Last 30d',today,monthRow,'tiktok_plays_this_month','tiktok_plays_gained_today')}</div>${ttTopVids}</div>`:'';
         const ytSplitViews=name==='Dr. Sonia Chopra';
         const ytViewBlocks=ytSplitViews?`${mBlock('Shorts Last 30d',today,prev,'yt_shorts_views')}${mBlock('Podcasts Last 30d',today,prev,'yt_longs_views')}`:mBlock('Total Views',today,prev,'yt_total_views');
@@ -9877,7 +10002,8 @@
         const deltaMap=gainPeriod==='week'?weekPrevPerClient():prevMap;
         const mPrevMap=monthPrevPerClient();
         const nc=(val,cls)=>{const f=fmt(val);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;};
-        const ncViewsDelta=(curVal,prevVal,cls)=>{if(!prevVal&&prevVal!==0){const f=fmt(curVal);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;}const d=n(curVal)-n(prevVal);const f=fmt(d);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;};
+        const ncAnalytics=(row,platform,key,cls)=>{const f=_analyticsMetricFmt(row,platform,key);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}${key==='ig_followers'?_analyticsStateBadge(row,platform):''}</td>`;};
+        const ncViewsDelta=(row,candidate,platform,key,cls)=>{const current=_analyticsMetricNumber(row,platform,key);if(current===null)return`<td class="${cls} num"><span class="g-none">—</span></td>`;const ref=_analyticsTrustedReference(row,candidate,platform,key);const value=ref?current-n(ref[key]):current;const f=fmt(value)||'0';return`<td class="${cls} num has">${f}</td>`;};
         if(viewMode==='cards')return`<div class="overview-wrap">${controlsHTML()}${renderCardView(rows,deltaMap)}</div>`;
         return`<div class="overview-wrap">${controlsHTML()}<table class="overview-table"><colgroup><col class="col-name"><col class="col-date"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"></colgroup>${(()=>{
         const sTh=(col,label,cls)=>{const active=sortCol===col;const arr=active?`<span style="margin-left:3px;font-size:0.65rem;opacity:0.75">${sortDir==='desc'?'↓':'↑'}</span>`:'';return`<th class="${cls}" style="cursor:pointer;${active?'opacity:1;':''}" onclick="setSort('${col}')" title="Sort by ${label}">${label}${arr}</th>`;};
@@ -9903,7 +10029,7 @@
             const hasTTrow=n(r.tiktok_followers)||n(r.tiktok_plays_this_month);
             const hasYTrow=n(r.yt_subscribers)||n(r.yt_total_views);
             const _ri=clientMap[r.client_name]||{},_igh=_ri.instagram_handle||'',_tth=_ri.tiktok_handle||'',_yti=_ri.youtube_channel_id||'';
-            const _hasIG=n(r.ig_followers)||n(r.ig_views_this_month);
+            const _hasIG=_analyticsPlatformVisible(r,'instagram',n(r.ig_followers)||n(r.ig_views_this_month));
             const _mkSocI=(url,svg,ttl)=>url?`<a href="${url}" target="_blank" rel="noopener" title="${ttl}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex-shrink:0;color:var(--text-muted);text-decoration:none;">${svg}</a>`:`<span title="${ttl}" style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex-shrink:0;color:var(--text-muted);">${svg}</span>`;
             const _igSvg=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="17" height="17" rx="5" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"/></svg>`;
             const _ttSvg=`<svg width="13" height="13" viewBox="0 0 24 24"><path d="M19.6 6.7A4.8 4.8 0 0 1 15.8 2.5h-3.4v13.1a2.9 2.9 0 1 1-2.1-2.8V9.4A6.3 6.3 0 0 0 4 15.6a6.3 6.3 0 0 0 6.3 6.4 6.3 6.3 0 0 0 6.3-6.4V9.1a8.3 8.3 0 0 0 4.8 1.5V7.2a4.8 4.8 0 0 1-1.8-.5z" fill="currentColor"/></svg>`;
@@ -9913,10 +10039,10 @@
             const _ytSocI=hasYTrow?_mkSocI(_yti?`https://youtube.com/channel/${_yti}`:null,_ytSvg,'YouTube'):'';
             const _socIcons=_igSocI||_ttSocI||_ytSocI?`<span style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;">${_igSocI}${_ttSocI}${_ytSocI}</span>`:'';
             // Day mode: use gained_today directly; Week mode: use _safeWeekViewDelta (handles month-boundary resets)
-            const igViewDeltaCell=gainPeriod==='day'?ncDelta(r.ig_views_gained_today,'col-ig'):ncDelta(_safeWeekViewDelta(r,dp,r.client_name,'ig_views_this_month','ig_views_gained_today'),'col-ig');
+            const igViewDeltaCell=_analyticsProviderFailed(r,'instagram')?`<td class="col-ig"><span class="g-none">—</span></td>`:(gainPeriod==='day'?ncDelta(r.ig_views_gained_today,'col-ig'):ncDelta(_safeWeekViewDelta(r,dp,r.client_name,'ig_views_this_month','ig_views_gained_today'),'col-ig'));
             const ttViewDeltaCell=gainPeriod==='day'?ncDelta(r.tiktok_plays_gained_today,'col-tt'):ncDelta(_safeWeekViewDelta(r,dp,r.client_name,'tiktok_plays_this_month','tiktok_plays_gained_today'),'col-tt');
             const mp=mPrevMap[r.client_name];
-            const igCols=isAgeRestricted?igRestrictedCell+igRestrictedCell+igRestrictedCell+igRestrictedCell:`${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,dp,'ig_followers','col-ig')}${ncViewsDelta(r.ig_views_this_month,mp?mp.ig_views_this_month:null,'col-ig')}${igViewDeltaCell}`;
+            const igCols=isAgeRestricted?igRestrictedCell+igRestrictedCell+igRestrictedCell+igRestrictedCell:`${ncAnalytics(r,'instagram','ig_followers','col-ig main-metric')}${gainCell(r,dp,'ig_followers','col-ig','instagram')}${ncViewsDelta(r,mp,'instagram','ig_views_this_month','col-ig')}${igViewDeltaCell}`;
             const _isPending=!r.date;
             const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${ncViewsDelta(r.tiktok_plays_this_month,mp?mp.tiktok_plays_this_month:null,'col-tt')}${ttViewDeltaCell}`:_isPending?`${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
             const ytCols=hasYTrow?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,dp,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,dp,'yt_total_views','col-yt')}`:_isPending?`${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`:`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
@@ -9961,18 +10087,29 @@
         const ctx=document.getElementById('growthChart');if(!ctx)return;
         if(growthChart){growthChart.destroy();growthChart=null;}
         const pc=_platCfg[followersPlat]||_platCfg.ig;
+        const receiptPlatform=followersPlat==='ig'?'instagram':followersPlat==='tt'?'tiktok':'youtube';
         const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date));
         let data,chartType,dataset;
         if(followersMode==='daily'){
-            data=history.map((r,i)=>i===0?null:n(r[pc.key])-n(history[i-1][pc.key]));
+            data=history.map((r,i)=>{
+                const current=_analyticsMetricNumber(r,receiptPlatform,pc.key);
+                if(i===0||current===null||_analyticsProviderFailed(r,receiptPlatform))return null;
+                let prior=i-1;
+                while(prior>=0&&_analyticsMetricNumber(history[prior],receiptPlatform,pc.key)===null)prior--;
+                return prior<0?null:current-_analyticsMetricNumber(history[prior],receiptPlatform,pc.key);
+            });
             chartType='bar';
             const rgb=_svRgb(pc.css); dataset={label:pc.label,data,backgroundColor:data.map(v=>(v??0)>=0?`rgba(${rgb.r},${rgb.g},${rgb.b},0.75)`:_svCss('--chart-negative-fill')),borderColor:data.map(v=>(v??0)>=0?_svCss(pc.css):_svCss('--chart-negative')),borderWidth:1,borderRadius:3};
         } else {
-            data=history.map(r=>n(r[pc.key])||null);
+            data=history.map(r=>{
+                if(_analyticsProviderFailed(r,receiptPlatform))return null;
+                return _analyticsMetricNumber(r,receiptPlatform,pc.key);
+            });
             chartType='line';
             dataset={label:pc.label,data,borderColor:_svCss(pc.css),backgroundColor:_mkGrad(c2d,h,pc.css),fill:true,tension:0.4,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:_svCss(pc.css),pointHoverBorderColor:_svCss('--chart-point-border'),pointHoverBorderWidth:2};
         }
-        if(!data.some(v=>v!=null&&v!==0)){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">No ${pc.label} follower data available.</div>`;return;}
+        const hasTypedZero=history.some(r=>{const state=_analyticsPlatformReceipt(r,receiptPlatform)?.state;return(state==='success'||state==='genuinely_empty')&&r[pc.key]!==''&&r[pc.key]!==null&&r[pc.key]!==undefined&&Number.isFinite(Number(r[pc.key]));});
+        if(!hasTypedZero&&!data.some(v=>v!=null&&v!==0)){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">No ${pc.label} follower data available.</div>`;return;}
         growthChart=new Chart(ctx,{type:chartType,data:{labels,datasets:[dataset]},options:{..._baseOpts(v=>(v>0?'+':'')+v.toLocaleString()),scales:{x:_xAxis(),y:_mkYAxis(true)}}});
     }
     function switchFollowersMode(mode,btn){
@@ -9997,14 +10134,15 @@
             {plat:'tt',label:'TikTok',key:'tiktok_plays_gained_today',css:'--tt'},
             {plat:'yt',label:'YouTube',key:'yt_views_gained_today',css:'--yt'},
         ];
-        const series=allSeries.filter(s=>(viewsPlat==='all'||viewsPlat===s.plat)&&history.some(row=>n(row[s.key])));
+        const receiptPlatform=s=>s.plat==='ig'?'instagram':s.plat==='tt'?'tiktok':'youtube';
+        const series=allSeries.filter(s=>(viewsPlat==='all'||viewsPlat===s.plat)&&history.some(row=>!_analyticsProviderFailed(row,receiptPlatform(s))&&_analyticsMetricNumber(row,receiptPlatform(s),s.key)!==null));
         let start=history.length;
-        for(let i=0;i<history.length;i++){if(series.some(s=>n(history[i][s.key]))){start=i;break;}}
+        for(let i=0;i<history.length;i++){if(series.some(s=>!_analyticsProviderFailed(history[i],receiptPlatform(s))&&_analyticsMetricNumber(history[i],receiptPlatform(s),s.key)!==null)){start=i;break;}}
         const trimmed=history.slice(start);
         const labels=trimmed.map(r=>fmtDate(r.date));
         const ds=[],sc={x:_xAxis()};let yi=0;
         series.forEach(s=>{
-            const data=trimmed.map(row=>n(row[s.key])||null);
+            const data=trimmed.map(row=>_analyticsProviderFailed(row,receiptPlatform(s))?null:_analyticsMetricNumber(row,receiptPlatform(s),s.key));
             const yId='y'+yi;
             ds.push({label:s.label,data,borderColor:_svCss(s.css),backgroundColor:_mkGrad(c2d,h,s.css),fill:true,tension:0.3,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:_svCss(s.css),pointHoverBorderColor:_svCss('--chart-point-border'),pointHoverBorderWidth:2,yAxisID:yId});
             sc[yId]=_mkYAxis(yi===0);yi++;

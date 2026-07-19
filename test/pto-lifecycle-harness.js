@@ -18,6 +18,7 @@ const PACKAGE = JSON.parse(read('package.json'));
 const WORKFLOW = read('.github/workflows/pto-ui-tests.yml');
 const {
   canonicalSourceText,
+  ptoSourceSlice,
   validatePublicEvidence,
   validateVisualReviewSchema,
 } = require(path.join(
@@ -40,8 +41,9 @@ function ok(condition, message) {
 }
 
 ok(canonicalSourceText('alpha\r\nbeta\rgamma\n') === 'alpha\nbeta\ngamma\n'
-  && /hash\.update\(canonicalSourceText\(fs\.readFileSync\(full, 'utf8'\)\)\)/.test(RUN),
-'PTO evidence source fingerprints are line-ending stable across Windows and CI');
+  && /hash\.update\(canonicalSourceText\(text\)\)/.test(RUN)
+  && ptoSourceSlice('x pto-wrap y\r\nz\r\n') === ptoSourceSlice('x pto-wrap y\nz\n'),
+'PTO evidence source fingerprints are line-ending stable across Windows and CI (incl. the index.html PTO slice)');
 
 ok(PACKAGE.scripts['test:pto-lifecycle'] === 'node qa/pto-lifecycle/run.js'
   && PACKAGE.scripts['test:pto-live-drill'] === 'node qa/pto-lifecycle/live-drill.js',

@@ -2,7 +2,8 @@
 //
 // A2 port of the live sample-review-reorder workflow. This preserves the n8n
 // contract: validate {client, items}, update order_index for matching
-// sample_reviews rows, and respond {ok:true, updated: items.length}.
+// sample_reviews rows, and respond {ok:true, updated} where `updated` is the
+// count of rows ACTUALLY matched (never the requested count — see F141).
 //
 // Required env:
 //   SUPABASE_URL

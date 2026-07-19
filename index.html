@@ -13565,8 +13565,8 @@
         });
     }
 
-    // Build today's rollups: scheduled/planned items only. In-progress items
-    // are rendered separately in the strip above the calendar.
+    // Build today's rollups from the literal due-date bucket. In-progress
+    // items are rendered separately in the strip above the calendar.
     function wlTodayRollups(todayISO) {
         const allDue = wlState.calendarByDate.get(todayISO) || [];
         const plannedSubs = allDue.filter(wlPassesFilters);
@@ -13578,11 +13578,10 @@
     // so a SMM can see at a glance who has the most free time before assigning
     // a new sub-issue. The whole roster always shows (see WL_VIDEO_EDITORS):
     // an editor with no active sub-issues sorts first as the freest. The count
-    // matches what's actually visible on the calendar + strip (planned +
-    // in-progress, deduped on id); sub-issues without a due date aren't counted
-    // because they aren't scheduled anywhere visible. "Days of work" = count /
-    // per-day capacity (5 for video). Honours the team filter (video-only
-    // panel) and the client filter for counts, but always lists the roster.
+    // matches what's visible across the calendar and active strips, deduped on
+    // id, including the Needs a due date lane. "Days of work" = count / per-day
+    // capacity (5 for video). Honours the team filter (video-only panel) and
+    // the client filter for counts, but always lists the roster.
     function renderEditorWorkload() {
         const wrap = document.getElementById('wlCapacity');
         const row  = document.getElementById('wlCapacityRow');

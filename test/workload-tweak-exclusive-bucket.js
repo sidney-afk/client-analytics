@@ -172,6 +172,22 @@ check(/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(weekHtm
     && weekHtml.includes('6 · over'),
   'an overloaded due-date column renders red with a visible over-capacity label');
 
+const renderFilteredWeekGrid = compile('renderWeekGrid', {
+  wlState,
+  wlTodayISO: () => '2026-07-19',
+  wlAddWorkingDays,
+  wlParseISO,
+  wlEscape: value => String(value),
+  wlPassesFilters: () => false,
+  wlGroupRollups: () => [],
+  wlDayOverCapacity,
+  renderDayRollups: () => '',
+});
+const filteredWeekHtml = renderFilteredWeekGrid();
+check(/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(filteredWeekHtml)
+    && filteredWeekHtml.includes('>over</span>'),
+  'filters cannot hide the overload state from the unfiltered due-date bucket');
+
 const renderDayRollups = compile('renderDayRollups', {
   wlTeamBucket,
   wlDisplayName: name => name,

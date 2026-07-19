@@ -20267,6 +20267,17 @@
             body: JSON.stringify(payload)
         });
     }
+    function _calUpsertFetchPinned(clientOrSlug, payload, source, transport) {
+        if (transport !== 'supabase' && transport !== 'webhook') {
+            return _calUpsertFetch(clientOrSlug, payload, source);
+        }
+        const url = transport === 'supabase' ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
+        return fetch(url, {
+            method: 'POST',
+            headers: _calUpsertHeaders(source, url),
+            body: JSON.stringify(payload)
+        });
+    }
     _calPrimeUpsertRoutingFlag();
     function _settingsSetFlagValue(value) {
         _settingsEfClients = new Set(_calRuntimeFlagClients(value));
@@ -22775,11 +22786,11 @@
             const items = Array.isArray(arr) ? arr : [];
             if (items.length) localStorage.setItem(LINEAR_OUTBOX_KEY, JSON.stringify(items));
             else localStorage.removeItem(LINEAR_OUTBOX_KEY);
-        } catch {}
+            return true;
+        } catch { return false; }
     }
-    function _linearOutboxEnqueue(kind, payload, errMsg, clientSlug) {
-        const items = _linearOutboxRead();
-        items.push({
+    async function _linearOutboxEnqueue(kind, payload, errMsg, clientSlug) {
+        const record = {
             id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('lob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
             kind: kind,
             payload: payload,
@@ -22789,10 +22800,1641 @@
             queuedAt: Date.now(),
             transport: 'legacy_n8n',
             client_slug: String(clientSlug || '')
-        });
-        _linearOutboxWrite(items);
+        };
+        await _writeUiLegacyAppendOutboxItem('calendar', record);
         _linearOutboxScheduleRetry();
         return true;
+    }
+    const WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS = 15 * 60 * 1000;
+    const WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY = 'syncview_write_ui_legacy_committed_tweaks_v1';
+    function _writeUiLegacyOutboxItems(surface) {
+        return surface === 'sxr' ? _sxrLinearOutboxRead() : _linearOutboxRead();
+    }
+    function _writeUiLegacyOutboxWrite(surface, items) {
+        return surface === 'sxr' ? _sxrLinearOutboxWrite(items) : _linearOutboxWrite(items);
+    }
+    function _writeUiLegacyOutboxWithLock(surface, callback) {
+        if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
+            const error = _writeUiGatewayError(503, 'legacy_outbox_lock_unavailable');
+            error.message = 'Unable to safely preserve the deferred team notification';
+            return Promise.reject(error);
+        }
+        const key = surface === 'sxr'
+            ? 'syncview-legacy-outbox:sxr'
+            : 'syncview-legacy-outbox:calendar';
+        return navigator.locks.request(key, { mode: 'exclusive' }, callback);
+    }
+    function _writeUiLegacyDrainWithLock(surface, callback) {
+        if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
+            const error = _writeUiGatewayError(503, 'legacy_outbox_lock_unavailable');
+            error.message = 'Unable to safely deliver the deferred team notification';
+            return Promise.reject(error);
+        }
+        // Both surfaces also share committed-tweak and quarantine ledgers, so
+        // one origin-wide drain lock serializes delivery and every linked RMW.
+        return navigator.locks.request('syncview-legacy-outbox-drain', { mode: 'exclusive' }, callback);
+    }
+    function _writeUiLegacyTargetWithLock(surface, slug, pid, comp, callback) {
+        if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
+            const error = _writeUiGatewayError(503, 'legacy_tweak_target_lock_unavailable');
+            error.message = 'Unable to safely save this change request';
+            return Promise.reject(error);
+        }
+        const key = 'syncview-legacy-tweak-target:' + [surface, slug, pid, comp]
+            .map(value => encodeURIComponent(String(value || '')))
+            .join('|');
+        return navigator.locks.request(key, { mode: 'exclusive' }, callback);
+    }
+    function _writeUiLegacyGateTargetIdentity(gate, surface, slug, pid, comp) {
+        return !!gate
+            && gate.surface === String(surface || '')
+            && gate.client_slug === String(slug || '')
+            && gate.post_id === String(pid || '')
+            && gate.component === String(comp || '');
+    }
+    function _writeUiLegacyGateTargets(gate, surface, slug, pid, comp) {
+        // Target ownership is principal-agnostic. A stale row from a different
+        // client-link principal must block this whole source snapshot instead
+        // of becoming invisible and allowing a destructive overwrite.
+        return _writeUiLegacyGateTargetIdentity(gate, surface, slug, pid, comp);
+    }
+    function _writeUiLegacySourceCommentReflected(surface, post, gate) {
+        if (!post || !_writeUiLegacyGateTargetIdentity(
+            gate, surface, gate && gate.client_slug, post.id, gate && gate.component
+        )) return false;
+        const comp = String(gate.component || '');
+        const comments = surface === 'sxr'
+            ? _sxrCommentsFor(post, comp)
+            : _calCommentsFor(post, comp);
+        const landed = (Array.isArray(comments) ? comments : []).find(comment => comment
+            && String(comment.id || '') === String(gate.comment_id || ''));
+        if (!landed
+            || String(landed.body || '').trim() !== String(gate.comment_body || '').trim()
+            || String(landed.author || '') !== String(gate.comment_author || '')
+            || String(landed.role || '') !== String(gate.comment_role || '')
+            || String(landed.audience || '') !== String(gate.comment_audience || '')
+            || landed.is_tweak !== (gate.comment_is_tweak === true)) return false;
+        return true;
+    }
+    function _writeUiLegacyGateStatusMatches(surface, post, gate) {
+        if (!post || !gate) return false;
+        const comp = String(gate.component || '');
+        const currentStatus = surface === 'sxr'
+            ? _sxrNormStatus(post[comp + '_status'] || '')
+            : _calNormStatus(post[comp + '_status'] || '');
+        const intendedStatus = surface === 'sxr'
+            ? _sxrNormStatus(gate.intended_status || '')
+            : _calNormStatus(gate.intended_status || '');
+        return currentStatus === intendedStatus;
+    }
+    function _writeUiLegacyGateReflected(surface, post, gate) {
+        if (!_writeUiLegacySourceCommentReflected(surface, post, gate)) return false;
+        const comp = String(gate.component || '');
+        const issue = surface === 'sxr' ? _sxrLinearUrlFor(post, comp) : _calLinearUrlFor(post, comp);
+        if (String(issue || '').trim() !== String(gate.linear_issue || '').trim()) return false;
+        if (!_writeUiLegacyGateStatusMatches(surface, post, gate)) return false;
+        return !_writeUiLegacyApprovalClearsForReconcile(surface, gate)
+            .some(field => String(post[field] == null ? '' : post[field]).trim() !== '');
+    }
+    function _writeUiLegacyGateSignature(gate) {
+        return JSON.stringify({
+            surface: String(gate && gate.surface || ''),
+            client_slug: String(gate && gate.client_slug || ''),
+            source_transport: String(gate && gate.source_transport || ''),
+            post_id: String(gate && gate.post_id || ''),
+            component: String(gate && gate.component || ''),
+            comment_id: String(gate && gate.comment_id || ''),
+            comment_body: String(gate && gate.comment_body || ''),
+            comment_author: String(gate && gate.comment_author || ''),
+            comment_role: String(gate && gate.comment_role || ''),
+            comment_audience: String(gate && gate.comment_audience || ''),
+            comment_is_tweak: gate && gate.comment_is_tweak === true,
+            intended_status: String(gate && gate.intended_status || ''),
+            approval_clears: Array.isArray(gate && gate.approval_clears)
+                ? gate.approval_clears.map(field => String(field || ''))
+                : [],
+            linear_issue: String(gate && gate.linear_issue || ''),
+            principal: String(gate && gate.principal || '')
+        });
+    }
+    function _writeUiLegacyTargetPair(surface, slug, pid, comp, rows) {
+        const items = Array.isArray(rows) ? rows : [];
+        if (items.length === 1) {
+            const source = items[0];
+            const gate = source && source.source_gate;
+            const commentId = String(gate && gate.comment_id || '');
+            const prefix = 'deferred_' + String(surface || '') + '_' + commentId;
+            if (!source
+                || source.kind !== 'source_only'
+                || source.transport !== 'source_only'
+                || !_writeUiLegacyGateTargetIdentity(gate, surface, slug, pid, comp)
+                || !commentId
+                || (gate.source_transport !== 'supabase' && gate.source_transport !== 'webhook')
+                || !String(gate.comment_body || '').trim()
+                || !String(gate.comment_author || '')
+                || !String(gate.comment_role || '')
+                || (gate.comment_audience !== 'client' && gate.comment_audience !== 'internal')
+                || gate.comment_is_tweak !== true
+                || String(gate.intended_status || '').trim().toLowerCase() !== 'tweaks needed'
+                || String(gate.linear_issue || '').trim()
+                || !_writeUiLegacyApprovalClearsValid(surface, gate.approval_clears)
+                || String(source.id || '') !== prefix + '_source'
+                || String(source.client_slug || '') !== String(gate.client_slug || '')
+                || Object.keys(source.payload || {}).length !== 0) {
+                return null;
+            }
+            return {
+                gate,
+                comment: source,
+                status: null,
+                source,
+                ids: [String(source.id || '')]
+            };
+        }
+        if (items.length !== 2) return null;
+        const comments = items.filter(item => item && item.kind === 'comment');
+        const statuses = items.filter(item => item && item.kind === 'status');
+        if (comments.length !== 1 || statuses.length !== 1) return null;
+        const comment = comments[0];
+        const status = statuses[0];
+        const gate = comment.source_gate;
+        if (!_writeUiLegacyGateTargetIdentity(gate, surface, slug, pid, comp)
+            || !_writeUiLegacyGateTargetIdentity(status.source_gate, surface, slug, pid, comp)
+            || _writeUiLegacyGateSignature(gate) !== _writeUiLegacyGateSignature(status.source_gate)) {
+            return null;
+        }
+        const commentId = String(gate.comment_id || '');
+        const prefix = 'deferred_' + String(surface || '') + '_' + commentId;
+        if (!commentId
+            || (gate.source_transport !== 'supabase' && gate.source_transport !== 'webhook')
+            || !String(gate.comment_body || '').trim()
+            || !String(gate.comment_author || '')
+            || !String(gate.comment_role || '')
+            || (gate.comment_audience !== 'client' && gate.comment_audience !== 'internal')
+            || gate.comment_is_tweak !== true
+            || String(gate.intended_status || '').trim().toLowerCase() !== 'tweaks needed'
+            || !String(gate.linear_issue || '').trim()
+            || !_writeUiLegacyApprovalClearsValid(surface, gate.approval_clears)
+            || String(comment.id || '') !== prefix + '_comment'
+            || String(status.id || '') !== prefix + '_status'
+            || comment.transport !== 'legacy_n8n'
+            || status.transport !== 'legacy_n8n'
+            || String(comment.client_slug || '') !== String(gate.client_slug || '')
+            || String(status.client_slug || '') !== String(gate.client_slug || '')
+            || String(comment.payload && comment.payload.issue || '').trim() !== String(gate.linear_issue || '').trim()
+            || String(comment.payload && comment.payload.body || '').trim() !== String(gate.comment_body || '').trim()
+            || String(comment.payload && comment.payload.author || '') !== String(gate.comment_author || '')
+            || String(status.payload && status.payload.issue || '').trim() !== String(gate.linear_issue || '').trim()
+            || String(status.payload && status.payload.status || '') !== String(gate.intended_status || '')) {
+            return null;
+        }
+        return {
+            gate,
+            comment,
+            status,
+            ids: [String(comment.id || ''), String(status.id || '')]
+        };
+    }
+    function _writeUiLegacyTargetDecision(surface, slug, pid, comp, post, body, candidateId) {
+        const wantedBody = String(body || '').trim();
+        const attemptId = String(candidateId || '');
+        const active = _writeUiLegacyOutboxItems(surface).filter(item =>
+            _writeUiLegacyGateTargetIdentity(item && item.source_gate, surface, slug, pid, comp));
+        const key = [String(surface || ''), String(slug || ''), String(pid || ''), String(comp || '')].join('|');
+        const committedRows = _writeUiLegacyCommittedTweakRead()
+            .filter(record => record && String(record.key || '') === key);
+        const committed = committedRows.length === 1 ? committedRows[0] : null;
+        let committedItem = committed && committed.item;
+        const committedGate = committedItem && committedItem.source_gate;
+        let committedSourceSuperseded =
+            !!(committedItem && committedItem.source_only_superseded === true);
+        let committedTeamSuperseded =
+            !!(committedItem && committedItem.team_delivery_superseded === true);
+        let committedTeamConfirmed =
+            !!(committedItem && committedItem.team_delivery_confirmed === true);
+        const conflict = (item, delivered, reason) => ({
+            state: 'conflict',
+            comment_id: String(item && item.source_gate && item.source_gate.comment_id || attemptId),
+            delivered: delivered === true,
+            item: item || null,
+            reason: String(reason || 'target_owned')
+        });
+        if (committedRows.length > 1
+            || (committed && !_writeUiLegacyGateTargetIdentity(committedGate, surface, slug, pid, comp))) {
+            return conflict(committedItem, false, 'committed_target_invalid');
+        }
+        if (committed
+            && !committedSourceSuperseded
+            && committedItem.transport === 'source_only'
+            && _writeUiLegacySourceCommentReflected(surface, post, committedGate)
+            && !_writeUiLegacyGateReflected(surface, post, committedGate)) {
+            const tombstone = _writeUiLegacySupersededSourceItem(committedItem);
+            if (!_writeUiLegacyRememberCommittedTweak(surface, tombstone)) {
+                return conflict(committedItem, false, 'committed_superseded_storage_failed');
+            }
+            committedItem = tombstone;
+            committedSourceSuperseded = true;
+        }
+        if (active.length) {
+            const pair = _writeUiLegacyTargetPair(surface, slug, pid, comp, active);
+            if (!pair) return conflict(active[0], false, 'active_pair_invalid');
+            if (pair.gate.principal !== _writeUiPrincipalKey()) {
+                return conflict(pair.comment, false, 'active_principal_mismatch');
+            }
+            if (attemptId && String(pair.gate.comment_id || '') !== attemptId) {
+                return conflict(pair.comment, false, 'active_action_mismatch');
+            }
+            const rearmedActive = pair.comment.rearmed_team_delivery === true
+                || pair.status && pair.status.rearmed_team_delivery === true;
+            if (committed) {
+                if (committedGate.principal !== _writeUiPrincipalKey()) {
+                    return conflict(committedItem, false, 'active_committed_mismatch');
+                }
+                const sameCommittedAction =
+                    String(committedGate.comment_id || '') === String(pair.gate.comment_id || '')
+                    && _writeUiLegacyGateSignature(committedGate) === _writeUiLegacyGateSignature(pair.gate);
+                if (sameCommittedAction
+                    && (pair.source
+                        || committedSourceSuperseded
+                        || (committedTeamSuperseded && !rearmedActive)
+                        || committedTeamConfirmed)) {
+                    if (String(pair.gate.comment_body || '').trim() !== wantedBody) {
+                        return conflict(committedItem, true, 'committed_body_mismatch');
+                    }
+                    return {
+                        state: 'committed',
+                        comment_id: String(pair.gate.comment_id || ''),
+                        body: String(pair.gate.comment_body || '').trim(),
+                        ids: pair.ids,
+                        item: committedItem,
+                        source_only: !!pair.source,
+                        source_only_superseded: committedSourceSuperseded,
+                        team_delivery_superseded: committedTeamSuperseded,
+                        team_delivery_confirmed: committedTeamConfirmed,
+                        delivered: true
+                    };
+                }
+                // A reflected older tombstone may coexist with the next active
+                // request until its drain replaces the per-target
+                // confirmation. Any unreflected or foreign owner still blocks.
+                const committedReflected = (committedSourceSuperseded || committedTeamSuperseded)
+                    ? _writeUiLegacySourceCommentReflected(surface, post, committedGate)
+                    : _writeUiLegacyGateReflected(surface, post, committedGate);
+                if (!sameCommittedAction
+                    && !pair.source
+                    && !committedTeamConfirmed
+                    && !committedTeamSuperseded) {
+                    return conflict(committedItem, false, 'active_team_delivery_unconfirmed');
+                }
+                if (!sameCommittedAction && !committedReflected) {
+                    return conflict(committedItem, true, 'active_committed_mismatch');
+                }
+            }
+            if (String(pair.gate.comment_body || '').trim() !== wantedBody) {
+                return conflict(pair.comment, false, 'active_body_mismatch');
+            }
+            return {
+                state: 'active',
+                comment_id: String(pair.gate.comment_id || ''),
+                body: String(pair.gate.comment_body || '').trim(),
+                ids: pair.ids,
+                item: pair.comment,
+                pair,
+                source_only: !!pair.source,
+                rearmed_team_delivery: rearmedActive,
+                rearm_receipts: Array.from(new Set(
+                    [].concat(pair.comment && pair.comment.team_delivery_receipts || [])
+                        .concat(pair.status && pair.status.team_delivery_receipts || [])
+                        .map(String)
+                        .filter(Boolean)
+                )).sort(),
+                delivered: false
+            };
+        }
+        if (committed) {
+            if (committedGate.principal !== _writeUiPrincipalKey()
+                || !String(committedGate.comment_id || '')) {
+                return conflict(committedItem, false, 'committed_principal_mismatch');
+            }
+            const exactCommittedAction =
+                (!attemptId || String(committedGate.comment_id || '') === attemptId)
+                && String(committedGate.comment_body || '').trim() === wantedBody;
+            if (exactCommittedAction) {
+                return {
+                    state: 'committed',
+                    comment_id: String(committedGate.comment_id || ''),
+                    body: String(committedGate.comment_body || '').trim(),
+                    ids: [],
+                    item: committedItem,
+                    source_only: !!(committedItem && committedItem.transport === 'source_only'),
+                    source_only_superseded: committedSourceSuperseded,
+                    team_delivery_superseded: committedTeamSuperseded,
+                    team_delivery_confirmed: committedTeamConfirmed,
+                    team_delivery_unconfirmed: committedItem.transport !== 'source_only'
+                        && !committedTeamSuperseded
+                        && !committedTeamConfirmed,
+                    delivered: committedItem.transport === 'source_only'
+                        || committedTeamSuperseded
+                        || committedTeamConfirmed
+                };
+            } else if ((committedSourceSuperseded || committedTeamSuperseded)
+                && _writeUiLegacySourceCommentReflected(surface, post, committedGate)) {
+                // The exact older comment is visible, so a different later
+                // request may proceed. Its confirmation replaces this
+                // one-record-per-target tombstone.
+            } else if (committedItem.transport !== 'source_only'
+                && !committedTeamConfirmed
+                && !committedTeamSuperseded) {
+                return conflict(committedItem, false, 'committed_team_delivery_unconfirmed');
+            } else if (!_writeUiLegacyGateReflected(surface, post, committedGate)) {
+                return conflict(committedItem, true, 'committed_not_reflected');
+            }
+        }
+        return {
+            state: 'new',
+            comment_id: attemptId,
+            body: wantedBody,
+            ids: [],
+            item: null,
+            delivered: false
+        };
+    }
+    function _writeUiLegacyTeamRearmValid(surface, slug, pid, comp, post, body, candidateId, item) {
+        const gate = item && item.source_gate;
+        const prefix = 'deferred_' + String(surface || '') + '_' + String(candidateId || '');
+        const allowedReceipts = new Set([prefix + '_comment', prefix + '_status']);
+        const receipts = Array.isArray(item && item.team_delivery_receipts)
+            ? item.team_delivery_receipts.map(String)
+            : [];
+        if (!item || !gate
+            || item.transport !== 'legacy_n8n'
+            || (item.kind !== 'comment' && item.kind !== 'status')
+            || String(item.id || '') !== prefix + '_' + String(item.kind || '')
+            || String(item.client_slug || '') !== String(gate.client_slug || '')
+            || !_writeUiLegacyGateTargetIdentity(gate, surface, slug, pid, comp)
+            || gate.principal !== _writeUiPrincipalKey()
+            || String(gate.comment_id || '') !== String(candidateId || '')
+            || String(gate.comment_body || '').trim() !== String(body || '').trim()
+            || gate.comment_is_tweak !== true
+            || !_writeUiLegacyApprovalClearsValid(surface, gate.approval_clears)
+            || receipts.length !== new Set(receipts).size
+            || receipts.some(id => !allowedReceipts.has(id))) return false;
+        const expectedRole = surface === 'sxr' ? _sxrCommentRole() : _calCommentRole();
+        const expectedAuthor = surface === 'sxr' ? _sxrCurrentAuthor() : _calCurrentAuthor();
+        const expectedAudience = expectedRole === 'client' ? 'client' : 'internal';
+        const expectedApprovalClears = _writeUiLegacyApprovalClears(surface, surface === 'sxr'
+            ? ['client_video_approved_at', 'client_graphic_approved_at', 'kasper_approved_at']
+            : ['client_video_approved_at', 'client_graphic_approved_at', 'client_caption_approved_at', 'client_title_approved_at', 'kasper_approved_at'])
+            .filter(field => String(post && post[field] || '').trim());
+        if (String(gate.comment_role || '') !== String(expectedRole || '')
+            || String(gate.comment_author || '') !== String(expectedAuthor || '')
+            || String(gate.comment_audience || '') !== expectedAudience
+            || JSON.stringify(gate.approval_clears || [])
+                !== JSON.stringify(expectedApprovalClears)) return false;
+        const issue = surface === 'sxr'
+            ? _sxrLinearUrlFor(post, comp)
+            : _calLinearUrlFor(post, comp);
+        const intended = surface === 'sxr'
+            ? _sxrNormStatus(gate.intended_status || '')
+            : _calNormStatus(gate.intended_status || '');
+        if (String(issue || '').trim() !== String(gate.linear_issue || '').trim()
+            || intended !== (surface === 'sxr'
+                ? _sxrNormStatus('Tweaks Needed')
+                : _calNormStatus('Tweaks Needed'))) return false;
+        if (item.kind === 'comment') {
+            return String(item.payload && item.payload.issue || '').trim() === String(gate.linear_issue || '').trim()
+                && String(item.payload && item.payload.body || '').trim() === String(gate.comment_body || '').trim()
+                && String(item.payload && item.payload.author || '') === String(gate.comment_author || '');
+        }
+        return String(item.payload && item.payload.issue || '').trim() === String(gate.linear_issue || '').trim()
+            && (surface === 'sxr'
+                ? _sxrNormStatus(item.payload && item.payload.status || '')
+                : _calNormStatus(item.payload && item.payload.status || '')) === intended;
+    }
+    function _writeUiLegacyTargetLedgerWithLock(surface, callback) {
+        // Lock order is target (held by the caller) -> global drain -> surface.
+        // The short ledger transaction never performs a network or source write.
+        return _writeUiLegacyDrainWithLock(surface, () =>
+            _writeUiLegacyOutboxWithLock(surface, callback));
+    }
+    function _writeUiLegacyInspectTargetTweak(surface, slug, pid, comp, post, body, candidateId) {
+        return _writeUiLegacyTargetLedgerWithLock(surface, () => {
+            const decision = _writeUiLegacyTargetDecision(
+                surface, slug, pid, comp, post, body, candidateId
+            );
+            const rearmable = decision.team_delivery_confirmed !== true
+                && (decision.team_delivery_superseded === true
+                    || decision.team_delivery_unconfirmed === true);
+            if (decision.state !== 'committed'
+                || !rearmable
+                || String(decision.comment_id || '') !== String(candidateId || '')) {
+                return decision;
+            }
+            if (!_writeUiLegacyTeamRearmValid(
+                surface, slug, pid, comp, post, body, candidateId, decision.item
+            )) {
+                return {
+                    state: 'conflict',
+                    comment_id: String(decision.comment_id || candidateId || ''),
+                    body: String(body || '').trim(),
+                    delivered: false,
+                    item: decision.item,
+                    reason: 'team_delivery_rearm_signature_mismatch'
+                };
+            }
+            const gate = decision.item && decision.item.source_gate;
+            return {
+                state: 'new',
+                comment_id: String(candidateId || ''),
+                body: String(body || '').trim(),
+                ids: [],
+                item: null,
+                rearm_gate: Object.assign({}, gate),
+                rearm_item: Object.assign({}, decision.item, {
+                    payload: Object.assign({}, decision.item && decision.item.payload || {}),
+                    source_gate: Object.assign({}, gate),
+                    team_delivery_receipts: Array.isArray(decision.item
+                        && decision.item.team_delivery_receipts)
+                        ? decision.item.team_delivery_receipts.map(String)
+                        : []
+                }),
+                rearm_receipts: Array.isArray(decision.item && decision.item.team_delivery_receipts)
+                    ? decision.item.team_delivery_receipts.map(String)
+                    : [],
+                rearmed_team_delivery: true,
+                delivered: false
+            };
+        });
+    }
+    async function _writeUiLegacyRefreshActiveTweak(surface, inspection) {
+        if (!inspection || inspection.state !== 'active' || !inspection.item) return inspection;
+        const sourceState = await _writeUiLegacySourceGateState(inspection.item, 3);
+        if (sourceState === 'committed') {
+            if (inspection.item.transport !== 'source_only') {
+                // Source durability alone is not linked team-delivery proof.
+                // Keep the exact pair active so the retry can drain it.
+                return inspection;
+            }
+            const remembered = await _writeUiLegacyTargetLedgerWithLock(surface, () =>
+                _writeUiLegacyRememberCommittedTweak(surface, inspection.item));
+            if (!remembered) {
+                return {
+                    state: 'conflict',
+                    comment_id: String(inspection.comment_id || ''),
+                    body: String(inspection.body || ''),
+                    delivered: false,
+                    item: inspection.item,
+                    reason: 'active_confirmation_storage_failed'
+                };
+            }
+            return Object.assign({}, inspection, {
+                state: 'committed',
+                delivered: true,
+                source_only: inspection.item.transport === 'source_only'
+            });
+        }
+        if (sourceState === 'superseded' && inspection.item.transport === 'source_only') {
+            const tombstone = _writeUiLegacySupersededSourceItem(inspection.item);
+            const remembered = await _writeUiLegacyTargetLedgerWithLock(surface, () =>
+                _writeUiLegacyRememberCommittedTweak(surface, tombstone));
+            if (!remembered) {
+                return {
+                    state: 'conflict',
+                    comment_id: String(inspection.comment_id || ''),
+                    body: String(inspection.body || ''),
+                    delivered: false,
+                    item: inspection.item,
+                    reason: 'active_superseded_storage_failed'
+                };
+            }
+            return Object.assign({}, inspection, {
+                state: 'committed',
+                delivered: true,
+                item: tombstone,
+                source_only: true,
+                source_only_superseded: true
+            });
+        }
+        if (sourceState === 'superseded'
+            || sourceState === 'conflict'
+            || sourceState === 'principal_mismatch'
+            || sourceState === 'target_changed') {
+            return {
+                state: 'conflict',
+                comment_id: String(inspection.comment_id || ''),
+                body: String(inspection.body || ''),
+                delivered: sourceState === 'superseded',
+                item: inspection.item,
+                source_superseded: sourceState === 'superseded',
+                reason: 'active_source_' + sourceState
+            };
+        }
+        return inspection;
+    }
+    function _writeUiRequestTweakMarkLocalStatus(surface, pid, comp) {
+        const map = surface === 'sxr' ? _sxrLocalStatusAt : _calLocalStatusAt;
+        const keys = [String(pid || '') + '|' + String(comp || ''), String(pid || '') + '|'];
+        const before = keys.map(key => ({
+            key,
+            had: Object.prototype.hasOwnProperty.call(map, key),
+            value: map[key]
+        }));
+        if (surface === 'sxr') _sxrMarkLocalStatus(pid, comp);
+        else _calMarkLocalStatus(pid, comp);
+        return {
+            before,
+            stamped: keys.map(key => ({ key, value: map[key] }))
+        };
+    }
+    function _writeUiRequestTweakRestoreLocalStatus(surface, marker) {
+        if (!marker) return;
+        const map = surface === 'sxr' ? _sxrLocalStatusAt : _calLocalStatusAt;
+        const before = new Map((marker.before || []).map(row => [row.key, row]));
+        for (const stamped of marker.stamped || []) {
+            if (map[stamped.key] !== stamped.value) continue;
+            const prior = before.get(stamped.key);
+            if (prior && prior.had) map[stamped.key] = prior.value;
+            else delete map[stamped.key];
+        }
+    }
+    function _writeUiRollbackRequestTweak(surface, post, comp, action) {
+        if (!post || !action) return false;
+        const currentComments = (surface === 'sxr'
+            ? _sxrCommentsFor(post, comp)
+            : _calCommentsFor(post, comp)).slice();
+        const withoutAction = action.insertedComment === false
+            ? currentComments
+            : currentComments.filter(comment =>
+                !comment || String(comment.id || '') !== String(action.comment_id || ''));
+        const previousComments = Array.isArray(action.previousComments)
+            ? action.previousComments
+            : [];
+        const changedBeyondAction = JSON.stringify(withoutAction) !== JSON.stringify(previousComments);
+        if (surface === 'sxr') _sxrSetCommentsFor(post, comp, withoutAction);
+        else _calSetCommentsFor(post, comp, withoutAction);
+        if (!changedBeyondAction) {
+            const previousFields = action.previousFields || {};
+            const optimisticFields = action.optimisticFields || {};
+            for (const field of Object.keys(previousFields)) {
+                if (post[field] === optimisticFields[field]) post[field] = previousFields[field];
+            }
+        }
+        _writeUiRequestTweakRestoreLocalStatus(surface, action.localStatusMarker);
+        return changedBeyondAction;
+    }
+    function _writeUiApplySupersededTeamDelivery(surface, post, comp, action, key, rawDraft, attemptId) {
+        const review = surface === 'sxr' ? _sxrReviewState : _calReviewState;
+        if (!review) return false;
+        if (action && !action.rollbackApplied) {
+            _writeUiRollbackRequestTweak(surface, post, comp, action);
+            action.rollbackApplied = true;
+        }
+        review.saving[key] = false;
+        review.drafts[key] = String(rawDraft || '');
+        review.errors[key] =
+            'Your request was saved, but the team notification was not completed because a newer status was applied. Review the latest status, then retry.';
+        const retryId = String(action && action.comment_id || attemptId || '');
+        if (retryId) {
+            review.draftActionIds[key] = retryId;
+            review.errorActionIds[key] = retryId;
+        } else {
+            delete review.draftActionIds[key];
+            delete review.errorActionIds[key];
+        }
+        if (surface === 'sxr') _sxrRenderBody({ preserveScroll: true });
+        else _calRenderBody({ preserveScroll: true });
+        return true;
+    }
+    async function _writeUiLegacyAppendOutboxItem(surface, record) {
+        await _writeUiLegacyOutboxWithLock(surface, () => {
+            const before = _writeUiLegacyOutboxItems(surface);
+            const matches = before.filter(item => item && String(item.id || '') === String(record && record.id || ''));
+            if (matches.length > 1) throw new Error('Duplicate deferred team notification records require review');
+            if (matches[0] && !_writeUiLegacyItemMatches(matches[0], record)) {
+                throw new Error('A different deferred team notification already owns this request');
+            }
+            const next = matches.length ? before : before.concat([record]);
+            if (!matches.length && !_writeUiLegacyOutboxWrite(surface, next)) {
+                throw new Error('Unable to preserve the deferred team notification');
+            }
+            const readback = _writeUiLegacyOutboxItems(surface)
+                .filter(item => item && String(item.id || '') === String(record && record.id || ''));
+            if (readback.length !== 1 || !_writeUiLegacyItemMatches(readback[0], record)) {
+                throw new Error('Deferred team notification could not be verified');
+            }
+        });
+        return true;
+    }
+    function _writeUiLegacyApprovalClears(surface, value) {
+        const allowed = surface === 'sxr'
+            ? ['client_video_approved_at', 'client_graphic_approved_at', 'kasper_approved_at']
+            : ['client_video_approved_at', 'client_graphic_approved_at', 'client_caption_approved_at', 'client_title_approved_at', 'kasper_approved_at'];
+        const requested = new Set((Array.isArray(value) ? value : []).map(field => String(field || '')));
+        return allowed.filter(field => requested.has(field));
+    }
+    function _writeUiLegacyApprovalClearsFromEdits(surface, edits) {
+        const batch = edits && typeof edits === 'object' ? edits : {};
+        const allowed = _writeUiLegacyApprovalClears(surface, surface === 'sxr'
+            ? ['client_video_approved_at', 'client_graphic_approved_at', 'kasper_approved_at']
+            : ['client_video_approved_at', 'client_graphic_approved_at', 'client_caption_approved_at', 'client_title_approved_at', 'kasper_approved_at']);
+        return allowed.filter(field => Object.prototype.hasOwnProperty.call(batch, field) && batch[field] === '');
+    }
+    function _writeUiLegacyApprovalClearsValid(surface, value) {
+        if (!Array.isArray(value)) return false;
+        const sanitized = _writeUiLegacyApprovalClears(surface, value);
+        return sanitized.length === value.length
+            && sanitized.every((field, index) => field === value[index]);
+    }
+    function _writeUiLegacyApprovalClearsForReconcile(surface, gate) {
+        if (Object.prototype.hasOwnProperty.call(gate || {}, 'approval_clears')) {
+            return _writeUiLegacyApprovalClears(surface, gate.approval_clears);
+        }
+        return _writeUiLegacyApprovalClears(surface, [
+            'client_' + String(gate && gate.component || '') + '_approved_at',
+            'kasper_approved_at'
+        ]);
+    }
+    function _writeUiLegacyItemSignature(item) {
+        const gate = item && item.source_gate;
+        const payload = Object.assign({}, item && item.payload || {});
+        // Older gateway-routed queue rows receive this deterministic field
+        // during drain. It is retry metadata, not a semantic payload change,
+        // so safe finalization may still replace the pre-enrichment snapshot.
+        if (!gate) delete payload.native_comment_id;
+        return JSON.stringify({
+            id: String(item && item.id || ''),
+            kind: String(item && item.kind || ''),
+            transport: String(item && item.transport || ''),
+            source_only_superseded: item && item.source_only_superseded === true,
+            team_delivery_superseded: item && item.team_delivery_superseded === true,
+            team_delivery_confirmed: item && item.team_delivery_confirmed === true,
+            team_delivery_receipts: Array.isArray(item && item.team_delivery_receipts)
+                ? item.team_delivery_receipts.map(String).sort()
+                : [],
+            rearmed_team_delivery: item && item.rearmed_team_delivery === true,
+            client_slug: String(item && item.client_slug || ''),
+            payload: payload,
+            source_gate: gate ? {
+                surface: String(gate.surface || ''),
+                client_slug: String(gate.client_slug || ''),
+                source_transport: String(gate.source_transport || ''),
+                post_id: String(gate.post_id || ''),
+                component: String(gate.component || ''),
+                comment_id: String(gate.comment_id || ''),
+                comment_body: String(gate.comment_body || ''),
+                comment_author: String(gate.comment_author || ''),
+                comment_role: String(gate.comment_role || ''),
+                comment_audience: String(gate.comment_audience || ''),
+                comment_is_tweak: gate.comment_is_tweak === true,
+                intended_status: String(gate.intended_status || ''),
+                approval_clears: Array.isArray(gate.approval_clears)
+                    ? gate.approval_clears.map(field => String(field || ''))
+                    : [],
+                linear_issue: String(gate.linear_issue || ''),
+                principal: String(gate.principal || '')
+            } : null
+        });
+    }
+    function _writeUiLegacyItemMatches(left, right) {
+        return _writeUiLegacyItemSignature(left) === _writeUiLegacyItemSignature(right);
+    }
+    function _writeUiLegacyCommittedTweakRead() {
+        try {
+            const rows = JSON.parse(localStorage.getItem(WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY) || '[]');
+            return Array.isArray(rows) ? rows : [];
+        } catch (e) { return []; }
+    }
+    function _writeUiLegacyCommittedTweakWrite(rows) {
+        try {
+            localStorage.setItem(WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY, JSON.stringify(Array.isArray(rows) ? rows : []));
+            return true;
+        } catch (e) { return false; }
+    }
+    function _writeUiLegacyTweakKey(surface, gate) {
+        return [
+            String(surface || ''),
+            String(gate && gate.client_slug || ''),
+            String(gate && gate.post_id || ''),
+            String(gate && gate.component || '')
+        ].join('|');
+    }
+    function _writeUiLegacyRememberCommittedTweak(surface, item) {
+        const gate = item && item.source_gate;
+        if (!gate || gate.principal !== _writeUiPrincipalKey()) return false;
+        const key = _writeUiLegacyTweakKey(surface, gate);
+        const before = _writeUiLegacyCommittedTweakRead();
+        const prior = before.find(row => row
+            && String(row.key || '') === key
+            && row.item
+            && _writeUiLegacyGateSignature(row.item.source_gate)
+                === _writeUiLegacyGateSignature(gate));
+        const prefix = 'deferred_' + String(surface || '') + '_' + String(gate.comment_id || '');
+        const allowedReceipts = new Set([prefix + '_comment', prefix + '_status']);
+        const receipts = new Set();
+        for (const id of []
+            .concat(prior && prior.item && prior.item.team_delivery_receipts || [])
+            .concat(item.team_delivery_receipts || [])) {
+            const normalized = String(id || '');
+            if (allowedReceipts.has(normalized)) receipts.add(normalized);
+        }
+        const receiptList = Array.from(receipts).sort();
+        const linkedConfirmed = item.transport !== 'source_only'
+            && receiptList.length === 2
+            && Array.from(allowedReceipts).every(id => receipts.has(id));
+        const record = {
+            version: 1,
+            key,
+            confirmed_at: new Date().toISOString(),
+            item: {
+                id: String(item.id || ''),
+                kind: String(item.kind || ''),
+                payload: Object.assign({}, item.payload || {}),
+                queuedAt: Number(item.queuedAt || Date.now()),
+                transport: String(item.transport || ''),
+                source_only_superseded: item.source_only_superseded === true,
+                team_delivery_superseded: item.team_delivery_superseded === true,
+                team_delivery_confirmed: item.team_delivery_confirmed === true
+                    || !!(prior && prior.item && prior.item.team_delivery_confirmed === true)
+                    || linkedConfirmed,
+                team_delivery_receipts: receiptList,
+                rearmed_team_delivery: item.rearmed_team_delivery === true,
+                client_slug: String(item.client_slug || ''),
+                source_gate: Object.assign({}, gate)
+            }
+        };
+        const next = before.filter(row => row && String(row.key || '') !== key);
+        next.push(record);
+        if (!_writeUiLegacyCommittedTweakWrite(next)) return false;
+        const saved = _writeUiLegacyCommittedTweakRead()
+            .filter(row => row && String(row.key || '') === key);
+        return saved.length === 1
+            && _writeUiLegacyItemMatches(saved[0].item, record.item);
+    }
+    function _writeUiLegacySupersededSourceItem(item) {
+        return Object.assign({}, item || {}, {
+            payload: Object.assign({}, item && item.payload || {}),
+            source_gate: Object.assign({}, item && item.source_gate || {}),
+            source_only_superseded: true
+        });
+    }
+    function _writeUiLegacySupersededTeamItem(item) {
+        return Object.assign({}, item || {}, {
+            payload: Object.assign({}, item && item.payload || {}),
+            source_gate: Object.assign({}, item && item.source_gate || {}),
+            team_delivery_superseded: true
+        });
+    }
+    function _writeUiLegacyTeamDeliveryReceiptItem(item) {
+        return Object.assign({}, item || {}, {
+            payload: Object.assign({}, item && item.payload || {}),
+            source_gate: Object.assign({}, item && item.source_gate || {}),
+            team_delivery_receipts: Array.from(new Set(
+                [].concat(item && item.team_delivery_receipts || [], String(item && item.id || ''))
+                    .map(String)
+                    .filter(Boolean)
+            )).sort()
+        });
+    }
+    function _writeUiLegacyRecordedTeamDeliveryReceiptItem(surface, item) {
+        const gate = item && item.source_gate;
+        const id = String(item && item.id || '');
+        if (!gate || !id || item.transport === 'source_only') return null;
+        const key = _writeUiLegacyTweakKey(surface, gate);
+        const records = _writeUiLegacyCommittedTweakRead().filter(row => row
+            && String(row.key || '') === key
+            && row.item
+            && _writeUiLegacyGateSignature(row.item.source_gate)
+                === _writeUiLegacyGateSignature(gate));
+        if (records.length !== 1) return null;
+        const receipts = Array.from(new Set(
+            [].concat(records[0].item.team_delivery_receipts || [])
+                .concat(item.team_delivery_receipts || [])
+                .map(String)
+                .filter(Boolean)
+        )).sort();
+        if (!receipts.includes(id)) return null;
+        return Object.assign({}, item, {
+            payload: Object.assign({}, item.payload || {}),
+            source_gate: Object.assign({}, gate),
+            team_delivery_receipts: receipts,
+            team_delivery_confirmed: records[0].item.team_delivery_confirmed === true
+        });
+    }
+    function _writeUiLegacyStoredTeamTerminalItem(surface, item) {
+        const gate = item && item.source_gate;
+        if (!gate || item.transport === 'source_only' || item.rearmed_team_delivery === true) {
+            return null;
+        }
+        const key = _writeUiLegacyTweakKey(surface, gate);
+        const records = _writeUiLegacyCommittedTweakRead().filter(row => row
+            && String(row.key || '') === key
+            && row.item
+            && row.item.team_delivery_superseded === true
+            && _writeUiLegacyGateSignature(row.item.source_gate)
+                === _writeUiLegacyGateSignature(gate));
+        return records.length === 1 ? records[0].item : null;
+    }
+    function _writeUiLegacyRetireCommittedTweak(surface, record) {
+        if (!record || !record.item) return Promise.resolve(false);
+        return _writeUiLegacyDrainWithLock(surface, () => {
+            const rows = _writeUiLegacyCommittedTweakRead();
+            const current = rows.find(row => row
+                && String(row.key || '') === String(record.key || '')
+                && _writeUiLegacyItemMatches(row.item, record.item));
+            if (!current) return false;
+            if (!_writeUiLegacyCommittedTweakWrite(rows.filter(row => row !== current))) {
+                throw _writeUiGatewayError(507, 'legacy_committed_tweak_retire_failed');
+            }
+            const saved = _writeUiLegacyCommittedTweakRead();
+            if (saved.some(row => row
+                && String(row.key || '') === String(record.key || '')
+                && _writeUiLegacyItemMatches(row.item, record.item))) {
+                throw _writeUiGatewayError(507, 'legacy_committed_tweak_retire_unverified');
+            }
+            return true;
+        }).catch(() => false);
+    }
+    function _writeUiLegacyCommittedTweak(surface, slug, pid, comp, post) {
+        const key = [String(surface || ''), String(slug || ''), String(pid || ''), String(comp || '')].join('|');
+        const rows = _writeUiLegacyCommittedTweakRead();
+        const record = rows.find(row => row && String(row.key || '') === key);
+        if (!record || !record.item || !record.item.source_gate) return null;
+        const gate = record.item.source_gate;
+        if (gate.principal !== _writeUiPrincipalKey()) return null;
+        if (post) {
+            if (record.item.source_only_superseded !== true
+                && record.item.team_delivery_superseded !== true) {
+            const comments = surface === 'sxr'
+                ? _sxrCommentsFor(post, comp)
+                : _calCommentsFor(post, comp);
+            const containsCommitted = (Array.isArray(comments) ? comments : [])
+                .some(comment => comment && String(comment.id || '') === String(gate.comment_id || ''));
+            const currentStatus = surface === 'sxr'
+                ? _sxrNormStatus(post[comp + '_status'] || '')
+                : _calNormStatus(post[comp + '_status'] || '');
+            const intendedStatus = surface === 'sxr'
+                ? _sxrNormStatus(gate.intended_status || '')
+                : _calNormStatus(gate.intended_status || '');
+            if (containsCommitted && currentStatus !== intendedStatus) {
+                if (record.item.transport !== 'source_only'
+                    && record.item.team_delivery_confirmed !== true) {
+                    // This marker can contain proof for only one team-delivery
+                    // leg. Keep it until the exact preserved action rearms; a
+                    // read path must not discard that receipt just because a
+                    // newer source status is now visible.
+                    return {
+                        comment_id: String(gate.comment_id || ''),
+                        body: String(gate.comment_body || ''),
+                        ids: [],
+                        delivered: false,
+                        source_only: false,
+                        source_only_superseded: false,
+                        team_delivery_superseded: false,
+                        team_delivery_confirmed: false,
+                        team_delivery_unconfirmed: true,
+                        item: record.item
+                    };
+                }
+                // Do not rewrite this whole shared ledger from a read path. A
+                // concurrent locked drain may be adding another confirmation;
+                // retire only after reacquiring that same lock and re-reading
+                // the exact record, so a newer confirmation cannot be erased.
+                _writeUiLegacyRetireCommittedTweak(surface, record);
+                return null;
+            }
+            }
+        }
+        return {
+            comment_id: String(gate.comment_id || ''),
+            body: String(gate.comment_body || ''),
+            ids: [],
+            delivered: record.item.transport === 'source_only'
+                || record.item.team_delivery_superseded === true
+                || record.item.team_delivery_confirmed === true,
+            source_only: record.item.transport === 'source_only',
+            source_only_superseded: record.item.source_only_superseded === true,
+            team_delivery_superseded: record.item.team_delivery_superseded === true,
+            team_delivery_confirmed: record.item.team_delivery_confirmed === true,
+            team_delivery_unconfirmed: record.item.transport !== 'source_only'
+                && record.item.team_delivery_superseded !== true
+                && record.item.team_delivery_confirmed !== true,
+            item: record.item
+        };
+    }
+    function _writeUiLegacyPendingTweak(surface, slug, pid, comp, post, body) {
+        const candidates = _writeUiLegacyOutboxItems(surface).filter(row => {
+            const gate = row && row.source_gate;
+            return row && gate
+                && gate.surface === surface
+                && gate.client_slug === String(slug || '')
+                && gate.post_id === String(pid || '')
+                && gate.component === String(comp || '')
+                && gate.principal === _writeUiPrincipalKey();
+        });
+        const wantedBody = String(body || '').trim();
+        const sameBody = wantedBody
+            ? candidates.filter(row => String(row && row.source_gate && row.source_gate.comment_body || '').trim() === wantedBody)
+            : [];
+        const pool = sameBody.length ? sameBody : candidates;
+        const item = pool.length ? pool[pool.length - 1] : null;
+        if (!item) return _writeUiLegacyCommittedTweak(surface, slug, pid, comp, post);
+        const gate = item.source_gate || {};
+        const prefix = 'deferred_' + surface + '_' + String(gate.comment_id || '');
+        const confirmed = _writeUiLegacyCommittedTweak(surface, slug, pid, comp, post);
+        const delivered = !!(confirmed && confirmed.delivered === true)
+            && confirmed.comment_id === String(gate.comment_id || '');
+        return {
+            comment_id: String(gate.comment_id || ''),
+            body: String(gate.comment_body || item.payload && item.payload.body || '').trim(),
+            ids: [prefix + '_comment', prefix + '_status'],
+            delivered,
+            item: delivered ? confirmed.item : item
+        };
+    }
+    function _writeUiLegacyPinnedSourceTransport(surface, ids) {
+        const wanted = new Set((Array.isArray(ids) ? ids : []).map(String));
+        const item = _writeUiLegacyOutboxItems(surface)
+            .find(row => row && wanted.has(String(row.id || '')) && row.source_gate);
+        const transport = String(item && item.source_gate && item.source_gate.source_transport || '');
+        return transport === 'supabase' || transport === 'webhook' ? transport : '';
+    }
+    async function _writeUiLegacySourceRows(item) {
+        const gate = item && item.source_gate || {};
+        const clientSlug = String(gate.client_slug || '');
+        if (!clientSlug) return null;
+        if (gate.source_transport === 'supabase') {
+            const table = gate.surface === 'sxr' ? SXR_TABLE : 'calendar_posts';
+            const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + table + '?select=*&client=eq.'
+                + encodeURIComponent(clientSlug) + '&id=eq.' + encodeURIComponent(String(gate.post_id || ''));
+            return gate.surface === 'sxr'
+                ? _sxrSupabaseFetchAllRows(baseUrl)
+                : _calSupabaseFetchAllRows(baseUrl);
+        }
+        if (gate.surface === 'sxr') {
+            const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(clientSlug) + '&_t=' + Date.now());
+            if (!resp.ok) return null;
+            const json = await resp.json();
+            const rows = json && (json.items || json.samples || json.posts);
+            return json && json.ok !== false && Array.isArray(rows) ? rows : null;
+        }
+        const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(clientSlug) + '&_t=' + Date.now());
+        if (!resp.ok) return null;
+        const json = await resp.json();
+        return json && json.ok && Array.isArray(json.posts) ? json.posts : null;
+    }
+    async function _writeUiLegacySourceGateState(item, attempts) {
+        const gate = item && item.source_gate;
+        if (!gate) return 'committed';
+        if (gate.principal && gate.principal !== _writeUiPrincipalKey()) return 'principal_mismatch';
+        if (Object.prototype.hasOwnProperty.call(gate, 'approval_clears')
+            && !_writeUiLegacyApprovalClearsValid(gate.surface, gate.approval_clears)) return 'conflict';
+        if (String(item.payload && item.payload.issue || '').trim() !== String(gate.linear_issue || '').trim()
+            || (item.kind === 'comment'
+                && (String(item.payload && item.payload.body || '').trim() !== String(gate.comment_body || '').trim()
+                    || String(item.payload && item.payload.author || '') !== String(gate.comment_author || '')))
+            || (item.kind === 'status'
+                && String(item.payload && item.payload.status || '') !== String(gate.intended_status || ''))) {
+            return 'conflict';
+        }
+        const tries = Math.max(1, Number(attempts || 3));
+        let last = 'unknown';
+        for (let attempt = 0; attempt < tries; attempt++) {
+            try {
+                const rows = await _writeUiLegacySourceRows(item);
+                if (!Array.isArray(rows)) {
+                    last = 'unknown';
+                } else {
+                    const raw = rows.find(row => row && String(row.id || '') === String(gate.post_id || ''));
+                    if (!raw) {
+                        last = 'pending';
+                    } else {
+                        const post = Object.assign({}, raw);
+                        if (gate.surface === 'sxr') _sxrMigrateShape(post);
+                        else _calMigratePostShape(post);
+                        const currentIssue = gate.surface === 'sxr'
+                            ? _sxrLinearUrlFor(post, gate.component)
+                            : _calLinearUrlFor(post, gate.component);
+                        const targetChanged =
+                            String(currentIssue || '').trim() !== String(gate.linear_issue || '').trim();
+                        const comments = gate.surface === 'sxr'
+                            ? _sxrCommentsFor(post, gate.component)
+                            : _calCommentsFor(post, gate.component);
+                        const landed = (Array.isArray(comments) ? comments : [])
+                            .find(comment => comment && String(comment.id || '') === String(gate.comment_id || ''));
+                        if (!landed) {
+                            if (targetChanged) return 'target_changed';
+                            last = 'pending';
+                        } else if (String(landed.body || '').trim() !== String(gate.comment_body || '').trim()
+                            || String(landed.author || '') !== String(gate.comment_author || '')
+                            || String(landed.role || '') !== String(gate.comment_role || '')
+                            || String(landed.audience || '') !== String(gate.comment_audience || '')
+                            || landed.is_tweak !== (gate.comment_is_tweak === true)) {
+                            return 'conflict';
+                        } else {
+                            if (targetChanged) {
+                                return item.transport === 'source_only'
+                                    ? 'superseded'
+                                    : 'target_changed';
+                            }
+                            const current = gate.surface === 'sxr'
+                                ? _sxrNormStatus(post[gate.component + '_status'] || '')
+                                : _calNormStatus(post[gate.component + '_status'] || '');
+                            const intended = gate.surface === 'sxr'
+                                ? _sxrNormStatus(gate.intended_status || '')
+                                : _calNormStatus(gate.intended_status || '');
+                            if (current !== intended) {
+                                if (item.rearmed_team_delivery === true
+                                    && Date.now() - Number(item.queuedAt || 0)
+                                        < WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS) {
+                                    last = 'landed_pending';
+                                } else {
+                                    return 'superseded';
+                                }
+                            } else {
+                            const approvalClears = Object.prototype.hasOwnProperty.call(gate, 'approval_clears')
+                                ? _writeUiLegacyApprovalClears(gate.surface, gate.approval_clears)
+                                : [];
+                            if (approvalClears.some(field => String(post[field] == null ? '' : post[field]).trim() !== '')) {
+                                last = 'landed_pending';
+                            } else {
+                                return 'committed';
+                            }
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                last = 'unknown';
+            }
+            if (attempt + 1 < tries) await new Promise(resolve => setTimeout(resolve, 350 * (attempt + 1)));
+        }
+        if (last === 'pending' && Date.now() - Number(item.queuedAt || 0) >= WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS) {
+            return 'expired';
+        }
+        if (last === 'landed_pending'
+            && Date.now() - Number(item.queuedAt || 0) >= WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS) {
+            return 'superseded';
+        }
+        return last;
+    }
+    function _writeUiLegacyReconcileCommittedTweak(surface, item) {
+        const gate = item && item.source_gate;
+        if (!_isClientLink || !gate || gate.principal !== _writeUiPrincipalKey()) return false;
+        if (item.source_only_superseded === true
+            || item.team_delivery_superseded === true) {
+            // This tombstone proves only that the exact comment landed. A newer
+            // authoritative status won, so it must never restore Tweaks Needed,
+            // approval clears, overall status, or a stale cache snapshot.
+            return true;
+        }
+        try {
+            const state = surface === 'sxr' ? sxrState : calState;
+            const review = surface === 'sxr' ? _sxrReviewState : _calReviewState;
+            const posts = state && Array.isArray(state.posts) ? state.posts : [];
+            const post = posts.find(row => row && String(row.id || '') === String(gate.post_id || ''));
+            if (!post || !review) return false;
+            const comp = String(gate.component || '');
+            const key = String(gate.post_id || '') + '|' + comp;
+            // A cache write snapshots every post on the surface. Defer confirmed
+            // reconciliation until all optimistic actions have either committed
+            // or rolled back, so no unrelated in-flight state becomes durable.
+            if (Object.values(review.saving || {}).some(Boolean)) return false;
+            if (Object.prototype.hasOwnProperty.call(gate, 'approval_clears')
+                && !_writeUiLegacyApprovalClearsValid(surface, gate.approval_clears)) return false;
+            const comments = surface === 'sxr'
+                ? _sxrCommentsFor(post, comp).slice()
+                : _calCommentsFor(post, comp).slice();
+            let changed = false;
+            if (!comments.some(comment => comment
+                && String(comment.id || '') === String(gate.comment_id || ''))) {
+                const createdAt = new Date(Number(item.queuedAt || 0) || Date.now()).toISOString();
+                comments.push({
+                    id: String(gate.comment_id || ''),
+                    parent_id: null,
+                    author: String(gate.comment_author || ''),
+                    role: String(gate.comment_role || ''),
+                    is_tweak: gate.comment_is_tweak === true,
+                    audience: String(gate.comment_audience || ''),
+                    round: surface === 'sxr'
+                        ? _sxrNextTweakRound(post, comp)
+                        : _calNextTweakRound(post, comp),
+                    body: String(gate.comment_body || ''),
+                    created_at: createdAt,
+                    updated_at: createdAt,
+                    done: false,
+                    done_at: '',
+                    done_by: ''
+                });
+                if (surface === 'sxr') _sxrSetCommentsFor(post, comp, comments);
+                else _calSetCommentsFor(post, comp, comments);
+                changed = true;
+            }
+            if (String(post[comp + '_status'] || '') !== String(gate.intended_status || '')) {
+                post[comp + '_status'] = String(gate.intended_status || '');
+                changed = true;
+            }
+            const approvalClears = _writeUiLegacyApprovalClearsForReconcile(surface, gate);
+            approvalClears.forEach(field => {
+                if (post[field]) { post[field] = ''; changed = true; }
+            });
+            const overall = surface === 'sxr' ? computeSampleOverallStatus(post) : computeOverallStatus(post);
+            if (post.status !== overall) { post.status = overall; changed = true; }
+            const draft = String(review.drafts[key] || '');
+            const gateActionId = String(gate.comment_id || '');
+            const draftActionId = String(review.draftActionIds && review.draftActionIds[key] || '');
+            const errorActionId = String(review.errorActionIds && review.errorActionIds[key] || '');
+            const ownsDraft = !!draftActionId && draftActionId === gateActionId;
+            const ownsError = (errorActionId && errorActionId === gateActionId)
+                || (!draft.trim() && !String(review.errors[key] || ''));
+            if (ownsError) {
+                if (post._saveError) { post._saveError = ''; changed = true; }
+                if (review.errors[key]) { review.errors[key] = ''; changed = true; }
+                if (review.errorActionIds) delete review.errorActionIds[key];
+            }
+            if (ownsDraft) {
+                if (draft) {
+                    review.drafts[key] = '';
+                    changed = true;
+                }
+                if (review.draftActionIds) delete review.draftActionIds[key];
+            }
+            if (changed) {
+                if (surface === 'sxr') _sxrRenderBody({ preserveScroll: true });
+                else _calRenderBody({ preserveScroll: true });
+            }
+            // A newer failed action keeps its live error, but that transient
+            // failure must not contaminate the canonical cache snapshot for
+            // this older confirmed action.
+            const preservedSaveError = !ownsError ? post._saveError : '';
+            if (preservedSaveError) post._saveError = '';
+            try {
+                return surface === 'sxr'
+                    ? !!_sxrCacheWrite(String(gate.client_slug || ''), state.posts)
+                    : !!_calCacheWrite(String(gate.client_slug || ''), state.posts);
+            } finally {
+                if (preservedSaveError) post._saveError = preservedSaveError;
+            }
+        } catch (e) {
+            // The caller retains the active source gate when either the page or
+            // cache cannot durably reconcile the confirmed request.
+            return false;
+        }
+    }
+    function _writeUiLegacyReconcileCommittedTombstones() {
+        const records = _writeUiLegacyCommittedTweakRead();
+        for (const record of records) {
+            const item = record && record.item;
+            const gate = item && item.source_gate;
+            if (!gate || gate.principal !== _writeUiPrincipalKey()) continue;
+            const state = gate.surface === 'sxr'
+                ? (typeof sxrState !== 'undefined' ? sxrState : null)
+                : (typeof calState !== 'undefined' ? calState : null);
+            const post = state && Array.isArray(state.posts)
+                ? state.posts.find(row => row && String(row.id || '') === String(gate.post_id || ''))
+                : null;
+            const current = _writeUiLegacyCommittedTweak(
+                gate.surface,
+                gate.client_slug,
+                gate.post_id,
+                gate.component,
+                post
+            );
+            if (current && current.item) _writeUiLegacyReconcileCommittedTweak(gate.surface, current.item);
+        }
+    }
+    function _writeUiLegacyHydrateConfirmedCacheAfterAuthority() {
+        if (!_isClientLink || !_writeUiAuthoritySnapshot()) return;
+        const records = _writeUiLegacyCommittedTweakRead();
+        let retryCalendar = false;
+        let retrySxr = false;
+        for (const record of records) {
+            const gate = record && record.item && record.item.source_gate;
+            if (!gate || gate.principal !== _writeUiPrincipalKey()) continue;
+            if (gate.surface === 'sxr'
+                && typeof sxrState === 'object' && sxrState
+                && Array.isArray(sxrState.posts) && sxrState.posts.length === 0
+                && sxrClientSlug(sxrState.client) === String(gate.client_slug || '')) {
+                const cached = _sxrCacheRead(String(gate.client_slug || ''));
+                if (cached && Array.isArray(cached.posts)
+                    && cached.posts.some(post => post && String(post.id || '') === String(gate.post_id || ''))) {
+                    retrySxr = true;
+                }
+            }
+            if (gate.surface === 'calendar'
+                && typeof calState === 'object' && calState
+                && Array.isArray(calState.posts) && calState.posts.length === 0
+                && calClientSlug(calState.client) === String(gate.client_slug || '')) {
+                const cached = _calCacheRead(String(gate.client_slug || ''));
+                if (cached && Array.isArray(cached.posts)
+                    && cached.posts.some(post => post && String(post.id || '') === String(gate.post_id || ''))) {
+                    retryCalendar = true;
+                }
+            }
+        }
+        // The initial surface mount can race the live authority read. Its first
+        // cache read then fails closed and an offline source leaves an empty
+        // view. Once authority is live, retry only a confirmed-tombstone cache;
+        // each loader hydrates synchronously before its network revalidation.
+        if (retryCalendar && typeof loadCalendarPosts === 'function') loadCalendarPosts();
+        if (retrySxr && typeof loadSxrCards === 'function') loadSxrCards();
+    }
+    function _writeUiBuildDeferredLegacyTweakRecords(surface, post, comp, comment, body, author, committedEdits, gateOverride) {
+        const issue = surface === 'sxr' ? _sxrLinearUrlFor(post, comp) : _calLinearUrlFor(post, comp);
+        const slug = _writeUiSourceClientSlug(surface, { post: post });
+        const freshGate = {
+            surface: surface,
+            client_slug: String(slug || ''),
+            source_transport: surface === 'sxr'
+                ? (_sxrSampleUseEf(slug) ? 'supabase' : 'webhook')
+                : (_calUpsertUseEf(slug) ? 'supabase' : 'webhook'),
+            post_id: String(post && post.id || ''),
+            component: String(comp || ''),
+            comment_id: String(comment && comment.id || ''),
+            comment_body: String(body || '').trim(),
+            comment_author: String(author || (surface === 'sxr' ? _sxrCurrentAuthor() : _calCurrentAuthor()) || 'SyncView'),
+            comment_role: String(comment && comment.role || ''),
+            comment_audience: String(comment && comment.audience || ''),
+            comment_is_tweak: !!(comment && comment.is_tweak),
+            intended_status: String(post && post[comp + '_status'] || ''),
+            approval_clears: _writeUiLegacyApprovalClearsFromEdits(surface, committedEdits),
+            linear_issue: String(issue || '').trim(),
+            principal: _writeUiPrincipalKey()
+        };
+        const gate = gateOverride ? Object.assign({}, gateOverride) : freshGate;
+        if (gateOverride && (
+            !_writeUiLegacyGateTargetIdentity(gate, surface, slug, post && post.id, comp)
+            || gate.principal !== _writeUiPrincipalKey()
+            || String(gate.comment_id || '') !== String(comment && comment.id || '')
+            || String(gate.comment_body || '').trim() !== String(body || '').trim()
+            || String(gate.comment_author || '') !== String(author || '')
+            || String(gate.comment_role || '') !== String(comment && comment.role || '')
+            || String(gate.comment_audience || '') !== String(comment && comment.audience || '')
+            || gate.comment_is_tweak !== !!(comment && comment.is_tweak)
+            || String(gate.intended_status || '') !== String(post && post[comp + '_status'] || '')
+            || String(gate.linear_issue || '').trim() !== String(issue || '').trim()
+            || JSON.stringify(_writeUiLegacyApprovalClears(surface, gate.approval_clears))
+                !== JSON.stringify(_writeUiLegacyApprovalClearsFromEdits(surface, committedEdits))
+        )) return [];
+        const prefix = 'deferred_' + surface + '_' + gate.comment_id;
+        const queuedAt = Date.now();
+        if (!String(issue || '').trim()) {
+            return [{
+                id: prefix + '_source',
+                kind: 'source_only',
+                payload: {},
+                attempts: 0,
+                lastError: '',
+                lastAttempt: 0,
+                queuedAt,
+                transport: 'source_only',
+                client_slug: gate.client_slug,
+                source_gate: Object.assign({}, gate)
+            }];
+        }
+        return [{
+            id: prefix + '_comment',
+            kind: 'comment',
+            payload: { issue: String(issue || '').trim(), body: gate.comment_body, author: gate.comment_author },
+            attempts: 0,
+            lastError: '',
+            lastAttempt: 0,
+            queuedAt,
+            transport: 'legacy_n8n',
+            client_slug: gate.client_slug,
+            source_gate: Object.assign({}, gate)
+        }, {
+            id: prefix + '_status',
+            kind: 'status',
+            payload: { issue: String(issue || '').trim(), status: gate.intended_status },
+            attempts: 0,
+            lastError: '',
+            lastAttempt: 0,
+            queuedAt,
+            transport: 'legacy_n8n',
+            client_slug: gate.client_slug,
+            source_gate: Object.assign({}, gate)
+        }];
+    }
+    async function _writeUiQueueDeferredLegacyTweak(surface, post, comp, comment, body, author, committedEdits, inspection) {
+        if (surface === 'sxr') await _sxrPrimeSampleRoutingFlag();
+        else await _calPrimeUpsertRoutingFlag();
+        const gateOverride = inspection && inspection.state === 'active'
+            && inspection.pair && inspection.pair.gate
+            ? inspection.pair.gate
+            : (inspection && inspection.rearmed_team_delivery === true
+                && inspection.rearm_gate
+                ? inspection.rearm_gate
+                : null);
+        const records = _writeUiBuildDeferredLegacyTweakRecords(
+            surface, post, comp, comment, body, author, committedEdits, gateOverride
+        );
+        if (inspection && inspection.rearmed_team_delivery === true) {
+            const receipts = new Set((Array.isArray(inspection.rearm_receipts)
+                ? inspection.rearm_receipts
+                : []).map(String));
+            for (const record of records) {
+                record.rearmed_team_delivery = true;
+                if (receipts.has(String(record.id || ''))) {
+                    record.team_delivery_receipts = [String(record.id || '')];
+                }
+            }
+        }
+        if (records.length !== 1 && records.length !== 2) {
+            return {
+                state: 'conflict',
+                comment_id: String(comment && comment.id || ''),
+                delivered: false,
+                item: inspection && inspection.item || null,
+                reason: 'active_retry_signature_mismatch',
+                ids: []
+            };
+        }
+        const slug = _writeUiSourceClientSlug(surface, { post: post });
+        return _writeUiLegacyTargetLedgerWithLock(surface, () => {
+            const decision = _writeUiLegacyTargetDecision(
+                surface,
+                slug,
+                post && post.id,
+                comp,
+                post,
+                body,
+                comment && comment.id
+            );
+            if (inspection && inspection.state === 'new'
+                && inspection.rearmed_team_delivery === true) {
+                const marker = inspection.rearm_item;
+                const markerGate = marker && marker.source_gate;
+                const markerKey = _writeUiLegacyTweakKey(surface, markerGate);
+                const markerMatches = _writeUiLegacyCommittedTweakRead().filter(row => row
+                    && String(row.key || '') === markerKey
+                    && row.item
+                    && row.item.team_delivery_confirmed !== true
+                    && (row.item.team_delivery_superseded === true
+                        || row.item.transport !== 'source_only')
+                    && _writeUiLegacyItemMatches(row.item, marker));
+                if (markerMatches.length !== 1) {
+                    if (decision.state === 'committed'
+                        && decision.delivered === true
+                        && decision.team_delivery_confirmed === true
+                        && String(decision.comment_id || '') === String(comment && comment.id || '')) {
+                        return Object.assign({}, decision, { source_only: false });
+                    }
+                    return {
+                        state: 'conflict',
+                        comment_id: String(comment && comment.id || ''),
+                        delivered: false,
+                        item: marker || decision.item || null,
+                        reason: 'team_delivery_rearm_marker_changed',
+                        ids: []
+                    };
+                }
+                const before = _writeUiLegacyOutboxItems(surface);
+                const idCollision = records.some(record =>
+                    before.some(item => item && String(item.id || '') === String(record.id || '')));
+                if (idCollision) {
+                    return {
+                        state: 'conflict',
+                        comment_id: String(comment && comment.id || ''),
+                        delivered: false,
+                        item: marker,
+                        reason: 'team_delivery_rearm_id_collision',
+                        ids: []
+                    };
+                }
+                const next = before.concat(records);
+                if (!_writeUiLegacyOutboxWrite(surface, next)) {
+                    throw new Error('Unable to preserve the deferred team notification');
+                }
+                const readback = _writeUiLegacyOutboxItems(surface);
+                if (!records.every(record => {
+                    const saved = readback.filter(item =>
+                        item && String(item.id || '') === String(record.id || ''));
+                    return saved.length === 1 && _writeUiLegacyItemMatches(saved[0], record);
+                })) throw new Error('Deferred team notification could not be verified');
+                return {
+                    state: 'staged',
+                    comment_id: String(comment && comment.id || ''),
+                    delivered: false,
+                    item: records[0],
+                    source_only: false,
+                    rearmed_team_delivery: true,
+                    ids: records.map(record => record.id)
+                };
+            }
+            if (decision.state === 'conflict') return decision;
+            if (decision.state === 'committed') {
+                if (String(decision.comment_id || '') === String(comment && comment.id || '')) {
+                    return Object.assign({}, decision, { source_only: records.length === 1 });
+                }
+                return {
+                    state: 'conflict',
+                    comment_id: String(decision.comment_id || comment && comment.id || ''),
+                    delivered: true,
+                    item: decision.item || null,
+                    reason: 'committed_action_changed',
+                    ids: []
+                };
+            }
+            if (decision.state === 'active') {
+                const exactPair = decision.comment_id === String(comment && comment.id || '')
+                    && records.every(record => {
+                        const matches = _writeUiLegacyOutboxItems(surface)
+                            .filter(item => item && String(item.id || '') === String(record.id || ''));
+                        return matches.length === 1 && _writeUiLegacyItemMatches(matches[0], record);
+                    });
+                if (!exactPair) {
+                    return {
+                        state: 'conflict',
+                        comment_id: String(decision.comment_id || comment && comment.id || ''),
+                        delivered: false,
+                        item: decision.item || null,
+                        reason: 'active_retry_signature_mismatch',
+                        ids: []
+                    };
+                }
+                return Object.assign({}, decision, {
+                    source_only: records.length === 1,
+                    ids: records.map(record => record.id)
+                });
+            }
+            const before = _writeUiLegacyOutboxItems(surface);
+            const idCollision = records.some(record =>
+                before.some(item => item && String(item.id || '') === String(record.id || '')));
+            if (idCollision) {
+                return {
+                    state: 'conflict',
+                    comment_id: String(comment && comment.id || ''),
+                    delivered: false,
+                    item: null,
+                    reason: 'outbox_id_collision',
+                    ids: []
+                };
+            }
+            const next = before.slice();
+            for (const record of records) {
+                next.push(record);
+            }
+            if (!_writeUiLegacyOutboxWrite(surface, next)) {
+                throw new Error('Unable to preserve the deferred team notification');
+            }
+            const readback = _writeUiLegacyOutboxItems(surface);
+            if (!records.every(record => {
+                const saved = readback.filter(item => item && String(item.id || '') === record.id);
+                return saved.length === 1 && _writeUiLegacyItemMatches(saved[0], record);
+            })) throw new Error('Deferred team notification could not be verified');
+            return {
+                state: 'staged',
+                comment_id: String(comment && comment.id || ''),
+                delivered: false,
+                item: records[0],
+                source_only: records.length === 1,
+                ids: records.map(record => record.id)
+            };
+        });
+    }
+    function _writeUiScheduleDeferredLegacyTweak(surface) {
+        if (surface === 'sxr') _sxrLinearOutboxScheduleRetry();
+        else _linearOutboxScheduleRetry();
+    }
+    function _writeUiLegacyDeliveryUnconfirmedError() {
+        const error = _writeUiGatewayError(409, 'legacy_tweak_delivery_unconfirmed');
+        error.message = 'Team delivery could not be confirmed. Your draft is preserved; retry.';
+        return error;
+    }
+    async function _writeUiFlushDeferredLegacyTweak(surface, ids) {
+        const flush = surface === 'sxr' ? _sxrLinearOutboxFlush : _linearOutboxFlush;
+        const wanted = (Array.isArray(ids) ? ids : []).map(String);
+        if (!wanted.length) {
+            return { state: 'noop', team_delivery_confirmed: false, source_only: false };
+        }
+        const outcomes = new Map();
+        const collect = result => {
+            for (const outcome of (result && Array.isArray(result.outcomes) ? result.outcomes : [])) {
+                const id = String(outcome && outcome.id || '');
+                if (id && wanted.includes(id)) outcomes.set(id, outcome);
+            }
+        };
+        let terminalFailure = null;
+        const runFlush = async () => {
+            try {
+                return await flush();
+            } catch (error) {
+                if (error && error.team_delivery_superseded === true) {
+                    terminalFailure = {
+                        state: 'superseded',
+                        team_delivery_confirmed: false,
+                        source_only: false,
+                        comment_id: String(error.comment_id || ''),
+                        item: error.terminal_item || null
+                    };
+                    _writeUiScheduleDeferredLegacyTweak(surface);
+                    return { outcomes: [] };
+                }
+                throw error;
+            }
+        };
+        collect(await runFlush());
+        if (terminalFailure) return terminalFailure;
+        let remaining = new Set(_writeUiLegacyOutboxItems(surface).map(item => String(item && item.id || '')));
+        const retryIds = wanted.filter(id => remaining.has(id));
+        if (retryIds.length) {
+            collect(await runFlush());
+            if (terminalFailure) return terminalFailure;
+            remaining = new Set(_writeUiLegacyOutboxItems(surface).map(item => String(item && item.id || '')));
+        }
+        const exact = wanted.map(id => outcomes.get(id)).filter(Boolean);
+        const terminalStates = new Set(exact.map(outcome => String(outcome.state || '')));
+        const terminalCommentIds = new Set(
+            exact.map(outcome => String(outcome.comment_id || '')).filter(Boolean)
+        );
+        if (exact.length === wanted.length
+            && terminalCommentIds.size <= 1
+            && Array.from(terminalStates).every(state =>
+                state === 'team_delivery_superseded'
+                || state === 'team_delivery_superseded_pending')) {
+            return {
+                state: 'superseded',
+                team_delivery_confirmed: false,
+                source_only: false,
+                comment_id: exact[0].comment_id || '',
+                item: exact[0].item || null
+            };
+        }
+        if (exact.length === wanted.length
+            && terminalCommentIds.size <= 1
+            && Array.from(terminalStates).every(state =>
+                state === 'source_only_superseded'
+                || state === 'source_only_superseded_pending')) {
+            return {
+                state: 'source_only_superseded',
+                team_delivery_confirmed: false,
+                source_only: true,
+                comment_id: exact[0].comment_id || '',
+                item: exact[0].item || null
+            };
+        }
+        if (wanted.some(id => remaining.has(id))) {
+            throw _writeUiGatewayError(503, 'legacy_tweak_confirmation_pending');
+        }
+        if (exact.length !== wanted.length) {
+            throw _writeUiLegacyDeliveryUnconfirmedError();
+        }
+        const states = new Set(exact.map(outcome => String(outcome.state || '')));
+        const commentIds = new Set(exact.map(outcome => String(outcome.comment_id || '')).filter(Boolean));
+        if (states.size !== 1 || commentIds.size > 1) {
+            throw _writeUiLegacyDeliveryUnconfirmedError();
+        }
+        const state = exact[0].state;
+        if (state === 'team_delivery_confirmed') {
+            return {
+                state: 'confirmed',
+                team_delivery_confirmed: true,
+                source_only: false,
+                comment_id: exact[0].comment_id || ''
+            };
+        }
+        if (state === 'team_delivery_superseded') {
+            return {
+                state: 'superseded',
+                team_delivery_confirmed: false,
+                source_only: false,
+                comment_id: exact[0].comment_id || '',
+                item: exact[0].item || null
+            };
+        }
+        if (state === 'source_only_confirmed' || state === 'source_only_superseded') {
+            return {
+                state,
+                team_delivery_confirmed: false,
+                source_only: true,
+                comment_id: exact[0].comment_id || '',
+                item: exact[0].item || null
+            };
+        }
+        throw _writeUiLegacyDeliveryUnconfirmedError();
+    }
+    async function _writeUiLegacyFinalizeFlush(surface, snapshot, remaining) {
+        return _writeUiLegacyOutboxWithLock(surface, () => {
+            const original = new Map((snapshot || []).map(item => [String(item && item.id || ''), item]));
+            const keep = new Map((remaining || []).map(item => [String(item && item.id || ''), item]));
+            const next = [];
+            for (const latest of _writeUiLegacyOutboxItems(surface)) {
+                const id = String(latest && latest.id || '');
+                const prior = original.get(id);
+                if (!prior) { next.push(latest); continue; }
+                if (!_writeUiLegacyItemMatches(latest, prior)) { next.push(latest); continue; }
+                if (keep.has(id)) next.push(keep.get(id));
+            }
+            if (!_writeUiLegacyOutboxWrite(surface, next)) {
+                throw _writeUiGatewayError(507, 'legacy_outbox_finalize_failed');
+            }
+            const readback = _writeUiLegacyOutboxItems(surface);
+            if (readback.length !== next.length
+                || readback.some((item, index) => !_writeUiLegacyItemMatches(item, next[index]))) {
+                throw _writeUiGatewayError(507, 'legacy_outbox_finalize_unverified');
+            }
+            return readback;
+        });
     }
     function _writeUiLegacyQuarantine(surface, item, reason) {
         try {
@@ -22836,12 +24478,13 @@
         return _linearOutboxFlushPromise;
     }
     async function _linearOutboxFlushRun() {
+        return _writeUiLegacyDrainWithLock('calendar', async () => {
         await _writeUiPrimeRerouteFlag();
         const items = _linearOutboxRead();
-        if (!items.length) return;
+        if (!items.length) return { outcomes: [] };
         let enriched = false;
         for (const it of items) {
-            if (it && it.transport === 'legacy_n8n') continue;
+            if (it && (it.transport === 'legacy_n8n' || it.transport === 'source_only')) continue;
             const seed = it.id || ('legacy_' + String(it.queuedAt || Date.now()));
             if (!it.requestId) { it.requestId = _writeUiIntentId('calendar', it.kind, [seed]); enriched = true; }
             if (it.kind === 'comment' && it.payload && !it.payload.native_comment_id) {
@@ -22849,13 +24492,142 @@
                 enriched = true;
             }
         }
-        if (enriched) _linearOutboxWrite(items);
         const remaining = [];
+        const outcomes = [];
+        const sourceGateStates = new Map();
+        const supersededGroups = new Map();
         for (const it of items) {
             const payload = it.payload || {};
-            if (it && it.transport === 'legacy_n8n' && !_writeUiRerouteUseGateway(it.client_slug)) {
+            if (it && it.source_gate) {
+                const gateKey = _writeUiLegacyGateSignature(it.source_gate);
+                const storedTerminal = _writeUiLegacyStoredTeamTerminalItem('calendar', it);
+                if (storedTerminal) {
+                    supersededGroups.set(gateKey, {
+                        stored: true,
+                        sourceOnly: false,
+                        tombstone: storedTerminal
+                    });
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: 'team_delivery_superseded',
+                        comment_id: String(storedTerminal.source_gate
+                            && storedTerminal.source_gate.comment_id || ''),
+                        item: storedTerminal
+                    });
+                    continue;
+                }
+                let gateState = sourceGateStates.get(gateKey);
+                if (!sourceGateStates.has(gateKey)) {
+                    gateState = await _writeUiLegacySourceGateState(it, 3);
+                    sourceGateStates.set(gateKey, gateState);
+                }
+                if (gateState === 'unknown' || gateState === 'pending' || gateState === 'landed_pending') {
+                    remaining.push(it);
+                    continue;
+                }
+                if (it.transport === 'source_only'
+                    && (gateState === 'conflict'
+                        || gateState === 'principal_mismatch'
+                        || gateState === 'target_changed')) {
+                    _writeUiLegacyQuarantine('calendar', it, 'source_gate_' + gateState);
+                    remaining.push(it);
+                    continue;
+                }
+                if (gateState === 'superseded') {
+                    let terminal = supersededGroups.get(gateKey);
+                    if (!terminal) {
+                        const group = items.filter(row => row && row.source_gate
+                            && _writeUiLegacyGateSignature(row.source_gate) === gateKey);
+                        const sourceOnly = it.transport === 'source_only';
+                        const canonical = sourceOnly
+                            ? it
+                            : (group.find(row => row && row.kind === 'comment') || it);
+                        const tombstone = sourceOnly
+                            ? _writeUiLegacySupersededSourceItem(canonical)
+                            : _writeUiLegacySupersededTeamItem(canonical);
+                        terminal = {
+                            stored: _writeUiLegacyRememberCommittedTweak('calendar', tombstone),
+                            sourceOnly,
+                            tombstone
+                        };
+                        supersededGroups.set(gateKey, terminal);
+                        if (terminal.stored) {
+                            _writeUiQueueDiagnostic(
+                                'calendar',
+                                sourceOnly ? 'source_only_superseded' : 'source_gate_superseded',
+                                canonical
+                            );
+                        }
+                    }
+                    if (!terminal.stored) {
+                        remaining.push(it);
+                        outcomes.push({
+                            id: String(it.id || ''),
+                            state: terminal.sourceOnly
+                                ? 'source_only_superseded_pending'
+                                : 'team_delivery_superseded_pending',
+                            comment_id: String(terminal.tombstone.source_gate
+                                && terminal.tombstone.source_gate.comment_id || ''),
+                            item: terminal.tombstone
+                        });
+                        continue;
+                    }
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: terminal.sourceOnly
+                            ? 'source_only_superseded'
+                            : 'team_delivery_superseded',
+                        comment_id: String(terminal.tombstone.source_gate
+                            && terminal.tombstone.source_gate.comment_id || ''),
+                        item: terminal.tombstone
+                    });
+                    continue;
+                }
+                if (gateState === 'conflict' || gateState === 'principal_mismatch' || gateState === 'target_changed') {
+                    if (_writeUiLegacyQuarantine('calendar', it, 'source_gate_' + gateState)) continue;
+                    remaining.push(it);
+                    continue;
+                }
+                if (gateState === 'expired') {
+                    if (_writeUiLegacyQuarantine('calendar', it, 'source_gate_expired')) continue;
+                    remaining.push(it);
+                    continue;
+                }
+                if (gateState !== 'committed') {
+                    _writeUiQueueDiagnostic('calendar', 'source_gate_' + gateState, it);
+                    continue;
+                }
+                if (!_writeUiLegacyRememberCommittedTweak('calendar', it)
+                    || !_writeUiLegacyReconcileCommittedTweak('calendar', it)) {
+                    remaining.push(it);
+                    continue;
+                }
+                if (it.transport === 'source_only') {
+                    _writeUiQueueDiagnostic('calendar', 'source_only_confirmed', it);
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: 'source_only_confirmed',
+                        comment_id: String(it.source_gate.comment_id || ''),
+                        item: it
+                    });
+                    continue;
+                }
+                const recordedReceipt = _writeUiLegacyRecordedTeamDeliveryReceiptItem('calendar', it);
+                if (recordedReceipt) {
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: 'team_delivery_confirmed',
+                        comment_id: String(it.source_gate.comment_id || ''),
+                        item: recordedReceipt
+                    });
+                    continue;
+                }
+            }
+            if (it && it.transport === 'legacy_n8n'
+                && (it.source_gate || !_writeUiRerouteUseGateway(it.client_slug))) {
                 if (Number(it.attempts || 0) >= LINEAR_OUTBOX_MAX_ATTEMPTS) { remaining.push(it); continue; }
                 const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
+                let delivered = false;
                 try {
                     const resp = await fetch(endpoint, {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -22864,11 +24636,25 @@
                     let ok = resp && resp.ok;
                     try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
                     if (!ok) throw new Error('http ' + (resp && resp.status));
+                    delivered = true;
                 } catch (e) {
                     it.attempts = Number(it.attempts || 0) + 1;
                     it.lastError = (e && e.message) ? e.message : String(e);
                     it.lastAttempt = Date.now();
                     remaining.push(it);
+                }
+                if (delivered && it.source_gate) {
+                    const receiptItem = _writeUiLegacyTeamDeliveryReceiptItem(it);
+                    if (!_writeUiLegacyRememberCommittedTweak('calendar', receiptItem)) {
+                        remaining.push(receiptItem);
+                    } else {
+                        outcomes.push({
+                            id: String(it.id || ''),
+                            state: 'team_delivery_confirmed',
+                            comment_id: String(it.source_gate.comment_id || ''),
+                            item: receiptItem
+                        });
+                    }
                 }
                 continue;
             }
@@ -22901,6 +24687,14 @@
                     } : undefined
                 });
                 _writeUiQueueDiagnostic('calendar', 'drained', it);
+                if (it.source_gate) {
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: 'team_delivery_confirmed',
+                        comment_id: String(it.source_gate.comment_id || ''),
+                        item: it
+                    });
+                }
                 // success — drop the item
             } catch (e) {
                 if (Number(e && e.status) === 409 && String(e && e.code || '') === 'legacy_parity_not_allowed') {
@@ -22927,8 +24721,24 @@
                 remaining.push(it);
             }
         }
-        _linearOutboxWrite(remaining);
-        if (remaining.length) _linearOutboxScheduleRetry();
+        let finalized;
+        try {
+            finalized = await _writeUiLegacyFinalizeFlush('calendar', items, remaining);
+        } catch (error) {
+            const terminal = Array.from(supersededGroups.values())
+                .find(entry => entry && !entry.sourceOnly);
+            if (terminal) {
+                error.team_delivery_superseded = true;
+                error.comment_id = String(terminal.tombstone
+                    && terminal.tombstone.source_gate
+                    && terminal.tombstone.source_gate.comment_id || '');
+                error.terminal_item = terminal.tombstone || null;
+            }
+            throw error;
+        }
+        if (finalized.length) _linearOutboxScheduleRetry();
+        return { outcomes };
+        });
     }
     /* Manual escape hatch (console only) — for the rare case where a
        payload's Linear URL is permanently broken and an admin wants to
@@ -22964,7 +24774,11 @@
                 if (!ok) throw new Error('http ' + (resp && resp.status));
             } catch (e) {
                 console.warn('[Calendar] Linear status push failed - queued for retry', e);
-                _linearOutboxEnqueue('status', payload, (e && e.message) ? e.message : String(e), clientSlug);
+                try {
+                    await _linearOutboxEnqueue('status', payload, (e && e.message) ? e.message : String(e), clientSlug);
+                } catch (queueError) {
+                    console.warn('[Calendar] Linear status retry could not be preserved', queueError);
+                }
             }
         };
         _calLinearPushChain[url] = (_calLinearPushChain[url] || Promise.resolve()).then(run, run);
@@ -22986,12 +24800,19 @@
                 if (!ok) throw new Error('http ' + (resp && resp.status));
             } catch (e) {
                 console.warn('[Calendar] Linear comment post failed - queued for retry', e);
-                _linearOutboxEnqueue('comment', payload, (e && e.message) ? e.message : String(e), clientSlug);
+                try {
+                    await _linearOutboxEnqueue('comment', payload, (e && e.message) ? e.message : String(e), clientSlug);
+                } catch (queueError) {
+                    console.warn('[Calendar] Linear comment retry could not be preserved', queueError);
+                }
             }
         })();
     }
     async function _calPushStatusToLinear(issueUrl, status, meta) {
         if (!(await _writeUiUseGatewayWhenReady('calendar', meta))) {
+            if (meta && meta.deferLegacyUntilSourceSave) {
+                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
+            }
             _calLegacyPushStatusToLinear(issueUrl, status, meta);
             return Promise.resolve({ skipped: true, legacy_transport: true });
         }
@@ -23064,6 +24885,9 @@
     /* Commit a client/Kasper comment through the authenticated gateway. */
     async function _calPostLinearComment(issueUrl, body, author, meta) {
         if (!(await _writeUiUseGatewayWhenReady('calendar', meta))) {
+            if (meta && meta.deferLegacyUntilSourceSave) {
+                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
+            }
             _calLegacyPostLinearComment(issueUrl, body, author, meta);
             return Promise.resolve({ skipped: true, legacy_transport: true });
         }
@@ -23073,7 +24897,13 @@
         const nativeId = _writeUiNativeId(meta && meta.post, component);
         if (!txt) return Promise.resolve({ skipped: true });
         if (!url && !nativeId) {
-            return _writeUiClassifyTargetless('calendar', component, meta);
+            const targetless = await _writeUiClassifyTargetless('calendar', component, meta);
+            return meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, targetless, {
+                    source_only: true,
+                    deferred_until_source_save: true
+                })
+                : targetless;
         }
         const repair = meta && meta.repairRecord ? meta.repairRecord : _writeUiBuildSourceRepair('calendar', 'comment', meta);
         const nativeCommentId = String(meta && meta.comment && meta.comment.id || _writeUiIntentId('calendar', 'comment', [Date.now(), txt.slice(0, 24)]));
@@ -28631,9 +30461,13 @@
         const precommittedForWrite = edits._writeUiPrecommittedNative === true
             || !!(retryPost && retryPost._writeUiRetrySourceAt);
         const companionRepairsForWrite = (Array.isArray(edits._writeUiCompanionRepairs) ? edits._writeUiCompanionRepairs : []).slice();
+        const deferLegacyStatusForWrite = edits._writeUiDeferLegacyStatusUntilSourceSave === true;
+        const pinnedSourceTransportForWrite = String(edits._writeUiPinnedSourceTransport || '');
         delete edits._writeUiRepairRefs;
         delete edits._writeUiPrecommittedNative;
         delete edits._writeUiCompanionRepairs;
+        delete edits._writeUiDeferLegacyStatusUntilSourceSave;
+        delete edits._writeUiPinnedSourceTransport;
         // Pin the destination client at the moment the save starts, BEFORE any
         // await. calClientSlug(calState.client) read later (post-await) could
         // resolve to a DIFFERENT client if the user switched tabs while this
@@ -28709,6 +30543,7 @@
         // so a later status/source failure becomes a durable source repair,
         // never an optimistic rollback that hides the committed comment.
         let gatewayCommitted = precommittedForWrite;
+        const deferredLegacyStatusPushes = [];
         const checkpointCommittedSource = () => {
             if (!gatewayCommitted) return;
             post._writeUiRetryEdits = Object.assign({}, edits);
@@ -28733,11 +30568,18 @@
                 const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === 'video');
                 const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
                 if (!reconciled) {
+                    const gatewayAttemptedBefore = gatewayAttempted;
                     gatewayAttempted = true;
+                    const sourceEditedAt = companion ? companion.source_at : post.updated_at;
                     const acknowledgement = await _calPushStatusToLinear(post.linear_issue_id, post.video_status, {
-                        post, component: 'video', sourceEditedAt: companion ? companion.source_at : post.updated_at,
-                        repairRecord: companion && companion.record
+                        post, component: 'video', sourceEditedAt,
+                        repairRecord: companion && companion.record,
+                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite
                     });
+                    if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                        gatewayAttempted = gatewayAttemptedBefore;
+                        deferredLegacyStatusPushes.push({ component: 'video', sourceEditedAt });
+                    }
                     _writeUiAdoptRepairAck(post, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
@@ -28750,11 +30592,18 @@
                 const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === 'graphic');
                 const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
                 if (!reconciled) {
+                    const gatewayAttemptedBefore = gatewayAttempted;
                     gatewayAttempted = true;
+                    const sourceEditedAt = companion ? companion.source_at : post.updated_at;
                     const acknowledgement = await _calPushStatusToLinear(post.graphic_linear_issue_id, post.graphic_status, {
-                        post, component: 'graphic', sourceEditedAt: companion ? companion.source_at : post.updated_at,
-                        repairRecord: companion && companion.record
+                        post, component: 'graphic', sourceEditedAt,
+                        repairRecord: companion && companion.record,
+                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite
                     });
+                    if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                        gatewayAttempted = gatewayAttemptedBefore;
+                        deferredLegacyStatusPushes.push({ component: 'graphic', sourceEditedAt });
+                    }
                     _writeUiAdoptRepairAck(post, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
                     gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
@@ -28855,7 +30704,12 @@
             // second or two later) doesn't flicker the strip or race a delete.
             _calLastLocalWriteAt = Date.now();
             _calV2Log('SAVE → upsert', _saveSlug, '|', JSON.stringify(wirePost), '| base:', _baseAtToSend);
-            const resp = await _calUpsertFetch(_saveSlug, { client: _saveSlug, post: wirePost, comments_base_at: _baseAtToSend });
+            const resp = await _calUpsertFetchPinned(
+                _saveSlug,
+                { client: _saveSlug, post: wirePost, comments_base_at: _baseAtToSend },
+                'ui',
+                pinnedSourceTransportForWrite
+            );
             // A non-2xx (n8n down, 500 HTML page) would otherwise surface as a
             // cryptic JSON-parse error in the card's save chip.
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -28937,6 +30791,16 @@
                 delete _okPost._writeUiRetryPrincipal;
                 if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
                 else delete _okPost._writeUiPrecommittedNative;
+            }
+            if (_okPost) {
+                deferredLegacyStatusPushes.forEach(push => {
+                    const isGraphic = push.component === 'graphic';
+                    _calLegacyPushStatusToLinear(
+                        isGraphic ? _okPost.graphic_linear_issue_id : _okPost.linear_issue_id,
+                        _okPost[(isGraphic ? 'graphic' : 'video') + '_status'],
+                        { post: _okPost, component: push.component, sourceEditedAt: push.sourceEditedAt }
+                    );
+                });
             }
             _calCacheWrite(_saveSlug, calState.posts, { clearRepairIds: [realId] });
             _calSetCardStatus(realId, 'saved');
@@ -31014,7 +32878,14 @@
        Approval, and posts with no media are hidden). */
     const COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'Title' };
     const COMP_PILL_COLORS = { video: 'var(--cal-comp-video-dot)', graphic: 'var(--cal-comp-graphic-dot)', caption: 'var(--cal-comp-caption-dot)', title: 'var(--cal-comp-title-dot)' };
-    const _calReviewState = { expanded: new Set(), drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
+    const _calReviewState = {
+        expanded: new Set(),
+        drafts: Object.create(null),
+        saving: Object.create(null),
+        errors: Object.create(null),
+        draftActionIds: Object.create(null),
+        errorActionIds: Object.create(null)
+    };
 
     /* ── Review audience (client vs SMM) ──────────────────────────────
        The same review machinery powers two surfaces: the client-link
@@ -31827,6 +33698,7 @@
     function _calReviewOnDraftInput(ta, pid, comp) {
         const key = pid + '|' + comp;
         _calReviewState.drafts[key] = ta.value;
+        delete _calReviewState.draftActionIds[key];
         const nowHasDraft = !!ta.value.trim();
         // Don't repaint on every keystroke — just toggle the two action
         // buttons in place. Approve is gated off while a draft is in
@@ -31940,6 +33812,7 @@
         post.updated_at = new Date().toISOString();
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
+        delete _calReviewState.errorActionIds[key];
         // Stamp the local-mutation clock so the post-load Linear reconcile
         // doesn't immediately revert this change if Linear is still showing
         // the stale state.
@@ -32010,6 +33883,8 @@
         _calReviewState.drafts[key] = '';
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
+        delete _calReviewState.draftActionIds[key];
+        delete _calReviewState.errorActionIds[key];
         _calReviewRepaintCard(pid);
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, {
             [comp + '_tweaks']: _calStringifyComments(list),
@@ -32023,113 +33898,427 @@
         });
     }
     function _calReviewRequestTweak(pid, comp) {
-        const post = calState.posts.find(p => p.id === pid);
-        if (!post) return;
+        const initialPost = calState.posts.find(p => p.id === pid);
+        if (!initialPost) return;
         const key = pid + '|' + comp;
-        const body = String(_calReviewState.drafts[key] || '').trim();
+        const rawDraft = String(_calReviewState.drafts[key] || '');
+        const body = rawDraft.trim();
         if (!body || _calReviewState.saving[key]) return;
-        // Same surface guard as approve: a client can only request a change on a
-        // component on their review surface (Client Approval / Tweaks Needed), not
-        // one still in internal review. Guards the direct-call path.
         if (_isClientLink) {
-            const cur = String(post[comp + '_status'] || '').trim().toLowerCase();
+            const cur = String(initialPost[comp + '_status'] || '').trim().toLowerCase();
             if (cur !== 'client approval' && cur !== 'tweaks needed') return;
         }
-        const role = _calCommentRole();
-        const list = _calCommentsFor(post, comp).slice();
-        const _now = new Date().toISOString();
-        const newComment = {
-            id: _calMintCommentId(),
-            parent_id: null,
-            author: _calCurrentAuthor(),
-            role: role,
-            is_tweak: true,
-            // Tag the audience exactly like a review-tab plain comment
-            // (_calReviewComment): a client's own change-request stays
-            // client-visible, but an SMM's (or Kasper's) review-tab request is a
-            // team message — internal, so the client never sees the note. The
-            // component still flips to Tweaks Needed either way; only the thread
-            // text is team-only.
-            audience: (role === 'client') ? 'client' : 'internal',
-            round: _calNextTweakRound(post, comp),
-            body: body,
-            created_at: _now,
-            updated_at: _now,
-            done: false,
-            done_at: '',
-            done_by: '',
-        };
-        list.push(newComment);
-        const prev = {
-            video_comments:   post.video_comments,
-            graphic_comments: post.graphic_comments,
-            caption_comments: post.caption_comments,
-            title_comments:   post.title_comments,
-            [comp + '_status']: post[comp + '_status'],
-            status: post.status,
-        };
-        _calSetCommentsFor(post, comp, list);
-        post[comp + '_status'] = 'Tweaks Needed';
-        _calV2Log('REVIEW request-change →', pid, '| comp:', comp, '| role:', _calCommentRole());
-        post.status = computeOverallStatus(post);
-        post.updated_at = new Date().toISOString();
-        _calReviewState.drafts[key] = '';
+        const _legacySlug = _writeUiSourceClientSlug('calendar', { post: initialPost });
+        let attemptId = '';
+        let action = null;
+        let deferredLegacyAttempt = false;
+        let deferredLegacySourceOnly = false;
+        let deferredLegacyOutboxIds = [];
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
-        _calMarkLocalStatus(pid, comp);
-        // On the SMM surface a tweak request hands the card back to the
-        // editor, so if nothing else on it is awaiting SMM sign-off the card
-        // leaves the queue outright (rather than collapsing to a "nothing
-        // left to review" stub and lingering until the next full re-render).
-        // The client surface keeps Tweaks-Needed cards, so it always repaints.
-        const _tweakMode = _calReviewMode();
-        const clearsCard = (_tweakMode === 'smm' || _isClientLink)
-            && !_calComponentsFor(post).some(c => _calReviewComponentActive(post, c, _tweakMode));
+        delete _calReviewState.errorActionIds[key];
         _calReviewRepaintCard(pid);
-        // Commit the native comment before the Calendar row. A failed gateway
-        // acknowledgement restores the optimistic card and keeps the action
-        // visibly unsaved; no browser retry queue is created.
-        // Keep the composite tweak batch private until the comment is durably
-        // acknowledged. An older in-flight card save must not discover and
-        // flush the status/source half of this action on its own.
-        const repairEdits = {
-            [comp + '_status']: post[comp + '_status'],
-            status: post.status,
-            [comp + '_tweaks']: _calStringifyComments(list),
-        };
-        _calClearStaleApprovals(post, repairEdits);
-        Promise.resolve().then(() => _calPostLinearComment(_calLinearUrlFor(post, comp), body, newComment.author, {
-            post, component: comp, comment: newComment, audience: _calMsgAudience(newComment),
-            isTweak: _calMsgIsTweak(newComment), round: newComment.round,
-            repairEdits: Object.assign({}, repairEdits),
-            reserveStatusIntent: { status: post[comp + '_status'] }
-        })).then(acknowledgement => {
-            const committedBatch = Object.assign({}, repairEdits);
-            _writeUiBindRepairAck(post, committedBatch, acknowledgement);
-            const pending = _calPendingEdits[pid] || (_calPendingEdits[pid] = {});
-            _writeUiMergeCommittedBatch(pending, committedBatch);
-            return _calFlushCardSave(pid);
-        }).then(() => {
-            _calReviewState.saving[key] = false;
-            const current = calState.posts.find(p => p.id === pid) || post;
-            if (current._saveError) {
-                _calReviewState.errors[key] = current._saveError || 'Save failed';
+
+        // Begin the exact-target lock before reading ownership or constructing
+        // any source snapshot. A waiting tab therefore cannot commit a list
+        // captured before the first tab request became visible.
+        Promise.resolve().then(() => _writeUiLegacyTargetWithLock(
+            'calendar',
+            _legacySlug,
+            pid,
+            comp,
+            async () => {
+                const post = calState.posts.find(p => p.id === pid);
+                if (!post) throw new Error('This review item is no longer available');
+                if (_isClientLink) {
+                    const currentStatus = String(post[comp + '_status'] || '').trim().toLowerCase();
+                    if (currentStatus !== 'client approval' && currentStatus !== 'tweaks needed') {
+                        throw new Error('This item changed while your request was waiting. Your draft is preserved.');
+                    }
+                }
+                attemptId = String(_calReviewState.draftActionIds[key] || '')
+                    || _calMintCommentId();
+                let inspection = await _writeUiLegacyInspectTargetTweak(
+                    'calendar', _legacySlug, pid, comp, post, body, attemptId
+                );
+                inspection = await _writeUiLegacyRefreshActiveTweak('calendar', inspection);
+                if (inspection.state === 'conflict') {
+                    return { state: 'conflict', conflict: inspection, attempt_id: attemptId };
+                }
+                if (inspection.state === 'committed') {
+                    return {
+                        state: 'committed',
+                        item: inspection.item,
+                        ids: inspection.ids || [],
+                        comment_id: inspection.comment_id,
+                        source_only: inspection.source_only === true
+                    };
+                }
+
+                const retryGate = inspection.state === 'active'
+                    && inspection.pair && inspection.pair.gate
+                    ? inspection.pair.gate
+                    : null;
+                const commentId = retryGate
+                    ? String(retryGate.comment_id || '')
+                    : attemptId;
+                const role = retryGate ? String(retryGate.comment_role || '') : _calCommentRole();
+                const author = retryGate ? String(retryGate.comment_author || '') : _calCurrentAuthor();
+                const audience = retryGate
+                    ? String(retryGate.comment_audience || '')
+                    : (role === 'client' ? 'client' : 'internal');
+                const list = _calCommentsFor(post, comp).slice();
+                const existing = list.find(comment =>
+                    comment && String(comment.id || '') === commentId);
+                if (existing && (
+                    String(existing.body || '').trim() !== body
+                    || String(existing.author || '') !== author
+                    || String(existing.role || '') !== role
+                    || String(existing.audience || '') !== audience
+                    || existing.is_tweak !== true
+                )) {
+                    return {
+                        state: 'conflict',
+                        conflict: {
+                            state: 'conflict',
+                            comment_id: commentId,
+                            delivered: false,
+                            item: inspection.item || null,
+                            reason: 'local_comment_signature_mismatch'
+                        },
+                        attempt_id: attemptId
+                    };
+                }
+
+                const _now = retryGate && inspection.item && inspection.item.queuedAt
+                    ? new Date(Number(inspection.item.queuedAt)).toISOString()
+                    : new Date().toISOString();
+                const newComment = existing || {
+                    id: commentId,
+                    parent_id: null,
+                    author,
+                    role,
+                    is_tweak: true,
+                    audience,
+                    round: _calNextTweakRound(post, comp),
+                    body,
+                    created_at: _now,
+                    updated_at: _now,
+                    done: false,
+                    done_at: '',
+                    done_by: ''
+                };
+                const previousComments = list.map(comment => Object.assign({}, comment));
+                const previousFields = {
+                    [comp + '_status']: post[comp + '_status'],
+                    status: post.status,
+                    client_video_approved_at: post.client_video_approved_at,
+                    client_graphic_approved_at: post.client_graphic_approved_at,
+                    client_caption_approved_at: post.client_caption_approved_at,
+                    client_title_approved_at: post.client_title_approved_at,
+                    kasper_approved_at: post.kasper_approved_at,
+                    updated_at: post.updated_at
+                };
+                if (!existing) list.push(newComment);
+                _calSetCommentsFor(post, comp, list);
+                post[comp + '_status'] = 'Tweaks Needed';
+                _calV2Log('REVIEW request-change →', pid, '| comp:', comp, '| role:', role);
+                post.status = computeOverallStatus(post);
+                post.updated_at = new Date().toISOString();
+                _calReviewState.drafts[key] = '';
+                delete _calReviewState.draftActionIds[key];
+                const localStatusMarker = _writeUiRequestTweakMarkLocalStatus('calendar', pid, comp);
+                const repairEdits = {
+                    [comp + '_status']: post[comp + '_status'],
+                    status: post.status,
+                    [comp + '_tweaks']: _calStringifyComments(list)
+                };
+                _calClearStaleApprovals(post, repairEdits);
+                const optimisticFields = {};
+                Object.keys(previousFields).forEach(field => {
+                    optimisticFields[field] = post[field];
+                });
+                const mode = _calReviewMode();
+                const clearsCard = (mode === 'smm' || _isClientLink)
+                    && !_calComponentsFor(post).some(component =>
+                        _calReviewComponentActive(post, component, mode));
+                action = {
+                    post,
+                    newComment,
+                    comment_id: commentId,
+                    insertedComment: !existing,
+                    previousComments,
+                    previousFields,
+                    optimisticFields,
+                    localStatusMarker,
+                    clearsCard,
+                    rollbackApplied: false
+                };
                 _calReviewRepaintCard(pid);
+
+                const acknowledgement = inspection.state === 'active'
+                    || inspection.rearmed_team_delivery === true
+                    ? { skipped: true, legacy_transport: true, deferred_until_source_save: true }
+                    : await _calPostLinearComment(_calLinearUrlFor(post, comp), body, newComment.author, {
+                        post,
+                        component: comp,
+                        comment: newComment,
+                        audience: _calMsgAudience(newComment),
+                        isTweak: _calMsgIsTweak(newComment),
+                        round: newComment.round,
+                        repairEdits: Object.assign({}, repairEdits),
+                        reserveStatusIntent: { status: post[comp + '_status'] },
+                        deferLegacyUntilSourceSave: true
+                    });
+                const deferredLegacyComment =
+                    !!(acknowledgement && acknowledgement.deferred_until_source_save);
+                deferredLegacyAttempt = deferredLegacyComment;
+                const committedBatch = Object.assign({}, repairEdits);
+                _writeUiBindRepairAck(post, committedBatch, acknowledgement);
+                if (deferredLegacyComment) {
+                    const staged = await _writeUiQueueDeferredLegacyTweak(
+                        'calendar',
+                        post,
+                        comp,
+                        newComment,
+                        body,
+                        newComment.author,
+                        repairEdits,
+                        inspection
+                    );
+                    if (staged.state === 'conflict') {
+                        return {
+                            state: 'conflict',
+                            conflict: staged,
+                            attempt_id: attemptId,
+                            action
+                        };
+                    }
+                    deferredLegacySourceOnly = staged.source_only === true;
+                    deferredLegacyOutboxIds = staged.ids || [];
+                    if (staged.state === 'committed') {
+                        return {
+                            state: 'committed',
+                            item: staged.item,
+                            ids: deferredLegacyOutboxIds,
+                            comment_id: staged.comment_id,
+                            source_only: deferredLegacySourceOnly,
+                            action
+                        };
+                    }
+                    committedBatch._writeUiPinnedSourceTransport =
+                        _writeUiLegacyPinnedSourceTransport('calendar', deferredLegacyOutboxIds);
+                }
+
+                const pending = _calPendingEdits[pid] || (_calPendingEdits[pid] = {});
+                _writeUiMergeCommittedBatch(pending, committedBatch);
+                if (deferredLegacyOutboxIds.length) _calNoLinearPush.add(pid + '|' + comp);
+                await _calFlushCardSave(pid);
+                return {
+                    state: 'saved',
+                    action,
+                    ids: deferredLegacyOutboxIds,
+                    deferred: deferredLegacyComment,
+                    source_only: deferredLegacySourceOnly
+                };
+            }
+        )).then(async outcome => {
+            _calReviewState.saving[key] = false;
+            const current = calState.posts.find(p => p.id === pid)
+                || (action && action.post)
+                || initialPost;
+            if (outcome && outcome.state === 'conflict') {
+                const targetConflict = outcome.conflict || {};
+                if (outcome.action) {
+                    _writeUiRollbackRequestTweak('calendar', current, comp, outcome.action);
+                    outcome.action.rollbackApplied = true;
+                }
+                if (targetConflict.delivered
+                    && targetConflict.item
+                    && targetConflict.source_superseded !== true) {
+                    _writeUiLegacyReconcileCommittedTweak('calendar', targetConflict.item);
+                } else if (targetConflict.source_superseded !== true) {
+                    _writeUiScheduleDeferredLegacyTweak('calendar');
+                }
+                _calReviewState.drafts[key] = rawDraft;
+                _calReviewState.errors[key] = targetConflict.source_superseded === true
+                    ? 'This request was saved, but a newer status was applied. Review the latest status before retrying.'
+                    : (targetConflict.delivered
+                        ? 'A change request from another tab was saved first. Your draft is preserved; review the latest status and retry.'
+                        : 'Another change request for this item is still being confirmed. Your draft is preserved; retry after it finishes.');
+                const failedActionId = String(outcome.action && outcome.action.comment_id
+                    || outcome.attempt_id
+                    || attemptId);
+                _calReviewState.draftActionIds[key] = failedActionId;
+                _calReviewState.errorActionIds[key] = failedActionId;
+                _calRenderBody({ preserveScroll: true });
                 return;
             }
-            if (clearsCard) _calReviewRemoveCard(pid);
-            else _calReviewRepaintCard(pid);
-            // The client gets explicit reassurance their request reached the
-            // team — the status pill change alone reads as ambiguous.
-            if (_calCommentRole() === 'client' && !post._saveError) {
-                showToast('Change request sent — the team has been notified');
+            if (outcome && outcome.state === 'committed') {
+                if (outcome.action) {
+                    _writeUiRollbackRequestTweak('calendar', current, comp, outcome.action);
+                    outcome.action.rollbackApplied = true;
+                }
+                let committedDeliveryOutcome = null;
+                let committedDeliveryPending = false;
+                if (outcome.ids && outcome.ids.length) {
+                    try {
+                        committedDeliveryOutcome = await _writeUiFlushDeferredLegacyTweak(
+                            'calendar', outcome.ids
+                        );
+                    } catch (error) {
+                        if (String(error && error.code || '') === 'legacy_tweak_delivery_unconfirmed') {
+                            throw error;
+                        }
+                        committedDeliveryPending = true;
+                        _writeUiScheduleDeferredLegacyTweak('calendar');
+                        _writeUiReportFailure('calendar', 'comment', error);
+                    }
+                }
+                if ((outcome.item && outcome.item.team_delivery_superseded === true)
+                    || (committedDeliveryOutcome && committedDeliveryOutcome.state === 'superseded')) {
+                    _writeUiApplySupersededTeamDelivery(
+                        'calendar', current, comp, outcome.action || action, key, rawDraft,
+                        outcome.comment_id || attemptId
+                    );
+                    return;
+                }
+                const sourceOnlySuperseded =
+                    (outcome.item && outcome.item.source_only_superseded === true)
+                    || (committedDeliveryOutcome
+                        && committedDeliveryOutcome.state === 'source_only_superseded');
+                _calReviewState.drafts[key] = '';
+                _calReviewState.errors[key] = '';
+                delete _calReviewState.draftActionIds[key];
+                delete _calReviewState.errorActionIds[key];
+                if (outcome.item) _writeUiLegacyReconcileCommittedTweak('calendar', outcome.item);
+                _calRenderBody({ preserveScroll: true });
+                showToast(sourceOnlySuperseded
+                    ? 'Change request saved — a newer status was applied'
+                    : (outcome.source_only
+                        ? 'Change request already saved'
+                        : (committedDeliveryPending
+                            ? 'Change request saved — team delivery is being confirmed'
+                            : 'Change request already saved')));
+                return;
             }
-        }).catch(e => {
-            Object.assign(post, prev);
-            _calReviewState.drafts[key] = body;
-            _writeUiReportFailure('calendar', 'comment', e);
+            if (current._saveError) {
+                const confirmed = _writeUiLegacyCommittedTweak(
+                    'calendar', _legacySlug, pid, comp, current
+                );
+                if (confirmed && confirmed.delivered === true
+                    && confirmed.team_delivery_superseded !== true && action
+                    && confirmed.comment_id === String(action.comment_id || '')) {
+                    if (!action.rollbackApplied) {
+                        _writeUiRollbackRequestTweak('calendar', current, comp, action);
+                        action.rollbackApplied = true;
+                    }
+                    _calReviewState.drafts[key] = '';
+                    _calReviewState.errors[key] = '';
+                    delete _calReviewState.draftActionIds[key];
+                    delete _calReviewState.errorActionIds[key];
+                    _writeUiLegacyReconcileCommittedTweak('calendar', confirmed.item);
+                    _calRenderBody({ preserveScroll: true });
+                    return;
+                }
+                if (deferredLegacyAttempt) _writeUiScheduleDeferredLegacyTweak('calendar');
+                if (!current._writeUiRetrySourceAt && action) {
+                    _writeUiRollbackRequestTweak('calendar', current, comp, action);
+                    action.rollbackApplied = true;
+                }
+                _calReviewState.drafts[key] = rawDraft;
+                _calReviewState.errors[key] = current._saveError || 'Save failed';
+                _calReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
+                _calReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
+                _calRenderBody({ preserveScroll: true });
+                return;
+            }
+            let deliveryPending = false;
+            let deliveryOutcome = null;
+            if (deferredLegacyOutboxIds.length) {
+                try {
+                    deliveryOutcome = await _writeUiFlushDeferredLegacyTweak(
+                        'calendar', deferredLegacyOutboxIds
+                    );
+                } catch (error) {
+                    if (String(error && error.code || '') === 'legacy_tweak_delivery_unconfirmed') {
+                        throw error;
+                    }
+                    deliveryPending = true;
+                    _writeUiScheduleDeferredLegacyTweak('calendar');
+                    _writeUiReportFailure('calendar', 'comment', error);
+                }
+            }
+            if (deliveryOutcome && deliveryOutcome.state === 'superseded') {
+                _writeUiApplySupersededTeamDelivery(
+                    'calendar', current, comp, action, key, rawDraft,
+                    action && action.comment_id || attemptId
+                );
+                return;
+            }
+            if (deliveryOutcome && deliveryOutcome.state === 'source_only_superseded') {
+                if (!action.rollbackApplied) {
+                    _writeUiRollbackRequestTweak('calendar', current, comp, action);
+                    action.rollbackApplied = true;
+                }
+                _calReviewState.drafts[key] = '';
+                _calReviewState.errors[key] = '';
+                delete _calReviewState.draftActionIds[key];
+                delete _calReviewState.errorActionIds[key];
+                _writeUiLegacyReconcileCommittedTweak('calendar', deliveryOutcome.item);
+                _calRenderBody({ preserveScroll: true });
+                showToast('Change request saved — a newer status was applied');
+                return;
+            }
+            if (action && action.clearsCard) _calReviewRemoveCard(pid);
+            else _calReviewRepaintCard(pid);
+            if (_calCommentRole() === 'client' && !current._saveError) {
+                showToast(deferredLegacySourceOnly
+                    ? (deliveryPending
+                        ? 'Change request saved — confirmation is still pending'
+                        : 'Change request sent')
+                    : (deliveryPending
+                        ? 'Change request saved — team delivery is being confirmed'
+                        : 'Change request sent — the team has been notified'));
+            }
+        }).catch(error => {
+            if (deferredLegacyAttempt || deferredLegacyOutboxIds.length) {
+                _writeUiScheduleDeferredLegacyTweak('calendar');
+            }
             _calReviewState.saving[key] = false;
-            _calReviewState.errors[key] = (e && e.message) || 'Save failed';
+            const current = calState.posts.find(p => p.id === pid)
+                || (action && action.post)
+                || initialPost;
+            const confirmed = _writeUiLegacyCommittedTweak(
+                'calendar', _legacySlug, pid, comp, current
+            );
+            if (confirmed
+                && confirmed.delivered === true
+                && confirmed.team_delivery_superseded !== true
+                && String(error && error.code || '') !== 'legacy_tweak_delivery_unconfirmed'
+                && action
+                && confirmed.comment_id === String(action.comment_id || '')) {
+                if (!action.rollbackApplied) {
+                    _writeUiRollbackRequestTweak('calendar', current, comp, action);
+                    action.rollbackApplied = true;
+                }
+                _calReviewState.drafts[key] = '';
+                _calReviewState.errors[key] = '';
+                delete _calReviewState.draftActionIds[key];
+                delete _calReviewState.errorActionIds[key];
+                _writeUiLegacyReconcileCommittedTweak('calendar', confirmed.item);
+                _calRenderBody({ preserveScroll: true });
+                return;
+            }
+            if (action && !action.rollbackApplied && !current._writeUiRetrySourceAt) {
+                _writeUiRollbackRequestTweak('calendar', current, comp, action);
+                action.rollbackApplied = true;
+            }
+            _calReviewState.drafts[key] = rawDraft;
+            _writeUiReportFailure('calendar', 'comment', error);
+            _calReviewState.errors[key] = (error && error.message) || 'Save failed';
+            _calReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
+            _calReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
             _calRenderBody({ preserveScroll: true });
         });
     }
@@ -39582,6 +41771,17 @@
             body: JSON.stringify(payload)
         });
     }
+    function _sxrUpsertFetchPinned(clientOrSlug, payload, source, transport) {
+        if (transport !== 'supabase' && transport !== 'webhook') {
+            return _sxrUpsertFetch(clientOrSlug, payload, source);
+        }
+        const url = transport === 'supabase' ? SXR_UPSERT_EF_URL : SXR_UPSERT_N8N_URL;
+        return fetch(url, {
+            method: 'POST',
+            headers: _sxrWriteHeaders(source, url),
+            body: JSON.stringify(payload)
+        });
+    }
     function _sxrReorderFetch(clientOrSlug, payload, source) {
         _sxrPrimeSampleRoutingFlag();
         const post = (url) => fetch(url, {
@@ -41331,9 +43531,11 @@
         const precommittedForWrite = edits._writeUiPrecommittedNative === true
             || !!(retryPost && retryPost._writeUiRetrySourceAt);
         const companionRepairsForWrite = (Array.isArray(edits._writeUiCompanionRepairs) ? edits._writeUiCompanionRepairs : []).slice();
+        const pinnedSourceTransportForWrite = String(edits._writeUiPinnedSourceTransport || '');
         delete edits._writeUiRepairRefs;
         delete edits._writeUiPrecommittedNative;
         delete edits._writeUiCompanionRepairs;
+        delete edits._writeUiPinnedSourceTransport;
         delete _sxrPendingEdits[pid];
         let _releaseSave;
         _sxrSaveInFlight[pid] = new Promise(res => { _releaseSave = res; });
@@ -41483,7 +43685,12 @@
                     _sxrApplyClearSentinels(wirePost, edits);
                 }
                 _sxrLastLocalWriteAt = Date.now();
-                const resp = await _sxrUpsertFetch(_saveSlug, { client: _saveSlug, sample: wirePost, comments_base_at: '' }, 'ui');
+                const resp = await _sxrUpsertFetchPinned(
+                    _saveSlug,
+                    { client: _saveSlug, sample: wirePost, comments_base_at: '' },
+                    'ui',
+                    pinnedSourceTransportForWrite
+                );
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const json = await resp.json();
                 if (!json.ok) throw new Error(json.error || 'save failed');
@@ -41685,7 +43892,14 @@
     function _sxrHasMedia(p) { return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim()); }
 
     /* ── Review render ── */
-    const _sxrReviewState = { expanded: new Set(), drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
+    const _sxrReviewState = {
+        expanded: new Set(),
+        drafts: Object.create(null),
+        saving: Object.create(null),
+        errors: Object.create(null),
+        draftActionIds: Object.create(null),
+        errorActionIds: Object.create(null)
+    };
     const _SXR_REVIEW_CFG = { client: { reviewStatus: 'Client Approval', approveTo: 'Approved' }, smm: { reviewStatus: 'For SMM Approval', approveTo: 'Kasper Approval' } };
     function _sxrReviewMode() { return (!_isClientLink && sxrState.view === 'smmreview') ? 'smm' : 'client'; }
     function _sxrReviewComponentActive(p, c, mode) { const cs = _sxrNormStatus(p[c + '_status'] || ''); if (cs === _SXR_REVIEW_CFG[mode].reviewStatus) return true; return mode !== 'smm' && cs === 'Tweaks Needed' && !_isClientLink; }
@@ -41895,6 +44109,7 @@
     function _sxrReviewOnDraftInput(ta, pid, comp) {
         const key = pid + '|' + comp;
         _sxrReviewState.drafts[key] = ta.value;
+        delete _sxrReviewState.draftActionIds[key];
         const nowHasDraft = !!ta.value.trim();
         const card = ta.closest('.cal-review-card'); if (!card) return;
         const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]'); if (!panel) return;
@@ -42070,6 +44285,7 @@
         post.status = computeSampleOverallStatus(post);
         post.updated_at = new Date().toISOString();
         _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
+        delete _sxrReviewState.errorActionIds[key];
         _sxrMarkLocalStatus(pid, comp);
         const clearsCard = (mode === 'smm' || _isClientLink) && !SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(post, c, mode));
         _sxrReviewRepaintCard(pid);
@@ -42099,74 +44315,427 @@
         _sxrSetCommentsFor(post, comp, list);
         post.updated_at = _now;
         _sxrReviewState.drafts[key] = ''; _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
+        delete _sxrReviewState.draftActionIds[key];
+        delete _sxrReviewState.errorActionIds[key];
         _sxrReviewRepaintCard(pid);
         _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
         Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = (e && e.message) || 'Save failed'; _sxrReviewRepaintCard(pid); });
     }
     function _sxrReviewRequestTweak(pid, comp) {
-        const post = sxrState.posts.find(p => p.id === pid);
-        if (!post) return;
+        const initialPost = sxrState.posts.find(p => p.id === pid);
+        if (!initialPost) return;
         const key = pid + '|' + comp;
-        const body = String(_sxrReviewState.drafts[key] || '').trim();
+        const rawDraft = String(_sxrReviewState.drafts[key] || '');
+        const body = rawDraft.trim();
         if (!body || _sxrReviewState.saving[key]) return;
-        if (_isClientLink) { const cur = String(post[comp + '_status'] || '').trim().toLowerCase(); if (cur !== 'client approval' && cur !== 'tweaks needed') return; }
-        const role = _sxrCommentRole();
-        const list = _sxrCommentsFor(post, comp).slice();
-        const _now = new Date().toISOString();
-        const newComment = { id: _sxrMintCommentId(), parent_id: null, author: _sxrCurrentAuthor(), role, is_tweak: true, audience: (role === 'client') ? 'client' : 'internal', round: _sxrNextTweakRound(post, comp), body, created_at: _now, updated_at: _now, done: false, done_at: '', done_by: '' };
-        list.push(newComment);
-        const prev = { video_comments: post.video_comments, graphic_comments: post.graphic_comments, [comp + '_status']: post[comp + '_status'], status: post.status };
-        _sxrSetCommentsFor(post, comp, list);
-        post[comp + '_status'] = 'Tweaks Needed';
-        post.status = computeSampleOverallStatus(post);
-        post.updated_at = _now;
-        _sxrReviewState.drafts[key] = ''; _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
-        _sxrMarkLocalStatus(pid, comp);
-        const mode = _sxrReviewMode();
-        const clearsCard = (mode === 'smm' || _isClientLink) && !SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(post, c, mode));
+        if (_isClientLink) {
+            const cur = String(initialPost[comp + '_status'] || '').trim().toLowerCase();
+            if (cur !== 'client approval' && cur !== 'tweaks needed') return;
+        }
+        const _legacySlug = _writeUiSourceClientSlug('sxr', { post: initialPost });
+        let attemptId = '';
+        let action = null;
+        let deferredLegacyAttempt = false;
+        let deferredLegacySourceOnly = false;
+        let deferredLegacyOutboxIds = [];
+        _sxrReviewState.saving[key] = true;
+        _sxrReviewState.errors[key] = '';
+        delete _sxrReviewState.errorActionIds[key];
         _sxrReviewRepaintCard(pid);
-        // Hold this action outside the shared save queue while its route is
-        // decided. Enrolled gateway comments commit first; legacy comments wait
-        // for the source save so an older save cannot flush a half action.
-        const repairEdits = { [comp + '_status']: post[comp + '_status'], status: post.status, [comp + '_tweaks']: _sxrStringifyComments(list) };
-        _sxrClearStaleApprovals(post, repairEdits);
-        let deferredLegacyComment = false;
-        Promise.resolve().then(() => _sxrPostLinearComment(_sxrLinearUrlFor(post, comp), body, newComment.author, {
-            post, component: comp, comment: newComment, audience: _sxrMsgAudience(newComment),
-            isTweak: _sxrMsgIsTweak(newComment), round: newComment.round,
-            repairEdits: Object.assign({}, repairEdits),
-            reserveStatusIntent: { status: post[comp + '_status'] },
-            deferLegacyUntilSourceSave: true
-        }))
-        .then(acknowledgement => {
-            deferredLegacyComment = !!(acknowledgement && acknowledgement.deferred_until_source_save);
-            const committedBatch = Object.assign({}, repairEdits);
-            _writeUiBindRepairAck(post, committedBatch, acknowledgement);
-            const pending = _sxrPendingEdits[pid] || (_sxrPendingEdits[pid] = {});
-            _writeUiMergeCommittedBatch(pending, committedBatch);
-            return _sxrFlushCardSave(pid);
-        }).then(() => {
-            _sxrReviewState.saving[key] = false;
-            const current = sxrState.posts.find(p => p.id === pid) || post;
-            if (current._saveError) {
-                _sxrReviewState.errors[key] = current._saveError || 'Save failed';
+
+        // Begin the exact-target lock before reading ownership or constructing
+        // any source snapshot. A waiting tab therefore cannot commit a list
+        // captured before the first tab request became visible.
+        Promise.resolve().then(() => _writeUiLegacyTargetWithLock(
+            'sxr',
+            _legacySlug,
+            pid,
+            comp,
+            async () => {
+                const post = sxrState.posts.find(p => p.id === pid);
+                if (!post) throw new Error('This review item is no longer available');
+                if (_isClientLink) {
+                    const currentStatus = String(post[comp + '_status'] || '').trim().toLowerCase();
+                    if (currentStatus !== 'client approval' && currentStatus !== 'tweaks needed') {
+                        throw new Error('This item changed while your request was waiting. Your draft is preserved.');
+                    }
+                }
+                attemptId = String(_sxrReviewState.draftActionIds[key] || '')
+                    || _sxrMintCommentId();
+                let inspection = await _writeUiLegacyInspectTargetTweak(
+                    'sxr', _legacySlug, pid, comp, post, body, attemptId
+                );
+                inspection = await _writeUiLegacyRefreshActiveTweak('sxr', inspection);
+                if (inspection.state === 'conflict') {
+                    return { state: 'conflict', conflict: inspection, attempt_id: attemptId };
+                }
+                if (inspection.state === 'committed') {
+                    return {
+                        state: 'committed',
+                        item: inspection.item,
+                        ids: inspection.ids || [],
+                        comment_id: inspection.comment_id,
+                        source_only: inspection.source_only === true
+                    };
+                }
+
+                const retryGate = inspection.state === 'active'
+                    && inspection.pair && inspection.pair.gate
+                    ? inspection.pair.gate
+                    : null;
+                const commentId = retryGate
+                    ? String(retryGate.comment_id || '')
+                    : attemptId;
+                const role = retryGate ? String(retryGate.comment_role || '') : _sxrCommentRole();
+                const author = retryGate ? String(retryGate.comment_author || '') : _sxrCurrentAuthor();
+                const audience = retryGate
+                    ? String(retryGate.comment_audience || '')
+                    : (role === 'client' ? 'client' : 'internal');
+                const list = _sxrCommentsFor(post, comp).slice();
+                const existing = list.find(comment => comment
+                    && String(comment.id || '') === commentId);
+                if (existing && (
+                    String(existing.body || '').trim() !== body
+                    || String(existing.author || '') !== author
+                    || String(existing.role || '') !== role
+                    || String(existing.audience || '') !== audience
+                    || existing.is_tweak !== true
+                )) {
+                    return {
+                        state: 'conflict',
+                        conflict: {
+                            state: 'conflict',
+                            comment_id: commentId,
+                            delivered: false,
+                            item: inspection.item || null,
+                            reason: 'local_comment_signature_mismatch'
+                        },
+                        attempt_id: attemptId
+                    };
+                }
+                const _now = retryGate && inspection.item && inspection.item.queuedAt
+                    ? new Date(Number(inspection.item.queuedAt)).toISOString()
+                    : new Date().toISOString();
+                const newComment = existing || {
+                    id: commentId,
+                    parent_id: null,
+                    author,
+                    role,
+                    is_tweak: true,
+                    audience,
+                    round: _sxrNextTweakRound(post, comp),
+                    body,
+                    created_at: _now,
+                    updated_at: _now,
+                    done: false,
+                    done_at: '',
+                    done_by: ''
+                };
+                const previousComments = list.map(comment => Object.assign({}, comment));
+                const previousFields = {
+                    [comp + '_status']: post[comp + '_status'],
+                    status: post.status,
+                    client_video_approved_at: post.client_video_approved_at,
+                    client_graphic_approved_at: post.client_graphic_approved_at,
+                    kasper_approved_at: post.kasper_approved_at,
+                    updated_at: post.updated_at
+                };
+                if (!existing) list.push(newComment);
+                _sxrSetCommentsFor(post, comp, list);
+                post[comp + '_status'] = 'Tweaks Needed';
+                post.status = computeSampleOverallStatus(post);
+                post.updated_at = new Date().toISOString();
+                _sxrReviewState.drafts[key] = '';
+                delete _sxrReviewState.draftActionIds[key];
+                const localStatusMarker = _writeUiRequestTweakMarkLocalStatus('sxr', pid, comp);
+                const repairEdits = {
+                    [comp + '_status']: post[comp + '_status'],
+                    status: post.status,
+                    [comp + '_tweaks']: _sxrStringifyComments(list)
+                };
+                _sxrClearStaleApprovals(post, repairEdits);
+                const optimisticFields = {};
+                Object.keys(previousFields).forEach(field => { optimisticFields[field] = post[field]; });
+                const mode = _sxrReviewMode();
+                const clearsCard = (mode === 'smm' || _isClientLink)
+                    && !SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(post, c, mode));
+                action = {
+                    post,
+                    newComment,
+                    comment_id: commentId,
+                    insertedComment: !existing,
+                    previousComments,
+                    previousFields,
+                    optimisticFields,
+                    localStatusMarker,
+                    clearsCard,
+                    rollbackApplied: false
+                };
                 _sxrReviewRepaintCard(pid);
+
+                const acknowledgement = inspection.state === 'active'
+                    || inspection.rearmed_team_delivery === true
+                    ? { skipped: true, legacy_transport: true, deferred_until_source_save: true }
+                    : await _sxrPostLinearComment(_sxrLinearUrlFor(post, comp), body, newComment.author, {
+                        post,
+                        component: comp,
+                        comment: newComment,
+                        audience: _sxrMsgAudience(newComment),
+                        isTweak: _sxrMsgIsTweak(newComment),
+                        round: newComment.round,
+                        repairEdits: Object.assign({}, repairEdits),
+                        reserveStatusIntent: { status: post[comp + '_status'] },
+                        deferLegacyUntilSourceSave: true
+                    });
+                const deferredLegacyComment =
+                    !!(acknowledgement && acknowledgement.deferred_until_source_save);
+                deferredLegacyAttempt = deferredLegacyComment;
+                const committedBatch = Object.assign({}, repairEdits);
+                _writeUiBindRepairAck(post, committedBatch, acknowledgement);
+                if (deferredLegacyComment) {
+                    const staged = await _writeUiQueueDeferredLegacyTweak(
+                        'sxr',
+                        post,
+                        comp,
+                        newComment,
+                        body,
+                        newComment.author,
+                        repairEdits,
+                        inspection
+                    );
+                    if (staged.state === 'conflict') {
+                        return {
+                            state: 'conflict',
+                            conflict: staged,
+                            attempt_id: attemptId,
+                            action
+                        };
+                    }
+                    deferredLegacySourceOnly = staged.source_only === true;
+                    deferredLegacyOutboxIds = staged.ids || [];
+                    if (staged.state === 'committed') {
+                        return {
+                            state: 'committed',
+                            item: staged.item,
+                            ids: deferredLegacyOutboxIds,
+                            comment_id: staged.comment_id,
+                            source_only: deferredLegacySourceOnly,
+                            action
+                        };
+                    }
+                    committedBatch._writeUiPinnedSourceTransport =
+                        _writeUiLegacyPinnedSourceTransport('sxr', deferredLegacyOutboxIds);
+                }
+                const pending = _sxrPendingEdits[pid] || (_sxrPendingEdits[pid] = {});
+                _writeUiMergeCommittedBatch(pending, committedBatch);
+                if (deferredLegacyOutboxIds.length) _sxrNoLinearPush.add(pid + '|' + comp);
+                await _sxrFlushCardSave(pid);
+                return {
+                    state: 'saved',
+                    action,
+                    ids: deferredLegacyOutboxIds,
+                    deferred: deferredLegacyComment,
+                    source_only: deferredLegacySourceOnly
+                };
+            }
+        )).then(async outcome => {
+            _sxrReviewState.saving[key] = false;
+            const current = sxrState.posts.find(p => p.id === pid)
+                || (action && action.post)
+                || initialPost;
+            if (outcome && outcome.state === 'conflict') {
+                const targetConflict = outcome.conflict || {};
+                if (outcome.action) {
+                    _writeUiRollbackRequestTweak('sxr', current, comp, outcome.action);
+                    outcome.action.rollbackApplied = true;
+                }
+                if (targetConflict.delivered
+                    && targetConflict.item
+                    && targetConflict.source_superseded !== true) {
+                    _writeUiLegacyReconcileCommittedTweak('sxr', targetConflict.item);
+                } else if (targetConflict.source_superseded !== true) {
+                    _writeUiScheduleDeferredLegacyTweak('sxr');
+                }
+                _sxrReviewState.drafts[key] = rawDraft;
+                _sxrReviewState.errors[key] = targetConflict.source_superseded === true
+                    ? 'This request was saved, but a newer status was applied. Review the latest status before retrying.'
+                    : (targetConflict.delivered
+                        ? 'A change request from another tab was saved first. Your draft is preserved; review the latest status and retry.'
+                        : 'Another change request for this item is still being confirmed. Your draft is preserved; retry after it finishes.');
+                const failedActionId = String(outcome.action && outcome.action.comment_id
+                    || outcome.attempt_id
+                    || attemptId);
+                _sxrReviewState.draftActionIds[key] = failedActionId;
+                _sxrReviewState.errorActionIds[key] = failedActionId;
+                _sxrRenderBody({ preserveScroll: true });
                 return;
             }
-            if (deferredLegacyComment) {
-                _sxrLegacyPostLinearComment(_sxrLinearUrlFor(current, comp), body, newComment.author, {
-                    post: current, component: comp, comment: newComment, audience: _sxrMsgAudience(newComment),
-                    isTweak: _sxrMsgIsTweak(newComment), round: newComment.round
-                });
+            if (outcome && outcome.state === 'committed') {
+                if (outcome.action) {
+                    _writeUiRollbackRequestTweak('sxr', current, comp, outcome.action);
+                    outcome.action.rollbackApplied = true;
+                }
+                let committedDeliveryOutcome = null;
+                let committedDeliveryPending = false;
+                if (outcome.ids && outcome.ids.length) {
+                    try {
+                        committedDeliveryOutcome = await _writeUiFlushDeferredLegacyTweak(
+                            'sxr', outcome.ids
+                        );
+                    } catch (error) {
+                        if (String(error && error.code || '') === 'legacy_tweak_delivery_unconfirmed') {
+                            throw error;
+                        }
+                        committedDeliveryPending = true;
+                        _writeUiScheduleDeferredLegacyTweak('sxr');
+                        _writeUiReportFailure('sxr', 'comment', error);
+                    }
+                }
+                if ((outcome.item && outcome.item.team_delivery_superseded === true)
+                    || (committedDeliveryOutcome && committedDeliveryOutcome.state === 'superseded')) {
+                    _writeUiApplySupersededTeamDelivery(
+                        'sxr', current, comp, outcome.action || action, key, rawDraft,
+                        outcome.comment_id || attemptId
+                    );
+                    return;
+                }
+                const sourceOnlySuperseded =
+                    (outcome.item && outcome.item.source_only_superseded === true)
+                    || (committedDeliveryOutcome
+                        && committedDeliveryOutcome.state === 'source_only_superseded');
+                _sxrReviewState.drafts[key] = '';
+                _sxrReviewState.errors[key] = '';
+                delete _sxrReviewState.draftActionIds[key];
+                delete _sxrReviewState.errorActionIds[key];
+                if (outcome.item) _writeUiLegacyReconcileCommittedTweak('sxr', outcome.item);
+                _sxrRenderBody({ preserveScroll: true });
+                if (typeof showToast === 'function') {
+                    showToast(sourceOnlySuperseded
+                        ? 'Change request saved — a newer status was applied'
+                        : (outcome.source_only
+                            ? 'Change request already saved'
+                            : (committedDeliveryPending
+                                ? 'Change request saved — team delivery is being confirmed'
+                                : 'Change request already saved')));
+                }
+                return;
             }
-            if (clearsCard) _sxrReviewRemoveCard(pid); else _sxrReviewRepaintCard(pid);
-            if (_sxrCommentRole() === 'client' && !post._saveError && typeof showToast === 'function') showToast('Change request sent — the team has been notified');
+            if (current._saveError) {
+                const confirmed = _writeUiLegacyCommittedTweak('sxr', _legacySlug, pid, comp, current);
+                if (confirmed && confirmed.delivered === true
+                    && confirmed.team_delivery_superseded !== true
+                    && action && confirmed.comment_id === String(action.comment_id || '')) {
+                    if (!action.rollbackApplied) {
+                        _writeUiRollbackRequestTweak('sxr', current, comp, action);
+                        action.rollbackApplied = true;
+                    }
+                    _sxrReviewState.drafts[key] = '';
+                    _sxrReviewState.errors[key] = '';
+                    delete _sxrReviewState.draftActionIds[key];
+                    delete _sxrReviewState.errorActionIds[key];
+                    _writeUiLegacyReconcileCommittedTweak('sxr', confirmed.item);
+                    _sxrRenderBody({ preserveScroll: true });
+                    return;
+                }
+                if (deferredLegacyAttempt) _writeUiScheduleDeferredLegacyTweak('sxr');
+                if (!current._writeUiRetrySourceAt && action) {
+                    _writeUiRollbackRequestTweak('sxr', current, comp, action);
+                    action.rollbackApplied = true;
+                }
+                _sxrReviewState.drafts[key] = rawDraft;
+                _sxrReviewState.errors[key] = current._saveError || 'Save failed';
+                _sxrReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
+                _sxrReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
+                _sxrRenderBody({ preserveScroll: true });
+                return;
+            }
+            let deliveryPending = false;
+            let deliveryOutcome = null;
+            if (deferredLegacyOutboxIds.length) {
+                try {
+                    deliveryOutcome = await _writeUiFlushDeferredLegacyTweak(
+                        'sxr', deferredLegacyOutboxIds
+                    );
+                } catch (error) {
+                    if (String(error && error.code || '') === 'legacy_tweak_delivery_unconfirmed') {
+                        throw error;
+                    }
+                    deliveryPending = true;
+                    _writeUiScheduleDeferredLegacyTweak('sxr');
+                    _writeUiReportFailure('sxr', 'comment', error);
+                }
+            }
+            if (deliveryOutcome && deliveryOutcome.state === 'superseded') {
+                _writeUiApplySupersededTeamDelivery(
+                    'sxr', current, comp, action, key, rawDraft,
+                    action && action.comment_id || attemptId
+                );
+                return;
+            }
+            if (deliveryOutcome && deliveryOutcome.state === 'source_only_superseded') {
+                if (!action.rollbackApplied) {
+                    _writeUiRollbackRequestTweak('sxr', current, comp, action);
+                    action.rollbackApplied = true;
+                }
+                _sxrReviewState.drafts[key] = '';
+                _sxrReviewState.errors[key] = '';
+                delete _sxrReviewState.draftActionIds[key];
+                delete _sxrReviewState.errorActionIds[key];
+                _writeUiLegacyReconcileCommittedTweak('sxr', deliveryOutcome.item);
+                _sxrRenderBody({ preserveScroll: true });
+                if (typeof showToast === 'function') {
+                    showToast('Change request saved — a newer status was applied');
+                }
+                return;
+            }
+            if (action && action.clearsCard) _sxrReviewRemoveCard(pid);
+            else _sxrReviewRepaintCard(pid);
+            if (_sxrCommentRole() === 'client' && !current._saveError
+                && typeof showToast === 'function') {
+                showToast(deferredLegacySourceOnly
+                    ? (deliveryPending
+                        ? 'Change request saved — confirmation is still pending'
+                        : 'Change request sent')
+                    : (deliveryPending
+                        ? 'Change request saved — team delivery is being confirmed'
+                        : 'Change request sent — the team has been notified'));
+            }
         }).catch(e => {
-            Object.assign(post, prev);
-            _sxrReviewState.drafts[key] = body;
-            _writeUiReportFailure('sxr', 'comment', e);
+            if (deferredLegacyAttempt || deferredLegacyOutboxIds.length) {
+                _writeUiScheduleDeferredLegacyTweak('sxr');
+            }
             _sxrReviewState.saving[key] = false;
+            const current = sxrState.posts.find(p => p.id === pid)
+                || (action && action.post)
+                || initialPost;
+            const confirmed = _writeUiLegacyCommittedTweak('sxr', _legacySlug, pid, comp, current);
+            if (confirmed
+                && confirmed.delivered === true
+                && confirmed.team_delivery_superseded !== true
+                && String(e && e.code || '') !== 'legacy_tweak_delivery_unconfirmed'
+                && action
+                && confirmed.comment_id === String(action.comment_id || '')) {
+                if (!action.rollbackApplied) {
+                    _writeUiRollbackRequestTweak('sxr', current, comp, action);
+                    action.rollbackApplied = true;
+                }
+                _sxrReviewState.drafts[key] = '';
+                _sxrReviewState.errors[key] = '';
+                delete _sxrReviewState.draftActionIds[key];
+                delete _sxrReviewState.errorActionIds[key];
+                _writeUiLegacyReconcileCommittedTweak('sxr', confirmed.item);
+                _sxrRenderBody({ preserveScroll: true });
+                return;
+            }
+            if (action && !action.rollbackApplied && !current._writeUiRetrySourceAt) {
+                _writeUiRollbackRequestTweak('sxr', current, comp, action);
+                action.rollbackApplied = true;
+            }
+            _sxrReviewState.drafts[key] = rawDraft;
+            _writeUiReportFailure('sxr', 'comment', e);
             _sxrReviewState.errors[key] = (e && e.message) || 'Save failed';
+            _sxrReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
+            _sxrReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
             _sxrRenderBody({ preserveScroll: true });
         });
     }
@@ -42805,15 +45374,14 @@
     const SXR_LINEAR_OUTBOX_MAX = 6, SXR_LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
     let _sxrLinearOutboxTimer = null, _sxrLinearOutboxPromise = null;
     function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
-    function _sxrLinearOutboxWrite(a) { try { const items = Array.isArray(a) ? a : []; if (items.length) localStorage.setItem(SXR_LINEAR_OUTBOX_KEY, JSON.stringify(items)); else localStorage.removeItem(SXR_LINEAR_OUTBOX_KEY); } catch (e) {} }
-    function _sxrLinearOutboxEnqueue(kind, payload, err, clientSlug) {
-        const items = _sxrLinearOutboxRead();
-        items.push({
+    function _sxrLinearOutboxWrite(a) { try { const items = Array.isArray(a) ? a : []; if (items.length) localStorage.setItem(SXR_LINEAR_OUTBOX_KEY, JSON.stringify(items)); else localStorage.removeItem(SXR_LINEAR_OUTBOX_KEY); return true; } catch (e) { return false; } }
+    async function _sxrLinearOutboxEnqueue(kind, payload, err, clientSlug) {
+        const record = {
             id: 'slob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             kind, payload, attempts: 0, lastError: err || '', queuedAt: Date.now(),
             transport: 'legacy_n8n', client_slug: String(clientSlug || '')
-        });
-        _sxrLinearOutboxWrite(items);
+        };
+        await _writeUiLegacyAppendOutboxItem('sxr', record);
         _sxrLinearOutboxScheduleRetry();
         return true;
     }
@@ -42824,31 +45392,175 @@
         return _sxrLinearOutboxPromise;
     }
     async function _sxrLinearOutboxFlushRun() {
+        return _writeUiLegacyDrainWithLock('sxr', async () => {
         await _writeUiPrimeRerouteFlag();
-        const items = _sxrLinearOutboxRead(); if (!items.length) return;
+        const items = _sxrLinearOutboxRead(); if (!items.length) return { outcomes: [] };
         let enriched = false;
         for (const it of items) {
-            if (it && it.transport === 'legacy_n8n') continue;
+            if (it && (it.transport === 'legacy_n8n' || it.transport === 'source_only')) continue;
             const seed = it.id || ('legacy_' + String(it.queuedAt || Date.now()));
             if (!it.requestId) { it.requestId = _writeUiIntentId('sxr', it.kind, [seed]); enriched = true; }
             if (it.kind === 'comment' && it.payload && !it.payload.native_comment_id) { it.payload.native_comment_id = _writeUiIntentId('sxr', 'comment', [seed, 'native']); enriched = true; }
         }
-        if (enriched) _sxrLinearOutboxWrite(items);
         const remaining = [];
+        const outcomes = [];
+        const sourceGateStates = new Map();
+        const supersededGroups = new Map();
         for (const it of items) {
             const payload = it.payload || {};
-            if (it && it.transport === 'legacy_n8n' && !_writeUiRerouteUseGateway(it.client_slug)) {
+            if (it && it.source_gate) {
+                const gateKey = _writeUiLegacyGateSignature(it.source_gate);
+                const storedTerminal = _writeUiLegacyStoredTeamTerminalItem('sxr', it);
+                if (storedTerminal) {
+                    supersededGroups.set(gateKey, {
+                        stored: true,
+                        sourceOnly: false,
+                        tombstone: storedTerminal
+                    });
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: 'team_delivery_superseded',
+                        comment_id: String(storedTerminal.source_gate
+                            && storedTerminal.source_gate.comment_id || ''),
+                        item: storedTerminal
+                    });
+                    continue;
+                }
+                let gateState = sourceGateStates.get(gateKey);
+                if (!sourceGateStates.has(gateKey)) {
+                    gateState = await _writeUiLegacySourceGateState(it, 3);
+                    sourceGateStates.set(gateKey, gateState);
+                }
+                if (gateState === 'unknown' || gateState === 'pending' || gateState === 'landed_pending') {
+                    remaining.push(it);
+                    continue;
+                }
+                if (it.transport === 'source_only'
+                    && (gateState === 'conflict'
+                        || gateState === 'principal_mismatch'
+                        || gateState === 'target_changed')) {
+                    _writeUiLegacyQuarantine('sxr', it, 'source_gate_' + gateState);
+                    remaining.push(it);
+                    continue;
+                }
+                if (gateState === 'superseded') {
+                    let terminal = supersededGroups.get(gateKey);
+                    if (!terminal) {
+                        const group = items.filter(row => row && row.source_gate
+                            && _writeUiLegacyGateSignature(row.source_gate) === gateKey);
+                        const sourceOnly = it.transport === 'source_only';
+                        const canonical = sourceOnly
+                            ? it
+                            : (group.find(row => row && row.kind === 'comment') || it);
+                        const tombstone = sourceOnly
+                            ? _writeUiLegacySupersededSourceItem(canonical)
+                            : _writeUiLegacySupersededTeamItem(canonical);
+                        terminal = {
+                            stored: _writeUiLegacyRememberCommittedTweak('sxr', tombstone),
+                            sourceOnly,
+                            tombstone
+                        };
+                        supersededGroups.set(gateKey, terminal);
+                        if (terminal.stored) {
+                            _writeUiQueueDiagnostic(
+                                'sxr',
+                                sourceOnly ? 'source_only_superseded' : 'source_gate_superseded',
+                                canonical
+                            );
+                        }
+                    }
+                    if (!terminal.stored) {
+                        remaining.push(it);
+                        outcomes.push({
+                            id: String(it.id || ''),
+                            state: terminal.sourceOnly
+                                ? 'source_only_superseded_pending'
+                                : 'team_delivery_superseded_pending',
+                            comment_id: String(terminal.tombstone.source_gate
+                                && terminal.tombstone.source_gate.comment_id || ''),
+                            item: terminal.tombstone
+                        });
+                        continue;
+                    }
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: terminal.sourceOnly
+                            ? 'source_only_superseded'
+                            : 'team_delivery_superseded',
+                        comment_id: String(terminal.tombstone.source_gate
+                            && terminal.tombstone.source_gate.comment_id || ''),
+                        item: terminal.tombstone
+                    });
+                    continue;
+                }
+                if (gateState === 'conflict' || gateState === 'principal_mismatch' || gateState === 'target_changed') {
+                    if (_writeUiLegacyQuarantine('sxr', it, 'source_gate_' + gateState)) continue;
+                    remaining.push(it);
+                    continue;
+                }
+                if (gateState === 'expired') {
+                    if (_writeUiLegacyQuarantine('sxr', it, 'source_gate_expired')) continue;
+                    remaining.push(it);
+                    continue;
+                }
+                if (gateState !== 'committed') {
+                    _writeUiQueueDiagnostic('sxr', 'source_gate_' + gateState, it);
+                    continue;
+                }
+                if (!_writeUiLegacyRememberCommittedTweak('sxr', it)
+                    || !_writeUiLegacyReconcileCommittedTweak('sxr', it)) {
+                    remaining.push(it);
+                    continue;
+                }
+                if (it.transport === 'source_only') {
+                    _writeUiQueueDiagnostic('sxr', 'source_only_confirmed', it);
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: 'source_only_confirmed',
+                        comment_id: String(it.source_gate.comment_id || ''),
+                        item: it
+                    });
+                    continue;
+                }
+                const recordedReceipt = _writeUiLegacyRecordedTeamDeliveryReceiptItem('sxr', it);
+                if (recordedReceipt) {
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: 'team_delivery_confirmed',
+                        comment_id: String(it.source_gate.comment_id || ''),
+                        item: recordedReceipt
+                    });
+                    continue;
+                }
+            }
+            if (it && it.transport === 'legacy_n8n'
+                && (it.source_gate || !_writeUiRerouteUseGateway(it.client_slug))) {
                 if (Number(it.attempts || 0) >= SXR_LINEAR_OUTBOX_MAX) { remaining.push(it); continue; }
                 const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
+                let delivered = false;
                 try {
                     const resp = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                     let ok = resp && resp.ok;
                     try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
                     if (!ok) throw new Error('http ' + (resp && resp.status));
+                    delivered = true;
                 } catch (e) {
                     it.attempts = Number(it.attempts || 0) + 1;
                     it.lastError = (e && e.message) || String(e);
                     remaining.push(it);
+                }
+                if (delivered && it.source_gate) {
+                    const receiptItem = _writeUiLegacyTeamDeliveryReceiptItem(it);
+                    if (!_writeUiLegacyRememberCommittedTweak('sxr', receiptItem)) {
+                        remaining.push(receiptItem);
+                    } else {
+                        outcomes.push({
+                            id: String(it.id || ''),
+                            state: 'team_delivery_confirmed',
+                            comment_id: String(it.source_gate.comment_id || ''),
+                            item: receiptItem
+                        });
+                    }
                 }
                 continue;
             }
@@ -42871,6 +45583,14 @@
                     comment: it.kind === 'comment' ? { body: String(payload.body || ''), audience: _isClientLink ? 'client' : 'internal', native_comment_id: payload.native_comment_id } : undefined
                 });
                 _writeUiQueueDiagnostic('sxr', 'drained', it);
+                if (it.source_gate) {
+                    outcomes.push({
+                        id: String(it.id || ''),
+                        state: 'team_delivery_confirmed',
+                        comment_id: String(it.source_gate.comment_id || ''),
+                        item: it
+                    });
+                }
             } catch (e) {
                 if (Number(e && e.status) === 409 && String(e && e.code || '') === 'legacy_parity_not_allowed') { _writeUiQueueDiagnostic('sxr', 'discarded_authority_flip', it, e); continue; }
                 if ([400, 404].includes(Number(e && e.status))) {
@@ -42883,8 +45603,24 @@
                 remaining.push(it);
             }
         }
-        _sxrLinearOutboxWrite(remaining);
-        if (remaining.length) _sxrLinearOutboxScheduleRetry();
+        let finalized;
+        try {
+            finalized = await _writeUiLegacyFinalizeFlush('sxr', items, remaining);
+        } catch (error) {
+            const terminal = Array.from(supersededGroups.values())
+                .find(entry => entry && !entry.sourceOnly);
+            if (terminal) {
+                error.team_delivery_superseded = true;
+                error.comment_id = String(terminal.tombstone
+                    && terminal.tombstone.source_gate
+                    && terminal.tombstone.source_gate.comment_id || '');
+                error.terminal_item = terminal.tombstone || null;
+            }
+            throw error;
+        }
+        if (finalized.length) _sxrLinearOutboxScheduleRetry();
+        return { outcomes };
+        });
     }
     window.clearSxrLinearOutbox = function () { const n = _sxrLinearOutboxRead().length; _sxrLinearOutboxWrite([]); return 'cleared ' + n; };
     window.peekSxrLinearOutbox = function () { return _sxrLinearOutboxRead(); };
@@ -42905,7 +45641,11 @@
                 if (!ok) throw new Error('http ' + (resp && resp.status));
             } catch (e) {
                 console.warn('[Samples] Linear status push failed - queued', e);
-                _sxrLinearOutboxEnqueue('status', payload, (e && e.message) || String(e), clientSlug);
+                try {
+                    await _sxrLinearOutboxEnqueue('status', payload, (e && e.message) || String(e), clientSlug);
+                } catch (queueError) {
+                    console.warn('[Samples] Linear status retry could not be preserved', queueError);
+                }
             }
         };
         _sxrLinearPushChain[url] = (_sxrLinearPushChain[url] || Promise.resolve()).then(run, run);
@@ -42923,7 +45663,11 @@
                 if (!ok) throw new Error('http ' + (resp && resp.status));
             } catch (e) {
                 console.warn('[Samples] Linear comment failed - queued', e);
-                _sxrLinearOutboxEnqueue('comment', payload, (e && e.message) || String(e), clientSlug);
+                try {
+                    await _sxrLinearOutboxEnqueue('comment', payload, (e && e.message) || String(e), clientSlug);
+                } catch (queueError) {
+                    console.warn('[Samples] Linear comment retry could not be preserved', queueError);
+                }
             }
         })();
     }
@@ -42971,7 +45715,13 @@
         const nativeId = _writeUiNativeId(meta && meta.post, component);
         if (!txt) return Promise.resolve({ skipped: true });
         if (!url && !nativeId) {
-            return _writeUiClassifyTargetless('sxr', component, meta);
+            const targetless = await _writeUiClassifyTargetless('sxr', component, meta);
+            return meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, targetless, {
+                    source_only: true,
+                    deferred_until_source_save: true
+                })
+                : targetless;
         }
         const repair = meta && meta.repairRecord ? meta.repairRecord : _writeUiBuildSourceRepair('sxr', 'comment', meta);
         const comment = meta && meta.comment;
@@ -43370,6 +46120,7 @@
         return true;
     }
     function _writeUiResumeSourceRepairs() {
+        _writeUiLegacyReconcileCommittedTombstones();
         if (!_writeUiHasCredential()) return Promise.resolve();
         const principal = _writeUiPrincipalKey();
         const tasks = [];
@@ -43474,6 +46225,7 @@
                 await Promise.all([linearQueueResume, nativeIntakeResume]);
                 return;
             }
+            _writeUiLegacyHydrateConfirmedCacheAfterAuthority();
             _calPruneLinearMetaForAuthority();
             _calHydrateLinearMeta();
             await Promise.all([

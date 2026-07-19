@@ -61,7 +61,7 @@ function ok(cond, msg, detail) {
 }
 
 ok(src.indexOf('const filmingTabsStub = _filmingTabsStubPayload(url);') > src.indexOf('const lh = url.match(LINEAR_HOOK);'), 'filming stub is installed after Linear safety mocks');
-ok(src.indexOf('const filmingTabsStub = _filmingTabsStubPayload(url);') < src.indexOf('if (COURIER && EXT.test(url))'), 'filming stub is installed before the live courier');
+ok(src.indexOf('const filmingTabsStub = _filmingTabsStubPayload(url);') < src.indexOf('if (EXT.test(url) && (COURIER || commitThenFailMatch))'), 'filming stub is installed before the live courier');
 
 console.log(`sxr-courier-filming-tabs-stub: ${pass} passed, ${fail} failed ${fail ? 'FAIL' : 'OK'}`);
 process.exit(fail ? 1 : 0);

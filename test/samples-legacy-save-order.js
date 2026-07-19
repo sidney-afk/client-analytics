@@ -96,7 +96,7 @@ async function runCase({ gateway, saveOk }) {
       events.push('legacy');
       legacyCalls.push({ url, status, component: meta && meta.component });
     },
-    _sxrUpsertFetch: async () => {
+    _sxrUpsertFetchPinned: async () => {
       events.push('save');
       if (!saveOk) return { ok: false, status: 503, json: async () => ({ ok: false }) };
       return {
@@ -126,7 +126,13 @@ async function runCase({ gateway, saveOk }) {
   return { events, legacyCalls, gatewayCalls };
 }
 
-async function runReviewTweakCase({ gateway, saveOk }) {
+async function runReviewTweakCase({
+  gateway,
+  saveOk,
+  saveReject = false,
+  pending = null,
+  terminalDrop = false
+}) {
   const events = [];
   const legacyCalls = [];
   const gatewayCalls = [];
@@ -139,12 +145,24 @@ async function runReviewTweakCase({ gateway, saveOk }) {
     graphic_status: 'In Progress',
     status: 'Client Approval',
     video_comments: [],
+    client_video_approved_at: '2026-07-16T12:55:00.000Z',
+    client_graphic_approved_at: '2026-07-16T12:56:00.000Z',
+    kasper_approved_at: '2026-07-16T12:57:00.000Z',
     updated_at: '2026-07-16T13:00:00.000Z'
   };
+  let stagedLegacy = null;
+  let committedLegacy = null;
   const context = {
     sxrState: { posts: [post] },
-    _sxrReviewState: { drafts: { [key]: 'Please revise this cut' }, saving: {}, errors: {} },
+    _sxrReviewState: {
+      drafts: { [key]: 'Please revise this cut' },
+      saving: {},
+      errors: {},
+      draftActionIds: {},
+      errorActionIds: {}
+    },
     _sxrPendingEdits: Object.create(null),
+    _sxrNoLinearPush: new Set(),
     _sxrLinearPushChain: Object.create(null),
     _isClientLink: false,
     SXR_REVIEW_COMPONENTS: ['video', 'graphic'],
@@ -161,14 +179,84 @@ async function runReviewTweakCase({ gateway, saveOk }) {
     _sxrReviewRepaintCard: () => {},
     _sxrReviewRemoveCard: () => {},
     _sxrStringifyComments: JSON.stringify,
-    _sxrClearStaleApprovals: () => {},
+    _sxrClearStaleApprovals: (row, edits) => {
+      for (const field of [
+        'client_video_approved_at',
+        'client_graphic_approved_at',
+        'kasper_approved_at'
+      ]) {
+        row[field] = '';
+        edits[field] = '';
+      }
+    },
     _sxrLinearUrlFor: row => row.linear_issue_id,
+    _writeUiSourceClientSlug: () => 'fixtureclient',
+    _writeUiLegacyPendingTweak: () => pending,
+    _writeUiLegacyTargetWithLock: (_surface, _slug, _pid, _comp, callback) => callback(),
+    _writeUiLegacyInspectTargetTweak: async (_surface, _slug, _pid, _comp, _post, requestedBody, candidateId) => {
+      if (pending && pending.delivered && pending.body === requestedBody) {
+        return { state: 'committed', comment_id: pending.comment_id, item: pending.item, ids: [] };
+      }
+      if (pending && !pending.delivered) {
+        if (pending.body !== requestedBody) {
+          return { state: 'conflict', comment_id: pending.comment_id, delivered: false, item: pending.item };
+        }
+        return {
+          state: 'active',
+          comment_id: pending.comment_id,
+          item: pending.item,
+          ids: ['deferred-comment', 'deferred-status'],
+          pair: { gate: pending.item && pending.item.source_gate }
+        };
+      }
+      return { state: 'new', comment_id: candidateId, ids: [] };
+    },
+    _writeUiLegacyRefreshActiveTweak: async (_surface, inspection) => inspection,
+    _writeUiLegacyCommittedTweak: () => committedLegacy,
+    _writeUiLegacyReconcileCommittedTweak: () => true,
+    _writeUiQueueDeferredLegacyTweak: async (_surface, row, component, comment, body, author) => {
+      stagedLegacy = { url: row.linear_issue_id, component, comment, body, author };
+      return { state: 'staged', ids: ['deferred-comment', 'deferred-status'] };
+    },
+    _writeUiLegacyPinnedSourceTransport: () => 'webhook',
+    _writeUiScheduleDeferredLegacyTweak: () => {},
+    _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+    _writeUiFlushDeferredLegacyTweak: async () => {
+      if (terminalDrop) {
+        events.push('terminal-drop');
+        const error = Object.assign(
+          new Error('Team delivery could not be confirmed. Your draft is preserved; retry.'),
+          { status: 409, code: 'legacy_tweak_delivery_unconfirmed' }
+        );
+        throw error;
+      }
+      events.push('legacy:comment');
+      legacyCalls.push({
+        url: stagedLegacy.url,
+        body: stagedLegacy.body,
+        author: stagedLegacy.author
+      });
+      committedLegacy = {
+        comment_id: stagedLegacy.comment.id,
+        item: {
+          source_gate: {
+            comment_id: stagedLegacy.comment.id
+          }
+        }
+      };
+    },
     _sxrMsgAudience: message => message.audience,
     _sxrMsgIsTweak: message => !!message.is_tweak,
     _writeUiBindRepairAck: () => {},
     _writeUiMergeCommittedBatch: (pending, batch) => Object.assign(pending, batch),
+    _writeUiRequestTweakMarkLocalStatus: () => ({ before: [], stamped: [] }),
+    _writeUiRollbackRequestTweak: (_surface, row, component, action) => {
+      row[component + '_comments'] = action.previousComments;
+      Object.assign(row, action.previousFields);
+    },
     _sxrFlushCardSave: async () => {
       events.push('save');
+      if (saveReject) throw new Error('offline');
       if (saveOk) delete post._saveError;
       else post._saveError = 'save failed';
     },
@@ -208,7 +296,14 @@ async function runReviewTweakCase({ gateway, saveOk }) {
     await new Promise(resolve => setImmediate(resolve));
   }
   assert.strictEqual(context._sxrReviewState.saving[key], false, 'review tweak fixture must settle');
-  return { events, legacyCalls, gatewayCalls };
+  return {
+    events,
+    legacyCalls,
+    gatewayCalls,
+    stagedLegacy,
+    post,
+    reviewState: context._sxrReviewState
+  };
 }
 
 async function runKasperTweakCase({ gateway, saveOk }) {
@@ -332,19 +427,79 @@ async function runKasperTweakCase({ gateway, saveOk }) {
 
   const reviewTweak = extract('_sxrReviewRequestTweak');
   assert(
-    reviewTweak.indexOf('_sxrLegacyPostLinearComment(') > reviewTweak.indexOf('if (current._saveError)'),
-    'legacy review-tweak comments are sent only after the save completes without an error'
+    reviewTweak.indexOf('await _writeUiQueueDeferredLegacyTweak') < reviewTweak.indexOf('await _sxrFlushCardSave(pid)') &&
+      reviewTweak.lastIndexOf('_writeUiFlushDeferredLegacyTweak') > reviewTweak.indexOf('if (current._saveError)'),
+    'legacy review-tweak pairs are staged before source IO and drained only after source success'
   );
   const failedLegacyReview = await runReviewTweakCase({ gateway: false, saveOk: false });
   assert.deepStrictEqual(failedLegacyReview.events, ['route:comment:legacy', 'save']);
   assert.strictEqual(failedLegacyReview.legacyCalls.length, 0, 'a failed review-tweak save must not notify legacy Linear');
+  const assertReviewFailureRestored = (result, expectedError) => {
+    const reviewKey = 'review-sample|video';
+    assert(result.post.video_status === 'Client Approval'
+      && result.post.graphic_status === 'In Progress'
+      && result.post.status === 'Client Approval'
+      && result.post.video_comments.length === 0
+      && result.post.client_video_approved_at === '2026-07-16T12:55:00.000Z'
+      && result.post.client_graphic_approved_at === '2026-07-16T12:56:00.000Z'
+      && result.post.kasper_approved_at === '2026-07-16T12:57:00.000Z'
+      && result.post.updated_at === '2026-07-16T13:00:00.000Z'
+      && result.reviewState.saving[reviewKey] === false
+      && result.reviewState.drafts[reviewKey] === 'Please revise this cut'
+      && result.reviewState.errors[reviewKey] === expectedError
+      && result.reviewState.draftActionIds[reviewKey] === 'review-comment-1'
+      && result.reviewState.errorActionIds[reviewKey] === 'review-comment-1',
+    'failed review save restores every optimistic field and preserves the exact retry surface');
+  };
+  assertReviewFailureRestored(failedLegacyReview, 'save failed');
+  const rejectedLegacyReview = await runReviewTweakCase({
+    gateway: false,
+    saveOk: false,
+    saveReject: true
+  });
+  assert.deepStrictEqual(rejectedLegacyReview.events, [
+    'route:comment:legacy', 'save', 'gateway-report'
+  ]);
+  assert.strictEqual(rejectedLegacyReview.legacyCalls.length, 0,
+    'an offline-style rejected review save must not notify legacy Linear');
+  assertReviewFailureRestored(rejectedLegacyReview, 'offline');
   const successfulLegacyReview = await runReviewTweakCase({ gateway: false, saveOk: true });
   assert.deepStrictEqual(successfulLegacyReview.events, ['route:comment:legacy', 'save', 'legacy:comment']);
   assert.strictEqual(successfulLegacyReview.legacyCalls.length, 1);
+  const terminalDropReview = await runReviewTweakCase({
+    gateway: false,
+    saveOk: true,
+    terminalDrop: true
+  });
+  assert.deepStrictEqual(terminalDropReview.events, [
+    'route:comment:legacy', 'save', 'terminal-drop', 'gateway-report'
+  ]);
+  assert(terminalDropReview.legacyCalls.length === 0
+    && terminalDropReview.post.video_status === 'Client Approval'
+    && terminalDropReview.reviewState.drafts['review-sample|video'] === 'Please revise this cut'
+    && terminalDropReview.reviewState.errors['review-sample|video'] ===
+      'Team delivery could not be confirmed. Your draft is preserved; retry.'
+    && terminalDropReview.reviewState.draftActionIds['review-sample|video'] === 'review-comment-1',
+  'a terminal linked drop rolls back, preserves the exact draft/action, surfaces retry, and never claims delivery');
   const successfulGatewayReview = await runReviewTweakCase({ gateway: true, saveOk: true });
   assert.deepStrictEqual(successfulGatewayReview.events, ['route:comment:gateway', 'gateway:comment', 'save']);
   assert.strictEqual(successfulGatewayReview.gatewayCalls.length, 1);
   assert.strictEqual(successfulGatewayReview.legacyCalls.length, 0);
+  const distinctFollowup = await runReviewTweakCase({
+    gateway: false,
+    saveOk: true,
+    pending: {
+      delivered: true,
+      comment_id: 'confirmed-comment-0',
+      body: 'Earlier confirmed request',
+      item: { source_gate: { comment_id: 'confirmed-comment-0' } }
+    }
+  });
+  assert.deepStrictEqual(distinctFollowup.events, ['route:comment:legacy', 'save', 'legacy:comment']);
+  assert(distinctFollowup.stagedLegacy
+    && distinctFollowup.stagedLegacy.comment.id === 'review-comment-1'
+    && distinctFollowup.stagedLegacy.body === 'Please revise this cut',
+  'a distinct follow-up after confirmation gets a fresh comment id and normal source save');
 
   const kasperTweak = extract('_sxrKasperApplyAndPersist');
   assert(

@@ -51,8 +51,12 @@ assert(sxrLegacy.includes('fetch(LINEAR_SET_STATUS_URL') && sxrLegacy.includes('
 
 const calEnqueue = between('function _linearOutboxEnqueue', 'function _writeUiLegacyQuarantine');
 const sxrEnqueue = between('function _sxrLinearOutboxEnqueue', 'function _sxrLinearOutboxScheduleRetry');
-assert(calEnqueue.includes("transport: 'legacy_n8n'") && calEnqueue.includes('items.push('), 'Calendar legacy retry queue is restored only for identified n8n traffic');
-assert(sxrEnqueue.includes("transport: 'legacy_n8n'") && sxrEnqueue.includes('items.push('), 'SXR legacy retry queue is restored only for identified n8n traffic');
+assert(calEnqueue.includes("transport: 'legacy_n8n'")
+  && calEnqueue.includes("await _writeUiLegacyAppendOutboxItem('calendar', record)"),
+'Calendar identified n8n retries enter the cross-tab-safe legacy queue');
+assert(sxrEnqueue.includes("transport: 'legacy_n8n'")
+  && sxrEnqueue.includes("await _writeUiLegacyAppendOutboxItem('sxr', record)"),
+'SXR identified n8n retries enter the cross-tab-safe legacy queue');
 
 const calDrain = between('async function _linearOutboxFlushRun', 'window.clearLinearOutbox');
 const sxrDrain = between('async function _sxrLinearOutboxFlushRun', 'window.clearSxrLinearOutbox');

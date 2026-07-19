@@ -43377,6 +43377,16 @@
             const resp = await _sxrReorderFetch(slug, { client: slug, items }, 'ui');
             const json = await resp.clone().json().catch(() => null);
             if (!resp.ok || (json && json.ok === false)) throw new Error((json && json.error) || ('reorder HTTP ' + resp.status));
+            // Fail closed on a partial/no-op reorder. The EF returns the count of
+            // rows it ACTUALLY matched; updated < items.length means part of the
+            // drag referenced a stale/mid-create/archived id and silently did not
+            // persist. Revert and tell the user rather than leaving the strip
+            // showing an order the sheet never accepted (F141, invariant 2). Scoped
+            // to the EF route, which returns the true count; the n8n fallback keeps
+            // its ok-flag contract.
+            if (_sxrSampleUseEf(slug) && Number((json && json.updated) || 0) < items.length) {
+                throw new Error((json && json.error) || 'reorder incomplete');
+            }
             _sxrLastLocalWriteAt = Date.now();   // echo lands a beat after the write resolves
         } catch (e) {
             // Revert to the captured order if nothing newer is queued and we're still on this client.

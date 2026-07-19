@@ -288,6 +288,10 @@ async function exerciseCommittedLostAck(opts) {
   let blockedSourceReads = 0;
   let blockSourceReads = true;
   const p = await openPage(browser);
+  // Fault injection starts only after the seeded card is present. Calendar
+  // boot can take longer than its helper wait; blocking source reads earlier
+  // can prevent the fixture itself from loading and test the wrong failure.
+  await H.expandReview(p, name);
   const blockSourceRead = async route => {
     const req = route.request();
     if (blockSourceReads && req.method() === 'GET') {

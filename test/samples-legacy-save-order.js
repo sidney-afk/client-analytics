@@ -173,11 +173,30 @@ async function runReviewTweakCase({ gateway, saveOk, pending = null }) {
     _sxrLinearUrlFor: row => row.linear_issue_id,
     _writeUiSourceClientSlug: () => 'fixtureclient',
     _writeUiLegacyPendingTweak: () => pending,
+    _writeUiLegacyTargetWithLock: (_surface, _slug, _pid, _comp, callback) => callback(),
+    _writeUiLegacyInspectTargetTweak: async (_surface, _slug, _pid, _comp, _post, requestedBody, candidateId) => {
+      if (pending && pending.delivered && pending.body === requestedBody) {
+        return { state: 'committed', comment_id: pending.comment_id, item: pending.item, ids: [] };
+      }
+      if (pending && !pending.delivered) {
+        if (pending.body !== requestedBody) {
+          return { state: 'conflict', comment_id: pending.comment_id, delivered: false, item: pending.item };
+        }
+        return {
+          state: 'active',
+          comment_id: pending.comment_id,
+          item: pending.item,
+          ids: ['deferred-comment', 'deferred-status'],
+          pair: { gate: pending.item && pending.item.source_gate }
+        };
+      }
+      return { state: 'new', comment_id: candidateId, ids: [] };
+    },
     _writeUiLegacyCommittedTweak: () => null,
     _writeUiLegacyReconcileCommittedTweak: () => true,
     _writeUiQueueDeferredLegacyTweak: async (_surface, row, component, comment, body, author) => {
       stagedLegacy = { url: row.linear_issue_id, component, comment, body, author };
-      return ['deferred-comment', 'deferred-status'];
+      return { state: 'staged', ids: ['deferred-comment', 'deferred-status'] };
     },
     _writeUiLegacyPinnedSourceTransport: () => 'webhook',
     _writeUiScheduleDeferredLegacyTweak: () => {},
@@ -193,6 +212,11 @@ async function runReviewTweakCase({ gateway, saveOk, pending = null }) {
     _sxrMsgIsTweak: message => !!message.is_tweak,
     _writeUiBindRepairAck: () => {},
     _writeUiMergeCommittedBatch: (pending, batch) => Object.assign(pending, batch),
+    _writeUiRequestTweakMarkLocalStatus: () => ({ before: [], stamped: [] }),
+    _writeUiRollbackRequestTweak: (_surface, row, component, action) => {
+      row[component + '_comments'] = action.previousComments;
+      Object.assign(row, action.previousFields);
+    },
     _sxrFlushCardSave: async () => {
       events.push('save');
       if (saveOk) delete post._saveError;
@@ -358,8 +382,8 @@ async function runKasperTweakCase({ gateway, saveOk }) {
 
   const reviewTweak = extract('_sxrReviewRequestTweak');
   assert(
-    reviewTweak.indexOf('await _writeUiQueueDeferredLegacyTweak') < reviewTweak.indexOf('return _sxrFlushCardSave(pid)') &&
-      reviewTweak.indexOf('_writeUiFlushDeferredLegacyTweak') > reviewTweak.indexOf('if (current._saveError)'),
+    reviewTweak.indexOf('await _writeUiQueueDeferredLegacyTweak') < reviewTweak.indexOf('await _sxrFlushCardSave(pid)') &&
+      reviewTweak.lastIndexOf('_writeUiFlushDeferredLegacyTweak') > reviewTweak.indexOf('if (current._saveError)'),
     'legacy review-tweak pairs are staged before source IO and drained only after source success'
   );
   const failedLegacyReview = await runReviewTweakCase({ gateway: false, saveOk: false });

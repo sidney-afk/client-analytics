@@ -65,15 +65,28 @@ function _calLinearUrlFor(){ return ''; }     // no Linear counterpart → no pu
 function _calPostLinearComment(){}
 function _writeUiSourceClientSlug(){ return 'fixture'; }
 function _writeUiLegacyPendingTweak(){ return null; }
+function _writeUiLegacyTargetWithLock(surface, slug, pid, comp, callback){ return Promise.resolve().then(callback); }
+function _writeUiLegacyInspectTargetTweak(surface, slug, pid, comp, post, body, candidateId){
+  return Promise.resolve({ state: 'new', comment_id: candidateId, ids: [] });
+}
+function _writeUiRequestTweakMarkLocalStatus(){ return { before: [], stamped: [] }; }
+function _writeUiRollbackRequestTweak(){}
+function _writeUiQueueDeferredLegacyTweak(){ return Promise.resolve({ state: 'staged', ids: [] }); }
+function _writeUiLegacyPinnedSourceTransport(){ return ''; }
+function _writeUiLegacyCommittedTweak(){ return null; }
+function _writeUiLegacyReconcileCommittedTweak(){ return true; }
+function _writeUiFlushDeferredLegacyTweak(){ return Promise.resolve(); }
 function _writeUiScheduleDeferredLegacyTweak(){}
 function _writeUiBindRepairAck(){}
 function _writeUiMergeCommittedBatch(pending, committed){ Object.assign(pending, committed); }
 function _writeUiReportFailure(){}
+function _calRenderBody(){}
 function showToast(){}
 function _calV2Log(){}
 function setClient(b){ _isClientLink = b; }
 function addPost(p){ calState.posts.push(p); return p; }
 function setDraft(pid, comp, val){ _calReviewState.drafts[pid + '|' + comp] = val; _calReviewState.saving[pid + '|' + comp] = false; }
+function isSaving(pid, comp){ return _calReviewState.saving[pid + '|' + comp] === true; }
 `;
 
 const REAL = [
@@ -90,7 +103,7 @@ const REAL = [
 ].join('\n\n');
 
 const mod = new Function(HARNESS + '\n' + REAL +
-  ';return { _calReviewRequestTweak, _calReviewComment, _calCommentsForView, _calMsgAudience, _calCommentRole, setClient, addPost, setDraft };')();
+  ';return { _calReviewRequestTweak, _calReviewComment, _calCommentsForView, _calMsgAudience, _calCommentRole, setClient, addPost, setDraft, isSaving };')();
 
 let failures = 0;
 function check(label, got, want) {
@@ -103,6 +116,13 @@ function freshPost(id) {
     caption_comments: [], caption_tweaks: '' });
 }
 const lastCaption = (p) => p.caption_comments[p.caption_comments.length - 1];
+async function settle(pid, comp) {
+  for (let i = 0; i < 20 && mod.isSaving(pid, comp); i++) {
+    await new Promise(resolve => setImmediate(resolve));
+  }
+}
+
+(async () => {
 
 console.log('— Default audience (back-compat safety net) —');
 // _calMsgAudience's back-compat default protects untagged TEAM messages: a
@@ -130,6 +150,7 @@ mod.setClient(false);
 const a = freshPost('p_smm');
 mod.setDraft('p_smm', 'caption', 'Tighten the hook, please');
 mod._calReviewRequestTweak('p_smm', 'caption');
+await settle('p_smm', 'caption');
 const smmTweak = lastCaption(a);
 check('SMM request-change role is "smm"', smmTweak.role, 'smm');
 check('SMM request-change is_tweak=true', smmTweak.is_tweak, true);
@@ -159,6 +180,7 @@ const c = mod.addPost({ id: 'p_cli', caption_status: 'Client Approval', status: 
   caption_comments: [], caption_tweaks: '' });
 mod.setDraft('p_cli', 'caption', 'Can we change the thumbnail?');
 mod._calReviewRequestTweak('p_cli', 'caption');
+await settle('p_cli', 'caption');
 const cliTweak = lastCaption(c);
 check('client request-change role is "client"', cliTweak.role, 'client');
 check('client request-change stays audience=client', cliTweak.audience, 'client');
@@ -167,3 +189,7 @@ check('client view SHOWS the client\'s own request',
 
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nAll review-request-change-audience checks passed.');
+})().catch(error => {
+  console.error(error);
+  process.exit(1);
+});

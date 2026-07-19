@@ -127,9 +127,11 @@ deploys `linear-outbound` before `production-write`, so the provider contract pr
 an ordinary merge can deploy neither function.
 
 Live set in `docs/truth/ENDPOINTS.md`. Source now represents 28 functions; the new
-`workload-plan` function is source-only and not deployed. The existing onboarding deploy Action
-covers 8 push-safe functions plus 2 guarded manual-only functions and still uses an
-unpinned latest CLI. The separate pinned `2.109.0`
+`workload-plan` function is source-only and not deployed. It is intentionally absent from
+`supabase/config.toml`, because that shared file is a push trigger for the unrelated thumbnail
+deploy workflow; the post-merge operator deploy uses explicit `--no-verify-jwt` instead. The
+existing onboarding deploy Action covers 8 push-safe functions plus 2 guarded manual-only
+functions and still uses an unpinned latest CLI. The separate pinned `2.109.0`
 thumbnail workflow deployed and read back `calendar-upsert` v32, `sample-review-upsert` v33,
 `thumbnail-revision-read` v12, and `thumbnail-revision-scan` v17 from the merged release. Seven
 functions use floating `supabase-js@2` (six npm aliases plus one `esm.sh` alias), and no function

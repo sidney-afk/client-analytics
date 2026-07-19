@@ -95,12 +95,6 @@ verify_jwt = false
 [functions.production-write]
 verify_jwt = false
 
-# Admin/SMM-authenticated internal Workload plan-day projection and writer. The
-# static browser supplies its verified role key; Creative, client-token, and
-# automation principals cannot list or set internal plan dates.
-[functions.workload-plan]
-verify_jwt = false
-
 # Track B B3 inbound Linear webhook receiver. It verifies Linear HMAC itself and
 # follows the existing linear_inbound_enabled gate.
 [functions.linear-inbound]

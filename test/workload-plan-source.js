@@ -13,6 +13,8 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 const MIGRATION = read('migrations/2026-07-19-workload-plan.sql');
 const EDGE = read('supabase/functions/workload-plan/index.ts');
 const CONFIG = read('supabase/config.toml');
+const THUMBNAIL_DEPLOY = read('.github/workflows/deploy-thumbnail-edge-functions.yml');
+const DEPLOY_MANIFEST = read('docs/ops/EF_DEPLOY_MANIFEST.md');
 const INDEX = read('index.html');
 const clientWrite = INDEX.slice(
   INDEX.indexOf('async function _wlPlanWriteRequest('),
@@ -52,8 +54,10 @@ ok(!/alter table public\.workload_issues/i.test(MIGRATION)
   && !/syncview_runtime_flags/i.test(MIGRATION),
 'migration does not modify the Linear mirror or any runtime flag');
 
-ok(/\[functions\.workload-plan\]\s*[\r\n]+verify_jwt = false/.test(CONFIG),
-  'custom-header authenticated function is registered with JWT verification disabled');
+ok(!/\[functions\.workload-plan\]/.test(CONFIG)
+  && /-\s+['"]supabase\/config\.toml['"]/.test(THUMBNAIL_DEPLOY)
+  && /\| `workload-plan` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\*[\s\S]*`--no-verify-jwt`/.test(DEPLOY_MANIFEST),
+  'manual-only function stays out of shared config and cannot trigger unrelated thumbnail deploys');
 
 for (const header of [
   'x-syncview-key',

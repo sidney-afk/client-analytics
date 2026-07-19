@@ -544,6 +544,9 @@ All times are UTC unless noted.
   now paints immediately in Phase-1 exact-due-date mode while plan editing remains visibly paused;
   no runtime flag or speculative plan data is introduced. An authoritative sidecar list replaces
   that fallback once the new function is available.
+- The manual-only function is intentionally absent from `supabase/config.toml`: that shared path
+  triggers the unrelated thumbnail deploy workflow on `main`. The guided operator deploy supplies
+  `--no-verify-jwt` explicitly, so merging this candidate cannot redeploy those thumbnail functions.
 - Browser persistence assurance remains intentionally unclaimed until the post-deploy private TEST
   drill proves one exact set/list/clear cycle, due-date immutability, short-count rollback, and
   byte-exact cleanup of any sidecar row that did not exist before the drill.

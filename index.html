@@ -3156,6 +3156,7 @@
         .wl-tweak-comment-more { font-size: 0.62rem; font-weight: 600; color: var(--text-muted); padding: 1px 4px 1px 8px; }
         .workload-needs-assignment { border: 1.5px dashed var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--white); }
         .workload-needs-assignment.empty { display: none; }
+        .workload-undated { background: var(--bg); }
         .workload-capacity { border: 1px solid var(--border); border-radius: 12px; padding: 9px 16px; margin-bottom: 14px; background: var(--white); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
         .workload-capacity.empty { display: none; }
         .workload-capacity .workload-section-label { display: flex; align-items: center; gap: 8px; margin-bottom: 0; color: var(--sv-fg-4f46e5); font-size: 0.76rem; flex-shrink: 0; }
@@ -3234,12 +3235,15 @@
         .workload-day { padding: 8px 10px; border-radius: 8px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; gap: 5px; min-height: 140px; }
         .workload-grid.week .workload-day { min-height: 420px; gap: 6px; padding: 10px 12px; }
         .workload-day.today { outline: 2px solid var(--text-primary); }
+        .workload-day.over-capacity { background: var(--wl-overdue-section-bg); box-shadow: inset 0 0 0 1.5px var(--wl-overdue-border); }
+        .workload-day.over-capacity .workload-day-num { color: var(--wl-overdue-label); }
         .workload-day.out-of-month { opacity: 0.4; }
         .workload-day.weekend { background: transparent; border: 1px dashed var(--border-light); }
         .workload-day-num { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; }
         .workload-grid.week .workload-day-num { font-size: 0.85rem; margin-bottom: 4px; }
         .workload-day.today .workload-day-num { color: var(--text-primary); }
         .workload-day-count { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); background: var(--white); border-radius: 999px; padding: 1px 6px; }
+        .workload-day-count.over-capacity { color: var(--wl-status-fg); background: var(--wl-overdue-accent); }
         .workload-day-card { background: var(--white); border-left: 3px solid var(--sv-border-6c5ce7); border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
         .workload-day-card.team-video    { border-left-color: var(--sv-border-6c5ce7); }
         .workload-day-card.team-graphics { border-left-color: var(--sv-border-d97706); }
@@ -3257,9 +3261,8 @@
         .workload-day-card-chip-count { font-weight: 800; opacity: 0.55; flex-shrink: 0; cursor: pointer; padding: 0 1px; }
         .workload-day-card-chip-count:hover { opacity: 1; }
         /* Spotlight: while a popover is open, dim everything that isn't part
-           of the clicked rollup, and surface "due here" ghost markers on the
-           due-date columns. The CSS does the dimming via a single attribute
-           on the grid wrapper; a per-element data-wl-match opts back in. */
+           of the clicked rollup. The CSS does the dimming via one attribute on
+           the grid wrapper; a per-element data-wl-match opts back in. */
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card,
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card-chip,
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card-total { transition: opacity 0.15s ease; opacity: 0.22; }
@@ -3268,12 +3271,6 @@
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card[data-wl-match="1"] .workload-day-card-total { opacity: 0.4; }
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card-chip[data-wl-match="1"],
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card-total[data-wl-match="1"] { opacity: 1; }
-        .wl-due-ghosts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--sv-border-rgba-220-38-38-0_35); }
-        .wl-due-ghosts-label { font-size: 0.58rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sv-fg-b91c1c); margin-right: 2px; }
-        .wl-due-ghost { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; background: var(--sv-bg-rgba-220-38-38-0_06); border: 1.5px dashed var(--sv-border-dc2626); color: var(--sv-fg-b91c1c); font-size: 0.62rem; font-weight: 700; max-width: 100%; }
-        .workload-grid.week .wl-due-ghost { font-size: 0.7rem; padding: 3px 9px; }
-        .wl-due-ghost-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-        .wl-due-ghost-count { font-weight: 800; opacity: 0.7; }
         .workload-rollup { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 6px; background: var(--white); cursor: pointer; border-left: 3px solid transparent; transition: background 0.1s; min-width: 0; text-decoration: none; color: var(--text-primary); }
         .workload-grid.week .workload-rollup { padding: 8px 10px; }
         .workload-rollup:hover { background: var(--sv-bg-fafafa); }
@@ -3292,7 +3289,6 @@
         .workload-rollup.in-progress .rollup-count { background: var(--wl-progress-accent); color: var(--wl-status-fg); }
         .workload-rollup.in-progress .rollup-count:hover { background: var(--wl-progress-accent-hover); border-color: var(--wl-progress-accent); color: var(--wl-status-fg); }
         .editor-dot { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--bg); font-size: 0.58rem; font-weight: 700; color: var(--text-primary); flex-shrink: 0; border: 1px solid var(--border); }
-        .workload-day-overflow { font-size: 0.62rem; font-weight: 600; color: var(--text-muted); padding: 2px 6px; cursor: default; }
         .workload-legend { display: flex; gap: 14px; margin-top: 12px; font-size: 0.7rem; color: var(--text-muted); flex-wrap: wrap; }
         .workload-legend-item { display: inline-flex; align-items: center; gap: 6px; }
         .workload-legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
@@ -12239,8 +12235,6 @@
     const CONTENT_REVISION_WEBHOOK     = 'https://synchrosocial.app.n8n.cloud/webhook/content-ready';
     const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
-    const EDITOR_DAILY_CAPACITY   = 5;
-    const WL_MAX_ROWS_PER_DAY     = 10;
     const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';
 
     const wlState = {
@@ -12252,9 +12246,10 @@
         nowWorking: [],                            // assigned sub-issues currently "In Progress"
         tweaksNeeded: [],                          // assigned sub-issues currently "Tweaks Needed"
         overdue: [],                               // assigned sub-issues whose dueDate is before today (active status, any non-parked status)
+        undated: [],                               // assigned active sub-issues with no due date; never auto-placed
         unassigned: [],                            // sub-issues with no assignee (and In Progress OR has dueDate)
         parentById: new Map(),                     // parent issue lookup for rollup link-outs
-        scheduled: new Map(),                      // key "YYYY-MM-DD" -> planned sub-issues[]
+        calendarByDate: new Map(),                 // exact due date -> planned sub-issues[]
         allActiveSubs: [],                         // all non-completed sub-issues for filter options
         subsByParentId: new Map(),
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
@@ -12719,118 +12714,16 @@
         }
     }
 
-    // Effective work date = the working day BEFORE the due date, never earlier
-    // than today. The team's rule is that a video due tomorrow has to be edited
-    // today, so the scheduler always targets dueDate-1, not the due date itself.
-    // Items without a due date (e.g. In Progress with no date set) get pinned
-    // to today so the editor sees them on the calendar instead of nowhere.
-    function wlEffectiveWorkDate(dueDate, todayISO) {
-        if (!dueDate) return todayISO;
-        const before = wlSubWorkingDays(dueDate, 1);
-        return before < todayISO ? todayISO : before;
-    }
-
-    // Scheduler — deterministic, per-assignee, work-date first, capacity-per-day batched by client.
-    // Rules:
-    //   - Work date for any sub-issue is dueDate-1 working day, floored to today.
-    //   - Items whose work date is today are pinned to today (capacity overflow allowed).
-    //   - Items whose work date falls before the cursor overflow back to that work date.
-    //   - Video editors: 5/day capacity. Graphic designers: 15/day capacity.
-    function scheduleAll(plannedSubs, todayISO) {
-        // Floor "today" to the next working day. When the page is viewed on a
-        // weekend (or a holiday handled by wlNextWorkingDay), the raw calendar
-        // today is a non-working day that the Mon–Fri week grid never renders
-        // — and weekStart is likewise the next working day. If we seeded the
-        // cursor with the raw weekend date, the most-urgent work (which sorts
-        // to the front of the ASAP queue) would be packed onto that off-screen
-        // Saturday/Sunday and silently vanish from the calendar while less
-        // urgent work landed on the visible weekdays. Flooring here keeps the
-        // scheduler's day-0 aligned with the grid's leftmost column. On a
-        // weekday wlNextWorkingDay is a no-op, so behaviour is unchanged.
-        todayISO = wlNextWorkingDay(todayISO);
-        const byAssignee = new Map();
-        for (const s of plannedSubs) {
-            s.effectiveWorkDate = wlEffectiveWorkDate(s.dueDate, todayISO);
-            if (!byAssignee.has(s.assigneeId)) byAssignee.set(s.assigneeId, []);
-            byAssignee.get(s.assigneeId).push(s);
+    // Static mode: the calendar is a literal due-date view. Capacity may mark
+    // a date as overloaded, but it never moves, spills, or hides dated work.
+    function wlBucketByDueDate(plannedSubs) {
+        const byDate = new Map();
+        for (const sub of plannedSubs) {
+            if (!sub.dueDate) continue;
+            if (!byDate.has(sub.dueDate)) byDate.set(sub.dueDate, []);
+            byDate.get(sub.dueDate).push(sub);
         }
-        const scheduledByDate = new Map();
-        const push = (iso, sub) => {
-            if (!scheduledByDate.has(iso)) scheduledByDate.set(iso, []);
-            scheduledByDate.get(iso).push(sub);
-        };
-
-        for (const [, subs] of byAssignee) {
-            const capacity = wlEditorCapacity(subs[0].teamKey, subs[0].teamName);
-
-            // Pin items whose work date is today (i.e. due today, due tomorrow,
-            // or already overdue) to today regardless of capacity.
-            const dueToday = subs.filter(s => s.effectiveWorkDate === todayISO);
-            const queue    = subs.filter(s => s.effectiveWorkDate !== todayISO);
-            for (const s of dueToday) {
-                s.scheduledDate = todayISO;
-                push(todayISO, s);
-            }
-
-            queue.sort((a, b) => {
-                const da = a.effectiveWorkDate || '9999-12-31';
-                const db = b.effectiveWorkDate || '9999-12-31';
-                if (da !== db) return da < db ? -1 : 1;
-                const ca = a.clientName || '';
-                const cb = b.clientName || '';
-                if (ca !== cb) return ca.localeCompare(cb);
-                return (a.identifier || '').localeCompare(b.identifier || '');
-            });
-
-            // Group consecutive same-client items into chunks of up to `capacity`.
-            const chunks = [];
-            let i = 0;
-            while (i < queue.length) {
-                const chunk = [queue[i]];
-                let j = i + 1;
-                while (j < queue.length && chunk.length < capacity && queue[j].clientName === chunk[0].clientName) {
-                    chunk.push(queue[j]);
-                    j++;
-                }
-                chunks.push(chunk);
-                i = j;
-            }
-
-            // Assign dates: ASAP scheduling, packed into the cursor day's
-            // remaining capacity. Today starts with however many slots the
-            // dueToday pin hasn't already eaten; subsequent days start full.
-            // A chunk that doesn't fit in the remaining slots gets bumped to
-            // the next working day rather than overflowing the current one,
-            // so an editor with 4 pinned never gets a 5-item chunk piled
-            // on top to make 9. If the cursor overtakes a chunk's work date,
-            // overflow back to that work date rather than pushing past it.
-            let cursor = todayISO;
-            let cursorRemaining = Math.max(0, capacity - dueToday.length);
-            if (cursorRemaining === 0) {
-                cursor = wlAddWorkingDays(todayISO, 1);
-                cursorRemaining = capacity;
-            }
-            for (const chunk of chunks) {
-                if (chunk.length > cursorRemaining) {
-                    cursor = wlAddWorkingDays(cursor, 1);
-                    cursorRemaining = capacity;
-                }
-                const chunkTarget = chunk[0].effectiveWorkDate;
-                const assignedDate = (chunkTarget && chunkTarget < cursor) ? chunkTarget : cursor;
-                for (const sub of chunk) {
-                    sub.scheduledDate = assignedDate;
-                    push(assignedDate, sub);
-                }
-                if (assignedDate === cursor) {
-                    cursorRemaining -= chunk.length;
-                    if (cursorRemaining <= 0) {
-                        cursor = wlAddWorkingDays(cursor, 1);
-                        cursorRemaining = capacity;
-                    }
-                }
-            }
-        }
-        return scheduledByDate;
+        return byDate;
     }
 
     function wlTeamBucket(teamKey, teamName) {
@@ -12841,6 +12734,17 @@
     }
     function wlEditorCapacity(teamKey, teamName) {
         return wlTeamBucket(teamKey, teamName) === 'graphics' ? 15 : 5;
+    }
+    function wlDayOverCapacity(subs) {
+        const counts = new Map();
+        for (const sub of subs || []) {
+            const team = wlTeamBucket(sub.teamKey, sub.teamName);
+            const key = (sub.assigneeId || '?') + '|' + team;
+            const next = (counts.get(key) || 0) + 1;
+            counts.set(key, next);
+            if (next > wlEditorCapacity(sub.teamKey, sub.teamName)) return true;
+        }
+        return false;
     }
 
     function wlInitials(name) {
@@ -12929,13 +12833,18 @@
                 <div class="workload-in-progress-rollups" id="wlTweaksRollups"></div>
             </div>
             <div class="workload-section-label workload-calendar-label">
-                <span>Planning calendar</span>
+                <span>Deadline calendar</span>
                 <span class="workload-section-hint">
-                    Each sub-issue is auto-scheduled by the system based on the editor's daily capacity — what you see here is the <strong>planned work day</strong>, not the due date. Click any chip to see how the plan and the deadline line up.
+                    Each dated sub-issue appears on its <strong>Linear due date</strong>. Capacity never moves or hides work; overloaded days stay intact and are marked red.
                 </span>
             </div>
             <div id="wlBody">
                 ${_svLoadingSkeletonHtml('workload')}
+            </div>
+            <div id="wlUndated" class="workload-needs-assignment workload-undated empty">
+                <div class="workload-section-label">Needs a due date</div>
+                <div class="workload-section-hint">These assigned sub-issues stay off the calendar until a date is set.</div>
+                <div class="workload-chips" id="wlUndatedChips"></div>
             </div>
             <div id="wlUnassigned" class="workload-needs-assignment empty">
                 <div class="workload-section-label">Needs assignment</div>
@@ -12946,6 +12855,7 @@
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:var(--sv-bg-d97706)"></span>Graphics</span>
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:var(--sv-bg-eab308)"></span>In Progress</span>
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:var(--sv-bg-ea580c)"></span>Tweaks Needed</span>
+                <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:var(--wl-overdue-accent)"></span>Over capacity</span>
             </div>
             <div id="wlPopover" class="workload-popover" role="dialog" aria-hidden="true"></div>
         </div>
@@ -13100,12 +13010,13 @@
         console.group('=== wlDebug ===');
         console.log('Total issues from API:', issues.length);
         console.log('Sub-issues total:', subs.length);
-        console.log('planned (scheduled):', wlState.planned.length);
+        console.log('planned (dated):', wlState.planned.length);
         console.log('nowWorking (In Progress):', wlState.nowWorking.length);
         console.log('tweaksNeeded:', wlState.tweaksNeeded.length);
         console.log('overdue:', wlState.overdue.length);
+        console.log('undated:', wlState.undated.length);
         console.log('unassigned:', wlState.unassigned.length);
-        console.log('scheduled dates:', [...wlState.scheduled.keys()].sort());
+        console.log('calendar due dates:', [...wlState.calendarByDate.keys()].sort());
 
         // Breakdown by statusType — are items being dropped for being "completed"?
         const byStatus = {};
@@ -13218,6 +13129,7 @@
         const tweaksNeeded = [];
         const planned      = [];
         const overdue      = [];
+        const undated      = [];
         const unassigned   = [];
         for (const s of subs) {
             const inProg     = wlIsInProgress(s);
@@ -13253,6 +13165,10 @@
                 continue;
             }
             if (inProg) nowWorking.push(s);
+            if (!hasDue) {
+                undated.push(s);
+                continue;
+            }
             // Calendar workload tracks work with a real due date. In-progress
             // items keep their slot only if they have a future-or-today due
             // date — they were already on the calendar before status moved
@@ -13267,9 +13183,10 @@
         wlState.tweaksNeeded = tweaksNeeded;
         wlState.planned      = planned;
         wlState.overdue      = overdue;
+        wlState.undated      = undated;
         wlState.unassigned   = unassigned;
         wlState.fetchedAt  = fetchedAt;
-        wlState.scheduled  = scheduleAll(planned, wlTodayISO());
+        wlState.calendarByDate = wlBucketByDueDate(planned);
     }
 
     // Single delegated handler on the shell root. Attached once per shell
@@ -13600,12 +13517,13 @@
         renderOverdueStrip();
         renderInProgressStrip();
         renderTweaksNeededStrip();
+        renderUndatedStrip();
         renderUnassignedStrip();
 
         const bodyEl = document.getElementById('wlBody');
         if (!bodyEl) return;
 
-        const hasAnyData = wlState.planned.length || wlState.nowWorking.length || wlState.unassigned.length;
+        const hasAnyData = wlState.planned.length || wlState.nowWorking.length || wlState.undated.length || wlState.unassigned.length;
         if (wlState.error && !hasAnyData) {
             bodyEl.innerHTML = '<div class="workload-error">Could not load Linear issues: ' + wlEscape(wlState.error) + '</div>';
             return;
@@ -13650,9 +13568,10 @@
     // Build today's rollups: scheduled/planned items only. In-progress items
     // are rendered separately in the strip above the calendar.
     function wlTodayRollups(todayISO) {
-        const plannedSubs = (wlState.scheduled.get(todayISO) || []).filter(wlPassesFilters);
+        const allDue = wlState.calendarByDate.get(todayISO) || [];
+        const plannedSubs = allDue.filter(wlPassesFilters);
         const groups = wlGroupRollups(plannedSubs);
-        return { groups, count: plannedSubs.length };
+        return { groups, count: plannedSubs.length, overCapacity: wlDayOverCapacity(allDue) };
     }
 
     // Editor workload — ranks every current video editor by how busy they are
@@ -13713,6 +13632,7 @@
         for (const s of (wlState.nowWorking   || [])) consider(s);
         for (const s of (wlState.tweaksNeeded || [])) consider(s);
         for (const s of (wlState.overdue      || [])) consider(s);
+        for (const s of (wlState.undated      || [])) consider(s);
 
         if (byEditor.size === 0) {
             wrap.classList.add('empty');
@@ -13861,21 +13781,30 @@
         }).join('');
     }
 
+    function renderUndatedStrip() {
+        renderLooseIssueStrip('wlUndated', 'wlUndatedChips', wlState.undated, true);
+    }
+
     function renderUnassignedStrip() {
-        const unassignedEl = document.getElementById('wlUnassigned');
-        const chipsEl      = document.getElementById('wlUnassignedChips');
-        if (!unassignedEl || !chipsEl) return;
-        const filtered = wlState.unassigned.filter(s => {
+        renderLooseIssueStrip('wlUnassigned', 'wlUnassignedChips', wlState.unassigned, false);
+    }
+
+    function renderLooseIssueStrip(stripId, chipsId, source, applyEditorFilter) {
+        const stripEl = document.getElementById(stripId);
+        const chipsEl = document.getElementById(chipsId);
+        if (!stripEl || !chipsEl) return;
+        const filtered = (source || []).filter(s => {
             if (wlState.team !== 'all' && wlTeamBucket(s.teamKey, s.teamName) !== wlState.team) return false;
+            if (applyEditorFilter && wlState.editor !== 'all' && s.assigneeId !== wlState.editor) return false;
             if (wlState.client !== 'all' && s.clientName !== wlState.client) return false;
-            return true; // editor filter doesn't apply to unassigned
+            return true;
         });
         if (!filtered.length) {
-            unassignedEl.classList.add('empty');
+            stripEl.classList.add('empty');
             chipsEl.innerHTML = '';
             return;
         }
-        unassignedEl.classList.remove('empty');
+        stripEl.classList.remove('empty');
         chipsEl.innerHTML = filtered.map(s => {
             const team = wlTeamBucket(s.teamKey, s.teamName);
             const dot = `<span class="workload-legend-swatch" style="background:${team === 'graphics' ? 'var(--sv-misc-d97706)' : 'var(--sv-misc-6c5ce7)'}"></span>`;
@@ -13904,16 +13833,21 @@
             const isToday = iso === todayISO;
             const classes = ['workload-day'];
             if (isToday) classes.push('today');
-            let groups, count;
+            let groups, count, overCapacity;
             if (isToday) {
-                ({ groups, count } = wlTodayRollups(todayISO));
+                ({ groups, count, overCapacity } = wlTodayRollups(todayISO));
             } else {
-                const subs = (wlState.scheduled.get(iso) || []).filter(wlPassesFilters);
+                const allDue = wlState.calendarByDate.get(iso) || [];
+                const subs = allDue.filter(wlPassesFilters);
                 groups = wlGroupRollups(subs);
                 count = subs.length;
+                overCapacity = wlDayOverCapacity(allDue);
             }
+            if (overCapacity) classes.push('over-capacity');
             const rowsHtml = renderDayRollups(groups, iso);
-            const countBadge = count ? `<span class="workload-day-count">${count}</span>` : '';
+            const countBadge = (count || overCapacity)
+                ? `<span class="workload-day-count${overCapacity ? ' over-capacity' : ''}"${overCapacity ? ' title="Over capacity — all work remains on this due date"' : ''}>${count || ''}${overCapacity ? (count ? ' · over' : 'over') : ''}</span>`
+                : '';
             gridHtml += `<div class="${classes.join(' ')}" data-wl-day="${wlEscape(iso)}">
                 <div class="workload-day-num"><span>${d.getDate()}</span>${countBadge}</div>
                 ${rowsHtml}
@@ -13953,16 +13887,21 @@
             if (weekend)    classes.push('weekend');
             if (isToday)    classes.push('today');
 
-            let groups, count;
+            let groups, count, overCapacity;
             if (isToday) {
-                ({ groups, count } = wlTodayRollups(todayISO));
+                ({ groups, count, overCapacity } = wlTodayRollups(todayISO));
             } else {
-                const subs = (wlState.scheduled.get(iso) || []).filter(wlPassesFilters);
+                const allDue = wlState.calendarByDate.get(iso) || [];
+                const subs = allDue.filter(wlPassesFilters);
                 groups = wlGroupRollups(subs);
                 count = subs.length;
+                overCapacity = wlDayOverCapacity(allDue);
             }
+            if (overCapacity) classes.push('over-capacity');
             const rowsHtml = renderDayRollups(groups, iso);
-            const countBadge = count ? `<span class="workload-day-count">${count}</span>` : '';
+            const countBadge = (count || overCapacity)
+                ? `<span class="workload-day-count${overCapacity ? ' over-capacity' : ''}"${overCapacity ? ' title="Over capacity — all work remains on this due date"' : ''}>${count || ''}${overCapacity ? (count ? ' · over' : 'over') : ''}</span>`
+                : '';
 
             gridHtml += `<div class="${classes.join(' ')}" data-wl-day="${wlEscape(iso)}">
                 <div class="workload-day-num"><span>${d}</span>${countBadge}</div>
@@ -13979,9 +13918,8 @@
     // of clients they're working on. Each chip's text links to the parent
     // Linear issue; clicking the count badge opens a popover with the
     // individual sub-issues.
-    function renderDayRollups(groups, dayISO, opts) {
+    function renderDayRollups(groups, dayISO) {
         if (!groups.length) return '';
-        const unlimited = !!(opts && opts.unlimited);
 
         // Collapse the (editor × client) groups into one entry per editor.
         const byEditor = new Map();
@@ -14009,10 +13947,7 @@
             return wlDisplayName(a.assigneeName).localeCompare(wlDisplayName(b.assigneeName));
         });
 
-        const shown = unlimited ? editors : editors.slice(0, WL_MAX_ROWS_PER_DAY);
-        const hiddenEditors = editors.length - shown.length;
-
-        let html = shown.map(ed => {
+        return editors.map(ed => {
             const team = wlTeamBucket(ed.teamKey, ed.teamName);
             const name = wlDisplayName(ed.assigneeName) || 'Unknown';
             const clients = ed.clients.slice().sort((a, b) => {
@@ -14036,12 +13971,6 @@
                 <div class="workload-day-card-clients">${chips}</div>
             </div>`;
         }).join('');
-
-        if (hiddenEditors > 0) {
-            const hiddenCount = editors.slice(shown.length).reduce((n, ed) => n + ed.total, 0);
-            html += `<div class="workload-day-overflow">+${hiddenEditors} more (${hiddenCount})</div>`;
-        }
-        return html;
     }
 
     // ── Sub-issue popover ────────────────────────────────────────────────
@@ -14135,7 +14064,7 @@
         //     view of every active sub-issue for that editor, regardless of
         //     status or day.
         //   - in-progress (strip): nowWorking covers every active "now" item
-        //   - calendar planned cell: that day's scheduled bucket
+        //   - calendar cell: that day's exact due-date bucket
         //   - editor card total badge with no clientName: same source, but
         //     skip the client filter so the popover lists every sub-issue
         //     that editor owns for the day across all clients.
@@ -14144,7 +14073,7 @@
         if (sourceMode === 'active') {
             const seenIds = new Set();
             source = [];
-            for (const s of [...(wlState.planned || []), ...(wlState.nowWorking || []), ...(wlState.tweaksNeeded || []), ...(wlState.overdue || [])]) {
+            for (const s of [...(wlState.planned || []), ...(wlState.nowWorking || []), ...(wlState.tweaksNeeded || []), ...(wlState.overdue || []), ...(wlState.undated || [])]) {
                 if (seenIds.has(s.id)) continue;
                 seenIds.add(s.id);
                 source.push(s);
@@ -14156,7 +14085,7 @@
         } else if (sourceMode === 'inprogress' || inProgress) {
             source = wlState.nowWorking;
         } else if (dayISO) {
-            source = wlState.scheduled.get(dayISO) || [];
+            source = wlState.calendarByDate.get(dayISO) || [];
         } else {
             source = wlState.planned;
         }
@@ -14209,22 +14138,7 @@
         // each row with the client too so it's obvious whose work it is.
         const showClient = !clientName;
         const items = subs.map(s => {
-            // "Plan" is the day the scheduler actually placed this sub-issue
-            // on the calendar — i.e. its scheduledDate. That's where the
-            // chip lives, and what the user is reading off the column header
-            // when they click. The ideal target (dueDate − 1 working day) is
-            // only a hint to the scheduler; capacity can pull items forward.
-            // We fall back to effectiveWorkDate for sub-issues that didn't
-            // pass through scheduleAll (none in practice, but defensive).
-            const planISO = s.scheduledDate || s.effectiveWorkDate;
-            let dueLabel;
-            if (!s.dueDate) {
-                dueLabel = 'No due date';
-            } else if (planISO && planISO !== s.dueDate) {
-                dueLabel = 'Plan ' + wlFormatShort(planISO) + ' → Due ' + wlFormatShort(s.dueDate);
-            } else {
-                dueLabel = 'Due ' + wlFormatShort(s.dueDate);
-            }
+            const dueLabel = s.dueDate ? 'Due ' + wlFormatShort(s.dueDate) : 'No due date';
             const clientTag = showClient && s.clientName
                 ? `<span class="workload-popover-item-client">${wlEscape(s.clientName)}</span>`
                 : '';
@@ -14300,8 +14214,7 @@
         pop.style.top  = top + 'px';
 
         // Spotlight: dim everything on the calendar that isn't part of this
-        // rollup, then drop "due here" ghost markers on each due-date column
-        // so the plan-day vs due-date relationship is visible at a glance.
+        // exact due-date rollup.
         wlApplySpotlight(subs);
     }
 
@@ -14312,22 +14225,18 @@
         const grid = wrap ? wrap.querySelector('.workload-grid') : null;
         if (!wrap || !grid) return;
 
-        // Only sub-issues that the scheduler placed on the calendar can
-        // participate in the spotlight. In-progress strip sub-issues (no
-        // scheduledDate) have nothing to light up, so skip the effect.
-        // We use scheduledDate (where the chip actually lives) — NOT
-        // effectiveWorkDate (the ideal dueDate-1) — so chip matching lines
-        // up with the columns the user is looking at.
-        const planOf = s => s.scheduledDate || s.effectiveWorkDate;
-        const subsWithPlan = subs.filter(s => planOf(s));
-        if (!subsWithPlan.length) return;
+        // Only dated work in the calendar bucket participates. Tweak, overdue,
+        // and undated strip-only work must never gain a calendar presence.
+        const plannedIds = new Set((wlState.planned || []).map(s => s.id));
+        const subsOnCalendar = subs.filter(s => s.dueDate && plannedIds.has(s.id));
+        if (!subsOnCalendar.length) return;
 
         // Match keys: per-client chips use assignee|client|date; editor-total
         // badges aggregate across clients so they use assignee|*|date.
         const chipKeys = new Set();
         const totalKeys = new Set();
-        for (const s of subsWithPlan) {
-            const p = planOf(s);
+        for (const s of subsOnCalendar) {
+            const p = s.dueDate;
             chipKeys.add(`${s.assigneeId || ''}|${s.clientName || ''}|${p}`);
             totalKeys.add(`${s.assigneeId || ''}|${p}`);
         }
@@ -14351,47 +14260,6 @@
             if (card.querySelector('[data-wl-match="1"]')) card.setAttribute('data-wl-match', '1');
         });
 
-        // Ghost markers: one chip per (client, dueDate) tuple, dropped into
-        // the due-date column. Skip cases where plan-day === due-day (already
-        // visible as a real chip in that column) and any due dates outside
-        // the current week/month view (no column to land on).
-        const ghostsByDay = new Map();
-        for (const s of subsWithPlan) {
-            if (!s.dueDate) continue;
-            if (s.dueDate === planOf(s)) continue;
-            if (!ghostsByDay.has(s.dueDate)) ghostsByDay.set(s.dueDate, new Map());
-            const byClient = ghostsByDay.get(s.dueDate);
-            const k = s.clientName || '—';
-            byClient.set(k, (byClient.get(k) || 0) + 1);
-        }
-        for (const [dueISO, byClient] of ghostsByDay) {
-            const cell = grid.querySelector(`.workload-day[data-wl-day="${CSS.escape(dueISO)}"]`);
-            if (!cell) continue;
-            const ghostBox = document.createElement('div');
-            ghostBox.className = 'wl-due-ghosts';
-            ghostBox.setAttribute('data-wl-ghosts', '1');
-            const label = document.createElement('span');
-            label.className = 'wl-due-ghosts-label';
-            label.textContent = 'Due here';
-            ghostBox.appendChild(label);
-            for (const [client, count] of byClient) {
-                const ghost = document.createElement('span');
-                ghost.className = 'wl-due-ghost';
-                ghost.title = `${client} · ${count} sub-issue${count !== 1 ? 's' : ''} due ${wlFormatShort(dueISO)}`;
-                const nameEl = document.createElement('span');
-                nameEl.className = 'wl-due-ghost-name';
-                nameEl.textContent = client;
-                ghost.appendChild(nameEl);
-                if (count > 1) {
-                    const countEl = document.createElement('span');
-                    countEl.className = 'wl-due-ghost-count';
-                    countEl.textContent = String(count);
-                    ghost.appendChild(countEl);
-                }
-                ghostBox.appendChild(ghost);
-            }
-            cell.appendChild(ghostBox);
-        }
     }
 
     function wlClearSpotlight() {
@@ -14399,7 +14267,6 @@
             w.removeAttribute('data-wl-spotlight');
         });
         document.querySelectorAll('[data-wl-match]').forEach(el => el.removeAttribute('data-wl-match'));
-        document.querySelectorAll('[data-wl-ghosts]').forEach(el => el.remove());
     }
 
     function wlClosePopover() {

@@ -486,3 +486,16 @@ All times are UTC unless noted.
 - **Classification answered (the register's question).** Live read-only auth probes confirmed the reorder path does not 401 in the signed-in flow (a keyless caller is denied; a signed-in actor carries its key), the write fires and returns success, and the loss was silent — i.e. it *reverts silently*, not a 401 and not a never-fires. The dormant n8n fallback workflow was read and confirmed to carry the same requested-count response; its correction is owner-gated and re-queued.
 - **Tier-0 client-facing drills not executed.** The share-link mint and `?c=` client-link save drills both require credentials this sandbox does not hold: the issuance EF enforces auth, client review tokens are not anon-readable, and there is no staff key. Recorded the read-only confirmations available instead (auth enforced; correct anon posture; deployed `index.html` byte-identical to `origin/main`) and re-queued both drills with prompt-ready specs and an owner one-liner to name a staff-key-bearing runner.
 - Findings shipped as a draft PR for cloud-reviewer verification; nothing merged. Ledger + register + owner one-liners updated with the evidence above. Checkpointed each unit as a pushed commit per the night-shift protocol.
+
+## 2026-07-19 — Workload static due-date mode (source only)
+
+- Replaced Workload's browser-only due-minus-one / ASAP capacity scheduler with exact due-date
+  bucketing. Capacity remains 5 video / 15 graphics as a red warning only; overloaded dates retain
+  every item and every editor rollup. Assigned undated work now appears in a grey **Needs a due
+  date** strip instead of receiving an invented date.
+- Preserved the `Tweak Needed` / `Tweaks Needed` exclusive bucket, removed the phantom
+  `Plan X → Due Y` popover copy and due-date ghost markers, and updated the workload regression
+  robot with literal-date, overload-threshold, all-visible, undated, and scheduler-removal guards.
+- Client-side source only: no Edge Function, migration, runtime flag, n8n workflow, Linear write,
+  database row, or live deployment changed. The frozen `calendar-upsert` and
+  `sample-review-upsert` writers were not touched.

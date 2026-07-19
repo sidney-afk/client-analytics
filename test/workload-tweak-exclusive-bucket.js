@@ -138,6 +138,12 @@ check(dueBucket.every(row => row.dueDate === dueDate
 check(!wlDayOverCapacity(dueBucket.slice(0, 5)) && wlDayOverCapacity(dueBucket),
   'video capacity is 5/day and the sixth row marks overload without spilling');
 
+const pastDue = issue('To Do', 'ordinary-overdue', '2026-07-14');
+wlApplyData([pastDue], '2026-07-15T12:00:00Z');
+check(wlState.overdue.map(row => row.id).includes('ordinary-overdue')
+    && (wlState.calendarByDate.get('2026-07-14') || []).map(row => row.id).includes('ordinary-overdue'),
+  'ordinary overdue work stays in its warning strip and on its exact historical due date');
+
 const graphicRows = Array.from({ length: 16 }, (_, i) => ({
   ...issue('To Do', 'graphic-' + i, dueDate),
   teamKey: 'GRA',

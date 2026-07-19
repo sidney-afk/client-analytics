@@ -520,6 +520,11 @@ All times are UTC unless noted.
 - Added the source contract for the staff-authenticated `workload-plan` Edge Function and the
   drag/edit/clear browser path. Clearing the internal day returns the issue to its exact due date;
   the candidate has no n8n fallback, Linear due-date writer, or automatic scheduler.
+- Owner review narrowed the private plan projection and every edit path to Admin and SMM only.
+  Creative remains a recognized staff role on unrelated surfaces, but cannot list or mutate
+  `workload_plan`; matching source and hermetic browser-role guards pin that local boundary.
+- Collapsed-rollup batch moves remain outside this candidate and are tracked separately in #884;
+  expanded issue-card moves retain the exact one-row, actual-count fail-closed path.
 - F141 is born into the contract: the function reports rows actually written and the browser accepts
   only exactly one, reverting the optimistic date and notifying on a short count or error. Plan-list
   failure keeps last-good overrides when available; otherwise it shows an explicit due-date-only

@@ -64,14 +64,21 @@ for (const header of [
 ]) {
   ok(EDGE.includes(header), 'CORS includes ' + header);
 }
-ok(/authorizeStaffKey\(key, HUMAN_STAFF_ROLES\)/.test(EDGE)
+const workloadPlanRoles = EDGE.slice(
+  EDGE.indexOf('const WORKLOAD_PLAN_STAFF_ROLES'),
+  EDGE.indexOf('const SAFE_ISSUE_ID'),
+);
+const workloadPlanRoleValues = [...workloadPlanRoles.matchAll(/"([^"]+)"/g)]
+  .map(match => match[1]);
+ok(/authorizeStaffKey\(key, WORKLOAD_PLAN_STAFF_ROLES\)/.test(EDGE)
   && /staffAuthFailureStatus\(auth\)/.test(EDGE)
-  && /const HUMAN_STAFF_ROLES:[\s\S]{0,160}"admin"[\s\S]{0,80}"smm"[\s\S]{0,80}"creative"/.test(EDGE),
-'global list action requires one of the three configured human staff role keys');
+  && workloadPlanRoleValues.join(',') === 'admin,smm',
+'global list action is restricted to the exact Admin and SMM feature allowlist');
 ok(/authorizeBrowserWrite\([\s\S]{0,180}client,[\s\S]{0,80}"workload-plan"/.test(EDGE)
   && /principal\.kind !== "staff"/.test(EDGE)
-  && /!isHumanStaffRole\(principal\.role\)/.test(EDGE),
-'set action uses the shared browser-write helper and rejects client/automation principals');
+  && /!isWorkloadPlanStaffRole\(principal\.role\)/.test(EDGE)
+  && /WORKLOAD_PLAN_STAFF_ROLES as readonly string\[\]/.test(EDGE),
+'set action uses the same Admin/SMM allowlist and rejects Creative, client, and automation principals');
 ok(!/req\.headers\.get\(["']x-syncview-(?:actor|role)["']\)/i.test(EDGE)
   && /updated_by: principal\.actor/.test(EDGE),
 'writer ignores spoofable actor/role metadata and stores the server principal');
@@ -125,6 +132,10 @@ ok(/const WORKLOAD_PLAN_URL\s*=\s*CAL_SUPABASE_URL \+ '\/functions\/v1\/workload
   && /_syncviewRequireStaffIdentity\('workload-plan'\)/.test(clientWrite)
   && /_syncviewEfHeaders\(\{ 'Content-Type': 'application\/json' \}, WORKLOAD_PLAN_URL\)/.test(clientWrite),
 'browser uses only the staff-authenticated workload-plan endpoint');
+ok(/if \(capability === 'workload-plan'\) return role === 'admin' \|\| role === 'smm';/.test(INDEX)
+  && /return wlState\.planStatus === 'ready' && _syncviewStaffCan\('workload-plan'\);/.test(INDEX)
+  && /Work-day planning requires an Admin or SMM account/.test(INDEX),
+'browser exposes plan reads and editing only to Admin and SMM identities');
 ok(/action: 'set'/.test(clientWrite)
   && /issue_id: String\(issue\.id/.test(clientWrite)
   && /client: String\(issue\.clientName/.test(clientWrite)

@@ -12655,7 +12655,7 @@
     let _wlPlanLoadGeneration = 0;
 
     function wlPlanEditingEnabled() {
-        return wlState.planStatus === 'ready';
+        return wlState.planStatus === 'ready' && _syncviewStaffCan('workload-plan');
     }
 
     async function wlFetchPlanRows() {
@@ -17642,7 +17642,7 @@
         if (capability === 'weekly-report-submit') return role === 'admin' || role === 'smm';
         if (capability === 'weekly-report-manage') return role === 'admin';
         if (capability === 'pto-admin') return role === 'admin';
-        if (capability === 'workload-plan') return role === 'admin' || role === 'smm' || role === 'creative';
+        if (capability === 'workload-plan') return role === 'admin' || role === 'smm';
         return !!identity;
     }
     async function _syncviewRequireStaffIdentity(capability) {
@@ -17661,7 +17661,7 @@
             else if (capability === 'weekly-report-submit') message = 'Weekly reports are available to Admin or SMM accounts. Sign out first to use another authorized account.';
             else if (capability === 'weekly-report-manage') message = 'Weekly report management requires an Admin account. Sign out first to use another authorized account.';
             else if (capability === 'pto-admin') message = 'Time Off approvals and setup require an Admin account. Sign out first to use another authorized account.';
-            else if (capability === 'workload-plan') message = 'Work-day planning requires a staff account. Sign out first to use another authorized account.';
+            else if (capability === 'workload-plan') message = 'Work-day planning requires an Admin or SMM account. Sign out first to use another authorized account.';
             const error = new Error(message);
             error.status = 403;
             throw error;

@@ -1,6 +1,6 @@
 // Supabase Edge Function: workload-plan
 //
-// Staff-only projection and writer for internal Workload plan days. Client
+// Admin/SMM-only projection and writer for internal Workload plan days. Client
 // deadlines remain display-only Linear mirror data; this function reads
 // workload_issues only to validate the exact active sub-issue/client scope and
 // writes only the isolated workload_plan sidecar.
@@ -28,10 +28,9 @@ const CORS: Record<string, string> = {
   "Cache-Control": "no-store",
 };
 
-const HUMAN_STAFF_ROLES: readonly StaffRoleKey[] = [
+const WORKLOAD_PLAN_STAFF_ROLES: readonly StaffRoleKey[] = [
   "admin",
   "smm",
-  "creative",
 ];
 const SAFE_ISSUE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -69,8 +68,8 @@ function clean(value: unknown): string {
   return String(value == null ? "" : value).trim();
 }
 
-function isHumanStaffRole(role: string): role is StaffRoleKey {
-  return (HUMAN_STAFF_ROLES as readonly string[]).includes(role);
+function isWorkloadPlanStaffRole(role: string): role is StaffRoleKey {
+  return (WORKLOAD_PLAN_STAFF_ROLES as readonly string[]).includes(role);
 }
 
 function serviceClient(): SupabaseClient {
@@ -119,7 +118,7 @@ function planRow(row: JsonMap): PlanRow {
 
 function requireListStaff(req: Request): StaffRoleKey {
   const key = clean(req.headers.get("x-syncview-key"));
-  const auth = authorizeStaffKey(key, HUMAN_STAFF_ROLES);
+  const auth = authorizeStaffKey(key, WORKLOAD_PLAN_STAFF_ROLES);
   if (!auth.ok || !auth.role) {
     throw new WorkloadPlanError(
       staffAuthFailureStatus(auth),
@@ -256,7 +255,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
     if (
       principal.kind !== "staff" ||
-      !isHumanStaffRole(principal.role)
+      !isWorkloadPlanStaffRole(principal.role)
     ) {
       throw new WorkloadPlanError(403, "staff_required");
     }

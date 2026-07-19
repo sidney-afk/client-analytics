@@ -65,7 +65,7 @@ function makeContext(reply, optimisticDate) {
   return { context, issue, planByIssueId, notifies, renders };
 }
 
-function makeSetContext(fetchImpl, fastTimeout) {
+function makeSetContext(fetchImpl, fastTimeout, staffRole = 'admin') {
   const issue = {
     id: 'synthetic-issue-1',
     clientName: 'Synthetic Client',
@@ -88,10 +88,11 @@ function makeSetContext(fetchImpl, fastTimeout) {
       planStatus: 'ready',
       calendarByDate: new Map([['2026-07-25', [issue]]]),
     },
+    _syncviewStaffIdentityForHeaders: () => staffRole ? { role: staffRole } : null,
+    _syncviewStaffRoleValue: identity => String(identity && identity.role || '').trim().toLowerCase(),
     _syncviewRequireStaffIdentity: async () => ({ key: 'synthetic' }),
     _syncviewEfHeaders: headers => headers,
     fetch: fetchImpl,
-    wlPlanEditingEnabled: () => true,
     wlIsTweaksNeeded: () => false,
     wlResetPlanDisplay: () => {},
     wlApplyData: () => {
@@ -112,6 +113,8 @@ function makeSetContext(fetchImpl, fastTimeout) {
   };
   context.globalThis = context;
   vm.createContext(context);
+  vm.runInContext(extract('_syncviewStaffCan'), context);
+  vm.runInContext(extract('wlPlanEditingEnabled'), context);
   vm.runInContext(extract('wlPlanDate'), context);
   vm.runInContext(extract('wlApplyPlanLocal'), context);
   vm.runInContext(extract('_wlPlanWriteRequest'), context);
@@ -127,6 +130,47 @@ function ok(condition, message) {
 }
 
 (async () => {
+  {
+    let role = 'creative';
+    const context = {
+      wlState: { planStatus: 'ready' },
+      _syncviewStaffIdentityForHeaders: () => ({ role }),
+      _syncviewStaffRoleValue: identity => String(identity && identity.role || '').trim().toLowerCase(),
+      String,
+    };
+    vm.createContext(context);
+    vm.runInContext(extract('_syncviewStaffCan'), context);
+    vm.runInContext(extract('wlPlanEditingEnabled'), context);
+    ok(context._syncviewStaffCan('workload-plan') === false
+        && context.wlPlanEditingEnabled() === false,
+      'Creative identities cannot read or edit Workload plan dates');
+    role = 'smm';
+    ok(context._syncviewStaffCan('workload-plan') === true
+        && context.wlPlanEditingEnabled() === true,
+      'SMM identities can read and edit when the plan snapshot is ready');
+    role = 'admin';
+    ok(context._syncviewStaffCan('workload-plan') === true
+        && context.wlPlanEditingEnabled() === true,
+      'Admin identities can read and edit when the plan snapshot is ready');
+    context.wlState.planStatus = 'stale';
+    ok(context.wlPlanEditingEnabled() === false,
+      'an authorized role still fails closed when the plan snapshot is stale');
+  }
+
+  {
+    let fetchCalls = 0;
+    const h = makeSetContext(async () => {
+      fetchCalls++;
+      throw new Error('Creative write must not reach fetch');
+    }, false, 'creative');
+    const saved = await h.context.wlSetPlanDate(h.issue.id, '2026-07-29');
+    ok(saved === false
+        && fetchCalls === 0
+        && !h.context.wlState.planByIssueId.has(h.issue.id)
+        && h.context._wlPlanWriteInFlight.size === 0,
+      'Creative plan changes stop before optimistic state, in-flight state, or a request');
+  }
+
   {
     const h = makeContext({
       body: {

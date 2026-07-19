@@ -26,18 +26,24 @@ re-discover (system shape, where truth lives, enforced invariants, live-system s
 Check `docs/truth/` before re-auditing anything; those docs are current-state,
 updated in place, and drift-checked by `test/truth-sync.js`.
 
-**Looking for any documented fact?** `docs/FIND_ANYTHING.md` routes every
-question to its owning doc in ≤2 opens — including company-level truth (the
-Enterprise Atlas: `docs/ATLAS.md` in the `synchrosocial` repo) and the
-numbered registers (F-/D-/OQ-/KQ-numbers).
+**Consult the vault FIRST — standing rule (owner directive, 2026-07-19).**
+Before any substantive work — answering a question, planning a change, auditing,
+or hunting for a fact — go through the vault instead of re-deriving from
+scratch: `docs/FIND_ANYTHING.md` routes every question to its owning doc in
+≤2 opens, including company-level truth (the Enterprise Atlas: `docs/ATLAS.md`
+in the `synchrosocial` repo) and the numbered registers (F-/D-/OQ-/KQ-numbers).
+The rule cuts both ways: a session that learns a durable fact the vault doesn't
+hold updates the owning doc before it ends — consulting only stays cheap if
+every session also deposits.
 
-- **`docs/CLIENT_LIFECYCLE_MAP.md` is a MIRRORED doc** — the identical file
-  lives in the `synchrosocial` repo at `docs/CLIENT_LIFECYCLE_MAP.md`. It maps
-  the entire client lifecycle (traffic → booking → sales → onboarding →
-  provisioning → samples → production). If you change either copy, apply the
-  identical change to the other repo in the same session/PR; keep them
-  byte-identical. Because the path is part of the mirror contract, it stays at
-  `docs/CLIENT_LIFECYCLE_MAP.md` — do not move it into a docs/ subfolder.
+- **`docs/CLIENT_LIFECYCLE_MAP.md` here is the CANONICAL copy** (byte-mirror
+  retired 2026-07-19). It maps the entire client lifecycle (traffic → booking →
+  sales → onboarding → provisioning → samples → production). The
+  `synchrosocial` repo keeps only a stub at the same path pointing here — edit
+  ONLY this copy, never grow the stub back into a full mirror (the
+  synchrosocial `atlas-freshness` CI guard fails loud if that happens). The
+  path stays at `docs/CLIENT_LIFECYCLE_MAP.md` so existing links keep working —
+  do not move it into a docs/ subfolder.
 
 Repo layout is documented in `REPO_MAP.md` — when you add, move, or remove files,
 update the map in the same change (`test/repo-map-sync.js` enforces it in CI).

@@ -494,7 +494,11 @@ channel (§15.9), `#video-editing` (urgent tweaks), DMs to Sidney
 
 **External services**: iClosed (booking + webhooks), eSignatures.com
 (contracts), Stripe (payment links + invoice webhook), Gmail (all client
-email, sender "Synchro Social"; check-ins from house@synchrosocial.com),
+email, sender name "Synchro Social", **all sent from
+hello@synchrosocial.com** — every email workflow consolidated onto the one
+"Hello email" n8n credential on 2026-07-17; the old "House gmail"
+(house@synchrosocial.com) credential is now used only by inactive/legacy
+workflows),
 Google Drive/Docs, Sandcastles (content research), Post For Me +
 TikTok API (auto-posting), Wistia/YouTube (site videos), Meta Pixel/CAPI,
 Apify + Replicate + Gemini + Anthropic + OpenAI Whisper (metrics + AI
@@ -668,6 +672,19 @@ table are all slated to become automated/Supabase-native.
 15. **`closedwon` ≠ actually won**: the deal hits `closedwon` at contract
     signature, before first payment — fine, but know it when reading
     HubSpot reports.
+16. **Gmail sending is a single-credential dependency** (2026-07-17): every
+    client email sends through the one **"Hello email"** n8n credential
+    (hello@synchrosocial.com). Google revokes an OAuth credential's token
+    whenever that account's password changes — this is exactly what took the
+    sales emails down for ~2 days in July (the house@ password was changed
+    while the nurture/booking/onboarding emails were still on the "House
+    gmail" credential; sends failed silently with *"credential needs to be
+    reconnected"*). **Fix in place:** all email workflows now (a) send from
+    the Hello credential and (b) have their **Error Workflow** set to
+    *SyncView — Error Alerts → DM Sidney*, so any future send failure DMs
+    Sidney on Slack within seconds instead of failing silently. If the Hello
+    password is ever changed, reconnect the "Hello email" credential in n8n
+    (Credentials → Hello email → Reconnect).
 
 ---
 

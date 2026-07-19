@@ -1,0 +1,24 @@
+{
+  "injection": {
+    "original_item_count": 2,
+    "sent_item_count": 2,
+    "all_sent_ids_bogus": true,
+    "status": 200,
+    "response": {
+      "ok": true,
+      "updated": 0
+    }
+  },
+  "browser_response": {
+    "phase": "negative",
+    "at": "2026-07-19T18:00:26.189Z",
+    "path": "/functions/v1/sample-review-reorder",
+    "method": "POST",
+    "status": 200,
+    "requested_items": 2,
+    "response": {
+      "ok": true,
+      "updated": 0
+    }
+  }
+}

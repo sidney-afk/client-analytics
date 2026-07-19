@@ -1,7 +1,7 @@
 {
   "generated_for": "PTO lifecycle simulation",
   "source_commit": "d1d9c00e03ec1bf621e5ef6770967844f4153875",
-  "source_tree_sha256": "030e3fc9e0dd941ed9419935b059f3353b464a174b3474aec34f079da56446ac",
+  "source_tree_sha256": "0c333d5ff8ab5fde6daf895810fb0bb91bc734d1283c170de194a83c08c14372",
   "backend": "stateful synthetic mock using the production PTO policy module",
   "privacy": "synthetic TEST data only; no live identities, dates, balances, notes, keys, or responses",
   "screenshot_count": 101,

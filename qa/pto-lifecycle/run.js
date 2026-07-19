@@ -6,6 +6,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const {
   canonicalSourceText,
+  ptoSourceSlice,
   readVisualReviewFile,
   validatePublicEvidence,
   writeReviewArtifacts,
@@ -78,7 +79,12 @@ function sourceTreeFingerprint() {
     if (!fs.existsSync(full)) continue;
     hash.update(relative.replace(/\\/g, '/'));
     hash.update('\0');
-    hash.update(canonicalSourceText(fs.readFileSync(full, 'utf8')));
+    // index.html is the whole SPA; fingerprint only its PTO slice so unrelated
+    // edits don't stale the PTO evidence. Every other file here is wholly
+    // PTO-relevant and is hashed in full.
+    const raw = fs.readFileSync(full, 'utf8');
+    const text = relative === 'index.html' ? ptoSourceSlice(raw) : raw;
+    hash.update(canonicalSourceText(text));
     hash.update('\0');
   }
   return hash.digest('hex');
@@ -289,7 +295,11 @@ async function main() {
   await runBrowserLane();
 }
 
-main().catch(error => {
-  console.error(error && error.stack ? error.stack : String(error));
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch(error => {
+    console.error(error && error.stack ? error.stack : String(error));
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { sourceTreeFingerprint };

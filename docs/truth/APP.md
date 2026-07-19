@@ -90,6 +90,17 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   while a comment field defers the full card rebuild. The comparison dialog is modal, Escape/focus
   managed, desktop side-by-side, and narrow-screen stacked.
 
+## Workload
+
+- Workload reads the Linear-backed `workload_issues` mirror and does not write Linear due dates.
+- The calendar is a literal due-date view: dated work is bucketed on its exact Linear due date.
+  There is no due-minus-one derivation, ASAP packing, capacity spill, or hidden overflow row.
+- Capacity remains 5 video / 15 graphics per editor per day as a warning only. A date with an
+  overloaded editor stays intact, renders red with visible `over` copy, and retains every rollup.
+- Assigned active work without a due date stays off the calendar and appears in **Needs a due
+  date**. `Tweak Needed` / `Tweaks Needed` remains an exclusive strip and never enters the calendar,
+  even when its retained due date is current or overdue.
+
 ## Linear sync surface
 
 - Every consistency surface (status/assignee/due/name/comments), outboxes, flags:

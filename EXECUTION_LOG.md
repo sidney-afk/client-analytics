@@ -487,6 +487,19 @@ All times are UTC unless noted.
 - **Tier-0 client-facing drills not executed.** The share-link mint and `?c=` client-link save drills both require credentials this sandbox does not hold: the issuance EF enforces auth, client review tokens are not anon-readable, and there is no staff key. Recorded the read-only confirmations available instead (auth enforced; correct anon posture; deployed `index.html` byte-identical to `origin/main`) and re-queued both drills with prompt-ready specs and an owner one-liner to name a staff-key-bearing runner.
 - Findings shipped as a draft PR for cloud-reviewer verification; nothing merged. Ledger + register + owner one-liners updated with the evidence above. Checkpointed each unit as a pushed commit per the night-shift protocol.
 
+## 2026-07-19 — Workload static due-date mode (source only)
+
+- Replaced Workload's browser-only due-minus-one / ASAP capacity scheduler with exact due-date
+  bucketing. Capacity remains 5 video / 15 graphics as a red warning only; overloaded dates retain
+  every item and every editor rollup. Assigned undated work now appears in a grey **Needs a due
+  date** strip instead of receiving an invented date.
+- Preserved the `Tweak Needed` / `Tweaks Needed` exclusive bucket, removed the phantom
+  `Plan X → Due Y` popover copy and due-date ghost markers, and updated the workload regression
+  robot with literal-date, overload-threshold, all-visible, undated, and scheduler-removal guards.
+- Client-side source only: no Edge Function, migration, runtime flag, n8n workflow, Linear write,
+  database row, or live deployment changed. The frozen `calendar-upsert` and
+  `sample-review-upsert` writers were not touched.
+
 ## 2026-07-19 — F141 post-merge Edge deploy + live TEST drill
 
 - **`sample-review-reorder` Edge Function deploy (2026-07-19T17:21:51.600Z).** Before deployment, downloaded the active v31 server-source closure to a private rollback anchor and hash-manifested the function plus its three `_shared` dependencies; pre-readback was `ACTIVE`, v31, `verify_jwt=false`, bundle `bd46b572…`. Deployed **only** `sample-review-reorder` to project `uzltbbrjidmjwwfakwve` from merged release SHA `8382d9bbdf52b389ac38289638c724d36ebb4bcf` (PR #878 head `462bff2c…`) with Supabase CLI 2.109.0, `--no-verify-jwt --use-api`. Independent live readback: `ACTIVE`, v32, `verify_jwt=false`, bundle `c3eca2418c4e598ef598475b45e1fbec692570ddbe52f2916130f1a968f98ba5`. Frozen `calendar-upsert` stayed v43 / `91ce449e…` and `sample-review-upsert` stayed v44 / `50b63fba…`; no runtime flag, schema, n8n workflow, or other Edge Function changed. The source download is a rollback anchor, not an F51-attested exact platform artifact.

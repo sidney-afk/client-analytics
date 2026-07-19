@@ -63,8 +63,12 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   now serves `filming_plans` and the raw table anon-SELECT is revoked (2026-07-15, post-#836): direct
   REST returns 401/42501. F86 separately blocks raw inactive staff/client rows and internal email/
   Slack/Linear/project mappings.
-- **Edge Functions.** 27 are represented under `supabase/functions/`; **the app calls 22**
-  (**"18 literal + 4 composed" Edge Functions**, see
+- The source-only `workload_plan` table is a separate, service-role-only internal-date sidecar keyed
+  by stable sub-issue id. It adds no mirror column or foreign key, has no browser REST path, and is
+  exposed only through the candidate staff-authenticated `workload-plan` function. Its migration
+  and function have not been applied/deployed.
+- **Edge Functions.** 28 are represented under `supabase/functions/`; **the app calls 23**
+  (**"19 literal + 4 composed" Edge Functions**, see
   §7). Five are backend-only: the Linear webhook target (`linear-inbound`), B4 outbox drainer
   (`linear-outbound`), service-only write wrappers (`deliverable-write`, `batch-write`), and the
   scheduled thumbnail Drive scanner (`thumbnail-revision-scan`). `production-write` is app-called
@@ -163,7 +167,7 @@ Everything below is shared by every surface; per-surface sections only note devi
   epoch, server minimum-version rejection, or build-population telemetry currently expires callers.
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
   constant declared *before* the main Supabase URL constant (TDZ avoidance) — that is why §7 counts
-  "18 literal + 4 composed" Edge Functions.
+  "19 literal + 4 composed" Edge Functions.
 
 ## 4. Surface catalog
 
@@ -655,17 +659,25 @@ n8n in the metric read path.*
   would flood boards); liveness is a 5-min cache TTL + visibility refetch + manual refresh. n8n
   `linear-tweak-comments` (Tweak-Needed popover, 5-min cache). n8n `editors-week` (**one** browser
   fetch site, but a publicly callable arbitrary-range endpoint) returns issue histories; all report
-  metrics are computed client-side.
+  metrics are computed client-side. The stacked candidate additionally reads internal plan dates
+  through staff-authenticated EF `workload-plan`; it never reads the sidecar through PostgREST.
 - **Writes.** n8n `content-ready` (manual "content ready for review" email; **never checks
-  `resp.ok`** — HTTP errors display as success).
+  `resp.ok`** — HTTP errors display as success). The candidate writes or clears one internal
+  `plan_date` through `workload-plan`, keyed by the exact sub-issue id. It never writes Linear
+  `due_date`, and there is no n8n fallback.
 - **State.** `syncview_linearIssuesCache_v1` (5 min, both feeders), `syncview_workload_v2_off`
   (`syncview_workload_v2` is write-only / vestigial), `syncview_workloadView_v1`,
   `syncview_kasper_editors_v2` (week-rollover-invalidated). Kill switches: `?wl2=0`, the compile-time
-  `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch for this surface.
-- **Roles.** Staff-only, read-only board for everyone; Editors view further gated behind the Kasper
-  unlock.
+  `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch for this surface or the plan-date
+  candidate; candidate plan state is held as a last-good issue-id map in the running page.
+- **Roles.** Staff-only. The candidate permits plan-date edits only after verified staff
+  authentication; Editors view remains further gated behind the Kasper unlock.
 - **Failure/fallback.** REST error / non-array / 0 rows → automatic n8n fallback (no user signal).
   Both fail + cache → stale board (error only set when no cache); no cache → red error card.
+  Candidate plan-list failure retains last-good overrides when available; without one, the UI
+  explicitly labels a due-date-only degraded view and disables plan edits. A plan write succeeds
+  only when the function reports exactly one row actually written; any short count/error reverts
+  the optimistic move and notifies instead of leaving a false local date.
   `editors-week` fail → error card, older week cache still usable. **F48:** the endpoint is
   unauthenticated and exposes confidential people/client/work metadata. Its issue connection pages
   50 at a time but silently stops after 30 pages / 1,500 issues; each issue history is unpaged at
@@ -675,7 +687,9 @@ n8n in the metric read path.*
 - **Notable / corrections.** v1's "3 call sites" for `editors-week` is wrong — one fetch site (the
   others are the constant + comments). The realtime channel is dormant. `content-ready`'s missing
   `resp.ok` check is a real bug-shape. `loadLinearIssues` is also the Calendar bulk-create link poll's
-  data source (shared feeder + cache).
+  data source (shared feeder + cache). Candidate placement is `plan_date || due_date`: no plan date
+  preserves the literal due-date default, and clearing returns to it. Tweak cards remain exclusive
+  from the calendar. The migration, EF, and browser behavior are source-only and not live.
 - **Track B.** Required but **not implemented** (F40): the re-point to native rows must happen per
   team at each B4 flip, but main and #813 still unconditionally use `workload_issues`/n8n with
   realtime off and Linear links. The adapter needs `deliverables + batches + clients +
@@ -1099,8 +1113,8 @@ they drift — in either direction, including the counts. When it fails: update 
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
 - **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
-- **Edge functions (22):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read`
-- **Not counted above:** 18 of the 22 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`key-verify` moved into the called set as of PR #788.)
+- **Edge functions (23):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-plan`
+- **Not counted above:** 19 of the 23 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`workload-plan` is candidate source only and is not deployed.)
 - **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read. A dormant event-loader target names `deliverable_events`, but runtime never invokes it (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (6):** `calendar_upsert_ef_clients` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`

@@ -1,6 +1,6 @@
 # Linear — current truth
 
-> Last verified: 2026-07-16 @ bb0ee4b (Phase-2 candidate reconciliation; live n8n readback retained from 2026-07-14)
+> Last verified: 2026-07-19 @ f9b59e9 (Workload plan-date boundary staged in source; live Linear state unchanged)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -46,6 +46,12 @@
   archive/restore/delete/team linkage into native deliverables and normalizes comment lifecycle into
   `production_comments`. That does **not** make the legacy card arrays, client links, or Workload
   feed canonical.
+- **Workload dates remain one-way from Linear:** `workload_issues.due_date` is the client deadline
+  displayed by Workload and the editable-plan candidate never writes it. Internal scheduling lives
+  separately in the source-only `workload_plan.plan_date` sidecar keyed by the stable sub-issue id;
+  clearing that value restores exact due-date placement. No column is added to the B3-managed
+  `workload_issues` mirror, and no Linear API, n8n bridge, reconciler, or due-date writer is added.
+  The sidecar migration and `workload-plan` Edge Function are not applied/deployed.
 - The legacy n8n inbound receiver `MJbMZ789B5ExZz9x` is **inactive/unpublished**
   (`activeVersionId=null`). Its saved graph has A1/A2 routing and authority gates, but it is not a
   current real-time producer. Calendar/Samples status healing therefore depends on the scheduled

@@ -15,6 +15,7 @@ const writerPaths = [
   'supabase/functions/sample-review-reorder/index.ts',
   'supabase/functions/templates-save/index.ts',
   'supabase/functions/caption-prompts-save/index.ts',
+  'supabase/functions/workload-plan/index.ts',
 ];
 const postAuthMarkers = {
   'calendar-upsert': 'const existingRead = await readExisting(',
@@ -23,6 +24,7 @@ const postAuthMarkers = {
   'sample-review-reorder': 'for (const item of parsed.items)',
   'templates-save': 'const { data: existing, error: readError }',
   'caption-prompts-save': 'const now = new Date().toISOString()',
+  'workload-plan': 'await requireWritableIssue(',
 };
 
 let failures = 0;
@@ -101,9 +103,9 @@ function ok(condition, message) {
     const nextOperation = source.indexOf(postAuthMarkers[name]);
     ok(authCall >= 0 && nextOperation > authCall,
       `${name} authenticates before its first target read or mutation`);
-    ok(source.includes('browserWriteAuthResponse(e)')
-      && source.includes('error: auth.code')
-      && source.includes('auth.status'),
+    ok(/browserWriteAuthResponse\((?:e|error)\)/.test(source)
+      && ((source.includes('error: auth.code') && source.includes('auth.status'))
+        || (source.includes('error: browserAuth.code') && source.includes('browserAuth.status'))),
     `${name} preserves deny status instead of collapsing auth failures to 500`);
     ok(source.includes('x-syncview-client-token'),
       `${name} preflight permits the scoped client token`);

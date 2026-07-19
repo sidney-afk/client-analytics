@@ -1,6 +1,6 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-16 @ bb0ee4b (freeze marker on the two upserts; flag story extended)
+> Last verified: 2026-07-19 @ f9b59e9 (Workload plan-date candidate inventoried; migration/function not deployed)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 ## Tables
@@ -38,6 +38,11 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   Referenced in code via `SXR_TABLE`.
 - `workload_issues` — **read-only mirror** of Linear (4 teams present: VID/GRA/CON/STR;
   56 messy `client_name` variants — normalize via `wlNormalizeClient()`).
+- `workload_plan` — **source-only internal sidecar**, keyed by stable sub-issue id, with normalized
+  client scope, nullable `plan_date`, and server-owned update attribution/time. It intentionally has
+  no foreign key or added column on the rebuildable `workload_issues` mirror. The candidate migration
+  enables RLS, grants service role only, and exposes no browser PostgREST policy. It has not been
+  applied and the table is not claimed live.
 - `syncview_runtime_flags` — runtime kill-switches / migration routing. Values have different
   schemas and move during cutover; **never** assume they are all TEST-only. Read them live and
   reconcile with `ROLLBACK.md` plus `docs/independence/GO_LIVE_CHECKLIST.md` before an operation.
@@ -89,6 +94,24 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   the next pending baseline. That reaches open tabs through their existing realtime row and keeps
   later replacements detectable even when no SyncView write occurs.
 
+## Workload internal plan-date contract (source only)
+
+- Linear `due_date` remains display-only in Workload. The new `workload_plan.plan_date` is an
+  independent staff-owned scheduling value keyed by the exact sub-issue id; clearing it falls back
+  to the mirrored due date.
+- The browser never calls `workload_plan` through PostgREST. It uses the staff-authenticated
+  `workload-plan` Edge Function to list, set, or clear an internal plan day. The server validates an
+  active sub-issue and normalized client scope before the service-role write.
+- F141 is part of the initial contract: the function reports the number of rows it actually wrote,
+  not the number requested, and the browser requires exactly one. A short count, non-OK response, or
+  malformed result reverts the optimistic date and notifies the user.
+- The projection uses stable issue-id keyset pages and rejects partial-list success. Browser reads
+  and writes have bounded abort timers; only the newest overlapping refresh may publish state.
+  Ordinary read failures retain a last-good snapshot with editing paused, while `401`/`403`
+  responses purge the private plan projection instead of leaving revoked data visible.
+- This path has no n8n or Linear-write fallback and no runtime flag. The migration, function, and
+  browser caller are candidate source only; no database row, deployed function, or live flag changed.
+
 ## Edge Functions
 
 Client/staff verifier truth is also not ready for enforcement: F87 records missing request controls,
@@ -102,13 +125,14 @@ The #813 candidate does not broaden the workflow's current push paths: `linear-o
 deploys `linear-outbound` before `production-write`, so the provider contract precedes its caller;
 an ordinary merge can deploy neither function.
 
-Live set in `docs/truth/ENDPOINTS.md`. Source now represents 27 functions. The existing onboarding
-deploy Action covers 8 push-safe functions plus 2 guarded manual-only functions and still uses an
+Live set in `docs/truth/ENDPOINTS.md`. Source now represents 28 functions; the new
+`workload-plan` function is source-only and not deployed. The existing onboarding deploy Action
+covers 8 push-safe functions plus 2 guarded manual-only functions and still uses an
 unpinned latest CLI. The separate pinned `2.109.0`
 thumbnail workflow deployed and read back `calendar-upsert` v32, `sample-review-upsert` v33,
 `thumbnail-revision-read` v12, and `thumbnail-revision-scan` v17 from the merged release. Seven
 functions use floating `supabase-js@2` (six npm aliases plus one `esm.sh` alias), and no function
-has a committed lock/import map. Treat every deployment/rebuild/rollback as F51-gated until all 27
+has a committed lock/import map. Treat every deployment/rebuild/rollback as F51-gated until all 28
 source closures, dependencies, JWT settings, toolchain, release SHA, and downloaded server
 fingerprints are manifested and independently read back.
 

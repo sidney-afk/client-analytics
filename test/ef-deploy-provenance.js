@@ -87,8 +87,8 @@ const manifestCheck = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'e
   encoding: 'utf8',
 });
 const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.test(line));
-ok(manifestCheck.status === 0 && slugRows.length === 27,
-`generated deploy manifest is current and contains all 27 slugs (${(manifestCheck.stderr || '').trim()})`);
+ok(manifestCheck.status === 0 && slugRows.length === 28,
+`generated deploy manifest is current and contains all 28 slugs (${(manifestCheck.stderr || '').trim()})`);
 ok(/\| `client-review-link` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Live v2 deployed by operator on 2026-07-15\./.test(manifest),
 'client-review-link is explicitly recorded as the operator-deployed v2 deliberate-manual exception');
 

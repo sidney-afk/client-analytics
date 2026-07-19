@@ -11,6 +11,7 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
+const { installReadConsoleAudit } = require('./prod-test-utils');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 const TOTAL = 168;
@@ -52,7 +53,7 @@ async function txt(page, sel) {
   // A stale actionability assumption must fail locally, not stall the rest of
   // this 168-check sweep behind Playwright's 30-second default.
   page.setDefaultTimeout(5000);
-  const errors = [];
+  const readConsoleAudit = installReadConsoleAudit(page);
   const requests = [];
   const results = {};
   const deferred = {
@@ -83,13 +84,6 @@ async function txt(page, sel) {
     commentDeleteUndo: 'deferred-B3: comment deletion and undo mutate comments',
     childActivityLogged: 'deferred-B3: child activity log assertion depends on applying a status mutation',
   };
-  page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-  page.on('console', msg => {
-    if (msg.type() !== 'error') return;
-    const loc = msg.location && msg.location();
-    const where = loc && loc.url ? ` @ ${loc.url}:${loc.lineNumber || 0}` : '';
-    errors.push('console: ' + msg.text() + where);
-  });
   page.on('request', req => requests.push({ method: req.method(), url: req.url() }));
   await page.addInitScript(() => {
     localStorage.setItem('syncview_auth_v1', 'ok');
@@ -104,6 +98,46 @@ async function txt(page, sel) {
   const ok = async (name, fn) => {
     try { results[name] = await fn(); }
     catch (e) { results[name] = e && e.message ? e.message : String(e); }
+  };
+  const waitForResetBaseline = async () => {
+    try {
+      await page.waitForFunction(() => {
+        const root = document.getElementById('prodRoot');
+        const error = !!(root && root.querySelector('.prod-error'));
+        const ready = !!(root
+          && _prodState.loaded
+          && !_prodState.loading
+          && _prodState.view === 'list'
+          && root.querySelector('.prod-row')
+          && root.querySelector('#prodFilterBtn'));
+        return error || ready;
+      }, null, { timeout: 30000 });
+    } catch (e) {
+      const state = await page.evaluate(() => {
+        const root = document.getElementById('prodRoot');
+        return {
+          search: location.search,
+          hash: location.hash,
+          currentNav: typeof currentNav === 'string' ? currentNav : '',
+          loaded: !!_prodState.loaded,
+          loading: !!_prodState.loading,
+          error: !!_prodState.error,
+          view: _prodState.view,
+          team: _prodState.team,
+          tab: _prodState.tab,
+          issues: _prodIssues().length,
+          visibleIssues: _prodIssueRows().length,
+          root: !!root,
+          errorCard: !!(root && root.querySelector('.prod-error')),
+          rows: root ? root.querySelectorAll('.prod-row').length : 0,
+          filter: !!(root && root.querySelector('#prodFilterBtn')),
+        };
+      }).catch(() => ({ diagnostic: 'unavailable' }));
+      throw new Error(`Production reset baseline unavailable: ${JSON.stringify(state)}`);
+    }
+    if (await page.locator('#prodRoot .prod-error').count()) {
+      throw new Error('Production reset baseline rendered an error card');
+    }
   };
   const reset = async () => {
     await page.keyboard.press('Escape').catch(() => {});
@@ -137,8 +171,35 @@ async function txt(page, sel) {
       try { localStorage.removeItem('syncview_prod_display_v1'); } catch (e) {}
       try { _prodSetQuery({}, false); } catch (e) {}
       window._prodRender();
+      // Live data is allowed to have no active Video rows. Keep the interaction
+      // corpus data-independent by falling back to a real row on the All tab,
+      // rather than letting dozens of control checks fail on an empty fixture.
+      if (!document.querySelector('#prodRoot .prod-row')) {
+        const ownerActiveStatuses = new Set(['todo', 'prog', 'smm', 'kasper', 'client', 'tweak', 'scheduled']);
+        const eligibleVideoRows = _prodIssues().filter(row => row
+          && row.id
+          && row.team === 'video'
+          && ownerActiveStatuses.has(_prodArtifactStatus(row.status))).length;
+        if (eligibleVideoRows) {
+          throw new Error(`Production reset hid ${eligibleVideoRows} owner-active Video row(s)`);
+        }
+        const fallback = _prodIssues().find(row => row
+          && row.id
+          && !row.parent
+          && (row.team === 'video' || row.team === 'graphics'))
+          || _prodIssues().find(row => row
+            && row.id
+            && (row.team === 'video' || row.team === 'graphics'));
+        if (fallback) {
+          _prodState.team = fallback.team;
+          _prodState.tab = 'all';
+          try { _prodSetQuery({}, false); } catch (e) {}
+          window._prodRender();
+        }
+      }
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     });
+    await waitForResetBaseline();
   };
   const SIGNED_OUT_WRITE_COPY = 'Sign in with your staff account to write.';
   const issueSnapshot = () => page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status, i.assignee, i.due, i.project])));
@@ -2068,11 +2129,14 @@ async function txt(page, sel) {
     if (await page.locator('.prod-error').count()) throw new Error('dark Production preview rendered an error card');
     const darkSmoke = await page.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && !!document.querySelector('.prod-view'));
     if (!darkSmoke) throw new Error('dark Production preview did not follow syncview_theme=dark');
+    const readConsole = await readConsoleAudit.settle();
     await ok('noWriteRequests', async () => requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)).length === 0);
-    await ok('noConsoleErrors', async () => errors.length ? errors.slice(0, 10).join(' | ') : true);
+    await ok('noConsoleErrors', async () => readConsole.ok ? true : readConsole.error);
 
     const failed = Object.entries(results).filter(([, v]) => v !== true);
     console.log(JSON.stringify(results));
+    console.log('behav-wired recovered read retries: ' + readConsole.recoveredReadAttempts
+      + '; navigation-aborted reads: ' + readConsole.navigationAborts);
     console.log('behav-wired deferred-B3: ' + Object.keys(deferred).join(', '));
     const passed = Object.keys(results).length - failed.length;
     console.log('behav-wired: ' + passed + '/' + TOTAL + ' (guard mode)');

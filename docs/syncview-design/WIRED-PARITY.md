@@ -4,12 +4,12 @@ Source of visual truth: `docs/syncview-design/SyncView.html`. Runtime authority 
 truth come from the current source, gateway contract, and an immediate `prod_authority` readback;
 the static artifact cannot authorize a write. Current status values:
 
-> **P0 PUBLIC-ACTIONS CONTAINMENT (F122; verified 2026-07-14).** The two unsafe artifact producers
-> are disabled and 414 retained B1/Production/review/Argos bundles were deleted. Candidate workflow
-> source removes Production/Argos distribution and limits B1 to one success-only, one-day,
-> aggregate-only JSON artifact with exact-schema/no-array checks. Keep both workflows disabled until
-> that source merges and its first post-merge behavior is proved anonymously. Reconciler public logs
-> and any historical external Argos builds remain open; local live-derived visuals stay private.
+> **P0 PUBLIC-ACTIONS CONTAINMENT (F122; verified 2026-07-15).** The B1 and Production workflows
+> were deliberately re-enabled after #836. The first B1 artifact proved success-only, one-day,
+> aggregate-only JSON with exact-schema/no-array checks; Production creates no Actions artifact,
+> Argos delivery, or live-derived summary. The 414 named retained bundles remain deleted.
+> Reconciler public logs and any historical external Argos builds remain open; detailed logs and
+> live-derived visuals stay runner-local/private.
 
 Visible shell note: the app's top-nav label is now **Linear**, but this ledger retains
 **Production** for the internal `production` module and historical design-kit terminology. The
@@ -31,7 +31,7 @@ The dated sections below remain historical evidence: their “current,” “now
 |---|---:|---|
 | Status, comment, due date, and assignee | 🔐 authority-gated | The browser calls only the authenticated `production-write` gateway. A verified compatible role, active/supported target, valid SyncView authority for the row's team, and operation-specific server checks are required; the bounded active-TEST override is the only pre-flip exception. |
 | Linear-authoritative, missing/malformed authority, unsigned, incompatible-role, and unsupported states | 🔒 guarded | Controls stay read-only and fail closed. Current authority must be read back before any operational decision; the dated Linear/Linear state in `docs/truth/APP.md`/`ROLLBACK.md` is not a permanent guarantee. |
-| Locked-state browser proof | ⚠️ partial / F105 | `prod-readonly-smoke.js` and the updated structure suite prove zero live mutations and fail-closed controls. The interaction/behavior/pixel guard corpus still assumes supported pickers open before the lock and is red after the write milestone. |
+| Locked-state browser proof | ✅ F105 candidate green | `prod-readonly-smoke.js`, structure, interaction, behavior, and pixel coverage preserve zero live mutations and current fail-closed controls. F105 pins row-control checks to an exact non-TEST row, selects an exact child for the owner-ratified inline project-parent breadcrumb, permits empty-fixture fallback only after loaded state plus an independent zero owner-active row count, and requires exact eligible recovered-read correlation while persistent/pending/unmatched errors stay red. |
 | Writable-state browser proof | ✅ ported | `prod-write-gateway-browser.js` uses a fully intercepted local mock to prove mixed authority, four supported operations, CAS, verified-role attribution, TEST override, and stale-tab rejection without reaching a live backend. `test/production-write-ui-source.js` pins the source contract. |
 | Project moves, deletes/undo, new issues/sub-issues, favorites, comment edit/delete, and other unimplemented mutations | 🔒 unsupported/guarded | Historical prototype controls do not create runtime authority. Keep them guarded or absent until a separately designed, server-authorized, tested, and owner-approved milestone. |
 
@@ -63,15 +63,15 @@ Full report: `docs/audits/2026-07-09-production-foundation-audit.md`.
 | Project-row metadata clipping | owner project-row hover feedback on PR #763 | ported | Project issue rows let titles shrink before due/avatar/created metadata, so right-side chips stay visible on hover. |
 | Searchable selected-issue Actions menu | owner action-menu feedback on PR #763 | ported | Multi-select Actions now opens a Linear-style searchable command menu with Assign to, Change status, Move to project, Copy issue ID, Change due date, and Delete issue; mutating commands stay guarded. |
 | Combined filter pills and row identity | owner combined-filter screenshot feedback on PR #763 | ported | Status/client filter pills stay compact with ellipsis, and visible issue lists dedupe by issue ID before rendering. |
-| Production polish gate | owner automation request after PR #764 | **historical port; current F105 open** | The runner still selects all ten suites, but only the fast lane runs on pull requests. After the authority-gated write milestone, the fast lane passes while post-merge interaction and heavy lanes fail on superseded read-only picker assumptions; review-packet/Argos steps are skipped after heavy failure. Do not treat the aggregate gate as green until all lanes use explicit locked versus fully mocked writable states. |
+| Production polish gate | owner automation request after PR #764; F105 repair | **candidate green; cloud review + merge pending** | The runner selects all ten suites; only the fast lane runs automatically on pull requests. The F105 candidate based on current main `6a8416c` passed fast 7/7 in 143.8s and the complete aggregate in 484.4s, with exact non-TEST locked assertions, deterministic inline project-parent layout, independently proven empty-fixture recovery, fail-closed read/console correlation, fully mocked writable coverage, and post-settle zero-live-mutation audits. Require a green manual fast/interaction/heavy run on the exact candidate before merge. |
 | Production boot/loading guard | `prod-boot-budget.js` | ported | `?prod=1` is source-checked against the Production skeleton route, opens within budget, and rejects visible/leaked Analytics skeletons during Production refresh. |
 | Accessibility and keyboard-control guard | `prod-a11y-focus.js`, Production key handler | ported | Scoped axe checks pass; icon-only Filter/Display controls have accessible names; focused Production buttons keep native Enter/Space activation instead of being stolen by row keyboard shortcuts. |
 | Layout clipping guard | `prod-layout-polish.js` | ported | Desktop, compact desktop, and mobile checks reject clipped row/card metadata, wrapped filter pills, stale project-card focus rings, and off-screen menus/toasts. |
-| Reviewer visual packet | `prod-review-packet.js`, `prod-review-packet-validate.js` | 🚨 F122 private-only | The packet structure validator checks completeness, not privacy. Candidate CI no longer uploads the live-derived packet or copies its generated manifest/checklist into a public job summary. Generate and inspect it only in an access-controlled local workspace until fictional interception and strict archive canaries exist. |
-| GitHub polish workflow and issue intake | `.github/workflows/production-polish-gate.yml`, `.github/ISSUE_TEMPLATE/production-polish.yml`, `.github/pull_request_template.md`, `AGENTS.md`, `.github/copilot-instructions.md` | 🚨 F105/F122 contained | The fast/long gate epoch is stale under F105. The workflow is disabled while candidate source removes all Production screenshot/review/Argos artifact delivery and suppresses live-derived detail from public stdout/stderr. Re-enable only after merge and prove that a run publishes no visual artifact or Argos delivery. |
-| Existing behavioral gate | `docs/syncview-design/tests/behav-wired.js` | ported | Guard-mode coverage is green at `158/158`; mutation-only behaviors remain explicitly reported as `deferred-B3`. |
+| Reviewer visual packet | `prod-review-packet.js`, `prod-review-packet-validate.js` | 🚨 F122 private-only | The packet structure validator checks completeness, not privacy. Current CI does not upload the live-derived packet or copy its generated manifest/checklist into a public job summary. Generate and inspect it only in an access-controlled local workspace or ephemeral runner until fictional interception and strict archive canaries exist. |
+| GitHub polish workflow and issue intake | `.github/workflows/production-polish-gate.yml`, `.github/ISSUE_TEMPLATE/production-polish.yml`, `.github/pull_request_template.md`, `AGENTS.md`, `.github/copilot-instructions.md` | ✅ F105 repaired / 🚨 F122 private-only | F105 repairs the fixture/layout/read-audit epoch on its candidate branch. The re-enabled workflow keeps detailed logs and review/visual output runner-local, publishes no Production artifact or live-derived summary, and sends nothing to Argos. Manual dispatch is the pre-merge cloud-review path for the exact candidate. |
+| Existing behavioral gate | `docs/syncview-design/tests/behav-wired.js` | ported | Guard-mode coverage is green at `168/168`; mutation-only behavior is covered by the fully intercepted write-gateway suite. Reset waits for a loaded non-error list and uses a real-row fallback only when the default active-team fixture is empty. |
 | Finished-surface inventory gate | `docs/syncview-design/tests/prod-interaction-inventory.js` | ported | Samples unique visible controls across list/detail/board/project states, right-click context zones, hover tips, row open/checkbox/status/due/assignee/client-chip pointer controls, sub-issue body context, guarded add-sub-issue affordances, and the no-write/no-error invariant. |
-| Existing visual gate | `docs/syncview-design/tests/pixel-wired.js` | 🚨 F122 private-only | Local runs write `.codex-tmp/prod-pixel-wired` and the wired side can read live Production data. Candidate CI does not upload that directory. Keep the output untracked and access-controlled until every live request is intercepted with fictional fixtures. |
+| Existing visual gate | `docs/syncview-design/tests/pixel-wired.js` | 🚨 F122 private-only | Local and ephemeral-runner runs write `.codex-tmp/prod-pixel-wired` and the wired side can read live Production data. CI does not upload that directory. Keep the output untracked and access-controlled until every live request is intercepted with fictional fixtures. |
 | Rollback scope | frontend-only `_prod*` hardening | ported | Revert the July 9 PR/commit to undo this pass. No Supabase data, runtime flags, n8n workflows, or backend write paths were touched. |
 
 ## 2026-07-06 Foundation Session
@@ -364,13 +364,14 @@ Owner-feedback refinements applied on top of the read-only wired tab:
 14. `npm run test:prod-review` generates a compact local screenshot packet, browsable gallery, Markdown manifest, review checklist, and machine-readable JSON manifest for access-controlled reviewer/agent inspection; `npm run test:prod-review:validate` proves packet shape only. Public Actions and Argos distribution are disabled because live-derived pixels and evidence fields can contain customer-visible text.
 15. The repo PR template now includes a Production checklist for read-only boundaries, interaction polish, `npm run test:prod-polish`, review-packet inspection, and docs/rollback updates.
 16. **F122 artifact sublane contained; the finding remains open:** keeping packets out of Pages did
-    not keep them private. Public Actions visual/review/Argos uploads are removed in candidate source,
-    all 414 named retained bundles were deleted, and both unsafe producers are disabled pending merge
-    plus post-merge proof. Packet validation still proves shape, not data minimization; reconciler
-    logs and historical external Argos builds remain open.
-17. The Production polish workflow retains its weekday schedule and per-ref concurrency cancellation,
-    but is currently disabled. Re-enable it only after the no-public-output source merges and verify
-    the first run creates no visual artifact or Argos delivery.
+    not keep them private. Public Actions visual/review/Argos uploads were removed, all 414 named
+    retained bundles were deleted, and the first post-merge proof created no public visual artifact
+    or Argos delivery. Packet validation still proves shape, not data minimization; reconciler logs
+    and historical external Argos builds remain open.
+17. B1 and Production Actions were deliberately re-enabled 2026-07-15 after #836. The Production
+    workflow retains its weekday schedule and per-ref concurrency cancellation while publishing no
+    artifact, Argos delivery, or live-derived summary; detailed logs and review output remain
+    runner-local. Preserve that boundary.
 18. Project detail no longer reads as truly empty when filters hide its issues: the issue header shows visible vs total count (`0 of N`), the inline empty state names the active filter cause, and `Clear filters` restores the rows.
 19. Issue detail descriptions render common migrated Linear Markdown instead of raw authoring syntax: headings, horizontal rules, bullets, bold labels, code spans, and resource links are formatted while malformed imported resource-link markers are normalized.
 20. Filtered project boards label project-card counts as matching issue(s), hide empty columns when matching projects exist, and reserve `No matching projects` for true no-match filtered boards, so board copy reflects active issue filters instead of reading as total project size.
@@ -380,7 +381,7 @@ Owner-feedback refinements applied on top of the read-only wired tab:
 
 ## 2026-07-10 Desktop Project-Detail Row Polish
 
-1. Project-detail issue rows now render parent issue context as a secondary line under the primary issue title instead of squeezing both into one row. `prod-layout-polish.js` guards that parent trails stay inside the row and remain visually subordinate to the title.
+1. **Historical, superseded by owner-ratified #868:** this pass rendered parent context as a secondary line. Project-detail child rows now keep the title and parent breadcrumb inline within `.prod-title`; F105 updated `prod-layout-polish.js` to guard that current contract inside the row.
 2. Projects board columns now balance empty and non-empty statuses: columns with project cards get readable card width, while empty status columns remain visible but narrower. The Production review packet now records per-screenshot Production state and validates clean board/project baselines separately from the intentionally filtered list screenshot.
 3. Parent-detail review screenshots choose a compact parent issue and record visible sub-issue rows and the guarded add-sub-issue affordance. Their historical Activity-section evidence is visual-only and is not runtime event proof (F138).
 4. Selected-actions and Combined filters review screenshots now record manifest evidence for their visible desktop state: selected row count, searchable bulk command menu labels, status/client filter pills, and deduped filtered rows.

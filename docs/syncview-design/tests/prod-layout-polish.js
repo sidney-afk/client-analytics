@@ -4,6 +4,7 @@ const { chromium } = require('playwright');
 const {
   serveStatic,
   isWriteLikeRequest,
+  installReadConsoleAudit,
   installProductionInit,
   openProduction,
   formatFailures,
@@ -60,13 +61,13 @@ async function collectLayoutFailures(page, label) {
   const browser = await chromium.launch({ headless: true });
   const failures = [];
   const requests = [];
-  const errors = [];
+  let recoveredReadAttempts = 0;
+  let navigationAborts = 0;
 
   try {
     for (const vp of viewports) {
       const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
-      page.on('pageerror', e => errors.push(`${vp.name}: ${e.message}`));
-      page.on('console', msg => { if (msg.type() === 'error') errors.push(`${vp.name}: ${msg.text()}`); });
+      const readConsoleAudit = installReadConsoleAudit(page);
       page.on('request', req => requests.push(req));
       await installProductionInit(page);
       await openProduction(page, port);
@@ -89,27 +90,47 @@ async function collectLayoutFailures(page, label) {
       });
       failures.push(...await collectLayoutFailures(page, `${vp.name} combined filters`));
 
-      const projectId = await page.evaluate(() => Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent)) || '');
-      if (projectId) {
-        await page.evaluate(id => _prodOpenProject(id), projectId);
+      const filtersBeforeProject = await page.evaluate(() => JSON.parse(JSON.stringify(_prodState.filters || [])));
+      const projectFixture = await page.evaluate(() => {
+        const child = _prodIssues().find(i => i.project && i.parent);
+        if (child) return { projectId: child.project, childId: child.id, team: child.team };
+        const projectId = Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent)) || '';
+        const parent = projectId ? _prodIssues().find(i => i.project === projectId && !i.parent) : null;
+        return { projectId, childId: '', team: parent ? parent.team : '' };
+      });
+      if (projectFixture.projectId) {
+        if (!projectFixture.childId) failures.push(`${vp.name} project detail needs a real child-row fixture for the inline parent-trail check`);
+        await page.evaluate(fixture => {
+          _prodState.team = fixture.team || 'video';
+          _prodState.tab = 'all';
+          _prodState.filters = [];
+          _prodState.showSubIssues = true;
+          _prodOpenProject(fixture.projectId);
+        }, projectFixture);
         await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
         failures.push(...await collectLayoutFailures(page, `${vp.name} project detail`));
-        const projectIssueTitleHierarchy = await page.evaluate(() => {
-          const row = document.querySelector('[data-prod-project-parent]:not([data-prod-project-parent=""])');
-          if (!row) return true;
-          const title = row.querySelector('.prod-project-title-main');
+        const projectIssueTitleHierarchy = await page.evaluate(childId => {
+          if (!childId) return false;
+          const row = document.querySelector('[data-prod-project-issue="' + CSS.escape(childId) + '"]');
+          if (!row || !row.getAttribute('data-prod-project-parent')) return false;
+          const holder = row.querySelector('.prod-title');
+          const title = holder && holder.querySelector(':scope > b');
           const parent = row.querySelector('.prod-parent-title');
-          if (!title || !parent) return false;
+          if (!holder || !title || !parent || parent.parentElement !== holder) return false;
           const rowRect = row.getBoundingClientRect();
           const titleRect = title.getBoundingClientRect();
           const parentRect = parent.getBoundingClientRect();
-          return parentRect.top >= titleRect.bottom - 2
+          return Math.abs(parentRect.top - titleRect.top) < 4
             && titleRect.left >= rowRect.left - 1
             && parentRect.left >= rowRect.left - 1
             && titleRect.right <= rowRect.right + 1
             && parentRect.right <= rowRect.right + 1;
-        });
-        if (!projectIssueTitleHierarchy) failures.push(`${vp.name} project detail parent issue trail should render as a secondary line inside the row`);
+        }, projectFixture.childId);
+        if (!projectIssueTitleHierarchy) failures.push(`${vp.name} project detail parent issue trail should render inline beside the title`);
+        await page.evaluate(filters => {
+          _prodState.filters = filters;
+          _prodRender();
+        }, filtersBeforeProject);
         const projectFilterEmptyExplained = await page.evaluate(() => {
           const filterCount = (_prodState.filters || []).length;
           const id = _prodState.openProjectId || '';
@@ -177,14 +198,17 @@ async function collectLayoutFailures(page, label) {
       await page.locator('.prod-search-btn').click().catch(() => {});
       if (await page.locator('.prod-cmd').count()) failures.push(...await collectLayoutFailures(page, `${vp.name} command palette`));
       await page.keyboard.press('Escape').catch(() => {});
+      const readConsole = await readConsoleAudit.settle();
+      recoveredReadAttempts += readConsole.recoveredReadAttempts;
+      navigationAborts += readConsole.navigationAborts;
+      if (!readConsole.ok) failures.push(`${vp.name} console/page errors: ${readConsole.error}`);
       await page.close().catch(() => {});
     }
 
     const writes = requests.filter(isWriteLikeRequest);
     if (writes.length) failures.push('Write-like requests during layout pass: ' + writes.slice(0, 5).map(r => `${r.method()} ${r.url()}`).join(' | '));
-    if (errors.length) failures.push('Console/page errors during layout pass: ' + errors.slice(0, 5).join(' | '));
     if (failures.length) throw new Error(formatFailures('prod-layout-polish failures', failures));
-    console.log('prod-layout-polish: desktop, compact desktop, and mobile list/filter/project/card/menu clipping checks passed');
+    console.log(`prod-layout-polish: desktop, compact desktop, and mobile list/filter/project/card/menu clipping checks plus ${recoveredReadAttempts} recovered read retries and ${navigationAborts} navigation-aborted reads passed`);
   } finally {
     await browser.close().catch(() => {});
     server.close();

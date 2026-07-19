@@ -1500,15 +1500,19 @@ provably — as the floor on which later improvements are built.
   behavior ledger. Current states distinguish ✅ ported, 🔐 authority-gated, 🔒 unsupported/
   guarded, and ⬜ pending. The former `PARITY.md`/B2 `deferred-B3` text is historical and cannot
   authorize current behavior. Every Production-tab PR updates the living ledger.
-- **10.8.6 Verification that can see (F105 currently OPEN):** every `_prod*` PR must exercise two
+- **10.8.6 Verification that can see (F105 repaired; permanent gate):** every `_prod*` PR must exercise two
   explicit browser states: (a) locked live-read/zero-mutation, where supported controls fail closed
   according to current UX and no live mutation is sent; (b) fully intercepted writable fixtures
   covering verified role, team authority, bounded active-TEST override, all four supported
   operations, conflicts, and stale-tab rejection. Interaction, `behav-wired`, pixel, and review
   packet assertions must declare which state they test; unsupported mutations remain guarded.
   The exact candidate commit must pass the aggregate `npm run test:prod-polish`, not only the fast
-  PR subset, and a REVIEWER examines fresh artifacts. Current interaction/heavy lanes are red on
-  superseded B2 picker assumptions, so this definition of done is not met.
+  PR subset, and a REVIEWER examines fresh runner-local evidence. F105 repaired the superseded
+  picker, inline project-parent layout, empty-fixture synchronization, and shared read/console audit
+  without relaxing the live-mutation invariant. Future candidates must preserve the explicit
+  non-TEST locked fixture and fully intercepted writable fixture split; only exact eligible
+  method+URL recovery may clear a matching resource error, while persistent, pending, unrelated,
+  unproven-abort, page/console, and write-like failures stay red.
 
 ---
 

@@ -14,6 +14,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
+const selectionOnly = process.argv.includes('--selection-only');
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -368,31 +369,76 @@ async function selectionChecks(page) {
     _syncviewStaffIdentityVerified = true;
     _prodState.authority = { video: 'linear', graphics: 'linear' };
     _prodState.authorityLoaded = true;
-    _prodRender();
-    const issue = _prodIssueRows()[0] || _prodIssues()[0];
+    // The bounded active-TEST override is intentionally writable even while
+    // team authority is Linear. Pin this locked-state proof to a real client.
+    const issue = _prodIssues().find(row => row
+      && row.id
+      && !row.parent
+      && (row.team === 'video' || row.team === 'graphics')
+      && !_prodTestWriteOverride(row))
+      || _prodIssues().find(row => row
+        && row.id
+        && (row.team === 'video' || row.team === 'graphics')
+        && !_prodTestWriteOverride(row));
+    if (issue) {
+      _prodState.view = 'list';
+      _prodState.team = issue.team;
+      _prodState.tab = 'all';
+      _prodState.filters = [];
+      _prodState.clientSlug = '';
+      _prodState.openId = '';
+      _prodState.openBatchId = '';
+      _prodState.openProjectId = '';
+      _prodRender();
+    }
     return {
+      id: issue ? issue.id : '',
+      nonTest: !!(issue && !_prodTestWriteOverride(issue)),
       status: _prodWriteGateText(issue, 'status'),
       due: _prodWriteGateText(issue, 'due'),
       assignee: _prodWriteGateText(issue, 'assignee'),
     };
   });
-  if (![lockedWriteState.status, lockedWriteState.due, lockedWriteState.assignee]
+  if (!lockedWriteState.id || !lockedWriteState.nonTest
+    || ![lockedWriteState.status, lockedWriteState.due, lockedWriteState.assignee]
     .every(text => text.includes('stays read-only while Linear is authoritative.'))) {
-    failures.push('Linear-authoritative fixture did not expose the locked row-control behavior');
+    failures.push('Linear-authoritative fixture did not expose a non-TEST locked row-control behavior');
   }
-  await page.locator('#prodRoot .prod-status[onclick]').first().click({ timeout: 2500, force: true });
+  const escapedLockedRowId = await page.evaluate(id => CSS.escape(String(id || '')), lockedWriteState.id);
+  const lockedRowSelector = `#prodRoot [data-prod-row=${escapedLockedRowId}]`;
+  const restoreLockedRow = async () => {
+    const visible = await page.evaluate(id => {
+      const issue = _prodIssue(id);
+      if (!issue || _prodTestWriteOverride(issue)) return false;
+      _prodState.view = 'list';
+      _prodState.team = issue.team;
+      _prodState.tab = 'all';
+      _prodState.filters = [];
+      _prodState.clientSlug = '';
+      _prodState.openId = '';
+      _prodState.openBatchId = '';
+      _prodState.openProjectId = '';
+      _prodRender();
+      return !!document.querySelector('[data-prod-row="' + CSS.escape(id) + '"]');
+    }, lockedWriteState.id);
+    if (!visible) throw new Error('non-TEST Linear-authoritative fixture row was not visible');
+  };
+  await restoreLockedRow();
+  await page.locator(`${lockedRowSelector} .prod-status[onclick]`).dispatchEvent('click');
   await page.waitForTimeout(120);
   const statusLayer = await page.locator('#prodLayer .prod-pop [data-prod-pick]').count();
   const statusToast = await page.locator('#prodToast.show').textContent().catch(() => '');
   if (statusLayer || !statusToast.includes(lockedWriteState.status)) failures.push('row status icon did not stay locked with the authority guard');
   await reset(page, 'list');
-  await page.locator('#prodRoot .prod-due').first().click({ timeout: 2500, force: true });
+  await restoreLockedRow();
+  await page.locator(`${lockedRowSelector} .prod-due`).dispatchEvent('click');
   await page.waitForTimeout(120);
   const dueLayer = await page.locator('#prodLayer .prod-duepop').count();
   const dueToast = await page.locator('#prodToast.show').textContent().catch(() => '');
   if (dueLayer || !dueToast.includes(lockedWriteState.due)) failures.push('row due pill did not stay locked with the authority guard');
   await reset(page, 'list');
-  await page.locator('#prodRoot .prod-assign-hot').first().click({ timeout: 2500, force: true });
+  await restoreLockedRow();
+  await page.locator(`${lockedRowSelector} .prod-assign-hot`).dispatchEvent('click');
   await page.waitForTimeout(120);
   const assignLayer = await page.locator('#prodLayer .prod-pop [data-prod-pick]').count();
   const assignToast = await page.locator('#prodToast.show').textContent().catch(() => '');
@@ -514,18 +560,25 @@ async function selectionChecks(page) {
     await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
     if (await page.locator('.prod-error').count()) throw new Error('Production preview rendered an error card');
 
-    const states = ['list', 'listSelected', 'filteredEmpty', 'detail', 'board', 'boardSelected', 'project'];
     const results = [];
     const failures = [];
-    for (const state of states) {
-      const r = await clickInventory(page, state);
-      results.push(`${state}:${r.checked}`);
-      failures.push(...r.failures);
+    let hoverChecked = 0;
+    if (selectionOnly) {
+      failures.push(...await selectionChecks(page));
+      results.push('selection-only');
+    } else {
+      const states = ['list', 'listSelected', 'filteredEmpty', 'detail', 'board', 'boardSelected', 'project'];
+      for (const state of states) {
+        const r = await clickInventory(page, state);
+        results.push(`${state}:${r.checked}`);
+        failures.push(...r.failures);
+      }
+      failures.push(...await rightClickChecks(page));
+      const hover = await hoverChecks(page);
+      hoverChecked = hover.checked;
+      failures.push(...hover.failures);
+      failures.push(...await selectionChecks(page));
     }
-    failures.push(...await rightClickChecks(page));
-    const hover = await hoverChecks(page);
-    failures.push(...hover.failures);
-    failures.push(...await selectionChecks(page));
 
     const writes = requests.filter(writeLike);
     if (writes.length) failures.push('write-like requests observed: ' + writes.slice(0, 5).map(r => `${r.method()} ${r.url()}`).join(' | '));
@@ -534,7 +587,8 @@ async function selectionChecks(page) {
     if (probeErrors.length) failures.push('page probe errors: ' + probeErrors.slice(0, 5).join(' | '));
 
     if (failures.length) throw new Error(failures.join('\n'));
-    console.log(`prod-interaction-inventory: click states ${results.join(', ')}, right-click menus, ${hover.checked} hover tips, no writes/errors passed`);
+    if (selectionOnly) console.log('prod-interaction-inventory: locked non-TEST selection path and no writes/errors passed');
+    else console.log(`prod-interaction-inventory: click states ${results.join(', ')}, right-click menus, ${hoverChecked} hover tips, no writes/errors passed`);
   } finally {
     await browser.close().catch(() => {});
     server.close();

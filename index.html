@@ -13235,7 +13235,11 @@
         const cache = wlReadCache();
         wlState.loading = true;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
-        if (cache && wlState.planHasSnapshot) {
+        // Phase 1's exact due-date view remains a safe first paint even before
+        // the plan sidecar has answered. This keeps the post-merge / pre-deploy
+        // window useful without a runtime gate; saved overrides replace the
+        // fallback only after an authoritative list response.
+        if (cache) {
             wlApplyData(cache.issues, cache.fetchedAt);
             renderWorkloadAll();
         } else {

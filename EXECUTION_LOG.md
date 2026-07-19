@@ -534,6 +534,10 @@ All times are UTC unless noted.
   Sunday deadlines/plan days cannot disappear, and computes overload styling from the rows visible
   under the current filters so hidden editors cannot make a filtered day look falsely over capacity.
   The unfiltered 5-video / 15-graphics thresholds and all-visible/no-spill rule remain unchanged.
+- During the required post-merge migration/function deployment window, a cached Workload snapshot
+  now paints immediately in Phase-1 exact-due-date mode while plan editing remains visibly paused;
+  no runtime flag or speculative plan data is introduced. An authoritative sidecar list replaces
+  that fallback once the new function is available.
 - Browser persistence assurance remains intentionally unclaimed until the post-deploy private TEST
   drill proves one exact set/list/clear cycle, due-date immutability, short-count rollback, and
   byte-exact cleanup of any sidecar row that did not exist before the drill.

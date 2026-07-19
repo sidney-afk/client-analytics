@@ -154,6 +154,9 @@ ok(/planStatus === 'ready'/.test(INDEX)
   && /last good plan is shown; editing is paused/.test(INDEX)
   && /Deadlines are shown as a clearly marked fallback; editing is disabled/.test(INDEX),
 'failed plan reads never masquerade as an authoritative empty override map');
+ok(/if \(cache\) \{\s*wlApplyData\(cache\.issues, cache\.fetchedAt\);\s*renderWorkloadAll\(\);/.test(INDEX)
+  && !/if \(cache && wlState\.planHasSnapshot\)/.test(INDEX),
+'cached Phase-1 due dates paint immediately while the sidecar is unavailable');
 ok(/const WL_PLAN_READ_TIMEOUT_MS = 8000/.test(INDEX)
   && /const controller = new AbortController\(\)/.test(INDEX)
   && /signal: controller\.signal/.test(INDEX),

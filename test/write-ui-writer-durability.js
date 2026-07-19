@@ -103,6 +103,20 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   'Calendar and Samples can defer legacy status/comment effects until the source row is durable');
   context._writeUiUseGatewayWhenReady = async () => true;
 
+  const calSourceOnlyDeferred = await context._calPostLinearComment('', 'Calendar source only', 'Fixture', {
+    post: { id: 'targetless-cal' }, component: 'graphic', deferLegacyUntilSourceSave: true
+  });
+  const sxrSourceOnlyDeferred = await context._sxrPostLinearComment('', 'Samples source only', 'Fixture', {
+    post: { id: 'targetless-sxr' }, component: 'graphic', deferLegacyUntilSourceSave: true
+  });
+  assert(calSourceOnlyDeferred && calSourceOnlyDeferred.skipped === true
+    && calSourceOnlyDeferred.source_only === true
+    && calSourceOnlyDeferred.deferred_until_source_save === true
+    && sxrSourceOnlyDeferred && sxrSourceOnlyDeferred.skipped === true
+    && sxrSourceOnlyDeferred.source_only === true
+    && sxrSourceOnlyDeferred.deferred_until_source_save === true,
+  'gateway-rerouted targetless requests still reserve source-only ownership before the source save');
+
   calls.length = 0;
   await context._calPushStatusToLinear('', 'Approved', { post: { id: 'none' }, component: 'video' });
   await context._sxrPostLinearComment('', 'No target', 'Fixture', { post: { id: 'none' }, component: 'video' });
@@ -269,9 +283,10 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       && fixture.handler.includes(`${fixture.state}.drafts[key] = rawDraft`)
       && fixture.handler.includes('deferLegacyUntilSourceSave: true')
       && fixture.handler.includes(fixture.activeBypass)
+      && fixture.handler.includes('|| inspection.rearmed_team_delivery === true')
       && fixture.handler.includes("_writeUiLegacyPinnedSourceTransport('" + fixture.surface + "', deferredLegacyOutboxIds)")
       && fixture.handler.includes(fixture.noLinear)
-      && fixture.handler.includes("_writeUiFlushDeferredLegacyTweak('" + fixture.surface + "'")
+      && fixture.handler.includes('_writeUiFlushDeferredLegacyTweak(')
       && fixture.handler.includes("_writeUiScheduleDeferredLegacyTweak('" + fixture.surface + "')")
       && !fixture.handler.includes('_writeUiDiscardDeferredLegacyTweak')
       && fixture.approvals.every(field => fixture.handler.includes(field + ': post.' + field))
@@ -283,9 +298,27 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       && sourceErrorAt > settledAt
       && fixture.handler.indexOf(fixture.render + ';', sourceErrorAt) > sourceErrorAt,
     fixture.label + ' stages exact source edits and restores the byte-exact draft after source failure');
+    const terminalAt = fixture.handler.indexOf(
+      "if (deliveryOutcome && deliveryOutcome.state === 'superseded')"
+    );
+    const terminalRollbackAt = fixture.handler.indexOf(
+      '_writeUiApplySupersededTeamDelivery(', terminalAt
+    );
+    const terminalReturnAt = fixture.handler.indexOf('return;', terminalRollbackAt);
+    const cardRemovalAt = fixture.handler.indexOf(
+      fixture.surface === 'sxr' ? '_sxrReviewRemoveCard(pid)' : '_calReviewRemoveCard(pid)',
+      terminalRollbackAt
+    );
+    assert(terminalAt >= 0
+      && terminalRollbackAt > terminalAt
+      && terminalReturnAt > terminalRollbackAt
+      && cardRemovalAt > terminalReturnAt,
+    fixture.label + ' terminal team-delivery rollback returns before card removal or success toast');
   }
   const legacyStage = extract('_writeUiQueueDeferredLegacyTweak');
   const legacySignature = extract('_writeUiLegacyItemSignature');
+  const legacyItemMatches = extract('_writeUiLegacyItemMatches');
+  const legacyTweakKey = extract('_writeUiLegacyTweakKey');
   const legacyApprovalClears = extract('_writeUiLegacyApprovalClears');
   const legacyApprovalClearsFromEdits = extract('_writeUiLegacyApprovalClearsFromEdits');
   const legacyApprovalClearsValid = extract('_writeUiLegacyApprovalClearsValid');
@@ -297,23 +330,72 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   const legacyTargetLock = extract('_writeUiLegacyTargetWithLock');
   const legacyGateTargetIdentity = extract('_writeUiLegacyGateTargetIdentity');
   const legacyGateTargets = extract('_writeUiLegacyGateTargets');
+  const legacySourceCommentReflected = extract('_writeUiLegacySourceCommentReflected');
+  const legacyGateStatusMatches = extract('_writeUiLegacyGateStatusMatches');
   const legacyGateReflected = extract('_writeUiLegacyGateReflected');
   const legacyGateSignature = extract('_writeUiLegacyGateSignature');
   const legacyTargetPair = extract('_writeUiLegacyTargetPair');
   const legacyTargetDecision = extract('_writeUiLegacyTargetDecision');
+  const legacyTeamRearmValid = extract('_writeUiLegacyTeamRearmValid');
   const legacyTargetLedgerLock = extract('_writeUiLegacyTargetLedgerWithLock');
   const legacyInspectTarget = extract('_writeUiLegacyInspectTargetTweak');
+  const legacyRefreshActive = extract('_writeUiLegacyRefreshActiveTweak');
+  const legacySupersededSourceItem = extract('_writeUiLegacySupersededSourceItem');
+  const legacySupersededTeamItem = extract('_writeUiLegacySupersededTeamItem');
+  const legacyTeamDeliveryReceiptItem = extract('_writeUiLegacyTeamDeliveryReceiptItem');
+  const legacyRecordedTeamDeliveryReceiptItem =
+    extract('_writeUiLegacyRecordedTeamDeliveryReceiptItem');
+  const legacyStoredTeamTerminalItem = extract('_writeUiLegacyStoredTeamTerminalItem');
   const requestTweakMarkLocalStatus = extract('_writeUiRequestTweakMarkLocalStatus');
   const requestTweakRestoreLocalStatus = extract('_writeUiRequestTweakRestoreLocalStatus');
   const requestTweakRollback = extract('_writeUiRollbackRequestTweak');
+  const requestTweakApplySupersededTeam = extract('_writeUiApplySupersededTeamDelivery');
   const legacyBuildRecords = extract('_writeUiBuildDeferredLegacyTweakRecords');
   const legacyAppend = extract('_writeUiLegacyAppendOutboxItem');
   const legacyFinalize = extract('_writeUiLegacyFinalizeFlush');
+  const legacyDeliveryUnconfirmedError = extract('_writeUiLegacyDeliveryUnconfirmedError');
+  const legacyFlushDeferred = extract('_writeUiFlushDeferredLegacyTweak');
   for (const [surface, handler] of [['Calendar', calReview], ['Samples', sxrReview]]) {
     const stageAt = handler.indexOf('await _writeUiQueueDeferredLegacyTweak');
     const stageCall = handler.slice(stageAt, handler.indexOf(');', stageAt) + 2);
     assert(stageAt >= 0 && stageCall.includes('repairEdits') && stageCall.includes('inspection'),
       surface + ' stages the exact inspected action and approval clears from its committed source edits');
+    const reviewState = surface === 'Samples' ? '_sxrReviewState' : '_calReviewState';
+    const surfaceKey = surface === 'Samples' ? 'sxr' : 'calendar';
+    assert(handler.includes(`attemptId = String(${reviewState}.draftActionIds[key] || '')`)
+      && handler.includes(`inspection = await _writeUiLegacyRefreshActiveTweak('${surfaceKey}', inspection)`),
+    surface + ' reuses only the preserved action id and rechecks active ownership before retrying source');
+    assert(handler.includes('deferredLegacySourceOnly = staged.source_only === true')
+      && handler.includes("'Change request saved — confirmation is still pending'")
+      && handler.includes("'Change request sent'")
+      && handler.includes("'Change request sent — the team has been notified'"),
+    surface + ' carries source-only ownership through success without claiming a nonexistent team delivery');
+    const postFlushSupersededAt = handler.indexOf('let deliveryOutcome = null');
+    const explicitSupersededAt = handler.indexOf(
+      "deliveryOutcome.state === 'superseded'",
+      postFlushSupersededAt
+    );
+    const supersededApplyAt = handler.indexOf(
+      '_writeUiApplySupersededTeamDelivery(',
+      explicitSupersededAt
+    );
+    const cardRemovalAt = handler.indexOf(
+      surface === 'Samples' ? '_sxrReviewRemoveCard(pid)' : '_calReviewRemoveCard(pid)',
+      supersededApplyAt
+    );
+    const teamNotifiedAt = handler.indexOf(
+      "'Change request sent — the team has been notified'",
+      supersededApplyAt
+    );
+    assert(postFlushSupersededAt > handler.lastIndexOf('if (current._saveError)', postFlushSupersededAt)
+      && explicitSupersededAt > postFlushSupersededAt
+      && supersededApplyAt > explicitSupersededAt
+      && cardRemovalAt > supersededApplyAt
+      && teamNotifiedAt > supersededApplyAt
+      && handler.includes("String(error && error.code || '') === 'legacy_tweak_delivery_unconfirmed'")
+      && handler.includes("committedDeliveryOutcome.state === 'superseded'")
+      && handler.includes("'Change request saved — a newer status was applied'"),
+    surface + ' branches on explicit supersession before card removal or any team-notified toast');
   }
   for (const fixture of [
     {
@@ -321,22 +403,20 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       surface: 'calendar',
       handler: calReview,
       sourceSave: 'await _calFlushCardSave(pid)',
-      teamFlush: "await _writeUiFlushDeferredLegacyTweak('calendar'",
       state: '_calReviewState',
       render: '_calRenderBody({ preserveScroll: true })',
       conflictName: 'targetConflict',
-      committedIds: "await _writeUiFlushDeferredLegacyTweak('calendar', outcome.ids)"
+      committedIds: 'committedDeliveryOutcome = await _writeUiFlushDeferredLegacyTweak'
     },
     {
       label: 'Samples',
       surface: 'sxr',
       handler: sxrReview,
       sourceSave: 'await _sxrFlushCardSave(pid)',
-      teamFlush: "await _writeUiFlushDeferredLegacyTweak('sxr'",
       state: '_sxrReviewState',
       render: '_sxrRenderBody({ preserveScroll: true })',
       conflictName: 'targetConflict',
-      committedIds: "await _writeUiFlushDeferredLegacyTweak('sxr', outcome.ids)"
+      committedIds: 'committedDeliveryOutcome = await _writeUiFlushDeferredLegacyTweak'
     }
   ]) {
     const targetLockAt = fixture.handler.indexOf('_writeUiLegacyTargetWithLock(');
@@ -355,7 +435,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     const reconcileAt = fixture.handler.indexOf('_writeUiLegacyReconcileCommittedTweak', conflictOutcomeAt);
     const restoredDraftAt = fixture.handler.indexOf(`${fixture.state}.drafts[key] = rawDraft`, conflictOutcomeAt);
     const restoredErrorAt = fixture.handler.indexOf(
-      `${fixture.state}.errors[key] = ${fixture.conflictName}.delivered`,
+      `${fixture.state}.errors[key] = ${fixture.conflictName}.source_superseded`,
       restoredDraftAt
     );
     const committedOutcomeAt = fixture.handler.indexOf("outcome.state === 'committed'", settledAt);
@@ -380,7 +460,8 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       && savedTeamAt > Math.max(conflictOutcomeAt, committedOutcomeAt),
     fixture.label + ' resolves ownership and staging inside the target lock, then flushes team debt only after target release');
     assert(conflictOutcome.includes(`${fixture.state}.drafts[key] = rawDraft`)
-      && conflictOutcome.includes(`${fixture.state}.errors[key] = ${fixture.conflictName}.delivered`)
+      && conflictOutcome.includes(`${fixture.state}.errors[key] = ${fixture.conflictName}.source_superseded`)
+      && conflictOutcome.includes(`${fixture.conflictName}.source_superseded !== true`)
       && conflictOutcome.includes(`${fixture.state}.draftActionIds[key] = failedActionId`)
       && conflictOutcome.includes(`${fixture.state}.errorActionIds[key] = failedActionId`)
       && conflictOutcome.includes(fixture.render)
@@ -459,6 +540,12 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     && sxrLegacyOutbox.indexOf("_writeUiLegacyReconcileCommittedTweak('sxr', it)")
       < sxrLegacyOutbox.indexOf('const resp = await fetch(endpoint'),
   'authoritative confirmation is durably remembered and reconciled before the team drain can remove its gate');
+  assert(!legacyGate.includes('sourceAcknowledged')
+    && !calLegacyOutbox.includes('sourceAcknowledged')
+    && !sxrLegacyOutbox.includes('sourceAcknowledged')
+    && calLegacyOutbox.includes('await _writeUiLegacySourceGateState(it, 3)')
+    && sxrLegacyOutbox.includes('await _writeUiLegacySourceGateState(it, 3)'),
+  'a successful source response never bypasses the fresh authoritative state check before team delivery');
   assert(legacyFinalize.includes('const latest of _writeUiLegacyOutboxItems(surface)')
     && legacyFinalize.includes('_writeUiLegacyItemMatches(latest, prior)'),
   'outbox finalization preserves records staged while an older flush was in flight');
@@ -504,8 +591,64 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     client_title_approved_at: '2026-07-18T00:00:00Z', kasper_approved_at: '',
     graphic_comments: [{ id: 'comment-1', body: 'Please revise', author: 'Client', role: 'client', audience: 'client', is_tweak: true }]
   }];
-  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(gateItem, 1), 'pending',
-    'a canonical comment waits until every approval clear committed by the action is authoritative');
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(gateItem, 1), 'landed_pending',
+    'a landed canonical comment keeps ownership while approval clears are still propagating');
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(
+    Object.assign({}, gateItem, { queuedAt: Date.now() - 2000 }),
+    1
+  ), 'superseded',
+  'a landed partial source commit becomes bounded comment-only ownership instead of blocking forever');
+  gateContext._writeUiLegacySourceRows = async () => [{
+    id: 'post-1', graphic_status: 'Approved', graphic_linear_issue_id: 'https://linear.invalid/GRA-1',
+    client_video_approved_at: '', client_graphic_approved_at: '',
+    client_title_approved_at: '', kasper_approved_at: '',
+    graphic_comments: [{
+      id: 'comment-1', body: 'Please revise', author: 'Client',
+      role: 'client', audience: 'client', is_tweak: true
+    }]
+  }];
+  const rearmedGateItem = Object.assign({}, gateItem, {
+    queuedAt: Date.now(),
+    rearmed_team_delivery: true
+  });
+  assert.strictEqual(
+    await gateContext._writeUiLegacySourceGateState(rearmedGateItem, 1),
+    'landed_pending',
+    'a rearmed exact action stays pending while its fresh source save has not restored the intended status'
+  );
+  assert.strictEqual(
+    await gateContext._writeUiLegacySourceGateState(Object.assign({}, rearmedGateItem, {
+      queuedAt: Date.now() - 2000
+    }), 1),
+    'superseded',
+    'a rearmed action still becomes terminal after the bounded source-save window'
+  );
+  const relinkedSourceOnlyItem = {
+    id: 'deferred_calendar_comment-source_source',
+    kind: 'source_only',
+    transport: 'source_only',
+    queuedAt: Date.now(),
+    payload: {},
+    source_gate: Object.assign({}, gateItem.source_gate, {
+      comment_id: 'comment-source',
+      linear_issue: ''
+    })
+  };
+  gateContext._writeUiLegacySourceRows = async () => [{
+    id: 'post-1', graphic_status: 'Tweaks Needed',
+    graphic_linear_issue_id: 'https://linear.invalid/GRA-2',
+    client_video_approved_at: '', client_graphic_approved_at: '',
+    client_title_approved_at: '', kasper_approved_at: '',
+    graphic_comments: [{
+      id: 'comment-source', body: 'Please revise', author: 'Client',
+      role: 'client', audience: 'client', is_tweak: true
+    }]
+  }];
+  assert.strictEqual(
+    await gateContext._writeUiLegacySourceGateState(relinkedSourceOnlyItem, 1),
+    'superseded',
+    'an exact landed source-only comment becomes comment-only ownership if its target link changes later'
+  );
   gateContext._writeUiLegacySourceRows = async () => [{
     id: 'post-1', graphic_status: 'Tweaks Needed', graphic_linear_issue_id: 'https://linear.invalid/GRA-1',
     client_video_approved_at: '', client_graphic_approved_at: '',
@@ -537,12 +680,18 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     payload: { issue: 'https://linear.invalid/GRA-1', status: 'Tweaks Needed' }
   });
   assert.strictEqual(await gateContext._writeUiLegacySourceGateState(statusGateItem, 1), 'committed');
-  gateContext._writeUiLegacySourceRows = async () => [{
-    id: 'post-1', graphic_status: 'Approved', graphic_linear_issue_id: 'https://linear.invalid/GRA-1',
-    graphic_comments: [{ id: 'comment-1', body: 'Please revise', author: 'Client', role: 'client', audience: 'client', is_tweak: true }]
-  }];
+  let postSaveFreshReads = 0;
+  gateContext._writeUiLegacySourceRows = async () => {
+    postSaveFreshReads++;
+    return [{
+      id: 'post-1', graphic_status: 'Approved', graphic_linear_issue_id: 'https://linear.invalid/GRA-1',
+      graphic_comments: [{ id: 'comment-1', body: 'Please revise', author: 'Client', role: 'client', audience: 'client', is_tweak: true }]
+    }];
+  };
   assert.strictEqual(await gateContext._writeUiLegacySourceGateState(statusGateItem, 1), 'superseded',
     'a delayed status notification cannot overwrite newer source truth');
+  assert.strictEqual(postSaveFreshReads, 1,
+    'even a post-save flush performs a fresh authoritative source read before classifying delivery');
   gateContext._writeUiLegacySourceRows = async () => [{
     id: 'post-1', graphic_status: 'Tweaks Needed', graphic_linear_issue_id: 'https://linear.invalid/GRA-1',
     graphic_comments: [{ id: 'comment-1', body: 'Different text', author: 'Client', role: 'client', audience: 'client', is_tweak: true }]
@@ -557,20 +706,18 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     'a relinked source row cannot drain feedback to its obsolete issue');
   const wrongPrincipal = Object.assign({}, gateItem, { source_gate: Object.assign({}, gateItem.source_gate, { principal: 'client:other' }) });
   assert.strictEqual(await gateContext._writeUiLegacySourceGateState(wrongPrincipal, 1), 'principal_mismatch');
-  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(wrongPrincipal, 1, { sourceAcknowledged: true }), 'principal_mismatch',
-    'an ephemeral source acknowledgement cannot bypass principal validation');
   const invalidApprovalClears = Object.assign({}, gateItem, {
     source_gate: Object.assign({}, gateItem.source_gate, {
       approval_clears: gateItem.source_gate.approval_clears.concat('arbitrary_post_field')
     })
   });
-  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(invalidApprovalClears, 1, { sourceAcknowledged: true }), 'conflict',
-    'an ephemeral source acknowledgement cannot authorize an approval clear outside the surface allowlist');
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(invalidApprovalClears, 1), 'conflict',
+    'a queued action cannot authorize an approval clear outside the surface allowlist');
   const corruptAckPayload = Object.assign({}, gateItem, {
     payload: Object.assign({}, gateItem.payload, { issue: 'https://linear.invalid/GRA-999' })
   });
-  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(corruptAckPayload, 1, { sourceAcknowledged: true }), 'conflict',
-    'an ephemeral source acknowledgement cannot authorize a changed queued payload');
+  assert.strictEqual(await gateContext._writeUiLegacySourceGateState(corruptAckPayload, 1), 'conflict',
+    'a queued action cannot authorize a changed payload');
   gateContext._writeUiLegacySourceRows = async () => [];
   const expired = Object.assign({}, gateItem, { queuedAt: Date.now() - 5000 });
   assert.strictEqual(await gateContext._writeUiLegacySourceGateState(expired, 1), 'expired',
@@ -675,6 +822,25 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
         approval_clears: fixture.approvalClears.slice()
       })
     });
+    const beforeSuperseded = JSON.stringify({
+      posts: reconcileContext[fixture.stateName].posts,
+      review: reconcileContext[fixture.reviewName]
+    });
+    assert.strictEqual(
+      reconcileContext._writeUiLegacyReconcileCommittedTweak(
+        fixture.surface,
+        Object.assign({}, reconcileItem, { source_only_superseded: true })
+      ),
+      true,
+      fixture.surface + ' accepts a comment-only superseded tombstone without full reconciliation'
+    );
+    assert(JSON.stringify({
+      posts: reconcileContext[fixture.stateName].posts,
+      review: reconcileContext[fixture.reviewName]
+    }) === beforeSuperseded
+      && reconcileRenders === 0
+      && reconcileCacheWrites === 0,
+    fixture.surface + ' comment-only tombstone performs zero status, approval, render, or cache mutation');
     const beforeBusy = JSON.stringify({
       posts: reconcileContext[fixture.stateName].posts,
       review: reconcileContext[fixture.reviewName]
@@ -880,6 +1046,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   vm.createContext(committedContext);
   for (const name of [
     '_writeUiLegacyApprovalClears',
+    '_writeUiLegacyGateSignature',
     '_writeUiLegacyDrainWithLock', '_writeUiLegacyRetireCommittedTweak',
     '_writeUiLegacyItemSignature', '_writeUiLegacyItemMatches',
     '_writeUiLegacyCommittedTweakRead', '_writeUiLegacyCommittedTweakWrite',
@@ -903,18 +1070,86 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     committedContext._writeUiLegacyItemSignature(changedApprovalSignature),
     'changing the exact approval clears changes the durable action signature'
   );
+  for (const [label, changed] of [
+    ['delivery receipts', { team_delivery_receipts: ['deferred_calendar_comment-1_status'] }],
+    ['delivery confirmation', { team_delivery_confirmed: true }],
+    ['rearm ownership', { rearmed_team_delivery: true }]
+  ]) {
+    assert.notStrictEqual(
+      committedContext._writeUiLegacyItemSignature(committedItem),
+      committedContext._writeUiLegacyItemSignature(Object.assign({}, committedItem, changed)),
+      'changing ' + label + ' changes the durable action signature'
+    );
+  }
   assert.strictEqual(committedContext._writeUiLegacyRememberCommittedTweak('calendar', committedItem), true);
   const staleCachedPost = {
     id: 'post-1', graphic_status: 'Client Approval', graphic_comments: []
   };
+  const durableUnconfirmed = committedContext._writeUiLegacyPendingTweak(
+    'calendar', 'fixture', 'post-1', 'graphic', staleCachedPost, 'Please revise'
+  );
+  assert(durableUnconfirmed && durableUnconfirmed.delivered === false
+    && durableUnconfirmed.comment_id === 'comment-1'
+    && committedContext._writeUiLegacyCommittedTweakRead()[0].item.team_delivery_confirmed !== true,
+  'a pre-delivery durability marker never suppresses the preserved retry');
+  const commentReceipt = Object.assign({}, committedItem, {
+    id: 'deferred_calendar_comment-1_comment',
+    kind: 'comment',
+    payload: {
+      issue: 'https://linear.invalid/GRA-1',
+      body: 'Please revise',
+      author: 'Client'
+    },
+    team_delivery_receipts: ['deferred_calendar_comment-1_comment']
+  });
+  const statusReceipt = Object.assign({}, committedItem, {
+    team_delivery_receipts: ['deferred_calendar_comment-1_status']
+  });
+  assert.strictEqual(
+    committedContext._writeUiLegacyRememberCommittedTweak('calendar', commentReceipt),
+    true,
+    'the first exact team-delivery receipt is durably merged'
+  );
+  const partialReceiptAfterNewerStatus = committedContext._writeUiLegacyCommittedTweak(
+    'calendar',
+    'fixture',
+    'post-1',
+    'graphic',
+    {
+      id: 'post-1',
+      graphic_status: 'Approved',
+      graphic_comments: [{
+        id: 'comment-1',
+        body: 'Please revise',
+        author: 'Client',
+        role: 'client',
+        audience: 'client',
+        is_tweak: true
+      }]
+    }
+  );
+  assert(partialReceiptAfterNewerStatus
+    && partialReceiptAfterNewerStatus.team_delivery_unconfirmed === true
+    && partialReceiptAfterNewerStatus.delivered === false
+    && committedContext._writeUiLegacyCommittedTweakRead().length === 1
+    && committedContext._writeUiLegacyCommittedTweakRead()[0].item
+      .team_delivery_receipts.includes('deferred_calendar_comment-1_comment'),
+  'a newer source status cannot retire an unconfirmed marker or discard its partial receipt');
+  assert.strictEqual(
+    committedContext._writeUiLegacyRememberCommittedTweak('calendar', statusReceipt),
+    true,
+    'the second exact team-delivery receipt is durably merged'
+  );
   const durablePending = committedContext._writeUiLegacyPendingTweak(
     'calendar', 'fixture', 'post-1', 'graphic', staleCachedPost, 'Please revise'
   );
   assert(durablePending && durablePending.delivered
     && durablePending.comment_id === 'comment-1'
     && durablePending.body === 'Please revise'
-    && committedContext._writeUiLegacyCommittedTweakRead().length === 1,
-  'a durable confirmation suppresses a stale retry after a cache-only reload');
+    && committedContext._writeUiLegacyCommittedTweakRead().length === 1
+    && committedContext._writeUiLegacyCommittedTweakRead()[0].item.team_delivery_confirmed === true
+    && committedContext._writeUiLegacyCommittedTweakRead()[0].item.team_delivery_receipts.length === 2,
+  'both exact delivery receipts suppress a stale retry after a cache-only reload');
   const followupGate = Object.assign({}, gateItem.source_gate, {
     comment_id: 'comment-2',
     comment_body: 'One more change'
@@ -1157,6 +1392,8 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   const targetLocks = createKeyedWebLockHarness();
   let targetOutboxItems = [];
   let targetCommittedRows = [];
+  let targetCommittedWriteSucceeds = true;
+  let targetCommittedWritePersists = true;
   const targetContext = {
     navigator: { locks: targetLocks.locks },
     _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
@@ -1164,6 +1401,25 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     _writeUiLegacyOutboxItems: surface => targetOutboxItems.filter(item =>
       item && item.source_gate && item.source_gate.surface === surface),
     _writeUiLegacyCommittedTweakRead: () => targetCommittedRows,
+    _writeUiLegacyCommittedTweakWrite: rows => {
+      if (!targetCommittedWriteSucceeds) return false;
+      if (targetCommittedWritePersists) {
+        targetCommittedRows = JSON.parse(JSON.stringify(rows || []));
+      }
+      return true;
+    },
+    _writeUiLegacyRememberCommittedTweak: (surface, item) => {
+      const gate = item && item.source_gate;
+      targetCommittedRows = [{
+        key: [surface, gate.client_slug, gate.post_id, gate.component].join('|'),
+        item: JSON.parse(JSON.stringify(item))
+      }];
+      return true;
+    },
+    _calCommentRole: () => 'client',
+    _sxrCommentRole: () => 'client',
+    _calCurrentAuthor: () => 'Client',
+    _sxrCurrentAuthor: () => 'Client',
     _calLinearUrlFor: post => post.graphic_linear_issue_id || '',
     _sxrLinearUrlFor: post => post.graphic_linear_issue_id || '',
     _calCommentsFor: post => post.graphic_comments || [],
@@ -1179,10 +1435,21 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     legacyApprovalClearsForReconcile,
     legacyGateTargetIdentity,
     legacyGateTargets,
+    legacySourceCommentReflected,
+    legacyGateStatusMatches,
     legacyGateReflected,
     legacyGateSignature,
     legacyTargetPair,
+    legacySupersededSourceItem,
+    legacySupersededTeamItem,
+    legacyTeamDeliveryReceiptItem,
+    legacyRecordedTeamDeliveryReceiptItem,
+    legacyStoredTeamTerminalItem,
+    legacySignature,
+    legacyTweakKey,
+    legacyItemMatches,
     legacyTargetDecision,
+    legacyTeamRearmValid,
     legacyTargetLedgerLock,
     legacyInspectTarget,
     legacyTargetLock,
@@ -1262,6 +1529,22 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     client_slug: gate.client_slug,
     source_gate: JSON.parse(JSON.stringify(gate))
   }];
+  const targetConfirmedItemForGate = gate => Object.assign({}, targetPairForGate(gate)[0], {
+    team_delivery_confirmed: true,
+    team_delivery_receipts: [
+      'deferred_' + gate.surface + '_' + gate.comment_id + '_comment',
+      'deferred_' + gate.surface + '_' + gate.comment_id + '_status'
+    ]
+  });
+  const targetSourceMarkerForGate = gate => [{
+    id: 'deferred_' + gate.surface + '_' + gate.comment_id + '_source',
+    kind: 'source_only',
+    payload: {},
+    queuedAt: Date.now(),
+    transport: 'source_only',
+    client_slug: gate.client_slug,
+    source_gate: JSON.parse(JSON.stringify(gate))
+  }];
   const staleTargetPost = {
     id: 'post-1',
     graphic_status: 'Client Approval',
@@ -1281,8 +1564,10 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   const adoptedActive = await targetContext._writeUiLegacyInspectTargetTweak(
     'calendar', 'fixture', 'post-1', 'graphic', staleTargetPost, 'Please revise', 'action-b'
   );
-  assert(adoptedActive.state === 'active' && adoptedActive.comment_id === 'action-a',
-    'same-body contention adopts the exact existing action rather than minting a second pair');
+  assert(adoptedActive.state === 'conflict'
+    && adoptedActive.comment_id === 'action-a'
+    && adoptedActive.reason === 'active_action_mismatch',
+  'same-body contention cannot adopt another tab action id');
   const activeConflict = await targetContext._writeUiLegacyInspectTargetTweak(
     'calendar', 'fixture', 'post-1', 'graphic', staleTargetPost, 'Second tab draft', 'action-b'
   );
@@ -1304,18 +1589,277 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   assert.strictEqual(differentSurfaceDecision.state, 'new',
     'a different surface remains independently writable');
 
+  const sourceOnlyGate = targetGate('calendar', 'source-action-a', { linear_issue: '' });
+  const staleSourceOnlyPost = Object.assign({}, staleTargetPost, {
+    graphic_linear_issue_id: ''
+  });
+  targetOutboxItems = targetSourceMarkerForGate(sourceOnlyGate);
+  targetCommittedRows = [];
+  const activeSourceOnlyRetry = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic',
+    staleSourceOnlyPost, 'Please revise', 'source-action-a'
+  );
+  const activeSourceOnlyConflict = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic',
+    staleSourceOnlyPost, 'Please revise', 'source-action-b'
+  );
+  assert(activeSourceOnlyRetry.state === 'active'
+    && activeSourceOnlyRetry.comment_id === 'source-action-a'
+    && activeSourceOnlyRetry.ids.length === 1
+    && activeSourceOnlyConflict.state === 'conflict'
+    && !activeSourceOnlyConflict.delivered,
+  'a source-only marker reuses only its exact retry id and blocks a stale-tab same-body snapshot');
+
+  let activeRefreshState = 'pending';
+  let activeRefreshLedgerCalls = 0;
+  let activeRefreshRememberCalls = 0;
+  const activeRefreshContext = {
+    _writeUiLegacySourceGateState: async () => activeRefreshState,
+    _writeUiLegacyTargetLedgerWithLock: async (_surface, callback) => {
+      activeRefreshLedgerCalls++;
+      return callback();
+    },
+    _writeUiLegacyRememberCommittedTweak: () => {
+      activeRefreshRememberCalls++;
+      return true;
+    },
+    Object, String,
+  };
+  vm.createContext(activeRefreshContext);
+  vm.runInContext(legacySupersededSourceItem + '\n' + legacyRefreshActive, activeRefreshContext);
+  const activeRefreshInspection = {
+    state: 'active',
+    comment_id: 'source-action-a',
+    body: 'Please revise',
+    item: targetSourceMarkerForGate(sourceOnlyGate)[0]
+  };
+  const pendingActiveRefresh = await activeRefreshContext._writeUiLegacyRefreshActiveTweak(
+    'calendar', activeRefreshInspection
+  );
+  assert.strictEqual(pendingActiveRefresh.state, 'active',
+    'an exact retry remains available while authoritative source truth still says pending');
+  activeRefreshState = 'superseded';
+  const supersededActiveRefresh = await activeRefreshContext._writeUiLegacyRefreshActiveTweak(
+    'calendar', activeRefreshInspection
+  );
+  assert(supersededActiveRefresh.state === 'committed'
+    && supersededActiveRefresh.delivered === true
+    && supersededActiveRefresh.source_only_superseded === true
+    && supersededActiveRefresh.item.source_only_superseded === true
+    && activeRefreshLedgerCalls === 1
+    && activeRefreshRememberCalls === 1,
+  'an exact retry records comment-only terminal ownership when newer source status superseded it');
+  activeRefreshState = 'committed';
+  const committedActiveRefresh = await activeRefreshContext._writeUiLegacyRefreshActiveTweak(
+    'calendar', activeRefreshInspection
+  );
+  assert(committedActiveRefresh.state === 'committed'
+    && committedActiveRefresh.source_only === true
+    && activeRefreshLedgerCalls === 2
+    && activeRefreshRememberCalls === 2,
+  'an active source-only retry becomes a durable committed outcome only after a fresh exact source read');
+
+  targetOutboxItems = [];
+  targetCommittedRows = [{
+    key: 'calendar|fixture|post-1|graphic',
+    item: targetSourceMarkerForGate(sourceOnlyGate)[0]
+  }];
+  const committedSourceOnlyConflict = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic',
+    staleSourceOnlyPost, 'Second tab draft', 'source-action-b'
+  );
+  const reflectedSourceOnlyPost = Object.assign({}, staleSourceOnlyPost, {
+    graphic_status: 'Tweaks Needed',
+    status: 'Tweaks Needed',
+    graphic_comments: [{
+      id: 'source-action-a',
+      body: 'Please revise',
+      author: 'Client',
+      role: 'client',
+      audience: 'client',
+      is_tweak: true
+    }]
+  });
+  const reflectedSourceOnlyDecision = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic',
+    reflectedSourceOnlyPost, 'Second tab draft', 'source-action-b'
+  );
+  assert(committedSourceOnlyConflict.state === 'conflict'
+    && committedSourceOnlyConflict.delivered
+    && reflectedSourceOnlyDecision.state === 'new',
+  'a committed source-only marker blocks stale snapshots until its exact source state is reflected');
+
+  const supersededSourceOnlyTombstone = Object.assign(
+    {},
+    targetSourceMarkerForGate(sourceOnlyGate)[0],
+    { source_only_superseded: true }
+  );
+  targetCommittedRows = [{
+    key: 'calendar|fixture|post-1|graphic',
+    item: supersededSourceOnlyTombstone
+  }];
+  const staleSupersededRetry = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic',
+    staleSourceOnlyPost, 'Please revise', 'source-action-a'
+  );
+  const staleSupersededConflict = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic',
+    staleSourceOnlyPost, 'Later request', 'source-action-b'
+  );
+  const reflectedSupersededPost = Object.assign({}, reflectedSourceOnlyPost, {
+    graphic_status: 'Approved',
+    status: 'Approved'
+  });
+  const reflectedSupersededRetry = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic',
+    reflectedSupersededPost, 'Please revise', 'source-action-a'
+  );
+  const reflectedSameBodyFollowup = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic',
+    reflectedSupersededPost, 'Please revise', 'source-action-b'
+  );
+  const reflectedSupersededFollowup = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic',
+    reflectedSupersededPost, 'Later request', 'source-action-b'
+  );
+  assert(staleSupersededRetry.state === 'committed'
+    && staleSupersededRetry.source_only_superseded === true
+    && staleSupersededConflict.state === 'conflict'
+    && reflectedSupersededRetry.state === 'committed'
+    && reflectedSameBodyFollowup.state === 'new'
+    && reflectedSupersededFollowup.state === 'new',
+  'a comment-only tombstone preserves exact-action idempotence, blocks stale writes, and releases reflected later actions even with repeated text');
+  targetCommittedRows = [{
+    key: 'calendar|fixture|post-1|graphic',
+    item: targetSourceMarkerForGate(sourceOnlyGate)[0]
+  }];
+  const laterSupersededRetry = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic',
+    reflectedSupersededPost, 'Please revise', 'source-action-a'
+  );
+  assert(laterSupersededRetry.state === 'committed'
+    && laterSupersededRetry.source_only_superseded === true
+    && laterSupersededRetry.item.source_only_superseded === true
+    && targetCommittedRows[0].item.source_only_superseded === true,
+  'a normal source-only tombstone converts to no-reconcile comment-only ownership when its reflected status is later superseded');
+  targetCommittedRows = [{
+    key: 'calendar|fixture|post-1|graphic',
+    item: targetSourceMarkerForGate(sourceOnlyGate)[0]
+  }];
+  const laterRelinkedRetry = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic',
+    Object.assign({}, reflectedSourceOnlyPost, {
+      graphic_linear_issue_id: 'https://linear.invalid/GRA-99'
+    }),
+    'Please revise',
+    'source-action-a'
+  );
+  assert(laterRelinkedRetry.state === 'committed'
+    && laterRelinkedRetry.source_only_superseded === true
+    && targetCommittedRows[0].item.source_only_superseded === true,
+  'a normal source-only tombstone converts to comment-only ownership when its reflected target link later changes');
+
   targetOutboxItems = [];
   targetCommittedRows = [{
     key: 'calendar|fixture|post-1|graphic',
     item: targetPairForGate(activeGate)[0]
   }];
+  const preDeliveryRetry = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic', staleTargetPost, 'Please revise', 'action-a'
+  );
+  assert(preDeliveryRetry.state === 'new'
+    && preDeliveryRetry.rearmed_team_delivery === true
+    && preDeliveryRetry.comment_id === 'action-a'
+    && targetCommittedRows.length === 1,
+  'an exact same-id pre-delivery marker remains durable while the preserved retry prepares team delivery');
+  targetCommittedRows = [{
+    key: 'calendar|fixture|post-1|graphic',
+    item: targetConfirmedItemForGate(activeGate)
+  }];
   const committedRetry = await targetContext._writeUiLegacyInspectTargetTweak(
     'calendar', 'fixture', 'post-1', 'graphic', staleTargetPost, 'Please revise', 'action-a'
   );
   assert(committedRetry.state === 'committed'
+    && committedRetry.delivered === true
+    && committedRetry.team_delivery_confirmed === true
     && committedRetry.comment_id === 'action-a'
     && committedRetry.ids.length === 0,
-  'the exact same-id committed tombstone finishes without staging');
+  'the exact same-id marker finishes without staging only after both team deliveries are proven');
+  targetCommittedRows = [{
+    key: 'calendar|fixture|post-1|graphic',
+    item: Object.assign({}, targetPairForGate(activeGate)[0], {
+      team_delivery_superseded: true,
+      team_delivery_receipts: ['deferred_calendar_action-a_comment']
+    })
+  }];
+  const rearmedTeamDelivery = await targetContext._writeUiLegacyInspectTargetTweak(
+    'calendar', 'fixture', 'post-1', 'graphic',
+    staleTargetPost, 'Please revise', 'action-a'
+  );
+  assert(rearmedTeamDelivery.state === 'new'
+    && rearmedTeamDelivery.rearmed_team_delivery === true
+    && rearmedTeamDelivery.comment_id === 'action-a'
+    && rearmedTeamDelivery.rearm_gate.linear_issue === 'https://linear.invalid/GRA-1'
+    && JSON.stringify(rearmedTeamDelivery.rearm_receipts)
+      === JSON.stringify(['deferred_calendar_action-a_comment'])
+    && targetCommittedRows.length === 1
+    && targetCommittedRows[0].item.team_delivery_superseded === true,
+  'the preserved exact action id retains its terminal marker while carrying the validated gate and partial delivery proof');
+  for (const invalidMarker of [
+    Object.assign({}, targetPairForGate(activeGate)[0], {
+      team_delivery_superseded: true,
+      source_gate: Object.assign({}, activeGate, { comment_author: 'Someone else' })
+    }),
+    Object.assign({}, targetPairForGate(activeGate)[0], {
+      team_delivery_superseded: true,
+      source_gate: Object.assign({}, activeGate, { comment_role: 'internal', comment_audience: 'internal' })
+    }),
+    Object.assign({}, targetPairForGate(activeGate)[0], {
+      team_delivery_superseded: true,
+      source_gate: Object.assign({}, activeGate, { comment_is_tweak: false })
+    }),
+    Object.assign({}, targetPairForGate(activeGate)[0], {
+      team_delivery_superseded: true,
+      source_gate: Object.assign({}, activeGate, { intended_status: 'Approved' })
+    }),
+    Object.assign({}, targetPairForGate(activeGate)[0], {
+      team_delivery_superseded: true,
+      source_gate: Object.assign({}, activeGate, { approval_clears: ['client_graphic_approved_at'] })
+    }),
+    Object.assign({}, targetPairForGate(activeGate)[0], {
+      team_delivery_superseded: true,
+      source_gate: Object.assign({}, activeGate, { linear_issue: 'https://linear.invalid/GRA-99' })
+    }),
+    Object.assign({}, targetPairForGate(activeGate)[0], {
+      team_delivery_superseded: true,
+      payload: {
+        issue: 'https://linear.invalid/GRA-99',
+        body: 'Please revise',
+        author: 'Client'
+      }
+    }),
+    Object.assign({}, targetPairForGate(activeGate)[0], {
+      team_delivery_superseded: true,
+      team_delivery_receipts: ['deferred_calendar_other-action_comment']
+    })
+  ]) {
+    targetCommittedRows = [{
+      key: 'calendar|fixture|post-1|graphic',
+      item: invalidMarker
+    }];
+    const invalidRearm = await targetContext._writeUiLegacyInspectTargetTweak(
+      'calendar', 'fixture', 'post-1', 'graphic',
+      staleTargetPost, 'Please revise', 'action-a'
+    );
+    assert(invalidRearm.state === 'conflict'
+      && invalidRearm.reason === 'team_delivery_rearm_signature_mismatch'
+      && targetCommittedRows.length === 1,
+    'an altered terminal marker fails closed and remains durable for review');
+  }
+  targetCommittedRows = [{
+    key: 'calendar|fixture|post-1|graphic',
+    item: targetConfirmedItemForGate(activeGate)
+  }];
   const committedConflict = await targetContext._writeUiLegacyInspectTargetTweak(
     'calendar', 'fixture', 'post-1', 'graphic', staleTargetPost, 'Second tab draft', 'action-b'
   );
@@ -1339,7 +1883,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   'a foreign-principal tombstone owns the target even when it uses the attempted action id');
   targetCommittedRows = [{
     key: 'calendar|fixture|post-1|graphic',
-    item: targetPairForGate(activeGate)[0]
+    item: targetConfirmedItemForGate(activeGate)
   }];
   const reflectedTargetPost = {
     id: 'post-1',
@@ -1451,6 +1995,54 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     && rollbackLocalStatus['post-1|'] === 999
     && optimisticComponentStamp !== rollbackLocalStatus['post-1|graphic'],
   'action-aware rollback removes only the losing comment, preserves the reflected winner row, and restores only markers still owned by the loser');
+
+  for (const surface of ['calendar', 'sxr']) {
+    const key = 'post-1|graphic';
+    let rollbacks = 0;
+    let calendarRenders = 0;
+    let samplesRenders = 0;
+    const terminalContext = {
+      _calReviewState: {
+        saving: { [key]: true },
+        drafts: { [key]: '' },
+        errors: { [key]: '' },
+        draftActionIds: {},
+        errorActionIds: {}
+      },
+      _sxrReviewState: {
+        saving: { [key]: true },
+        drafts: { [key]: '' },
+        errors: { [key]: '' },
+        draftActionIds: {},
+        errorActionIds: {}
+      },
+      _writeUiRollbackRequestTweak: () => { rollbacks++; return false; },
+      _calRenderBody: () => { calendarRenders++; },
+      _sxrRenderBody: () => { samplesRenders++; },
+      String
+    };
+    vm.createContext(terminalContext);
+    vm.runInContext(requestTweakApplySupersededTeam, terminalContext);
+    const action = { comment_id: surface + '-terminal-action', rollbackApplied: false };
+    const rawDraft = '  Keep this exact request\n';
+    const applied = terminalContext._writeUiApplySupersededTeamDelivery(
+      surface, { id: 'post-1' }, 'graphic', action, key, rawDraft, ''
+    );
+    const state = surface === 'sxr'
+      ? terminalContext._sxrReviewState
+      : terminalContext._calReviewState;
+    assert(applied === true
+      && rollbacks === 1
+      && action.rollbackApplied === true
+      && state.saving[key] === false
+      && state.drafts[key] === rawDraft
+      && /team notification was not completed/.test(state.errors[key])
+      && state.draftActionIds[key] === action.comment_id
+      && state.errorActionIds[key] === action.comment_id
+      && calendarRenders === (surface === 'calendar' ? 1 : 0)
+      && samplesRenders === (surface === 'sxr' ? 1 : 0),
+    surface + ' linked supersession rolls back once, preserves exact input/action ownership, and renders an inline retry error');
+  }
 
   targetOutboxItems = [];
   targetCommittedRows = [];
@@ -1582,9 +2174,9 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   targetOutboxItems = [];
   targetCommittedRows = [{
     key: 'calendar|fixture|post-1|graphic',
-    item: targetPairForGate(targetGate('calendar', 'action-a', {
+    item: targetConfirmedItemForGate(targetGate('calendar', 'action-a', {
       comment_body: 'First tab request'
-    }))[0]
+    }))
   }];
   Object.assign(retrySurface.post, {
     id: 'post-1',
@@ -1699,12 +2291,21 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     legacyApprovalClearsValid,
     legacyApprovalClearsForReconcile,
     legacySignature,
-    extract('_writeUiLegacyItemMatches'),
+    legacyItemMatches,
+    legacyTweakKey,
     legacyGateTargetIdentity,
+    legacySourceCommentReflected,
+    legacyGateStatusMatches,
     legacyGateReflected,
     legacyGateSignature,
     legacyTargetPair,
+    legacySupersededSourceItem,
+    legacySupersededTeamItem,
+    legacyTeamDeliveryReceiptItem,
+    legacyRecordedTeamDeliveryReceiptItem,
+    legacyStoredTeamTerminalItem,
     legacyTargetDecision,
+    legacyTeamRearmValid,
     legacyDrainLock,
     legacyOutboxLock,
     legacyTargetLedgerLock,
@@ -1730,18 +2331,26 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   ];
 
   let stagedItems = [], stageWrites = 0, stageCommittedRows = [];
+  let stageWriteSucceeds = true;
+  let stageReadbackDrops = false;
   const stageLocks = createKeyedWebLockHarness(false);
   const stageContext = {
     _sxrLinearUrlFor: () => '', _calLinearUrlFor: () => 'https://linear.invalid/GRA-1',
     _sxrPrimeSampleRoutingFlag: async () => {}, _calPrimeUpsertRoutingFlag: async () => {},
     _sxrSampleUseEf: () => false, _calUpsertUseEf: () => true,
     _writeUiSourceClientSlug: () => 'fixture', _writeUiPrincipalKey: () => 'client:fixture',
+    _sxrCommentRole: () => 'client', _calCommentRole: () => 'client',
     _sxrCurrentAuthor: () => 'Client', _calCurrentAuthor: () => 'Client',
     _calCommentsFor: post => post.graphic_comments || [], _sxrCommentsFor: post => post.graphic_comments || [],
     _calNormStatus: value => String(value || '').toLowerCase(), _sxrNormStatus: value => String(value || '').toLowerCase(),
     _writeUiLegacyOutboxItems: () => JSON.parse(JSON.stringify(stagedItems)),
     _writeUiLegacyCommittedTweakRead: () => JSON.parse(JSON.stringify(stageCommittedRows)),
-    _writeUiLegacyOutboxWrite: (_surface, items) => { stageWrites++; stagedItems = JSON.parse(JSON.stringify(items)); return true; },
+    _writeUiLegacyOutboxWrite: (_surface, items) => {
+      stageWrites++;
+      if (!stageWriteSucceeds) return false;
+      stagedItems = stageReadbackDrops ? [] : JSON.parse(JSON.stringify(items));
+      return true;
+    },
     _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
     navigator: { locks: stageLocks.locks },
     Date, JSON, Object, String, Array, Error, Promise,
@@ -1766,6 +2375,213 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       JSON.stringify(item.source_gate.approval_clears) === JSON.stringify(expectedCalendarApprovalClears)),
   'comment and status are staged together with the exact allowlisted committed approval clears');
   const exactStagedPair = JSON.parse(JSON.stringify(stagedItems));
+  const partialRearmMarker = Object.assign({}, exactStagedPair[0], {
+    team_delivery_superseded: true,
+    team_delivery_receipts: ['deferred_calendar_comment-1_comment']
+  });
+  stageCommittedRows = [{
+    version: 1,
+    key: 'calendar|fixture|post-1|graphic',
+    confirmed_at: new Date().toISOString(),
+    item: JSON.parse(JSON.stringify(partialRearmMarker))
+  }];
+  stagedItems = [];
+  stageWrites = 0;
+  const rearmedStageOutcome = await stageContext._writeUiQueueDeferredLegacyTweak(
+    'calendar',
+    { id: 'post-1', graphic_status: 'Tweaks Needed' },
+    'graphic',
+    { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
+    'Please revise',
+    'Client',
+    committedApprovalEdits,
+    {
+      state: 'new',
+      rearmed_team_delivery: true,
+      rearm_gate: JSON.parse(JSON.stringify(exactStagedPair[0].source_gate)),
+      rearm_item: JSON.parse(JSON.stringify(partialRearmMarker)),
+      rearm_receipts: ['deferred_calendar_comment-1_comment']
+    }
+  );
+  assert(rearmedStageOutcome.state === 'staged'
+    && stagedItems.length === 2
+    && stagedItems.every(item => item.rearmed_team_delivery === true)
+    && stagedItems.find(item => item.kind === 'comment').team_delivery_receipts[0]
+      === 'deferred_calendar_comment-1_comment'
+    && !stagedItems.find(item => item.kind === 'status').team_delivery_receipts
+    && stageCommittedRows.length === 1
+    && stageCommittedRows[0].item.team_delivery_superseded === true,
+  'a rearmed retry carries its validated gate, skips only the proven leg, and retains the marker through staging');
+  const rearmedActiveOutcome = await stageContext._writeUiQueueDeferredLegacyTweak(
+    'calendar',
+    { id: 'post-1', graphic_status: 'Tweaks Needed' },
+    'graphic',
+    { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
+    'Please revise',
+    'Client',
+    committedApprovalEdits,
+    {
+      state: 'active',
+      pair: {
+        gate: JSON.parse(JSON.stringify(exactStagedPair[0].source_gate))
+      },
+      rearmed_team_delivery: true,
+      rearm_receipts: ['deferred_calendar_comment-1_comment']
+    }
+  );
+  assert(rearmedActiveOutcome.state === 'active'
+    && JSON.stringify(rearmedActiveOutcome.ids) === JSON.stringify(rearmedStageOutcome.ids)
+    && stageWrites === 1
+    && stagedItems.length === 2,
+  'a retry after a failed rearmed source save reuses the exact staged pair without a duplicate write');
+  stagedItems = [];
+  stageWrites = 0;
+  stageContext._calPrimeUpsertRoutingFlag = async () => {
+    stageContext._calLinearUrlFor = () => 'https://linear.invalid/GRA-2';
+  };
+  const relinkedDuringRearm = await stageContext._writeUiQueueDeferredLegacyTweak(
+    'calendar',
+    { id: 'post-1', graphic_status: 'Tweaks Needed' },
+    'graphic',
+    { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
+    'Please revise',
+    'Client',
+    committedApprovalEdits,
+    {
+      state: 'new',
+      rearmed_team_delivery: true,
+      rearm_gate: JSON.parse(JSON.stringify(exactStagedPair[0].source_gate)),
+      rearm_item: JSON.parse(JSON.stringify(partialRearmMarker)),
+      rearm_receipts: ['deferred_calendar_comment-1_comment']
+    }
+  );
+  assert(relinkedDuringRearm.state === 'conflict'
+    && relinkedDuringRearm.reason === 'active_retry_signature_mismatch'
+    && stagedItems.length === 0
+    && stageWrites === 0
+    && stageCommittedRows.length === 1
+    && JSON.stringify(stageCommittedRows[0].item.team_delivery_receipts)
+      === JSON.stringify(['deferred_calendar_comment-1_comment']),
+  'a target mutation after rearm validation fails closed while retaining the marker and partial receipt');
+  const secondClickAfterRelink = await stageContext._writeUiLegacyInspectTargetTweak(
+    'calendar',
+    'fixture',
+    'post-1',
+    'graphic',
+    {
+      id: 'post-1',
+      graphic_status: 'Client Approval',
+      client_video_approved_at: 'prior',
+      client_graphic_approved_at: 'prior',
+      client_title_approved_at: 'prior',
+      kasper_approved_at: 'prior',
+      graphic_comments: []
+    },
+    'Please revise',
+    'comment-1'
+  );
+  assert(secondClickAfterRelink.state === 'conflict'
+    && secondClickAfterRelink.reason === 'team_delivery_rearm_signature_mismatch'
+    && stageCommittedRows.length === 1,
+  'a second click after relink cannot bypass the retained validated marker');
+  stageContext._calPrimeUpsertRoutingFlag = async () => {};
+  stageContext._calLinearUrlFor = () => 'https://linear.invalid/GRA-1';
+  stageCommittedRows = [{
+    version: 1,
+    key: 'calendar|fixture|post-1|graphic',
+    confirmed_at: new Date().toISOString(),
+    item: Object.assign({}, JSON.parse(JSON.stringify(partialRearmMarker)), {
+      team_delivery_receipts: []
+    })
+  }];
+  stagedItems = [];
+  stageWrites = 0;
+  const changedMarkerRearm = await stageContext._writeUiQueueDeferredLegacyTweak(
+    'calendar',
+    { id: 'post-1', graphic_status: 'Tweaks Needed' },
+    'graphic',
+    { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
+    'Please revise',
+    'Client',
+    committedApprovalEdits,
+    {
+      state: 'new',
+      rearmed_team_delivery: true,
+      rearm_gate: JSON.parse(JSON.stringify(exactStagedPair[0].source_gate)),
+      rearm_item: JSON.parse(JSON.stringify(partialRearmMarker)),
+      rearm_receipts: ['deferred_calendar_comment-1_comment']
+    }
+  );
+  assert(changedMarkerRearm.state === 'conflict'
+    && changedMarkerRearm.reason === 'team_delivery_rearm_marker_changed'
+    && stagedItems.length === 0
+    && stageWrites === 0
+    && stageCommittedRows.length === 1,
+  'a changed rearm marker remains durable and blocks staging');
+
+  stageCommittedRows = [{
+    version: 1,
+    key: 'calendar|fixture|post-1|graphic',
+    confirmed_at: new Date().toISOString(),
+    item: JSON.parse(JSON.stringify(partialRearmMarker))
+  }];
+  stageWriteSucceeds = false;
+  let failedRearmStageWrite = null;
+  try {
+    await stageContext._writeUiQueueDeferredLegacyTweak(
+      'calendar',
+      { id: 'post-1', graphic_status: 'Tweaks Needed' },
+      'graphic',
+      { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
+      'Please revise',
+      'Client',
+      committedApprovalEdits,
+      {
+        state: 'new',
+        rearmed_team_delivery: true,
+        rearm_gate: JSON.parse(JSON.stringify(exactStagedPair[0].source_gate)),
+        rearm_item: JSON.parse(JSON.stringify(partialRearmMarker)),
+        rearm_receipts: ['deferred_calendar_comment-1_comment']
+      }
+    );
+  } catch (error) {
+    failedRearmStageWrite = error;
+  }
+  stageWriteSucceeds = true;
+  assert(failedRearmStageWrite
+    && stageCommittedRows.length === 1
+    && stagedItems.length === 0,
+  'a failed rearm outbox write leaves the exact marker and receipt intact');
+
+  stageReadbackDrops = true;
+  let failedRearmStageReadback = null;
+  try {
+    await stageContext._writeUiQueueDeferredLegacyTweak(
+      'calendar',
+      { id: 'post-1', graphic_status: 'Tweaks Needed' },
+      'graphic',
+      { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
+      'Please revise',
+      'Client',
+      committedApprovalEdits,
+      {
+        state: 'new',
+        rearmed_team_delivery: true,
+        rearm_gate: JSON.parse(JSON.stringify(exactStagedPair[0].source_gate)),
+        rearm_item: JSON.parse(JSON.stringify(partialRearmMarker)),
+        rearm_receipts: ['deferred_calendar_comment-1_comment']
+      }
+    );
+  } catch (error) {
+    failedRearmStageReadback = error;
+  }
+  stageReadbackDrops = false;
+  assert(failedRearmStageReadback
+    && stageCommittedRows.length === 1
+    && stagedItems.length === 0,
+  'a failed rearm outbox readback leaves the exact marker and receipt intact');
+
+  stageCommittedRows = [];
   stagedItems = [];
   stageWrites = 0;
   stageContext._calLinearUrlFor = () => '';
@@ -1789,13 +2605,39 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     committedApprovalEdits,
     { state: 'active' }
   );
-  assert(targetlessOutcome.state === 'skipped'
-    && targetlessOutcome.reason === 'no_team_target'
-    && targetlessOutcome.ids.length === 0
-    && targetlessActiveOutcome.state === 'conflict'
-    && stageWrites === 0
-    && stagedItems.length === 0,
-  'a new targetless request remains source-only while an impossible targetless active retry fails closed');
+  assert(targetlessOutcome.state === 'staged'
+    && targetlessOutcome.source_only === true
+    && targetlessOutcome.ids.length === 1
+    && targetlessActiveOutcome.state === 'active'
+    && targetlessActiveOutcome.source_only === true
+    && JSON.stringify(targetlessActiveOutcome.ids) === JSON.stringify(targetlessOutcome.ids)
+    && stageWrites === 1
+    && stagedItems.length === 1
+    && stagedItems[0].kind === 'source_only'
+    && stagedItems[0].transport === 'source_only'
+    && stagedItems[0].source_gate.linear_issue === '',
+  'a source-only request reserves exact ownership and an exact retry reuses its one-item marker');
+  stageCommittedRows = [{
+    version: 1,
+    key: 'calendar|fixture|post-targetless|graphic',
+    confirmed_at: new Date().toISOString(),
+    item: JSON.parse(JSON.stringify(stagedItems[0]))
+  }];
+  const targetlessCommittedOutcome = await stageContext._writeUiQueueDeferredLegacyTweak(
+    'calendar',
+    { id: 'post-targetless', graphic_status: 'Tweaks Needed' },
+    'graphic',
+    { id: 'comment-targetless', role: 'client', audience: 'client', is_tweak: true },
+    'Source-only request',
+    'Client',
+    committedApprovalEdits,
+    { state: 'active', pair: { gate: stagedItems[0].source_gate } }
+  );
+  assert(targetlessCommittedOutcome.state === 'committed'
+    && targetlessCommittedOutcome.source_only === true
+    && targetlessCommittedOutcome.ids.length === 1,
+  'a confirmed source-only retry remains identified as source-only through the committed outcome');
+  stageCommittedRows = [];
   stageContext._calLinearUrlFor = () => 'https://linear.invalid/GRA-1';
   stagedItems = JSON.parse(JSON.stringify(exactStagedPair));
   stageWrites = 1;
@@ -1813,11 +2655,15 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     && JSON.stringify(reusedStagedOutcome.ids) === JSON.stringify(stagedIds)
     && JSON.stringify(stagedItems) === JSON.stringify(exactStagedPair),
   'a same-action retry reuses the exact complete verified pair and both ids without rewriting it');
+  const confirmedExactStageItem = Object.assign({}, exactStagedPair[0], {
+    team_delivery_confirmed: true,
+    team_delivery_receipts: stagedIds.slice()
+  });
   stageCommittedRows = [{
     version: 1,
     key: 'calendar|fixture|post-1|graphic',
     confirmed_at: new Date().toISOString(),
-    item: JSON.parse(JSON.stringify(exactStagedPair[0]))
+    item: JSON.parse(JSON.stringify(confirmedExactStageItem))
   }];
   const committedWithDebtOutcome = await stageContext._writeUiQueueDeferredLegacyTweak(
     'calendar',
@@ -1885,7 +2731,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     version: 1,
     key: 'calendar|fixture|post-1|graphic',
     confirmed_at: new Date().toISOString(),
-    item: JSON.parse(JSON.stringify(exactStagedPair[0]))
+    item: JSON.parse(JSON.stringify(confirmedExactStageItem))
   }];
   const committedStageOutcome = await stageContext._writeUiQueueDeferredLegacyTweak(
     'calendar',
@@ -1944,7 +2790,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
           version: 1,
           key: 'calendar|fixture|post-1|graphic',
           confirmed_at: new Date().toISOString(),
-          item: JSON.parse(JSON.stringify(exactStagedPair[0]))
+          item: JSON.parse(JSON.stringify(confirmedExactStageItem))
         }];
         deliveredPayloads += drainHandoffItems.length;
         drainHandoffItems = [];
@@ -2094,6 +2940,42 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     && noLockWrites === 0,
   'missing Web Locks fail finalization closed before any outbox write');
 
+  const receiptUpgradeSnapshot = JSON.parse(JSON.stringify(exactStagedPair[0]));
+  let receiptUpgradeItems = [Object.assign({}, receiptUpgradeSnapshot, {
+    rearmed_team_delivery: true,
+    team_delivery_receipts: [receiptUpgradeSnapshot.id]
+  })];
+  const receiptUpgradeContext = {
+    navigator: {
+      locks: {
+        request: async (_name, _options, callback) => callback()
+      }
+    },
+    _writeUiLegacyOutboxItems: () => JSON.parse(JSON.stringify(receiptUpgradeItems)),
+    _writeUiLegacyOutboxWrite: (_surface, items) => {
+      receiptUpgradeItems = JSON.parse(JSON.stringify(items));
+      return true;
+    },
+    _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+    JSON, Object, String, Array, Error, Promise, Map
+  };
+  vm.createContext(receiptUpgradeContext);
+  vm.runInContext([
+    legacySignature,
+    legacyItemMatches,
+    legacyOutboxLock,
+    legacyFinalize
+  ].join('\n'), receiptUpgradeContext);
+  await receiptUpgradeContext._writeUiLegacyFinalizeFlush(
+    'calendar',
+    [receiptUpgradeSnapshot],
+    []
+  );
+  assert(receiptUpgradeItems.length === 1
+    && receiptUpgradeItems[0].rearmed_team_delivery === true
+    && receiptUpgradeItems[0].team_delivery_receipts[0] === receiptUpgradeSnapshot.id,
+  'an old-snapshot finalizer preserves a same-id row upgraded with rearm and delivery-receipt proof');
+
   const overlapLocks = createKeyedWebLockHarness(true);
   let overlapWrites = 0;
   let overlapItems = [{ id: 'old', kind: 'status', payload: { status: 'A' } }];
@@ -2140,6 +3022,161 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     && overlapItems.length === 2
     && overlapItems.every(item => item.id.indexOf('deferred_calendar_comment-new_') === 0),
   'the shared exclusive lock preserves a pair staged during an overlapping old-snapshot finalization');
+
+  let deferredFlushItems = [{ id: 'deferred-calendar-action' }];
+  let deferredFlushCalls = 0;
+  let deferredSchedules = 0;
+  let clearDeferredOnSecondFlush = true;
+  let deferredFlushOutcomes = [{
+    id: 'deferred-calendar-action',
+    state: 'team_delivery_confirmed',
+    comment_id: 'calendar-action'
+  }];
+  const deferredFlushContext = {
+    _writeUiLegacyOutboxItems: () => JSON.parse(JSON.stringify(deferredFlushItems)),
+    _linearOutboxFlush: async () => {
+      deferredFlushCalls++;
+      if (clearDeferredOnSecondFlush && deferredFlushCalls === 2) {
+        deferredFlushItems = [];
+        return { outcomes: JSON.parse(JSON.stringify(deferredFlushOutcomes)) };
+      }
+      return { outcomes: [] };
+    },
+    _sxrLinearOutboxFlush: async () => ({ outcomes: [] }),
+    _writeUiScheduleDeferredLegacyTweak: () => { deferredSchedules++; },
+    _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+    Array, String, Set, Map, Error, Promise,
+  };
+  vm.createContext(deferredFlushContext);
+  vm.runInContext(
+    legacyDeliveryUnconfirmedError + '\n' + legacyFlushDeferred,
+    deferredFlushContext
+  );
+  const defaultDeferredFlush = deferredFlushContext._linearOutboxFlush;
+  const deferredConfirmed = await deferredFlushContext._writeUiFlushDeferredLegacyTweak(
+    'calendar', ['deferred-calendar-action']
+  );
+  assert(deferredFlushCalls === 2
+    && deferredConfirmed.state === 'confirmed'
+    && deferredConfirmed.team_delivery_confirmed === true,
+  'an immediate deferred confirmation resolves only with exact structured delivery proof');
+  deferredFlushItems = [{ id: 'deferred-calendar-action' }];
+  deferredFlushCalls = 0;
+  clearDeferredOnSecondFlush = false;
+  let deferredPendingError = null;
+  try {
+    await deferredFlushContext._writeUiFlushDeferredLegacyTweak(
+      'calendar', ['deferred-calendar-action']
+    );
+  } catch (error) {
+    deferredPendingError = error;
+  }
+  assert(deferredFlushCalls === 2
+    && deferredPendingError
+    && deferredPendingError.code === 'legacy_tweak_confirmation_pending',
+  'an id still retained after both flush attempts surfaces pending confirmation instead of a false delivery success');
+
+  deferredFlushItems = [
+    { id: 'deferred-calendar-superseded-comment' },
+    { id: 'deferred-calendar-superseded-status' }
+  ];
+  deferredFlushCalls = 1;
+  clearDeferredOnSecondFlush = true;
+  deferredFlushOutcomes = [
+    {
+      id: 'deferred-calendar-superseded-comment',
+      state: 'team_delivery_superseded',
+      comment_id: 'calendar-superseded',
+      item: { team_delivery_superseded: true }
+    },
+    {
+      id: 'deferred-calendar-superseded-status',
+      state: 'team_delivery_superseded',
+      comment_id: 'calendar-superseded',
+      item: { team_delivery_superseded: true }
+    }
+  ];
+  const deferredSuperseded = await deferredFlushContext._writeUiFlushDeferredLegacyTweak(
+    'calendar',
+    ['deferred-calendar-superseded-comment', 'deferred-calendar-superseded-status']
+  );
+  assert(deferredSuperseded.state === 'superseded'
+    && deferredSuperseded.team_delivery_confirmed === false
+    && deferredSuperseded.comment_id === 'calendar-superseded',
+  'an exact terminal pair returns explicit superseded proof instead of delivery success');
+
+  deferredFlushItems = [
+    { id: 'deferred-calendar-pending-comment' },
+    { id: 'deferred-calendar-pending-status' }
+  ];
+  deferredFlushCalls = 0;
+  deferredFlushContext._linearOutboxFlush = async () => {
+    deferredFlushCalls++;
+    return {
+      outcomes: [
+        {
+          id: 'deferred-calendar-pending-comment',
+          state: 'team_delivery_superseded_pending',
+          comment_id: 'calendar-pending',
+          item: { team_delivery_superseded: true }
+        },
+        {
+          id: 'deferred-calendar-pending-status',
+          state: 'team_delivery_superseded_pending',
+          comment_id: 'calendar-pending',
+          item: { team_delivery_superseded: true }
+        }
+      ]
+    };
+  };
+  const deferredTerminalPending =
+    await deferredFlushContext._writeUiFlushDeferredLegacyTweak(
+      'calendar',
+      ['deferred-calendar-pending-comment', 'deferred-calendar-pending-status']
+    );
+  assert(deferredFlushCalls === 2
+    && deferredFlushItems.length === 2
+    && deferredTerminalPending.state === 'superseded'
+    && deferredTerminalPending.team_delivery_confirmed === false,
+  'retained terminal debt returns explicit superseded proof instead of generic pending success');
+
+  deferredSchedules = 0;
+  deferredFlushCalls = 0;
+  deferredFlushContext._linearOutboxFlush = async () => {
+    deferredFlushCalls++;
+    const error = new Error('finalization failed');
+    error.team_delivery_superseded = true;
+    error.comment_id = 'calendar-finalize';
+    error.terminal_item = { team_delivery_superseded: true };
+    throw error;
+  };
+  const deferredFinalizeFailure =
+    await deferredFlushContext._writeUiFlushDeferredLegacyTweak(
+      'calendar',
+      ['deferred-calendar-pending-comment', 'deferred-calendar-pending-status']
+    );
+  assert(deferredFlushCalls === 1
+    && deferredSchedules === 1
+    && deferredFinalizeFailure.state === 'superseded'
+    && deferredFinalizeFailure.comment_id === 'calendar-finalize',
+  'an annotated terminal finalization failure preserves retry debt and surfaces the terminal rollback outcome');
+
+  deferredFlushContext._linearOutboxFlush = defaultDeferredFlush;
+  deferredFlushItems = [{ id: 'deferred-calendar-unproven' }];
+  deferredFlushCalls = 1;
+  deferredFlushOutcomes = [];
+  let deferredUnconfirmedError = null;
+  try {
+    await deferredFlushContext._writeUiFlushDeferredLegacyTweak(
+      'calendar', ['deferred-calendar-unproven']
+    );
+  } catch (error) {
+    deferredUnconfirmedError = error;
+  }
+  assert(deferredUnconfirmedError
+    && deferredUnconfirmedError.code === 'legacy_tweak_delivery_unconfirmed'
+    && /draft is preserved/.test(deferredUnconfirmedError.message),
+  'disappearance without exact outcome proof surfaces retryable delivery uncertainty');
 
   let missingDrainCallbackEntries = 0;
   let missingDrainDeliveries = 0;
@@ -2225,7 +3262,20 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       Date, JSON, Object, String, Number, Array, Error, Promise, Map, Set,
     };
     vm.createContext(drainContext);
-    vm.runInContext(legacyDrainLock + '\n' + fixture.functionSource, drainContext);
+    vm.runInContext(
+      [
+        legacyGateSignature,
+        legacyTweakKey,
+        legacySupersededSourceItem,
+        legacySupersededTeamItem,
+        legacyTeamDeliveryReceiptItem,
+        legacyRecordedTeamDeliveryReceiptItem,
+        legacyStoredTeamTerminalItem,
+        legacyDrainLock,
+        fixture.functionSource
+      ].join('\n'),
+      drainContext
+    );
     const firstDrain = drainContext[fixture.functionName]();
     const secondDrain = drainContext[fixture.functionName]();
     for (let tick = 0; tick < 10 && drainLocks.names.length < 2; tick++) await Promise.resolve();
@@ -2239,6 +3289,536 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       && drainDeliveries === 1
       && sharedDebt.length === 0,
     fixture.surface + ' serialized drains deliver one shared debt exactly once');
+  }
+
+  for (const fixture of [
+    {
+      surface: 'calendar',
+      functionName: '_linearOutboxFlushRun',
+      functionSource: calLegacyOutbox,
+      readName: '_linearOutboxRead',
+      scheduleName: '_linearOutboxScheduleRetry'
+    },
+    {
+      surface: 'sxr',
+      functionName: '_sxrLinearOutboxFlushRun',
+      functionSource: sxrLegacyOutbox,
+      readName: '_sxrLinearOutboxRead',
+      scheduleName: '_sxrLinearOutboxScheduleRetry'
+    }
+  ]) {
+    let guardedDebt = [];
+    let authoritativeState = 'committed';
+    let sourceChecks = 0;
+    let remembers = 0;
+    let rememberedItems = [];
+    let rememberSucceeds = true;
+    let rememberResults = [];
+    let guardedCommittedRows = [];
+    let guardedFinalizeFails = false;
+    let reconciles = 0;
+    let teamDeliveries = 0;
+    const diagnostics = [];
+    const guardedDrainContext = {
+      navigator: {
+        locks: {
+          request: async (_name, _options, callback) => callback()
+        }
+      },
+      _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+      _writeUiPrimeRerouteFlag: async () => {},
+      _writeUiLegacySourceGateState: async () => {
+        sourceChecks++;
+        return authoritativeState;
+      },
+      _writeUiLegacyCommittedTweakRead: () =>
+        JSON.parse(JSON.stringify(guardedCommittedRows)),
+      _writeUiLegacyRememberCommittedTweak: (_surface, item) => {
+        const succeeds = rememberResults.length
+          ? rememberResults.shift()
+          : rememberSucceeds;
+        remembers++;
+        rememberedItems.push(JSON.parse(JSON.stringify(item)));
+        if (succeeds && item && item.source_gate) {
+          const gate = item.source_gate;
+          const key = [
+            String(_surface || ''),
+            String(gate.client_slug || ''),
+            String(gate.post_id || ''),
+            String(gate.component || '')
+          ].join('|');
+          const prior = guardedCommittedRows.find(row => row.key === key);
+          const receipts = Array.from(new Set(
+            [].concat(prior && prior.item && prior.item.team_delivery_receipts || [])
+              .concat(item.team_delivery_receipts || [])
+              .map(String)
+              .filter(Boolean)
+          )).sort();
+          const prefix = 'deferred_' + String(_surface || '') + '_'
+            + String(gate.comment_id || '');
+          guardedCommittedRows = guardedCommittedRows.filter(row => row.key !== key);
+          guardedCommittedRows.push({
+            key,
+            item: Object.assign({}, JSON.parse(JSON.stringify(item)), {
+              team_delivery_receipts: receipts,
+              team_delivery_confirmed: item.transport !== 'source_only'
+                && receipts.includes(prefix + '_comment')
+                && receipts.includes(prefix + '_status')
+            })
+          });
+        }
+        return succeeds;
+      },
+      _writeUiLegacyReconcileCommittedTweak: () => { reconciles++; return true; },
+      _writeUiLegacyFinalizeFlush: async (_surface, _snapshot, remaining) => {
+        if (guardedFinalizeFails) throw new Error('forced finalize failure');
+        guardedDebt = JSON.parse(JSON.stringify(remaining));
+        return JSON.parse(JSON.stringify(guardedDebt));
+      },
+      _writeUiQueueDiagnostic: (_surface, state) => { diagnostics.push(state); },
+      _writeUiLegacyQuarantine: () => true,
+      _writeUiRerouteUseGateway: () => false,
+      _writeUiGatewayPost: async () => { teamDeliveries++; },
+      fetch: async () => {
+        teamDeliveries++;
+        return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      },
+      LINEAR_OUTBOX_MAX_ATTEMPTS: 6,
+      SXR_LINEAR_OUTBOX_MAX: 6,
+      LINEAR_ADD_COMMENT_URL: 'https://writer.invalid/comment',
+      LINEAR_SET_STATUS_URL: 'https://writer.invalid/status',
+      _isClientLink: true,
+      Date, JSON, Object, String, Number, Array, Error, Promise, Map, Set,
+    };
+    guardedDrainContext[fixture.readName] = () => JSON.parse(JSON.stringify(guardedDebt));
+    guardedDrainContext[fixture.scheduleName] = () => {};
+    vm.createContext(guardedDrainContext);
+    vm.runInContext(
+      [
+        legacyGateSignature,
+        legacyTweakKey,
+        legacySupersededSourceItem,
+        legacySupersededTeamItem,
+        legacyTeamDeliveryReceiptItem,
+        legacyRecordedTeamDeliveryReceiptItem,
+        legacyStoredTeamTerminalItem,
+        legacyDrainLock,
+        fixture.functionSource
+      ].join('\n'),
+      guardedDrainContext
+    );
+
+    const sourceOnlyGate = {
+      surface: fixture.surface,
+      client_slug: 'fixture',
+      source_transport: 'supabase',
+      post_id: 'post-1',
+      component: 'graphic',
+      comment_id: 'source-action',
+      comment_body: 'Source only request',
+      comment_author: 'Client',
+      comment_role: 'client',
+      comment_audience: 'client',
+      comment_is_tweak: true,
+      intended_status: 'Tweaks Needed',
+      approval_clears: [],
+      linear_issue: '',
+      principal: 'client:fixture'
+    };
+    const sourceOnlyItem = {
+      id: 'deferred_' + fixture.surface + '_source-action_source',
+      kind: 'source_only',
+      payload: {},
+      attempts: 0,
+      queuedAt: Date.now(),
+      transport: 'source_only',
+      client_slug: 'fixture',
+      source_gate: sourceOnlyGate
+    };
+    guardedDebt = [JSON.parse(JSON.stringify(sourceOnlyItem))];
+    await guardedDrainContext[fixture.functionName]();
+    assert(sourceChecks === 1
+      && remembers === 1
+      && reconciles === 1
+      && teamDeliveries === 0
+      && guardedDebt.length === 0
+      && diagnostics.includes('source_only_confirmed'),
+    fixture.surface + ' confirms and tombstones source-only ownership without inventing a team delivery');
+
+    sourceChecks = 0;
+    remembers = 0;
+    rememberedItems = [];
+    reconciles = 0;
+    teamDeliveries = 0;
+    diagnostics.length = 0;
+    authoritativeState = 'unknown';
+    guardedDebt = [JSON.parse(JSON.stringify(sourceOnlyItem))];
+    await guardedDrainContext[fixture.functionName]();
+    assert(sourceChecks === 1
+      && remembers === 0
+      && reconciles === 0
+      && teamDeliveries === 0
+      && guardedDebt.length === 1
+      && guardedDebt[0].id === sourceOnlyItem.id,
+    fixture.surface + ' retains source-only ownership while authoritative source truth is unavailable');
+
+    sourceChecks = 0;
+    remembers = 0;
+    rememberedItems = [];
+    reconciles = 0;
+    teamDeliveries = 0;
+    diagnostics.length = 0;
+    authoritativeState = 'conflict';
+    guardedDebt = [JSON.parse(JSON.stringify(sourceOnlyItem))];
+    await guardedDrainContext[fixture.functionName]();
+    assert(sourceChecks === 1
+      && remembers === 0
+      && reconciles === 0
+      && teamDeliveries === 0
+      && guardedDebt.length === 1
+      && guardedDebt[0].id === sourceOnlyItem.id,
+    fixture.surface + ' keeps ambiguous source-only ownership active even after recording quarantine evidence');
+
+    sourceChecks = 0;
+    remembers = 0;
+    rememberedItems = [];
+    reconciles = 0;
+    teamDeliveries = 0;
+    diagnostics.length = 0;
+    authoritativeState = 'superseded';
+    guardedDebt = [JSON.parse(JSON.stringify(sourceOnlyItem))];
+    await guardedDrainContext[fixture.functionName]();
+    assert(sourceChecks === 1
+      && remembers === 1
+      && rememberedItems.length === 1
+      && rememberedItems[0].source_only_superseded === true
+      && reconciles === 0
+      && teamDeliveries === 0
+      && guardedDebt.length === 0
+      && diagnostics.includes('source_only_superseded'),
+    fixture.surface + ' replaces superseded source-only debt with a comment-only tombstone and no stale reconciliation or delivery');
+
+    sourceChecks = 0;
+    remembers = 0;
+    rememberedItems = [];
+    reconciles = 0;
+    teamDeliveries = 0;
+    diagnostics.length = 0;
+    authoritativeState = 'superseded';
+    const linkedGate = Object.assign({}, sourceOnlyGate, {
+      comment_id: 'linked-action',
+      comment_body: 'Now stale',
+      linear_issue: 'https://linear.invalid/GRA-1'
+    });
+    guardedDebt = [{
+      id: 'deferred_' + fixture.surface + '_linked-action_comment',
+      kind: 'comment',
+      payload: {
+        issue: 'https://linear.invalid/GRA-1',
+        body: 'Now stale',
+        author: 'Client'
+      },
+      attempts: 0,
+      queuedAt: Date.now(),
+      transport: 'legacy_n8n',
+      client_slug: 'fixture',
+      source_gate: linkedGate
+    }, {
+      id: 'deferred_' + fixture.surface + '_linked-action_status',
+      kind: 'status',
+      payload: {
+        issue: 'https://linear.invalid/GRA-1',
+        status: 'Tweaks Needed'
+      },
+      attempts: 0,
+      queuedAt: Date.now(),
+      transport: 'legacy_n8n',
+      client_slug: 'fixture',
+      source_gate: linkedGate
+    }];
+    await guardedDrainContext[fixture.functionName]();
+    assert(sourceChecks === 1
+      && remembers === 1
+      && rememberedItems.length === 1
+      && rememberedItems[0].team_delivery_superseded === true
+      && rememberedItems[0].source_only_superseded !== true
+      && reconciles === 0
+      && teamDeliveries === 0
+      && guardedDebt.length === 0
+      && diagnostics.includes('source_gate_superseded'),
+    fixture.surface + ' tombstones a linked pair superseded by fresh source truth with zero cache or team mutation');
+
+    sourceChecks = 0;
+    remembers = 0;
+    rememberedItems = [];
+    reconciles = 0;
+    teamDeliveries = 0;
+    diagnostics.length = 0;
+    authoritativeState = 'committed';
+    guardedDebt = [{
+      id: 'deferred_' + fixture.surface + '_linked-action_comment',
+      kind: 'comment',
+      payload: {
+        issue: 'https://linear.invalid/GRA-1',
+        body: 'Now stale',
+        author: 'Client'
+      },
+      queuedAt: Date.now(),
+      transport: 'legacy_n8n',
+      client_slug: 'fixture',
+      source_gate: linkedGate
+    }, {
+      id: 'deferred_' + fixture.surface + '_linked-action_status',
+      kind: 'status',
+      payload: {
+        issue: 'https://linear.invalid/GRA-1',
+        status: 'Tweaks Needed'
+      },
+      queuedAt: Date.now(),
+      transport: 'legacy_n8n',
+      client_slug: 'fixture',
+      source_gate: linkedGate
+    }];
+    const terminalRetry = await guardedDrainContext[fixture.functionName]();
+    assert(sourceChecks === 0
+      && remembers === 0
+      && reconciles === 0
+      && teamDeliveries === 0
+      && guardedDebt.length === 0
+      && terminalRetry.outcomes.length === 2
+      && terminalRetry.outcomes.every(outcome =>
+        outcome.state === 'team_delivery_superseded'),
+    fixture.surface + ' retained rows cannot resurrect a stored terminal action after source status changes back');
+
+    sourceChecks = 0;
+    remembers = 0;
+    rememberedItems = [];
+    reconciles = 0;
+    teamDeliveries = 0;
+    diagnostics.length = 0;
+    authoritativeState = 'superseded';
+    rememberSucceeds = false;
+    guardedCommittedRows = [];
+    guardedDebt = [{
+      id: 'deferred_' + fixture.surface + '_linked-action_comment',
+      kind: 'comment',
+      payload: {
+        issue: 'https://linear.invalid/GRA-1',
+        body: 'Now stale',
+        author: 'Client'
+      },
+      attempts: 0,
+      queuedAt: Date.now(),
+      transport: 'legacy_n8n',
+      client_slug: 'fixture',
+      source_gate: linkedGate
+    }, {
+      id: 'deferred_' + fixture.surface + '_linked-action_status',
+      kind: 'status',
+      payload: {
+        issue: 'https://linear.invalid/GRA-1',
+        status: 'Tweaks Needed'
+      },
+      attempts: 0,
+      queuedAt: Date.now(),
+      transport: 'legacy_n8n',
+      client_slug: 'fixture',
+      source_gate: linkedGate
+    }];
+    await guardedDrainContext[fixture.functionName]();
+    assert(sourceChecks === 1
+      && remembers === 1
+      && reconciles === 0
+      && teamDeliveries === 0
+      && guardedDebt.length === 2
+      && guardedDebt.some(item => item.kind === 'comment')
+      && guardedDebt.some(item => item.kind === 'status'),
+    fixture.surface + ' retains the entire linked pair when terminal proof cannot be persisted');
+    rememberSucceeds = true;
+
+    sourceChecks = 0;
+    remembers = 0;
+    rememberedItems = [];
+    reconciles = 0;
+    teamDeliveries = 0;
+    diagnostics.length = 0;
+    authoritativeState = 'landed_pending';
+    const rearmGate = Object.assign({}, linkedGate, {
+      comment_id: 'rearm-action',
+      comment_body: 'Retry without duplicate comment'
+    });
+    const rearmCommentId = 'deferred_' + fixture.surface + '_rearm-action_comment';
+    const rearmStatusId = 'deferred_' + fixture.surface + '_rearm-action_status';
+    const rearmMarker = {
+      id: rearmCommentId,
+      kind: 'comment',
+      payload: {
+        issue: 'https://linear.invalid/GRA-1',
+        body: 'Retry without duplicate comment',
+        author: 'Client'
+      },
+      queuedAt: Date.now(),
+      transport: 'legacy_n8n',
+      client_slug: 'fixture',
+      source_gate: rearmGate,
+      team_delivery_superseded: true,
+      team_delivery_receipts: [rearmCommentId]
+    };
+    guardedCommittedRows = [{
+      key: fixture.surface + '|fixture|post-1|graphic',
+      item: JSON.parse(JSON.stringify(rearmMarker))
+    }];
+    guardedDebt = [
+      Object.assign({}, JSON.parse(JSON.stringify(rearmMarker)), {
+        team_delivery_superseded: false,
+        rearmed_team_delivery: true
+      }),
+      {
+        id: rearmStatusId,
+        kind: 'status',
+        payload: {
+          issue: 'https://linear.invalid/GRA-1',
+          status: 'Tweaks Needed'
+        },
+        queuedAt: Date.now(),
+        transport: 'legacy_n8n',
+        client_slug: 'fixture',
+        source_gate: rearmGate,
+        rearmed_team_delivery: true
+      }
+    ];
+    const gapPending = await guardedDrainContext[fixture.functionName]();
+    assert(sourceChecks === 1
+      && remembers === 0
+      && reconciles === 0
+      && teamDeliveries === 0
+      && guardedDebt.length === 2
+      && (!gapPending.outcomes || gapPending.outcomes.length === 0),
+    fixture.surface + ' keeps a rearmed pair intact during the stage-to-source-save gap');
+
+    sourceChecks = 0;
+    authoritativeState = 'committed';
+    const gapCommitted = await guardedDrainContext[fixture.functionName]();
+    assert(sourceChecks === 1
+      && remembers === 3
+      && reconciles === 2
+      && teamDeliveries === 1
+      && guardedDebt.length === 0
+      && gapCommitted.outcomes.length === 2
+      && gapCommitted.outcomes.every(outcome =>
+        outcome.state === 'team_delivery_confirmed'),
+    fixture.surface + ' later drains only the unreceipted leg after exact source confirmation');
+
+    const finalizeGate = Object.assign({}, linkedGate, {
+      comment_id: 'finalize-action',
+      comment_body: 'Do not redeliver after finalize failure'
+    });
+    guardedCommittedRows = [];
+    guardedDebt = [{
+      id: 'deferred_' + fixture.surface + '_finalize-action_comment',
+      kind: 'comment',
+      payload: {
+        issue: 'https://linear.invalid/GRA-1',
+        body: 'Do not redeliver after finalize failure',
+        author: 'Client'
+      },
+      queuedAt: Date.now(),
+      transport: 'legacy_n8n',
+      client_slug: 'fixture',
+      source_gate: finalizeGate
+    }, {
+      id: 'deferred_' + fixture.surface + '_finalize-action_status',
+      kind: 'status',
+      payload: {
+        issue: 'https://linear.invalid/GRA-1',
+        status: 'Tweaks Needed'
+      },
+      queuedAt: Date.now(),
+      transport: 'legacy_n8n',
+      client_slug: 'fixture',
+      source_gate: finalizeGate
+    }];
+    sourceChecks = 0;
+    remembers = 0;
+    reconciles = 0;
+    teamDeliveries = 0;
+    guardedFinalizeFails = true;
+    let forcedFinalizeError = null;
+    try {
+      await guardedDrainContext[fixture.functionName]();
+    } catch (error) {
+      forcedFinalizeError = error;
+    }
+    assert(forcedFinalizeError
+      && teamDeliveries === 2
+      && guardedDebt.length === 2
+      && guardedCommittedRows.length === 1
+      && guardedCommittedRows[0].item.team_delivery_confirmed === true,
+    fixture.surface + ' keeps both exact delivery receipts when finalization fails');
+
+    sourceChecks = 0;
+    remembers = 0;
+    reconciles = 0;
+    teamDeliveries = 0;
+    guardedFinalizeFails = false;
+    const finalizeRetry = await guardedDrainContext[fixture.functionName]();
+    assert(sourceChecks === 1
+      && teamDeliveries === 0
+      && guardedDebt.length === 0
+      && finalizeRetry.outcomes.length === 2
+      && finalizeRetry.outcomes.every(outcome =>
+        outcome.state === 'team_delivery_confirmed'),
+    fixture.surface + ' consumes durable receipts after finalization failure without duplicate team delivery');
+
+    const receiptFailureGate = Object.assign({}, linkedGate, {
+      comment_id: 'receipt-failure-action',
+      comment_body: 'Persist this delivery receipt'
+    });
+    const receiptFailureId =
+      'deferred_' + fixture.surface + '_receipt-failure-action_comment';
+    guardedCommittedRows = [];
+    guardedDebt = [{
+      id: receiptFailureId,
+      kind: 'comment',
+      payload: {
+        issue: 'https://linear.invalid/GRA-1',
+        body: 'Persist this delivery receipt',
+        author: 'Client'
+      },
+      queuedAt: Date.now(),
+      transport: 'legacy_n8n',
+      client_slug: 'fixture',
+      source_gate: receiptFailureGate
+    }];
+    sourceChecks = 0;
+    remembers = 0;
+    reconciles = 0;
+    teamDeliveries = 0;
+    rememberResults = [true, false];
+    const failedReceiptPersist = await guardedDrainContext[fixture.functionName]();
+    assert(sourceChecks === 1
+      && remembers === 2
+      && reconciles === 1
+      && teamDeliveries === 1
+      && guardedDebt.length === 1
+      && guardedDebt[0].team_delivery_receipts.includes(receiptFailureId)
+      && failedReceiptPersist.outcomes.length === 0,
+    fixture.surface + ' retains a receipt-bearing row when post-delivery ledger persistence fails');
+
+    sourceChecks = 0;
+    remembers = 0;
+    reconciles = 0;
+    teamDeliveries = 0;
+    rememberResults = [true];
+    const receiptPersistRetry = await guardedDrainContext[fixture.functionName]();
+    assert(sourceChecks === 1
+      && remembers === 1
+      && reconciles === 1
+      && teamDeliveries === 0
+      && guardedDebt.length === 0
+      && receiptPersistRetry.outcomes.length === 1
+      && receiptPersistRetry.outcomes[0].state === 'team_delivery_confirmed',
+    fixture.surface + ' persists the retained receipt on retry without a duplicate team fetch');
   }
 
   const calApprove = extract('_calReviewApplyApprove');

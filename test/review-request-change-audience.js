@@ -69,6 +69,7 @@ function _writeUiLegacyTargetWithLock(surface, slug, pid, comp, callback){ retur
 function _writeUiLegacyInspectTargetTweak(surface, slug, pid, comp, post, body, candidateId){
   return Promise.resolve({ state: 'new', comment_id: candidateId, ids: [] });
 }
+function _writeUiLegacyRefreshActiveTweak(surface, inspection){ return Promise.resolve(inspection); }
 function _writeUiRequestTweakMarkLocalStatus(){ return { before: [], stamped: [] }; }
 function _writeUiRollbackRequestTweak(){}
 function _writeUiQueueDeferredLegacyTweak(){ return Promise.resolve({ state: 'staged', ids: [] }); }

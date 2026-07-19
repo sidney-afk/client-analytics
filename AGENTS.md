@@ -26,6 +26,11 @@ re-discover (system shape, where truth lives, enforced invariants, live-system s
 Check `docs/truth/` before re-auditing anything; those docs are current-state,
 updated in place, and drift-checked by `test/truth-sync.js`.
 
+**Looking for any documented fact?** `docs/FIND_ANYTHING.md` routes every
+question to its owning doc in ≤2 opens — including company-level truth (the
+Enterprise Atlas: `docs/ATLAS.md` in the `synchrosocial` repo) and the
+numbered registers (F-/D-/OQ-/KQ-numbers).
+
 - **`docs/CLIENT_LIFECYCLE_MAP.md` is a MIRRORED doc** — the identical file
   lives in the `synchrosocial` repo at `docs/CLIENT_LIFECYCLE_MAP.md`. It maps
   the entire client lifecycle (traffic → booking → sales → onboarding →

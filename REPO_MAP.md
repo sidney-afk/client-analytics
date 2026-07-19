@@ -46,6 +46,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | Path | What it is |
 |---|---|
 | `docs/CLIENT_LIFECYCLE_MAP.md` | The master client lifecycle map (traffic → booking → sales → onboarding → provisioning → samples → production). **MIRRORED**: a byte-identical copy lives in the `synchrosocial` repo at the same path — change both together, and do not move it into a subfolder (the path is part of the mirror contract). |
+| `docs/FIND_ANYTHING.md` | The one-hop retrieval router: "I want to know X → open exactly Y" for both repos, plus the register index (F-/D-/OQ-/KQ-/VA-numbers) and the owner's no-session path. Draft pending owner ratification (vault audit 2026-07-19, proposal P4). |
 | `docs/features/` | **Status-bearing feature contracts** — one doc per shipped feature. Each must state whether it is current deployed truth, a blocked future design, or non-operative history; completed SQL/workflow rollout recipes must not remain executable-looking. Repo-wide visible-control rules live in `UI_DESIGN_STANDARDS.md`; `PTO_VISUAL_DIRECTIONS.html` is the synthetic, non-operative comparison board for the three staff and three Kasper layout directions. |
 | `docs/ops/` | Runbooks: new-client onboarding, Linear reconcile safety net, monitoring/rollback coverage map (`docs/ops/MONITORING.md`), pending cleanup checklists. |
 | `docs/independence/` | The active independence program: `docs/independence/INDEPENDENCE_PLAN.md` (strategy), Track A (Edge Functions) and Track B (Linear replacement) specs, dependency audits. |

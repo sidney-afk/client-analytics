@@ -106,13 +106,15 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `workload_plan` sidecar; when none is saved, placement falls back to the exact due date. Dragging
   an individual issue or using the branded work-day control updates only that internal date, and
   **Clear plan day** returns it to due-date placement.
-- The candidate's staff-authenticated `workload-plan` Edge Function is the only browser projection
-  and writer for the sidecar. A write is accepted only when the response reports exactly one row
-  actually written; a short count reverts the optimistic move and notifies the user. A plan-list
-  failure retains last-good data when available, otherwise shows an explicit due-date-only degraded
-  state with editing disabled rather than silently treating overrides as absent. Authentication or
-  authorization denial instead purges the private projection immediately. Reads and writes are
-  bounded, and only the newest overlapping refresh may publish plan state.
+- The candidate's Admin/SMM-authenticated `workload-plan` Edge Function is the only browser
+  projection and writer for the sidecar. Creative is denied both saved-plan reads and mutations by
+  the server role allowlist and the matching browser capability gate. A write is accepted only when
+  the response reports exactly one row actually written; a short count reverts the optimistic move
+  and notifies the user. A plan-list failure retains last-good data when available, otherwise shows
+  an explicit due-date-only degraded state with editing disabled rather than silently treating
+  overrides as absent. Authentication or authorization denial instead purges the private projection
+  immediately. Reads and writes are bounded, and only the newest overlapping refresh may publish
+  plan state.
 - **Deployment boundary:** the 2026-07-19 migration, Edge Function, and editable browser behavior are
   source-only. The migration has not been applied, the function has not been deployed, and no
   runtime flag, Linear writer, or frozen client writer was changed.

@@ -131,7 +131,7 @@ ok(/const WORKLOAD_PLAN_URL\s*=\s*CAL_SUPABASE_URL \+ '\/functions\/v1\/workload
   && INDEX.indexOf('const CAL_SUPABASE_URL') < INDEX.indexOf('const WORKLOAD_PLAN_URL')
   && /_syncviewRequireStaffIdentity\('workload-plan'\)/.test(clientWrite)
   && /_syncviewEfHeaders\(\{ 'Content-Type': 'application\/json' \}, WORKLOAD_PLAN_URL\)/.test(clientWrite),
-'browser uses only the staff-authenticated workload-plan endpoint');
+'browser uses only the Admin/SMM-authenticated workload-plan endpoint');
 ok(/if \(capability === 'workload-plan'\) return role === 'admin' \|\| role === 'smm';/.test(INDEX)
   && /return wlState\.planStatus === 'ready' && _syncviewStaffCan\('workload-plan'\);/.test(INDEX)
   && /Work-day planning requires an Admin or SMM account/.test(INDEX),

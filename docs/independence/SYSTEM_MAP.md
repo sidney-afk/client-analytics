@@ -65,7 +65,7 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   Slack/Linear/project mappings.
 - The source-only `workload_plan` table is a separate, service-role-only internal-date sidecar keyed
   by stable sub-issue id. It adds no mirror column or foreign key, has no browser REST path, and is
-  exposed only through the candidate staff-authenticated `workload-plan` function. Its migration
+  exposed only through the candidate Admin/SMM-authenticated `workload-plan` function. Its migration
   and function have not been applied/deployed.
 - **Edge Functions.** 28 are represented under `supabase/functions/`; **the app calls 23**
   (**"19 literal + 4 composed" Edge Functions**, see
@@ -660,7 +660,7 @@ n8n in the metric read path.*
   `linear-tweak-comments` (Tweak-Needed popover, 5-min cache). n8n `editors-week` (**one** browser
   fetch site, but a publicly callable arbitrary-range endpoint) returns issue histories; all report
   metrics are computed client-side. The stacked candidate additionally reads internal plan dates
-  through staff-authenticated EF `workload-plan`; it never reads the sidecar through PostgREST.
+  through Admin/SMM-authenticated EF `workload-plan`; it never reads the sidecar through PostgREST.
 - **Writes.** n8n `content-ready` (manual "content ready for review" email; **never checks
   `resp.ok`** — HTTP errors display as success). The candidate writes or clears one internal
   `plan_date` through `workload-plan`, keyed by the exact sub-issue id. It never writes Linear
@@ -670,8 +670,10 @@ n8n in the metric read path.*
   `syncview_kasper_editors_v2` (week-rollover-invalidated). Kill switches: `?wl2=0`, the compile-time
   `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch for this surface or the plan-date
   candidate; candidate plan state is held as a last-good issue-id map in the running page.
-- **Roles.** Staff-only. The candidate permits plan-date edits only after verified staff
-  authentication; Editors view remains further gated behind the Kasper unlock.
+- **Roles.** Plan projection/list access and per-issue plan-date writes are Admin/SMM-only after
+  verified role-key authentication. Creative remains a recognized staff role on unrelated surfaces
+  but is denied by both the `workload-plan` function and browser capability gate. Editors view
+  remains further gated behind the Kasper unlock.
 - **Failure/fallback.** REST error / non-array / 0 rows → automatic n8n fallback (no user signal).
   Both fail + cache → stale board (error only set when no cache); no cache → red error card.
   Candidate plan-list failure retains last-good overrides when available; without one, the UI

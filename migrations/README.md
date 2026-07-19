@@ -64,10 +64,11 @@ executes these files (see `README.md` › Repository layout).
   sub-issue id, with normalized client scope, nullable internal `plan_date`, and server-owned
   `updated_by` / `updated_at`. It deliberately adds no column or foreign key to the rebuildable
   `workload_issues` mirror. RLS is enabled, browser roles receive no table policy or grant, and only
-  service role may read or write it through the staff-authenticated `workload-plan` Edge Function.
-  It adds no runtime flag and never writes a Linear due date. This delta is **source-only** and must
-  not be described as applied until the schema, grants, empty seed state, and browser denial are
-  read back and recorded in `EXECUTION_LOG.md`.
+  service role may read or write it through the Admin/SMM-authenticated `workload-plan` Edge
+  Function; Creative is denied for both list and mutation actions. It adds no runtime flag and never
+  writes a Linear due date. This delta is **source-only** and must not be described as applied until
+  the schema, grants, empty seed state, and browser denial are read back and recorded in
+  `EXECUTION_LOG.md`.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

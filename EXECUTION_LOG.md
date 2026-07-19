@@ -517,12 +517,13 @@ All times are UTC unless noted.
   deadline, while an internal `plan_date` is keyed by the stable sub-issue id in the new
   service-role-only `workload_plan` sidecar. No column or foreign key is added to the B3-managed
   `workload_issues` mirror.
-- Added the source contract for the staff-authenticated `workload-plan` Edge Function and the
+- Added the source contract for the Admin/SMM-authenticated `workload-plan` Edge Function and the
   drag/edit/clear browser path. Clearing the internal day returns the issue to its exact due date;
   the candidate has no n8n fallback, Linear due-date writer, or automatic scheduler.
 - Owner review narrowed the private plan projection and every edit path to Admin and SMM only.
   Creative remains a recognized staff role on unrelated surfaces, but cannot list or mutate
-  `workload_plan`; matching source and hermetic browser-role guards pin that local boundary.
+  `workload_plan`; matching source, hermetic browser-role guards, and authoritative truth
+  descriptions pin that local boundary.
 - Collapsed-rollup batch moves remain outside this candidate and are tracked separately in #884;
   expanded issue-card moves retain the exact one-row, actual-count fail-closed path.
 - F141 is born into the contract: the function reports rows actually written and the browser accepts

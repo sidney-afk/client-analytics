@@ -97,11 +97,12 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 ## Workload internal plan-date contract (source only)
 
 - Linear `due_date` remains display-only in Workload. The new `workload_plan.plan_date` is an
-  independent staff-owned scheduling value keyed by the exact sub-issue id; clearing it falls back
-  to the mirrored due date.
-- The browser never calls `workload_plan` through PostgREST. It uses the staff-authenticated
-  `workload-plan` Edge Function to list, set, or clear an internal plan day. The server validates an
-  active sub-issue and normalized client scope before the service-role write.
+  independent Admin/SMM-owned scheduling value keyed by the exact sub-issue id; clearing it falls
+  back to the mirrored due date.
+- The browser never calls `workload_plan` through PostgREST. It uses the Admin/SMM-authenticated
+  `workload-plan` Edge Function to list, set, or clear an internal plan day; Creative is denied for
+  both projection reads and mutations. The server validates an active sub-issue and normalized
+  client scope before the service-role write.
 - F141 is part of the initial contract: the function reports the number of rows it actually wrote,
   not the number requested, and the browser requires exactly one. A short count, non-OK response, or
   malformed result reverts the optimistic date and notifies the user.

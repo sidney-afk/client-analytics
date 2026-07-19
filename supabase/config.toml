@@ -95,9 +95,9 @@ verify_jwt = false
 [functions.production-write]
 verify_jwt = false
 
-# Staff-authenticated internal Workload plan-day projection and writer. The
-# static browser supplies its verified role key; client tokens and automation
-# principals cannot set internal plan dates.
+# Admin/SMM-authenticated internal Workload plan-day projection and writer. The
+# static browser supplies its verified role key; Creative, client-token, and
+# automation principals cannot list or set internal plan dates.
 [functions.workload-plan]
 verify_jwt = false
 

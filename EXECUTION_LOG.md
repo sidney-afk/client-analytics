@@ -530,6 +530,10 @@ All times are UTC unless noted.
 - Candidate verification passed: all 137 offline suites, the 10-suite read-only Production polish
   aggregate, focused workload source/F141/tweak-exclusivity robots, deploy-manifest freshness,
   whitespace checks, and a Deno type-check of `supabase/functions/workload-plan/index.ts`.
+- Cloud-review follow-through makes Week a rolling seven-calendar-day view so literal Saturday and
+  Sunday deadlines/plan days cannot disappear, and computes overload styling from the rows visible
+  under the current filters so hidden editors cannot make a filtered day look falsely over capacity.
+  The unfiltered 5-video / 15-graphics thresholds and all-visible/no-spill rule remain unchanged.
 - Browser persistence assurance remains intentionally unclaimed until the post-deploy private TEST
   drill proves one exact set/list/clear cycle, due-date immutability, short-count rollback, and
   byte-exact cleanup of any sidecar row that did not exist before the drill.

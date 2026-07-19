@@ -1818,7 +1818,7 @@
         .wl-search-loading { padding: 9px 12px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
         .workload-skeleton-grid { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: grid; gap: 4px; }
         .workload-skeleton-grid.month { grid-template-columns: repeat(7, minmax(0, 1fr)); }
-        .workload-skeleton-grid.week { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        .workload-skeleton-grid.week { grid-template-columns: repeat(7, minmax(0, 1fr)); }
         .workload-skeleton-day { min-height: 140px; background: var(--bg); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 9px; }
         .workload-skeleton-grid.week .workload-skeleton-day { min-height: 420px; }
         .workload-skeleton-card { background: var(--white); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 7px; }
@@ -3251,11 +3251,11 @@
         .workload-grid-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
         .workload-weekdays { display: grid; gap: 4px; margin-bottom: 6px; }
         .workload-weekdays.month { grid-template-columns: repeat(7, 1fr); }
-        .workload-weekdays.week { grid-template-columns: repeat(5, 1fr); }
+        .workload-weekdays.week { grid-template-columns: repeat(7, 1fr); }
         .workload-weekday { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); text-align: center; padding: 6px 0; }
         .workload-grid { display: grid; gap: 4px; }
         .workload-grid.month { grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(140px, auto); }
-        .workload-grid.week  { grid-template-columns: repeat(5, 1fr); grid-auto-rows: minmax(420px, auto); }
+        .workload-grid.week  { grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(420px, auto); }
         .workload-day { padding: 8px 10px; border-radius: 8px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; gap: 5px; min-height: 140px; }
         .workload-grid.week .workload-day { min-height: 420px; gap: 6px; padding: 10px 12px; }
         .workload-day.today { outline: 2px solid var(--text-primary); }
@@ -3361,7 +3361,7 @@
         /* ── Templates view ── */
         @media (max-width: 768px) {
             .workload-grid-wrap { overflow-x: auto; overscroll-behavior-inline: contain; }
-            .workload-weekdays.week, .workload-grid.week { min-width: 650px; }
+            .workload-weekdays.week, .workload-grid.week { min-width: 910px; }
             .workload-weekdays.month, .workload-grid.month { min-width: 840px; }
             .workload-popover { width: min(360px, calc(100vw - 20px)); min-width: 0; max-width: none; box-sizing: border-box; }
         }
@@ -12415,7 +12415,7 @@
     const wlState = {
         viewMode: 'week',                          // 'week' | 'month'
         year: null, month: null,                   // visible month (month view)
-        weekStart: null,                           // leftmost day of the rolling 5-workday window
+        weekStart: null,                           // leftmost day of the rolling 7-calendar-day window
         team: 'all', editor: 'all', client: 'all', // filters
         planned: [],                               // assigned non-tweak sub-issues with a plan day or due-date fallback
         nowWorking: [],                            // assigned sub-issues currently "In Progress"
@@ -13219,7 +13219,7 @@
         const now = new Date();
         const todayISO = wlTodayISO();
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
-        if (wlState.weekStart == null) { wlState.weekStart = wlNextWorkingDay(todayISO); }
+        if (wlState.weekStart == null) { wlState.weekStart = todayISO; }
         // Seed the client search dropdown with the canonical client list as
         // soon as the view mounts. Otherwise the dropdown is empty until the
         // background fetch returns, which feels broken if you start typing
@@ -13735,7 +13735,7 @@
                     const today = wlTodayISO();
                     const n = new Date();
                     wlState.year = n.getFullYear(); wlState.month = n.getMonth();
-                    wlState.weekStart = wlNextWorkingDay(today);
+                    wlState.weekStart = today;
                     renderWorkloadAll();
                     return;
                 }
@@ -13836,12 +13836,8 @@
 
     function wlShiftPeriod(delta) {
         if (wlState.viewMode === 'week') {
-            // Rolling 5-workday window: shift by 5 working days per click.
-            if (delta > 0) {
-                for (let k = 0; k < delta; k++) wlState.weekStart = wlAddWorkingDays(wlState.weekStart, 5);
-            } else if (delta < 0) {
-                for (let k = 0; k < -delta; k++) wlState.weekStart = wlSubWorkingDays(wlState.weekStart, 5);
-            }
+            // Rolling 7-calendar-day window: include literal weekend dates.
+            wlState.weekStart = wlAddDays(wlState.weekStart, delta * 7);
         } else {
             let y = wlState.year, m = wlState.month + delta;
             while (m < 0)  { m += 12; y--; }
@@ -14060,7 +14056,7 @@
         if (titleEl) {
             if (wlState.viewMode === 'week') {
                 const ws = wlState.weekStart;
-                const we = wlAddWorkingDays(ws, 4); // today + next 4 workdays
+                const we = wlAddDays(ws, 6); // today + next 6 calendar days
                 const wsD = wlParseISO(ws), weD = wlParseISO(we);
                 const sameMonth = wsD.getMonth() === weD.getMonth() && wsD.getFullYear() === weD.getFullYear();
                 titleEl.textContent = sameMonth
@@ -14143,7 +14139,7 @@
         const allDue = wlState.calendarByDate.get(todayISO) || [];
         const plannedSubs = allDue.filter(wlPassesFilters);
         const groups = wlGroupRollups(plannedSubs);
-        return { groups, count: plannedSubs.length, overCapacity: wlDayOverCapacity(allDue) };
+        return { groups, count: plannedSubs.length, overCapacity: wlDayOverCapacity(plannedSubs) };
     }
 
     // Editor workload — ranks every current video editor by how busy they are
@@ -14390,22 +14386,23 @@
 
     function renderWeekGrid() {
         const todayISO = wlTodayISO();
-        const start = wlState.weekStart; // leftmost working day (today by default)
+        const start = wlState.weekStart; // leftmost calendar day (today by default)
         const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         let weekdayHtml = '<div class="workload-weekdays week">';
-        for (let i = 0; i < 5; i++) {
-            const iso = wlAddWorkingDays(start, i);
+        for (let i = 0; i < 7; i++) {
+            const iso = wlAddDays(start, i);
             const d = wlParseISO(iso);
             weekdayHtml += `<div class="workload-weekday">${dayLabels[d.getDay()]} · ${d.getDate()}</div>`;
         }
         weekdayHtml += '</div>';
 
         let gridHtml = '<div class="workload-grid week">';
-        for (let i = 0; i < 5; i++) {
-            const iso = wlAddWorkingDays(start, i);
+        for (let i = 0; i < 7; i++) {
+            const iso = wlAddDays(start, i);
             const d = wlParseISO(iso);
             const isToday = iso === todayISO;
             const classes = ['workload-day'];
+            if (d.getDay() === 0 || d.getDay() === 6) classes.push('weekend');
             if (isToday) classes.push('today');
             let groups, count, overCapacity;
             if (isToday) {
@@ -14415,7 +14412,7 @@
                 const subs = allDue.filter(wlPassesFilters);
                 groups = wlGroupRollups(subs);
                 count = subs.length;
-                overCapacity = wlDayOverCapacity(allDue);
+                overCapacity = wlDayOverCapacity(subs);
             }
             if (overCapacity) classes.push('over-capacity');
             const rowsHtml = renderDayRollups(groups, iso);
@@ -14469,7 +14466,7 @@
                 const subs = allDue.filter(wlPassesFilters);
                 groups = wlGroupRollups(subs);
                 count = subs.length;
-                overCapacity = wlDayOverCapacity(allDue);
+                overCapacity = wlDayOverCapacity(subs);
             }
             if (overCapacity) classes.push('over-capacity');
             const rowsHtml = renderDayRollups(groups, iso);
@@ -22346,7 +22343,7 @@
     }
     function _svWorkloadSkeletonHtml() {
         const mode = (typeof wlState !== 'undefined' && wlState && wlState.viewMode === 'week') ? 'week' : 'month';
-        const cells = mode === 'week' ? 5 : 28;
+        const cells = mode === 'week' ? 7 : 28;
         return `<div class="workload-skeleton-grid ${mode}" role="status" aria-label="Loading">${Array.from({ length: cells }, (_, i) => `
             <div class="workload-skeleton-day">
                 ${_svSkel('sv-skeleton-pill', 'width:34px;height:14px;')}

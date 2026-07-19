@@ -188,19 +188,20 @@ wlState.planByIssueId.clear();
 
 const wlISO = compile('wlISO');
 const wlParseISO = compile('wlParseISO');
-const wlAddWorkingDays = compile('wlAddWorkingDays', { wlParseISO, wlISO });
+const wlAddDays = compile('wlAddDays', { wlParseISO, wlISO });
+const wlIsWeekend = compile('wlIsWeekend');
 wlState.weekStart = dueDate;
 wlState.calendarByDate = new Map([[dueDate, videoRows]]);
 const renderWeekGrid = compile('renderWeekGrid', {
   wlState,
   wlTodayISO: () => '2026-07-19',
-  wlAddWorkingDays,
+  wlAddDays,
   wlParseISO,
   wlEscape: value => String(value),
   wlPassesFilters: () => true,
-  wlGroupRollups: () => [],
+  wlGroupRollups: subs => subs,
   wlDayOverCapacity,
-  renderDayRollups: () => '',
+  renderDayRollups: groups => groups.map(row => row.id).join('|'),
 });
 const weekHtml = renderWeekGrid();
 check(/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(weekHtml)
@@ -210,18 +211,61 @@ check(/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(weekHtm
 const renderFilteredWeekGrid = compile('renderWeekGrid', {
   wlState,
   wlTodayISO: () => '2026-07-19',
-  wlAddWorkingDays,
+  wlAddDays,
   wlParseISO,
   wlEscape: value => String(value),
-  wlPassesFilters: () => false,
-  wlGroupRollups: () => [],
+  wlPassesFilters: row => row.id === 'video-0',
+  wlGroupRollups: subs => subs,
   wlDayOverCapacity,
-  renderDayRollups: () => '',
+  renderDayRollups: groups => groups.map(row => row.id).join('|'),
 });
 const filteredWeekHtml = renderFilteredWeekGrid();
-check(/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(filteredWeekHtml)
-    && filteredWeekHtml.includes('>over</span>'),
-  'filters cannot hide the overload state from the unfiltered due-date bucket');
+check(/class="workload-day" data-wl-day="2026-07-20"/.test(filteredWeekHtml)
+    && filteredWeekHtml.includes('>1</span>')
+    && !/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(filteredWeekHtml),
+  'a filtered day is not marked over capacity because of hidden rows');
+
+const filteredTodayRollups = compile('wlTodayRollups', {
+  wlState,
+  wlPassesFilters: row => row.id === 'video-0',
+  wlGroupRollups: subs => subs,
+  wlDayOverCapacity,
+});
+const filteredToday = filteredTodayRollups(dueDate);
+check(filteredToday.count === 1 && filteredToday.overCapacity === false,
+  'today overload also uses only the rows visible under current filters');
+
+wlState.year = 2026;
+wlState.month = 6;
+const renderFilteredMonthGrid = compile('renderMonthGrid', {
+  wlState,
+  wlTodayISO: () => '2026-07-19',
+  wlISO,
+  wlIsWeekend,
+  wlTodayRollups: () => ({ groups: [], count: 0, overCapacity: false }),
+  wlPassesFilters: row => row.id === 'video-0',
+  wlGroupRollups: subs => subs,
+  wlDayOverCapacity,
+  renderDayRollups: groups => groups.map(row => row.id).join('|'),
+  wlEscape: value => String(value),
+});
+const filteredMonthHtml = renderFilteredMonthGrid();
+check(!/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(filteredMonthHtml),
+  'month overload also ignores rows hidden by current filters');
+
+const weekendDue = issue('To Do', 'weekend-due', '2026-07-25');
+const weekendPlan = issue('To Do', 'weekend-plan', '2026-07-31');
+wlState.planByIssueId.set(weekendPlan.id, '2026-07-26');
+wlApplyData([weekendDue, weekendPlan], '2026-07-19T12:00:00Z');
+wlState.weekStart = '2026-07-24';
+const weekendWeekHtml = renderWeekGrid();
+check((weekendWeekHtml.match(/data-wl-day=/g) || []).length === 7
+    && /class="workload-day weekend" data-wl-day="2026-07-25"/.test(weekendWeekHtml)
+    && /class="workload-day weekend" data-wl-day="2026-07-26"/.test(weekendWeekHtml)
+    && weekendWeekHtml.includes('weekend-due')
+    && weekendWeekHtml.includes('weekend-plan'),
+  'the rolling week renders seven literal days including Saturday due and Sunday plan dates');
+wlState.planByIssueId.clear();
 
 const renderDayRollups = compile('renderDayRollups', {
   wlTeamBucket,
@@ -275,6 +319,10 @@ check(!INDEX.includes('function wlEffectiveWorkDate(')
 check(INDEX.includes('.workload-day.over-capacity')
     && !INDEX.includes("'Plan ' + wlFormatShort"),
   'source guard pins themed overload styling and removes phantom scheduler copy');
+check(INDEX.includes('.workload-weekdays.week { grid-template-columns: repeat(7, 1fr); }')
+    && INDEX.includes('wlState.weekStart = wlAddDays(wlState.weekStart, delta * 7)')
+    && (INDEX.match(/overCapacity = wlDayOverCapacity\(subs\);/g) || []).length === 2,
+  'source guard pins seven-calendar-day weeks and visible-row overload calculations');
 
 console.log('\n' + (fail === 0 ? 'OVERALL: PASS' : `OVERALL: FAIL (${fail} failed)`));
 process.exit(fail === 0 ? 0 : 1);

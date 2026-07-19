@@ -58,6 +58,11 @@ ok(/const json = await resp\.clone\(\)\.json\(\)\.catch\(\(\) => null\);[\s\S]*j
   'sample reorder fallback failure must remain visible to the UI');
 ok(/showNotify\("Couldn't save the new order", 'It was put back/.test(INDEX),
   'sample reorder EF failure must notify the user after the fail-closed rejection');
+// F141: a reorder whose id set does not fully match live rows must fail closed,
+// exactly as the calendar reorder does. The EF must report the true match count
+// and the browser must reject updated < items.length instead of trusting ok.
+ok(/_sxrSampleUseEf\(slug\) && Number\(\(json && json\.updated\) \|\| 0\) < items\.length/.test(INDEX),
+  'sample EF reorder must verify the updated count (F141 silent-loss guard)');
 
 [
   'READ_FAILURE_MESSAGE',
@@ -90,6 +95,13 @@ ok(/from\("sample_reviews"\)[\s\S]*order_index/.test(SXR_REORDER),
   'sample reorder must update sample_reviews order_index');
 ok(!/updated_at/.test(SXR_REORDER.split('from("sample_reviews")')[1] || ''),
   'sample reorder must not add updated_at writes');
+// F141: the EF must return the count of rows it ACTUALLY matched, never
+// parsed.items.length. Echoing the requested length reports success for a
+// reorder that persisted nothing, defeating the browser's fail-closed check.
+ok(/let updated = 0/.test(SXR_REORDER) && /updated\+\+/.test(SXR_REORDER)
+  && /return json\(\{ ok: true, updated \}\)/.test(SXR_REORDER)
+  && !/updated: parsed\.items\.length/.test(SXR_REORDER),
+  'sample reorder EF must report the true matched-row count (F141 silent-loss guard)');
 
 ok(/UPSERT_FLAG_URL/.test(RECON) && /sample_review_ef_clients/.test(RECON), 'sample reconciler runtime flag read missing');
 ok(/loadUpsertEfClients/.test(RECON) && /await loadUpsertEfClients\(\)/.test(RECON),

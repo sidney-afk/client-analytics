@@ -2,7 +2,8 @@
 //
 // A2 port of the live sample-review-reorder workflow. This preserves the n8n
 // contract: validate {client, items}, update order_index for matching
-// sample_reviews rows, and respond {ok:true, updated: items.length}.
+// sample_reviews rows, and respond {ok:true, updated} where `updated` is the
+// count of rows ACTUALLY matched (never the requested count — see F141).
 //
 // Required env:
 //   SUPABASE_URL
@@ -67,6 +68,7 @@ Deno.serve(async (req: Request) => {
     client = parsed.client;
     itemCount = parsed.items.length;
     const now = new Date().toISOString();
+    let updated = 0;
     const events: JsonMap[] = [];
 
     const supabase = createClient(
@@ -84,6 +86,7 @@ Deno.serve(async (req: Request) => {
         .select("id");
       if (error) throw new Error("sample reorder failed");
       if (Array.isArray(data) && data.length) {
+        updated++;
         events.push({
           client,
           sample_id: item.id,
@@ -104,7 +107,12 @@ Deno.serve(async (req: Request) => {
     }
 
     outcome = "ok";
-    return json({ ok: true, updated: parsed.items.length });
+    // Report the count of rows ACTUALLY matched and updated, not the count of
+    // items requested. A stale/mid-create/archived id matches no row; echoing
+    // parsed.items.length would report success for a reorder that persisted
+    // nothing, so the browser could never detect the silent loss (F141). The
+    // caller compares updated against the requested length and fails closed.
+    return json({ ok: true, updated });
   } catch (e) {
     const auth = browserWriteAuthResponse(e);
     if (auth) {

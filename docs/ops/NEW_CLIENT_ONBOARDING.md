@@ -137,7 +137,7 @@ This is the part that's easy to forget the *method* for. You're producing three 
 
 **Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` (Slack workspace id, for deep-links). **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
 
-The #813 candidate wires signed-in Admin/SMM copy actions to the already-live v2 exact-client issuer at copy time. It still requires the guarded caller merge and link re-share proof before the distribution path is treated as live; `client-review-link` is not redeployed unless its source changes.
+PR #850 merged signed-in Admin/SMM copy actions that call the already-live v2 exact-client issuer at copy time. Distribution still requires the owner-gated link re-share/current-token proof before real-client enrollment; `client-review-link` is not redeployed unless its source changes.
 
 > 💡 The `instagram_handle` is **not** the slug. The slug comes from `client_name` (see below). A
 > fictional display name `Example Alpha` might use handle `@example.alpha.media` while its slug is
@@ -267,7 +267,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 - Open the dashboard, switch to the new client: calendar and samples load (empty is fine).
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
-- Before any #813 enrollment, require a server-side onboarding receipt proving the exact team
+- Before any real-client #850 cohort enrollment, require a server-side onboarding receipt proving the exact team
   mapping, protected review token, and all required authenticated Track-A routing entries exist and
   read back. Prove the first Calendar/SXR/settings write reaches the authenticated EF and cannot
   fall through to anonymous n8n (F67/F69). On TEST, submit one batch and verify the receipt,

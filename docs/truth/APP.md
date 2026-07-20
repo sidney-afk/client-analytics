@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-19 @ fd3e0ea + F145 review branch (Production hierarchy truth staged; live flags and state unchanged)
+> Last verified: 2026-07-20 @ f00da653 (F145 Production parent-link hierarchy merged; live flags and state unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -101,12 +101,12 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   appears in **Needs a work day or deadline**. An undated issue with an explicit plan day does enter
   the calendar. `Tweak Needed` / `Tweaks Needed` remains an exclusive strip and never enters the
   calendar, even when it retains a due date or saved plan override.
-- The stacked editable-plan candidate keeps the Linear due date read-only and adds a separate
+- The current editable-plan browser path keeps the Linear due date read-only and adds a separate
   internal work day. A saved `plan_date` is keyed by the sub-issue's stable id in the service-role
   `workload_plan` sidecar; when none is saved, placement falls back to the exact due date. Dragging
   an individual issue or using the branded work-day control updates only that internal date, and
   **Clear plan day** returns it to due-date placement.
-- The candidate's Admin/SMM-authenticated `workload-plan` Edge Function is the only browser
+- The Admin/SMM-authenticated `workload-plan` Edge Function is the only browser
   projection and writer for the sidecar. Creative is denied both saved-plan reads and mutations by
   the server role allowlist and the matching browser capability gate. A write is accepted only when
   the response reports exactly one row actually written; a short count reverts the optimistic move
@@ -115,9 +115,12 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   overrides as absent. Authentication or authorization denial instead purges the private projection
   immediately. Reads and writes are bounded, and only the newest overlapping refresh may publish
   plan state.
-- **Deployment boundary:** the 2026-07-19 migration, Edge Function, and editable browser behavior are
-  source-only. The migration has not been applied, the function has not been deployed, and no
-  runtime flag, Linear writer, or frozen client writer was changed.
+- **Deployment boundary:** current Pages serves the editable browser caller, and a 2026-07-20
+  read-only inventory/fingerprint reports `workload-plan` ACTIVE v2 with source matching
+  `main@f00da653`. This pass did not deploy it, verify the 2026-07-19 migration/table/grants, or
+  exercise list/set/clear with a plan row; deployment is not persistence or role-boundary proof. No
+  runtime flag, n8n workflow, Linear writer, live client row, or frozen client writer was changed by
+  this reconciliation.
 
 ## Linear sync surface
 

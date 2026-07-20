@@ -37,12 +37,12 @@ owner merging this file (see D-32)._
 | `linear_inbound_enabled` | `enabled` | Linear → SyncView copy (always on until B5) |
 | `linear_legacy_parity_enabled` | `disabled` | Transition write-lane off (armed at Phase 1) |
 | `auth_enforcement` | `permissive` | Client-link verifier permits missing/invalid tokens; this is not a staff-write gate |
-| `write_ui_reroute_clients` | live, TEST-only allowlist (`clients:[<TEST_CLIENT>]`) | Required D-32 allowlist; deployed, defaults to TEST-only, and reads back; #813 reroute code parked at head `e3aa028` (was `885026a`) |
+| `write_ui_reroute_clients` | last verified live TEST-only allowlist (`clients:[<TEST_CLIENT>]`) | Required D-32 boundary; #850 merged the reroute code carried from `e3aa028`. Read the value fresh before any action; this dated row authorizes no flag change or real enrollment. |
 
 Merged & live: #810 gateway (deployed), #811 guards + daily TEST drill + nightly shadow audit,
-#812 mirror write-UI (locked for real teams), 62/62 client→project mappings, Samples retirement
-+ rename. Parked: **#813** (reroutes + native Create-Post/Submit intake) — merges only at
-Phase 0.5 below, after the fix-pack.
+#812 mirror write-UI (locked for real teams), #850's dark Calendar/Samples/Submit reroutes,
+62/62 client→project mappings, and Samples retirement + rename. The reroute cohort was last
+verified TEST-only; no real-client enrollment is authorized by the merge or deployment.
 
 > **IMMEDIATE PRIVACY CONTAINMENT — do not wait for Phase 0 (F64):** reviewed schema-only
 > replacements pass the private count-only census but are deliberately excluded from this public
@@ -53,7 +53,7 @@ Phase 0.5 below, after the fix-pack.
 
 ---
 
-## Phase 0 — Preconditions (ALL boxes before #813 merges)
+## Phase 0 — Preconditions (ALL boxes before first real-client enrollment)
 
 **Build/fix gates (Codex):**
 - [ ] **One machine-generated current-state manifest is fresh** (F56/F59): fail unless it records
@@ -221,7 +221,8 @@ Phase 0.5 below, after the fix-pack.
       from access-allowed, binds active client/current token revision, and a machine report requires
       a fresh exact valid event for every active client. The present seven-day window has zero valid
       events and is not go-live evidence.
-- [ ] **Fix-pack landed in #813** (audit B-section): per-client allowlist gate (F02/F23),
+- [x] **Fix-pack source landed via superseding PR #850 / `9968bd9`** (#813 closed unmerged;
+      implementation commit `e3aa028`): per-client allowlist gate (F02/F23),
       Kasper linkage predicate (F04), protected-write 401 session invalidation/reverification with
       draft/action-intent preservation and retry only after fresh sign-in (F10),
       batch-picker team-filter + duplicate disambiguation (F19), +2d overdue bump ported per
@@ -254,7 +255,7 @@ Phase 0.5 below, after the fix-pack.
       active-component semantics end to end. Classify and repair/migrate every existing single-link
       row; absent legs are N/A rather than `In Progress`. Overall/client-ready status, Calendar,
       Samples, queues, bulk actions, comments/alerts, artifacts, and every persona pass all-mode TEST
-      coverage before #813 merges or either team becomes writable.
+      coverage before any real-client enrollment or either team becomes writable.
 - [ ] **Project selection is complete** (F45): every paginated source reaches
       `hasNextPage=false`, exposes a completeness/version readback, and exactly matches the
       canonical client/team mapping in an anonymized set report; a partial read cannot populate
@@ -477,7 +478,13 @@ Phase 0.5 below, after the fix-pack.
       TEST; owner revoke/rotate; then finish the broader census while monitoring unknown consumers.
       No value enters this repository.
 - [ ] **Submit graphics path drilled live on the private TEST fixture only** against the deployed
-      EF, including real GRAPHIC_TITLE_* generation (F12). No real-client write is induced.
+      EF, including real `GRAPHIC_TITLE_*` generation (F12). The routine drill's explicit
+      generation skip is not real-generation evidence. Retain `graphic_generation_verified:true`,
+      `0/0/0`, unchanged-flags and cleanup receipts plus a provider-failure zero-write/recovery
+      receipt. No real-client write is induced. **This checklist item is a closure requirement, not
+      authorization:** before either run, bring the owner the exact TEST-only change and rollback.
+      This docs reconciliation authorizes no drill, provider/secret change, runtime-flag change,
+      or client write.
 - [ ] **Every load-bearing n8n workflow has proved error delivery** (F09): a generated live-settings
       census shows the intended handler on every active graph, and one sanitized TEST-only failure
       receipt per workflow reaches the owner. The handler's existence is not evidence of wiring.
@@ -498,7 +505,7 @@ Phase 0.5 below, after the fix-pack.
 - [ ] **Capacity/egress evidence recorded** (F49): live Pro truth is recorded (2026-07-13: seven
       completed daily physical backups / seven-day retention, PITR off, database disk 0.45 GiB used).
       Owner still answers from Dashboard Usage/Billing: **what is current egress, and is the spend cap
-      on or off?** Then run post-#813 bootstrap/mobile/cache load tests and set thresholds.
+      on or off?** Then run post-#850 bootstrap/mobile/cache load tests and set thresholds.
 - [ ] **n8n quota fire resolved** (F01): burner identified/killed, hard-stop vs overage known,
       headroom projected past the flip window.
 
@@ -524,15 +531,16 @@ Phase 0.5 below, after the fix-pack.
       automation hold/manual-merge path is executable, and every Linear-authoritative versus
       SyncView-authoritative team receives the correct instruction from FLIP_RUNBOOK R3.
 
-## Phase 0.5 — Merge #813 DARK
+## Phase 0.5 — Dark merge/deploy checkpoint (#850 merged; remaining TEST proof open)
 
-- [ ] Create/deploy/read back `write_ui_reroute_clients`, prove its absent/malformed state fails
-      safely, then merge #813 with the value = TEST only. **Nothing changes for real
-      clients or staff** — their buttons still use the legacy paths.
-- [ ] Same window: from `main`, invoke `workflow_dispatch` with a 40-character `commit_sha`
-      pinned to the exact merge commit and require the workflow's ancestor-of-main guard to pass.
-      The manual-only deployment order is `linear-outbound` before `production-write`; an ordinary
-      merge/push deploys neither. Then run the TEST drill and walk the TEST client through
+- [x] `write_ui_reroute_clients` was created/read back in the TEST-only posture, its guarded
+      reroute source landed via #850, and real clients remain on legacy paths unless separately
+      enrolled. Read the flag fresh before relying on this dated checkpoint.
+- [x] Pinned manual run `29601466479` accepted exact `main@9d76df6`, deployed
+      `linear-outbound` v33 before `production-write` v24, and passed all ten function
+      fingerprints; an ordinary merge/push deploys neither Track-B writer.
+- [ ] With separate owner approval for any live TEST/provider action, complete the remaining TEST
+      drill and walk the TEST client through
       Create-Post (latest batch + new batch), Submit, approve, tweak, and comment end-to-end.
 - [ ] Passively observe one organic real-client save/approval through the legacy path, or prove
       the dark behavior with a non-enrolled TEST fixture. Do not induce a production write.
@@ -604,14 +612,18 @@ Pick a low-activity window.
 5. [ ] Verify the first real intake has a canonical, visible artifact before SMM Approval and the
        deliverable status reaches the linked Calendar/Samples card and every reviewer (F50/F53).
 6. [ ] Verify her first real write lands in Linear via the F07 sync-drain lane within the approved
-       seconds-scale SLO. **Hard stop:** do not enter this phase unless F07 is shipped and proven;
+       seconds-scale SLO. F07's implementation is deployed; this non-TEST timing receipt remains
+       the proof. **Hard stop:** do not proceed to Phase 3 until it passes;
        a 10–60 minute legacy-poll delay is not an acceptable fallback.
 
 ## Phase 3 — Watch the Graphics window
 
-- [ ] Reconciler 0-diffs; oldest-pending-age quiet; drill/audit lanes green (flip-tolerant
-      per F08).
-- [ ] Kasper's queue shows her natively-created thumbnails (F04 fix proven live).
+- [ ] Reconciler 0-diffs; oldest-pending-age quiet; drill/audit lanes green. F08's monitors are
+      flip-tolerant in source, but the latest inspected scheduled runs as of 2026-07-19 are red for
+      distinct reconciliation/data-integrity signals; investigate those signals and require a
+      fresh green window.
+- [ ] Kasper's queue shows her natively-created thumbnails. F04's native-link predicate is merged;
+      this checkbox is the required first-real-Graphics observation, not a source-completeness check.
 - [ ] Apply D-29 on anything found. Team rollback remains blocked until F27's audited per-team
       quarantine/classify/replay/discard tooling exists. Follow FLIP_RUNBOOK §R2: stop new writes,
       snapshot and classify every team intent, replay only owner-approved rows, prove a machine-read

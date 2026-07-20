@@ -579,3 +579,44 @@ All times are UTC unless noted.
   Function, Linear object, client enrollment, or production deployment changed. The frozen
   `calendar-upsert` and `sample-review-upsert` writers remained byte-identical to `main`; all drills
   were read-only or browser-mocked.
+
+## 2026-07-20 — Phase 3 F145 merge + Order-1 register reconciliation
+
+- **F145 merged after the required review gate.** PR #885, originally opened as a draft, was
+  merged after review as
+  `f00da65341797ec55f2f9a0d53b97e6bccd7056f` (exact head `e94531b`). Hosted Production run
+  `29711105120` attempt 2 passed fast, interaction, heavy, and review-packet lanes before merge.
+  Pages run `29713997171` then deployed the merge; read-only live HTML contains the resolver and
+  raw-parent projection and no `batchParent`. The Production hierarchy on `main` therefore follows
+  the persisted Linear parent UUID. Post-merge Production run `29713997723` is red (fast and
+  interaction failed; heavy/review-packet passed). The merge and PR-head trees are identical, so
+  that red run does not establish an F145 code delta, but it remains an honest current-main test
+  health item. No schema, writer, runtime flag, n8n workflow, Edge Function, Linear object, or live
+  row changed.
+- **Fix-pack lineage reconciled.** #813 closed unmerged. Its implementation commit `e3aa028`
+  reached `main` through superseding PR #850 / merge `9968bd9`. Focused current-main guards
+  re-verified F04's URL-or-native-link predicate, F07's exact `syncview_live` background target,
+  and F08's mixed-authority/live-mode monitor tolerance. Those implementation defects are DONE;
+  the first-real-Graphics Kasper observation, non-TEST seconds-scale F07 receipt, and operational
+  green monitor window remain unchecked go-live gates.
+- **F12 false closure corrected.** The routine TEST drill explicitly skips provider generation and
+  therefore does not prove real generation. No durable run records `graphic_generation_verified:true`, and no safe
+  provider-failure receipt proves zero native writes plus recovery. The current register therefore
+  keeps F12 OPEN despite the older readiness sentence that called it done.
+- **F143 deployment evidence back-recorded.** Manual pinned run `29601466479` deployed all ten
+  functions in the workflow: eight push-safe staff readers (`onboarding-list`,
+  `ai-onboarding-list`, `legacy-onboarding-list`, `onboarding-full`, `client-credentials`,
+  `filming-plans`, `smm-weekly-reports`, `key-verify`), then `linear-outbound` v33 before
+  `production-write` v24 from exact `main@9d76df6`. All ten fingerprints passed; neither frozen
+  writer was in the deploy set. The deploy summary kept the separate drill outcome `PENDING`.
+  Read-only OPTIONS after deployment and again at 2026-07-20 03:20Z returned `204` with
+  `x-syncview-source` allowed. No deployment or flag write was performed by this reconciliation.
+- **Externally changed Workload deploy state reconciled read-only.** Function inventory observed
+  `workload-plan` ACTIVE v2 (updated 2026-07-20 03:04:58Z), and the source fingerprint matched
+  `main@f00da653` (expected/live `30ea0c1fe00c`; bundle `ddf85afba1ce`; 4/4 files). Current Pages
+  already serves the caller. This docs pass did not deploy the function, link the local project,
+  inspect or apply the migration, read a plan row, exercise list/set/clear, or change any schema,
+  flag, n8n workflow, Linear object, writer, or client data. Function activity/source equality is
+  therefore not migration, role-boundary, persistence, or functional-readiness proof.
+- **Boundary preserved.** This was documentation and read-only verification only. No frozen writer,
+  runtime flag, n8n graph, client enrollment, client row, Linear object, or production write changed.

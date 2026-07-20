@@ -63,10 +63,11 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   now serves `filming_plans` and the raw table anon-SELECT is revoked (2026-07-15, post-#836): direct
   REST returns 401/42501. F86 separately blocks raw inactive staff/client rows and internal email/
   Slack/Linear/project mappings.
-- The source-only `workload_plan` table is a separate, service-role-only internal-date sidecar keyed
+- The tracked `workload_plan` contract is a separate, service-role-only internal-date sidecar keyed
   by stable sub-issue id. It adds no mirror column or foreign key, has no browser REST path, and is
-  exposed only through the candidate Admin/SMM-authenticated `workload-plan` function. Its migration
-  and function have not been applied/deployed.
+  exposed only through the Admin/SMM-authenticated `workload-plan` function. Current Pages serves
+  the caller; a 2026-07-20 read-only fingerprint reports the function ACTIVE v2 with source matching
+  `main@f00da653`. This pass did not verify the migration/table/grants or exercise a plan row.
 - **Edge Functions.** 28 are represented under `supabase/functions/`; **the app calls 23**
   (**"19 literal + 4 composed" Edge Functions**, see
   §7). Five are backend-only: the Linear webhook target (`linear-inbound`), B4 outbox drainer
@@ -271,7 +272,7 @@ n8n in the metric read path.*
   and return success with no exact assignee mention; the browser then persists “Sent.” No caller may
   treat a channel post as delivery without an immutable member + provider receipt. Missing mapping
   must remain pending/retryable.
-- **State (current plus #813 candidate overlay).** `syncview_calendar_v2`/`_off` (sticky v2 read toggle), `syncview_cal_v2debug`,
+- **State (current plus #850 merged dark-cohort overlay).** `syncview_calendar_v2`/`_off` (sticky v2 read toggle), `syncview_cal_v2debug`,
   `syncview_calCache_v2:<slug>` (7-day SWR cache, authority-filtered), `syncview_calendar_prefs`,
   `syncview_cal_filters_v1`, `syncview_calendar_pins`, `syncview_calendar_settings_v1` (per-client
   collab/title-review, device-authoritative within a trust window), `syncview_cal_scroll_<slug>`,
@@ -298,7 +299,7 @@ n8n in the metric read path.*
   Supabase outage never blanks the calendar). **Single-card upsert has NO EF→n8n fallback** — it
   errors the card (rollback of structural fields, free text kept, retry chip); only *reorder* and the
   *flag read* fall back to n8n. On current `main`, Linear pushes queue to the localStorage outbox
-  (retry on load/focus/60 s, parked after 6 attempts). For an enrolled #813 candidate client,
+  (retry on load/focus/60 s, parked after 6 attempts). For a reroute-enrolled client,
   status/comment instead await the authenticated gateway before source persistence and create no
   new v1 queue entry; ambiguous results require the principal-bound `reconcile_only` receipt above.
   Caption jobs are poller-authoritative with 45 s/3 min/12 min
@@ -330,12 +331,12 @@ n8n in the metric read path.*
   de-enrollment. Staff-gated `filming-plans` EF GET resolves the read-only plan link and has no raw
   filming-plan REST, Sheets, or anonymous-realtime fallback. Post-
   submit link poll reads `workload_issues` REST (Workload v2 default) → n8n `linear-issues` fallback.
-  Calendar-upsert and #813 cohort routing flags are read.
+  Calendar-upsert and #850 cohort routing flags are read.
 - **Writes.** For non-enrolled clients, n8n `video-form` and `graphic-form` remain the legacy batch
   submit endpoints (one POST carries the whole batch; "Create Linears" fires both), but main's F44
   receipt path now waits for confirmed parent/child creation before success or draft clearing.
   `log-linear-submission` remains telemetry, not the durable acceptance receipt. Enrolled clients
-  use the authenticated native path in the #813 overlay below. Background per-video
+  use the authenticated native path in the #850 dark-cohort overlay below. Background per-video
   calendar-card creation routes through the **calendar's** shared upsert fetch (EF `calendar-upsert`
   vs n8n `calendar-upsert-post` by the calendar flag) with deterministic `p_lin_<ident>` ids.
 - **State.** `syncview_linear_form` (autosaved draft, cleared on submit), `syncview_last_link`,
@@ -365,22 +366,23 @@ n8n in the metric read path.*
 - **Single-team component defect (F101).** Advanced Video-only/Thumbnail-only sends only the chosen
   team and leaves the sibling link blank, but the card writer initializes both creative statuses to
   `In Progress`. Overall/client-ready logic includes the absent sibling while its pill is disabled
-  and bulk actions skip it. Parked native intake preserves the same contradiction. Enforce the
+  and bulk actions skip it. The #850 native cohort preserves the same contradiction. Enforce the
   locked paired model or implement explicit active/N/A component semantics before reroute.
 - **Notable / corrections.** `linear-subissues` is a **read** used by Calendar/SXR, not a Linear-tab
   write. The durable card-job system exists because of a real data-loss incident (tab closed during
   the pre-write window). Due dates are computed client-side in 5-working-day batches.
-- **Track B.** Live Pages still creates in Linear and mirrors in. The Part 2
+- **Track B.** Unlisted clients still create in Linear and mirror in. The Part 2
   backend implements authenticated native-first mixed-team intake, server-owned project mapping /
   auto-assignment, native-id responses, and an allowlisted targeted parity create lane while a
-  team remains Linear-authoritative. The backend is deployed dark; this reconciled #813 candidate
-  wires the SPA only for its enrolled cohort and remains non-live pending owner merge/release.
-  **Parked-caller defects (F133/F134):** that candidate
+  team remains Linear-authoritative. PR #850 / `9968bd9` merged the SPA cohort routing that
+  superseded #813; pinned run `29601466479` deployed the provider/gateway from `main@9d76df6`.
+  The lane remains dark outside its allowlist (last verified TEST-only), and real enrollment is
+  owner-gated. **Merged-caller defects (F133/F134):** that cohort path
   commits generic deliverable titles and later edits only the card, while committed card-materialization
-  recovery is actor-bound localStorage with no server job/admin reassignment. Both are pre-merge gates.
+  recovery is actor-bound localStorage with no server job/admin reassignment. Both are pre-enrollment gates.
   B5: `linear-subissues` + family retired.
 
-#### #813 candidate overlay (`e3aa028`, not live)
+#### #850 merged dark-cohort overlay (`e3aa028` implementation; landed via `9968bd9`)
 
 - **Entry and scope.** Signed-in Admin/SMM may create from Submit or from a selected client's
   Calendar. Calendar keeps client scope implicit, defaults to that client's latest active batch,
@@ -399,9 +401,10 @@ n8n in the metric read path.*
   checkpointed, and reload resumes only missing deterministic cards. Sign-out scrubs sensitive
   pending payload data while retaining only bounded routing recovery when a native commit exists.
 - **Authorization and release.** TEST writes remain service-only: exact `B4_TEST_ONLY`, a service-
-  role credential, and no browser staff key or client token. The candidate changes no live flag or
-  authority. Provider `linear-outbound` must be manually dispatched before `production-write` from
-  one pinned reviewed main SHA; a merge/push event must not deploy either function.
+  role credential, and no browser staff key or client token. The merge changed no runtime flag or
+  authority. Pinned run `29601466479` deployed provider `linear-outbound` v33 before
+  `production-write` v24 from reviewed `main@9d76df6`; a merge/push event still must not deploy
+  either function.
 
 ### 4.4 Linear tab — authority-gated mirror (internal key `production`, route `#production`)
 
@@ -501,14 +504,14 @@ n8n in the metric read path.*
   `sample-review-reorder` (flagged EF failures are fail-closed; no auth downgrade to n8n). Linear legs (`linear-set-status`,
   `linear-add-comment`), `send-urgent-slack`, `thumbnail-folder-resolve` (all shared). URGENT marker
   → `sample-review-upsert` EF directly (bypasses the flag).
-  For a client enrolled by the #813 candidate cohort, status/comments use authenticated
+  For a client enrolled in the #850 reroute cohort, status/comments use authenticated
   `production-write`; unlisted clients retain these exact legacy bridge request shapes.
 - **Thumbnail refresh/comparison.** SXR shares Calendar's final Drive host, persisted server
   `thumb_rev`, realtime node advancement, private snapshot store, bounded history-availability
   projection, and exact-card protected Previous/Current dialog. Folder/media-less cards and cards
   without a confirmed pair have no comparison action; direct media writes can still refresh the
   current image even when no captured pair exists.
-- **State (current plus #813 candidate overlay).** `syncview_sxr_on`/`_off`, `syncview_sxr_prefs_v1`, `syncview_sxr_cache_v1_<slug>`,
+- **State (current plus #850 merged dark-cohort overlay).** `syncview_sxr_on`/`_off`, `syncview_sxr_prefs_v1`, `syncview_sxr_cache_v1_<slug>`,
   `syncview_sxr_archived_v1_<slug>` (60 s-grace ledger), `syncview_sxr_kasper_seen_v1`,
   `syncview_sxr_linear_outbox_v1` (identified legacy retries plus pre-upgrade quarantine),
   `sxr-skip-setall-confirm-<status>`; shares
@@ -533,7 +536,7 @@ n8n in the metric read path.*
   Kasper read: no fallback → keeps items, "try again" only when empty. Upsert: per-card retry chip,
   no n8n fallback. Reorder: flagged EF failure is visible/fail-closed; unflagged clients retain the
   legacy n8n route. Archive: optimistic + ledger, restore on failure. Current `main` retries Linear
-  status/comment through the v1 outbox. For a #813 cohort client, those intents instead await the
+  status/comment through the v1 outbox. For a #850 cohort client, those intents instead await the
   authenticated gateway, accept a native ID without a Linear URL, and create no new browser queue
   row; ambiguous responses use the same principal-bound receipt lifecycle as Calendar. Token verify
   fail-open on network error.
@@ -659,24 +662,24 @@ n8n in the metric read path.*
   would flood boards); liveness is a 5-min cache TTL + visibility refetch + manual refresh. n8n
   `linear-tweak-comments` (Tweak-Needed popover, 5-min cache). n8n `editors-week` (**one** browser
   fetch site, but a publicly callable arbitrary-range endpoint) returns issue histories; all report
-  metrics are computed client-side. The stacked candidate additionally reads internal plan dates
+  metrics are computed client-side. The current Pages caller additionally reads internal plan dates
   through Admin/SMM-authenticated EF `workload-plan`; it never reads the sidecar through PostgREST.
 - **Writes.** n8n `content-ready` (manual "content ready for review" email; **never checks
-  `resp.ok`** — HTTP errors display as success). The candidate writes or clears one internal
+  `resp.ok`** — HTTP errors display as success). The current caller writes or clears one internal
   `plan_date` through `workload-plan`, keyed by the exact sub-issue id. It never writes Linear
   `due_date`, and there is no n8n fallback.
 - **State.** `syncview_linearIssuesCache_v1` (5 min, both feeders), `syncview_workload_v2_off`
   (`syncview_workload_v2` is write-only / vestigial), `syncview_workloadView_v1`,
   `syncview_kasper_editors_v2` (week-rollover-invalidated). Kill switches: `?wl2=0`, the compile-time
-  `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch for this surface or the plan-date
-  candidate; candidate plan state is held as a last-good issue-id map in the running page.
+  `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch exists for this surface or the plan-date
+  path; plan state is held as a last-good issue-id map in the running page.
 - **Roles.** Plan projection/list access and per-issue plan-date writes are Admin/SMM-only after
   verified role-key authentication. Creative remains a recognized staff role on unrelated surfaces
   but is denied by both the `workload-plan` function and browser capability gate. Editors view
   remains further gated behind the Kasper unlock.
 - **Failure/fallback.** REST error / non-array / 0 rows → automatic n8n fallback (no user signal).
   Both fail + cache → stale board (error only set when no cache); no cache → red error card.
-  Candidate plan-list failure retains last-good overrides when available; without one, the UI
+  Plan-list failure retains last-good overrides when available; without one, the UI
   explicitly labels a due-date-only degraded view and disables plan edits. A plan write succeeds
   only when the function reports exactly one row actually written; any short count/error reverts
   the optimistic move and notifies instead of leaving a false local date.
@@ -689,11 +692,13 @@ n8n in the metric read path.*
 - **Notable / corrections.** v1's "3 call sites" for `editors-week` is wrong — one fetch site (the
   others are the constant + comments). The realtime channel is dormant. `content-ready`'s missing
   `resp.ok` check is a real bug-shape. `loadLinearIssues` is also the Calendar bulk-create link poll's
-  data source (shared feeder + cache). Candidate placement is `plan_date || due_date`: no plan date
+  data source (shared feeder + cache). Current placement is `plan_date || due_date`: no plan date
   preserves the literal due-date default, and clearing returns to it. Tweak cards remain exclusive
-  from the calendar. The migration, EF, and browser behavior are source-only and not live.
+  from the calendar. Current Pages serves the browser caller, and the ACTIVE v2 function source
+  matches `main@f00da653`; migration/table/grant state and an end-to-end plan-row drill were not
+  verified by this docs pass, so deployment is not functional-readiness proof.
 - **Track B.** Required but **not implemented** (F40): the re-point to native rows must happen per
-  team at each B4 flip, but main and #813 still unconditionally use `workload_issues`/n8n with
+  team at each B4 flip, but current `main` / #850 still unconditionally use `workload_issues`/n8n with
   realtime off and Linear links. The adapter needs `deliverables + batches + clients +
   team_members`, mixed-authority composition, and an explicit sub-issue/top-level policy. B5 may
   retire the Workload reconciler/feed only after this native path and the `editors-week` query pass
@@ -708,9 +713,9 @@ n8n in the metric read path.*
   the exclusive read gate is **`client-token-verify` EF**. Staff share actions obtain the current
   exact-client bearer token from the staff-only **`client-review-link` EF**; tokens no longer come
   from the Clients Info sheet. Current Calendar/Samples client
-  approvals/change-requests still reach the legacy `linear-set-status` / `linear-add-comment`
-  bridges and browser-local retry queues; they do not use the B4 server outbox. #813's native
-  reroute is unmerged and would require a valid protected token (F03/F33).
+  approvals/change-requests for non-enrolled clients still reach the legacy `linear-set-status` /
+  `linear-add-comment` bridges and browser-local retry queues; allowlisted #850 cohort clients use
+  the authenticated native gateway. The native route requires a valid protected token (F03/F33).
 - **State.** The per-surface caches/flags of whichever portal loads, plus sessionStorage
   `syncview_client_token_verify_v1` (per `slug|token` verdict cache). `X-Syncview-Client-Token` is
   attached **only** to EF URLs.
@@ -730,10 +735,10 @@ n8n in the metric read path.*
   token gate to the staff home dashboard without a password. Old-samples client writes carry **no
   role/token headers** (indistinguishable from SMM at the webhook).
 - **Track B.** Tokens are minted/rotated, the verifier is live in permissive mode, and the secure
-  copy-time issuer v2 is already live. #813 reuses that issuer from all four copy-link surfaces; no
-  `client-review-link` deploy belongs to this release unless its source changes. Remaining: merge
-  and verify the caller, re-issue links per client, then flip fail-open → fail-closed. Untouched by
-  `prod_authority` flips.
+  copy-time issuer v2 is already live. #850's merged callers reuse that issuer from all four
+  copy-link surfaces; no `client-review-link` deploy belongs to this release unless its source
+  changes. Remaining: formally verify every caller, re-issue links per client, then complete the
+  separately owner-gated fail-open → fail-closed transition. Untouched by `prod_authority` flips.
 
 ### 4.10 Filming Plans
 
@@ -1019,11 +1024,11 @@ separate hidden first-party Direct-Post surface.*
 
 ## 5. What changes, when (Track B) + auth
 
-Current phase: **B4 outbound staging (dark), with the Part 2 gateway and #812 Production caller live** — B3 evaluation
-mirror remains live and Linear stays authoritative for both teams. #813's broader
-Calendar/Samples/Submit reroutes remain unmerged and lack the required cohort gate. The reconciled
-`e3aa028` candidate supplies that TEST-default cohort and the authenticated reroutes described in
-§4, but remains non-live pending review; this does not change the current phase or flags.
+Current phase: **B4 outbound staging (dark), with the Part 2 gateway, #812 Production caller, and
+#850 Calendar/Samples/Submit cohort callers live** — B3 evaluation mirror remains live and Linear
+stays authoritative for both teams. PR #850 / `9968bd9` carried `e3aa028` into `main` behind the
+required D-32 cohort boundary; pinned run `29601466479` deployed its gateway/provider from
+`main@9d76df6`. The last verified cohort was TEST-only, and no real-client enrollment is authorized.
 `prod_authority = {video: linear, graphics: linear}`, `linear_inbound_enabled = {enabled: true}`
 (flip 15, 2026-07-07), `auth_enforcement = permissive`; the three Track-A `*_ef_clients` flags carry
 the full active roster (Track A closed 2026-07-10). Mirror at full parity (~4.3k deliverables /
@@ -1053,9 +1058,9 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   resolves an authorized claimed roster/client principal, enforces per-team authority + CAS/idempotency, and writes
   through service-only ledger RPCs. Normal Production writes require team authority=`syncview`;
   F31 still blocks calling a shared-key/caller-selected roster name immutable human attribution.
-  the active TEST client has a bounded override. The proposed #813 Calendar/SXR status+comment and
-  Submit create callers are not merged; current #813 also has no D-32 per-client allowlist, so its
-  legacy-parity lane is not safe to enroll. F55 is additionally open because the browser accepts
+  The active TEST client has a bounded service-only override. #850 merged the Calendar/SXR
+  status+comment and Submit create callers behind D-32's TEST-default per-client allowlist; the
+  lane remains unsafe for real enrollment until every open gate closes. F55 is additionally open because the browser accepts
   only canonical `syncview`, while several backend consumers still accept legacy `supabase` as an
   alias. D-28 requires cohort soak before a Graphics-first flip; a D-29 data incident is contained
   per F27 and cannot use a blind authority reversal. The disposable two-team TEST drill completed 18
@@ -1116,11 +1121,11 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 
 - **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
 - **Edge functions (23):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-plan`
-- **Not counted above:** 19 of the 23 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. (`workload-plan` is candidate source only and is not deployed.)
+- **Not counted above:** 19 of the 23 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is included in the 23 called functions and is ACTIVE v2; migration/table/grant and functional-drill proof remain open.
 - **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read. A dormant event-loader target names `deliverable_events`, but runtime never invokes it (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (6):** `calendar_upsert_ef_clients` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`
-- **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `write_ui_reroute_clients` is the separate #813 status/comment/intake cohort: it is seeded for TEST only, and missing/malformed/read-failed state selects the exact legacy lane. `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. `pto_v1` is a fail-closed off/on visibility and behavior gate; the base migration seeded off, the evidenced live state is on under D-36, and there is no n8n fallback. Other plan-side flags remain backend-only.
+- **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `write_ui_reroute_clients` is the separate #850 status/comment/intake cohort: it was last verified TEST-only, and missing/malformed/read-failed state selects the exact legacy lane. `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. `pto_v1` is a fail-closed off/on visibility and behavior gate; the base migration seeded off, the evidenced live state is on under D-36, and there is no n8n fallback. Other plan-side flags remain backend-only.
 
 ## 8. Freshness contract
 

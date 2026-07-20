@@ -1,6 +1,6 @@
 # Linear — current truth
 
-> Last verified: 2026-07-19 @ fd3e0ea + F145 review branch (Production parent-link projection staged; live Linear state unchanged)
+> Last verified: 2026-07-20 @ f00da653 (F145 Production parent-link projection merged; live Linear state unchanged)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -51,11 +51,14 @@
   unresolved or malformed links remain visible roots. Parent-only webhook changes remain
   refresh-eventual through the existing B1/reconcile path rather than becoming a new n8n dependency.
 - **Workload dates remain one-way from Linear:** `workload_issues.due_date` is the client deadline
-  displayed by Workload and the editable-plan candidate never writes it. Internal scheduling lives
-  separately in the source-only `workload_plan.plan_date` sidecar keyed by the stable sub-issue id;
+  displayed by Workload and the editable-plan path never writes it. Internal scheduling lives
+  separately in the tracked `workload_plan.plan_date` sidecar keyed by the stable sub-issue id;
   clearing that value restores exact due-date placement. No column is added to the B3-managed
   `workload_issues` mirror, and no Linear API, n8n bridge, reconciler, or due-date writer is added.
-  The sidecar migration and `workload-plan` Edge Function are not applied/deployed.
+  Current Pages serves the caller, and a 2026-07-20 read-only fingerprint reports `workload-plan`
+  ACTIVE v2 with source matching `main@f00da653`. This pass did not verify the sidecar
+  migration/table/grants or read/write a plan row, so persistence and role enforcement remain
+  functionally unproved.
 - The legacy n8n inbound receiver `MJbMZ789B5ExZz9x` is **inactive/unpublished**
   (`activeVersionId=null`). Its saved graph has A1/A2 routing and authority gates, but it is not a
   current real-time producer. Calendar/Samples status healing therefore depends on the scheduled
@@ -75,7 +78,7 @@ system-wide view: `docs/independence/SYSTEM_MAP.md`. The visible **Linear** tab 
 `production`, route `#production`, alias `?prod=1`) is the native mirror surface. #812 ships
 authority-gated status/comment/due/assignee controls: real teams remain read-only while authority is
 Linear; the bounded active-TEST lane can write. The visible **Submit** tab retains internal key
-`linear` and route `#linear`; its #813 native reroute is merged in the Phase-2 candidate and
-dark-gated behind `write_ui_reroute_clients` (TEST-only allowlist; a missing/unreadable flag
+`linear` and route `#linear`; its native reroute landed through PR #850 / `9968bd9` and is
+dark-gated behind `write_ui_reroute_clients` (last verified TEST-only allowlist; a missing/unreadable flag
 deliberately fails to the LEGACY lane), while the serving legacy intake for non-enrolled clients
 remains caller-unauthenticated (F91).

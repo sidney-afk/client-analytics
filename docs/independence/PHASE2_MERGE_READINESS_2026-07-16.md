@@ -81,7 +81,11 @@ still present in the candidate: intake commits generic `Video N` titles), F134 (
 recovery — confirmed still present), F32 (Linear-outage resilience for intake), F53 (delivery
 attach), F65 (Samples audit trail), F101 (single-team Advanced intake unguarded in the new-batch
 lane), F11 backfill at zero-unresolved, Part C items deployed live, plus the release-step drills.
-F12 is DONE (graphics drill).
+**2026-07-20 correction:** the earlier “F12 is DONE” conclusion was unsupported. The guarded
+generation source is deployed; the opt-in TEST harness is merged and available in the
+repository/Actions, not part of the deployed artifact. The ordinary drill skips real generation,
+and no durable receipt proves `graphic_generation_verified:true` plus provider-failure
+zero-write/recovery behavior. F12 remains OPEN in the current register.
 
 **Before the first Graphics authority flip:** F37 (identity-bound "My issues"), F136 (transition
 matrix), F98 (fail-safe forward order — docs corrected, executable drill missing), F131/F132

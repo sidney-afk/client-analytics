@@ -1,6 +1,6 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-19 @ f9b59e9 (candidate EF inventory 19 literal + 4 composed; workload-plan source only and not deployed)
+> Last verified: 2026-07-20 @ f00da653 + Phase-3 Order-1 reconciliation (19 literal + 4 composed; workload-plan ACTIVE v2 and source-fingerprint matched; schema/functionality not reverified; #850 write gateway deployed dark)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -92,12 +92,15 @@ Other:
 - `functions/v1/onboarding-capture` — onboarding funnel capture
 - `functions/v1/client-token-verify`, `functions/v1/client-review-link`, `functions/v1/client-credentials` — client auth, staff-only current review-link issuance, and staff credentials surface. F89: token telemetry logs access-allowed as `ok`, so permissive tokenless opens are not validation evidence. F84: credentials bulk-delivers plaintext before masking and accepts shared/legacy keys without active-member binding.
 - `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal pings it at boot to revalidate the stored role key, and sensitive staff EFs share its secret-to-role matcher. F87 requires uniform denials, request controls, bounded audit retention, and explicit audit-outage behavior for both verifiers.
-- `functions/v1/workload-plan` — source-only Admin/SMM-authenticated Workload sidecar reader/writer.
-  Both list projection and per-issue mutations deny Creative. The function handles only internal
-  `plan_date` rows keyed by stable sub-issue id, validates active issue/client scope, and reports
-  rows actually written so the browser can require exactly one and revert on a short count. It never
-  writes the Linear due date, has no n8n fallback or runtime flag, and is not deployed;
-  `2026-07-19-workload-plan.sql` is likewise not applied.
+- `functions/v1/workload-plan` — ACTIVE v2 Admin/SMM-authenticated Workload sidecar reader/writer.
+  A 2026-07-20 read-only fingerprint matched `main@f00da653` (expected/live source
+  `30ea0c1fe00c`; live bundle `ddf85afba1ce`). Both list projection and per-issue mutations deny
+  Creative. The function handles only internal `plan_date` rows keyed by stable sub-issue id,
+  validates active issue/client scope, and reports rows actually written so the browser can require
+  exactly one and revert on a short count. It never writes the Linear due date and has no n8n
+  fallback or runtime flag. This docs pass did not deploy it, verify the
+  `2026-07-19-workload-plan.sql` migration/table/grants, or exercise a plan row, so active source is
+  not functional-readiness proof.
 - `functions/v1/production-comments` — bounded, no-store Production-thread reader; it verifies a
   staff role key and active roster selection before service-role reads, but does not enforce the
   requested deliverable's team against that member (F39). Comment bodies are not anon-readable;
@@ -109,16 +112,18 @@ Other:
   last-write-wins (F36). Do not claim end-to-end CAS until every mutation sends the version, stale
   requests create no intent, and 409 compare/reapply UX is proved. Successful accepted operations
   commit through the ledger/outbox RPCs before the UI updates.
-  The #813 candidate extends this same endpoint—without creating another function—with shared
+  PR #850's merged dark cohort extends this same endpoint—without creating another function—with shared
   Submit/Calendar `intake_create`. Calendar provides paired Video/Graphics creation and append to
   an active same-client `batch_id` under batch CAS; Submit still permits Advanced single-team
   intake until F101 closes. It validates persisted project and parent routes before
   the service-only atomic append RPC commits. Its principal-bound source-repair path permits only
   authenticated read-only `reconcile_only` receipt lookup for historical status/comment payloads;
   it bypasses no scope, authority, parity, RPC, drainer, or Linear gate and does not support intake.
-  Browser credentials still cannot enter the service-only TEST override. This is candidate source,
-  not a live deployment claim; eventual release requires exact-main-SHA manual dispatch with
-  `linear-outbound` deployed before `production-write`, while merge/push deploys neither.
+  Browser credentials still cannot enter the service-only TEST override. Pinned run `29601466479`
+  deployed `linear-outbound` v33 before `production-write` v24 from exact `main@9d76df6`, with both
+  source fingerprints passing; #850's callers are live on Pages only for the allowlisted dark cohort
+  (last verified private TEST fixture only). Any real-client enrollment remains owner-gated, and an
+  ordinary merge/push still deploys neither write function.
 - `functions/v1/filming-plans` — filming plans backend. Source authenticates every GET before
   constructing the service-role client, accepts verified admin/SMM/creative staff role keys for
   reads, and keeps writes admin-only. The function is live and missing/wrong keys return `401`.
@@ -154,7 +159,7 @@ Other:
 The four calls composed from `ONBOARDING_EDGE_BASE` are `functions/v1/onboarding-list`,
 `functions/v1/ai-onboarding-list`, `functions/v1/legacy-onboarding-list`, and
 `functions/v1/onboarding-full`. All four now authenticate before constructing a service-role client;
-the first three are live at v24 and missing/wrong keys return `401`. The SPA callers (live on Pages
+the first three are live at v26 and missing/wrong keys return `401`. The SPA callers (live on Pages
 since the 2026-07-15 #836 merge) obtain the key only after verified Admin sign-in and never
 hardcode it. `onboarding-capture` remains public intake but has no stored-data SELECT/read
 path. **F77 remains partial:** wildcard CORS and full-list background discovery still need closure.
@@ -164,11 +169,12 @@ secret possession can still export the corpus; retire that fallback behind indiv
 ### Backend-only Edge Functions (not part of the machine-enforced `index.html` set)
 
 - `linear-inbound` — HMAC-verified Linear webhook target; the browser never calls it.
-- `linear-outbound` — service-triggered durable-outbox drainer. It is dark by default behind
-  `linear_outbound_enabled={"mode":"off"}` and is invoked by scheduled/backend jobs, not the SPA.
-  Part 2 adds a separately killed, targeted `legacy_parity` allowance for server-derived
-  create/status/comment intents while a team remains Linear-authoritative. It is deployed for
-  backend verification but does not enable the global drainer.
+- `linear-outbound` — service-triggered durable-outbox drainer, deployed as pinned v33 and invoked
+  by scheduled/backend jobs rather than the SPA. Runtime mode must be read fresh before action.
+  Part 2 provides a separately killed targeted `legacy_parity` allowance for server-derived
+  create/status/comment intents while a team remains Linear-authoritative, plus F07's exact
+  `syncview_live` target for successful SyncView-authoritative writes while normal outbound is live.
+  Deployment does not itself enable either lane.
 - `deliverable-write`, `batch-write` — service-only low-level wrappers over the existing ledger
   RPCs. They are not browser authorization boundaries and must not be exposed to the anon client.
   The Production tab calls `production-write`, never these low-level functions directly.
@@ -217,7 +223,8 @@ by hand; verify before relying on it.
   `pto` projection; go-live readback verified that boundary. The candidate hardening delta reasserts
   the same boundary, adds only service-role RPC execution, and writes no HR rows or flag state, but
   is not yet claimed live.
-- Workload plan dates: the SPA does **not** call PostgREST for `workload_plan`; the candidate
-  service-role-only table is reachable only through the Admin/SMM-authenticated `workload-plan`
-  projection/writer. Its migration and function are source-only, so neither the table nor the
-  Creative-denial boundary is claimed live. The literal REST-table inventory remains 9.
+- Workload plan dates: the SPA does **not** call PostgREST for `workload_plan`; the current Pages
+  caller uses the ACTIVE v2 Admin/SMM-authenticated `workload-plan` projection/writer. The live
+  function's source matches `main@f00da653`, but this pass did not verify the migration/table/grants
+  or exercise list/set/clear with a plan row. Deployment therefore does not yet prove the
+  Creative-denial or persistence boundary end to end. The literal REST-table inventory remains 9.

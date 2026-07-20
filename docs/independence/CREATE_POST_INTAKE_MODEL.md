@@ -1,12 +1,13 @@
 # Create-Post & Batch Intake Model (LOCKED)
 
 **Status:** Locked decision — owner-confirmed 2026-07-13; partially implemented in the
-draft #813 stack, not deployed. Submit's single-team Advanced actions remain open under F101.
+#850 merged dark cohort and pinned gateway deployment. Submit's single-team Advanced actions remain
+open under F101; no real-client enrollment is authorized.
 **Applies to:** how new work (batches + deliverables) is created once SyncView is the
-authority for a team. This is the target model the write-UI intake path (PR #813 and
+authority for a team. This is the target model the write-UI intake path (merged through PR #850 and
 its calendar card-materialization) must implement.
 
-_Last updated: 2026-07-13._
+_Last reconciled: 2026-07-20._
 
 ---
 
@@ -77,11 +78,11 @@ option reuses Submit's intake logic so there is one creation mechanism, two door
 
 ## Before-go-live implementation gap check
 
-The reconciled #813 candidate records source/test changes for most of the seven locked points,
-but does not close F101. These checks are candidate evidence only; they are not a deployment,
-merge, or cutover approval, and current `main` remains governed by the F101 release gate below.
+The #850 merged dark cohort records source/test changes for most of the seven locked points,
+but does not close F101. These checks are shipped source evidence only; they are not real-client
+enrollment or cutover approval, and current `main` remains governed by the F101 release gate below.
 
-### #813 candidate evidence (unmerged)
+### #850 merged dark-cohort evidence
 - [x] **Per-client calendar entry:** staff Create Post derives the client from the
   open calendar; there is no client picker in the dialog.
 - [x] **Batch choice:** the latest active client batch is selected by default, with
@@ -124,12 +125,12 @@ Until the candidate is merged and reverified, the later `main` audit remains aut
 ### Current implementation correction — F101
 
 The shipped Submit form still exposes Advanced **Video issue only** and **Thumbnail issue only**
-actions. Current card materialization and parked PR #813 create only the selected deliverable but
+actions. Current card materialization and #850's merged dark-cohort path create only the selected deliverable but
 initialize the absent sibling as `In Progress`. Calendar then counts that nonexistent leg in overall
 and client-ready state while disabling the control that could advance it.
 
 The locked paired decision above therefore requires those single-team actions to be removed and
-rejected server-side before native intake merges. Existing single-link cards must be classified as
+rejected server-side before any real-client native-intake enrollment. Existing single-link cards must be classified as
 missing-link repairs versus deliberate exceptions. **Owner question:** are any deliberate
 single-team posts still supported? If yes, ratify that exception and require explicit active/N/A
 component semantics across every review, readiness, queue, comment, alert, artifact, and migration

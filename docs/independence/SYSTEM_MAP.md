@@ -664,7 +664,9 @@ n8n in the metric read path.*
 - **Writes.** n8n `content-ready` (manual "content ready for review" email; **never checks
   `resp.ok`** — HTTP errors display as success). The app writes or clears one internal
   `plan_date` through `workload-plan`, keyed by the exact sub-issue id. It never writes Linear
-  `due_date`, and there is no n8n fallback.
+  `due_date`, and there is no n8n fallback. Collapsed client-group drag reuses that same action as
+  sequential one-row writes; there is no batch action or new server route. Successful items remain
+  moved, each failed item restores its prior plan value, and the browser emits one aggregate result.
 - **State.** `syncview_linearIssuesCache_v1` (5 min, both feeders), `syncview_workload_v2_off`
   (`syncview_workload_v2` is write-only / vestigial), `syncview_workloadView_v1`,
   `syncview_kasper_editors_v2` (week-rollover-invalidated). Kill switches: `?wl2=0`, the compile-time
@@ -691,8 +693,12 @@ n8n in the metric read path.*
   `resp.ok` check is a real bug-shape. `loadLinearIssues` is also the Calendar bulk-create link poll's
   data source (shared feeder + cache). Placement is `plan_date || due_date`: no plan date
   preserves the literal due-date default, and clearing returns to it. Tweak cards remain exclusive
-  from the calendar. The migration, EF, and browser behavior are live; the private TEST release
-  drill proved save/reload/clear, pre-write `409` rollback, Creative denial, and exact cleanup.
+  from the calendar. The calendar renders date → editor → collapsed client chip → sub-issue, with
+  per-editor overload warnings and title-only expanded labels. Client-group order is derived from
+  complete native mirror order when available, otherwise from identifier number; moves never store
+  display order. The migration, EF, and original plan-date browser behavior are live; the private
+  TEST release drill proved save/reload/clear, pre-write `409` rollback, Creative denial, and exact
+  cleanup. The hierarchy/group-drag candidate changes only `index.html` and tests/docs.
 - **Track B.** Required but **not implemented** (F40): the re-point to native rows must happen per
   team at each B4 flip, but main and #813 still unconditionally use `workload_issues`/n8n with
   realtime off and Linear links. The adapter needs `deliverables + batches + clients +

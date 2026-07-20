@@ -24,6 +24,11 @@ ok(/status in \('pending', 'failed', 'shadow_ok'\)/.test(sql), 'active rollback 
 ok(/classification in \([\s\S]*'replay'[\s\S]*'quarantine'[\s\S]*'discard'[\s\S]*'already_reflected'/.test(sql),
   'all owner classifications are represented');
 ok(/f27_correlated_terminal_receipt_required/.test(sql), 'approved replay requires a correlated terminal receipt');
+ok(/p_receipt->>'rollback_id' is distinct from p_rollback_id::text/.test(sql)
+  && /p_receipt->>'outbox_id' is distinct from p_outbox_id::text/.test(sql)
+  && /linear_result_sha256/.test(sql)
+  && /intent_snapshot_sha256/.test(sql),
+  'replay receipt is bound to the exact rollback, intent snapshot, and persisted Linear result');
 ok(/v_unclassified <> 0 or v_unreceipted <> 0 or v_active <> 0/.test(sql),
   'final authority CAS fails until the requested team is genuinely zero');
 ok(/jsonb_set\(v_authority, array\[v_case\.team\], '"linear"'::jsonb, false\)/.test(sql),
@@ -39,6 +44,7 @@ ok(/other_team_unchanged/.test(proof), 'proof asserts team isolation');
 ok(/exact_prior_flags_restored/.test(proof), 'proof asserts exact pre-cycle flag restoration');
 ok(/zero_payload_loss/.test(proof), 'proof hashes immutable payloads before and after');
 ok(/terminal_receipts_correlated/.test(proof), 'proof asserts correlated terminal receipts');
+ok(/unbound replay receipt unexpectedly succeeded/.test(proof), 'proof rejects copied or synthetic replay receipts');
 ok(/in-flight begin unexpectedly succeeded/.test(proof), 'proof exercises in-flight lease refusal');
 ok(/grant select on table public\.track_b_team_rollbacks to service_role/.test(sql)
   && !/grant select, insert, update on table public\.track_b_team_rollbacks/.test(sql),

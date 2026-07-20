@@ -257,7 +257,10 @@ declare
   v_count integer;
 begin
   if coalesce(p_receipt->>'correlation_id', '') = ''
-     or p_receipt->>'ok' is distinct from 'true' then
+     or p_receipt->>'ok' is distinct from 'true'
+     or p_receipt->>'type' is distinct from 'linear_write_terminal'
+     or p_receipt->>'rollback_id' is distinct from p_rollback_id::text
+     or p_receipt->>'outbox_id' is distinct from p_outbox_id::text then
     raise exception 'f27_correlated_terminal_receipt_required';
   end if;
   update public.track_b_team_rollback_intents i
@@ -268,7 +271,15 @@ begin
     and o.id = i.outbox_id
     and i.classification = 'replay'
     and i.terminal_receipt is null
-    and o.status in ('written', 'skipped', 'stale');
+    and o.status = 'written'
+    and o.linear_result is not null
+    and p_receipt->>'dedup_key' is not distinct from o.dedup_key
+    and p_receipt->>'operation' is not distinct from o.operation
+    and p_receipt->>'correlation_id' is not distinct from o.linear_result->>'correlation_id'
+    and p_receipt->>'linear_result_sha256' is not distinct from encode(
+      digest(convert_to(o.linear_result::text, 'UTF8'), 'sha256'), 'hex'
+    )
+    and p_receipt->>'intent_snapshot_sha256' is not distinct from i.row_sha256;
   get diagnostics v_count = row_count;
   if v_count <> 1 then raise exception 'f27_terminal_receipt_refused'; end if;
   return jsonb_build_object(

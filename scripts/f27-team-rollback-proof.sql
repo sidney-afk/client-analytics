@@ -184,18 +184,59 @@ SELECT public.track_b_f27_classify(:'rollback_id', 3, 'discard', 'owner verified
 SELECT public.track_b_f27_classify(:'rollback_id', 4, 'already_reflected', 'exact Linear value independently observed', 'f27-test-owner');
 
 -- Simulated audited writer completion for the one approved TEST replay.
+SELECT gen_random_uuid()::text AS replay_correlation \gset
 UPDATE public.mirror_outbox
 SET status = 'written',
-    linear_result = '{"ok":true,"linear_id":"TEST-only"}',
+    linear_result = jsonb_build_object(
+      'ok', true,
+      'linear_id', 'TEST-only',
+      'correlation_id', :'replay_correlation'
+    ),
     processed_at = now(), updated_at = now()
 WHERE id = 1 AND status = 'pending' AND test_only = true AND client_slug = 'test-client';
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.track_b_f27_record_terminal(
+      current_setting('f27.rollback_id')::uuid,
+      1,
+      jsonb_build_object(
+        'ok', true,
+        'type', 'linear_write_terminal',
+        'rollback_id', current_setting('f27.rollback_id'),
+        'outbox_id', '1',
+        'dedup_key', 'f27:g:1',
+        'operation', 'status',
+        'correlation_id', gen_random_uuid(),
+        'linear_result_sha256', 'copied-or-synthetic',
+        'intent_snapshot_sha256', 'copied-or-synthetic'
+      )
+    );
+    RAISE EXCEPTION 'unbound replay receipt unexpectedly succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'f27_terminal_receipt_refused' THEN RAISE; END IF;
+  END;
+END $$;
 
 SELECT public.track_b_f27_record_terminal(
   :'rollback_id', 1,
   jsonb_build_object(
     'ok', true,
     'type', 'linear_write_terminal',
-    'correlation_id', gen_random_uuid(),
+    'rollback_id', :'rollback_id',
+    'outbox_id', '1',
+    'dedup_key', 'f27:g:1',
+    'operation', 'status',
+    'correlation_id', :'replay_correlation',
+    'linear_result_sha256', (
+      select encode(digest(convert_to(linear_result::text, 'UTF8'), 'sha256'), 'hex')
+      from public.mirror_outbox where id = 1
+    ),
+    'intent_snapshot_sha256', (
+      select row_sha256 from public.track_b_team_rollback_intents
+      where rollback_id = :'rollback_id' and outbox_id = 1
+    ),
     'observer', 'github-actions-postgres'
   )
 );
@@ -256,6 +297,7 @@ SELECT jsonb_build_object(
     'other_team_unchanged',
     'zero_payload_loss',
     'terminal_receipts_correlated',
+    'unbound_receipt_refused',
     'inflight_lease_refused',
     'f2_off',
     'f4_false'

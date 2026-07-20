@@ -3146,15 +3146,12 @@
         .workload-popover-item-due   { font-size: 0.66rem; color: var(--text-muted); flex-shrink: 0; font-weight: 600; }
         .workload-popover-item-due.past { color: var(--sv-fg-dc2626); }
         .workload-popover-plan { margin: 1px 4px 8px 8px; padding: 8px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border-light); }
-        .workload-popover-plan-line { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+        .workload-popover-plan-line { display: flex; align-items: center; gap: 7px; flex-wrap: nowrap; }
         .workload-popover-plan-label { font-size: 0.64rem; font-weight: 750; color: var(--text-secondary); }
-        .workload-popover-plan-arrow { color: var(--text-muted); font-weight: 700; }
-        .workload-popover-plan-due { font-size: 0.66rem; font-weight: 650; color: var(--text-secondary); }
-        .workload-popover-plan .sv-date { min-width: 0; }
+        .workload-popover-plan .sv-date { min-width: 0; flex: 1 1 auto; }
         .workload-popover-plan .sv-date-trigger { min-height: 44px; padding: 8px 10px; font-size: 0.68rem; }
-        .workload-popover-plan-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
-        .workload-popover-plan-origin { font-size: 0.61rem; font-weight: 650; color: var(--text-muted); }
-        .workload-plan-clear { border: 0; background: transparent; padding: 4px 6px; border-radius: 6px; color: var(--sv-fg-6c5ce7); font: inherit; font-size: 0.62rem; font-weight: 700; cursor: pointer; }
+        .workload-popover-plan-saving { font-size: 0.61rem; font-weight: 650; color: var(--text-muted); white-space: nowrap; }
+        .workload-plan-clear { border: 0; background: transparent; padding: 4px 6px; border-radius: 6px; color: var(--sv-fg-6c5ce7); font: inherit; font-size: 0.62rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
         .workload-plan-clear:hover:not(:disabled) { background: var(--white); }
         .workload-plan-clear:disabled { opacity: 0.5; cursor: default; }
         /* Tweak-comment preview inside the workload popover — surfaces the
@@ -14899,7 +14896,7 @@
                 <span class="workload-popover-head-title">${wlEscape(headerTitle)}</span>
                 ${templatesLink}
             </div>
-            ${parentUrl ? `<a class="workload-popover-parent" href="${wlEscape(parentUrl)}" target="_blank" rel="noopener noreferrer">Open parent →</a>` : ''}
+            ${parentUrl ? `<a class="workload-popover-parent" href="${wlEscape(parentUrl)}" target="_blank" rel="noopener noreferrer">Open Linear →</a>` : ''}
             <button type="button" class="workload-popover-close" data-wl-popover-close="1" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
         </div>`;
         // When the popover spans multiple clients (editor-total badge), label
@@ -14912,16 +14909,11 @@
             const saving = _wlPlanWriteInFlight.has(String(s.id || ''));
             const canEditPlan = !wlIsTweaksNeeded(s) && wlPlanEditingEnabled() && !saving;
             const dateId = 'wlPlanDate_' + String(s.id || '').replace(/[^A-Za-z0-9_-]/g, '_');
-            const planOrigin = explicitPlan ? 'Internal plan' : (s.dueDate ? 'Uses deadline' : 'No date yet');
             const planControl = wlIsTweaksNeeded(s) ? '' : `<div class="workload-popover-plan" data-wl-plan-issue="${wlEscape(s.id || '')}">
                 <div class="workload-popover-plan-line">
                     <span class="workload-popover-plan-label">Work day</span>
                     ${_svDateHtml(dateId, workDate, { placeholder: 'Choose work day', disabled: !canEditPlan })}
-                    <span class="workload-popover-plan-arrow" aria-hidden="true">→</span>
-                    <span class="workload-popover-plan-due">${wlEscape(dueLabel)}</span>
-                </div>
-                <div class="workload-popover-plan-meta">
-                    <span class="workload-popover-plan-origin">${wlEscape(saving ? 'Saving…' : planOrigin)}</span>
+                    ${saving ? '<span class="workload-popover-plan-saving" role="status">Saving…</span>' : ''}
                     ${explicitPlan ? `<button type="button" class="workload-plan-clear" data-wl-plan-clear="${wlEscape(s.id || '')}"${canEditPlan ? '' : ' disabled'}>Clear plan day</button>` : ''}
                 </div>
             </div>`;

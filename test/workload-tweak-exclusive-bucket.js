@@ -430,6 +430,20 @@ check(defaultSectionPrefs.overdue === false
     && /panel\.hidden = !expanded/.test(toolbarSource),
   'overdue, in-progress, and tweaks default collapsed and persist each browser expansion');
 
+const popoverSource = grabFunc('wlOpenRollupPopover');
+check(popoverSource.includes('Open Linear →')
+    && !popoverSource.includes('Open parent')
+    && (popoverSource.match(/workload-popover-item-due/g) || []).length === 1
+    && !popoverSource.includes('workload-popover-plan-arrow')
+    && !popoverSource.includes('workload-popover-plan-due')
+    && !popoverSource.includes('workload-popover-plan-meta')
+    && !popoverSource.includes('workload-popover-plan-origin')
+    && !popoverSource.includes('Uses deadline')
+    && /workload-popover-plan-line[\s\S]*?Work day[\s\S]*?_svDateHtml\(dateId, workDate[\s\S]*?workload-plan-clear/.test(popoverSource)
+    && /const planControl = wlIsTweaksNeeded\(s\) \? ''/.test(popoverSource)
+    && popoverSource.includes('wl-tweak-comments'),
+  'shared popovers keep one title-row deadline, use one compact work-day row, and link to Linear');
+
 check(!INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('function scheduleAll(')
     && !INDEX.includes('effectiveWorkDate')

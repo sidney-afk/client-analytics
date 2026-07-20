@@ -3280,13 +3280,16 @@
         .workload-day-card-total { background: var(--bg); border: 0; border-radius: 999px; padding: 1px 7px; font-family: inherit; font-size: 0.6rem; font-weight: 800; color: var(--text-secondary); flex-shrink: 0; cursor: pointer; transition: background 0.1s; }
         .workload-day-card-total:hover { background: var(--white); box-shadow: 0 0 0 1px var(--border) inset; color: var(--text-primary); }
         .workload-day-card-clients { display: flex; flex-wrap: wrap; gap: 3px; }
-        .workload-day-card-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; background: var(--bg); color: var(--text-primary); font-size: 0.62rem; font-weight: 600; text-decoration: none; max-width: 100%; transition: background 0.1s; }
+        .workload-day-client-group { min-width: 0; }
+        .workload-day-client-group[open] { flex-basis: 100%; }
+        .workload-day-card-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; background: var(--bg); color: var(--text-primary); font-size: 0.62rem; font-weight: 600; text-decoration: none; max-width: 100%; transition: background 0.1s; cursor: pointer; list-style: none; }
+        .workload-day-card-chip::-webkit-details-marker { display: none; }
         .workload-grid.week .workload-day-card-chip { font-size: 0.7rem; padding: 3px 9px; }
         .workload-day-card-chip:hover { background: var(--sv-bg-fff); box-shadow: 0 0 0 1px var(--border) inset; }
         .workload-day-card-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .workload-day-card-chip-count { font-weight: 800; opacity: 0.55; flex-shrink: 0; cursor: pointer; padding: 0 1px; }
         .workload-day-card-chip-count:hover { opacity: 1; }
-        .workload-day-card-items { display: flex; flex-direction: column; gap: 3px; }
+        .workload-day-card-items { display: flex; flex-direction: column; gap: 3px; margin-top: 3px; }
         .workload-plan-item { width: 100%; display: flex; align-items: center; gap: 5px; min-width: 0; padding: 4px 6px; border: 1px solid transparent; border-radius: 6px; background: var(--bg); color: var(--text-primary); font: inherit; font-size: 0.61rem; font-weight: 650; text-align: left; cursor: grab; }
         .workload-grid.week .workload-plan-item { font-size: 0.68rem; padding: 5px 7px; }
         .workload-plan-item:hover { background: var(--white); border-color: var(--border); }
@@ -14527,26 +14530,32 @@
         return editors.map(ed => {
             const team = wlTeamBucket(ed.teamKey, ed.teamName);
             const name = wlDisplayName(ed.assigneeName) || 'Unknown';
-            const issueCards = ed.subs.slice().sort((a, b) => {
-                const ca = a.clientName || ''; const cb = b.clientName || '';
-                if (ca !== cb) return ca.localeCompare(cb);
-                return (a.identifier || '').localeCompare(b.identifier || '');
-            }).map(s => {
-                const issueId = String(s.id || '');
-                const canDrag = wlPlanEditingEnabled() && !_wlPlanWriteInFlight.has(issueId);
-                const label = (s.clientName || '—') + ' · ' + (s.identifier || s.title || 'Work');
-                const titleAttr = [label, s.title || '', canDrag ? 'drag to set work day' : 'open details'].filter(Boolean).join(' · ');
-                return `<button type="button" class="workload-plan-item${canDrag ? '' : ' is-readonly'}" draggable="${canDrag ? 'true' : 'false'}" data-wl-plan-drag="${wlEscape(issueId)}" data-wl-issue-open="1" data-wl-issue-id="${wlEscape(issueId)}" data-wl-parent-id="${wlEscape(s.parentId || '')}" data-wl-assignee-id="${wlEscape(s.assigneeId || '')}" data-wl-client="${wlEscape(s.clientName || '')}" data-wl-date="${wlEscape(dayISO || '')}" title="${wlEscape(titleAttr)}">
-                    <span class="workload-plan-item-grip" aria-hidden="true">⋮⋮</span>
-                    <span class="workload-plan-item-label">${wlEscape(label)}</span>
-                </button>`;
+            const clientGroups = ed.clients.map(g => {
+                const clientName = g.clientName || '—';
+                const issueCards = (g.subs || []).map(s => {
+                    const issueId = String(s.id || '');
+                    const canDrag = wlPlanEditingEnabled() && !_wlPlanWriteInFlight.has(issueId);
+                    const label = s.title || s.identifier || 'Work';
+                    const titleAttr = [s.identifier || '', s.title || '', canDrag ? 'drag to set work day' : 'open details'].filter(Boolean).join(' · ');
+                    return `<button type="button" class="workload-plan-item${canDrag ? '' : ' is-readonly'}" draggable="${canDrag ? 'true' : 'false'}" data-wl-plan-drag="${wlEscape(issueId)}" data-wl-issue-open="1" data-wl-issue-id="${wlEscape(issueId)}" data-wl-parent-id="${wlEscape(s.parentId || '')}" data-wl-assignee-id="${wlEscape(s.assigneeId || '')}" data-wl-client="${wlEscape(s.clientName || '')}" data-wl-date="${wlEscape(dayISO || '')}" title="${wlEscape(titleAttr)}">
+                        <span class="workload-plan-item-grip" aria-hidden="true">⋮⋮</span>
+                        <span class="workload-plan-item-label">${wlEscape(label)}</span>
+                    </button>`;
+                }).join('');
+                return `<details class="workload-day-client-group">
+                    <summary class="workload-day-card-chip" title="${wlEscape(clientName)} · ${g.count} sub-issue${g.count !== 1 ? 's' : ''}">
+                        <span class="workload-day-card-chip-name">${wlEscape(clientName)}</span>
+                        <span class="workload-day-card-chip-count">· ${g.count}</span>
+                    </summary>
+                    <div class="workload-day-card-items">${issueCards}</div>
+                </details>`;
             }).join('');
             return `<div class="workload-day-card team-${team}">
                 <div class="workload-day-card-head">
                     <span class="workload-day-card-name" title="${wlEscape(name)}">${wlEscape(name)}</span>
                     <button type="button" class="workload-day-card-total" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}" data-wl-editor-name="${wlEscape(name)}" title="See the ${ed.total} sub-issue${ed.total !== 1 ? 's' : ''}">${ed.total}</button>
                 </div>
-                <div class="workload-day-card-items">${issueCards}</div>
+                <div class="workload-day-card-clients">${clientGroups}</div>
             </div>`;
         }).join('');
     }

@@ -307,9 +307,17 @@ const oneOverloadedEditor = [{
 }];
 const overloadedEditorHtml = renderDayRollups(oneOverloadedEditor, dueDate);
 check((overloadedEditorHtml.match(/class="workload-plan-item"/g) || []).length === 6
+    && (overloadedEditorHtml.match(/class="workload-day-client-group"/g) || []).length === 1
+    && !/<details class="workload-day-client-group"[^>]*\sopen(?:\s|>)/.test(overloadedEditorHtml)
+    && overloadedEditorHtml.includes('class="workload-day-card-chip"')
+    && overloadedEditorHtml.includes('Synthetic Client')
+    && overloadedEditorHtml.includes('· 6')
     && oneOverloadedEditor[0].subs.every(row => overloadedEditorHtml.includes(`data-wl-issue-id="${row.id}"`))
     && !overloadedEditorHtml.includes('workload-day-overflow'),
-  'all six overloaded items for one editor render as visible issue cards');
+  'one collapsed client chip retains all six overloaded items for expansion');
+check(oneOverloadedEditor[0].subs.every(row => overloadedEditorHtml.includes(`>${row.title}</span>`))
+    && !overloadedEditorHtml.includes('Synthetic Client · VID-'),
+  'expanded issue labels use their own titles while identifiers stay out of the visible label');
 
 check(!INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('function scheduleAll(')
@@ -319,6 +327,10 @@ check(!INDEX.includes('function wlEffectiveWorkDate(')
 check(INDEX.includes('.workload-day.over-capacity')
     && !INDEX.includes("'Plan ' + wlFormatShort"),
   'source guard pins themed overload styling and removes phantom scheduler copy');
+check(INDEX.includes('<details class="workload-day-client-group">')
+    && INDEX.includes('<summary class="workload-day-card-chip"')
+    && !INDEX.includes('<details class="workload-day-client-group" open>'),
+  'calendar hierarchy renders collapsed client chips inside editor blocks by default');
 check(INDEX.includes('.workload-weekdays.week { grid-template-columns: repeat(7, 1fr); }')
     && INDEX.includes('wlState.weekStart = wlAddDays(wlState.weekStart, delta * 7)')
     && (INDEX.match(/overCapacity = wlDayOverCapacity\(subs\);/g) || []).length === 2,

@@ -1,0 +1,573 @@
+{
+  "scraped_date": "2026-07-20",
+  "summary": {
+    "clients_processed": 31,
+    "clients_with_3_videos": 9,
+    "clients_with_partial": 2,
+    "clients_skipped_no_handles": [],
+    "clients_skipped_not_in_sandcastles": ["Jenna Phillips Ballard"],
+    "clients_skipped_inactive": ["Dr. Sonia Chopra", "Edward Mannix", "Dr. Rocco Piazza", "Eben & Annie", "Miki Agrawal", "Natalie MacNeil", "John Wineland", "Danielle Robin", "Melissa Pruett", "Lisa Kleyn", "Lauren Taus", "Henry Ammar", "Alayna Bellquist", "Jordan Marks", "Terrin Ammar"],
+    "total_video_rows": 30
+  },
+  "clients": [
+    {
+      "client_name": "Baya Voce",
+      "handle": "@bayavoce",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 38185,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DaO0ExaBOrR/",
+          "creator_name": "sully",
+          "creator_handle": "@ryan.osullivan",
+          "views": 3790360,
+          "outlier_score": 470.6,
+          "summary": "This 'food for thought' micro-format video exploded to 3.79M views by naming a specific relational behavior — avoiding accountability after wronging someone — and reframing it as the other person's emotional immaturity, not the viewer's fault. The ultra-minimal format (plain text over a simple visual) delivers a sharp psychological validation hit that triggers mass sharing. For Baya's niche of relationship repair and emotional pattern work, this confirms that direct, reframe-first psychological insights about interpersonal dynamics outperform elaborate productions by orders of magnitude.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DaHF2gUhIU5/",
+          "creator_name": "sully",
+          "creator_handle": "@ryan.osullivan",
+          "views": 2902040,
+          "outlier_score": 380.9,
+          "summary": "A second installment in the same 'food for thought' series, this one covering love languages and attachment, hit 2.9M views with a 380x outlier — proving the series has a repeatable viral formula. Plain text, short duration, and a single sharp insight about relational dynamics (with no talking head or production) is the entire product. For Baya Voce, this is evidence that the audience craves dense, attachment-theory-adjacent psychological reframes delivered in bite-sized scrollable form.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DZzyQScuOgW/",
+          "creator_name": "Jocelyn and Aaron Freeman",
+          "creator_handle": "@meet_thefreemans",
+          "views": 2617619,
+          "outlier_score": 17.7,
+          "summary": "This couples-therapist video drew 2.6M views by drawing a precise clinical distinction between honesty and transparency in marriage — a reframe that hits couples who consider themselves honest but still feel emotionally distant. The Freemans' non-blaming, both-partners framing mirrors Baya's own approach of naming systemic relational dynamics without assigning fault. It demonstrates that nuanced, script-level relationship communication tools perform strongly when they name an invisible gap couples recognize instantly in themselves.",
+          "scraped_date": "2026-07-20"
+        }
+      ]
+    },
+    {
+      "client_name": "Jessica Winterstern",
+      "handle": "@thefeminineheart",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 30575,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DaVrQJyiHWj/",
+          "creator_name": "Zac Turner",
+          "creator_handle": "@zacturnerofficial",
+          "views": 7142625,
+          "outlier_score": 650.9,
+          "summary": "This participatory somatic invitation — 'Can you do this?' — hit 7.1M views by asking viewers to perform a single physical movement with their body. The 650x outlier score confirms this is an exceptional breakout even for @zacturnerofficial. The format removes all friction: one embodied call-to-action, immediate kinesthetic participation, no explanation required. For Jessica's feminine embodiment niche, this is the template — a somatic prompt that makes the audience participate physically rather than watch, collapsing the distance between content and practice.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/Daa1YrMiuWQ/",
+          "creator_name": "Zac Turner",
+          "creator_handle": "@zacturnerofficial",
+          "views": 5057418,
+          "outlier_score": 415.8,
+          "summary": "A somatic regulation practice focused on jaw release, tongue positioning, and breath scored 5.1M views and a 415x outlier for @zacturnerofficial. The face and jaw as somatic portals perform disproportionately well because they produce felt-sense results within seconds of trying — no setup, no equipment, immediate body feedback. For Jessica, this reinforces the pattern: somatic techniques that create rapid, tangible sensation in the viewer's own body during playback outperform explanatory content by extreme margins.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DaNZMA9CXgK/",
+          "creator_name": "Paget Kagy",
+          "creator_handle": "@pagetkagy",
+          "views": 5323091,
+          "outlier_score": 34.4,
+          "summary": "'You're the one holding the knife' reached 5.3M views at a 34x outlier by using a single confrontational metaphor that positions the viewer as both the source and the resolver of their own suffering — accountability without shame, permission without bypassing. The poetic directness mirrors Jessica's own voice: spiritual reframes that feel like truth finally named rather than advice given. For the feminine spiritual growth niche, emotionally confrontational metaphors that shift self-perception land harder than teaching content when they name an invisible self-inflicted wound.",
+          "scraped_date": "2026-07-20"
+        }
+      ]
+    },
+    {
+      "client_name": "Morgan Burton",
+      "handle": "@morgancarringtonburton",
+      "platform": "tiktok",
+      "status": "active",
+      "avg_views": 14235,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://tiktok.com/@candasbarnes/video/7663408904612662541",
+          "creator_name": "Candas Barnes",
+          "creator_handle": "@candasbarnes",
+          "views": 4900000,
+          "outlier_score": 480.4,
+          "summary": "'What a privilege!!' by @candasbarnes hit 4.9M views at 480x her channel average by reframing the ability to act and grow as a privilege most people don't access — transforming inaction from a comfort into a loss. For Morgan's audience of women in burnout who feel paralyzed about starting over, this is the emotional unlock: choosing yourself isn't a risk, it's the right use of a rare opportunity. The extreme outlier score confirms this exact frame — action-as-privilege — bypasses resistance in the personal development niche at extraordinary scale.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://tiktok.com/@pagetkagy/video/7654930581049888014",
+          "creator_name": "Paget Kagy",
+          "creator_handle": "@pagetkagy",
+          "views": 3100000,
+          "outlier_score": 56.2,
+          "summary": "This subconscious identity reel reached 3.1M views at 56x outlier by naming the pre-sleep window as the most powerful moment to replace a limiting self-identity — 'poor people don't just have poor bank accounts, they have poor identities.' For Morgan's audience actively shedding an old version of themselves (the people-pleaser, the burned-out achiever), this lands as a nightly ritual to accelerate the identity shift. The 56x outlier shows identity-first personal growth messaging performs strongly in the adjacent manifestation-to-transformation niche where Morgan's audience lives.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://tiktok.com/@newageceo/video/7655647374982925581",
+          "creator_name": "New Age CEO",
+          "creator_handle": "@newageceo",
+          "views": 1100000,
+          "outlier_score": 6.5,
+          "summary": "'Outgrowing your old life isn't a loss — it's the most honest sign that the work is actually changing you' landed 1.1M views at 6.5x outlier by naming the disorienting experience of becoming someone your old environment no longer fits. For Morgan's audience in the liminal space between who they were and who they're becoming, this functions as direct validation: the emptiness of outgrowing is not failure, it's evidence. Single-sentence format, zero production, pure message — the format Morgan already uses and this niche responds to.",
+          "scraped_date": "2026-07-20"
+        }
+      ]
+    },
+    {
+      "client_name": "Dr. Sonia Chopra",
+      "handle": "@drsoniachopra",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Edward Mannix",
+      "handle": "@edwardmannix",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Doug Cartwright",
+      "handle": "@doug_cartwright",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 5867,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/Da3O_sIhnWN/",
+          "creator_name": "Quantum Shift Academy",
+          "creator_handle": "@quantumshiftacademy",
+          "views": 467000,
+          "outlier_score": 224.7,
+          "summary": "'True abundance begins by recognizing that God lives within you... Your next reality requires a regulated nervous system and a new identity' hit 467K views at 224.7x outlier by fusing spiritual sovereignty with somatic regulation language — the same thesis at the core of Doug's consciousness work. The spiritual + nervous-system + identity-upgrade frame positions the viewer's current reality as a body-state problem, not a discipline problem, bypassing the typical resistance to personal development messaging. For Doug's audience of men doing consciousness and inner work, this confirms the spiritual-somatic identity frame outperforms motivational content by extreme margins.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DaLVH_czOJH/",
+          "creator_name": "Jasmine Lamm",
+          "creator_handle": "@jasminelamm__",
+          "views": 2200000,
+          "outlier_score": 208.7,
+          "summary": "This personal growth and resilience video by @jasminelamm__ reached 2.2M views at 208.7x outlier by directly naming the internal battle of transformation — the emotional recognition hit when someone else articulates the difficulty you've been carrying alone. For Doug's audience committed to personal development and shedding limiting beliefs, content that validates the struggle of becoming while affirming the direction performs explosively. The 208x outlier confirms this channel is operating squarely within Doug's consciousness and transformation niche.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DaDhceoB61x/",
+          "creator_name": "New Age CEO",
+          "creator_handle": "@newageceo",
+          "views": 5200000,
+          "outlier_score": 15.7,
+          "summary": "'Outgrowing your old life isn't a loss — it's the most honest sign that the work is actually changing you' reached 5.2M views at 15.7x outlier, validating that single-sentence identity-transition content lands at extraordinary view counts even at modest outlier multipliers. For Doug, who speaks to men doing the hard work of personal transformation, naming the liminal space of outgrowing — social pressure, relationships that no longer fit, the disorientation of becoming — is a persistent viral formula in the consciousness niche and a direct analog to his own message.",
+          "scraped_date": "2026-07-20"
+        }
+      ]
+    },
+    {
+      "client_name": "Dr. Rocco Piazza",
+      "handle": "@roccopiazzamd",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Alli Schaper",
+      "handle": "@allischaper",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 28133,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DaNrAzTxDVP/",
+          "creator_name": "Alchemistry Rising",
+          "creator_handle": "@alchemistyrising",
+          "views": 235235,
+          "outlier_score": 27.0,
+          "summary": "This video linking thyroid T3 conversion to nutritional gaps — trace minerals, gut health, B vitamins, and cellular energy — hit 235K views at 27x outlier by reframing thyroid dysfunction as a systems-level problem requiring functional nutrition rather than medication alone. The video then connects functional mushrooms (lion's mane, cordyceps, reishi in the RISE supplement) as part of the solution. For Alli's audience at the intersection of fungi and integrative health, health-outcome-specific content (thyroid, focus, energy) anchored to functional mushroom science outperforms general mushroom education by a wide margin.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DZ2bULoo0_Q/",
+          "creator_name": "Mushies",
+          "creator_handle": "@mushies_2",
+          "views": 172818,
+          "outlier_score": 6.5,
+          "summary": "A rigorous breakdown of psychedelic-assisted therapy research — examining the evidence base for psilocybin/MDMA clinical trials and what the science actually supports — hit 172K views at 6.5x outlier from a psychedelics-education channel. For Alli, who positions herself as a science-forward advocate bridging mycology and psychedelic therapy, evidence-based research communication (citing actual study designs and limitations) resonates strongly with her audience of people who want to understand the science, not just the hype.",
+          "scraped_date": "2026-07-20"
+        }
+      ]
+    },
+    {
+      "client_name": "Eben & Annie",
+      "handle": "@annie_and_eben",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Miki Agrawal",
+      "handle": "@mikiagrawal",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Erica Matluck",
+      "handle": "@drericamatluck",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 1318,
+      "top_videos": []
+    },
+    {
+      "client_name": "Natalie MacNeil",
+      "handle": "@nataliemacneil",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "John Wineland",
+      "handle": "@john_wineland",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Danielle Robin",
+      "handle": "@dani__robin",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Melissa Pruett",
+      "handle": "@meltbymelissa",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Lisa Kleyn",
+      "handle": "@drlisakleyn",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Lauren Taus",
+      "handle": "@inbodiedlifetherapy",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Henry Ammar",
+      "handle": "@henryammar",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Alayna Bellquist",
+      "handle": "@alaynabellquist",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Jordan Marks",
+      "handle": "@jordan_mindbody",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Terrin Ammar",
+      "handle": "@thequeenkollective",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Jenna Phillips Ballard",
+      "handle": "UCvhjWgX4EGqKitWp6MVtJmg",
+      "platform": "youtube",
+      "status": "not_in_sandcastles",
+      "avg_views": null,
+      "top_videos": []
+    },
+    {
+      "client_name": "Mastin Kipp",
+      "handle": "@mastinkipp",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 30377,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DayFXnLv24o/",
+          "creator_name": "Kelly O'Horo",
+          "creator_handle": "@kellyohoro",
+          "views": 4159820,
+          "outlier_score": 11557.7,
+          "summary": "'Your wounds may become scars. But scars are not signs that you're still broken — they're evidence that your nervous system survived something it was never meant to carry alone' reached 4.16M views at an extraordinary 11,557x outlier. The video uses Kung Fu Panda 2's healing arc as a metaphor for EMDR/trauma therapy, explaining that healing doesn't erase the past — it changes your relationship with it. For Mastin's audience of high-achievers whose stuck patterns trace back to a nervous system carrying unprocessed pain, this video names their exact wound and offers a framework for how the body heals. The 11,557x outlier from a small EMDR channel confirms that trauma-as-nervous-system-survival content — delivered with clinical specificity and emotional poetry — bypasses the algorithm from virtually any audience size.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DZ6Ou_zsh11/",
+          "creator_name": "Sarah Heinss",
+          "creator_handle": "@sarahheinss",
+          "views": 32900000,
+          "outlier_score": 2252.9,
+          "summary": "'Why does everything feel urgent, even when nothing is actually dangerous?' hit 32.9M views at 2252x outlier by naming the felt experience of anxious urgency that high-achievers live inside without a name for it. The question is the entire content — no answer, no framework, just the naming of an invisible nervous-system state that millions recognize instantly. For Mastin, who teaches that ambitious people stay stuck because their body is in a state of chronic threat, this video is the proof-of-concept for his core thesis delivered as a single diagnostic question. The 2252x outlier confirms this as one of the highest-performing nervous-system reframes in the content ecosystem right now.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DZ9dhnQgrSd/",
+          "creator_name": "Dr. Gabor Maté",
+          "creator_handle": "@gabormatemd",
+          "views": 4400000,
+          "outlier_score": 17.2,
+          "summary": "Dr. Gabor Maté's video connecting autoimmune disease and trauma reached 4.4M views at 17.2x outlier, grounding the mind-body connection in specific clinical outcomes — autoimmune conditions as the body's response to unprocessed emotional pain. For Mastin, who argues that nervous-system dysregulation manifests physically and blocks transformation, Gabor is the clinical authority whose work validates the same thesis. The video's 4.4M views confirm that trauma-as-physical-illness content reaches mass audiences when delivered by a recognized expert with specific disease examples, giving Mastin's audience a concrete anchor for the mind-body framework they're already exploring.",
+          "scraped_date": "2026-07-20"
+        }
+      ]
+    },
+    {
+      "client_name": "Jesse Israel",
+      "handle": "@jesseisrael",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 6061,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DaYRhXBi1UD/",
+          "creator_name": "Zac Turner",
+          "creator_handle": "@zacturnerofficial",
+          "views": 13400000,
+          "outlier_score": 1187.5,
+          "summary": "'Can you do it?' — a single somatic invitation that hit 13.4M views at 1187x outlier for @zacturnerofficial. The format is irreducible: one embodied call-to-action, zero explanation, immediate felt-sense participation. Viewers either do it or they don't — and millions did. For Jesse's community-centered meditation and mindfulness niche, this is the most important performance signal in the data: participatory somatic content that eliminates the observer role and makes the viewer the practice itself generates viral scale that purely educational content cannot reach.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DaSur6sqTgU/",
+          "creator_name": "Nina Bogdan",
+          "creator_handle": "@mindfulwithnina",
+          "views": 11362231,
+          "outlier_score": 551.1,
+          "summary": "'Which jar will you let define you?' hit 11.4M views at 551x outlier by posing a single reframe: one negative comment doesn't define you unless you decide it does. The video asks viewers to question the internal narrative they've chosen to believe — the exact move at the heart of mindfulness practice. For Jesse, who takes modern stressors and reframes them through a mindfulness and nervous-system lens, this video confirms that self-compassion reframes delivered as a question rather than a lesson — short, warm, direct — unlock viral scale in the mindfulness-adjacent personal development niche.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DabGSKIiu3Q/",
+          "creator_name": "Dan Brulé",
+          "creator_handle": "@danbruleofficial",
+          "views": 3400000,
+          "outlier_score": 227.3,
+          "summary": "A Sufi circular breathing practice demonstration reached 3.4M views at 227x outlier for Dan Brulé, the pioneer of modern breathwork. The video is fully participatory — viewers breathe along — and produces an immediate shift in internal state within the reel itself. For Jesse, who builds community around making calm and mindfulness accessible and even social, breathwork's performance at 227x confirms that live-practice formats (not explanation) are the unit of viral content in the somatic meditation space. Dan Brulé's primary channel is breathwork education — 100% niche-matched to Jesse's meditation and nervous system community.",
+          "scraped_date": "2026-07-20"
+        }
+      ]
+    },
+    {
+      "client_name": "Morgan Burch",
+      "handle": "@goodmorgantherapy",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 77047,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DaLdvLXooOz/",
+          "creator_name": "Sophie Orozco",
+          "creator_handle": "@sophieorozcocoaching",
+          "views": 1055289,
+          "outlier_score": 93.1,
+          "summary": "This video hit 1.06M views at 93x outlier for Sophie Orozco (Marriage Turnaround Expert) by calling out the exact moment a spouse realizes they're ready to reconnect — not through dramatic gestures but through a decision. The 93x outlier from a marriage coaching channel confirms that transformation-oriented couples content (not tips or tools, but a turning point) outperforms when it creates a felt moment of recognition in both partners simultaneously. For Morgan, who specializes in couples on the brink of divorce, this is the direct competitive signal: the biggest breakout in the marriage turnaround niche comes from naming the decision threshold, not the technique.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DZ2btuGv6ha/",
+          "creator_name": "Kaseena",
+          "creator_handle": "@makingmarriagesexy",
+          "views": 3626788,
+          "outlier_score": 21.1,
+          "summary": "'Every husband who comes to me says the same thing. He feels unwanted, rejected, and has no idea how to tell her without it turning into an argument' reached 3.63M views at 21x outlier by naming the husband's hidden emotional state — the gap between what he's feeling and what he dares to say. The framing is clever: it positions the wife as the one who can decode and bridge that gap, making the video equally useful for both partners. For Morgan (couples therapist), this confirms that content that names the partner's unexpressed internal experience — not just the behavior — creates the recognition hit that drives massive sharing across couples in distress.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DayrgXuDfCa/",
+          "creator_name": "The Gottman Institute",
+          "creator_handle": "@gottmaninstitute",
+          "views": 1081238,
+          "outlier_score": 9.1,
+          "summary": "The Gottman Institute's video on the 'Four Horsemen of the Apocalypse' — criticism, contempt, defensiveness, stonewalling — reached 1.08M views at 9.1x outlier. The Gottmans are the world's leading relationship researchers with 50 years of data, and this naming framework is the most recognized clinical tool in couples therapy. For Morgan, who uses clinical frameworks to make relationship repair feel accessible, this video confirms that research-backed behavioral naming still generates significant reach even from institutional accounts — and that naming the specific behaviors that end marriages resonates far more than solutions.",
+          "scraped_date": "2026-07-20"
+        }
+      ]
+    },
+    {
+      "client_name": "Lily Baker",
+      "handle": "@theopenposturedoc",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 182506,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DZ8zuwIKvp4/",
+          "creator_name": "Paul 동오",
+          "creator_handle": "@paulyoond",
+          "views": 1663407,
+          "outlier_score": 52.6,
+          "summary": "'Your stiff hips are affecting more than just your hips' hit 1.66M views at 52.6x outlier by naming a cascade effect most people don't see: stiff hips force the lower back, knees, and glutes to compensate, creating pain patterns that seem unrelated to the original problem. This systems-level posture reframe — one root cause, multiple downstream effects — is exactly the analytical frame Lily Baker uses in her Bowspring/open posture work. For Lily's audience of people with chronic pain who've failed to find relief through conventional approaches, content that names the hidden upstream driver of their symptoms outperforms general mobility tips by a wide margin.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DZ3me3zhgWY/",
+          "creator_name": "Ankit Punia",
+          "creator_handle": "@__ankitpunia",
+          "views": 10165583,
+          "outlier_score": 52.1,
+          "summary": "'MOBILITY FLOW: Most people don't have a strength problem. They have a movement problem' hit 10.2M views at 52.1x outlier by reframing the root cause of physical dysfunction — stiffness, low energy, feeling disconnected from the body — as a movement deficit rather than a strength deficit. The 10M+ view count confirms this reframe reaches a massive audience. For Lily, who teaches that conventional fitness fails because it ignores how the body is held and moved in space, this is a direct mirror of her core thesis at mass scale.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DaN-QbipQi-/",
+          "creator_name": "Conor Harris",
+          "creator_handle": "@conor_harris_",
+          "views": 6511362,
+          "outlier_score": 21.8,
+          "summary": "'How your pelvis directly affects your belly' hit 6.5M views at 21.8x outlier by making one specific anatomical connection visible: pelvic tilt as the hidden driver of the belly protrusion people mistake for weight gain. Conor Harris is a posture and biomechanics educator whose entire channel is built around individualized mobility and pain correction — the same audience Lily Baker serves. For Lily, this confirms that body-image-meets-biomechanics content (especially when it names a visible symptom with a structural cause) unlocks both the posture and the general wellness audience simultaneously.",
+          "scraped_date": "2026-07-20"
+        }
+      ]
+    },
+    {
+      "client_name": "Alyssa Nobriga",
+      "handle": "@alyssanobriga",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 38282,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DZ6D7NJMJlK/",
+          "creator_name": "Mandy Lam",
+          "creator_handle": "@sitwithmandy_",
+          "views": 878929,
+          "outlier_score": 63.2,
+          "summary": "'Good girl conditioning doesn't just change how you treat others — it changes how you treat yourself' hit 878K views at 63.2x outlier by naming the internalized mechanism behind people-pleasing: the way unmet needs turn inward as self-blame rather than outward as anger. Mandy Lam is an anxiety and trauma therapist (NYC/NJ) whose primary niche is inner child healing, good girl conditioning, and anxious attachment — a direct overlap with Alyssa's work on healing childhood wounds and patterns. For Alyssa's audience, content that names how relational conditioning warps self-relationship (not just external relationships) triggers the deepest recognition and most sharing.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DaId32ihIDd/",
+          "creator_name": "Mimi Samayoa",
+          "creator_handle": "@breakwater.care",
+          "views": 836999,
+          "outlier_score": 40.2,
+          "summary": "'Emotional flooding' hit 836K views at 40.2x outlier by naming the specific experience of overwhelm that cascades beyond its trigger — the moment of crying about stress that becomes crying about everything at once. Mimi Samayoa is a Las Vegas therapist specializing in childhood emotional wounds, abandonment patterns, and attachment — the same landscape Alyssa works in. For Alyssa's audience, clinical naming of what happens inside their nervous system during overwhelm (with a therapist explaining the mechanism) performs strongly because it gives language to experiences they've had but never been able to describe.",
+          "scraped_date": "2026-07-20"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/Daf2IUaR8MX/",
+          "creator_name": "Morgan Pommells",
+          "creator_handle": "@morganpommells",
+          "views": 719876,
+          "outlier_score": 15.9,
+          "summary": "'You became the one who studies everyone else' hit 719K views at 15.9x outlier by naming emotional loneliness as the byproduct of hypervigilance — the pattern of scanning others' moods and needs while rarely being seen yourself. Morgan Pommells is a therapist specializing in CPTSD and childhood trauma from emotionally immature parents, whose primary niche maps directly onto Alyssa's work with people healing from adverse early environments. For Alyssa, this confirms that content naming the specific relational adaptations formed in childhood (hypervigilance, emotional loneliness, studying others) outperforms general healing content in this niche.",
+          "scraped_date": "2026-07-20"
+        }
+      ]
+    },
+    {
+      "client_name": "Amanda Hanson",
+      "handle": "@midlife.muse",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 41637,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/Da6BheEByIs/",
+          "creator_name": "Kylie Jones",
+          "creator_handle": "@fiftyandfearless",
+          "views": 11197666,
+          "outlier_score": 81.3,
+          "summary": "'Friendship changes as we get older' hit 11.2M views at 81.3x outlier by naming the invisible shift in what women need from friendships in midlife — from proximity-based connection to presence-based loyalty. The content resonated at extraordinary scale because it named a quiet grief most women over 45 carry but rarely see reflected in culture. @fiftyandfearless is a women's empowerment channel specifically for women 45+ navigating identity, relationships, and the second half of life — a direct overlap with Dr. Amanda Hanson's midlife-muse positioning. For Amanda, content that names the specific relational reconfiguration of midlife (who stays, who can't, what matters now) outperforms generic women's empowerment content by an extreme margin.",
+          "scraped_date": "2026-07-20"
+        }
+      ]
+    },
+    {
+      "client_name": "David Kessler",
+      "handle": "@iamdavidkessler",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 18607,
+      "top_videos": []
+    },
+    {
+      "client_name": "Chelsey Scaffidi",
+      "handle": "@chelseyscaffidi",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 278,
+      "top_videos": []
+    },
+    {
+      "client_name": "Adriana Rizzolo",
+      "handle": "@artofloving",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 1721,
+      "top_videos": []
+    }
+  ]
+}

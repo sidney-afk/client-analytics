@@ -13101,6 +13101,27 @@
 
     function renderWorkloadShell() {
         return `<div class="workload-view">
+            <div id="wlCapacity" class="workload-capacity empty">
+                <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">most free → busiest</span></div>
+                <div class="workload-capacity-row" id="wlCapacityRow"></div>
+            </div>
+            <div id="wlOverdue" class="workload-overdue empty">
+                <div class="workload-section-label"><span>Overdue</span><span class="wl-now-total" id="wlOverdueTotal" hidden></span></div>
+                <div class="workload-in-progress-rollups" id="wlOverdueRollups"></div>
+            </div>
+            <div id="wlInProgress" class="workload-in-progress empty">
+                <div class="workload-section-label"><span>In progress now</span><span class="wl-now-total" id="wlInProgressTotal" hidden></span></div>
+                <div class="workload-in-progress-rollups" id="wlInProgressRollups"></div>
+            </div>
+            <div id="wlTweaks" class="workload-tweaks empty">
+                <div class="workload-section-label"><span>Tweaks needed</span><span class="wl-now-total" id="wlTweaksTotal" hidden></span></div>
+                <div class="workload-in-progress-rollups" id="wlTweaksRollups"></div>
+            </div>
+            <div id="wlUndated" class="workload-needs-assignment workload-undated empty">
+                <div class="workload-section-label">Needs a work day or deadline</div>
+                <div class="workload-section-hint">These assigned sub-issues stay visible here until an internal work day or Linear deadline exists.</div>
+                <div class="workload-chips" id="wlUndatedChips"></div>
+            </div>
             <div class="workload-toolbar">
                 <div class="workload-toolbar-row">
                     <div class="workload-title-group">
@@ -13149,22 +13170,6 @@
                     </div>
                 </div>
             </div>
-            <div id="wlCapacity" class="workload-capacity empty">
-                <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">most free → busiest</span></div>
-                <div class="workload-capacity-row" id="wlCapacityRow"></div>
-            </div>
-            <div id="wlOverdue" class="workload-overdue empty">
-                <div class="workload-section-label"><span>Overdue</span><span class="wl-now-total" id="wlOverdueTotal" hidden></span></div>
-                <div class="workload-in-progress-rollups" id="wlOverdueRollups"></div>
-            </div>
-            <div id="wlInProgress" class="workload-in-progress empty">
-                <div class="workload-section-label"><span>In progress now</span><span class="wl-now-total" id="wlInProgressTotal" hidden></span></div>
-                <div class="workload-in-progress-rollups" id="wlInProgressRollups"></div>
-            </div>
-            <div id="wlTweaks" class="workload-tweaks empty">
-                <div class="workload-section-label"><span>Tweaks needed</span><span class="wl-now-total" id="wlTweaksTotal" hidden></span></div>
-                <div class="workload-in-progress-rollups" id="wlTweaksRollups"></div>
-            </div>
             <div class="workload-section-label workload-calendar-label">
                 <span>Work-day calendar</span>
                 <span class="workload-section-hint">
@@ -13174,11 +13179,6 @@
             <div id="wlPlanStatus" class="workload-plan-status" role="status" hidden></div>
             <div id="wlBody">
                 ${_svLoadingSkeletonHtml('workload')}
-            </div>
-            <div id="wlUndated" class="workload-needs-assignment workload-undated empty">
-                <div class="workload-section-label">Needs a work day or deadline</div>
-                <div class="workload-section-hint">These assigned sub-issues stay visible here until an internal work day or Linear deadline exists.</div>
-                <div class="workload-chips" id="wlUndatedChips"></div>
             </div>
             <div id="wlUnassigned" class="workload-needs-assignment empty">
                 <div class="workload-section-label">Needs assignment</div>

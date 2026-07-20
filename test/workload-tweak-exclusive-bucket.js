@@ -386,6 +386,21 @@ check(loadingPlanStatus.hidden === true
     && workloadSkeletonHtml.includes('sv-skeleton-pill'),
   'saved-plan loading uses a calendar-shaped editor-and-client skeleton with no visible text state');
 
+const workloadShellSource = grabFunc('renderWorkloadShell');
+const tweaksIndex = workloadShellSource.indexOf('id="wlTweaks"');
+const undatedIndex = workloadShellSource.indexOf('id="wlUndated"');
+const toolbarIndex = workloadShellSource.indexOf('class="workload-toolbar"');
+const calendarLabelIndex = workloadShellSource.indexOf('class="workload-section-label workload-calendar-label"');
+const calendarBodyIndex = workloadShellSource.indexOf('id="wlBody"');
+check((workloadShellSource.match(/class="workload-toolbar"/g) || []).length === 1
+    && tweaksIndex < undatedIndex
+    && undatedIndex < toolbarIndex
+    && toolbarIndex < calendarLabelIndex
+    && calendarLabelIndex < calendarBodyIndex
+    && ['prev', 'today', 'next'].every(value => workloadShellSource.includes(`data-wl-nav="${value}"`))
+    && ['week', 'month'].every(value => workloadShellSource.includes(`data-wl-view="${value}"`)),
+  'the intact period toolbar sits below tweaks and undated work, directly before the calendar');
+
 check(!INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('function scheduleAll(')
     && !INDEX.includes('effectiveWorkDate')

@@ -2,6 +2,7 @@
 # expect LF line endings, especially from index.html.
 index.html text eol=lf
 *.js text eol=lf
+*.mjs text eol=lf
 *.ts text eol=lf
 *.md text eol=lf
 *.sql text eol=lf

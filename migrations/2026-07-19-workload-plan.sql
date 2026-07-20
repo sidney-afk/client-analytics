@@ -38,5 +38,6 @@ alter table public.workload_plan enable row level security;
 
 revoke all on table public.workload_plan from public, anon, authenticated;
 grant select, insert, update on table public.workload_plan to service_role;
+revoke delete, truncate, references, trigger on table public.workload_plan from service_role;
 
 commit;

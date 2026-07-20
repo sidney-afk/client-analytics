@@ -126,18 +126,32 @@ async function assertNoWriteRequests(requests) {
       const adapted = window._prodAdapter({
         clients: [{ slug: 'noemoji', display_name: 'No Emoji', board_status: 'in_progress' }],
         members: [{ id: 'm1', name: 'Maya Singh' }],
-        batches: [{ id: 'b1', client_slug: 'noemoji', team: 'video', name: 'Root Batch' }],
+        batches: [
+          { id: 'parent-batch', client_slug: 'noemoji', team: 'video', name: 'Real Parent Batch' },
+          { id: 'creation-batch', client_slug: 'noemoji', team: 'video', name: 'Creation Batch' },
+        ],
         deliverables: [
-          { id: 'parent', identifier: 'VID-1', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Root Batch', status: 'in_progress', assignee_id: 'm1' },
-          { id: 'child-a', identifier: 'VID-2', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child A', status: 'smm_approval', assignee_id: 'm1' },
-          { id: 'child-b', identifier: 'VID-3', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child B', status: 'client_approval', assignee_id: 'm1' },
-          { id: 'child-c', identifier: 'VID-4', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child C', status: 'canceled', assignee_id: 'm1', raw_issue_canceled_at: '2026-07-08T20:26:05.371Z', due_date: '2025-06-04', status_at: '2026-07-08T20:26:06.986067+00:00' },
-          { id: 'child-d', identifier: 'VID-5', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child D', status: 'approved', assignee_id: 'm1', raw_issue_archived_at: '2026-07-08T20:26:05.371Z' },
+          { id: 'parent', linear_issue_uuid: 'linear-parent', identifier: 'VID-1', batch_id: 'parent-batch', client_slug: 'noemoji', team: 'video', title: 'Real Parent Issue', status: 'in_progress', assignee_id: 'm1' },
+          { id: 'child-a', linear_issue_uuid: 'linear-child-a', raw_issue_parent_id: 'linear-parent', identifier: 'VID-2', batch_id: 'creation-batch', client_slug: 'noemoji', team: 'video', title: 'Creation Batch', status: 'smm_approval', assignee_id: 'm1' },
+          { id: 'child-b', linear_issue_uuid: 'linear-child-b', raw_issue_parent_id: 'linear-parent', identifier: 'VID-3', batch_id: 'creation-batch', client_slug: 'noemoji', team: 'video', title: 'TEST 2', status: 'client_approval', assignee_id: 'm1' },
+          { id: 'child-c', linear_issue_uuid: 'linear-child-c', raw_issue_parent_id: 'linear-parent', identifier: 'VID-4', batch_id: 'creation-batch', client_slug: 'noemoji', team: 'video', title: 'TEST 3', status: 'canceled', assignee_id: 'm1', raw_issue_canceled_at: '2026-07-08T20:26:05.371Z', due_date: '2025-06-04', status_at: '2026-07-08T20:26:06.986067+00:00' },
+          { id: 'same-batch-root', linear_issue_uuid: 'linear-root', identifier: 'VID-5', batch_id: 'creation-batch', client_slug: 'noemoji', team: 'video', title: 'Unparented batch-mate', status: 'todo', assignee_id: 'm1' },
+          { id: 'unresolved-parent', linear_issue_uuid: 'linear-orphan', raw_issue_parent_id: 'linear-missing', identifier: 'VID-6', batch_id: 'creation-batch', client_slug: 'noemoji', team: 'video', title: 'Visible orphan', status: 'todo', assignee_id: 'm1' },
+          { id: 'self-parent', linear_issue_uuid: 'linear-self', raw_issue_parent_id: 'linear-self', identifier: 'VID-7', batch_id: 'creation-batch', client_slug: 'noemoji', team: 'video', title: 'Malformed self link', status: 'todo', assignee_id: 'm1' },
+          { id: 'child-d', linear_issue_uuid: 'linear-child-d', raw_issue_parent_id: 'linear-parent', identifier: 'VID-8', batch_id: 'creation-batch', client_slug: 'noemoji', team: 'video', title: 'Archived child', status: 'approved', assignee_id: 'm1', raw_issue_archived_at: '2026-07-08T20:26:05.371Z' },
+          { id: 'archived-target', linear_issue_uuid: 'linear-archived-target', identifier: 'VID-9', batch_id: 'parent-batch', client_slug: 'noemoji', team: 'video', title: 'Archived parent', status: 'approved', assignee_id: 'm1', raw_issue_archived_at: '2026-07-08T20:26:05.371Z' },
+          { id: 'archived-target-child', linear_issue_uuid: 'linear-archived-child', raw_issue_parent_id: 'linear-archived-target', identifier: 'VID-10', batch_id: 'creation-batch', client_slug: 'noemoji', team: 'video', title: 'Child of archived target', status: 'todo', assignee_id: 'm1' },
         ],
       });
       return {
         parentChildren: adapted.ISSUES.filter(i => i.parent === 'parent').map(i => i.id).sort(),
         childAChildren: adapted.ISSUES.filter(i => i.parent === 'child-a').length,
+        childAIsParent: (adapted.ISSUES.find(i => i.id === 'child-a') || {}).isHierarchyParent === true,
+        trueParentMarked: (adapted.ISSUES.find(i => i.id === 'parent') || {}).isHierarchyParent === true,
+        sameBatchRoot: (adapted.ISSUES.find(i => i.id === 'same-batch-root') || {}).parent,
+        unresolvedParent: (adapted.ISSUES.find(i => i.id === 'unresolved-parent') || {}).parent,
+        selfParent: (adapted.ISSUES.find(i => i.id === 'self-parent') || {}).parent,
+        archivedTargetChildParent: (adapted.ISSUES.find(i => i.id === 'archived-target-child') || {}).parent,
         statusKeys: adapted.ISSUES.map(i => i.status),
         canceledIssue: adapted.ISSUES.some(i => i.id === 'child-c' && i.status === 'canceled'),
         archivedDropped: !adapted.ISSUES.some(i => i.id === 'child-d'),
@@ -170,8 +184,10 @@ async function assertNoWriteRequests(requests) {
         editorColor: adapted.EDITORS.m1.color,
       };
     });
-    if (adapterFixture.parentChildren.join(',') !== 'child-a,child-b,child-c') throw new Error('Adapter did not put children only under the batch-parent issue');
-    if (adapterFixture.childAChildren !== 0) throw new Error('Adapter let a sibling list another sibling as a child');
+    if (adapterFixture.parentChildren.join(',') !== 'child-a,child-b,child-c') throw new Error('Adapter did not put exact siblings under their real Linear parent');
+    if (adapterFixture.childAChildren !== 0 || adapterFixture.childAIsParent) throw new Error('Adapter let the title-matched creation-batch sibling become a parent');
+    if (!adapterFixture.trueParentMarked) throw new Error('Adapter did not mark the real cross-batch Linear parent');
+    if (adapterFixture.sameBatchRoot || adapterFixture.unresolvedParent || adapterFixture.selfParent || adapterFixture.archivedTargetChildParent) throw new Error('Adapter invented a parent for an unparented, unresolved, self-linked, or archived-target row');
     if (!adapterFixture.statusKeys.includes('prog') || !adapterFixture.statusKeys.includes('smm') || !adapterFixture.statusKeys.includes('client')) throw new Error('Adapter did not map B1 status slugs to artifact keys');
     if (!adapterFixture.canceledIssue) throw new Error('Adapter dropped a canceled deliverable; canceled is a visible status (Canceled group), not a deleted row');
     if (!adapterFixture.archivedDropped) throw new Error('Adapter kept a deliverable with an archived marker; archive/delete markers must hide rows');
@@ -508,12 +524,26 @@ async function assertNoWriteRequests(requests) {
     }
     await page.evaluate(() => window._prodSetView('list'));
     await page.waitForSelector('.prod-row, .prod-empty', { timeout: 10000 });
-    const selfParentRow = page.locator('.prod-row[data-prod-self-parent="1"]').first();
-    if (await selfParentRow.count()) {
-      await selfParentRow.click();
-      await page.waitForSelector('.prod-detail[data-prod-self-parent="1"]', { timeout: 10000 });
+    const topLevelParentId = await page.evaluate(() => {
+      const issue = _prodIssues().find(i => i.isHierarchyParent && !i.parent);
+      return issue ? issue.id : '';
+    });
+    if (topLevelParentId) {
+      await page.evaluate(id => _prodOpenDeliverable(id), topLevelParentId);
+      await page.waitForSelector('.prod-detail[data-prod-hierarchy-parent="1"]', { timeout: 10000 });
       if (await page.locator('[data-prod-crumb-batch], [data-prod-detail-card="parent"]').count()) {
-        throw new Error('Self-referential batch parent crumb/card should be suppressed');
+        throw new Error('A top-level hierarchy parent should not invent a parent crumb/card');
+      }
+    }
+    const nestedParentId = await page.evaluate(() => {
+      const issue = _prodIssues().find(i => i.isHierarchyParent && i.parent);
+      return issue ? issue.id : '';
+    });
+    if (nestedParentId) {
+      await page.evaluate(id => _prodOpenDeliverable(id), nestedParentId);
+      await page.waitForSelector('.prod-detail[data-prod-hierarchy-parent="1"]', { timeout: 10000 });
+      if (!(await page.locator('[data-prod-subissue-of], [data-prod-detail-card="parent"]').count())) {
+        throw new Error('A nested hierarchy parent should retain its own parent context');
       }
     }
 

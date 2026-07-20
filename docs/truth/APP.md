@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-19 @ f9b59e9 (Workload literal-date base; editable plan-date source is staged but not deployed)
+> Last verified: 2026-07-19 @ fd3e0ea + F145 review branch (Production hierarchy truth staged; live flags and state unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -144,6 +144,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   trigger with it. The mobile top bar has no personal/team queue switch; `?view=my` works only when
   supplied directly or reached through a hardware-keyboard shortcut.
 - Boot does a lightweight parallel select of `clients`/`team_members`/`batches`/`deliverables`.
+  F145's hierarchy projection reads only `linear_issue_uuid` plus
+  `linear_raw.issue.parent.id`: `_prodAdapter()` resolves the real Linear parent globally across
+  creation batches/teams/clients. It never elects a parent from batch membership or title; an
+  unavailable, ambiguous, self, cyclic, or archived target leaves the row visible as a root.
   Native events are written, and loader/renderer helpers exist, but no runtime call loads or displays
   them; detail shows Comments only (F138).
 - Creative policy is same-team-wide and checks next status without current status or assignee, so it
@@ -180,7 +184,7 @@ fast-moving file). Confirmed-dead example already documented: `_sxrReassertLinea
 | Group | Candidates |
 |---|---|
 | Calendar | `_calClientPossessive` `_calCommentTotal` `_calLinkLabel` `_calOnTextareaInput` `_calOnUrlInput` `_calOpenUrlField` `_calStatusChip` `_calZoomHintHtml` |
-| Linear mirror (internal `production`; `?prod=1`) — **check active prod sprint before touching** | `_prodById` `_prodClientEmoji` `_prodIsBatchParent` `_prodOpenBatch` `_prodSetFocusCard` `_prodSetTeam` |
+| Linear mirror (internal `production`; `?prod=1`) — **check active prod sprint before touching** | `_prodById` `_prodClientEmoji` `_prodOpenBatch` `_prodSetFocusCard` `_prodSetTeam` |
 | Samples/SXR | `_sxrReassertLinearStatus` `_sxrReorderUrlForClient` `_sxrSetAllSettable` |
 | Onboarding | `_obAddCreatorRow` `_obToggle` `_obvToggle` |
 | Market-research tab (looks unwired) | `_mrHookBadge` `renderMRTab_landscape` `renderMRTab_topics` |

@@ -74,10 +74,17 @@ check('preview reads only the authority flag needed to fail closed',
   && !/syncview_runtime_flags[\s\S]{0,180}(POST|PATCH|PUT|DELETE)/.test(prodBlock));
 check('preview fetches projected archive/delete markers instead of full linear_raw at boot',
   /_prodRestRows\('deliverables'[\s\S]{0,1200}raw_issue_archived_at:linear_raw->issue->>archivedAt/.test(prodBlock)
+  && /linear_issue_uuid/.test(prodBlock)
+  && /raw_issue_parent_id:linear_raw->issue->parent->>id/.test(prodBlock)
   && /raw_issue_canceled_at:linear_raw->issue->>canceledAt/.test(prodBlock)
   && /raw_webhook_delete:linear_raw->>webhook_delete/.test(prodBlock)
   && !/linear_issue_url,linear_raw'/.test(prodBlock)
   && !/title,brief,status/.test(prodBlock));
+check('preview hierarchy follows only resolved Linear parent links',
+  /function _prodResolveParentLinks\(rows\)/.test(prodBlock)
+  && /const parentLinks = _prodResolveParentLinks\(deliverables\)/.test(prodBlock)
+  && /parent: parentLinks\.get\(String\(d\.id \|\| ''\)\) \|\| null/.test(prodBlock)
+  && !/batchParent|batchTeamKey|_prodSameTitle|_prodIsBatchParent/.test(prodBlock));
 check('preview lazy-loads full linear_raw for a single detail row',
   /async function _prodLoadLinearRawFor\(id\)/.test(prodBlock)
   && /_prodRestRows\('deliverables', 'id,brief,linear_raw', 'id=eq\.'/.test(prodBlock)

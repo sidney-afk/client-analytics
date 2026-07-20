@@ -23,9 +23,16 @@ Each `deliverables` row becomes one artifact-shaped issue:
 - `created`: display creation date.
 - `desc`: deliverable brief.
 - `file`: delivered file URL, falling back to batch delivery/footage/filming URL.
-- `parent`: the parent issue id, or `null`.
+- `parent`: the native id of the deliverable named by Linear's real parent link, or `null`.
 
-Parent/children rule: for each batch, a deliverable whose `title` equals `batch.name` after trim + case-insensitive normalization is the batch-parent ISSUE. Its children are the batch's other deliverables. A non-parent deliverable has `parent = <batch-parent issue id>` if one exists and never lists siblings as children. If no batch-parent issue exists, batch-mates are not treated as each other's children.
+Parent/children rule (F145): the lightweight Production read projects
+`linear_raw.issue.parent.id` beside `linear_issue_uuid`. `_prodAdapter()` resolves that Linear
+parent UUID globally to the corresponding live native deliverable id, without constraining the
+edge by creation batch, team, or client. A row is a parent only when another live row names it
+through that link; siblings never list one another merely because they share a batch or a title
+matches `batch.name`. Missing, duplicate, archived, self-referential, and cyclic parent targets
+fail closed to `parent = null`, keeping the affected row visible as a root rather than inventing
+hierarchy. `batchId` remains available for batch detail and asset context, not parent election.
 
 ### PROJECTS
 

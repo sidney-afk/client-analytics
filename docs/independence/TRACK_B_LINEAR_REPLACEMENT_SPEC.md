@@ -1475,13 +1475,16 @@ provably — as the floor on which later improvements are built.
   management, dev-tooling copy commands) are deliberate REMOVALS, not adoptions. Linear wins
   on look/feel/interaction of KEPT surfaces only, never on adding removed-class features.
 - **10.8.1 Adapter Contract (kills F3):** `docs/syncview-design/ADAPTER.md` is the definitive
-  B1→artifact data mapping, implemented as ONE function (`_prodAdapter()`) that converts the
-  B1 tables into the artifact's exact data shapes (ISSUES/PROJECTS/CLIENTS/EDITORS field
+  B1→artifact data mapping, implemented at the `_prodAdapter()` boundary (with the pure internal
+  `_prodResolveParentLinks()` hierarchy resolver) that converts the B1 tables into the artifact's
+  exact data shapes (ISSUES/PROJECTS/CLIENTS/EDITORS field
   names). All `_prod*` render code consumes artifact-shaped objects only. Every mapping
-  decision is written in the contract (parent/children semantics: children exist ONLY under a
-  batch-parent row, a sibling never lists a sibling; icon fallbacks: missing client emoji →
+  decision is written in the contract (F145 parent/children semantics: children exist ONLY under
+  the live deliverable resolved from Linear's persisted parent UUID, across creation-batch/team/
+  client boundaries; a sibling or batch-title match never invents hierarchy; unresolved,
+  ambiguous, self, and cyclic links remain visible roots; icon fallbacks: missing client emoji →
   the artifact's project glyph, never a letter; the status slug↔artifact-key table; member →
-  EDITORS color/initials derivation; self-parent rule: `title == batch.name`).
+  EDITORS color/initials derivation).
 - **10.8.2 Verbatim-transplant rule (kills F1):** ported functions are byte-copies of the
   artifact's, with exactly three allowed edits: the `_prod` name prefix, the state-object
   reference, and mutation-call sites replaced by the single read-only guard. Any other

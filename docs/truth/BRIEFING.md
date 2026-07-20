@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-18 @ 2703ccd (current-state reconciliation through F146; first /site-assurance run — coverage state in docs/testing/ASSURANCE_LEDGER.md; 2026-07-17 bug-archaeology addendum: F142 folder-resolve CORS (fixed + live-verified 07-17), F143 production-write deploy (landed + live-verified 07-17), F144 F44 installer schema drift; F145 mirror batch-vs-parent hierarchy registered 07-18; F140 owner-ratified regression fixed on this branch — Samples Finish matches Calendar; F146 failed client request-change rollback/draft recovery fixed 07-18)
+> Last verified: 2026-07-19 @ fd3e0ea + F145 branch (current-state reconciliation through F146; first /site-assurance run — coverage state in docs/testing/ASSURANCE_LEDGER.md; 2026-07-17 bug-archaeology addendum: F142 folder-resolve CORS (fixed + live-verified 07-17), F143 production-write deploy (landed + live-verified 07-17), F144 F44 installer schema drift; F145 mirror hierarchy fix staged 07-19; F140 owner-ratified regression fixed — Samples Finish matches Calendar; F146 failed client request-change rollback/draft recovery fixed 07-18)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -98,6 +98,11 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   browser-owned recovery (F133/F134); Calendar/Samples reorder has no touch/keyboard path (F135);
   creatives can regress reviewer/terminal work (F136); Video assets collapse into one mislabeled
   link (F137); and persisted native activity is never loaded or shown (F138).
+- F145 is fixed on the review branch without a schema, n8n, writer, or flag change: Production
+  projects each deliverable's persisted Linear parent UUID and resolves it globally to the live
+  native parent row. Batch/title similarity no longer invents hierarchy; missing or malformed
+  parents leave work visible as roots. Parent-only webhook changes retain the existing
+  refresh-eventual convergence contract.
 - F140 is owner-ratified and fixed on the review branch: Samples matches Calendar, so Kasper may
   stack change requests and then Finish hands the card to the SMM. The strict Finish gate remains;
   the fix prevents a fresh status companion from being mistaken for recovery debt before its first

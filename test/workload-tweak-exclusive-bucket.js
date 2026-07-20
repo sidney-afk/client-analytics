@@ -1,15 +1,16 @@
 'use strict';
 
 /*
- * Workload literal-calendar and tweak-bucket regression.
+ * Workload hybrid plan-calendar and tweak-bucket regression.
  *
  * A Linear tweak sub-issue can retain the due date from its original plan.
  * Exercise the real workload classifier and wlApplyData implementation to
  * prove that either canonical tweak-status spelling appears in the tweaks
  * strip only, never on the planned calendar or another status strip.
  *
- * With no internal override, every ordinary dated row stays on its due date.
- * An explicit plan_date is also literal; capacity never spills or hides work.
+ * With an authoritative plan snapshot, an ordinary dated row is auto-planned
+ * one working day before its deadline (floored to today). An explicit
+ * plan_date wins literally; capacity never spills or hides work.
  */
 const fs = require('fs');
 const path = require('path');
@@ -49,9 +50,59 @@ const wlIsToDo = compile('wlIsToDo', { wlNormStatus });
 const wlTeamBucket = compile('wlTeamBucket');
 const wlEditorCapacity = compile('wlEditorCapacity', { wlTeamBucket });
 const wlDayOverCapacity = compile('wlDayOverCapacity', { wlTeamBucket, wlEditorCapacity });
-const wlState = { calendarByDate: new Map(), planByIssueId: new Map(), issueSnapshot: [] };
+const wlISO = compile('wlISO');
+const wlParseISO = compile('wlParseISO');
+const wlSubWorkingDays = compile('wlSubWorkingDays', { wlParseISO, wlISO });
+const wlState = {
+  calendarByDate: new Map(),
+  planByIssueId: new Map(),
+  issueSnapshot: [],
+  planHasSnapshot: true,
+};
 const wlPlanDate = compile('wlPlanDate', { wlState });
-const wlDisplayDate = compile('wlDisplayDate', { wlPlanDate });
+const wlAutoPlanDate = compile('wlAutoPlanDate', {
+  wlSubWorkingDays,
+  wlTodayISO: () => '2026-07-15',
+});
+const wlDisplayDate = compile('wlDisplayDate', {
+  wlState,
+  wlPlanDate,
+  wlAutoPlanDate,
+  wlTodayISO: () => '2026-07-15',
+});
+const wlPlacementMode = compile('wlPlacementMode', { wlState, wlPlanDate });
+const wlFormatShort = compile('wlFormatShort', { wlParseISO });
+const wlCalendarDayDiff = compile('wlCalendarDayDiff');
+const wlPlacementLabel = compile('wlPlacementLabel');
+const wlPlanOriginHtml = compile('wlPlanOriginHtml', {
+  wlPlacementLabel,
+  wlEscape: value => String(value),
+});
+const wlGroupPlacementMode = compile('wlGroupPlacementMode', { wlPlacementMode });
+const wlGroupPlanOriginHtml = compile('wlGroupPlanOriginHtml', { wlPlacementMode, wlPlanOriginHtml });
+const wlDeadlineMeta = compile('wlDeadlineMeta', {
+  wlCalendarDayDiff,
+  wlTodayISO: () => '2026-07-15',
+  wlFormatShort,
+});
+const wlDeadlineTagHtml = compile('wlDeadlineTagHtml', {
+  wlDeadlineMeta,
+  wlEscape: value => String(value),
+});
+const wlDeadlineFlagSvg = compile('wlDeadlineFlagSvg');
+const wlGroupDeadlineSummary = compile('wlGroupDeadlineSummary', { wlDeadlineMeta });
+const wlGroupDeadlineHtml = compile('wlGroupDeadlineHtml', {
+  wlGroupDeadlineSummary,
+  wlDeadlineFlagSvg,
+  wlEscape: value => String(value),
+});
+const wlPriorityValue = compile('wlPriorityValue', { wlState });
+const wlPriorityIconHtml = compile('wlPriorityIconHtml', { wlPriorityValue });
+const wlGroupUrgentHtml = compile('wlGroupUrgentHtml', {
+  wlPriorityValue,
+  wlPriorityIconHtml,
+  wlEscape: value => String(value),
+});
 const wlBucketByDisplayDate = compile('wlBucketByDisplayDate', { wlDisplayDate });
 
 const wlApplyData = compile('wlApplyData', {
@@ -127,25 +178,31 @@ for (const [status, label, id] of [
     label + ' stays tweaks-only when its retained due date is overdue');
 }
 
-console.log('\nWorkload literal plan-date mode');
+console.log('\nWorkload hybrid auto/manual plan-date mode');
 const dueDate = '2026-07-20';
+const autoDate = '2026-07-17';
 const videoRows = Array.from({ length: 6 }, (_, i) => issue('To Do', 'video-' + i, dueDate));
 wlApplyData(videoRows, '2026-07-15T12:00:00Z');
-const dueBucket = wlState.calendarByDate.get(dueDate) || [];
-check(wlState.calendarByDate.size === 1 && dueBucket.length === videoRows.length,
-  'without an override, all dated video rows stay together on their exact due date');
-check(dueBucket.every(row => row.dueDate === dueDate
+const autoBucket = wlState.calendarByDate.get(autoDate) || [];
+check(wlAutoPlanDate(videoRows[0], '2026-07-15') === autoDate
+    && wlState.calendarByDate.size === 1
+    && autoBucket.length === videoRows.length
+    && !wlState.calendarByDate.has(dueDate),
+  'without an override, dated rows are auto-planned one working day before their deadline');
+check(wlPlacementMode(videoRows[0]) === 'auto',
+  'an authoritative deadline-derived placement is visibly classified as auto');
+check(autoBucket.every(row => row.dueDate === dueDate
     && !Object.prototype.hasOwnProperty.call(row, 'scheduledDate')
     && !Object.prototype.hasOwnProperty.call(row, 'effectiveWorkDate')),
-  'literal bucketing does not derive or mutate a scheduler date');
-check(!wlDayOverCapacity(dueBucket.slice(0, 5)) && wlDayOverCapacity(dueBucket),
+  'auto bucketing stays item-local and does not mutate scheduler state onto issue rows');
+check(!wlDayOverCapacity(autoBucket.slice(0, 5)) && wlDayOverCapacity(autoBucket),
   'video capacity is 5/day and the sixth row marks overload without spilling');
 
 const pastDue = issue('To Do', 'ordinary-overdue', '2026-07-14');
 wlApplyData([pastDue], '2026-07-15T12:00:00Z');
 check(wlState.overdue.map(row => row.id).includes('ordinary-overdue')
-    && (wlState.calendarByDate.get('2026-07-14') || []).map(row => row.id).includes('ordinary-overdue'),
-  'ordinary overdue work stays in its warning strip and on its exact historical due date');
+    && (wlState.calendarByDate.get('2026-07-15') || []).map(row => row.id).includes('ordinary-overdue'),
+  'an overdue automatic placement floors to today while its deadline remains overdue');
 
 const graphicRows = Array.from({ length: 16 }, (_, i) => ({
   ...issue('To Do', 'graphic-' + i, dueDate),
@@ -164,12 +221,21 @@ const planned = issue('To Do', 'explicit-plan', '2026-07-20');
 wlState.planByIssueId.set(planned.id, '2026-07-23');
 wlApplyData([planned], '2026-07-15T12:00:00Z');
 check((wlState.calendarByDate.get('2026-07-23') || []).map(row => row.id).includes(planned.id)
-    && !wlState.calendarByDate.has('2026-07-20'),
+    && !wlState.calendarByDate.has('2026-07-20')
+    && wlPlacementMode(planned) === 'manual',
   'an explicit plan_date displays on that exact work day instead of changing the deadline');
 wlState.planByIssueId.delete(planned.id);
 wlApplyData([planned], '2026-07-15T12:00:00Z');
-check((wlState.calendarByDate.get('2026-07-20') || []).map(row => row.id).includes(planned.id),
-  'clearing plan_date returns the issue to its exact due-date fallback');
+check((wlState.calendarByDate.get(autoDate) || []).map(row => row.id).includes(planned.id),
+  'clearing plan_date returns the issue to its automatic plan day');
+
+wlState.planHasSnapshot = false;
+wlApplyData([planned], '2026-07-15T12:00:00Z');
+check((wlState.calendarByDate.get(dueDate) || []).map(row => row.id).includes(planned.id)
+    && !wlState.calendarByDate.has(autoDate)
+    && wlPlacementMode(planned) === 'fallback',
+  'without an authoritative plan snapshot, the board degrades to its deadline fallback');
+wlState.planHasSnapshot = true;
 
 const plannedUndated = issue('To Do', 'planned-undated', null);
 wlState.planByIssueId.set(plannedUndated.id, '2026-07-24');
@@ -186,8 +252,75 @@ check(wlState.tweaksNeeded.map(row => row.id).includes(plannedTweak.id)
   'a saved plan override never breaks tweak-bucket exclusivity');
 wlState.planByIssueId.clear();
 
-const wlISO = compile('wlISO');
-const wlParseISO = compile('wlParseISO');
+const steady = issue('To Do', 'steady-auto', '2026-07-24');
+wlApplyData([steady], '2026-07-15T12:00:00Z');
+const steadyDate = wlDisplayDate(steady);
+const urgent = issue('To Do', 'new-urgent', '2026-07-15');
+wlApplyData([steady, urgent], '2026-07-15T12:00:00Z');
+check(steadyDate === '2026-07-23'
+    && wlDisplayDate(steady) === steadyDate
+    && (wlState.calendarByDate.get(steadyDate) || []).some(row => row.id === steady.id)
+    && (wlState.calendarByDate.get('2026-07-15') || []).some(row => row.id === urgent.id),
+  'adding urgent work never reflows an existing item-local automatic placement');
+
+console.log('\nWorkload placement, deadline, and Linear-priority signals');
+const visualAuto = issue('To Do', 'visual-auto', '2026-07-16');
+const visualManual = issue('To Do', 'visual-manual', '2026-07-18');
+wlState.planByIssueId.set(visualManual.id, '2026-07-17');
+const manualOriginHtml = wlPlanOriginHtml('manual', false);
+const mixedOriginHtml = wlGroupPlanOriginHtml([visualAuto, visualManual]);
+check(wlPlacementLabel('auto') === 'Automatically planned'
+    && wlPlacementLabel('manual') === 'Manually planned'
+    && wlPlacementLabel('fallback', false) === 'Deadline fallback'
+    && /aria-label="Manually planned"/.test(manualOriginHtml)
+    && manualOriginHtml.replace(/<[^>]+>/g, '').trim() === ''
+    && /automatically planned/.test(mixedOriginHtml)
+    && /manually planned/.test(mixedOriginHtml)
+    && !/>Auto planned</.test(mixedOriginHtml)
+    && !/>Manual planned</.test(mixedOriginHtml),
+  'placement origin uses quiet accessible sparkle/pin icons instead of text pills');
+check(wlGroupPlacementMode([visualAuto]) === 'auto'
+    && wlGroupPlacementMode([visualManual]) === 'manual'
+    && wlGroupPlacementMode([visualAuto, visualManual]) === 'mixed',
+  'collapsed client groups still derive automatic, manual, or mixed placement truthfully');
+
+const dueTomorrow = wlDeadlineMeta('2026-07-16', 'Due');
+const dueInThree = wlDeadlineMeta('2026-07-18', 'Due');
+const dueLater = wlDeadlineMeta('2026-07-19', 'Due');
+const overdueDeadline = wlDeadlineMeta('2026-07-14', 'Due');
+check(dueTomorrow.tone === 'red' && dueTomorrow.days === 1
+    && dueInThree.tone === 'orange' && dueInThree.days === 3
+    && dueLater.tone === 'green' && dueLater.days === 4
+    && overdueDeadline.tone === 'red' && /overdue/.test(overdueDeadline.label),
+  'deadline proximity is red through one day, orange for two to three, and green after three');
+const redGroup = wlGroupDeadlineSummary([
+  issue('To Do', 'red-a', '2026-07-15'),
+  issue('To Do', 'red-b', '2026-07-16'),
+]);
+const mixedGroup = wlGroupDeadlineSummary([visualManual, visualAuto]);
+const missingGroup = wlGroupDeadlineSummary([visualAuto, issue('To Do', 'no-deadline', null)]);
+check(/wl-deadline-tag is-red/.test(wlDeadlineTagHtml('2026-07-16', 'Due'))
+    && redGroup.tone === 'red' && redGroup.mixed === false
+    && mixedGroup.tone === '' && mixedGroup.mixed === true
+    && missingGroup.tone === '' && missingGroup.mixed === true
+    && /is-red/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-c', '2026-07-16')] : []))
+    && /is-mixed/.test(wlGroupDeadlineHtml([visualManual, visualAuto])),
+  'sub-issues own proximity color and a group inherits it only when every item shares one band');
+
+wlState.priorityByIssueId = new Map([[visualAuto.id, 1], [visualManual.id, 4]]);
+const urgentIcon = wlPriorityIconHtml(visualAuto);
+const highIcon = wlPriorityIconHtml(2);
+const mediumIcon = wlPriorityIconHtml(3);
+const lowIcon = wlPriorityIconHtml(visualManual);
+check(/is-urgent/.test(urgentIcon) && /Urgent Linear priority/.test(urgentIcon)
+    && /is-high/.test(highIcon) && /High Linear priority/.test(highIcon)
+    && /is-medium/.test(mediumIcon) && /Medium Linear priority/.test(mediumIcon)
+    && /is-low/.test(lowIcon) && /Low Linear priority/.test(lowIcon)
+    && /1 urgent sub-issue/.test(wlGroupUrgentHtml([visualManual, visualAuto]))
+    && wlPriorityIconHtml(0) === '',
+  'native Linear priority icons stay exact per item while collapsed groups surface only an urgent count');
+wlState.planByIssueId.clear();
+
 const wlAddDays = compile('wlAddDays', { wlParseISO, wlISO });
 const wlIsWeekend = compile('wlIsWeekend');
 wlState.weekStart = dueDate;
@@ -208,7 +341,7 @@ check(/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(weekHtm
     && weekHtml.includes('<span class="workload-day-count">6</span>')
     && !weekHtml.includes('workload-day-count over-capacity')
     && !weekHtml.includes('6 · over'),
-  'an overloaded due-date column keeps normal day styling and a neutral item count');
+  'an overloaded automatic work-day column keeps normal day styling and a neutral item count');
 
 const renderFilteredWeekGrid = compile('renderWeekGrid', {
   wlState,
@@ -262,14 +395,24 @@ wlApplyData([weekendDue, weekendPlan], '2026-07-19T12:00:00Z');
 wlState.weekStart = '2026-07-24';
 const weekendWeekHtml = renderWeekGrid();
 check((weekendWeekHtml.match(/data-wl-day=/g) || []).length === 7
-    && /class="workload-day weekend" data-wl-day="2026-07-25"/.test(weekendWeekHtml)
+    && /class="workload-day" data-wl-day="2026-07-24"/.test(weekendWeekHtml)
     && /class="workload-day weekend" data-wl-day="2026-07-26"/.test(weekendWeekHtml)
     && weekendWeekHtml.includes('weekend-due')
     && weekendWeekHtml.includes('weekend-plan'),
-  'the rolling week renders seven literal days including Saturday due and Sunday plan dates');
+  'the rolling week shows a Saturday deadline on Friday automatically and preserves a manual Sunday plan');
 wlState.planByIssueId.clear();
 
 const wlSortSubIssues = compile('wlSortSubIssues');
+const wlRenderPlanIssueCards = compile('wlRenderPlanIssueCards', {
+  wlPlanEditingEnabled: () => true,
+  _wlPlanWriteInFlight: new Map(),
+  wlPlacementMode,
+  wlDeadlineMeta,
+  wlEscape: value => String(value),
+  wlPriorityIconHtml,
+  wlPlanOriginHtml,
+  wlDeadlineTagHtml,
+});
 const renderDayRollups = compile('renderDayRollups', {
   wlTeamBucket,
   wlEditorCapacity,
@@ -278,7 +421,122 @@ const renderDayRollups = compile('renderDayRollups', {
   wlEscape: value => String(value),
   wlPlanEditingEnabled: () => true,
   _wlPlanWriteInFlight: new Map(),
+  wlGroupDeadlineSummary,
+  wlRenderPlanIssueCards,
+  wlGroupPlanOriginHtml,
+  wlGroupUrgentHtml,
+  wlGroupDeadlineHtml,
 });
+
+const wlWeekDeadlineTracks = compile('wlWeekDeadlineTracks', {
+  wlAddDays,
+  wlState,
+  wlPassesFilters: () => true,
+  wlTeamBucket,
+  wlSortSubIssues,
+  wlGroupDeadlineSummary,
+  wlCalendarDayDiff,
+  wlDeadlineMeta,
+  wlDisplayName: name => name,
+});
+const wlTimelineSameDayHtml = compile('wlTimelineSameDayHtml', {
+  wlDeadlineMeta,
+  wlEscape: value => String(value),
+  wlDeadlineFlagSvg,
+});
+const wlRenderTimelineTrack = compile('wlRenderTimelineTrack', {
+  wlPlanEditingEnabled: () => true,
+  _wlPlanWriteInFlight: new Map(),
+  wlDeadlineMeta,
+  wlEscape: value => String(value),
+  wlFormatShort,
+  wlDeadlineFlagSvg,
+  wlGroupUrgentHtml,
+  wlGroupPlanOriginHtml,
+  wlGroupDeadlineHtml,
+  wlTimelineSameDayHtml,
+  wlRenderPlanIssueCards,
+});
+
+console.log('\nWorkload parallel deadline tracks');
+const trackRows = [
+  issue('To Do', 'track-same-day', '2026-07-15'),
+  issue('To Do', 'track-tue-a', '2026-07-16'),
+  issue('To Do', 'track-tue-b', '2026-07-16'),
+  issue('To Do', 'track-fri', '2026-07-18'),
+  issue('To Do', 'track-undated', null),
+];
+wlState.calendarByDate = new Map([['2026-07-15', trackRows]]);
+const trackEditors = wlWeekDeadlineTracks('2026-07-15');
+const oneTrack = trackEditors[0] && trackEditors[0].tracks[0];
+check(trackEditors.length === 1
+    && trackEditors[0].dailySubs[0].length === 5
+    && oneTrack.subs.length === 5
+    && oneTrack.sameDaySubs.length === 1
+    && oneTrack.endpoints.length === 2
+    && oneTrack.endpoints[0].dueDate === '2026-07-16'
+    && oneTrack.endpoints[0].subs.length === 2
+    && oneTrack.endpoints[1].dueDate === '2026-07-18'
+    && oneTrack.endpoints[1].subs.length === 1,
+  'one planned client group splits truthfully into exact-date deadline subsets without inflating plan counts');
+const trackHtml = wlRenderTimelineTrack(oneTrack, trackEditors[0], 1);
+const dueButtons = trackHtml.match(/<button type="button" class="workload-timeline-due[\s\S]*?<\/button>/g) || [];
+check((trackHtml.match(/<line /g) || []).length === 2
+    && [...trackHtml.matchAll(/<line [^>]*y1="([^"]+)"/g)].every(match => match[1] === '24')
+    && dueButtons.length === 2
+    && dueButtons.every(button => !button.includes('draggable=')
+      && !button.includes('data-wl-plan-drag')
+      && !button.includes('data-wl-plan-group-drag'))
+    && trackHtml.includes('data-wl-plan-group-drag="1"')
+    && /also due on the planned day/.test(trackHtml)
+    && !/data-wl-deadline-open="track-same-day"/.test(trackHtml),
+  'toggle-on tracks use straight connectors, keep due endpoints read-only, and collapse same-day due work into its source');
+
+const boundaryRow = issue('To Do', 'track-boundary', '2026-07-14');
+wlState.calendarByDate = new Map([['2026-07-15', [boundaryRow]]]);
+const boundaryTrack = wlWeekDeadlineTracks('2026-07-15')[0].tracks[0];
+const boundaryHtml = wlRenderTimelineTrack(boundaryTrack, {
+  assigneeId: boundaryRow.assigneeId,
+}, 2);
+check(boundaryTrack.planIndex === 0
+    && boundaryTrack.endpoints[0].targetIndex === 0
+    && boundaryTrack.endpoints[0].boundary === 'before'
+    && /<line [^>]*y1="24"[^>]*y2="68"/.test(boundaryHtml)
+    && /--wl-source-top:7px/.test(boundaryHtml)
+    && /--wl-endpoint-top:52px/.test(boundaryHtml),
+  'an out-of-week deadline at the plan edge stacks below the source and remains connected');
+
+const crossTeamVideo = issue('To Do', 'track-cross-team-video', '2026-07-16');
+const crossTeamGraphic = {
+  ...issue('To Do', 'track-cross-team-graphic', '2026-07-17'),
+  teamKey: 'GFX',
+  teamName: 'Graphics',
+};
+wlState.calendarByDate = new Map([['2026-07-15', [crossTeamVideo, crossTeamGraphic]]]);
+const crossTeamEditors = wlWeekDeadlineTracks('2026-07-15');
+check(crossTeamEditors.length === 1
+    && crossTeamEditors[0].tracks.length === 1
+    && crossTeamEditors[0].tracks[0].subs.length === 2,
+  'timeline grouping matches the existing assignee-client group-drag selector even across feed team variants');
+
+const backward = issue('To Do', 'track-backward', '2026-07-16');
+wlState.calendarByDate = new Map([['2026-07-18', [backward]]]);
+const backwardTrack = wlWeekDeadlineTracks('2026-07-15')[0].tracks[0];
+check(backwardTrack.planIndex === 3
+    && backwardTrack.endpoints[0].targetIndex === 1
+    && /track-backward/.test(wlRenderTimelineTrack(backwardTrack, {
+      assigneeId: backward.assigneeId,
+    }, 2)),
+  'a manual plan after its deadline keeps the backward due relationship instead of hiding it');
+
+wlState.planByIssueId.set(plannedTweak.id, '2026-07-17');
+const timelineOrdinary = issue('To Do', 'timeline-ordinary', '2026-07-18');
+wlApplyData([plannedTweak, timelineOrdinary], '2026-07-15T12:00:00Z');
+const tweakSafeTracks = wlWeekDeadlineTracks('2026-07-15');
+const trackedIds = tweakSafeTracks.flatMap(editor => editor.tracks.flatMap(track => track.subs.map(sub => sub.id)));
+check(trackedIds.includes(timelineOrdinary.id) && !trackedIds.includes(plannedTweak.id),
+  'deadline tracks derive only from the planned bucket and preserve tweak exclusivity');
+wlState.planByIssueId.clear();
 const elevenEditors = Array.from({ length: 11 }, (_, i) => ({
   assigneeId: 'editor-' + i,
   assigneeName: 'Editor ' + i,
@@ -325,6 +583,32 @@ check((overloadedEditorHtml.match(/class="workload-plan-item"/g) || []).length =
 check(oneOverloadedEditor[0].subs.every(row => overloadedEditorHtml.includes(`>${row.title}</span>`))
     && !overloadedEditorHtml.includes('Synthetic Client · VID-'),
   'expanded issue labels use their own titles while identifiers stay out of the visible label');
+wlState.planByIssueId.set(visualManual.id, '2026-07-17');
+const visualRollupHtml = renderDayRollups([{
+  assigneeId: 'editor-1',
+  assigneeName: 'Test Editor',
+  clientName: 'Test Client',
+  teamKey: 'VID',
+  teamName: 'Video',
+  parentId: 'parent-1',
+  anySub: visualAuto,
+  count: 2,
+  subs: [visualAuto, visualManual],
+}], '2026-07-17');
+check(visualRollupHtml.includes('Mixed deadline proximity')
+    && visualRollupHtml.includes('Urgent Linear priority')
+    && visualRollupHtml.includes('automatically planned')
+    && visualRollupHtml.includes('manually planned')
+    && visualRollupHtml.includes(`data-wl-issue-id="${visualAuto.id}"`)
+    && visualRollupHtml.includes(`data-wl-issue-id="${visualManual.id}"`)
+    && visualRollupHtml.includes('is-deadline-red')
+    && visualRollupHtml.includes('is-deadline-orange')
+    && !/<summary class="workload-day-card-chip is-deadline-/.test(visualRollupHtml)
+    && !visualRollupHtml.includes('data-wl-plan-clear')
+    && !visualRollupHtml.includes('workload-plan-reset')
+    && !visualRollupHtml.includes('Use automatic plan'),
+  'mixed client groups stay neutral while exact item tones and quiet origin/priority signals remain visible');
+wlState.planByIssueId.clear();
 const fallbackOrder = [
   { id: 'order-10', identifier: 'VID-10' },
   { id: 'order-2', identifier: 'VID-2' },
@@ -445,32 +729,58 @@ check(defaultSectionPrefs.overdue === false
     && /panel\.hidden = !expanded/.test(toolbarSource),
   'overdue, in-progress, and tweaks default collapsed and persist each browser expansion');
 
+const deadlineStorage = new Map();
+const deadlineLocalStorage = {
+  getItem: key => deadlineStorage.has(key) ? deadlineStorage.get(key) : null,
+};
+const deadlinePrefKey = 'syncview_workloadDeadlineOverlay_v1';
+const wlReadDeadlinePref = compile('wlReadDeadlinePref', {
+  localStorage: deadlineLocalStorage,
+  WL_DEADLINE_PREF_KEY: deadlinePrefKey,
+});
+check(wlReadDeadlinePref() === false
+    && (deadlineStorage.set(deadlinePrefKey, '0'), wlReadDeadlinePref() === false)
+    && (deadlineStorage.set(deadlinePrefKey, 'invalid'), wlReadDeadlinePref() === false)
+    && (deadlineStorage.set(deadlinePrefKey, '1'), wlReadDeadlinePref() === true)
+    && (workloadShellSource.match(/data-wl-deadline-toggle="1"/g) || []).length === 1
+    && /localStorage\.setItem\(WL_DEADLINE_PREF_KEY,\s*wlState\.showDeadlines \? '1' : '0'\)/.test(toolbarSource)
+    && /mode === 'month' && wlState\.showDeadlines/.test(toolbarSource)
+    && /wlState\.showDeadlines \? renderWeekDeadlineTimeline\(\) : renderWeekGrid\(\)/.test(workloadRenderSource),
+  'Show deadlines defaults off, persists per browser, stays Week-only, and switches between the normal calendar and relationship tracks');
+check(INDEX.includes("grid.querySelectorAll('.workload-timeline-due, .workload-timeline-lines [data-wl-deadline-ids]')")
+    && INDEX.includes('.workload-timeline-due[data-wl-match="1"]')
+    && INDEX.includes('[data-wl-deadline-ids][data-wl-match="1"]'),
+  'deadline endpoint spotlight keeps the clicked due copy and its exact connector visible');
+
 const popoverSource = grabFunc('wlOpenRollupPopover');
 check(popoverSource.includes('Open Linear →')
     && !popoverSource.includes('Open parent')
-    && (popoverSource.match(/workload-popover-item-due/g) || []).length === 1
+    && !popoverSource.includes('workload-popover-item-due')
     && !popoverSource.includes('workload-popover-plan-arrow')
     && !popoverSource.includes('workload-popover-plan-due')
     && !popoverSource.includes('workload-popover-plan-meta')
-    && !popoverSource.includes('workload-popover-plan-origin')
     && !popoverSource.includes('Uses deadline')
-    && /workload-popover-plan-line[\s\S]*?Work day[\s\S]*?_svDateHtml\(dateId, workDate[\s\S]*?workload-plan-clear/.test(popoverSource)
+    && /workload-popover-plan-line[\s\S]*?Work day[\s\S]*?_svDateHtml\(dateId, workDate[\s\S]*?issueId && explicitPlan[\s\S]*?Use automatic plan/.test(popoverSource)
+    && popoverSource.includes('wlPriorityIconHtml(s)')
+    && popoverSource.includes('wlDeadlineTagHtml(s.dueDate)')
     && /const planControl = wlIsTweaksNeeded\(s\) \? ''/.test(popoverSource)
     && popoverSource.includes('wl-tweak-comments'),
-  'shared popovers keep one title-row deadline, use one compact work-day row, and link to Linear');
+  'direct pinned-item popovers show priority, one deadline, and the compact Work day / automatic-reset row while group popovers do not expose reset');
 
-check(!INDEX.includes('function wlEffectiveWorkDate(')
+check(INDEX.includes('function wlAutoPlanDate(')
+    && INDEX.includes('function wlPlacementMode(')
+    && !INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('function scheduleAll(')
     && !INDEX.includes('effectiveWorkDate')
     && !INDEX.includes('scheduledDate'),
-  'editable source contains no automatic date derivation or scheduler state');
+  'hybrid source uses the bounded auto-plan helper without restoring scheduler state');
 check(!INDEX.includes('.workload-day.over-capacity')
     && INDEX.includes('.workload-day-card-total.over-capacity')
     && !INDEX.includes('.workload-day-count.over-capacity')
     && !INDEX.includes("'Plan ' + wlFormatShort"),
   'source guard keeps overload styling on the editor pill only');
 check(INDEX.includes('<details class="workload-day-client-group">')
-    && INDEX.includes('<summary class="workload-day-card-chip"')
+    && INDEX.includes('<summary class="workload-day-card-chip')
     && INDEX.includes('data-wl-plan-group-drag="1"')
     && !INDEX.includes('<details class="workload-day-client-group" open>'),
   'calendar hierarchy renders collapsed draggable client chips inside editor blocks by default');

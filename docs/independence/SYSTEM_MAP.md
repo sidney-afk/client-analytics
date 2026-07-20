@@ -675,6 +675,10 @@ n8n in the metric read path.*
   fetch site, but a publicly callable arbitrary-range endpoint) returns issue histories; all report
   metrics are computed client-side. The live editable path additionally reads internal plan dates
   through Admin/SMM-authenticated EF `workload-plan`; it never reads the sidecar through PostgREST.
+  A separate best-effort, read-only `deliverables` REST projection supplies positive Linear priority
+  values by matching `linear_issue_uuid` to the workload issue's stable id. A failed refresh keeps
+  last-good priority values when available; without them, or without a match, no icon is shown and
+  the board still loads.
 - **Writes.** n8n `content-ready` (manual "content ready for review" email; **never checks
   `resp.ok`** — HTTP errors display as success). The app writes or clears one internal
   `plan_date` through `workload-plan`, keyed by the exact sub-issue id. It never writes Linear
@@ -684,11 +688,13 @@ n8n in the metric read path.*
 - **State.** `syncview_linearIssuesCache_v1` (5 min, both feeders), `syncview_workload_v2_off`
   (`syncview_workload_v2` is write-only / vestigial), `syncview_workloadView_v1`,
   `syncview_workloadSections_v1` (non-sensitive expanded/collapsed exception preferences),
+  `syncview_workloadDeadlineOverlay_v1` (non-sensitive, display-only **Show deadlines** preference;
+  absent/off by default and on forces Week view),
   `syncview_kasper_editors_v2` (week-rollover-invalidated). Kill switches: `?wl2=0`, the compile-time
   `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch exists for either Workload or the
-  plan-date path; plan state is held as a last-good issue-id map in the running page and is not
-  browser-cached. A first private plan read and every manual, visibility, or realtime refresh holds
-  the calendar on the shared animated day/editor/client-chip skeleton.
+  plan-date path; plan and best-effort priority state are held as issue-id maps in the running page
+  and are not browser-cached. A first private plan read and every manual, visibility, or realtime
+  refresh holds the calendar on the shared animated day/editor/client-chip skeleton.
 - **Roles.** Plan projection/list access and per-issue plan-date writes are Admin/SMM-only after
   verified role-key authentication. Creative remains a recognized staff role on unrelated surfaces
   but is denied by both the `workload-plan` function and browser capability gate. Editors view
@@ -696,7 +702,9 @@ n8n in the metric read path.*
 - **Failure/fallback.** REST error / non-array / 0 rows → automatic n8n fallback (no user signal).
   Both fail + cache → stale board (error only set when no cache); no cache → red error card.
   Plan-list failure retains last-good overrides when available; without one, the UI
-  explicitly labels a due-date-only degraded view and disables plan edits. A plan write succeeds
+  explicitly labels a deadline-fallback degraded view, does not call the placement automatic, and
+  disables plan edits. Priority-enrichment failure retains last-good values when available and is
+  otherwise non-blocking with no priority icon. A plan write succeeds
   only when the function reports exactly one row actually written; any short count/error reverts
   the optimistic move and notifies instead of leaving a false local date.
   `editors-week` fail → error card, older week cache still usable. **F48:** the endpoint is
@@ -708,17 +716,30 @@ n8n in the metric read path.*
 - **Notable / corrections.** v1's "3 call sites" for `editors-week` is wrong — one fetch site (the
   others are the constant + comments). The realtime channel is dormant. `content-ready`'s missing
   `resp.ok` check is a real bug-shape. `loadLinearIssues` is also the Calendar bulk-create link poll's
-  data source (shared feeder + cache). Placement is `plan_date || due_date`: no plan date
-  preserves the literal due-date default, and clearing returns to it. Tweak cards remain exclusive
+  data source (shared feeder + cache). Placement is manual `plan_date` first; otherwise, when the
+  private plan snapshot is authoritative, the automatic day is one working day before the Linear
+  deadline floored to today. **Use automatic plan** is available only from the directly opened
+  popover for a manually planned sub-issue; it clears the sidecar override and reveals that
+  automatic day. This is item-local derivation, not queue packing: adding urgent work cannot reflow
+  peers, capacity never spills work, and overload remains visible. Tweak cards remain exclusive
   from the calendar. The calendar renders date → editor → collapsed client chip → sub-issue, with
   per-editor overload warnings and title-only expanded labels. Client-group order is derived from
   complete native mirror order when available, otherwise from identifier number; moves never store
   display order. Only each editor's capacity pill turns red; the day cell keeps normal styling.
   Overdue, in-progress, and tweaks sections precede the intact period/filter toolbar, default
   collapsed, and persist each browser's expansion preference. The toolbar sits directly above the
-  calendar; undated work follows the calendar and unassigned lane at the bottom. Shared popovers
-  link to Linear, keep one title-row deadline, and use one compact branded Work day row, while
-  Tweaks retains its comment layout. The migration, EF, and original plan-date browser behavior are
+  calendar; undated work follows the calendar and unassigned lane at the bottom. Client chips and
+  issue rows expose quiet sparkle/pin auto/manual icons, deadline proximity (red at one day or less,
+  orange at two to three days, green beyond three), and a separate native Linear priority icon when
+  the `deliverables` join resolves. The tone belongs to each sub-issue and reaches a collapsed group
+  only when every represented deadline shares one band; mixed or missing deadlines leave the group
+  neutral. The persistent, default-off **Show deadlines** control is Week-only and renders one
+  aligned row per planned editor/client group, with straight plan-to-due lines, split due endpoints,
+  and a flag instead of a duplicate endpoint when plan and due share a day. Due endpoints are
+  display-only, non-draggable, and excluded from capacity; the solid plan source remains draggable
+  and is the only counted copy. Shared popovers link to Linear, keep one title-row deadline, and use
+  one compact branded Work day row; only a directly opened manual sub-issue exposes the automatic
+  reset. Tweaks retains its comment layout. The migration, EF, and original plan-date browser behavior are
   live; the private TEST release drill proved save/reload/clear, pre-write `409` rollback, Creative
   denial, and exact
   cleanup. PR #889's hierarchy/group-drag path changes only `index.html` and tests/docs and is
@@ -726,7 +747,8 @@ n8n in the metric read path.*
   backend boundary. PR #892 / merge `07d123d` likewise changes only `index.html` and tests/docs; it
   removes the day-level overload styling, substitutes the shared loading skeleton, relocates the
   intact toolbar, and closes F148's weak same-chain source guard plus reused-F141 test-label
-  cleanup. The current display follow-up stays within the same client-only boundary. #884's
+  cleanup. The current hybrid-planning/deadline-timeline follow-up stays within the same client-only
+  boundary and adds no queue scheduler, writer, schema, migration, runtime flag, or Linear mutation. #884's
   server-atomic batch contract remains open, and F147 retains the exact migration-correction
   provenance gap.
 - **Track B.** Required but **not implemented** (F40): the re-point to native rows must happen per

@@ -65,7 +65,7 @@ function makeContext(reply, optimisticDate) {
   return { context, issue, planByIssueId, notifies, renders };
 }
 
-function makeSetContext(fetchImpl, fastTimeout, staffRole = 'admin') {
+function makeSetContext(fetchImpl, fastTimeout, staffRole = 'admin', initialPlan = null) {
   const issue = {
     id: 'synthetic-issue-1',
     clientName: 'Synthetic Client',
@@ -73,6 +73,9 @@ function makeSetContext(fetchImpl, fastTimeout, staffRole = 'admin') {
   };
   const renderDays = [];
   const notifies = [];
+  const initialPlanMap = new Map();
+  if (initialPlan) initialPlanMap.set(issue.id, initialPlan);
+  const initialDisplayDate = initialPlan || '2026-07-24';
   const context = {
     WORKLOAD_PLAN_URL: 'https://example.invalid/functions/v1/workload-plan',
     WL_PLAN_WRITE_TIMEOUT_MS: 10000,
@@ -84,9 +87,10 @@ function makeSetContext(fetchImpl, fastTimeout, staffRole = 'admin') {
       allActiveSubs: [issue],
       issueSnapshot: [issue],
       fetchedAt: 1,
-      planByIssueId: new Map(),
+      planByIssueId: initialPlanMap,
+      planHasSnapshot: true,
       planStatus: 'ready',
-      calendarByDate: new Map([['2026-07-25', [issue]]]),
+      calendarByDate: new Map([[initialDisplayDate, [issue]]]),
     },
     _syncviewStaffIdentityForHeaders: () => staffRole ? { role: staffRole } : null,
     _syncviewStaffRoleValue: identity => String(identity && identity.role || '').trim().toLowerCase(),
@@ -96,7 +100,7 @@ function makeSetContext(fetchImpl, fastTimeout, staffRole = 'admin') {
     wlIsTweaksNeeded: () => false,
     wlResetPlanDisplay: () => {},
     wlApplyData: () => {
-      const day = context.wlState.planByIssueId.get(issue.id) || issue.dueDate;
+      const day = context.wlState.planByIssueId.get(issue.id) || '2026-07-24';
       context.wlState.calendarByDate = new Map([[day, [issue]]]);
     },
     renderWorkloadAll: () => {
@@ -243,6 +247,27 @@ function ok(condition, message) {
   }
 
   {
+    let writtenPlanDate = null;
+    const h = makeSetContext(async (_url, init) => {
+      writtenPlanDate = JSON.parse(init.body).plan_date;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          updated: 1,
+          plan: { issue_id: 'synthetic-issue-1', plan_date: '2026-07-24' },
+        }),
+      };
+    });
+    const saved = await h.context.wlSetPlanDate(h.issue.id, '2026-07-24');
+    ok(saved === true
+        && writtenPlanDate === '2026-07-24'
+        && h.context.wlState.planByIssueId.get(h.issue.id) === '2026-07-24',
+      'selecting the visible automatic day still writes an explicit manual pin');
+  }
+
+  {
     const h = makeContext({
       body: {
         ok: true,
@@ -283,10 +308,10 @@ function ok(condition, message) {
     const saved = await h.context.wlSetPlanDate(h.issue.id, '2026-07-29');
     ok(saved === false
         && h.renderDays[0] === '2026-07-29'
-        && h.renderDays[h.renderDays.length - 1] === '2026-07-25'
+        && h.renderDays[h.renderDays.length - 1] === '2026-07-24'
         && !h.context.wlState.planByIssueId.has(h.issue.id)
         && h.context._wlPlanWriteInFlight.size === 0,
-      'real save path moves optimistically, then re-buckets to the due date on a short count');
+      'real save path moves optimistically, then re-buckets to the automatic day on a short count');
   }
 
   {
@@ -296,7 +321,7 @@ function ok(condition, message) {
     const saved = await h.context.wlSetPlanDate(h.issue.id, '2026-07-29');
     ok(saved === false
         && h.renderDays[0] === '2026-07-29'
-        && h.renderDays[h.renderDays.length - 1] === '2026-07-25'
+        && h.renderDays[h.renderDays.length - 1] === '2026-07-24'
         && h.notifies.length === 1,
       'a never-settling write is aborted, reverted, and visibly reported');
   }
@@ -334,7 +359,26 @@ function ok(condition, message) {
     }, null);
     const saved = await h.context._wlPersistPlanDate(h.issue, null, '2026-07-27');
     ok(saved === true && !h.planByIssueId.has(h.issue.id),
-      'a matching one-row clear preserves null for due-date fallback');
+      'a matching one-row clear preserves null so the automatic day becomes visible');
+  }
+
+  {
+    const h = makeSetContext(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        updated: 0,
+        plan: { issue_id: 'synthetic-issue-1', plan_date: null },
+      }),
+    }), false, 'admin', '2026-07-29');
+    const saved = await h.context.wlSetPlanDate(h.issue.id, null);
+    ok(saved === false
+        && h.renderDays[0] === '2026-07-24'
+        && h.renderDays[h.renderDays.length - 1] === '2026-07-29'
+        && h.context.wlState.planByIssueId.get(h.issue.id) === '2026-07-29'
+        && h.notifies.length === 1,
+      'a failed Use automatic plan request restores the previous manual day and notifies');
   }
 
   {
@@ -446,8 +490,11 @@ function ok(condition, message) {
     const newIssues = deferred();
     const oldPlans = deferred();
     const newPlans = deferred();
+    const oldPriorities = deferred();
+    const newPriorities = deferred();
     const issueQueue = [oldIssues.promise, newIssues.promise];
     const planQueue = [oldPlans.promise, newPlans.promise];
+    const priorityQueue = [oldPriorities.promise, newPriorities.promise];
     const applied = [];
     const adopted = [];
     let failuresMarked = 0;
@@ -460,9 +507,11 @@ function ok(condition, message) {
         planError: null,
         issueSnapshot: [],
         fetchedAt: null,
+        priorityByIssueId: new Map(),
       },
       loadLinearIssues: () => issueQueue.shift(),
       wlFetchPlanRows: () => planQueue.shift(),
+      wlFetchPriorityRows: () => priorityQueue.shift(),
       wlAdoptPlanRows: value => {
         adopted.push(value.marker);
         context.wlState.planHasSnapshot = true;
@@ -483,15 +532,19 @@ function ok(condition, message) {
     const newer = context.wlLoadSnapshot(true, null);
     newIssues.resolve({ issues: [{ id: 'newer' }], fetchedAt: 2 });
     newPlans.resolve({ marker: 'newer' });
+    newPriorities.resolve(new Map([['newer', 1]]));
     await newer;
     oldIssues.resolve({ issues: [{ id: 'older' }], fetchedAt: 1 });
     oldPlans.reject(new Error('older failed'));
+    oldPriorities.resolve(new Map([['older', 4]]));
     await older;
     ok(adopted.join(',') === 'newer'
         && applied.join(',') === 'newer'
         && failuresMarked === 0
-        && context.wlState.planStatus === 'ready',
-      'only the newest overlapping refresh may publish plan data or failure state');
+        && context.wlState.planStatus === 'ready'
+        && context.wlState.priorityByIssueId.get('newer') === 1
+        && !context.wlState.priorityByIssueId.has('older'),
+      'only the newest overlapping refresh may publish plan, priority, issue, or failure state');
   }
 
   // Signing out must purge the staff-only override projection and invalidate
@@ -649,7 +702,7 @@ function ok(condition, message) {
     };
     rootHandlers.click({ target: clear, preventDefault: () => {} });
     ok(setCalls.some(call => call[0] === 'synthetic-issue-1' && call[1] === null),
-      'delegated clear sends a nullable plan day for due-date fallback');
+      'delegated Use automatic plan sends a nullable manual override');
 
     pickerOpen = true;
     pop.open = true;

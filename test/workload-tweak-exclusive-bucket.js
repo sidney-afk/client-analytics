@@ -269,9 +269,11 @@ check((weekendWeekHtml.match(/data-wl-day=/g) || []).length === 7
   'the rolling week renders seven literal days including Saturday due and Sunday plan dates');
 wlState.planByIssueId.clear();
 
+const wlSortSubIssues = compile('wlSortSubIssues');
 const renderDayRollups = compile('renderDayRollups', {
   wlTeamBucket,
   wlEditorCapacity,
+  wlSortSubIssues,
   wlDisplayName: name => name,
   wlEscape: value => String(value),
   wlPlanEditingEnabled: () => true,
@@ -323,6 +325,31 @@ check((overloadedEditorHtml.match(/class="workload-plan-item"/g) || []).length =
 check(oneOverloadedEditor[0].subs.every(row => overloadedEditorHtml.includes(`>${row.title}</span>`))
     && !overloadedEditorHtml.includes('Synthetic Client · VID-'),
   'expanded issue labels use their own titles while identifiers stay out of the visible label');
+const fallbackOrder = [
+  { id: 'order-10', identifier: 'VID-10' },
+  { id: 'order-2', identifier: 'VID-2' },
+  { id: 'order-1', identifier: 'VID-1' },
+];
+const nativeRows = [
+  { id: 'native-1', identifier: 'VID-1', sortOrder: 20 },
+  { id: 'native-10', identifier: 'VID-10', sortOrder: 10 },
+];
+const partialNativeRows = [
+  { id: 'partial-1', identifier: 'VID-1', sortOrder: 100 },
+  { id: 'partial-2', identifier: 'VID-2' },
+  { id: 'partial-3', identifier: 'VID-3', sortOrder: 1 },
+];
+check(wlSortSubIssues(fallbackOrder).map(row => row.identifier).join(',') === 'VID-1,VID-2,VID-10'
+    && wlSortSubIssues(nativeRows).map(row => row.identifier).join(',') === 'VID-10,VID-1'
+    && wlSortSubIssues(partialNativeRows).map(row => row.identifier).join(',') === 'VID-1,VID-2,VID-3',
+  'client groups derive native Linear order when present, else identifier number order');
+const wlGroupRollups = compile('wlGroupRollups', { wlDisplayName: name => name });
+const mergedGroup = wlGroupRollups([
+  { ...oneOverloadedEditor[0].subs[0], id: 'source-row' },
+  { ...oneOverloadedEditor[0].subs[1], id: 'target-row' },
+]);
+check(mergedGroup.length === 1 && mergedGroup[0].count === 2 && mergedGroup[0].subs.length === 2,
+  'same-editor same-client rows derive one merged client chip after a move');
 const overloadedGraphicsHtml = renderDayRollups([{
   ...oneOverloadedEditor[0],
   teamKey: 'GRA',
@@ -351,8 +378,9 @@ check(INDEX.includes('.workload-day.over-capacity')
   'source guard pins editor-level overload styling and removes the day-level overload pill');
 check(INDEX.includes('<details class="workload-day-client-group">')
     && INDEX.includes('<summary class="workload-day-card-chip"')
+    && INDEX.includes('data-wl-plan-group-drag="1"')
     && !INDEX.includes('<details class="workload-day-client-group" open>'),
-  'calendar hierarchy renders collapsed client chips inside editor blocks by default');
+  'calendar hierarchy renders collapsed draggable client chips inside editor blocks by default');
 check(INDEX.includes('.workload-weekdays.week { grid-template-columns: repeat(7, 1fr); }')
     && INDEX.includes('wlState.weekStart = wlAddDays(wlState.weekStart, delta * 7)')
     && (INDEX.match(/overCapacity = wlDayOverCapacity\(subs\);/g) || []).length === 2,

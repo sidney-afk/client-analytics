@@ -3290,6 +3290,8 @@
         .workload-day-card-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .workload-day-card-chip-count { font-weight: 800; opacity: 0.55; flex-shrink: 0; cursor: pointer; padding: 0 1px; }
         .workload-day-card-chip-count:hover { opacity: 1; }
+        .workload-day-card-chip[draggable="true"] { cursor: grab; }
+        .workload-day-card-chip.is-dragging { opacity: 0.45; cursor: grabbing; }
         .workload-day-card-items { display: flex; flex-direction: column; gap: 3px; margin-top: 3px; }
         .workload-plan-item { width: 100%; display: flex; align-items: center; gap: 5px; min-width: 0; padding: 4px 6px; border: 1px solid transparent; border-radius: 6px; background: var(--bg); color: var(--text-primary); font: inherit; font-size: 0.61rem; font-weight: 650; text-align: left; cursor: grab; }
         .workload-grid.week .workload-plan-item { font-size: 0.68rem; padding: 5px 7px; }
@@ -12530,6 +12532,7 @@
             dueDate: r.due_date,
             createdAt: r.linear_created_at,
             updatedAt: r.linear_updated_at,
+            sortOrder: r.sort_order,
             status: r.status,
             statusType: r.status_type,
             teamKey: r.team_key,
@@ -13536,6 +13539,8 @@
             const match = [...document.querySelectorAll('[data-wl-issue-id]')]
                 .find(el => el.getAttribute('data-wl-issue-id') === String(issueId || ''));
             if (match && typeof match.focus === 'function') {
+                const group = match.closest && match.closest('.workload-day-client-group');
+                if (group) group.open = true;
                 match.focus();
                 return;
             }
@@ -13578,7 +13583,7 @@
     // F141 fail-closed boundary. The optimistic value is already visible when
     // this runs; anything except one actually-written, matching row restores
     // the precise previous value and tells the user.
-    async function _wlPersistPlanDate(issue, planDate, previousDate, sessionGeneration) {
+    async function _wlPersistPlanDate(issue, planDate, previousDate, sessionGeneration, quiet) {
         try {
             const resp = await _wlPlanWriteRequest(issue, planDate);
             if (sessionGeneration != null && sessionGeneration !== _wlPlanSessionGeneration) return false;
@@ -13586,7 +13591,7 @@
             try { json = await resp.json(); } catch (e) {}
             if (resp.status === 401) {
                 _syncviewStaffIdentityClear();
-                if (typeof showNotify === 'function') {
+                if (!quiet && typeof showNotify === 'function') {
                     showNotify("Couldn't save the work day", 'Staff sign-in expired. Sign in and try again.');
                 }
                 return false;
@@ -13594,7 +13599,7 @@
             if (resp.status === 403) {
                 wlPurgePlanSensitiveState();
                 wlState.planError = 'This staff account cannot edit saved work days.';
-                if (typeof showNotify === 'function') {
+                if (!quiet && typeof showNotify === 'function') {
                     showNotify("Couldn't save the work day", 'This staff account cannot edit saved work days.');
                 }
                 return false;
@@ -13609,8 +13614,8 @@
         } catch (error) {
             if (sessionGeneration != null && sessionGeneration !== _wlPlanSessionGeneration) return false;
             wlApplyPlanLocal(issue.id, previousDate);
-            renderWorkloadAll();
-            if (typeof showNotify === 'function') {
+            if (!quiet) renderWorkloadAll();
+            if (!quiet && typeof showNotify === 'function') {
                 showNotify("Couldn't save the work day", 'It was put back — please try again.');
             }
             return false;
@@ -13665,6 +13670,75 @@
         renderWorkloadAll();
         wlFocusPlanItem(key);
         return saved;
+    }
+
+    async function wlMovePlanGroup(sourceDate, assigneeId, clientName, targetDate) {
+        const source = String(sourceDate || '').slice(0, 10);
+        const target = String(targetDate || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(source) || !/^\d{4}-\d{2}-\d{2}$/.test(target)) return false;
+        if (source === target) return true;
+
+        const seen = new Set();
+        const issues = (wlState.calendarByDate.get(source) || []).filter(issue => {
+            const key = String(issue && issue.id || '');
+            if (!key || seen.has(key)) return false;
+            if (String(issue.assigneeId || '') !== String(assigneeId || '')) return false;
+            if (String(issue.clientName || '') !== String(clientName || '')) return false;
+            seen.add(key);
+            return true;
+        });
+        const unavailable = !issues.length || !wlPlanEditingEnabled()
+            || issues.some(issue => wlIsTweaksNeeded(issue) || _wlPlanWriteInFlight.has(String(issue.id || '')));
+        if (unavailable) {
+            if (typeof showNotify === 'function') {
+                showNotify('Group move unavailable', 'Refresh Workload and try again.');
+            }
+            return false;
+        }
+
+        const sessionGeneration = _wlPlanSessionGeneration;
+        const moves = issues.map(issue => {
+            const key = String(issue.id || '');
+            const token = { generation: ++_wlPlanWriteGeneration };
+            _wlPlanLastWriteGeneration.set(key, token.generation);
+            _wlPlanWriteInFlight.set(key, token);
+            return { issue, key, token, previousDate: wlPlanDate(issue) || null };
+        });
+
+        // Paint the complete group on its target before the first request.
+        // Persistence remains deliberately sequential through the shipped
+        // one-row fail-closed contract.
+        for (const move of moves) wlApplyPlanLocal(move.key, target);
+        renderWorkloadAll();
+
+        let moved = 0;
+        for (const move of moves) {
+            const saved = await _wlPersistPlanDate(
+                move.issue, target, move.previousDate, sessionGeneration, true
+            );
+            if (sessionGeneration !== _wlPlanSessionGeneration) break;
+            if (saved) moved++;
+            _wlPlanLastWriteGeneration.set(move.key, ++_wlPlanWriteGeneration);
+            if (_wlPlanWriteInFlight.get(move.key) === move.token) {
+                _wlPlanWriteInFlight.delete(move.key);
+            }
+        }
+
+        if (sessionGeneration === _wlPlanSessionGeneration) {
+            for (const move of moves) {
+                if (_wlPlanWriteInFlight.get(move.key) === move.token) {
+                    _wlPlanWriteInFlight.delete(move.key);
+                }
+            }
+            renderWorkloadAll();
+        }
+        if (moved !== moves.length && typeof showNotify === 'function') {
+            showNotify(
+                `Moved ${moved} of ${moves.length} — ${moves.length - moved} put back`,
+                'Each failed item kept its previous work day.'
+            );
+        }
+        return moved === moves.length;
     }
 
     // Single delegated handler on the shell root. Attached once per shell
@@ -13777,12 +13851,44 @@
         const clearDropTargets = () => {
             root.querySelectorAll('.workload-day.is-plan-drop-target').forEach(day => day.classList.remove('is-plan-drop-target'));
             root.querySelectorAll('.workload-plan-item.is-dragging').forEach(card => card.classList.remove('is-dragging'));
+            root.querySelectorAll('.workload-day-card-chip.is-dragging').forEach(chip => chip.classList.remove('is-dragging'));
+        };
+        const clearDragState = () => {
+            delete root.dataset.wlDragIssue;
+            delete root.dataset.wlDragGroupDate;
+            delete root.dataset.wlDragGroupAssignee;
+            delete root.dataset.wlDragGroupClient;
+            clearDropTargets();
         };
         root.addEventListener('dragstart', (e) => {
+            const group = e.target.closest('[data-wl-plan-group-drag]');
+            if (group) {
+                if (!wlPlanEditingEnabled() || group.getAttribute('draggable') !== 'true') {
+                    e.preventDefault();
+                    return;
+                }
+                const sourceDate = group.getAttribute('data-wl-date') || '';
+                const assigneeId = group.getAttribute('data-wl-assignee-id') || '';
+                const clientName = group.getAttribute('data-wl-client') || '';
+                if (!sourceDate || !assigneeId || !clientName) { e.preventDefault(); return; }
+                delete root.dataset.wlDragIssue;
+                root.dataset.wlDragGroupDate = sourceDate;
+                root.dataset.wlDragGroupAssignee = assigneeId;
+                root.dataset.wlDragGroupClient = clientName;
+                group.classList.add('is-dragging');
+                if (e.dataTransfer) {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', 'workload-client-group');
+                }
+                return;
+            }
             const card = e.target.closest('[data-wl-plan-drag]');
             if (!card || !wlPlanEditingEnabled()) { e.preventDefault(); return; }
             const issueId = card.getAttribute('data-wl-plan-drag') || '';
             if (!issueId || _wlPlanWriteInFlight.has(issueId)) { e.preventDefault(); return; }
+            delete root.dataset.wlDragGroupDate;
+            delete root.dataset.wlDragGroupAssignee;
+            delete root.dataset.wlDragGroupClient;
             root.dataset.wlDragIssue = issueId;
             card.classList.add('is-dragging');
             if (e.dataTransfer) {
@@ -13792,7 +13898,7 @@
         });
         root.addEventListener('dragover', (e) => {
             const day = e.target.closest('[data-wl-day]');
-            if (!day || !root.dataset.wlDragIssue) return;
+            if (!day || (!root.dataset.wlDragIssue && !root.dataset.wlDragGroupDate)) return;
             e.preventDefault();
             root.querySelectorAll('.workload-day.is-plan-drop-target').forEach(other => {
                 if (other !== day) other.classList.remove('is-plan-drop-target');
@@ -13807,16 +13913,18 @@
         root.addEventListener('drop', (e) => {
             const day = e.target.closest('[data-wl-day]');
             const issueId = root.dataset.wlDragIssue || (e.dataTransfer && e.dataTransfer.getData('text/plain')) || '';
-            if (!day || !issueId) return;
+            const sourceDate = root.dataset.wlDragGroupDate || '';
+            const assigneeId = root.dataset.wlDragGroupAssignee || '';
+            const clientName = root.dataset.wlDragGroupClient || '';
+            if (!day || (!issueId && !sourceDate)) return;
             e.preventDefault();
             const targetDate = day.getAttribute('data-wl-day') || '';
-            delete root.dataset.wlDragIssue;
-            clearDropTargets();
-            wlSetPlanDate(issueId, targetDate);
+            clearDragState();
+            if (sourceDate) wlMovePlanGroup(sourceDate, assigneeId, clientName, targetDate);
+            else wlSetPlanDate(issueId, targetDate);
         });
         root.addEventListener('dragend', () => {
-            delete root.dataset.wlDragIssue;
-            clearDropTargets();
+            clearDragState();
         });
 
         // Dismiss the popover / dropdowns on outside click or Escape.
@@ -14138,6 +14246,30 @@
             const na = wlDisplayName(a.assigneeName); const nb = wlDisplayName(b.assigneeName);
             if (na !== nb) return na.localeCompare(nb);
             return (a.clientName || '').localeCompare(b.clientName || '');
+        });
+    }
+
+    function wlSortSubIssues(subs) {
+        const rows = (subs || []).slice();
+        const nativeOrder = rows.length > 0 && rows.every(row => {
+            const raw = row && (row.sortOrder ?? row.sort_order);
+            return raw !== null && raw !== '' && Number.isFinite(Number(raw));
+        });
+        return rows.sort((a, b) => {
+            if (nativeOrder) {
+                const nativeDiff = Number(a.sortOrder ?? a.sort_order) - Number(b.sortOrder ?? b.sort_order);
+                if (nativeDiff) return nativeDiff;
+            }
+            const aIdentifier = String(a && a.identifier || '');
+            const bIdentifier = String(b && b.identifier || '');
+            const aNumber = Number((aIdentifier.match(/(\d+)\s*$/) || [])[1]);
+            const bNumber = Number((bIdentifier.match(/(\d+)\s*$/) || [])[1]);
+            if (Number.isFinite(aNumber) && Number.isFinite(bNumber) && aNumber !== bNumber) {
+                return aNumber - bNumber;
+            }
+            const identifierOrder = aIdentifier.localeCompare(bIdentifier, undefined, { numeric: true });
+            if (identifierOrder) return identifierOrder;
+            return String(a && a.id || '').localeCompare(String(b && b.id || ''));
         });
     }
 
@@ -14531,7 +14663,11 @@
             const overBy = Math.max(0, ed.total - capacity);
             const clientGroups = ed.clients.map(g => {
                 const clientName = g.clientName || '—';
-                const issueCards = (g.subs || []).map(s => {
+                const orderedSubs = wlSortSubIssues(g.subs);
+                const canDragGroup = wlPlanEditingEnabled() && !!g.clientName && orderedSubs.length
+                    && orderedSubs.every(s => String(s.id || '')
+                        && !_wlPlanWriteInFlight.has(String(s.id || '')));
+                const issueCards = orderedSubs.map(s => {
                     const issueId = String(s.id || '');
                     const canDrag = wlPlanEditingEnabled() && !_wlPlanWriteInFlight.has(issueId);
                     const label = s.title || s.identifier || 'Work';
@@ -14542,7 +14678,7 @@
                     </button>`;
                 }).join('');
                 return `<details class="workload-day-client-group">
-                    <summary class="workload-day-card-chip" title="${wlEscape(clientName)} · ${g.count} sub-issue${g.count !== 1 ? 's' : ''}">
+                    <summary class="workload-day-card-chip" draggable="${canDragGroup ? 'true' : 'false'}" data-wl-plan-group-drag="1" data-wl-date="${wlEscape(dayISO || '')}" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}" title="${wlEscape(clientName)} · ${g.count} sub-issue${g.count !== 1 ? 's' : ''}${canDragGroup ? ' · drag to move group' : ''}">
                         <span class="workload-day-card-chip-name">${wlEscape(clientName)}</span>
                         <span class="workload-day-card-chip-count">· ${g.count}</span>
                     </summary>

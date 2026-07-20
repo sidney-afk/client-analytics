@@ -4,7 +4,8 @@
 -- makes the isolation explicit; production objects below exist only inside
 -- that disposable TEST database.
 CREATE SCHEMA f27_test;
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
 CREATE ROLE service_role NOLOGIN;
@@ -181,6 +182,17 @@ END $$;
 SELECT public.track_b_f27_classify(:'rollback_id', 1, 'replay', 'owner approved exact retry', 'f27-test-owner');
 SELECT public.track_b_f27_classify(:'rollback_id', 2, 'quarantine', 'preserve for investigation', 'f27-test-owner');
 SELECT public.track_b_f27_classify(:'rollback_id', 3, 'discard', 'owner verified invalid intent', 'f27-test-owner');
+SELECT correlation_id::text AS reflected_correlation
+FROM public.track_b_team_rollbacks WHERE id = :'rollback_id' \gset
+SELECT row_sha256 AS reflected_snapshot_sha
+FROM public.track_b_team_rollback_intents WHERE rollback_id = :'rollback_id' AND outbox_id = 4 \gset
+SELECT encode(
+  extensions.digest(
+    convert_to(jsonb_build_object('issue_id', 'TEST-REFLECTED-4', 'value', 'g-reflected')::text, 'UTF8'),
+    'sha256'
+  ),
+  'hex'
+) AS reflected_result_sha \gset
 SELECT public.track_b_f27_classify(
   :'rollback_id',
   4,
@@ -192,7 +204,13 @@ SELECT public.track_b_f27_classify(
     'type', 'f27_already_reflected_terminal',
     'rollback_id', :'rollback_id',
     'outbox_id', '4',
-    'issue_id', 'TEST-REFLECTED-4'
+    'correlation_id', :'reflected_correlation',
+    'intent_snapshot_sha256', :'reflected_snapshot_sha',
+    'dedup_key', 'f27:g:4',
+    'operation', 'due',
+    'issue_id', 'TEST-REFLECTED-4',
+    'observed_result', '{"issue_id":"TEST-REFLECTED-4","value":"g-reflected"}'::jsonb,
+    'observed_result_sha256', :'reflected_result_sha'
   )
 );
 

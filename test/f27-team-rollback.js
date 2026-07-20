@@ -32,8 +32,12 @@ ok(/classification_history jsonb not null default '\[\]'::jsonb/.test(sql)
   'declined replay reclassification is append-audited and restricted to an unreceipted quarantine');
 ok(/f27_correlated_terminal_receipt_required/.test(sql), 'approved replay requires a correlated terminal receipt');
 ok(/f27_reflected_receipt_required/.test(sql)
-  && /status = 'written'[\s\S]*linear_result = p_reflected_receipt/.test(sql),
+  && /status = 'written'[\s\S]*linear_result = p_reflected_receipt/.test(sql)
+  && /intent_snapshot_sha256/.test(sql)
+  && /observed_result_sha256/.test(sql),
   'already-reflected dependencies require an audited Linear identity and become consumable');
+ok((sql.match(/extensions\.digest/g) || []).length >= 4,
+  'secured functions resolve pgcrypto from the production extensions schema');
 ok(/p_receipt->>'rollback_id' is distinct from p_rollback_id::text/.test(sql)
   && /p_receipt->>'outbox_id' is distinct from p_outbox_id::text/.test(sql)
   && /linear_result_sha256/.test(sql)

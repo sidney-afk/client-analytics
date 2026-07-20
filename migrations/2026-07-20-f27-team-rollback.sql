@@ -135,7 +135,7 @@ begin
     v_rollback.id,
     o.id,
     to_jsonb(o),
-    encode(digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'), 'hex')
+    encode(extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'), 'hex')
   from public.mirror_outbox o
   where lower(o.team) = v_team
     and o.status in ('pending', 'failed', 'shadow_ok')
@@ -143,7 +143,7 @@ begin
   get diagnostics v_count = row_count;
 
   select encode(
-    digest(convert_to(coalesce(string_agg(i.row_sha256, '' order by i.outbox_id), ''), 'UTF8'), 'sha256'),
+    extensions.digest(convert_to(coalesce(string_agg(i.row_sha256, '' order by i.outbox_id), ''), 'UTF8'), 'sha256'),
     'hex'
   ) into v_hash
   from public.track_b_team_rollback_intents i
@@ -193,27 +193,47 @@ declare
   v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
   v_actor text := nullif(btrim(coalesce(p_actor, '')), '');
   v_team text;
+  v_correlation_id uuid;
+  v_row_sha256 text;
+  v_dedup_key text;
+  v_operation text;
   v_count integer;
 begin
   if v_kind not in ('replay', 'quarantine', 'discard', 'already_reflected')
      or v_reason is null or v_actor is null then
     raise exception 'f27_classification_incomplete';
   end if;
+  select r.team, r.correlation_id, i.row_sha256, o.dedup_key, o.operation
+  into v_team, v_correlation_id, v_row_sha256, v_dedup_key, v_operation
+  from public.track_b_team_rollbacks r
+  join public.track_b_team_rollback_intents i
+    on i.rollback_id = r.id and i.outbox_id = p_outbox_id
+  join public.mirror_outbox o on o.id = i.outbox_id
+  where r.id = p_rollback_id and r.state = 'open'
+  for update of r;
+  if not found then raise exception 'f27_open_rollback_required'; end if;
   if v_kind = 'already_reflected'
      and (
        p_reflected_receipt->>'ok' is distinct from 'true'
        or p_reflected_receipt->>'type' is distinct from 'f27_already_reflected_terminal'
        or p_reflected_receipt->>'rollback_id' is distinct from p_rollback_id::text
        or p_reflected_receipt->>'outbox_id' is distinct from p_outbox_id::text
+       or p_reflected_receipt->>'correlation_id' is distinct from v_correlation_id::text
+       or p_reflected_receipt->>'intent_snapshot_sha256' is distinct from v_row_sha256
+       or p_reflected_receipt->>'dedup_key' is distinct from v_dedup_key
+       or p_reflected_receipt->>'operation' is distinct from v_operation
        or coalesce(p_reflected_receipt->>'issue_id', '') = ''
+       or jsonb_typeof(p_reflected_receipt->'observed_result') is distinct from 'object'
+       or p_reflected_receipt->>'observed_result_sha256' is distinct from encode(
+         extensions.digest(
+           convert_to((p_reflected_receipt->'observed_result')::text, 'UTF8'),
+           'sha256'
+         ),
+         'hex'
+       )
      ) then
     raise exception 'f27_reflected_receipt_required';
   end if;
-  select r.team into v_team
-  from public.track_b_team_rollbacks r
-  where r.id = p_rollback_id and r.state = 'open'
-  for update;
-  if not found then raise exception 'f27_open_rollback_required'; end if;
 
   update public.track_b_team_rollback_intents i
   set classification = v_kind, reason = v_reason,
@@ -314,7 +334,7 @@ begin
     and p_receipt->>'operation' is not distinct from o.operation
     and p_receipt->>'correlation_id' is not distinct from o.linear_result->>'correlation_id'
     and p_receipt->>'linear_result_sha256' is not distinct from encode(
-      digest(convert_to(o.linear_result::text, 'UTF8'), 'sha256'), 'hex'
+      extensions.digest(convert_to(o.linear_result::text, 'UTF8'), 'sha256'), 'hex'
     )
     and p_receipt->>'intent_snapshot_sha256' is not distinct from i.row_sha256;
   get diagnostics v_count = row_count;

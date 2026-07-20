@@ -2,7 +2,7 @@
 
 > **Immutable evidence snapshot.** This document records what was observed at
 > `e238bc4f3a2685717b41aa16170e61d9a3cdc36f`. Current status and remediation
-> live in `docs/independence/CUTOVER_AUDIT_2026-07-13.md` (F147–F160) and
+> live in `docs/independence/CUTOVER_AUDIT_2026-07-13.md` (F149–F162) and
 > `docs/truth/BRIEFING.md`; do not edit this audit to track later fixes.
 
 ## Evidence lock
@@ -56,20 +56,20 @@ durable owner in the cutover register.
 
 | Audit ID | Sev | Observation at `e238bc4` | Evidence | Durable owner |
 |---|---|---|---|---|
-| BA-01 | P1 | Client Calendar and Brief reloads exposed the Analytics heading, search, active nav, and table skeleton before the requested client tab mounted. | Browser + source | F147 |
-| BA-02 | P1 | Direct Samples Review returned before the shared Analytics load was created; later entering Home rendered a zero-client dashboard from an untouched model. | Browser + source | F148 |
-| BA-03 | P1 | Analytics reads parsed HTTP 500 response bodies without checking `response.ok`, allowing a normal-looking empty dashboard instead of a visible failure. | Browser + source | F149 |
-| BA-04 | P1 | Stored-staff verification, cold Analytics reads, and client-link verification had no application deadline; deliberately pending requests had no terminal UI state. | Browser + source | F150 |
-| BA-05 | P1 | Back to a client profile used a special renderer that skipped the normal teardown/reset lifecycle, leaving stale body modes and two active top-level destinations. | Browser + source | F151 |
-| BA-06 | P1 | Calendar card, Samples Review client/card, and direct Kasper subtab routes did not round-trip through parse → mount → serialize; later reloads could lose detail state. | Browser + source | F152 |
-| BA-07 | P2 | Time Off, Weekly, several Kasper subtabs, Templates index, Submit, and TikTok Pilot reused a visibly different surface's early shell. | Browser + source | F153 |
-| BA-08 | P2 | The visible Production anchor advertised `#production`, but independent boot recognized the query form; modifier-click/new tab therefore landed on Home. | Browser + source | F154 |
-| BA-09 | P2 | Weekly Reports filters replaced the current entry with `history.state === null`; a later Back could restore a Weekly URL with Analytics DOM and stale Calendar mode. | Browser + source | F155 |
-| BA-10 | P2 | A failed direct-Calendar prerequisite could leave an empty “Refreshing…” shell with no visible failure or retry while only the console recorded the failure. | Browser + source | F156 |
-| BA-11 | P2 | Blocking first-party storage caused unguarded main-script `localStorage` reads to throw and abort boot after the defensive head gate had succeeded. | Browser + source | F157 |
-| BA-12 | P2 | The app had a `popstate` owner but no `hashchange` owner; a native fragment change could update the URL while Home remained mounted. | Browser + source | F158 |
-| BA-13 | P2 | Samples Review was persisted as the last navigation target but omitted from both bare-root restore lists, so a new plain-root boot opened Home and overwrote it. | Browser + source | F159 |
-| BA-14 | P1 release evidence | No pull-request browser lane watched the actual visible sequence across every route's cold boot, refresh, Back, Forward, slow response, 5xx, and never-settling response. Settled-page and source-parity tests missed the defects above. | Test census + browser counterexamples | F160 |
+| BA-01 | P1 | Client Calendar and Brief reloads exposed the Analytics heading, search, active nav, and table skeleton before the requested client tab mounted. | Browser + source | F149 |
+| BA-02 | P1 | Direct Samples Review returned before the shared Analytics load was created; later entering Home rendered a zero-client dashboard from an untouched model. | Browser + source | F150 |
+| BA-03 | P1 | Analytics reads parsed HTTP 500 response bodies without checking `response.ok`, allowing a normal-looking empty dashboard instead of a visible failure. | Browser + source | F151 |
+| BA-04 | P1 | Stored-staff verification, cold Analytics reads, and client-link verification had no application deadline; deliberately pending requests had no terminal UI state. | Browser + source | F152 |
+| BA-05 | P1 | Back to a client profile used a special renderer that skipped the normal teardown/reset lifecycle, leaving stale body modes and two active top-level destinations. | Browser + source | F153 |
+| BA-06 | P1 | Calendar card, Samples Review client/card, and direct Kasper subtab routes did not round-trip through parse → mount → serialize; later reloads could lose detail state. | Browser + source | F154 |
+| BA-07 | P2 | Time Off, Weekly, several Kasper subtabs, Templates index, Submit, and TikTok Pilot reused a visibly different surface's early shell. | Browser + source | F155 |
+| BA-08 | P2 | The visible Production anchor advertised `#production`, but independent boot recognized the query form; modifier-click/new tab therefore landed on Home. | Browser + source | F156 |
+| BA-09 | P2 | Weekly Reports filters replaced the current entry with `history.state === null`; a later Back could restore a Weekly URL with Analytics DOM and stale Calendar mode. | Browser + source | F157 |
+| BA-10 | P2 | A failed direct-Calendar prerequisite could leave an empty “Refreshing…” shell with no visible failure or retry while only the console recorded the failure. | Browser + source | F158 |
+| BA-11 | P2 | Blocking first-party storage caused unguarded main-script `localStorage` reads to throw and abort boot after the defensive head gate had succeeded. | Browser + source | F159 |
+| BA-12 | P2 | The app had a `popstate` owner but no `hashchange` owner; a native fragment change could update the URL while Home remained mounted. | Browser + source | F160 |
+| BA-13 | P2 | Samples Review was persisted as the last navigation target but omitted from both bare-root restore lists, so a new plain-root boot opened Home and overwrote it. | Browser + source | F161 |
+| BA-14 | P1 release evidence | No pull-request browser lane watched the actual visible sequence across every route's cold boot, refresh, Back, Forward, slow response, 5xx, and never-settling response. Settled-page and source-parity tests missed the defects above. | Test census + browser counterexamples | F162 |
 
 ## Existing findings that overlap but were not renumbered
 
@@ -77,7 +77,7 @@ durable owner in the cutover register.
 |---|---|---|
 | F102 | P0 | A client-entry read-boundary precedence defect can let an unknown `?c=` route bypass the password/token verifier and fall through to a staff surface. This audit did not demonstrate or claim an unauthorized mutation. |
 | F117 | P0 | A legacy client Samples link can lose its verified client binding when redirected into generic Samples Review. |
-| F121 | P2 / policy | Kasper's visible subtab changes use replace-state; whether Back should traverse those tabs remains an owner history-policy decision. This is separate from F152's loss of a supplied deep link. |
+| F121 | P2 / policy | Kasper's visible subtab changes use replace-state; whether Back should traverse those tabs remains an owner history-policy decision. This is separate from F154's loss of a supplied deep link. |
 | F127 | P1 | Refresh does not prove that a stale running build was retired; the update notice is advisory rather than an enforced caller epoch. |
 | F130 | P2 | Kasper Review/Messages cold-load failures can leave an indefinite skeleton or a dead-end error without usable retry. |
 
@@ -123,20 +123,20 @@ for prediction, boot, clicks, reload, Back/Forward, and native URL changes.
 
 | Surface / entry | Early boot frame | Refresh/second refresh | Back/Forward result | Snapshot verdict |
 |---|---|---|---|---|
-| Password gate | Opaque password overlay | Correct under ordinary storage | N/A | Healthy control; F157 covers blocked storage |
-| Analytics Home | Matching shell | Healthy reads settle correctly | Ordinary top-level history works | F149/F150 can fake empty or hang |
+| Password gate | Opaque password overlay | Correct under ordinary storage | N/A | Healthy control; F159 covers blocked storage |
+| Analytics Home | Matching shell | Healthy reads settle correctly | Ordinary top-level history works | F151/F152 can fake empty or hang |
 | Client Analytics | Matching shell | Settles correctly | Can inherit stale prior route mode | Mostly healthy destination |
-| Client Calendar | **Full Analytics overview** | Eventually correct | Return can leave Calendar and Analytics active | F147/F151 |
-| Client Brief | **Full Analytics overview** | Eventually correct | Return can retain prior route state | F147/F151 |
-| Calendar detail | Calendar shell | First mount can consume the detail; serializer can erase it before the next reload | Detail is not reliably round-trippable | F152 |
-| Samples Review | Matching Review shell | Exact top-level hash loads; detail route can be one-shot | Direct boot can leave later Home empty | F148/F152/F159 |
+| Client Calendar | **Full Analytics overview** | Eventually correct | Return can leave Calendar and Analytics active | F149/F153 |
+| Client Brief | **Full Analytics overview** | Eventually correct | Return can retain prior route state | F149/F153 |
+| Calendar detail | Calendar shell | First mount can consume the detail; serializer can erase it before the next reload | Detail is not reliably round-trippable | F154 |
+| Samples Review | Matching Review shell | Exact top-level hash loads; detail route can be one-shot | Direct boot can leave later Home empty | F150/F154/F161 |
 | Workload | Matching shell | Correct in the controlled fixture | Return to client was clean | Healthy control |
 | Templates client detail | Matching detail shell | Client and tab restored | Return to client was clean | Healthy control |
 | Production `?prod=1` | Matching Production shell | Dedicated boot passed | Production-focused history passed | Healthy control; F127 remains |
-| Production `#production` | Analytics, then Home | Does not mount Production independently | New-tab contract broken | F154 |
-| Time Off | Analytics table shell | Eventually PTO | Client return was clean | F153, not a Back defect |
-| Kasper direct subtab | Generic Review shell for most subtabs | First mount can be right; URL collapses to `#kasper` | A later reload can land Review | F152/F153 |
-| Weekly Reports | Reused Kasper shell | Direct boot settles | Filtered null-state entry can restore a hybrid page | F155 |
+| Production `#production` | Analytics, then Home | Does not mount Production independently | New-tab contract broken | F156 |
+| Time Off | Analytics table shell | Eventually PTO | Client return was clean | F155, not a Back defect |
+| Kasper direct subtab | Generic Review shell for most subtabs | First mount can be right; URL collapses to `#kasper` | A later reload can land Review | F154/F155 |
+| Weekly Reports | Reused Kasper shell | Direct boot settles | Filtered null-state entry can restore a hybrid page | F157 |
 | Standalone onboarding/intake | Special mode hides workspace chrome | Clean in controlled post-parse captures | Standalone | Healthy controlled capture |
 
 ## Evidence details
@@ -234,16 +234,16 @@ The passing tests did not contradict the browser findings:
 
 ## Accepted remediation order
 
-1. **Client-facing entry first:** F147 plus the already-open F102/F117 P0
+1. **Client-facing entry first:** F149 plus the already-open F102/F117 P0
    boundaries.
-2. **Silent failure class:** F149, F150, F156, and existing F130. A transport
+2. **Silent failure class:** F151, F152, F158, and existing F130. A transport
    failure must fail visibly, preserve last-good data only when identified as
    stale, and offer retry; it must never become fake-empty business data.
-3. **Staff flows:** F148, F151, and F152—Samples Review → Analytics, stale
+3. **Staff flows:** F150, F153, and F154—Samples Review → Analytics, stale
    Back/Forward modes, and lost detail state.
-4. **Secondary route consistency:** F153–F159 after the higher-impact slices.
+4. **Secondary route consistency:** F155–F161 after the higher-impact slices.
 
-Every remediation must satisfy F160 with a browser guard that drives the
+Every remediation must satisfy F162 with a browser guard that drives the
 actual visible boot sequence for the route. A test that begins only after the
 page settles is not sufficient.
 

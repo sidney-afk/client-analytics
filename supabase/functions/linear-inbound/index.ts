@@ -717,7 +717,7 @@ async function recentOutboundEcho(
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase.from("mirror_outbox")
     .select("id,entity_id,client_slug,operation,comment_id,dedup_key,payload,linear_result,status,processed_at,updated_at")
-    .in("status", ["pending", "shadow_ok", "written", "failed"])
+    .in("status", ["pending", "shadow_ok", "written", "failed", "skipped"])
     .gte("updated_at", since)
     .order("updated_at", { ascending: false })
     .limit(100);
@@ -726,6 +726,10 @@ async function recentOutboundEcho(
   for (const candidate of Array.isArray(data) ? data : []) {
     const row = candidate as JsonMap;
     const result = parseJson(row.linear_result);
+    // `skipped` is normally terminal/non-writable. F27 deliberately reuses it
+    // as an additive ledger quarantine, so only a preflight/result carrying
+    // the guarded rollback identity may participate in echo matching.
+    if (lower(row.status) === "skipped" && !clean(result.rollback_id)) continue;
     if (clean(result.issue_id) !== issueId) continue;
     if (!outboundValueMatches(row, payload, issue, comment)) continue;
     const actorMatches = !!actorId

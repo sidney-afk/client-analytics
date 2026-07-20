@@ -137,6 +137,9 @@ ok(!/const pComment = \{[\s\S]{0,260}batch_id: null/.test(FN),
 ok(/including house-authored `\(via SyncView\)` bridges, is persisted first/.test(FN)
   && /handleCommentEvent\(supabase, payload, await recentOutboundEcho/.test(FN),
   'bridge echoes must be stored before echo suppression metadata is applied');
+ok(/"pending", "shadow_ok", "written", "failed", "skipped"/.test(FN)
+  && /lower\(row\.status\) === "skipped" && !clean\(result\.rollback_id\)/.test(FN),
+  'only rollback-bound skipped rows participate in F27 echo matching');
 ok(!/shouldDropEchoComment|duplicate_comment_event/.test(FN),
   'legacy prefix drops and time-window comment dedupe must be removed in favor of durable idempotency');
 ok(/normalized\.linear_author_id\s*=[\s\S]*normalized\.transport_linear_user_id\s*=[\s\S]*normalized\.transport_actor\s*=/.test(

@@ -1015,6 +1015,20 @@ Deno.serve(async (req: Request) => {
       if (conflict.decision === "failed") throw new Error(clean(conflict.reason));
 
       const mutation = buildMutation(row, context);
+      if (f27Replay) {
+        // The ledger quarantine uses the existing `skipped` status. Persist
+        // the exact intended value and F27 identity before Linear can emit its
+        // webhook so inbound can recognize this one authorized skipped row as
+        // an in-flight mirror echo.
+        await checkpointLinearResult(supabase, row, bindF27LinearResult({
+          mutation: mutation.kind,
+          issue_id: issueId,
+          mirror_actor_id: clean(mirrorActor.id),
+          mirror_actor_name: clean(mirrorActor.name),
+          expected: mutation.variables,
+          f27_preflight: true,
+        }, f27Replay, row));
+      }
       if (control.mode === "shadow") {
         counts.shadow_ok++;
         counts.shadow_vs_actual_divergence++;

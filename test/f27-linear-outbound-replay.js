@@ -37,6 +37,9 @@ const { pathToFileURL } = require('url');
     'declined F27 conflicts remain quarantined, visible, and retryable');
   ok(/bindF27LinearResult/.test(source) && /checkpointLinearResult\(supabase, row, linearResult\)/.test(source),
     'real writer checkpoints rollback-bound correlation before release');
+  ok(/f27_preflight: true/.test(source)
+    && /await checkpointLinearResult\(supabase, row, bindF27LinearResult/.test(source),
+    'F27 writer checkpoints its exact echo identity before the Linear mutation');
 
   let rejected = false;
   try { helper.f27ReplayRequest({ rollback_id: 'r', target_dedup_key: 'd' }); } catch (_) { rejected = true; }

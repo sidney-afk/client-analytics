@@ -5540,6 +5540,8 @@
         .kasper-more { position: relative; margin-left: auto; flex: 0 0 auto; }
         .kasper-more-trigger { min-width: 86px; justify-content: center; }
         .kasper-more-trigger .kasper-more-icon { display: inline-flex; }
+        .kasper-more-trigger .kasper-more-count { margin-left: 2px; background: var(--dn); color: var(--white); }
+        .kasper-more-trigger.active .kasper-more-count { background: var(--sv-bg-rgba-255-255-255-0_18); color: inherit; }
         .kasper-more-trigger .kasper-more-chevron { width: 12px; height: 12px; margin-left: 2px; transition: transform 0.15s; }
         .kasper-more.open .kasper-more-chevron { transform: rotate(180deg); }
         .kasper-more-menu { position: absolute; z-index: 80; top: calc(100% + 8px); right: 0; width: 258px; max-width: calc(100vw - 32px); padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--white); box-shadow: 0 16px 38px var(--sv-shadow-rgba-0-0-0-0_18); }
@@ -10985,7 +10987,11 @@
           _obvLoadedAt = Date.now();
         })
         .catch(e=>{ _obvSubs = []; _obvError = (e && e.message) || 'Staff sign-in required.'; })
-        .finally(()=>{ _obvLoading = false; _obvRerender(); });
+        .finally(()=>{
+          _obvLoading = false;
+          _obvRerender();
+          if (typeof _kasperRefreshTabCounts === 'function') _kasperRefreshTabCounts();
+        });
     }
 
     // Admin full view: one gated call (onboarding-full) returns all three sources
@@ -10999,6 +11005,7 @@
         _obvSubs = []; _obvError = (e && e.message) || 'failed';
       } finally {
         _obvLoadedAt = Date.now(); _obvLoading = false; _obvRerender();
+        if (typeof _kasperRefreshTabCounts === 'function') _kasperRefreshTabCounts();
       }
     }
     async function _obvFetchFull(retried){
@@ -50304,7 +50311,7 @@
         { key: 'filming', label: 'Filming Plans',  icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"/><path d="M11 7l2.5-1.6v5.2L11 9z"/></svg>' },
         { key: 'time-off', label: 'Time Off', showCount: true, hideZero: true, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.6"/><path d="M2.5 6.5h11M5 1.8v3M11 1.8v3"/><path d="m5.2 9 1.4 1.4 3.4-3.2"/></svg>' },
         { key: 'sales-intake', label: 'Sales Intake', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h7l3 3V13.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8 6v5M6.3 10.1c.4.5 1 .8 1.7.8 1 0 1.7-.5 1.7-1.3 0-1.6-3.3-.9-3.3-2.5 0-.8.7-1.3 1.6-1.3.7 0 1.3.3 1.6.7"/></svg>' },
-        { key: 'onboarding', label: 'Onboarding', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M9.5 2.5V5h2.5"/><path d="M6 8.2h4M6 10.6h4"/></svg>' },
+        { key: 'onboarding', label: 'Onboarding', showCount: true, hideZero: true, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M9.5 2.5V5h2.5"/><path d="M6 8.2h4M6 10.6h4"/></svg>' },
         { key: 'client-credentials', label: 'Client Credentials', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>' }
     ];
     if (typeof _sxrEnabled === 'function' && _sxrEnabled()) KASPER_SUBTABS.splice(1, 0, { key: 'samples', label: 'Samples', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2"/><path d="M5 8.2L7 10.2L11 5.8"/></svg>' }); // SXR_LINE
@@ -50314,6 +50321,7 @@
         { label: 'Team', keys: ['editors', 'time-off'] },
         { label: 'Pipeline & Admin', keys: ['sales-intake', 'onboarding', 'client-credentials'] },
     ];
+    const KASPER_MORE_NOTIFICATION_KEYS = ['time-off', 'onboarding'];
     const KASPER_MORE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="3" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="13" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="6.5"/></svg>';
     const KASPER_MORE_CHEVRON = '<svg class="kasper-more-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>';
     const KASPER_SMM_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Social%20Media%20Managers`;
@@ -50367,6 +50375,7 @@
     const KASPER_HISTORY_KEY = 'syncview_kasper_approved_log_v1';
     const KASPER_HISTORY_CAP = 200;
     const KASPER_SUBTAB_KEY = 'syncview_kasper_subtab_v1';
+    const KASPER_ONBOARDING_SEEN_KEY = 'syncview_kasper_onboarding_seen_v1';
     const KASPER_CACHE_KEY = 'syncview_kasper_review_cache_v1';
     const KASPER_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;   // sanity bound; staleness is fine, ancient data is not
     // "Last week's editor labour" never changes once a week has passed, so
@@ -50436,6 +50445,7 @@
                     <button type="button" class="kasper-subtab kasper-more-trigger${activeMoreTab ? ' active' : ''}" data-kasper-more-trigger aria-haspopup="menu" aria-expanded="false" aria-controls="kasperMoreMenu"${activeMoreTab ? ' aria-current="page"' : ''} onclick="_kasperToggleMore(event)">
                         <span class="kasper-more-icon" data-kasper-more-icon aria-hidden="true">${moreIcon}</span>
                         <span data-kasper-more-label>${_calEsc(moreLabel)}</span>
+                        <span class="kasper-tab-count kasper-more-count" data-kasper-more-count hidden aria-label="notifications"></span>
                         ${KASPER_MORE_CHEVRON}
                     </button>
                     <div class="kasper-more-menu" id="kasperMoreMenu" role="menu" aria-label="More Kasper sections" hidden>
@@ -50566,6 +50576,7 @@
             if (activeMoreTab) trigger.setAttribute('aria-current', 'page');
             else trigger.removeAttribute('aria-current');
         }
+        _kasperSyncMoreNotificationCount();
         _kasperSetMoreOpen(false, false, false);
     }
 
@@ -50948,6 +50959,7 @@
         const el = document.getElementById('kasperContent');
         if (!el) return;
         _obvMode = 'full';
+        if (Array.isArray(_obvSubs)) _kasperMarkOnboardingSeen();
         _obvInjectStyles();
         el.innerHTML = renderOnboardingInbox();
         _obvEnsureLoaded();
@@ -51916,6 +51928,41 @@
             el.textContent = String(n);
             if (el.hasAttribute('data-kasper-hide-zero')) el.hidden = Number(n) === 0;
         });
+        _kasperSyncMoreNotificationCount();
+    }
+    function _kasperSyncMoreNotificationCount() {
+        const badge = document.querySelector('[data-kasper-more-count]');
+        const trigger = document.querySelector('[data-kasper-more-trigger]');
+        if (!badge || !trigger) return;
+        let total = 0;
+        KASPER_MORE_NOTIFICATION_KEYS.forEach(key => {
+            const el = document.querySelector('[data-kasper-count="' + key + '"]');
+            if (el && !el.hidden) total += Math.max(0, Number(el.textContent) || 0);
+        });
+        badge.textContent = String(total);
+        badge.hidden = total === 0;
+        const activeLabel = trigger.querySelector('[data-kasper-more-label]');
+        const label = activeLabel ? activeLabel.textContent : 'More';
+        trigger.title = total ? label + ' — ' + total + ' notification' + (total === 1 ? '' : 's') : (label === 'More' ? 'More sections' : label);
+        trigger.setAttribute('aria-label', total ? label + ', ' + total + ' notification' + (total === 1 ? '' : 's') : label);
+    }
+    function _kasperOnboardingStamp(submission) {
+        return String(submission && (submission.created_at || submission.submitted_on || submission.updated_at) || '');
+    }
+    function _kasperOnboardingUnreadCount() {
+        if (!Array.isArray(_obvSubs)) return null;
+        let seen = '';
+        try { seen = localStorage.getItem(KASPER_ONBOARDING_SEEN_KEY) || ''; } catch (e) {}
+        return _obvSubs.filter(submission => _kasperOnboardingStamp(submission) > seen).length;
+    }
+    function _kasperMarkOnboardingSeen() {
+        if (!Array.isArray(_obvSubs)) return;
+        const newest = _obvSubs.reduce((stamp, submission) => {
+            const next = _kasperOnboardingStamp(submission);
+            return next > stamp ? next : stamp;
+        }, '');
+        try { if (newest) localStorage.setItem(KASPER_ONBOARDING_SEEN_KEY, newest); } catch (e) {}
+        _kasperSetTabCount('onboarding', 0);
     }
     function _kasperRefreshTabCounts() {
         // review = cards still waiting on Kasper's decision. _kasperState.items is
@@ -51941,6 +51988,8 @@
         if (_ptoEnabled() && _ptoAdminState.overview) {
             _kasperSetTabCount('time-off', _ptoAdminPending(_ptoAdminState.overview).length);
         }
+        const onboardingUnread = _kasperOnboardingUnreadCount();
+        if (onboardingUnread !== null) _kasperSetTabCount('onboarding', onboardingUnread);
     }
     function _kasperEnsureAllTabCounts() {
         // The active tab's render path already kicked its own load and set a loading
@@ -51955,6 +52004,10 @@
         }
         if (!_kasperState.filmingLoading && !_kasperState.filmingData) _kasperLoadFilming(false);
         if (_ptoEnabled() && _syncviewStaffCan('pto-admin') && !_ptoAdminState.loading && !_ptoAdminState.overview) _ptoLoadAdmin(false);
+        if (_syncviewStaffCan('onboarding') && !_obvLoading && !Array.isArray(_obvSubs)) {
+            _obvMode = 'full';
+            _obvEnsureLoaded();
+        }
     }
     let _kasperRepliesPaintRetry = null;
     function _kasperRenderReplies() {

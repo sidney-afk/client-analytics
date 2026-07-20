@@ -526,15 +526,18 @@ All times are UTC unless noted.
   descriptions pin that local boundary.
 - Collapsed-rollup batch moves remain outside this candidate and are tracked separately in #884;
   expanded issue-card moves retain the exact one-row, actual-count fail-closed path.
-- F141 is born into the contract: the function reports rows actually written and the browser accepts
-  only exactly one, reverting the optimistic date and notifying on a short count or error. Plan-list
+- The Workload actual-count contract requires the function to report rows actually written and the
+  browser to accept only exactly one, reverting the optimistic date and notifying on a short count
+  or error. The Workload test comments originally reused `F141`, which is already the Samples
+  reorder finding; current truth therefore names this guard by behavior rather than assigning that
+  conflicting register ID. Plan-list
   failure keeps last-good overrides when available; otherwise it shows an explicit due-date-only
   degraded state with editing disabled. Reads and writes are time-bounded, only the newest
   overlapping refresh can publish state, and an authentication/authorization denial purges the
   private plan projection. The function keyset-pages by stable issue id and logs only recognized
   aggregate action labels.
 - Candidate verification passed: all 137 offline suites, the 10-suite read-only Production polish
-  aggregate, focused workload source/F141/tweak-exclusivity robots, deploy-manifest freshness,
+  aggregate, focused Workload source/fail-closed/tweak-exclusivity robots, deploy-manifest freshness,
   whitespace checks, and a Deno type-check of `supabase/functions/workload-plan/index.ts`.
 - Cloud-review follow-through makes Week a rolling seven-calendar-day view so literal Saturday and
   Sunday deadlines/plan days cannot disappear, and computes overload styling from the rows visible
@@ -583,17 +586,20 @@ All times are UTC unless noted.
 ## 2026-07-20 — Workload editable internal plan date live release
 
 - **Release pin and public caller.** PR #883 merged as `fd3e0eaa06792196243b0f1fe9b9c459e2106134`.
-  Migration and function deployment used that exact detached merge. A later unrelated merge advanced
-  Pages to `f00da65341797ec55f2f9a0d53b97e6bccd7056f`; Pages run `29713997171` succeeded, the served
+  The function deployment used that exact detached merge. Migration execution occurred in the same
+  release window, but #886 cloud review found that the checked-in `fd3e0eaa` SQL did not yet contain
+  the explicit service-role revoke later added in `fe07aa8`; the exact SQL artifact/provenance for
+  the applied correction remains unresolved. A later unrelated merge advanced Pages to
+  `f00da65341797ec55f2f9a0d53b97e6bccd7056f`; Pages run `29713997171` succeeded, the served
   `index.html` matched that commit byte-for-byte, and its Workload module plus Admin/SMM capability
   slice remained byte-identical to `fd3e0eaa`.
-- **Migration applied with effective least privilege.** Applied
-  `migrations/2026-07-19-workload-plan.sql` in one transaction, including the release-review
-  correction that explicitly revokes DELETE/TRUNCATE/REFERENCES/TRIGGER from service role after
-  granting SELECT/INSERT/UPDATE. Readback confirmed the five intended columns, primary/check
+- **Migration state read back with effective least privilege.** Release readback confirmed the
+  explicit DELETE/TRUNCATE/REFERENCES/TRIGGER revokes after service-role SELECT/INSERT/UPDATE, the
+  five intended columns, primary/check
   constraints, partial client/date index, RLS enabled, zero policies, no anon/authenticated table
   privilege, exactly SELECT/INSERT/UPDATE for service role, zero seed rows, and no `plan_date` column
-  on `workload_issues`.
+  on `workload_issues`. That proves the effective live posture; the exact correction artifact
+  provenance remains the P2 caveat above.
 - **Scoped Edge deployment with exact-source correction.** Deployed only `workload-plan` with
   `--no-verify-jwt --use-api`. The first v1 package at `2026-07-20T03:03:36.469Z` exposed a
   provenance-only CRLF difference in `_shared/browser-write-auth-policy.mjs` because Windows checkout
@@ -616,7 +622,9 @@ All times are UTC unless noted.
   revert notification. The unmodified happy drag then returned `updated: 1`, read back as one saved
   sidecar row, and survived a full reload plus fresh server list. **Clear plan day** returned
   `updated: 1`, restored due-date placement, and remained cleared after another server-truth reload.
-  The impractical live short-count race remains covered by the hermetic F141 test, per owner decision.
+  The impractical live short-count race remains covered by the hermetic Workload fail-closed behavior
+  test, per owner decision; F148 separately records that its source-regex half is not a sufficient
+  same-chain future-regression guard.
 - **Exact cleanup and non-collateral readback.** Owner-level cleanup removed only the drill target's
   nullable sidecar row; independent readback found zero target residue and zero total sidecar rows.
   The mirrored due-date fingerprint and all 13 runtime flags stayed byte-identical. Frozen
@@ -626,11 +634,53 @@ All times are UTC unless noted.
   n8n workflow, authority value, runtime flag, or other Edge Function was targeted.
 - **Separate no-deploy review hardening.** The follow-up binds stale-list protection to the real
   `wlFetchPlanRows` capture point, scans every `workload_issues` access chain in the complete
-  function for read-only behavior, pins the exact `.select()` in the true-count write chain, and
-  keeps shared `.mjs` source LF-normalized. Focused Workload/source, truth, system-map, repository-map,
-  generated-manifest, and whitespace guards passed. `npm test` passed all 138 unit suites;
-  `npm run test:prod-polish` passed all 10 selected suites in 493.8 seconds. This follow-up performs
-  no migration, Edge deployment, runtime-flag change, Linear write, n8n change, or browser release.
+  function for read-only behavior, and keeps shared `.mjs` source LF-normalized. Focused
+  Workload/source, truth, system-map, repository-map, generated-manifest, and whitespace guards
+  passed. `npm test` passed all 138 unit suites; `npm run test:prod-polish` passed all 10 selected
+  suites in 493.8 seconds. Cloud review found the new true-count regex does not actually constrain
+  `.select(...)` to the same fluent upsert chain, so that future-regression guard remains open even
+  though the live TEST save/clear proof passed. This follow-up performs no migration, Edge
+  deployment, runtime-flag change, Linear write, n8n change, or browser release.
+
+## 2026-07-20 — Phase 3 F145 merge + Order-1 register reconciliation
+
+- **F145 merged after the required review gate.** PR #885, originally opened as a draft, was
+  merged after review as
+  `f00da65341797ec55f2f9a0d53b97e6bccd7056f` (exact head `e94531b`). Hosted Production run
+  `29711105120` attempt 2 passed fast, interaction, heavy, and review-packet lanes before merge.
+  Pages run `29713997171` then deployed the merge; read-only live HTML contains the resolver and
+  raw-parent projection and no `batchParent`. The Production hierarchy on `main` therefore follows
+  the persisted Linear parent UUID. Post-merge Production run `29713997723` is red (fast and
+  interaction failed; heavy/review-packet passed). The merge and PR-head trees are identical, so
+  that red run does not establish an F145 code delta, but it remains an honest current-main test
+  health item. No schema, writer, runtime flag, n8n workflow, Edge Function, Linear object, or live
+  row changed.
+- **Fix-pack lineage reconciled.** #813 closed unmerged. Its implementation commit `e3aa028`
+  reached `main` through superseding PR #850 / merge `9968bd9`. Focused current-main guards
+  re-verified F04's URL-or-native-link predicate, F07's exact `syncview_live` background target,
+  and F08's mixed-authority/live-mode monitor tolerance. Those implementation defects are DONE;
+  the first-real-Graphics Kasper observation, non-TEST seconds-scale F07 receipt, and operational
+  green monitor window remain unchecked go-live gates.
+- **F12 false closure corrected.** The routine TEST drill explicitly skips provider generation and
+  therefore does not prove real generation. No durable run records `graphic_generation_verified:true`, and no safe
+  provider-failure receipt proves zero native writes plus recovery. The current register therefore
+  keeps F12 OPEN despite the older readiness sentence that called it done.
+- **F143 deployment evidence back-recorded.** Manual pinned run `29601466479` deployed all ten
+  functions in the workflow: eight push-safe staff readers (`onboarding-list`,
+  `ai-onboarding-list`, `legacy-onboarding-list`, `onboarding-full`, `client-credentials`,
+  `filming-plans`, `smm-weekly-reports`, `key-verify`), then `linear-outbound` v33 before
+  `production-write` v24 from exact `main@9d76df6`. All ten fingerprints passed; neither frozen
+  writer was in the deploy set. The deploy summary kept the separate drill outcome `PENDING`.
+  Read-only OPTIONS after deployment and again at 2026-07-20 03:20Z returned `204` with
+  `x-syncview-source` allowed. No deployment or flag write was performed by this reconciliation.
+- **Concurrent Workload release truth absorbed.** The earlier read-only function inventory matched
+  ACTIVE v2 at the same four-file `30ea0c1fe00c` source and `ddf85afba1ce` bundle. Main then advanced
+  through #886 / `c722984`, recording the applied-schema readback, role boundary, private TEST
+  save/reload/clear plus pre-write `409`, exact cleanup, and unchanged deadline/flags. This Order-1
+  pass performed none of those live operations. The exact migration-correction provenance and the
+  insufficient same-chain source regex remain the two disclosed #886 P2 follow-ups.
+- **Boundary preserved.** This was documentation and read-only verification only. No frozen writer,
+  runtime flag, n8n graph, client enrollment, client row, Linear object, or production write changed.
 
 ## 2026-07-20 — F124 first scheduled production proof
 

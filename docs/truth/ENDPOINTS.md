@@ -1,6 +1,6 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-20 @ fd3e0ea (app inventory 19 literal + 4 composed; live Edge inventory 28 including workload-plan v2)
+> Last verified: 2026-07-20 @ c722984 + Phase-3 Order-1 reconciliation (19 literal + 4 composed; live Edge inventory 28 including workload-plan v2; #850 write gateway deployed dark)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -97,7 +97,8 @@ Other:
   `plan_date` rows keyed by stable sub-issue id, validates active issue/client scope, and reports
   rows actually written so the browser can require exactly one and revert on a short count. It never
   writes the Linear due date and has no n8n fallback or runtime flag. The function is ACTIVE v2 from
-  merge `fd3e0eaa`, and `2026-07-19-workload-plan.sql` is applied with its locked table posture.
+  merge `fd3e0eaa`; live readback matches the locked table posture represented by
+  `2026-07-19-workload-plan.sql`, while F147 tracks the exact revoke-correction artifact provenance.
 - `functions/v1/production-comments` — bounded, no-store Production-thread reader; it verifies a
   staff role key and active roster selection before service-role reads, but does not enforce the
   requested deliverable's team against that member (F39). Comment bodies are not anon-readable;
@@ -109,16 +110,18 @@ Other:
   last-write-wins (F36). Do not claim end-to-end CAS until every mutation sends the version, stale
   requests create no intent, and 409 compare/reapply UX is proved. Successful accepted operations
   commit through the ledger/outbox RPCs before the UI updates.
-  The #813 candidate extends this same endpoint—without creating another function—with shared
+  PR #850's merged dark cohort extends this same endpoint—without creating another function—with shared
   Submit/Calendar `intake_create`. Calendar provides paired Video/Graphics creation and append to
   an active same-client `batch_id` under batch CAS; Submit still permits Advanced single-team
   intake until F101 closes. It validates persisted project and parent routes before
   the service-only atomic append RPC commits. Its principal-bound source-repair path permits only
   authenticated read-only `reconcile_only` receipt lookup for historical status/comment payloads;
   it bypasses no scope, authority, parity, RPC, drainer, or Linear gate and does not support intake.
-  Browser credentials still cannot enter the service-only TEST override. This is candidate source,
-  not a live deployment claim; eventual release requires exact-main-SHA manual dispatch with
-  `linear-outbound` deployed before `production-write`, while merge/push deploys neither.
+  Browser credentials still cannot enter the service-only TEST override. Pinned run `29601466479`
+  deployed `linear-outbound` v33 before `production-write` v24 from exact `main@9d76df6`, with both
+  source fingerprints passing; #850's callers are live on Pages only for the allowlisted dark cohort
+  (last verified private TEST fixture only). Any real-client enrollment remains owner-gated, and an
+  ordinary merge/push still deploys neither write function.
 - `functions/v1/filming-plans` — filming plans backend. Source authenticates every GET before
   constructing the service-role client, accepts verified admin/SMM/creative staff role keys for
   reads, and keeps writes admin-only. The function is live and missing/wrong keys return `401`.
@@ -154,7 +157,7 @@ Other:
 The four calls composed from `ONBOARDING_EDGE_BASE` are `functions/v1/onboarding-list`,
 `functions/v1/ai-onboarding-list`, `functions/v1/legacy-onboarding-list`, and
 `functions/v1/onboarding-full`. All four now authenticate before constructing a service-role client;
-the first three are live at v24 and missing/wrong keys return `401`. The SPA callers (live on Pages
+the first three are live at v26 and missing/wrong keys return `401`. The SPA callers (live on Pages
 since the 2026-07-15 #836 merge) obtain the key only after verified Admin sign-in and never
 hardcode it. `onboarding-capture` remains public intake but has no stored-data SELECT/read
 path. **F77 remains partial:** wildcard CORS and full-list background discovery still need closure.
@@ -164,11 +167,12 @@ secret possession can still export the corpus; retire that fallback behind indiv
 ### Backend-only Edge Functions (not part of the machine-enforced `index.html` set)
 
 - `linear-inbound` — HMAC-verified Linear webhook target; the browser never calls it.
-- `linear-outbound` — service-triggered durable-outbox drainer. It is dark by default behind
-  `linear_outbound_enabled={"mode":"off"}` and is invoked by scheduled/backend jobs, not the SPA.
-  Part 2 adds a separately killed, targeted `legacy_parity` allowance for server-derived
-  create/status/comment intents while a team remains Linear-authoritative. It is deployed for
-  backend verification but does not enable the global drainer.
+- `linear-outbound` — service-triggered durable-outbox drainer, deployed as pinned v33 and invoked
+  by scheduled/backend jobs rather than the SPA. Runtime mode must be read fresh before action.
+  Part 2 provides a separately killed targeted `legacy_parity` allowance for server-derived
+  create/status/comment intents while a team remains Linear-authoritative, plus F07's exact
+  `syncview_live` target for successful SyncView-authoritative writes while normal outbound is live.
+  Deployment does not itself enable either lane.
 - `deliverable-write`, `batch-write` — service-only low-level wrappers over the existing ledger
   RPCs. They are not browser authorization boundaries and must not be exposed to the anon client.
   The Production tab calls `production-write`, never these low-level functions directly.

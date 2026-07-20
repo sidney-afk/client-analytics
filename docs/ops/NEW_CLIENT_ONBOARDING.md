@@ -137,7 +137,7 @@ This is the part that's easy to forget the *method* for. You're producing three 
 
 **Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` (Slack workspace id, for deep-links). **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
 
-The #813 candidate wires signed-in Admin/SMM copy actions to the already-live v2 exact-client issuer at copy time. It still requires the guarded caller merge and link re-share proof before the distribution path is treated as live; `client-review-link` is not redeployed unless its source changes.
+PR #850 merged signed-in Admin/SMM copy actions that call the already-live v2 exact-client issuer at copy time. Distribution still requires the owner-gated link re-share/current-token proof before real-client enrollment; `client-review-link` is not redeployed unless its source changes.
 
 > 💡 The `instagram_handle` is **not** the slug. The slug comes from `client_name` (see below). A
 > fictional display name `Example Alpha` might use handle `@example.alpha.media` while its slug is
@@ -267,17 +267,20 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 - Open the dashboard, switch to the new client: calendar and samples load (empty is fine).
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
-- Before any #813 enrollment, require a server-side onboarding receipt proving the exact team
+- Before any real-client #850 cohort enrollment, require a server-side onboarding receipt proving the exact team
   mapping, protected review token, and all required authenticated Track-A routing entries exist and
   read back. Prove the first Calendar/SXR/settings write reaches the authenticated EF and cannot
   fall through to anonymous n8n (F67/F69). On TEST, submit one batch and verify the receipt,
   parent/children, Calendar/Samples projection, and tokened client link after reload. A green
   “Issue created” banner is not proof: F44 verified that the legacy workflow can return 200 and
   clear the draft before parent creation later fails.
-- Next morning, require a **per-client/platform coverage receipt** for CLIENTS METRICS / TOP VIDEOS,
-  not merely a new row or placeholder (F124). Current collectors can convert provider/prior-state
-  failure into zero, old, or incomplete output while the workflow reports success. A valid empty
-  result must be distinguished from source failure; preserve last-good data with visible staleness.
+- Next morning, confirm the new client appears in the **CLIENTS METRICS typed terminal coverage
+  receipt**, not merely a new row or placeholder (F124), and check roster coverage, write failures,
+  run duration, and Sheets quota. The current Metrics contract is live-proved at version
+  `b92fb693-1dd4-4ce2-a60e-98a1701c369d` by scheduled execution `287059` (29/29 unique receipts,
+  29 writes, zero write failures, provider-failure last-good preservation, and fresh legitimate
+  zeros). TOP VIDEOS remains degraded: require a distinct per-client/platform completeness receipt,
+  distinguish valid empty from provider failure, and preserve last-good data with visible staleness.
 
 ### 6j. Monthly check-in email
 **Where:** SYNCVIEW sheet → tab **`Monthly Checkup`** — columns `client_name | email`.
@@ -300,8 +303,10 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
   manual row is needed. Routing/auth enrollment is still mandatory.
   ([§6f](#6f-supabase-calendar--samples-no-manual-row-but-routing-is-required))
 - **Metrics, Top Videos, Competitor Research, Market Research** — scheduled n8n workflows read
-  **Clients Info**, but roster pickup is not complete until F124's per-client/platform receipt proves
-  expected/attempted/succeeded coverage and distinguishes valid empty from degraded data.
+  **Clients Info**. CLIENTS METRICS has a live-proved typed terminal receipt contract; onboarding is
+  not complete until the new client appears in that receipt and its coverage/quota checks pass.
+  TOP VIDEOS remains incomplete until its own per-client/platform receipt and degraded-state
+  handling distinguish valid empty from provider failure.
 - **Per‑client caches / realtime channels / share‑link state** in the frontend — created at runtime from the slug.
 - **No** per‑client brand‑color config in `index.html` (brand colors only exist in the separate `thumbnails/` app, which is unrelated to dashboard onboarding).
 

@@ -1,6 +1,6 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-20 @ fd3e0ea (Workload plan-date migration and exact-source function live; private TEST drill cleaned)
+> Last verified: 2026-07-20 @ c722984 + Phase-3 Order-1 reconciliation (Workload plan-date effective schema/exact-source function live and TEST drill cleaned; exact correction provenance F147; #850 write gateway deployed dark)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 ## Tables
@@ -40,10 +40,11 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   56 messy `client_name` variants — normalize via `wlNormalizeClient()`).
 - `workload_plan` — **live internal sidecar**, keyed by stable sub-issue id, with normalized
   client scope, nullable `plan_date`, and server-owned update attribution/time. It intentionally has
-  no foreign key or added column on the rebuildable `workload_issues` mirror. The applied migration
-  enables RLS with zero policies, exposes no browser PostgREST privilege, and grants service role
-  only SELECT/INSERT/UPDATE; DELETE/TRUNCATE/REFERENCES/TRIGGER are explicitly revoked. Exact release
-  cleanup left the table empty.
+  no foreign key or added column on the rebuildable `workload_issues` mirror. Live readback shows
+  RLS with zero policies, no browser PostgREST privilege, and service-role
+  SELECT/INSERT/UPDATE only; DELETE/TRUNCATE/REFERENCES/TRIGGER are explicitly revoked. Exact release
+  cleanup left the table empty. F147 tracks which exact SQL correction artifact established those
+  effective grants.
 - `syncview_runtime_flags` — runtime kill-switches / migration routing. Values have different
   schemas and move during cutover; **never** assume they are all TEST-only. Read them live and
   reconcile with `ROLLBACK.md` plus `docs/independence/GO_LIVE_CHECKLIST.md` before an operation.
@@ -104,9 +105,11 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   `workload-plan` Edge Function to list, set, or clear an internal plan day; Creative is denied for
   both projection reads and mutations. The server validates an active sub-issue and normalized
   client scope before the service-role write.
-- F141 is part of the initial contract: the function reports the number of rows it actually wrote,
-  not the number requested, and the browser requires exactly one. A short count, non-OK response, or
-  malformed result reverts the optimistic date and notifies the user.
+- The Workload actual-count contract requires the function to report the number of rows it actually
+  wrote, not the number requested, and the browser to require exactly one. A short count, non-OK
+  response, or malformed result reverts the optimistic date and notifies the user. Existing Workload
+  test comments reuse `F141`, but that register ID belongs to the Samples reorder finding; F148 is the
+  open Workload source-guard gap.
 - The projection uses stable issue-id keyset pages and rejects partial-list success. Browser reads
   and writes have bounded abort timers; only the newest overlapping refresh may publish state.
   Ordinary read failures retain a last-good snapshot with editing paused, while `401`/`403`
@@ -123,11 +126,12 @@ uniform denials, bounded event retention, and explicit audit-outage behavior. F8
 `client_access_events.ok` means access-allowed rather than credential-valid; the current seven-day
 window has zero valid-token events and cannot satisfy the spec's active-client validation gate.
 
-The #813 candidate does not broaden the workflow's current push paths: `linear-outbound` and
-`production-write` are absent from the merge/push trigger and can deploy only from a manual
-`workflow_dispatch` pinned to one exact 40-character SHA already on `main`. The guarded manual step
-deploys `linear-outbound` before `production-write`, so the provider contract precedes its caller;
-an ordinary merge can deploy neither function.
+PR #850 superseded closed-unmerged #813 without broadening the workflow's push paths:
+`linear-outbound` and `production-write` remain absent from the merge/push trigger and deploy only
+from a manual `workflow_dispatch` pinned to one exact 40-character SHA already on `main`. Pinned run
+`29601466479` used that path at `main@9d76df6`, deploying `linear-outbound` v33 before
+`production-write` v24 and passing both source fingerprints. An ordinary merge still deploys
+neither function.
 
 Live set in `docs/truth/ENDPOINTS.md`. Source and live inventory now represent 28 functions;
 `workload-plan` is ACTIVE v2 with the four-file deployed source closure byte-identical to merge
@@ -143,11 +147,13 @@ has a committed lock/import map. Treat every deployment/rebuild/rollback as F51-
 source closures, dependencies, JWT settings, toolchain, release SHA, and downloaded server
 fingerprints are manifested and independently read back.
 
-The 2026-07-14 containment deployments are independently recorded in `EXECUTION_LOG.md`: all three
-onboarding list readers are live at v24 and `smm-weekly-reports` at v21 with anonymous `401` proofs;
-the four safe-to-deploy writers above and `filming-plans` are also live and deny missing/wrong
-credentials. Function versions can increment when project secrets restart functions, so the source
-commit plus downloaded/server fingerprint—not the version integer alone—is the release identity.
+The 2026-07-14 containment deployments and anonymous `401` proofs remain independently recorded in
+`EXECUTION_LOG.md`. Pinned same-source run `29601466479` later refreshed all three onboarding list
+readers to v26, `smm-weekly-reports` to v23, and `filming-plans` to v25 from exact
+`main@9d76df6`; their fingerprints passed. The four safe-to-deploy writers above are also live and
+deny missing/wrong credentials. Function versions can increment when project secrets restart
+functions, so the source commit plus downloaded/server fingerprint—not the version integer
+alone—is the release identity.
 
 Thumbnail v2 is controlled by backend flag
 `thumbnail_revision_v2={"mode":"off|test|on","clients":[...]}`; the verified live value is

@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-19 @ fd3e0ea + F145 branch (current-state reconciliation through F146; first /site-assurance run — coverage state in docs/testing/ASSURANCE_LEDGER.md; 2026-07-17 bug-archaeology addendum: F142 folder-resolve CORS (fixed + live-verified 07-17), F143 production-write deploy (landed + live-verified 07-17), F144 F44 installer schema drift; F145 mirror hierarchy fix staged 07-19; F140 owner-ratified regression fixed — Samples Finish matches Calendar; F146 failed client request-change rollback/draft recovery fixed 07-18)
+> Last verified: 2026-07-20 @ c903676 + Phase-3 Order-1 docs branch (current-state reconciliation through F148; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release live and #889 client-only grouping/group drag served with F147/F148 evidence follow-ups; coverage state in docs/testing/ASSURANCE_LEDGER.md)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -75,6 +75,13 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   dormant n8n fallback, while many unmigrated surfaces still use n8n. Snapshot any workflow
   privately plus a public-safe `n8n-backups/` stub before touching it (rollback rule 2). Every live
   write drill uses only the private TEST fixture.
+- The Workload internal-plan caller, locked sidecar, and exact-source `workload-plan` v2 are live.
+  The private TEST release proved pre-write `409` rollback, Creative denial, save/reload/clear,
+  due-date preservation, and exact cleanup with all 13 flags unchanged. This Order-1 docs pass
+  performed none of those live actions. PR #889's client-only grouping/group drag is served from
+  current main and reuses sequential one-row writes; #884's server-atomic batch contract remains
+  open. F147 keeps the exact migration-correction artifact provenance open; F148 keeps the
+  insufficient same-chain true-count source guard and reused-F141 test-label cleanup open.
 - Green Linear-reader executions are not completeness proof: F29 covers partial multi-source/status
   snapshots and deterministic 100-ID starvation; F126 covers unpaged child/comment expansion that
   can drive Calendar import/link/status writes. Require complete receipts and zero mutation on any
@@ -98,11 +105,16 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   browser-owned recovery (F133/F134); Calendar/Samples reorder has no touch/keyboard path (F135);
   creatives can regress reviewer/terminal work (F136); Video assets collapse into one mislabeled
   link (F137); and persisted native activity is never loaded or shown (F138).
-- F145 is fixed on the review branch without a schema, n8n, writer, or flag change: Production
+- F145 is merged on `main` via #885 without a schema, n8n, writer, flag, or live-data change: Production
   projects each deliverable's persisted Linear parent UUID and resolves it globally to the live
   native parent row. Batch/title similarity no longer invents hierarchy; missing or malformed
   parents leave work visible as roots. Parent-only webhook changes retain the existing
-  refresh-eventual convergence contract.
+  refresh-eventual convergence contract. Pages run `29713997171` deployed the merge, and read-only
+  live HTML confirms the resolver/raw-parent path with `batchParent` absent. Exact-head run
+  `29711105120` attempt 2 passed all four F145 lanes before merge; current-main run `29713997723`
+  later failed fast + interaction while heavy/review-packet passed. The PR-head and merge trees are
+  identical, so the red run is not evidence of an F145 code delta, but current-main test health
+  remains open.
 - F140 is owner-ratified and fixed on the review branch: Samples matches Calendar, so Kasper may
   stack change requests and then Finish hands the card to the SMM. The strict Finish gate remains;
   the fix prevents a fresh status companion from being mistaken for recovery debt before its first

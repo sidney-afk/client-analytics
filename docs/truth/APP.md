@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-19 @ 6c1456c (client-only Workload hierarchy, ordering, overload, and group-drag candidate; live plan-date backend unchanged)
+> Last verified: 2026-07-20 @ c903676 + Phase-3 Order-1 reconciliation (F145 Production parent-link hierarchy merged; Workload plan-date release live; #889 client-only hierarchy, ordering, overload, and group drag served with the live backend unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -128,12 +128,18 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   overrides as absent. Authentication or authorization denial instead purges the private projection
   immediately. Reads and writes are bounded, and only the newest overlapping refresh may publish
   plan state.
-- **Deployment boundary:** the 2026-07-19 migration is applied and the exact merged function source
-  is live as deliberate-manual `workload-plan` v2. The private TEST release drill proved
+- **Deployment boundary:** effective live table/grant readback matches the locked 2026-07-19
+  sidecar contract, and the exact merged function source is live as deliberate-manual
+  `workload-plan` v2. F147 keeps the exact revoke-correction artifact provenance open. The private
+  TEST release drill proved
   `409` revert/notify, Creative `403` list/set, one-row save plus server-truth reload, clear-to-due
-  fallback, and exact cleanup. The hierarchy/group-drag candidate is client-side only and reuses
-  that deployed one-row writer; it adds no Edge Function, schema, migration, runtime flag, Linear
-  writer, or frozen client-writer change.
+  fallback, and exact cleanup. F148 keeps the insufficient same-chain true-count source guard and
+  reused-F141 test-label cleanup open; the live behavior proof is unchanged. #889's merged
+  hierarchy/group-drag path is client-side only and reuses that deployed one-row writer; it adds
+  no Edge Function, schema, migration, runtime flag, Linear writer, or frozen client-writer change.
+  #884's server-atomic batch contract remains open. Current-main Pages run `29752646229` served the
+  merge. This Order-1 reconciliation itself performed no live operation and changed no n8n workflow
+  or real-client row.
 
 ## Linear sync surface
 

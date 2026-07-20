@@ -807,3 +807,24 @@ All times are UTC unless noted.
   cache, frozen-writer change, real-client mutation, deployment, or live operation. Admin/SMM-only
   editing, Creative read-only behavior, tweak-bucket exclusivity, sequential group-drag, and
   per-editor overload semantics remain unchanged.
+
+## 2026-07-20 — Workload five-day planning display (candidate source only)
+
+- **SMM feedback narrows Week without changing planning authority.** Week is anchored to Monday and
+  renders Monday-Friday as five columns. A compact calendar notice/tray keeps the exact Saturday or
+  Sunday manual plan days and deadlines discoverable; no weekend date is silently moved. The
+  deterministic item-local automatic day remains one working day before due, floored to today, and
+  a saved manual plan day still wins without reflowing peers.
+- **Exceptions stay explicit.** Past-due assigned non-tweak work is excluded from the calendar and
+  appears in Overdue. A past-due In-progress item also remains visible in In progress now; tweaks
+  remains exclusive. Deadline tone now measures plan-day-to-due-day buffer: one day or less red,
+  two to three days orange, and more than three days green.
+- **Controls and drag affordance match their scope.** The display preference is a segmented **Plan
+  only** / **Plan + deadlines** control beside the client filter. Admin/SMM users drag only from a
+  dedicated six-dot handle on plan groups and expanded sub-issues; clicking elsewhere retains the
+  normal expand/open behavior. Existing sequential one-row group writes and per-item fail-closed
+  rollback remain unchanged.
+- **Boundary preserved.** This candidate changes only client source, offline guards, and truth/log
+  documentation. It adds no schema, migration, Edge Function, runtime flag, Linear writer, n8n
+  workflow, plan-date cache, frozen-writer change, deployment, or live operation. Creative remains
+  read-only, and the existing live `workload-plan` boundary is reused unchanged.

@@ -688,8 +688,8 @@ n8n in the metric read path.*
 - **State.** `syncview_linearIssuesCache_v1` (5 min, both feeders), `syncview_workload_v2_off`
   (`syncview_workload_v2` is write-only / vestigial), `syncview_workloadView_v1`,
   `syncview_workloadSections_v1` (non-sensitive expanded/collapsed exception preferences),
-  `syncview_workloadDeadlineOverlay_v1` (non-sensitive, display-only **Show deadlines** preference;
-  absent/off by default and on forces Week view),
+  `syncview_workloadDeadlineOverlay_v1` (non-sensitive, display-only **Plan only** / **Plan +
+  deadlines** preference; absent defaults to **Plan only**, while **Plan + deadlines** forces Week),
   `syncview_kasper_editors_v2` (week-rollover-invalidated). Kill switches: `?wl2=0`, the compile-time
   `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch exists for either Workload or the
   plan-date path; plan and best-effort priority state are held as issue-id maps in the running page
@@ -726,18 +726,25 @@ n8n in the metric read path.*
   per-editor overload warnings and title-only expanded labels. Client-group order is derived from
   complete native mirror order when available, otherwise from identifier number; moves never store
   display order. Only each editor's capacity pill turns red; the day cell keeps normal styling.
-  Overdue, in-progress, and tweaks sections precede the intact period/filter toolbar, default
-  collapsed, and persist each browser's expansion preference. The toolbar sits directly above the
-  calendar; undated work follows the calendar and unassigned lane at the bottom. Client chips and
-  issue rows expose quiet sparkle/pin auto/manual icons, deadline proximity (red at one day or less,
-  orange at two to three days, green beyond three), and a separate native Linear priority icon when
-  the `deliverables` join resolves. The tone belongs to each sub-issue and reaches a collapsed group
-  only when every represented deadline shares one band; mixed or missing deadlines leave the group
-  neutral. The persistent, default-off **Show deadlines** control is Week-only and renders one
-  aligned row per planned editor/client group, with straight plan-to-due lines, split due endpoints,
-  and a flag instead of a duplicate endpoint when plan and due share a day. Due endpoints are
-  display-only, non-draggable, and excluded from capacity; the solid plan source remains draggable
-  and is the only counted copy. Shared popovers link to Linear, keep one title-row deadline, and use
+  Past-due assigned non-tweak work is excluded from the calendar; it appears in Overdue, and a
+  past-due In-progress item also remains in In progress now. Tweaks remains exclusive. Overdue,
+  in-progress, and tweaks sections precede the intact period/filter toolbar, default collapsed, and
+  persist each browser's expansion preference. The toolbar sits directly above the calendar;
+  undated work follows the calendar and unassigned lane at the bottom. Client chips and issue rows
+  expose quiet sparkle/pin auto/manual icons, deadline proximity measured from displayed plan day
+  to due day (red at one day or less, orange at two to three days, green beyond three), and a
+  separate native Linear priority icon when the `deliverables` join resolves. The tone belongs to
+  each sub-issue and reaches a collapsed group only when every represented deadline shares one band;
+  mixed or missing deadlines leave the group neutral. The persistent **Plan only** / **Plan +
+  deadlines** segmented control sits beside the client filter. Week is a Monday-anchored five-column
+  Monday-Friday range; manual plan days and deadlines on the weekend remain discoverable, with their
+  exact dates, through a compact calendar notice/tray and are never silently moved. **Plan +
+  deadlines** is Week-only and renders one aligned row per planned editor/client group, with straight
+  plan-to-due lines, split due endpoints, and a same-day marker instead of a duplicate endpoint when
+  plan and due share a day. Due endpoints are display-only and excluded from capacity; the solid
+  plan source is the only counted copy. Admin/SMM drag starts only from the dedicated six-dot handle
+  on a plan group or expanded issue; the rest of the row remains clickable and non-draggable.
+  Shared popovers link to Linear, keep one title-row deadline, and use
   one compact branded Work day row; only a directly opened manual sub-issue exposes the automatic
   reset. Tweaks retains its comment layout. The migration, EF, and original plan-date browser behavior are
   live; the private TEST release drill proved save/reload/clear, pre-write `409` rollback, Creative

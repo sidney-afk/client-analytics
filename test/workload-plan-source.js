@@ -40,6 +40,22 @@ const dayRollups = INDEX.slice(
   INDEX.indexOf('function renderDayRollups('),
   INDEX.indexOf('const WL_TWEAK_COMMENTS_TTL_MS'),
 );
+const issueCards = INDEX.slice(
+  INDEX.indexOf('function wlRenderPlanIssueCards('),
+  INDEX.indexOf('function renderDayRollups('),
+);
+const timelineTrack = INDEX.slice(
+  INDEX.indexOf('function wlRenderTimelineTrack('),
+  INDEX.indexOf('function renderWeekDeadlineTimeline('),
+);
+const issueDragHandle = INDEX.slice(
+  INDEX.indexOf('function wlIssueDragHandleHtml('),
+  INDEX.indexOf('function wlGroupDragHandleHtml('),
+);
+const groupDragHandle = INDEX.slice(
+  INDEX.indexOf('function wlGroupDragHandleHtml('),
+  INDEX.indexOf('function wlPriorityValue('),
+);
 const rollupPopover = INDEX.slice(
   INDEX.indexOf('function wlOpenRollupPopover('),
   INDEX.indexOf('function wlApplySpotlight('),
@@ -195,8 +211,18 @@ ok(/json\.updated !== 1/.test(clientPersist)
   && /wlApplyPlanLocal\(issue\.id, previousDate\)/.test(clientPersist)
   && /showNotify\("Couldn't save the work day"/.test(clientPersist),
 'browser requires one matching actual write, then reverts and notifies on every mismatch');
-ok(/data-wl-plan-drag/.test(INDEX)
-  && /data-wl-plan-group-drag/.test(INDEX)
+ok(/data-wl-drag-handle="issue"/.test(issueDragHandle)
+  && /draggable="true"/.test(issueDragHandle)
+  && /data-wl-plan-drag=/.test(issueDragHandle)
+  && /data-wl-drag-handle="group"/.test(groupDragHandle)
+  && /draggable="true"/.test(groupDragHandle)
+  && /data-wl-plan-group-drag/.test(groupDragHandle)
+  && /wlIssueDragHandleHtml\(issueId, canDrag\)/.test(issueCards)
+  && /wlGroupDragHandleHtml\(dayISO, ed\.assigneeId, g\.clientName, canDragGroup\)/.test(dayRollups)
+  && /wlGroupDragHandleHtml\(track\.planDate, editor\.assigneeId, track\.clientName, canDragGroup\)/.test(timelineTrack)
+  && !/<button type="button" class="workload-plan-item[^>]*(?:draggable=|data-wl-plan-drag)/.test(issueCards)
+  && !/<summary class="workload-day-card-chip[^>]*(?:draggable=|data-wl-plan-group-drag)/.test(dayRollups)
+  && !/<summary class="workload-timeline-plan-chip[^>]*(?:draggable=|data-wl-plan-group-drag)/.test(timelineTrack)
   && !/data-wl-plan-clear/.test(dayRollups)
   && /_svDateHtml\(dateId, workDate/.test(rollupPopover)
   && /issueId && explicitPlan/.test(rollupPopover)
@@ -204,7 +230,7 @@ ok(/data-wl-plan-drag/.test(INDEX)
   && /Use automatic plan/.test(rollupPopover)
   && /function wlDisplayDate\(/.test(INDEX)
   && /function wlPlacementMode\(/.test(INDEX),
-'UX exposes issue and collapsed-client drag, branded work-day editing, and a direct-item-only automatic-plan reset');
+ 'UX limits issue and collapsed-client drag to dedicated handles while preserving branded editing and direct-item-only automatic reset');
 ok(/!issues\.length \|\| !wlPlanEditingEnabled\(\)/.test(clientGroupMove)
   && /issues\.some\(issue => wlIsTweaksNeeded\(issue\) \|\| _wlPlanWriteInFlight\.has/.test(clientGroupMove)
   && /for \(const move of moves\)[\s\S]*?await _wlPersistPlanDate\([\s\S]*?true[\s\S]*?\);/.test(clientGroupMove)

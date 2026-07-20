@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ c722984 + Phase-3 Order-1 reconciliation (F145 Production parent-link hierarchy merged; Workload plan-date release live)
+> Last verified: 2026-07-20 @ c903676 + Phase-3 Order-1 reconciliation (F145 Production parent-link hierarchy merged; Workload plan-date release live; #889 client-only hierarchy, ordering, overload, and group drag served with the live backend unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -95,8 +95,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - Workload reads the Linear-backed `workload_issues` mirror and does not write Linear due dates.
 - The calendar is a literal due-date view: dated work is bucketed on its exact Linear due date.
   There is no due-minus-one derivation, ASAP packing, capacity spill, or hidden overflow row.
-- Capacity remains 5 video / 15 graphics per editor per day as a warning only. A date with an
-  overloaded editor stays intact, renders red with visible `over` copy, and retains every rollup.
+- Capacity remains 5 video / 15 graphics per editor per day as a warning only. Each editor block
+  owns its red over-capacity pill; the date keeps only a subtle red tint, and every item remains
+  available instead of spilling or hiding.
+- Calendar hierarchy is date → editor → client → sub-issue. Editor blocks remain primary, each
+  client starts as one collapsed `Client · N` chip, and only that client's sub-issues expand on
+  click. Expanded rows use the sub-issue title while the identifier stays in hover/popover context.
+  Within a client, render order uses native mirror sort order only when the whole group carries it;
+  otherwise it derives identifier-number order. The order is never persisted.
 - Assigned active work with neither an internal work day nor a due date stays off the calendar and
   appears in **Needs a work day or deadline**. An undated issue with an explicit plan day does enter
   the calendar. `Tweak Needed` / `Tweaks Needed` remains an exclusive strip and never enters the
@@ -106,6 +112,11 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `workload_plan` sidecar; when none is saved, placement falls back to the exact due date. Dragging
   an individual issue or using the branded work-day control updates only that internal date, and
   **Clear plan day** returns it to due-date placement.
+- Dragging a collapsed client chip moves that exact date/editor/client group optimistically, then
+  sends sequential single-issue writes through the existing `workload-plan` contract. Successful
+  items stay moved; each failed item returns to its prior day, with one aggregate result notice.
+  Dropping onto an existing matching editor/client group derives one merged chip. Expanded
+  single-issue drag remains independent.
 - The live Admin/SMM-authenticated `workload-plan` Edge Function is the only browser
   projection and writer for the sidecar. Creative is denied both saved-plan reads and mutations by
   the server role allowlist and the matching browser capability gate. A write is accepted only when
@@ -122,8 +133,12 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `workload-plan` v2. F147 keeps the exact revoke-correction artifact provenance open. The private
   TEST release drill proved
   `409` revert/notify, Creative `403` list/set, one-row save plus server-truth reload, clear-to-due
-  fallback, and exact cleanup. No runtime flag, n8n workflow, Linear writer, real-client row, or
-  frozen client writer changed; this Order-1 reconciliation performed no live operation.
+  fallback, and exact cleanup. F148 keeps the same-chain true-count guard and reused-F141 test-label
+  cleanup open; the live behavior proof is unchanged. #889's merged hierarchy/group-drag path is
+  client-side only and reuses that deployed one-row writer; it adds no Edge Function, schema,
+  migration, runtime flag, Linear writer, or frozen client-writer change. Current-main Pages run
+  `29752646229` served the merge. This Order-1 reconciliation itself performed no live operation
+  and changed no n8n workflow or real-client row.
 
 ## Linear sync surface
 

@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-20 @ c722984 + Phase-3 Order-1 docs branch (current-state reconciliation through F148; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release live with F147/F148 evidence follow-ups; coverage state in docs/testing/ASSURANCE_LEDGER.md)
+> Last verified: 2026-07-20 @ c903676 + Phase-3 Order-1 docs branch (current-state reconciliation through F148; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release live and #889 client-only grouping/group drag served with F147/F148 evidence follow-ups; coverage state in docs/testing/ASSURANCE_LEDGER.md)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -78,8 +78,10 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 - The Workload internal-plan caller, locked sidecar, and exact-source `workload-plan` v2 are live.
   The private TEST release proved pre-write `409` rollback, Creative denial, save/reload/clear,
   due-date preservation, and exact cleanup with all 13 flags unchanged. This Order-1 docs pass
-  performed none of those live actions. F147 keeps the exact migration-correction artifact
-  provenance open; F148 keeps the insufficient same-chain true-count source guard open.
+  performed none of those live actions. PR #889's client-only grouping/group drag is served from
+  current main and reuses sequential one-row writes; #884's server-atomic batch contract remains
+  open. F147 keeps the exact migration-correction artifact provenance open; F148 keeps the
+  insufficient same-chain true-count source guard and reused-F141 test-label cleanup open.
 - Green Linear-reader executions are not completeness proof: F29 covers partial multi-source/status
   snapshots and deterministic 100-ID starvation; F126 covers unpaged child/comment expansion that
   can drive Calendar import/link/status writes. Require complete receipts and zero mutation on any

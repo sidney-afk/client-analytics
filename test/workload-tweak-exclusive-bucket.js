@@ -205,8 +205,10 @@ const renderWeekGrid = compile('renderWeekGrid', {
 });
 const weekHtml = renderWeekGrid();
 check(/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(weekHtml)
-    && weekHtml.includes('6 · over'),
-  'an overloaded due-date column renders red with a visible over-capacity label');
+    && weekHtml.includes('<span class="workload-day-count">6</span>')
+    && !weekHtml.includes('workload-day-count over-capacity')
+    && !weekHtml.includes('6 · over'),
+  'an overloaded due-date column keeps only a subtle tint and neutral item count');
 
 const renderFilteredWeekGrid = compile('renderWeekGrid', {
   wlState,
@@ -269,6 +271,7 @@ wlState.planByIssueId.clear();
 
 const renderDayRollups = compile('renderDayRollups', {
   wlTeamBucket,
+  wlEditorCapacity,
   wlDisplayName: name => name,
   wlEscape: value => String(value),
   wlPlanEditingEnabled: () => true,
@@ -309,6 +312,8 @@ const overloadedEditorHtml = renderDayRollups(oneOverloadedEditor, dueDate);
 check((overloadedEditorHtml.match(/class="workload-plan-item"/g) || []).length === 6
     && (overloadedEditorHtml.match(/class="workload-day-client-group"/g) || []).length === 1
     && !/<details class="workload-day-client-group"[^>]*\sopen(?:\s|>)/.test(overloadedEditorHtml)
+    && overloadedEditorHtml.includes('class="workload-day-card-total over-capacity"')
+    && overloadedEditorHtml.includes('6/5 · 1 over')
     && overloadedEditorHtml.includes('class="workload-day-card-chip"')
     && overloadedEditorHtml.includes('Synthetic Client')
     && overloadedEditorHtml.includes('· 6')
@@ -318,6 +323,21 @@ check((overloadedEditorHtml.match(/class="workload-plan-item"/g) || []).length =
 check(oneOverloadedEditor[0].subs.every(row => overloadedEditorHtml.includes(`>${row.title}</span>`))
     && !overloadedEditorHtml.includes('Synthetic Client · VID-'),
   'expanded issue labels use their own titles while identifiers stay out of the visible label');
+const overloadedGraphicsHtml = renderDayRollups([{
+  ...oneOverloadedEditor[0],
+  teamKey: 'GRA',
+  teamName: 'Graphics',
+  count: 16,
+  subs: Array.from({ length: 16 }, (_, i) => ({
+    ...oneOverloadedEditor[0].subs[0],
+    id: 'graphic-visible-' + i,
+    identifier: 'GRA-' + (i + 1),
+    title: 'Synthetic graphic ' + (i + 1),
+  })),
+}], dueDate);
+check(overloadedGraphicsHtml.includes('class="workload-day-card-total over-capacity"')
+    && overloadedGraphicsHtml.includes('16/15 · 1 over'),
+  'graphics overload is shown on its editor against the 15-item threshold');
 
 check(!INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('function scheduleAll(')
@@ -325,8 +345,10 @@ check(!INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('scheduledDate'),
   'editable source contains no automatic date derivation or scheduler state');
 check(INDEX.includes('.workload-day.over-capacity')
+    && INDEX.includes('.workload-day-card-total.over-capacity')
+    && !INDEX.includes('.workload-day-count.over-capacity')
     && !INDEX.includes("'Plan ' + wlFormatShort"),
-  'source guard pins themed overload styling and removes phantom scheduler copy');
+  'source guard pins editor-level overload styling and removes the day-level overload pill');
 check(INDEX.includes('<details class="workload-day-client-group">')
     && INDEX.includes('<summary class="workload-day-card-chip"')
     && !INDEX.includes('<details class="workload-day-client-group" open>'),

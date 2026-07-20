@@ -3269,7 +3269,6 @@
         .workload-grid.week .workload-day-num { font-size: 0.85rem; margin-bottom: 4px; }
         .workload-day.today .workload-day-num { color: var(--text-primary); }
         .workload-day-count { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); background: var(--white); border-radius: 999px; padding: 1px 6px; }
-        .workload-day-count.over-capacity { color: var(--wl-status-fg); background: var(--wl-overdue-accent); }
         .workload-day-card { background: var(--white); border-left: 3px solid var(--sv-border-6c5ce7); border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
         .workload-day-card.team-video    { border-left-color: var(--sv-border-6c5ce7); }
         .workload-day-card.team-graphics { border-left-color: var(--sv-border-d97706); }
@@ -3279,6 +3278,8 @@
         .workload-grid.week .workload-day-card-name { font-size: 0.78rem; }
         .workload-day-card-total { background: var(--bg); border: 0; border-radius: 999px; padding: 1px 7px; font-family: inherit; font-size: 0.6rem; font-weight: 800; color: var(--text-secondary); flex-shrink: 0; cursor: pointer; transition: background 0.1s; }
         .workload-day-card-total:hover { background: var(--white); box-shadow: 0 0 0 1px var(--border) inset; color: var(--text-primary); }
+        .workload-day-card-total.over-capacity { color: var(--wl-status-fg); background: var(--wl-overdue-accent); }
+        .workload-day-card-total.over-capacity:hover { color: var(--wl-status-fg); background: var(--wl-overdue-accent-hover); box-shadow: none; }
         .workload-day-card-clients { display: flex; flex-wrap: wrap; gap: 3px; }
         .workload-day-client-group { min-width: 0; }
         .workload-day-client-group[open] { flex-basis: 100%; }
@@ -14423,9 +14424,7 @@
             }
             if (overCapacity) classes.push('over-capacity');
             const rowsHtml = renderDayRollups(groups, iso);
-            const countBadge = (count || overCapacity)
-                ? `<span class="workload-day-count${overCapacity ? ' over-capacity' : ''}"${overCapacity ? ' title="Over capacity — all work remains on this work day"' : ''}>${count || ''}${overCapacity ? (count ? ' · over' : 'over') : ''}</span>`
-                : '';
+            const countBadge = count ? `<span class="workload-day-count">${count}</span>` : '';
             gridHtml += `<div class="${classes.join(' ')}" data-wl-day="${wlEscape(iso)}">
                 <div class="workload-day-num"><span>${d.getDate()}</span>${countBadge}</div>
                 ${rowsHtml}
@@ -14477,9 +14476,7 @@
             }
             if (overCapacity) classes.push('over-capacity');
             const rowsHtml = renderDayRollups(groups, iso);
-            const countBadge = (count || overCapacity)
-                ? `<span class="workload-day-count${overCapacity ? ' over-capacity' : ''}"${overCapacity ? ' title="Over capacity — all work remains on this work day"' : ''}>${count || ''}${overCapacity ? (count ? ' · over' : 'over') : ''}</span>`
-                : '';
+            const countBadge = count ? `<span class="workload-day-count">${count}</span>` : '';
 
             gridHtml += `<div class="${classes.join(' ')}" data-wl-day="${wlEscape(iso)}">
                 <div class="workload-day-num"><span>${d}</span>${countBadge}</div>
@@ -14530,6 +14527,8 @@
         return editors.map(ed => {
             const team = wlTeamBucket(ed.teamKey, ed.teamName);
             const name = wlDisplayName(ed.assigneeName) || 'Unknown';
+            const capacity = wlEditorCapacity(ed.teamKey, ed.teamName);
+            const overBy = Math.max(0, ed.total - capacity);
             const clientGroups = ed.clients.map(g => {
                 const clientName = g.clientName || '—';
                 const issueCards = (g.subs || []).map(s => {
@@ -14553,7 +14552,7 @@
             return `<div class="workload-day-card team-${team}">
                 <div class="workload-day-card-head">
                     <span class="workload-day-card-name" title="${wlEscape(name)}">${wlEscape(name)}</span>
-                    <button type="button" class="workload-day-card-total" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}" data-wl-editor-name="${wlEscape(name)}" title="See the ${ed.total} sub-issue${ed.total !== 1 ? 's' : ''}">${ed.total}</button>
+                    <button type="button" class="workload-day-card-total${overBy ? ' over-capacity' : ''}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}" data-wl-editor-name="${wlEscape(name)}" title="${overBy ? `${name} is ${overBy} over the ${capacity} per-day capacity; all work remains visible` : `See the ${ed.total} sub-issue${ed.total !== 1 ? 's' : ''}`}">${overBy ? `${ed.total}/${capacity} · ${overBy} over` : ed.total}</button>
                 </div>
                 <div class="workload-day-card-clients">${clientGroups}</div>
             </div>`;

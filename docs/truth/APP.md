@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch (Workload five-day deadline-timeline and thumbnail-preview follow-up merged; F138 current-source correction; boot/refresh/history/read-truth register reconciled through F174; live plan-date backend unchanged)
+> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; continued exact-head review of draft #891 `02105e9` with audit companion `3189203` (Workload five-day deadline-timeline and thumbnail-preview follow-up merged; F138 current-source correction; boot/refresh/history/read-truth register reconciled through F182; live plan-date backend unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -22,10 +22,20 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   Go-live therefore requires a fixed same-origin manifest plus server minimum-build/epoch enforcement,
   with owner-defined optional versus mandatory release behavior and draft/queue-safe reauthentication.
 - F172 is a **source-only** staff Analytics lifetime gap: current-main `fetchAll()` has no
-  document/BFCache run or abort lease. Draft #891 passes its new run only for client links and its
+  document/BFCache run or abort lease. Draft #891 `02105e9` passes its new run only for client links and its
   suspension owner exits for staff, so the unmerged candidate does not close the staff path. No
   staff browser reproduction or runtime frequency is claimed; the staff-flow phase must add the
   actual visible pagehide/BFCache/late-completion guard.
+- Client-entry release-harness review is complete on draft #891 `02105e9` with audit companion
+  `3189203`; it is not pending. It found F175/F176 and F178–F182: protected URLs/headers and keys
+  still reach direct shell argv/errors, the TEST token is exported job-wide, token-bearing client
+  targets can reach static-server/Playwright failure output, manual dispatch text is shell-injected
+  into credential-bearing steps, and the p94/EF auxiliary/vision paths retain private shell/file
+  transports. Evidence is source-only except for isolated local synthetic Python/Playwright proof
+  of F178 and inert, no-payload-execution substitution proof of F179; no real token/staff/API key,
+  external network, backend/API, live data or writer was used. F175/F176 and F178–F182 remain merge
+  blockers pending remediation and post-remediation exact-head review. F177 is the docs-only
+  correction of the former stale review-status wording.
 
 ## Calendar
 
@@ -50,9 +60,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - F170/F171: the current Calendar primary read, post-load Linear/meta continuations, realtime
   channel/timers, loader state and deferred render do not share one document/surface generation.
   Controlled synthetic-browser evidence held client A's v1 reconcile, switched visibly to B, and
-  reproduced an intercepted stale write enqueued against B. Draft #891 candidate `baa4ebf` adds the
-  proposed generation/abort/realtime/exit/BFCache guard, but it is unmerged and cloud review is
-  pending; neither row is closed.
+  reproduced an intercepted stale write enqueued against B. Draft #891 candidate `02105e9` adds the
+  proposed generation/abort/realtime/exit/BFCache guard, but it is unmerged. Exact-head source
+  review completed and found F175/F176 and F178–F182; remediation plus post-remediation review
+  remain pending, so neither Calendar row is closed.
 - Cards with a single Drive-file thumbnail group their IDs into authenticated, bounded (maximum 50)
   availability calls to `thumbnail-revision-read`. That projection returns only the IDs with a real
   Previous/Current pair, so the **Compare** icon stays absent otherwise; it returns no signed URLs or

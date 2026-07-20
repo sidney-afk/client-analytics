@@ -353,21 +353,35 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       legacy Samples links retain the verified client principal, and Calendar/Brief reloads never
       expose Analytics chrome or data. Prove the visible sequence from document start through
       settlement on synthetic fixtures, including hard reload and second reload.
-- [ ] **Client-entry live QA preserves the protected TEST credential and the strict route contract**
-      (F173/F174): token-bearing courier requests/responses remain fileless and in memory; the
-      protected token, URL and headers never enter process arguments, temp residue, command-bearing
-      errors or logs. Operative overnight instructions resolve the current TEST token only through
-      the protected issuer/staff-key path and build only canonical `c,t,v[,sxr]` routes through the
-      shared helper—never a literal token, credential-bearing URL or `v2debug` client route. Guard
-      success and forced-failure residue/error paths with synthetic markers, then drive the actual
-      visible TEST client route; fail closed when a current token is unavailable.
+- [ ] **Client-entry live QA preserves every protected credential, payload and strict route contract**
+      (F173/F174/F175/F176/F178/F179/F180/F181/F182): all QA HTTP paths use one fixed-argv,
+      fileless, in-memory transport.
+      This includes the browser courier, direct shared-SXR helpers, p94 full-quota courier, EF
+      drift/settings helpers, and optional vision API; protected keys, tokens, URLs, headers,
+      request bodies and response headers never enter argv, files, command-bearing errors, child
+      environments, artifacts or logs. Static-server access output and Playwright navigation
+      failures cannot retain a token-bearing request target, and runner tails/reports are redacted
+      at the credential-owning boundary. Operative overnight instructions resolve the current TEST
+      token only through the protected issuer path and build only canonical `c,t,v[,sxr]` routes
+      through the shared helper—never a literal token, credential-bearing URL or `v2debug` client
+      route. Each exact browser process resolves and holds its token in memory; no token is exported
+      through `GITHUB_ENV` or `process.env`. Manual `workflow_dispatch` filters are exact-allowlisted
+      and passed as inert data to a Node entrypoint with fixed argv, never expression-substituted
+      into shell; the staff issuer key exists only inside the exact resolver process and is stripped
+      from every child. Guard success, forced failure and abrupt exit with synthetic URL/header/key/
+      body/metacharacter markers across argv, files, errors, stdout/stderr, runner tails and residue;
+      the injection guard executes no payload. Then drive the actual visible TEST client route and
+      fail closed when a current token is unavailable. Exact-head review of draft #891 `02105e9`
+      completed and found F175/F176 and F178–F182. Every open row requires remediation and
+      post-remediation exact-head cloud review.
 - [ ] **Calendar lifetime and ancillary work have one exact-client owner** (F170/F171/F162):
       one generation owns the primary read, Linear reconcile/meta continuations, realtime
       channel/timers, loader state and deferred render until all tails settle. Client/route/no-load
       replacement and pagehide abort/revoke that exact owner; persisted pageshow starts exactly one
       fresh epoch. Hold A's reconcile/meta, switch visibly to B, release A, and prove zero B
       mutation, cache/meta persist, suppression token, writer enqueue or repaint. Draft #891 remains
-      a candidate until exact-head cloud review and owner merge.
+      a candidate: exact-head review of `02105e9` completed with F175/F176 and F178–F182 blockers,
+      so their remediation, post-remediation cloud review and owner merge are still required.
 - [ ] **Boot reads fail visibly and terminate**
       (F151/F152/F158/F163/F164/F165/F166/F167/F168/F169): HTTP 4xx/5xx,
       parseable error envelopes, malformed 200 responses, offline prerequisites and never-settling

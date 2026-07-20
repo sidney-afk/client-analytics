@@ -166,6 +166,19 @@ Everything below is shared by every surface; per-surface sections only note devi
   calendar-card jobs), clean onboarding aliases probe a public 404 path, and the first network token
   becomes the baseline even when a cached older document is running. No embedded build/authority
   epoch, server minimum-version rejection, or build-population telemetry currently expires callers.
+- **Client-entry QA credential/transport boundary (F173–F182; exact-head review at draft #891
+  `02105e9`).** The candidate corrects F173's EF courier residue/argv path and F174's invalid
+  overnight client route, but completed review found seven open release gates. Direct shared-SXR
+  helpers still build protected REST URLs/headers into shell curl argv/errors (F175); both
+  nightlies export the TEST token into inherited job/process state (F176); token-bearing client
+  targets can reach static-server access and Playwright navigation failure output (F178); and raw
+  manual-dispatch text is shell-interpolated in credential-bearing steps (F179). The full-quota
+  probe, EF drift/settings helpers, and optional vision API also retain private shell/file
+  transports outside the common guard (F180–F182). Evidence is source-only except for isolated
+  local synthetic Python/Playwright proof of F178 and inert, no-payload-execution substitution
+  proof of F179; no real token/staff/API key, external network, backend/API, live data or writer
+  was used. F177 is the completed docs-only review-status correction. The draft is blocked pending
+  F175/F176 and F178–F182 remediation plus post-remediation exact-head review.
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
   constant declared *before* the main Supabase URL constant (TDZ avoidance) — that is why §7 counts
   "19 literal + 4 composed" Edge Functions.
@@ -226,7 +239,7 @@ n8n in the metric read path.*
   inspected.
 - **Staff document-lifetime gap (F172; SOURCE-ONLY at `86fe60c`).** Staff Analytics bootstrap has
   no document/BFCache generation or abort controller around essentials, extras, cache publication
-  and re-render. Draft #891 candidate `baa4ebf` passes its new data run only for client links and
+  and re-render. Draft #891 candidate `02105e9` passes its new data run only for client links and
   its suspension handler exits for staff, so the unmerged candidate does not close this path. No
   staff browser reproduction or runtime-frequency claim exists yet.
 - **Notable.** Client-viewable brief pages can write to the agency Hook Library (`add-hook-to-library`
@@ -320,9 +333,10 @@ n8n in the metric read path.*
   loader state and deferred render do not share one surface generation through terminal
   settlement. No-load exits/pagehide/BFCache can leave ownership alive. A held client-A v1
   reconcile released after a visible switch to B reproduced mutation of B plus an intercepted
-  Calendar write enqueue under B. Draft #891 candidate `baa4ebf` adds the proposed
-  generation-owned abort/realtime/exit/BFCache guards, but it is unmerged and cloud review is
-  pending; current truth remains open.
+  Calendar write enqueue under B. Draft #891 candidate `02105e9` adds the proposed
+  generation-owned abort/realtime/exit/BFCache guards, but it is unmerged. Exact-head source
+  review completed and found F175/F176 and F178–F182; remediation plus post-remediation review
+  remain pending, so current truth remains open.
 - **Retirement warning (F104).** The former Phase-4 checklist is quarantined: it falsely treated the
   opt-out and fallback branches as unreachable and would also remove the v2 metadata reader's
   `LINEAR_STATUSES_URL`. No flag, fallback, helper, workflow, or Sheet is retired without measured

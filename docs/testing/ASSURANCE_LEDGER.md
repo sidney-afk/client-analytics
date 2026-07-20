@@ -5,7 +5,9 @@
 > expired proof** — a row here is a claim about evidence, never a claim that "the site
 > works." Public-safe: no secrets, client names, or HR values.
 >
-> **Last refreshed: 2026-07-19** (run 2 — TEST-drill mandate; F141 root-caused + repo
+> **Last refreshed: 2026-07-20** (Workload release-only refresh: exact-source deploy plus private
+> TEST 409/revert/notify, Creative denial, save/reload/clear, and cleanup proof). The broader run 2
+> remains dated 2026-07-19 (TEST-drill mandate; F141 root-caused + repo
 > fix + guards on `claude/site-assurance-run-2-r0ovr9`; Tier-0 served-bytes integrity
 > re-proven deployed≡main; the two client-facing Tier-0 drills could not be executed in
 > this sandbox — see run history). Prior refresh 2026-07-17 (first run — back-filled from
@@ -46,7 +48,7 @@
 | Surface | Last proven | Method | Verdict | Open gaps | State (2026-07-17) | Score |
 |---|---|---|---|---|---|---|
 | PTO tracker UI/UX | 2026-07-15 | Live browser proof at go-live: staff-menu entry, overview for Admin + one non-admin, disposable TEST request full lifecycle; `test/pto-ui-wiring.js` + `pto-control-behavior.js` green 07-17 | pass | — | FRESH | 2 |
-| Workload view | 2026-07-15 (classifier only) | Unit regression `test/workload-tweak-exclusive-bucket.js` on the real `wlApplyData`; green 07-17 | pass (logic) | **View/browser half never proven** anywhere in the log (no e2e/visual of the rendered Workload view) | EXPIRED (unproven half) — queued next run | 6 |
+| Workload view | **2026-07-20** (live release) | Public served bytes matched current `main`, whose Workload/auth slices are byte-identical to merge `fd3e0eaa`; private TEST browser drill proved the real pre-write 409 optimistic revert + notify, Creative 403 list/set + read-only UI, one-row drag persistence through a fresh server list, clear-to-due fallback, and exact cleanup with unchanged deadline/flags. Offline literal-bucket, F141, and source guards remain green. | pass | Collapsed-rollup batch move remains Phase 2.1 follow-up #884; the live drill intentionally did not stage the impractical short-count race already covered hermetically | FRESH | 2 |
 | Analytics / market-research views | 2026-07-04 (analytics) | Local headless smoke (search, data-less empty state) + live marker check post-#675 | pass (smoke) | **Market-research half: no proof anywhere in the log**; analytics proof is the oldest live proof in this ledger | EXPIRED (market-research half) — queued next run | 6 |
 | Templates | 2026-07-14 | F35 gated-writer proof (`templates-save` v30): deny 401s, managed-key TEST 200, exact restore; A4 parity 07-04/05; multi-link headless round-trip 07-06 | pass-with-caveats | Multi-link live round-trip on the n8n lane never owner-confirmed (07-06 note never closed) | FRESH | 2 |
 | Filming plans | 2026-07-16 | Protected-read proof during F88 recovery (30 rows, both required client mappings, 3 executions traversed the repaired reader); staff screen load 07-15 | pass-with-caveats | Staff-tab UI e2e never run live (QA stubs `filming-plan-tabs` by default); F82 residuals open | FRESH | 2 |

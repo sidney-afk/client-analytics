@@ -279,26 +279,61 @@ function ok(condition, message) {
       'a mismatched canonical row fails closed and restores the previous value');
   }
 
-  // A delayed list response captured before a successful write must not
+  // A delayed real list fetch captured before a successful write must not
   // overwrite the just-saved local date after the in-flight token clears.
+  // Exercise wlFetchPlanRows itself so this proof stays bound to the exact
+  // point where readGeneration is captured, not a handcrafted snapshot.
   {
+    const deferred = () => {
+      let resolve, reject;
+      const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+      return { promise, resolve, reject };
+    };
+    const response = deferred();
+    const fetchStarted = deferred();
     const context = {
+      WORKLOAD_PLAN_URL: 'https://example.invalid/functions/v1/workload-plan',
+      WL_PLAN_READ_TIMEOUT_MS: 8000,
+      _wlPlanSessionGeneration: 0,
+      _wlPlanWriteGeneration: 3,
       wlState: {
         planByIssueId: new Map([['synthetic-issue-1', '2026-07-29']]),
         planHasSnapshot: false,
+        planStatus: 'ready',
+        planError: null,
+        planFetchedAt: null,
       },
       _wlPlanWriteInFlight: new Map(),
-      _wlPlanLastWriteGeneration: new Map([['synthetic-issue-1', 4]]),
-      Date, Number, String, Map,
+      _wlPlanLastWriteGeneration: new Map(),
+      _syncviewRequireStaffIdentity: async () => ({ key: 'synthetic' }),
+      _syncviewEfHeaders: headers => headers,
+      fetch: async () => {
+        fetchStarted.resolve();
+        return response.promise;
+      },
+      AbortController, setTimeout, clearTimeout,
+      Date, Number, String, Map, Array, Error, Promise,
     };
     vm.createContext(context);
+    vm.runInContext(extract('wlFetchPlanRows'), context);
     vm.runInContext(extract('wlAdoptPlanRows'), context);
-    context.wlAdoptPlanRows({
-      rows: [{ issue_id: 'synthetic-issue-1', plan_date: '2026-07-27' }],
-      readGeneration: 3,
+    const pending = context.wlFetchPlanRows();
+    await fetchStarted.promise;
+    context._wlPlanWriteGeneration = 4;
+    context._wlPlanLastWriteGeneration.set('synthetic-issue-1', 4);
+    response.resolve({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        plans: [{ issue_id: 'synthetic-issue-1', plan_date: '2026-07-27' }],
+      }),
     });
-    ok(context.wlState.planByIssueId.get('synthetic-issue-1') === '2026-07-29',
-      'a stale list response cannot overwrite a write that settled after the list began');
+    const snapshot = await pending;
+    context.wlAdoptPlanRows(snapshot);
+    ok(snapshot.readGeneration === 3
+        && context.wlState.planByIssueId.get('synthetic-issue-1') === '2026-07-29',
+      'a real stale list fetch cannot overwrite a write that settled after its capture point');
   }
 
   // When two refreshes overlap, the older completion must not overwrite the

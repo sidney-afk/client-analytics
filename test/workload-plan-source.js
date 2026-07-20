@@ -45,8 +45,9 @@ ok(!/references\s+public\.workload_issues/i.test(MIGRATION),
   'rebuildable workload_issues is not a foreign-key owner of staff plan rows');
 ok(/alter table public\.workload_plan enable row level security/.test(MIGRATION)
   && /revoke all on table public\.workload_plan from public, anon, authenticated/.test(MIGRATION)
-  && /grant select, insert, update on table public\.workload_plan to service_role/.test(MIGRATION),
-'sidecar is service-role-only with RLS enabled');
+  && /grant select, insert, update on table public\.workload_plan to service_role/.test(MIGRATION)
+  && /revoke delete, truncate, references, trigger on table public\.workload_plan from service_role/.test(MIGRATION),
+  'sidecar is service-role-only with RLS enabled');
 ok(!/create policy/i.test(MIGRATION)
   && !/grant\s+(?:all|select|insert|update|delete)[\s\S]{0,80}\b(?:anon|authenticated)\b/i.test(MIGRATION),
 'migration creates no browser read or write policy/grant');
@@ -92,22 +93,27 @@ ok(/\.from\("workload_issues"\)[\s\S]{0,180}\.select\("id,client_name,is_sub_iss
   && /target\.is_sub_issue !== true/.test(EDGE)
   && /normalizeBrowserWriteClient\(target\.client_name\) !== client/.test(EDGE),
 'writer validates the exact active sub-issue and normalized client before mutation');
-const mirrorSegment = EDGE.slice(
-  EDGE.indexOf('.from("workload_issues")'),
-  EDGE.indexOf('async function setPlan'),
-);
-ok(mirrorSegment.includes('.select(')
-  && !mirrorSegment.includes('.update(')
-  && !mirrorSegment.includes('.upsert(')
-  && !mirrorSegment.includes('.delete('),
-'workload_issues is read-only in the new function');
+const mirrorOccurrences = [...EDGE.matchAll(/\.from\("workload_issues"\)/g)];
+const mirrorChains = [...EDGE.matchAll(/\.from\("workload_issues"\)[\s\S]*?;/g)]
+  .map(match => match[0]);
+ok(mirrorChains.length >= 1
+  && mirrorChains.length === mirrorOccurrences.length
+  && mirrorChains.every(chain => (
+    chain.includes('.select(')
+    && !/\.(?:insert|update|upsert|delete)\s*\(/.test(chain)
+  )),
+'every workload_issues access chain in the complete function is read-only');
 
 ok(/\.from\("workload_plan"\)[\s\S]{0,180}\.upsert\(\{[\s\S]{0,280}plan_date: planDate[\s\S]{0,160}updated_by: principal\.actor/.test(EDGE),
   'set and clear both write only the sidecar, with null retained as an explicit clear');
-ok(/const updated = Array\.isArray\(data\) \? data\.length : 0/.test(EDGE)
+const setPlanSegment = EDGE.slice(
+  EDGE.indexOf('async function setPlan'),
+  EDGE.indexOf('Deno.serve'),
+);
+ok(/const \{ data, error \} = await db[\s\S]*?\.from\("workload_plan"\)[\s\S]*?\.upsert\([\s\S]*?\)[\s\S]*?\.select\("issue_id,client,plan_date,updated_at"\)[\s\S]*?const updated = Array\.isArray\(data\) \? data\.length : 0/.test(setPlanSegment)
   && /result\.updated !== 1/.test(EDGE)
   && /error: "short_write"[\s\S]{0,100}updated: result\.updated/.test(EDGE),
-'F141 guard derives actual returned-row count and fails closed on a short write');
+'F141 guard selects the written row, derives its actual count, and fails closed on a short write');
 ok(!/updated\s*:\s*1\b/.test(EDGE)
   && !/updated\s*:\s*(?:requested|items?\.length|parsed)/.test(EDGE),
 'function never reports a literal or requested success count');

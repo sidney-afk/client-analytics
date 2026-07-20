@@ -66,9 +66,10 @@ executes these files (see `README.md` › Repository layout).
   `workload_issues` mirror. RLS is enabled, browser roles receive no table policy or grant, and only
   service role may read or write it through the Admin/SMM-authenticated `workload-plan` Edge
   Function; Creative is denied for both list and mutation actions. It adds no runtime flag and never
-  writes a Linear due date. This delta is **source-only** and must not be described as applied until
-  the schema, grants, empty seed state, and browser denial are read back and recorded in
-  `EXECUTION_LOG.md`.
+  writes a Linear due date. This delta was applied and read back on 2026-07-20: the table has RLS,
+  zero policies, no anon/authenticated privilege, and exactly SELECT/INSERT/UPDATE for service role;
+  DELETE/TRUNCATE/REFERENCES/TRIGGER are explicitly revoked. The release drill ended with zero
+  sidecar rows and is recorded value-free in `EXECUTION_LOG.md`.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

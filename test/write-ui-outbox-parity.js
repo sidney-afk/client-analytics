@@ -81,7 +81,7 @@ ok(/targetDedupKey && testClient/.test(outbound)
   && /fetchLane\(false, normalStatuses, 1, "test"\)/.test(outbound),
 'TEST synchronous drain targets only the named non-parity TEST row');
 ok(/fetchLane\(true, parityStatuses, 1, "any"\)/.test(outbound)
-  && /control\.legacyParity && row\.test_only === true/.test(outbound),
+  && /row\.test_only === true/.test(outbound),
 'a service-confirmed parity target may select a TEST row by exact dedup and still enforces TEST project scope');
 ok(/const parityStatuses = \["pending", "failed", "shadow_ok"\]/.test(outbound)
   && !/parityStatuses[^;]*written/.test(outbound)
@@ -106,7 +106,7 @@ ok(/if \(!team && requestedTeamId\) team = await readTeam\(requestedTeamId\)/.te
   && /teams\(first: 50\)/.test(outbound),
 'create retains supplied team UUID support and otherwise resolves VID/GRA read-only');
 ok(/async function targetResult/.test(outbound)
-  && /status,operation,legacy_parity,test_only,attempts,next_retry_at,last_error,linear_result/.test(outbound)
+  && /status,operation,team,dedup_key,legacy_parity,test_only,attempts,next_retry_at,last_error,linear_result/.test(outbound)
   && /\.\.\.summary, target/.test(outbound),
 'targeted responses expose terminal or pending status and Linear linkage without redraining');
 

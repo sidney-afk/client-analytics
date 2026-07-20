@@ -224,7 +224,7 @@ begin
   perform set_config('app.f27_rollback_bypass', '1', true);
   if v_kind = 'replay' then
     update public.mirror_outbox
-    set status = 'pending', attempts = 0, last_error = null,
+    set attempts = 0, last_error = 'F27 approved replay pending',
         processed_at = null, next_retry_at = now(),
         lock_token = null, locked_at = null, updated_at = now()
     where id = p_outbox_id and lower(team) = v_team and status = 'quarantined';

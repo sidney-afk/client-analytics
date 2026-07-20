@@ -193,7 +193,7 @@ SET status = 'written',
       'correlation_id', :'replay_correlation'
     ),
     processed_at = now(), updated_at = now()
-WHERE id = 1 AND status = 'pending' AND test_only = true AND client_slug = 'test-client';
+WHERE id = 1 AND status = 'quarantined' AND test_only = true AND client_slug = 'test-client';
 
 DO $$
 BEGIN

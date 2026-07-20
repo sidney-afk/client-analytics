@@ -23,6 +23,16 @@ rollback ledger and four guarded operations:
    is classified, every replay has a terminal receipt, and the machine-read
    active count for that team is zero.
 
+The candidate `linear-outbound` source also has an explicit
+`F27_ROLLBACK_REPLAY` mode. It selects only the exact rollback/dedup-bound
+quarantined row, requires the open intent to be classified `replay`, rechecks
+the authorization after claiming, requires F2 off + F4 false + SyncView
+authority, and persists rollback/outbox/dedup/operation/correlation fields in
+the real Linear result before releasing it. Failed attempts return only that
+row to `quarantined`; neither global lane is armed. The shared request/result
+helper is exercised by `test/f27-linear-outbound-replay.js`. This Edge Function
+source is part of the draft only and was not deployed.
+
 The open rollback row also blocks new `pending|failed|shadow_ok` outbox writes
 for its team. Because native writer/event/outbox work is transactional, the
 guard raises instead of allowing a source write to commit without its outbound
@@ -79,7 +89,9 @@ negative assertions.
 ## Boundary still open
 
 This proof validates the additive SQL and the F63-style isolated transaction.
-It does not authorize applying the migration, deploying anything, changing
+The same exact-head gate exercises the scoped real-writer request/result
+contract without sending a network mutation. It does not authorize applying
+the migration, deploying anything, changing
 flags, or flipping authority. A cloud reviewer must verify the draft PR before
 the candidate is called merge-ready. After review/merge, applying the migration
 to the live project requires a separate owner-approved change window, captured

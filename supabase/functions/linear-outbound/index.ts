@@ -18,6 +18,7 @@ import {
   pendingAgeAlertTeams,
   pendingAgeThresholdMinutes,
 } from "./monitoring.mjs";
+import { bindF27LinearResult, f27ReplayRequest } from "./f27-replay.mjs";
 
 type JsonMap = Record<string, unknown>;
 type OutboxRow = JsonMap & {
@@ -654,11 +655,12 @@ async function readRows(
   parityEnabled: boolean,
   targetDedupKey: string,
   targetedSyncviewLive: boolean,
+  f27Replay: boolean,
 ): Promise<OutboxRow[]> {
   const normalStatuses = mode === "live" ? ["pending", "failed", "shadow_ok"] : ["pending", "failed"];
   const parityStatuses = ["pending", "failed", "shadow_ok"];
   const fetchLane = async (
-    legacyParity: boolean,
+    legacyParity: boolean | null,
     statuses: string[],
     laneLimit: number,
     scope: "test" | "real" | "any",
@@ -666,9 +668,9 @@ async function readRows(
     let query = supabase.from("mirror_outbox")
       .select("*")
       .in("status", statuses)
-      .eq("legacy_parity", legacyParity)
       .order("created_at", { ascending: true })
       .limit(laneLimit);
+    if (legacyParity !== null) query = query.eq("legacy_parity", legacyParity);
     if (scope === "test") query = query.eq("client_slug", testClient).eq("test_only", true);
     else if (scope === "real") query = query.eq("test_only", false);
     if (targetDedupKey) query = query.eq("dedup_key", targetDedupKey);
@@ -678,7 +680,9 @@ async function readRows(
   };
 
   let data: OutboxRow[] = [];
-  if (targetDedupKey) {
+  if (targetDedupKey && f27Replay) {
+    data = await fetchLane(null, ["quarantined"], 1, "any");
+  } else if (targetDedupKey) {
     if (testClient && mode !== "off") data = await fetchLane(false, normalStatuses, 1, "test");
     else if (targetedSyncviewLive && mode === "live") data = await fetchLane(false, normalStatuses, 1, "real");
     else if (!targetedSyncviewLive && parityEnabled) data = await fetchLane(true, parityStatuses, 1, "any");
@@ -707,22 +711,75 @@ async function readRows(
 async function targetResult(supabase: SupabaseClient, dedupKey: string): Promise<JsonMap | null> {
   if (!dedupKey) return null;
   const { data, error } = await supabase.from("mirror_outbox")
-    .select("id,status,operation,legacy_parity,test_only,attempts,next_retry_at,last_error,linear_result")
+    .select("id,status,operation,team,dedup_key,legacy_parity,test_only,attempts,next_retry_at,last_error,linear_result")
     .eq("dedup_key", dedupKey)
     .maybeSingle();
   if (error) throw new Error("target outbox read failed");
   return data && typeof data === "object" ? data as JsonMap : null;
 }
 
+async function f27ReplayAuthorization(
+  supabase: SupabaseClient,
+  request: JsonMap,
+  row: OutboxRow | null = null,
+): Promise<JsonMap> {
+  const rollbackId = clean(request.rollbackId);
+  const dedupKey = clean(request.dedupKey);
+  const { data: rollback, error: rollbackError } = await supabase
+    .from("track_b_team_rollbacks")
+    .select("id,correlation_id,team,state")
+    .eq("id", rollbackId)
+    .eq("state", "open")
+    .maybeSingle();
+  if (rollbackError || !rollback) throw new Error("F27 open rollback required");
+
+  let outbox = row as JsonMap | null;
+  if (!outbox) outbox = await targetResult(supabase, dedupKey);
+  if (!outbox || clean(outbox.dedup_key) !== dedupKey || clean(outbox.team) !== clean(rollback.team)) {
+    throw new Error("F27 replay target mismatch");
+  }
+  const { data: intent, error: intentError } = await supabase
+    .from("track_b_team_rollback_intents")
+    .select("classification,terminal_receipt")
+    .eq("rollback_id", rollbackId)
+    .eq("outbox_id", Number(outbox.id))
+    .eq("classification", "replay")
+    .is("terminal_receipt", null)
+    .maybeSingle();
+  if (intentError || !intent) throw new Error("F27 approved replay required");
+
+  const [outbound, parity, authority] = await Promise.all([
+    readFlag(supabase, OUTBOUND_FLAG),
+    readFlag(supabase, LEGACY_PARITY_FLAG),
+    readFlag(supabase, AUTHORITY_FLAG),
+  ]);
+  if (modeFrom(outbound) !== "off" || parity.enabled !== false) {
+    throw new Error("F27 emergency stops required");
+  }
+  if (authorityFor(clean(outbox.team), authority) !== "syncview") {
+    throw new Error("F27 SyncView authority required");
+  }
+  return { rollbackId, dedupKey, correlationId: clean(rollback.correlation_id) };
+}
+
 async function currentControl(
   supabase: SupabaseClient,
   row: OutboxRow,
   testOverride: JsonMap,
+  f27Replay: JsonMap | null = null,
 ): Promise<{ mode: string; authority: string; legacyParity: boolean }> {
   if (clean(testOverride.client_slug)) {
     return {
       mode: modeFrom({ mode: testOverride.mode }),
       authority: lower(testOverride.authority) === "linear" ? "linear" : "syncview",
+      legacyParity: false,
+    };
+  }
+  if (f27Replay) {
+    const authorityFlag = await readFlag(supabase, AUTHORITY_FLAG);
+    return {
+      mode: "live",
+      authority: authorityFor(row.team, authorityFlag),
       legacyParity: false,
     };
   }
@@ -770,6 +827,12 @@ Deno.serve(async (req: Request) => {
   const testClient = clean(testOverride.client_slug);
   const testMode = lower(testOverride.mode);
   const targetDedupKey = clean(body.target_dedup_key);
+  let f27ReplayRequestValue: JsonMap | null = null;
+  try {
+    f27ReplayRequestValue = f27ReplayRequest(body) as JsonMap | null;
+  } catch (error) {
+    return json({ ok: false, error: safeError(error) }, 400);
+  }
   const targetedParity = body.legacy_parity === true;
   const targetedSyncviewLive = body.syncview_live === true;
   if (testClient && clean(body.confirm) !== "B4_TEST_ONLY") {
@@ -778,7 +841,9 @@ Deno.serve(async (req: Request) => {
   if (testClient && !["shadow", "live", "off"].includes(testMode)) {
     return json({ ok: false, error: "invalid TEST override mode" }, 400);
   }
-  if (targetDedupKey && testClient) {
+  if (f27ReplayRequestValue && testClient) {
+    return json({ ok: false, error: "F27 replay cannot use TEST override" }, 400);
+  } else if (targetDedupKey && testClient) {
     if ((body.legacy_parity !== undefined && body.legacy_parity !== false)
         || body.syncview_live !== undefined) {
       return json({ ok: false, error: "invalid TEST target" }, 400);
@@ -788,7 +853,8 @@ Deno.serve(async (req: Request) => {
         || clean(body.confirm) !== "WRITE_UI_SYNCVIEW_LIVE") {
       return json({ ok: false, error: "invalid SyncView live target" }, 400);
     }
-  } else if (targetDedupKey || body.legacy_parity !== undefined || body.syncview_live !== undefined) {
+  } else if (!f27ReplayRequestValue
+      && (targetDedupKey || body.legacy_parity !== undefined || body.syncview_live !== undefined)) {
     if (!targetDedupKey || !targetedParity
         || targetedSyncviewLive
         || clean(body.confirm) !== "WRITE_UI_LEGACY_PARITY") {
@@ -825,7 +891,10 @@ Deno.serve(async (req: Request) => {
 
   let rows: OutboxRow[] = [];
   let mirrorActor: JsonMap = {};
-  if (initialMode !== "off" || parityEnabled) {
+  if (f27ReplayRequestValue) {
+    f27ReplayRequestValue = await f27ReplayAuthorization(supabase, f27ReplayRequestValue);
+  }
+  if (initialMode !== "off" || parityEnabled || f27ReplayRequestValue) {
     rows = await readRows(
       supabase,
       initialMode,
@@ -834,9 +903,10 @@ Deno.serve(async (req: Request) => {
       parityEnabled,
       targetDedupKey,
       targetedSyncviewLive,
+      Boolean(f27ReplayRequestValue),
     );
     counts.enqueued = rows.length;
-    if (initialMode === "live" || rows.some(row => row.legacy_parity === true)) {
+    if (initialMode === "live" || f27ReplayRequestValue || rows.some(row => row.legacy_parity === true)) {
       mirrorActor = await readViewer();
     }
   }
@@ -845,7 +915,10 @@ Deno.serve(async (req: Request) => {
     const row = await claimRow(supabase, candidate);
     if (!row) continue;
     try {
-      const control = await currentControl(supabase, row, testOverride);
+      const f27Replay = f27ReplayRequestValue
+        ? await f27ReplayAuthorization(supabase, f27ReplayRequestValue, row)
+        : null;
+      const control = await currentControl(supabase, row, testOverride, f27Replay);
       if (control.mode === "off") {
         counts.paused++;
         if (control.legacyParity) counts.legacy_parity_paused++;
@@ -872,7 +945,7 @@ Deno.serve(async (req: Request) => {
       const issueId = linearIssueId(row, entity, dependency)
         || (row.operation === "create" ? await deterministicCreateId(row.dedup_key) : "");
       const issue = issueId ? await readIssue(issueId, row.operation === "create") : null;
-      if (testClient || (control.legacyParity && row.test_only === true)) {
+      if (testClient || row.test_only === true) {
         await testScope(supabase, row, issue);
       }
       const context = await resolveContext(supabase, row, entity, issue, dependency);
@@ -909,7 +982,7 @@ Deno.serve(async (req: Request) => {
         await releaseRow(supabase, row, {
           status: "written",
           processed_at: new Date().toISOString(),
-          linear_result: {
+          linear_result: bindF27LinearResult({
             ...parseJson(row.linear_result),
             mutation: "issueCreate",
             issue_id: clean(issue.id),
@@ -919,7 +992,7 @@ Deno.serve(async (req: Request) => {
             mirror_actor_name: clean(mirrorActor.name),
             recovered_idempotently: true,
             conflict,
-          },
+          }, f27Replay, row),
           last_error: null,
           next_retry_at: null,
         });
@@ -928,9 +1001,9 @@ Deno.serve(async (req: Request) => {
       if (conflict.decision === "already_applied" || conflict.decision === "already_exists") {
         counts.skipped++;
         await releaseRow(supabase, row, {
-          status: "skipped",
+          status: f27Replay ? "written" : "skipped",
           processed_at: new Date().toISOString(),
-          linear_result: { conflict, issue: compactIssue(issue) },
+          linear_result: bindF27LinearResult({ conflict, issue: compactIssue(issue) }, f27Replay, row),
           last_error: null,
           next_retry_at: null,
         });
@@ -966,7 +1039,7 @@ Deno.serve(async (req: Request) => {
       const resultIssue = mutation.kind === "commentCreate"
         ? parseJson(resultMap.issue)
         : resultMap;
-      const linearResult: JsonMap = {
+      const linearResult: JsonMap = bindF27LinearResult({
         mutation: mutation.kind,
         issue_id: clean(resultIssue.id) || issueId,
         identifier: clean(resultIssue.identifier),
@@ -975,7 +1048,7 @@ Deno.serve(async (req: Request) => {
         mirror_actor_id: clean(mirrorActor.id),
         mirror_actor_name: clean(mirrorActor.name),
         expected: mutation.variables,
-      };
+      }, f27Replay, row);
       // Persist the acknowledged mutation before any follow-up work. Linear can
       // deliver its webhook immediately, and inbound must see the exact intent
       // even while this row is still locked/finalizing.
@@ -998,7 +1071,7 @@ Deno.serve(async (req: Request) => {
       const attempts = Number(row.attempts || 0) + 1;
       const delay = Math.min(60 * 60, Math.pow(2, Math.min(attempts, 8)) * 15);
       await releaseRow(supabase, row, {
-        status: "failed",
+        status: f27Replay ? "quarantined" : "failed",
         last_error: safeError(error),
         next_retry_at: attempts >= MAX_ATTEMPTS
           ? null

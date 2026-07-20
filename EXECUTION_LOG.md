@@ -30,6 +30,15 @@ All times are UTC unless noted.
   identity to bind rollback/outbox/dedup/operation, intent hash, writer
   correlation, and persisted Linear-result hash. The recorded run is the
   post-fix proof of all three changes.
+- Fixed-head review then found that classified replay had no stopped-lane
+  execution path and the shipped writer emitted no rollback correlation.
+  Candidate `linear-outbound` source now accepts only an explicit
+  rollback-ID + exact-dedup replay, verifies the open classified intent before
+  and after claim, requires F2 off/F4 false/SyncView authority, and checkpoints
+  the bound correlation through the real result helper. Failures remain
+  quarantined. `test/f27-linear-outbound-replay.js` exercises that shared
+  request/result contract; no Edge Function was deployed and no Linear request
+  was sent.
 - FLIP NOTHING boundary preserved: no forward live flip, authority change,
   live-client mutation, Edge Function deploy, n8n change, or change to
   `calendar-upsert` / `sample-review-upsert`.

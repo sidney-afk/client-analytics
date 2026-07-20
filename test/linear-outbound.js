@@ -334,7 +334,7 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   const ef = read('supabase/functions/linear-outbound/index.ts');
   ok(/linear_outbound_enabled/.test(ef) && /prod_authority/.test(ef),
     'drainer reads both switch and team authority');
-  ok(/currentControl\(supabase, row, testOverride\)/.test(ef),
+  ok(/currentControl\(supabase, row, testOverride, f27Replay\)/.test(ef),
     'drainer re-reads control before each row');
   ok(/unlockPending\(supabase, row, testClient \? 0 : 30\)/.test(ef),
     'production pause keeps backoff while the service-only TEST drill can resume immediately');

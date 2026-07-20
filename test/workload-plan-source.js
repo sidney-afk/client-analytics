@@ -24,6 +24,14 @@ const clientPersist = INDEX.slice(
   INDEX.indexOf('async function _wlPersistPlanDate('),
   INDEX.indexOf('async function wlSetPlanDate('),
 );
+const clientSet = INDEX.slice(
+  INDEX.indexOf('async function wlSetPlanDate('),
+  INDEX.indexOf('async function wlMovePlanGroup('),
+);
+const priorityRead = INDEX.slice(
+  INDEX.indexOf('async function wlFetchPriorityRows('),
+  INDEX.indexOf('function wlAdoptPlanRows('),
+);
 const clientGroupMove = INDEX.slice(
   INDEX.indexOf('async function wlMovePlanGroup('),
   INDEX.indexOf('// Single delegated handler on the shell root.'),
@@ -167,6 +175,12 @@ ok(/action: 'set'/.test(clientWrite)
 'browser plan payload contains stable issue, client, and plan_date but never a Linear deadline write');
 ok(!/calendar-upsert|sample-review-upsert|webhook|syncview_runtime_flags/.test(clientWrite),
 'plan persistence cannot fall back to a frozen writer, webhook, or runtime flag');
+ok(/\/rest\/v1\/deliverables\?select=linear_issue_uuid,priority/.test(priorityRead)
+    && /linear_issue_uuid=not\.is\.null&priority=gt\.0/.test(priorityRead)
+    && /Number\.isInteger\(priority\) && priority >= 1 && priority <= 4/.test(priorityRead)
+    && !/\b(?:method|body)\s*:/.test(priorityRead)
+    && !/localStorage|sessionStorage|calendar-upsert|sample-review-upsert|syncview_runtime_flags/.test(priorityRead),
+'Linear priority enrichment is a best-effort read-only join by stable issue id with no browser cache or writer');
 ok(/json\.updated !== 1/.test(clientPersist)
   && /String\(saved\.issue_id/.test(clientPersist)
   && /saved\.plan_date/.test(clientPersist)
@@ -177,8 +191,10 @@ ok(/data-wl-plan-drag/.test(INDEX)
   && /data-wl-plan-group-drag/.test(INDEX)
   && /data-wl-plan-clear/.test(INDEX)
   && /_svDateHtml\(dateId, workDate/.test(INDEX)
-  && /function wlDisplayDate\(/.test(INDEX),
-'UX exposes issue and collapsed-client drag, branded work-day editing, clear, and due fallback');
+  && /Use auto plan/.test(INDEX)
+  && /function wlDisplayDate\(/.test(INDEX)
+  && /function wlPlacementMode\(/.test(INDEX),
+'UX exposes issue and collapsed-client drag, branded work-day editing, and a discoverable automatic-plan reset');
 ok(/!issues\.length \|\| !wlPlanEditingEnabled\(\)/.test(clientGroupMove)
   && /issues\.some\(issue => wlIsTweaksNeeded\(issue\) \|\| _wlPlanWriteInFlight\.has/.test(clientGroupMove)
   && /for \(const move of moves\)[\s\S]*?await _wlPersistPlanDate\([\s\S]*?true[\s\S]*?\);/.test(clientGroupMove)
@@ -220,11 +236,17 @@ ok(/_wlPlanLastWriteGeneration/.test(INDEX)
   && /loadGeneration !== _wlPlanLoadGeneration/.test(INDEX)
   && /wlResetPlanDisplay\(key\)/.test(INDEX),
 'overlapping plan loads, late lists, and no-op picker changes cannot leave false local dates');
-ok(!INDEX.includes('function wlEffectiveWorkDate(')
-  && !INDEX.includes('function scheduleAll(')
-  && !INDEX.includes('effectiveWorkDate')
-  && !INDEX.includes('scheduledDate'),
-'editable plan mode does not restore the automatic scheduler');
+ok(!/previousDate === null\s*&&\s*planDate === \(issue\.dueDate \|\| null\)/.test(clientSet),
+'selecting an automatic card\'s current day is persisted as an explicit manual pin');
+ok(/function wlAutoPlanDate\(/.test(INDEX)
+    && /wlSubWorkingDays\([^,]+,\s*1\)/.test(INDEX)
+    && /planHasSnapshot/.test(INDEX)
+    && !INDEX.includes('function wlEffectiveWorkDate(')
+    && !INDEX.includes('function scheduleAll(')
+    && !INDEX.includes('effectiveWorkDate')
+    && !INDEX.includes('scheduledDate')
+    && !/assignedByEditorDate|findEarliestAvailableDay|remainingCapacity/.test(INDEX),
+'hybrid mode derives only an item-local due-minus-one-working-day default and never restores packing or spilling');
 
 if (failures) {
   console.error('\n' + failures + ' workload-plan source check(s) failed');

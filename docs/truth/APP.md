@@ -133,9 +133,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `workload-plan` v2. F147 keeps the exact revoke-correction artifact provenance open. The private
   TEST release drill proved
   `409` revert/notify, Creative `403` list/set, one-row save plus server-truth reload, clear-to-due
-  fallback, and exact cleanup. F148 keeps the same-chain true-count guard and reused-F141 test-label
-  cleanup open; the live behavior proof is unchanged. #889's merged hierarchy/group-drag path is
-  client-side only and reuses that deployed one-row writer; it adds no Edge Function, schema,
+  fallback, and exact cleanup. F148 keeps the insufficient same-chain true-count source guard and
+  reused-F141 test-label cleanup open; the live behavior proof is unchanged. #889's merged
+  hierarchy/group-drag path is client-side only and reuses that deployed one-row writer; it adds
+  no Edge Function, schema,
   migration, runtime flag, Linear writer, or frozen client-writer change. Current-main Pages run
   `29752646229` served the merge. This Order-1 reconciliation itself performed no live operation
   and changed no n8n workflow or real-client row.

@@ -1,4 +1,4 @@
-# F27 per-team rollback — isolated TEST proof
+# F27 per-team rollback â€” isolated TEST proof
 
 **Status:** candidate source proved on a disposable PostgreSQL flag/outbox store;
 not applied to the live Supabase project. No forward production flip, live
@@ -40,18 +40,18 @@ intent. The other team is not held or mutated.
 
 ## Isolated TEST transaction
 
-- Candidate head: `69d85fbf6d0a44e6d2d742b8b2a983620d88c2f1`
-- GitHub Actions run (observer outside n8n): `29757202452`
-- Artifact: `8467192898` (`f27-team-rollback-proof`)
-- Artifact digest: `sha256:e18ae87e8c9597d03c287eea5ecdc45187da465fc4a3fe6ee96952aee1a41233`
+- Candidate head: `acf2b946fefeef9c4ed12b52ee450f927b667757`
+- GitHub Actions run (observer outside n8n): `29758523289`
+- Artifact: `8467746602` (`f27-team-rollback-proof`)
+- Artifact digest: `sha256:537c42ed5c9216f4161dc78b7def0f3fb70fd649d9f5342356c5baf5025f4417`
 - Terminal transcript digest:
-  `c1d6b4dfb1fb9e904d72aa3415f1561d359aba290a115046e3e2d734c0652126`
-- Rollback ID: `91592538-be72-4911-a65c-58a38c63044b`
-- Snapshot correlation ID: `ef2e2442-6dc2-4eb0-9cdc-d370124d492d`
-- Replay terminal correlation ID: `bbe6ee24-13a0-46b3-a5fc-1090e053a247`
+  `3b525697b72464eb725fc962d994a26cb9b453bf4d0411da05446f6c90fdeae4`
+- Rollback ID: `4ee550b4-48b3-4665-9025-5e3c7bf3efe8`
+- Snapshot correlation ID: `b01f902c-a913-43f5-ab9a-bd6c89501fed`
+- Replay terminal correlation ID: `ea2cf9c9-1d97-4f8c-ae18-4eb9dd895353`
 - Snapshot count: `4`
 - Snapshot digest:
-  `fe2a9760725147a619fa2ce507c166ee672cdb9b607512fe70432650a3f14457`
+  `29f7c058584a2add4de4169d072ac1edfe726dad6f58d39b6e9c369463f68353`
 
 The disposable TEST store used only `client_slug='test-client'` with
 `test_only=true`. It simulated Linear/Linear + F2 off + F4 false, moved Graphics
@@ -79,7 +79,7 @@ timestamp or quiet-monitor inference is used.
 Cloud review of the first candidate found that clearing an already-claimed
 lease could race a stateless drainer, direct service-role UPDATE grants made
 evidence rewritable, and a merely nonempty receipt correlation was not bound to
-the replay. Head `69d85fb` refuses begin while any affected active
+the replay. Head `acf2b94` refuses begin while any affected active
 row has `lock_token` or `locked_at`, never clears those leases during capture,
 exposes the ledgers read-only to service role while SECURITY DEFINER functions
 own mutations, and binds terminal receipts to the exact immutable/persisted

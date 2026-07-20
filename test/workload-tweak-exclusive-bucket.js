@@ -208,7 +208,7 @@ check(/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(weekHtm
     && weekHtml.includes('<span class="workload-day-count">6</span>')
     && !weekHtml.includes('workload-day-count over-capacity')
     && !weekHtml.includes('6 · over'),
-  'an overloaded due-date column keeps only a subtle tint and neutral item count');
+  'an overloaded due-date column keeps normal day styling and a neutral item count');
 
 const renderFilteredWeekGrid = compile('renderWeekGrid', {
   wlState,
@@ -371,11 +371,11 @@ check(!INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('effectiveWorkDate')
     && !INDEX.includes('scheduledDate'),
   'editable source contains no automatic date derivation or scheduler state');
-check(INDEX.includes('.workload-day.over-capacity')
+check(!INDEX.includes('.workload-day.over-capacity')
     && INDEX.includes('.workload-day-card-total.over-capacity')
     && !INDEX.includes('.workload-day-count.over-capacity')
     && !INDEX.includes("'Plan ' + wlFormatShort"),
-  'source guard pins editor-level overload styling and removes the day-level overload pill');
+  'source guard keeps overload styling on the editor pill only');
 check(INDEX.includes('<details class="workload-day-client-group">')
     && INDEX.includes('<summary class="workload-day-card-chip"')
     && INDEX.includes('data-wl-plan-group-drag="1"')

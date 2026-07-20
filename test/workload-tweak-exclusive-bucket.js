@@ -367,24 +367,39 @@ check(overloadedGraphicsHtml.includes('class="workload-day-card-total over-capac
   'graphics overload is shown on its editor against the 15-item threshold');
 
 const loadingPlanStatus = { hidden: false, className: '', textContent: 'old' };
-compile('renderWorkloadPlanStatus', {
+const planStatusState = { planStatus: 'loading' };
+const paintPlanStatus = compile('renderWorkloadPlanStatus', {
   document: { getElementById: () => loadingPlanStatus },
-  wlState: { planStatus: 'loading' },
-})();
+  wlState: planStatusState,
+});
+paintPlanStatus();
+planStatusState.planStatus = 'refreshing';
+loadingPlanStatus.hidden = false;
+loadingPlanStatus.textContent = 'old';
+paintPlanStatus();
 const workloadSkeletonHtml = compile('_svWorkloadSkeletonHtml', {
   wlState: { viewMode: 'week' },
   _svSkel: (classes, style) => `<span class="sv-skeleton ${classes}" style="${style}"></span>`,
 })();
+const workloadRenderSource = grabFunc('renderWorkloadAll');
+const workloadLoadSource = grabFunc('wlLoadSnapshot');
 check(loadingPlanStatus.hidden === true
     && loadingPlanStatus.textContent === ''
     && !INDEX.includes('Loading saved work days…')
-    && /if \(wlState\.planStatus === 'loading'\)[\s\S]{0,120}_svLoadingSkeletonHtml\('workload'\)/.test(grabFunc('renderWorkloadAll'))
+    && !INDEX.includes('Refreshing saved work days')
+    && /wlState\.planStatus === 'loading' \|\| wlState\.planStatus === 'refreshing'/.test(workloadRenderSource)
+    && /_svLoadingSkeletonHtml\('workload'\)/.test(workloadRenderSource)
+    && /renderWorkloadAll\(\);/.test(workloadLoadSource)
+    && !workloadLoadSource.includes('deferWhilePopoverOpen')
+    && /await wlLoadSnapshot\(true, null\)/.test(grabFunc('wlManualRefresh'))
+    && /await wlLoadSnapshot\(true, null\)/.test(grabFunc('wlRefetchSilent'))
+    && /wlRefetchSilent\(\)/.test(grabFunc('_wlV2OnRealtimeChange'))
     && (workloadSkeletonHtml.match(/class="workload-skeleton-day"/g) || []).length === 7
     && workloadSkeletonHtml.includes('aria-label="Loading saved work days"')
     && workloadSkeletonHtml.includes('class="sv-skeleton-row"')
     && workloadSkeletonHtml.includes('sv-skeleton-line')
     && workloadSkeletonHtml.includes('sv-skeleton-pill'),
-  'saved-plan loading uses a calendar-shaped editor-and-client skeleton with no visible text state');
+  'every initial, manual, visibility, and realtime plan refresh uses the calendar skeleton with no text strip');
 
 const workloadShellSource = grabFunc('renderWorkloadShell');
 const tweaksIndex = workloadShellSource.indexOf('id="wlTweaks"');

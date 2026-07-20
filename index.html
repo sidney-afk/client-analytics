@@ -12574,8 +12574,8 @@
     }
 
     // Realtime: one global channel on workload_issues. A change coalesces into a
-    // debounced silent refetch (which re-reads Supabase and repaints, deferring
-    // while a popover is open). The board has no inline editing, so there's no
+    // debounced silent refetch (which re-reads Supabase and repaints through the
+    // shared calendar skeleton). The board has no inline editing, so there's no
     // self-echo to suppress (writes come from n8n, not the browser).
     let _wlV2Channel = null, _wlV2RtTimer = null, _wlV2SubscribedOnce = false;
     function _wlV2OnRealtimeChange() {
@@ -12778,7 +12778,9 @@
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
         wlState.planError = null;
         if (document.querySelector('.workload-view')) {
-            renderWorkloadAll({ deferWhilePopoverOpen: true });
+            // Every manual, visibility, and realtime refresh paints the same
+            // calendar-shaped skeleton immediately, even over an open popover.
+            renderWorkloadAll();
         }
         const [issuesResult, plansResult] = await Promise.allSettled([
             loadLinearIssues(!!force),
@@ -13327,8 +13329,8 @@
         }
     }
 
-    // Manual refresh — toolbar ↻ button. Spins the icon and shows "Refreshing…"
-    // without blanking the calendar.
+    // Manual refresh — toolbar ↻ button. Spins the icon while the calendar
+    // uses the same skeleton as every automatic refresh.
     async function wlManualRefresh() {
         if (!document.querySelector('.workload-view') || wlState.refreshing) return;
         wlState.refreshing = true;
@@ -14163,7 +14165,7 @@
         const el = document.getElementById('wlPlanStatus');
         if (!el) return;
         const status = wlState.planStatus;
-        if (status === 'ready') {
+        if (status === 'ready' || status === 'loading' || status === 'refreshing') {
             el.hidden = true;
             el.className = 'workload-plan-status';
             el.textContent = '';
@@ -14171,12 +14173,7 @@
         }
         el.hidden = false;
         el.className = 'workload-plan-status ' + ((status === 'unknown' || status === 'stale') ? 'is-warning' : 'is-loading');
-        if (status === 'loading') {
-            el.hidden = true;
-            el.textContent = '';
-        } else if (status === 'refreshing') {
-            el.textContent = 'Refreshing saved work days — editing is briefly paused.';
-        } else if (status === 'stale') {
+        if (status === 'stale') {
             el.textContent = 'Saved work days could not be refreshed. The last good plan is shown; editing is paused.';
         } else {
             el.textContent = 'Saved work days are unavailable. Deadlines are shown as a clearly marked fallback; editing is disabled.';
@@ -14235,6 +14232,10 @@
         if (!bodyEl) return;
 
         const hasAnyData = wlState.planned.length || wlState.nowWorking.length || wlState.undated.length || wlState.unassigned.length;
+        if (wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing') {
+            bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
+            return;
+        }
         if (wlState.error && !hasAnyData) {
             bodyEl.innerHTML = '<div class="workload-error">Could not load Linear issues: ' + wlEscape(wlState.error) + '</div>';
             return;
@@ -14243,11 +14244,6 @@
             bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
             return;
         }
-        if (wlState.planStatus === 'loading') {
-            bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
-            return;
-        }
-
         bodyEl.innerHTML = wlState.viewMode === 'week' ? renderWeekGrid() : renderMonthGrid();
     }
 

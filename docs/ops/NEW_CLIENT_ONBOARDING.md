@@ -274,10 +274,13 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
   parent/children, Calendar/Samples projection, and tokened client link after reload. A green
   “Issue created” banner is not proof: F44 verified that the legacy workflow can return 200 and
   clear the draft before parent creation later fails.
-- Next morning, require a **per-client/platform coverage receipt** for CLIENTS METRICS / TOP VIDEOS,
-  not merely a new row or placeholder (F124). Current collectors can convert provider/prior-state
-  failure into zero, old, or incomplete output while the workflow reports success. A valid empty
-  result must be distinguished from source failure; preserve last-good data with visible staleness.
+- Next morning, confirm the new client appears in the **CLIENTS METRICS typed terminal coverage
+  receipt**, not merely a new row or placeholder (F124), and check roster coverage, write failures,
+  run duration, and Sheets quota. The current Metrics contract is live-proved at version
+  `b92fb693-1dd4-4ce2-a60e-98a1701c369d` by scheduled execution `287059` (29/29 unique receipts,
+  29 writes, zero write failures, provider-failure last-good preservation, and fresh legitimate
+  zeros). TOP VIDEOS remains degraded: require a distinct per-client/platform completeness receipt,
+  distinguish valid empty from provider failure, and preserve last-good data with visible staleness.
 
 ### 6j. Monthly check-in email
 **Where:** SYNCVIEW sheet → tab **`Monthly Checkup`** — columns `client_name | email`.
@@ -300,8 +303,10 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
   manual row is needed. Routing/auth enrollment is still mandatory.
   ([§6f](#6f-supabase-calendar--samples-no-manual-row-but-routing-is-required))
 - **Metrics, Top Videos, Competitor Research, Market Research** — scheduled n8n workflows read
-  **Clients Info**, but roster pickup is not complete until F124's per-client/platform receipt proves
-  expected/attempted/succeeded coverage and distinguishes valid empty from degraded data.
+  **Clients Info**. CLIENTS METRICS has a live-proved typed terminal receipt contract; onboarding is
+  not complete until the new client appears in that receipt and its coverage/quota checks pass.
+  TOP VIDEOS remains incomplete until its own per-client/platform receipt and degraded-state
+  handling distinguish valid empty from provider failure.
 - **Per‑client caches / realtime channels / share‑link state** in the frontend — created at runtime from the slug.
 - **No** per‑client brand‑color config in `index.html` (brand colors only exist in the separate `thumbnails/` app, which is unrelated to dashboard onboarding).
 

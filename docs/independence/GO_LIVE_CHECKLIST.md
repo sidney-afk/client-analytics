@@ -196,14 +196,16 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       privacy has no default and requires an explicit provider-returned choice, the exact music-use
       acknowledgement/commercial controls are present, source and sandbox tests agree, and product/
       legal records provider-backed eligibility for agency staff posting to client accounts.
-- [ ] **Client analytics distinguish empty from failure** (F124): Metrics/Top Videos publish
-      per-client/platform expected/attempted/succeeded/count/freshness/error receipts, never convert
-      source/prior-state failure to zero/no-content, preserve visible last-good staleness, isolate
-      roster clients and alert on coverage. The acceptance drill includes the observed first-client
-      Metrics-write failure class, proves every later roster client continues or is durably retried,
-      and makes every configured Top Videos lane distinguish valid empty from provider failure. The
-      seven-day browser cache shows source age/degradation and cannot replace last-good from a bad
-      HTTP response. Test every provider/state/mid-roster/partial/retry/cache-recovery case.
+- [ ] **Client analytics distinguish empty from failure** (F124): CLIENTS METRICS implementation is
+      live-proved at version `b92fb693-1dd4-4ce2-a60e-98a1701c369d`; scheduled execution `287059`
+      emitted 29/29 unique typed terminal receipts, completed 29 writes with zero write failures,
+      preserved last-good on provider failure, and kept legitimate numeric zeros fresh. For each new
+      client, require inclusion in that terminal receipt and retain roster/quota monitoring. The
+      remaining blocker is TOP VIDEOS: publish per-client/platform
+      expected/attempted/succeeded/count/freshness/error receipts, distinguish valid empty from
+      provider failure, preserve visible last-good staleness, and alert on partial coverage. Its
+      seven-day browser cache must show source age/degradation and cannot replace last-good from a
+      bad HTTP response. Test every provider/state/partial/retry/cache-recovery case.
 - [ ] **Raw staff/client directories are minimized** (F86): anonymous raw-table reads are revoked;
       purpose-specific active projections expose only fields each surface needs; inactive rows and
       email/Slack/Linear/project mappings are protected; direct omitted-column tests deny.

@@ -187,8 +187,12 @@ n8n in the metric read path.*
   `TopVideos`, `Competitor Briefs`, `Market Research Briefs`, `ContentSummaries` (extras). AI tab/
   synthesis summaries via n8n `generate-tab-summary` and `generate-general-brief` (compute-on-read,
   cached client-side). `client-token-verify` EF only on client links. Chart.js CDN asset.
-  Scheduled CLIENTS METRICS/TOP VIDEOS jobs populate the first/third tabs, but their current graphs
-  have no per-client/platform completeness receipt and can serialize source failure as zero, stale,
+  Scheduled CLIENTS METRICS/TOP VIDEOS jobs populate the first/third tabs. CLIENTS METRICS version
+  `b92fb693-1dd4-4ce2-a60e-98a1701c369d` now emits typed terminal coverage receipts: scheduled
+  execution `287059` proved 29/29 unique clients, 29 writes, zero write failures, last-good
+  preservation on provider failure, and fresh legitimate zero values. Each newly enrolled client
+  must still appear in that receipt, with quota/coverage monitoring. TOP VIDEOS still has no
+  per-client/platform completeness receipt and can serialize source failure as valid-looking empty
   or partial truth (F124).
 - **Writes.** All n8n, all fire-and-forget-then-poll: `generate-market-brief`, `generate-brief`
   (competitor) — completion detected by re-polling the same CSVs every 30 s for a new row, *there is
@@ -212,12 +216,14 @@ n8n in the metric read path.*
   `.catch(()=>null)`. Brief POST errors keep polling (pending state persisted *before* the POST);
   polling times out at 40 min (MR) / 15 min (competitor) → timeout card. `generate-tab-summary`
   errors render **nothing** (silent). Chart.js CDN miss retries 40× then charts silently absent.
-  Independently, F124 means a successfully fetched newest Sheet row can itself be false-zero/
-  degraded; the SPA has no source-coverage/freshness field to distinguish that from real no-content.
-  Current aggregate execution topology makes the gap concrete: one retained Metrics run stopped on
-  its first append and skipped 25 later roster clients after the PostTracking path ran, while each of
-  four green Top Videos runs collapsed 4–7 of 15 configured YouTube lanes into the same no-source
-  branch used for missing/empty input and still wrote 29 client results. No row value was inspected.
+  F124 is now partial rather than wholly open. CLIENTS METRICS scheduled execution `287059` consumed
+  all 29 roster clients, emitted 29 unique typed terminal receipts, completed 29 writes with
+  `write_failures=0`, preserved last-good on one provider failure, and kept successful numeric zero
+  results fresh. The remaining concrete false-empty gap is TOP VIDEOS: each of four retained green
+  runs collapsed 4–7 of 15 configured YouTube lanes into the same no-source branch used for
+  missing/empty input and still wrote 29 client results. Its SPA output has no source-coverage/
+  freshness field to distinguish provider failure from real no-content. No Top Videos row value was
+  inspected.
 - **Notable.** Client-viewable brief pages can write to the agency Hook Library (`add-hook-to-library`
   ungated) and can trigger the `generate-content-summary` AI workflow (ungated). Two hardcoded
   per-client display special-cases exist in the render path. Correction: `content-ready` is **not**

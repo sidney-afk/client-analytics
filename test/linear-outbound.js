@@ -349,8 +349,9 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   const ownIssueResolver = ef.match(/function linearIssueId\([^]*?\n\}/);
   ok(ownIssueResolver && !/dependency\.linear_issue_id|dependency\.issue_id/.test(ownIssueResolver[0]),
     'a create dependency supplies parentId only and is never mistaken for the child issue');
-  ok(/status: "stale"/.test(ef) && /linear_newer_than_syncview_intent/.test(read('supabase/functions/linear-outbound/mapping.mjs')),
-    'newer Linear edits are marked stale, not overwritten');
+  ok(/status: f27Replay \? "quarantined" : "stale"/.test(ef)
+    && /linear_newer_than_syncview_intent/.test(read('supabase/functions/linear-outbound/mapping.mjs')),
+    'newer Linear edits are marked stale, not overwritten; F27 recovery stays quarantined');
   ok(/conflict\.decision === "tolerated_historical"/.test(ef)
     && /counts\.tolerated_historical\+\+/.test(ef),
   'drainer skips and counts defensively queued historical structure writes');

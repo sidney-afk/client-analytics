@@ -27,6 +27,13 @@ const { pathToFileURL } = require('url');
   ok(/fetchLane\(null, \["quarantined"\], 1, "any"\)/.test(source)
     && /status: f27Replay \? "quarantined" : "failed"/.test(source),
     'scoped writer retries only the exact quarantined rollback row while global lanes stay stopped');
+  ok(/f27Replay \|\| Number\(row\.attempts \|\| 0\) < MAX_ATTEMPTS/.test(source)
+    && /!f27Replay && attempts >= MAX_ATTEMPTS/.test(source),
+    'F27 recovery remains selectable and scheduled beyond the normal attempt ceiling');
+  ok((source.match(/status: f27Replay \? "quarantined"/g) || []).length >= 3
+    && /F27 replay declined: tolerated_historical/.test(source)
+    && /F27 replay declined: stale/.test(source),
+    'declined F27 conflicts remain quarantined, visible, and retryable');
   ok(/bindF27LinearResult/.test(source) && /checkpointLinearResult\(supabase, row, linearResult\)/.test(source),
     'real writer checkpoints rollback-bound correlation before release');
 

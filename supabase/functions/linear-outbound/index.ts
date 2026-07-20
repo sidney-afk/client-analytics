@@ -703,7 +703,10 @@ async function readRows(
 
   const now = Date.now();
   return data
-    .filter(row => Number(row.attempts || 0) < MAX_ATTEMPTS)
+    // F27 is an owner-scoped emergency recovery lane. Its exact classified
+    // intent must remain selectable until it receives a correlated terminal
+    // result; the normal backlog attempt ceiling must not strand a rollback.
+    .filter(row => f27Replay || Number(row.attempts || 0) < MAX_ATTEMPTS)
     .filter(row => !row.next_retry_at || Date.parse(row.next_retry_at) <= now)
     .slice(0, limit) as OutboxRow[];
 }
@@ -955,11 +958,11 @@ Deno.serve(async (req: Request) => {
         counts.tolerated_historical++;
         counts.skipped++;
         await releaseRow(supabase, row, {
-          status: "skipped",
-          processed_at: new Date().toISOString(),
+          status: f27Replay ? "quarantined" : "skipped",
+          processed_at: f27Replay ? null : new Date().toISOString(),
           linear_result: { conflict, issue: compactIssue(issue) },
-          last_error: null,
-          next_retry_at: null,
+          last_error: f27Replay ? "F27 replay declined: tolerated_historical" : null,
+          next_retry_at: f27Replay ? new Date(Date.now() + 30_000).toISOString() : null,
         });
         continue;
       }
@@ -967,11 +970,11 @@ Deno.serve(async (req: Request) => {
       if (conflict.decision === "stale") {
         counts.stale_dropped++;
         await releaseRow(supabase, row, {
-          status: "stale",
-          processed_at: new Date().toISOString(),
+          status: f27Replay ? "quarantined" : "stale",
+          processed_at: f27Replay ? null : new Date().toISOString(),
           linear_result: { conflict },
-          last_error: null,
-          next_retry_at: null,
+          last_error: f27Replay ? "F27 replay declined: stale" : null,
+          next_retry_at: f27Replay ? new Date(Date.now() + 30_000).toISOString() : null,
         });
         continue;
       }
@@ -1073,7 +1076,7 @@ Deno.serve(async (req: Request) => {
       await releaseRow(supabase, row, {
         status: f27Replay ? "quarantined" : "failed",
         last_error: safeError(error),
-        next_retry_at: attempts >= MAX_ATTEMPTS
+        next_retry_at: !f27Replay && attempts >= MAX_ATTEMPTS
           ? null
           : new Date(Date.now() + delay * 1_000).toISOString(),
       }).catch(() => null);

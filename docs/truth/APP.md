@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ 6ee100d + Workload display-tweaks candidate (F145 Production parent-link hierarchy merged; Workload plan-date release live; #889 client-only hierarchy, ordering, overload, and group drag served; live plan-date backend unchanged)
+> Last verified: 2026-07-20 @ 07d123d + Workload display follow-up candidate (Workload display tweaks merged; live plan-date backend unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -107,15 +107,22 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   appears in **Needs a work day or deadline**. An undated issue with an explicit plan day does enter
   the calendar. `Tweak Needed` / `Tweaks Needed` remains an exclusive strip and never enters the
   calendar, even when it retains a due date or saved plan override.
-- The exception sections, including **Tweaks needed** and **Needs a work day or deadline**, render
-  before the intact period/filter toolbar; that toolbar sits directly above the Work-day calendar.
-  A first private plan-date read uses the shared animated Workload skeleton with day, editor, and
-  client-chip placeholders instead of a text loading banner. Plan dates are not browser-cached.
+- **Overdue**, **In progress now**, and **Tweaks needed** render before the intact period/filter
+  toolbar, default collapsed, and remember each browser's expanded sections. The toolbar remains
+  directly above the Work-day calendar. **Needs a work day or deadline** renders at the bottom,
+  after the calendar and **Needs assignment**.
+- A first private plan-date read and every manual, visibility, or realtime refresh uses the shared
+  animated Workload skeleton with day, editor, and client-chip placeholders. The refreshing text
+  strip is not rendered. Plan dates are not browser-cached; the only new browser persistence is
+  the non-sensitive expanded/collapsed section preference.
 - The live editable-plan path keeps the Linear due date read-only and adds a separate
   internal work day. A saved `plan_date` is keyed by the sub-issue's stable id in the service-role
   `workload_plan` sidecar; when none is saved, placement falls back to the exact due date. Dragging
   an individual issue or using the branded work-day control updates only that internal date, and
   **Clear plan day** returns it to due-date placement.
+- Shared issue popovers link to **Open Linear**, keep the deadline only beside the sub-issue title,
+  and place the Work day picker plus save/clear state on one compact row. Tweaks popovers retain
+  their existing comment and Frame reminder layout.
 - Dragging a collapsed client chip moves that exact date/editor/client group optimistically, then
   sends sequential single-issue writes through the existing `workload-plan` contract. Successful
   items stay moved; each failed item returns to its prior day, with one aggregate result notice.
@@ -137,15 +144,13 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `workload-plan` v2. F147 keeps the exact revoke-correction artifact provenance open. The private
   TEST release drill proved
   `409` revert/notify, Creative `403` list/set, one-row save plus server-truth reload, clear-to-due
-  fallback, and exact cleanup. F148 keeps the insufficient same-chain true-count source guard and
-  reused-F141 test-label cleanup open on current `main`; this candidate binds the guard to the real
-  same-chain upsert/select capture point, adds a detached-select negative mutant, and removes the
-  stray label without changing the live behavior proof. #889's merged hierarchy/group-drag path is
-  client-side only and reuses that deployed one-row writer. Current-main Pages run `29752646229`
-  served that merge. The display follow-up is also client-side only; together they add no Edge
+  fallback, and exact cleanup. #892 merged the F148 same-chain guard, detached-select negative
+  mutant, and test-label cleanup with the day-overload, loading-skeleton, and toolbar display
+  changes. #889's hierarchy/group-drag path and #892 are client-side only and reuse the deployed
+  one-row writer. This follow-up remains client-side only as well; together they add no Edge
   Function, schema, migration, runtime flag, Linear writer, or frozen client-writer change. #884's
-  server-atomic batch contract remains open. The Order-1 reconciliation and this follow-up performed
-  no live operation and changed no n8n workflow or real-client row.
+  server-atomic batch contract remains open. This follow-up performed no live operation and changed
+  no n8n workflow or real-client row.
 
 ## Linear sync surface
 

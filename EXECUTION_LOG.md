@@ -704,3 +704,20 @@ All times are UTC unless noted.
   31m12s execution with no Sheets quota exception or failed write. This is first-run proof, not a
   blanket capacity claim; the prior quota failure remains relevant for ongoing monitoring.
   Version `fb180e5f-79ee-4d49-9dec-70999b422b71` remains retained as the direct workflow rollback.
+
+## 2026-07-20 — Workload compact display follow-up (candidate source only)
+
+- **SMM feedback applied client-side.** Moved **Needs a work day or deadline** below the calendar
+  and unassigned lane. Overdue, in-progress, and tweaks sections now default collapsed and persist
+  only their non-sensitive expanded/collapsed browser preference.
+- **Shared popover simplified.** Workload detail popovers now link with **Open Linear**, retain one
+  deadline beside the sub-issue title, and use one compact branded Work day row. Tweaks retains its
+  existing comment and Frame reminder layout.
+- **One loading language.** Initial plan reads plus manual, visibility, and realtime refreshes all
+  paint the existing animated day/editor/client skeleton immediately. The saved-work-day refreshing
+  text strip is removed.
+- **Regression and boundary proof.** Focused Workload display, fail-closed plan, and backend-source
+  suites passed, followed by all 138 `npm test` suites. The three visible changes were checkpointed
+  separately before this documentation checkpoint. No plan-date cache, schema, migration, Edge
+  Function, runtime flag, Linear write, n8n workflow, frozen client writer, real-client row, or
+  production deployment changed.

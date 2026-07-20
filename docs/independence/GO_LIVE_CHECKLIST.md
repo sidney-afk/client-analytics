@@ -346,6 +346,20 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       render in the active tab, preserve any cache under an honest stale banner, and expose a visible
       keyboard/touch Retry. Pass Review and Messages cold failure, cached failure, retry success/
       repeat failure, tab-switch/abort race, mobile and keyboard tests; no indefinite skeleton.
+- [ ] **Client entry is fail-closed and paints only the requested client surface**
+      (F102/F117/F147): unknown or conflicting client routes never fall through to staff content,
+      legacy Samples links retain the verified client principal, and Calendar/Brief reloads never
+      expose Analytics chrome or data. Prove the visible sequence from document start through
+      settlement on synthetic fixtures, including hard reload and second reload.
+- [ ] **Boot reads fail visibly and terminate** (F149/F150/F156): HTTP 4xx/5xx, malformed bodies,
+      offline prerequisites and never-settling dependencies cannot become authoritative empty data
+      or an indefinite skeleton. Every affected route reaches content, an honestly labelled stale
+      state, or a keyboard/touch retry within its named deadline.
+- [ ] **Staff boot and history preserve one route and one data owner** (F148/F151/F152/F160):
+      direct Samples Review → Home starts the Analytics requirement; deep links round-trip their
+      client/card/subtab; Back → Forward → Back uses the same teardown/mount lifecycle as clicks.
+      Each remediation's browser lane must record actual early visible frames and transitions; a
+      settled-page or source-only assertion cannot close the finding.
 - [ ] **B1 has a success-only durable checkpoint and typed terminal heartbeat** (F131): per-row
       writes, successful summaries, and failed summaries use distinct event types; only a complete
       write/readback advances the stored high-water. Failure at every write stage retries from the

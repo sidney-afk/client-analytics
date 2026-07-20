@@ -389,17 +389,46 @@ check(loadingPlanStatus.hidden === true
 const workloadShellSource = grabFunc('renderWorkloadShell');
 const tweaksIndex = workloadShellSource.indexOf('id="wlTweaks"');
 const undatedIndex = workloadShellSource.indexOf('id="wlUndated"');
+const unassignedIndex = workloadShellSource.indexOf('id="wlUnassigned"');
 const toolbarIndex = workloadShellSource.indexOf('class="workload-toolbar"');
 const calendarLabelIndex = workloadShellSource.indexOf('class="workload-section-label workload-calendar-label"');
 const calendarBodyIndex = workloadShellSource.indexOf('id="wlBody"');
 check((workloadShellSource.match(/class="workload-toolbar"/g) || []).length === 1
-    && tweaksIndex < undatedIndex
-    && undatedIndex < toolbarIndex
+    && tweaksIndex < toolbarIndex
     && toolbarIndex < calendarLabelIndex
     && calendarLabelIndex < calendarBodyIndex
+    && calendarBodyIndex < unassignedIndex
+    && unassignedIndex < undatedIndex
     && ['prev', 'today', 'next'].every(value => workloadShellSource.includes(`data-wl-nav="${value}"`))
     && ['week', 'month'].every(value => workloadShellSource.includes(`data-wl-view="${value}"`)),
-  'the intact period toolbar sits below tweaks and undated work, directly before the calendar');
+  'the intact period toolbar sits below exception strips and directly before the calendar, with undated work at the bottom');
+
+const sectionStorage = new Map();
+const sectionLocalStorage = {
+  getItem: key => sectionStorage.has(key) ? sectionStorage.get(key) : null,
+  setItem: (key, value) => sectionStorage.set(key, value),
+};
+const sectionPrefKey = 'syncview_workloadSections_v1';
+const wlReadSectionPrefs = compile('wlReadSectionPrefs', {
+  localStorage: sectionLocalStorage,
+  WL_SECTION_PREF_KEY: sectionPrefKey,
+});
+const defaultSectionPrefs = wlReadSectionPrefs();
+sectionStorage.set(sectionPrefKey, JSON.stringify({ overdue: true, inprogress: false, tweaks: true, ignored: true }));
+const savedSectionPrefs = wlReadSectionPrefs();
+const toolbarSource = grabFunc('wlWireToolbar');
+check(defaultSectionPrefs.overdue === false
+    && defaultSectionPrefs.inprogress === false
+    && defaultSectionPrefs.tweaks === false
+    && savedSectionPrefs.overdue === true
+    && savedSectionPrefs.inprogress === false
+    && savedSectionPrefs.tweaks === true
+    && !Object.prototype.hasOwnProperty.call(savedSectionPrefs, 'ignored')
+    && (workloadShellSource.match(/data-wl-section-toggle=/g) || []).length === 3
+    && (workloadShellSource.match(/workload-exception-rollups/g) || []).length === 3
+    && /localStorage\.setItem\(WL_SECTION_PREF_KEY,\s*JSON\.stringify\(wlState\.sectionExpanded\)\)/.test(toolbarSource)
+    && /panel\.hidden = !expanded/.test(toolbarSource),
+  'overdue, in-progress, and tweaks default collapsed and persist each browser expansion');
 
 check(!INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('function scheduleAll(')

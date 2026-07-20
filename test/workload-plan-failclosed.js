@@ -123,6 +123,77 @@ function makeSetContext(fetchImpl, fastTimeout, staffRole = 'admin') {
   return { context, issue, renderDays, notifies };
 }
 
+function makeGroupContext() {
+  const sourceDate = '2026-07-25';
+  const targetDate = '2026-07-30';
+  const issues = Array.from({ length: 6 }, (_, index) => ({
+    id: 'synthetic-group-' + (index + 1),
+    identifier: 'VID-' + (index + 1),
+    clientName: 'Synthetic Client',
+    assigneeId: 'synthetic-editor',
+    dueDate: index === 1 ? '2026-07-20' : sourceDate,
+  }));
+  const priorOverrideId = issues[1].id;
+  const fallbackFailureId = issues[4].id;
+  const failedIds = new Set([priorOverrideId, fallbackFailureId]);
+  const planByIssueId = new Map([[priorOverrideId, sourceDate]]);
+  const calls = [];
+  const notifies = [];
+  const renders = [];
+  let active = 0;
+  let maxActive = 0;
+  let firstRequestSnapshot = null;
+  const context = {
+    _wlPlanWriteGeneration: 0,
+    _wlPlanSessionGeneration: 0,
+    _wlPlanWriteInFlight: new Map(),
+    _wlPlanLastWriteGeneration: new Map(),
+    wlState: {
+      planByIssueId,
+      planStatus: 'ready',
+      calendarByDate: new Map([[sourceDate, issues]]),
+    },
+    wlPlanEditingEnabled: () => true,
+    wlIsTweaksNeeded: () => false,
+    wlPlanDate: issue => planByIssueId.get(String(issue && issue.id || '')) || '',
+    wlApplyPlanLocal: (issueId, planDate) => {
+      if (planDate) planByIssueId.set(String(issueId), planDate);
+      else planByIssueId.delete(String(issueId));
+    },
+    renderWorkloadAll: () => renders.push(new Map(planByIssueId)),
+    showNotify: (title, body) => notifies.push([title, body]),
+    _wlPlanWriteRequest: async (issue, planDate) => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      calls.push(issue.id);
+      if (!firstRequestSnapshot) firstRequestSnapshot = new Map(planByIssueId);
+      await Promise.resolve();
+      active--;
+      if (failedIds.has(issue.id)) throw new Error('synthetic failure');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ok: true,
+          updated: 1,
+          plan: { issue_id: issue.id, plan_date: planDate },
+        }),
+      };
+    },
+    String, Set, Map, Math, Number, Array, Error, Promise, console,
+  };
+  context.globalThis = context;
+  vm.createContext(context);
+  vm.runInContext(extract('_wlPersistPlanDate'), context);
+  vm.runInContext(extract('wlMovePlanGroup'), context);
+  return {
+    context, issues, sourceDate, targetDate, priorOverrideId, fallbackFailureId,
+    calls, notifies, renders, planByIssueId,
+    maxActive: () => maxActive,
+    firstRequestSnapshot: () => firstRequestSnapshot,
+  };
+}
+
 let failures = 0;
 function ok(condition, message) {
   if (condition) console.log('  ok  ' + message);
@@ -277,6 +348,33 @@ function ok(condition, message) {
     const saved = await h.context._wlPersistPlanDate(h.issue, '2026-07-29', '2026-07-27');
     ok(saved === false && h.planByIssueId.get(h.issue.id) === '2026-07-27',
       'a mismatched canonical row fails closed and restores the previous value');
+  }
+
+  {
+    const h = makeGroupContext();
+    const moved = await h.context.wlMovePlanGroup(
+      h.sourceDate, 'synthetic-editor', 'Synthetic Client', h.targetDate
+    );
+    const firstSnapshot = h.firstRequestSnapshot();
+    const succeeded = h.issues.filter(issue =>
+      issue.id !== h.priorOverrideId && issue.id !== h.fallbackFailureId
+    );
+    ok(moved === false
+        && firstSnapshot
+        && h.issues.every(issue => firstSnapshot.get(issue.id) === h.targetDate),
+      'group drag paints every member on the target before its first request');
+    ok(h.calls.join(',') === h.issues.map(issue => issue.id).join(',')
+        && h.maxActive() === 1,
+      'group drag persists through the existing one-row writer sequentially');
+    ok(succeeded.every(issue => h.planByIssueId.get(issue.id) === h.targetDate)
+        && h.planByIssueId.get(h.priorOverrideId) === h.sourceDate
+        && !h.planByIssueId.has(h.fallbackFailureId)
+        && h.context._wlPlanWriteInFlight.size === 0,
+      'partial group failure keeps successes and restores each failed prior plan value');
+    ok(h.notifies.length === 1
+        && h.notifies[0][0] === 'Moved 4 of 6 — 2 put back'
+        && h.renders.length === 2,
+      'partial group failure emits one aggregate notification and one settled repaint');
   }
 
   // A delayed real list fetch captured before a successful write must not
@@ -438,6 +536,7 @@ function ok(condition, message) {
     let closeCount = 0;
     let pickerOpen = false;
     const setCalls = [];
+    const groupCalls = [];
     const pop = {
       open: false,
       classList: { contains: name => name === 'open' && pop.open },
@@ -467,6 +566,7 @@ function ok(condition, message) {
       wlCloseDropdowns: () => {},
       wlPlanEditingEnabled: () => true,
       wlSetPlanDate: (issueId, planDate) => { setCalls.push([issueId, planDate]); },
+      wlMovePlanGroup: (...args) => { groupCalls.push(args); },
       _wlPlanWriteInFlight: new Map(),
       setTimeout: callback => { callback(); return 1; },
       Map,
@@ -509,6 +609,27 @@ function ok(condition, message) {
     rootHandlers.drop({ target: day, dataTransfer: transfer, preventDefault: () => {} });
     ok(setCalls.some(call => call[0] === 'synthetic-issue-1' && call[1] === '2026-07-30'),
       'delegated drag/drop writes the stable issue id and exact target day');
+
+    const groupClasses = new Set();
+    const group = {
+      closest: selector => selector === '[data-wl-plan-group-drag]' ? group : null,
+      getAttribute: name => ({
+        draggable: 'true',
+        'data-wl-date': '2026-07-25',
+        'data-wl-assignee-id': 'synthetic-editor',
+        'data-wl-client': 'Synthetic Client',
+      })[name] || '',
+      classList: {
+        add: name => groupClasses.add(name),
+        remove: name => groupClasses.delete(name),
+      },
+    };
+    rootHandlers.dragstart({ target: group, dataTransfer: transfer, preventDefault: () => {} });
+    rootHandlers.dragover({ target: day, dataTransfer: transfer, preventDefault: () => {} });
+    rootHandlers.drop({ target: day, dataTransfer: transfer, preventDefault: () => {} });
+    ok(groupCalls.some(call => call.join('|')
+        === '2026-07-25|synthetic-editor|Synthetic Client|2026-07-30'),
+      'delegated collapsed client-chip drag moves the exact editor and client group');
 
     const dateWrap = {
       getAttribute: name => name === 'data-wl-plan-issue' ? 'synthetic-issue-1' : '',

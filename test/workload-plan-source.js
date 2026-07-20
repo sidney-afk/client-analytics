@@ -24,6 +24,10 @@ const clientPersist = INDEX.slice(
   INDEX.indexOf('async function _wlPersistPlanDate('),
   INDEX.indexOf('async function wlSetPlanDate('),
 );
+const clientGroupMove = INDEX.slice(
+  INDEX.indexOf('async function wlMovePlanGroup('),
+  INDEX.indexOf('// Single delegated handler on the shell root.'),
+);
 
 let failures = 0;
 function ok(condition, message) {
@@ -161,10 +165,17 @@ ok(/json\.updated !== 1/.test(clientPersist)
   && /showNotify\("Couldn't save the work day"/.test(clientPersist),
 'browser requires one matching actual write, then reverts and notifies on every mismatch');
 ok(/data-wl-plan-drag/.test(INDEX)
+  && /data-wl-plan-group-drag/.test(INDEX)
   && /data-wl-plan-clear/.test(INDEX)
   && /_svDateHtml\(dateId, workDate/.test(INDEX)
   && /function wlDisplayDate\(/.test(INDEX),
-'UX exposes issue-specific drag, branded work-day editing, clear, and due fallback');
+'UX exposes issue and collapsed-client drag, branded work-day editing, clear, and due fallback');
+ok(/!issues\.length \|\| !wlPlanEditingEnabled\(\)/.test(clientGroupMove)
+  && /issues\.some\(issue => wlIsTweaksNeeded\(issue\) \|\| _wlPlanWriteInFlight\.has/.test(clientGroupMove)
+  && /for \(const move of moves\)[\s\S]*?await _wlPersistPlanDate\([\s\S]*?true[\s\S]*?\);/.test(clientGroupMove)
+  && !/Promise\.all|_wlPlanWriteRequest|action:\s*['"]batch['"]/.test(clientGroupMove)
+  && /Moved \$\{moved\} of \$\{moves\.length\} — \$\{moves\.length - moved\} put back/.test(clientGroupMove),
+'collapsed group drag stays Admin/SMM-gated, tweak-exclusive, sequential, and aggregate-notified through the one-row writer');
 ok(/rollupEl\.setAttribute\('aria-expanded', 'true'\)/.test(INDEX)
   && /anchor\.setAttribute\('aria-expanded', 'false'\)/.test(INDEX)
   && /pop\.querySelector\('\[data-wl-popover-close\]'\)/.test(INDEX)

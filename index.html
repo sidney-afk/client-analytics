@@ -3110,6 +3110,13 @@
         .wl-client-search-result.loading { display: flex; align-items: center; gap: 8px; color: var(--text-muted); cursor: default; font-weight: 500; border-bottom: 1px solid var(--border); margin-bottom: 4px; padding-bottom: 8px; }
         .wl-client-search-result.loading .spinner { width: 12px; height: 12px; border-width: 2px; }
         .workload-section-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; }
+        .workload-section-toggle { width: 100%; min-height: 32px; padding: 0; border: 0; background: transparent; font-family: inherit; text-align: left; cursor: pointer; }
+        .workload-section-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 6px; }
+        .workload-section-toggle-chevron { margin-left: auto; color: currentColor; opacity: 0.75; transition: transform 0.15s ease; }
+        .workload-section-toggle[aria-expanded="true"] .workload-section-toggle-chevron { transform: rotate(180deg); }
+        .workload-exception-section.is-collapsed .workload-section-toggle { margin-bottom: 0; }
+        .workload-exception-rollups[hidden] { display: none; }
+        @media (prefers-reduced-motion: reduce) { .workload-section-toggle-chevron { transition: none; } }
         .workload-calendar-label { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
         .workload-section-hint { font-size: 0.7rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
         .workload-section-hint strong { color: var(--text-secondary); font-weight: 700; }
@@ -3140,15 +3147,12 @@
         .workload-popover-item-due   { font-size: 0.66rem; color: var(--text-muted); flex-shrink: 0; font-weight: 600; }
         .workload-popover-item-due.past { color: var(--sv-fg-dc2626); }
         .workload-popover-plan { margin: 1px 4px 8px 8px; padding: 8px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border-light); }
-        .workload-popover-plan-line { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+        .workload-popover-plan-line { display: flex; align-items: center; gap: 7px; flex-wrap: nowrap; }
         .workload-popover-plan-label { font-size: 0.64rem; font-weight: 750; color: var(--text-secondary); }
-        .workload-popover-plan-arrow { color: var(--text-muted); font-weight: 700; }
-        .workload-popover-plan-due { font-size: 0.66rem; font-weight: 650; color: var(--text-secondary); }
-        .workload-popover-plan .sv-date { min-width: 0; }
+        .workload-popover-plan .sv-date { min-width: 0; flex: 1 1 auto; }
         .workload-popover-plan .sv-date-trigger { min-height: 44px; padding: 8px 10px; font-size: 0.68rem; }
-        .workload-popover-plan-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
-        .workload-popover-plan-origin { font-size: 0.61rem; font-weight: 650; color: var(--text-muted); }
-        .workload-plan-clear { border: 0; background: transparent; padding: 4px 6px; border-radius: 6px; color: var(--sv-fg-6c5ce7); font: inherit; font-size: 0.62rem; font-weight: 700; cursor: pointer; }
+        .workload-popover-plan-saving { font-size: 0.61rem; font-weight: 650; color: var(--text-muted); white-space: nowrap; }
+        .workload-plan-clear { border: 0; background: transparent; padding: 4px 6px; border-radius: 6px; color: var(--sv-fg-6c5ce7); font: inherit; font-size: 0.62rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
         .workload-plan-clear:hover:not(:disabled) { background: var(--white); }
         .workload-plan-clear:disabled { opacity: 0.5; cursor: default; }
         /* Tweak-comment preview inside the workload popover — surfaces the
@@ -12414,6 +12418,16 @@
     const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
     const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';
+    const WL_SECTION_PREF_KEY     = 'syncview_workloadSections_v1';
+
+    function wlReadSectionPrefs() {
+        const prefs = { overdue: false, inprogress: false, tweaks: false };
+        try {
+            const saved = JSON.parse(localStorage.getItem(WL_SECTION_PREF_KEY) || '{}');
+            for (const key of Object.keys(prefs)) prefs[key] = saved && saved[key] === true;
+        } catch {}
+        return prefs;
+    }
 
     const wlState = {
         viewMode: 'week',                          // 'week' | 'month'
@@ -12438,6 +12452,7 @@
         subsByParentId: new Map(),
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         renderQueued: false,                       // background repaint deferred while a popover is open
+        sectionExpanded: wlReadSectionPrefs(),     // exception strips default collapsed; each browser remembers expansion
         fetchedAt: null,
         loading: false,
         refreshing: false,
@@ -12560,8 +12575,8 @@
     }
 
     // Realtime: one global channel on workload_issues. A change coalesces into a
-    // debounced silent refetch (which re-reads Supabase and repaints, deferring
-    // while a popover is open). The board has no inline editing, so there's no
+    // debounced silent refetch (which re-reads Supabase and repaints through the
+    // shared calendar skeleton). The board has no inline editing, so there's no
     // self-echo to suppress (writes come from n8n, not the browser).
     let _wlV2Channel = null, _wlV2RtTimer = null, _wlV2SubscribedOnce = false;
     function _wlV2OnRealtimeChange() {
@@ -12764,7 +12779,9 @@
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
         wlState.planError = null;
         if (document.querySelector('.workload-view')) {
-            renderWorkloadAll({ deferWhilePopoverOpen: true });
+            // Every manual, visibility, and realtime refresh paints the same
+            // calendar-shaped skeleton immediately, even over an open popover.
+            renderWorkloadAll();
         }
         const [issuesResult, plansResult] = await Promise.allSettled([
             loadLinearIssues(!!force),
@@ -13100,27 +13117,25 @@
     }
 
     function renderWorkloadShell() {
+        const overdueOpen = wlState.sectionExpanded.overdue === true;
+        const inProgressOpen = wlState.sectionExpanded.inprogress === true;
+        const tweaksOpen = wlState.sectionExpanded.tweaks === true;
         return `<div class="workload-view">
             <div id="wlCapacity" class="workload-capacity empty">
                 <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">most free → busiest</span></div>
                 <div class="workload-capacity-row" id="wlCapacityRow"></div>
             </div>
-            <div id="wlOverdue" class="workload-overdue empty">
-                <div class="workload-section-label"><span>Overdue</span><span class="wl-now-total" id="wlOverdueTotal" hidden></span></div>
-                <div class="workload-in-progress-rollups" id="wlOverdueRollups"></div>
+            <div id="wlOverdue" class="workload-overdue workload-exception-section${overdueOpen ? '' : ' is-collapsed'} empty">
+                <button type="button" class="workload-section-label workload-section-toggle" data-wl-section-toggle="overdue" aria-expanded="${overdueOpen}" aria-controls="wlOverdueRollups"><span>Overdue</span><span class="wl-now-total" id="wlOverdueTotal" hidden></span><span class="workload-section-toggle-chevron" aria-hidden="true">⌄</span></button>
+                <div class="workload-in-progress-rollups workload-exception-rollups" id="wlOverdueRollups"${overdueOpen ? '' : ' hidden'}></div>
             </div>
-            <div id="wlInProgress" class="workload-in-progress empty">
-                <div class="workload-section-label"><span>In progress now</span><span class="wl-now-total" id="wlInProgressTotal" hidden></span></div>
-                <div class="workload-in-progress-rollups" id="wlInProgressRollups"></div>
+            <div id="wlInProgress" class="workload-in-progress workload-exception-section${inProgressOpen ? '' : ' is-collapsed'} empty">
+                <button type="button" class="workload-section-label workload-section-toggle" data-wl-section-toggle="inprogress" aria-expanded="${inProgressOpen}" aria-controls="wlInProgressRollups"><span>In progress now</span><span class="wl-now-total" id="wlInProgressTotal" hidden></span><span class="workload-section-toggle-chevron" aria-hidden="true">⌄</span></button>
+                <div class="workload-in-progress-rollups workload-exception-rollups" id="wlInProgressRollups"${inProgressOpen ? '' : ' hidden'}></div>
             </div>
-            <div id="wlTweaks" class="workload-tweaks empty">
-                <div class="workload-section-label"><span>Tweaks needed</span><span class="wl-now-total" id="wlTweaksTotal" hidden></span></div>
-                <div class="workload-in-progress-rollups" id="wlTweaksRollups"></div>
-            </div>
-            <div id="wlUndated" class="workload-needs-assignment workload-undated empty">
-                <div class="workload-section-label">Needs a work day or deadline</div>
-                <div class="workload-section-hint">These assigned sub-issues stay visible here until an internal work day or Linear deadline exists.</div>
-                <div class="workload-chips" id="wlUndatedChips"></div>
+            <div id="wlTweaks" class="workload-tweaks workload-exception-section${tweaksOpen ? '' : ' is-collapsed'} empty">
+                <button type="button" class="workload-section-label workload-section-toggle" data-wl-section-toggle="tweaks" aria-expanded="${tweaksOpen}" aria-controls="wlTweaksRollups"><span>Tweaks needed</span><span class="wl-now-total" id="wlTweaksTotal" hidden></span><span class="workload-section-toggle-chevron" aria-hidden="true">⌄</span></button>
+                <div class="workload-in-progress-rollups workload-exception-rollups" id="wlTweaksRollups"${tweaksOpen ? '' : ' hidden'}></div>
             </div>
             <div class="workload-toolbar">
                 <div class="workload-toolbar-row">
@@ -13183,6 +13198,11 @@
             <div id="wlUnassigned" class="workload-needs-assignment empty">
                 <div class="workload-section-label">Needs assignment</div>
                 <div class="workload-chips" id="wlUnassignedChips"></div>
+            </div>
+            <div id="wlUndated" class="workload-needs-assignment workload-undated empty">
+                <div class="workload-section-label">Needs a work day or deadline</div>
+                <div class="workload-section-hint">These assigned sub-issues stay visible here until an internal work day or Linear deadline exists.</div>
+                <div class="workload-chips" id="wlUndatedChips"></div>
             </div>
             <div class="workload-legend">
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:var(--sv-bg-6c5ce7)"></span>Video</span>
@@ -13310,8 +13330,8 @@
         }
     }
 
-    // Manual refresh — toolbar ↻ button. Spins the icon and shows "Refreshing…"
-    // without blanking the calendar.
+    // Manual refresh — toolbar ↻ button. Spins the icon while the calendar
+    // uses the same skeleton as every automatic refresh.
     async function wlManualRefresh() {
         if (!document.querySelector('.workload-view') || wlState.refreshing) return;
         wlState.refreshing = true;
@@ -13748,6 +13768,7 @@
         root.dataset.wlWired = '1';
 
         root.addEventListener('click', (e) => {
+            const sectionToggle = e.target.closest('[data-wl-section-toggle]');
             const countBadge = e.target.closest('[data-wl-count-badge]');
             const rollup     = e.target.closest('[data-wl-rollup]');
             const popClose   = e.target.closest('[data-wl-popover-close]');
@@ -13755,6 +13776,19 @@
             const planClear  = e.target.closest('[data-wl-plan-clear]');
             const ddTrigger  = e.target.closest('[data-wl-dropdown-trigger]');
             const ddItem     = e.target.closest('[data-wl-dropdown-item]');
+            if (sectionToggle) {
+                e.preventDefault();
+                const section = sectionToggle.getAttribute('data-wl-section-toggle') || '';
+                if (!Object.prototype.hasOwnProperty.call(wlState.sectionExpanded, section)) return;
+                const expanded = sectionToggle.getAttribute('aria-expanded') !== 'true';
+                wlState.sectionExpanded[section] = expanded;
+                try { localStorage.setItem(WL_SECTION_PREF_KEY, JSON.stringify(wlState.sectionExpanded)); } catch {}
+                sectionToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                const panel = document.getElementById(sectionToggle.getAttribute('aria-controls') || '');
+                if (panel) panel.hidden = !expanded;
+                sectionToggle.closest('.workload-exception-section')?.classList.toggle('is-collapsed', !expanded);
+                return;
+            }
             if (popClose) { e.preventDefault(); wlClosePopover(true); return; }
             if (planClear) {
                 e.preventDefault();
@@ -14132,7 +14166,7 @@
         const el = document.getElementById('wlPlanStatus');
         if (!el) return;
         const status = wlState.planStatus;
-        if (status === 'ready') {
+        if (status === 'ready' || status === 'loading' || status === 'refreshing') {
             el.hidden = true;
             el.className = 'workload-plan-status';
             el.textContent = '';
@@ -14140,12 +14174,7 @@
         }
         el.hidden = false;
         el.className = 'workload-plan-status ' + ((status === 'unknown' || status === 'stale') ? 'is-warning' : 'is-loading');
-        if (status === 'loading') {
-            el.hidden = true;
-            el.textContent = '';
-        } else if (status === 'refreshing') {
-            el.textContent = 'Refreshing saved work days — editing is briefly paused.';
-        } else if (status === 'stale') {
+        if (status === 'stale') {
             el.textContent = 'Saved work days could not be refreshed. The last good plan is shown; editing is paused.';
         } else {
             el.textContent = 'Saved work days are unavailable. Deadlines are shown as a clearly marked fallback; editing is disabled.';
@@ -14204,6 +14233,10 @@
         if (!bodyEl) return;
 
         const hasAnyData = wlState.planned.length || wlState.nowWorking.length || wlState.undated.length || wlState.unassigned.length;
+        if (wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing') {
+            bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
+            return;
+        }
         if (wlState.error && !hasAnyData) {
             bodyEl.innerHTML = '<div class="workload-error">Could not load Linear issues: ' + wlEscape(wlState.error) + '</div>';
             return;
@@ -14212,11 +14245,6 @@
             bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
             return;
         }
-        if (wlState.planStatus === 'loading') {
-            bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
-            return;
-        }
-
         bodyEl.innerHTML = wlState.viewMode === 'week' ? renderWeekGrid() : renderMonthGrid();
     }
 
@@ -14865,7 +14893,7 @@
                 <span class="workload-popover-head-title">${wlEscape(headerTitle)}</span>
                 ${templatesLink}
             </div>
-            ${parentUrl ? `<a class="workload-popover-parent" href="${wlEscape(parentUrl)}" target="_blank" rel="noopener noreferrer">Open parent →</a>` : ''}
+            ${parentUrl ? `<a class="workload-popover-parent" href="${wlEscape(parentUrl)}" target="_blank" rel="noopener noreferrer">Open Linear →</a>` : ''}
             <button type="button" class="workload-popover-close" data-wl-popover-close="1" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
         </div>`;
         // When the popover spans multiple clients (editor-total badge), label
@@ -14878,16 +14906,11 @@
             const saving = _wlPlanWriteInFlight.has(String(s.id || ''));
             const canEditPlan = !wlIsTweaksNeeded(s) && wlPlanEditingEnabled() && !saving;
             const dateId = 'wlPlanDate_' + String(s.id || '').replace(/[^A-Za-z0-9_-]/g, '_');
-            const planOrigin = explicitPlan ? 'Internal plan' : (s.dueDate ? 'Uses deadline' : 'No date yet');
             const planControl = wlIsTweaksNeeded(s) ? '' : `<div class="workload-popover-plan" data-wl-plan-issue="${wlEscape(s.id || '')}">
                 <div class="workload-popover-plan-line">
                     <span class="workload-popover-plan-label">Work day</span>
                     ${_svDateHtml(dateId, workDate, { placeholder: 'Choose work day', disabled: !canEditPlan })}
-                    <span class="workload-popover-plan-arrow" aria-hidden="true">→</span>
-                    <span class="workload-popover-plan-due">${wlEscape(dueLabel)}</span>
-                </div>
-                <div class="workload-popover-plan-meta">
-                    <span class="workload-popover-plan-origin">${wlEscape(saving ? 'Saving…' : planOrigin)}</span>
+                    ${saving ? '<span class="workload-popover-plan-saving" role="status">Saving…</span>' : ''}
                     ${explicitPlan ? `<button type="button" class="workload-plan-clear" data-wl-plan-clear="${wlEscape(s.id || '')}"${canEditPlan ? '' : ' disabled'}>Clear plan day</button>` : ''}
                 </div>
             </div>`;

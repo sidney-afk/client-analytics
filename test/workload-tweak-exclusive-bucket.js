@@ -367,39 +367,97 @@ check(overloadedGraphicsHtml.includes('class="workload-day-card-total over-capac
   'graphics overload is shown on its editor against the 15-item threshold');
 
 const loadingPlanStatus = { hidden: false, className: '', textContent: 'old' };
-compile('renderWorkloadPlanStatus', {
+const planStatusState = { planStatus: 'loading' };
+const paintPlanStatus = compile('renderWorkloadPlanStatus', {
   document: { getElementById: () => loadingPlanStatus },
-  wlState: { planStatus: 'loading' },
-})();
+  wlState: planStatusState,
+});
+paintPlanStatus();
+planStatusState.planStatus = 'refreshing';
+loadingPlanStatus.hidden = false;
+loadingPlanStatus.textContent = 'old';
+paintPlanStatus();
 const workloadSkeletonHtml = compile('_svWorkloadSkeletonHtml', {
   wlState: { viewMode: 'week' },
   _svSkel: (classes, style) => `<span class="sv-skeleton ${classes}" style="${style}"></span>`,
 })();
+const workloadRenderSource = grabFunc('renderWorkloadAll');
+const workloadLoadSource = grabFunc('wlLoadSnapshot');
 check(loadingPlanStatus.hidden === true
     && loadingPlanStatus.textContent === ''
     && !INDEX.includes('Loading saved work days…')
-    && /if \(wlState\.planStatus === 'loading'\)[\s\S]{0,120}_svLoadingSkeletonHtml\('workload'\)/.test(grabFunc('renderWorkloadAll'))
+    && !INDEX.includes('Refreshing saved work days')
+    && /wlState\.planStatus === 'loading' \|\| wlState\.planStatus === 'refreshing'/.test(workloadRenderSource)
+    && /_svLoadingSkeletonHtml\('workload'\)/.test(workloadRenderSource)
+    && /renderWorkloadAll\(\);/.test(workloadLoadSource)
+    && !workloadLoadSource.includes('deferWhilePopoverOpen')
+    && /await wlLoadSnapshot\(true, null\)/.test(grabFunc('wlManualRefresh'))
+    && /await wlLoadSnapshot\(true, null\)/.test(grabFunc('wlRefetchSilent'))
+    && /wlRefetchSilent\(\)/.test(grabFunc('_wlV2OnRealtimeChange'))
     && (workloadSkeletonHtml.match(/class="workload-skeleton-day"/g) || []).length === 7
     && workloadSkeletonHtml.includes('aria-label="Loading saved work days"')
     && workloadSkeletonHtml.includes('class="sv-skeleton-row"')
     && workloadSkeletonHtml.includes('sv-skeleton-line')
     && workloadSkeletonHtml.includes('sv-skeleton-pill'),
-  'saved-plan loading uses a calendar-shaped editor-and-client skeleton with no visible text state');
+  'every initial, manual, visibility, and realtime plan refresh uses the calendar skeleton with no text strip');
 
 const workloadShellSource = grabFunc('renderWorkloadShell');
 const tweaksIndex = workloadShellSource.indexOf('id="wlTweaks"');
 const undatedIndex = workloadShellSource.indexOf('id="wlUndated"');
+const unassignedIndex = workloadShellSource.indexOf('id="wlUnassigned"');
 const toolbarIndex = workloadShellSource.indexOf('class="workload-toolbar"');
 const calendarLabelIndex = workloadShellSource.indexOf('class="workload-section-label workload-calendar-label"');
 const calendarBodyIndex = workloadShellSource.indexOf('id="wlBody"');
 check((workloadShellSource.match(/class="workload-toolbar"/g) || []).length === 1
-    && tweaksIndex < undatedIndex
-    && undatedIndex < toolbarIndex
+    && tweaksIndex < toolbarIndex
     && toolbarIndex < calendarLabelIndex
     && calendarLabelIndex < calendarBodyIndex
+    && calendarBodyIndex < unassignedIndex
+    && unassignedIndex < undatedIndex
     && ['prev', 'today', 'next'].every(value => workloadShellSource.includes(`data-wl-nav="${value}"`))
     && ['week', 'month'].every(value => workloadShellSource.includes(`data-wl-view="${value}"`)),
-  'the intact period toolbar sits below tweaks and undated work, directly before the calendar');
+  'the intact period toolbar sits below exception strips and directly before the calendar, with undated work at the bottom');
+
+const sectionStorage = new Map();
+const sectionLocalStorage = {
+  getItem: key => sectionStorage.has(key) ? sectionStorage.get(key) : null,
+  setItem: (key, value) => sectionStorage.set(key, value),
+};
+const sectionPrefKey = 'syncview_workloadSections_v1';
+const wlReadSectionPrefs = compile('wlReadSectionPrefs', {
+  localStorage: sectionLocalStorage,
+  WL_SECTION_PREF_KEY: sectionPrefKey,
+});
+const defaultSectionPrefs = wlReadSectionPrefs();
+sectionStorage.set(sectionPrefKey, JSON.stringify({ overdue: true, inprogress: false, tweaks: true, ignored: true }));
+const savedSectionPrefs = wlReadSectionPrefs();
+const toolbarSource = grabFunc('wlWireToolbar');
+check(defaultSectionPrefs.overdue === false
+    && defaultSectionPrefs.inprogress === false
+    && defaultSectionPrefs.tweaks === false
+    && savedSectionPrefs.overdue === true
+    && savedSectionPrefs.inprogress === false
+    && savedSectionPrefs.tweaks === true
+    && !Object.prototype.hasOwnProperty.call(savedSectionPrefs, 'ignored')
+    && (workloadShellSource.match(/data-wl-section-toggle=/g) || []).length === 3
+    && (workloadShellSource.match(/workload-exception-rollups/g) || []).length === 3
+    && /localStorage\.setItem\(WL_SECTION_PREF_KEY,\s*JSON\.stringify\(wlState\.sectionExpanded\)\)/.test(toolbarSource)
+    && /panel\.hidden = !expanded/.test(toolbarSource),
+  'overdue, in-progress, and tweaks default collapsed and persist each browser expansion');
+
+const popoverSource = grabFunc('wlOpenRollupPopover');
+check(popoverSource.includes('Open Linear →')
+    && !popoverSource.includes('Open parent')
+    && (popoverSource.match(/workload-popover-item-due/g) || []).length === 1
+    && !popoverSource.includes('workload-popover-plan-arrow')
+    && !popoverSource.includes('workload-popover-plan-due')
+    && !popoverSource.includes('workload-popover-plan-meta')
+    && !popoverSource.includes('workload-popover-plan-origin')
+    && !popoverSource.includes('Uses deadline')
+    && /workload-popover-plan-line[\s\S]*?Work day[\s\S]*?_svDateHtml\(dateId, workDate[\s\S]*?workload-plan-clear/.test(popoverSource)
+    && /const planControl = wlIsTweaksNeeded\(s\) \? ''/.test(popoverSource)
+    && popoverSource.includes('wl-tweak-comments'),
+  'shared popovers keep one title-row deadline, use one compact work-day row, and link to Linear');
 
 check(!INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('function scheduleAll(')

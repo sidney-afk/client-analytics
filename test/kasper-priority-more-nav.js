@@ -85,7 +85,7 @@ const tabs = [
   ['filming', 'Filming Plans', true],
   ['time-off', 'Time Off', true, true],
   ['sales-intake', 'Sales Intake', false],
-  ['onboarding', 'Onboarding', false],
+  ['onboarding', 'Onboarding', true, true],
   ['client-credentials', 'Client Credentials', false],
 ].map(([key, label, showCount, hideZero]) => ({
   key,
@@ -177,6 +177,9 @@ ok((navMarkup(makeRenderer({ tab: 'review' }, { tabs: tabs.filter(tab => tab.key
   'the priority row remains complete and duplicate-free when Samples is disabled');
 ok(/data-kasper-tab="time-off"[\s\S]*?data-kasper-count="time-off"[\s\S]*?data-kasper-hide-zero/.test(defaultHtml),
   'the Time Off count stays wired inside More and is configured to hide zero');
+ok(/data-kasper-tab="onboarding"[\s\S]*?data-kasper-count="onboarding"[\s\S]*?data-kasper-hide-zero/.test(defaultHtml)
+  && /data-kasper-more-count[^>]+hidden/.test(defaultHtml),
+  'Onboarding has an unread badge and More has a hidden aggregate notification badge');
 
 function classListHarness() {
   const names = new Set();
@@ -227,6 +230,7 @@ const countEls = [
   { textContent: '', hidden: false, hasAttribute: name => name === 'data-kasper-hide-zero' },
 ];
 const setTabCount = new Function('document', `
+  const _kasperSyncMoreNotificationCount = () => {};
   ${functionSource('_kasperSetTabCount')}
   return _kasperSetTabCount;
 `)({ querySelectorAll: () => countEls });
@@ -236,6 +240,17 @@ ok(countEls.every(el => el.textContent === '0') && countEls[0].hidden === false 
 setTabCount('time-off', 2);
 ok(countEls[1].hidden === false && countEls[1].textContent === '2',
   'a new pending Time Off count makes its badge visible again');
+
+const notificationKeys = vm.runInNewContext(`(${constExpression('KASPER_MORE_NOTIFICATION_KEYS')})`);
+ok(JSON.stringify(notificationKeys) === JSON.stringify(['time-off', 'onboarding']),
+  'More aggregates the two actionable overflow notification sources');
+const unreadSource = functionSource('_kasperOnboardingUnreadCount');
+const seenSource = functionSource('_kasperMarkOnboardingSeen');
+ok(/KASPER_ONBOARDING_SEEN_KEY/.test(unreadSource)
+  && /_obvSubs\.filter/.test(unreadSource)
+  && /localStorage\.setItem\(KASPER_ONBOARDING_SEEN_KEY, newest\)/.test(seenSource)
+  && /_kasperSetTabCount\('onboarding', 0\)/.test(seenSource),
+  'Onboarding counts submissions newer than the saved cursor and clears only when opened');
 
 const keyboard = functionSource('_kasperOnMoreKeydown');
 const goto = functionSource('_kasperGotoTab');

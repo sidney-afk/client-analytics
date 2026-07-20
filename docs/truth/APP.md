@@ -81,6 +81,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - Kasper keeps Review Session, Samples, Messages, and Filming Plans in a stable priority row. Editors
   and Time Off sit under **Team** in an accessible More menu; Sales Intake, Onboarding, and Client
   Credentials sit under **Pipeline & Admin**. The active More destination replaces the generic label,
+  pending Time Off requests and onboarding submissions newer than this browser's last-opened
+  Onboarding cursor show counts on their rows, and their combined count cues the collapsed More
+  trigger. Opening Onboarding advances only its local seen cursor; pending Time Off remains actionable.
   responsive grids contain the navigation at 390/768 px and 200% text scaling, and denied staff-only
   routes canonicalize both the saved tab and URL (F121 is partially corrected; Back/history policy
   remains unchanged). A failed shared Review/Messages cold load leaves Messages on an indefinite

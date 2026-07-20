@@ -1,6 +1,6 @@
 # n8n — current truth
 
-> Last verified: 2026-07-18 @ 2703ccd (webhook surface unchanged at 55; inbound instant-sync state updated after the 2026-07-17 Linear outage aftermath)
+> Last verified: 2026-07-20 @ 09e3dd6 (F124 CLIENTS METRICS live receipt/coverage/quota proof; other statements retain their dated sources)
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
 > full-active-roster Calendar/SXR/settings writes now use Edge Functions. Snapshot workflows
@@ -74,12 +74,19 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   clear all three live sheets before validating/reappending; its webhooks authenticate no caller and
   it has no revision/staging/transaction/restore receipt. Keep it out of recovery workflows until
   the destructive partial-replacement finding closes.
-- Client analytics collectors can publish provider/state failures as zeros, stale values, or
-  incomplete platform coverage while the workflow remains successful. In the retained aggregate
-  window, one Metrics run stopped on its first append and skipped 25 later clients after its
-  PostTracking path, while four green Top Videos runs sent 4–7 of 15 configured YouTube lanes per
-  run through the same no-source path used for missing/empty input. Treat Metrics/Top Videos as
-  degraded unless typed per-client/platform receipts distinguish valid empty from source failure.
+- `CLIENTS METRICS` workflow `Q4n1bagJYBkurEaI` is active at
+  `b92fb693-1dd4-4ce2-a60e-98a1701c369d`; retained version
+  `fb180e5f-79ee-4d49-9dec-70999b422b71` is the direct rollback. Its first scheduled production
+  run (`287059`) consumed all 29 roster clients, emitted 29 unique
+  `syncview.analytics.receipt.v1` terminal receipts, completed 29 Metrics writes, and passed final
+  coverage with zero write failures. One provider failure exactly preserved its last-good row,
+  whose affected values were already legitimate zeros; two successful platform results persisted
+  fresh numeric zero fields without fallback. No `genuinely_empty` case occurred in that live run;
+  pinned pre-publish execution `286168` covers that branch. The 31m12s run had no Sheets quota
+  error; retain quota monitoring because the preceding production run did hit the project write
+  limit. This closes the CLIENTS METRICS half of F124. TOP VIDEOS remains degraded: four retained
+  green runs sent only 8–11 of 15 configured YouTube lanes through processed stats, while 4–7
+  collapsed into the same no-source path used for missing/empty input.
 - The active Linear Sub-Issues reader and retained `/add-to-calendar` branch do not page children
   (or nested comments), reject partial GraphQL envelopes, or publish a completeness receipt. Their
   outputs currently drive Calendar import/link/status or legacy Sheet writes. Treat `ok:true` and a

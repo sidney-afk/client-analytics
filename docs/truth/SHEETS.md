@@ -1,6 +1,6 @@
 # Google Sheets — current truth
 
-> Last verified: 2026-07-14 @ e3961b6
+> Last verified: 2026-07-20 @ 09e3dd6 (Metrics receipt schema and first scheduled production rows; other statements retain their dated sources)
 > Live facts from `docs/audits/2026-07-05-sheets.md` (verified 2026-07-05) unless noted.
 > Sheets change outside git and outside CI — treat every claim here as spot-verify-first.
 
@@ -11,6 +11,20 @@
 - Tabs in use: **Clients Info** (12 cols A–L), **Video Editors** (2 cols: name, email —
   **no `slack_user_id` column**; urgent-Slack resolution uses a hardcoded fallback map inside
   n8n), **Social Media Managers**, plus a calendar-mirror workbook (63 tabs at last count).
+
+## Analytics metrics
+
+- `Metrics` now uses columns A–Q; Q is `analytics_receipt`. Each new CLIENTS METRICS row carries a
+  public-safe `syncview.analytics.receipt.v1` JSON value with one typed state per platform:
+  `success`, `genuinely_empty`, `provider_failed`, or `not_configured`. It stores controlled error
+  classes rather than raw provider messages.
+- The first scheduled production run after activation wrote one row for every one of the 29 roster
+  clients, with 29 parseable terminal receipts, 29 unique client keys, no duplicate/missing name,
+  and zero failed writes. A provider failure exactly reused a last-good row whose affected values
+  were already legitimate zeros; successful numeric zeros remained fresh. No `genuinely_empty`
+  receipt occurred in that live run; its evidence remains the pinned pre-publish execution
+  `286168`. Because the app reads Sheets through unauthenticated gviz CSV, receipt fields must
+  remain free of secrets and raw provider payloads.
 
 ## Roster truth
 

@@ -136,10 +136,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   fallback, and exact cleanup. F148 keeps the insufficient same-chain true-count source guard and
   reused-F141 test-label cleanup open; the live behavior proof is unchanged. #889's merged
   hierarchy/group-drag path is client-side only and reuses that deployed one-row writer; it adds
-  no Edge Function, schema,
-  migration, runtime flag, Linear writer, or frozen client-writer change. Current-main Pages run
-  `29752646229` served the merge. This Order-1 reconciliation itself performed no live operation
-  and changed no n8n workflow or real-client row.
+  no Edge Function, schema, migration, runtime flag, Linear writer, or frozen client-writer change.
+  #884's server-atomic batch contract remains open. Current-main Pages run `29752646229` served the
+  merge. This Order-1 reconciliation itself performed no live operation and changed no n8n workflow
+  or real-client row.
 
 ## Linear sync surface
 

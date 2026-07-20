@@ -2,6 +2,49 @@
 
 All times are UTC unless noted.
 
+## 2026-07-20 — F27 per-team rollback candidate, isolated TEST proof only
+
+- Read the vault contract first: `docs/ops/FLIP_RUNBOOK.md`, F27 in the cutover
+  audit, and `docs/independence/GO_LIVE_CHECKLIST.md`.
+- Added the source-only F27 hold/snapshot/classification/terminal-receipt/final
+  CAS migration plus a disposable PostgreSQL proof. No migration was applied to
+  the live Supabase project.
+- Post-review-fix head `afee809aefbf5cc3242df05a3047561548171d89` passed GitHub Actions run
+  `29764430971`; artifact `8470167032`, artifact digest
+  `sha256:8021ac47758b46d1d4de37183ebd5828053c66f6f52cb7ea36d32bd6c9f513f8`,
+  terminal transcript digest
+  `9f48084737145e112a59e6d9a370f4fa54ca932ad1dd542afe8fc5164cce7ece`.
+- Terminal receipt: rollback `f77731a8-2503-4121-85e2-514cff596eee`,
+  snapshot correlation `bfcf2f5a-35b4-47f8-b2b8-e0029fee042b`, replay
+  correlation `8e874155-81ec-46cf-966d-a412a97af6d3`, four Graphics intents,
+  snapshot hash `5f4becf405e32ba97859b0729cedbb48289c510243d642a5d15a18d07406fe11`,
+  `active_team_rows=0`, `unclassified=0`, `unreceipted_replays=0`.
+- The outside-n8n GitHub observer asserted exact prior flags restored, F2 off,
+  F4 false, Video unchanged, payload hashes unchanged, premature finalization
+  refused, held-team enqueue refused, an already-claimed lease refused, and a
+  copied/synthetic replay receipt refused.
+- Cloud review on `21f1d7a` found an in-flight drainer race and rewritable
+  service-role evidence. `65edd59` refuses capture while any affected active row
+  has a lease, preserves leases rather than clearing them, and removes direct
+  service-role ledger mutation rights. A third review thread required receipt
+  identity to bind rollback/outbox/dedup/operation, intent hash, writer
+  correlation, and persisted Linear-result hash. The recorded run is the
+  post-fix proof of all three changes.
+- Fixed-head review then found that classified replay had no stopped-lane
+  execution path and the shipped writer emitted no rollback correlation.
+  Candidate `linear-outbound` source now accepts only an explicit
+  rollback-ID + exact-dedup replay, verifies the open classified intent before
+  and after claim, requires F2 off/F4 false/SyncView authority, and checkpoints
+  the bound correlation through the real result helper. Failures remain
+  quarantined. `test/f27-linear-outbound-replay.js` exercises that shared
+  request/result contract; no Edge Function was deployed and no Linear request
+  was sent.
+- FLIP NOTHING boundary preserved: no forward live flip, authority change,
+  live-client mutation, Edge Function deploy, n8n change, or change to
+  `calendar-upsert` / `sample-review-upsert`.
+- Draft PR #894 remains review-gated. Applying the migration and any deployed
+  TEST-client drill require a separate owner-approved operation.
+
 ## 2026-07-03
 
 - Read the migration plan, rollback doctrine, Track A/B specs, and 2026-07-03 audit snapshots before edits.

@@ -17,7 +17,8 @@ owner merging this file (see D-32)._
 
 1. **The owner holds every switch.** Nothing flips without a deliberate owner action.
 2. **One team at a time.** Graphics (one person) first, then Video (D-28).
-3. **One-click team rollback is BLOCKED (F05/F27).** Immediate containment is stop that team's new
+3. **One-click team rollback remains live-BLOCKED (F05/F27).** PR #894's candidate passed an
+   isolated TEST transaction, but is not applied to the live project. Immediate containment is stop that team's new
    mutations. F2 `off` stops normal outbound only; F4 `false` stops independent parity, so disable
    both for an unknown/mixed Linear-write incident (F58). Authority returns to Linear only after an immutable team
    snapshot, owner-audited classify/replay/quarantine/discard decisions, and a machine-read team
@@ -66,6 +67,10 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       fence; every forward/kill/recovery action passes an isolated TEST flag-store transaction,
       exact expected-state CAS, affected-row assertion, and readback. Never paste a multi-action
       sequence or an unconditional whole-row replacement.
+      **F27 evidence:** post-review-fix head `afee809`, run `29764430971`, artifact
+      `8470167032` proved the per-team recovery statement, in-flight and unbound-receipt refusal, and F2/F4 behavior in a
+      disposable PostgreSQL store. This is one action's evidence, not closure of
+      the every-fence checklist item and not live-application authorization.
 - [ ] **The complete Production browser gate is green before merge/flip** (F105): do not accept the
       fast PR subset alone. Locked live-read/zero-mutation and fully intercepted writable states are
       explicit; interaction/behavior/pixel lanes are authority-aware; unsupported operations remain
@@ -626,8 +631,9 @@ Pick a low-activity window.
       fresh green window.
 - [ ] Kasper's queue shows her natively-created thumbnails. F04's native-link predicate is merged;
       this checkbox is the required first-real-Graphics observation, not a source-completeness check.
-- [ ] Apply D-29 on anything found. Team rollback remains blocked until F27's audited per-team
-      quarantine/classify/replay/discard tooling exists. Follow FLIP_RUNBOOK §R2: stop new writes,
+- [ ] Apply D-29 on anything found. Team rollback remains live-blocked until PR #894's
+      isolated-proved F27 quarantine/classify/replay/discard tooling is reviewed, applied, read back,
+      and TEST-client drilled. Follow FLIP_RUNBOOK §R2: stop new writes,
       snapshot and classify every team intent, replay only owner-approved rows, prove a machine-read
       team zero, and only then change authority. Never use the default drainer as rollback proof.
 

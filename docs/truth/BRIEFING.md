@@ -43,7 +43,9 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 ## Laws and enforced invariants
 
 - **`ROLLBACK.md` is law**: every forward change needs a one-step behavior kill plus a rehearsed,
-  evidence-bearing complete recovery. F27 means Track-B authority reversal is not one-step; F51
+  evidence-bearing complete recovery. F27's PR #894 candidate makes the final Track-B team
+  authority reversal one guarded statement and passed an isolated TEST transaction, but remains
+  live-blocked until cloud review, migration application/readback, and a deployed TEST-client drill; F51
   means an EF source rebuild is not automatically an exact runtime rollback. Log every deploy,
   flag flip, migration, backup, recovery, and incident in `EXECUTION_LOG.md`.
 - `npm test` runs every `test/*.js` offline — including `test/repo-map-sync.js` (repo layout

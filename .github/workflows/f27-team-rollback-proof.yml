@@ -1,31 +1,20 @@
-name: Calendar unit tests
+name: F27 team rollback proof
 
-# Fast, dependency-free logic/wiring checks (test/*.js). They extract pieces of
-# index.html's inline script and assert on them — no network, no backend, no
-# browser — so they run on every push and pull request as the always-on net.
 on:
-  push:
-    branches: ['**']
+  workflow_dispatch:
   pull_request:
+    paths:
+      - "migrations/2026-07-20-f27-team-rollback.sql"
+      - "scripts/f27-team-rollback-proof.sql"
+      - "test/f27-team-rollback.js"
+      - ".github/workflows/f27-team-rollback-proof.yml"
+
+permissions:
+  contents: read
 
 jobs:
-  unit:
+  f27-proof:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # truth-sync verifies freshness anchors resolve and are ancestors
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Run unit suite (test/*.js)
-        run: node test/run-all.js
-
-  f27-team-rollback-proof:
-    if: contains(github.event.head_commit.message || '', 'F27') || github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
     services:
       postgres:
         image: postgres:16
@@ -46,23 +35,13 @@ jobs:
       PGDATABASE: postgres
     steps:
       - uses: actions/checkout@v4
-      - name: Detect F27 proof source
-        id: source
-        run: |
-          if [[ -f scripts/f27-team-rollback-proof.sql ]]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
       - name: Run isolated TEST transaction
-        if: steps.source.outputs.present == 'true'
         run: |
           set -o pipefail
           mkdir -p f27-proof
           psql -X -v ON_ERROR_STOP=1 -f scripts/f27-team-rollback-proof.sql | tee f27-proof/terminal.txt
           sha256sum f27-proof/terminal.txt | tee f27-proof/terminal.sha256
       - name: Outside-n8n terminal observer
-        if: steps.source.outputs.present == 'true'
         run: |
           grep -q "F27_PROOF_OK" f27-proof/terminal.txt
           {
@@ -73,7 +52,6 @@ jobs:
             echo "- receipt hash: $(cut -d' ' -f1 f27-proof/terminal.sha256)"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
-        if: steps.source.outputs.present == 'true'
         with:
           name: f27-team-rollback-proof
           path: f27-proof/

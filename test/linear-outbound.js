@@ -334,7 +334,7 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   const ef = read('supabase/functions/linear-outbound/index.ts');
   ok(/linear_outbound_enabled/.test(ef) && /prod_authority/.test(ef),
     'drainer reads both switch and team authority');
-  ok(/currentControl\(supabase, row, testOverride\)/.test(ef),
+  ok(/currentControl\(supabase, row, testOverride, f27Replay\)/.test(ef),
     'drainer re-reads control before each row');
   ok(/unlockPending\(supabase, row, testClient \? 0 : 30\)/.test(ef),
     'production pause keeps backoff while the service-only TEST drill can resume immediately');
@@ -349,8 +349,9 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   const ownIssueResolver = ef.match(/function linearIssueId\([^]*?\n\}/);
   ok(ownIssueResolver && !/dependency\.linear_issue_id|dependency\.issue_id/.test(ownIssueResolver[0]),
     'a create dependency supplies parentId only and is never mistaken for the child issue');
-  ok(/status: "stale"/.test(ef) && /linear_newer_than_syncview_intent/.test(read('supabase/functions/linear-outbound/mapping.mjs')),
-    'newer Linear edits are marked stale, not overwritten');
+  ok(/status: f27Replay \? "skipped" : "stale"/.test(ef)
+    && /linear_newer_than_syncview_intent/.test(read('supabase/functions/linear-outbound/mapping.mjs')),
+    'newer Linear edits are marked stale, not overwritten; F27 recovery stays quarantined');
   ok(/conflict\.decision === "tolerated_historical"/.test(ef)
     && /counts\.tolerated_historical\+\+/.test(ef),
   'drainer skips and counts defensively queued historical structure writes');

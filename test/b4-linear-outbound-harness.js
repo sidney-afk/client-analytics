@@ -86,7 +86,8 @@ ok(/checkpointLinearResult/.test(outbound) && /await checkpointLinearResult\(sup
   'drainer checkpoints every acknowledged mutation before finalization');
 ok(/B4_TEST_PROJECT_IDS/.test(outbound) && /kind !== "test"/.test(outbound),
   'drainer TEST override requires both a private project allowlist and test client kind');
-ok(/\.in\("status", \["pending", "shadow_ok", "written", "failed"\]\)/.test(inbound),
+ok(/\.in\("status", \["pending", "shadow_ok", "written", "failed", "skipped"\]\)/.test(inbound)
+  && /lower\(row\.status\) === "skipped" && !clean\(result\.rollback_id\)/.test(inbound),
   'inbound echo matching covers the acknowledgement/finalization race');
 ok(/updateLinearFieldClocks/.test(inbound) && /field_updated_at/.test(inbound),
   'inbound records per-field Linear timestamps for pause/resume conflict checks');

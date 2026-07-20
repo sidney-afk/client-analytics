@@ -27,6 +27,8 @@ const { pathToFileURL } = require('url');
   ok(/fetchLane\(null, \["pending", "skipped"\], 1, "any"\)/.test(source)
     && /status: f27Replay \? "skipped" : "failed"/.test(source),
     'scoped writer retries only the exact ledger-quarantined rollback row while global lanes stay stopped');
+  ok(/let f27Replay: JsonMap \| null = null;\s*try \{\s*f27Replay =/.test(source),
+    'replay state remains in scope for catch-path release and retry');
   ok(/f27Replay \|\| Number\(row\.attempts \|\| 0\) < MAX_ATTEMPTS/.test(source)
     && /!f27Replay && attempts >= MAX_ATTEMPTS/.test(source),
     'F27 recovery remains selectable and scheduled beyond the normal attempt ceiling');

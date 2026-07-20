@@ -921,8 +921,9 @@ Deno.serve(async (req: Request) => {
   for (const candidate of rows) {
     const row = await claimRow(supabase, candidate);
     if (!row) continue;
+    let f27Replay: JsonMap | null = null;
     try {
-      const f27Replay = f27ReplayRequestValue
+      f27Replay = f27ReplayRequestValue
         ? await f27ReplayAuthorization(supabase, f27ReplayRequestValue, row)
         : null;
       const control = await currentControl(supabase, row, testOverride, f27Replay);

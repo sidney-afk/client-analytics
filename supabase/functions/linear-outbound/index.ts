@@ -921,7 +921,9 @@ Deno.serve(async (req: Request) => {
   for (const candidate of rows) {
     const row = await claimRow(supabase, candidate);
     if (!row) continue;
-    let f27Replay: JsonMap | null = null;
+    // Preserve lane identity for catch even if post-claim authorization or a
+    // flag read fails before it can return the fully bound replay context.
+    let f27Replay: JsonMap | null = f27ReplayRequestValue;
     try {
       f27Replay = f27ReplayRequestValue
         ? await f27ReplayAuthorization(supabase, f27ReplayRequestValue, row)

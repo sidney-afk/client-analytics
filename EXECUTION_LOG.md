@@ -2,6 +2,32 @@
 
 All times are UTC unless noted.
 
+## 2026-07-20 — F27 per-team rollback candidate, isolated TEST proof only
+
+- Read the vault contract first: `docs/ops/FLIP_RUNBOOK.md`, F27 in the cutover
+  audit, and `docs/independence/GO_LIVE_CHECKLIST.md`.
+- Added the source-only F27 hold/snapshot/classification/terminal-receipt/final
+  CAS migration plus a disposable PostgreSQL proof. No migration was applied to
+  the live Supabase project.
+- Candidate head `3e3f6fcaf2fe90be964e2eddb0ed183753d79743` passed GitHub Actions run
+  `29756163070`; artifact `8466748210`, artifact digest
+  `sha256:2a84c6ebe1ec02bc2079a9c74445fd9c8d449a33a6526fbee6b4182facd26e8e`,
+  terminal transcript digest
+  `a46c000372082554e40b201d7b2ed0024b11a28063b6ed72c85f8f441ee61530`.
+- Terminal receipt: rollback `fa929dfa-63ce-4e51-89f2-d162b84f7334`,
+  snapshot correlation `0ff5d192-4ce2-4748-a975-a25a61427af3`, replay
+  correlation `c065341c-f20c-48bf-a1e8-4995f1e50f31`, four Graphics intents,
+  snapshot hash `1411a5522ecfd2f568493079806259778c1a1afbf991a4a7642b388715b959c4`,
+  `active_team_rows=0`, `unclassified=0`, `unreceipted_replays=0`.
+- The outside-n8n GitHub observer asserted exact prior flags restored, F2 off,
+  F4 false, Video unchanged, payload hashes unchanged, premature finalization
+  refused, and held-team enqueue refused.
+- FLIP NOTHING boundary preserved: no forward live flip, authority change,
+  live-client mutation, Edge Function deploy, n8n change, or change to
+  `calendar-upsert` / `sample-review-upsert`.
+- Draft PR #894 remains review-gated. Applying the migration and any deployed
+  TEST-client drill require a separate owner-approved operation.
+
 ## 2026-07-03
 
 - Read the migration plan, rollback doctrine, Track A/B specs, and 2026-07-03 audit snapshots before edits.

@@ -2,8 +2,8 @@
 
 // Backend-only source contract for editable Workload plan dates. Behavioral
 // optimistic/revert coverage lives in the separate client harness; this guard
-// pins the locked sidecar, auth boundary, target scope, and F141 actual-count
-// rule before any live deployment.
+// pins the locked sidecar, auth boundary, target scope, and actual-count rule
+// before any live deployment.
 
 const fs = require('fs');
 const path = require('path');
@@ -114,10 +114,19 @@ const setPlanSegment = EDGE.slice(
   EDGE.indexOf('async function setPlan'),
   EDGE.indexOf('Deno.serve'),
 );
-ok(/const \{ data, error \} = await db[\s\S]*?\.from\("workload_plan"\)[\s\S]*?\.upsert\([\s\S]*?\)[\s\S]*?\.select\("issue_id,client,plan_date,updated_at"\)[\s\S]*?const updated = Array\.isArray\(data\) \? data\.length : 0/.test(setPlanSegment)
+const trueCountWriteChain = /\.from\("workload_plan"\)\s*\.upsert\(\{[^;]*?plan_date:\s*planDate,[^;]*?updated_by:\s*principal\.actor[^;]*?\},\s*\{\s*onConflict:\s*"issue_id"\s*\}\)\s*\.select\("issue_id,client,plan_date,updated_at"\)/;
+const selectCall = '.select("issue_id,client,plan_date,updated_at")';
+const detachedSelectMutant = setPlanSegment.replace(
+  selectCall,
+  ';\n  db.from("workload_plan")\n    ' + selectCall,
+);
+ok(trueCountWriteChain.test(setPlanSegment)
+  && detachedSelectMutant !== setPlanSegment
+  && !trueCountWriteChain.test(detachedSelectMutant)
+  && /const updated = Array\.isArray\(data\) \? data\.length : 0/.test(setPlanSegment)
   && /result\.updated !== 1/.test(EDGE)
   && /error: "short_write"[\s\S]{0,100}updated: result\.updated/.test(EDGE),
-'F141 guard selects the written row, derives its actual count, and fails closed on a short write');
+'true-count guard selects the written row on the upsert chain and fails closed on a short write');
 ok(!/updated\s*:\s*1\b/.test(EDGE)
   && !/updated\s*:\s*(?:requested|items?\.length|parsed)/.test(EDGE),
 'function never reports a literal or requested success count');

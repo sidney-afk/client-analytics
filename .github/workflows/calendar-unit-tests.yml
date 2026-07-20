@@ -57,6 +57,7 @@ jobs:
       - name: Run isolated TEST transaction
         if: steps.source.outputs.present == 'true'
         run: |
+          set -o pipefail
           mkdir -p f27-proof
           psql -X -v ON_ERROR_STOP=1 -f scripts/f27-team-rollback-proof.sql | tee f27-proof/terminal.txt
           sha256sum f27-proof/terminal.txt | tee f27-proof/terminal.sha256

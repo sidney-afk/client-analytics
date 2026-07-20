@@ -5,6 +5,9 @@
 -- that disposable TEST database.
 CREATE SCHEMA f27_test;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE ROLE anon NOLOGIN;
+CREATE ROLE authenticated NOLOGIN;
+CREATE ROLE service_role NOLOGIN;
 
 CREATE TABLE public.syncview_runtime_flags (
   key text PRIMARY KEY,

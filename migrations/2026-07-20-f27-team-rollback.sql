@@ -181,7 +181,8 @@ create or replace function public.track_b_f27_classify(
   p_outbox_id bigint,
   p_classification text,
   p_reason text,
-  p_actor text
+  p_actor text,
+  p_reflected_receipt jsonb default null
 ) returns jsonb
 language plpgsql
 security definer
@@ -198,6 +199,16 @@ begin
      or v_reason is null or v_actor is null then
     raise exception 'f27_classification_incomplete';
   end if;
+  if v_kind = 'already_reflected'
+     and (
+       p_reflected_receipt->>'ok' is distinct from 'true'
+       or p_reflected_receipt->>'type' is distinct from 'f27_already_reflected_terminal'
+       or p_reflected_receipt->>'rollback_id' is distinct from p_rollback_id::text
+       or p_reflected_receipt->>'outbox_id' is distinct from p_outbox_id::text
+       or coalesce(p_reflected_receipt->>'issue_id', '') = ''
+     ) then
+    raise exception 'f27_reflected_receipt_required';
+  end if;
   select r.team into v_team
   from public.track_b_team_rollbacks r
   where r.id = p_rollback_id and r.state = 'open'
@@ -207,6 +218,10 @@ begin
   update public.track_b_team_rollback_intents i
   set classification = v_kind, reason = v_reason,
       classified_by = v_actor, classified_at = now(),
+      terminal_receipt = case
+        when v_kind = 'already_reflected' then p_reflected_receipt
+        else i.terminal_receipt
+      end,
       classification_history = i.classification_history || jsonb_build_array(
         jsonb_build_object(
           'from', i.classification,
@@ -243,7 +258,14 @@ begin
         processed_at = null, next_retry_at = now(),
         lock_token = null, locked_at = null, updated_at = now()
     where id = p_outbox_id and lower(team) = v_team and status = 'skipped';
-  elsif v_kind in ('discard', 'already_reflected') then
+  elsif v_kind = 'already_reflected' then
+    update public.mirror_outbox
+    set status = 'written', processed_at = now(), next_retry_at = null,
+        linear_result = p_reflected_receipt,
+        last_error = 'F27 already_reflected: ' || v_reason,
+        lock_token = null, locked_at = null, updated_at = now()
+    where id = p_outbox_id and lower(team) = v_team and status = 'skipped';
+  elsif v_kind = 'discard' then
     update public.mirror_outbox
     set status = 'skipped', processed_at = now(), next_retry_at = null,
         last_error = 'F27 ' || v_kind || ': ' || v_reason,

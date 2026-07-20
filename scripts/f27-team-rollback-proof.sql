@@ -181,7 +181,20 @@ END $$;
 SELECT public.track_b_f27_classify(:'rollback_id', 1, 'replay', 'owner approved exact retry', 'f27-test-owner');
 SELECT public.track_b_f27_classify(:'rollback_id', 2, 'quarantine', 'preserve for investigation', 'f27-test-owner');
 SELECT public.track_b_f27_classify(:'rollback_id', 3, 'discard', 'owner verified invalid intent', 'f27-test-owner');
-SELECT public.track_b_f27_classify(:'rollback_id', 4, 'already_reflected', 'exact Linear value independently observed', 'f27-test-owner');
+SELECT public.track_b_f27_classify(
+  :'rollback_id',
+  4,
+  'already_reflected',
+  'exact Linear value independently observed',
+  'f27-test-owner',
+  jsonb_build_object(
+    'ok', true,
+    'type', 'f27_already_reflected_terminal',
+    'rollback_id', :'rollback_id',
+    'outbox_id', '4',
+    'issue_id', 'TEST-REFLECTED-4'
+  )
+);
 
 -- Simulated audited writer completion for the one approved TEST replay.
 SELECT gen_random_uuid()::text AS replay_correlation \gset

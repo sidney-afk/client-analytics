@@ -466,11 +466,15 @@ async function checkpointLinearResult(
   row: OutboxRow,
   linearResult: JsonMap,
 ): Promise<void> {
-  const { error } = await supabase.from("mirror_outbox")
+  const { data, error } = await supabase.from("mirror_outbox")
     .update({ linear_result: linearResult, updated_at: new Date().toISOString() })
     .eq("id", row.id)
-    .eq("lock_token", row.lock_token);
-  if (error) throw new Error("outbox create checkpoint failed");
+    .eq("lock_token", row.lock_token)
+    .select("id")
+    .maybeSingle();
+  if (error || !data || Number(data.id) !== Number(row.id)) {
+    throw new Error("outbox create checkpoint CAS failed");
+  }
   row.linear_result = linearResult;
 }
 

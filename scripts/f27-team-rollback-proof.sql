@@ -92,10 +92,10 @@ INSERT INTO public.mirror_outbox(
 CREATE TEMP TABLE f27_prior_flags AS
 SELECT key, value FROM public.syncview_runtime_flags ORDER BY key;
 CREATE TEMP TABLE f27_prior_payloads AS
-SELECT id, encode(digest(convert_to(payload::text, 'UTF8'), 'sha256'), 'hex') AS payload_hash
+SELECT id, encode(extensions.digest(convert_to(payload::text, 'UTF8'), 'sha256'), 'hex') AS payload_hash
 FROM public.mirror_outbox ORDER BY id;
 CREATE TEMP TABLE f27_other_team AS
-SELECT encode(digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'), 'hex') AS row_hash
+SELECT encode(extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'), 'hex') AS row_hash
 FROM public.mirror_outbox o WHERE team = 'video';
 
 \ir ../migrations/2026-07-20-f27-team-rollback.sql
@@ -261,7 +261,7 @@ SELECT public.track_b_f27_record_terminal(
     'operation', 'status',
     'correlation_id', :'replay_correlation',
     'linear_result_sha256', (
-      select encode(digest(convert_to(linear_result::text, 'UTF8'), 'sha256'), 'hex')
+      select encode(extensions.digest(convert_to(linear_result::text, 'UTF8'), 'sha256'), 'hex')
       from public.mirror_outbox where id = 1
     ),
     'intent_snapshot_sha256', (
@@ -288,14 +288,14 @@ BEGIN
   JOIN f27_prior_flags p USING (key);
   IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'exact_prior_flags_restored'; END IF;
 
-  SELECT encode(digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'), 'hex') = t.row_hash
+  SELECT encode(extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'), 'hex') = t.row_hash
   INTO v_ok
   FROM public.mirror_outbox o CROSS JOIN f27_other_team t
   WHERE o.team = 'video';
   IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'other_team_unchanged'; END IF;
 
   SELECT bool_and(
-    encode(digest(convert_to(o.payload::text, 'UTF8'), 'sha256'), 'hex') = p.payload_hash
+    encode(extensions.digest(convert_to(o.payload::text, 'UTF8'), 'sha256'), 'hex') = p.payload_hash
   ) INTO v_ok
   FROM public.mirror_outbox o JOIN f27_prior_payloads p USING (id);
   IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'zero_payload_loss'; END IF;

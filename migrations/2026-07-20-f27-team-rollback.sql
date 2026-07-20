@@ -95,6 +95,7 @@ declare
   v_parity jsonb;
   v_rollback public.track_b_team_rollbacks%rowtype;
   v_count integer;
+  v_inflight integer;
   v_hash text;
 begin
   if v_team not in ('video', 'graphics') or v_actor is null then
@@ -117,6 +118,18 @@ begin
   if v_outbound is distinct from '{"mode":"off"}'::jsonb
      or v_parity is distinct from '{"enabled":false}'::jsonb then
     raise exception 'f27_emergency_stops_required';
+  end if;
+
+  -- F2/F4 stop new scans, but a stateless drainer may already hold a row and
+  -- have passed its control read. Never clear that lease: wait for the worker
+  -- to checkpoint/release, or investigate an expired lease, then begin again.
+  select count(*) into v_inflight
+  from public.mirror_outbox o
+  where lower(o.team) = v_team
+    and o.status in ('pending', 'failed', 'shadow_ok')
+    and (o.lock_token is not null or o.locked_at is not null);
+  if v_inflight <> 0 then
+    raise exception 'f27_inflight_rows:%', v_inflight;
   end if;
 
   insert into public.track_b_team_rollbacks (
@@ -149,8 +162,6 @@ begin
   update public.mirror_outbox o
   set status = 'quarantined',
       last_error = 'F27 hold ' || v_rollback.correlation_id::text,
-      lock_token = null,
-      locked_at = null,
       next_retry_at = null,
       updated_at = now()
   where lower(o.team) = v_team
@@ -256,6 +267,7 @@ begin
     and r.id = i.rollback_id and r.state = 'open'
     and o.id = i.outbox_id
     and i.classification = 'replay'
+    and i.terminal_receipt is null
     and o.status in ('written', 'skipped', 'stale');
   get diagnostics v_count = row_count;
   if v_count <> 1 then raise exception 'f27_terminal_receipt_refused'; end if;
@@ -358,10 +370,10 @@ begin
 end;
 $fn$;
 
-revoke all on table public.track_b_team_rollbacks from public, anon, authenticated;
-revoke all on table public.track_b_team_rollback_intents from public, anon, authenticated;
-grant select, insert, update on table public.track_b_team_rollbacks to service_role;
-grant select, insert, update on table public.track_b_team_rollback_intents to service_role;
+revoke all on table public.track_b_team_rollbacks from public, anon, authenticated, service_role;
+revoke all on table public.track_b_team_rollback_intents from public, anon, authenticated, service_role;
+grant select on table public.track_b_team_rollbacks to service_role;
+grant select on table public.track_b_team_rollback_intents to service_role;
 revoke all on function public.track_b_f27_begin(text, jsonb, text)
   from public, anon, authenticated;
 revoke all on function public.track_b_f27_classify(uuid, bigint, text, text, text)

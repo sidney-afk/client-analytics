@@ -119,6 +119,27 @@ UPDATE public.syncview_runtime_flags
 SET value = '{"enabled":false}', updated_by = 'f27-test-stop'
 WHERE key = 'linear_legacy_parity_enabled' AND value = '{"enabled":true}';
 
+-- A worker that claimed before the stops must finish/release before capture.
+UPDATE public.mirror_outbox
+SET lock_token = gen_random_uuid(), locked_at = now()
+WHERE id = 1;
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.track_b_f27_begin(
+      'graphics',
+      '{"video":"linear","graphics":"syncview"}',
+      'f27-test-owner'
+    );
+    RAISE EXCEPTION 'in-flight begin unexpectedly succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM NOT LIKE 'f27_inflight_rows:%' THEN RAISE; END IF;
+  END;
+END $$;
+UPDATE public.mirror_outbox
+SET lock_token = null, locked_at = null
+WHERE id = 1;
+
 SELECT (public.track_b_f27_begin(
   'graphics',
   '{"video":"linear","graphics":"syncview"}',
@@ -235,6 +256,7 @@ SELECT jsonb_build_object(
     'other_team_unchanged',
     'zero_payload_loss',
     'terminal_receipts_correlated',
+    'inflight_lease_refused',
     'f2_off',
     'f4_false'
   )

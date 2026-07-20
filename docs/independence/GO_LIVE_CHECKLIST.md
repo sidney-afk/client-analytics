@@ -353,6 +353,13 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       legacy Samples links retain the verified client principal, and Calendar/Brief reloads never
       expose Analytics chrome or data. Prove the visible sequence from document start through
       settlement on synthetic fixtures, including hard reload and second reload.
+- [ ] **Calendar lifetime and ancillary work have one exact-client owner** (F170/F171/F162):
+      one generation owns the primary read, Linear reconcile/meta continuations, realtime
+      channel/timers, loader state and deferred render until all tails settle. Client/route/no-load
+      replacement and pagehide abort/revoke that exact owner; persisted pageshow starts exactly one
+      fresh epoch. Hold A's reconcile/meta, switch visibly to B, release A, and prove zero B
+      mutation, cache/meta persist, suppression token, writer enqueue or repaint. Draft #891 remains
+      a candidate until exact-head cloud review and owner merge.
 - [ ] **Boot reads fail visibly and terminate**
       (F151/F152/F158/F163/F164/F165/F166/F167/F168/F169): HTTP 4xx/5xx,
       parseable error envelopes, malformed 200 responses, offline prerequisites and never-settling
@@ -368,9 +375,14 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       queue incompleteness; Production Activity distinguishes loading, complete-empty, stale, and
       failed event reads. Preserve last-good data only under an explicit banner, expose Retry, and
       drive each actual boot/refresh/failure/recovery sequence under F162.
-- [ ] **Staff boot and history preserve one route and one data owner** (F150/F153/F154/F162):
+- [ ] **Staff boot and history preserve one route and one data owner**
+      (F150/F153/F154/F162/F172):
       direct Samples Review → Home starts the Analytics requirement; deep links round-trip their
       client/card/subtab; Back → Forward → Back uses the same teardown/mount lifecycle as clicks.
+      Staff Analytics bootstrap owns and aborts essentials/extras/cache/render by document
+      generation across route exit, pagehide and persisted pageshow; late completions cannot mutate
+      or repaint a replacement document. F172 remains source-only until this visible sequence is
+      reproduced and repaired.
       Each remediation's browser lane must record actual early visible frames and transitions; a
       settled-page or source-only assertion cannot close the finding.
 - [ ] **B1 has a success-only durable checkpoint and typed terminal heartbeat** (F131): per-row

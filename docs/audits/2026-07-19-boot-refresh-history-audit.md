@@ -1,11 +1,15 @@
 # SyncView boot, refresh, browser-history, and read-truth audit
 
-> **Immutable evidence snapshot plus publication source-only addendum.** The
+> **Immutable evidence snapshot plus separately labelled publication and
+> remediation addenda.** The
 > controlled browser evidence records what was observed at
 > `e238bc4f3a2685717b41aa16170e61d9a3cdc36f`. The separately labelled targeted
 > source recon records current seams at `07d123d` and makes no browser or live
-> execution claim. Current status and remediation live in
-> `docs/independence/CUTOVER_AUDIT_2026-07-13.md` (F149–F169) and
+> execution claim. The remediation addendum records controlled synthetic-browser
+> Calendar evidence at `86fe60c` separately from one source-only staff Analytics
+> finding; draft #891 candidate `baa4ebf` is unmerged and cloud review is pending.
+> Current status and remediation live in
+> `docs/independence/CUTOVER_AUDIT_2026-07-13.md` (F149–F172) and
 > `docs/truth/BRIEFING.md`; do not edit this audit to track later fixes.
 
 ## Evidence lock
@@ -21,6 +25,8 @@
 | Mutation boundary | Read-only; no application, database, workflow, flag, deployment, or live-data write |
 | Publication revalidation | Root causes were rechecked in source and the high-confidence browser counterexamples were repeated with synthetic fixtures at `f00da65341797ec55f2f9a0d53b97e6bccd7056f`; `index.html` is byte-identical at the publication base `c722984cb86f66a6f14cba210e38963ac4779b0f` |
 | Publication source-only expansion | Targeted current-source census at `07d123d` registered F163–F169 and expanded F29/F45/F130/F138/F152/F162. It made no browser/backend request and used no live data, identity, credential, secret body, or write. |
+| Remediation controlled expansion | Controlled synthetic-browser Calendar sequences at current-source base `86fe60c` registered F170–F171: held primary/ancillary work, no-load exit, pagehide, real persisted BFCache, and visible client A → B replacement. All traffic and writes were intercepted; no live data, identity, credential, flag, backend, or live writer was used. |
+| Remediation source-only expansion | Source inspection at `86fe60c` and draft #891 candidate `baa4ebf` registered F172. It made no browser/backend request and claims no runtime frequency. The candidate is unmerged and cloud review is pending. |
 
 The browser harness intercepted external requests and returned fictional data.
 It exercised cold and warm boot, hard reload, a second reload, browser Back and
@@ -92,6 +98,25 @@ recovery.
 | SR-05 | P2 | Weekly Reports has no read deadline and accepts empty/malformed success as empty managers/reports before painting “No reports match.” | `index.html:19518-19558`, `:19874-19923` | F167 |
 | SR-06 | P1 | Credentials list/modal/history reads can hang; malformed success can render “No credentials” or “No history yet.” | `index.html:51045-51133`, `:51332-51342`, `:51407-51425` | F168 |
 | SR-07 | P2 | Kasper Editors accepts a 200 `{}` as cacheable data and paints missing editors as “No editor deliveries last week”; a held request never leaves its skeleton. | `index.html:53999-54060` | F169 |
+
+## Remediation-phase evidence addendum
+
+This later addendum does not rewrite the original `e238bc4` route snapshot or
+upgrade the F163–F169 source-only evidence. It records two newly reproduced
+Calendar lifetime failures against current-source base `86fe60c`, then one
+separately labelled source-only staff Analytics gap. The controlled browser used
+only fictional clients/rows and intercepted all reads and writer calls. Draft
+#891 candidate `baa4ebf` was inspected as a proposed guard; it is unmerged and
+exact-head cloud review is pending, so none of these rows is closed here.
+
+| Addendum ID | Sev | Observation | Evidence | Durable owner |
+|---|---|---|---|---|
+| RA-01 | P1 | Calendar's primary request, post-load Linear/meta continuations, realtime channel/timers, loader state, and deferred render did not share one document/surface owner. Held work and channel ownership could survive client/route no-load exits, pagehide, or real persisted-BFCache restore, while a stale completion/finally raced replacement state. | Controlled synthetic browser + source at `86fe60c`; proposed generation/controller/realtime-epoch guard inspected at unmerged `baa4ebf` | F170 |
+| RA-02 | P0 | A held client-A v1 Linear reconcile could resume after a visible switch to client B, consult mutable current Calendar state, mutate B, seed B suppression/pending state, and enqueue an intercepted Calendar write under B. This is a cross-client integrity/confidentiality failure, not only stale UI. | Controlled synthetic A → B browser + source at `86fe60c`; proposed ancillary lease/abort and visible-sequence guard inspected at unmerged `baa4ebf` | F171 |
+
+| Addendum ID | Sev | Source-only observation | Source seams | Durable owner |
+|---|---|---|---|---|
+| RS-01 | P1 | Staff Analytics bootstrap has no document/BFCache run or abort lease. Current main has no bootstrap run owner; draft #891 adds one only for client links, passes `null` for staff, and its suspension handler exits for staff. No browser reproduction or runtime-frequency claim is made. | Current-main `fetchAll()`/bootstrap at `index.html:8320-8330`, `:41918`; unmerged candidate `fetchAll(_isClientLink ? clientEntryRun : null)` and `_syncviewSuspendClientEntry()` at `baa4ebf` | F172 |
 
 ## Existing findings that overlap but were not renumbered
 
@@ -260,14 +285,17 @@ The passing tests did not contradict the browser findings:
 ## Accepted remediation order
 
 1. **Client-facing entry first:** F149 plus the already-open F102/F117 P0
-   boundaries.
+   boundaries, followed by the newly reproduced Calendar lifetime and
+   cross-client continuation boundaries in F170/F171. Draft #891 is only a
+   candidate until exact-head cloud review and owner merge.
 2. **Silent failure class:** F151, F152, F158, F163–F169, and the expanded
    F29/F45/F130/F138 owners. A transport, envelope, schema, completeness, or
    deadline failure must fail visibly, preserve last-good data only when
    identified as stale, and offer retry; it must never become fake-empty
    business data.
-3. **Staff flows:** F150, F153, and F154—Samples Review → Analytics, stale
-   Back/Forward modes, and lost detail state.
+3. **Staff flows:** F150, F153, F154, and source-only F172—Samples Review →
+   Analytics, stale Back/Forward modes, lost detail state, and a staff Analytics
+   document/BFCache bootstrap lease. F172 still requires browser reproduction.
 4. **Secondary route consistency:** F155–F161 after the higher-impact slices.
 
 Every remediation must satisfy F162 with a browser guard that drives the
@@ -298,6 +326,15 @@ A boot/history fix is complete only when:
 - visible keyboard/touch Retry recovers without reloading the document;
 - route exit prevents stale async completion from repainting the page left
   behind;
+- a single current Calendar generation owns primary, ancillary, realtime,
+  loader and deferred-render state through its terminal tail;
+- client replacement, no-load exit and pagehide revoke that exact generation,
+  while persisted pageshow starts exactly one fresh owner;
+- a held client-A continuation released after a visible A → B switch produces
+  zero B mutation, cache/meta persist, writer enqueue, suppression token or
+  repaint;
+- staff Analytics bootstrap work is aborted/replaced with the document/BFCache
+  generation before any late global-data, cache or render continuation;
 - the QA lane records early frames and transitions, not only settled DOM.
 
 ## Limitations
@@ -311,6 +348,12 @@ A boot/history fix is complete only when:
 - SR-01–SR-07 and the publication-time existing-owner expansions are source-only
   targeted recon. They identify reachable code paths, not reproduced browser
   outcomes; their required synthetic visible guards remain open under F162.
+- RA-01/RA-02 are controlled synthetic-browser evidence from the remediation
+  phase; they do not claim production frequency or a live client/write. RS-01
+  (F172) is source-only and still needs a staff-browser reproduction.
+- Draft #891 candidate `baa4ebf` is cited only as the inspected proposed guard.
+  It is unmerged and exact-head cloud review is pending, so it does not close
+  F170 or F171 and does not remediate F172.
 - Whether Back should traverse replace-only filters and Kasper subtabs remains a
   product policy question. Losing a supplied deep link, showing two active
   routes, or restoring a hybrid page is a defect regardless of that decision.

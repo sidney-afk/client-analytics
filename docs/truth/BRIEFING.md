@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-20 @ 07d123d + boot-audit branch (current-state reconciliation through F169; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release and #889 grouping/group drag served with F147/F148 evidence follow-ups; boot/refresh/history/read-truth audit registered as F149–F169; coverage state in docs/testing/ASSURANCE_LEDGER.md)
+> Last verified: 2026-07-20 @ 86fe60c + boot-audit branch (current-state reconciliation through F172; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release and #889 grouping/group drag served with F147/F148 evidence follow-ups; boot/refresh/history/read-truth audit registered as F149–F172; coverage state in docs/testing/ASSURANCE_LEDGER.md)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -118,7 +118,7 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   later failed fast + interaction while heavy/review-packet passed. The PR-head and merge trees are
   identical, so the red run is not evidence of an F145 code delta, but current-main test health
   remains open.
-- The public-safe boot/refresh/history/read-truth audit owns F149–F169. Client entry remains first:
+- The public-safe boot/refresh/history/read-truth audit owns F149–F172. Client entry remains first:
   F102/F117 plus the Calendar/Brief wrong-shell refresh in F149. Browser-proven silent read failures
   and indefinite boot states are F151/F152/F158; staff data, Back/Forward and deep-link continuity
   are F150/F153/F154; F155–F161 cover lower-severity route consistency. Publication-time
@@ -126,9 +126,17 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   Filming (F165), Onboarding (F166), Weekly Reports (F167), Credentials/history (F168), and Editors
   (F169), while expanding existing Workload F29, Linear picker F45, Kasper Review/Messages F130,
   Production Activity F138, and deadline F152 ownership. No new browser proof is claimed for those
-  source-only paths. Every remediation must satisfy F162 with a browser guard that observes the
+  source-only paths. Remediation-phase controlled synthetic-browser evidence adds Calendar
+  primary/ancillary/realtime lifetime ownership in F170 and a P0 held client-A → client-B
+  continuation/write boundary in F171. Draft #891 candidate `baa4ebf` proposes generation-owned
+  abort/realtime/exit/BFCache guards, but it is unmerged and cloud review is pending. F172 is a
+  separately labelled **source-only** staff Analytics document/BFCache lease gap; no staff browser
+  reproduction or runtime frequency is claimed, and the client-only draft does not close it.
+  Every remediation must satisfy F162 with a browser guard that observes the
   actual visible sequence from document start through visible failure, keyboard/touch Retry, and
-  recovery; a settled-page assertion or source check does not close a boot finding.
+  recovery. Calendar guards must also hold and release real primary/ancillary/realtime work across
+  no-load exit, A → B replacement, pagehide and persisted pageshow. A settled-page assertion or
+  source check does not close a boot finding.
 - F140 is owner-ratified and fixed on the review branch: Samples matches Calendar, so Kasper may
   stack change requests and then Finish hands the card to the SMM. The strict Finish gate remains;
   the fix prevents a fresh status companion from being mistaken for recovery debt before its first

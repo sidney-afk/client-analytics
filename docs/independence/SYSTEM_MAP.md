@@ -224,6 +224,11 @@ n8n in the metric read path.*
   missing/empty input and still wrote 29 client results. Its SPA output has no source-coverage/
   freshness field to distinguish provider failure from real no-content. No Top Videos row value was
   inspected.
+- **Staff document-lifetime gap (F172; SOURCE-ONLY at `86fe60c`).** Staff Analytics bootstrap has
+  no document/BFCache generation or abort controller around essentials, extras, cache publication
+  and re-render. Draft #891 candidate `baa4ebf` passes its new data run only for client links and
+  its suspension handler exits for staff, so the unmerged candidate does not close this path. No
+  staff browser reproduction or runtime-frequency claim exists yet.
 - **Notable.** Client-viewable brief pages can write to the agency Hook Library (`add-hook-to-library`
   ungated) and can trigger the `generate-content-summary` AI workflow (ungated). Two hardcoded
   per-client display special-cases exist in the render path. Correction: `content-ready` is **not**
@@ -310,6 +315,14 @@ n8n in the metric read path.*
   new v1 queue entry; ambiguous results require the principal-bound `reconcile_only` receipt above.
   Caption jobs are poller-authoritative with 45 s/3 min/12 min
   watchdogs. Realtime subscribe failure degrades to fetch-on-focus.
+- **Lifecycle/cross-client gaps (F170/F171; CONTROLLED SYNTHETIC BROWSER at `86fe60c`).**
+  The primary Calendar read, post-load Linear reconcile/meta reads, realtime channel/timers,
+  loader state and deferred render do not share one surface generation through terminal
+  settlement. No-load exits/pagehide/BFCache can leave ownership alive. A held client-A v1
+  reconcile released after a visible switch to B reproduced mutation of B plus an intercepted
+  Calendar write enqueue under B. Draft #891 candidate `baa4ebf` adds the proposed
+  generation-owned abort/realtime/exit/BFCache guards, but it is unmerged and cloud review is
+  pending; current truth remains open.
 - **Retirement warning (F104).** The former Phase-4 checklist is quarantined: it falsely treated the
   opt-out and fallback branches as unreachable and would also remove the v2 metadata reader's
   `LINEAR_STATUSES_URL`. No flag, fallback, helper, workflow, or Sheet is retired without measured

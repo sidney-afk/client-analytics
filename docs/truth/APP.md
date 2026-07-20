@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch (Workload five-day deadline-timeline merged; F138 current-source correction; boot/refresh/history/read-truth register reconciled through F169; live plan-date backend unchanged)
+> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch (Workload five-day deadline-timeline merged; F138 current-source correction; boot/refresh/history/read-truth register reconciled through F172; live plan-date backend unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -21,6 +21,11 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   and servers do not return `upgrade_required` before mutation. Build-population telemetry is absent.
   Go-live therefore requires a fixed same-origin manifest plus server minimum-build/epoch enforcement,
   with owner-defined optional versus mandatory release behavior and draft/queue-safe reauthentication.
+- F172 is a **source-only** staff Analytics lifetime gap: current-main `fetchAll()` has no
+  document/BFCache run or abort lease. Draft #891 passes its new run only for client links and its
+  suspension owner exits for staff, so the unmerged candidate does not close the staff path. No
+  staff browser reproduction or runtime frequency is claimed; the staff-flow phase must add the
+  actual visible pagehide/BFCache/late-completion guard.
 
 ## Calendar
 
@@ -42,6 +47,12 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   persisted `thumb_rev` in the actual browser cache key. Calendar adopts a newer server revision
   across cache/LWW guards and advances existing image nodes on realtime without waiting for a hard
   refresh or a focused-field repaint.
+- F170/F171: the current Calendar primary read, post-load Linear/meta continuations, realtime
+  channel/timers, loader state and deferred render do not share one document/surface generation.
+  Controlled synthetic-browser evidence held client A's v1 reconcile, switched visibly to B, and
+  reproduced an intercepted stale write enqueued against B. Draft #891 candidate `baa4ebf` adds the
+  proposed generation/abort/realtime/exit/BFCache guard, but it is unmerged and cloud review is
+  pending; neither row is closed.
 - Cards with a single Drive-file thumbnail group their IDs into authenticated, bounded (maximum 50)
   availability calls to `thumbnail-revision-read`. That projection returns only the IDs with a real
   Previous/Current pair, so the **Compare** icon stays absent otherwise; it returns no signed URLs or

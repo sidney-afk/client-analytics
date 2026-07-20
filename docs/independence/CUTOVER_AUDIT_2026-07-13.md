@@ -353,3 +353,15 @@ Related non-register outputs of the same run: `ROLLBACK.md` Live State gained th
 runbook); `test/linear-sync-reconcile-extraction.js` now guards the calendar reconciler's eval
 sandbox (the `_sxrNormStatus` crash class had a guard only on the samples twin). Full run report:
 `docs/audits/2026-07-17-bug-archaeology.md`.
+
+### 2026-07-20 Workload live-release review follow-up (F147–F148)
+
+PR #886 merged the Workload live-release record while two exact-head cloud-review P2 threads
+remained unresolved. The effective live schema and private TEST behavior are independently recorded;
+these findings narrow provenance and future-regression assurance rather than refuting the live
+save/clear result.
+
+| ID | Grade | Evidence | Recommended fix | Status |
+|---|---|---|---|---|
+| F147 | P2 current release provenance | **CONFIRMED DOC/SHA CONTRADICTION; EFFECTIVE LIVE POSTURE VERIFIED.** The release log attributed the migration and function deployment to exact merge `fd3e0eaa`, but that commit's SQL did not include the explicit service-role DELETE/TRUNCATE/REFERENCES/TRIGGER revoke later committed in `fe07aa8`. Live readback nevertheless shows those revokes effective, RLS/zero policies, no browser privilege, service SELECT/INSERT/UPDATE only, and zero residue. | Recover the private operator command/input or database migration ledger, hash the exact SQL applied, and tie the revoke correction to one immutable artifact/SHA. Correct the release provenance without rerunning the migration or changing live grants unless readback first shows drift. | OPEN — LIVE GRANT POSTURE PROVED; EXACT CORRECTION ARTIFACT/SHA UNRESOLVED |
+| F148 | P2 current future-regression assurance | **CONFIRMED CLOUD-REVIEW TEST GAP; LIVE BEHAVIOR STILL PROVED.** The new `test/workload-plan-source.js` regex can match `.select(...)` later in the extracted block without proving it remains on the same fluent `upsert(...).select(...)` chain. A future edit could therefore break true returned-row counting while the guard stays green. The private TEST release still proved one-row save/reload/clear and the pre-write `409` path. | Replace the regex with a structural extraction or exact chain assertion, then add a negative mutant where `.select(...)` is detached or removed and require the guard to fail. Keep the live short-count race out of production; hermetic proof is the correct closure. | OPEN — REGEX DOES NOT PIN SAME-CHAIN TRUE-COUNT CONTRACT |

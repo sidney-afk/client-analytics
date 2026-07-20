@@ -1,6 +1,6 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-20 @ f00da653 + Phase-3 Order-1 reconciliation (workload-plan ACTIVE v2 and source-fingerprint matched; migration/table/functionality not reverified; #850 write gateway deployed dark)
+> Last verified: 2026-07-20 @ c722984 + Phase-3 Order-1 reconciliation (Workload plan-date effective schema/exact-source function live and TEST drill cleaned; exact correction provenance F147; #850 write gateway deployed dark)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 ## Tables
@@ -38,12 +38,13 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   Referenced in code via `SXR_TABLE`.
 - `workload_issues` — **read-only mirror** of Linear (4 teams present: VID/GRA/CON/STR;
   56 messy `client_name` variants — normalize via `wlNormalizeClient()`).
-- `workload_plan` — **tracked internal-sidecar contract**, keyed by stable sub-issue id, with
-  normalized client scope, nullable `plan_date`, and server-owned update attribution/time. It
-  intentionally has no foreign key or added column on the rebuildable `workload_issues` mirror. The
-  checked-in migration enables RLS, grants service role only, and exposes no browser PostgREST
-  policy. This docs pass did not verify live migration/table/grant state or read a plan row, so the
-  table boundary and persistence behavior remain unclaimed.
+- `workload_plan` — **live internal sidecar**, keyed by stable sub-issue id, with normalized
+  client scope, nullable `plan_date`, and server-owned update attribution/time. It intentionally has
+  no foreign key or added column on the rebuildable `workload_issues` mirror. Live readback shows
+  RLS with zero policies, no browser PostgREST privilege, and service-role
+  SELECT/INSERT/UPDATE only; DELETE/TRUNCATE/REFERENCES/TRIGGER are explicitly revoked. Exact release
+  cleanup left the table empty. F147 tracks which exact SQL correction artifact established those
+  effective grants.
 - `syncview_runtime_flags` — runtime kill-switches / migration routing. Values have different
   schemas and move during cutover; **never** assume they are all TEST-only. Read them live and
   reconcile with `ROLLBACK.md` plus `docs/independence/GO_LIVE_CHECKLIST.md` before an operation.
@@ -95,7 +96,7 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   the next pending baseline. That reaches open tabs through their existing realtime row and keeps
   later replacements detectable even when no SyncView write occurs.
 
-## Workload internal plan-date contract (function deployed; schema/functionality not reverified)
+## Workload internal plan-date contract (live)
 
 - Linear `due_date` remains display-only in Workload. The new `workload_plan.plan_date` is an
   independent Admin/SMM-owned scheduling value keyed by the exact sub-issue id; clearing it falls
@@ -111,10 +112,10 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   and writes have bounded abort timers; only the newest overlapping refresh may publish state.
   Ordinary read failures retain a last-good snapshot with editing paused, while `401`/`403`
   responses purge the private plan projection instead of leaving revoked data visible.
-- This path has no n8n or Linear-write fallback and no runtime flag. Current Pages serves the caller,
-  and the function is ACTIVE v2 with source matching `main@f00da653`; migration/table/grant state and
-  list/set/clear behavior remain unverified. This reconciliation changed no database row, deploy,
-  schema, runtime flag, n8n workflow, Linear object, or client data.
+- This path has no n8n or Linear-write fallback and no runtime flag. The migration, function, and
+  browser caller are live. Release proof covered a pre-write `409 issue_not_writable` browser
+  revert/notify, Creative `403` on list and set, one actual-row save surviving a fresh list, clear to
+  due-date fallback, exact row cleanup, and unchanged runtime flags.
 
 ## Edge Functions
 
@@ -130,14 +131,13 @@ from a manual `workflow_dispatch` pinned to one exact 40-character SHA already o
 `production-write` v24 and passing both source fingerprints. An ordinary merge still deploys
 neither function.
 
-Live set in `docs/truth/ENDPOINTS.md`. Source now represents 28 functions. A 2026-07-20 read-only
-inventory reports `workload-plan` ACTIVE v2, and its live source fingerprint matches
-`main@f00da653` (expected/live `30ea0c1fe00c`; bundle `ddf85afba1ce`). This reconciliation did not
-deploy it, inspect or apply its migration, or exercise a plan row. It remains intentionally absent
-from `supabase/config.toml`, because that shared file is a push trigger for the unrelated thumbnail
-deploy workflow; any future operator deploy must supply its JWT stance explicitly. The existing
-onboarding deploy Action covers 8 push-safe functions plus 2 guarded manual-only functions and
-still uses an unpinned latest CLI. The separate pinned `2.109.0`
+Live set in `docs/truth/ENDPOINTS.md`. Source and live inventory now represent 28 functions;
+`workload-plan` is ACTIVE v2 with the four-file deployed source closure byte-identical to merge
+`fd3e0eaa`. It is intentionally absent from
+`supabase/config.toml`, because that shared file is a push trigger for the unrelated thumbnail
+deploy workflow; the post-merge operator deploy uses explicit `--no-verify-jwt` instead. The
+existing onboarding deploy Action covers 8 push-safe functions plus 2 guarded manual-only
+functions and still uses an unpinned latest CLI. The separate pinned `2.109.0`
 thumbnail workflow deployed and read back `calendar-upsert` v32, `sample-review-upsert` v33,
 `thumbnail-revision-read` v12, and `thumbnail-revision-scan` v17 from the merged release. Seven
 functions use floating `supabase-js@2` (six npm aliases plus one `esm.sh` alias), and no function

@@ -1,6 +1,6 @@
 # Linear — current truth
 
-> Last verified: 2026-07-20 @ f00da653 (F145 Production parent-link projection merged; live Linear state unchanged)
+> Last verified: 2026-07-20 @ c722984 + Phase-3 Order-1 reconciliation (F145 parent-link projection merged; Workload plan-date release live; Linear deadline unchanged in the private TEST drill)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -52,13 +52,11 @@
   refresh-eventual through the existing B1/reconcile path rather than becoming a new n8n dependency.
 - **Workload dates remain one-way from Linear:** `workload_issues.due_date` is the client deadline
   displayed by Workload and the editable-plan path never writes it. Internal scheduling lives
-  separately in the tracked `workload_plan.plan_date` sidecar keyed by the stable sub-issue id;
+  separately in the live `workload_plan.plan_date` sidecar keyed by the stable sub-issue id;
   clearing that value restores exact due-date placement. No column is added to the B3-managed
   `workload_issues` mirror, and no Linear API, n8n bridge, reconciler, or due-date writer is added.
-  Current Pages serves the caller, and a 2026-07-20 read-only fingerprint reports `workload-plan`
-  ACTIVE v2 with source matching `main@f00da653`. This pass did not verify the sidecar
-  migration/table/grants or read/write a plan row, so persistence and role enforcement remain
-  functionally unproved.
+  The sidecar migration and Admin/SMM-authenticated `workload-plan` Edge Function are live; release
+  readback proved the mirrored deadline byte-identical before/after the private TEST set/clear cycle.
 - The legacy n8n inbound receiver `MJbMZ789B5ExZz9x` is **inactive/unpublished**
   (`activeVersionId=null`). Its saved graph has A1/A2 routing and authority gates, but it is not a
   current real-time producer. Calendar/Samples status healing therefore depends on the scheduled

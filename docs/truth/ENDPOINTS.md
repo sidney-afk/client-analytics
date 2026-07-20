@@ -1,6 +1,6 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-20 @ f00da653 + Phase-3 Order-1 reconciliation (19 literal + 4 composed; workload-plan ACTIVE v2 and source-fingerprint matched; schema/functionality not reverified; #850 write gateway deployed dark)
+> Last verified: 2026-07-20 @ c722984 + Phase-3 Order-1 reconciliation (19 literal + 4 composed; live Edge inventory 28 including workload-plan v2; #850 write gateway deployed dark)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -92,15 +92,13 @@ Other:
 - `functions/v1/onboarding-capture` — onboarding funnel capture
 - `functions/v1/client-token-verify`, `functions/v1/client-review-link`, `functions/v1/client-credentials` — client auth, staff-only current review-link issuance, and staff credentials surface. F89: token telemetry logs access-allowed as `ok`, so permissive tokenless opens are not validation evidence. F84: credentials bulk-delivers plaintext before masking and accepts shared/legacy keys without active-member binding.
 - `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal pings it at boot to revalidate the stored role key, and sensitive staff EFs share its secret-to-role matcher. F87 requires uniform denials, request controls, bounded audit retention, and explicit audit-outage behavior for both verifiers.
-- `functions/v1/workload-plan` — ACTIVE v2 Admin/SMM-authenticated Workload sidecar reader/writer.
-  A 2026-07-20 read-only fingerprint matched `main@f00da653` (expected/live source
-  `30ea0c1fe00c`; live bundle `ddf85afba1ce`). Both list projection and per-issue mutations deny
-  Creative. The function handles only internal `plan_date` rows keyed by stable sub-issue id,
-  validates active issue/client scope, and reports rows actually written so the browser can require
-  exactly one and revert on a short count. It never writes the Linear due date and has no n8n
-  fallback or runtime flag. This docs pass did not deploy it, verify the
-  `2026-07-19-workload-plan.sql` migration/table/grants, or exercise a plan row, so active source is
-  not functional-readiness proof.
+- `functions/v1/workload-plan` — live Admin/SMM-authenticated Workload sidecar reader/writer.
+  Both list projection and per-issue mutations deny Creative. The function handles only internal
+  `plan_date` rows keyed by stable sub-issue id, validates active issue/client scope, and reports
+  rows actually written so the browser can require exactly one and revert on a short count. It never
+  writes the Linear due date and has no n8n fallback or runtime flag. The function is ACTIVE v2 from
+  merge `fd3e0eaa`; live readback matches the locked table posture represented by
+  `2026-07-19-workload-plan.sql`, while F147 tracks the exact revoke-correction artifact provenance.
 - `functions/v1/production-comments` — bounded, no-store Production-thread reader; it verifies a
   staff role key and active roster selection before service-role reads, but does not enforce the
   requested deliverable's team against that member (F39). Comment bodies are not anon-readable;
@@ -223,8 +221,7 @@ by hand; verify before relying on it.
   `pto` projection; go-live readback verified that boundary. The candidate hardening delta reasserts
   the same boundary, adds only service-role RPC execution, and writes no HR rows or flag state, but
   is not yet claimed live.
-- Workload plan dates: the SPA does **not** call PostgREST for `workload_plan`; the current Pages
-  caller uses the ACTIVE v2 Admin/SMM-authenticated `workload-plan` projection/writer. The live
-  function's source matches `main@f00da653`, but this pass did not verify the migration/table/grants
-  or exercise list/set/clear with a plan row. Deployment therefore does not yet prove the
-  Creative-denial or persistence boundary end to end. The literal REST-table inventory remains 9.
+- Workload plan dates: the SPA does **not** call PostgREST for `workload_plan`; the live
+  service-role-only table is reachable only through the Admin/SMM-authenticated `workload-plan`
+  projection/writer. Release proof confirmed Creative `403` for both list and set, while direct
+  browser-table access remains denied. The literal REST-table inventory remains 9.

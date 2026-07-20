@@ -580,6 +580,63 @@ All times are UTC unless noted.
   `calendar-upsert` and `sample-review-upsert` writers remained byte-identical to `main`; all drills
   were read-only or browser-mocked.
 
+## 2026-07-20 — Workload editable internal plan date live release
+
+- **Release pin and public caller.** PR #883 merged as `fd3e0eaa06792196243b0f1fe9b9c459e2106134`.
+  The function deployment used that exact detached merge. Migration execution occurred in the same
+  release window, but #886 cloud review found that the checked-in `fd3e0eaa` SQL did not yet contain
+  the explicit service-role revoke later added in `fe07aa8`; the exact SQL artifact/provenance for
+  the applied correction remains unresolved. A later unrelated merge advanced Pages to
+  `f00da65341797ec55f2f9a0d53b97e6bccd7056f`; Pages run `29713997171` succeeded, the served
+  `index.html` matched that commit byte-for-byte, and its Workload module plus Admin/SMM capability
+  slice remained byte-identical to `fd3e0eaa`.
+- **Migration state read back with effective least privilege.** Release readback confirmed the
+  explicit DELETE/TRUNCATE/REFERENCES/TRIGGER revokes after service-role SELECT/INSERT/UPDATE, the
+  five intended columns, primary/check
+  constraints, partial client/date index, RLS enabled, zero policies, no anon/authenticated table
+  privilege, exactly SELECT/INSERT/UPDATE for service role, zero seed rows, and no `plan_date` column
+  on `workload_issues`. That proves the effective live posture; the exact correction artifact
+  provenance remains the P2 caveat above.
+- **Scoped Edge deployment with exact-source correction.** Deployed only `workload-plan` with
+  `--no-verify-jwt --use-api`. The first v1 package at `2026-07-20T03:03:36.469Z` exposed a
+  provenance-only CRLF difference in `_shared/browser-write-auth-policy.mjs` because Windows checkout
+  rules did not pin `.mjs`; no drill ran against that package. Redeploying the same merge from an
+  LF-preserving detached worktree produced ACTIVE v2 at `2026-07-20T03:04:58.858Z`,
+  `verify_jwt=false`, bundle
+  `ddf85afba1ce8d953e2bd3032391b1606e02bde2fd4ef41223476019ca96e7a1`, and exact expected/live
+  four-file source fingerprint
+  `30ea0c1fe00c4ea9a627086a0102d2656621732e1c9a709f77015f260efaf5ab`. The follow-up pins `.mjs`
+  to LF so a clean Windows worktree cannot repeat the packaging drift; function behavior/source was
+  not changed.
+- **Auth/CORS and role boundary.** Live OPTIONS returned `204` with the required staff headers;
+  missing and invalid keys returned `401`. A current Creative role key returned `403 forbidden` for
+  list and `403 staff_required` for set, and the released browser rendered the same role read-only.
+  No key, roster value, client value, issue id, or plan date is recorded here.
+- **Private TEST browser drill.** A real one-card drag first had its outgoing issue id replaced
+  in-flight with a verified non-existent synthetic id. The function returned
+  `409 issue_not_writable` before writing and omitted `updated`; the browser showed the optimistic
+  placement, restored the prior due-date day, cleared local plan state, and displayed the existing
+  revert notification. The unmodified happy drag then returned `updated: 1`, read back as one saved
+  sidecar row, and survived a full reload plus fresh server list. **Clear plan day** returned
+  `updated: 1`, restored due-date placement, and remained cleared after another server-truth reload.
+  The impractical live short-count race remains covered by the hermetic F141 test, per owner decision.
+- **Exact cleanup and non-collateral readback.** Owner-level cleanup removed only the drill target's
+  nullable sidecar row; independent readback found zero target residue and zero total sidecar rows.
+  The mirrored due-date fingerprint and all 13 runtime flags stayed byte-identical. Frozen
+  `calendar-upsert` remained ACTIVE v43 / `91ce449e8fd19b451f218572a0f42db385c64841b1f4b4b14ff27b76839a425f`;
+  frozen `sample-review-upsert` remained ACTIVE v44 /
+  `50b63fbadcdf03d3de0fc04131dd9258f50aabd1631e59bcb6f57554e0b918fb`. No Linear object,
+  n8n workflow, authority value, runtime flag, or other Edge Function was targeted.
+- **Separate no-deploy review hardening.** The follow-up binds stale-list protection to the real
+  `wlFetchPlanRows` capture point, scans every `workload_issues` access chain in the complete
+  function for read-only behavior, and keeps shared `.mjs` source LF-normalized. Focused
+  Workload/source, truth, system-map, repository-map, generated-manifest, and whitespace guards
+  passed. `npm test` passed all 138 unit suites; `npm run test:prod-polish` passed all 10 selected
+  suites in 493.8 seconds. Cloud review found the new true-count regex does not actually constrain
+  `.select(...)` to the same fluent upsert chain, so that future-regression guard remains open even
+  though the live TEST save/clear proof passed. This follow-up performs no migration, Edge
+  deployment, runtime-flag change, Linear write, n8n change, or browser release.
+
 ## 2026-07-20 — Phase 3 F145 merge + Order-1 register reconciliation
 
 - **F145 merged after the required review gate.** PR #885, originally opened as a draft, was
@@ -611,12 +668,11 @@ All times are UTC unless noted.
   writer was in the deploy set. The deploy summary kept the separate drill outcome `PENDING`.
   Read-only OPTIONS after deployment and again at 2026-07-20 03:20Z returned `204` with
   `x-syncview-source` allowed. No deployment or flag write was performed by this reconciliation.
-- **Externally changed Workload deploy state reconciled read-only.** Function inventory observed
-  `workload-plan` ACTIVE v2 (updated 2026-07-20 03:04:58Z), and the source fingerprint matched
-  `main@f00da653` (expected/live `30ea0c1fe00c`; bundle `ddf85afba1ce`; 4/4 files). Current Pages
-  already serves the caller. This docs pass did not deploy the function, link the local project,
-  inspect or apply the migration, read a plan row, exercise list/set/clear, or change any schema,
-  flag, n8n workflow, Linear object, writer, or client data. Function activity/source equality is
-  therefore not migration, role-boundary, persistence, or functional-readiness proof.
+- **Concurrent Workload release truth absorbed.** The earlier read-only function inventory matched
+  ACTIVE v2 at the same four-file `30ea0c1fe00c` source and `ddf85afba1ce` bundle. Main then advanced
+  through #886 / `c722984`, recording the applied-schema readback, role boundary, private TEST
+  save/reload/clear plus pre-write `409`, exact cleanup, and unchanged deadline/flags. This Order-1
+  pass performed none of those live operations. The exact migration-correction provenance and the
+  insufficient same-chain source regex remain the two disclosed #886 P2 follow-ups.
 - **Boundary preserved.** This was documentation and read-only verification only. No frozen writer,
   runtime flag, n8n graph, client enrollment, client row, Linear object, or production write changed.

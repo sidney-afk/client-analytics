@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ f00da653 (F145 Production parent-link hierarchy merged; live flags and state unchanged)
+> Last verified: 2026-07-20 @ c722984 + Phase-3 Order-1 reconciliation (F145 Production parent-link hierarchy merged; Workload plan-date release live)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -101,26 +101,29 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   appears in **Needs a work day or deadline**. An undated issue with an explicit plan day does enter
   the calendar. `Tweak Needed` / `Tweaks Needed` remains an exclusive strip and never enters the
   calendar, even when it retains a due date or saved plan override.
-- The current editable-plan browser path keeps the Linear due date read-only and adds a separate
+- The live editable-plan path keeps the Linear due date read-only and adds a separate
   internal work day. A saved `plan_date` is keyed by the sub-issue's stable id in the service-role
   `workload_plan` sidecar; when none is saved, placement falls back to the exact due date. Dragging
   an individual issue or using the branded work-day control updates only that internal date, and
   **Clear plan day** returns it to due-date placement.
-- The Admin/SMM-authenticated `workload-plan` Edge Function is the only browser
+- The live Admin/SMM-authenticated `workload-plan` Edge Function is the only browser
   projection and writer for the sidecar. Creative is denied both saved-plan reads and mutations by
   the server role allowlist and the matching browser capability gate. A write is accepted only when
   the response reports exactly one row actually written; a short count reverts the optimistic move
-  and notifies the user. A plan-list failure retains last-good data when available, otherwise shows
+  and notifies the user. A non-writable issue is rejected with `409 issue_not_writable` before any
+  sidecar write and follows the same browser revert/notify path. A plan-list failure retains
+  last-good data when available, otherwise shows
   an explicit due-date-only degraded state with editing disabled rather than silently treating
   overrides as absent. Authentication or authorization denial instead purges the private projection
   immediately. Reads and writes are bounded, and only the newest overlapping refresh may publish
   plan state.
-- **Deployment boundary:** current Pages serves the editable browser caller, and a 2026-07-20
-  read-only inventory/fingerprint reports `workload-plan` ACTIVE v2 with source matching
-  `main@f00da653`. This pass did not deploy it, verify the 2026-07-19 migration/table/grants, or
-  exercise list/set/clear with a plan row; deployment is not persistence or role-boundary proof. No
-  runtime flag, n8n workflow, Linear writer, live client row, or frozen client writer was changed by
-  this reconciliation.
+- **Deployment boundary:** effective live table/grant readback matches the locked 2026-07-19
+  sidecar contract, and the exact merged function source is live as deliberate-manual
+  `workload-plan` v2. F147 keeps the exact revoke-correction artifact provenance open. The private
+  TEST release drill proved
+  `409` revert/notify, Creative `403` list/set, one-row save plus server-truth reload, clear-to-due
+  fallback, and exact cleanup. No runtime flag, n8n workflow, Linear writer, real-client row, or
+  frozen client writer changed; this Order-1 reconciliation performed no live operation.
 
 ## Linear sync surface
 

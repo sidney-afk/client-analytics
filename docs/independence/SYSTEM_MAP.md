@@ -688,6 +688,8 @@ n8n in the metric read path.*
 - **State.** `syncview_linearIssuesCache_v1` (5 min, both feeders), `syncview_workload_v2_off`
   (`syncview_workload_v2` is write-only / vestigial), `syncview_workloadView_v1`,
   `syncview_workloadSections_v1` (non-sensitive expanded/collapsed exception preferences),
+  `syncview_workloadDeadlineOverlay_v1` (non-sensitive, display-only **Show deadlines** preference;
+  absent/off by default and on forces Week view),
   `syncview_kasper_editors_v2` (week-rollover-invalidated). Kill switches: `?wl2=0`, the compile-time
   `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch exists for either Workload or the
   plan-date path; plan and best-effort priority state are held as issue-id maps in the running page
@@ -716,7 +718,8 @@ n8n in the metric read path.*
   `resp.ok` check is a real bug-shape. `loadLinearIssues` is also the Calendar bulk-create link poll's
   data source (shared feeder + cache). Placement is manual `plan_date` first; otherwise, when the
   private plan snapshot is authoritative, the automatic day is one working day before the Linear
-  deadline floored to today. **Use auto plan** clears the manual sidecar override and reveals that
+  deadline floored to today. **Use automatic plan** is available only from the directly opened
+  popover for a manually planned sub-issue; it clears the sidecar override and reveals that
   automatic day. This is item-local derivation, not queue packing: adding urgent work cannot reflow
   peers, capacity never spills work, and overload remains visible. Tweak cards remain exclusive
   from the calendar. The calendar renders date → editor → collapsed client chip → sub-issue, with
@@ -726,11 +729,17 @@ n8n in the metric read path.*
   Overdue, in-progress, and tweaks sections precede the intact period/filter toolbar, default
   collapsed, and persist each browser's expansion preference. The toolbar sits directly above the
   calendar; undated work follows the calendar and unassigned lane at the bottom. Client chips and
-  issue rows expose auto/manual/mixed origin, deadline proximity (red at one day or less, orange at
-  two to three days, green beyond three), and a separate native Linear priority icon when the
-  `deliverables` join resolves. Shared popovers link to Linear, keep one title-row deadline, and use
-  one compact branded Work day row with a discoverable **Use auto plan** control, while
-  Tweaks retains its comment layout. The migration, EF, and original plan-date browser behavior are
+  issue rows expose quiet sparkle/pin auto/manual icons, deadline proximity (red at one day or less,
+  orange at two to three days, green beyond three), and a separate native Linear priority icon when
+  the `deliverables` join resolves. The tone belongs to each sub-issue and reaches a collapsed group
+  only when every represented deadline shares one band; mixed or missing deadlines leave the group
+  neutral. The persistent, default-off **Show deadlines** control is Week-only and renders one
+  aligned row per planned editor/client group, with straight plan-to-due lines, split due endpoints,
+  and a flag instead of a duplicate endpoint when plan and due share a day. Due endpoints are
+  display-only, non-draggable, and excluded from capacity; the solid plan source remains draggable
+  and is the only counted copy. Shared popovers link to Linear, keep one title-row deadline, and use
+  one compact branded Work day row; only a directly opened manual sub-issue exposes the automatic
+  reset. Tweaks retains its comment layout. The migration, EF, and original plan-date browser behavior are
   live; the private TEST release drill proved save/reload/clear, pre-write `409` rollback, Creative
   denial, and exact
   cleanup. PR #889's hierarchy/group-drag path changes only `index.html` and tests/docs and is
@@ -738,8 +747,8 @@ n8n in the metric read path.*
   backend boundary. PR #892 / merge `07d123d` likewise changes only `index.html` and tests/docs; it
   removes the day-level overload styling, substitutes the shared loading skeleton, relocates the
   intact toolbar, and closes F148's weak same-chain source guard plus reused-F141 test-label
-  cleanup. The current hybrid-planning follow-up stays within the same client-only boundary and
-  adds no queue scheduler, writer, schema, migration, flag, or Linear mutation. #884's
+  cleanup. The current hybrid-planning/deadline-timeline follow-up stays within the same client-only
+  boundary and adds no queue scheduler, writer, schema, migration, runtime flag, or Linear mutation. #884's
   server-atomic batch contract remains open, and F147 retains the exact migration-correction
   provenance gap.
 - **Track B.** Required but **not implemented** (F40): the re-point to native rows must happen per

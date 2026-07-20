@@ -3120,10 +3120,20 @@
         .workload-calendar-label { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
         .workload-section-hint { font-size: 0.7rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
         .workload-section-hint strong { color: var(--text-secondary); font-weight: 700; }
-        .wl-plan-origin { display: inline-flex; align-items: center; min-height: 18px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); background: var(--white); color: var(--text-muted); font-size: 0.54rem; font-weight: 800; letter-spacing: 0.035em; text-transform: uppercase; white-space: nowrap; }
-        .wl-plan-origin.is-manual { color: var(--sv-fg-5e6ad2); background: var(--sv-bg-ecedfb); border-color: var(--sv-border-c7c9f2); }
-        .wl-plan-origin.is-mixed { color: var(--sv-fg-5e6ad2); background: var(--white); border-color: var(--sv-border-c7c9f2); }
-        .wl-plan-origin.is-fallback { color: var(--sv-fg-92400e); background: var(--sv-bg-fffbeb); border-color: var(--sv-border-fde68a); }
+        .wl-plan-origin { display: inline-flex; align-items: center; justify-content: center; gap: 2px; width: auto; min-width: 14px; height: 14px; color: var(--text-muted); font-size: 0.52rem; font-weight: 850; line-height: 1; white-space: nowrap; flex-shrink: 0; }
+        .wl-plan-origin svg { width: 13px; height: 13px; display: block; }
+        .wl-plan-origin.is-manual { color: var(--sv-fg-5e6ad2); }
+        .wl-plan-origin.is-fallback { color: var(--sv-fg-92400e); }
+        .wl-plan-origin-count { min-width: 6px; text-align: center; }
+        .wl-group-urgent { display: inline-flex; align-items: center; gap: 1px; color: var(--sv-fg-dc2626); font-size: 0.52rem; font-weight: 850; line-height: 1; }
+        .wl-group-urgent .wl-priority-icon { width: 13px; height: 13px; flex-basis: 13px; }
+        .wl-group-urgent .wl-priority-icon svg { width: 13px; height: 13px; }
+        .wl-deadline-summary { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; color: var(--text-muted); flex-shrink: 0; }
+        .wl-deadline-summary svg { width: 13px; height: 13px; display: block; }
+        .wl-deadline-summary.is-red { color: var(--sv-fg-dc2626); }
+        .wl-deadline-summary.is-orange { color: var(--sv-fg-ea580c); }
+        .wl-deadline-summary.is-green { color: var(--sv-fg-16a34a); }
+        .wl-deadline-summary.is-mixed { color: var(--text-muted); }
         .wl-deadline-tag { display: inline-flex; align-items: center; min-height: 18px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); background: var(--white); color: var(--text-muted); font-size: 0.56rem; font-weight: 750; white-space: nowrap; }
         .wl-deadline-tag.is-red { color: var(--sv-fg-991b1b); background: var(--sv-bg-fef2f2); border-color: var(--sv-border-fecaca); }
         .wl-deadline-tag.is-orange { color: var(--sv-fg-9a3412); background: var(--sv-bg-fff7ed); border-color: var(--sv-border-fed7aa); }
@@ -3160,10 +3170,11 @@
         .workload-popover-item-client{ font-size: 0.62rem; color: var(--text-muted); flex-shrink: 0; font-weight: 600; padding: 1px 6px; background: var(--bg); border-radius: 999px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .workload-popover-plan { margin: 1px 4px 8px 8px; padding: 8px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border-light); }
         .workload-popover-plan-line { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+        .workload-popover-plan-label { display: inline-flex; align-items: center; gap: 4px; color: var(--text-secondary); font-size: 0.64rem; font-weight: 750; white-space: nowrap; }
         .workload-popover-plan .sv-date { min-width: 0; flex: 1 1 auto; }
         .workload-popover-plan .sv-date-trigger { min-height: 44px; padding: 8px 10px; font-size: 0.68rem; }
         .workload-popover-plan-saving { font-size: 0.61rem; font-weight: 650; color: var(--text-muted); white-space: nowrap; }
-        .workload-plan-clear { min-height: 32px; border: 1px solid var(--sv-border-c7c9f2); background: var(--white); padding: 5px 8px; border-radius: 7px; color: var(--sv-fg-5e6ad2); font: inherit; font-size: 0.62rem; font-weight: 750; cursor: pointer; white-space: nowrap; }
+        .workload-plan-clear { min-height: 44px; border: 1px solid var(--sv-border-c7c9f2); background: var(--white); padding: 7px 10px; border-radius: 7px; color: var(--sv-fg-5e6ad2); font: inherit; font-size: 0.62rem; font-weight: 750; cursor: pointer; white-space: nowrap; }
         .workload-plan-clear:hover:not(:disabled) { background: var(--sv-bg-ecedfb); }
         .workload-plan-clear:disabled { opacity: 0.5; cursor: default; }
         /* Tweak-comment preview inside the workload popover — surfaces the
@@ -3264,6 +3275,9 @@
         .workload-loose-plan { min-height: 30px; border: 1px solid var(--border); border-radius: 999px; padding: 5px 9px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.66rem; font-weight: 700; cursor: pointer; }
         .workload-loose-plan:hover { border-color: var(--sv-border-6c5ce7); color: var(--sv-fg-6c5ce7); }
         .workload-grid-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
+        .workload-deadline-toggle { min-height: 44px; padding: 7px 10px; border: 1px solid var(--sv-border-c7c9f2); border-radius: 999px; background: var(--white); color: var(--sv-fg-5e6ad2); }
+        .workload-deadline-toggle:focus-within { outline: 2px solid var(--sv-border-4f46e5); outline-offset: 2px; }
+        .workload-pills button:disabled { opacity: 0.42; cursor: not-allowed; }
         .workload-weekdays { display: grid; gap: 4px; margin-bottom: 6px; }
         .workload-weekdays.month { grid-template-columns: repeat(7, 1fr); }
         .workload-weekdays.week { grid-template-columns: repeat(7, 1fr); }
@@ -3299,6 +3313,9 @@
         .workload-day-card-chip::-webkit-details-marker { display: none; }
         .workload-grid.week .workload-day-card-chip { font-size: 0.7rem; padding: 3px 9px; }
         .workload-day-card-chip:hover { background: var(--sv-bg-fff); box-shadow: 0 0 0 1px var(--border) inset; }
+        .workload-day-card-chip.is-deadline-red { box-shadow: inset 3px 0 0 var(--sv-bg-ef4444); }
+        .workload-day-card-chip.is-deadline-orange { box-shadow: inset 3px 0 0 var(--sv-bg-f97316); }
+        .workload-day-card-chip.is-deadline-green { box-shadow: inset 3px 0 0 var(--sv-bg-22c55e); }
         .workload-day-card-chip-main { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
         .workload-day-card-chip-meta { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 3px; max-width: 100%; }
         .workload-day-card-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -3320,22 +3337,81 @@
         .workload-plan-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .workload-plan-item-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; }
         .workload-plan-item-arrow { color: var(--text-muted); font-size: 0.58rem; }
-        .workload-plan-reset { align-self: flex-start; min-height: 28px; padding: 4px 7px; border-radius: 7px; border: 1px solid var(--sv-border-c7c9f2); background: var(--white); color: var(--sv-fg-5e6ad2); font: inherit; font-size: 0.58rem; font-weight: 750; cursor: pointer; }
-        .workload-plan-reset:hover:not(:disabled) { background: var(--sv-bg-ecedfb); }
-        .workload-plan-reset:disabled { opacity: 0.5; cursor: default; }
+        .workload-plan-item-title-line .wl-plan-origin { margin-left: auto; }
+        .workload-plan-item.is-deadline-red { border-left-color: var(--sv-bg-ef4444); }
+        .workload-plan-item.is-deadline-orange { border-left-color: var(--sv-bg-f97316); }
+        .workload-plan-item.is-deadline-green { border-left-color: var(--sv-bg-22c55e); }
+
+        /* Show-deadlines Week view: each planned editor/client group owns one
+           fixed row, so its deadline relationships stay straight at every
+           width. Deadline endpoints are reference-only and never participate
+           in workload counts or drag writes. */
+        .workload-timeline-stage { position: relative; min-height: 420px; overflow: hidden; border-radius: 8px; }
+        .workload-timeline-day-columns { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; pointer-events: none; }
+        .workload-timeline-day { min-width: 0; border-radius: 8px; background: var(--bg); pointer-events: auto; }
+        .workload-timeline-day.today { outline: 2px solid var(--text-primary); outline-offset: -2px; }
+        .workload-timeline-day.weekend { background: transparent; border: 1px dashed var(--border-light); }
+        .workload-timeline-day.is-plan-drop-target { box-shadow: inset 0 0 0 2px var(--sv-border-6c5ce7); background: var(--sv-bg-ecedfb); }
+        .workload-timeline-editors { position: relative; z-index: 2; }
+        .workload-timeline-editor { padding: 7px 0 10px; }
+        .workload-timeline-editor + .workload-timeline-editor { border-top: 1px solid var(--border); padding-top: 11px; }
+        .workload-timeline-editor-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; min-height: 32px; align-items: center; margin-bottom: 4px; }
+        .workload-timeline-editor-day { min-width: 0; padding: 0 9px; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+        .workload-timeline-editor-day:first-child { justify-content: space-between; border-left: 3px solid var(--sv-border-6c5ce7); border-radius: 6px; background: var(--white); }
+        .workload-timeline-editor.team-graphics .workload-timeline-editor-day:first-child { border-left-color: var(--sv-border-d97706); }
+        .workload-timeline-editor-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-size: 0.7rem; font-weight: 800; }
+        .workload-timeline-day-total { border: 0; border-radius: 999px; padding: 2px 6px; background: var(--white); box-shadow: 0 0 0 1px var(--border-light); color: var(--text-secondary); font: inherit; font-size: 0.56rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
+        .workload-timeline-day-total.over-capacity { color: var(--wl-status-fg); background: var(--wl-overdue-accent); box-shadow: none; }
+        .workload-timeline-relationship { position: relative; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; min-height: var(--wl-track-height); border-bottom: 1px solid var(--border-light); }
+        .workload-timeline-relationship:last-child { border-bottom: 0; }
+        .workload-timeline-lines { position: absolute; inset: 0 0 auto; z-index: 1; width: 100%; height: var(--wl-track-height); overflow: visible; pointer-events: none; color: var(--text-muted); }
+        .workload-timeline-lines line, .workload-timeline-lines path { vector-effect: non-scaling-stroke; }
+        .workload-timeline-source { position: relative; z-index: 3; grid-row: 1; min-width: 0; min-height: var(--wl-track-height); }
+        .workload-timeline-plan-chip { position: absolute; left: 8px; right: 8px; top: var(--wl-source-top); min-height: 34px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 5px 8px; border: 1px solid var(--border); border-left: 3px solid var(--sv-border-6c5ce7); border-radius: 8px; background: var(--white); color: var(--text-primary); font-size: 0.61rem; font-weight: 700; list-style: none; cursor: pointer; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_06); }
+        .workload-timeline-plan-chip::-webkit-details-marker { display: none; }
+        .workload-timeline-plan-chip[draggable="true"] { cursor: grab; }
+        .workload-timeline-plan-chip.is-dragging { opacity: 0.45; cursor: grabbing; }
+        .workload-timeline-plan-chip.is-deadline-red { border-left-color: var(--sv-bg-ef4444); }
+        .workload-timeline-plan-chip.is-deadline-orange { border-left-color: var(--sv-bg-f97316); }
+        .workload-timeline-plan-chip.is-deadline-green { border-left-color: var(--sv-bg-22c55e); }
+        .workload-timeline-source[open] .workload-timeline-plan-chip { background: var(--sv-bg-fff); }
+        .workload-timeline-items { margin: var(--wl-track-height) 8px 8px; display: flex; flex-direction: column; gap: 4px; }
+        .workload-timeline-endpoint-slot { position: relative; z-index: 3; grid-row: 1; min-width: 0; min-height: var(--wl-track-height); pointer-events: none; }
+        .workload-timeline-due { position: absolute; left: 8px; right: 8px; top: var(--wl-endpoint-top); min-height: 32px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 4px 7px; border: 1px dashed currentColor; border-radius: 8px; background: var(--white); color: var(--text-muted); font: inherit; font-size: 0.59rem; font-weight: 750; cursor: pointer; pointer-events: auto; }
+        .workload-timeline-due.is-red { color: var(--sv-fg-991b1b); border-color: var(--sv-border-fecaca); }
+        .workload-timeline-due.is-orange { color: var(--sv-fg-9a3412); border-color: var(--sv-border-fed7aa); }
+        .workload-timeline-due.is-green { color: var(--sv-fg-166534); border-color: var(--sv-border-bbf7d0); }
+        .workload-timeline-due svg { width: 13px; height: 13px; flex-shrink: 0; }
+        .workload-timeline-due-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .workload-timeline-due-count { opacity: 0.65; white-space: nowrap; }
+        .workload-timeline-continuation { font-size: 0.54rem; }
+        .workload-timeline-empty { position: relative; z-index: 2; padding: 36px 16px; color: var(--text-muted); font-size: 0.75rem; text-align: center; }
+        .workload-timeline-flag { display: inline-flex; align-items: center; justify-content: center; gap: 2px; color: inherit; font-size: 0.52rem; font-weight: 850; flex-shrink: 0; }
+        .workload-timeline-flag svg { width: 13px; height: 13px; }
+        .workload-timeline-flag.is-red { color: var(--sv-fg-dc2626); }
+        .workload-timeline-flag.is-orange { color: var(--sv-fg-ea580c); }
+        .workload-timeline-flag.is-green { color: var(--sv-fg-16a34a); }
         /* Spotlight: while a popover is open, dim everything that isn't part
            of the clicked rollup. The CSS does the dimming via one attribute on
            the grid wrapper; a per-element data-wl-match opts back in. */
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card,
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card-chip,
+        .workload-grid-wrap[data-wl-spotlight] .workload-timeline-plan-chip,
+        .workload-grid-wrap[data-wl-spotlight] .workload-timeline-due,
+        .workload-grid-wrap[data-wl-spotlight] .workload-timeline-day-total,
         .workload-grid-wrap[data-wl-spotlight] .workload-plan-item,
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card-total { transition: opacity 0.15s ease; opacity: 0.22; }
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card[data-wl-match="1"] { opacity: 1; }
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card[data-wl-match="1"] .workload-day-card-chip,
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card[data-wl-match="1"] .workload-day-card-total { opacity: 0.4; }
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card-chip[data-wl-match="1"],
+        .workload-grid-wrap[data-wl-spotlight] .workload-timeline-plan-chip[data-wl-match="1"],
+        .workload-grid-wrap[data-wl-spotlight] .workload-timeline-due[data-wl-match="1"],
+        .workload-grid-wrap[data-wl-spotlight] .workload-timeline-day-total[data-wl-match="1"],
         .workload-grid-wrap[data-wl-spotlight] .workload-plan-item[data-wl-match="1"],
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card-total[data-wl-match="1"] { opacity: 1; }
+        .workload-grid-wrap[data-wl-spotlight] .workload-timeline-lines [data-wl-deadline-ids] { opacity: 0.18; }
+        .workload-grid-wrap[data-wl-spotlight] .workload-timeline-lines [data-wl-deadline-ids][data-wl-match="1"] { opacity: 0.8; }
         .workload-rollup { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 6px; background: var(--white); cursor: pointer; border-left: 3px solid transparent; transition: background 0.1s; min-width: 0; text-decoration: none; color: var(--text-primary); }
         .workload-grid.week .workload-rollup { padding: 8px 10px; }
         .workload-rollup:hover { background: var(--sv-bg-fafafa); }
@@ -3389,7 +3465,7 @@
         /* ── Templates view ── */
         @media (max-width: 768px) {
             .workload-grid-wrap { overflow-x: auto; overscroll-behavior-inline: contain; }
-            .workload-weekdays.week, .workload-grid.week { min-width: 910px; }
+            .workload-weekdays.week, .workload-grid.week, .workload-timeline-stage { min-width: 910px; }
             .workload-weekdays.month, .workload-grid.month { min-width: 840px; }
             .workload-popover { width: min(360px, calc(100vw - 20px)); min-width: 0; max-width: none; box-sizing: border-box; }
         }
@@ -12447,6 +12523,7 @@
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
     const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';
     const WL_SECTION_PREF_KEY     = 'syncview_workloadSections_v1';
+    const WL_DEADLINE_PREF_KEY    = 'syncview_workloadDeadlineOverlay_v1';
 
     function wlReadSectionPrefs() {
         const prefs = { overdue: false, inprogress: false, tweaks: false };
@@ -12457,8 +12534,14 @@
         return prefs;
     }
 
+    function wlReadDeadlinePref() {
+        try { return localStorage.getItem(WL_DEADLINE_PREF_KEY) === '1'; }
+        catch { return false; }
+    }
+
     const wlState = {
         viewMode: 'week',                          // 'week' | 'month'
+        showDeadlines: wlReadDeadlinePref(),       // persistent display-only Week relationship view
         year: null, month: null,                   // visible month (month view)
         weekStart: null,                           // leftmost day of the rolling 7-calendar-day window
         team: 'all', editor: 'all', client: 'all', // filters
@@ -12943,22 +13026,39 @@
             ? Math.round((to - from) / 86400000)
             : null;
     }
-    function wlPlacementLabel(mode, compact) {
-        const labels = compact
-            ? { auto: 'Auto planned', manual: 'Manual planned', mixed: 'Mixed plan', fallback: 'Deadline fallback' }
-            : { auto: 'Auto planned', manual: 'Manual planned', mixed: 'Mixed plan', fallback: 'Deadline fallback' };
-        return labels[mode] || '';
+    function wlPlacementLabel(mode) {
+        return ({ auto: 'Automatically planned', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback' })[mode] || '';
     }
-    function wlPlanOriginHtml(mode, compact) {
-        const label = wlPlacementLabel(mode, !!compact);
+    function wlPlanOriginHtml(mode, compact, count) {
+        const label = wlPlacementLabel(mode);
         if (!label) return '';
-        return `<span class="wl-plan-origin is-${wlEscape(mode)}">${wlEscape(label)}</span>`;
+        let icon;
+        if (mode === 'manual') {
+            icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.2 2.2h5.6l-.8 3 1.7 1.7v1.3H8.7v5.2L8 14l-.7-.6V8.2H4.3V6.9L6 5.2l-.8-3Z" fill="currentColor"/></svg>';
+        } else if (mode === 'fallback') {
+            icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.2h10v9.6H3zM3 6h10M5.5 1.8v2.8M10.5 1.8v2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8v2.1M8 11.8h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+        } else {
+            icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m8 1 .8 2.2L11 4l-2.2.8L8 7l-.8-2.2L5 4l2.2-.8L8 1Zm4.2 6 .55 1.45L14.2 9l-1.45.55L12.2 11l-.55-1.45L10.2 9l1.45-.55L12.2 7ZM4.5 8l.85 2.15L7.5 11l-2.15.85L4.5 14l-.85-2.15L1.5 11l2.15-.85L4.5 8Z" fill="currentColor"/></svg>';
+        }
+        const amount = Number(count) > 0 ? ` <span class="wl-plan-origin-count">${Number(count)}</span>` : '';
+        const accessible = Number(count) > 0 ? `${Number(count)} ${label.toLowerCase()}` : label;
+        return `<span class="wl-plan-origin is-${wlEscape(mode)}" role="img" aria-label="${wlEscape(accessible)}" title="${wlEscape(accessible)}">${icon}${amount}</span>`;
     }
     function wlGroupPlacementMode(subs) {
         const modes = new Set((subs || []).map(wlPlacementMode).filter(mode => mode !== 'none'));
         if (!modes.size) return 'none';
         if (modes.size === 1) return [...modes][0];
         return 'mixed';
+    }
+    function wlGroupPlanOriginHtml(subs) {
+        const counts = { auto: 0, manual: 0, fallback: 0 };
+        for (const sub of subs || []) {
+            const mode = wlPlacementMode(sub);
+            if (Object.prototype.hasOwnProperty.call(counts, mode)) counts[mode]++;
+        }
+        const present = Object.entries(counts).filter(([, count]) => count > 0);
+        if (present.length === 1) return wlPlanOriginHtml(present[0][0], true, 0);
+        return present.map(([mode, count]) => wlPlanOriginHtml(mode, true, count)).join('');
     }
     function wlDeadlineMeta(dueDate, prefix) {
         const due = String(dueDate || '').slice(0, 10);
@@ -12979,11 +13079,40 @@
         const meta = wlDeadlineMeta(dueDate, prefix);
         return `<span class="wl-deadline-tag${meta.tone ? ' is-' + meta.tone : ''}">${wlEscape(meta.label)}</span>`;
     }
+    function wlDeadlineFlagSvg() {
+        return '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2v12M4 3h7l-1.4 2L11 7H4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+    function wlGroupDeadlineSummary(subs) {
+        const rows = Array.isArray(subs) ? subs : [];
+        if (!rows.length) return { tone: '', mixed: false, label: '', counts: {} };
+        const counts = { red: 0, orange: 0, green: 0, missing: 0 };
+        for (const sub of rows) {
+            const due = String(sub && sub.dueDate || '').slice(0, 10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) { counts.missing++; continue; }
+            const tone = wlDeadlineMeta(due).tone;
+            if (tone) counts[tone]++;
+            else counts.missing++;
+        }
+        const tones = ['red', 'orange', 'green'].filter(tone => counts[tone] > 0);
+        if (counts.missing === 0 && tones.length === 1) {
+            const labels = { red: 'due now', orange: 'due soon', green: 'due later' };
+            return { tone: tones[0], mixed: false, label: `All ${rows.length} ${labels[tones[0]]}`, counts };
+        }
+        const parts = [];
+        if (counts.red) parts.push(`${counts.red} due now`);
+        if (counts.orange) parts.push(`${counts.orange} due soon`);
+        if (counts.green) parts.push(`${counts.green} due later`);
+        if (counts.missing) parts.push(`${counts.missing} without a deadline`);
+        return { tone: '', mixed: true, label: `Mixed deadline proximity: ${parts.join(', ')}`, counts };
+    }
     function wlGroupDeadlineHtml(subs) {
-        const dueDates = [...new Set((subs || []).map(s => String(s && s.dueDate || '').slice(0, 10))
-            .filter(due => /^\d{4}-\d{2}-\d{2}$/.test(due)))].sort();
-        if (!dueDates.length) return wlDeadlineTagHtml('', '');
-        return wlDeadlineTagHtml(dueDates[0], dueDates.length > 1 ? 'Next due' : 'Due');
+        const meta = wlGroupDeadlineSummary(subs);
+        if (!meta.label) return '';
+        const toneClass = meta.tone ? ` is-${meta.tone}` : ' is-mixed';
+        const icon = meta.mixed
+            ? '<svg viewBox="0 0 18 16" aria-hidden="true"><rect x="1.5" y="3.5" width="10" height="9" rx="2" fill="none" stroke="currentColor"/><rect x="6.5" y="1.5" width="10" height="9" rx="2" fill="var(--white)" stroke="currentColor"/><path d="M8.5 5h6" stroke="currentColor"/></svg>'
+            : wlDeadlineFlagSvg();
+        return `<span class="wl-deadline-summary${toneClass}" role="img" aria-label="${wlEscape(meta.label)}" title="${wlEscape(meta.label)}">${icon}</span>`;
     }
     function wlPriorityValue(sub) {
         const direct = Number(sub && sub.priority);
@@ -12991,9 +13120,11 @@
         const mirrored = Number(wlState.priorityByIssueId.get(String(sub && sub.id || '')));
         return Number.isInteger(mirrored) && mirrored >= 1 && mirrored <= 4 ? mirrored : 0;
     }
-    function wlGroupPriorityValue(subs) {
-        const priorities = (subs || []).map(wlPriorityValue).filter(Boolean);
-        return priorities.length ? Math.min(...priorities) : 0;
+    function wlGroupUrgentHtml(subs) {
+        const count = (subs || []).filter(sub => wlPriorityValue(sub) === 1).length;
+        if (!count) return '';
+        const label = `${count} urgent sub-issue${count === 1 ? '' : 's'}`;
+        return `<span class="wl-group-urgent" role="img" aria-label="${wlEscape(label)}" title="${wlEscape(label)}">${wlPriorityIconHtml(1)}<span>${count}</span></span>`;
     }
     function wlPriorityIconHtml(valueOrSub) {
         const value = typeof valueOrSub === 'number' ? valueOrSub : wlPriorityValue(valueOrSub);
@@ -13320,10 +13451,17 @@
                         <div class="workload-title" id="wlTitle" tabindex="-1">—</div>
                         <div class="workload-freshness" id="wlFreshness"></div>
                     </div>
-                    <button type="button" class="wl-revision-btn" onclick="openRevisionModal()">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg>
-                        Content revision email
-                    </button>
+                    <div class="workload-toolbar-right">
+                        <label class="tpl-toggle-mini workload-deadline-toggle">
+                            <input type="checkbox" data-wl-deadline-toggle="1" aria-label="Show deadlines"${wlState.showDeadlines ? ' checked' : ''}>
+                            <span class="tpl-toggle-mini-track"><span class="tpl-toggle-mini-thumb"></span></span>
+                            <span>Show deadlines</span>
+                        </label>
+                        <button type="button" class="wl-revision-btn" onclick="openRevisionModal()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg>
+                            Content revision email
+                        </button>
+                    </div>
                 </div>
                 <div class="workload-toolbar-row">
                     <div class="workload-toolbar-left">
@@ -13364,8 +13502,8 @@
             </div>
             <div class="workload-section-label workload-calendar-label">
                 <span>Work-day calendar</span>
-                <span class="workload-section-hint">
-                    <strong>Manual planned</strong> days stay pinned. Everything else is <strong>Auto planned</strong> from its read-only Linear deadline; overload stays visible instead of moving other work.
+                <span class="workload-section-hint" id="wlCalendarHint">
+                    Sparkle means automatic; pin means manual. Deadline color appears per sub-issue and only reaches a client group when every item shares one proximity band.
                 </span>
             </div>
             <div id="wlPlanStatus" class="workload-plan-status" role="status" hidden></div>
@@ -13432,6 +13570,7 @@
             const pref = localStorage.getItem(WL_VIEW_PREF_KEY);
             if (pref === 'week' || pref === 'month') wlState.viewMode = pref;
         } catch {}
+        if (wlState.showDeadlines) wlState.viewMode = 'week';
 
         const cache = wlReadCache();
         wlState.loading = true;
@@ -13943,6 +14082,7 @@
             const rollup     = e.target.closest('[data-wl-rollup]');
             const popClose   = e.target.closest('[data-wl-popover-close]');
             const issueOpen  = e.target.closest('[data-wl-issue-open]');
+            const deadlineOpen = e.target.closest('[data-wl-deadline-open]');
             const planClear  = e.target.closest('[data-wl-plan-clear]');
             const ddTrigger  = e.target.closest('[data-wl-dropdown-trigger]');
             const ddItem     = e.target.closest('[data-wl-dropdown-item]');
@@ -13969,6 +14109,11 @@
             if (issueOpen) {
                 e.preventDefault();
                 wlOpenRollupPopover(issueOpen);
+                return;
+            }
+            if (deadlineOpen) {
+                e.preventDefault();
+                wlOpenRollupPopover(deadlineOpen);
                 return;
             }
             if (ddTrigger) {
@@ -14027,6 +14172,7 @@
             if (viewBtn && root.contains(viewBtn)) {
                 const mode = viewBtn.getAttribute('data-wl-view');
                 if (mode !== 'week' && mode !== 'month') return;
+                if (mode === 'month' && wlState.showDeadlines) return;
                 wlState.viewMode = mode;
                 try { localStorage.setItem(WL_VIEW_PREF_KEY, mode); } catch {}
                 renderWorkloadAll();
@@ -14040,6 +14186,17 @@
         });
 
         root.addEventListener('change', (e) => {
+            const deadlineToggle = e.target && e.target.closest && e.target.closest('[data-wl-deadline-toggle]');
+            if (deadlineToggle) {
+                wlState.showDeadlines = deadlineToggle.checked === true;
+                try { localStorage.setItem(WL_DEADLINE_PREF_KEY, wlState.showDeadlines ? '1' : '0'); } catch {}
+                if (wlState.showDeadlines && wlState.viewMode !== 'week') {
+                    wlState.viewMode = 'week';
+                    try { localStorage.setItem(WL_VIEW_PREF_KEY, 'week'); } catch {}
+                }
+                renderWorkloadAll();
+                return;
+            }
             const wrap = e.target && e.target.closest && e.target.closest('[data-wl-plan-issue]');
             if (!wrap || !e.target.matches('input[type="date"]')) return;
             const issueId = wrap.getAttribute('data-wl-plan-issue') || '';
@@ -14050,9 +14207,19 @@
         });
 
         const clearDropTargets = () => {
-            root.querySelectorAll('.workload-day.is-plan-drop-target').forEach(day => day.classList.remove('is-plan-drop-target'));
+            root.querySelectorAll('[data-wl-day].is-plan-drop-target').forEach(day => day.classList.remove('is-plan-drop-target'));
             root.querySelectorAll('.workload-plan-item.is-dragging').forEach(card => card.classList.remove('is-dragging'));
-            root.querySelectorAll('.workload-day-card-chip.is-dragging').forEach(chip => chip.classList.remove('is-dragging'));
+            root.querySelectorAll('.workload-day-card-chip.is-dragging, .workload-timeline-plan-chip.is-dragging').forEach(chip => chip.classList.remove('is-dragging'));
+        };
+        const resolveDropDay = (target, clientX) => {
+            const direct = target && target.closest && target.closest('[data-wl-day]');
+            if (direct) return direct;
+            const stage = target && target.closest && target.closest('[data-wl-timeline-stage]');
+            if (!stage || !Number.isFinite(clientX)) return null;
+            const rect = stage.getBoundingClientRect();
+            if (!rect.width) return null;
+            const index = Math.max(0, Math.min(6, Math.floor((clientX - rect.left) / (rect.width / 7))));
+            return stage.querySelector(`[data-wl-day-index="${index}"]`);
         };
         const clearDragState = () => {
             delete root.dataset.wlDragIssue;
@@ -14098,10 +14265,10 @@
             }
         });
         root.addEventListener('dragover', (e) => {
-            const day = e.target.closest('[data-wl-day]');
+            const day = resolveDropDay(e.target, e.clientX);
             if (!day || (!root.dataset.wlDragIssue && !root.dataset.wlDragGroupDate)) return;
             e.preventDefault();
-            root.querySelectorAll('.workload-day.is-plan-drop-target').forEach(other => {
+            root.querySelectorAll('[data-wl-day].is-plan-drop-target').forEach(other => {
                 if (other !== day) other.classList.remove('is-plan-drop-target');
             });
             day.classList.add('is-plan-drop-target');
@@ -14112,7 +14279,7 @@
             if (day && (!e.relatedTarget || !day.contains(e.relatedTarget))) day.classList.remove('is-plan-drop-target');
         });
         root.addEventListener('drop', (e) => {
-            const day = e.target.closest('[data-wl-day]');
+            const day = resolveDropDay(e.target, e.clientX);
             const issueId = root.dataset.wlDragIssue || (e.dataTransfer && e.dataTransfer.getData('text/plain')) || '';
             const sourceDate = root.dataset.wlDragGroupDate || '';
             const assigneeId = root.dataset.wlDragGroupAssignee || '';
@@ -14135,7 +14302,8 @@
             if (pop && pop.classList.contains('open')
                 && !pop.contains(e.target)
                 && !e.target.closest('[data-wl-count-badge]')
-                && !e.target.closest('[data-wl-issue-open]')) {
+                && !e.target.closest('[data-wl-issue-open]')
+                && !e.target.closest('[data-wl-deadline-open]')) {
                 wlClosePopover(false);
             }
             if (!e.target.closest('.wl-dropdown')) wlCloseDropdowns(null);
@@ -14389,6 +14557,19 @@
                 freshEl.textContent = 'As of ' + hh + ':' + mm;
             } else freshEl.textContent = '';
         }
+        const deadlineToggle = document.querySelector('[data-wl-deadline-toggle]');
+        if (deadlineToggle) deadlineToggle.checked = wlState.showDeadlines === true;
+        const monthButton = document.querySelector('[data-wl-view="month"]');
+        if (monthButton) {
+            monthButton.disabled = wlState.showDeadlines === true;
+            monthButton.title = wlState.showDeadlines ? 'Turn off Show deadlines to use Month view' : '';
+        }
+        const calendarHint = document.getElementById('wlCalendarHint');
+        if (calendarHint) {
+            calendarHint.innerHTML = wlState.showDeadlines
+                ? '<strong>Solid</strong> means planned and draggable; <strong>outlined flag</strong> means deadline only. Lines and deadline copies never affect capacity.'
+                : 'Sparkle means automatic; pin means manual. Deadline color appears per sub-issue and only reaches a client group when every item shares one proximity band.';
+        }
 
         wlPopulateFilterOptions();
         renderWorkloadPlanStatus();
@@ -14415,7 +14596,9 @@
             bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
             return;
         }
-        bodyEl.innerHTML = wlState.viewMode === 'week' ? renderWeekGrid() : renderMonthGrid();
+        bodyEl.innerHTML = wlState.viewMode === 'week'
+            ? (wlState.showDeadlines ? renderWeekDeadlineTimeline() : renderWeekGrid())
+            : renderMonthGrid();
     }
 
     // Group a list of sub-issues into (assigneeId × clientName) rollups.
@@ -14724,6 +14907,211 @@
         }).join('');
     }
 
+    function wlWeekDeadlineTracks(startISO) {
+        const endISO = wlAddDays(startISO, 6);
+        const byEditor = new Map();
+        for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+            const planDate = wlAddDays(startISO, dayIndex);
+            const subs = (wlState.calendarByDate.get(planDate) || []).filter(wlPassesFilters);
+            for (const sub of subs) {
+                // Match the existing calendar's editor grouping and group-drag
+                // selector exactly: one assignee owns one visible client chip.
+                const editorKey = sub.assigneeId || '?';
+                if (!byEditor.has(editorKey)) {
+                    byEditor.set(editorKey, {
+                        assigneeId: sub.assigneeId,
+                        assigneeName: sub.assigneeName,
+                        teamKey: sub.teamKey,
+                        teamName: sub.teamName,
+                        dailySubs: Array.from({ length: 7 }, () => []),
+                        trackMap: new Map(),
+                    });
+                }
+                const editor = byEditor.get(editorKey);
+                editor.dailySubs[dayIndex].push(sub);
+                const trackKey = `${planDate}|${sub.clientName || ''}`;
+                if (!editor.trackMap.has(trackKey)) {
+                    editor.trackMap.set(trackKey, {
+                        planDate,
+                        planIndex: dayIndex,
+                        clientName: sub.clientName || '',
+                        parentId: sub.parentId || '',
+                        subs: [],
+                    });
+                }
+                editor.trackMap.get(trackKey).subs.push(sub);
+            }
+        }
+
+        return [...byEditor.values()].map(editor => {
+            const tracks = [...editor.trackMap.values()].map(track => {
+                track.subs = wlSortSubIssues(track.subs);
+                track.deadline = wlGroupDeadlineSummary(track.subs);
+                track.sameDaySubs = [];
+                const dueMap = new Map();
+                for (const sub of track.subs) {
+                    const dueDate = String(sub && sub.dueDate || '').slice(0, 10);
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) continue;
+                    if (dueDate === track.planDate) {
+                        track.sameDaySubs.push(sub);
+                        continue;
+                    }
+                    if (!dueMap.has(dueDate)) dueMap.set(dueDate, []);
+                    dueMap.get(dueDate).push(sub);
+                }
+                track.endpoints = [...dueMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([dueDate, rows]) => {
+                    const before = dueDate < startISO;
+                    const after = dueDate > endISO;
+                    const targetIndex = before ? 0 : (after ? 6 : wlCalendarDayDiff(startISO, dueDate));
+                    return {
+                        dueDate,
+                        subs: wlSortSubIssues(rows),
+                        targetIndex,
+                        boundary: before ? 'before' : (after ? 'after' : ''),
+                        tone: wlDeadlineMeta(dueDate).tone,
+                    };
+                });
+                return track;
+            }).sort((a, b) => a.planDate.localeCompare(b.planDate) || a.clientName.localeCompare(b.clientName));
+            editor.tracks = tracks;
+            delete editor.trackMap;
+            return editor;
+        }).sort((a, b) => {
+            const ta = wlTeamBucket(a.teamKey, a.teamName);
+            const tb = wlTeamBucket(b.teamKey, b.teamName);
+            if (ta !== tb) return ta === 'graphics' ? 1 : -1;
+            return wlDisplayName(a.assigneeName).localeCompare(wlDisplayName(b.assigneeName));
+        });
+    }
+
+    function wlTimelineSameDayHtml(track) {
+        const count = (track.sameDaySubs || []).length;
+        if (!count) return '';
+        const tone = wlDeadlineMeta(track.planDate).tone;
+        const label = `${count} also due on the planned day`;
+        return `<span class="workload-timeline-flag${tone ? ' is-' + tone : ''}" role="img" aria-label="${wlEscape(label)}" title="${wlEscape(label)}">${wlDeadlineFlagSvg()}<span>${count}</span></span>`;
+    }
+
+    function wlRenderTimelineTrack(track, editor, trackNumber) {
+        const sourceY = 24;
+        let nextSameColumnY = 24 + (track.endpoints.length * 44);
+        const endpointYs = track.endpoints.map((endpoint, index) => {
+            const y = 24 + (index * 44);
+            // A deadline just beyond a visible edge clamps into the plan
+            // column. Stack that endpoint below the source instead of laying
+            // two pills on top of each other.
+            if (endpoint.targetIndex === track.planIndex && Math.abs(y - sourceY) < 38) {
+                const stacked = nextSameColumnY;
+                nextSameColumnY += 44;
+                return stacked;
+            }
+            return y;
+        });
+        const height = Math.max(58, Math.max(sourceY, ...endpointYs) + 34);
+        const canDragGroup = wlPlanEditingEnabled() && !!track.clientName && track.subs.length
+            && track.subs.every(sub => String(sub.id || '') && !_wlPlanWriteInFlight.has(String(sub.id || '')));
+        const clientName = track.clientName || '—';
+        const toneClass = track.deadline.tone ? ` is-deadline-${track.deadline.tone}` : '';
+        const lineParts = [];
+        const endpointParts = [];
+        for (let index = 0; index < track.endpoints.length; index++) {
+            const endpoint = track.endpoints[index];
+            const y = endpointYs[index];
+            const direction = endpoint.boundary === 'before' ? -1
+                : (endpoint.boundary === 'after' ? 1 : (endpoint.targetIndex >= track.planIndex ? 1 : -1));
+            const sourceX = (track.planIndex * 100) + 50 + (42 * direction);
+            const targetX = endpoint.targetIndex === track.planIndex
+                ? sourceX
+                : (endpoint.targetIndex * 100) + 50 - (42 * direction);
+            const ids = endpoint.subs.map(sub => String(sub.id || '')).filter(Boolean).join('|');
+            if (sourceX !== targetX || sourceY !== y) {
+                lineParts.push(`<line x1="${sourceX}" y1="${sourceY}" x2="${targetX}" y2="${y}" data-wl-deadline-ids="${wlEscape(ids)}" stroke="currentColor" stroke-width="1" opacity="0.8"/>`);
+            }
+            if (endpoint.targetIndex !== track.planIndex) {
+                const arrow = direction > 0
+                    ? `${targetX - 5},${y - 3} ${targetX},${y} ${targetX - 5},${y + 3}`
+                    : `${targetX + 5},${y - 3} ${targetX},${y} ${targetX + 5},${y + 3}`;
+                lineParts.push(`<polyline points="${arrow}" data-wl-deadline-ids="${wlEscape(ids)}" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>`);
+            }
+            const boundaryLabel = endpoint.boundary === 'before'
+                ? `← Due ${wlFormatShort(endpoint.dueDate)}`
+                : (endpoint.boundary === 'after' ? `Due ${wlFormatShort(endpoint.dueDate)} →` : clientName);
+            const deadlineLabel = `${endpoint.subs.length} due ${wlFormatShort(endpoint.dueDate)}; planned ${wlFormatShort(track.planDate)}`;
+            endpointParts.push(`<span class="workload-timeline-endpoint-slot" style="grid-column:${endpoint.targetIndex + 1};--wl-endpoint-top:${y - 16}px;">
+                <button type="button" class="workload-timeline-due${endpoint.tone ? ' is-' + endpoint.tone : ''}${endpoint.boundary ? ' workload-timeline-continuation' : ''}" data-wl-deadline-open="${wlEscape(ids)}" data-wl-assignee-id="${wlEscape(editor.assigneeId || '')}" data-wl-client="${wlEscape(track.clientName || '')}" data-wl-date="${wlEscape(endpoint.dueDate)}" aria-label="${wlEscape(deadlineLabel)}" title="${wlEscape(deadlineLabel)}">
+                    ${wlDeadlineFlagSvg()}
+                    <span class="workload-timeline-due-name">${wlEscape(boundaryLabel)}</span>
+                    <span class="workload-timeline-due-count">· ${endpoint.subs.length}</span>
+                    ${wlGroupUrgentHtml(endpoint.subs)}
+                </button>
+            </span>`);
+        }
+        const title = `${clientName} · ${track.subs.length} sub-issue${track.subs.length === 1 ? '' : 's'}${canDragGroup ? ' · drag to move group' : ''}`;
+        return `<div class="workload-timeline-relationship" data-wl-track="${trackNumber}" style="--wl-track-height:${height}px;">
+            <svg class="workload-timeline-lines" viewBox="0 0 700 ${height}" preserveAspectRatio="none" aria-hidden="true">${lineParts.join('')}</svg>
+            <details class="workload-timeline-source" style="grid-column:${track.planIndex + 1};--wl-source-top:${sourceY - 17}px;">
+                <summary class="workload-timeline-plan-chip${toneClass}" draggable="${canDragGroup ? 'true' : 'false'}" data-wl-plan-group-drag="1" data-wl-date="${wlEscape(track.planDate)}" data-wl-assignee-id="${wlEscape(editor.assigneeId || '')}" data-wl-client="${wlEscape(track.clientName || '')}" title="${wlEscape(title)}">
+                    <span class="workload-day-card-chip-main">
+                        <span class="workload-day-card-chip-name">${wlEscape(clientName)}</span>
+                        <span class="workload-day-card-chip-count">· ${track.subs.length}</span>
+                    </span>
+                    <span class="workload-day-card-chip-meta">
+                        ${wlGroupPlanOriginHtml(track.subs)}
+                        ${wlGroupUrgentHtml(track.subs)}
+                        ${wlGroupDeadlineHtml(track.subs)}
+                        ${wlTimelineSameDayHtml(track)}
+                    </span>
+                </summary>
+                <div class="workload-timeline-items">${wlRenderPlanIssueCards(track.subs, track.planDate)}</div>
+            </details>
+            ${endpointParts.join('')}
+        </div>`;
+    }
+
+    function renderWeekDeadlineTimeline() {
+        const todayISO = wlTodayISO();
+        const start = wlState.weekStart;
+        const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const dates = Array.from({ length: 7 }, (_, index) => wlAddDays(start, index));
+        const weekdayHtml = `<div class="workload-weekdays week">${dates.map(iso => {
+            const day = wlParseISO(iso);
+            return `<div class="workload-weekday">${dayLabels[day.getDay()]} · ${day.getDate()}</div>`;
+        }).join('')}</div>`;
+        const dayColumns = dates.map((iso, index) => {
+            const day = wlParseISO(iso);
+            const classes = ['workload-timeline-day'];
+            if (iso === todayISO) classes.push('today');
+            if (day.getDay() === 0 || day.getDay() === 6) classes.push('weekend');
+            return `<div class="${classes.join(' ')}" data-wl-day="${wlEscape(iso)}" data-wl-day-index="${index}" aria-label="${wlEscape(wlFormatShort(iso))} drop target"></div>`;
+        }).join('');
+        const editors = wlWeekDeadlineTracks(start);
+        let trackNumber = 0;
+        const editorHtml = editors.map(editor => {
+            const team = wlTeamBucket(editor.teamKey, editor.teamName);
+            const name = wlDisplayName(editor.assigneeName) || 'Unknown';
+            const capacity = wlEditorCapacity(editor.teamKey, editor.teamName);
+            const head = editor.dailySubs.map((subs, index) => {
+                const count = subs.length;
+                const overBy = Math.max(0, count - capacity);
+                const date = dates[index];
+                const total = count ? `<button type="button" class="workload-timeline-day-total${overBy ? ' over-capacity' : ''}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(editor.assigneeId || '')}" data-wl-client="" data-wl-date="${wlEscape(date)}" data-wl-editor-name="${wlEscape(name)}" title="${wlEscape(overBy ? `${name} is ${overBy} over the ${capacity} per-day capacity; all work remains visible` : `${count} planned sub-issue${count === 1 ? '' : 's'}`)}">${overBy ? `${count}/${capacity} · ${overBy} over` : `${count}/${capacity}`}</button>` : '';
+                return `<div class="workload-timeline-editor-day">${index === 0 ? `<span class="workload-timeline-editor-name" title="${wlEscape(name)}">${wlEscape(name)}</span>` : ''}${total}</div>`;
+            }).join('');
+            const tracks = editor.tracks.map(track => wlRenderTimelineTrack(track, editor, ++trackNumber)).join('');
+            return `<section class="workload-timeline-editor team-${team}">
+                <div class="workload-timeline-editor-head">${head}</div>
+                <div class="workload-timeline-tracks">${tracks}</div>
+            </section>`;
+        }).join('');
+        return `<div class="workload-grid-wrap">
+            ${weekdayHtml}
+            <div class="workload-timeline-stage" data-wl-timeline-stage="1">
+                <div class="workload-timeline-day-columns">${dayColumns}</div>
+                <div class="workload-timeline-editors">${editorHtml || '<div class="workload-timeline-empty">No planned work in this week.</div>'}</div>
+            </div>
+        </div>`;
+    }
+
     function renderWeekGrid() {
         const todayISO = wlTodayISO();
         const start = wlState.weekStart; // leftmost calendar day (today by default)
@@ -14819,6 +15207,30 @@
         return '<div class="workload-grid-wrap">' + weekdayHtml + gridHtml + '</div>';
     }
 
+    function wlRenderPlanIssueCards(orderedSubs, dayISO) {
+        return (orderedSubs || []).map(s => {
+            const issueId = String(s.id || '');
+            const canDrag = wlPlanEditingEnabled() && !_wlPlanWriteInFlight.has(issueId);
+            const mode = wlPlacementMode(s);
+            const label = s.title || s.identifier || 'Work';
+            const tone = wlDeadlineMeta(s.dueDate).tone;
+            const titleAttr = [s.identifier || '', s.title || '', canDrag ? 'drag to set a manual work day' : 'open details'].filter(Boolean).join(' · ');
+            return `<div class="workload-plan-item-wrap">
+                <button type="button" class="workload-plan-item${canDrag ? '' : ' is-readonly'}${tone ? ' is-deadline-' + tone : ''}" draggable="${canDrag ? 'true' : 'false'}" data-wl-plan-drag="${wlEscape(issueId)}" data-wl-issue-open="1" data-wl-issue-id="${wlEscape(issueId)}" data-wl-parent-id="${wlEscape(s.parentId || '')}" data-wl-assignee-id="${wlEscape(s.assigneeId || '')}" data-wl-client="${wlEscape(s.clientName || '')}" data-wl-date="${wlEscape(dayISO || '')}" title="${wlEscape(titleAttr)}">
+                    <span class="workload-plan-item-grip" aria-hidden="true">⋮⋮</span>
+                    <span class="workload-plan-item-content">
+                        <span class="workload-plan-item-title-line">
+                            ${wlPriorityIconHtml(s)}
+                            <span class="workload-plan-item-label">${wlEscape(label)}</span>
+                            ${wlPlanOriginHtml(mode, false)}
+                        </span>
+                        <span class="workload-plan-item-meta">${wlDeadlineTagHtml(s.dueDate)}</span>
+                    </span>
+                </button>
+            </div>`;
+        }).join('');
+    }
+
     // Render a day's worth of work as one card per editor, with a chip per
     // client they're assigned to that day. This mirrors the "In progress now"
     // strip so the calendar reads the same way: editor first, then the list
@@ -14864,49 +15276,20 @@
             const clientGroups = ed.clients.map(g => {
                 const clientName = g.clientName || '—';
                 const orderedSubs = wlSortSubIssues(g.subs);
-                const groupMode = wlGroupPlacementMode(orderedSubs);
-                const groupPriority = wlGroupPriorityValue(orderedSubs);
+                const groupDeadline = wlGroupDeadlineSummary(orderedSubs);
                 const canDragGroup = wlPlanEditingEnabled() && !!g.clientName && orderedSubs.length
                     && orderedSubs.every(s => String(s.id || '')
                         && !_wlPlanWriteInFlight.has(String(s.id || '')));
-                const issueCards = orderedSubs.map(s => {
-                    const issueId = String(s.id || '');
-                    const canDrag = wlPlanEditingEnabled() && !_wlPlanWriteInFlight.has(issueId);
-                    const mode = wlPlacementMode(s);
-                    const workDate = wlDisplayDate(s);
-                    const explicitPlan = !!wlPlanDate(s);
-                    const saving = _wlPlanWriteInFlight.has(issueId);
-                    const canReset = explicitPlan && wlPlanEditingEnabled() && !saving;
-                    const label = s.title || s.identifier || 'Work';
-                    const titleAttr = [s.identifier || '', s.title || '', canDrag ? 'drag to set a manual work day' : 'open details'].filter(Boolean).join(' · ');
-                    return `<div class="workload-plan-item-wrap">
-                        <button type="button" class="workload-plan-item${canDrag ? '' : ' is-readonly'}" draggable="${canDrag ? 'true' : 'false'}" data-wl-plan-drag="${wlEscape(issueId)}" data-wl-issue-open="1" data-wl-issue-id="${wlEscape(issueId)}" data-wl-parent-id="${wlEscape(s.parentId || '')}" data-wl-assignee-id="${wlEscape(s.assigneeId || '')}" data-wl-client="${wlEscape(s.clientName || '')}" data-wl-date="${wlEscape(dayISO || '')}" title="${wlEscape(titleAttr)}">
-                            <span class="workload-plan-item-grip" aria-hidden="true">⋮⋮</span>
-                            <span class="workload-plan-item-content">
-                                <span class="workload-plan-item-title-line">
-                                    ${wlPriorityIconHtml(s)}
-                                    <span class="workload-plan-item-label">${wlEscape(label)}</span>
-                                </span>
-                                <span class="workload-plan-item-meta">
-                                    ${wlPlanOriginHtml(mode, false)}
-                                    ${workDate ? `<span>${wlEscape(wlFormatShort(workDate))}</span>` : ''}
-                                    <span class="workload-plan-item-arrow" aria-hidden="true">→</span>
-                                    ${wlDeadlineTagHtml(s.dueDate)}
-                                </span>
-                            </span>
-                        </button>
-                        ${explicitPlan ? `<button type="button" class="workload-plan-reset" data-wl-plan-clear="${wlEscape(issueId)}"${canReset ? '' : ' disabled'}>${saving ? 'Saving…' : 'Use auto plan'}</button>` : ''}
-                    </div>`;
-                }).join('');
+                const issueCards = wlRenderPlanIssueCards(orderedSubs, dayISO);
                 return `<details class="workload-day-client-group">
-                    <summary class="workload-day-card-chip" draggable="${canDragGroup ? 'true' : 'false'}" data-wl-plan-group-drag="1" data-wl-date="${wlEscape(dayISO || '')}" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}" title="${wlEscape(clientName)} · ${g.count} sub-issue${g.count !== 1 ? 's' : ''}${canDragGroup ? ' · drag to move group' : ''}">
+                    <summary class="workload-day-card-chip${groupDeadline.tone ? ' is-deadline-' + groupDeadline.tone : ''}" draggable="${canDragGroup ? 'true' : 'false'}" data-wl-plan-group-drag="1" data-wl-date="${wlEscape(dayISO || '')}" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}" title="${wlEscape(clientName)} · ${g.count} sub-issue${g.count !== 1 ? 's' : ''}${canDragGroup ? ' · drag to move group' : ''}">
                         <span class="workload-day-card-chip-main">
-                            ${wlPriorityIconHtml(groupPriority)}
                             <span class="workload-day-card-chip-name">${wlEscape(clientName)}</span>
                             <span class="workload-day-card-chip-count">· ${g.count}</span>
                         </span>
                         <span class="workload-day-card-chip-meta">
-                            ${wlPlanOriginHtml(groupMode, true)}
+                            ${wlGroupPlanOriginHtml(orderedSubs)}
+                            ${wlGroupUrgentHtml(orderedSubs)}
                             ${wlGroupDeadlineHtml(orderedSubs)}
                         </span>
                     </summary>
@@ -15006,6 +15389,7 @@
         const clientName = rollupEl.getAttribute('data-wl-client') || '';
         const editorName = rollupEl.getAttribute('data-wl-editor-name') || '';
         const issueId     = rollupEl.getAttribute('data-wl-issue-id') || '';
+        const deadlineIds = new Set((rollupEl.getAttribute('data-wl-deadline-open') || '').split('|').filter(Boolean));
         const inProgress = rollupEl.getAttribute('data-wl-in-progress') === '1';
         const dayISO     = rollupEl.getAttribute('data-wl-date') || '';
 
@@ -15021,7 +15405,7 @@
         //     that editor owns for the day across all clients.
         const sourceMode = rollupEl.getAttribute('data-wl-source') || '';
         let source;
-        if (issueId) {
+        if (issueId || deadlineIds.size) {
             source = wlState.allActiveSubs || [];
         } else if (sourceMode === 'active') {
             const seenIds = new Set();
@@ -15045,7 +15429,8 @@
         const subs = source.filter(s =>
             (s.assigneeId || '') === assigneeId &&
             (clientName === '' || (s.clientName || '') === clientName) &&
-            (!issueId || String(s.id || '') === issueId)
+            (!issueId || String(s.id || '') === issueId) &&
+            (!deadlineIds.size || deadlineIds.has(String(s.id || '')))
         );
 
         subs.sort((a, b) => {
@@ -15106,10 +15491,10 @@
             const dateId = 'wlPlanDate_' + String(s.id || '').replace(/[^A-Za-z0-9_-]/g, '_');
             const planControl = wlIsTweaksNeeded(s) ? '' : `<div class="workload-popover-plan" data-wl-plan-issue="${wlEscape(s.id || '')}">
                 <div class="workload-popover-plan-line">
-                    ${wlPlanOriginHtml(placementMode, false)}
+                    <span class="workload-popover-plan-label">${wlPlanOriginHtml(placementMode, false)} Work day</span>
                     ${_svDateHtml(dateId, workDate, { placeholder: 'Choose work day', disabled: !canEditPlan })}
                     ${saving ? '<span class="workload-popover-plan-saving" role="status">Saving…</span>' : ''}
-                    ${explicitPlan ? `<button type="button" class="workload-plan-clear" data-wl-plan-clear="${wlEscape(s.id || '')}"${canEditPlan ? '' : ' disabled'}>Use auto plan</button>` : ''}
+                    ${issueId && explicitPlan ? `<button type="button" class="workload-plan-clear" data-wl-plan-clear="${wlEscape(s.id || '')}"${canEditPlan ? '' : ' disabled'}>Use automatic plan</button>` : ''}
                 </div>
             </div>`;
             const clientTag = showClient && s.clientName
@@ -15205,7 +15590,7 @@
         wlClearSpotlight();
         if (!subs || !subs.length) return;
         const wrap = document.querySelector('#wlBody .workload-grid-wrap');
-        const grid = wrap ? wrap.querySelector('.workload-grid') : null;
+        const grid = wrap ? wrap.querySelector('.workload-grid, .workload-timeline-stage') : null;
         if (!wrap || !grid) return;
 
         // Only work in the calendar bucket participates. Tweaks remain
@@ -15228,19 +15613,24 @@
 
         wrap.setAttribute('data-wl-spotlight', '1');
 
-        grid.querySelectorAll('.workload-day-card-chip').forEach(chip => {
+        grid.querySelectorAll('.workload-day-card-chip, .workload-timeline-plan-chip').forEach(chip => {
             const aid = chip.getAttribute('data-wl-assignee-id') || '';
             const cn  = chip.getAttribute('data-wl-client') || '';
             const dt  = chip.getAttribute('data-wl-date') || '';
             if (chipKeys.has(`${aid}|${cn}|${dt}`)) chip.setAttribute('data-wl-match', '1');
         });
-        grid.querySelectorAll('.workload-day-card-total').forEach(tot => {
+        grid.querySelectorAll('.workload-day-card-total, .workload-timeline-day-total').forEach(tot => {
             const aid = tot.getAttribute('data-wl-assignee-id') || '';
             const dt  = tot.getAttribute('data-wl-date') || '';
             if (totalKeys.has(`${aid}|${dt}`)) tot.setAttribute('data-wl-match', '1');
         });
         grid.querySelectorAll('.workload-plan-item').forEach(item => {
             if (issueIds.has(item.getAttribute('data-wl-issue-id') || '')) item.setAttribute('data-wl-match', '1');
+        });
+        grid.querySelectorAll('.workload-timeline-due, .workload-timeline-lines [data-wl-deadline-ids]').forEach(endpoint => {
+            const endpointIds = (endpoint.getAttribute('data-wl-deadline-ids')
+                || endpoint.getAttribute('data-wl-deadline-open') || '').split('|').filter(Boolean);
+            if (endpointIds.some(id => issueIds.has(id))) endpoint.setAttribute('data-wl-match', '1');
         });
         // An editor card "matches" if any of its chips/totals matched, so the
         // dimming reads as a card-level effect, not a chip-level one.

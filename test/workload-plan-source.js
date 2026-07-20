@@ -36,6 +36,14 @@ const clientGroupMove = INDEX.slice(
   INDEX.indexOf('async function wlMovePlanGroup('),
   INDEX.indexOf('// Single delegated handler on the shell root.'),
 );
+const dayRollups = INDEX.slice(
+  INDEX.indexOf('function renderDayRollups('),
+  INDEX.indexOf('const WL_TWEAK_COMMENTS_TTL_MS'),
+);
+const rollupPopover = INDEX.slice(
+  INDEX.indexOf('function wlOpenRollupPopover('),
+  INDEX.indexOf('function wlApplySpotlight('),
+);
 
 let failures = 0;
 function ok(condition, message) {
@@ -189,12 +197,14 @@ ok(/json\.updated !== 1/.test(clientPersist)
 'browser requires one matching actual write, then reverts and notifies on every mismatch');
 ok(/data-wl-plan-drag/.test(INDEX)
   && /data-wl-plan-group-drag/.test(INDEX)
-  && /data-wl-plan-clear/.test(INDEX)
-  && /_svDateHtml\(dateId, workDate/.test(INDEX)
-  && /Use auto plan/.test(INDEX)
+  && !/data-wl-plan-clear/.test(dayRollups)
+  && /_svDateHtml\(dateId, workDate/.test(rollupPopover)
+  && /issueId && explicitPlan/.test(rollupPopover)
+  && /data-wl-plan-clear/.test(rollupPopover)
+  && /Use automatic plan/.test(rollupPopover)
   && /function wlDisplayDate\(/.test(INDEX)
   && /function wlPlacementMode\(/.test(INDEX),
-'UX exposes issue and collapsed-client drag, branded work-day editing, and a discoverable automatic-plan reset');
+'UX exposes issue and collapsed-client drag, branded work-day editing, and a direct-item-only automatic-plan reset');
 ok(/!issues\.length \|\| !wlPlanEditingEnabled\(\)/.test(clientGroupMove)
   && /issues\.some\(issue => wlIsTweaksNeeded\(issue\) \|\| _wlPlanWriteInFlight\.has/.test(clientGroupMove)
   && /for \(const move of moves\)[\s\S]*?await _wlPersistPlanDate\([\s\S]*?true[\s\S]*?\);/.test(clientGroupMove)

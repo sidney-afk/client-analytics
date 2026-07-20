@@ -378,7 +378,7 @@ function ok(condition, message) {
         && h.renderDays[h.renderDays.length - 1] === '2026-07-29'
         && h.context.wlState.planByIssueId.get(h.issue.id) === '2026-07-29'
         && h.notifies.length === 1,
-      'a failed Use auto plan request restores the previous manual day and notifies');
+      'a failed Use automatic plan request restores the previous manual day and notifies');
   }
 
   {
@@ -702,7 +702,7 @@ function ok(condition, message) {
     };
     rootHandlers.click({ target: clear, preventDefault: () => {} });
     ok(setCalls.some(call => call[0] === 'synthetic-issue-1' && call[1] === null),
-      'delegated Use auto plan sends a nullable manual override');
+      'delegated Use automatic plan sends a nullable manual override');
 
     pickerOpen = true;
     pop.open = true;

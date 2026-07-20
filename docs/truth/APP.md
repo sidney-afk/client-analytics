@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ c51f897 + Workload hybrid-planning candidate
+> Last verified: 2026-07-20 @ c51f897 + Workload deadline-timeline candidate
 > (live plan-date backend unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
@@ -121,22 +121,33 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - A first private plan-date read and every manual, visibility, or realtime refresh uses the shared
   animated Workload skeleton with day, editor, and client-chip placeholders. The refreshing text
   strip is not rendered. Plan dates and priority enrichment are not browser-cached; the only new
-  browser persistence is the non-sensitive expanded/collapsed section preference.
+  browser persistence is the non-sensitive expanded/collapsed section preference plus the
+  display-only **Show deadlines** preference, which defaults off until a browser enables it.
 - The live editable-plan path keeps the Linear due date read-only and adds a separate
   internal work day. A saved `plan_date` is keyed by the sub-issue's stable id in the service-role
   `workload_plan` sidecar and overrides the automatic day. Dragging an individual issue or using the
-  branded work-day control updates only that internal date. **Use auto plan** is visible on manually
-  planned expanded rows and in the popover; it clears the override and reveals the deterministic
-  automatic day.
-- Calendar chips and expanded issue rows identify placement as **Auto planned**, **Manual planned**,
-  or **Mixed** at grouped-client level. Deadline proximity remains visible without opening a
-  popover: one day or less is red, two to three days is orange, and more than three days is green.
+  branded work-day control updates only that internal date. **Use automatic plan** appears only in
+  the directly opened popover for a manually planned sub-issue; it clears that override and reveals
+  the deterministic automatic day.
+- Calendar chips and expanded issue rows use quiet sparkle/pin icons for automatic/manual placement;
+  mixed groups show icon counts instead of text badges. Deadline proximity remains visible without
+  opening a popover: one day or less is red, two to three days is orange, and more than three days
+  is green. Each expanded sub-issue owns its exact tone. A collapsed client group inherits a tone
+  only when every represented item has a deadline in the same band; mixed or missing deadlines keep
+  the group neutral.
   Linear priority is a separate native-shape/native-color icon, best-effort enriched read-only from
   `deliverables.priority` by the issue's stable Linear UUID. Missing or failed enrichment hides the
   icon without blocking Workload; client difficulty is not represented.
+- The persistent, default-off **Show deadlines** toggle is a Week-only display mode: enabling it
+  switches to Week and disables Month until the toggle is off. Each editor/client plan group stays
+  in one aligned row, with straight lines to outlined due-date endpoints. Different deadlines split
+  into separate endpoints; work due on its planned day stays on the solid plan chip with a same-day
+  flag rather than a duplicate. Due endpoints are display-only, non-draggable references and never
+  add to capacity. Only the solid planned chip participates in drag edits and editor totals.
 - Shared issue popovers link to **Open Linear**, keep the deadline only beside the sub-issue title,
-  and place the Work day picker plus save/clear state on one compact row. Tweaks popovers retain
-  their existing comment and Frame reminder layout.
+  and place the Work day picker plus save/clear state on one compact row. The automatic-plan reset
+  exists only in a directly opened manual sub-issue popover. Tweaks popovers retain their existing
+  comment and Frame reminder layout.
 - Dragging a collapsed client chip moves that exact date/editor/client group optimistically, then
   sends sequential single-issue writes through the existing `workload-plan` contract. Successful
   items stay moved; each failed item returns to its prior day, with one aggregate result notice.
@@ -165,8 +176,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   changes. #889's hierarchy/group-drag path and #892 are client-side only and reuse the deployed
   one-row writer. This follow-up remains client-side only as well; together they add no Edge
   Function, schema, migration, runtime flag, Linear writer, or frozen client-writer change. The
-  hybrid automatic placement, origin/deadline labels, and priority enrichment are client-only and
-  reuse that same live boundary. #884's
+  hybrid automatic placement, quiet origin/deadline treatment, priority enrichment, and optional
+  Week deadline timeline are client-only and reuse that same live boundary. #884's
   server-atomic batch contract remains open. This follow-up performed no live operation and changed
   no n8n workflow or real-client row.
 

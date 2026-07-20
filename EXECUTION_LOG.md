@@ -787,3 +787,23 @@ All times are UTC unless noted.
   workflow, plan-date browser cache, or live operation. Admin/SMM-only editing, Creative denial,
   tweak-bucket exclusivity, sequential group-drag fail-closed behavior, per-editor overload, all
   items visible, and the frozen client writers remain unchanged.
+
+## 2026-07-20 — Workload parallel deadline timeline (candidate source only)
+
+- **SMM feedback adds an optional parallel deadline view.** A persistent, default-off **Show
+  deadlines** control switches Workload to a Week-only relationship view. Each planned
+  editor/client group occupies one aligned row with straight lines to its display-only due-date
+  endpoints; differing deadlines split into separate endpoints, while plan-equals-due uses a
+  same-day flag instead of rendering a duplicate.
+- **Planning and deadline signals stay distinct.** Solid plan sources remain the only draggable and
+  capacity-counted cards. Due endpoints are non-draggable references. Deadline tone remains exact
+  per sub-issue and reaches a collapsed group only when every represented deadline shares the same
+  band. Automatic/manual placement now uses quiet sparkle/pin icons, with counts for mixed groups.
+- **Manual reset is contextual.** **Use automatic plan** was removed from expanded calendar rows and
+  remains only in the directly opened popover for a manually planned sub-issue, reusing the existing
+  clear, exact-one-row, revert-and-notify contract.
+- **Boundary preserved.** This is client-side source, offline guards, and documentation only. It
+  adds no schema, migration, Edge Function, runtime flag, Linear writer, n8n workflow, plan-date
+  cache, frozen-writer change, real-client mutation, deployment, or live operation. Admin/SMM-only
+  editing, Creative read-only behavior, tweak-bucket exclusivity, sequential group-drag, and
+  per-editor overload semantics remain unchanged.

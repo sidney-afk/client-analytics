@@ -67,8 +67,8 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       fence; every forward/kill/recovery action passes an isolated TEST flag-store transaction,
       exact expected-state CAS, affected-row assertion, and readback. Never paste a multi-action
       sequence or an unconditional whole-row replacement.
-      **F27 evidence:** candidate head `3e3f6fc`, run `29756163070`, artifact
-      `8466748210` proved the per-team recovery statement plus F2/F4 behavior in a
+      **F27 evidence:** post-review-fix head `65edd59`, run `29756927254`, artifact
+      `8467076082` proved the per-team recovery statement, in-flight refusal, and F2/F4 behavior in a
       disposable PostgreSQL store. This is one action's evidence, not closure of
       the every-fence checklist item and not live-application authorization.
 - [ ] **The complete Production browser gate is green before merge/flip** (F105): do not accept the

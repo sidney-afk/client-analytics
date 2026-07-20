@@ -9,19 +9,23 @@ All times are UTC unless noted.
 - Added the source-only F27 hold/snapshot/classification/terminal-receipt/final
   CAS migration plus a disposable PostgreSQL proof. No migration was applied to
   the live Supabase project.
-- Candidate head `3e3f6fcaf2fe90be964e2eddb0ed183753d79743` passed GitHub Actions run
-  `29756163070`; artifact `8466748210`, artifact digest
-  `sha256:2a84c6ebe1ec02bc2079a9c74445fd9c8d449a33a6526fbee6b4182facd26e8e`,
+- Post-review-fix head `65edd5953e4ac2aa3f1607235ccc350e1b29e24d` passed GitHub Actions run
+  `29756927254`; artifact `8467076082`, artifact digest
+  `sha256:7faf66a457d0108c4f26b4d570758afde646e49366ac0735683e6cc87fcdf349`,
   terminal transcript digest
-  `a46c000372082554e40b201d7b2ed0024b11a28063b6ed72c85f8f441ee61530`.
-- Terminal receipt: rollback `fa929dfa-63ce-4e51-89f2-d162b84f7334`,
-  snapshot correlation `0ff5d192-4ce2-4748-a975-a25a61427af3`, replay
-  correlation `c065341c-f20c-48bf-a1e8-4995f1e50f31`, four Graphics intents,
-  snapshot hash `1411a5522ecfd2f568493079806259778c1a1afbf991a4a7642b388715b959c4`,
+  `7330315891294baae3cbb87f55d62200ab32dc3fabbd861154d3b96601a5fd91`.
+- Terminal receipt: rollback `783f5bea-9c73-43ec-98ec-0c29ed65819b`,
+  snapshot correlation `42803f45-ae1c-4835-bb14-8403b0936574`, replay
+  correlation `87ac2439-335d-480d-bc2d-568f2ab4f7be`, four Graphics intents,
+  snapshot hash `60878439a4946db8a8262477b13184d17e69c2bb71715092f8fb25f09e6396d5`,
   `active_team_rows=0`, `unclassified=0`, `unreceipted_replays=0`.
 - The outside-n8n GitHub observer asserted exact prior flags restored, F2 off,
   F4 false, Video unchanged, payload hashes unchanged, premature finalization
-  refused, and held-team enqueue refused.
+  refused, held-team enqueue refused, and an already-claimed lease refused.
+- Cloud review on `21f1d7a` found an in-flight drainer race and rewritable
+  service-role evidence. `65edd59` refuses capture while any affected active row
+  has a lease, preserves leases rather than clearing them, and removes direct
+  service-role ledger mutation rights. The recorded run is the post-fix proof.
 - FLIP NOTHING boundary preserved: no forward live flip, authority change,
   live-client mutation, Edge Function deploy, n8n change, or change to
   `calendar-upsert` / `sample-review-upsert`.

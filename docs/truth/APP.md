@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ c51f897 + Workload deadline-timeline candidate
+> Last verified: 2026-07-20 @ c51f897 + Workload five-day deadline-timeline candidate
 > (live plan-date backend unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
@@ -112,8 +112,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   otherwise it derives identifier-number order. The order is never persisted.
 - Assigned active work with neither an internal work day nor a due date stays off the calendar and
   appears in **Needs a work day or deadline**. An undated issue with an explicit plan day does enter
-  the calendar. `Tweak Needed` / `Tweaks Needed` remains an exclusive strip and never enters the
-  calendar, even when it retains a due date or saved plan override.
+  the calendar. Past-due assigned work stays off the calendar and enters **Overdue**; past-due
+  In-progress work also remains visible in **In progress now**. `Tweak Needed` / `Tweaks Needed`
+  remains an exclusive strip and never enters the calendar or either overlapping status strip, even
+  when it retains a due date or saved plan override.
 - **Overdue**, **In progress now**, and **Tweaks needed** render before the intact period/filter
   toolbar, default collapsed, and remember each browser's expanded sections. The toolbar remains
   directly above the Work-day calendar. **Needs a work day or deadline** renders at the bottom,
@@ -122,7 +124,7 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   animated Workload skeleton with day, editor, and client-chip placeholders. The refreshing text
   strip is not rendered. Plan dates and priority enrichment are not browser-cached; the only new
   browser persistence is the non-sensitive expanded/collapsed section preference plus the
-  display-only **Show deadlines** preference, which defaults off until a browser enables it.
+  display-only **Plan only** / **Plan + deadlines** preference, which defaults to **Plan only**.
 - The live editable-plan path keeps the Linear due date read-only and adds a separate
   internal work day. A saved `plan_date` is keyed by the sub-issue's stable id in the service-role
   `workload_plan` sidecar and overrides the automatic day. Dragging an individual issue or using the
@@ -131,19 +133,23 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   the deterministic automatic day.
 - Calendar chips and expanded issue rows use quiet sparkle/pin icons for automatic/manual placement;
   mixed groups show icon counts instead of text badges. Deadline proximity remains visible without
-  opening a popover: one day or less is red, two to three days is orange, and more than three days
-  is green. Each expanded sub-issue owns its exact tone. A collapsed client group inherits a tone
-  only when every represented item has a deadline in the same band; mixed or missing deadlines keep
-  the group neutral.
+  opening a popover and measures the buffer from that issue's displayed plan day to its due day:
+  one day or less is red, two to three days is orange, and more than three days is green. Each
+  expanded sub-issue owns its exact tone. A collapsed client group inherits a tone only when every
+  represented item has a deadline in the same band; mixed or missing deadlines keep the group
+  neutral.
   Linear priority is a separate native-shape/native-color icon, best-effort enriched read-only from
   `deliverables.priority` by the issue's stable Linear UUID. Missing or failed enrichment hides the
   icon without blocking Workload; client difficulty is not represented.
-- The persistent, default-off **Show deadlines** toggle is a Week-only display mode: enabling it
-  switches to Week and disables Month until the toggle is off. Each editor/client plan group stays
-  in one aligned row, with straight lines to outlined due-date endpoints. Different deadlines split
-  into separate endpoints; work due on its planned day stays on the solid plan chip with a same-day
-  flag rather than a duplicate. Due endpoints are display-only, non-draggable references and never
-  add to capacity. Only the solid planned chip participates in drag edits and editor totals.
+- The persistent **Plan only** / **Plan + deadlines** segmented control sits beside the client
+  filter and defaults to **Plan only**. Deadline mode is Week-only: enabling **Plan + deadlines**
+  switches to Week and disables Month until **Plan only** is restored. Week is always the
+  Monday-anchored five-column Monday-Friday range. Manual plan days and deadlines on Saturday or
+  Sunday are never moved or hidden from truth: a compact weekend notice beside the calendar opens a
+  tray with the affected items and dates. Each editor/client plan group stays in one aligned row,
+  with straight lines to outlined due-date endpoints. Different deadlines split into separate
+  endpoints; work due on its planned day stays on the solid plan chip with a same-day marker rather
+  than a duplicate. Due endpoints are display-only references and never add to capacity.
 - Shared issue popovers link to **Open Linear**, keep the deadline only beside the sub-issue title,
   and place the Work day picker plus save/clear state on one compact row. The automatic-plan reset
   exists only in a directly opened manual sub-issue popover. Tweaks popovers retain their existing
@@ -152,7 +158,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   sends sequential single-issue writes through the existing `workload-plan` contract. Successful
   items stay moved; each failed item returns to its prior day, with one aggregate result notice.
   Dropping onto an existing matching editor/client group derives one merged chip. Expanded
-  single-issue drag remains independent.
+  single-issue drag remains independent. Admin/SMM users start either drag only from the dedicated
+  six-dot handle; the rest of each chip or issue row remains clickable and is not draggable.
 - The live Admin/SMM-authenticated `workload-plan` Edge Function is the only browser
   projection and writer for the sidecar. Creative is denied both saved-plan reads and mutations by
   the server role allowlist and the matching browser capability gate; its degraded view remains an

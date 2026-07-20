@@ -128,7 +128,7 @@ function makeSetContext(fetchImpl, fastTimeout, staffRole = 'admin', initialPlan
 }
 
 function makeGroupContext() {
-  const sourceDate = '2026-07-25';
+  const sourceDate = '2026-07-24';
   const targetDate = '2026-07-30';
   const issues = Array.from({ length: 6 }, (_, index) => ({
     id: 'synthetic-group-' + (index + 1),
@@ -633,9 +633,21 @@ function ok(condition, message) {
     ok(pop.open === true && closeCount === 0,
       'an issue-card click remains open after the bubbling outside-click handler');
 
+    const cardBody = {
+      closest: () => null,
+    };
+    let bodyDragPrevented = false;
+    rootHandlers.dragstart({
+      target: cardBody,
+      dataTransfer: { setData: () => { throw new Error('card body must not start a drag'); } },
+      preventDefault: () => { bodyDragPrevented = true; },
+    });
+    ok(bodyDragPrevented === true && !root.dataset.wlDragIssue,
+      'dragging an issue title or status icon is ignored; only its handle can start a move');
+
     const cardClasses = new Set();
     const card = {
-      closest: selector => selector === '[data-wl-plan-drag]' ? card : null,
+      closest: selector => selector === '[data-wl-drag-handle="issue"][data-wl-plan-drag]' ? card : null,
       getAttribute: name => name === 'data-wl-plan-drag' ? 'synthetic-issue-1' : '',
       classList: {
         add: name => cardClasses.add(name),
@@ -661,14 +673,24 @@ function ok(condition, message) {
     rootHandlers.dragover({ target: day, dataTransfer: transfer, preventDefault: () => {} });
     rootHandlers.drop({ target: day, dataTransfer: transfer, preventDefault: () => {} });
     ok(setCalls.some(call => call[0] === 'synthetic-issue-1' && call[1] === '2026-07-30'),
-      'delegated drag/drop writes the stable issue id and exact target day');
+      'delegated issue-handle drag writes the stable issue id and exact target day');
+
+    const groupBody = { closest: () => null };
+    let groupBodyPrevented = false;
+    rootHandlers.dragstart({
+      target: groupBody,
+      dataTransfer: { setData: () => { throw new Error('group body must not start a drag'); } },
+      preventDefault: () => { groupBodyPrevented = true; },
+    });
+    ok(groupBodyPrevented === true && !root.dataset.wlDragGroupDate && groupCalls.length === 0,
+      'dragging a collapsed client chip body is ignored; only its handle can start a group move');
 
     const groupClasses = new Set();
     const group = {
-      closest: selector => selector === '[data-wl-plan-group-drag]' ? group : null,
+      closest: selector => selector === '[data-wl-drag-handle="group"][data-wl-plan-group-drag]' ? group : null,
       getAttribute: name => ({
         draggable: 'true',
-        'data-wl-date': '2026-07-25',
+        'data-wl-date': '2026-07-24',
         'data-wl-assignee-id': 'synthetic-editor',
         'data-wl-client': 'Synthetic Client',
       })[name] || '',
@@ -681,8 +703,8 @@ function ok(condition, message) {
     rootHandlers.dragover({ target: day, dataTransfer: transfer, preventDefault: () => {} });
     rootHandlers.drop({ target: day, dataTransfer: transfer, preventDefault: () => {} });
     ok(groupCalls.some(call => call.join('|')
-        === '2026-07-25|synthetic-editor|Synthetic Client|2026-07-30'),
-      'delegated collapsed client-chip drag moves the exact editor and client group');
+        === '2026-07-24|synthetic-editor|Synthetic Client|2026-07-30'),
+      'delegated group-handle drag moves the exact editor and client group');
 
     const dateWrap = {
       getAttribute: name => name === 'data-wl-plan-issue' ? 'synthetic-issue-1' : '',

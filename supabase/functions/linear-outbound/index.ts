@@ -681,7 +681,7 @@ async function readRows(
 
   let data: OutboxRow[] = [];
   if (targetDedupKey && f27Replay) {
-    data = await fetchLane(null, ["quarantined"], 1, "any");
+    data = await fetchLane(null, ["pending", "skipped"], 1, "any");
   } else if (targetDedupKey) {
     if (testClient && mode !== "off") data = await fetchLane(false, normalStatuses, 1, "test");
     else if (targetedSyncviewLive && mode === "live") data = await fetchLane(false, normalStatuses, 1, "real");
@@ -958,7 +958,7 @@ Deno.serve(async (req: Request) => {
         counts.tolerated_historical++;
         counts.skipped++;
         await releaseRow(supabase, row, {
-          status: f27Replay ? "quarantined" : "skipped",
+          status: "skipped",
           processed_at: f27Replay ? null : new Date().toISOString(),
           linear_result: { conflict, issue: compactIssue(issue) },
           last_error: f27Replay ? "F27 replay declined: tolerated_historical" : null,
@@ -970,7 +970,7 @@ Deno.serve(async (req: Request) => {
       if (conflict.decision === "stale") {
         counts.stale_dropped++;
         await releaseRow(supabase, row, {
-          status: f27Replay ? "quarantined" : "stale",
+          status: f27Replay ? "skipped" : "stale",
           processed_at: f27Replay ? null : new Date().toISOString(),
           linear_result: { conflict },
           last_error: f27Replay ? "F27 replay declined: stale" : null,
@@ -1074,7 +1074,7 @@ Deno.serve(async (req: Request) => {
       const attempts = Number(row.attempts || 0) + 1;
       const delay = Math.min(60 * 60, Math.pow(2, Math.min(attempts, 8)) * 15);
       await releaseRow(supabase, row, {
-        status: f27Replay ? "quarantined" : "failed",
+        status: f27Replay ? "skipped" : "failed",
         last_error: safeError(error),
         next_retry_at: !f27Replay && attempts >= MAX_ATTEMPTS
           ? null

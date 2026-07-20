@@ -8,15 +8,6 @@
 
 begin;
 
-alter table public.mirror_outbox
-  drop constraint if exists mirror_outbox_status_b4_check;
-alter table public.mirror_outbox
-  add constraint mirror_outbox_status_b4_check
-  check (status in (
-    'pending', 'shadow_ok', 'written', 'failed', 'skipped', 'stale',
-    'quarantined'
-  ));
-
 create table if not exists public.track_b_team_rollbacks (
   id uuid primary key default gen_random_uuid(),
   correlation_id uuid not null unique default gen_random_uuid(),
@@ -74,7 +65,6 @@ begin
 end;
 $fn$;
 
-drop trigger if exists track_b_f27_hold_guard on public.mirror_outbox;
 create trigger track_b_f27_hold_guard
   before insert or update of status, team on public.mirror_outbox
   for each row execute function public.track_b_f27_hold_guard();
@@ -161,7 +151,7 @@ begin
 
   perform set_config('app.f27_rollback_bypass', '1', true);
   update public.mirror_outbox o
-  set status = 'quarantined',
+  set status = 'skipped',
       last_error = 'F27 hold ' || v_rollback.correlation_id::text,
       next_retry_at = null,
       updated_at = now()
@@ -237,7 +227,7 @@ begin
           select 1 from public.mirror_outbox o
           where o.id = i.outbox_id
             and lower(o.team) = v_team
-            and o.status = 'quarantined'
+            and o.status = 'skipped'
             and o.lock_token is null
             and o.locked_at is null
         )
@@ -252,13 +242,13 @@ begin
     set attempts = 0, last_error = 'F27 approved replay pending',
         processed_at = null, next_retry_at = now(),
         lock_token = null, locked_at = null, updated_at = now()
-    where id = p_outbox_id and lower(team) = v_team and status = 'quarantined';
+    where id = p_outbox_id and lower(team) = v_team and status = 'skipped';
   elsif v_kind in ('discard', 'already_reflected') then
     update public.mirror_outbox
     set status = 'skipped', processed_at = now(), next_retry_at = null,
         last_error = 'F27 ' || v_kind || ': ' || v_reason,
         lock_token = null, locked_at = null, updated_at = now()
-    where id = p_outbox_id and lower(team) = v_team and status = 'quarantined';
+    where id = p_outbox_id and lower(team) = v_team and status = 'skipped';
   end if;
 
   return jsonb_build_object(

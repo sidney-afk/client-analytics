@@ -17,6 +17,8 @@ const proof = fs.readFileSync(path.join(root, 'scripts', 'f27-team-rollback-proo
 const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'f27-team-rollback-proof.yml'), 'utf8');
 
 ok(/track_b_f27_hold_guard/.test(sql), 'team hold blocks new active intents');
+ok(!/\bdrop\s+(constraint|table|column|function|trigger)\b/i.test(sql),
+  'candidate migration remains additive-only');
 ok(/lock table public\.mirror_outbox in share row exclusive mode/i.test(sql), 'snapshot and finalize close enqueue races');
 ok(/f27_inflight_rows/.test(sql) && /lock_token is not null or o\.locked_at is not null/.test(sql),
   'snapshot refuses already-claimed or in-flight team rows');

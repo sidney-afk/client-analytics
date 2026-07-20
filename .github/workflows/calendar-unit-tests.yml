@@ -21,3 +21,59 @@ jobs:
           node-version: '22'
       - name: Run unit suite (test/*.js)
         run: node test/run-all.js
+
+  f27-team-rollback-proof:
+    if: contains(github.event.head_commit.message || '', 'F27') || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect F27 proof source
+        id: source
+        run: |
+          if [[ -f scripts/f27-team-rollback-proof.sql ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run isolated TEST transaction
+        if: steps.source.outputs.present == 'true'
+        run: |
+          mkdir -p f27-proof
+          psql -X -v ON_ERROR_STOP=1 -f scripts/f27-team-rollback-proof.sql | tee f27-proof/terminal.txt
+          sha256sum f27-proof/terminal.txt | tee f27-proof/terminal.sha256
+      - name: Outside-n8n terminal observer
+        if: steps.source.outputs.present == 'true'
+        run: |
+          grep -q "F27_PROOF_OK" f27-proof/terminal.txt
+          {
+            echo "## F27 isolated TEST proof"
+            echo
+            echo "- observer: GitHub Actions (outside n8n)"
+            echo "- terminal: F27_PROOF_OK"
+            echo "- receipt hash: $(cut -d' ' -f1 f27-proof/terminal.sha256)"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: steps.source.outputs.present == 'true'
+        with:
+          name: f27-team-rollback-proof
+          path: f27-proof/
+          retention-days: 30

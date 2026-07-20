@@ -671,7 +671,8 @@ n8n in the metric read path.*
   (`syncview_workload_v2` is write-only / vestigial), `syncview_workloadView_v1`,
   `syncview_kasper_editors_v2` (week-rollover-invalidated). Kill switches: `?wl2=0`, the compile-time
   `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch exists for the plan-date path; plan
-  state is held as a last-good issue-id map in the running page.
+  state is held as a last-good issue-id map in the running page and is not browser-cached. A first
+  private plan read holds the calendar on the shared animated day/editor/client-chip skeleton.
 - **Roles.** Plan projection/list access and per-issue plan-date writes are Admin/SMM-only after
   verified role-key authentication. Creative remains a recognized staff role on unrelated surfaces
   but is denied by both the `workload-plan` function and browser capability gate. Editors view
@@ -696,9 +697,12 @@ n8n in the metric read path.*
   from the calendar. The calendar renders date → editor → collapsed client chip → sub-issue, with
   per-editor overload warnings and title-only expanded labels. Client-group order is derived from
   complete native mirror order when available, otherwise from identifier number; moves never store
-  display order. The migration, EF, and original plan-date browser behavior are live; the private
+  display order. Only each editor's capacity pill turns red; the day cell keeps normal styling.
+  Exception sections and undated work precede the intact period/filter toolbar, which sits directly
+  above the calendar. The migration, EF, and original plan-date browser behavior are live; the private
   TEST release drill proved save/reload/clear, pre-write `409` rollback, Creative denial, and exact
-  cleanup. The hierarchy/group-drag candidate changes only `index.html` and tests/docs.
+  cleanup. The hierarchy/group-drag browser path merged in #889; the display follow-up changes only
+  `index.html` and tests/docs.
 - **Track B.** Required but **not implemented** (F40): the re-point to native rows must happen per
   team at each B4 flip, but main and #813 still unconditionally use `workload_issues`/n8n with
   realtime off and Linear links. The adapter needs `deliverables + batches + clients +

@@ -1,6 +1,6 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-16 @ 139a4c8 (EF count 18 reconciled; webhooks remain 55 — linear-projects restored by the Part C legacy Submit gating; PTO live-on D-36; freeze markers; onboarding callers live)
+> Last verified: 2026-07-19 @ f9b59e9 (candidate EF inventory 19 literal + 4 composed; workload-plan source only and not deployed)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -76,7 +76,7 @@ Other:
 - `webhook/content-ready` — content-ready notification
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (18 literal URLs + 4 composed onboarding URLs)
+## Supabase Edge Functions (19 literal URLs + 4 composed onboarding URLs)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
@@ -92,6 +92,12 @@ Other:
 - `functions/v1/onboarding-capture` — onboarding funnel capture
 - `functions/v1/client-token-verify`, `functions/v1/client-review-link`, `functions/v1/client-credentials` — client auth, staff-only current review-link issuance, and staff credentials surface. F89: token telemetry logs access-allowed as `ok`, so permissive tokenless opens are not validation evidence. F84: credentials bulk-delivers plaintext before masking and accepts shared/legacy keys without active-member binding.
 - `functions/v1/key-verify` — B0 staff role-key verifier; the sign-in modal pings it at boot to revalidate the stored role key, and sensitive staff EFs share its secret-to-role matcher. F87 requires uniform denials, request controls, bounded audit retention, and explicit audit-outage behavior for both verifiers.
+- `functions/v1/workload-plan` — source-only Admin/SMM-authenticated Workload sidecar reader/writer.
+  Both list projection and per-issue mutations deny Creative. The function handles only internal
+  `plan_date` rows keyed by stable sub-issue id, validates active issue/client scope, and reports
+  rows actually written so the browser can require exactly one and revert on a short count. It never
+  writes the Linear due date, has no n8n fallback or runtime flag, and is not deployed;
+  `2026-07-19-workload-plan.sql` is likewise not applied.
 - `functions/v1/production-comments` — bounded, no-store Production-thread reader; it verifies a
   staff role key and active roster selection before service-role reads, but does not enforce the
   requested deliverable's team against that member (F39). Comment bodies are not anon-readable;
@@ -211,3 +217,7 @@ by hand; verify before relying on it.
   `pto` projection; go-live readback verified that boundary. The candidate hardening delta reasserts
   the same boundary, adds only service-role RPC execution, and writes no HR rows or flag state, but
   is not yet claimed live.
+- Workload plan dates: the SPA does **not** call PostgREST for `workload_plan`; the candidate
+  service-role-only table is reachable only through the Admin/SMM-authenticated `workload-plan`
+  projection/writer. Its migration and function are source-only, so neither the table nor the
+  Creative-denial boundary is claimed live. The literal REST-table inventory remains 9.

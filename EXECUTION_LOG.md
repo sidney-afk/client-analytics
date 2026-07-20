@@ -510,3 +510,48 @@ All times are UTC unless noted.
 - **Metrics receipt column prepared.** After creating and independently verifying the private pre-F124 workbook snapshot, added the single header `analytics_receipt` at `Metrics!Q1` through successful one-time execution `286268`. Post-write readback confirmed the exact header value and empty data cells beneath it; no other header or worksheet cell was changed by this step. The private snapshot remains unchanged as the Sheet rollback source.
 - **n8n F124 workflow published with rollback retained.** Published workflow `Q4n1bagJYBkurEaI` (`CLIENTS METRICS`) at exact reviewed version `b92fb693-1dd4-4ce2-a60e-98a1701c369d`. Post-publish readback confirmed that version as both current and active with 67 nodes. Prior active version `fb180e5f-79ee-4d49-9dec-70999b422b71` remains in workflow history as the direct rollback target; no unrelated workflow was published.
 - **July-18 false-zero rows repaired from the verified last-good snapshot.** Successful one-time execution `286327` updated exactly 14 changed cells in `Metrics`: `C2759`, `E2759`, `C2760:E2760`, `C2763:E2763`, `C2766:E2766`, and `C2770:E2770`. `D2759` was already the correct zero and was deliberately left untouched. Post-write comparison against the snapshot found exactly those 14 value differences, zero metadata differences, and no other changed cell. The one-time credential helper was then archived.
+
+## 2026-07-19 — Workload editable internal plan date (candidate source only)
+
+- Prepared the Phase-2 source from SMM feedback: the Linear due date remains a display-only client
+  deadline, while an internal `plan_date` is keyed by the stable sub-issue id in the new
+  service-role-only `workload_plan` sidecar. No column or foreign key is added to the B3-managed
+  `workload_issues` mirror.
+- Added the source contract for the Admin/SMM-authenticated `workload-plan` Edge Function and the
+  drag/edit/clear browser path. Clearing the internal day returns the issue to its exact due date;
+  the candidate has no n8n fallback, Linear due-date writer, or automatic scheduler.
+- Owner review narrowed the private plan projection and every edit path to Admin and SMM only.
+  Creative remains a recognized staff role on unrelated surfaces, but cannot list or mutate
+  `workload_plan`; matching source, hermetic browser-role guards, and authoritative truth
+  descriptions pin that local boundary.
+- Collapsed-rollup batch moves remain outside this candidate and are tracked separately in #884;
+  expanded issue-card moves retain the exact one-row, actual-count fail-closed path.
+- F141 is born into the contract: the function reports rows actually written and the browser accepts
+  only exactly one, reverting the optimistic date and notifying on a short count or error. Plan-list
+  failure keeps last-good overrides when available; otherwise it shows an explicit due-date-only
+  degraded state with editing disabled. Reads and writes are time-bounded, only the newest
+  overlapping refresh can publish state, and an authentication/authorization denial purges the
+  private plan projection. The function keyset-pages by stable issue id and logs only recognized
+  aggregate action labels.
+- Candidate verification passed: all 137 offline suites, the 10-suite read-only Production polish
+  aggregate, focused workload source/F141/tweak-exclusivity robots, deploy-manifest freshness,
+  whitespace checks, and a Deno type-check of `supabase/functions/workload-plan/index.ts`.
+- Cloud-review follow-through makes Week a rolling seven-calendar-day view so literal Saturday and
+  Sunday deadlines/plan days cannot disappear, and computes overload styling from the rows visible
+  under the current filters so hidden editors cannot make a filtered day look falsely over capacity.
+  The unfiltered 5-video / 15-graphics thresholds and all-visible/no-spill rule remain unchanged.
+- During the required post-merge migration/function deployment window, a cached Workload snapshot
+  now paints immediately in Phase-1 exact-due-date mode while plan editing remains visibly paused;
+  no runtime flag or speculative plan data is introduced. An authoritative sidecar list replaces
+  that fallback once the new function is available.
+- The manual-only function is intentionally absent from `supabase/config.toml`: that shared path
+  triggers the unrelated thumbnail deploy workflow on `main`. The guided operator deploy supplies
+  `--no-verify-jwt` explicitly, so merging this candidate cannot redeploy those thumbnail functions.
+- Browser persistence assurance remains intentionally unclaimed until the post-deploy private TEST
+  drill proves one exact set/list/clear cycle, due-date immutability, short-count rollback, and
+  byte-exact cleanup of any sidecar row that did not exist before the drill.
+- **No live operation occurred.** `migrations/2026-07-19-workload-plan.sql` has not been applied,
+  `supabase/functions/workload-plan/index.ts` has not been deployed, and no database row, runtime
+  flag, n8n workflow, Linear object, authority value, or production deployment changed. The frozen
+  `calendar-upsert` and `sample-review-upsert` writers remain untouched. Migration apply/readback and
+  exact-main-SHA function deploy/readback remain post-merge operator steps.

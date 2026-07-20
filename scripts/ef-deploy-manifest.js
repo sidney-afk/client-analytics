@@ -38,6 +38,7 @@ const WORKFLOWS = Object.freeze([
 
 const DELIBERATE_MANUAL = Object.freeze({
   'client-review-link': 'Live v2 deployed by operator on 2026-07-15.',
+  'workload-plan': 'Post-merge operator deploy only; use `--no-verify-jwt` and exact-SHA fingerprint readback.',
 });
 
 function slash(value) {

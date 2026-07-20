@@ -1818,7 +1818,7 @@
         .wl-search-loading { padding: 9px 12px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
         .workload-skeleton-grid { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: grid; gap: 4px; }
         .workload-skeleton-grid.month { grid-template-columns: repeat(7, minmax(0, 1fr)); }
-        .workload-skeleton-grid.week { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        .workload-skeleton-grid.week { grid-template-columns: repeat(7, minmax(0, 1fr)); }
         .workload-skeleton-day { min-height: 140px; background: var(--bg); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 9px; }
         .workload-skeleton-grid.week .workload-skeleton-day { min-height: 420px; }
         .workload-skeleton-card { background: var(--white); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 7px; }
@@ -3113,6 +3113,8 @@
         .workload-calendar-label { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
         .workload-section-hint { font-size: 0.7rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
         .workload-section-hint strong { color: var(--text-secondary); font-weight: 700; }
+        .workload-plan-status { margin: -2px 0 10px; padding: 8px 11px; border-radius: 9px; font-size: 0.7rem; font-weight: 650; color: var(--text-secondary); background: var(--bg); border: 1px solid var(--border-light); }
+        .workload-plan-status.is-warning { color: var(--sv-fg-92400e); background: var(--sv-bg-fffbeb); border-color: var(--sv-border-fde68a); }
         .workload-popover { position: absolute; z-index: 1000; background: var(--white); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px var(--sv-shadow-rgba-0-0-0-0_18); padding: 10px; min-width: 280px; max-width: 380px; max-height: 60vh; overflow-y: auto; display: none; }
         .workload-popover.open { display: block; }
         .workload-popover-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 4px 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
@@ -3123,7 +3125,7 @@
         .workload-popover-templates svg { flex-shrink: 0; opacity: 0.85; }
         .workload-popover-parent { font-size: 0.66rem; font-weight: 600; color: var(--text-muted); text-decoration: none; white-space: nowrap; flex-shrink: 0; }
         .workload-popover-parent:hover { color: var(--text-primary); text-decoration: underline; }
-        .workload-popover-close { width: 24px; height: 24px; padding: 0; box-sizing: border-box; background: transparent; border: 0; color: var(--text-muted); font-size: 1rem; cursor: pointer; line-height: 1; flex-shrink: 0; border-radius: 6px; }
+        .workload-popover-close { width: 44px; height: 44px; padding: 0; box-sizing: border-box; background: transparent; border: 0; color: var(--text-muted); font-size: 1rem; cursor: pointer; line-height: 1; flex-shrink: 0; border-radius: 7px; }
         .workload-popover-close:hover { background: var(--bg); color: var(--text-primary); }
         .workload-popover-item { display: flex; align-items: center; gap: 4px; padding: 3px 4px 3px 8px; border-radius: 6px; color: var(--text-primary); font-size: 0.76rem; }
         .workload-popover-item:hover { background: var(--bg); }
@@ -3137,6 +3139,18 @@
         .workload-popover-item-client{ font-size: 0.62rem; color: var(--text-muted); flex-shrink: 0; font-weight: 600; padding: 1px 6px; background: var(--bg); border-radius: 999px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .workload-popover-item-due   { font-size: 0.66rem; color: var(--text-muted); flex-shrink: 0; font-weight: 600; }
         .workload-popover-item-due.past { color: var(--sv-fg-dc2626); }
+        .workload-popover-plan { margin: 1px 4px 8px 8px; padding: 8px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border-light); }
+        .workload-popover-plan-line { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+        .workload-popover-plan-label { font-size: 0.64rem; font-weight: 750; color: var(--text-secondary); }
+        .workload-popover-plan-arrow { color: var(--text-muted); font-weight: 700; }
+        .workload-popover-plan-due { font-size: 0.66rem; font-weight: 650; color: var(--text-secondary); }
+        .workload-popover-plan .sv-date { min-width: 0; }
+        .workload-popover-plan .sv-date-trigger { min-height: 44px; padding: 8px 10px; font-size: 0.68rem; }
+        .workload-popover-plan-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+        .workload-popover-plan-origin { font-size: 0.61rem; font-weight: 650; color: var(--text-muted); }
+        .workload-plan-clear { border: 0; background: transparent; padding: 4px 6px; border-radius: 6px; color: var(--sv-fg-6c5ce7); font: inherit; font-size: 0.62rem; font-weight: 700; cursor: pointer; }
+        .workload-plan-clear:hover:not(:disabled) { background: var(--white); }
+        .workload-plan-clear:disabled { opacity: 0.5; cursor: default; }
         /* Tweak-comment preview inside the workload popover — surfaces the
            client / Kasper comment that bounced the sub-issue back so the
            editor sees what to change. One muted row per comment (author ·
@@ -3231,14 +3245,17 @@
         .workload-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
         .workload-chip:hover { border-color: var(--sv-border-aaa); background: var(--white); }
         .workload-chip .chip-client { color: var(--text-muted); font-weight: 500; }
+        .workload-loose-item { display: inline-flex; align-items: center; gap: 5px; }
+        .workload-loose-plan { min-height: 30px; border: 1px solid var(--border); border-radius: 999px; padding: 5px 9px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.66rem; font-weight: 700; cursor: pointer; }
+        .workload-loose-plan:hover { border-color: var(--sv-border-6c5ce7); color: var(--sv-fg-6c5ce7); }
         .workload-grid-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
         .workload-weekdays { display: grid; gap: 4px; margin-bottom: 6px; }
         .workload-weekdays.month { grid-template-columns: repeat(7, 1fr); }
-        .workload-weekdays.week { grid-template-columns: repeat(5, 1fr); }
+        .workload-weekdays.week { grid-template-columns: repeat(7, 1fr); }
         .workload-weekday { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); text-align: center; padding: 6px 0; }
         .workload-grid { display: grid; gap: 4px; }
         .workload-grid.month { grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(140px, auto); }
-        .workload-grid.week  { grid-template-columns: repeat(5, 1fr); grid-auto-rows: minmax(420px, auto); }
+        .workload-grid.week  { grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(420px, auto); }
         .workload-day { padding: 8px 10px; border-radius: 8px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; gap: 5px; min-height: 140px; }
         .workload-grid.week .workload-day { min-height: 420px; gap: 6px; padding: 10px 12px; }
         .workload-day.today { outline: 2px solid var(--text-primary); }
@@ -3247,6 +3264,7 @@
         .workload-day.out-of-month { opacity: 0.4; }
         .workload-day.weekend { background: transparent; border: 1px dashed var(--border-light); }
         .workload-day.weekend.over-capacity { background: var(--wl-overdue-section-bg); border-color: var(--wl-overdue-border); }
+        .workload-day.is-plan-drop-target { box-shadow: inset 0 0 0 2px var(--sv-border-6c5ce7); background: var(--sv-bg-ecedfb); }
         .workload-day-num { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; }
         .workload-grid.week .workload-day-num { font-size: 0.85rem; margin-bottom: 4px; }
         .workload-day.today .workload-day-num { color: var(--text-primary); }
@@ -3259,7 +3277,7 @@
         .workload-day-card-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
         .workload-day-card-name { flex: 1; font-size: 0.7rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .workload-grid.week .workload-day-card-name { font-size: 0.78rem; }
-        .workload-day-card-total { background: var(--bg); border-radius: 999px; padding: 1px 7px; font-size: 0.6rem; font-weight: 800; color: var(--text-secondary); flex-shrink: 0; cursor: pointer; transition: background 0.1s; }
+        .workload-day-card-total { background: var(--bg); border: 0; border-radius: 999px; padding: 1px 7px; font-family: inherit; font-size: 0.6rem; font-weight: 800; color: var(--text-secondary); flex-shrink: 0; cursor: pointer; transition: background 0.1s; }
         .workload-day-card-total:hover { background: var(--white); box-shadow: 0 0 0 1px var(--border) inset; color: var(--text-primary); }
         .workload-day-card-clients { display: flex; flex-wrap: wrap; gap: 3px; }
         .workload-day-card-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; background: var(--bg); color: var(--text-primary); font-size: 0.62rem; font-weight: 600; text-decoration: none; max-width: 100%; transition: background 0.1s; }
@@ -3268,16 +3286,27 @@
         .workload-day-card-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .workload-day-card-chip-count { font-weight: 800; opacity: 0.55; flex-shrink: 0; cursor: pointer; padding: 0 1px; }
         .workload-day-card-chip-count:hover { opacity: 1; }
+        .workload-day-card-items { display: flex; flex-direction: column; gap: 3px; }
+        .workload-plan-item { width: 100%; display: flex; align-items: center; gap: 5px; min-width: 0; padding: 4px 6px; border: 1px solid transparent; border-radius: 6px; background: var(--bg); color: var(--text-primary); font: inherit; font-size: 0.61rem; font-weight: 650; text-align: left; cursor: grab; }
+        .workload-grid.week .workload-plan-item { font-size: 0.68rem; padding: 5px 7px; }
+        .workload-plan-item:hover { background: var(--white); border-color: var(--border); }
+        .workload-plan-item:focus-visible { outline: 2px solid var(--sv-border-4f46e5); outline-offset: 1px; }
+        .workload-plan-item.is-readonly { cursor: pointer; }
+        .workload-plan-item.is-dragging { opacity: 0.45; cursor: grabbing; }
+        .workload-plan-item-grip { color: var(--text-muted); letter-spacing: -3px; flex-shrink: 0; transform: rotate(90deg); }
+        .workload-plan-item-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         /* Spotlight: while a popover is open, dim everything that isn't part
            of the clicked rollup. The CSS does the dimming via one attribute on
            the grid wrapper; a per-element data-wl-match opts back in. */
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card,
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card-chip,
+        .workload-grid-wrap[data-wl-spotlight] .workload-plan-item,
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card-total { transition: opacity 0.15s ease; opacity: 0.22; }
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card[data-wl-match="1"] { opacity: 1; }
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card[data-wl-match="1"] .workload-day-card-chip,
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card[data-wl-match="1"] .workload-day-card-total { opacity: 0.4; }
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card-chip[data-wl-match="1"],
+        .workload-grid-wrap[data-wl-spotlight] .workload-plan-item[data-wl-match="1"],
         .workload-grid-wrap[data-wl-spotlight] .workload-day-card-total[data-wl-match="1"] { opacity: 1; }
         .workload-rollup { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 6px; background: var(--white); cursor: pointer; border-left: 3px solid transparent; transition: background 0.1s; min-width: 0; text-decoration: none; color: var(--text-primary); }
         .workload-grid.week .workload-rollup { padding: 8px 10px; }
@@ -3330,6 +3359,13 @@
         .cr-status.error   { color: var(--sv-fg-dc2626); }
 
         /* ── Templates view ── */
+        @media (max-width: 768px) {
+            .workload-grid-wrap { overflow-x: auto; overscroll-behavior-inline: contain; }
+            .workload-weekdays.week, .workload-grid.week { min-width: 910px; }
+            .workload-weekdays.month, .workload-grid.month { min-width: 840px; }
+            .workload-popover { width: min(360px, calc(100vw - 20px)); min-width: 0; max-width: none; box-sizing: border-box; }
+        }
+
         .tpl-view { max-width: 980px; margin: 24px auto 80px; padding: 0 28px; font-family: 'Plus Jakarta Sans', sans-serif; }
         .tpl-index-centered { min-height: calc(100vh - 200px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 24px; gap: 0; }
         .tpl-index-centered .tpl-index-title { font-size: 1.85rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); margin-bottom: 6px; text-align: center; }
@@ -12379,17 +12415,23 @@
     const wlState = {
         viewMode: 'week',                          // 'week' | 'month'
         year: null, month: null,                   // visible month (month view)
-        weekStart: null,                           // leftmost day of the rolling 5-workday window
+        weekStart: null,                           // leftmost day of the rolling 7-calendar-day window
         team: 'all', editor: 'all', client: 'all', // filters
-        planned: [],                               // assigned sub-issues with dueDate, not In Progress
+        planned: [],                               // assigned non-tweak sub-issues with a plan day or due-date fallback
         nowWorking: [],                            // assigned sub-issues currently "In Progress"
         tweaksNeeded: [],                          // assigned sub-issues currently "Tweaks Needed"
         overdue: [],                               // assigned sub-issues whose dueDate is before today (active status, any non-parked status)
-        undated: [],                               // assigned active sub-issues with no due date; never auto-placed
+        undated: [],                               // assigned active sub-issues with neither plan day nor due-date fallback
         unassigned: [],                            // sub-issues with no assignee (and In Progress OR has dueDate)
         parentById: new Map(),                     // parent issue lookup for rollup link-outs
-        calendarByDate: new Map(),                 // exact due date -> planned sub-issues[]
+        calendarByDate: new Map(),                 // effective work day -> planned sub-issues[]
         allActiveSubs: [],                         // all non-completed sub-issues for filter options
+        issueSnapshot: [],                         // last Linear-derived issue snapshot; due dates remain read-only
+        planByIssueId: new Map(),                  // stable Linear issue id -> explicit internal plan_date
+        planHasSnapshot: false,                    // true only after one authoritative workload-plan list response
+        planStatus: 'loading',                     // 'loading' | 'refreshing' | 'ready' | 'stale' | 'unknown'
+        planError: null,
+        planFetchedAt: null,
         subsByParentId: new Map(),
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         renderQueued: false,                       // background repaint deferred while a popover is open
@@ -12604,6 +12646,146 @@
     }
 
     // Date helpers — all dates handled as YYYY-MM-DD strings for determinism.
+    const WL_PLAN_READ_TIMEOUT_MS = 8000;
+    const WL_PLAN_WRITE_TIMEOUT_MS = 10000;
+    const _wlPlanWriteInFlight = new Map();
+    const _wlPlanLastWriteGeneration = new Map();
+    let _wlPlanWriteGeneration = 0;
+    let _wlPlanSessionGeneration = 0;
+    let _wlPlanLoadGeneration = 0;
+
+    function wlPlanEditingEnabled() {
+        return wlState.planStatus === 'ready' && _syncviewStaffCan('workload-plan');
+    }
+
+    async function wlFetchPlanRows() {
+        await _syncviewRequireStaffIdentity('workload-plan');
+        const sessionGeneration = _wlPlanSessionGeneration;
+        const readGeneration = _wlPlanWriteGeneration;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
+        try {
+            const resp = await fetch(WORKLOAD_PLAN_URL, {
+                method: 'POST',
+                cache: 'no-store',
+                signal: controller.signal,
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, WORKLOAD_PLAN_URL),
+                body: JSON.stringify({ action: 'list' })
+            });
+            let json = null;
+            try { json = await resp.json(); } catch (e) {}
+            if (!resp.ok || !json || json.ok !== true || !Array.isArray(json.plans)) {
+                const error = new Error((json && json.error) || ('HTTP ' + resp.status));
+                error.status = resp.status;
+                throw error;
+            }
+            if (sessionGeneration !== _wlPlanSessionGeneration) throw new Error('staff_session_changed');
+            return { rows: json.plans, readGeneration };
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+
+    function wlAdoptPlanRows(snapshot) {
+        const rows = snapshot && Array.isArray(snapshot.rows) ? snapshot.rows : [];
+        const readGeneration = Number(snapshot && snapshot.readGeneration) || 0;
+        const next = new Map();
+        for (const row of rows || []) {
+            const issueId = String(row && row.issue_id || '').trim();
+            const planDate = String(row && row.plan_date || '').slice(0, 10);
+            if (!issueId || !/^\d{4}-\d{2}-\d{2}$/.test(planDate)) continue;
+            next.set(issueId, planDate);
+        }
+        // A list response that raced an optimistic save may contain the old
+        // value. Preserve the exact local value for every issue still saving;
+        // the set response remains authoritative for that issue.
+        for (const issueId of _wlPlanWriteInFlight.keys()) {
+            if (wlState.planByIssueId.has(issueId)) next.set(issueId, wlState.planByIssueId.get(issueId));
+            else next.delete(issueId);
+        }
+        // Also preserve writes that settled after this list request began. A
+        // delayed pre-write response must never move a just-saved card back.
+        for (const [issueId, writeGeneration] of _wlPlanLastWriteGeneration) {
+            if (writeGeneration > readGeneration) {
+                if (wlState.planByIssueId.has(issueId)) next.set(issueId, wlState.planByIssueId.get(issueId));
+                else next.delete(issueId);
+            } else if (!_wlPlanWriteInFlight.has(issueId)) {
+                _wlPlanLastWriteGeneration.delete(issueId);
+            }
+        }
+        wlState.planByIssueId = next;
+        wlState.planHasSnapshot = true;
+        wlState.planStatus = 'ready';
+        wlState.planError = null;
+        wlState.planFetchedAt = Date.now();
+    }
+
+    function wlMarkPlanReadFailure(error) {
+        const status = Number(error && error.status) || 0;
+        if (status === 401) {
+            _syncviewStaffIdentityClear();
+            return;
+        }
+        if (status === 403) {
+            wlPurgePlanSensitiveState();
+            wlState.planError = 'This staff account cannot access saved work days.';
+            return;
+        }
+        wlState.planStatus = wlState.planHasSnapshot ? 'stale' : 'unknown';
+        wlState.planError = (error && error.message) || 'Saved work days could not be loaded.';
+    }
+
+    function wlPurgePlanSensitiveState() {
+        _wlPlanSessionGeneration++;
+        _wlPlanLoadGeneration++;
+        _wlPlanWriteInFlight.clear();
+        _wlPlanLastWriteGeneration.clear();
+        _wlPlanWriteGeneration = 0;
+        wlState.planByIssueId.clear();
+        wlState.planHasSnapshot = false;
+        wlState.planStatus = 'unknown';
+        wlState.planError = 'Staff sign-in is required to load saved work days.';
+        wlState.planFetchedAt = null;
+        if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
+            wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
+        }
+        if (document.querySelector('.workload-view')) {
+            wlClosePopover(false);
+            renderWorkloadAll();
+        }
+    }
+
+    async function wlLoadSnapshot(force, fallback) {
+        const loadGeneration = ++_wlPlanLoadGeneration;
+        wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
+        wlState.planError = null;
+        if (document.querySelector('.workload-view')) {
+            renderWorkloadAll({ deferWhilePopoverOpen: true });
+        }
+        const [issuesResult, plansResult] = await Promise.allSettled([
+            loadLinearIssues(!!force),
+            wlFetchPlanRows()
+        ]);
+
+        // Only the newest overlapping refresh may publish plan or issue state.
+        // Older calls can still populate the shared HTTP cache, but they cannot
+        // overwrite a newer saved-plan snapshot or downgrade its status.
+        if (loadGeneration !== _wlPlanLoadGeneration) return null;
+        if (plansResult.status === 'fulfilled') wlAdoptPlanRows(plansResult.value);
+        else wlMarkPlanReadFailure(plansResult.reason);
+
+        let payload = null;
+        if (issuesResult.status === 'fulfilled') payload = issuesResult.value;
+        else if (fallback && Array.isArray(fallback.issues)) {
+            payload = { issues: fallback.issues, fetchedAt: fallback.fetchedAt, fromCache: true };
+        } else if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
+            payload = { issues: wlState.issueSnapshot, fetchedAt: wlState.fetchedAt, fromCache: true };
+        }
+        if (!payload) throw issuesResult.reason || new Error('Failed to load issues from Linear.');
+        wlApplyData(payload.issues, payload.fetchedAt);
+        return payload;
+    }
+
     function wlTodayISO() {
         const d = new Date();
         return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
@@ -12853,14 +13035,22 @@
         }
     }
 
-    // Static mode: the calendar is a literal due-date view. Capacity may mark
-    // a date as overloaded, but it never moves, spills, or hides dated work.
-    function wlBucketByDueDate(plannedSubs) {
+    function wlPlanDate(sub) {
+        return String(wlState.planByIssueId.get(String(sub && sub.id || '')) || '').slice(0, 10);
+    }
+    function wlDisplayDate(sub) {
+        return wlPlanDate(sub) || String(sub && sub.dueDate || '').slice(0, 10);
+    }
+
+    // Editable mode is still literal: explicit plan_date wins, otherwise the
+    // Linear deadline is the fallback. No date is derived, packed, or spilled.
+    function wlBucketByDisplayDate(plannedSubs) {
         const byDate = new Map();
         for (const sub of plannedSubs) {
-            if (!sub.dueDate) continue;
-            if (!byDate.has(sub.dueDate)) byDate.set(sub.dueDate, []);
-            byDate.get(sub.dueDate).push(sub);
+            const day = wlDisplayDate(sub);
+            if (!day) continue;
+            if (!byDate.has(day)) byDate.set(day, []);
+            byDate.get(day).push(sub);
         }
         return byDate;
     }
@@ -12910,7 +13100,7 @@
             <div class="workload-toolbar">
                 <div class="workload-toolbar-row">
                     <div class="workload-title-group">
-                        <div class="workload-title" id="wlTitle">—</div>
+                        <div class="workload-title" id="wlTitle" tabindex="-1">—</div>
                         <div class="workload-freshness" id="wlFreshness"></div>
                     </div>
                     <button type="button" class="wl-revision-btn" onclick="openRevisionModal()">
@@ -12972,17 +13162,18 @@
                 <div class="workload-in-progress-rollups" id="wlTweaksRollups"></div>
             </div>
             <div class="workload-section-label workload-calendar-label">
-                <span>Deadline calendar</span>
+                <span>Work-day calendar</span>
                 <span class="workload-section-hint">
-                    Each dated sub-issue appears on its <strong>Linear due date</strong>. Capacity never moves or hides work; overloaded days stay intact and are marked red.
+                    An internal <strong>work day</strong> is used when set; otherwise work stays on its read-only Linear deadline. Nothing moves automatically.
                 </span>
             </div>
+            <div id="wlPlanStatus" class="workload-plan-status" role="status" hidden></div>
             <div id="wlBody">
                 ${_svLoadingSkeletonHtml('workload')}
             </div>
             <div id="wlUndated" class="workload-needs-assignment workload-undated empty">
-                <div class="workload-section-label">Needs a due date</div>
-                <div class="workload-section-hint">These assigned sub-issues stay off the calendar until a date is set.</div>
+                <div class="workload-section-label">Needs a work day or deadline</div>
+                <div class="workload-section-hint">These assigned sub-issues stay visible here until an internal work day or Linear deadline exists.</div>
                 <div class="workload-chips" id="wlUndatedChips"></div>
             </div>
             <div id="wlUnassigned" class="workload-needs-assignment empty">
@@ -13028,7 +13219,7 @@
         const now = new Date();
         const todayISO = wlTodayISO();
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
-        if (wlState.weekStart == null) { wlState.weekStart = wlNextWorkingDay(todayISO); }
+        if (wlState.weekStart == null) { wlState.weekStart = todayISO; }
         // Seed the client search dropdown with the canonical client list as
         // soon as the view mounts. Otherwise the dropdown is empty until the
         // background fetch returns, which feels broken if you start typing
@@ -13042,11 +13233,16 @@
         } catch {}
 
         const cache = wlReadCache();
+        wlState.loading = true;
+        wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
+        // Phase 1's exact due-date view remains a safe first paint even before
+        // the plan sidecar has answered. This keeps the post-merge / pre-deploy
+        // window useful without a runtime gate; saved overrides replace the
+        // fallback only after an authoritative list response.
         if (cache) {
             wlApplyData(cache.issues, cache.fetchedAt);
             renderWorkloadAll();
         } else {
-            wlState.loading = true;
             renderWorkloadAll();
         }
 
@@ -13063,8 +13259,7 @@
         _wlV2EnsureSubscribed();
 
         try {
-            const { issues, fetchedAt } = await loadLinearIssues(!!cache);
-            wlApplyData(issues, fetchedAt);
+            await wlLoadSnapshot(!!cache, cache);
             wlState.error = null;
         } catch (e) {
             console.error('[SyncView] Workload fetch failed:', e);
@@ -13100,9 +13295,8 @@
         if (!document.querySelector('.workload-view')) return;
         wlSpinnerOn();
         try {
-            const { issues, fetchedAt } = await loadLinearIssues(true);
+            await wlLoadSnapshot(true, null);
             if (!document.querySelector('.workload-view')) return;
-            wlApplyData(issues, fetchedAt);
             wlState.error = null;
         } catch (e) {
             console.error('[SyncView] Workload silent refresh failed:', e);
@@ -13119,9 +13313,8 @@
         wlState.refreshing = true;
         wlSpinnerOn();
         try {
-            const { issues, fetchedAt } = await loadLinearIssues(true);
+            await wlLoadSnapshot(true, null);
             if (!document.querySelector('.workload-view')) return;
-            wlApplyData(issues, fetchedAt);
             wlState.error = null;
         } catch (err) {
             wlState.error = err.message || 'Refresh failed.';
@@ -13155,7 +13348,7 @@
         console.log('overdue:', wlState.overdue.length);
         console.log('undated:', wlState.undated.length);
         console.log('unassigned:', wlState.unassigned.length);
-        console.log('calendar due dates:', [...wlState.calendarByDate.keys()].sort());
+        console.log('calendar work days:', [...wlState.calendarByDate.keys()].sort());
 
         // Breakdown by statusType — are items being dropped for being "completed"?
         const byStatus = {};
@@ -13200,6 +13393,7 @@
     };
 
     function wlApplyData(issues, fetchedAt) {
+        wlState.issueSnapshot = Array.isArray(issues) ? issues : [];
         const parentById = new Map();
         const subsByParentId = new Map();
         for (const i of issues) {
@@ -13274,8 +13468,9 @@
             const inProg     = wlIsInProgress(s);
             const needsTweak = wlIsTweaksNeeded(s);
             const hasDue     = !!s.dueDate;
+            const workDate   = wlDisplayDate(s);
             if (!s.assigneeId) {
-                if (inProg || hasDue) unassigned.push(s);
+                if (inProg || workDate) unassigned.push(s);
                 continue;
             }
             // Only surface work owned by current video editors (see
@@ -13303,14 +13498,13 @@
                 overdue.push(s);
             }
             if (inProg) nowWorking.push(s);
-            if (!hasDue) {
+            if (!workDate) {
                 undated.push(s);
                 continue;
             }
-            // Every dated, non-tweak item stays on its literal due-date cell,
-            // including historical overdue dates. Status strips may also call
-            // out overdue/in-progress work; only the tweak family is calendar-
-            // exclusive. Undated work remains in its explicit lane above.
+            // Explicit internal plan_date wins; otherwise the exact Linear due
+            // date is the fallback. Status strips may also call out overdue/
+            // in-progress work; only the tweak family is calendar-exclusive.
             planned.push(s);
         }
 
@@ -13321,7 +13515,152 @@
         wlState.undated      = undated;
         wlState.unassigned   = unassigned;
         wlState.fetchedAt  = fetchedAt;
-        wlState.calendarByDate = wlBucketByDueDate(planned);
+        wlState.calendarByDate = wlBucketByDisplayDate(planned);
+    }
+
+    function wlApplyPlanLocal(issueId, planDate) {
+        const key = String(issueId || '');
+        if (planDate) wlState.planByIssueId.set(key, planDate);
+        else wlState.planByIssueId.delete(key);
+        if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
+            wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
+        }
+    }
+
+    function wlFocusPlanItem(issueId) {
+        setTimeout(() => {
+            const match = [...document.querySelectorAll('[data-wl-issue-id]')]
+                .find(el => el.getAttribute('data-wl-issue-id') === String(issueId || ''));
+            if (match && typeof match.focus === 'function') {
+                match.focus();
+                return;
+            }
+            // A move can place the issue outside the visible week/month. Keep
+            // keyboard focus in Workload instead of dropping it onto <body>.
+            const title = document.getElementById('wlTitle');
+            if (title && typeof title.focus === 'function') title.focus();
+        }, 0);
+    }
+
+    function wlResetPlanDisplay(issueId) {
+        if (document.querySelector('.workload-view')) {
+            renderWorkloadAll();
+            wlFocusPlanItem(issueId);
+        }
+    }
+
+    async function _wlPlanWriteRequest(issue, planDate) {
+        await _syncviewRequireStaffIdentity('workload-plan');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), WL_PLAN_WRITE_TIMEOUT_MS);
+        try {
+            return await fetch(WORKLOAD_PLAN_URL, {
+                method: 'POST',
+                cache: 'no-store',
+                signal: controller.signal,
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, WORKLOAD_PLAN_URL),
+                body: JSON.stringify({
+                    action: 'set',
+                    issue_id: String(issue.id || ''),
+                    client: String(issue.clientName || ''),
+                    plan_date: planDate
+                })
+            });
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+
+    // F141 fail-closed boundary. The optimistic value is already visible when
+    // this runs; anything except one actually-written, matching row restores
+    // the precise previous value and tells the user.
+    async function _wlPersistPlanDate(issue, planDate, previousDate, sessionGeneration) {
+        try {
+            const resp = await _wlPlanWriteRequest(issue, planDate);
+            if (sessionGeneration != null && sessionGeneration !== _wlPlanSessionGeneration) return false;
+            let json = null;
+            try { json = await resp.json(); } catch (e) {}
+            if (resp.status === 401) {
+                _syncviewStaffIdentityClear();
+                if (typeof showNotify === 'function') {
+                    showNotify("Couldn't save the work day", 'Staff sign-in expired. Sign in and try again.');
+                }
+                return false;
+            }
+            if (resp.status === 403) {
+                wlPurgePlanSensitiveState();
+                wlState.planError = 'This staff account cannot edit saved work days.';
+                if (typeof showNotify === 'function') {
+                    showNotify("Couldn't save the work day", 'This staff account cannot edit saved work days.');
+                }
+                return false;
+            }
+            const saved = json && json.plan;
+            if (!resp.ok || !json || json.ok !== true || json.updated !== 1
+                || !saved || String(saved.issue_id || '') !== String(issue.id || '')
+                || (saved.plan_date == null ? null : String(saved.plan_date).slice(0, 10)) !== planDate) {
+                throw new Error((json && json.error) || ('HTTP ' + resp.status));
+            }
+            return true;
+        } catch (error) {
+            if (sessionGeneration != null && sessionGeneration !== _wlPlanSessionGeneration) return false;
+            wlApplyPlanLocal(issue.id, previousDate);
+            renderWorkloadAll();
+            if (typeof showNotify === 'function') {
+                showNotify("Couldn't save the work day", 'It was put back — please try again.');
+            }
+            return false;
+        }
+    }
+
+    async function wlSetPlanDate(issueId, value) {
+        const key = String(issueId || '');
+        const issue = (wlState.allActiveSubs || []).find(row => String(row.id || '') === key);
+        if (!issue || wlIsTweaksNeeded(issue)) return false;
+        if (!wlPlanEditingEnabled()) {
+            if (typeof showNotify === 'function') {
+                showNotify('Work-day editing unavailable', 'Saved work days are not current. Refresh and try again.');
+            }
+            wlResetPlanDisplay(key);
+            return false;
+        }
+        if (_wlPlanWriteInFlight.has(key)) {
+            wlResetPlanDisplay(key);
+            return false;
+        }
+
+        const planDate = value == null || value === '' ? null : String(value).slice(0, 10);
+        if (planDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(planDate)) {
+            wlResetPlanDisplay(key);
+            return false;
+        }
+        const previousDate = wlPlanDate(issue) || null;
+        if (planDate === previousDate) {
+            wlResetPlanDisplay(key);
+            return true;
+        }
+        // Dropping a deadline-fallback card back on that same deadline is a
+        // visual no-op; keep it as a fallback instead of manufacturing an
+        // explicit override that changes nothing.
+        if (previousDate === null && planDate === (issue.dueDate || null)) {
+            wlResetPlanDisplay(key);
+            return true;
+        }
+
+        const token = { generation: ++_wlPlanWriteGeneration };
+        const sessionGeneration = _wlPlanSessionGeneration;
+        _wlPlanLastWriteGeneration.set(key, token.generation);
+        _wlPlanWriteInFlight.set(key, token);
+        wlApplyPlanLocal(key, planDate);
+        renderWorkloadAll();
+        wlFocusPlanItem(key);
+        const saved = await _wlPersistPlanDate(issue, planDate, previousDate, sessionGeneration);
+        if (sessionGeneration !== _wlPlanSessionGeneration) return false;
+        _wlPlanLastWriteGeneration.set(key, ++_wlPlanWriteGeneration);
+        if (_wlPlanWriteInFlight.get(key) === token) _wlPlanWriteInFlight.delete(key);
+        renderWorkloadAll();
+        wlFocusPlanItem(key);
+        return saved;
     }
 
     // Single delegated handler on the shell root. Attached once per shell
@@ -13337,9 +13676,22 @@
             const countBadge = e.target.closest('[data-wl-count-badge]');
             const rollup     = e.target.closest('[data-wl-rollup]');
             const popClose   = e.target.closest('[data-wl-popover-close]');
+            const issueOpen  = e.target.closest('[data-wl-issue-open]');
+            const planClear  = e.target.closest('[data-wl-plan-clear]');
             const ddTrigger  = e.target.closest('[data-wl-dropdown-trigger]');
             const ddItem     = e.target.closest('[data-wl-dropdown-item]');
-            if (popClose) { e.preventDefault(); wlClosePopover(); return; }
+            if (popClose) { e.preventDefault(); wlClosePopover(true); return; }
+            if (planClear) {
+                e.preventDefault();
+                const issueId = planClear.getAttribute('data-wl-plan-clear') || '';
+                setTimeout(() => wlSetPlanDate(issueId, null), 0);
+                return;
+            }
+            if (issueOpen) {
+                e.preventDefault();
+                wlOpenRollupPopover(issueOpen);
+                return;
+            }
             if (ddTrigger) {
                 e.preventDefault();
                 const wrap = ddTrigger.closest('.wl-dropdown');
@@ -13370,7 +13722,7 @@
                 // Toggle: clicking the same rollup again closes it.
                 const pop = document.getElementById('wlPopover');
                 if (pop && pop.classList.contains('open') && wlState.popoverAnchor === rollup) {
-                    wlClosePopover();
+                    wlClosePopover(true);
                     return;
                 }
                 wlOpenRollupPopover(rollup);
@@ -13387,7 +13739,7 @@
                     const today = wlTodayISO();
                     const n = new Date();
                     wlState.year = n.getFullYear(); wlState.month = n.getMonth();
-                    wlState.weekStart = wlNextWorkingDay(today);
+                    wlState.weekStart = today;
                     renderWorkloadAll();
                     return;
                 }
@@ -13408,29 +13760,88 @@
             }
         });
 
+        root.addEventListener('change', (e) => {
+            const wrap = e.target && e.target.closest && e.target.closest('[data-wl-plan-issue]');
+            if (!wrap || !e.target.matches('input[type="date"]')) return;
+            const issueId = wrap.getAttribute('data-wl-plan-issue') || '';
+            const nextDate = e.target.value || null;
+            // The shared branded picker dispatches change before it closes.
+            // Let it restore focus first, then repaint the calendar.
+            setTimeout(() => wlSetPlanDate(issueId, nextDate), 0);
+        });
+
+        const clearDropTargets = () => {
+            root.querySelectorAll('.workload-day.is-plan-drop-target').forEach(day => day.classList.remove('is-plan-drop-target'));
+            root.querySelectorAll('.workload-plan-item.is-dragging').forEach(card => card.classList.remove('is-dragging'));
+        };
+        root.addEventListener('dragstart', (e) => {
+            const card = e.target.closest('[data-wl-plan-drag]');
+            if (!card || !wlPlanEditingEnabled()) { e.preventDefault(); return; }
+            const issueId = card.getAttribute('data-wl-plan-drag') || '';
+            if (!issueId || _wlPlanWriteInFlight.has(issueId)) { e.preventDefault(); return; }
+            root.dataset.wlDragIssue = issueId;
+            card.classList.add('is-dragging');
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', issueId);
+            }
+        });
+        root.addEventListener('dragover', (e) => {
+            const day = e.target.closest('[data-wl-day]');
+            if (!day || !root.dataset.wlDragIssue) return;
+            e.preventDefault();
+            root.querySelectorAll('.workload-day.is-plan-drop-target').forEach(other => {
+                if (other !== day) other.classList.remove('is-plan-drop-target');
+            });
+            day.classList.add('is-plan-drop-target');
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        });
+        root.addEventListener('dragleave', (e) => {
+            const day = e.target.closest('[data-wl-day]');
+            if (day && (!e.relatedTarget || !day.contains(e.relatedTarget))) day.classList.remove('is-plan-drop-target');
+        });
+        root.addEventListener('drop', (e) => {
+            const day = e.target.closest('[data-wl-day]');
+            const issueId = root.dataset.wlDragIssue || (e.dataTransfer && e.dataTransfer.getData('text/plain')) || '';
+            if (!day || !issueId) return;
+            e.preventDefault();
+            const targetDate = day.getAttribute('data-wl-day') || '';
+            delete root.dataset.wlDragIssue;
+            clearDropTargets();
+            wlSetPlanDate(issueId, targetDate);
+        });
+        root.addEventListener('dragend', () => {
+            delete root.dataset.wlDragIssue;
+            clearDropTargets();
+        });
+
         // Dismiss the popover / dropdowns on outside click or Escape.
         document.addEventListener('click', (e) => {
+            if (e.target.closest && e.target.closest('#svDatePickerPopup')) return;
             const pop = document.getElementById('wlPopover');
             if (pop && pop.classList.contains('open')
                 && !pop.contains(e.target)
-                && !e.target.closest('[data-wl-count-badge]')) {
-                wlClosePopover();
+                && !e.target.closest('[data-wl-count-badge]')
+                && !e.target.closest('[data-wl-issue-open]')) {
+                wlClosePopover(false);
             }
             if (!e.target.closest('.wl-dropdown')) wlCloseDropdowns(null);
         });
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') { wlClosePopover(); wlCloseDropdowns(null); }
+            if (e.key === 'Escape') {
+                // First Escape belongs to the body-portaled branded date picker;
+                // the next Escape closes the Workload popover.
+                if (document.getElementById('svDatePickerPopup')) return;
+                wlClosePopover(true);
+                wlCloseDropdowns(null);
+            }
         });
     }
 
     function wlShiftPeriod(delta) {
         if (wlState.viewMode === 'week') {
-            // Rolling 5-workday window: shift by 5 working days per click.
-            if (delta > 0) {
-                for (let k = 0; k < delta; k++) wlState.weekStart = wlAddWorkingDays(wlState.weekStart, 5);
-            } else if (delta < 0) {
-                for (let k = 0; k < -delta; k++) wlState.weekStart = wlSubWorkingDays(wlState.weekStart, 5);
-            }
+            // Rolling 7-calendar-day window: include literal weekend dates.
+            wlState.weekStart = wlAddDays(wlState.weekStart, delta * 7);
         } else {
             let y = wlState.year, m = wlState.month + delta;
             while (m < 0)  { m += 12; y--; }
@@ -13608,6 +14019,29 @@
         return sub.url;
     }
 
+    function renderWorkloadPlanStatus() {
+        const el = document.getElementById('wlPlanStatus');
+        if (!el) return;
+        const status = wlState.planStatus;
+        if (status === 'ready') {
+            el.hidden = true;
+            el.className = 'workload-plan-status';
+            el.textContent = '';
+            return;
+        }
+        el.hidden = false;
+        el.className = 'workload-plan-status ' + ((status === 'unknown' || status === 'stale') ? 'is-warning' : 'is-loading');
+        if (status === 'loading') {
+            el.textContent = 'Loading saved work days…';
+        } else if (status === 'refreshing') {
+            el.textContent = 'Refreshing saved work days — editing is briefly paused.';
+        } else if (status === 'stale') {
+            el.textContent = 'Saved work days could not be refreshed. The last good plan is shown; editing is paused.';
+        } else {
+            el.textContent = 'Saved work days are unavailable. Deadlines are shown as a clearly marked fallback; editing is disabled.';
+        }
+    }
+
     function renderWorkloadAll(opts) {
         // Background refreshes (the cache→network settle on mount, the
         // tab-focus silent refetch) must not yank an open popover out from
@@ -13620,13 +14054,13 @@
         wlState.renderQueued = false;
         // Re-rendering the calendar wipes out the spotlight markers and the
         // popover's anchor element, so close it before painting the new DOM.
-        if (wlState.popoverAnchor) wlClosePopover();
+        if (wlState.popoverAnchor) wlClosePopover(false);
         const titleEl = document.getElementById('wlTitle');
         const freshEl = document.getElementById('wlFreshness');
         if (titleEl) {
             if (wlState.viewMode === 'week') {
                 const ws = wlState.weekStart;
-                const we = wlAddWorkingDays(ws, 4); // today + next 4 workdays
+                const we = wlAddDays(ws, 6); // today + next 6 calendar days
                 const wsD = wlParseISO(ws), weD = wlParseISO(we);
                 const sameMonth = wsD.getMonth() === weD.getMonth() && wsD.getFullYear() === weD.getFullYear();
                 titleEl.textContent = sameMonth
@@ -13648,6 +14082,7 @@
         }
 
         wlPopulateFilterOptions();
+        renderWorkloadPlanStatus();
         renderEditorWorkload();
         renderOverdueStrip();
         renderInProgressStrip();
@@ -13674,7 +14109,7 @@
     // Group a list of sub-issues into (assigneeId × clientName) rollups.
     // In-progress and planned items for the same editor+client on the same
     // day collapse into one chip — the popover still shows them all with
-    // their individual due dates, so the breakdown is one click away.
+    // their individual work days and deadlines, so the breakdown is one click away.
     function wlGroupRollups(subs) {
         const map = new Map();
         for (const s of subs) {
@@ -13689,9 +14124,11 @@
                     parentId: s.parentId,
                     anySub: s,
                     count: 0,
+                    subs: [],
                 });
             }
             map.get(key).count++;
+            map.get(key).subs.push(s);
         }
         return [...map.values()].sort((a, b) => {
             const na = wlDisplayName(a.assigneeName); const nb = wlDisplayName(b.assigneeName);
@@ -13700,13 +14137,13 @@
         });
     }
 
-    // Build today's rollups from the literal due-date bucket. In-progress
+    // Build today's rollups from the literal work-day bucket. In-progress
     // items are rendered separately in the strip above the calendar.
     function wlTodayRollups(todayISO) {
         const allDue = wlState.calendarByDate.get(todayISO) || [];
         const plannedSubs = allDue.filter(wlPassesFilters);
         const groups = wlGroupRollups(plannedSubs);
-        return { groups, count: plannedSubs.length, overCapacity: wlDayOverCapacity(allDue) };
+        return { groups, count: plannedSubs.length, overCapacity: wlDayOverCapacity(plannedSubs) };
     }
 
     // Editor workload — ranks every current video editor by how busy they are
@@ -13714,7 +14151,7 @@
     // a new sub-issue. The whole roster always shows (see WL_VIDEO_EDITORS):
     // an editor with no active sub-issues sorts first as the freest. The count
     // matches what's visible across the calendar and active strips, deduped on
-    // id, including the Needs a due date lane. "Days of work" = count / per-day
+    // id, including the undated lane. "Days of work" = count / per-day
     // capacity (5 for video). Honours the team filter (video-only panel) and
     // the client filter for counts, but always lists the roster.
     function renderEditorWorkload() {
@@ -13942,30 +14379,34 @@
         chipsEl.innerHTML = filtered.map(s => {
             const team = wlTeamBucket(s.teamKey, s.teamName);
             const dot = `<span class="workload-legend-swatch" style="background:${team === 'graphics' ? 'var(--sv-misc-d97706)' : 'var(--sv-misc-6c5ce7)'}"></span>`;
-            return `<a class="workload-chip" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(s.identifier)} · ${wlEscape(s.clientName || '')}">
+            const planButton = applyEditorFilter
+                ? `<button type="button" class="workload-loose-plan" data-wl-issue-open="1" data-wl-issue-id="${wlEscape(s.id || '')}" data-wl-parent-id="${wlEscape(s.parentId || '')}" data-wl-assignee-id="${wlEscape(s.assigneeId || '')}" data-wl-client="${wlEscape(s.clientName || '')}" data-wl-date="">Set work day</button>`
+                : '';
+            return `<span class="workload-loose-item"><a class="workload-chip" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(s.identifier)} · ${wlEscape(s.clientName || '')}">
                 ${dot}<span>${wlEscape(s.title)}</span><span class="chip-client">${wlEscape(s.clientName || '')}</span>
-            </a>`;
+            </a>${planButton}</span>`;
         }).join('');
     }
 
     function renderWeekGrid() {
         const todayISO = wlTodayISO();
-        const start = wlState.weekStart; // leftmost working day (today by default)
+        const start = wlState.weekStart; // leftmost calendar day (today by default)
         const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         let weekdayHtml = '<div class="workload-weekdays week">';
-        for (let i = 0; i < 5; i++) {
-            const iso = wlAddWorkingDays(start, i);
+        for (let i = 0; i < 7; i++) {
+            const iso = wlAddDays(start, i);
             const d = wlParseISO(iso);
             weekdayHtml += `<div class="workload-weekday">${dayLabels[d.getDay()]} · ${d.getDate()}</div>`;
         }
         weekdayHtml += '</div>';
 
         let gridHtml = '<div class="workload-grid week">';
-        for (let i = 0; i < 5; i++) {
-            const iso = wlAddWorkingDays(start, i);
+        for (let i = 0; i < 7; i++) {
+            const iso = wlAddDays(start, i);
             const d = wlParseISO(iso);
             const isToday = iso === todayISO;
             const classes = ['workload-day'];
+            if (d.getDay() === 0 || d.getDay() === 6) classes.push('weekend');
             if (isToday) classes.push('today');
             let groups, count, overCapacity;
             if (isToday) {
@@ -13975,12 +14416,12 @@
                 const subs = allDue.filter(wlPassesFilters);
                 groups = wlGroupRollups(subs);
                 count = subs.length;
-                overCapacity = wlDayOverCapacity(allDue);
+                overCapacity = wlDayOverCapacity(subs);
             }
             if (overCapacity) classes.push('over-capacity');
             const rowsHtml = renderDayRollups(groups, iso);
             const countBadge = (count || overCapacity)
-                ? `<span class="workload-day-count${overCapacity ? ' over-capacity' : ''}"${overCapacity ? ' title="Over capacity — all work remains on this due date"' : ''}>${count || ''}${overCapacity ? (count ? ' · over' : 'over') : ''}</span>`
+                ? `<span class="workload-day-count${overCapacity ? ' over-capacity' : ''}"${overCapacity ? ' title="Over capacity — all work remains on this work day"' : ''}>${count || ''}${overCapacity ? (count ? ' · over' : 'over') : ''}</span>`
                 : '';
             gridHtml += `<div class="${classes.join(' ')}" data-wl-day="${wlEscape(iso)}">
                 <div class="workload-day-num"><span>${d.getDate()}</span>${countBadge}</div>
@@ -14029,12 +14470,12 @@
                 const subs = allDue.filter(wlPassesFilters);
                 groups = wlGroupRollups(subs);
                 count = subs.length;
-                overCapacity = wlDayOverCapacity(allDue);
+                overCapacity = wlDayOverCapacity(subs);
             }
             if (overCapacity) classes.push('over-capacity');
             const rowsHtml = renderDayRollups(groups, iso);
             const countBadge = (count || overCapacity)
-                ? `<span class="workload-day-count${overCapacity ? ' over-capacity' : ''}"${overCapacity ? ' title="Over capacity — all work remains on this due date"' : ''}>${count || ''}${overCapacity ? (count ? ' · over' : 'over') : ''}</span>`
+                ? `<span class="workload-day-count${overCapacity ? ' over-capacity' : ''}"${overCapacity ? ' title="Over capacity — all work remains on this work day"' : ''}>${count || ''}${overCapacity ? (count ? ' · over' : 'over') : ''}</span>`
                 : '';
 
             gridHtml += `<div class="${classes.join(' ')}" data-wl-day="${wlEscape(iso)}">
@@ -14067,11 +14508,13 @@
                     teamName: g.teamName,
                     total: 0,
                     clients: [],
+                    subs: [],
                 });
             }
             const ed = byEditor.get(key);
             ed.total += g.count;
             ed.clients.push(g);
+            ed.subs.push(...(Array.isArray(g.subs) ? g.subs : (g.anySub ? [g.anySub] : [])));
         }
         const editors = [...byEditor.values()].sort((a, b) => {
             // Graphics goes to the bottom; video editors first.
@@ -14084,32 +14527,33 @@
         return editors.map(ed => {
             const team = wlTeamBucket(ed.teamKey, ed.teamName);
             const name = wlDisplayName(ed.assigneeName) || 'Unknown';
-            const clients = ed.clients.slice().sort((a, b) => {
-                if (a.count !== b.count) return b.count - a.count;
-                return (a.clientName || '').localeCompare(b.clientName || '');
-            });
-            const chips = clients.map(g => {
-                const href = wlParentUrl(g.anySub);
-                const label = g.clientName || '—';
-                const titleAttr = [label, g.count + ' sub-issue' + (g.count !== 1 ? 's' : ''), 'click to see sub-issues'].join(' · ');
-                return `<a class="workload-day-card-chip" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(titleAttr)}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-parent-id="${wlEscape(g.parentId || '')}" data-wl-assignee-id="${wlEscape(g.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}">
-                    <span class="workload-day-card-chip-name">${wlEscape(label)}</span>
-                    <span class="workload-day-card-chip-count">${g.count}</span>
-                </a>`;
+            const issueCards = ed.subs.slice().sort((a, b) => {
+                const ca = a.clientName || ''; const cb = b.clientName || '';
+                if (ca !== cb) return ca.localeCompare(cb);
+                return (a.identifier || '').localeCompare(b.identifier || '');
+            }).map(s => {
+                const issueId = String(s.id || '');
+                const canDrag = wlPlanEditingEnabled() && !_wlPlanWriteInFlight.has(issueId);
+                const label = (s.clientName || '—') + ' · ' + (s.identifier || s.title || 'Work');
+                const titleAttr = [label, s.title || '', canDrag ? 'drag to set work day' : 'open details'].filter(Boolean).join(' · ');
+                return `<button type="button" class="workload-plan-item${canDrag ? '' : ' is-readonly'}" draggable="${canDrag ? 'true' : 'false'}" data-wl-plan-drag="${wlEscape(issueId)}" data-wl-issue-open="1" data-wl-issue-id="${wlEscape(issueId)}" data-wl-parent-id="${wlEscape(s.parentId || '')}" data-wl-assignee-id="${wlEscape(s.assigneeId || '')}" data-wl-client="${wlEscape(s.clientName || '')}" data-wl-date="${wlEscape(dayISO || '')}" title="${wlEscape(titleAttr)}">
+                    <span class="workload-plan-item-grip" aria-hidden="true">⋮⋮</span>
+                    <span class="workload-plan-item-label">${wlEscape(label)}</span>
+                </button>`;
             }).join('');
             return `<div class="workload-day-card team-${team}">
                 <div class="workload-day-card-head">
                     <span class="workload-day-card-name" title="${wlEscape(name)}">${wlEscape(name)}</span>
-                    <span class="workload-day-card-total" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}" data-wl-editor-name="${wlEscape(name)}" title="See the ${ed.total} sub-issue${ed.total !== 1 ? 's' : ''}">${ed.total}</span>
+                    <button type="button" class="workload-day-card-total" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}" data-wl-editor-name="${wlEscape(name)}" title="See the ${ed.total} sub-issue${ed.total !== 1 ? 's' : ''}">${ed.total}</button>
                 </div>
-                <div class="workload-day-card-clients">${chips}</div>
+                <div class="workload-day-card-items">${issueCards}</div>
             </div>`;
         }).join('');
     }
 
     // ── Sub-issue popover ────────────────────────────────────────────────
     // Fetches the underlying subs for a rollup (either the in-progress list
-    // or the planned-for-that-day list), filters by assignee+client, and
+    // or the work-on-that-day list), filters by assignee+client, and
     // renders a popover anchored to the clicked rollup.
     /* ── Tweak-comment preview ──────────────────────────────────────────
        When a popover lists sub-issues that sit in "Tweak Needed", the
@@ -14189,6 +14633,7 @@
         const assigneeId = rollupEl.getAttribute('data-wl-assignee-id') || '';
         const clientName = rollupEl.getAttribute('data-wl-client') || '';
         const editorName = rollupEl.getAttribute('data-wl-editor-name') || '';
+        const issueId     = rollupEl.getAttribute('data-wl-issue-id') || '';
         const inProgress = rollupEl.getAttribute('data-wl-in-progress') === '1';
         const dayISO     = rollupEl.getAttribute('data-wl-date') || '';
 
@@ -14198,13 +14643,15 @@
         //     view of every active sub-issue for that editor, regardless of
         //     status or day.
         //   - in-progress (strip): nowWorking covers every active "now" item
-        //   - calendar cell: that day's exact due-date bucket
+        //   - calendar cell: that day's exact work-day bucket
         //   - editor card total badge with no clientName: same source, but
         //     skip the client filter so the popover lists every sub-issue
         //     that editor owns for the day across all clients.
         const sourceMode = rollupEl.getAttribute('data-wl-source') || '';
         let source;
-        if (sourceMode === 'active') {
+        if (issueId) {
+            source = wlState.allActiveSubs || [];
+        } else if (sourceMode === 'active') {
             const seenIds = new Set();
             source = [];
             for (const s of [...(wlState.planned || []), ...(wlState.nowWorking || []), ...(wlState.tweaksNeeded || []), ...(wlState.overdue || []), ...(wlState.undated || [])]) {
@@ -14225,12 +14672,13 @@
         }
         const subs = source.filter(s =>
             (s.assigneeId || '') === assigneeId &&
-            (clientName === '' || (s.clientName || '') === clientName)
+            (clientName === '' || (s.clientName || '') === clientName) &&
+            (!issueId || String(s.id || '') === issueId)
         );
 
         subs.sort((a, b) => {
-            const da = a.dueDate || '9999-12-31';
-            const db = b.dueDate || '9999-12-31';
+            const da = wlDisplayDate(a) || '9999-12-31';
+            const db = wlDisplayDate(b) || '9999-12-31';
             if (da !== db) return da < db ? -1 : 1;
             const ca = a.clientName || '';
             const cb = b.clientName || '';
@@ -14238,13 +14686,19 @@
             return (a.identifier || '').localeCompare(b.identifier || '');
         });
 
+        if (wlState.popoverAnchor && wlState.popoverAnchor !== rollupEl
+            && typeof wlState.popoverAnchor.setAttribute === 'function') {
+            wlState.popoverAnchor.setAttribute('aria-expanded', 'false');
+        }
         wlState.popoverAnchor = rollupEl;
+        rollupEl.setAttribute('aria-expanded', 'true');
 
         const parentUrl   = clientName
             ? ((parentId && wlState.parentById.get(parentId)?.url) || subs[0]?.url || '')
             : '';
         const parentTitle = (parentId && wlState.parentById.get(parentId)?.title) || clientName || editorName || '';
         const headerTitle = clientName || editorName || parentTitle;
+        pop.setAttribute('aria-label', headerTitle ? ('Workload details for ' + headerTitle) : 'Workload details');
 
         const templatesUrl = clientName
             ? (location.pathname + location.search + '#templates/' + encodeURIComponent(clientName))
@@ -14273,6 +14727,24 @@
         const showClient = !clientName;
         const items = subs.map(s => {
             const dueLabel = s.dueDate ? 'Due ' + wlFormatShort(s.dueDate) : 'No due date';
+            const explicitPlan = wlPlanDate(s) || null;
+            const workDate = wlDisplayDate(s) || '';
+            const saving = _wlPlanWriteInFlight.has(String(s.id || ''));
+            const canEditPlan = !wlIsTweaksNeeded(s) && wlPlanEditingEnabled() && !saving;
+            const dateId = 'wlPlanDate_' + String(s.id || '').replace(/[^A-Za-z0-9_-]/g, '_');
+            const planOrigin = explicitPlan ? 'Internal plan' : (s.dueDate ? 'Uses deadline' : 'No date yet');
+            const planControl = wlIsTweaksNeeded(s) ? '' : `<div class="workload-popover-plan" data-wl-plan-issue="${wlEscape(s.id || '')}">
+                <div class="workload-popover-plan-line">
+                    <span class="workload-popover-plan-label">Work day</span>
+                    ${_svDateHtml(dateId, workDate, { placeholder: 'Choose work day', disabled: !canEditPlan })}
+                    <span class="workload-popover-plan-arrow" aria-hidden="true">→</span>
+                    <span class="workload-popover-plan-due">${wlEscape(dueLabel)}</span>
+                </div>
+                <div class="workload-popover-plan-meta">
+                    <span class="workload-popover-plan-origin">${wlEscape(saving ? 'Saving…' : planOrigin)}</span>
+                    ${explicitPlan ? `<button type="button" class="workload-plan-clear" data-wl-plan-clear="${wlEscape(s.id || '')}"${canEditPlan ? '' : ' disabled'}>Clear plan day</button>` : ''}
+                </div>
+            </div>`;
             const clientTag = showClient && s.clientName
                 ? `<span class="workload-popover-item-client">${wlEscape(s.clientName)}</span>`
                 : '';
@@ -14291,7 +14763,7 @@
                     <span class="workload-popover-item-due">${wlEscape(dueLabel)}</span>
                 </a>
                 ${calBtn}
-            </div>${tweakBox}`;
+            </div>${planControl}${tweakBox}`;
         }).join('') || '<div class="workload-popover-item" style="color:var(--text-muted);cursor:default;">No upcoming sub-issues.</div>';
 
         // Frame.io disclaimer + comment fetch — only when the popover holds
@@ -14343,12 +14815,21 @@
         const maxLeft = window.scrollX + window.innerWidth - popW - 10;
         if (left > maxLeft) left = maxLeft;
         if (left < window.scrollX + 10) left = window.scrollX + 10;
-        const top = window.scrollY + rect.bottom + 6;
+        const popH = Math.min(pop.offsetHeight || 320, Math.max(160, window.innerHeight - 20));
+        const below = window.scrollY + rect.bottom + 6;
+        const above = window.scrollY + rect.top - popH - 6;
+        const maxTop = window.scrollY + window.innerHeight - popH - 10;
+        let top = below;
+        if (below + popH > window.scrollY + window.innerHeight - 10 && above >= window.scrollY + 10) top = above;
+        if (top > maxTop) top = maxTop;
+        if (top < window.scrollY + 10) top = window.scrollY + 10;
         pop.style.left = left + 'px';
         pop.style.top  = top + 'px';
+        const focusTarget = pop.querySelector('[data-wl-popover-close]');
+        if (focusTarget && typeof focusTarget.focus === 'function') focusTarget.focus();
 
         // Spotlight: dim everything on the calendar that isn't part of this
-        // exact due-date rollup.
+        // exact work-day rollup.
         wlApplySpotlight(subs);
     }
 
@@ -14359,20 +14840,22 @@
         const grid = wrap ? wrap.querySelector('.workload-grid') : null;
         if (!wrap || !grid) return;
 
-        // Only dated work in the calendar bucket participates. Tweak, overdue,
-        // and undated strip-only work must never gain a calendar presence.
+        // Only work in the calendar bucket participates. Tweaks remain
+        // strip-only even when they retain a saved plan override.
         const plannedIds = new Set((wlState.planned || []).map(s => s.id));
-        const subsOnCalendar = subs.filter(s => s.dueDate && plannedIds.has(s.id));
+        const subsOnCalendar = subs.filter(s => wlDisplayDate(s) && plannedIds.has(s.id));
         if (!subsOnCalendar.length) return;
 
         // Match keys: per-client chips use assignee|client|date; editor-total
         // badges aggregate across clients so they use assignee|*|date.
         const chipKeys = new Set();
         const totalKeys = new Set();
+        const issueIds = new Set();
         for (const s of subsOnCalendar) {
-            const p = s.dueDate;
+            const p = wlDisplayDate(s);
             chipKeys.add(`${s.assigneeId || ''}|${s.clientName || ''}|${p}`);
             totalKeys.add(`${s.assigneeId || ''}|${p}`);
+            issueIds.add(String(s.id || ''));
         }
 
         wrap.setAttribute('data-wl-spotlight', '1');
@@ -14387,6 +14870,9 @@
             const aid = tot.getAttribute('data-wl-assignee-id') || '';
             const dt  = tot.getAttribute('data-wl-date') || '';
             if (totalKeys.has(`${aid}|${dt}`)) tot.setAttribute('data-wl-match', '1');
+        });
+        grid.querySelectorAll('.workload-plan-item').forEach(item => {
+            if (issueIds.has(item.getAttribute('data-wl-issue-id') || '')) item.setAttribute('data-wl-match', '1');
         });
         // An editor card "matches" if any of its chips/totals matched, so the
         // dimming reads as a card-level effect, not a chip-level one.
@@ -14403,9 +14889,11 @@
         document.querySelectorAll('[data-wl-match]').forEach(el => el.removeAttribute('data-wl-match'));
     }
 
-    function wlClosePopover() {
+    function wlClosePopover(returnFocus) {
         const pop = document.getElementById('wlPopover');
         if (!pop) return;
+        const anchor = wlState.popoverAnchor;
+        if (anchor && typeof anchor.setAttribute === 'function') anchor.setAttribute('aria-expanded', 'false');
         pop.classList.remove('open');
         pop.setAttribute('aria-hidden', 'true');
         wlState.popoverAnchor = null;
@@ -14414,6 +14902,8 @@
         if (wlState.renderQueued) {
             wlState.renderQueued = false;
             renderWorkloadAll();
+        } else if (returnFocus && anchor && document.contains(anchor) && typeof anchor.focus === 'function') {
+            anchor.focus();
         }
     }
 
@@ -17034,6 +17524,7 @@
     const CAL_SUPABASE_URL      = 'https://uzltbbrjidmjwwfakwve.supabase.co';
     const CAL_SUPABASE_ANON_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA'; // browser-safe publishable key; read-only via RLS
     const CAL_SUPABASE_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; // UMD → window.supabase
+    const WORKLOAD_PLAN_URL = CAL_SUPABASE_URL + '/functions/v1/workload-plan';
     const CLIENT_TOKEN_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/client-token-verify';
     const CLIENT_REVIEW_LINK_URL = CAL_SUPABASE_URL + '/functions/v1/client-review-link';
     const STAFF_KEY_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/key-verify';
@@ -17151,6 +17642,7 @@
         if (capability === 'weekly-report-submit') return role === 'admin' || role === 'smm';
         if (capability === 'weekly-report-manage') return role === 'admin';
         if (capability === 'pto-admin') return role === 'admin';
+        if (capability === 'workload-plan') return role === 'admin' || role === 'smm';
         return !!identity;
     }
     async function _syncviewRequireStaffIdentity(capability) {
@@ -17169,6 +17661,7 @@
             else if (capability === 'weekly-report-submit') message = 'Weekly reports are available to Admin or SMM accounts. Sign out first to use another authorized account.';
             else if (capability === 'weekly-report-manage') message = 'Weekly report management requires an Admin account. Sign out first to use another authorized account.';
             else if (capability === 'pto-admin') message = 'Time Off approvals and setup require an Admin account. Sign out first to use another authorized account.';
+            else if (capability === 'workload-plan') message = 'Work-day planning requires an Admin or SMM account. Sign out first to use another authorized account.';
             const error = new Error(message);
             error.status = 403;
             throw error;
@@ -17313,6 +17806,7 @@
         return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || 'S').slice(0, 2)).toUpperCase();
     }
     function _syncviewStaffPurgeSensitiveState() {
+        try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
         try { if (typeof _fpPurgeSensitiveState === 'function') _fpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
@@ -21853,7 +22347,7 @@
     }
     function _svWorkloadSkeletonHtml() {
         const mode = (typeof wlState !== 'undefined' && wlState && wlState.viewMode === 'week') ? 'week' : 'month';
-        const cells = mode === 'week' ? 5 : 28;
+        const cells = mode === 'week' ? 7 : 28;
         return `<div class="workload-skeleton-grid ${mode}" role="status" aria-label="Loading">${Array.from({ length: cells }, (_, i) => `
             <div class="workload-skeleton-day">
                 ${_svSkel('sv-skeleton-pill', 'width:34px;height:14px;')}

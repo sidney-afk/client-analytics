@@ -51,10 +51,10 @@
   old sheet-based D-31 mechanism. Fix direction: a staff-authenticated exact-client link builder,
   then re-issue links before flipping fail-closed.
 
-- **#813 candidate containment:** the SPA strips `client_review_token` if it appears in a fetched
+- **#850 merged containment:** the SPA strips `client_review_token` if it appears in a fetched
   or cached public row, and signed-in staff copy actions request one scoped token from the
-  already-live authenticated `client-review-link` v2 function at copy time. Release still requires
-  the guarded caller merge, link re-share, and documented fail-closed proof; the issuer is not
+  already-live authenticated `client-review-link` v2 function at copy time. Real-client enrollment
+  still requires link re-share/current-token and documented fail-closed proof; the issuer is not
   redeployed unless its source changes.
 - The Social Media Managers tab carries a `linear_api_key` column (7 per-SMM Linear API
   keys) — **publicly readable** via gviz. Rotation + removal owed.

@@ -69,7 +69,9 @@ executes these files (see `README.md` › Repository layout).
   writes a Linear due date. This delta was applied and read back on 2026-07-20: the table has RLS,
   zero policies, no anon/authenticated privilege, and exactly SELECT/INSERT/UPDATE for service role;
   DELETE/TRUNCATE/REFERENCES/TRIGGER are explicitly revoked. The release drill ended with zero
-  sidecar rows and is recorded value-free in `EXECUTION_LOG.md`.
+  sidecar rows and is recorded value-free in `EXECUTION_LOG.md`. That readback proves the effective
+  live posture; F147 remains open because the exact SQL artifact containing the revoke correction
+  was not tied unambiguously to the release SHA.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

@@ -1,6 +1,6 @@
 'use strict';
 
-// F141 regression guard (behavioral). Workload plan-day saves are optimistic,
+// Workload plan-day fail-closed regression guard. Saves are optimistic,
 // but the browser must keep the move only when the Edge Function reports one
 // row it actually wrote and returns the matching canonical issue/date.
 
@@ -662,5 +662,5 @@ function ok(condition, message) {
   }
 
   if (failures) process.exit(1);
-  console.log('\nWorkload plan fail-closed (F141) checks passed');
+  console.log('\nWorkload plan fail-closed checks passed');
 })();

@@ -685,7 +685,9 @@ n8n in the metric read path.*
   (`syncview_workload_v2` is write-only / vestigial), `syncview_workloadView_v1`,
   `syncview_kasper_editors_v2` (week-rollover-invalidated). Kill switches: `?wl2=0`, the compile-time
   `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch exists for either Workload or the
-  plan-date path; plan state is held as a last-good issue-id map in the running page.
+  plan-date path; plan state is held as a last-good issue-id map in the running page and is not
+  browser-cached. A first private plan read holds the calendar on the shared animated
+  day/editor/client-chip skeleton.
 - **Roles.** Plan projection/list access and per-issue plan-date writes are Admin/SMM-only after
   verified role-key authentication. Creative remains a recognized staff role on unrelated surfaces
   but is denied by both the `workload-plan` function and browser capability gate. Editors view
@@ -710,13 +712,17 @@ n8n in the metric read path.*
   from the calendar. The calendar renders date → editor → collapsed client chip → sub-issue, with
   per-editor overload warnings and title-only expanded labels. Client-group order is derived from
   complete native mirror order when available, otherwise from identifier number; moves never store
-  display order. The migration, EF, and original plan-date browser behavior are live; the private
+  display order. Only each editor's capacity pill turns red; the day cell keeps normal styling.
+  Exception sections and undated work precede the intact period/filter toolbar, which sits directly
+  above the calendar. The migration, EF, and original plan-date browser behavior are live; the private
   TEST release drill proved save/reload/clear, pre-write `409` rollback, Creative denial, and exact
   cleanup. PR #889's hierarchy/group-drag path changes only `index.html` and tests/docs and is
   served by current-main Pages run `29752646229`; it reuses sequential one-row writes and adds no
-  backend boundary. #884's server-atomic batch contract remains open. F147 retains the exact
-  migration-correction provenance gap, and F148 retains the weak same-chain source guard plus the
-  reused-F141 test-label cleanup.
+  backend boundary. The display follow-up likewise changes only `index.html` and tests/docs; it
+  removes the day-level overload styling, substitutes the shared loading skeleton, relocates the
+  intact toolbar, and addresses F148's weak same-chain source guard plus reused-F141 test-label
+  cleanup. #884's server-atomic batch contract remains open, and F147 retains the exact
+  migration-correction provenance gap.
 - **Track B.** Required but **not implemented** (F40): the re-point to native rows must happen per
   team at each B4 flip, but current `main` / #850 still unconditionally use `workload_issues`/n8n with
   realtime off and Linear links. The adapter needs `deliverables + batches + clients +

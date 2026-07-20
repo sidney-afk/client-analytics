@@ -208,7 +208,7 @@ check(/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(weekHtm
     && weekHtml.includes('<span class="workload-day-count">6</span>')
     && !weekHtml.includes('workload-day-count over-capacity')
     && !weekHtml.includes('6 · over'),
-  'an overloaded due-date column keeps only a subtle tint and neutral item count');
+  'an overloaded due-date column keeps normal day styling and a neutral item count');
 
 const renderFilteredWeekGrid = compile('renderWeekGrid', {
   wlState,
@@ -366,16 +366,51 @@ check(overloadedGraphicsHtml.includes('class="workload-day-card-total over-capac
     && overloadedGraphicsHtml.includes('16/15 · 1 over'),
   'graphics overload is shown on its editor against the 15-item threshold');
 
+const loadingPlanStatus = { hidden: false, className: '', textContent: 'old' };
+compile('renderWorkloadPlanStatus', {
+  document: { getElementById: () => loadingPlanStatus },
+  wlState: { planStatus: 'loading' },
+})();
+const workloadSkeletonHtml = compile('_svWorkloadSkeletonHtml', {
+  wlState: { viewMode: 'week' },
+  _svSkel: (classes, style) => `<span class="sv-skeleton ${classes}" style="${style}"></span>`,
+})();
+check(loadingPlanStatus.hidden === true
+    && loadingPlanStatus.textContent === ''
+    && !INDEX.includes('Loading saved work days…')
+    && /if \(wlState\.planStatus === 'loading'\)[\s\S]{0,120}_svLoadingSkeletonHtml\('workload'\)/.test(grabFunc('renderWorkloadAll'))
+    && (workloadSkeletonHtml.match(/class="workload-skeleton-day"/g) || []).length === 7
+    && workloadSkeletonHtml.includes('aria-label="Loading saved work days"')
+    && workloadSkeletonHtml.includes('class="sv-skeleton-row"')
+    && workloadSkeletonHtml.includes('sv-skeleton-line')
+    && workloadSkeletonHtml.includes('sv-skeleton-pill'),
+  'saved-plan loading uses a calendar-shaped editor-and-client skeleton with no visible text state');
+
+const workloadShellSource = grabFunc('renderWorkloadShell');
+const tweaksIndex = workloadShellSource.indexOf('id="wlTweaks"');
+const undatedIndex = workloadShellSource.indexOf('id="wlUndated"');
+const toolbarIndex = workloadShellSource.indexOf('class="workload-toolbar"');
+const calendarLabelIndex = workloadShellSource.indexOf('class="workload-section-label workload-calendar-label"');
+const calendarBodyIndex = workloadShellSource.indexOf('id="wlBody"');
+check((workloadShellSource.match(/class="workload-toolbar"/g) || []).length === 1
+    && tweaksIndex < undatedIndex
+    && undatedIndex < toolbarIndex
+    && toolbarIndex < calendarLabelIndex
+    && calendarLabelIndex < calendarBodyIndex
+    && ['prev', 'today', 'next'].every(value => workloadShellSource.includes(`data-wl-nav="${value}"`))
+    && ['week', 'month'].every(value => workloadShellSource.includes(`data-wl-view="${value}"`)),
+  'the intact period toolbar sits below tweaks and undated work, directly before the calendar');
+
 check(!INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('function scheduleAll(')
     && !INDEX.includes('effectiveWorkDate')
     && !INDEX.includes('scheduledDate'),
   'editable source contains no automatic date derivation or scheduler state');
-check(INDEX.includes('.workload-day.over-capacity')
+check(!INDEX.includes('.workload-day.over-capacity')
     && INDEX.includes('.workload-day-card-total.over-capacity')
     && !INDEX.includes('.workload-day-count.over-capacity')
     && !INDEX.includes("'Plan ' + wlFormatShort"),
-  'source guard pins editor-level overload styling and removes the day-level overload pill');
+  'source guard keeps overload styling on the editor pill only');
 check(INDEX.includes('<details class="workload-day-client-group">')
     && INDEX.includes('<summary class="workload-day-card-chip"')
     && INDEX.includes('data-wl-plan-group-drag="1"')

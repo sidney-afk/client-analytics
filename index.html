@@ -3259,11 +3259,8 @@
         .workload-day { padding: 8px 10px; border-radius: 8px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; gap: 5px; min-height: 140px; }
         .workload-grid.week .workload-day { min-height: 420px; gap: 6px; padding: 10px 12px; }
         .workload-day.today { outline: 2px solid var(--text-primary); }
-        .workload-day.over-capacity { background: var(--wl-overdue-section-bg); box-shadow: inset 0 0 0 1.5px var(--wl-overdue-border); }
-        .workload-day.over-capacity .workload-day-num { color: var(--wl-overdue-label); }
         .workload-day.out-of-month { opacity: 0.4; }
         .workload-day.weekend { background: transparent; border: 1px dashed var(--border-light); }
-        .workload-day.weekend.over-capacity { background: var(--wl-overdue-section-bg); border-color: var(--wl-overdue-border); }
         .workload-day.is-plan-drop-target { box-shadow: inset 0 0 0 2px var(--sv-border-6c5ce7); background: var(--sv-bg-ecedfb); }
         .workload-day-num { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; }
         .workload-grid.week .workload-day-num { font-size: 0.85rem; margin-bottom: 4px; }
@@ -13104,6 +13101,27 @@
 
     function renderWorkloadShell() {
         return `<div class="workload-view">
+            <div id="wlCapacity" class="workload-capacity empty">
+                <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">most free → busiest</span></div>
+                <div class="workload-capacity-row" id="wlCapacityRow"></div>
+            </div>
+            <div id="wlOverdue" class="workload-overdue empty">
+                <div class="workload-section-label"><span>Overdue</span><span class="wl-now-total" id="wlOverdueTotal" hidden></span></div>
+                <div class="workload-in-progress-rollups" id="wlOverdueRollups"></div>
+            </div>
+            <div id="wlInProgress" class="workload-in-progress empty">
+                <div class="workload-section-label"><span>In progress now</span><span class="wl-now-total" id="wlInProgressTotal" hidden></span></div>
+                <div class="workload-in-progress-rollups" id="wlInProgressRollups"></div>
+            </div>
+            <div id="wlTweaks" class="workload-tweaks empty">
+                <div class="workload-section-label"><span>Tweaks needed</span><span class="wl-now-total" id="wlTweaksTotal" hidden></span></div>
+                <div class="workload-in-progress-rollups" id="wlTweaksRollups"></div>
+            </div>
+            <div id="wlUndated" class="workload-needs-assignment workload-undated empty">
+                <div class="workload-section-label">Needs a work day or deadline</div>
+                <div class="workload-section-hint">These assigned sub-issues stay visible here until an internal work day or Linear deadline exists.</div>
+                <div class="workload-chips" id="wlUndatedChips"></div>
+            </div>
             <div class="workload-toolbar">
                 <div class="workload-toolbar-row">
                     <div class="workload-title-group">
@@ -13152,22 +13170,6 @@
                     </div>
                 </div>
             </div>
-            <div id="wlCapacity" class="workload-capacity empty">
-                <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">most free → busiest</span></div>
-                <div class="workload-capacity-row" id="wlCapacityRow"></div>
-            </div>
-            <div id="wlOverdue" class="workload-overdue empty">
-                <div class="workload-section-label"><span>Overdue</span><span class="wl-now-total" id="wlOverdueTotal" hidden></span></div>
-                <div class="workload-in-progress-rollups" id="wlOverdueRollups"></div>
-            </div>
-            <div id="wlInProgress" class="workload-in-progress empty">
-                <div class="workload-section-label"><span>In progress now</span><span class="wl-now-total" id="wlInProgressTotal" hidden></span></div>
-                <div class="workload-in-progress-rollups" id="wlInProgressRollups"></div>
-            </div>
-            <div id="wlTweaks" class="workload-tweaks empty">
-                <div class="workload-section-label"><span>Tweaks needed</span><span class="wl-now-total" id="wlTweaksTotal" hidden></span></div>
-                <div class="workload-in-progress-rollups" id="wlTweaksRollups"></div>
-            </div>
             <div class="workload-section-label workload-calendar-label">
                 <span>Work-day calendar</span>
                 <span class="workload-section-hint">
@@ -13177,11 +13179,6 @@
             <div id="wlPlanStatus" class="workload-plan-status" role="status" hidden></div>
             <div id="wlBody">
                 ${_svLoadingSkeletonHtml('workload')}
-            </div>
-            <div id="wlUndated" class="workload-needs-assignment workload-undated empty">
-                <div class="workload-section-label">Needs a work day or deadline</div>
-                <div class="workload-section-hint">These assigned sub-issues stay visible here until an internal work day or Linear deadline exists.</div>
-                <div class="workload-chips" id="wlUndatedChips"></div>
             </div>
             <div id="wlUnassigned" class="workload-needs-assignment empty">
                 <div class="workload-section-label">Needs assignment</div>
@@ -14144,7 +14141,8 @@
         el.hidden = false;
         el.className = 'workload-plan-status ' + ((status === 'unknown' || status === 'stale') ? 'is-warning' : 'is-loading');
         if (status === 'loading') {
-            el.textContent = 'Loading saved work days…';
+            el.hidden = true;
+            el.textContent = '';
         } else if (status === 'refreshing') {
             el.textContent = 'Refreshing saved work days — editing is briefly paused.';
         } else if (status === 'stale') {
@@ -14211,6 +14209,10 @@
             return;
         }
         if (wlState.loading && !hasAnyData) {
+            bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
+            return;
+        }
+        if (wlState.planStatus === 'loading') {
             bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
             return;
         }
@@ -22492,11 +22494,11 @@
     function _svWorkloadSkeletonHtml() {
         const mode = (typeof wlState !== 'undefined' && wlState && wlState.viewMode === 'week') ? 'week' : 'month';
         const cells = mode === 'week' ? 7 : 28;
-        return `<div class="workload-skeleton-grid ${mode}" role="status" aria-label="Loading">${Array.from({ length: cells }, (_, i) => `
+        return `<div class="workload-skeleton-grid ${mode}" role="status" aria-label="Loading saved work days">${Array.from({ length: cells }, (_, i) => `
             <div class="workload-skeleton-day">
                 ${_svSkel('sv-skeleton-pill', 'width:34px;height:14px;')}
-                ${(i % 3 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:72%;')}${_svSkel('sv-skeleton-line', 'width:54%;')}</div>` : ''}
-                ${(i % 5 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:58%;')}${_svSkel('sv-skeleton-line', 'width:42%;')}</div>` : ''}
+                ${(i % 3 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:72%;')}<div class="sv-skeleton-row">${_svSkel('sv-skeleton-pill', 'width:54%;height:16px;')}${_svSkel('sv-skeleton-pill', 'width:28%;height:16px;')}</div></div>` : ''}
+                ${(i % 5 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:58%;')}<div class="sv-skeleton-row">${_svSkel('sv-skeleton-pill', 'width:42%;height:16px;')}</div></div>` : ''}
             </div>`).join('')}</div>`;
     }
     function _svAnalyticsOverviewSkeletonHtml() {

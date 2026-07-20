@@ -430,9 +430,11 @@ n8n in the metric read path.*
   full `deliverables` row (brief + raw, on open), bulk brief hydration 6.5 s post-boot / on palette
   open. Issue-detail comments page through the protected `production-comments` Edge Function in
   50-row `{created_at,id}` cursor pages; it returns the normalized native thread, not the old
-  actor/action activity summaries. `_prodLoadEventsFor`/`_prodActivity` exist but are never called,
-  so persisted native events are not shown (F138). Also fires the shared Sheets essentials in the background for
-  app chrome. The tab also reads the single `prod_authority` runtime-flag row to gate controls.
+  actor/action activity summaries. Issue detail calls `_prodLoadEventsFor` to derive its Properties
+  status-history hover, but the reader pre-seeds/catches to empty and `_prodActivity` still has no
+  render caller, so persisted native Activity is not shown and read failure is not distinguishable
+  from no events (F138). Also fires the shared Sheets essentials in the background for app chrome.
+  The tab also reads the single `prod_authority` runtime-flag row to gate controls.
 - **Writes.** Status, comment, due date, and assignee use the authenticated `production-write` Edge
   Function. The browser supplies the native deliverable ID, a bounded idempotency key, and CAS for
   scalar changes; verified staff headers come from the shared role-key identity path. Controls are
@@ -450,7 +452,8 @@ n8n in the metric read path.*
   Creative authorization also lacks current-status/assignee input, so same-team creatives can regress
   reviewer/terminal work or cancel/duplicate it unless a separate owner policy is enforced (F136).
   Video's four typed resources collapse into one priority-selected URL always labelled Delivered file
-  (F137), and native activity events are never loaded/rendered (F138).
+  (F137), and native activity events are read only for a failure-collapsed status-history hover,
+  never rendered as Activity (F138).
   Production work data also has no realtime/bounded foreground refresh or ordinary manual refresh;
   only authority polls, so an all-day foreground creative tab can remain stale indefinitely (F95).
   Its due picker also freezes a browser-local “today” at script load while overdue compares a fresh
@@ -1188,7 +1191,7 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 - **Edge functions (23):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-plan`
 - **Not counted above:** 19 of the 23 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live.
 - **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
-- **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read. A dormant event-loader target names `deliverable_events`, but runtime never invokes it (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
+- **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, the one-row `syncview_runtime_flags` authority read, and issue-detail `deliverable_events`. The event read currently feeds only a status-history hover, collapses failure to empty, and has no visible Activity renderer call (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (6):** `calendar_upsert_ef_clients` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`
 - **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `write_ui_reroute_clients` is the separate #850 status/comment/intake cohort: it was last verified TEST-only, and missing/malformed/read-failed state selects the exact legacy lane. `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. `pto_v1` is a fail-closed off/on visibility and behavior gate; the base migration seeded off, the evidenced live state is on under D-36, and there is no n8n fallback. Other plan-side flags remain backend-only.
 

@@ -346,15 +346,28 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       render in the active tab, preserve any cache under an honest stale banner, and expose a visible
       keyboard/touch Retry. Pass Review and Messages cold failure, cached failure, retry success/
       repeat failure, tab-switch/abort race, mobile and keyboard tests; no indefinite skeleton.
+      Expected/attempted/successful/failed client receipts prove queue completeness, and optional
+      SMM attribution cannot block the core queue.
 - [ ] **Client entry is fail-closed and paints only the requested client surface**
       (F102/F117/F149): unknown or conflicting client routes never fall through to staff content,
       legacy Samples links retain the verified client principal, and Calendar/Brief reloads never
       expose Analytics chrome or data. Prove the visible sequence from document start through
       settlement on synthetic fixtures, including hard reload and second reload.
-- [ ] **Boot reads fail visibly and terminate** (F151/F152/F158): HTTP 4xx/5xx, malformed bodies,
-      offline prerequisites and never-settling dependencies cannot become authoritative empty data
-      or an indefinite skeleton. Every affected route reaches content, an honestly labelled stale
-      state, or a keyboard/touch retry within its named deadline.
+- [ ] **Boot reads fail visibly and terminate**
+      (F151/F152/F158/F163/F164/F165/F166/F167/F168/F169): HTTP 4xx/5xx,
+      parseable error envelopes, malformed 200 responses, offline prerequisites and never-settling
+      dependencies cannot become authoritative output/empty data or an indefinite skeleton. Cover
+      Analytics, Calendar prerequisites, Templates detail, Production core, Kasper Samples, actual
+      Brief synthesis, Samples Review fallback, top-level/Kasper Filming, Onboarding inbox/profile/
+      standalone, Weekly Reports, Credentials list/modal/history, and Editors. Every route reaches
+      content, an honestly labelled stale state, or a keyboard/touch Retry within its named deadline;
+      Retry recovers without document reload and late/superseded responses cannot repaint.
+- [ ] **Partial and failed aggregate reads never look complete** (F29/F45/F130/F138): Workload
+      retains a visible stale/unavailable reason after issue-read failure; the Linear picker never
+      turns failed project reads into “No projects loaded”; Kasper Review/Messages disclose per-client
+      queue incompleteness; Production Activity distinguishes loading, complete-empty, stale, and
+      failed event reads. Preserve last-good data only under an explicit banner, expose Retry, and
+      drive each actual boot/refresh/failure/recovery sequence under F162.
 - [ ] **Staff boot and history preserve one route and one data owner** (F150/F153/F154/F162):
       direct Samples Review → Home starts the Analytics requirement; deep links round-trip their
       client/card/subtab; Back → Forward → Back uses the same teardown/mount lifecycle as clicks.

@@ -1,7 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ c51f897 + Workload five-day deadline-timeline candidate
-> (live plan-date backend unchanged)
+> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch (Workload five-day deadline-timeline merged; F138 current-source correction; boot/refresh/history/read-truth register reconciled through F169; live plan-date backend unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -223,8 +222,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `linear_raw.issue.parent.id`: `_prodAdapter()` resolves the real Linear parent globally across
   creation batches/teams/clients. It never elects a parent from batch membership or title; an
   unavailable, ambiguous, self, cyclic, or archived target leaves the row visible as a root.
-  Native events are written, and loader/renderer helpers exist, but no runtime call loads or displays
-  them; detail shows Comments only (F138).
+  Native events are written. Issue detail invokes the event loader for the Properties status-history
+  hover, but the loader collapses failure to an empty array and the Activity renderer still has no
+  render caller; detail shows Comments only (F138).
 - Creative policy is same-team-wide and checks next status without current status or assignee, so it
   can regress reviewer/terminal work or mutate peer work after a flip (F37/F136).
 - Video delivery/source data is collapsed from four typed fields to one priority winner labelled

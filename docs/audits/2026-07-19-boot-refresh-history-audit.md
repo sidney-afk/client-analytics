@@ -1,8 +1,11 @@
-# SyncView boot, refresh, and browser-history audit
+# SyncView boot, refresh, browser-history, and read-truth audit
 
-> **Immutable evidence snapshot.** This document records what was observed at
-> `e238bc4f3a2685717b41aa16170e61d9a3cdc36f`. Current status and remediation
-> live in `docs/independence/CUTOVER_AUDIT_2026-07-13.md` (F149–F162) and
+> **Immutable evidence snapshot plus publication source-only addendum.** The
+> controlled browser evidence records what was observed at
+> `e238bc4f3a2685717b41aa16170e61d9a3cdc36f`. The separately labelled targeted
+> source recon records current seams at `07d123d` and makes no browser or live
+> execution claim. Current status and remediation live in
+> `docs/independence/CUTOVER_AUDIT_2026-07-13.md` (F149–F169) and
 > `docs/truth/BRIEFING.md`; do not edit this audit to track later fixes.
 
 ## Evidence lock
@@ -17,6 +20,7 @@
 | Data boundary | Synthetic fixtures only; no real client record, identity, credential, token, or private payload |
 | Mutation boundary | Read-only; no application, database, workflow, flag, deployment, or live-data write |
 | Publication revalidation | Root causes were rechecked in source and the high-confidence browser counterexamples were repeated with synthetic fixtures at `f00da65341797ec55f2f9a0d53b97e6bccd7056f`; `index.html` is byte-identical at the publication base `c722984cb86f66a6f14cba210e38963ac4779b0f` |
+| Publication source-only expansion | Targeted current-source census at `07d123d` registered F163–F169 and expanded F29/F45/F130/F138/F152/F162. It made no browser/backend request and used no live data, identity, credential, secret body, or write. |
 
 The browser harness intercepted external requests and returned fictional data.
 It exercised cold and warm boot, hard reload, a second reload, browser Back and
@@ -71,6 +75,24 @@ durable owner in the cutover register.
 | BA-13 | P2 | Samples Review was persisted as the last navigation target but omitted from both bare-root restore lists, so a new plain-root boot opened Home and overwrote it. | Browser + source | F161 |
 | BA-14 | P1 release evidence | No pull-request browser lane watched the actual visible sequence across every route's cold boot, refresh, Back, Forward, slow response, 5xx, and never-settling response. Settled-page and source-parity tests missed the defects above. | Test census + browser counterexamples | F162 |
 
+## Publication source-only targeted recon
+
+These entries extend route coverage without upgrading their proof. They were
+confirmed in current source at `07d123d`; no browser, backend, live data,
+identity, credential, secret body, or write was used. Each remains open until
+F162 drives the actual visible route sequence through failure, Retry, and
+recovery.
+
+| Recon ID | Sev | Current-source observation | Source seams | Durable owner |
+|---|---|---|---|---|
+| SR-01 | P1 | Brief tab/general/content synthesis can parse a 5xx body as output, suppress or auto-retry errors, poll stale arrays, and cache invalid output. | `index.html:7541-7594`, `:7733-7909`, `:8326-8335`, `:8578-8756`, `:9750-9833` | F163 |
+| SR-02 | P1 | Samples Review's fallback can parse a failed/error response and republish it as `{ok:true, posts:[]}`, making unavailable data authoritative empty. | `index.html:42971-43030` | F164 |
+| SR-03 | P1 | Top-level Filming can remount an unbounded failed load into another skeleton; Kasper Filming converts runway/month read failures to “No scheduled content.” | `index.html:11979-12263`, `:51553-51783` | F165 |
+| SR-04 | P1 | Onboarding list failures can hide a client-profile entry, and standalone failure can render “No onboarding form on file.” | `index.html:10897-10984` | F166 |
+| SR-05 | P2 | Weekly Reports has no read deadline and accepts empty/malformed success as empty managers/reports before painting “No reports match.” | `index.html:19518-19558`, `:19874-19923` | F167 |
+| SR-06 | P1 | Credentials list/modal/history reads can hang; malformed success can render “No credentials” or “No history yet.” | `index.html:51045-51133`, `:51332-51342`, `:51407-51425` | F168 |
+| SR-07 | P2 | Kasper Editors accepts a 200 `{}` as cacheable data and paints missing editors as “No editor deliveries last week”; a held request never leaves its skeleton. | `index.html:53999-54060` | F169 |
+
 ## Existing findings that overlap but were not renumbered
 
 | ID | Sev | Why it matters to boot/remediation |
@@ -79,7 +101,10 @@ durable owner in the cutover register.
 | F117 | P0 | A legacy client Samples link can lose its verified client binding when redirected into generic Samples Review. |
 | F121 | P2 / policy | Kasper's visible subtab changes use replace-state; whether Back should traverse those tabs remains an owner history-policy decision. This is separate from F154's loss of a supplied deep link. |
 | F127 | P1 | Refresh does not prove that a stale running build was retired; the update notice is advisory rather than an enforced caller epoch. |
-| F130 | P2 | Kasper Review/Messages cold-load failures can leave an indefinite skeleton or a dead-end error without usable retry. |
+| F29 | P1 | Workload can retain an “As of” snapshot as current after an unbounded issue read fails; the active workflow completeness defect remains the same owner. |
+| F45 | P1 | A failed/unbounded Linear project read can become “No projects loaded”; this extends the existing incomplete picker owner. |
+| F130 | P2 | Kasper Review/Messages cold-load failures can leave an indefinite skeleton or a dead-end error, while partial or total per-client failures can be adopted as a successful queue. |
+| F138 | P2 / P1 before history retirement | Production now requests events for status history, but failure collapses to an empty array and Activity remains invisible; this corrects the earlier no-runtime-caller observation without claiming browser proof. |
 
 F102 and F117 remain client-entry P0s. They precede visual boot polish because
 an exact shell is not a sufficient safety boundary if the route itself is not
@@ -236,9 +261,11 @@ The passing tests did not contradict the browser findings:
 
 1. **Client-facing entry first:** F149 plus the already-open F102/F117 P0
    boundaries.
-2. **Silent failure class:** F151, F152, F158, and existing F130. A transport
-   failure must fail visibly, preserve last-good data only when identified as
-   stale, and offer retry; it must never become fake-empty business data.
+2. **Silent failure class:** F151, F152, F158, F163–F169, and the expanded
+   F29/F45/F130/F138 owners. A transport, envelope, schema, completeness, or
+   deadline failure must fail visibly, preserve last-good data only when
+   identified as stale, and offer retry; it must never become fake-empty
+   business data.
 3. **Staff flows:** F150, F153, and F154—Samples Review → Analytics, stale
    Back/Forward modes, and lost detail state.
 4. **Secondary route consistency:** F155–F161 after the higher-impact slices.
@@ -265,7 +292,10 @@ A boot/history fix is complete only when:
 - modifier-click/new tab reaches the destination advertised by the anchor;
 - every blocking dependency reaches content, an identified degraded state, or
   a retryable error within a bounded deadline;
-- HTTP 4xx/5xx cannot become a valid empty domain result;
+- HTTP 4xx/5xx, parseable error envelopes, and malformed 200 responses cannot
+  become valid output or an empty domain result;
+- confirmed empty requires a complete, schema-valid success receipt;
+- visible keyboard/touch Retry recovers without reloading the document;
 - route exit prevents stale async completion from repainting the page left
   behind;
 - the QA lane records early frames and transitions, not only settled DOM.
@@ -278,6 +308,9 @@ A boot/history fix is complete only when:
 - External fonts, media, and third-party scripts were blocked; expected fixture
   warnings were excluded.
 - No live write or destructive failure injection was performed.
+- SR-01–SR-07 and the publication-time existing-owner expansions are source-only
+  targeted recon. They identify reachable code paths, not reproduced browser
+  outcomes; their required synthetic visible guards remain open under F162.
 - Whether Back should traverse replace-only filters and Kasper subtabs remains a
   product policy question. Losing a supplied deep link, showing two active
   routes, or restoring a hybrid page is a defect regardless of that decision.

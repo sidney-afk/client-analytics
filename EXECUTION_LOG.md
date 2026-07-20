@@ -631,3 +631,26 @@ All times are UTC unless noted.
   generated-manifest, and whitespace guards passed. `npm test` passed all 138 unit suites;
   `npm run test:prod-polish` passed all 10 selected suites in 493.8 seconds. This follow-up performs
   no migration, Edge deployment, runtime-flag change, Linear write, n8n change, or browser release.
+
+## 2026-07-20 — F124 first scheduled production proof
+
+- **Complete roster and terminal coverage.** Scheduled execution `287059` ran `CLIENTS METRICS`
+  version `b92fb693-1dd4-4ce2-a60e-98a1701c369d` from `04:00:22Z` to `04:31:33Z` and finished at
+  `Validate Roster Coverage`. It consumed 29 roster items, emitted 29 unique typed terminal
+  receipts, completed 29 Metrics writes, and returned `expected_clients=29`,
+  `terminal_clients=29`, `write_failures=0`, with no missing, duplicate, or unexpected client key.
+- **Provider failure stayed degraded; valid zero stayed fresh.** The run produced one
+  `provider_failed` platform receipt; its persisted metrics used the prior trusted source date and
+  exactly matched the prior trusted row, whose Instagram values happened already to be legitimate
+  zeros; it did not create a reset or negative recovery jump. This live case proves typed
+  failure/fallback, but not preservation of a nonzero last-good value. Two separate `success`
+  platform receipts carried real numeric zero fields with `used_last_good=false` and the current
+  source date, proving that zero itself did not trigger fallback. No `genuinely_empty` receipt
+  occurred in this scheduled run; pinned pre-publish execution `286168` covers that branch. All 29
+  persisted receipt strings parsed as
+  `syncview.analytics.receipt.v1`, were terminal, and matched the exact roster by both client key
+  and name.
+- **Sheets quota cleared for the full production run.** All 29 Metrics appends completed inside the
+  31m12s execution with no Sheets quota exception or failed write. This is first-run proof, not a
+  blanket capacity claim; the prior quota failure remains relevant for ongoing monitoring.
+  Version `fb180e5f-79ee-4d49-9dec-70999b422b71` remains retained as the direct workflow rollback.

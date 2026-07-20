@@ -35025,6 +35025,7 @@
                 <div class="cal-preview-meta">${_calClientCompPillsHtml(p)}<span>${_calEsc(dateStr)}</span></div>
                 ${(!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnBannerHtml(p) : ''}
                 <div class="cal-preview-row"><div class="cal-preview-label">Asset URL</div><div class="cal-preview-val">${linkify(p.asset_url)}</div></div>
+                <div class="cal-preview-row"><div class="cal-preview-label">Thumbnail URL</div><div class="cal-preview-val">${linkify(p.thumbnail_url)}</div></div>
                 <div class="cal-preview-row"><div class="cal-preview-label">Caption</div><div class="cal-preview-val">${valOrEmpty(p.caption)}</div></div>
                 <div class="cal-preview-row"><div class="cal-preview-label">CTA</div><div class="cal-preview-val">${valOrEmpty(p.cta)}</div></div>
             </div>

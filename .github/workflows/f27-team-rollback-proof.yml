@@ -1,0 +1,57 @@
+name: F27 team rollback proof
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "migrations/2026-07-20-f27-team-rollback.sql"
+      - "scripts/f27-team-rollback-proof.sql"
+      - "test/f27-team-rollback.js"
+      - ".github/workflows/f27-team-rollback-proof.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  f27-proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run isolated TEST transaction
+        run: |
+          mkdir -p f27-proof
+          psql -X -v ON_ERROR_STOP=1 -f scripts/f27-team-rollback-proof.sql | tee f27-proof/terminal.txt
+          sha256sum f27-proof/terminal.txt | tee f27-proof/terminal.sha256
+      - name: Outside-n8n terminal observer
+        run: |
+          grep -q "F27_PROOF_OK" f27-proof/terminal.txt
+          {
+            echo "## F27 isolated TEST proof"
+            echo
+            echo "- observer: GitHub Actions (outside n8n)"
+            echo "- terminal: F27_PROOF_OK"
+            echo "- receipt hash: $(cut -d' ' -f1 f27-proof/terminal.sha256)"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f27-team-rollback-proof
+          path: f27-proof/
+          retention-days: 30

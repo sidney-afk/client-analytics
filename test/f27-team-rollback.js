@@ -23,6 +23,11 @@ ok(/f27_inflight_rows/.test(sql) && /lock_token is not null or o\.locked_at is n
 ok(/status in \('pending', 'failed', 'shadow_ok'\)/.test(sql), 'active rollback residue is explicit');
 ok(/classification in \([\s\S]*'replay'[\s\S]*'quarantine'[\s\S]*'discard'[\s\S]*'already_reflected'/.test(sql),
   'all owner classifications are represented');
+ok(/classification_history jsonb not null default '\[\]'::jsonb/.test(sql)
+  && /i\.classification = 'replay'/.test(sql)
+  && /v_kind in \('quarantine', 'discard', 'already_reflected'\)/.test(sql)
+  && /i\.terminal_receipt is null/.test(sql),
+  'declined replay reclassification is append-audited and restricted to an unreceipted quarantine');
 ok(/f27_correlated_terminal_receipt_required/.test(sql), 'approved replay requires a correlated terminal receipt');
 ok(/p_receipt->>'rollback_id' is distinct from p_rollback_id::text/.test(sql)
   && /p_receipt->>'outbox_id' is distinct from p_outbox_id::text/.test(sql)

@@ -45,6 +45,7 @@ create table if not exists public.track_b_team_rollback_intents (
   classification text check (classification in (
     'replay', 'quarantine', 'discard', 'already_reflected'
   )),
+  classification_history jsonb not null default '[]'::jsonb,
   reason text,
   classified_by text,
   classified_at timestamptz,
@@ -213,11 +214,35 @@ begin
   for update;
   if not found then raise exception 'f27_open_rollback_required'; end if;
 
-  update public.track_b_team_rollback_intents
+  update public.track_b_team_rollback_intents i
   set classification = v_kind, reason = v_reason,
-      classified_by = v_actor, classified_at = now()
-  where rollback_id = p_rollback_id and outbox_id = p_outbox_id
-    and classification is null;
+      classified_by = v_actor, classified_at = now(),
+      classification_history = i.classification_history || jsonb_build_array(
+        jsonb_build_object(
+          'from', i.classification,
+          'to', v_kind,
+          'reason', v_reason,
+          'actor', v_actor,
+          'at', now()
+        )
+      )
+  where i.rollback_id = p_rollback_id and i.outbox_id = p_outbox_id
+    and (
+      i.classification is null
+      or (
+        i.classification = 'replay'
+        and v_kind in ('quarantine', 'discard', 'already_reflected')
+        and i.terminal_receipt is null
+        and exists (
+          select 1 from public.mirror_outbox o
+          where o.id = i.outbox_id
+            and lower(o.team) = v_team
+            and o.status = 'quarantined'
+            and o.lock_token is null
+            and o.locked_at is null
+        )
+      )
+    );
   get diagnostics v_count = row_count;
   if v_count <> 1 then raise exception 'f27_intent_classification_cas_refused'; end if;
 

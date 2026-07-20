@@ -40,18 +40,18 @@ intent. The other team is not held or mutated.
 
 ## Isolated TEST transaction
 
-- Candidate head: `acf2b946fefeef9c4ed12b52ee450f927b667757`
-- GitHub Actions run (observer outside n8n): `29758523289`
-- Artifact: `8467746602` (`f27-team-rollback-proof`)
-- Artifact digest: `sha256:537c42ed5c9216f4161dc78b7def0f3fb70fd649d9f5342356c5baf5025f4417`
+- Candidate head: `afee809aefbf5cc3242df05a3047561548171d89`
+- GitHub Actions run (observer outside n8n): `29764430971`
+- Artifact: `8470167032` (`f27-team-rollback-proof`)
+- Artifact digest: `sha256:8021ac47758b46d1d4de37183ebd5828053c66f6f52cb7ea36d32bd6c9f513f8`
 - Terminal transcript digest:
-  `3b525697b72464eb725fc962d994a26cb9b453bf4d0411da05446f6c90fdeae4`
-- Rollback ID: `4ee550b4-48b3-4665-9025-5e3c7bf3efe8`
-- Snapshot correlation ID: `b01f902c-a913-43f5-ab9a-bd6c89501fed`
-- Replay terminal correlation ID: `ea2cf9c9-1d97-4f8c-ae18-4eb9dd895353`
+  `9f48084737145e112a59e6d9a370f4fa54ca932ad1dd542afe8fc5164cce7ece`
+- Rollback ID: `f77731a8-2503-4121-85e2-514cff596eee`
+- Snapshot correlation ID: `bfcf2f5a-35b4-47f8-b2b8-e0029fee042b`
+- Replay terminal correlation ID: `8e874155-81ec-46cf-966d-a412a97af6d3`
 - Snapshot count: `4`
 - Snapshot digest:
-  `29f7c058584a2add4de4169d072ac1edfe726dad6f58d39b6e9c369463f68353`
+  `5f4becf405e32ba97859b0729cedbb48289c510243d642a5d15a18d07406fe11`
 
 The disposable TEST store used only `client_slug='test-client'` with
 `test_only=true`. It simulated Linear/Linear + F2 off + F4 false, moved Graphics

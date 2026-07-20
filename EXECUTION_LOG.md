@@ -9,15 +9,15 @@ All times are UTC unless noted.
 - Added the source-only F27 hold/snapshot/classification/terminal-receipt/final
   CAS migration plus a disposable PostgreSQL proof. No migration was applied to
   the live Supabase project.
-- Post-review-fix head `acf2b946fefeef9c4ed12b52ee450f927b667757` passed GitHub Actions run
-  `29758523289`; artifact `8467746602`, artifact digest
-  `sha256:537c42ed5c9216f4161dc78b7def0f3fb70fd649d9f5342356c5baf5025f4417`,
+- Post-review-fix head `afee809aefbf5cc3242df05a3047561548171d89` passed GitHub Actions run
+  `29764430971`; artifact `8470167032`, artifact digest
+  `sha256:8021ac47758b46d1d4de37183ebd5828053c66f6f52cb7ea36d32bd6c9f513f8`,
   terminal transcript digest
-  `3b525697b72464eb725fc962d994a26cb9b453bf4d0411da05446f6c90fdeae4`.
-- Terminal receipt: rollback `4ee550b4-48b3-4665-9025-5e3c7bf3efe8`,
-  snapshot correlation `b01f902c-a913-43f5-ab9a-bd6c89501fed`, replay
-  correlation `ea2cf9c9-1d97-4f8c-ae18-4eb9dd895353`, four Graphics intents,
-  snapshot hash `29f7c058584a2add4de4169d072ac1edfe726dad6f58d39b6e9c369463f68353`,
+  `9f48084737145e112a59e6d9a370f4fa54ca932ad1dd542afe8fc5164cce7ece`.
+- Terminal receipt: rollback `f77731a8-2503-4121-85e2-514cff596eee`,
+  snapshot correlation `bfcf2f5a-35b4-47f8-b2b8-e0029fee042b`, replay
+  correlation `8e874155-81ec-46cf-966d-a412a97af6d3`, four Graphics intents,
+  snapshot hash `5f4becf405e32ba97859b0729cedbb48289c510243d642a5d15a18d07406fe11`,
   `active_team_rows=0`, `unclassified=0`, `unreceipted_replays=0`.
 - The outside-n8n GitHub observer asserted exact prior flags restored, F2 off,
   F4 false, Video unchanged, payload hashes unchanged, premature finalization

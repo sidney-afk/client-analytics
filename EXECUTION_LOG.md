@@ -526,15 +526,18 @@ All times are UTC unless noted.
   descriptions pin that local boundary.
 - Collapsed-rollup batch moves remain outside this candidate and are tracked separately in #884;
   expanded issue-card moves retain the exact one-row, actual-count fail-closed path.
-- F141 is born into the contract: the function reports rows actually written and the browser accepts
-  only exactly one, reverting the optimistic date and notifying on a short count or error. Plan-list
+- The Workload actual-count contract requires the function to report rows actually written and the
+  browser to accept only exactly one, reverting the optimistic date and notifying on a short count
+  or error. The Workload test comments originally reused `F141`, which is already the Samples
+  reorder finding; current truth therefore names this guard by behavior rather than assigning that
+  conflicting register ID. Plan-list
   failure keeps last-good overrides when available; otherwise it shows an explicit due-date-only
   degraded state with editing disabled. Reads and writes are time-bounded, only the newest
   overlapping refresh can publish state, and an authentication/authorization denial purges the
   private plan projection. The function keyset-pages by stable issue id and logs only recognized
   aggregate action labels.
 - Candidate verification passed: all 137 offline suites, the 10-suite read-only Production polish
-  aggregate, focused workload source/F141/tweak-exclusivity robots, deploy-manifest freshness,
+  aggregate, focused Workload source/fail-closed/tweak-exclusivity robots, deploy-manifest freshness,
   whitespace checks, and a Deno type-check of `supabase/functions/workload-plan/index.ts`.
 - Cloud-review follow-through makes Week a rolling seven-calendar-day view so literal Saturday and
   Sunday deadlines/plan days cannot disappear, and computes overload styling from the rows visible
@@ -619,7 +622,9 @@ All times are UTC unless noted.
   revert notification. The unmodified happy drag then returned `updated: 1`, read back as one saved
   sidecar row, and survived a full reload plus fresh server list. **Clear plan day** returned
   `updated: 1`, restored due-date placement, and remained cleared after another server-truth reload.
-  The impractical live short-count race remains covered by the hermetic F141 test, per owner decision.
+  The impractical live short-count race remains covered by the hermetic Workload fail-closed behavior
+  test, per owner decision; F148 separately records that its source-regex half is not a sufficient
+  same-chain future-regression guard.
 - **Exact cleanup and non-collateral readback.** Owner-level cleanup removed only the drill target's
   nullable sidecar row; independent readback found zero target residue and zero total sidecar rows.
   The mirrored due-date fingerprint and all 13 runtime flags stayed byte-identical. Frozen

@@ -7,8 +7,10 @@ does nothing; the only value the code honors is `enforced`).
 
 > **CURRENT GO-LIVE STATE: BLOCKED — DO NOT RUN ANY FORWARD FLIP.** The historical outbound-pipe
 > drill is not human-cutover approval. F27's per-team outbox quarantine/classification, the
-> `write_ui_reroute_clients` flag and caller code, and the open gates in
-> `docs/independence/GO_LIVE_CHECKLIST.md` must close first. The only immediately usable Track-B
+> remaining `write_ui_reroute_clients` enrollment gates, and the open gates in
+> `docs/independence/GO_LIVE_CHECKLIST.md` must close first. PR #850 deployed the allowlisted
+> callers and gateway dark; the allowlist was last verified TEST-only, which is not real-client
+> enrollment authorization. The only immediately usable Track-B
 > containment is **stop affected mutations**, then disable the lane involved: F2 `off` stops normal
 > SyncView-authoritative outbound; F4 `false` stops legacy parity. For an unknown/mixed incident,
 > disable **both** and read both back. F1 authority reversal is not an emergency first step; it
@@ -305,13 +307,17 @@ Do not enroll a real cohort on any other value or after proof expiry.
 
 ## F6 — Reroute allowlist (which clients' buttons use the new pipes)
 
-> **NOT DEPLOYED.** As of the 2026-07-13 second pass, neither current `main` nor the inspected PR
-> #813 head creates or reads `write_ui_reroute_clients`. There is intentionally no copy-paste
-> payload here. Phase 0.5 must first ship the row and every intended caller, read back the exact
-> deployed behavior, and pass TEST plus stale-tab/failure drills. Only then may this runbook gain a
-> cohort-edit statement. An absent flag must never be interpreted as “all clients” or “safe to
-> advance.” Before team authority changes, removing a proved cohort is the parity-lane rollback;
-> after authority changes, follow R2 and use F1 only after its accounting gate completes.
+> **DEPLOYED DARK — OWNER-GATED.** PR #850 superseded closed-unmerged #813 and deployed the
+> allowlisted callers plus `production-write` gateway. The allowlist was last verified with the
+> private TEST client only; no real-client enrollment is authorized. There is intentionally no
+> copy-paste mutation payload here. Before **every** flag change, read back and retain the exact
+> current row, bring the owner the exact proposed JSON/client-set change and a rollback that
+> restores that captured value, and obtain explicit approval. After an approved edit, require
+> expected-state CAS, one-row write/readback, TEST plus stale-tab/failure proof, and unchanged
+> unrelated flags. A missing or unreadable flag fails to the LEGACY lane; it must never mean “all
+> clients” or “safe to advance.” Before team authority changes, removing a proved cohort is the
+> caller-routing rollback; after authority changes, follow R2 and use F1 only after its accounting
+> gate completes.
 
 ---
 

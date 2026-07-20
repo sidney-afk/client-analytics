@@ -105,9 +105,11 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   `workload-plan` Edge Function to list, set, or clear an internal plan day; Creative is denied for
   both projection reads and mutations. The server validates an active sub-issue and normalized
   client scope before the service-role write.
-- F141 is part of the initial contract: the function reports the number of rows it actually wrote,
-  not the number requested, and the browser requires exactly one. A short count, non-OK response, or
-  malformed result reverts the optimistic date and notifies the user.
+- The Workload actual-count contract requires the function to report the number of rows it actually
+  wrote, not the number requested, and the browser to require exactly one. A short count, non-OK
+  response, or malformed result reverts the optimistic date and notifies the user. Existing Workload
+  test comments reuse `F141`, but that register ID belongs to the Samples reorder finding; F148 is the
+  open Workload source-guard gap.
 - The projection uses stable issue-id keyset pages and rejects partial-list success. Browser reads
   and writes have bounded abort timers; only the newest overlapping refresh may publish state.
   Ordinary read failures retain a last-good snapshot with editing paused, while `401`/`403`

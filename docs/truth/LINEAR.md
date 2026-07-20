@@ -1,6 +1,6 @@
 # Linear — current truth
 
-> Last verified: 2026-07-19 @ f9b59e9 (Workload plan-date boundary staged in source; live Linear state unchanged)
+> Last verified: 2026-07-19 @ fd3e0ea + F145 review branch (Production parent-link projection staged; live Linear state unchanged)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -45,7 +45,11 @@
   Comment. `linear-inbound` mirrors state, title, due date, assignee, priority, parent,
   archive/restore/delete/team linkage into native deliverables and normalizes comment lifecycle into
   `production_comments`. That does **not** make the legacy card arrays, client links, or Workload
-  feed canonical.
+  feed canonical. For F145, the visible Production tree projects the persisted
+  `linear_raw.issue.parent.id` and resolves it through `linear_issue_uuid` across all live
+  deliverables. Creation batch, team, client, and title are not parent-election boundaries;
+  unresolved or malformed links remain visible roots. Parent-only webhook changes remain
+  refresh-eventual through the existing B1/reconcile path rather than becoming a new n8n dependency.
 - **Workload dates remain one-way from Linear:** `workload_issues.due_date` is the client deadline
   displayed by Workload and the editable-plan candidate never writes it. Internal scheduling lives
   separately in the source-only `workload_plan.plan_date` sidecar keyed by the stable sub-issue id;

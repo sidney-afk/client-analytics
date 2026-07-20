@@ -555,3 +555,27 @@ All times are UTC unless noted.
   flag, n8n workflow, Linear object, authority value, or production deployment changed. The frozen
   `calendar-upsert` and `sample-review-upsert` writers remain untouched. Migration apply/readback and
   exact-main-SHA function deploy/readback remain post-merge operator steps.
+
+## 2026-07-19 — Phase 3 kickoff / F145 true Linear hierarchy (candidate source only)
+
+- Followed the mandated vault order (`FIND_ANYTHING` → `BRIEFING` → cutover register) and separated
+  first-cohort enrollment gates, first Graphics-flip gates, and the post-flip Phase-3 watch window.
+  No non-F145 gap closer was built before owner ratification.
+- **F145 root cause and fix.** Production elected a batch-title-matched deliverable as the family
+  parent. The persisted Linear parent UUID already existed in each deliverable's `linear_raw`;
+  the candidate now projects it beside `linear_issue_uuid`, resolves the native parent globally,
+  and fails unresolved, duplicate, archived, self, or cyclic targets to visible roots. Batch/title
+  similarity no longer creates hierarchy.
+- Added exact guards for the VID-12569/VID-12570 deceptive-title sibling shape, cross-boundary
+  links, valid three-level chains, malformed/missing targets, the boot projection, and the rendered
+  browser structure. Focused hierarchy/source/structure checks passed, and the full offline suite
+  passed 138/138.
+- The first full local Production aggregate passed boot, structure, read-only, comments, gateway,
+  interaction, and accessibility, then stopped in layout on external pending/aborted reads. Two
+  unchanged layout reruns on the branch reproduced a runtime-flag read abort while a clean
+  `main@fd3e0ea` worktree passed the same lane. No hierarchy assertion failed; the gate was not
+  relaxed. Exact-head cloud review remains the release authority.
+- **No live operation occurred.** No runtime flag, authority, database row, n8n workflow, Edge
+  Function, Linear object, client enrollment, or production deployment changed. The frozen
+  `calendar-upsert` and `sample-review-upsert` writers remained byte-identical to `main`; all drills
+  were read-only or browser-mocked.

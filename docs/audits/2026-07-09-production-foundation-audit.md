@@ -366,6 +366,24 @@ The existing automated gates plus the focused screenshot review are strong for t
 For PR-level regression protection, run `npm run test:prod-polish`; it is the owner-feedback
 automation gate for the current read-only Production surface.
 
+## F145 true parent-link follow-up (2026-07-19 candidate)
+
+The Production adapter previously inferred hierarchy from a shared creation batch and a
+case-insensitive `deliverable.title == batch.name` match. That made VID-12570 appear to own TEST
+2/3 even though VID-12570, TEST 2, and TEST 3 are real Linear siblings under VID-12569.
+
+The candidate now projects the already-persisted `linear_issue_uuid` and
+`linear_raw.issue.parent.id`, resolves that edge globally to the live native deliverable, and keeps
+batch metadata only for asset/detail context. Missing, duplicate, archived, self-referential, and
+cyclic targets fail closed as visible roots. Valid multi-level chains remain intact, including a
+child that is also a parent. No schema, writer, runtime flag, authority, n8n workflow, Edge
+Function, Linear object, or live row changes.
+
+The focused hierarchy guard pins the owner-visible deceptive-title sibling shape, cross-batch,
+cross-team, cross-client, three-level, unresolved, duplicate, archived-target, self, and cycle
+cases. The Production source and browser structure guards pin the lightweight projection and exact
+rendered relationship. The exact candidate still requires green cloud review before owner merge.
+
 ## Rollback
 
 This pass is reversible by reverting the July 9 Production hardening PR or the specific commit that contains:
@@ -380,3 +398,6 @@ This pass is reversible by reverting the July 9 Production hardening PR or the s
 - the parity/doc ledger updates.
 
 Because the code change is frontend-only and touches no data path, rollback does not require a Supabase flag flip, n8n change, migration rollback, or cleanup job.
+
+F145 is independently reversible by reverting its review/merge commit, which restores only the
+prior browser hierarchy projection. It has no data migration or live-state cleanup step.

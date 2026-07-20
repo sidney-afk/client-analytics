@@ -38099,6 +38099,44 @@
             if (_prodRawMarkerTruthy(d && d.raw_archived)) return false;
             return true;
         }
+        function _prodResolveParentLinks(rows) {
+            rows = Array.isArray(rows) ? rows : [];
+            const nativeByLinear = new Map();
+            const duplicateLinearIds = new Set();
+            rows.forEach(row => {
+                const nativeId = String(row && row.id || '').trim();
+                const linearId = String(row && row.linear_issue_uuid || '').trim();
+                if (!nativeId || !linearId) return;
+                if (nativeByLinear.has(linearId) && nativeByLinear.get(linearId) !== nativeId) {
+                    duplicateLinearIds.add(linearId);
+                    return;
+                }
+                nativeByLinear.set(linearId, nativeId);
+            });
+            duplicateLinearIds.forEach(linearId => nativeByLinear.delete(linearId));
+
+            const proposed = new Map();
+            rows.forEach(row => {
+                const nativeId = String(row && row.id || '').trim();
+                const parentLinearId = String(row && row.raw_issue_parent_id || '').trim();
+                const parentNativeId = nativeByLinear.get(parentLinearId) || '';
+                if (nativeId && parentNativeId && parentNativeId !== nativeId) {
+                    proposed.set(nativeId, parentNativeId);
+                }
+            });
+
+            const resolved = new Map();
+            proposed.forEach((parentNativeId, nativeId) => {
+                const seen = new Set([nativeId]);
+                let cursor = parentNativeId;
+                while (cursor && !seen.has(cursor)) {
+                    seen.add(cursor);
+                    cursor = proposed.get(cursor) || '';
+                }
+                if (!cursor) resolved.set(nativeId, parentNativeId);
+            });
+            return resolved;
+        }
         function _prodAdapter(input) {
             const raw = input || _prodState;
             const clients = raw.clients || [];
@@ -38135,29 +38173,10 @@
                     raw: c
                 };
             });
-            const batchTeamKey = d => {
-                const batchId = String(d && d.batch_id || '');
-                return batchId ? batchId + '::' + String(d && d.team || '') : '';
-            };
-            const byBatch = new Map();
-            deliverables.forEach(d => {
-                const key = batchTeamKey(d);
-                if (!key) return;
-                if (!byBatch.has(key)) byBatch.set(key, []);
-                byBatch.get(key).push(d);
-            });
-            const batchParent = new Map();
-            byBatch.forEach((rows, key) => {
-                const batchId = key.split('::')[0];
-                const batch = BATCHES[batchId];
-                const parent = batch && rows.find(d => _prodNormKey(d && d.title) === _prodNormKey(batch.name));
-                if (parent && parent.id) batchParent.set(key, String(parent.id));
-            });
+            const parentLinks = _prodResolveParentLinks(deliverables);
             const ISSUES = deliverables.map(d => {
                 const descField = _prodHasOwn(d, 'brief') ? 'brief' : _prodHasOwn(d, 'desc') ? 'desc' : '';
                 const batchId = String(d && d.batch_id || '');
-                const parentId = batchParent.get(batchTeamKey(d)) || '';
-                const isBatchParent = !!(parentId && String(d.id) === parentId);
                 const batch = BATCHES[batchId] || null;
                 const file = d.file_url || (batch && (batch.delivery_folder_url || batch.footage_folder_url || batch.filming_doc_url)) || '';
                 const issue = {
@@ -38167,7 +38186,7 @@
                     team: d.team || (batch && batch.team) || '',
                     project: d.client_slug || (batch && batch.client_slug) || '',
                     title: d.title || '',
-                    parent: isBatchParent || !parentId ? null : parentId,
+                    parent: parentLinks.get(String(d.id || '')) || null,
                     status: _prodArtifactStatus(d.status),
                     sourceStatus: d.status || '',
                     assignee: d.assignee_id || '',
@@ -38185,7 +38204,7 @@
                     comments: [],
                     batchId,
                     batchName: batch ? (batch.name || '') : '',
-                    isBatchParent,
+                    isHierarchyParent: false,
                     raw: d
                 };
                 return issue;
@@ -38194,6 +38213,7 @@
             ISSUES.forEach(i => {
                 if (parentSet.has(i.id)) {
                     const kids = ISSUES.filter(k => k.parent === i.id);
+                    i.isHierarchyParent = true;
                     i.sub = [kids.filter(k => _prodIsDone(k.status)).length, kids.length];
                 }
             });
@@ -38411,12 +38431,6 @@
                 .map(s => _prodStatusLabel(s.status) + ' ' + _prodDurationText(s.ms))
                 .filter(s => / \d/.test(s))
                 .join(', ');
-        }
-        function _prodSameTitle(a, b) {
-            return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
-        }
-        function _prodIsBatchParent(d, batch) {
-            return !!(d && d.isBatchParent) || !!(d && batch && _prodSameTitle(d.title, batch.name));
         }
         function _prodCurIssuesUnfiltered() {
             if (_prodState.view === 'project' && _prodState.openProjectId) {
@@ -40557,7 +40571,7 @@
                     _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,updated_at', 'order=display_name.asc', 1000, 10),
                     _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
                     _prodRestRows('batches', 'id,client_slug,team,name,description,filming_doc_url,footage_folder_url,delivery_folder_url,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids', 'order=created_at.desc', 1000, 25),
-                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_identifier,linear_issue_url,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived', 'order=team.asc,status.asc,due_date.asc', 1000, 50),
+                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,raw_issue_parent_id:linear_raw->issue->parent->>id,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived', 'order=team.asc,status.asc,due_date.asc', 1000, 50),
                     _prodFetchAuthority()
                 ]);
                 const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
@@ -41260,7 +41274,7 @@
             const parent = d.parent ? _prodIssue(d.parent) : null;
             const sub = _prodSubProgress(d);
             const clientName = _prodDisplayClient(d.project);
-            const isBatchParent = !!d.isBatchParent;
+            const isHierarchyParent = !!d.isHierarchyParent;
             const childCount = sub ? sub.total : 0;
             const selected = _prodState.selected && _prodState.selected.has(d.id);
             const focused = _prodState.focusRow === d.id;
@@ -41269,7 +41283,7 @@
                 ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status), tip: 'Change due date · ⇧D' }
                 : { tip: 'Set due date|⇧D' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { title: assignee ? assignee.name : 'Unassigned', info: assigneeTip, tip: 'Assign · A' });
-            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + (selected ? ' selected' : '') + (focused ? ' kfocus' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" onmousemove="_prodSetFocusRow(' + _jsAttrArg(d.id) + ',false)" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
+            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + (selected ? ' selected' : '') + (focused ? ' kfocus' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" onmousemove="_prodSetFocusRow(' + _jsAttrArg(d.id) + ',false)" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
                 + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ')" aria-hidden="true"></span>'
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + _prodStatusIcon(d.status, d.id)
@@ -41410,11 +41424,11 @@
             const assignee = _prodMember(d.assignee);
             const kids = _prodChildrenOf(d.id);
             const parent = d.parent ? _prodIssue(d.parent) : null;
-            const isBatchParent = !!d.isBatchParent;
+            const isHierarchyParent = !!d.isHierarchyParent;
             const file = d.file || '';
             const subSection = _prodSubIssuesSectionHTML(kids);
             const descLoaded = !!d.descLoaded || (_prodState.linearRaw.has(d.id) && _prodState.linearRaw.get(d.id) !== null);
-            return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
+            return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div>'
                 + _prodSubIssueContextHTML(d, parent)
                 + '<h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'

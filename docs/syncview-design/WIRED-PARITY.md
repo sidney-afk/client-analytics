@@ -79,7 +79,7 @@ Full report: `docs/audits/2026-07-09-production-foundation-audit.md`.
 | Behavior | Source | Status | Notes |
 |---|---|---:|---|
 | B1 rows adapt to artifact `ISSUES` / `PROJECTS` / `CLIENTS` / `EDITORS` shapes | `ISSUES`, `PROJECTS`, `CLIENTS`, `EDITORS` seeds | ✅ | `_prodAdapter()` is the single render boundary; see `ADAPTER.md`. |
-| Batch parent owns children; siblings do not list each other | `childrenOf`, `subProg`, `rowHTML`, `renderDetail` | ✅ | Batch-parent issue is `deliverable.title == batch.name` after trim/case-insensitive normalization. |
+| Real Linear parent owns children; siblings do not list each other | `_prodResolveParentLinks`, `childrenOf`, `subProg`, `rowHTML`, `renderDetail` | 🟡 F145 staged | Production projects each deliverable's persisted Linear parent UUID and resolves it globally to the live native parent row, including cross-batch/team/client edges. Batch/title similarity never elects a parent; unresolved or malformed links stay visible as roots. Cloud review remains required before owner merge. |
 | Missing project emoji falls back to project glyph | `I.project`, project card markup | ✅ | No `S` fallback remains in project/card/detail client glyphs. |
 | Status glyph vocabulary | `statusSVG` | ✅ | Existing glyph family preserved; adapter feeds artifact status keys (`prog`, `smm`, `kasper`, `client`). |
 | Canceled issues stay visible (Canceled group in project + All views) | `STATUS.canceled`, `groupsFor` | ✅ | `_prodDeliverableLive()` no longer treats `canceledAt` as deleted; archive/delete markers still hide rows (owner feedback 2026-07-17). |

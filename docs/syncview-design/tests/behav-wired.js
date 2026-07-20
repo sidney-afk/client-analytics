@@ -1035,13 +1035,15 @@ async function txt(page, sel) {
         return guarded && parentNavigates;
       }, SIGNED_OUT_WRITE_COPY);
     }); await reset();
-    await ok('videoParentsStayVideoTeam', async () => {
+    await ok('resolvedParentsMatchProjectedLinearLinks', async () => {
       return await page.evaluate(() => {
-        const rows = _prodIssues().filter(i => i.team === 'video' && i.parent);
+        const rows = _prodIssues().filter(i => i.parent);
         if (!rows.length) return true;
         return rows.every(i => {
           const parent = _prodIssue(i.parent);
-          return parent && parent.team === i.team && /^VID/i.test(_prodIssueLabel(parent));
+          return parent
+            && String(parent.raw && parent.raw.linear_issue_uuid || '')
+              === String(i.raw && i.raw.raw_issue_parent_id || '');
         });
       });
     }); await reset();

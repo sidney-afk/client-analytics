@@ -366,6 +366,26 @@ check(overloadedGraphicsHtml.includes('class="workload-day-card-total over-capac
     && overloadedGraphicsHtml.includes('16/15 · 1 over'),
   'graphics overload is shown on its editor against the 15-item threshold');
 
+const loadingPlanStatus = { hidden: false, className: '', textContent: 'old' };
+compile('renderWorkloadPlanStatus', {
+  document: { getElementById: () => loadingPlanStatus },
+  wlState: { planStatus: 'loading' },
+})();
+const workloadSkeletonHtml = compile('_svWorkloadSkeletonHtml', {
+  wlState: { viewMode: 'week' },
+  _svSkel: (classes, style) => `<span class="sv-skeleton ${classes}" style="${style}"></span>`,
+})();
+check(loadingPlanStatus.hidden === true
+    && loadingPlanStatus.textContent === ''
+    && !INDEX.includes('Loading saved work days…')
+    && /if \(wlState\.planStatus === 'loading'\)[\s\S]{0,120}_svLoadingSkeletonHtml\('workload'\)/.test(grabFunc('renderWorkloadAll'))
+    && (workloadSkeletonHtml.match(/class="workload-skeleton-day"/g) || []).length === 7
+    && workloadSkeletonHtml.includes('aria-label="Loading saved work days"')
+    && workloadSkeletonHtml.includes('class="sv-skeleton-row"')
+    && workloadSkeletonHtml.includes('sv-skeleton-line')
+    && workloadSkeletonHtml.includes('sv-skeleton-pill'),
+  'saved-plan loading uses a calendar-shaped editor-and-client skeleton with no visible text state');
+
 check(!INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('function scheduleAll(')
     && !INDEX.includes('effectiveWorkDate')

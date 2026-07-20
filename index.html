@@ -14141,7 +14141,8 @@
         el.hidden = false;
         el.className = 'workload-plan-status ' + ((status === 'unknown' || status === 'stale') ? 'is-warning' : 'is-loading');
         if (status === 'loading') {
-            el.textContent = 'Loading saved work days…';
+            el.hidden = true;
+            el.textContent = '';
         } else if (status === 'refreshing') {
             el.textContent = 'Refreshing saved work days — editing is briefly paused.';
         } else if (status === 'stale') {
@@ -14208,6 +14209,10 @@
             return;
         }
         if (wlState.loading && !hasAnyData) {
+            bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
+            return;
+        }
+        if (wlState.planStatus === 'loading') {
             bodyEl.innerHTML = _svLoadingSkeletonHtml('workload');
             return;
         }
@@ -22489,11 +22494,11 @@
     function _svWorkloadSkeletonHtml() {
         const mode = (typeof wlState !== 'undefined' && wlState && wlState.viewMode === 'week') ? 'week' : 'month';
         const cells = mode === 'week' ? 7 : 28;
-        return `<div class="workload-skeleton-grid ${mode}" role="status" aria-label="Loading">${Array.from({ length: cells }, (_, i) => `
+        return `<div class="workload-skeleton-grid ${mode}" role="status" aria-label="Loading saved work days">${Array.from({ length: cells }, (_, i) => `
             <div class="workload-skeleton-day">
                 ${_svSkel('sv-skeleton-pill', 'width:34px;height:14px;')}
-                ${(i % 3 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:72%;')}${_svSkel('sv-skeleton-line', 'width:54%;')}</div>` : ''}
-                ${(i % 5 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:58%;')}${_svSkel('sv-skeleton-line', 'width:42%;')}</div>` : ''}
+                ${(i % 3 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:72%;')}<div class="sv-skeleton-row">${_svSkel('sv-skeleton-pill', 'width:54%;height:16px;')}${_svSkel('sv-skeleton-pill', 'width:28%;height:16px;')}</div></div>` : ''}
+                ${(i % 5 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:58%;')}<div class="sv-skeleton-row">${_svSkel('sv-skeleton-pill', 'width:42%;height:16px;')}</div></div>` : ''}
             </div>`).join('')}</div>`;
     }
     function _svAnalyticsOverviewSkeletonHtml() {

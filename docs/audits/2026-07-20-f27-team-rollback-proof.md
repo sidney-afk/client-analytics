@@ -30,18 +30,18 @@ intent. The other team is not held or mutated.
 
 ## Isolated TEST transaction
 
-- Candidate head: `65edd5953e4ac2aa3f1607235ccc350e1b29e24d`
-- GitHub Actions run (observer outside n8n): `29756927254`
-- Artifact: `8467076082` (`f27-team-rollback-proof`)
-- Artifact digest: `sha256:7faf66a457d0108c4f26b4d570758afde646e49366ac0735683e6cc87fcdf349`
+- Candidate head: `69d85fbf6d0a44e6d2d742b8b2a983620d88c2f1`
+- GitHub Actions run (observer outside n8n): `29757202452`
+- Artifact: `8467192898` (`f27-team-rollback-proof`)
+- Artifact digest: `sha256:e18ae87e8c9597d03c287eea5ecdc45187da465fc4a3fe6ee96952aee1a41233`
 - Terminal transcript digest:
-  `7330315891294baae3cbb87f55d62200ab32dc3fabbd861154d3b96601a5fd91`
-- Rollback ID: `783f5bea-9c73-43ec-98ec-0c29ed65819b`
-- Snapshot correlation ID: `42803f45-ae1c-4835-bb14-8403b0936574`
-- Replay terminal correlation ID: `87ac2439-335d-480d-bc2d-568f2ab4f7be`
+  `c1d6b4dfb1fb9e904d72aa3415f1561d359aba290a115046e3e2d734c0652126`
+- Rollback ID: `91592538-be72-4911-a65c-58a38c63044b`
+- Snapshot correlation ID: `ef2e2442-6dc2-4eb0-9cdc-d370124d492d`
+- Replay terminal correlation ID: `bbe6ee24-13a0-46b3-a5fc-1090e053a247`
 - Snapshot count: `4`
 - Snapshot digest:
-  `60878439a4946db8a8262477b13184d17e69c2bb71715092f8fb25f09e6396d5`
+  `fe2a9760725147a619fa2ce507c166ee672cdb9b607512fe70432650a3f14457`
 
 The disposable TEST store used only `client_slug='test-client'` with
 `test_only=true`. It simulated Linear/Linear + F2 off + F4 false, moved Graphics
@@ -59,18 +59,22 @@ the guarded final statement. The terminal receipt reported:
 
 Independent assertions proved exact prior flags restored, the Video row
 byte-hash unchanged, every payload hash unchanged, premature finalization
-refused, an already-claimed lease refused, a held-team enqueue refused, and
-terminal receipts correlated. The
+refused, an already-claimed lease refused, a held-team enqueue refused, an
+unbound/copied replay receipt refused, and terminal receipts correlated to the
+exact rollback ID, outbox ID, dedup key, operation, immutable intent snapshot,
+and persisted Linear-result hash. The
 GitHub job summary and retained artifact are the outside-n8n observer; no pager
 timestamp or quiet-monitor inference is used.
 
 Cloud review of the first candidate found that clearing an already-claimed
-lease could race a stateless drainer and that direct service-role UPDATE grants
-made evidence rewritable. Head `65edd59` refuses begin while any affected active
+lease could race a stateless drainer, direct service-role UPDATE grants made
+evidence rewritable, and a merely nonempty receipt correlation was not bound to
+the replay. Head `69d85fb` refuses begin while any affected active
 row has `lock_token` or `locked_at`, never clears those leases during capture,
-and exposes the ledgers read-only to service role while SECURITY DEFINER
-functions own mutations. The proof above is the post-fix run and includes the
-negative in-flight assertion.
+exposes the ledgers read-only to service role while SECURITY DEFINER functions
+own mutations, and binds terminal receipts to the exact immutable/persisted
+intent and result. The proof above is the post-fix run and includes both
+negative assertions.
 
 ## Boundary still open
 

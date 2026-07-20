@@ -1,14 +1,14 @@
-# SyncView Go-Live Checklist â€” Linear â†’ SyncView cutover
+# SyncView Go-Live Checklist — Linear → SyncView cutover
 
 **Purpose.** The single canonical, owner-facing sequence for cutting production over from
 Linear to SyncView. Rewritten 2026-07-13 after the full cutover audit
-(`CUTOVER_AUDIT_2026-07-13.md`) â€” that register is the authority on WHY each gate exists.
+(`CUTOVER_AUDIT_2026-07-13.md`) — that register is the authority on WHY each gate exists.
 Exact flag payloads and emergency procedures live in **`docs/ops/FLIP_RUNBOOK.md`** (owner-
 executable, paste-able; no Codex required). If anything here disagrees with the live runtime
 flags, trust the live flags and stop.
 
 _This sequence supersedes all earlier flip orderings (audit F17). D-28's shadow-week soak is
-satisfied by the staged parity enrollment below plus the nightly shadow audit â€” ratified by the
+satisfied by the staged parity enrollment below plus the nightly shadow audit — ratified by the
 owner merging this file (see D-32)._
 
 ---
@@ -22,11 +22,11 @@ owner merging this file (see D-32)._
    mutations. F2 `off` stops normal outbound only; F4 `false` stops independent parity, so disable
    both for an unknown/mixed Linear-write incident (F58). Authority returns to Linear only after an immutable team
    snapshot, owner-audited classify/replay/quarantine/discard decisions, and a machine-read team
-   zero. The default drainer and a global green summary do not prove this. Use FLIP_RUNBOOK Â§R2.
-4. **Cosmetic vs. data (D-29).** Looks-wrong â†’ fix in place, keep going. Wrong-data-written â†’
-   contain that team immediately, then complete Â§R2's evidence-bearing recovery before any
+   zero. The default drainer and a global green summary do not prove this. Use FLIP_RUNBOOK §R2.
+4. **Cosmetic vs. data (D-29).** Looks-wrong → fix in place, keep going. Wrong-data-written →
+   contain that team immediately, then complete §R2's evidence-bearing recovery before any
    authority reversal or re-flip.
-5. **Green before you move â€” with real eyes.** A quiet alarm channel only counts once the
+5. **Green before you move — with real eyes.** A quiet alarm channel only counts once the
    non-n8n inbound pager (F09) is live; until then, silence can mean "the alarms are dead".
 
 ## Current state (update when flags move)
@@ -35,17 +35,17 @@ owner merging this file (see D-32)._
 |---|---|---|
 | `prod_authority` | `{video: linear, graphics: linear}` | Both teams still run on Linear |
 | `linear_outbound_enabled` | `off` | No mirroring back to Linear |
-| `linear_inbound_enabled` | `enabled` | Linear â†’ SyncView copy (always on until B5) |
+| `linear_inbound_enabled` | `enabled` | Linear → SyncView copy (always on until B5) |
 | `linear_legacy_parity_enabled` | `disabled` | Transition write-lane off (armed at Phase 1) |
 | `auth_enforcement` | `permissive` | Client-link verifier permits missing/invalid tokens; this is not a staff-write gate |
 | `write_ui_reroute_clients` | last verified live TEST-only allowlist (`clients:[<TEST_CLIENT>]`) | Required D-32 boundary; #850 merged the reroute code carried from `e3aa028`. Read the value fresh before any action; this dated row authorizes no flag change or real enrollment. |
 
 Merged & live: #810 gateway (deployed), #811 guards + daily TEST drill + nightly shadow audit,
 #812 mirror write-UI (locked for real teams), #850's dark Calendar/Samples/Submit reroutes,
-62/62 clientâ†’project mappings, and Samples retirement + rename. The reroute cohort was last
+62/62 client→project mappings, and Samples retirement + rename. The reroute cohort was last
 verified TEST-only; no real-client enrollment is authorized by the merge or deployment.
 
-> **IMMEDIATE PRIVACY CONTAINMENT â€” do not wait for Phase 0 (F64):** reviewed schema-only
+> **IMMEDIATE PRIVACY CONTAINMENT — do not wait for Phase 0 (F64):** reviewed schema-only
 > replacements pass the private count-only census but are deliberately excluded from this public
 > candidate. GitHub expanded the historical row deletions even behind the attempted diff guard, so
 > an ordinary scrub PR is unsafe. Use the owner-scheduled freeze and final-GO rewrite procedure in
@@ -54,7 +54,7 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
 
 ---
 
-## Phase 0 â€” Preconditions (ALL boxes before first real-client enrollment)
+## Phase 0 — Preconditions (ALL boxes before first real-client enrollment)
 
 **Build/fix gates (Codex):**
 - [ ] **One machine-generated current-state manifest is fresh** (F56/F59): fail unless it records
@@ -67,8 +67,8 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       fence; every forward/kill/recovery action passes an isolated TEST flag-store transaction,
       exact expected-state CAS, affected-row assertion, and readback. Never paste a multi-action
       sequence or an unconditional whole-row replacement.
-      **F27 evidence:** post-review-fix head `acf2b94`, run `29758523289`, artifact
-      `8467746602` proved the per-team recovery statement, in-flight and unbound-receipt refusal, and F2/F4 behavior in a
+      **F27 evidence:** post-review-fix head `69d85fb`, run `29757202452`, artifact
+      `8467192898` proved the per-team recovery statement, in-flight and unbound-receipt refusal, and F2/F4 behavior in a
       disposable PostgreSQL store. This is one action's evidence, not closure of
       the every-fence checklist item and not live-application authorization.
 - [ ] **The complete Production browser gate is green before merge/flip** (F105): do not accept the
@@ -90,7 +90,7 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       disabled until the aggregate-only/no-upload PR merges, then prove the first post-merge run and
       re-enable deliberately. Sanitize the still-open reconciler logs, audit historical Argos builds,
       and record privacy/legal disposition. Recursive exact-schema canaries inspect archives/stdout;
-      private generators refuse tracked worktree output. Retention is afterâ€”not instead ofâ€”sanitization.
+      private generators refuse tracked worktree output. Retention is after—not instead of—sanitization.
 - [ ] **Every public onboarding-media asset has proved publication rights** (F118): privacy/legal
       records source, people/voice/brand releases, licence, intended audience, retention and deletion
       duty for every tracked file. Replace uncertain media with fictional/commissioned/licensed
@@ -133,7 +133,7 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       status/mode/account, and a server-owned agreement/payment correlation; persist the unique
       inbox event before 2xx. Prove stale/replay/wrong-account/wrong-sale/downstream-failure retries.
 - [ ] **The two-of-two sales gate is atomic and exactly-once** (F116): one unique durable job owns
-      â€œboth verified gates â†’ onboarding email,â€ with pending/sent/failed step receipts and a
+      “both verified gates → onboarding email,” with pending/sent/failed step receipts and a
       reconciler. A synchronized two-callback race, duplicates, lost response, child/email/HubSpot/
       stage failures and retries cannot lose or duplicate the communication.
 - [ ] **Approved YouTube title text remains the text actually approved** (F109): owner ratifies
@@ -160,7 +160,7 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       explicit retired-link state. Pass old-data parity, cross-client denial, fresh/residual cache,
       invalid/rotated token, deep-link, refresh/back, mobile and second-device tests.
 - [ ] **Samples Old read fallback is not used as writable recovery** (F57): `?sv2=0` and automatic
-      RESTâ†’Sheet fallback belong to the dormant renderer. Its legacy writers may return success
+      REST→Sheet fallback belong to the dormant renderer. Its legacy writers may return success
       after Supabase updates while the Sheet branch failed. Any temporary old-code restoration is
       read-only or has one atomic read/write authority; prove stale-build/direct-caller zero and
       both-store parity before Phase 2 deletion.
@@ -291,7 +291,7 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       Dependency failure must fail visibly/retry authenticated work, never silently downgrade.
 - [ ] **Client onboarding/offboarding is atomic and authenticated** (F69): one idempotent server
       receipt creates/reads back the active client, exact team/project mapping, protected token
-      mint/revision/revocation, and every required Track-A routing/policy enrollmentâ€”or static
+      mint/revision/revocation, and every required Track-A routing/policy enrollment—or static
       allowlists are replaced. A fake TEST client proves first authenticated writes and teardown
       immediately denies its token with no fallback.
 - [ ] **Public onboarding cannot launch privileged provisioning** (F128): anonymous capture is
@@ -323,7 +323,7 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
 - [ ] **Native concurrency is fail-safe** (F36): every Calendar/Samples/Production mutation sends
       an expected canonical version; stale requests create neither state nor outbox intent, return
       409 with the current row, and the browser offers compare/reapply instead of silent overwrite.
-- [ ] **Production identity is real** (F37): â€œMy issues,â€ â€œAssigned to me,â€ owner-ratified team/
+- [ ] **Production identity is real** (F37): “My issues,” “Assigned to me,” owner-ratified team/
       assignment scope, comment scope, and actor attribution use the server-verified immutable member
       ID. The TEST matrix covers every active creative plus peer-assigned, unassigned, direct-link,
       account-switch and zero-row cases; unsigned/revoked sessions show no personal queue.
@@ -339,7 +339,7 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       selected/controls plus roving arrow/Home/End keyboard focus remain visible. Owner ratifies Back
       history behavior. Test all eight keys at 390/768 and surrounding widths, real touch swipe,
       direct deep link/back/reload, 200% zoom/text scaling, portrait/landscape, populated layouts and
-      second deviceâ€”especially Onboarding, Sales Intake and Client Credentials. A denied tab must
+      second device—especially Onboarding, Sales Intake and Client Credentials. A denied tab must
       atomically canonicalize the active tab, URL hash, and saved subtab so reload cannot recur into
       an inaccessible surface.
 - [ ] **Kasper Review/Messages failures are recoverable** (F130): cold and cached refresh failures
@@ -424,10 +424,10 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
 - [ ] **Production calendar-day semantics are stable** (F99): owner ratifies one business-zone or
       explicitly viewer-local contract; one on-demand clock powers relative parsing, quick choices,
       today highlighting, overdue display, and writes. Long-open tabs re-render at the next midnight
-      and on return. UTCÂ±, DST, midnight, leap-day, and mouse/keyboard/bulk TEST cases pass.
+      and on return. UTC±, DST, midnight, leap-day, and mouse/keyboard/bulk TEST cases pass.
 - [ ] **Due picker preserves the exact selected year** (F100): quick options and calendar cells carry
       ISO values, existing rows seed/select from `dueRaw`, mouse/keyboard/bulk paths agree, and
-      Decâ†’Jan, leap day, explicit-year input, far-future navigation, and multi-select tests pass.
+      Dec→Jan, leap day, explicit-year input, far-future navigation, and multi-select tests pass.
 - [ ] **Staff credentials are individually revocable and attribution is immutable** (F31): remove
       inactive roster access, rotate the shared creative credential, invalidate old devices, and
       bind each accepted write to a server-resolved member/session ID. If the owner accepts any
@@ -445,7 +445,7 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       behavior before go-live. Its eventual B5 replacement separately needs exact load,
       finish/open, timeline, event-time-assignee, paging, cache, and full-week parity.
 - [ ] **Creative status reaches every reviewer from one authority** (F50): implement a
-      transactional deliverableâ†’card projection with CAS/idempotency or make every downstream
+      transactional deliverable→card projection with CAS/idempotency or make every downstream
       Calendar/Samples/SMM/Kasper/client reader use deliverable status. Both-team TEST walks across
       refresh, realtime loss, second device, concurrency, retry, and rollback are green.
 - [ ] **Native Create Post keeps one canonical title** (F133): the SMM enters/accepts the title
@@ -462,13 +462,13 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
 - [ ] **Creative status transitions are server-authorized from current state** (F136): owner ratifies
       one role/current/next/team/assignee matrix; the server and picker enforce it. Reviewer/terminal
       regression, cancel, duplicate and peer-work actions require only the explicitly approved role.
-      Pass the full 13Ã—13 TEST matrix across list/All/My/direct-link, stale CAS, retry and two devices.
+      Pass the full 13×13 TEST matrix across list/All/My/direct-link, stale CAS, retry and two devices.
 - [ ] **Video editors retain every distinct work asset** (F137): Production shows separately labelled
       Filming plan, Raw footage, Delivery/Frame folder and deliverable file with missing/invalid/
       expired/permission states; no priority fallback hides or mislabels another asset. Pass all 16
       presence combinations, native/backfill, reassignment, mobile, refresh and second device.
 - [ ] **Native activity history is protected and visible** (F138): a team/role-scoped paginated
-      reader renders stable actor/time/action/fromâ†’to history with loading/empty/stale/retry states and
+      reader renders stable actor/time/action/from→to history with loading/empty/stale/retry states and
       redaction. Pass event completeness/order/paging, denial, comments coexistence, mobile and second
       device before Linear history/Inbox retirement; `WIRED-PARITY.md` matches runtime truth.
 - [ ] **Graphics can deliver canonical media** (F53): protected file/link write or first-class
@@ -517,13 +517,13 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       headroom projected past the flip window.
 
 **People gates (owner/Kasper):**
-- [ ] **100% of the owner-approved active roster can sign in** â€” reconcile HR/current staffing,
+- [ ] **100% of the owner-approved active roster can sign in** — reconcile HR/current staffing,
       deactivate departed or duplicate rows, invalidate their credentials/devices, and then record
       only anonymized active/verified counts from server evidence. A stale denominator or a sign-in
       attributed to a departed row is not readiness (F31/F64).
 - [ ] **Exact-recipient notifications proven** (F15/F47): active members have immutable native
       notification mappings; assignment, tweak, and URGENT TEST sends return/persist the intended
-      member plus destination/message receipt before the UI says â€œSent.â€ Missing, inactive,
+      member plus destination/message receipt before the UI says “Sent.” Missing, inactive,
       ambiguous, wrong-team, and provider-failure cases remain visibly pending/retryable and alert.
       (The retained legacy sample was mapped; this gate does not claim a historical missed mention.)
 - [ ] **D-9 nightly roller** neutralized per the touchpoint-inventory owner actions, OR
@@ -538,7 +538,7 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       automation hold/manual-merge path is executable, and every Linear-authoritative versus
       SyncView-authoritative team receives the correct instruction from FLIP_RUNBOOK R3.
 
-## Phase 0.5 â€” Dark merge/deploy checkpoint (#850 merged; remaining TEST proof open)
+## Phase 0.5 — Dark merge/deploy checkpoint (#850 merged; remaining TEST proof open)
 
 - [x] `write_ui_reroute_clients` was created/read back in the TEST-only posture, its guarded
       reroute source landed via #850, and real clients remain on legacy paths unless separately
@@ -552,17 +552,17 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
 - [ ] Passively observe one organic real-client save/approval through the legacy path, or prove
       the dark behavior with a non-enrolled TEST fixture. Do not induce a production write.
 
-## Phase 0.75 â€” Enforce client-link auth before real traffic (F97)
+## Phase 0.75 — Enforce client-link auth before real traffic (F97)
 
 - [ ] **All Phase-0 auth/read/write gates remain green on one unexpired preflight**: especially
-      F31/F35/F38/F67/F69/F70/F76â€“F89/F91. Phase 0.5 remains TEST-only and is not evidence that a
+      F31/F35/F38/F67/F69/F70/F76–F89/F91. Phase 0.5 remains TEST-only and is not evidence that a
       real client can be enrolled safely.
 - [ ] **Exact current-token roster proof is green** (F89): every active client has one fresh
       `credential_valid=true` event bound to its current token revision; missing, extra, stale,
       inactive, or ambiguous rows fail the gate. No token or client identity enters public output.
 - [ ] Deploy/read back F38's fail-closed verifier and browser changes, rotate the verdict/cache
       epoch, and purge stale permissive verdicts, client DOM/data, channels, and write state.
-- [ ] The owner executes FLIP_RUNBOOK Â§F5's single CAS from exactly `permissive` to `enforced`,
+- [ ] The owner executes FLIP_RUNBOOK §F5's single CAS from exactly `permissive` to `enforced`,
       reads back exactly `{"mode":"enforced"}`, and records the flag event plus the same preflight
       evidence handle in `EXECUTION_LOG.md` and ROLLBACK Live State.
 - [ ] On TEST, missing/invalid/expired/rotated/inactive credentials and verifier 5xx/timeout/offline
@@ -570,17 +570,17 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       tab; a current exact-client credential still works. If any case fails, **do not enter Phase 1**.
       Preserve enforcement and contain/fix the specific caller or verifier per F70.
 
-## Phase 1 â€” Staged parity soak (real traffic, Linear still boss)
+## Phase 1 — Staged parity soak (real traffic, Linear still boss)
 
 - [ ] Read back `auth_enforcement={"mode":"enforced"}` and the still-current Phase-0.75 proof.
       A permissive, missing, malformed, stale, or unproved value blocks every real cohort (F97).
 - [ ] **TEST and real-client divergence are separate signals** (F90): TEST-only churn remains visible
       in a diagnostic but cannot increment the real-client soak/pager criteria; mixed, TEST-only,
       and real-only fixtures pass and all public output uses private TEST notation.
-- [ ] Arm the parity lane: `linear_legacy_parity_enabled` â†’ enabled (FLIP_RUNBOOK Â§F4).
+- [ ] Arm the parity lane: `linear_legacy_parity_enabled` → enabled (FLIP_RUNBOOK §F4).
 - [ ] Enroll a first small cohort (2-3 real clients) in `write_ui_reroute_clients`. Their
       staff/client/Kasper writes now flow through the gateway and land in Linear via the
-      parity drain â€” same outcome as before, new pipes.
+      parity drain — same outcome as before, new pipes.
 - [ ] Watch 2-3 days: reconciler 0-diffs, drill green, no oldest-pending-age alerts, no
       quarantine/409 noise, spot-check tweak comments arriving in Linear.
 - [ ] Enroll the rest of the roster in cohorts. Full-roster clean for **~1 week** = D-28's
@@ -599,14 +599,14 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       advance them. Privately reconcile the current cohort and record
       `zero_unreviewed_inactive_client_work` before Graphics flips.
 
-## Phase 2 â€” Flip Graphics (Rocio)
+## Phase 2 — Flip Graphics (Rocio)
 
 Pick a low-activity window.
 1. [ ] Toggle PITR ON for the flip week (D-1; owner dashboard).
-2. [ ] Tell Rocio: work in SyncView only; problems â†’ tell Sidney, never fall back to Linear
+2. [ ] Tell Rocio: work in SyncView only; problems → tell Sidney, never fall back to Linear
        silently.
 3. [ ] **Arm the mirror before authority (F98):** while both teams still read back `linear`, set
-       `linear_outbound_enabled` â†’ `live` (FLIP_RUNBOOK Â§F2), read it back, and require correlated
+       `linear_outbound_enabled` → `live` (FLIP_RUNBOOK §F2), read it back, and require correlated
        terminal drainer/credential receipts plus an observer outside n8n (F131/F132), not a fresh
        pager timestamp. Immediately before and after it, prove exact
        zero **both-team** real, non-parity rows in `pending|failed|shadow_ok`; owner-classify/resolve
@@ -614,16 +614,16 @@ Pick a low-activity window.
        must equal expected, acknowledged `legacy_parity_written` from the still-armed parity cohort.
        Authority-paused nonzero is not green: it can starve the global batch or be released by F1.
        Any failure stops here with both teams still Linear-authoritative.
-4. [ ] Only after step 3 is current, set `prod_authority.graphics` â†’ `syncview` (FLIP_RUNBOOK Â§F1)
+4. [ ] Only after step 3 is current, set `prod_authority.graphics` → `syncview` (FLIP_RUNBOOK §F1)
        and read back **both** flags. Never open authority first and hope F2 succeeds afterward.
 5. [ ] Verify the first real intake has a canonical, visible artifact before SMM Approval and the
        deliverable status reaches the linked Calendar/Samples card and every reviewer (F50/F53).
 6. [ ] Verify her first real write lands in Linear via the F07 sync-drain lane within the approved
        seconds-scale SLO. F07's implementation is deployed; this non-TEST timing receipt remains
        the proof. **Hard stop:** do not proceed to Phase 3 until it passes;
-       a 10â€“60 minute legacy-poll delay is not an acceptable fallback.
+       a 10–60 minute legacy-poll delay is not an acceptable fallback.
 
-## Phase 3 â€” Watch the Graphics window
+## Phase 3 — Watch the Graphics window
 
 - [ ] Reconciler 0-diffs; oldest-pending-age quiet; drill/audit lanes green. F08's monitors are
       flip-tolerant in source, but the latest inspected scheduled runs as of 2026-07-19 are red for
@@ -633,11 +633,11 @@ Pick a low-activity window.
       this checkbox is the required first-real-Graphics observation, not a source-completeness check.
 - [ ] Apply D-29 on anything found. Team rollback remains live-blocked until PR #894's
       isolated-proved F27 quarantine/classify/replay/discard tooling is reviewed, applied, read back,
-      and TEST-client drilled. Follow FLIP_RUNBOOK Â§R2: stop new writes,
+      and TEST-client drilled. Follow FLIP_RUNBOOK §R2: stop new writes,
       snapshot and classify every team intent, replay only owner-approved rows, prove a machine-read
       team zero, and only then change authority. Never use the default drainer as rollback proof.
 
-## Phase 4 â€” Flip Video
+## Phase 4 — Flip Video
 
 Repeat the Phase 2 human/readiness gates and F1 authority action for `prod_authority.video` once
 Graphics is boring, but **do not rerun F2**: normal outbound was enabled globally during the
@@ -649,18 +649,18 @@ tweak-delivery comms sent (F24), exact-recipient assignment/tweak/URGENT receipt
 transition authorization green (F136), all four Video assets visible (F137), and activity-history
 replacement agreed/proved to the gate chosen for F138.
 
-## Phase 5 â€” B5: retire Linear (its own project)
+## Phase 5 — B5: retire Linear (its own project)
 
-Follow **TRACK_B_LINEAR_REPLACEMENT_SPEC.md Â§13** (D-22's roughly one-week dual-ready fallback,
+Follow **TRACK_B_LINEAR_REPLACEMENT_SPEC.md §13** (D-22's roughly one-week dual-ready fallback,
 archive-completeness + full private export, then the owner-gated retirement order with a proved
-inverse per action â€” Workload feeder,
+inverse per action — Workload feeder,
 tweak-comments, editors-week, inbound, readers). This post-flip fallback is separate from D-28's
 pre-flip parity-soak week. Assign an owner + ticket per replacement before starting.
-Before retiring `editors-week`, require full Â§9.11 UI/semantic parity: load/error/empty states,
+Before retiring `editors-week`, require full §9.11 UI/semantic parity: load/error/empty states,
 finished versus still-open work, timelines/week navigation, production scope, event-time assignee,
 complete issue/history paging, historical-roster behavior, cache, and failure UX. Matching delivery
 totals alone is not a retirement gate. Verify the already-inactive `MJbMZ789B5ExZz9x` topology from
-live readback; do not list â€œdeactivate itâ€ as newly completed teardown work.
+live readback; do not list “deactivate it” as newly completed teardown work.
 - [ ] **Linear-free retired epoch built but not prematurely activated (F32/F61):** an isolated
       service-only TEST override removes Linear validation, eligibility, IDs, and new outbox
       enqueues transactionally; full TEST mutations pass with Linear unavailable and create zero
@@ -691,11 +691,11 @@ live readback; do not list â€œdeactivate itâ€ as newly completed teardo
       ROLLBACK together, and pass v2-on/off, Supabase/n8n failure, metadata/banner, save-concurrency,
       Calendar/client/Kasper/Films, focus/mobile/second-device tests. Every object also passes F60.
 - [ ] **Calendar recovery never splits read and write authority** (F125): withdraw `?v2=0` as
-      writable rollback and treat automatic RESTâ†’Sheet fallback the same way. Sticky-off/fallback
+      writable rollback and treat automatic REST→Sheet fallback the same way. Sticky-off/fallback
       plus an EF-enrolled client is explicitly read-only until one atomic recovery mode couples its
       reader/writer (or journals/reconciles writes). Add server CAS
-      for every mutable whole-card field and pass v2 on/off Ã— EF enrolled/unenrolled/flag failure Ã—
-      REST/fallback Ã— edit/create/archive/reorder/import Ã— cache/second-device/two-tab tests.
+      for every mutable whole-card field and pass v2 on/off × EF enrolled/unenrolled/flag failure ×
+      REST/fallback × edit/create/archive/reorder/import × cache/second-device/two-tab tests.
 - [ ] **Sub-issue expansion is complete before any Calendar mutation** (F126): page children and
       required comments to exhaustion, reject partial GraphQL envelopes, and require an explicit
       complete receipt. Import, bulk-link and status adoption preserve prior state and write nothing
@@ -708,17 +708,17 @@ live readback; do not list â€œdeactivate itâ€ as newly completed teardo
 - [ ] **Each teardown action has a proved inverse (F60):** exact private restore object, documented
       recreate/restore command, machine readback, owner, and drill. Prefer deactivate/archive;
       never delete a webhook/workflow graph or rotate a credential under a generic reversibility claim.
-Note (F26): retiring Linear does NOT retire n8n â€” ~20 non-Linear webhooks (templates, briefs,
-filming plans, TikTok, hook library, weekly Slack, content-readyâ€¦) remain until their own
+Note (F26): retiring Linear does NOT retire n8n — ~20 non-Linear webhooks (templates, briefs,
+filming plans, TikTok, hook library, weekly Slack, content-ready…) remain until their own
 migrations complete. New-client onboarding must atomically mint mapping + token + authenticated
 Track-A routing/policy enrollment and prove its first EF write (B2/F69) before B5 makes Linear-side
 creation impossible.
 
 ---
 
-## Rollback â€” always through FLIP_RUNBOOK Â§R2
+## Rollback — always through FLIP_RUNBOOK §R2
 
-Short version: **stop new writes + disable/read back the involved F2/F4 lane(s), both if unknown/mixed â†’ immutable team snapshot â†’ classify every intent â†’
-replay/quarantine/discard with owner reason â†’ machine-read team zero â†’ flip authority back â†’ tell
-the team â†’ fix â†’ re-soak â†’ re-flip.** This is not yet one-click; the authority reversal is blocked
+Short version: **stop new writes + disable/read back the involved F2/F4 lane(s), both if unknown/mixed → immutable team snapshot → classify every intent →
+replay/quarantine/discard with owner reason → machine-read team zero → flip authority back → tell
+the team → fix → re-soak → re-flip.** This is not yet one-click; the authority reversal is blocked
 until F27's tooling exists. Never substitute the default drainer or a global green summary.

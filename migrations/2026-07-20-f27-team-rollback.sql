@@ -424,14 +424,14 @@ grant select on table public.track_b_team_rollbacks to service_role;
 grant select on table public.track_b_team_rollback_intents to service_role;
 revoke all on function public.track_b_f27_begin(text, jsonb, text)
   from public, anon, authenticated;
-revoke all on function public.track_b_f27_classify(uuid, bigint, text, text, text)
+revoke all on function public.track_b_f27_classify(uuid, bigint, text, text, text, jsonb)
   from public, anon, authenticated;
 revoke all on function public.track_b_f27_record_terminal(uuid, bigint, jsonb)
   from public, anon, authenticated;
 revoke all on function public.track_b_f27_finalize(uuid, jsonb, text)
   from public, anon, authenticated;
 grant execute on function public.track_b_f27_begin(text, jsonb, text) to service_role;
-grant execute on function public.track_b_f27_classify(uuid, bigint, text, text, text) to service_role;
+grant execute on function public.track_b_f27_classify(uuid, bigint, text, text, text, jsonb) to service_role;
 grant execute on function public.track_b_f27_record_terminal(uuid, bigint, jsonb) to service_role;
 grant execute on function public.track_b_f27_finalize(uuid, jsonb, text) to service_role;
 

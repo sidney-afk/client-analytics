@@ -47,7 +47,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `thumbnail-folder-resolve` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `thumbnail-revision-read` | [deploy-thumbnail](../../.github/workflows/deploy-thumbnail-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `thumbnail-revision-scan` | [deploy-thumbnail](../../.github/workflows/deploy-thumbnail-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
-| `workload-plan` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Post-merge operator deploy only; use `--no-verify-jwt` and exact-SHA fingerprint readback. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
+| `workload-plan` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Live v2 deployed by operator from `fd3e0eaa` on 2026-07-20; future redeploys require `--no-verify-jwt` and exact-SHA fingerprint readback. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 
 ## Regeneration
 

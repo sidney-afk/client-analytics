@@ -1,6 +1,6 @@
 # Linear — current truth
 
-> Last verified: 2026-07-19 @ fd3e0ea + F145 review branch (Production parent-link projection staged; live Linear state unchanged)
+> Last verified: 2026-07-20 @ fd3e0ea (Workload plan-date release live; Linear deadline remained unchanged in the private TEST drill)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -51,11 +51,12 @@
   unresolved or malformed links remain visible roots. Parent-only webhook changes remain
   refresh-eventual through the existing B1/reconcile path rather than becoming a new n8n dependency.
 - **Workload dates remain one-way from Linear:** `workload_issues.due_date` is the client deadline
-  displayed by Workload and the editable-plan candidate never writes it. Internal scheduling lives
-  separately in the source-only `workload_plan.plan_date` sidecar keyed by the stable sub-issue id;
+  displayed by Workload and the editable-plan path never writes it. Internal scheduling lives
+  separately in the live `workload_plan.plan_date` sidecar keyed by the stable sub-issue id;
   clearing that value restores exact due-date placement. No column is added to the B3-managed
   `workload_issues` mirror, and no Linear API, n8n bridge, reconciler, or due-date writer is added.
-  The sidecar migration and `workload-plan` Edge Function are not applied/deployed.
+  The sidecar migration and Admin/SMM-authenticated `workload-plan` Edge Function are live; release
+  readback proved the mirrored deadline byte-identical before/after the private TEST set/clear cycle.
 - The legacy n8n inbound receiver `MJbMZ789B5ExZz9x` is **inactive/unpublished**
   (`activeVersionId=null`). Its saved graph has A1/A2 routing and authority gates, but it is not a
   current real-time producer. Calendar/Samples status healing therefore depends on the scheduled

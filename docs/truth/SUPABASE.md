@@ -1,6 +1,6 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-19 @ f9b59e9 (Workload plan-date candidate inventoried; migration/function not deployed)
+> Last verified: 2026-07-20 @ fd3e0ea (Workload plan-date migration and exact-source function live; private TEST drill cleaned)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 ## Tables
@@ -38,11 +38,12 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   Referenced in code via `SXR_TABLE`.
 - `workload_issues` — **read-only mirror** of Linear (4 teams present: VID/GRA/CON/STR;
   56 messy `client_name` variants — normalize via `wlNormalizeClient()`).
-- `workload_plan` — **source-only internal sidecar**, keyed by stable sub-issue id, with normalized
+- `workload_plan` — **live internal sidecar**, keyed by stable sub-issue id, with normalized
   client scope, nullable `plan_date`, and server-owned update attribution/time. It intentionally has
-  no foreign key or added column on the rebuildable `workload_issues` mirror. The candidate migration
-  enables RLS, grants service role only, and exposes no browser PostgREST policy. It has not been
-  applied and the table is not claimed live.
+  no foreign key or added column on the rebuildable `workload_issues` mirror. The applied migration
+  enables RLS with zero policies, exposes no browser PostgREST privilege, and grants service role
+  only SELECT/INSERT/UPDATE; DELETE/TRUNCATE/REFERENCES/TRIGGER are explicitly revoked. Exact release
+  cleanup left the table empty.
 - `syncview_runtime_flags` — runtime kill-switches / migration routing. Values have different
   schemas and move during cutover; **never** assume they are all TEST-only. Read them live and
   reconcile with `ROLLBACK.md` plus `docs/independence/GO_LIVE_CHECKLIST.md` before an operation.
@@ -94,7 +95,7 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   the next pending baseline. That reaches open tabs through their existing realtime row and keeps
   later replacements detectable even when no SyncView write occurs.
 
-## Workload internal plan-date contract (source only)
+## Workload internal plan-date contract (live)
 
 - Linear `due_date` remains display-only in Workload. The new `workload_plan.plan_date` is an
   independent Admin/SMM-owned scheduling value keyed by the exact sub-issue id; clearing it falls
@@ -111,7 +112,9 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   Ordinary read failures retain a last-good snapshot with editing paused, while `401`/`403`
   responses purge the private plan projection instead of leaving revoked data visible.
 - This path has no n8n or Linear-write fallback and no runtime flag. The migration, function, and
-  browser caller are candidate source only; no database row, deployed function, or live flag changed.
+  browser caller are live. Release proof covered a pre-write `409 issue_not_writable` browser
+  revert/notify, Creative `403` on list and set, one actual-row save surviving a fresh list, clear to
+  due-date fallback, exact row cleanup, and unchanged runtime flags.
 
 ## Edge Functions
 
@@ -126,8 +129,9 @@ The #813 candidate does not broaden the workflow's current push paths: `linear-o
 deploys `linear-outbound` before `production-write`, so the provider contract precedes its caller;
 an ordinary merge can deploy neither function.
 
-Live set in `docs/truth/ENDPOINTS.md`. Source now represents 28 functions; the new
-`workload-plan` function is source-only and not deployed. It is intentionally absent from
+Live set in `docs/truth/ENDPOINTS.md`. Source and live inventory now represent 28 functions;
+`workload-plan` is ACTIVE v2 with the four-file deployed source closure byte-identical to merge
+`fd3e0eaa`. It is intentionally absent from
 `supabase/config.toml`, because that shared file is a push trigger for the unrelated thumbnail
 deploy workflow; the post-merge operator deploy uses explicit `--no-verify-jwt` instead. The
 existing onboarding deploy Action covers 8 push-safe functions plus 2 guarded manual-only

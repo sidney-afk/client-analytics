@@ -102,25 +102,34 @@ enrollment or cutover approval, and current `main` remains governed by the F101 
 
 ### Dormant rollout stance
 
-This remains an additive, authority-gated draft. No Edge Function or browser bundle
-was deployed for this gap closure, no Linear write was used as evidence, and no runtime
-flag changed. With production authority still Linear/Linear and the independent legacy
-parity allowance disabled, an enrolled real client's native intake fails closed; unlisted
-real clients remain on MAIN's F44 durable-receipt legacy path. The existing service-only TEST
-override remains the only pre-flip bypass; browser staff/client credentials cannot self-enter
-TEST scope. The owner controls deployment and any later authority/outbound change separately.
+PR #850 merged the browser callers, and pinned run `29601466479` deployed `production-write` v24
+after `linear-outbound` v33 with both fingerprints passing. The lane remains dark: the reroute
+allowlist was last verified TEST-only, production authority remains Linear/Linear, and the
+independent legacy-parity allowance remains disabled. A reroute-enrolled real client's native
+intake therefore fails closed; unlisted real clients remain on `main`'s F44 durable-receipt legacy
+path. The existing service-only TEST override remains the only pre-flip bypass; browser staff/client
+credentials cannot self-enter TEST scope. Neither #850's release evidence nor this reconciliation
+used a real-client/Linear write or changed a runtime flag. Any later enrollment, authority, parity,
+or outbound change remains individually owner-gated with its exact change and rollback.
 
 ### Current-main release gate â€” F101
 
-Until the candidate is merged and reverified, the later `main` audit remains authoritative:
+The merged implementation satisfies six structural points, and Calendar Create Post itself emits
+the paired deliverables. F101 remains OPEN because the same shipped Submit contract still exposes
+single-team Advanced intake:
 
-- [ ] Create Post is invoked per-client from the calendar (client implicit).
-- [ ] Create Post offers **latest-batch (default)** vs **new-batch**.
-- [ ] Each post creates **both** a Video and a Graphics sub-issue under the chosen batch.
-- [ ] Sub-issues file into the correct **per-team mapped project** (video vs graphics).
-- [ ] The **new-batch** path reuses Submit's native intake (parent + deliverables).
-- [ ] Batch creation works from **both** Submit and Create Post.
-- [ ] No free-form issue/sub-issue creation surface exists in the Linear tab.
+- [x] Create Post is invoked per-client from the calendar (client implicit).
+- [x] Create Post offers **latest-batch (default)** vs **new-batch**.
+- [ ] **Every intake entry** creates both a Video and a Graphics sub-issue under the chosen batch;
+  Calendar does, but Advanced Submit still permits Video-only or Thumbnail-only.
+- [x] Sub-issues file into the correct **per-team mapped project** (video vs graphics).
+- [x] The **new-batch** path reuses Submit's native intake engine (parent + deliverables).
+- [x] Batch creation works from **both** Submit and Create Post.
+- [x] No free-form issue/sub-issue creation surface exists in the Linear tab.
+
+Do not enroll a real client until the unchecked shared-intake contract is closed, or the owner
+ratifies a deliberate single-team exception plus explicit active/N/A semantics across every
+consumer.
 
 ### Current implementation correction — F101
 

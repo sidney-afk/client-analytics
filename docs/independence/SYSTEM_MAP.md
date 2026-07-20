@@ -312,9 +312,12 @@ n8n in the metric read path.*
   defined, zero fetch sites; delete is an archive-upsert). `linear-tweak-comments` is **not** a
   calendar endpoint (it's Workload's). The URGENT-marker write bypasses the routing flag, so an EF
   outage breaks sent-state persistence even for n8n-routed clients.
-- **Track B.** Part 2 status/comments are gateway-routed and cache/queue retirement is coded in the
-  stacked draft; no caller bundle is deployed yet. Continuous `*_deliverable_id` linkage remains
-  the native target. At each
+- **Track B.** #850 merged the Part-2 callers and current Pages serves them dark. For the last
+  verified TEST-only `write_ui_reroute_clients` cohort, status/comments await the authenticated
+  `production-write` gateway; unlisted real clients remain on the exact legacy lane. Pinned run
+  `29601466479` deployed `linear-outbound` v33 before `production-write` v24 with both source
+  fingerprints passing. No real client is enrolled, and no current runtime value is inferred from
+  this dated deployment evidence. Continuous `*_deliverable_id` linkage remains the native target. At each
   B4 team flip: four link-predicate families re-point, name-sync activates, and deliverable comments
   use the normalized `production_comments` issue thread; caption/title-only notes with no
   deliverable remain card-local. B5: link columns inert.

@@ -7,9 +7,10 @@
 > source recon records current seams at `07d123d` and makes no browser or live
 > execution claim. The remediation addendum records controlled synthetic-browser
 > Calendar evidence at `86fe60c` separately from one source-only staff Analytics
-> finding; draft #891 candidate `baa4ebf` is unmerged and cloud review is pending.
+> finding. Exact-head source review of unmerged draft #891 candidate `baa4ebf`
+> then found two release-control gaps; remediation and fresh cloud review are pending.
 > Current status and remediation live in
-> `docs/independence/CUTOVER_AUDIT_2026-07-13.md` (F149–F172) and
+> `docs/independence/CUTOVER_AUDIT_2026-07-13.md` (F149–F174) and
 > `docs/truth/BRIEFING.md`; do not edit this audit to track later fixes.
 
 ## Evidence lock
@@ -26,7 +27,8 @@
 | Publication revalidation | Root causes were rechecked in source and the high-confidence browser counterexamples were repeated with synthetic fixtures at `f00da65341797ec55f2f9a0d53b97e6bccd7056f`; `index.html` is byte-identical at the publication base `c722984cb86f66a6f14cba210e38963ac4779b0f` |
 | Publication source-only expansion | Targeted current-source census at `07d123d` registered F163–F169 and expanded F29/F45/F130/F138/F152/F162. It made no browser/backend request and used no live data, identity, credential, secret body, or write. |
 | Remediation controlled expansion | Controlled synthetic-browser Calendar sequences at current-source base `86fe60c` registered F170–F171: held primary/ancillary work, no-load exit, pagehide, real persisted BFCache, and visible client A → B replacement. All traffic and writes were intercepted; no live data, identity, credential, flag, backend, or live writer was used. |
-| Remediation source-only expansion | Source inspection at `86fe60c` and draft #891 candidate `baa4ebf` registered F172. It made no browser/backend request and claims no runtime frequency. The candidate is unmerged and cloud review is pending. |
+| Remediation source-only expansion | Source inspection at `86fe60c` and draft #891 candidate `baa4ebf` registered F172. It made no browser/backend request and claims no runtime frequency. The candidate is unmerged; its exact-head review later registered the separate F173/F174 blockers below. |
+| Remediation-review source-only expansion | Exact-head source review of draft #891 candidate `baa4ebf` registered F173–F174. No courier or browser command was run; no token was resolved; and no credential, request/response body, live data, flag, backend or writer was read or changed. The review blocks that candidate pending remediation and a fresh exact-head review. |
 
 The browser harness intercepted external requests and returned fictional data.
 It exercised cold and warm boot, hard reload, a second reload, browser Back and
@@ -107,7 +109,8 @@ Calendar lifetime failures against current-source base `86fe60c`, then one
 separately labelled source-only staff Analytics gap. The controlled browser used
 only fictional clients/rows and intercepted all reads and writer calls. Draft
 #891 candidate `baa4ebf` was inspected as a proposed guard; it is unmerged and
-exact-head cloud review is pending, so none of these rows is closed here.
+exact-head cloud review found the separately registered F173/F174 blockers, so
+none of these rows is closed here.
 
 | Addendum ID | Sev | Observation | Evidence | Durable owner |
 |---|---|---|---|---|
@@ -117,6 +120,11 @@ exact-head cloud review is pending, so none of these rows is closed here.
 | Addendum ID | Sev | Source-only observation | Source seams | Durable owner |
 |---|---|---|---|---|
 | RS-01 | P1 | Staff Analytics bootstrap has no document/BFCache run or abort lease. Current main has no bootstrap run owner; draft #891 adds one only for client links, passes `null` for staff, and its suspension handler exits for staff. No browser reproduction or runtime-frequency claim is made. | Current-main `fetchAll()`/bootstrap at `index.html:8320-8330`, `:41918`; unmerged candidate `fetchAll(_isClientLink ? clientEntryRun : null)` and `_syncviewSuspendClientEntry()` at `baa4ebf` | F172 |
+
+| Addendum ID | Sev | Remediation-review source-only observation | Source seams | Durable owner |
+|---|---|---|---|---|
+| RR-01 | P1 | The EF write-path courier is newly coupled to the protected TEST client token but writes request and response bodies to undeleted files, passes URLs and headers through a shell-built curl command, and returns command-bearing execution errors. The intended client-entry drill can therefore leave or expose credential-bearing material on the runner. No token or command was exercised. | Unmerged `baa4ebf`: `qa/ef-writepath/lib.js:32`, `:97-113`, `:343`, `:386`; strict client preflight/body and EF header attachment in `index.html` | F173 |
+| RR-02 | P1 | The read-first overnight protocol still prescribes a client Samples URL with no token and with a query key forbidden by the strict candidate. It will be rejected before reaching the intended client surface, so following the operative recipe cannot prove the client-entry boot boundary. No browser run or token resolution was performed. | Unmerged `baa4ebf`: `.claude/skills/overnight-test/SKILL.md:92-98`; strict envelope in `index.html`; canonical builder in `qa/test-client-entry.js:39-51` | F174 |
 
 ## Existing findings that overlap but were not renumbered
 
@@ -287,7 +295,8 @@ The passing tests did not contradict the browser findings:
 1. **Client-facing entry first:** F149 plus the already-open F102/F117 P0
    boundaries, followed by the newly reproduced Calendar lifetime and
    cross-client continuation boundaries in F170/F171. Draft #891 is only a
-   candidate until exact-head cloud review and owner merge.
+   candidate until F173/F174 are remediated, the corrected exact head passes
+   fresh cloud review, and the owner merges.
 2. **Silent failure class:** F151, F152, F158, F163–F169, and the expanded
    F29/F45/F130/F138 owners. A transport, envelope, schema, completeness, or
    deadline failure must fail visibly, preserve last-good data only when
@@ -351,9 +360,12 @@ A boot/history fix is complete only when:
 - RA-01/RA-02 are controlled synthetic-browser evidence from the remediation
   phase; they do not claim production frequency or a live client/write. RS-01
   (F172) is source-only and still needs a staff-browser reproduction.
+- RR-01/RR-02 (F173/F174) are source-only exact-head review findings. No
+  courier/browser command, protected token, real request/response or live write
+  was used, and no production occurrence or runtime frequency is claimed.
 - Draft #891 candidate `baa4ebf` is cited only as the inspected proposed guard.
-  It is unmerged and exact-head cloud review is pending, so it does not close
-  F170 or F171 and does not remediate F172.
+  It is unmerged; exact-head review blocked it on F173/F174 pending remediation
+  and fresh review, so it does not close F170 or F171 and does not remediate F172.
 - Whether Back should traverse replace-only filters and Kasper subtabs remains a
   product policy question. Losing a supplied deep link, showing two active
   routes, or restoring a hybrid page is a defect regardless of that decision.

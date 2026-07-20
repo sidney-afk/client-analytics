@@ -353,6 +353,14 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       legacy Samples links retain the verified client principal, and Calendar/Brief reloads never
       expose Analytics chrome or data. Prove the visible sequence from document start through
       settlement on synthetic fixtures, including hard reload and second reload.
+- [ ] **Client-entry live QA preserves the protected TEST credential and the strict route contract**
+      (F173/F174): token-bearing courier requests/responses remain fileless and in memory; the
+      protected token, URL and headers never enter process arguments, temp residue, command-bearing
+      errors or logs. Operative overnight instructions resolve the current TEST token only through
+      the protected issuer/staff-key path and build only canonical `c,t,v[,sxr]` routes through the
+      shared helper—never a literal token, credential-bearing URL or `v2debug` client route. Guard
+      success and forced-failure residue/error paths with synthetic markers, then drive the actual
+      visible TEST client route; fail closed when a current token is unavailable.
 - [ ] **Calendar lifetime and ancillary work have one exact-client owner** (F170/F171/F162):
       one generation owns the primary read, Linear reconcile/meta continuations, realtime
       channel/timers, loader state and deferred render until all tails settle. Client/route/no-load

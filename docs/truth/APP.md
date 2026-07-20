@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch (Workload five-day deadline-timeline merged; F138 current-source correction; boot/refresh/history/read-truth register reconciled through F172; live plan-date backend unchanged)
+> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch (Workload five-day deadline-timeline and thumbnail-preview follow-up merged; F138 current-source correction; boot/refresh/history/read-truth register reconciled through F174; live plan-date backend unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.

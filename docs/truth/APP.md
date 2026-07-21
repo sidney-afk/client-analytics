@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; continued exact-head review of draft #891 `02105e9` with audit companion `3189203` (Workload five-day deadline-timeline and thumbnail-preview follow-up merged; F138 current-source correction; boot/refresh/history/read-truth register reconciled through F182; live plan-date backend unchanged)
+> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; continued exact-head cloud source review of draft #891 through `59022d`, reconfirmed at current candidate `93fc297` (Workload five-day deadline-timeline and thumbnail-preview follow-up merged; F138 current-source correction; boot/refresh/history/read-truth register reconciled through F183; live plan-date backend unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -35,7 +35,21 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   of F178 and inert, no-payload-execution substitution proof of F179; no real token/staff/API key,
   external network, backend/API, live data or writer was used. F175/F176 and F178–F182 remain merge
   blockers pending remediation and post-remediation exact-head review. F177 is the docs-only
-  correction of the former stale review-status wording.
+  correction of the former stale review-status wording. Continued cloud source review at PR #891
+  `59022d` expanded F176/F179: `run-probes` still reconstructs the staff issuer key into every
+  manually selected probe, including non-client probes, and selector handling lets a valid
+  component mask empty/unknown components instead of rejecting the complete value. Candidate
+  `93fc297` remediation is in progress and unmerged. No credential, browser, backend or live
+  scenario was used for that added evidence.
+- F183 is the client Brief async-lifetime boundary found by the same post-F182 cloud source review
+  at `59022d` and reconfirmed at `93fc297`. `_syncviewPurgeClientEntrySurface` zeroes
+  `briefPollingState` and `tabSummaryCache` without first clearing retained polling intervals or
+  aborting tab-summary controllers. After pagehide/BFCache capability revocation, detached work can
+  therefore complete into global Brief state, local cache and render paths. The candidate is
+  unmerged; F183 stays OPEN until its intervals/controllers are generation-owned and cancelled
+  before state reset, every late mutation proves currentness, the actual visible held-response
+  Brief pagehide/BFCache guard passes, exact-head cloud review is clean, and the owner merges.
+  No browser, backend, token, live data or write was used for the finding.
 
 ## Calendar
 
@@ -62,7 +76,7 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   Controlled synthetic-browser evidence held client A's v1 reconcile, switched visibly to B, and
   reproduced an intercepted stale write enqueued against B. Draft #891 candidate `02105e9` adds the
   proposed generation/abort/realtime/exit/BFCache guard, but it is unmerged. Exact-head source
-  review completed and found F175/F176 and F178–F182; remediation plus post-remediation review
+  continued review found F175/F176 and F178–F183; remediation plus post-remediation review
   remain pending, so neither Calendar row is closed.
 - Cards with a single Drive-file thumbnail group their IDs into authenticated, bounded (maximum 50)
   availability calls to `thumbnail-revision-read`. That projection returns only the IDs with a real

@@ -177,8 +177,23 @@ Everything below is shared by every surface; per-surface sections only note devi
   transports outside the common guard (F180–F182). Evidence is source-only except for isolated
   local synthetic Python/Playwright proof of F178 and inert, no-payload-execution substitution
   proof of F179; no real token/staff/API key, external network, backend/API, live data or writer
-  was used. F177 is the completed docs-only review-status correction. The draft is blocked pending
-  F175/F176 and F178–F182 remediation plus post-remediation exact-head review.
+  was used. F177 is the completed docs-only review-status correction. Post-F182 cloud source review
+  at PR #891 `59022d` expanded F176 because `run-probes` still reconstructs the staff issuer key
+  into every manually selected probe, including non-client probes, and expanded F179 because a
+  valid selector component can mask empty/unknown components instead of failing the complete
+  manual input. Candidate `93fc297` remediation is in progress and unmerged; no credential,
+  browser, backend or live scenario was used for that added evidence. The draft is blocked pending
+  F175/F176 and F178–F183 remediation plus post-remediation exact-head review.
+- **Client Brief async lifetime boundary (F183; post-F182 exact-head cloud source review at PR #891
+  `59022d`, reconfirmed at candidate `93fc297`).** `_syncviewPurgeClientEntrySurface()` clears
+  `briefPollingState` and `tabSummaryCache` without first clearing the polling intervals retained
+  by the old state or aborting the controllers created by `fetchTabSummary()`. Pagehide/BFCache
+  capability revocation can therefore discard the cancellation handles while detached Brief jobs
+  continue into global state, cache/localStorage and render mutations. Remediation must cancel
+  intervals/controllers under the exact client-entry generation before zeroing state, make every
+  late mutation prove currentness, and drive the actual visible Brief pagehide/persisted-BFCache
+  held-response sequence. No browser, backend, token, live data or write was used for the finding;
+  keep F183 OPEN through post-remediation exact-head cloud review and owner merge.
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
   constant declared *before* the main Supabase URL constant (TDZ avoidance) — that is why §7 counts
   "19 literal + 4 composed" Edge Functions.
@@ -335,7 +350,7 @@ n8n in the metric read path.*
   reconcile released after a visible switch to B reproduced mutation of B plus an intercepted
   Calendar write enqueue under B. Draft #891 candidate `02105e9` adds the proposed
   generation-owned abort/realtime/exit/BFCache guards, but it is unmerged. Exact-head source
-  review completed and found F175/F176 and F178–F182; remediation plus post-remediation review
+  continued review found F175/F176 and F178–F183; remediation plus post-remediation review
   remain pending, so current truth remains open.
 - **Retirement warning (F104).** The former Phase-4 checklist is quarantined: it falsely treated the
   opt-out and fallback branches as unreachable and would also remove the v2 metadata reader's

@@ -367,13 +367,19 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       route. Each exact browser process resolves and holds its token in memory; no token is exported
       through `GITHUB_ENV` or `process.env`. Manual `workflow_dispatch` filters are exact-allowlisted
       and passed as inert data to a Node entrypoint with fixed argv, never expression-substituted
-      into shell; the staff issuer key exists only inside the exact resolver process and is stripped
-      from every child. Guard success, forced failure and abrupt exit with synthetic URL/header/key/
+      into shell. Validate the complete selector set before loading a live harness: reject empty,
+      unknown, duplicate, partial-match and mixed-valid-invalid components; one valid component
+      cannot mask one invalid component. `run-probes` must classify client-entry capability before
+      spawn and must not reconstruct the staff issuer key into every manually selected probe;
+      non-client probes receive neither issuer key nor client token. The staff issuer key exists
+      only inside the exact resolver process and is stripped from every other child. Guard success,
+      forced failure and abrupt exit with synthetic URL/header/key/
       body/metacharacter markers across argv, files, errors, stdout/stderr, runner tails and residue;
       the injection guard executes no payload. Then drive the actual visible TEST client route and
       fail closed when a current token is unavailable. Exact-head review of draft #891 `02105e9`
-      completed and found F175/F176 and F178–F182. Every open row requires remediation and
-      post-remediation exact-head cloud review.
+      completed and found F175/F176 and F178–F182. Post-F182 cloud source review at `59022d`
+      expanded F176/F179; current candidate `93fc297` remediation is in progress and unmerged.
+      Every open row requires remediation and post-remediation exact-head cloud review.
 - [ ] **Calendar lifetime and ancillary work have one exact-client owner** (F170/F171/F162):
       one generation owns the primary read, Linear reconcile/meta continuations, realtime
       channel/timers, loader state and deferred render until all tails settle. Client/route/no-load
@@ -382,6 +388,17 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       mutation, cache/meta persist, suppression token, writer enqueue or repaint. Draft #891 remains
       a candidate: exact-head review of `02105e9` completed with F175/F176 and F178–F182 blockers,
       so their remediation, post-remediation cloud review and owner merge are still required.
+- [ ] **Client Brief async work is revoked with its client-entry capability** (F183/F162): every
+      Brief polling interval and tab-summary request controller belongs to the current client-entry
+      generation. Client replacement, invalidation, pagehide and BFCache suspension clear/abort
+      those exact owners before `briefPollingState` or `tabSummaryCache` is zeroed; every late
+      response, cache/localStorage write, global mutation and render proves the same current run.
+      Drive the actual visible client Brief pagehide → persisted-BFCache sequence with poll and
+      tab-summary responses held, revoke the old owner, release both late, prove zero stale
+      mutation/cache/paint, then prove exactly one healthy fresh generation. Source review found
+      this at PR #891 `59022d` and reconfirmed it at candidate `93fc297`; no browser/backend/token/
+      live-data/write evidence was used. Keep OPEN until post-remediation exact-head cloud review
+      and owner merge.
 - [ ] **Boot reads fail visibly and terminate**
       (F151/F152/F158/F163/F164/F165/F166/F167/F168/F169): HTTP 4xx/5xx,
       parseable error envelopes, malformed 200 responses, offline prerequisites and never-settling

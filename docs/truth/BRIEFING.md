@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; continued exact-head cloud source review of draft #891 through `59022d`, reconfirmed at current candidate `93fc297` (current-state reconciliation through F183; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release and #889 grouping/group drag served with F147/F148 evidence follow-ups; thumbnail-preview follow-up merged as #897; boot/refresh/history/read-truth audit registered as F149–F183; coverage state in docs/testing/ASSURANCE_LEDGER.md)
+> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; PR #891 current unmerged remediation candidate `13c042b` plus continued cloud source review through `adb1bca` (current-state reconciliation through F184; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release and #889 grouping/group drag served with F147/F148 evidence follow-ups; thumbnail-preview follow-up merged as #897; boot/refresh/history/read-truth audit registered as F149–F184; coverage state in docs/testing/ASSURANCE_LEDGER.md)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -118,7 +118,7 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   later failed fast + interaction while heavy/review-packet passed. The PR-head and merge trees are
   identical, so the red run is not evidence of an F145 code delta, but current-main test health
   remains open.
-- The public-safe boot/refresh/history/read-truth audit owns F149–F183. Client entry remains first:
+- The public-safe boot/refresh/history/read-truth audit owns F149–F184. Client entry remains first:
   F102/F117 plus the Calendar/Brief wrong-shell refresh in F149. Browser-proven silent read failures
   and indefinite boot states are F151/F152/F158; staff data, Back/Forward and deep-link continuity
   are F150/F153/F154; F155–F161 cover lower-severity route consistency. Publication-time
@@ -148,16 +148,28 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   (expanded F179). It also added F183: client Brief purge clears polling/summary state without
   first cancelling the retained intervals/controllers, so late pagehide/BFCache work can mutate
   cache, state or visible output after capability revocation. Source inspection reconfirmed F183
-  at current candidate `93fc297`; candidate remediation is in progress and unmerged. That later
-  review used no browser, backend, token, live data or write.
-  F175/F176 and F178–F183 require remediation plus a post-remediation exact-head cloud review
-  before the owner may merge #891.
+  at then-current candidate `93fc297`. Current unmerged candidate `13c042b` passed local `npm test`
+  149/149 and both direct and master visible boot lanes 22/22. Its real pagehide /
+  `pageshow.persisted` Brief guard retired polling, delayed/active summaries and both Brief-sheet
+  reads before one fresh generation; its synthetic issuer registry matched 37 nightly probes plus
+  one temporal probe with zero excess/missing. An independent local exact-head rereview of the
+  submitted remediation delta reported no P0/P1/P2. None of that is cloud review.
+  A prior cloud source review at `adb1bca`, reconfirmed unchanged at `13c042b`, added F184: the
+  unconditional legacy-queue startup plus focus/pageshow/online/visible/timer triggers can read or
+  replay residual staff/session Calendar, Samples, Linear and intake debt on any client-link
+  document before strict verification settles. It is distinct from F171 and remains unremediated.
+  Those F183/F184 source reviews used no browser, backend, token, live data or write.
+  F175/F176 and F178–F184 remain OPEN; F184 remediation plus post-remediation exact-head cloud review
+  are required before the owner may merge #891.
   Every remediation must satisfy F162 with a browser guard that observes the
   actual visible sequence from document start through visible failure, keyboard/touch Retry, and
   recovery. Calendar guards must also hold and release real primary/ancillary/realtime work across
   no-load exit, A → B replacement, pagehide and persisted pageshow. The Brief guard must hold its
   poll and tab-summary responses across actual pagehide/persisted BFCache, release them late, and
-  prove zero stale mutation/cache/paint plus exactly one fresh owner. A settled-page assertion or
+  prove zero stale mutation/cache/paint plus exactly one fresh owner. F184 must seed synthetic
+  persisted debt and drive startup plus every resume trigger on missing/invalid/rotated and valid
+  client links, proving zero read/drain/replay/deletion before exactly one verified staff owner.
+  A settled-page assertion or
   source check does not close a boot finding.
 - F140 is owner-ratified and fixed on the review branch: Samples matches Calendar, so Kasper may
   stack change requests and then Finish hands the card to the SMM. The strict Finish gate remains;

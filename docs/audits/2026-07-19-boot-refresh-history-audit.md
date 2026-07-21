@@ -13,15 +13,18 @@
 > `02105e9` with audit companion `3189203` found seven further
 > release-harness gaps. A later exact-head cloud source review at PR #891
 > commit `59022d` expanded F176/F179 and found the client Brief async-lifetime
-> gap F183; source inspection reconfirmed it at current candidate `93fc297`.
-> Candidate remediation is in progress and unmerged. Remediation and a
-> post-remediation exact-head review are pending; the stale current-truth review wording found in the same
+> gap F183; source inspection reconfirmed it at then-current candidate
+> `93fc297`. Current unmerged remediation candidate `13c042b` is locally green,
+> including the real BFCache Brief-lifetime sequence, but this is not cloud
+> review. A prior cloud source review at `adb1bca`, reconfirmed at `13c042b`,
+> separately found F184's pre-verification legacy-queue replay path. Remediation
+> and a post-remediation exact-head cloud review are pending; the stale current-truth review wording found in the same
 > pass is corrected by this documentation update. The only non-source evidence
 > in that continued review is isolated local synthetic Python/Playwright proof
 > of the access/error/log propagation and inert, no-payload-execution
 > substitution proof of the workflow-expression injection shape.
 > Current status and remediation live in
-> `docs/independence/CUTOVER_AUDIT_2026-07-13.md` (F149–F183) and
+> `docs/independence/CUTOVER_AUDIT_2026-07-13.md` (F149–F184) and
 > `docs/truth/BRIEFING.md`; do not edit this audit to track later fixes.
 
 ## Evidence lock
@@ -41,7 +44,9 @@
 | Remediation source-only expansion | Source inspection at `86fe60c` and draft #891 candidate `baa4ebf` registered F172. It made no browser/backend request and claims no runtime frequency. The candidate is unmerged; its exact-head review later registered the separate F173/F174 blockers below. |
 | First remediation-review source-only expansion | Exact-head source review of draft #891 candidate `baa4ebf` registered F173–F174. No courier or browser command was run; no token was resolved; and no credential, request/response body, live data, flag, backend or writer was read or changed. |
 | Second and continued remediation-review expansion | Exact-head source review completed on draft #891 candidate `02105e9` with audit companion `3189203`. Source inspection confirmed the candidate corrections for F173/F174, then registered F175–F182. The only non-source execution was isolated local synthetic proof: Python access logging plus a Playwright `goto` failure for F178, and inert command-shape substitution with no payload execution for F179. It used no real token or staff key, external network, backend/API, live data, flag or writer and read no protected credential/header value or real request/response body. F175/F176 and F178–F182 block merge pending remediation and post-remediation review; F177 is resolved by the current-truth correction in this documentation change. |
-| Post-F182 exact-head cloud source review | Cloud source review at PR #891 commit `59022d` expanded F176/F179 and registered F183; source inspection reconfirmed F183 at current candidate `93fc297`. It found that the shared probe runner reattached the staff issuer key to every manually selected probe, that scenario selector handling allowed a valid component to mask empty/unknown components, and that purging client Brief state lost live polling/controller handles without terminating their work. No browser, backend, token, credential value, live data or write was used or executed. Candidate remediation is in progress, unmerged, and cannot close any row before post-remediation exact-head cloud review and owner merge. |
+| Post-F182 exact-head cloud source review | Cloud source review at PR #891 commit `59022d` expanded F176/F179 and registered F183; source inspection reconfirmed F183 at then-current candidate `93fc297`. It found that the shared probe runner reattached the staff issuer key to every manually selected probe, that scenario selector handling allowed a valid component to mask empty/unknown components, and that purging client Brief state lost live polling/controller handles without terminating their work. No browser, backend, token, credential value, live data or write was used or executed. |
+| Current unmerged remediation candidate — local evidence only | PR #891 exact head `13c042b` passed `npm test` 149/149, direct visible boot 22/22 and `qa/master` boot 22/22. The added Brief scenario used real pagehide and `pageshow.persisted === true`, held polling plus tab-summary and both Brief-sheet responses, proved retirement/late-release denial, and observed one fresh generation. A synthetic issuer registry matched 37 nightly client-entry probes plus one temporal probe with zero excess/missing. An independent local exact-head rereview of the submitted remediation delta reported no P0/P1/P2 findings. This is not cloud review and made no live/backend/credential/write claim. |
+| Continued exact-head cloud source review | A prior cloud source review at PR #891 `adb1bca`, reconfirmed unchanged at current `13c042b`, registered F184: `_writeUiResumeLegacyQueues('startup')` and its focus/pageshow/online/visible/timer triggers run on any client-link document before strict verification can settle, so residual same-origin staff/legacy debt can be read or replayed. This source-only finding used no browser, backend, token, live data or write. It remains OPEN; the locally green candidate and local rereview do not clear it. |
 
 The browser harness intercepted external requests and returned fictional data.
 It exercised cold and warm boot, hard reload, a second reload, browser Back and
@@ -130,9 +135,16 @@ proof on F179; no protected credential, external network, backend/API, live
 data or writer was used. The draft remains unmerged; F170/F171 stay open, while
 F177 closes only the stale current-truth wording corrected in this documentation
 change. A later exact-head cloud source review at PR #891 commit `59022d`
-expanded F176/F179 and found F183; source inspection reconfirmed F183 at current
-candidate `93fc297`. That later review used no browser, backend, token, live data
-or write, and candidate remediation remains in progress and unmerged.
+expanded F176/F179 and found F183; source inspection reconfirmed F183 at
+then-current candidate `93fc297`. Current unmerged candidate `13c042b` carries
+local remediation and passed 149/149 unit suites plus both direct and master
+visible boot lanes at 22/22. Its real pagehide / `pageshow.persisted` Brief guard
+and synthetic 37-nightly-plus-one-temporal issuer registry passed, and an
+independent local exact-head rereview of the submitted remediation delta reported
+no P0/P1/P2 findings. This is not cloud review. A prior exact-head cloud source
+review at `adb1bca`, reconfirmed at `13c042b`, separately found F184, so the
+candidate remains blocked and unmerged. Neither source review used a browser,
+backend, token, live data or write.
 
 | Addendum ID | Sev | Observation | Evidence | Durable owner |
 |---|---|---|---|---|
@@ -155,7 +167,8 @@ or write, and candidate remediation remains in progress and unmerged.
 | RR-08 | P1 | The full-quota navigation probe implements its own courier: it serializes the intercepted URL and headers into shell curl argv, writes each request body and response headers to predictable runner files, and does not remove those files. This bypasses the shared hardened transport and its guard. No probe/helper command, request body, response header or credential was run or read. | Unmerged `02105e9`: `qa/probes/p94_nav_full_quota.js:12-37` | F180 |
 | RR-09 | P1 | Two EF write-path helpers retain direct shell/file transports outside the common guard. The drift checker puts its REST URL and authorization headers into curl argv, while the settings safety-restore writes the restore body to a runner file, shells out to curl, leaves the file behind, and can print a command-bearing error. No helper command, key/header value, body, backend data or writer was run or read. | Unmerged `02105e9`: `qa/ef-writepath/21-drift-check.js:9-18`, `:34-36`; `qa/ef-writepath/13-settings.js:64-75` | F181 |
 | RR-10 | P1 | The optional vision API backend puts `ANTHROPIC_API_KEY` in curl argv, writes the screenshot-plus-prompt request payload to a runner file, and returns `execSync`'s command-bearing message on failure. `finally` cleanup does not protect the argv/error surface or abrupt termination before unlink. No API key, screenshot/body, helper command or API response was read or exercised. | Unmerged `02105e9`: `qa/vision_judge.js:84-124` | F182 |
-| RR-11 | P1 | `_syncviewPurgeClientEntrySurface()` clears `briefPollingState` and `tabSummaryCache` without first clearing the polling intervals held by the former state or aborting the per-request controllers created by `fetchTabSummary()`. Pagehide/BFCache capability revocation can therefore lose the cancellation handles while detached polls and summary requests continue into late global-state, cache/localStorage and render mutations. This was source-only: no browser, backend, token, live data or write was used. | Unmerged PR #891 `59022d`: `index.html:7626-7660`, `:8820-8868`, `:42638-42649`; source reconfirmed at current candidate `93fc297` | F183 |
+| RR-11 | P1 | `_syncviewPurgeClientEntrySurface()` clears `briefPollingState` and `tabSummaryCache` without first clearing the polling intervals held by the former state or aborting the per-request controllers created by `fetchTabSummary()`. Pagehide/BFCache capability revocation can therefore lose the cancellation handles while detached polls and summary requests continue into late global-state, cache/localStorage and render mutations. This was source-only: no browser, backend, token, live data or write was used. | Unmerged PR #891 `59022d`: `index.html:7626-7660`, `:8820-8868`, `:42638-42649`; source reconfirmed at then-current candidate `93fc297` | F183 |
+| RR-12 | P1 | `_writeUiResumeLegacyQueues('startup')` and its focus/pageshow/online/visible/timer listeners run on every client-link document while strict verification is pending or can fail. Residual same-origin Calendar/Samples/Linear/intake repair debt from a prior staff/session context can therefore be read, drained or replayed before an invalid/rotated link reaches terminal UI. This is persisted cross-session queue ownership, distinct from F171's held client-A Calendar continuation. Source review established reachability only; it did not execute a browser, backend, token, live data or write. | Unmerged PR #891 `adb1bca`, reconfirmed at current `13c042b`: `_writeUiResumeLegacyQueues()` and lifecycle registrations at `index.html:48334-48382` | F184 |
 
 ## Existing findings that overlap but were not renumbered
 
@@ -328,9 +341,10 @@ The passing tests did not contradict the browser findings:
    cross-client continuation boundaries in F170/F171 and source-only client
    Brief async-lifetime boundary F183. Draft #891 exact head `02105e9` carries
    the F173/F174 source corrections, but continued review through `59022d`
-   found F175/F176 and F178–F183. Current candidate `93fc297` remains unmerged
-   with remediation in progress. It remains only a candidate until those rows
-   are remediated, the corrected exact head passes post-remediation cloud
+   found F175/F176 and F178–F183. Current candidate `13c042b` carries locally
+   green remediation, but continued cloud source review owns the still-present
+   F184 pre-verification queue replay path. It remains only a candidate until
+   F184 is remediated, every open row passes post-remediation exact-head cloud
    review, and the owner merges. F177 is the resolved documentation-truth
    correction from that review.
 2. **Silent failure class:** F151, F152, F158, F163–F169, and the expanded
@@ -384,6 +398,10 @@ A boot/history fix is complete only when:
 - a held Brief poll and tab-summary response released across actual visible
   pagehide → persisted BFCache restore produces zero stale mutation/paint and
   exactly one healthy replacement generation;
+- no client-link document—valid, missing, invalid or rotated—reads or drains
+  staff/legacy persisted retry debt on startup, focus, online, visibility,
+  timer or real persisted-BFCache resume; that debt remains byte-for-byte until
+  exactly one current verified staff-session owner resumes it;
 - staff Analytics bootstrap work is aborted/replaced with the document/BFCache
   generation before any late global-data, cache or render continuation;
 - the QA lane records early frames and transitions, not only settled DOM.
@@ -402,22 +420,24 @@ A boot/history fix is complete only when:
 - RA-01/RA-02 are controlled synthetic-browser evidence from the remediation
   phase; they do not claim production frequency or a live client/write. RS-01
   (F172) is source-only and still needs a staff-browser reproduction.
-- RR-01 through RR-11 (F173–F183) are exact-head review findings. They are
+- RR-01 through RR-12 (F173–F184) are exact-head review findings. They are
   source-only except for isolated local synthetic Python/Playwright proof of
   F178's access/`goto`-error/log propagation and inert, no-payload-execution
   substitution proof of F179's workflow-expression injection. No protected
   token, staff/API key, external network, backend/API, real request/response,
   live data or live write was used, and no production occurrence or runtime
-  frequency is claimed. The later F176/F179 expansion and F183 evidence are
+  frequency is claimed. The later F176/F179 expansion and F183/F184 evidence are
   source-only; no browser, backend, credential, live scenario, live data or
   write was used for that review.
-- Draft #891 candidates `baa4ebf`, `02105e9`, `59022d` and `93fc297` are cited
-  only as inspected, unmerged source. `02105e9` carries the F173/F174 source
+- Draft #891 candidates `baa4ebf`, `02105e9`, `59022d`, `93fc297`, `adb1bca`
+  and `13c042b` are cited only as inspected, unmerged source. `02105e9` carries the F173/F174 source
   corrections, while continued review through `59022d` found F175/F176 and
-  F178–F183. Candidate `93fc297` remediation remains in progress and unmerged.
-  Those rows require remediation and a post-remediation review; F177 is
+  F178–F183. Candidate `13c042b` carries local remediation for those rows but
+  remains affected by F184. Local 149/149 plus 22/22 direct/master boot and a
+  local no-P0/P1/P2 rereview are not cloud review. F184 requires remediation and
+  all open rows require post-remediation exact-head cloud review; F177 is
   resolved by this docs-only correction. The draft still does not close
-  F170/F171 or remediate F172, and F183 stays open through owner merge.
+  F170/F171 or remediate F172, and every candidate row stays open through owner merge.
 - Whether Back should traverse replace-only filters and Kasper subtabs remains a
   product policy question. Losing a supplied deep link, showing two active
   routes, or restoring a hybrid page is a defect regardless of that decision.

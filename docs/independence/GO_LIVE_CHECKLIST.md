@@ -378,16 +378,19 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       the injection guard executes no payload. Then drive the actual visible TEST client route and
       fail closed when a current token is unavailable. Exact-head review of draft #891 `02105e9`
       completed and found F175/F176 and F178–F182. Post-F182 cloud source review at `59022d`
-      expanded F176/F179; current candidate `93fc297` remediation is in progress and unmerged.
-      Every open row requires remediation and post-remediation exact-head cloud review.
+      expanded F176/F179; then-current `93fc297` began remediation. Current unmerged candidate
+      `13c042b` passed `npm test` 149/149. Its synthetic issuer registry matched all 37 nightly
+      client-entry probes plus one temporal probe with zero excess/missing. This is local evidence,
+      not cloud review; every open row still requires exact-head cloud review and owner merge.
 - [ ] **Calendar lifetime and ancillary work have one exact-client owner** (F170/F171/F162):
       one generation owns the primary read, Linear reconcile/meta continuations, realtime
       channel/timers, loader state and deferred render until all tails settle. Client/route/no-load
       replacement and pagehide abort/revoke that exact owner; persisted pageshow starts exactly one
       fresh epoch. Hold A's reconcile/meta, switch visibly to B, release A, and prove zero B
       mutation, cache/meta persist, suppression token, writer enqueue or repaint. Draft #891 remains
-      a candidate: exact-head review of `02105e9` completed with F175/F176 and F178–F182 blockers,
-      so their remediation, post-remediation cloud review and owner merge are still required.
+      a candidate: current `13c042b` is locally green at 22/22 direct and master visible boot, but
+      F184 remains unremediated; post-remediation exact-head cloud review and owner merge are still
+      required.
 - [ ] **Client Brief async work is revoked with its client-entry capability** (F183/F162): every
       Brief polling interval and tab-summary request controller belongs to the current client-entry
       generation. Client replacement, invalidation, pagehide and BFCache suspension clear/abort
@@ -396,9 +399,22 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       Drive the actual visible client Brief pagehide → persisted-BFCache sequence with poll and
       tab-summary responses held, revoke the old owner, release both late, prove zero stale
       mutation/cache/paint, then prove exactly one healthy fresh generation. Source review found
-      this at PR #891 `59022d` and reconfirmed it at candidate `93fc297`; no browser/backend/token/
-      live-data/write evidence was used. Keep OPEN until post-remediation exact-head cloud review
-      and owner merge.
+      this at PR #891 `59022d` and reconfirmed it at then-current candidate `93fc297`; no browser/
+      backend/token/live-data/write evidence was used for the finding. Current candidate `13c042b`
+      passed this exact real pagehide / `pageshow.persisted` sequence in both 22/22 direct and
+      master boot lanes, proving old work retired and exactly one fresh generation; this is
+      synthetic local evidence, not cloud review. Keep OPEN until exact-head cloud review and
+      owner merge.
+- [ ] **Client links never resume staff/legacy persisted debt before verification** (F184/F162):
+      gate startup plus focus/pageshow/online/visible/timer queue recovery behind a current verified
+      staff-session generation. Missing, invalid, rotated and valid client links must not read,
+      drain, replay or delete residual Calendar/Samples Linear outboxes, Calendar jobs, source
+      repairs or native intake from a prior same-origin staff/session context. Seed synthetic debt,
+      drive every trigger including real `pageshow.persisted`, and prove zero queue/network/state
+      activity through terminal client UI; then enter a verified synthetic staff session and prove
+      exactly one deferred recovery owner. Cloud source review found this at `adb1bca` and
+      reconfirmed it unchanged at current `13c042b`; no browser/backend/token/live-data/write was
+      used. Keep OPEN pending remediation, exact-head cloud review and owner merge.
 - [ ] **Boot reads fail visibly and terminate**
       (F151/F152/F158/F163/F164/F165/F166/F167/F168/F169): HTTP 4xx/5xx,
       parseable error envelopes, malformed 200 responses, offline prerequisites and never-settling

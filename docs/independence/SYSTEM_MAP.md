@@ -181,19 +181,39 @@ Everything below is shared by every surface; per-surface sections only note devi
   at PR #891 `59022d` expanded F176 because `run-probes` still reconstructs the staff issuer key
   into every manually selected probe, including non-client probes, and expanded F179 because a
   valid selector component can mask empty/unknown components instead of failing the complete
-  manual input. Candidate `93fc297` remediation is in progress and unmerged; no credential,
-  browser, backend or live scenario was used for that added evidence. The draft is blocked pending
-  F175/F176 and F178–F183 remediation plus post-remediation exact-head review.
+  manual input. Then-current candidate `93fc297` began remediation. Current unmerged candidate
+  `13c042b` uses an exact issuer-capability registry; a synthetic census matched 37 nightly
+  client-entry probes plus one temporal probe with zero excess/missing, and `npm test` passed
+  149/149. No credential, browser, backend or live scenario was used for the finding; this local
+  follow-up is not cloud review. The draft is blocked pending F184 remediation plus
+  post-remediation exact-head cloud review and owner merge.
 - **Client Brief async lifetime boundary (F183; post-F182 exact-head cloud source review at PR #891
-  `59022d`, reconfirmed at candidate `93fc297`).** `_syncviewPurgeClientEntrySurface()` clears
+  `59022d`, reconfirmed at then-current candidate `93fc297`).** `_syncviewPurgeClientEntrySurface()` clears
   `briefPollingState` and `tabSummaryCache` without first clearing the polling intervals retained
   by the old state or aborting the controllers created by `fetchTabSummary()`. Pagehide/BFCache
   capability revocation can therefore discard the cancellation handles while detached Brief jobs
   continue into global state, cache/localStorage and render mutations. Remediation must cancel
   intervals/controllers under the exact client-entry generation before zeroing state, make every
   late mutation prove currentness, and drive the actual visible Brief pagehide/persisted-BFCache
-  held-response sequence. No browser, backend, token, live data or write was used for the finding;
-  keep F183 OPEN through post-remediation exact-head cloud review and owner merge.
+  held-response sequence. Current unmerged candidate `13c042b` passed direct and master visible
+  boot 22/22; its real pagehide / `pageshow.persisted` guard held polling, summary and Brief-sheet
+  reads, denied late global/cache/localStorage/render mutation, and settled one fresh generation.
+  An independent local exact-head rereview of the submitted remediation delta reported no
+  P0/P1/P2. No browser, backend, token, live data or write was used for the original finding, and
+  the synthetic local proof is not cloud review; keep F183 OPEN through exact-head cloud review
+  and owner merge.
+- **Pre-verification legacy-queue replay boundary (F184; exact-head cloud source review at PR #891
+  `adb1bca`, reconfirmed unchanged at current `13c042b`).** Every document installs startup,
+  focus, pageshow, online, visible and timer calls into `_writeUiResumeLegacyQueues()`. On a client
+  link these can run while strict verification is pending or after it fails, reading or replaying
+  residual same-origin Calendar/Samples Linear outboxes, Calendar card jobs, source-repair debt and
+  native intake from a prior staff/session context. F184 is distinct from F171's stale in-memory
+  client-A continuation: this is persisted cross-session retry-debt ownership without a verified
+  principal. Gate every trigger behind current staff verification; client documents must not read,
+  drain or delete staff debt. Add a visible seeded-debt guard across invalid/rotated/valid client
+  entry and every resume trigger, followed by exactly one verified staff recovery owner. The
+  source-only finding used no browser, backend, token, live data or write. F184 remains OPEN and
+  blocks merge pending remediation, exact-head cloud review and owner merge.
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
   constant declared *before* the main Supabase URL constant (TDZ avoidance) — that is why §7 counts
   "19 literal + 4 composed" Edge Functions.
@@ -350,7 +370,7 @@ n8n in the metric read path.*
   reconcile released after a visible switch to B reproduced mutation of B plus an intercepted
   Calendar write enqueue under B. Draft #891 candidate `02105e9` adds the proposed
   generation-owned abort/realtime/exit/BFCache guards, but it is unmerged. Exact-head source
-  continued review found F175/F176 and F178–F183; remediation plus post-remediation review
+  continued review found F175/F176 and F178–F184; F184 remediation plus post-remediation review
   remain pending, so current truth remains open.
 - **Retirement warning (F104).** The former Phase-4 checklist is quarantined: it falsely treated the
   opt-out and fallback branches as unreachable and would also remove the v2 metadata reader's

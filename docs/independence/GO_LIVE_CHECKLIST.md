@@ -369,19 +369,27 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       and passed as inert data to a Node entrypoint with fixed argv, never expression-substituted
       into shell. Validate the complete selector set before loading a live harness: reject empty,
       unknown, duplicate, partial-match and mixed-valid-invalid components; one valid component
-      cannot mask one invalid component. `run-probes` must classify client-entry capability before
-      spawn and must not reconstruct the staff issuer key into every manually selected probe;
-      non-client probes receive neither issuer key nor client token. The staff issuer key exists
-      only inside the exact resolver process and is stripped from every other child. Guard success,
+      cannot mask one invalid component. For Samples, validate `scn` once against the union of the
+      flat and tree catalogs, then give each lane only its exact matches and let a catalog with no
+      matches skip cleanly; reject union-unknown selectors before loading either live harness.
+      `run-probes` must classify client-entry capability before spawn and must not reconstruct the
+      staff issuer key into every manually selected probe. Its census must inventory every executable
+      selection path—not only a manifest—including workflow-direct `sxr_client_persist_guard.js`,
+      whose `sxr_courier_lib.client()` call requires the issuer capability. Non-client probes receive
+      neither issuer key nor client token. The staff issuer key exists only inside the exact resolver
+      process and is stripped from every other child. Guard success,
       forced failure and abrupt exit with synthetic URL/header/key/
       body/metacharacter markers across argv, files, errors, stdout/stderr, runner tails and residue;
       the injection guard executes no payload. Then drive the actual visible TEST client route and
       fail closed when a current token is unavailable. Exact-head review of draft #891 `02105e9`
       completed and found F175/F176 and F178–F182. Post-F182 cloud source review at `59022d`
       expanded F176/F179; then-current `93fc297` began remediation. Current unmerged candidate
-      `13c042b` passed `npm test` 149/149. Its synthetic issuer registry matched all 37 nightly
-      client-entry probes plus one temporal probe with zero excess/missing. This is local evidence,
-      not cloud review; every open row still requires exact-head cloud review and owner merge.
+      `13c042b` passed local `npm test` 149/149. Its synthetic issuer census reported exact agreement
+      for the 37 nightly manifest-derived probes plus one temporal probe it inspected, but exact-head
+      cloud source review (review `4741233371`; comments `3619424490`, `3619424493`) found the omitted
+      workflow-direct Samples probe under F176 and the cross-catalog selector defect under F179.
+      Both are blockers at `13c042b`; the earlier local no-finding rereview is not cloud clearance.
+      Every open row still requires remediation, exact-head cloud review and owner merge.
 - [ ] **Calendar lifetime and ancillary work have one exact-client owner** (F170/F171/F162):
       one generation owns the primary read, Linear reconcile/meta continuations, realtime
       channel/timers, loader state and deferred render until all tails settle. Client/route/no-load
@@ -389,8 +397,8 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       fresh epoch. Hold A's reconcile/meta, switch visibly to B, release A, and prove zero B
       mutation, cache/meta persist, suppression token, writer enqueue or repaint. Draft #891 remains
       a candidate: current `13c042b` is locally green at 22/22 direct and master visible boot, but
-      F184 remains unremediated; post-remediation exact-head cloud review and owner merge are still
-      required.
+      exact-head cloud review returned F176/F179 blockers and F184 remains unremediated; their
+      remediation, post-remediation exact-head cloud review and owner merge are still required.
 - [ ] **Client Brief async work is revoked with its client-entry capability** (F183/F162): every
       Brief polling interval and tab-summary request controller belongs to the current client-entry
       generation. Client replacement, invalidation, pagehide and BFCache suspension clear/abort
@@ -403,16 +411,19 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       backend/token/live-data/write evidence was used for the finding. Current candidate `13c042b`
       passed this exact real pagehide / `pageshow.persisted` sequence in both 22/22 direct and
       master boot lanes, proving old work retired and exactly one fresh generation; this is
-      synthetic local evidence, not cloud review. Keep OPEN until exact-head cloud review and
-      owner merge.
+      synthetic local evidence, not cloud review. Exact-head cloud review of the same candidate
+      returned the separate F176/F179 blockers. Keep OPEN until exact-head cloud review and owner
+      merge.
 - [ ] **Client links never resume staff/legacy persisted debt before verification** (F184/F162):
-      gate startup plus focus/pageshow/online/visible/timer queue recovery behind a current verified
-      staff-session generation. Missing, invalid, rotated and valid client links must not read,
-      drain, replay or delete residual Calendar/Samples Linear outboxes, Calendar jobs, source
-      repairs or native intake from a prior same-origin staff/session context. Seed synthetic debt,
-      drive every trigger including real `pageshow.persisted`, and prove zero queue/network/state
-      activity through terminal client UI; then enter a verified synthetic staff session and prove
-      exactly one deferred recovery owner. Cloud source review found this at `adb1bca` and
+      gate startup plus focus/pageshow/online/visible/timer queue recovery behind an exact current
+      principal generation. Before strict client verification, inspect no persisted queue. After a
+      valid client-A verdict, only matching-slug/client-principal Calendar/Samples retry rows may
+      drain; foreign-B, empty/unknown and staff-owned rows plus every Calendar job, source/Kasper
+      repair and native-intake queue remain byte-identical. Seed all four debt classes, drive every
+      trigger including real `pageshow.persisted`, and prove zero activity before the verdict, only
+      eligible A recovery afterward, and no stale BFCache post/mutation. Then enter a fresh verified
+      synthetic staff session and prove exactly one deferred staff recovery owner. Cloud source
+      review found the pre-verification defect at `adb1bca` and
       reconfirmed it unchanged at current `13c042b`; no browser/backend/token/live-data/write was
       used. Keep OPEN pending remediation, exact-head cloud review and owner merge.
 - [ ] **Boot reads fail visibly and terminate**

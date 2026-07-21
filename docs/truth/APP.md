@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; PR #891 current unmerged remediation candidate `13c042b` plus continued cloud source review through `adb1bca` (Workload five-day deadline-timeline and thumbnail-preview follow-up merged; F138 current-source correction; boot/refresh/history/read-truth register reconciled through F184; live plan-date backend unchanged)
+> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; PR #891 exact-head cloud review at current unmerged candidate `13c042b` (review `4741233371`; comments `3619424490`, `3619424493`) plus preserved F184 cloud evidence from `adb1bca` (Workload five-day deadline-timeline and thumbnail-preview follow-up merged; F138 current-source correction; boot/refresh/history/read-truth register reconciled through F184; live plan-date backend unchanged)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -39,11 +39,20 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `59022d` expanded F176/F179: `run-probes` still reconstructs the staff issuer key into every
   manually selected probe, including non-client probes, and selector handling lets a valid
   component mask empty/unknown components instead of rejecting the complete value. Then-current
-  candidate `93fc297` began remediation. Current unmerged candidate `13c042b` uses an exact
-  probe-capability registry and retains complete-set selector rejection; local `npm test` passed
-  149/149, and a synthetic census matched 37 nightly client-entry probes plus one temporal probe
-  with zero excess/missing. No credential, browser, backend or live scenario was used for the
-  original finding; the local follow-up is not cloud review.
+  candidate `93fc297` began remediation. Current unmerged candidate `13c042b` passed local
+  `npm test` 149/149. Its earlier synthetic census reported exact agreement for the 37 nightly
+  manifest-derived client-entry probes plus one temporal probe it inspected, and its local
+  selector contracts rejected empty/mixed-known-unknown/substring/metacharacter inputs. Exact-head
+  cloud source review of `13c042b` (review `4741233371`; comments `3619424490`, `3619424493`)
+  nevertheless returned two P1 blockers. F176's registry/census omits workflow-direct
+  `sxr_client_persist_guard.js`; that scheduled Samples probe calls `sxr_courier_lib.client()` but
+  receives no staff issuer key. F179 passes the same `scn` to the flat and tree runners, while each
+  runner independently requires every term in its own catalog; a legitimate catalog-specific
+  selector therefore fails the sibling lane. Validate once against the union, run only each lane's
+  exact matches, let a no-match sibling skip cleanly, and reject a truly unknown selector before
+  loading the live harness. No credential, browser, backend or live scenario was used for the
+  source findings. The earlier local follow-up and no-finding rereview were not cloud review and do
+  not clear F176 or F179.
 - F183 is the client Brief async-lifetime boundary found by the same post-F182 cloud source review
   at `59022d` and reconfirmed at then-current `93fc297`. `_syncviewPurgeClientEntrySurface` zeroed
   `briefPollingState` and `tabSummaryCache` without first clearing retained polling intervals or
@@ -60,9 +69,12 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   visible/timer triggers run on every client-link document before strict verification settles, so
   persisted same-origin Calendar/Samples/Linear/intake debt from a prior staff/session context can
   be read or replayed before an invalid/rotated client link reaches terminal UI. This is distinct
-  from F171's held client-A continuation. Gate every resume owner behind current staff verification;
-  client-link documents must leave staff debt untouched. F184 is unremediated and blocks merge
-  pending an actual visible synthetic-debt lifecycle guard, exact-head cloud review and owner merge.
+  from F171's held client-A continuation. Gate every resume owner behind an exact current principal
+  generation: inspect no queue before strict client verification; after verification, permit only
+  matching-slug/client-principal Calendar or Samples rows, leaving foreign/unknown/staff debt and
+  every staff-only job/repair/intake queue untouched. Staff-wide recovery requires a currently
+  verified identity/session. F184 is unremediated and blocks merge pending an actual visible
+  synthetic-debt lifecycle guard, exact-head cloud review and owner merge.
   The finding is source-only; no browser, backend, token, live data or write was used.
 
 ## Calendar
@@ -90,8 +102,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   Controlled synthetic-browser evidence held client A's v1 reconcile, switched visibly to B, and
   reproduced an intercepted stale write enqueued against B. Draft #891 candidate `02105e9` adds the
   proposed generation/abort/realtime/exit/BFCache guard, but it is unmerged. Exact-head source
-  continued review found F175/F176 and F178–F184; F184 remediation plus post-remediation review
-  remain pending, so neither Calendar row is closed.
+  continued review found F175/F176 and F178–F184; exact-head cloud review of `13c042b` returned
+  unresolved F176/F179 blockers, and F184 remains unremediated. Their remediation plus
+  post-remediation review remain pending, so neither Calendar row is closed.
 - Cards with a single Drive-file thumbnail group their IDs into authenticated, bounded (maximum 50)
   availability calls to `thumbnail-revision-read`. That projection returns only the IDs with a real
   Previous/Current pair, so the **Compare** icon stays absent otherwise; it returns no signed URLs or

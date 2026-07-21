@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; PR #891 current unmerged remediation candidate `13c042b` plus continued cloud source review through `adb1bca` (current-state reconciliation through F184; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release and #889 grouping/group drag served with F147/F148 evidence follow-ups; thumbnail-preview follow-up merged as #897; boot/refresh/history/read-truth audit registered as F149–F184; coverage state in docs/testing/ASSURANCE_LEDGER.md)
+> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; PR #891 exact-head cloud review at current unmerged candidate `13c042b` (review `4741233371`; comments `3619424490`, `3619424493`) plus preserved F184 cloud evidence from `adb1bca` (current-state reconciliation through F184; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release and #889 grouping/group drag served with F147/F148 evidence follow-ups; thumbnail-preview follow-up merged as #897; boot/refresh/history/read-truth audit registered as F149–F184; coverage state in docs/testing/ASSURANCE_LEDGER.md)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -151,24 +151,39 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   at then-current candidate `93fc297`. Current unmerged candidate `13c042b` passed local `npm test`
   149/149 and both direct and master visible boot lanes 22/22. Its real pagehide /
   `pageshow.persisted` Brief guard retired polling, delayed/active summaries and both Brief-sheet
-  reads before one fresh generation; its synthetic issuer registry matched 37 nightly probes plus
-  one temporal probe with zero excess/missing. An independent local exact-head rereview of the
-  submitted remediation delta reported no P0/P1/P2. None of that is cloud review.
+  reads before one fresh generation. Its earlier synthetic issuer census reported 37 nightly
+  manifest-derived probes plus one temporal probe with zero differences inside that incomplete
+  inventory. Exact-head cloud source review of `13c042b` (review `4741233371`; comments
+  `3619424490`, `3619424493`) returned two P1 blockers without creating new rows: F176 now also
+  owns workflow-direct `sxr_client_persist_guard.js`, which sits outside that census, calls
+  `sxr_courier_lib.client()`, and receives no issuer capability in scheduled Samples; F179 now also
+  owns the one-selector/two-catalog defect, where flat and tree runners each require every term to
+  exist in their own catalog, so a legitimate flat-only or tree-only selector fails its sibling
+  lane. The earlier independent local exact-head rereview reported no P0/P1/P2, but it was not
+  cloud review and did not clear either blocker.
   A prior cloud source review at `adb1bca`, reconfirmed unchanged at `13c042b`, added F184: the
   unconditional legacy-queue startup plus focus/pageshow/online/visible/timer triggers can read or
   replay residual staff/session Calendar, Samples, Linear and intake debt on any client-link
   document before strict verification settles. It is distinct from F171 and remains unremediated.
-  Those F183/F184 source reviews used no browser, backend, token, live data or write.
-  F175/F176 and F178–F184 remain OPEN; F184 remediation plus post-remediation exact-head cloud review
-  are required before the owner may merge #891.
+  Those F176/F179/F183/F184 source reviews used no browser, backend, token, live data or write.
+  F175/F176 and F178–F184 remain OPEN; F176/F179/F184 remediation plus post-remediation exact-head
+  cloud review are required before the owner may merge #891.
   Every remediation must satisfy F162 with a browser guard that observes the
   actual visible sequence from document start through visible failure, keyboard/touch Retry, and
   recovery. Calendar guards must also hold and release real primary/ancillary/realtime work across
   no-load exit, A → B replacement, pagehide and persisted pageshow. The Brief guard must hold its
   poll and tab-summary responses across actual pagehide/persisted BFCache, release them late, and
-  prove zero stale mutation/cache/paint plus exactly one fresh owner. F184 must seed synthetic
-  persisted debt and drive startup plus every resume trigger on missing/invalid/rotated and valid
-  client links, proving zero read/drain/replay/deletion before exactly one verified staff owner.
+  prove zero stale mutation/cache/paint plus exactly one fresh owner. F176 must census the union of
+  manifests, workflow-direct lists and master selections, then drive the workflow-selected
+  `sxr_client_persist_guard` through visible TEST Samples boot with one exact resolver owner. F179
+  must validate once against the flat/tree union, run only exact per-lane matches, skip the empty
+  sibling cleanly, and reject union-unknown input before harness load while driving valid flat-only,
+  tree-only and shared selectors on the matching visible TEST route. F184 must seed matching A,
+  foreign B, unknown and staff-only synthetic debt and drive startup plus every resume trigger on
+  missing/invalid/rotated and valid-A client links. Prove zero queue activity before the verdict;
+  after A verifies, only eligible A Calendar/Samples rows may drain, all other debt stays
+  byte-identical, stale BFCache work cannot post or mutate, and staff-wide recovery has exactly one
+  fresh verified staff owner.
   A settled-page assertion or
   source check does not close a boot finding.
 - F140 is owner-ratified and fixed on the review branch: Samples matches Calendar, so Kasper may

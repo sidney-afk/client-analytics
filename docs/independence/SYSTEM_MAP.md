@@ -182,11 +182,20 @@ Everything below is shared by every surface; per-surface sections only note devi
   into every manually selected probe, including non-client probes, and expanded F179 because a
   valid selector component can mask empty/unknown components instead of failing the complete
   manual input. Then-current candidate `93fc297` began remediation. Current unmerged candidate
-  `13c042b` uses an exact issuer-capability registry; a synthetic census matched 37 nightly
-  client-entry probes plus one temporal probe with zero excess/missing, and `npm test` passed
-  149/149. No credential, browser, backend or live scenario was used for the finding; this local
-  follow-up is not cloud review. The draft is blocked pending F184 remediation plus
-  post-remediation exact-head cloud review and owner merge.
+  `13c042b` passed local `npm test` 149/149; its synthetic issuer census reported exact agreement
+  for the 37 nightly manifest-derived probes plus one temporal probe it inspected. Exact-head cloud
+  source review of `13c042b` (review `4741233371`; comments `3619424490`, `3619424493`) showed that
+  inventory was incomplete: the Samples workflow directly selects `sxr_client_persist_guard.js`
+  outside the nightly-manifest census, the registry omits it, and the probe calls
+  `sxr_courier_lib.client()` without receiving the staff issuer key (expanded F176). The same
+  review found that `qa/master.js` passes one `scn` to both flat and tree, while each
+  `run_scenarios.js` invocation requires every term to match only its own catalog; legitimate
+  flat-only and tree-only selectors fail their sibling lane (expanded F179). Selector validity
+  must be decided once against the catalog union, after which each lane runs only its exact
+  matches or skips cleanly; a union-unknown selector must fail before the live harness loads.
+  No credential, browser, backend or live scenario was used for these source findings. The earlier
+  local no-finding rereview was not cloud review. The draft is blocked pending F176/F179/F184
+  remediation, post-remediation exact-head cloud review and owner merge.
 - **Client Brief async lifetime boundary (F183; post-F182 exact-head cloud source review at PR #891
   `59022d`, reconfirmed at then-current candidate `93fc297`).** `_syncviewPurgeClientEntrySurface()` clears
   `briefPollingState` and `tabSummaryCache` without first clearing the polling intervals retained
@@ -199,9 +208,10 @@ Everything below is shared by every surface; per-surface sections only note devi
   boot 22/22; its real pagehide / `pageshow.persisted` guard held polling, summary and Brief-sheet
   reads, denied late global/cache/localStorage/render mutation, and settled one fresh generation.
   An independent local exact-head rereview of the submitted remediation delta reported no
-  P0/P1/P2. No browser, backend, token, live data or write was used for the original finding, and
-  the synthetic local proof is not cloud review; keep F183 OPEN through exact-head cloud review
-  and owner merge.
+  P0/P1/P2, but the later exact-head cloud review returned the separate F176/F179 blockers above.
+  No browser, backend, token, live data or write was used for the original finding, and the
+  synthetic local proof is not cloud review; keep F183 OPEN through exact-head cloud review and
+  owner merge.
 - **Pre-verification legacy-queue replay boundary (F184; exact-head cloud source review at PR #891
   `adb1bca`, reconfirmed unchanged at current `13c042b`).** Every document installs startup,
   focus, pageshow, online, visible and timer calls into `_writeUiResumeLegacyQueues()`. On a client
@@ -209,9 +219,13 @@ Everything below is shared by every surface; per-surface sections only note devi
   residual same-origin Calendar/Samples Linear outboxes, Calendar card jobs, source-repair debt and
   native intake from a prior staff/session context. F184 is distinct from F171's stale in-memory
   client-A continuation: this is persisted cross-session retry-debt ownership without a verified
-  principal. Gate every trigger behind current staff verification; client documents must not read,
-  drain or delete staff debt. Add a visible seeded-debt guard across invalid/rotated/valid client
-  entry and every resume trigger, followed by exactly one verified staff recovery owner. The
+  principal. Gate every trigger behind an exact current principal generation. Before strict client
+  verification, inspect no queue; afterward, a client document may resume only matching-slug,
+  client-principal Calendar/Samples rows and must leave foreign/unknown/staff debt plus every
+  staff-only job/repair/intake queue untouched. Staff-wide recovery requires a currently verified
+  identity/session. Add a visible seeded A/B/unknown/staff-debt guard across invalid/rotated/valid
+  client entry and every resume trigger, proving only eligible A debt drains after A verifies and
+  stale BFCache work cannot post or mutate, followed by exactly one verified staff recovery owner. The
   source-only finding used no browser, backend, token, live data or write. F184 remains OPEN and
   blocks merge pending remediation, exact-head cloud review and owner merge.
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
@@ -370,8 +384,9 @@ n8n in the metric read path.*
   reconcile released after a visible switch to B reproduced mutation of B plus an intercepted
   Calendar write enqueue under B. Draft #891 candidate `02105e9` adds the proposed
   generation-owned abort/realtime/exit/BFCache guards, but it is unmerged. Exact-head source
-  continued review found F175/F176 and F178–F184; F184 remediation plus post-remediation review
-  remain pending, so current truth remains open.
+  continued review found F175/F176 and F178–F184. Exact-head cloud review of current candidate
+  `13c042b` returned unresolved F176/F179 blockers, while F184 remains unremediated; their
+  remediation plus post-remediation review remain pending, so current truth remains open.
 - **Retirement warning (F104).** The former Phase-4 checklist is quarantined: it falsely treated the
   opt-out and fallback branches as unreachable and would also remove the v2 metadata reader's
   `LINEAR_STATUSES_URL`. No flag, fallback, helper, workflow, or Sheet is retired without measured

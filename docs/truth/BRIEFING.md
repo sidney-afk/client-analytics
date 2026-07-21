@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; PR #891 exact-head cloud review at current unmerged candidate `13c042b` (review `4741233371`; comments `3619424490`, `3619424493`) plus preserved F184 cloud evidence from `adb1bca` (current-state reconciliation through F184; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release and #889 grouping/group drag served with F147/F148 evidence follow-ups; thumbnail-preview follow-up merged as #897; boot/refresh/history/read-truth audit registered as F149–F184; coverage state in docs/testing/ASSURANCE_LEDGER.md)
+> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; PR #891 current unmerged candidate `c9a79ef` passed local `npm test` 150/150 and actual visible boot 23/23, but exact-head cloud review `4741601566` / comment `3619744849` expanded F176 at the overnight runner; F179/F184 are locally remediated, all affected rows remain OPEN, and #891 is blocked pending F176 remediation, exact-head cloud re-review and owner merge (current-state reconciliation through F184; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release and #889 grouping/group drag served with F147/F148 evidence follow-ups; thumbnail-preview follow-up merged as #897; boot/refresh/history/read-truth audit registered as F149–F184; coverage state in docs/testing/ASSURANCE_LEDGER.md)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -148,42 +148,48 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   (expanded F179). It also added F183: client Brief purge clears polling/summary state without
   first cancelling the retained intervals/controllers, so late pagehide/BFCache work can mutate
   cache, state or visible output after capability revocation. Source inspection reconfirmed F183
-  at then-current candidate `93fc297`. Current unmerged candidate `13c042b` passed local `npm test`
-  149/149 and both direct and master visible boot lanes 22/22. Its real pagehide /
-  `pageshow.persisted` Brief guard retired polling, delayed/active summaries and both Brief-sheet
-  reads before one fresh generation. Its earlier synthetic issuer census reported 37 nightly
-  manifest-derived probes plus one temporal probe with zero differences inside that incomplete
-  inventory. Exact-head cloud source review of `13c042b` (review `4741233371`; comments
-  `3619424490`, `3619424493`) returned two P1 blockers without creating new rows: F176 now also
-  owns workflow-direct `sxr_client_persist_guard.js`, which sits outside that census, calls
-  `sxr_courier_lib.client()`, and receives no issuer capability in scheduled Samples; F179 now also
-  owns the one-selector/two-catalog defect, where flat and tree runners each require every term to
-  exist in their own catalog, so a legitimate flat-only or tree-only selector fails its sibling
-  lane. The earlier independent local exact-head rereview reported no P0/P1/P2, but it was not
-  cloud review and did not clear either blocker.
+  at then-current candidate `93fc297`. Candidate `13c042b` passed local `npm test` 149/149 and both
+  direct and master visible boot lanes 22/22, but exact-head cloud source review (review
+  `4741233371`; comments `3619424490`, `3619424493`) expanded F176 to the omitted workflow-direct
+  `sxr_client_persist_guard.js` issuer consumer and expanded F179 to the one-selector/two-catalog
+  defect.
   A prior cloud source review at `adb1bca`, reconfirmed unchanged at `13c042b`, added F184: the
   unconditional legacy-queue startup plus focus/pageshow/online/visible/timer triggers can read or
   replay residual staff/session Calendar, Samples, Linear and intake debt on any client-link
-  document before strict verification settles. It is distinct from F171 and remains unremediated.
-  Those F176/F179/F183/F184 source reviews used no browser, backend, token, live data or write.
-  F175/F176 and F178–F184 remain OPEN; F176/F179/F184 remediation plus post-remediation exact-head
+  document before strict verification settles. Current unmerged candidate `c9a79ef` locally closes
+  the previously known F176 probe-registry omission and remediates F179/F184; it passed 150/150
+  unit suites plus 23/23 actual visible boot groups.
+  Its registry contains the exact 39 registered probe consumers (37 manifest, one workflow-direct, one
+  temporal); selector validation uses the real flat/tree/visual union; and the F184 lane drives the
+  actual retry timeout, held finalizer lock, pagehide/BFCache cancellation and same-slug foreign
+  principal exclusion. Exact-head cloud source review of `c9a79ef` (review `4741601566`; comment
+  `3619744849`) returned one further P1 occurrence under existing F176, not a new row: when an
+  operator supplies `SYNCVIEW_STAFF_KEY`, `qa/overnight_runner.sh` retains it across its direct
+  process tree before probe classification. Follow-up local source tracing found the transitive
+  `qa/overnight_cron_chunk.sh` pass-through, unrelated helper inheritance and no declared broker
+  boundary for the legitimate scenario/master consumers.
+  The cloud review returned no separate F179/F184 thread, but all affected remediation rows remain OPEN until owner
+  merge. Those F176/F179/F183/F184 source reviews used no browser, backend, credential value, live
+  data or write. F175/F176 and F178–F184 remain OPEN; F176 runner remediation plus a new exact-head
   cloud review are required before the owner may merge #891.
   Every remediation must satisfy F162 with a browser guard that observes the
   actual visible sequence from document start through visible failure, keyboard/touch Retry, and
   recovery. Calendar guards must also hold and release real primary/ancillary/realtime work across
   no-load exit, A → B replacement, pagehide and persisted pageshow. The Brief guard must hold its
   poll and tab-summary responses across actual pagehide/persisted BFCache, release them late, and
-  prove zero stale mutation/cache/paint plus exactly one fresh owner. F176 must census the union of
-  manifests, workflow-direct lists and master selections, then drive the workflow-selected
-  `sxr_client_persist_guard` through visible TEST Samples boot with one exact resolver owner. F179
-  must validate once against the flat/tree union, run only exact per-lane matches, skip the empty
-  sibling cleanly, and reject union-unknown input before harness load while driving valid flat-only,
-  tree-only and shared selectors on the matching visible TEST route. F184 must seed matching A,
-  foreign B, unknown and staff-only synthetic debt and drive startup plus every resume trigger on
-  missing/invalid/rotated and valid-A client links. Prove zero queue activity before the verdict;
-  after A verifies, only eligible A Calendar/Samples rows may drain, all other debt stays
-  byte-identical, stale BFCache work cannot post or mutate, and staff-wide recovery has exactly one
-  fresh verified staff owner.
+  prove zero stale mutation/cache/paint plus exactly one fresh owner. F176 must retain the exact
+  manifest/workflow-direct probe census and also classify every direct process launch in both
+  operative overnight shells. Each shell captures then unsets the staff issuer and discards the
+  legacy token before any child. Only a registry-approved probe or an explicitly declared
+  scenario/master broker may restore the staff issuer, and only to the final operative Node
+  process—not a timeout/wrapper or argv/log/output. An offline actual-runner guard must prove
+  `sxr_client_persist_guard` plus scenario/master receive the staff issuer only, while staff-only,
+  Calendar, unknown/manual, cleanup, unit, server, timeout and Git children receive neither
+  credential; it must also exercise the cron handoff. Preserve the locally
+  green F179 union validation/lane partition guards for valid flat-only, tree-only and shared
+  selectors plus pre-loader rejection, and preserve F184's matching-A/foreign-B/unknown/staff-only
+  synthetic debt, real lifecycle triggers, held-lock, timeout/pagehide cancellation, byte-identity
+  and fresh-owner assertions. These local guards do not close their rows before owner merge.
   A settled-page assertion or
   source check does not close a boot finding.
 - F140 is owner-ratified and fixed on the review branch: Samples matches Calendar, so Kasper may

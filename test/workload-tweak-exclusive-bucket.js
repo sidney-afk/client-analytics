@@ -89,11 +89,11 @@ const wlDeadlineTagHtml = compile('wlDeadlineTagHtml', {
   wlDeadlineMeta,
   wlEscape: value => String(value),
 });
-const wlDeadlineFlagSvg = compile('wlDeadlineFlagSvg');
+const wlDeadlineDotHtml = compile('wlDeadlineDotHtml');
 const wlGroupDeadlineSummary = compile('wlGroupDeadlineSummary', { wlDeadlineMeta, wlDisplayDate });
 const wlGroupDeadlineHtml = compile('wlGroupDeadlineHtml', {
   wlGroupDeadlineSummary,
-  wlDeadlineFlagSvg,
+  wlDeadlineDotHtml,
   wlEscape: value => String(value),
 });
 const wlPriorityValue = compile('wlPriorityValue', { wlState });
@@ -335,8 +335,10 @@ check(/wl-deadline-tag is-red/.test(wlDeadlineTagHtml('2026-07-16', '2026-07-15'
     && mixedGroup.tone === '' && mixedGroup.mixed === true
     && missingGroup.tone === '' && missingGroup.mixed === true
     && /is-red/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-c', '2026-07-16')] : []))
-    && /is-mixed/.test(wlGroupDeadlineHtml([visualManual, visualAuto])),
-  'sub-issues own proximity color and a group inherits it only when every item shares one band');
+    && /wl-deadline-dot/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-d', '2026-07-16')] : []))
+    && !/<svg/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-e', '2026-07-16')] : []))
+    && wlGroupDeadlineHtml([visualManual, visualAuto]) === '',
+  'sub-issues own proximity color and only a homogeneous group inherits one quiet color dot');
 
 wlState.priorityByIssueId = new Map([[visualAuto.id, 1], [visualManual.id, 4]]);
 const urgentIcon = wlPriorityIconHtml(visualAuto);
@@ -496,7 +498,6 @@ const wlWeekDeadlineTracks = compile('wlWeekDeadlineTracks', {
 const wlTimelineSameDayHtml = compile('wlTimelineSameDayHtml', {
   wlDeadlineMeta,
   wlEscape: value => String(value),
-  wlDeadlineFlagSvg,
 });
 const wlRenderTimelineTrack = compile('wlRenderTimelineTrack', {
   wlPlanEditingEnabled: () => true,
@@ -504,7 +505,7 @@ const wlRenderTimelineTrack = compile('wlRenderTimelineTrack', {
   wlDeadlineMeta,
   wlEscape: value => String(value),
   wlFormatShort,
-  wlDeadlineFlagSvg,
+  wlDeadlineDotHtml,
   wlGroupUrgentHtml,
   wlGroupPlanOriginHtml,
   wlGroupDeadlineHtml,
@@ -540,7 +541,9 @@ const dueButtons = trackHtml.match(/<button type="button" class="workload-timeli
 check((trackHtml.match(/<line /g) || []).length === 2
     && [...trackHtml.matchAll(/<line [^>]*y1="([^"]+)"/g)].every(match => match[1] === '24')
     && dueButtons.length === 2
-    && dueButtons.every(button => !button.includes('draggable=')
+    && dueButtons.every(button => button.includes('wl-deadline-dot')
+      && !button.includes('<svg')
+      && !button.includes('draggable=')
       && !button.includes('data-wl-plan-drag')
       && !button.includes('data-wl-plan-group-drag'))
     && trackHtml.includes('data-wl-plan-group-drag="1"')
@@ -671,8 +674,7 @@ const visualRollupHtml = renderDayRollups([{
   count: 2,
   subs: [visualAuto, visualManual],
 }], '2026-07-17');
-check(visualRollupHtml.includes('Mixed deadline proximity')
-    && visualRollupHtml.includes('Urgent Linear priority')
+check(visualRollupHtml.includes('Urgent Linear priority')
     && visualRollupHtml.includes('automatically planned')
     && visualRollupHtml.includes('manually planned')
     && visualRollupHtml.includes(`data-wl-issue-id="${visualAuto.id}"`)
@@ -684,6 +686,7 @@ check(visualRollupHtml.includes('Mixed deadline proximity')
     && (visualRollupHtml.match(/data-wl-drag-handle="group"/g) || []).length === 1
     && !visualRollupHtml.includes('workload-plan-item-grip')
     && !/<summary class="workload-day-card-chip is-deadline-/.test(visualRollupHtml)
+    && !visualRollupHtml.includes('wl-deadline-summary')
     && !visualRollupHtml.includes('data-wl-plan-clear')
     && !visualRollupHtml.includes('workload-plan-reset')
     && !visualRollupHtml.includes('Use automatic plan'),
@@ -910,6 +913,40 @@ check(INDEX.includes('.workload-skeleton-grid.week { grid-template-columns: repe
     && INDEX.includes('.workload-weekdays.month { grid-template-columns: repeat(7, 1fr); }')
     && (INDEX.match(/overCapacity = wlDayOverCapacity\(subs\);/g) || []).length === 2,
   'source guard pins Monday-Friday Week geometry, seven-day period shifts, seven-column Month, and visible-row overload calculations');
+
+const deadlineTagRule = (INDEX.match(/\.wl-deadline-tag \{([^}]*)\}/) || [])[1] || '';
+const deadlineTimelineSource = grabFunc('renderWeekDeadlineTimeline');
+check(/\.workload-day-card-chip-count \{[^}]*color: var\(--text-primary\)[^}]*opacity: 1/.test(INDEX)
+    && INDEX.includes('html[data-theme="dark"] .workload-day-card-chip-count { color: var(--sv-fg-fff); }')
+    && deadlineTagRule
+    && !/(?:border|background|border-radius|padding)\s*:/.test(deadlineTagRule)
+    && /\.wl-deadline-tag::before \{[^}]*width: 7px[^}]*height: 7px[^}]*border-radius: 50%[^}]*background: currentColor/.test(INDEX)
+    && !INDEX.includes('function wlDeadlineFlagSvg('),
+  'group counts stay bright while deadline proximity uses borderless text and color dots instead of flags or pills');
+check(/\.workload-timeline-editor-banner \{[^}]*grid-column: 1 \/ -1[^}]*border-left: 4px solid/.test(INDEX)
+    && /workload-timeline-editor-banner[\s\S]*?workload-timeline-editor-kicker">Editor[\s\S]*?workload-timeline-editor-name[\s\S]*?editor\.dailySubs\.map/.test(deadlineTimelineSource)
+    && /\.workload-timeline-editor\.team-graphics \.workload-timeline-editor-banner \{[^}]*border-left-color: var\(--sv-border-d97706\)/.test(INDEX),
+  'Plan plus deadlines gives every editor a prominent full-width, team-accented lane banner above daily totals');
+
+const workloadRuntimeStart = INDEX.indexOf('const LINEAR_ISSUES_WEBHOOK');
+const workloadRuntimeEnd = INDEX.indexOf("let crSelectedClient = '';");
+const workloadRuntime = INDEX.slice(workloadRuntimeStart, workloadRuntimeEnd);
+const looseIssueSource = grabFunc('renderLooseIssueStrip');
+check(workloadRuntimeStart >= 0
+    && workloadRuntimeEnd > workloadRuntimeStart
+    && !/(?:\stitle\s*=["']|\.title\s*=|\sdata-tip\s*=)/.test(workloadRuntime)
+    && /data-wl-nav="prev" aria-label="Previous period"/.test(workloadRuntime)
+    && /workload-popover-item-cal" aria-label="Open in the content calendar"/.test(workloadRuntime)
+    && /workload-weekend-row[\s\S]*?aria-label="\$\{wlEscape\(accessible\)\}"/.test(weekendNoticeSource)
+    && /workload-chip[\s\S]*?aria-label="\$\{wlEscape\(accessible\)\}"/.test(looseIssueSource)
+    && /<button type="button" class="wl-now-card-total"[\s\S]*?aria-label="\$\{wlEscape\(totalLabel\)\}"/.test(workloadRuntime),
+  'Workload keeps accessible action context without hover-triggered title or data-tip tooltips');
+check(/workload-timeline-editor team-\$\{team\}" aria-label="\$\{wlEscape\(name\)\} editor"/.test(deadlineTimelineSource)
+    && /workload-timeline-editor-banner" role="heading" aria-level="3"/.test(deadlineTimelineSource)
+    && /wl-tweak-comment-body\.is-clamped:focus-visible/.test(INDEX)
+    && /setAttribute\('role', 'button'\)[\s\S]*?setAttribute\('tabindex', '0'\)[\s\S]*?setAttribute\('aria-expanded', 'false'\)/.test(workloadRuntime)
+    && /wlOnTweakCommentKey[\s\S]*?e\.key !== 'Enter'[\s\S]*?e\.key !== ' '/.test(workloadRuntime),
+  'editor lanes and expandable tweak comments retain named keyboard semantics after tooltip removal');
 
 console.log('\n' + (fail === 0 ? 'OVERALL: PASS' : `OVERALL: FAIL (${fail} failed)`));
 process.exit(fail === 0 ? 0 : 1);

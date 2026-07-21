@@ -107,7 +107,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   color, and shadow, and every item remains available instead of spilling or hiding.
 - Calendar hierarchy is date → editor → client → sub-issue. Editor blocks remain primary, each
   client starts as one collapsed `Client · N` chip, and only that client's sub-issues expand on
-  click. Expanded rows use the sub-issue title while the identifier stays in hover/popover context.
+  click. Expanded rows use the sub-issue title while the identifier stays in the accessible item
+  label and opened Linear context; Workload does not emit hover-triggered `title` or `data-tip`
+  tooltips.
   Within a client, render order uses native mirror sort order only when the whole group carries it;
   otherwise it derives identifier-number order. The order is never persisted.
 - Assigned active work with neither an internal work day nor a due date stays off the calendar and
@@ -132,12 +134,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   the directly opened popover for a manually planned sub-issue; it clears that override and reveals
   the deterministic automatic day.
 - Calendar chips and expanded issue rows use quiet sparkle/pin icons for automatic/manual placement;
-  mixed groups show icon counts instead of text badges. Deadline proximity remains visible without
-  opening a popover and measures the buffer from that issue's displayed plan day to its due day:
+  mixed groups show icon counts instead of text badges. Deadline proximity is a compact color dot,
+  remains visible without opening a popover, and measures the buffer from that issue's displayed
+  plan day to its due day:
   one day or less is red, two to three days is orange, and more than three days is green. Each
   expanded sub-issue owns its exact tone. A collapsed client group inherits a tone only when every
-  represented item has a deadline in the same band; mixed or missing deadlines keep the group
-  neutral.
+  represented item has a deadline in the same band; mixed or missing deadlines show no group-level
+  proximity marker. Expanded due/buffer copy is plain text with the same dot rather than a bordered
+  pill.
   Linear priority is a separate native-shape/native-color icon, best-effort enriched read-only from
   `deliverables.priority` by the issue's stable Linear UUID. Missing or failed enrichment hides the
   icon without blocking Workload; client difficulty is not represented.
@@ -146,7 +150,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   switches to Week and disables Month until **Plan only** is restored. Week is always the
   Monday-anchored five-column Monday-Friday range. Manual plan days and deadlines on Saturday or
   Sunday are never moved or hidden from truth: a compact weekend notice beside the calendar opens a
-  tray with the affected items and dates. Each editor/client plan group stays in one aligned row,
+  tray with the affected items and dates. A full-width, team-accented editor banner owns each set of
+  five daily capacity totals and its relationship rows. Each editor/client plan group stays in one
+  aligned row,
   with straight lines to outlined due-date endpoints. Different deadlines split into separate
   endpoints; work due on its planned day stays on the solid plan chip with a same-day marker rather
   than a duplicate. Due endpoints are display-only references and never add to capacity.

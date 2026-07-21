@@ -731,15 +731,19 @@ n8n in the metric read path.*
   in-progress, and tweaks sections precede the intact period/filter toolbar, default collapsed, and
   persist each browser's expansion preference. The toolbar sits directly above the calendar;
   undated work follows the calendar and unassigned lane at the bottom. Client chips and issue rows
-  expose quiet sparkle/pin auto/manual icons, deadline proximity measured from displayed plan day
-  to due day (red at one day or less, orange at two to three days, green beyond three), and a
+  expose quiet sparkle/pin auto/manual icons, compact color-dot deadline proximity measured from
+  displayed plan day to due day (red at one day or less, orange at two to three days, green beyond
+  three), and a
   separate native Linear priority icon when the `deliverables` join resolves. The tone belongs to
   each sub-issue and reaches a collapsed group only when every represented deadline shares one band;
-  mixed or missing deadlines leave the group neutral. The persistent **Plan only** / **Plan +
+  mixed or missing deadlines render no group-level proximity marker. Expanded due/buffer copy is
+  unboxed text, and Workload renderers do not emit hover-triggered `title` or `data-tip` tooltips.
+  The persistent **Plan only** / **Plan +
   deadlines** segmented control sits beside the client filter. Week is a Monday-anchored five-column
   Monday-Friday range; manual plan days and deadlines on the weekend remain discoverable, with their
   exact dates, through a compact calendar notice/tray and are never silently moved. **Plan +
-  deadlines** is Week-only and renders one aligned row per planned editor/client group, with straight
+  deadlines** is Week-only and gives each editor a full-width, team-accented lane banner before
+  rendering one aligned row per planned editor/client group, with straight
   plan-to-due lines, split due endpoints, and a same-day marker instead of a duplicate endpoint when
   plan and due share a day. Due endpoints are display-only and excluded from capacity; the solid
   plan source is the only counted copy. Admin/SMM drag starts only from the dedicated six-dot handle

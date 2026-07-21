@@ -828,3 +828,26 @@ All times are UTC unless noted.
   documentation. It adds no schema, migration, Edge Function, runtime flag, Linear writer, n8n
   workflow, plan-date cache, frozen-writer change, deployment, or live operation. Creative remains
   read-only, and the existing live `workload-plan` boundary is reused unchanged.
+
+## 2026-07-20 — Workload display feedback polish (candidate source only)
+
+- **SMM feedback removes hover noise and clarifies compact signals.** Workload renderers no longer
+  emit `title` or `data-tip` hover popups. Icon-only controls keep explicit accessible labels,
+  status-strip totals are real labeled buttons, clamped tweak comments retain keyboard expansion,
+  and weekend/loose rows retain their issue context for assistive technology.
+- **Counts and deadlines are legible in both themes.** Collapsed group counts are fully opaque and
+  white in dark mode while remaining dark in light mode. Deadline proximity uses red/orange/green
+  dots instead of flags, and expanded due/buffer copy is unboxed text rather than a rounded pill.
+  Mixed groups still receive no group-level proximity tone.
+- **Deadline lanes make editor ownership explicit.** Each **Plan + deadlines** editor section begins
+  with a full-width, team-accented, named banner above its five aligned daily capacity totals and
+  relationship rows. Planning, grouping, drag, overload, weekend, and read/write semantics are
+  unchanged.
+- **Verification.** The three focused Workload suites passed; the synthetic real-browser proof
+  passed dark/light count contrast, zero hover popups, proximity dots, unboxed due copy, full-width
+  editor ownership, and both group/single handle drag paths. `npm test` passed all 141 unit suites.
+  The first production-polish attempt encountered transient read-only HTTP 500s; the isolated smoke
+  then passed, and the exact full rerun passed all 10 suites in 441.6 seconds.
+- **Boundary preserved.** Client-side source, guards, and truth/log documentation only. No schema,
+  migration, Edge Function, runtime flag, Linear writer, n8n workflow, cache, frozen writer,
+  deployment, or live operation changed.

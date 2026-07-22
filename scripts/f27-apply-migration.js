@@ -185,7 +185,7 @@ function defaultPsqlAdapter(psqlPath = 'psql') {
         windowsHide: true,
         timeout: 15 * 60_000,
         maxBuffer: 16 * 1024 * 1024,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
     },
   };
@@ -338,6 +338,7 @@ module.exports = {
   applyMigration,
   assertMigration,
   assertSnapshotBaseline,
+  defaultPsqlAdapter,
   parseArgs,
   publicFailure,
   sha256,

@@ -7,6 +7,7 @@ const {
   CONFIRMATION,
   MigrationApplyError,
   applyMigration,
+  defaultPsqlAdapter,
   parseArgs,
   publicFailure,
   sha256,
@@ -121,6 +122,20 @@ function options(outputDir, adapter, overrides = {}) {
 }
 
 try {
+  const stdinProbe = Buffer.from('f27-verified-migration-stdin-probe');
+  const stdinProbeScript = [
+    "const chunks = [];",
+    "process.stdin.on('data', chunk => chunks.push(chunk));",
+    "process.stdin.on('end', () => process.stdout.write(Buffer.concat(chunks)));",
+  ].join('');
+  const stdinProbeResult = defaultPsqlAdapter(process.execPath).run(
+    ['-e', stdinProbeScript], {}, worktree, stdinProbe,
+  );
+  ok(stdinProbeResult.status === 0
+      && Buffer.isBuffer(stdinProbeResult.stdout)
+      && stdinProbeResult.stdout.equals(stdinProbe),
+  'the real default child-process adapter pipes the exact verified bytes to psql stdin');
+
   let call;
   const successDir = privateDir('success');
   const result = applyMigration(options(successDir, {

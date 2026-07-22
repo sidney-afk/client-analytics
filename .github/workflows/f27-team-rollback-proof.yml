@@ -87,23 +87,21 @@ jobs:
           node test/f27-install-checklist.js
           node test/f27-mirror-outbox-snapshot.js
           node test/f27-private-snapshot-store.js
-      - name: Run isolated TEST transaction
+      - name: Run isolated TEST proof and prepare pristine toolkit fixture
         env:
           F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
         run: |
           set -o pipefail
           mkdir -p "$F27_PROOF_DIR"
-          createdb f27_proof
-          PGDATABASE=f27_proof \
+          createdb f27_contract
+          PGDATABASE=f27_contract \
             psql -X -v ON_ERROR_STOP=1 -f scripts/f27-team-rollback-proof.sql \
             | tee "$F27_PROOF_DIR/terminal.txt"
           sha256sum "$F27_PROOF_DIR/terminal.txt" | tee "$F27_PROOF_DIR/terminal.sha256"
-          createdb f27_contract
-          PGDATABASE=f27_contract \
-            psql -X -v ON_ERROR_STOP=1 -v F27_POST_CONTRACT_ONLY=1 \
-              -f scripts/f27-team-rollback-proof.sql \
-            | tee "$F27_PROOF_DIR/post-contract-fixture.txt"
-          grep -q "F27_POST_CONTRACT_ONLY_OK" "$F27_PROOF_DIR/post-contract-fixture.txt"
+          createdb f27_operator_toolkit
+          PGDATABASE=f27_operator_toolkit \
+            psql -X -q -v ON_ERROR_STOP=1 -f scripts/f27-drill-runner-fixture.sql \
+            > "$F27_PROOF_DIR/operator-fixture.txt"
       - name: Outside-n8n terminal observer
         env:
           F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
@@ -119,7 +117,7 @@ jobs:
       - name: Fingerprint the exact post-migration contract
         env:
           F27_CANDIDATE_RELEASE_SHA: ${{ github.sha }}
-          F27_DISPOSABLE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/f27_contract
+          F27_DISPOSABLE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/f27_operator_toolkit
           F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
         run: |
           set -o pipefail
@@ -138,7 +136,7 @@ jobs:
           )).digest('hex');
           const receipt = fingerprintPost({
             confirmed: true,
-            database: 'f27_contract',
+            database: 'f27_operator_toolkit',
             databaseUrl: process.env.F27_DISPOSABLE_DATABASE_URL,
             releaseSha,
             releaseInfo: {
@@ -166,10 +164,6 @@ jobs:
           F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
         run: |
           set -o pipefail
-          createdb f27_operator_toolkit
-          PGDATABASE=f27_operator_toolkit \
-            psql -X -q -v ON_ERROR_STOP=1 -f scripts/f27-drill-runner-fixture.sql \
-            > "$F27_PROOF_DIR/operator-fixture.txt"
           PGDATABASE=f27_operator_toolkit \
             node scripts/f27-drill-runner.js \
               --transport=psql \

@@ -2,6 +2,64 @@
 
 All times are UTC unless noted.
 
+## 2026-07-21 — F27 P1 corrective source and bounded drill; nothing live
+
+- Started from PR #901's stop evidence: the attempted #894 installation was
+  correctly aborted before DDL, DML, deploy, flag/authority change, or live F27
+  object creation. The recorded posture remained Linear/Linear authority, F2
+  off, F4 false. This entry records source work only and is not a fresh live
+  readback or install authorization.
+- Corrected the authority-handoff race with a server-owned per-team generation:
+  writers bind the generation they authorized under, the outbox trigger checks
+  it at insert/reactivation, real begin snapshots it, and real finalize advances
+  it atomically with the exact one-team authority CAS. The disposable proof now
+  encodes the exact interleaving: authorize → finalize/generation commit → late
+  old-generation insert rejected. Classification/finalize now share the same
+  outbox-table then rollback-row order, and service-only fenced requeue replaces
+  an old generation atomically before reactivation.
+- Added the inbound regression before the fix for #894's actorless skipped-state
+  replay echo. The deliberate red fixture reported `FAIL: an exact open
+  rollback preflight must be an acknowledged echo proof`. Corrective source
+  permits only the exact persisted
+  issue/value/rollback/correlation/outbox/dedup/operation binder while that
+  rollback is open; ordinary actor/terminal echo behavior and the no-rollback
+  path remain pinned. The focused inbound/outbound/gateway source suites passed
+  locally; the corrective exact-head aggregate/cloud handles are recorded only
+  when they exist.
+- Added the reserved `__f27_drill__` contract: exactly one synthetic TEST row,
+  immutable snapshot/hash, classification, exact replay receipt, deterministic
+  no-external-call replay branch, an atomic server-built hash receipt with
+  idempotent readback, required refusal by the real authority finalizer,
+  replay-only classification, separate drill completion, and permanent audit
+  retention. The
+  disposable proof requires every real row, team fence, runtime flag and
+  `flag_flips` count to remain unchanged and finishes with no open rollback.
+- Corrected the future install procedure in
+  `docs/ops/F27_INSTALL_RUNBOOK.md`: full immutable outbox plus
+  constraint/trigger/dependent-function/source-closure snapshot before DDL;
+  exact migration-owned pre-COMMIT TEST enqueue self-probe; same-SHA
+  deploy/readback for `linear-outbound`, `linear-inbound`, `production-write`,
+  `deliverable-write`, and `batch-write`; retained drill audit; and a prepared
+  exact rollback generated from captured definitions and prior function
+  closures/version IDs. Operational rollback disables the new hold trigger,
+  restores the prior reconciler and five runtime closures/boundary, and retains
+  additive schema plus every audit row inertly. This supersedes the unsafe
+  two-function/delete-the-drill idea.
+- Frozen writer source was untouched: worktree and HEAD Git blob IDs are both
+  `c5acadd69fc56507fad43ec1bd89f99381977921` for
+  `calendar-upsert/index.ts` and both
+  `23485ee6f74c2a2dff3758e6fa9ff86c27035dae` for
+  `sample-review-upsert/index.ts`. These are source blob IDs, not claims about
+  live deployment bytes. No n8n file or system was changed; no client name,
+  real row body, secret, or provider request entered the evidence.
+- Final local source gates passed before publication: all 143 `npm test` suites,
+  144 repo-map checks, 397 truth-sync checks, 16 system-map checks, clean
+  `git diff --check`, and byte-identical six-file frozen-writer import closure.
+  PostgreSQL execution remains deliberately unclaimed until the exact-head
+  disposable cloud job returns its terminal proof and artifact hash.
+- Merge remains owner-only after cloud review. A live install re-attempt is a
+  separate owner-gated operation; this session did not perform it.
+
 ## 2026-07-20 — F27 per-team rollback candidate, isolated TEST proof only
 
 - Read the vault contract first: `docs/ops/FLIP_RUNBOOK.md`, F27 in the cutover

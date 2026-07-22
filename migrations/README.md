@@ -72,6 +72,18 @@ executes these files (see `README.md` › Repository layout).
   sidecar rows and is recorded value-free in `EXECUTION_LOG.md`. That readback proves the effective
   live posture; F147 remains open because the exact SQL artifact containing the revoke correction
   was not tied unambiguously to the release SHA.
+- **`2026-07-20-f27-team-rollback.sql`** is the corrective, source-only F27
+  delta. PR #901 records that the earlier install was correctly aborted and no
+  F27 object became live. This version adds per-team generation fences so a
+  pre-authorized writer cannot insert after the authority CAS, narrows
+  rollback-bound inbound echo proof to an exact open preflight, and adds the
+  reserved `__f27_drill__` no-provider drill with permanent audit history. Its
+  transaction contains a synthetic TEST enqueue savepoint before `COMMIT`; any
+  new enqueue/constraint/trigger failure aborts the entire migration and the
+  probe row is rolled back. The file does not flip authority or flags, deploy a
+  function, touch n8n, or operate on a real client/team. It remains **not
+  live-applied** until a separate owner-approved window follows
+  `docs/ops/F27_INSTALL_RUNBOOK.md` from an exact owner-merged SHA.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

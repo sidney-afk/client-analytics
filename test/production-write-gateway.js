@@ -12,6 +12,7 @@ const lowLevel = read('supabase/functions/_shared/b4-write.ts');
 const migration = read('migrations/2026-07-12-write-ui-outbox-parity.sql');
 const fixPackFlags = read('migrations/2026-07-13-write-ui-fix-pack-flags.sql');
 const inbound = read('supabase/functions/linear-inbound/index.ts');
+const inboundEchoProof = read('supabase/functions/linear-inbound/f27-echo.mjs');
 const config = read('supabase/config.toml');
 let failures = 0;
 
@@ -219,6 +220,19 @@ function extractFunction(name) {
   ok(/requestedParity[\s\S]{0,260}authority !== "linear"[\s\S]{0,100}legacy_parity_not_allowed/.test(edge)
     && /linear_legacy_parity_enabled/.test(edge),
   'stale parity requests are rejected after flip and the independent parity gate fails closed');
+  ok(/\.rpc\("track_b_f27_write_authorization", \{[\s\S]{0,80}p_team: normalizedTeam/.test(edge)
+    && /authorization\.ok !== true/.test(edge)
+    && /Number\.isSafeInteger\(generation\)/.test(edge)
+    && /generationByTeam\[team\] = await f27WriteAuthorizationGeneration\(supabase, team\)/.test(edge),
+  'normal, parity, mixed-intake, and TEST writes require a valid per-team F27 generation');
+  ok((edge.match(/f27FencedPayload\(/g) || []).length >= 6
+    && /\.\.\.payload,[\s\S]{0,100}_f27_authority_generation: generation,[\s\S]{0,100}_f27_legacy_parity: legacyParity/.test(edge),
+  'every Production enqueue carries server-owned generation and lane markers after caller payload fields');
+  ok(/\.rpc\("track_b_f27_write_authorization", \{[\s\S]{0,80}p_team: normalizedTeam/.test(lowLevel)
+    && /_f27_authority_generation: authorityGeneration/.test(lowLevel)
+    && /_f27_legacy_parity: false/.test(lowLevel)
+    && /\.\.\.outboundPayload\(operation, patch, suppliedPayload\)/.test(lowLevel),
+  'service-only low-level writers also overwrite reserved fence fields with server values');
 
   ok(/rpc\(supabase, "production_deliverable_write"/.test(edge)
     && /rpc\(supabase, "production_batch_write"/.test(edge)
@@ -448,12 +462,12 @@ function extractFunction(name) {
   ok(/row: operation === "comment" \? publicRow\(existing\) : publicRow\(result\)/.test(edge)
     && /operation === "comment" \? \{ comment: parseJson\(result\) \}/.test(edge),
   'comment success preserves the target entity CAS row and returns the durable comment separately');
-  ok(/terminalValueProof/.test(inbound)
+  ok(/terminalValueProof/.test(inboundEchoProof)
     && /const isCommentEvent = resource\.includes\("comment"\)/.test(inbound)
     && /: issueFromPayload\(payload\)/.test(inbound)
     && /if \(!issueId\) return null/.test(inbound)
-    && /lower\(row\.status\) === "written"/.test(inbound)
-    && /if \(!actorMatches && !terminalValueProof\) continue/.test(inbound),
+    && /lower\(row\.status\) === "written"/.test(inboundEchoProof)
+    && /if \(!actorMatches && !terminalValueProof && !openF27PreflightProof\) continue/.test(inbound),
   'terminal exact-value Linear echoes are dropped even when the webhook omits the API viewer actor');
   ok(/GRAPHIC_TITLE_API_KEY/.test(edge)
     && /GRAPHIC_TITLE_MODEL/.test(edge)

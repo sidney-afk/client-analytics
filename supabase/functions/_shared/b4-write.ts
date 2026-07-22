@@ -246,6 +246,35 @@ async function teamAuthority(supabase: SupabaseClient, team: string): Promise<st
   return raw === "syncview" || raw === "supabase" ? "syncview" : "linear";
 }
 
+async function f27WriteAuthorizationGeneration(
+  supabase: SupabaseClient,
+  team: string,
+): Promise<number> {
+  const rawTeam = lower(team);
+  const normalizedTeam = ["graphics", "graphic", "gra"].includes(rawTeam)
+    ? "graphics"
+    : ["video", "vid"].includes(rawTeam)
+      ? "video"
+      : "";
+  if (!normalizedTeam) throw new Error("authority_unavailable");
+  const { data, error } = await supabase.rpc("track_b_f27_write_authorization", {
+    p_team: normalizedTeam,
+  });
+  const authorization = parseJson(data);
+  const generation = authorization.generation;
+  if (error
+      || authorization.ok !== true
+      || clean(authorization.type) !== "f27_write_authorization"
+      || clean(authorization.team) !== normalizedTeam
+      || !["linear", "syncview"].includes(clean(authorization.authority))
+      || typeof generation !== "number"
+      || !Number.isSafeInteger(generation)
+      || generation < 0) {
+    throw new Error("authority_unavailable");
+  }
+  return generation;
+}
+
 function outboundPayload(operation: string, patch: JsonMap, supplied: JsonMap): JsonMap {
   if (Object.keys(supplied).length) return supplied;
   if (operation === "status") return { status: clean(patch.status) };
@@ -364,6 +393,7 @@ export async function handleB4Write(
     if (!team || (!testOverride && await teamAuthority(supabase, team) !== "syncview")) {
       return json({ ok: false, paused: true, error: "team_is_linear_authoritative" }, 409);
     }
+    const authorityGeneration = await f27WriteAuthorizationGeneration(supabase, team);
 
     const dedupKey = clean(body.dedup_key);
     if (!dedupKey) {
@@ -381,7 +411,11 @@ export async function handleB4Write(
       source_edited_at: sourceEditedAt,
       comment_id: clean(body.comment_id) || null,
       depends_on_id: body.depends_on_id == null ? null : Number(body.depends_on_id),
-      payload: outboundPayload(operation, patch, suppliedPayload),
+      payload: {
+        ...outboundPayload(operation, patch, suppliedPayload),
+        _f27_authority_generation: authorityGeneration,
+        _f27_legacy_parity: false,
+      },
       test_only: testOverride,
     };
     const event = {

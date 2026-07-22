@@ -1,5 +1,14 @@
 # F27 per-team rollback — isolated TEST proof
 
+> **SUPERSEDED / NOT INSTALLABLE.** This is the historical #894 proof. The
+> correctly aborted live attempt recorded in PR #901 exposed two unresolved P1
+> races: a native writer authorized before finalization could insert after the
+> authority handoff, and an actorless replay webhook could evade echo detection.
+> It also lacked a real-row-safe drill contract. Do not use this file as an
+> install recipe or merge/live authorization. The corrective source and current
+> proof contract live in `docs/audits/2026-07-21-f27-corrective-source-proof.md`;
+> the separately owner-gated future recipe is `docs/ops/F27_INSTALL_RUNBOOK.md`.
+
 **Status:** candidate source proved on a disposable PostgreSQL flag/outbox store;
 not applied to the live Supabase project. No forward production flip, live
 authority change, live-client mutation, Edge Function deploy, or n8n change

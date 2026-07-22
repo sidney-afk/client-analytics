@@ -17,8 +17,11 @@ owner merging this file (see D-32)._
 
 1. **The owner holds every switch.** Nothing flips without a deliberate owner action.
 2. **One team at a time.** Graphics (one person) first, then Video (D-28).
-3. **One-click team rollback remains live-BLOCKED (F05/F27).** PR #894's candidate passed an
-   isolated TEST transaction, but is not applied to the live project. Immediate containment is stop that team's new
+3. **One-click team rollback remains live-BLOCKED (F05/F27).** PR #901 records the correctly
+   aborted install: #894 had a late-writer handoff race, an actorless replay-echo race, and no
+   real-row-safe drill. Corrective source adds a server generation fence, exact open-rollback echo
+   binder, and reserved no-provider drill with retained audit, but is not applied or deployed.
+   Immediate containment is stop that team's new
    mutations. F2 `off` stops normal outbound only; F4 `false` stops independent parity, so disable
    both for an unknown/mixed Linear-write incident (F58). Authority returns to Linear only after an immutable team
    snapshot, owner-audited classify/replay/quarantine/discard decisions, and a machine-read team
@@ -39,6 +42,11 @@ owner merging this file (see D-32)._
 | `linear_legacy_parity_enabled` | `disabled` | Transition write-lane off (armed at Phase 1) |
 | `auth_enforcement` | `permissive` | Client-link verifier permits missing/invalid tokens; this is not a staff-write gate |
 | `write_ui_reroute_clients` | last verified live TEST-only allowlist (`clients:[<TEST_CLIENT>]`) | Required D-32 boundary; #850 merged the reroute code carried from `e3aa028`. Read the value fresh before any action; this dated row authorizes no flag change or real enrollment. |
+
+F27 objects are absent from live under PR #901's stop evidence. The corrective
+source does not change this table. Any future install is a separate owner-gated
+operation under `docs/ops/F27_INSTALL_RUNBOOK.md` and must start by re-reading
+every value above plus the absence of F27 objects.
 
 Merged & live: #810 gateway (deployed), #811 guards + daily TEST drill + nightly shadow audit,
 #812 mirror write-UI (locked for real teams), #850's dark Calendar/Samples/Submit reroutes,
@@ -67,10 +75,14 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       fence; every forward/kill/recovery action passes an isolated TEST flag-store transaction,
       exact expected-state CAS, affected-row assertion, and readback. Never paste a multi-action
       sequence or an unconditional whole-row replacement.
-      **F27 evidence:** post-review-fix head `afee809`, run `29764430971`, artifact
-      `8470167032` proved the per-team recovery statement, in-flight and unbound-receipt refusal, and F2/F4 behavior in a
-      disposable PostgreSQL store. This is one action's evidence, not closure of
-      the every-fence checklist item and not live-application authorization.
+      **F27 evidence:** the #894 head/run/artifact formerly cited here are
+      historical and superseded because they did not reproduce either P1 race
+      or a safe drill. The corrective exact-head gate must reproduce
+      authorization → finalization/generation advance → rejected late insert,
+      the actorless skipped-state replay webhook before/after fixture, and the
+      full reserved drill through snapshot/hash/classification/receipt/replay/
+      authority-CAS refusal/permanent audit. Record its new exact head/run/
+      artifact only after they exist. None is live-application authorization.
 - [ ] **The complete Production browser gate is green before merge/flip** (F105): do not accept the
       fast PR subset alone. Locked live-read/zero-mutation and fully intercepted writable states are
       explicit; interaction/behavior/pixel lanes are authority-aware; unsupported operations remain
@@ -631,9 +643,10 @@ Pick a low-activity window.
       fresh green window.
 - [ ] Kasper's queue shows her natively-created thumbnails. F04's native-link predicate is merged;
       this checkbox is the required first-real-Graphics observation, not a source-completeness check.
-- [ ] Apply D-29 on anything found. Team rollback remains live-blocked until PR #894's
-      isolated-proved F27 quarantine/classify/replay/discard tooling is reviewed, applied, read back,
-      and TEST-client drilled. Follow FLIP_RUNBOOK §R2: stop new writes,
+- [ ] Apply D-29 on anything found. Team rollback remains live-blocked until the corrective F27
+      quarantine/classify/replay/discard tooling is cloud-reviewed, owner-merged, snapshot-first
+      applied, exact-source deployed/read back across every changed writer closure, and reserved
+      no-provider drilled with its audit retained. Follow FLIP_RUNBOOK §R2: stop new writes,
       snapshot and classify every team intent, replay only owner-approved rows, prove a machine-read
       team zero, and only then change authority. Never use the default drainer as rollback proof.
 
@@ -721,4 +734,5 @@ creation impossible.
 Short version: **stop new writes + disable/read back the involved F2/F4 lane(s), both if unknown/mixed → immutable team snapshot → classify every intent →
 replay/quarantine/discard with owner reason → machine-read team zero → flip authority back → tell
 the team → fix → re-soak → re-flip.** This is not yet one-click; the authority reversal is blocked
-until F27's tooling exists. Never substitute the default drainer or a global green summary.
+until the corrective F27 tooling is installed and independently verified under
+`docs/ops/F27_INSTALL_RUNBOOK.md`. Never substitute the default drainer or a global green summary.

@@ -403,6 +403,11 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       non-blocking for #891, and must not be expanded or reopened in this integration. The client
       verifier is already live at v28 and must not be redeployed. The hard cutover does not wait for
       link confirmations; old links intentionally reach the existing updated-link screen.
+      **DEFERRED / NON-BLOCKING FOR #891 (F185):** final integrated-head cloud review found that the
+      visible-boot workflow's Chromium cache-hit path does not reinstall Linux system dependencies.
+      The exact hosted lane passed 23/23, but a fresh cached runner can be non-portable. Keep #891
+      frozen; correct and source-guard both cache paths in a separate follow-up PR. This deferred
+      runner item does not reopen F176/F179 or change the owner merge order.
 - [ ] **Calendar lifetime and ancillary work have one exact-client owner** (F170/F171/F162):
       one generation owns the primary read, Linear reconcile/meta continuations, realtime
       channel/timers, loader state and deferred render until all tails settle. Client/route/no-load

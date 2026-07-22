@@ -2,7 +2,7 @@
 
 > Last verified: 2026-07-22 @ 0b8a2a2 (`#910` merged) + source-only F27 operator-toolkit
 > candidate (PR #901 stop evidence still governs live state; corrective source is not live) +
-> Phase-3 reconciliation and the public-safe boot/refresh/history audit through F184. The owner
+> Phase-3 reconciliation and the public-safe boot/refresh/history audit through F185. The owner
 > split F176/F179 overnight-runner containment into parked draft #908 for later review; it is not a
 > blocker for the client-entry product fix and must not be expanded or reopened here. The client
 > verifier is live at v28; the matching browser remains draft/unserved. Workload background refresh
@@ -154,7 +154,7 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   later failed fast + interaction while heavy/review-packet passed. The PR-head and merge trees are
   identical, so the red run is not evidence of an F145 code delta, but current-main test health
   remains open.
-- The public-safe boot/refresh/history/read-truth audit owns F149–F184. Client entry remains first:
+- The public-safe boot/refresh/history/read-truth audit owns F149–F185. Client entry remains first:
   F102/F117 plus the Calendar/Brief wrong-shell refresh in F149. Browser-proven silent read failures
   and indefinite boot states are F151/F152/F158; staff data, Back/Forward and deep-link continuity
   are F150/F153/F154; F155–F161 cover lower-severity route consistency. Publication-time
@@ -223,6 +223,12 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   and fresh-owner assertions. These local guards do not close their rows before owner merge. The
   verifier is already live at v28 and must not be redeployed; the owner-selected hard cutover does
   not wait for link confirmations, and old links intentionally use the existing updated-link screen.
+  Final integrated-head cloud review at `f91aba17` (review `4759712636`, comment `3634666109`)
+  registered deferred F185: the visible-boot workflow restores cached Chromium binaries without
+  reinstalling Linux system dependencies on the cache-hit path. The exact hosted lane still passed
+  23/23, so this is a runner-portability risk, not a reproduced product boot failure. By the owner's
+  scope-frozen rule it is non-blocking for #891 and belongs in a separate follow-up PR; do not fix it
+  here or reopen F176/F179.
   A settled-page assertion or
   source check does not close a boot finding.
 - F140 is owner-ratified and fixed on the review branch: Samples matches Calendar, so Kasper may

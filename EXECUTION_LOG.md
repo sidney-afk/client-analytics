@@ -2,6 +2,40 @@
 
 All times are UTC unless noted.
 
+## 2026-07-22 — F27 live-install preflight aborted before mutation
+
+- Owner-authorized live installation preflight began from current `main`
+  `3d8bbfb30ed5e2d8e34acb166747588e1c45f60c`; PR #894's affected paths are
+  unchanged from head `3d539ed52580a5f69e75e25e4441337c2fdcab00` / merge
+  `c51f897a3e28d111f29a235d60b7d8b0efeb902b`.
+- Before any DDL, a repeatable-read, read-only transaction captured all 480
+  `mirror_outbox` rows, the ten newest rows, all five check definitions, the
+  empty user-trigger set, safety flags, and F27-object absence. The private,
+  exclusive-create/read-only, content-addressed JSON SHA-256 is
+  `dd95a9d9693a85e7b7c5071e8db43021708e3990124410aeceb749e468a74edc`;
+  only digests/timestamps are published in the dated audit.
+- Live readback held authority Linear/Linear, F2 off, F4 false, and no installed
+  F27 tables. Baselines were `linear-outbound` v33 / bundle `14645be4…`,
+  `linear-inbound` v39 / `531782b4…`, frozen `calendar-upsert` v43 /
+  `91ce449e…`, and frozen `sample-review-upsert` v44 / `50b63fba…`. Active
+  v33/v39 sources were downloaded read-only into private hash-manifested
+  rollback anchors. A second live readback at `2026-07-22T00:51:10.877740Z`
+  returned the same 480-row count/newest timestamp, flags, F27 absence, and all four
+  function versions/bundle hashes.
+- The run stopped before mutation because the requested procedure does not
+  describe merged #894: final source is additive and replaces no check/trigger;
+  its rollback is real-team-wide, cannot use TEST override, requires SyncView
+  authority, requires F2 off even at final CAS, and preserves its audit rows.
+  The requested Linear/Linear, client-scoped, deleted-row drill cannot exercise
+  that source without breaking its guards or the owner's invariants.
+- GitHub also retains an unresolved, non-outdated P1 at migration line 436 for
+  a pre-authorized writer escaping after finalization, plus a post-merge P1 on
+  inbound echo acknowledgement. No green source-only test closes those races.
+- Result: no DDL, DML, queue enqueue, runtime-flag or authority change, Edge
+  Function deploy, Linear call, n8n edit, frozen-writer touch, client-row publication,
+  or client mutation occurred. F27 remains not installed. Full public-safe proof
+  is `docs/audits/2026-07-21-f27-live-preflight-abort.md`; the session is not FINAL.
+
 ## 2026-07-20 — F27 per-team rollback candidate, isolated TEST proof only
 
 - Read the vault contract first: `docs/ops/FLIP_RUNBOOK.md`, F27 in the cutover

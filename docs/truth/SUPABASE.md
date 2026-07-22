@@ -1,6 +1,8 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-20 @ c722984 + Phase-3 Order-1 reconciliation (Workload plan-date effective schema/exact-source function live and TEST drill cleaned; exact correction provenance F147; #850 write gateway deployed dark)
+> Last verified: 2026-07-21 @ 3d8bbfb30ed5e2d8e34acb166747588e1c45f60c
+> for the F27 read-only live preflight (final UTC readback 2026-07-22T00:51:10Z);
+> broader Supabase truth remains at its 2026-07-20 Phase-3 Order-1 reconciliation.
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 ## Tables
@@ -132,6 +134,13 @@ from a manual `workflow_dispatch` pinned to one exact 40-character SHA already o
 `29601466479` used that path at `main@9d76df6`, deploying `linear-outbound` v33 before
 `production-write` v24 and passing both source fingerprints. An ordinary merge still deploys
 neither function.
+
+The 2026-07-21 F27 live-install preflight was read-only and stopped before mutation. The live
+project still has no `track_b_team_rollbacks` or `track_b_team_rollback_intents` table;
+`linear-outbound` remains v33 and `linear-inbound` remains v39. Merged PR #894 must not be applied
+or deployed until its two P1 races and its team-wide-versus-TEST drill contract are corrected and
+cleanly cloud-reviewed. The private queue snapshot and public-safe stop evidence are recorded in
+`docs/audits/2026-07-21-f27-live-preflight-abort.md`.
 
 Live set in `docs/truth/ENDPOINTS.md`. Source and live inventory now represent 28 functions;
 `workload-plan` is ACTIVE v2 with the four-file deployed source closure byte-identical to merge

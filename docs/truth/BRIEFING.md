@@ -1,6 +1,9 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-20 @ c903676 + Phase-3 Order-1 docs branch (current-state reconciliation through F148; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release live and #889 client-only grouping/group drag served with F147/F148 evidence follow-ups; coverage state in docs/testing/ASSURANCE_LEDGER.md)
+> Last verified: 2026-07-21 @ 3d8bbfb30ed5e2d8e34acb166747588e1c45f60c
+> for the F27 live-preflight delta (final UTC readback 2026-07-22T00:51:10Z: no mutation,
+> F27 absent, authority Linear/Linear, F2 off, v33/v39 and frozen v43/v44 unchanged).
+> Broader Phase-3 Order-1 truth remains at its 2026-07-20 reconciliation through F148.
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -43,10 +46,11 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 ## Laws and enforced invariants
 
 - **`ROLLBACK.md` is law**: every forward change needs a one-step behavior kill plus a rehearsed,
-  evidence-bearing complete recovery. F27's PR #894 candidate makes the final Track-B team
-  authority reversal one guarded statement and passed an isolated TEST transaction, but remains
-  live-blocked until cloud review, migration application/readback, and a deployed TEST-client drill; F51
-  means an EF source rebuild is not automatically an exact runtime rollback. Log every deploy,
+  evidence-bearing complete recovery. F27's merged PR #894 remains **not live-installed**. The
+  2026-07-21 live preflight stopped before mutation because exact source is real-team-wide with no
+  TEST/client scope and retains two P1 races; it must not be applied or deployed until corrective
+  source, a ratified drill contract, and clean exact-head cloud review exist. F51 means an EF source
+  rebuild or historical version number is not automatically an exact runtime rollback. Log every deploy,
   flag flip, migration, backup, recovery, and incident in `EXECUTION_LOG.md`.
 - `npm test` runs every `test/*.js` offline — including `test/repo-map-sync.js` (repo layout
   vs `REPO_MAP.md`) and `test/truth-sync.js` (truth docs vs code). CI runs it on every push.

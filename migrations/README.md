@@ -72,6 +72,11 @@ executes these files (see `README.md` › Repository layout).
   sidecar rows and is recorded value-free in `EXECUTION_LOG.md`. That readback proves the effective
   live posture; F147 remains open because the exact SQL artifact containing the revoke correction
   was not tied unambiguously to the release SHA.
+- **`2026-07-20-f27-team-rollback.sql`** remains **source-only and live-blocked**. The
+  2026-07-21 installation preflight stopped before mutation: the merged migration is additive and
+  real-team-wide, while the requested drill assumed a client-scoped TEST row and stale constraint/
+  trigger replacement. PR #894 also retains two P1 races. Do not apply it until corrective source,
+  a ratified drill contract, and clean exact-head cloud review are recorded in the F27 register row.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

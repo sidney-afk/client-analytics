@@ -2,6 +2,8 @@
 
 const fs = require('fs');
 const path = require('path');
+const assert = require('assert');
+const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -101,7 +103,65 @@ ok(!/fetch\(FILMING_PLANS_URL/.test(linearPlans), 'Linear form must not fetch th
 
 const kasperLoad = grabFunc('_kasperLoadFilming');
 ok(/_fpEnsureLoaded\(\!\!forceRefresh\)/.test(kasperLoad), 'Kasper filming tab must resolve plans through the shared source');
-ok(/_filmsRowsFromPlans/.test(kasperLoad), 'Kasper filming tab must convert shared rows into runway rows');
+ok(/_filmsRowsFromPlans/.test(kasperLoad), 'Kasper filming tab must convert shared rows into content-bank rows');
 ok(!/fetch\(FILMING_PLANS_URL/.test(kasperLoad), 'Kasper filming tab must not fetch the sheet directly');
+
+const contentBank = grabFunc('_filmsFetchContentBank');
+ok(/\(p\.status \|\| ''\)\.toLowerCase\(\) === 'archived'/.test(contentBank)
+  && /if \(!d \|\| d >= today\) total\+\+/.test(contentBank),
+  'content bank must count active undated and today/future cards while excluding archived and past-dated cards');
+const classify = grabFunc('_filmsClassify');
+ok(/FILMING_CONTENT_RED_COUNT/.test(classify)
+  && /FILMING_CONTENT_COVERED_COUNT/.test(classify)
+  && /plan\.state === 'overdue'/.test(classify),
+  'Filming status must combine content-bank thresholds with the filming-plan cycle');
+ok(/FILMING_CONTENT_RED_COUNT = 10/.test(INDEX)
+  && /FILMING_CONTENT_COVERED_COUNT = 21/.test(INDEX)
+  && /FILMING_PLAN_SOON_DAYS = 14/.test(INDEX),
+  'Filming content and plan thresholds must match the Kasper content-bank policy');
+const planDetails = grabFunc('_filmsPlanDetails');
+ok(/_filmsAddMonth\(latestPlanMonth, 2\)/.test(planDetails),
+  'a monthly filming-plan tab must advance the next expected filming plan by two calendar months');
+ok(/pieces of content/.test(INDEX) && /Latest filming plan:/.test(INDEX),
+  'Kasper filming rows must show total content and the latest filming-plan month');
+
+const logic = [
+  grabFunc('_filmsAddMonth'),
+  grabFunc('_filmsDaysUntil'),
+  grabFunc('_filmsMonthShort'),
+  grabFunc('_filmsLatestPlanMonth'),
+  grabFunc('_filmsPlanDetails'),
+  grabFunc('_filmsClassify'),
+].join('\n');
+const contentContext = {
+  FILMING_CONTENT_RED_COUNT: 10,
+  FILMING_CONTENT_COVERED_COUNT: 21,
+  FILMING_PLAN_SOON_DAYS: 14,
+  _filmsTodayISO: () => '2026-07-22',
+};
+vm.createContext(contentContext);
+vm.runInContext(logic, contentContext);
+
+function classifyContent(contentTotal, months, docUrl = 'https://docs.google.com/document/d/test') {
+  const row = { contentTotal, months: new Set(months), docUrl };
+  return { row, result: contentContext._filmsClassify(row) };
+}
+
+let sample = classifyContent(21, ['2026-06']);
+assert.strictEqual(sample.result.status, 'amber', 'June plan with 21 pieces is soon when the August plan is due in ten days');
+assert.strictEqual(sample.row.nextPlanMonth, '2026-08', 'June plan creates the expected August plan cycle');
+assert.match(sample.result.reason, /Aug plan due in 10d/, 'soon state names the expected next plan month and deadline');
+
+sample = classifyContent(21, ['2026-05']);
+assert.strictEqual(sample.result.status, 'red', 'an expected July plan is red once it is overdue');
+
+sample = classifyContent(10, ['2026-07']);
+assert.strictEqual(sample.result.status, 'red', 'ten or fewer active pieces need a plan regardless of a later plan cycle');
+
+sample = classifyContent(21, ['2026-07']);
+assert.strictEqual(sample.result.status, 'green', '21 active pieces with a September plan cycle are covered');
+
+sample = classifyContent(99, [], '');
+assert.strictEqual(sample.result.status, 'red', 'missing filming Doc remains an immediate action item');
 
 console.log('filming-plans source checks passed');

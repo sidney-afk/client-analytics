@@ -107,7 +107,8 @@ ok(/if \(!team && requestedTeamId\) team = await readTeam\(requestedTeamId\)/.te
 'create retains supplied team UUID support and otherwise resolves VID/GRA read-only');
 ok(/async function targetResult/.test(outbound)
   && /status,operation,team,dedup_key,legacy_parity,test_only,attempts,next_retry_at,last_error,linear_result/.test(outbound)
-  && /\.\.\.summary, target/.test(outbound),
+  && /\.\.\.summary,\s*target/.test(outbound)
+  && /\.\.\.\(f27DrillReceipt\s*\?\s*\{\s*f27_drill_receipt:\s*f27DrillReceipt\s*\}\s*:\s*\{\s*\}\)/.test(outbound),
 'targeted responses expose terminal or pending status and Linear linkage without redraining');
 
 if (failures) {

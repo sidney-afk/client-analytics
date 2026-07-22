@@ -1129,7 +1129,12 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   F27/F58 supersede D-26's direct pause: stop new team mutations and disable the involved outbound
   lane(s), both normal F2 and parity F4 if unknown/mixed, for immediate
   containment; return authority to `linear` only after audited team intent resolution and a
-  machine-read zero. The #812 Linear-mirror caller is live on Pages but stays read-only under current authority; card
+  machine-read zero. PR #901 records that #894's install was correctly aborted before any F27
+  object or deployment became live: its finalizer could miss an already-authorized late insert,
+  its actorless replay echo could be misfiled, and it had no real-row-safe drill. Corrective source
+  adds an insert-time per-team generation fence, exact open-rollback preflight echo proof, and a
+  reserved `__f27_drill__` no-provider lane whose audit is permanent. It is still source-only; the
+  snapshot-first owner procedure is `docs/ops/F27_INSTALL_RUNBOOK.md`. The #812 Linear-mirror caller is live on Pages but stays read-only under current authority; card
   predicates, Workload, and intake remain on their current paths until their separate
   owner-approved handoff.
   **F98 forward-order correction:** for the first handoff, F2 normal outbound must be live/read back
@@ -1147,9 +1152,10 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   lane remains unsafe for real enrollment until every open gate closes. F55 is additionally open because the browser accepts
   only canonical `syncview`, while several backend consumers still accept legacy `supabase` as an
   alias. D-28 requires cohort soak before a Graphics-first flip; a D-29 data incident is contained
-  per F27 and cannot use a blind authority reversal. The disposable two-team TEST drill completed 18
-  operations, observed zero unexpected echoes, reconciled `0/0/0`, cleaned up, and proved the
-  pre-existing runtime flags unchanged.
+  per F27 and cannot use a blind authority reversal. The historical disposable two-team TEST drill
+  completed 18 operations, observed zero unexpected echoes, reconciled `0/0/0`, cleaned up, and
+  proved the pre-existing runtime flags unchanged; it did not exercise the now-required F27
+  generation or reserved-drill contracts and is not install authorization.
 - **B5 (after clean batch cycles per team).** Linear frozen → archived; the `linear-*` n8n family and
   legacy card-write webhooks retired; Workload reconciler + `workload_issues` retired; SyncView is
   the whole production system.

@@ -300,6 +300,30 @@ async function authorityFor(supabase: SupabaseClient, team: string): Promise<"li
   throw new GatewayError(503, "authority_unavailable");
 }
 
+async function f27WriteAuthorizationGeneration(
+  supabase: SupabaseClient,
+  team: string,
+): Promise<number> {
+  const normalizedTeam = normalizeTeam(team);
+  if (!normalizedTeam) throw new GatewayError(503, "authority_unavailable");
+  const { data, error } = await supabase.rpc("track_b_f27_write_authorization", {
+    p_team: normalizedTeam,
+  });
+  const authorization = parseJson(data);
+  const generation = authorization.generation;
+  if (error
+      || authorization.ok !== true
+      || clean(authorization.type) !== "f27_write_authorization"
+      || clean(authorization.team) !== normalizedTeam
+      || !["linear", "syncview"].includes(clean(authorization.authority))
+      || typeof generation !== "number"
+      || !Number.isSafeInteger(generation)
+      || generation < 0) {
+    throw new GatewayError(503, "authority_unavailable");
+  }
+  return generation;
+}
+
 async function outboundLiveForDrain(supabase: SupabaseClient): Promise<boolean> {
   try {
     const { data, error } = await supabase.from("syncview_runtime_flags")
@@ -391,6 +415,18 @@ function requestIdFor(body: JsonMap): string {
 
 function dedupKey(operation: string, entity: string, id: string, requestId: string): string {
   return `write-ui:${operation}:${entity}:${id}:${requestId}`;
+}
+
+function f27FencedPayload(
+  payload: JsonMap,
+  generation: number,
+  legacyParity: boolean,
+): JsonMap {
+  return {
+    ...payload,
+    _f27_authority_generation: generation,
+    _f27_legacy_parity: legacyParity,
+  };
 }
 
 function eventFor(
@@ -1384,6 +1420,7 @@ async function handleEntityOperation(
     body.legacy_parity === true,
   );
   if (legacyParity) await assertLegacyParityEnabled(supabase);
+  const authorityGeneration = await f27WriteAuthorizationGeneration(supabase, team);
   let dedup = dedupKey(operation, entity, id, requestId);
   const outboundBase: JsonMap = {
     entity: operation === "comment" ? "comment" : entity,
@@ -1466,7 +1503,11 @@ async function handleEntityOperation(
     const outbound = {
       ...outboundBase,
       comment_id: productionCommentId,
-      payload: { body: commentBody, _intent_fingerprint: fingerprint },
+      payload: f27FencedPayload(
+        { body: commentBody, _intent_fingerprint: fingerprint },
+        authorityGeneration,
+        legacyParity,
+      ),
     };
     const event = eventFor(operation, principal, sourceEditedAt, surface, outbound, existing);
     if (body.expected_status !== undefined) event.expected_status = clean(body.expected_status);
@@ -1554,7 +1595,10 @@ async function handleEntityOperation(
       patch: fingerprintPatch,
     });
     payload._intent_fingerprint = fingerprint;
-    const outbound = { ...outboundBase, payload };
+    const outbound = {
+      ...outboundBase,
+      payload: f27FencedPayload(payload, authorityGeneration, legacyParity),
+    };
     const row = { ...existing, ...patch };
     const event = eventFor(operation, principal, sourceEditedAt, surface, outbound, existing, clean(row.status));
     if (body.expected_status !== undefined) event.expected_status = clean(body.expected_status);
@@ -1728,6 +1772,7 @@ async function handleIntakeCreate(
   const projectByTeam: Record<string, string> = {};
   const authorityByTeam: Record<string, "linear" | "syncview"> = {};
   const parityByTeam: Record<string, boolean> = {};
+  const generationByTeam: Record<string, number> = {};
   for (const team of teamList) {
     projectByTeam[team] = await projectForIntake(client, team, principal);
     authorityByTeam[team] = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
@@ -1735,6 +1780,7 @@ async function handleIntakeCreate(
     // selects parity only for the still-Linear-authoritative leg; a mixed
     // graphics-first request therefore takes one normal and one parity lane.
     parityByTeam[team] = !principal.testOnly && authorityByTeam[team] === "linear";
+    generationByTeam[team] = await f27WriteAuthorizationGeneration(supabase, team);
   }
   if (Object.values(parityByTeam).some(Boolean)) await assertLegacyParityEnabled(supabase);
 
@@ -1931,7 +1977,7 @@ async function handleIntakeCreate(
         test_only: principal.testOnly,
         legacy_parity: legacyParity,
         ...(routeFingerprint.depends_on_id ? { depends_on_id: routeFingerprint.depends_on_id } : {}),
-        payload: {
+        payload: f27FencedPayload({
           team_id: teamIdFor(team) || undefined,
           project_id: projectId,
           ...(routeFingerprint.parent_linear_issue_id
@@ -1944,7 +1990,7 @@ async function handleIntakeCreate(
           due_date: row.due_date || undefined,
           priority: row.priority == null ? undefined : row.priority,
           _intent_fingerprint: childFingerprint,
-        },
+        }, generationByTeam[team], legacyParity),
       };
       const childEvent = eventFor(
         "intake_create", principal, sourceEditedAt, surface, childOutbound, null, clean(row.status),
@@ -2106,13 +2152,13 @@ async function handleIntakeCreate(
       entity: "batch", entity_id: batchId, team, operation: "create",
       dedup_key: parentDedup, source_edited_at: sourceEditedAt,
       test_only: principal.testOnly, legacy_parity: parityByTeam[team],
-      payload: {
+      payload: f27FencedPayload({
         team_id: teamIdFor(team) || undefined,
         project_id: projectByTeam[team],
         title: clean(batchInput.name),
         description: clean(batchInput.description) || undefined,
         _intent_fingerprint: parentFingerprint,
-      },
+      }, generationByTeam[team], parityByTeam[team]),
     };
     const parentEvent = eventFor("intake_create", principal, sourceEditedAt, surface, parentOutbound, null);
     const parentReplay = await assertDedupIntent(
@@ -2148,7 +2194,7 @@ async function handleIntakeCreate(
       source_edited_at: sourceEditedAt,
       test_only: principal.testOnly,
       legacy_parity: legacyParity,
-      payload: {
+      payload: f27FencedPayload({
         team_id: teamIdFor(team) || undefined,
         project_id: projectId,
         title: row.title,
@@ -2158,7 +2204,7 @@ async function handleIntakeCreate(
         due_date: row.due_date || undefined,
         priority: row.priority == null ? undefined : row.priority,
         _intent_fingerprint: childFingerprint,
-      },
+      }, generationByTeam[team], legacyParity),
     };
     planned.child_dedup = childDedup;
     planned.child_fingerprint = childFingerprint;

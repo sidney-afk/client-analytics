@@ -10,6 +10,14 @@ CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
 CREATE ROLE service_role NOLOGIN;
 
+CREATE TABLE public.clients (
+  slug text PRIMARY KEY,
+  active boolean NOT NULL,
+  kind text NOT NULL
+);
+INSERT INTO public.clients(slug, active, kind)
+VALUES ('test-client', true, 'test');
+
 CREATE TABLE public.syncview_runtime_flags (
   key text PRIMARY KEY,
   value jsonb NOT NULL,
@@ -74,6 +82,35 @@ CREATE TABLE public.mirror_outbox (
   )
 );
 
+-- Exact pre-F27 requeue helper from the B4 baseline. The corrective proof
+-- invokes it after the generation CAS to demonstrate that a stale historical
+-- row can no longer be reactivated through the unfenced contract.
+CREATE OR REPLACE FUNCTION public.mirror_outbox_requeue(p_id bigint)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $fn$
+DECLARE
+  v_count integer;
+BEGIN
+  UPDATE public.mirror_outbox
+  SET status = 'pending',
+      attempts = 0,
+      last_error = null,
+      processed_at = null,
+      next_retry_at = now(),
+      lock_token = null,
+      locked_at = null,
+      updated_at = now()
+  WHERE id = p_id
+    AND operation = 'comment'
+    AND status IN ('written', 'skipped', 'failed', 'stale');
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count = 1;
+END;
+$fn$;
+
 INSERT INTO public.syncview_runtime_flags(key, value, updated_by) VALUES
   ('prod_authority', '{"video":"linear","graphics":"linear"}', 'f27-test'),
   ('linear_outbound_enabled', '{"mode":"off"}', 'f27-test'),
@@ -94,11 +131,41 @@ SELECT key, value FROM public.syncview_runtime_flags ORDER BY key;
 CREATE TEMP TABLE f27_prior_payloads AS
 SELECT id, encode(extensions.digest(convert_to(payload::text, 'UTF8'), 'sha256'), 'hex') AS payload_hash
 FROM public.mirror_outbox ORDER BY id;
+
+\ir ../migrations/2026-07-20-f27-team-rollback.sql
+
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.mirror_outbox) <> 5
+     OR EXISTS (
+       SELECT 1 FROM public.mirror_outbox
+       WHERE entity_id = 'f27-migration-test'
+          OR dedup_key LIKE 'f27-migration-test:%'
+     ) THEN
+    RAISE EXCEPTION 'f27_migration_probe_not_rolled_back';
+  END IF;
+END $$;
+
+-- UPDATE OF must cover every lane/fence field used by the guard. A direct
+-- service-role change to an active row's generation is revalidated even when
+-- status and team themselves do not change.
+DO $$
+BEGIN
+  BEGIN
+    UPDATE public.mirror_outbox
+    SET authority_generation = authority_generation + 99
+    WHERE id = 5;
+    RAISE EXCEPTION 'dependency-only fence update unexpectedly succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'f27_authority_generation_stale:video' THEN RAISE; END IF;
+  END;
+END $$;
+
+-- Capture row-level isolation only after the additive migration has supplied
+-- its trusted fence columns. Payload hashes intentionally span the migration.
 CREATE TEMP TABLE f27_other_team AS
 SELECT encode(extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'), 'hex') AS row_hash
 FROM public.mirror_outbox o WHERE team = 'video';
-
-\ir ../migrations/2026-07-20-f27-team-rollback.sql
 
 -- Simulated forward cycle in the disposable TEST flag store only.
 UPDATE public.syncview_runtime_flags
@@ -119,6 +186,30 @@ WHERE key = 'linear_outbound_enabled' AND value = '{"mode":"live"}';
 UPDATE public.syncview_runtime_flags
 SET value = '{"enabled":false}', updated_by = 'f27-test-stop'
 WHERE key = 'linear_legacy_parity_enabled' AND value = '{"enabled":true}';
+
+-- Exact P1 interleaving, phase 1: the native writer is authorized while this
+-- team is still SyncView-authoritative and captures generation zero. It does
+-- not insert until after the rollback finalizer commits below.
+SELECT
+  auth_result::text AS write_authorization,
+  (auth_result->>'generation')::bigint AS authorized_generation
+FROM (
+  SELECT public.track_b_f27_write_authorization('graphics') AS auth_result
+) q \gset
+SELECT set_config('f27.write_authorization', :'write_authorization', false);
+SELECT set_config('f27.authorized_generation', :'authorized_generation', false);
+DO $$
+DECLARE
+  v_authorization jsonb := current_setting('f27.write_authorization')::jsonb;
+BEGIN
+  IF v_authorization->>'ok' <> 'true'
+     OR v_authorization->>'type' <> 'f27_write_authorization'
+     OR v_authorization->>'team' <> 'graphics'
+     OR v_authorization->>'authority' <> 'syncview'
+     OR (v_authorization->>'generation')::bigint <> 0 THEN
+    RAISE EXCEPTION 'f27_pre_finalize_authorization_not_exact';
+  END IF;
+END $$;
 
 -- A worker that claimed before the stops must finish/release before capture.
 UPDATE public.mirror_outbox
@@ -279,6 +370,361 @@ SELECT public.track_b_f27_finalize(
 ) AS terminal_receipt \gset
 SELECT set_config('f27.terminal_receipt', :'terminal_receipt', false);
 
+-- Exact P1 interleaving, phase 2: finalize has committed authority=Linear and
+-- advanced only the graphics fence. The already-authorized late native insert
+-- carries its old generation and must now fail at the server trigger.
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.mirror_outbox_enqueue(
+      'deliverable',
+      'g-late-native',
+      'status',
+      jsonb_build_object(
+        'value', 'must-fail-closed',
+        '_f27_authority_generation', current_setting('f27.authorized_generation')::bigint,
+        '_f27_legacy_parity', false
+      ),
+      'f27:g:late-native',
+      now(),
+      'test-client',
+      'graphics',
+      'f27-test-writer',
+      'system',
+      null,
+      null,
+      null,
+      null,
+      false
+    );
+    RAISE EXCEPTION 'late pre-authorized insert unexpectedly succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'f27_authority_generation_stale:graphics' THEN RAISE; END IF;
+  END;
+END $$;
+
+DO $$
+DECLARE
+  v_graphics_generation bigint;
+  v_video_generation bigint;
+BEGIN
+  SELECT generation INTO v_graphics_generation
+  FROM public.track_b_f27_team_fences WHERE team = 'graphics';
+  SELECT generation INTO v_video_generation
+  FROM public.track_b_f27_team_fences WHERE team = 'video';
+  IF v_graphics_generation <> current_setting('f27.authorized_generation')::bigint + 1
+     OR v_video_generation <> 0 THEN
+    RAISE EXCEPTION 'f27_generation_cas_not_exact';
+  END IF;
+END $$;
+
+-- A historical comment intent keeps its old generation. The pre-F27 requeue
+-- RPC must fail stale after handoff, while the fenced requeue atomically
+-- applies a freshly authorized generation. The successful probe is rolled back.
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.mirror_outbox_requeue(2);
+    RAISE EXCEPTION 'unfenced post-CAS requeue unexpectedly succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'f27_authority_generation_stale:graphics' THEN RAISE; END IF;
+  END;
+END $$;
+BEGIN;
+DO $$
+DECLARE
+  v_generation bigint;
+  v_ok boolean;
+BEGIN
+  SELECT generation INTO v_generation
+  FROM public.track_b_f27_team_fences WHERE team = 'graphics';
+  v_ok := public.track_b_f27_requeue(2, v_generation);
+  IF v_ok IS DISTINCT FROM true OR NOT EXISTS (
+    SELECT 1 FROM public.mirror_outbox
+    WHERE id = 2
+      AND status = 'pending'
+      AND authority_generation = v_generation
+      AND legacy_parity = false
+  ) THEN
+    RAISE EXCEPTION 'f27_fenced_post_cas_requeue_failed';
+  END IF;
+END $$;
+ROLLBACK;
+
+-- A fresh TEST enqueue remains available outside a real rollback. It uses the
+-- exact current generation and is transactionally discarded.
+BEGIN;
+SELECT public.mirror_outbox_enqueue(
+  'deliverable',
+  'f27-post-finalize-test',
+  'status',
+  jsonb_build_object(
+    'value', 'accepted-then-rolled-back',
+    '_f27_authority_generation', (
+      select generation from public.track_b_f27_team_fences where team = 'graphics'
+    ),
+    '_f27_legacy_parity', false
+  ),
+  'f27:g:post-finalize-test',
+  now(),
+  'test-client',
+  'graphics',
+  'f27-test-writer',
+  'system',
+  null,
+  null,
+  null,
+  null,
+  true
+);
+ROLLBACK;
+
+-- Full safe-drill contract. Baselines cover every real outbox row, both real
+-- fences, all three runtime flags, and the flag audit count. The drill keeps
+-- its own synthetic row and audit records permanently.
+CREATE TEMP TABLE f27_pre_drill_real_rows AS
+SELECT id,
+  encode(extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'), 'hex') AS row_hash
+FROM public.mirror_outbox o
+WHERE team IN ('video', 'graphics')
+ORDER BY id;
+CREATE TEMP TABLE f27_pre_drill_fences AS
+SELECT team, generation, updated_at, updated_by
+FROM public.track_b_f27_team_fences
+ORDER BY team;
+CREATE TEMP TABLE f27_pre_drill_flags AS
+SELECT key, value, updated_at, updated_by
+FROM public.syncview_runtime_flags
+WHERE key IN ('prod_authority', 'linear_outbound_enabled', 'linear_legacy_parity_enabled')
+ORDER BY key;
+SELECT count(*)::text AS pre_drill_flag_flips FROM public.flag_flips \gset
+SELECT set_config('f27.pre_drill_flag_flips', :'pre_drill_flag_flips', false);
+
+SELECT
+  drill->>'rollback_id' AS drill_rollback_id,
+  drill->>'outbox_id' AS drill_outbox_id,
+  drill->>'correlation_id' AS drill_correlation_id,
+  drill->>'row_sha256' AS drill_row_sha256,
+  drill->>'snapshot_sha256' AS drill_snapshot_sha256
+FROM (
+  SELECT public.track_b_f27_begin_drill(
+    '{"video":"linear","graphics":"linear"}',
+    'f27-test-owner'
+  ) AS drill
+) q \gset
+SELECT set_config('f27.drill_rollback_id', :'drill_rollback_id', false);
+SELECT set_config('f27.drill_outbox_id', :'drill_outbox_id', false);
+SELECT set_config('f27.drill_row_sha256', :'drill_row_sha256', false);
+
+DO $$
+DECLARE
+  v_ok boolean;
+BEGIN
+  SELECT
+    r.is_drill = true
+    AND r.team = '__f27_drill__'
+    AND r.state = 'open'
+    AND r.snapshot_count = 1
+    AND i.row_sha256 = current_setting('f27.drill_row_sha256')
+    AND i.row_sha256 = encode(
+      extensions.digest(convert_to(i.row_snapshot::text, 'UTF8'), 'sha256'), 'hex'
+    )
+    AND r.snapshot_sha256 = encode(
+      extensions.digest(convert_to(i.row_sha256, 'UTF8'), 'sha256'), 'hex'
+    )
+    AND r.snapshot_sha256 <> i.row_sha256
+    AND o.team = '__f27_drill__'
+    AND o.client_slug = '__f27_drill__'
+    AND o.test_only = true
+    AND o.f27_drill_rollback_id = r.id
+  INTO v_ok
+  FROM public.track_b_team_rollbacks r
+  JOIN public.track_b_team_rollback_intents i ON i.rollback_id = r.id
+  JOIN public.mirror_outbox o ON o.id = i.outbox_id
+  WHERE r.id = current_setting('f27.drill_rollback_id')::uuid
+    AND o.id = current_setting('f27.drill_outbox_id')::bigint;
+  IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'f27_drill_snapshot_not_exact'; END IF;
+END $$;
+
+-- An open drill never holds a real team. This TEST enqueue takes the current
+-- video generation, succeeds, and is discarded with the transaction.
+BEGIN;
+SELECT public.mirror_outbox_enqueue(
+  'deliverable',
+  'f27-open-drill-real-team-test',
+  'status',
+  jsonb_build_object(
+    'value', 'accepted-then-rolled-back',
+    '_f27_authority_generation', (
+      select generation from public.track_b_f27_team_fences where team = 'video'
+    ),
+    '_f27_legacy_parity', false
+  ),
+  'f27:v:open-drill-test',
+  now(),
+  'test-client',
+  'video',
+  'f27-test-writer',
+  'system',
+  null,
+  null,
+  null,
+  null,
+  true
+);
+ROLLBACK;
+
+DO $$
+DECLARE
+  v_kind text;
+BEGIN
+  FOREACH v_kind IN ARRAY ARRAY['quarantine', 'discard', 'already_reflected'] LOOP
+    BEGIN
+      PERFORM public.track_b_f27_classify(
+        current_setting('f27.drill_rollback_id')::uuid,
+        current_setting('f27.drill_outbox_id')::bigint,
+        v_kind,
+        'negative drill classification proof',
+        'f27-test-owner'
+      );
+      RAISE EXCEPTION 'non-replay drill classification unexpectedly succeeded';
+    EXCEPTION WHEN others THEN
+      IF SQLERRM <> 'f27_drill_replay_classification_required' THEN RAISE; END IF;
+    END;
+  END LOOP;
+END $$;
+
+SELECT public.track_b_f27_classify(
+  :'drill_rollback_id',
+  :'drill_outbox_id',
+  'replay',
+  'exercise the no-external-call drill replay',
+  'f27-test-owner'
+);
+SELECT gen_random_uuid()::text AS drill_lock_token \gset
+UPDATE public.mirror_outbox
+SET lock_token = :'drill_lock_token'::uuid,
+    locked_at = now(),
+    updated_at = now()
+WHERE id = :'drill_outbox_id'::bigint
+  AND f27_drill_rollback_id = :'drill_rollback_id'::uuid
+  AND status = 'skipped';
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.track_b_f27_execute_drill_replay(
+      current_setting('f27.drill_rollback_id')::uuid,
+      current_setting('f27.drill_outbox_id')::bigint,
+      gen_random_uuid()
+    );
+    RAISE EXCEPTION 'unbound drill replay unexpectedly succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'f27_drill_replay_refused' THEN RAISE; END IF;
+  END;
+END $$;
+
+SELECT public.track_b_f27_execute_drill_replay(
+  :'drill_rollback_id',
+  :'drill_outbox_id',
+  :'drill_lock_token'
+) AS drill_replay_result \gset
+SELECT set_config('f27.drill_replay_result', :'drill_replay_result', false);
+
+DO $$
+DECLARE
+  v_ok boolean;
+BEGIN
+  SELECT
+    i.terminal_receipt = current_setting('f27.drill_replay_result')::jsonb
+    AND i.terminal_receipt->>'linear_result_sha256' = encode(
+      extensions.digest(convert_to(o.linear_result::text, 'UTF8'), 'sha256'), 'hex'
+    )
+  INTO v_ok
+  FROM public.track_b_team_rollback_intents i
+  JOIN public.mirror_outbox o ON o.id = i.outbox_id
+  WHERE i.rollback_id = current_setting('f27.drill_rollback_id')::uuid
+    AND i.outbox_id = current_setting('f27.drill_outbox_id')::bigint;
+  IF v_ok IS DISTINCT FROM true THEN
+    RAISE EXCEPTION 'f27_drill_atomic_receipt_not_exact';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.track_b_f27_record_terminal(
+      current_setting('f27.drill_rollback_id')::uuid,
+      current_setting('f27.drill_outbox_id')::bigint,
+      jsonb_build_object(
+        'ok', true,
+        'type', 'f27_drill_replay_terminal',
+        'rollback_id', current_setting('f27.drill_rollback_id'),
+        'outbox_id', current_setting('f27.drill_outbox_id'),
+        'dedup_key', 'wrong-binding',
+        'operation', 'status',
+        'correlation_id', gen_random_uuid(),
+        'linear_result_sha256', 'wrong-binding',
+        'intent_snapshot_sha256', 'wrong-binding'
+      )
+    );
+    RAISE EXCEPTION 'unbound drill receipt unexpectedly succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'f27_terminal_receipt_refused' THEN RAISE; END IF;
+  END;
+END $$;
+
+SELECT public.track_b_f27_record_terminal(
+  :'drill_rollback_id',
+  :'drill_outbox_id',
+  current_setting('f27.drill_replay_result')::jsonb
+);
+
+-- The ordinary authority finalizer is the exercised CAS-refusal lane. It
+-- refuses the drill before taking any real-team table/flag/fence lock.
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.track_b_f27_finalize(
+      current_setting('f27.drill_rollback_id')::uuid,
+      '{"video":"linear","graphics":"linear"}',
+      'f27-test-owner'
+    );
+    RAISE EXCEPTION 'drill authority CAS unexpectedly succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'f27_drill_authority_cas_refused' THEN RAISE; END IF;
+  END;
+END $$;
+
+SELECT public.track_b_f27_finalize_drill(
+  :'drill_rollback_id',
+  '{"video":"linear","graphics":"linear"}',
+  'f27-test-owner'
+) AS drill_terminal_receipt \gset
+SELECT set_config('f27.drill_terminal_receipt', :'drill_terminal_receipt', false);
+
+-- Even a perfectly shaped reserved row cannot enter through generic DML; only
+-- track_b_f27_begin_drill can create one, and its audit row is retained.
+DO $$
+BEGIN
+  BEGIN
+    INSERT INTO public.mirror_outbox(
+      payload, entity, entity_id, operation, client_slug, team, dedup_key,
+      source_edited_at, status, test_only, legacy_parity,
+      authority_generation, f27_drill_rollback_id
+    ) VALUES (
+      '{"f27_drill":true,"value":"forbidden"}',
+      'deliverable', 'f27-generic-drill', 'status',
+      '__f27_drill__', '__f27_drill__', 'f27:generic-drill',
+      now(), 'pending', true, false, 0,
+      current_setting('f27.drill_rollback_id')::uuid
+    );
+    RAISE EXCEPTION 'generic drill insert unexpectedly succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'f27_drill_insert_forbidden' THEN RAISE; END IF;
+  END;
+END $$;
+
 DO $$
 DECLARE
   v_ok boolean;
@@ -316,6 +762,72 @@ BEGIN
   WHERE r.id = current_setting('f27.rollback_id')::uuid
   GROUP BY r.id;
   IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'terminal_receipts_correlated'; END IF;
+
+  SELECT
+    (SELECT count(*) FROM public.mirror_outbox WHERE team IN ('video', 'graphics'))
+      = (SELECT count(*) FROM f27_pre_drill_real_rows)
+    AND coalesce(bool_and(
+      encode(extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'), 'hex')
+        = b.row_hash
+    ), true)
+  INTO v_ok
+  FROM f27_pre_drill_real_rows b
+  JOIN public.mirror_outbox o USING (id);
+  IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'drill_real_rows_untouched'; END IF;
+
+  SELECT count(*) = 2 AND bool_and(
+    (f.generation, f.updated_at, f.updated_by)
+      IS NOT DISTINCT FROM (p.generation, p.updated_at, p.updated_by)
+  )
+  INTO v_ok
+  FROM f27_pre_drill_fences p
+  JOIN public.track_b_f27_team_fences f USING (team);
+  IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'drill_real_fences_untouched'; END IF;
+
+  SELECT count(*) = 3 AND bool_and(
+    (f.value, f.updated_at, f.updated_by)
+      IS NOT DISTINCT FROM (p.value, p.updated_at, p.updated_by)
+  )
+  INTO v_ok
+  FROM f27_pre_drill_flags p
+  JOIN public.syncview_runtime_flags f USING (key);
+  IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'drill_runtime_flags_untouched'; END IF;
+
+  SELECT count(*) = current_setting('f27.pre_drill_flag_flips')::bigint
+  INTO v_ok FROM public.flag_flips;
+  IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'drill_no_flag_flip_audit'; END IF;
+
+  SELECT
+    r.state = 'complete'
+    AND r.is_drill = true
+    AND r.team = '__f27_drill__'
+    AND r.snapshot_count = 1
+    AND i.row_sha256 = current_setting('f27.drill_row_sha256')
+    AND r.snapshot_sha256 = encode(
+      extensions.digest(convert_to(i.row_sha256, 'UTF8'), 'sha256'), 'hex'
+    )
+    AND r.terminal_receipt->>'type' = 'f27_drill_terminal'
+    AND r.terminal_receipt->>'authority_cas' = 'refused'
+    AND r.terminal_receipt->>'authority_cas_reason' = 'f27_drill_authority_cas_refused'
+    AND r.terminal_receipt->>'audit_history_retained' = 'true'
+    AND i.classification = 'replay'
+    AND jsonb_array_length(i.classification_history) = 1
+    AND i.terminal_receipt->>'type' = 'f27_drill_replay_terminal'
+    AND o.status = 'written'
+    AND o.f27_drill_rollback_id = r.id
+    AND o.linear_result->>'type' = 'f27_drill_replay_terminal'
+    AND o.linear_result->>'no_external_call' = 'true'
+    AND o.linear_result->>'intent_snapshot_sha256' = i.row_sha256
+  INTO v_ok
+  FROM public.track_b_team_rollbacks r
+  JOIN public.track_b_team_rollback_intents i ON i.rollback_id = r.id
+  JOIN public.mirror_outbox o ON o.id = i.outbox_id
+  WHERE r.id = current_setting('f27.drill_rollback_id')::uuid;
+  IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'drill_audit_history_not_terminal'; END IF;
+
+  SELECT count(*) = 0 INTO v_ok
+  FROM public.track_b_team_rollbacks WHERE state = 'open';
+  IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'f27_lane_not_dormant'; END IF;
 END $$;
 
 SELECT jsonb_build_object(
@@ -323,11 +835,24 @@ SELECT jsonb_build_object(
   'observer', 'github-actions-postgres',
   'rollback_id', :'rollback_id',
   'receipt', current_setting('f27.terminal_receipt')::jsonb,
+  'drill_rollback_id', :'drill_rollback_id',
+  'drill_receipt', current_setting('f27.drill_terminal_receipt')::jsonb,
   'assertions', jsonb_build_array(
     'exact_prior_flags_restored',
     'other_team_unchanged',
     'zero_payload_loss',
     'terminal_receipts_correlated',
+    'late_pre_authorized_insert_rejected',
+    'generation_cas_advanced_once',
+    'drill_snapshot_hash_exact',
+    'drill_classification_and_receipt_bound',
+    'drill_replay_no_external_call',
+    'drill_authority_cas_refused',
+    'drill_real_rows_untouched',
+    'drill_real_fences_untouched',
+    'drill_runtime_flags_untouched',
+    'drill_audit_history_retained',
+    'f27_lane_dormant',
     'unbound_receipt_refused',
     'inflight_lease_refused',
     'f2_off',

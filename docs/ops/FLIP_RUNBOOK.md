@@ -6,7 +6,10 @@ Created 2026-07-13 (audit F18 — the payload for "enforcing" that used to circu
 does nothing; the only value the code honors is `enforced`).
 
 > **CURRENT GO-LIVE STATE: BLOCKED — DO NOT RUN ANY FORWARD FLIP.** The historical outbound-pipe
-> drill is not human-cutover approval. F27's per-team outbox quarantine/classification, the
+> drill is not human-cutover approval. PR #901 records the correctly aborted F27 install: #894's
+> source had a late-writer authority-handoff race, an actorless replay-echo race, and no safe
+> real-row-isolated drill. The corrective generation fence, exact preflight echo proof, reserved
+> no-provider drill, and per-team outbox quarantine/classification remain source-only. The
 > remaining `write_ui_reroute_clients` enrollment gates, and the open gates in
 > `docs/independence/GO_LIVE_CHECKLIST.md` must close first. PR #850 deployed the allowlisted
 > callers and gateway dark; the allowlist was last verified TEST-only, which is not real-client
@@ -331,17 +334,23 @@ Do not enroll a real cohort on any other value or after proof expiry.
 3. If a flipped team is affected, snapshot its outbox and follow R2. Do not flip authority blindly.
 4. Tell the team which system is authoritative and which mutations are stopped. Then diagnose.
 
-## R2 — Pause a flipped team back to Linear (candidate proved; live application still blocked)
+## R2 — Pause a flipped team back to Linear (corrective source only; live use blocked)
 
 **The old “run the default drainer and require green/pending 0” instruction was unsafe.** The
 worker's normal summary does not provide an auditable per-team zero for this rollback, and stopping
 outbound first prevents a normal drain. Blindly flipping authority can strand newer SyncView work;
 blindly draining can send the very writes that triggered the incident.
 
-PR #894 carries the additive F27 candidate and an isolated TEST proof, but the
-migration is not live-applied. Until its reviewed migration/readback and a
-deployed TEST-client drill are separately owner-approved and complete, there is
-no live one-click team rollback. Use this incident containment sequence:
+PR #894 is not installable: its proof did not close the late pre-authorized
+insert or actorless replay-echo races, and its real-team-only contract could not
+be drilled safely. PR #901 records that the install stopped before DDL or
+deploy. Corrective source now binds every real-team insert to a server
+generation, requires an exact open rollback for the preflight echo exception,
+and provides a reserved no-provider drill whose audit is retained. It is still
+not live-applied. Until the corrective draft is cloud-reviewed and
+owner-merged, then the separate snapshot-first install/readback/drill in
+`docs/ops/F27_INSTALL_RUNBOOK.md` is owner-approved and complete, there is no
+live one-click team rollback. Use this incident containment sequence:
 
 1. Stop new mutations for the affected team and disable/read back the involved outbound lane(s) if
    Linear writes may be wrong: F2 `off` for normal rows, F4 `false` for parity rows, **both** when
@@ -359,10 +368,11 @@ no live one-click team rollback. Use this incident containment sequence:
 If the tooling in steps 2–4 is unavailable, keep the team stopped and SyncView-authoritative with
 outbound off. Escalate; do not improvise a database delete or default drain.
 
-Once the reviewed F27 migration is explicitly proved live, step 5 is exactly
+Once the corrective F27 release is explicitly proved live, step 5 is exactly
 one statement. The values are copied from the correlated open rollback receipt;
-the function refuses stale authority, nonzero/unclassified team residue,
-missing replay receipts, F2 not-off, or F4 not-false:
+the function refuses stale authority or generation, nonzero/unclassified team
+residue, missing replay receipts, F2 not-off, or F4 not-false, and advances the
+requested team's generation in the same transaction as its authority CAS:
 
 ```sql
 select public.track_b_f27_finalize(
@@ -372,8 +382,11 @@ select public.track_b_f27_finalize(
 );
 ```
 
-This block is not usable while the candidate remains unapplied. Never replace
-either placeholder from memory or loosen the function's checks.
+This block is not usable while the corrective source remains unapplied. The
+reserved drill must prove this real finalizer refuses with
+`f27_drill_authority_cas_refused`; drill completion uses its separate finalizer
+and permanently retains the audit. Never replace either placeholder from
+memory or loosen the function's checks.
 
 ## R3 — If Supabase itself is down
 

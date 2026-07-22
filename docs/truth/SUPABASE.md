@@ -1,6 +1,7 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-22 @ 3d8bbfb + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
+> Last verified: 2026-07-22 @ 3d8bbfb + source-only F27 reconciliation (PR #901 confirms no F27
+> live install; corrective source not applied/deployed) + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
 > candidate (plan-date effective schema/grants and v2 live; exact correction provenance F147; #850
 > write gateway deployed dark; candidate function source requires manual deployment)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
@@ -63,6 +64,15 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   not inherit that bypassability.
 - Track B tables (`batches`, `deliverables`, `deliverable_events`, `clients`, `team_members`)
   are additive; read by the visible Linear mirror's internal `production` boot.
+- F27 tables/fences are **not live**. PR #901 records that the attempted install
+  stopped before DDL/deploy. The corrective source-only migration would add
+  `track_b_f27_team_fences`, `track_b_team_rollbacks`, and
+  `track_b_team_rollback_intents`, plus trusted generation/drill binders on
+  `mirror_outbox`. Its real-team trigger rejects a stale authorization
+  generation at insert/reactivation time; its reserved `__f27_drill__` row can
+  never match a real team/client and is retained as audit. Do not query for or
+  depend on these objects until a separate owner-approved install records
+  apply/readback evidence.
 - `thumbnail_media_revisions` stores private baseline/latest metadata and Storage object paths for
   Calendar/Samples continuous Drive-thumbnail history (with the older graphic-tweak capture as a
   fast path). Browser SELECT is removed by the 2026-07-14 migration;
@@ -158,6 +168,15 @@ from a manual `workflow_dispatch` pinned to one exact 40-character SHA already o
 `29601466479` used that path at `main@9d76df6`, deploying `linear-outbound` v33 before
 `production-write` v24 and passing both source fingerprints. An ordinary merge still deploys
 neither function.
+
+The corrective F27 source changes the future exact-release closure beyond the
+old #894 pair: `linear-outbound`, `linear-inbound`, `production-write`,
+`deliverable-write`, and `batch-write` (the last two bundle
+`supabase/functions/_shared/b4-write.ts`) must all be deployed/read back from the same merged SHA;
+the reconciler script must be pinned to that SHA as well. This is source truth,
+not live state. `calendar-upsert` and `sample-review-upsert` remain frozen and
+excluded. See `docs/ops/F27_INSTALL_RUNBOOK.md`; no function in that set was
+deployed by the corrective session.
 
 Live set in `docs/truth/ENDPOINTS.md`. Source now represents 29 deployable function slugs while the
 live inventory remains 28 until `workload-linear` is deliberately deployed;

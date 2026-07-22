@@ -7552,7 +7552,7 @@
     // Optional n8n endpoint that, given ?doc=<docId>, returns the Google Doc's
     // tabs as { ok:true, tabs:[{ tabId, title, url }] } via the Docs API. The
     // "Filming Plan Tabs" workflow (n8n id 5S4JyVVR2CpHEv9b) serves this; until
-    // it's activated the view degrades to runway-only signalling (plus any
+    // it's activated the view still shows the calendar content bank (plus any
     // manual plan_months) — failed calls are caught and treated as no coverage.
     const FILMING_PLAN_TABS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/filming-plan-tabs';
     const FILMING_PLANS_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/filming-plans';
@@ -51078,7 +51078,7 @@
         editorsDayFilter: {}, // editorKey -> 'YYYY-MM-DD' when filtered to a single day
         editorsClientExpanded: {}, // editorKey -> { clientName -> bool }; absent = use view default
         editorsAvgMode: false, // false = weekly totals, true = per-workday averages
-        filmingData: null,    // { rows:[{client,slug,docUrl,docId,notes,months:Set,runwayDate,daysLeft,status,reason}], loadedAt }
+        filmingData: null,    // { rows:[{client,slug,docUrl,docId,notes,months:Set,contentTotal,latestPlanMonth,nextPlanMonth,status,reason}], loadedAt }
         filmingLoading: false,
         filmingError: null,
         filmingLoadedAt: 0,
@@ -51096,11 +51096,14 @@
     // into a new "last week").
     const KASPER_EDITORS_CACHE_KEY = 'syncview_kasper_editors_v2';
     const KASPER_EDITORS_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks — pure sanity bound
-    const KASPER_FILMING_CACHE_KEY = 'syncview_kasper_filming_v1';
-    const KASPER_FILMING_CACHE_MAX_AGE_MS = 30 * 60 * 1000; // 30 min — runway/coverage drift slowly
-    // "Both combined" alert thresholds, in days of content runway left.
-    const FILMING_RED_DAYS = 10;
-    const FILMING_AMBER_DAYS = 21;
+    const KASPER_FILMING_CACHE_KEY = 'syncview_kasper_filming_v2';
+    const KASPER_FILMING_CACHE_MAX_AGE_MS = 30 * 60 * 1000; // 30 min — content/coverage drift slowly
+    // Content-bank thresholds. These are intentionally counts, not an assumed
+    // posting cadence: every client can see exactly how much active calendar
+    // content is available, whether or not it already has a calendar date.
+    const FILMING_CONTENT_RED_COUNT = 10;
+    const FILMING_CONTENT_COVERED_COUNT = 21;
+    const FILMING_PLAN_SOON_DAYS = 14;
     function _kasperFallbackToReview() {
         _kasperState.tab = 'review';
         try { localStorage.setItem(KASPER_SUBTAB_KEY, 'review'); } catch (e) {}
@@ -52232,13 +52235,12 @@
     }
 
     /* ── Filming Plans ─────────────────────────────────────────────
-       One row per client. Tells Kasper who is about to run out of content
-       and has no plan for the upcoming month ("both combined" alert):
-         • runway  = days until the client's latest scheduled calendar post
-         • coverage = does a plan exist for the month after runway ends?
-       Plan months come from the Docs-tabs webhook when configured, else from
-       an optional manual `plan_months` value. Source of links: Supabase
-       filming_plans rows. */
+       One row per client. The content bank counts every active calendar card
+       that is either undated or dated today/future; archived and past-dated
+       cards are excluded. This makes undated, already-created content visible
+       without pretending it has a calendar slot. Plan months come from the
+       Docs-tabs webhook when configured, else optional `plan_months` data.
+       Source of Doc links: Supabase filming_plans rows. */
     function _filmsTodayISO() {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -52311,14 +52313,16 @@
         return out;
     }
 
-    // Latest scheduled_date across a client's live (non-archived) calendar posts.
-    async function _filmsFetchRunway(slug) {
+    // Active content = every non-archived card which has not passed its
+    // scheduled date. Undated cards count because they are content waiting to
+    // be scheduled; past-dated cards are treated as already consumed.
+    async function _filmsFetchContentBank(slug) {
         try {
             // v2: read this client's posts from Supabase instead of the Sheet
             // (gated on _calV2Ready() so v1 is byte-identical). _calV2FetchPosts
             // already falls back to the n8n calendar-get webhook on any Supabase
-            // error, so the runway can never blank. The runway is just a computed
-            // summary (latest scheduled date), so a refresh-on-open is enough —
+            // error, so the content bank can never blank. The bank is a computed
+            // summary, so a refresh-on-open is enough —
             // no realtime subscription needed here.
             let json;
             if (_calV2Ready()) {
@@ -52329,13 +52333,14 @@
                 json = await resp.json();
             }
             if (!json || !json.ok || !Array.isArray(json.posts)) return null;
-            let latest = '';
+            const today = _filmsTodayISO();
+            let total = 0;
             for (const p of json.posts) {
                 if ((p.status || '').toLowerCase() === 'archived') continue;
                 const d = _calCoerceDate(p.scheduled_date);
-                if (d && d > latest) latest = d;
+                if (!d || d >= today) total++;
             }
-            return latest || null;
+            return total;
         } catch (e) { return null; }
     }
 
@@ -52357,22 +52362,39 @@
         } catch (e) { return null; }
     }
 
+    function _filmsLatestPlanMonth(row) {
+        const months = Array.from((row && row.months) || []).filter(mk => /^20\d{2}-\d{2}$/.test(mk));
+        return months.sort().pop() || '';
+    }
+
+    function _filmsPlanDetails(row) {
+        const latestPlanMonth = _filmsLatestPlanMonth(row);
+        if (!row.docUrl) return { latestPlanMonth: '', nextPlanMonth: '', daysUntilPlan: null, state: 'missing-doc' };
+        if (!latestPlanMonth) return { latestPlanMonth: '', nextPlanMonth: '', daysUntilPlan: null, state: 'unknown' };
+        // A June filming plan supplies July content, so the next plan is due in
+        // August. A new tab then advances the cycle by another two months.
+        const nextPlanMonth = _filmsAddMonth(latestPlanMonth, 2);
+        const daysUntilPlan = _filmsDaysUntil(nextPlanMonth + '-01');
+        return {
+            latestPlanMonth,
+            nextPlanMonth,
+            daysUntilPlan,
+            state: daysUntilPlan <= 0 ? 'overdue' : (daysUntilPlan <= FILMING_PLAN_SOON_DAYS ? 'soon' : 'covered'),
+        };
+    }
+
     function _filmsClassify(row) {
-        // No content scheduled at all → almost certainly needs attention.
-        if (!row.runwayDate) {
-            if (!row.docUrl) return { status: 'red', reason: 'No filming Doc linked & no scheduled content' };
-            return { status: 'red', reason: 'No scheduled content on the calendar' };
-        }
-        const days = row.daysLeft;
-        const neededMonth = _filmsAddMonth(_filmsMonthKey(row.runwayDate), 1); // month after content runs out
-        const covered = row.months && Array.from(row.months).some(mk => mk >= neededMonth);
-        if (covered) return { status: 'green', reason: `Plan ready for ${_filmsMonthShort(neededMonth)}` };
-        // Not covered → urgency is driven by runway (the "both combined" rule).
-        const noData = !FILMING_PLAN_TABS_URL && (!row.months || row.months.size === 0);
-        const tail = noData ? ' · coverage unknown' : '';
-        if (days <= FILMING_RED_DAYS)  return { status: 'red',   reason: `${days}d of content left, no ${_filmsMonthShort(neededMonth)} plan${tail}` };
-        if (days <= FILMING_AMBER_DAYS) return { status: 'amber', reason: `${days}d left, ${_filmsMonthShort(neededMonth)} plan not started${tail}` };
-        return { status: 'green', reason: `${days}d of runway` + (row.docUrl ? '' : ' · no Doc linked') };
+        const contentTotal = row.contentTotal;
+        const plan = _filmsPlanDetails(row);
+        Object.assign(row, plan);
+        if (plan.state === 'missing-doc') return { status: 'red', reason: 'No filming Doc linked' };
+        if (contentTotal == null) return { status: 'amber', reason: 'Content total unavailable' };
+        if (contentTotal <= FILMING_CONTENT_RED_COUNT) return { status: 'red', reason: `${contentTotal} pieces of content` };
+        if (plan.state === 'overdue') return { status: 'red', reason: `${_filmsMonthShort(plan.nextPlanMonth)} plan overdue` };
+        if (plan.state === 'unknown') return { status: 'amber', reason: 'Latest filming plan unknown' };
+        if (plan.state === 'soon') return { status: 'amber', reason: `${_filmsMonthShort(plan.nextPlanMonth)} plan due in ${plan.daysUntilPlan}d` };
+        if (contentTotal < FILMING_CONTENT_COVERED_COUNT) return { status: 'amber', reason: `${contentTotal} pieces of content` };
+        return { status: 'green', reason: `Next plan: ${_filmsMonthShort(plan.nextPlanMonth)}` };
     }
 
     const _FILMS_RANK = { red: 0, amber: 1, green: 2 };
@@ -52393,8 +52415,10 @@
                 notes: (r.notes || '').trim(),
                 slug: calClientSlug(client),
                 months,                 // may be augmented by the tabs webhook
-                runwayDate: null,
-                daysLeft: null,
+                contentTotal: null,
+                latestPlanMonth: '',
+                nextPlanMonth: '',
+                daysUntilPlan: null,
                 status: 'amber',
                 reason: '',
             });
@@ -52416,8 +52440,10 @@
                 notes: String(plan.notes || '').trim(),
                 slug: calClientSlug(client),
                 months,
-                runwayDate: null,
-                daysLeft: null,
+                contentTotal: null,
+                latestPlanMonth: '',
+                nextPlanMonth: '',
+                daysUntilPlan: null,
                 status: 'amber',
                 reason: '',
             });
@@ -52465,8 +52491,8 @@
                     <span class="kfilm-dot kfilm-red"></span> needs a plan now —
                     <span class="kfilm-dot kfilm-amber"></span> start one soon —
                     <span class="kfilm-dot kfilm-green"></span> covered.</p>
-                <p><strong>Content runway</strong> is the date of the last scheduled post on that client's content calendar — i.e. when we run out of content.</p>
-                <p><strong>The alert</strong> only goes red/amber when content is running low <em>and</em> there's no filming plan for the upcoming month. Click a client to see which months already have a plan, and open the Doc.</p>
+                <p><strong>Content</strong> is every active calendar card that is still available: undated cards and cards scheduled today or later. Archived and past-dated cards do not count.</p>
+                <p><strong>The alert</strong> goes red for very low content or an overdue filming plan, amber when content is getting low or the next plan is due within two weeks. A monthly tab is treated as creating content for the following month.</p>
                 <p class="ked-info-note">Plan links live in the <strong>Filming Plans</strong> source-of-truth tab. Month coverage is read from each Doc's tabs when the tabs webhook is configured; otherwise from an optional <code>plan_months</code> value.</p>
             </div>
             <div id="kfilmBody">${_svLoadingSkeletonHtml('kasper', { label: 'Loading filming plans' })}</div>`;
@@ -52515,21 +52541,20 @@
                 _filmsPaint();
                 return;
             }
-            // Runway (per client) + optional Doc-tab months (per doc), bounded concurrency.
+            // Content bank (per client) + optional Doc-tab months (per doc), bounded concurrency.
             await _filmsMapLimit(rows, 5, async (row) => {
-                const [runway, tabMonths] = await Promise.all([
-                    _filmsFetchRunway(row.slug),
+                const [contentTotal, tabMonths] = await Promise.all([
+                    _filmsFetchContentBank(row.slug),
                     _filmsFetchTabMonths(row.docId),
                 ]);
-                row.runwayDate = runway;
-                row.daysLeft = runway ? _filmsDaysUntil(runway) : null;
+                row.contentTotal = contentTotal;
                 if (Array.isArray(tabMonths)) tabMonths.forEach(mk => row.months.add(mk));
                 const cls = _filmsClassify(row);
                 row.status = cls.status;
                 row.reason = cls.reason;
             });
             rows.sort((a, b) => (_FILMS_RANK[a.status] - _FILMS_RANK[b.status])
-                || ((a.daysLeft == null ? 1e9 : a.daysLeft) - (b.daysLeft == null ? 1e9 : b.daysLeft))
+                || ((a.contentTotal == null ? 1e9 : a.contentTotal) - (b.contentTotal == null ? 1e9 : b.contentTotal))
                 || a.client.localeCompare(b.client));
             _kasperState.filmingData = { rows };
             _kasperState.filmingLoadedAt = Date.now();
@@ -52583,9 +52608,12 @@
                 : `<span class="kfilm-nodoc">No Doc linked</span>`;
             const calUrl = `${location.pathname}#calendar/${encodeURIComponent(r.slug)}`;
             const calBtn = `<a class="kfilm-open kfilm-cal" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Calendar ↗</a>`;
-            const runwayTxt = r.runwayDate
-                ? `Content until <strong>${_filmsDatePretty(r.runwayDate)}</strong>${r.daysLeft != null ? ` · ${r.daysLeft}d left` : ''}`
-                : `<span class="kfilm-muted">No scheduled content</span>`;
+            const contentTxt = r.contentTotal == null
+                ? `<span class="kfilm-muted">Content total unavailable</span>`
+                : `<strong>${r.contentTotal}</strong> piece${r.contentTotal === 1 ? '' : 's'} of content`;
+            const planTxt = r.latestPlanMonth
+                ? `Latest filming plan: <strong>${_filmsMonthShort(r.latestPlanMonth)}</strong> · ${_calEsc(r.reason)}`
+                : _calEsc(r.reason);
             let strip = '';
             if (expanded) {
                 const cells = gridMonths.map(mk => {
@@ -52606,8 +52634,8 @@
                 <div class="kfilm-main">
                     <span class="kfilm-dot kfilm-${r.status}"></span>
                     <div class="kfilm-name">${_calEsc(r.client)}</div>
-                    <div class="kfilm-runway">${runwayTxt}</div>
-                    <div class="kfilm-reason">${_calEsc(r.reason)}</div>
+                    <div class="kfilm-runway">${contentTxt}</div>
+                    <div class="kfilm-reason">${planTxt}</div>
                     <div class="kfilm-actions">${calBtn}${open}<span class="kfilm-caret">${expanded ? '▾' : '▸'}</span></div>
                 </div>
                 ${strip}

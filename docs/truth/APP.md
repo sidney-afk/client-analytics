@@ -96,13 +96,20 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Workload
 
-- Workload reads the Linear-backed `workload_issues` mirror and does not write Linear due dates.
+- Workload reads the Linear-backed `workload_issues` mirror. Candidate source adds one isolated
+  `workload-linear` boundary: every staff role may read exact deadline/weight metadata, while only
+  Admin/SMM may update a sub-issue's Linear due date. The candidate is not live until both the
+  Creative-readable `workload-plan` source and new `workload-linear` source are manually deployed
+  and read back from the exact merge SHA.
 - Dated work without a saved manual override gets one deterministic, item-local automatic work day:
   one working day before its Linear deadline, floored to today. A saved manual `plan_date` wins.
   There is no queue-wide ASAP packing, capacity spill, or hidden overflow row. Because each automatic
   day depends only on that issue's deadline and today, newly urgent work never repacks existing
   automatic placements; any resulting overload remains visible for a person to resolve.
-- Capacity remains 5 video / 15 graphics per editor per day as a warning only. Each editor block
+- Capacity is 4 video workload units / 15 graphics items per editor per day as a warning only.
+  An exact Linear `2× Workload` or `3× Workload` label makes that video consume two or three
+  units; an unlabeled video consumes one. If both exact labels exist, three wins. Label weights
+  affect capacity/overload and workload ranking, never silently repack an automatic plan. Each editor block
   owns the only red over-capacity signal. The date keeps its normal background, border, number
   color, and shadow, and every item remains available instead of spilling or hiding.
 - Calendar hierarchy is date → editor → client → sub-issue. Editor blocks remain primary, each
@@ -110,6 +117,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   click. Expanded rows use the sub-issue title while the identifier stays in the accessible item
   label and opened Linear context; Workload does not emit hover-triggered `title` or `data-tip`
   tooltips.
+  Within each editor/day, client chips are ordered by the closest signed plan-to-deadline buffer,
+  with missing deadlines last and client name as the deterministic tie-breaker, so the most
+  time-sensitive group appears first.
   Within a client, render order uses native mirror sort order only when the whole group carries it;
   otherwise it derives identifier-number order. The order is never persisted.
 - Assigned active work with neither an internal work day nor a due date stays off the calendar and
@@ -122,29 +132,36 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   toolbar, default collapsed, and remember each browser's expanded sections. The toolbar remains
   directly above the Work-day calendar. **Needs a work day or deadline** renders at the bottom,
   after the calendar and **Needs assignment**.
-- A first private plan-date read and every manual, visibility, or realtime refresh uses the shared
+- A first private plan/metadata read and every manual, visibility, or mirror-watermark refresh uses the shared
   animated Workload skeleton with day, editor, and client-chip placeholders. The refreshing text
-  strip is not rendered. Plan dates and priority enrichment are not browser-cached; the only new
+  strip is not rendered. Plan dates and workload-label metadata are not browser-cached; the only new
   browser persistence is the non-sensitive expanded/collapsed section preference plus the
   display-only **Plan only** / **Plan + deadlines** preference, which defaults to **Plan only**.
-- The live editable-plan path keeps the Linear due date read-only and adds a separate
+  Forced manual, visibility, and post-create refreshes bypass the scheduled mirror and use the
+  existing Linear reader with `no-store`. While Workload is visible, a 60-second lightweight poll
+  reads only the newest `workload_issues.synced_at`; the full existing skeleton refresh runs only
+  when that watermark advances. This bounds browser-side reaction after a mirror update, not the
+  upstream scheduled reconcile itself, so unseen new Linear work can still wait for that producer.
+  Realtime remains intentionally disabled. **As of** shows the mirror watermark rather than the
+  browser request time, so an old mirror cannot look newly fetched.
+- The live editable-plan path adds a separate
   internal work day. A saved `plan_date` is keyed by the sub-issue's stable id in the service-role
   `workload_plan` sidecar and overrides the automatic day. Dragging an individual issue or using the
-  branded work-day control updates only that internal date. **Use automatic plan** appears only in
-  the directly opened popover for a manually planned sub-issue; it clears that override and reveals
-  the deterministic automatic day.
+  drag handle updates only that internal date. **Use automatic plan** appears for every manually
+  planned sub-issue in its popover; it clears that override and reveals the deterministic automatic
+  day. The branded date control in that popover now edits the Linear due date through
+  `workload-linear`; Creative sees the same value in a disabled control.
 - Calendar chips and expanded issue rows use quiet sparkle/pin icons for automatic/manual placement;
   mixed groups show icon counts instead of text badges. Deadline proximity is a compact color dot,
   remains visible without opening a popover, and measures the buffer from that issue's displayed
   plan day to its due day:
-  one day or less is red, two to three days is orange, and more than three days is green. Each
+  the plan day or later is red, one to two days is orange, and three or more days is green. Each
   expanded sub-issue owns its exact tone. A collapsed client group inherits a tone only when every
   represented item has a deadline in the same band; mixed or missing deadlines show no group-level
   proximity marker. Expanded due/buffer copy is plain text with the same dot rather than a bordered
   pill.
-  Linear priority is a separate native-shape/native-color icon, best-effort enriched read-only from
-  `deliverables.priority` by the issue's stable Linear UUID. Missing or failed enrichment hides the
-  icon without blocking Workload; client difficulty is not represented.
+  Native Linear Priority is not shown or used by Workload. Exact `2× Workload` / `3× Workload`
+  labels appear as compact badges on the affected videos and as summaries on collapsed groups.
 - The persistent **Plan only** / **Plan + deadlines** segmented control sits beside the client
   filter and defaults to **Plan only**. Deadline mode is Week-only: enabling **Plan + deadlines**
   switches to Week and disables Month until **Plan only** is restored. Week is always the
@@ -156,9 +173,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   with straight lines to outlined due-date endpoints. Different deadlines split into separate
   endpoints; work due on its planned day stays on the solid plan chip with a same-day marker rather
   than a duplicate. Due endpoints are display-only references and never add to capacity.
-- Shared issue popovers link to **Open Linear**, keep the deadline only beside the sub-issue title,
-  and place the Work day picker plus save/clear state on one compact row. The automatic-plan reset
-  exists only in a directly opened manual sub-issue popover. Tweaks popovers retain their existing
+- Shared issue popovers link to **Open Linear**, keep deadline proximity beside the sub-issue title,
+  and place the branded Linear due-date picker plus optional automatic-plan reset on one compact
+  row. Tweaks popovers retain their existing
   comment and Frame reminder layout.
 - Dragging a collapsed client chip moves that exact date/editor/client group optimistically, then
   sends sequential single-issue writes through the existing `workload-plan` contract. Successful
@@ -170,8 +187,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   for the sidecar. Candidate source separates that access: Admin/SMM/Creative may list the same
   global saved-plan snapshot, while Admin/SMM remain the only roles allowed to set or clear a plan
   date. Creative therefore receives the same calendar placement and automatic/manual indicators
-  after the exact function source is manually deployed. Its work-day controls remain visibly
-  read-only, drag handles are absent, and the server still rejects Creative mutations. Automatic
+  after the exact function source is manually deployed. Its Linear due-date control remains visibly
+  read-only, drag handles are absent, and both servers still reject Creative mutations. Automatic
   placement uses the shared America/Guatemala policy day so the due-minus-one-working-day floor
   cannot vary with each viewer's browser time zone. A write is accepted
   only when
@@ -183,23 +200,24 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   overrides as absent. Authentication or authorization denial instead purges the private projection
   immediately. Reads and writes are bounded, and only the newest overlapping refresh may publish
   plan state.
+- Candidate `workload-linear` uses the shared browser-write authenticator and the existing
+  `LINEAR_MIRROR_API_KEY`; it has no n8n, frozen-writer, runtime-flag, schema, or `workload-plan`
+  fallback. Metadata requests contain at most 100 unique active sub-issue ids and use bounded
+  20-alias Linear batches. Missing aliases, GraphQL errors, truncated/malformed label connections,
+  or omitted deadline fields cannot claim a complete metadata result. Due writes validate the exact
+  active issue/client before Linear, require an exact issue/date acknowledgement, and then make a
+  2.5-second best-effort mirror update. A pre-commit failure reverts and notifies; once Linear has
+  confirmed the commit, a zero-row/timed-out mirror update stays successful with
+  `mirror_pending=true`, keeps the new date in the browser, and warns that Workload is catching up.
 - **Deployment boundary:** effective live table/grant readback matches the locked 2026-07-19
-  sidecar contract, and `workload-plan` v2 remains the deliberate-manual deployment. The candidate
-  read/write role split changes no schema, grant, runtime flag, frozen writer, or Linear due date;
-  Creative list access remains unavailable live until this exact function source is manually
-  deployed. F147 keeps the exact revoke-correction artifact provenance open. The historical private
-  TEST release drill proved
-  `409` revert/notify, Creative `403` list/set under the 2026-07-20 deployment, one-row save plus
-  server-truth reload, clear-to-null
-  sidecar persistence, and exact cleanup. #892 merged the F148 same-chain guard, detached-select negative
-  mutant, and test-label cleanup with the day-overload, loading-skeleton, and toolbar display
-  changes. #889's hierarchy/group-drag path and #892 are client-side only and reuse the deployed
-  one-row writer. This follow-up remains client-side only as well; together they add no Edge
-  Function, schema, migration, runtime flag, Linear writer, or frozen client-writer change. The
-  hybrid automatic placement, quiet origin/deadline treatment, priority enrichment, and optional
-  Week deadline timeline are client-only and reuse that same live boundary. #884's
-  server-atomic batch contract remains open. This follow-up performed no live operation and changed
-  no n8n workflow or real-client row.
+  sidecar contract, and `workload-plan` v2 remains a deliberate-manual deployment. This candidate
+  adds one new deliberate-manual `workload-linear` function and browser caller; it changes no
+  schema, migration, table grant, runtime flag, n8n workflow, frozen writer, or real data. Nothing
+  is live until the reviewed merge and an exact-SHA manual function deployment/readback/TEST drill.
+  A Pages-only revert removes the caller and restores the prior Workload display without changing
+  saved plan data or Linear. If the function was deployed, retiring it is a separate captured
+  operation. F147 keeps the exact plan-sidecar revoke-correction artifact provenance open, and
+  #884's server-atomic batch contract remains open.
 
 ## Linear sync surface
 

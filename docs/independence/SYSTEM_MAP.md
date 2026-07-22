@@ -70,8 +70,8 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   until the exact function source is manually deployed. Effective schema
   and grants were read back and the exact-source function is deployed; the release drill ended with
   zero sidecar-row residue. F147 tracks the exact revoke-correction artifact provenance.
-- **Edge Functions.** 28 are represented under `supabase/functions/`; **the app calls 23**
-  (**"19 literal + 4 composed" Edge Functions**, see
+- **Edge Functions.** 29 are represented under `supabase/functions/`; **the app calls 24**
+  (**"20 literal + 4 composed" Edge Functions**, see
   §7). Five are backend-only: the Linear webhook target (`linear-inbound`), B4 outbox drainer
   (`linear-outbound`), service-only write wrappers (`deliverable-write`, `batch-write`), and the
   scheduled thumbnail Drive scanner (`thumbnail-revision-scan`). `production-write` is app-called
@@ -170,7 +170,7 @@ Everything below is shared by every surface; per-surface sections only note devi
   epoch, server minimum-version rejection, or build-population telemetry currently expires callers.
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
   constant declared *before* the main Supabase URL constant (TDZ avoidance) — that is why §7 counts
-  "19 literal + 4 composed" Edge Functions.
+  "20 literal + 4 composed" Edge Functions.
 
 ## 4. Surface catalog
 
@@ -672,20 +672,25 @@ n8n in the metric read path.*
 - **Reads.** `workload_issues` REST (`active=eq.true`, paged 1000, **default ON** since 2026-06-17)
   → n8n `linear-issues` fallback on error / 0 rows / `?wl2=0`. The `workload_issues` **realtime
   channel is DEAD CODE** (`WL_V2_REALTIME` hardcoded false — the reconcile rewrites every row and
-  would flood boards); liveness is a 5-min cache TTL + visibility refetch + manual refresh. n8n
+  would flood boards). The mirror is the fast default read; forced manual, visibility, and post-create
+  refreshes bypass it and call the existing `linear-issues` reader with `no-store`. A foreground
+  60-second newest-`synced_at` poll triggers the existing skeleton refresh only when the mirror
+  watermark advances. This removes the browser's extra cache delay but does not accelerate the
+  upstream scheduled mirror reconcile, so a newly created issue can still wait for that producer. n8n
   `linear-tweak-comments` (Tweak-Needed popover, 5-min cache). n8n `editors-week` (**one** browser
   fetch site, but a publicly callable arbitrary-range endpoint) returns issue histories; all report
   metrics are computed client-side. The editable path additionally reads internal plan dates
   through staff-authenticated EF `workload-plan`; candidate source allows Admin/SMM/Creative to list
   the same global projection and never reads the sidecar through PostgREST.
-  A separate best-effort, read-only `deliverables` REST projection supplies positive Linear priority
-  values by matching `linear_issue_uuid` to the workload issue's stable id. A failed refresh keeps
-  last-good priority values when available; without them, or without a match, no icon is shown and
-  the board still loads.
+  Candidate `workload-linear` reads exact current due-date and `2× Workload` / `3× Workload`
+  label metadata from Linear for bounded active issue-id batches. It is staff-authenticated and
+  source-only until an exact-SHA manual deploy; Workload no longer reads `deliverables.priority`.
 - **Writes.** n8n `content-ready` (manual "content ready for review" email; **never checks
   `resp.ok`** — HTTP errors display as success). The app writes or clears one internal
   `plan_date` through `workload-plan`, keyed by the exact sub-issue id. It never writes Linear
-  `due_date`, and there is no n8n fallback. Collapsed client-group drag reuses that same action as
+  `due_date`, and there is no n8n fallback. Candidate Admin/SMM users may separately update the
+  Linear deadline through `workload-linear`; Creative remains read-only. A confirmed Linear commit
+  is followed by a bounded best-effort update of the existing mirror row. Collapsed client-group drag reuses that same action as
   sequential one-row writes; there is no batch action or new server route. Successful items remain
   moved, each failed item restores its prior plan value, and the browser emits one aggregate result.
 - **State.** `syncview_linearIssuesCache_v1` (5 min, both feeders), `syncview_workload_v2_off`
@@ -695,13 +700,13 @@ n8n in the metric read path.*
   deadlines** preference; absent defaults to **Plan only**, while **Plan + deadlines** forces Week),
   `syncview_kasper_editors_v2` (week-rollover-invalidated). Kill switches: `?wl2=0`, the compile-time
   `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch exists for either Workload or the
-  plan-date path; plan and best-effort priority state are held as issue-id maps in the running page
-  and are not browser-cached. A first private plan read and every manual, visibility, or realtime
+  plan-date path; plan and exact workload-label state are held as issue-id maps in the running page
+  and are not browser-cached. A first private plan/metadata read and every manual, visibility, or watermark
   refresh holds the calendar on the shared animated day/editor/client-chip skeleton.
 - **Roles.** Candidate plan projection/list access is Admin/SMM/Creative after verified role-key
   authentication; per-issue plan-date writes remain Admin/SMM-only. The browser gives Creative the
-  same saved plan snapshot and placement indicators, visibly read-only work-day controls, and no
-  drag handles, while the function continues to reject Creative mutations. Automatic placement is
+  same saved plan snapshot, Linear metadata, placement indicators, and visibly read-only due-date
+  control, with no drag handles, while both functions reject Creative mutations. Automatic placement is
   floored against the shared `America/Guatemala` policy day instead of each viewer's local day. This list widening requires the exact candidate
   function source to be manually deployed after merge. Editors view remains further gated behind
   the Kasper unlock.
@@ -709,10 +714,14 @@ n8n in the metric read path.*
   Both fail + cache → stale board (error only set when no cache); no cache → red error card.
   Plan-list failure retains last-good overrides when available; without one, the UI
   explicitly labels a deadline-fallback degraded view, does not call the placement automatic, and
-  disables plan edits. Priority-enrichment failure retains last-good values when available and is
-  otherwise non-blocking with no priority icon. A plan write succeeds
+  disables plan edits. Metadata failure retains the last exact weights when available, otherwise
+  warns that capacity may be understated and pauses due-date editing. Incomplete metadata never
+  claims success. A plan write succeeds
   only when the function reports exactly one row actually written; any short count/error reverts
   the optimistic move and notifies instead of leaving a false local date.
+  A due write similarly requires an exact Linear issue/date acknowledgement; a pre-commit failure
+  reverts and notifies. After a confirmed Linear commit, a missed mirror update returns
+  `mirror_pending`, keeps the new date, and warns instead of fabricating a rollback.
   `editors-week` fail → error card, older week cache still usable. **F48:** the endpoint is
   unauthenticated and exposes confidential people/client/work metadata. Its issue connection pages
   50 at a time but silently stops after 30 pages / 1,500 issues; each issue history is unpaged at
@@ -724,23 +733,26 @@ n8n in the metric read path.*
   `resp.ok` check is a real bug-shape. `loadLinearIssues` is also the Calendar bulk-create link poll's
   data source (shared feeder + cache). Placement is manual `plan_date` first; otherwise, when the
   private plan snapshot is authoritative, the automatic day is one working day before the Linear
-  deadline floored to today. **Use automatic plan** is available only from the directly opened
-  popover for a manually planned sub-issue; it clears the sidecar override and reveals that
+  deadline floored to today. **Use automatic plan** is available in the popover for every manually
+  planned sub-issue; it clears the sidecar override and reveals that
   automatic day. This is item-local derivation, not queue packing: adding urgent work cannot reflow
   peers, capacity never spills work, and overload remains visible. Tweak cards remain exclusive
   from the calendar. The calendar renders date → editor → collapsed client chip → sub-issue, with
-  per-editor overload warnings and title-only expanded labels. Client-group order is derived from
-  complete native mirror order when available, otherwise from identifier number; moves never store
-  display order. Only each editor's capacity pill turns red; the day cell keeps normal styling.
+  per-editor overload warnings and title-only expanded labels. Client chips within an editor/day are
+  ordered by closest signed plan-to-due buffer, with missing deadlines last. Expanded sub-issues
+  retain complete native mirror order when available, otherwise identifier-number order; moves
+  never store display order. Video capacity is four weighted units: exact `2× Workload` and
+  `3× Workload` labels consume two or three units, default one; graphics remains 15 items. Only
+  each editor's capacity pill turns red; the day cell keeps normal styling and every item remains visible.
   Past-due assigned non-tweak work is excluded from the calendar; it appears in Overdue, and a
   past-due In-progress item also remains in In progress now. Tweaks remains exclusive. Overdue,
   in-progress, and tweaks sections precede the intact period/filter toolbar, default collapsed, and
   persist each browser's expansion preference. The toolbar sits directly above the calendar;
   undated work follows the calendar and unassigned lane at the bottom. Client chips and issue rows
   expose quiet sparkle/pin auto/manual icons, compact color-dot deadline proximity measured from
-  displayed plan day to due day (red at one day or less, orange at two to three days, green beyond
-  three), and a
-  separate native Linear priority icon when the `deliverables` join resolves. The tone belongs to
+  displayed plan day to due day (red when planned on/after due, orange at one to two days, green at
+  three or more), plus compact exact workload-weight badges. Native Linear Priority is neither
+  displayed nor used by Workload. The tone belongs to
   each sub-issue and reaches a collapsed group only when every represented deadline shares one band;
   mixed or missing deadlines render no group-level proximity marker. Expanded due/buffer copy is
   unboxed text, and Workload renderers do not emit hover-triggered `title` or `data-tip` tooltips.
@@ -754,9 +766,9 @@ n8n in the metric read path.*
   plan and due share a day. Due endpoints are display-only and excluded from capacity; the solid
   plan source is the only counted copy. Admin/SMM drag starts only from the dedicated six-dot handle
   on a plan group or expanded issue; the rest of the row remains clickable and non-draggable.
-  Shared popovers link to Linear, keep one title-row deadline, and use
-  one compact branded Work day row; only a directly opened manual sub-issue exposes the automatic
-  reset. Tweaks retains its comment layout. The migration, EF, and original plan-date browser behavior are
+  Shared popovers link to Linear, keep title-row proximity, and use one compact branded Linear
+  due-date row; any manual sub-issue exposes the automatic-plan reset. Tweaks retains its comment
+  layout. The plan migration, EF, and original plan-date browser behavior are
   live; the historical private TEST release drill proved save/reload/clear, pre-write `409` rollback,
   Creative `403` list/set under the 2026-07-20 deployment, and exact
   cleanup. PR #889's hierarchy/group-drag path changes only `index.html` and tests/docs and is
@@ -764,8 +776,9 @@ n8n in the metric read path.*
   backend boundary. PR #892 / merge `07d123d` likewise changes only `index.html` and tests/docs; it
   removes the day-level overload styling, substitutes the shared loading skeleton, relocates the
   intact toolbar, and closes F148's weak same-chain source guard plus reused-F141 test-label
-  cleanup. The current hybrid-planning/deadline-timeline follow-up stays within the same client-only
-  boundary and adds no queue scheduler, writer, schema, migration, runtime flag, or Linear mutation. #884's
+  cleanup. The current weighted-planning/deadline follow-up adds only the isolated
+  `workload-linear` Linear-due writer described above; it adds no queue scheduler, schema, migration,
+  runtime flag, n8n path, shared writer, or frozen-writer mutation. #884's
   server-atomic batch contract remains open, and F147 retains the exact migration-correction
   provenance gap.
 - **Track B.** Required but **not implemented** (F40): the re-point to native rows must happen per
@@ -1197,8 +1210,8 @@ they drift — in either direction, including the counts. When it fails: update 
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
 - **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
-- **Edge functions (23):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-plan`
-- **Not counted above:** 19 of the 23 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live.
+- **Edge functions (24):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan`
+- **Not counted above:** 20 of the 24 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live; `workload-linear` is app-called candidate source but not live until its exact-SHA manual deploy.
 - **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read. A dormant event-loader target names `deliverable_events`, but runtime never invokes it (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (6):** `calendar_upsert_ef_clients` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`

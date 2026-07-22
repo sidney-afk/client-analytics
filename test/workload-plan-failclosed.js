@@ -498,13 +498,13 @@ function ok(condition, message) {
     const newIssues = deferred();
     const oldPlans = deferred();
     const newPlans = deferred();
-    const oldPriorities = deferred();
-    const newPriorities = deferred();
+    const oldMetadata = deferred();
+    const newMetadata = deferred();
     const issueQueue = [oldIssues.promise, newIssues.promise];
     const planQueue = [oldPlans.promise, newPlans.promise];
-    const priorityQueue = [oldPriorities.promise, newPriorities.promise];
     const applied = [];
     const adopted = [];
+    const metadataAdopted = [];
     let failuresMarked = 0;
     const context = {
       _wlPlanLoadGeneration: 0,
@@ -515,11 +515,13 @@ function ok(condition, message) {
         planError: null,
         issueSnapshot: [],
         fetchedAt: null,
-        priorityByIssueId: new Map(),
+        workloadByIssueId: new Map(),
+        linearMetadataStatus: 'unknown',
+        linearMetadataError: null,
       },
       loadLinearIssues: () => issueQueue.shift(),
       wlFetchPlanRows: () => planQueue.shift(),
-      wlFetchPriorityRows: () => priorityQueue.shift(),
+      wlFetchLinearMetadata: issues => issues[0].id === 'newer' ? newMetadata.promise : oldMetadata.promise,
       wlAdoptPlanRows: value => {
         adopted.push(value.marker);
         context.wlState.planHasSnapshot = true;
@@ -529,6 +531,12 @@ function ok(condition, message) {
         failuresMarked++;
         context.wlState.planStatus = 'stale';
       },
+      wlAdoptLinearMetadata: (value, issues) => {
+        metadataAdopted.push(value.marker);
+        context.wlState.workloadByIssueId = new Map([[issues[0].id, value.weight]]);
+        context.wlState.linearMetadataStatus = 'ready';
+      },
+      wlMarkLinearMetadataFailure: () => { failuresMarked++; },
       wlApplyData: issues => applied.push(issues[0].id),
       renderWorkloadAll: () => {},
       document: { querySelector: () => null },
@@ -540,19 +548,20 @@ function ok(condition, message) {
     const newer = context.wlLoadSnapshot(true, null);
     newIssues.resolve({ issues: [{ id: 'newer' }], fetchedAt: 2 });
     newPlans.resolve({ marker: 'newer' });
-    newPriorities.resolve(new Map([['newer', 1]]));
+    newMetadata.resolve({ marker: 'newer', weight: 3 });
     await newer;
     oldIssues.resolve({ issues: [{ id: 'older' }], fetchedAt: 1 });
     oldPlans.reject(new Error('older failed'));
-    oldPriorities.resolve(new Map([['older', 4]]));
+    oldMetadata.resolve({ marker: 'older', weight: 2 });
     await older;
     ok(adopted.join(',') === 'newer'
         && applied.join(',') === 'newer'
         && failuresMarked === 0
         && context.wlState.planStatus === 'ready'
-        && context.wlState.priorityByIssueId.get('newer') === 1
-        && !context.wlState.priorityByIssueId.has('older'),
-      'only the newest overlapping refresh may publish plan, priority, issue, or failure state');
+        && metadataAdopted.join(',') === 'newer'
+        && context.wlState.workloadByIssueId.get('newer') === 3
+        && !context.wlState.workloadByIssueId.has('older'),
+      'only the newest overlapping refresh may publish plan, workload metadata, issue, or failure state');
   }
 
   // Signing out must purge the staff-only override projection and invalidate
@@ -563,6 +572,7 @@ function ok(condition, message) {
       _wlPlanLoadGeneration: 5,
       _wlPlanWriteGeneration: 8,
       _wlPlanWriteInFlight: new Map([['synthetic-issue-1', {}]]),
+      _wlDueWriteInFlight: new Map([['synthetic-issue-1', {}]]),
       _wlPlanLastWriteGeneration: new Map([['synthetic-issue-1', 8]]),
       wlState: {
         planByIssueId: new Map([['synthetic-issue-1', '2026-07-29']]),
@@ -570,6 +580,9 @@ function ok(condition, message) {
         planStatus: 'ready',
         planError: null,
         planFetchedAt: 1,
+        workloadByIssueId: new Map([['synthetic-issue-1', { weight: 3 }]]),
+        linearMetadataStatus: 'ready',
+        linearMetadataError: null,
         issueSnapshot: [{ id: 'synthetic-issue-1' }],
         fetchedAt: 1,
       },
@@ -584,6 +597,8 @@ function ok(condition, message) {
         && context.wlState.planHasSnapshot === false
         && context.wlState.planStatus === 'unknown'
         && context._wlPlanWriteInFlight.size === 0
+        && context._wlDueWriteInFlight.size === 0
+        && context.wlState.workloadByIssueId.size === 0
         && context._wlPlanSessionGeneration === 3
         && context._wlPlanLoadGeneration === 6,
       'staff sign-out clears saved plan dates and invalidates old in-flight responses');
@@ -597,6 +612,7 @@ function ok(condition, message) {
     let closeCount = 0;
     let pickerOpen = false;
     const setCalls = [];
+    const dueCalls = [];
     const groupCalls = [];
     const pop = {
       open: false,
@@ -627,6 +643,7 @@ function ok(condition, message) {
       wlCloseDropdowns: () => {},
       wlPlanEditingEnabled: () => true,
       wlSetPlanDate: (issueId, planDate) => { setCalls.push([issueId, planDate]); },
+      wlSetDueDate: (issueId, dueDate) => { dueCalls.push([issueId, dueDate]); },
       wlMovePlanGroup: (...args) => { groupCalls.push(args); },
       _wlPlanWriteInFlight: new Map(),
       setTimeout: callback => { callback(); return 1; },
@@ -715,16 +732,16 @@ function ok(condition, message) {
       'delegated group-handle drag moves the exact editor and client group');
 
     const dateWrap = {
-      getAttribute: name => name === 'data-wl-plan-issue' ? 'synthetic-issue-1' : '',
+      getAttribute: name => name === 'data-wl-due-issue' ? 'synthetic-issue-1' : '',
     };
     const dateInput = {
       value: '2026-07-31',
-      closest: selector => selector === '[data-wl-plan-issue]' ? dateWrap : null,
+      closest: selector => selector === '[data-wl-due-issue]' ? dateWrap : null,
       matches: selector => selector === 'input[type="date"]',
     };
     rootHandlers.change({ target: dateInput });
-    ok(setCalls.some(call => call[0] === 'synthetic-issue-1' && call[1] === '2026-07-31'),
-      'delegated branded-date change writes the stable issue id and selected day');
+    ok(dueCalls.some(call => call[0] === 'synthetic-issue-1' && call[1] === '2026-07-31'),
+      'delegated branded-date change writes the stable issue id and selected Linear due date');
 
     const clear = {
       closest: selector => selector === '[data-wl-plan-clear]' ? clear : null,

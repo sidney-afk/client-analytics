@@ -1,8 +1,8 @@
 # Linear — current truth
 
-> Last verified: 2026-07-22 @ 3d8bbfb + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
-> candidate (F145 parent-link projection merged; plan-date release live; Linear deadline and writer
-> authority unchanged; candidate function source requires manual deployment)
+> Last verified: 2026-07-22 @ eea504a (source candidate + Phase-3 Order-1 reconciliation)
+> (F145 parent-link projection merged; plan-date release live; isolated Workload Linear metadata/due
+> gateway remains source-only until exact-SHA manual deployment)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -21,8 +21,9 @@
   (client-attribution gap).
 - `updatedAt` is unusable for cutoffs (bulk touches make ~95% look recent) — cut on
   `createdAt`/`completedAt`.
-- **Priority IS used again** on current batches (Urgent/High/Medium) — the old "unused"
-  premise is stale. Labels remain unused.
+- **Priority IS used again** on current batches (Urgent/High/Medium), but Workload no longer reads or
+  displays it. SMMs may apply the exact `2× Workload` / `3× Workload` labels to difficult videos;
+  candidate Workload metadata treats those as two or three video-capacity units.
 - Batch mirroring is NOT universal: true GRA+VID mirrored pairs, VID-only, GRA-only, single
   parents with mixed-team children, and bidirectional cross-team parenting all exist.
   Archived history contains legacy states ("Tweak Applied"), ghost authors, and hard-deleted
@@ -52,11 +53,15 @@
   deliverables. Creation batch, team, client, and title are not parent-election boundaries;
   unresolved or malformed links remain visible roots. Parent-only webhook changes remain
   refresh-eventual through the existing B1/reconcile path rather than becoming a new n8n dependency.
-- **Workload dates remain one-way from Linear:** `workload_issues.due_date` is the client deadline
-  displayed by Workload and the editable-plan path never writes it. Internal scheduling lives
-  separately in the live `workload_plan.plan_date` sidecar keyed by the stable sub-issue id;
-  clearing that value restores the item-local automatic day derived from the mirrored deadline. No column is added to the B3-managed
-  `workload_issues` mirror, and no Linear API, n8n bridge, reconciler, or due-date writer is added.
+- **Current live Workload deadlines remain one-way from Linear.** Candidate source adds an isolated
+  Admin/SMM-only `workload-linear` due-date writer using `LINEAR_MIRROR_API_KEY`; Creative receives
+  the same metadata but remains read-only. The function validates the exact active mirrored
+  sub-issue/client, requires an exact Linear issue/date acknowledgement, and then best-effort updates
+  the existing mirror row so the UI converges quickly. It does not add a mirrored-table column,
+  schema migration, n8n bridge, runtime flag, or frozen-writer dependency.
+- Internal scheduling remains separate in the live `workload_plan.plan_date` sidecar keyed by the
+  stable sub-issue id; clearing that value restores the item-local automatic day derived from the
+  Linear deadline. No workload weight or deadline override is stored in that sidecar.
   The sidecar migration and Admin/SMM-authenticated `workload-plan` writer are live; release
   readback proved the mirrored deadline byte-identical before/after the private TEST set/clear cycle.
   Candidate source widens only the function's global plan projection to Creative so every staff role

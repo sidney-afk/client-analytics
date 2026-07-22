@@ -42,6 +42,7 @@
 | How surface X behaves in `index.html` | `docs/truth/APP.md`, then `docs/independence/SYSTEM_MAP.md` §4 for the full surface catalog |
 | Feature X's contract/spec | `docs/features/<FEATURE>.md` (each carries a status header — believe it) |
 | Operational runbooks (new client, monitoring, flip, backups) | `docs/ops/` — new-client setup is `docs/ops/NEW_CLIENT_ONBOARDING.md` |
+| How is the corrective F27 safety net installed or exactly rolled back? | `docs/ops/F27_INSTALL_RUNBOOK.md` — future owner-gated only; start from PR #901's no-install boundary |
 | The n8n→EF / Linear-replacement programs | `docs/independence/INDEPENDENCE_PLAN.md` (entry), specs beside it |
 | How to test; which suite gates what | `docs/testing/README.md` |
 | What each surface *promises* (quality tiers) | `docs/QUALITY_TIERS.md` |
@@ -61,6 +62,7 @@
 | `VA-3` (vault-audit finding) | `docs/audits/2026-07-19-vault-audit.md` | `rg '\bVA-3\b'` |
 | `P3` (owner pin) | `docs/vision/STEP_BACK_2026-07-18.md` | — |
 | A dated audit | `docs/audits/` (immutable evidence; conclusions live in `docs/truth/`) | — |
+| F27 corrective source proof | `docs/audits/2026-07-21-f27-corrective-source-proof.md` | `rg 'P1-1|P1-2|Safe drill contract'` |
 
 ## For the owner (no session running)
 

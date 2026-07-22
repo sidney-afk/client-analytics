@@ -140,6 +140,30 @@ async function supabaseRpc(name, body) {
   return resp.json();
 }
 
+async function f27WriteAuthorizationGeneration(team) {
+  const rawTeam = clean(team).toLowerCase();
+  const normalizedTeam = rawTeam === 'graphics' || rawTeam === 'graphic' || rawTeam === 'gra'
+    ? 'graphics'
+    : rawTeam === 'video' || rawTeam === 'vid'
+      ? 'video'
+      : '';
+  if (!normalizedTeam) throw new Error('F27 write authorization requires a real team');
+  const authorization = parseJson(await supabaseRpc('track_b_f27_write_authorization', {
+    p_team: normalizedTeam,
+  }));
+  const generation = authorization.generation;
+  if (authorization.ok !== true
+      || clean(authorization.type) !== 'f27_write_authorization'
+      || clean(authorization.team) !== normalizedTeam
+      || !['linear', 'syncview'].includes(clean(authorization.authority))
+      || typeof generation !== 'number'
+      || !Number.isSafeInteger(generation)
+      || generation < 0) {
+    throw new Error('F27 write authorization is invalid');
+  }
+  return generation;
+}
+
 function safeGraphqlString(v) {
   const s = clean(v);
   if (!/^[A-Za-z0-9_-]+$/.test(s)) throw new Error(`Unsafe Linear id: ${s.slice(0, 20)}`);
@@ -509,9 +533,11 @@ async function applyHealing(plan) {
   for (const item of outboundIntents) {
     const r = item.row;
     const intent = item.intent;
+    const authorityGeneration = await f27WriteAuthorizationGeneration(r.team);
     if (Number(intent.requeue_outbox_id || 0) > 0) {
-      const requeued = await supabaseRpc('mirror_outbox_requeue', {
+      const requeued = await supabaseRpc('track_b_f27_requeue', {
         p_id: Number(intent.requeue_outbox_id),
+        p_authority_generation: authorityGeneration,
       });
       if (requeued !== true) throw new Error('Outbound comment intent could not be requeued');
       outboundEnqueued++;
@@ -528,7 +554,10 @@ async function applyHealing(plan) {
       p_entity: r.entity === 'batch' ? 'batch' : 'deliverable',
       p_entity_id: clean(r.id),
       p_operation: clean(intent.operation),
-      p_payload: intent.payload || {},
+      p_payload: Object.assign({}, parseJson(intent.payload || {}), {
+        _f27_authority_generation: authorityGeneration,
+        _f27_legacy_parity: false,
+      }),
       p_dedup_key: dedupKey,
       p_source_edited_at: intent.source_edited_at,
       p_client_slug: clean(r.row && r.row.client_slug),

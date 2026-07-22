@@ -88,60 +88,91 @@ jobs:
           node test/f27-mirror-outbox-snapshot.js
           node test/f27-private-snapshot-store.js
       - name: Run isolated TEST transaction
+        env:
+          F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
         run: |
           set -o pipefail
-          mkdir -p f27-proof
+          mkdir -p "$F27_PROOF_DIR"
           createdb f27_contract
           PGDATABASE=f27_contract \
             psql -X -v ON_ERROR_STOP=1 -f scripts/f27-team-rollback-proof.sql \
-            | tee f27-proof/terminal.txt
-          sha256sum f27-proof/terminal.txt | tee f27-proof/terminal.sha256
+            | tee "$F27_PROOF_DIR/terminal.txt"
+          sha256sum "$F27_PROOF_DIR/terminal.txt" | tee "$F27_PROOF_DIR/terminal.sha256"
       - name: Outside-n8n terminal observer
+        env:
+          F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
         run: |
-          grep -q "F27_PROOF_OK" f27-proof/terminal.txt
+          grep -q "F27_PROOF_OK" "$F27_PROOF_DIR/terminal.txt"
           {
             echo "## F27 isolated TEST proof"
             echo
             echo "- observer: GitHub Actions (outside n8n)"
             echo "- terminal: F27_PROOF_OK"
-            echo "- receipt hash: $(cut -d' ' -f1 f27-proof/terminal.sha256)"
+            echo "- receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/terminal.sha256")"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Fingerprint the exact post-migration contract
+        env:
+          F27_CANDIDATE_RELEASE_SHA: ${{ github.sha }}
+          F27_DISPOSABLE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/f27_contract
+          F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
         run: |
           set -o pipefail
-          F27_DISPOSABLE_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/f27_contract \
-          F27_CONFIRM_DISPOSABLE_POST_CONTRACT=1 \
-            node scripts/f27-mirror-outbox-snapshot.js \
-              --mode fingerprint-post \
-              --confirm-database f27_contract \
-              --release-sha "$(git rev-parse HEAD)" \
-            | tee f27-proof/post-contract.json
-          grep -q '"status":"PASS"' f27-proof/post-contract.json
-          sha256sum f27-proof/post-contract.json | tee f27-proof/post-contract.sha256
+          node - <<'NODE' | tee "$F27_PROOF_DIR/post-contract.json"
+          const crypto = require('node:crypto');
+          const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+          const { fingerprintPost } = require('./scripts/f27-mirror-outbox-snapshot.js');
+          const releaseSha = process.env.F27_CANDIDATE_RELEASE_SHA;
+          const headSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+          const dirty = Boolean(execFileSync('git', [
+            'status', '--porcelain=v1', '--untracked-files=all',
+          ], { encoding: 'utf8' }).trim());
+          const migrationSha256 = crypto.createHash('sha256').update(fs.readFileSync(
+            'migrations/2026-07-20-f27-team-rollback.sql',
+          )).digest('hex');
+          const receipt = fingerprintPost({
+            confirmed: true,
+            database: 'f27_contract',
+            databaseUrl: process.env.F27_DISPOSABLE_DATABASE_URL,
+            releaseSha,
+            releaseInfo: {
+              headSha,
+              originMainSha: null,
+              dirty,
+              migrationSha256,
+            },
+          });
+          process.stdout.write(`${JSON.stringify({ ...receipt, release_scope: 'checked_out_candidate' })}\n`);
+          NODE
+          grep -q '"status":"PASS"' "$F27_PROOF_DIR/post-contract.json"
+          grep -q '"release_scope":"checked_out_candidate"' "$F27_PROOF_DIR/post-contract.json"
+          sha256sum "$F27_PROOF_DIR/post-contract.json" | tee "$F27_PROOF_DIR/post-contract.sha256"
           {
             echo
             echo "## F27 exact post-migration contract"
             echo
-            echo "- source: checked-in migration on disposable PostgreSQL 16"
+            echo "- source: clean checked-out candidate migration on disposable PostgreSQL 16"
             echo "- terminal: PASS"
-            echo "- public receipt hash: $(cut -d' ' -f1 f27-proof/post-contract.sha256)"
+            echo "- public receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/post-contract.sha256")"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Run the packaged reserved-drill operator
+        env:
+          F27_PROOF_DIR: ${{ runner.temp }}/f27-proof
         run: |
           set -o pipefail
           createdb f27_operator_toolkit
           PGDATABASE=f27_operator_toolkit \
             psql -X -q -v ON_ERROR_STOP=1 -f scripts/f27-drill-runner-fixture.sql \
-            > f27-proof/operator-fixture.txt
+            > "$F27_PROOF_DIR/operator-fixture.txt"
           PGDATABASE=f27_operator_toolkit \
             node scripts/f27-drill-runner.js \
               --transport=psql \
               --confirm=F27_DISPOSABLE_DRILL_ONLY \
               --confirm-database=f27_operator_toolkit \
               --actor=f27-ci \
-            | tee f27-proof/operator-terminal.json
-          grep -q "F27_DRILL_RUNNER_OK" f27-proof/operator-terminal.json
-          sha256sum f27-proof/operator-terminal.json | tee f27-proof/operator-terminal.sha256
+            | tee "$F27_PROOF_DIR/operator-terminal.json"
+          grep -q "F27_DRILL_RUNNER_OK" "$F27_PROOF_DIR/operator-terminal.json"
+          sha256sum "$F27_PROOF_DIR/operator-terminal.json" | tee "$F27_PROOF_DIR/operator-terminal.sha256"
           {
             echo
             echo "## F27 packaged operator proof"
@@ -149,10 +180,10 @@ jobs:
             echo "- transport: disposable PostgreSQL 16"
             echo "- terminal: F27_DRILL_RUNNER_OK"
             echo "- authority CAS: refused"
-            echo "- operator receipt hash: $(cut -d' ' -f1 f27-proof/operator-terminal.sha256)"
+            echo "- operator receipt hash: $(cut -d' ' -f1 "$F27_PROOF_DIR/operator-terminal.sha256")"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: f27-team-rollback-proof
-          path: f27-proof/
+          path: ${{ runner.temp }}/f27-proof/
           retention-days: 30

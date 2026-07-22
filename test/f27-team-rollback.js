@@ -155,6 +155,11 @@ ok(/ALTER TABLE public\.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard/.te
   && !/DROP TRIGGER track_b_f27_hold_guard/.test(installRunbook),
   'operational rollback disables only the new guard while retaining additive schema and audit');
 ok(/postgres:16/.test(workflow) && /f27-proof/.test(workflow), 'cloud proof uses an isolated PostgreSQL service');
+ok(/createdb f27_contract/.test(workflow)
+  && /PGDATABASE=f27_contract[\s\S]*f27-team-rollback-proof\.sql/.test(workflow)
+  && /localhost:5432\/f27_contract/.test(workflow)
+  && /--confirm-database f27_contract/.test(workflow),
+  'post-contract fingerprint targets the same explicit f27-prefixed disposable database as the SQL proof');
 ok(/sha256sum/.test(workflow) && /GITHUB_STEP_SUMMARY/.test(workflow), 'outside-n8n observer publishes a content hash and terminal summary');
 
 if (failures) process.exit(1);

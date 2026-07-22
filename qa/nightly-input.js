@@ -24,8 +24,8 @@ function parseProbeSelection(value) {
 function parseScenarioFilter(value) {
   const text = dispatchText(value);
   if (!text) return null;
-  const names = text.split(',').map(name => name.trim()).filter(Boolean);
-  if (!names.length || names.some(name => !SAFE_NAME.test(name))) {
+  const names = text.split(',').map(name => name.trim());
+  if (!names.length || names.some(name => !name || !SAFE_NAME.test(name))) {
     throw new Error('Invalid nightly scenario filter');
   }
   return names.join(',');

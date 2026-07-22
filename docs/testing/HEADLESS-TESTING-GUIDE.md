@@ -37,9 +37,26 @@ The whole product is one static file: `index.html` (one large inline
 PROBE_ATTEMPTS=1 node qa/run-probes.js <probe-name>
 ```
 Protected client URLs contain a credential. Do not start or reuse an ad-hoc
-logging server for those routes. `qa/run-probes.js`, `qa/master.js`, and
-`qa/overnight_runner.sh` silence the server, strip client-entry credentials from
-its environment, and fail closed if the port belongs to another process.
+logging server for those routes. `qa/run-probes.js`, `qa/master.js`, and the
+supported `node qa/overnight_entry.js runner` entry silence the server, strip client-entry credentials from
+its environment, and fail closed if the port belongs to another process. Keep
+`NODE_OPTIONS`, `LD_PRELOAD`, `LD_AUDIT`, `LD_LIBRARY_PATH`,
+`DYLD_INSERT_LIBRARIES`, and `DYLD_LIBRARY_PATH` unset before the staff key
+enters Node. This is a trusted caller/scheduler precondition: the broker can
+diagnose these controls but cannot undo startup code already executed by Node
+or the OS loader. The child boundary then scrubs interpreter controls and
+requires trusted Bash 5.1+ (Git Bash on Windows).
+Windows script mode supports the fixed system helpers under `C:\Windows` and
+Git Bash under `C:\Program Files`; overridden helper roots and per-user Git
+installs are refused before issuer release.
+Before the issuer is released, the broker starts a contained launch target. On
+POSIX, a separate guardian owns the protected process session. On Windows, a
+blocked native Node worker is assigned to a kill-on-close Job before it may
+start Git Bash. Completion is accepted only after the guardian confirms that
+the contained tree is empty; leftover descendants are killed and surfaced as
+a failed run. A protected POSIX workload must not daemonize into a new session,
+and an operative command must not leave its assigned process group. Those
+escapes are outside the supported containment boundary.
 `qa/master.js --no-server` is an explicit opt-in reserved for a server you
 started, trust, and already confirmed is silent.
 

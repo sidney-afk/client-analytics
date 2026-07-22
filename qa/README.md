@@ -30,7 +30,7 @@
 | `scenario_engine.js` + `scenarios.js` + `scenario_tree.js` | The multi-actor Samples review lifecycle: seeds a card, drives the real SMM/Kasper/Client handlers through the UI, and asserts DB + DOM after every step. The scenario library covers the golden review paths end to end (clean approve, Kasper/client tweak loops, approve-after-tweaks, undo, archive). |
 | `golden_lib.js`, `lib.js` (in `probes/`), `sxr_courier_lib.js`, `temporal_lib.js` | Shared harness libraries. `golden_lib.js` drives the real Kasper/client handlers plus the upsert webhook and is required by the probe harness (named for the retired golden-path probes it once powered; the library outlived them). |
 | `visual.js`, `vision_judge.js` | The vision lane: turns per-step screenshots into a review manifest and verdict. |
-| `overnight_runner.sh`, `overnight_cron_chunk.sh` | Unattended continuous testing (see the `/overnight-test` skill); curated results land in `OVERNIGHT_TEST_REPORT.md`. |
+| `overnight_entry.js`, `overnight_runner.sh`, `overnight_cron_chunk.sh`, `posix_session_guard.js`, `windows_job_worker.js`, `windows_job_guard.ps1`, `windows_bash_supervisor.sh` | Unattended continuous testing (see the `/overnight-test` skill). Protected runs enter through `node qa/overnight_entry.js runner` or `node qa/overnight_entry.js cron`; after the caller supplies a clean Node startup, the broker scrubs child interpreter controls, establishes platform process-tree containment, and then releases the TEST-only capability to trusted Bash 5.1+. Curated results land in `OVERNIGHT_TEST_REPORT.md`. |
 | `ef-writepath/` | Edge-Function write-path suite (Track A gates) — see its own README. |
 | `pto-lifecycle/` | PTO human-journey simulation. Lane A is a stateful fully mocked browser matrix with a screenshot after every logical action; Lane B is a separately gated disposable live TEST drill. See its README. |
 
@@ -44,7 +44,27 @@ node qa/master.js --lane=boot                              # same guard through 
 npm run test:pto-lifecycle  # fully mocked PTO lifecycle + screenshot series
 node qa/master.js --lane=scenarios --scn=create_via_ui   # a single scenario
 node qa/probes/p88_realtime_handler.js                   # a single probe
+node qa/overnight_entry.js runner                        # continuous unattended matrix
+node qa/overnight_entry.js cron                          # one rotating bounded chunk
 ```
+
+Run those protected commands with `NODE_OPTIONS`, `LD_PRELOAD`, `LD_AUDIT`,
+`LD_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`, and `DYLD_LIBRARY_PATH` unset before
+the staff key enters Node. That clean launch is a trusted caller/scheduler
+precondition: the broker diagnoses these controls but cannot undo startup code
+already executed by Node or the OS loader. It also fails visibly when trusted
+Bash 5.1+ is unavailable; on Windows it uses Git Bash directly.
+Windows script mode pins the OS helpers under `C:\Windows` and Git Bash under
+`C:\Program Files`; caller-overridden helper roots and per-user Git installs
+are refused before the issuer is released.
+
+The broker releases the issuer only after a POSIX session guardian is ready or
+after a blocked native Windows worker has been assigned to a kill-on-close Job.
+Normal completion is not success until that guardian confirms the contained
+tree is empty; surviving descendants are killed and reported visibly. POSIX
+protected workloads must remain foreground-attached: operative commands must
+stay in their assigned process group, and the workload must not daemonize into
+a different session. Either escape leaves the supported containment boundary.
 
 Live client-route lanes require the current protected token for the TEST client. Each
 operative harness resolves it through the protected `client-review-link` issuer using

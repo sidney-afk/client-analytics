@@ -1,23 +1,55 @@
 // run_scenarios.js — runs the scenario library against the live backend.
 // Usage: node qa/probes/run_scenarios.js [keyFilter] [--shots]
-const L = require('../sxr_courier_lib.js');
-const { launch } = L;
-const { runScenario } = require('../scenario_engine.js');
 // --tree sources specs from the branching scenario tree (compiled to flat paths);
 // otherwise the flat scenario library. Both yield the same {key,title,seed,steps}.
-const useTree = process.argv.includes('--tree');
-const { base } = useTree ? require('../scenario_tree.js') : require('../scenarios.js');
+const runnerArgs = process.argv.slice(2);
+const knownFlags = new Set(['--tree', '--shots']);
+const unknownFlags = runnerArgs.filter(value => value.startsWith('--') && !knownFlags.has(value));
+const positionalFilters = runnerArgs.filter(value => !value.startsWith('--'));
+if (unknownFlags.length || positionalFilters.length > 1) {
+  console.error('RUNNER ERROR: invalid scenario selector input');
+  process.exit(2);
+}
+const useTree = runnerArgs.includes('--tree');
+const lane = useTree ? 'tree' : 'flat';
+const rawFilter = positionalFilters.length ? positionalFilters[0] : null;
+const { base: flatBase } = require('../scenarios.js');
+const { base: treeBase } = require('../scenario_tree.js');
+const {
+  ScenarioSelectionError,
+  buildScenarioCatalogs,
+  selectScenarioLane,
+} = require('../scenario-selection.js');
 
-const filter = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : null;
+let selection;
+try {
+  selection = selectScenarioLane(
+    rawFilter,
+    lane,
+    buildScenarioCatalogs(flatBase(), treeBase()),
+  );
+} catch (error) {
+  const message = error instanceof ScenarioSelectionError
+    ? error.message
+    : 'scenario selection failed';
+  console.error(`RUNNER ERROR: ${message}`);
+  process.exit(2);
+}
+if (selection.skipped) {
+  console.log(`SCENARIO_SELECTION_SKIP lane=${lane} reason=no-local-match`);
+  process.exit(0);
+}
 const forceShots = process.argv.includes('--shots');
 const SHOT_DIR = process.env.SXR_SCN_SHOTS || '/tmp/qa/scn';
 
 (async () => {
   const ts = Date.now();
-  let specs = base();
-  if (filter) { const parts = filter.split(','); specs = specs.filter(s => parts.some(p => s.key.includes(p))); }
-  // A filter that matches nothing is a runner-usage bug (typo'd key), not a green run.
-  if (!specs.length) { console.error(`RUNNER ERROR: filter "${filter || ''}" matched 0 scenarios`); process.exit(2); }
+  let specs = [...selection.specs];
+  // Load the live harness only after the complete selector set is known-safe.
+  // Invalid manual-dispatch input therefore fails without opening a browser or
+  // touching a credential-bearing transport.
+  const { launch } = require('../sxr_courier_lib.js');
+  const { runScenario } = require('../scenario_engine.js');
   // stamp unique id + name per scenario
   specs = specs.map((s, i) => ({ ...s, id: 'sr_scn_' + s.key + '_' + ts + '_' + i, name: 'SCN ' + s.key + ' ' + ts }));
 

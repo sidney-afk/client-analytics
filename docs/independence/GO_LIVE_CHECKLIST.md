@@ -371,39 +371,21 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       legacy Samples links retain the verified client principal, and Calendar/Brief reloads never
       expose Analytics chrome or data. Prove the visible sequence from document start through
       settlement on synthetic fixtures, including hard reload and second reload.
-- [ ] **Client-entry live QA preserves every protected credential, payload and strict route contract**
-      (F173/F174/F175/F176/F178/F179/F180/F181/F182): all QA HTTP paths use one fixed-argv,
+- [ ] **Client-entry product QA preserves every protected credential, payload and strict route contract**
+      (F173/F174/F175/F178/F180/F181/F182): all product-owned QA HTTP paths use one fixed-argv,
       fileless, in-memory transport.
       This includes the browser courier, direct shared-SXR helpers, p94 full-quota courier, EF
       drift/settings helpers, and optional vision API; protected keys, tokens, URLs, headers,
       request bodies and response headers never enter argv, files, command-bearing errors, child
       environments, artifacts or logs. Static-server access output and Playwright navigation
       failures cannot retain a token-bearing request target, and runner tails/reports are redacted
-      at the credential-owning boundary. Operative overnight instructions resolve the current TEST
-      token only through the protected issuer path and build only canonical `c,t,v[,sxr]` routes
-      through the shared helper—never a literal token, credential-bearing URL or `v2debug` client
-      route. Each exact browser process resolves and holds its token in memory; no token is exported
-      through `GITHUB_ENV` or `process.env`. Manual `workflow_dispatch` filters are exact-allowlisted
-      and passed as inert data to a Node entrypoint with fixed argv, never expression-substituted
-      into shell. Validate the complete selector set before loading a live harness: reject empty,
-      unknown, duplicate, partial-match and mixed-valid-invalid components; one valid component
-      cannot mask one invalid component. For Samples, validate `scn` once against the union of the
-      flat and tree catalogs, then give each lane only its exact matches and let a catalog with no
-      matches skip cleanly; reject union-unknown selectors before loading either live harness.
-      `run-probes` must classify client-entry capability before spawn and must not reconstruct the
-      staff issuer key into every manually selected probe. Its 39-probe census must inventory every
-      executable probe-selection path—not only a manifest—including workflow-direct
-      `sxr_client_persist_guard.js`, whose `sxr_courier_lib.client()` call requires the issuer
-      capability. Both `qa/overnight_runner.sh` and `qa/overnight_cron_chunk.sh` privately capture
-      then unset the staff issuer and always discard the legacy client token before any child.
-      Non-client probes and staff-only/Calendar/unknown/manual/cleanup/unit/server/timeout/Git helpers
-      receive neither credential. Restore only the staff issuer for a registry-approved probe or an
-      explicitly declared scenario/master broker, and only to the final operative Node process—not
-      to a timeout/wrapper or through argv, logs or output. Guard success,
-      forced failure and abrupt exit with synthetic URL/header/key/
-      body/metacharacter markers across argv, files, errors, stdout/stderr, runner tails and residue;
-      the injection guard executes no payload. Then drive the actual visible TEST client route and
-      fail closed when a current token is unavailable. Exact-head review of draft #891 `02105e9`
+      at the credential-owning boundary. Drive the actual visible TEST client route and fail closed
+      when a current token is unavailable.
+      **PARKED #908 — NON-BLOCKING (F176/F179):** the completed overnight-runner, cron, broker,
+      selector-union, registry/census, environment-containment and descriptor-guard work remains
+      intact in unmerged draft #908 for later review. Do not execute, expand or reopen that work for
+      #891; it is not a client-entry product release prerequisite by owner decision. Historical
+      review evidence follows. Exact-head review of draft #891 `02105e9`
       completed and found F175/F176 and F178–F182. Post-F182 cloud source review at `59022d`
       expanded F176/F179; then-current `93fc297` began remediation. Candidate `13c042b` passed local
       `npm test` 149/149, but exact-head cloud source review (review `4741233371`; comments

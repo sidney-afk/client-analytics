@@ -45,8 +45,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   into credential-bearing steps, and the p94/EF auxiliary/vision paths retain private shell/file
   transports. Evidence is source-only except for isolated local synthetic Python/Playwright proof
   of F178 and inert, no-payload-execution substitution proof of F179; no real token/staff/API key,
-  external network, backend/API, live data or writer was used. F175/F176 and F178–F182 remain merge
-  blockers pending remediation and post-remediation exact-head review. F177 is the docs-only
+  external network, backend/API, live data or writer was used. F175/F176 and F178–F182 were merge
+  blockers at that reviewed head pending remediation and post-remediation exact-head review. F177 is the docs-only
   correction of the former stale review-status wording. Continued cloud source review at PR #891
   `59022d` expanded F176/F179: `run-probes` still reconstructs the staff issuer key into every
   manually selected probe, including non-client probes, and selector handling lets a valid

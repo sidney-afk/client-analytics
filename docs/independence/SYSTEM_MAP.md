@@ -170,7 +170,7 @@ Everything below is shared by every surface; per-surface sections only note devi
   epoch, server minimum-version rejection, or build-population telemetry currently expires callers.
 - **Client-entry QA credential/transport boundary (F173–F182; exact-head review at draft #891
   `02105e9`).** The candidate corrects F173's EF courier residue/argv path and F174's invalid
-  overnight client route, but completed review found seven open release gates. Direct shared-SXR
+  overnight client route, but completed review found seven then-open release gates. Direct shared-SXR
   helpers still build protected REST URLs/headers into shell curl argv/errors (F175); both
   nightlies export the TEST token into inherited job/process state (F176); token-bearing client
   targets can reach static-server access and Playwright navigation failure output (F178); and raw

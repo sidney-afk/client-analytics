@@ -14,6 +14,7 @@ function ok(value, message) {
 const root = path.join(__dirname, '..');
 const sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-20-f27-team-rollback.sql'), 'utf8');
 const proof = fs.readFileSync(path.join(root, 'scripts', 'f27-team-rollback-proof.sql'), 'utf8');
+const snapshotTool = fs.readFileSync(path.join(root, 'scripts', 'f27-mirror-outbox-snapshot.js'), 'utf8');
 const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'f27-team-rollback-proof.yml'), 'utf8');
 const installRunbook = fs.readFileSync(path.join(root, 'docs', 'ops', 'F27_INSTALL_RUNBOOK.md'), 'utf8');
 
@@ -155,6 +156,21 @@ ok(/ALTER TABLE public\.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard/.te
   && !/DROP TRIGGER track_b_f27_hold_guard/.test(installRunbook),
   'operational rollback disables only the new guard while retaining additive schema and audit');
 ok(/postgres:16/.test(workflow) && /f27-proof/.test(workflow), 'cloud proof uses an isolated PostgreSQL service');
+ok(/createdb f27_contract/.test(workflow)
+  && /PGDATABASE=f27_contract[\s\S]*f27-team-rollback-proof\.sql/.test(workflow)
+  && /createdb f27_operator_toolkit/.test(workflow)
+  && /PGDATABASE=f27_operator_toolkit[\s\S]*f27-drill-runner-fixture\.sql/.test(workflow)
+  && /localhost:5432\/f27_operator_toolkit/.test(workflow)
+  && /database: 'f27_operator_toolkit'/.test(workflow),
+  'full retained-audit proof and pristine post-contract fingerprint use separate explicit f27-prefixed disposable databases');
+ok(/F27_CANDIDATE_RELEASE_SHA: \$\{\{ github\.sha \}\}/.test(workflow)
+  && /'status', '--porcelain=v1', '--untracked-files=all'/.test(workflow)
+  && /releaseInfo:[\s\S]*headSha,[\s\S]*originMainSha: null[\s\S]*dirty,[\s\S]*migrationSha256/.test(workflow)
+  && /release_scope: 'checked_out_candidate'/.test(workflow),
+  'PR proof binds the event SHA, clean checked-out candidate, and migration hash without impersonating origin/main');
+ok(/origin\/main/.test(snapshotTool)
+  && /Release SHA must match both checked-out HEAD and independently fetched origin\/main/.test(snapshotTool),
+  'live snapshot CLI keeps the independent origin/main release guard');
 ok(/sha256sum/.test(workflow) && /GITHUB_STEP_SUMMARY/.test(workflow), 'outside-n8n observer publishes a content hash and terminal summary');
 
 if (failures) process.exit(1);

@@ -911,6 +911,9 @@ const workloadSkeletonHtml = compile('_svWorkloadSkeletonHtml', {
 })();
 const workloadRenderSource = grabFunc('renderWorkloadAll');
 const workloadLoadSource = grabFunc('wlLoadSnapshot');
+const workloadInitSource = grabFunc('initWorkloadView');
+const workloadBackgroundSource = grabFunc('wlRefetchSilent');
+const workloadVisibilitySource = grabFunc('_wlOnVisibilityChange');
 check(loadingPlanStatus.hidden === true
     && loadingPlanStatus.textContent === ''
     && !INDEX.includes('Loading saved work days…')
@@ -920,14 +923,18 @@ check(loadingPlanStatus.hidden === true
     && /renderWorkloadAll\(\);/.test(workloadLoadSource)
     && !workloadLoadSource.includes('deferWhilePopoverOpen')
     && /await wlLoadSnapshot\(true, null\)/.test(grabFunc('wlManualRefresh'))
-    && /await wlLoadSnapshot\(true, null\)/.test(grabFunc('wlRefetchSilent'))
-    && /wlRefetchSilent\(\)/.test(grabFunc('_wlV2OnRealtimeChange'))
+    && /hasWarmSnapshot[\s\S]*renderWorkloadAll\(\)[\s\S]*_wlV2CheckWatermark\(\)[\s\S]*return/.test(workloadInitSource)
+    && /await wlLoadSnapshot\(false, cache\)/.test(workloadInitSource)
+    && !/wlState\.(?:loading|refreshing)\s*=/.test(workloadBackgroundSource)
+    && !/planStatus\s*=\s*['"](?:loading|refreshing)['"]/.test(workloadBackgroundSource)
+    && /_wlV2CheckWatermark\(\)/.test(grabFunc('_wlV2OnRealtimeChange'))
+    && /_wlV2CheckWatermark\(\)/.test(workloadVisibilitySource)
     && (workloadSkeletonHtml.match(/class="workload-skeleton-day"/g) || []).length === 5
     && workloadSkeletonHtml.includes('aria-label="Loading saved work days"')
     && workloadSkeletonHtml.includes('class="sv-skeleton-row"')
     && workloadSkeletonHtml.includes('sv-skeleton-line')
     && workloadSkeletonHtml.includes('sv-skeleton-pill'),
-  'every initial, manual, visibility, and realtime plan refresh uses the five-day Week skeleton with no text strip');
+  'only cold and manual foreground loads use the five-day skeleton; warm, visibility, and realtime paths stay painted');
 
 const watermarkFetchSource = grabFunc('_wlV2FetchLatestWatermark');
 const watermarkCheckSource = grabFunc('_wlV2CheckWatermark');
@@ -942,8 +949,13 @@ check(/_wlV2WatermarkBusy \|\| document\.hidden \|\| !document\.querySelector\('
     && /const latest = await _wlV2FetchLatestWatermark\(\)/.test(watermarkCheckSource)
     && /if \(!wlState\.sourceSyncedAt\)[\s\S]*wlState\.sourceSyncedAt = latest[\s\S]*return/.test(watermarkCheckSource)
     && /Date\.parse\(latest\) > Date\.parse\(wlState\.sourceSyncedAt\)[\s\S]*await wlRefetchSilent\(\)/.test(watermarkCheckSource)
+    && /refreshed === true[\s\S]*wlState\.sourceSyncedAt = latest/.test(watermarkCheckSource)
+    && /_wlV2FetchIssues\(\)/.test(workloadBackgroundSource)
+    && /wlFetchPlanRows\(\)/.test(workloadBackgroundSource)
+    && /wlFetchLinearMetadata\(freshIssues\)/.test(workloadBackgroundSource)
+    && !/loadLinearIssues|wlLoadSnapshot|LINEAR_ISSUES_WEBHOOK/.test(workloadBackgroundSource)
     && /finally[\s\S]*_wlV2WatermarkBusy = false/.test(watermarkCheckSource),
-  'watermark polling skips hidden or busy boards and refreshes only when server truth advances');
+  'watermark polling consumes complete no-diff snapshots through the Supabase/Edge-only background lane');
 check(/!_wlV2Ready\(\) \|\| _wlV2WatermarkTimer/.test(watermarkPollSource)
     && /setInterval\(_wlV2CheckWatermark, WL_V2_WATERMARK_POLL_MS\)/.test(watermarkPollSource)
     && /_wlV2EnsureWatermarkPoll\(\)/.test(grabFunc('initWorkloadView'))

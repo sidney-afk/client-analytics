@@ -1,7 +1,7 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-22 @ 3d8bbfb + source-only F27 reconciliation (PR #901 confirms no F27
-> live install; corrective source not applied/deployed) + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
+> Last verified: 2026-07-22 @ 6d3964f + source-only F27 operator-toolkit candidate (PR #901 confirms
+> no F27 live install; corrective source is merged but not applied/deployed) + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
 > candidate (plan-date effective schema/grants and v2 live; exact correction provenance F147; #850
 > write gateway deployed dark; candidate function source requires manual deployment)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
@@ -181,14 +181,14 @@ from a manual `workflow_dispatch` pinned to one exact 40-character SHA already o
 `production-write` v24 and passing both source fingerprints. An ordinary merge still deploys
 neither function.
 
-The corrective F27 source changes the future exact-release closure beyond the
-old #894 pair: `linear-outbound`, `linear-inbound`, `production-write`,
-`deliverable-write`, and `batch-write` (the last two bundle
-`supabase/functions/_shared/b4-write.ts`) must all be deployed/read back from the same merged SHA;
-the reconciler script must be pinned to that SHA as well. This is source truth,
-not live state. `calendar-upsert` and `sample-review-upsert` remain frozen and
-excluded. See `docs/ops/F27_INSTALL_RUNBOOK.md`; no function in that set was
-deployed by the corrective session.
+The corrective F27 source changes five future runtime closures. The operator
+toolkit now separates them safely: a distinct owner-gated quiet window first deploys only the
+merged, locked `linear-inbound` and records its exact pinned baseline; the later install window
+applies the migration before deploying `linear-outbound`, `production-write`, `deliverable-write`,
+and `batch-write` (the last two bundle `supabase/functions/_shared/b4-write.ts`) from one merged SHA.
+The reconciler is pinned to that SHA as well. This is source/runbook truth, not live state.
+`calendar-upsert` and `sample-review-upsert` remain frozen and excluded. See
+`docs/ops/F27_INSTALL_RUNBOOK.md`; this toolkit session deploys nothing.
 
 Live set in `docs/truth/ENDPOINTS.md`. Source now represents 29 deployable function slugs while the
 live inventory remains 28 until `workload-linear` is deliberately deployed;
@@ -203,11 +203,18 @@ deploy workflow; the post-merge operator deploys use explicit `--no-verify-jwt` 
 existing onboarding deploy Action covers 8 push-safe functions plus 2 guarded manual-only
 functions and still uses an unpinned latest CLI. The separate pinned `2.109.0`
 thumbnail workflow deployed and read back `calendar-upsert` v32, `sample-review-upsert` v33,
-`thumbnail-revision-read` v12, and `thumbnail-revision-scan` v17 from the merged release. Seven
-functions use floating `supabase-js@2` (six npm aliases plus one `esm.sh` alias), and no function
-has a committed lock/import map. Treat every deployment/rebuild/rollback as F51-gated until all 29
-source closures, dependencies, JWT settings, toolchain, release SHA, and downloaded server
-fingerprints are manifested and independently read back.
+`thumbnail-revision-read` v12, and `thumbnail-revision-scan` v17 from the merged release. This
+source-only toolkit replaces the sole floating F27-target import (`linear-inbound`'s `esm.sh`
+alias) with npm package @supabase/supabase-js version `2.49.8` and commits its function-local
+frozen Deno v4 lock/config. The four install closures keep their existing exact `2.49.8` import
+surfaces byte-identical—direct in outbound/production-write and through
+`supabase/functions/_shared/b4-write.ts` for deliverable-write/batch-write—and do not claim
+synthetic locks for historical deployments; the change is not live until the separate preparatory
+deployment. Six onboarding-family functions still float on npm `@2` and remain deliberately
+untouched because their directories auto-deploy on merge. F51 therefore remains open for broader
+fleet release hygiene and records that historical transitive graphs are unrecoverable. The accepted
+source-exact rollback standard captures provider source/entrypoint/JWT/release, redeploys it, and
+requires an independent deployed-source/JWT hash match; it does not reconstruct that graph.
 
 The 2026-07-14 containment deployments and anonymous `401` proofs remain independently recorded in
 `EXECUTION_LOG.md`. Pinned same-source run `29601466479` later refreshed all three onboarding list

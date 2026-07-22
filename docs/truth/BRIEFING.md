@@ -1,7 +1,7 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-22 @ 3d8bbfb + source-only F27 corrective reconciliation (PR #901 stop
-> evidence; corrective P1/drill source remains not live) + Phase-3 Order-1 reconciliation through F148 + Workload
+> Last verified: 2026-07-22 @ 6d3964f + source-only F27 operator-toolkit candidate (PR #901 stop
+> evidence still governs live state; corrective P1/drill source is merged but not live) + Phase-3 Order-1 reconciliation through F148 + Workload
 > Creative read-only plan candidate (F04/F07/F08 source defects closed with live observations still gated; F12 missing
 > real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open;
 > F143 deployed; F145 merged as #885; Workload release and #889 served with F147/F148 follow-ups;
@@ -51,12 +51,14 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 - **`ROLLBACK.md` is law**: every forward change needs a one-step behavior kill plus a rehearsed,
   evidence-bearing complete recovery. PR #901 records the correctly aborted F27 install: #894 had
   a late-writer authority-handoff race, an actorless replay-echo race, and no real-row-safe drill.
-  The corrective source adds a server generation fence, an exact open-rollback preflight echo
-  proof, and a reserved no-provider drill with permanent audit, but remains source-only. The final
-  Track-B authority reversal stays live-blocked until the corrective draft is cloud-reviewed and
-  owner-merged, then a separate owner window completes the snapshot-first install/readback and
-  bounded drill in `docs/ops/F27_INSTALL_RUNBOOK.md`. F51 means an EF source rebuild is not
-  automatically an exact runtime rollback. Log every deploy,
+  The owner-merged corrective source adds a server generation fence, an exact open-rollback preflight
+  echo proof, and a reserved no-provider drill with permanent audit, but remains not live. The final
+  Track-B authority reversal stays live-blocked while the source-only operator toolkit is reviewed,
+  then through two separate owner gates: first pin/deploy only `linear-inbound` and establish its
+  source-exact baseline; later snapshot the queue, migrate, deploy the remaining four fenced closures,
+  and run the bounded drill under `docs/ops/F27_INSTALL_RUNBOOK.md`. F51 records that historical
+  transitive graphs are unrecoverable; rollback instead redeploys the exact captured provider source/
+  JWT closure and requires independent deployed-source/JWT hash equality. Log every deploy,
   flag flip, migration, backup, recovery, and incident in `EXECUTION_LOG.md`.
 - `npm test` runs every `test/*.js` offline — including `test/repo-map-sync.js` (repo layout
   vs `REPO_MAP.md`) and `test/truth-sync.js` (truth docs vs code). CI runs it on every push.
@@ -77,10 +79,17 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   fixture identity stays in private operator config; `ROLLBACK.md` has the public-safe
   live-state table.
 - F27 is not live. PR #901's stop evidence preserves Linear/Linear authority, F2 off, F4 false,
-  no F27 database objects, and no deployment. Do not infer otherwise from the corrective source or
-  its disposable proof. A future install must snapshot the full live outbox and its definitions
-  before DDL, deploy/read back every generation-aware source closure from one merged SHA, and keep
-  the reserved drill audit rather than deleting it.
+  no F27 database objects, and no deployment. Do not infer otherwise from merged corrective source
+  or its disposable proof. The toolkit candidate pins only `linear-inbound` to
+  npm package @supabase/supabase-js version `2.49.8` with a frozen Deno v4
+  lock/config. The four install closures retain byte-identical exact `2.49.8`
+  import surfaces—direct in outbound/production-write and through
+  `supabase/functions/_shared/b4-write.ts` for deliverable-write/batch-write—plus provider-returned
+  source without synthetic historical locks. It also adds private snapshot/source rollback,
+  inbound-freshness, and reserved-drill operators. It performs no live action. After a separately
+  authorized inbound-only preparatory deployment establishes a pinned baseline, a later install
+  must snapshot the full live outbox and definitions before DDL, deploy/read back only the remaining
+  four generation-aware closures from one merged SHA, and retain the reserved drill audit.
 - Permissive auth is a pre-enforcement posture only. GO_LIVE Phase 0.75 must execute and prove the
   F5 forward CAS before any real-client parity cohort; the old canonical sequence omitted it (F97).
 - The first human authority handoff uses fail-safe F2→F1 order: normal outbound is armed/read back

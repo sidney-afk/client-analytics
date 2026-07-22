@@ -156,11 +156,15 @@ ok(/ALTER TABLE public\.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard/.te
   && !/DROP TRIGGER track_b_f27_hold_guard/.test(installRunbook),
   'operational rollback disables only the new guard while retaining additive schema and audit');
 ok(/postgres:16/.test(workflow) && /f27-proof/.test(workflow), 'cloud proof uses an isolated PostgreSQL service');
-ok(/createdb f27_contract/.test(workflow)
-  && /PGDATABASE=f27_contract[\s\S]*f27-team-rollback-proof\.sql/.test(workflow)
+ok(/createdb f27_proof/.test(workflow)
+  && /PGDATABASE=f27_proof[\s\S]*f27-team-rollback-proof\.sql/.test(workflow)
+  && /createdb f27_contract/.test(workflow)
+  && /PGDATABASE=f27_contract[\s\S]*F27_POST_CONTRACT_ONLY=1[\s\S]*f27-team-rollback-proof\.sql/.test(workflow)
   && /localhost:5432\/f27_contract/.test(workflow)
   && /database: 'f27_contract'/.test(workflow),
-  'post-contract fingerprint targets the same explicit f27-prefixed disposable database as the SQL proof');
+  'full drill proof and pristine post-contract fingerprint use separate explicit f27-prefixed disposable databases');
+ok(/\\if :\{\?F27_POST_CONTRACT_ONLY\}[\s\S]*F27_POST_CONTRACT_ONLY_OK[\s\S]*\\quit/.test(proof),
+  'post-contract-only fixture exits before the proof deliberately preserves drill audit history');
 ok(/F27_CANDIDATE_RELEASE_SHA: \$\{\{ github\.sha \}\}/.test(workflow)
   && /'status', '--porcelain=v1', '--untracked-files=all'/.test(workflow)
   && /releaseInfo:[\s\S]*headSha,[\s\S]*originMainSha: null[\s\S]*dirty,[\s\S]*migrationSha256/.test(workflow)

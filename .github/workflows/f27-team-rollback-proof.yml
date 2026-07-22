@@ -93,11 +93,17 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p "$F27_PROOF_DIR"
-          createdb f27_contract
-          PGDATABASE=f27_contract \
+          createdb f27_proof
+          PGDATABASE=f27_proof \
             psql -X -v ON_ERROR_STOP=1 -f scripts/f27-team-rollback-proof.sql \
             | tee "$F27_PROOF_DIR/terminal.txt"
           sha256sum "$F27_PROOF_DIR/terminal.txt" | tee "$F27_PROOF_DIR/terminal.sha256"
+          createdb f27_contract
+          PGDATABASE=f27_contract \
+            psql -X -v ON_ERROR_STOP=1 -v F27_POST_CONTRACT_ONLY=1 \
+              -f scripts/f27-team-rollback-proof.sql \
+            | tee "$F27_PROOF_DIR/post-contract-fixture.txt"
+          grep -q "F27_POST_CONTRACT_ONLY_OK" "$F27_PROOF_DIR/post-contract-fixture.txt"
       - name: Outside-n8n terminal observer
         env:
           F27_PROOF_DIR: ${{ runner.temp }}/f27-proof

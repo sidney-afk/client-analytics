@@ -146,6 +146,15 @@ BEGIN
   END IF;
 END $$;
 
+-- The standalone CI contract fingerprint needs the pristine post-migration
+-- state, before this proof deliberately creates retained drill audit history.
+-- This branch is disposable-database-only and exits after the migration's own
+-- transactional self-probe and the baseline row-count check above.
+\if :{?F27_POST_CONTRACT_ONLY}
+\echo F27_POST_CONTRACT_ONLY_OK
+\quit
+\endif
+
 -- UPDATE OF must cover every lane/fence field used by the guard. A direct
 -- service-role change to an active row's generation is revalidated even when
 -- status and team themselves do not change.

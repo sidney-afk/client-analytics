@@ -64,8 +64,10 @@ executes these files (see `README.md` › Repository layout).
   sub-issue id, with normalized client scope, nullable internal `plan_date`, and server-owned
   `updated_by` / `updated_at`. It deliberately adds no column or foreign key to the rebuildable
   `workload_issues` mirror. RLS is enabled, browser roles receive no table policy or grant, and only
-  service role may read or write it through the Admin/SMM-authenticated `workload-plan` Edge
-  Function; Creative is denied for both list and mutation actions. It adds no runtime flag and never
+  service role may read or write it through the staff-authenticated `workload-plan` Edge
+  Function. The 2026-07-20 release denied Creative for both list and mutation actions; candidate
+  function source widens only the global list projection to Creative while retaining Admin/SMM-only
+  mutations, and is not live until manually deployed. It adds no runtime flag and never
   writes a Linear due date. This delta was applied and read back on 2026-07-20: the table has RLS,
   zero policies, no anon/authenticated privilege, and exactly SELECT/INSERT/UPDATE for service role;
   DELETE/TRUNCATE/REFERENCES/TRIGGER are explicitly revoked. The release drill ended with zero

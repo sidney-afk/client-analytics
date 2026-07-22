@@ -216,15 +216,18 @@ function ok(condition, message) {
     vm.createContext(context);
     vm.runInContext(extract('_syncviewStaffCan'), context);
     vm.runInContext(extract('wlPlanEditingEnabled'), context);
-    ok(context._syncviewStaffCan('workload-plan') === false
+    ok(context._syncviewStaffCan('workload-plan-read') === true
+        && context._syncviewStaffCan('workload-plan') === false
         && context.wlPlanEditingEnabled() === false,
-      'Creative identities cannot read or edit Workload plan dates');
+      'Creative identities read the shared Workload plan but cannot edit it');
     role = 'smm';
-    ok(context._syncviewStaffCan('workload-plan') === true
+    ok(context._syncviewStaffCan('workload-plan-read') === true
+        && context._syncviewStaffCan('workload-plan') === true
         && context.wlPlanEditingEnabled() === true,
       'SMM identities can read and edit when the plan snapshot is ready');
     role = 'admin';
-    ok(context._syncviewStaffCan('workload-plan') === true
+    ok(context._syncviewStaffCan('workload-plan-read') === true
+        && context._syncviewStaffCan('workload-plan') === true
         && context.wlPlanEditingEnabled() === true,
       'Admin identities can read and edit when the plan snapshot is ready');
     context.wlState.planStatus = 'stale';
@@ -433,6 +436,7 @@ function ok(condition, message) {
     };
     const response = deferred();
     const fetchStarted = deferred();
+    let requiredCapability = null;
     const context = {
       WORKLOAD_PLAN_URL: 'https://example.invalid/functions/v1/workload-plan',
       WL_PLAN_READ_TIMEOUT_MS: 8000,
@@ -447,7 +451,10 @@ function ok(condition, message) {
       },
       _wlPlanWriteInFlight: new Map(),
       _wlPlanLastWriteGeneration: new Map(),
-      _syncviewRequireStaffIdentity: async () => ({ key: 'synthetic' }),
+      _syncviewRequireStaffIdentity: async capability => {
+        requiredCapability = capability;
+        return { key: 'synthetic' };
+      },
       _syncviewEfHeaders: headers => headers,
       fetch: async () => {
         fetchStarted.resolve();
@@ -473,9 +480,10 @@ function ok(condition, message) {
     });
     const snapshot = await pending;
     context.wlAdoptPlanRows(snapshot);
-    ok(snapshot.readGeneration === 3
+    ok(requiredCapability === 'workload-plan-read'
+        && snapshot.readGeneration === 3
         && context.wlState.planByIssueId.get('synthetic-issue-1') === '2026-07-29',
-      'a real stale list fetch cannot overwrite a write that settled after its capture point');
+      'Creative-safe reads use the read capability and a real stale list fetch cannot overwrite a newer write');
   }
 
   // When two refreshes overlap, the older completion must not overwrite the

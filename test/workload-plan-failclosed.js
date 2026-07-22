@@ -198,6 +198,99 @@ function makeGroupContext() {
   };
 }
 
+function makeIdentityPurgeContext() {
+  const identityKey = 'syncview_staff_identity_v1';
+  const currentIdentity = {
+    key: 'synthetic-admin-key',
+    role: 'admin',
+    member: { id: 'synthetic-admin', name: 'Synthetic Admin' },
+  };
+  const storage = new Map([[identityKey, JSON.stringify(currentIdentity)]]);
+  const localStorage = {
+    getItem: key => storage.has(key) ? storage.get(key) : null,
+    setItem: (key, value) => storage.set(key, String(value)),
+    removeItem: key => storage.delete(key),
+  };
+  const warmIssueSnapshot = [{
+    id: 'warm-issue',
+    isSubIssue: true,
+    dueDate: '2026-07-31',
+  }];
+  const applyCalls = [];
+  const renders = [];
+  let bootCalls = 0;
+  let focusCalls = 0;
+  const context = {
+    SYNCVIEW_STAFF_IDENTITY_KEY: identityKey,
+    _syncviewStaffIdentityMem: currentIdentity,
+    _syncviewStaffIdentityLoaded: true,
+    _syncviewStaffIdentityVerified: true,
+    _syncviewStaffBootPromise: null,
+    _wlPlanSessionGeneration: 2,
+    _wlPlanLoadGeneration: 5,
+    _wlPlanWriteGeneration: 8,
+    _wlPlanWriteInFlight: new Map([['warm-issue', {}]]),
+    _wlDueWriteInFlight: new Map([['warm-issue', {}]]),
+    _wlPlanLastWriteGeneration: new Map([['warm-issue', 8]]),
+    wlState: {
+      planByIssueId: new Map([['warm-issue', '2026-07-29']]),
+      planHasSnapshot: true,
+      planStatus: 'ready',
+      planError: null,
+      planFetchedAt: 1,
+      workloadByIssueId: new Map([['warm-issue', { weight: 3 }]]),
+      linearMetadataStatus: 'ready',
+      linearMetadataError: null,
+      issueSnapshot: warmIssueSnapshot,
+      calendarByDate: new Map([['2026-07-29', warmIssueSnapshot]]),
+      fetchedAt: 1,
+    },
+    localStorage,
+    wlApplyData: (issues, fetchedAt) => {
+      applyCalls.push([issues, fetchedAt]);
+      context.wlState.issueSnapshot = issues;
+      context.wlState.calendarByDate = new Map([['2026-07-30', issues]]);
+    },
+    wlClosePopover: () => {},
+    renderWorkloadAll: () => renders.push(true),
+    _syncviewStaffClearLegacyIdentityStorage: () => {},
+    _syncviewStaffRefreshChrome: () => {},
+    _syncviewCloseStaffAccount: () => {},
+    _syncviewStaffIdentityBoot: () => { bootCalls++; return Promise.resolve(null); },
+    showToast: () => {},
+    document: {
+      querySelector: selector => selector === '.workload-view' ? {} : null,
+      querySelectorAll: () => [],
+      getElementById: id => id === 'headerMenuButton' ? { focus: () => { focusCalls++; } } : null,
+    },
+    setTimeout,
+    clearTimeout,
+    JSON, String, Number, Map, Array, Error, Promise, console,
+  };
+  context.globalThis = context;
+  vm.createContext(context);
+  for (const name of [
+    '_syncviewStaffIdentitySignature',
+    '_syncviewStaffIdentityLoad',
+    '_syncviewStaffIdentitySave',
+    '_syncviewStaffIdentityValid',
+    'wlPurgePlanSensitiveState',
+    '_syncviewStaffPurgeSensitiveState',
+    '_syncviewStaffIdentityClear',
+    '_syncviewStaffSignOut',
+    '_syncviewStaffIdentityStorageChanged',
+    'wlMarkPlanReadFailure',
+  ]) vm.runInContext(extract(name), context);
+  return {
+    context,
+    warmIssueSnapshot,
+    applyCalls,
+    renders,
+    bootCalls: () => bootCalls,
+    focusCalls: () => focusCalls,
+  };
+}
+
 let failures = 0;
 function ok(condition, message) {
   if (condition) console.log('  ok  ' + message);
@@ -216,15 +309,18 @@ function ok(condition, message) {
     vm.createContext(context);
     vm.runInContext(extract('_syncviewStaffCan'), context);
     vm.runInContext(extract('wlPlanEditingEnabled'), context);
-    ok(context._syncviewStaffCan('workload-plan') === false
+    ok(context._syncviewStaffCan('workload-plan-read') === true
+        && context._syncviewStaffCan('workload-plan') === false
         && context.wlPlanEditingEnabled() === false,
-      'Creative identities cannot read or edit Workload plan dates');
+      'Creative identities read the shared Workload plan but cannot edit it');
     role = 'smm';
-    ok(context._syncviewStaffCan('workload-plan') === true
+    ok(context._syncviewStaffCan('workload-plan-read') === true
+        && context._syncviewStaffCan('workload-plan') === true
         && context.wlPlanEditingEnabled() === true,
       'SMM identities can read and edit when the plan snapshot is ready');
     role = 'admin';
-    ok(context._syncviewStaffCan('workload-plan') === true
+    ok(context._syncviewStaffCan('workload-plan-read') === true
+        && context._syncviewStaffCan('workload-plan') === true
         && context.wlPlanEditingEnabled() === true,
       'Admin identities can read and edit when the plan snapshot is ready');
     context.wlState.planStatus = 'stale';
@@ -433,6 +529,7 @@ function ok(condition, message) {
     };
     const response = deferred();
     const fetchStarted = deferred();
+    let requiredCapability = null;
     const context = {
       WORKLOAD_PLAN_URL: 'https://example.invalid/functions/v1/workload-plan',
       WL_PLAN_READ_TIMEOUT_MS: 8000,
@@ -447,7 +544,10 @@ function ok(condition, message) {
       },
       _wlPlanWriteInFlight: new Map(),
       _wlPlanLastWriteGeneration: new Map(),
-      _syncviewRequireStaffIdentity: async () => ({ key: 'synthetic' }),
+      _syncviewRequireStaffIdentity: async capability => {
+        requiredCapability = capability;
+        return { key: 'synthetic' };
+      },
       _syncviewEfHeaders: headers => headers,
       fetch: async () => {
         fetchStarted.resolve();
@@ -473,9 +573,10 @@ function ok(condition, message) {
     });
     const snapshot = await pending;
     context.wlAdoptPlanRows(snapshot);
-    ok(snapshot.readGeneration === 3
+    ok(requiredCapability === 'workload-plan-read'
+        && snapshot.readGeneration === 3
         && context.wlState.planByIssueId.get('synthetic-issue-1') === '2026-07-29',
-      'a real stale list fetch cannot overwrite a write that settled after its capture point');
+      'Creative-safe reads use the read capability and a real stale list fetch cannot overwrite a newer write');
   }
 
   // When two refreshes overlap, the older completion must not overwrite the
@@ -490,13 +591,13 @@ function ok(condition, message) {
     const newIssues = deferred();
     const oldPlans = deferred();
     const newPlans = deferred();
-    const oldPriorities = deferred();
-    const newPriorities = deferred();
+    const oldMetadata = deferred();
+    const newMetadata = deferred();
     const issueQueue = [oldIssues.promise, newIssues.promise];
     const planQueue = [oldPlans.promise, newPlans.promise];
-    const priorityQueue = [oldPriorities.promise, newPriorities.promise];
     const applied = [];
     const adopted = [];
+    const metadataAdopted = [];
     let failuresMarked = 0;
     const context = {
       _wlPlanLoadGeneration: 0,
@@ -507,11 +608,13 @@ function ok(condition, message) {
         planError: null,
         issueSnapshot: [],
         fetchedAt: null,
-        priorityByIssueId: new Map(),
+        workloadByIssueId: new Map(),
+        linearMetadataStatus: 'unknown',
+        linearMetadataError: null,
       },
       loadLinearIssues: () => issueQueue.shift(),
       wlFetchPlanRows: () => planQueue.shift(),
-      wlFetchPriorityRows: () => priorityQueue.shift(),
+      wlFetchLinearMetadata: issues => issues[0].id === 'newer' ? newMetadata.promise : oldMetadata.promise,
       wlAdoptPlanRows: value => {
         adopted.push(value.marker);
         context.wlState.planHasSnapshot = true;
@@ -521,6 +624,12 @@ function ok(condition, message) {
         failuresMarked++;
         context.wlState.planStatus = 'stale';
       },
+      wlAdoptLinearMetadata: (value, issues) => {
+        metadataAdopted.push(value.marker);
+        context.wlState.workloadByIssueId = new Map([[issues[0].id, value.weight]]);
+        context.wlState.linearMetadataStatus = 'ready';
+      },
+      wlMarkLinearMetadataFailure: () => { failuresMarked++; },
       wlApplyData: issues => applied.push(issues[0].id),
       renderWorkloadAll: () => {},
       document: { querySelector: () => null },
@@ -532,53 +641,288 @@ function ok(condition, message) {
     const newer = context.wlLoadSnapshot(true, null);
     newIssues.resolve({ issues: [{ id: 'newer' }], fetchedAt: 2 });
     newPlans.resolve({ marker: 'newer' });
-    newPriorities.resolve(new Map([['newer', 1]]));
+    newMetadata.resolve({ marker: 'newer', weight: 3 });
     await newer;
     oldIssues.resolve({ issues: [{ id: 'older' }], fetchedAt: 1 });
     oldPlans.reject(new Error('older failed'));
-    oldPriorities.resolve(new Map([['older', 4]]));
+    oldMetadata.resolve({ marker: 'older', weight: 2 });
     await older;
     ok(adopted.join(',') === 'newer'
         && applied.join(',') === 'newer'
         && failuresMarked === 0
         && context.wlState.planStatus === 'ready'
-        && context.wlState.priorityByIssueId.get('newer') === 1
-        && !context.wlState.priorityByIssueId.has('older'),
-      'only the newest overlapping refresh may publish plan, priority, issue, or failure state');
+        && metadataAdopted.join(',') === 'newer'
+        && context.wlState.workloadByIssueId.get('newer') === 3
+        && !context.wlState.workloadByIssueId.has('older'),
+      'only the newest overlapping refresh may publish plan, workload metadata, issue, or failure state');
   }
 
-  // Signing out must purge the staff-only override projection and invalidate
-  // any late list/write response from the old identity.
+  // Starting a due-date write must immediately invalidate any older background
+  // metadata snapshot. Otherwise a fast successful write can settle first and
+  // then be overwritten when the old read finally returns.
   {
-    const context = {
-      _wlPlanSessionGeneration: 2,
-      _wlPlanLoadGeneration: 5,
-      _wlPlanWriteGeneration: 8,
-      _wlPlanWriteInFlight: new Map([['synthetic-issue-1', {}]]),
-      _wlPlanLastWriteGeneration: new Map([['synthetic-issue-1', 8]]),
-      wlState: {
-        planByIssueId: new Map([['synthetic-issue-1', '2026-07-29']]),
-        planHasSnapshot: true,
-        planStatus: 'ready',
-        planError: null,
-        planFetchedAt: 1,
-        issueSnapshot: [{ id: 'synthetic-issue-1' }],
-        fetchedAt: 1,
-      },
-      wlApplyData: () => {},
-      document: { querySelector: () => null },
-      Map, Array,
+    const dueWriteSource = extract('wlSetDueDate');
+    const invalidateAt = dueWriteSource.indexOf('_wlPlanLoadGeneration++');
+    const applyAt = dueWriteSource.indexOf('wlApplyDueLocal(key, dueDate)');
+    const requestAt = dueWriteSource.indexOf('await _wlDueWriteRequest(issue, dueDate)');
+    ok(invalidateAt >= 0 && invalidateAt < applyAt && applyAt < requestAt,
+      'due-date writes invalidate older snapshot generations before optimistic state or network I/O');
+
+    const deferred = () => {
+      let resolve, reject;
+      const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+      return { promise, resolve, reject };
     };
+    const metadata = deferred();
+    const metadataStarted = deferred();
+    const dueResponse = deferred();
+    const issue = {
+      id: 'due-race-issue',
+      isSubIssue: true,
+      title: 'Current issue title',
+      clientName: 'Synthetic Client',
+      dueDate: '2026-07-25',
+    };
+    const staleIssues = [{
+      ...issue,
+      title: 'Stale issue title',
+      dueDate: '2026-07-25',
+    }];
+    const appliedSnapshots = [];
+    let metadataAdopts = 0;
+    let planAdopts = 0;
+    let renders = 0;
+    let dueRequestStarted = false;
+    let metadataIssueIds = [];
+    const context = {
+      _wlPlanSessionGeneration: 0,
+      _wlPlanLoadGeneration: 0,
+      _wlPlanWriteInFlight: new Map(),
+      _wlDueWriteInFlight: new Map(),
+      _wlBackgroundRefreshPromise: null,
+      wlState: {
+        allActiveSubs: [issue],
+        issueSnapshot: [issue],
+        fetchedAt: 1,
+        planByIssueId: new Map([[issue.id, '2026-07-30']]),
+        workloadByIssueId: new Map([[issue.id, { label: '3× Workload', weight: 3, color: '#FF0000' }]]),
+        planStatus: 'ready',
+        linearMetadataStatus: 'ready',
+        error: null,
+        backgroundError: null,
+      },
+      _wlV2Ready: () => true,
+      _syncviewStaffIdentityForHeaders: () => ({ role: 'admin' }),
+      _wlV2FetchIssues: async () => staleIssues,
+      wlFetchPlanRows: async () => ({
+        rows: [{ issue_id: issue.id, plan_date: '2026-07-29' }],
+        readGeneration: 0,
+      }),
+      wlFetchLinearMetadata: issues => {
+        metadataIssueIds = issues.map(row => row.id);
+        metadataStarted.resolve();
+        return metadata.promise;
+      },
+      wlAdoptPlanRows: () => {
+        planAdopts++;
+        context.wlState.planByIssueId.set(issue.id, '2026-07-29');
+      },
+      wlAdoptLinearMetadata: (rows, issues) => {
+        metadataAdopts++;
+        issues[0].dueDate = rows[0].due_date;
+        context.wlState.workloadByIssueId.set(issue.id, { label: '2× Workload', weight: 2, color: '#00FF00' });
+      },
+      wlApplyData: issues => {
+        appliedSnapshots.push(issues);
+        context.wlState.issueSnapshot = issues;
+        context.wlState.allActiveSubs = issues;
+      },
+      wlBackgroundBusinessFingerprint: () => 'synthetic-fingerprint',
+      wlPlanEditingEnabled: () => true,
+      wlLinearEditingEnabled: () => true,
+      wlMarkBackgroundRefreshFailure: () => {},
+      wlPurgePlanSensitiveState: () => {},
+      _syncviewStaffIdentityClear: () => {},
+      wlIsTweaksNeeded: () => false,
+      _wlDueWriteRequest: () => {
+        dueRequestStarted = true;
+        return dueResponse.promise;
+      },
+      renderWorkloadAll: () => { renders++; },
+      renderWorkloadPlanStatus: () => {},
+      showNotify: () => {},
+      document: { querySelector: selector => selector === '.workload-view' ? {} : null },
+      JSON, String, Number, Object, Date, Map, Array, Error, Promise, console,
+    };
+    context.globalThis = context;
     vm.createContext(context);
-    vm.runInContext(extract('wlPurgePlanSensitiveState'), context);
-    context.wlPurgePlanSensitiveState();
-    ok(context.wlState.planByIssueId.size === 0
-        && context.wlState.planHasSnapshot === false
-        && context.wlState.planStatus === 'unknown'
-        && context._wlPlanWriteInFlight.size === 0
-        && context._wlPlanSessionGeneration === 3
-        && context._wlPlanLoadGeneration === 6,
-      'staff sign-out clears saved plan dates and invalidates old in-flight responses');
+    vm.runInContext(extract('wlValidRfc3339Timestamp'), context);
+    vm.runInContext(extract('wlApplyDueLocal'), context);
+    vm.runInContext(extract('wlSetDueDate'), context);
+    vm.runInContext(extract('wlRefetchSilent'), context);
+
+    const background = context.wlRefetchSilent();
+    await metadataStarted.promise;
+    ok(context._wlPlanLoadGeneration === 1 && metadataIssueIds.join(',') === issue.id,
+      'the older background metadata read is genuinely in flight before the due write');
+
+    const dueWrite = context.wlSetDueDate(issue.id, '2026-08-05');
+    ok(dueRequestStarted
+        && context._wlPlanLoadGeneration === 2
+        && issue.dueDate === '2026-08-05',
+      'starting the due write invalidates the older load before its request settles');
+    dueResponse.resolve({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        linear_committed: true,
+        issue_id: issue.id,
+        due_date: '2026-08-05',
+        updated_at: '2026-07-22T12:00:00.000Z',
+        mirror_updated: 1,
+        mirror_pending: false,
+      }),
+    });
+    ok(await dueWrite === true && issue.dueDate === '2026-08-05'
+        && context._wlDueWriteInFlight.size === 0,
+      'the newer due-date write completes successfully and clears its write token');
+
+    metadata.resolve([{
+      issue_id: issue.id,
+      due_date: '2026-07-25',
+      workload: { label: '2× Workload', weight: 2, color: '#00FF00' },
+    }]);
+    const refreshed = await background;
+    ok(refreshed === false
+        && issue.dueDate === '2026-08-05'
+        && context.wlState.issueSnapshot[0] === issue
+        && context.wlState.issueSnapshot[0].title === 'Current issue title'
+        && context.wlState.planByIssueId.get(issue.id) === '2026-07-30'
+        && context.wlState.workloadByIssueId.get(issue.id).weight === 3
+        && planAdopts === 0
+        && metadataAdopts === 0
+        && appliedSnapshots.every(snapshot => snapshot[0] === issue)
+        && renders === 2,
+      'an older background snapshot cannot restore the old due date or publish stale issue, plan, or metadata state');
+  }
+
+  // Exercise the real sign-out -> identity-clear -> global purge chain while a
+  // snapshot load is in flight. Its late result must not repopulate either
+  // staff-only map or replace the warm, non-sensitive issue calendar.
+  {
+    const deferred = () => {
+      let resolve, reject;
+      const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+      return { promise, resolve, reject };
+    };
+    const issues = deferred();
+    const plans = deferred();
+    const h = makeIdentityPurgeContext();
+    let planAdopts = 0;
+    let metadataAdopts = 0;
+    h.context.loadLinearIssues = () => issues.promise;
+    h.context.wlFetchPlanRows = () => plans.promise;
+    h.context.wlFetchLinearMetadata = async () => [{ issue_id: 'stale-issue' }];
+    h.context.wlAdoptPlanRows = () => {
+      planAdopts++;
+      h.context.wlState.planByIssueId.set('stale-issue', '2026-08-01');
+    };
+    h.context.wlAdoptLinearMetadata = () => {
+      metadataAdopts++;
+      h.context.wlState.workloadByIssueId.set('stale-issue', { weight: 2 });
+    };
+    h.context.wlMarkLinearMetadataFailure = () => {};
+    vm.runInContext(extract('wlLoadSnapshot'), h.context);
+
+    const pending = h.context.wlLoadSnapshot(false, null);
+    h.context._syncviewStaffSignOut();
+    issues.resolve({ issues: [{ id: 'stale-issue' }], fetchedAt: 2 });
+    plans.resolve({ rows: [{ issue_id: 'stale-issue', plan_date: '2026-08-01' }], readGeneration: 8 });
+    const result = await pending;
+
+    ok(result === null
+        && planAdopts === 0
+        && metadataAdopts === 0
+        && h.context.wlState.planByIssueId.size === 0
+        && h.context.wlState.workloadByIssueId.size === 0
+        && h.context.wlState.planHasSnapshot === false
+        && h.context._wlPlanWriteInFlight.size === 0
+        && h.context._wlDueWriteInFlight.size === 0
+        && h.context._wlPlanSessionGeneration === 3
+        && h.context._wlPlanLoadGeneration === 7
+        && h.context._syncviewStaffIdentityMem === null
+        && h.focusCalls() === 1,
+      'real staff sign-out purges plan and metadata state and invalidates a late snapshot completion');
+    ok(h.context.wlState.issueSnapshot === h.warmIssueSnapshot
+        && h.context.wlState.calendarByDate.get('2026-07-30') === h.warmIssueSnapshot
+        && h.applyCalls.every(call => call[0] === h.warmIssueSnapshot)
+        && h.renders.length >= 1,
+      'staff sign-out preserves and repaints the warm non-sensitive issue calendar');
+  }
+
+  // Cross-tab identity replacement and removal use their own storage-event
+  // path; both must purge before a replacement identity is reverified.
+  {
+    const h = makeIdentityPurgeContext();
+    const replacement = {
+      key: 'synthetic-creative-key',
+      role: 'creative',
+      member: { id: 'synthetic-creative', name: 'Synthetic Creative' },
+    };
+    h.context._syncviewStaffIdentityStorageChanged({
+      key: h.context.SYNCVIEW_STAFF_IDENTITY_KEY,
+      storageArea: h.context.localStorage,
+      newValue: JSON.stringify(replacement),
+    });
+    ok(h.context.wlState.planByIssueId.size === 0
+        && h.context.wlState.workloadByIssueId.size === 0
+        && h.context._wlPlanSessionGeneration === 3
+        && h.context._wlPlanLoadGeneration === 6
+        && h.context._syncviewStaffIdentityMem.member.id === replacement.member.id
+        && h.bootCalls() === 1,
+      'a cross-tab identity replacement purges Workload state before reverification');
+    ok(h.context.wlState.issueSnapshot === h.warmIssueSnapshot
+        && h.context.wlState.calendarByDate.get('2026-07-30') === h.warmIssueSnapshot,
+      'identity replacement leaves the warm issue calendar mounted');
+  }
+
+  {
+    const h = makeIdentityPurgeContext();
+    h.context._syncviewStaffIdentityStorageChanged({
+      key: h.context.SYNCVIEW_STAFF_IDENTITY_KEY,
+      storageArea: h.context.localStorage,
+      newValue: null,
+    });
+    ok(h.context.wlState.planByIssueId.size === 0
+        && h.context.wlState.workloadByIssueId.size === 0
+        && h.context._wlPlanSessionGeneration === 3
+        && h.context._wlPlanLoadGeneration === 6
+        && h.context._syncviewStaffIdentityMem === null
+        && h.bootCalls() === 0,
+      'a cross-tab sign-out purges Workload state without trying to verify a missing identity');
+    ok(h.context.wlState.issueSnapshot === h.warmIssueSnapshot
+        && h.context.wlState.calendarByDate.get('2026-07-30') === h.warmIssueSnapshot,
+      'cross-tab sign-out keeps the visible calendar warm');
+  }
+
+  // A Workload authorization failure must take the same centralized clear
+  // path, not merely mark one projection stale.
+  {
+    const h = makeIdentityPurgeContext();
+    const error = new Error('expired');
+    error.status = 401;
+    h.context.wlMarkPlanReadFailure(error);
+    ok(h.context.wlState.planByIssueId.size === 0
+        && h.context.wlState.workloadByIssueId.size === 0
+        && h.context._wlPlanSessionGeneration === 3
+        && h.context._wlPlanLoadGeneration === 6
+        && h.context._syncviewStaffIdentityMem === null
+        && h.context.localStorage.getItem(h.context.SYNCVIEW_STAFF_IDENTITY_KEY) === null,
+      'a Workload 401 clears identity and purges both staff-only projections');
+    ok(h.context.wlState.issueSnapshot === h.warmIssueSnapshot
+        && h.context.wlState.calendarByDate.get('2026-07-30') === h.warmIssueSnapshot,
+      'the Workload 401 path preserves the warm issue calendar');
   }
 
   // Exercise the real delegated click ordering: the root handler opens an
@@ -589,6 +933,7 @@ function ok(condition, message) {
     let closeCount = 0;
     let pickerOpen = false;
     const setCalls = [];
+    const dueCalls = [];
     const groupCalls = [];
     const pop = {
       open: false,
@@ -619,6 +964,7 @@ function ok(condition, message) {
       wlCloseDropdowns: () => {},
       wlPlanEditingEnabled: () => true,
       wlSetPlanDate: (issueId, planDate) => { setCalls.push([issueId, planDate]); },
+      wlSetDueDate: (issueId, dueDate) => { dueCalls.push([issueId, dueDate]); },
       wlMovePlanGroup: (...args) => { groupCalls.push(args); },
       _wlPlanWriteInFlight: new Map(),
       setTimeout: callback => { callback(); return 1; },
@@ -707,16 +1053,16 @@ function ok(condition, message) {
       'delegated group-handle drag moves the exact editor and client group');
 
     const dateWrap = {
-      getAttribute: name => name === 'data-wl-plan-issue' ? 'synthetic-issue-1' : '',
+      getAttribute: name => name === 'data-wl-due-issue' ? 'synthetic-issue-1' : '',
     };
     const dateInput = {
       value: '2026-07-31',
-      closest: selector => selector === '[data-wl-plan-issue]' ? dateWrap : null,
+      closest: selector => selector === '[data-wl-due-issue]' ? dateWrap : null,
       matches: selector => selector === 'input[type="date"]',
     };
     rootHandlers.change({ target: dateInput });
-    ok(setCalls.some(call => call[0] === 'synthetic-issue-1' && call[1] === '2026-07-31'),
-      'delegated branded-date change writes the stable issue id and selected day');
+    ok(dueCalls.some(call => call[0] === 'synthetic-issue-1' && call[1] === '2026-07-31'),
+      'delegated branded-date change writes the stable issue id and selected Linear due date');
 
     const clear = {
       closest: selector => selector === '[data-wl-plan-clear]' ? clear : null,

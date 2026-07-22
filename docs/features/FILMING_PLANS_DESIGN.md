@@ -1,6 +1,6 @@
 # Filming Plans — Design Spec
 
-**Status:** Implemented; Edge containment live, Pages/table cutover staged; historical design notes retained · **Date:** 2026-06-03, updated 2026-07-14
+**Status:** Implemented; Edge containment live, Pages/table cutover staged; historical design notes retained · **Date:** 2026-06-03, updated 2026-07-22
 **Owner area:** Kasper tab → new **Filming Plans** sub-tab
 
 > **P0 READ-BOUNDARY BLOCKER (F82).** Live proof showed the Edge GET and independent anonymous table
@@ -17,6 +17,18 @@
 > longer a browser fallback. Admin, SMM, and creative/editor/designer role keys can read; only admin
 > can edit. The old `ONBOARDING_STAFF_KEY` stays as transition compatibility pending its approved
 > retirement gate; `CREDENTIALS_STAFF_KEY` is not accepted.
+
+> **2026-07-22 content-bank update (current behavior).** The Kasper view no
+> longer treats the latest scheduled date as the client’s content runway. It
+> counts every non-archived calendar card that is undated or dated today/future;
+> past-dated cards are treated as consumed. The three pills are **Need a plan**
+> (10 or fewer pieces, no Doc, or an overdue plan), **Soon** (11–20 pieces, a
+> plan whose tabs could not be read/dated, or a plan due within 14 days), and **Covered** (21+ pieces
+> with a plan more than 14 days away). A June plan tab is expected to supply July
+> content, so its next plan is due in August. The reader retains the Doc tab
+> titles and clears its cache when this parsing behavior changes, so it does not
+> hide a returned title behind a generic “unknown” label. The original runway-oriented
+> design notes below are historical context where they conflict with this update.
 
 ---
 

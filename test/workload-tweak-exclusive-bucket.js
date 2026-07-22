@@ -49,27 +49,29 @@ const wlIsTweaksNeeded = compile('wlIsTweaksNeeded', { wlNormStatus });
 const wlIsToDo = compile('wlIsToDo', { wlNormStatus });
 const wlTeamBucket = compile('wlTeamBucket');
 const wlEditorCapacity = compile('wlEditorCapacity', { wlTeamBucket });
-const wlDayOverCapacity = compile('wlDayOverCapacity', { wlTeamBucket, wlEditorCapacity });
 const wlISO = compile('wlISO');
 const wlParseISO = compile('wlParseISO');
 const wlWeekMondayISO = compile('wlWeekMondayISO', { wlParseISO, wlISO });
 const wlSubWorkingDays = compile('wlSubWorkingDays', { wlParseISO, wlISO });
+const wlWorkloadTodayISO = compile('wlWorkloadTodayISO', {
+  WL_WORKLOAD_TIME_ZONE: 'America/Guatemala',
+});
 const wlState = {
   calendarByDate: new Map(),
   planByIssueId: new Map(),
+  workloadByIssueId: new Map(),
   issueSnapshot: [],
   planHasSnapshot: true,
 };
 const wlPlanDate = compile('wlPlanDate', { wlState });
 const wlAutoPlanDate = compile('wlAutoPlanDate', {
   wlSubWorkingDays,
-  wlTodayISO: () => '2026-07-15',
+  wlWorkloadTodayISO: () => '2026-07-15',
 });
 const wlDisplayDate = compile('wlDisplayDate', {
   wlState,
   wlPlanDate,
   wlAutoPlanDate,
-  wlTodayISO: () => '2026-07-15',
 });
 const wlPlacementMode = compile('wlPlacementMode', { wlState, wlPlanDate });
 const wlFormatShort = compile('wlFormatShort', { wlParseISO });
@@ -96,12 +98,26 @@ const wlGroupDeadlineHtml = compile('wlGroupDeadlineHtml', {
   wlDeadlineDotHtml,
   wlEscape: value => String(value),
 });
-const wlPriorityValue = compile('wlPriorityValue', { wlState });
-const wlPriorityIconHtml = compile('wlPriorityIconHtml', { wlPriorityValue });
-const wlGroupUrgentHtml = compile('wlGroupUrgentHtml', {
-  wlPriorityValue,
-  wlPriorityIconHtml,
+const wlWorkloadMeta = compile('wlWorkloadMeta', { wlState, wlTeamBucket });
+const wlWorkloadWeight = compile('wlWorkloadWeight', { wlWorkloadMeta });
+const wlWorkloadUnits = compile('wlWorkloadUnits', { wlWorkloadWeight });
+const wlWorkloadBadgeHtml = compile('wlWorkloadBadgeHtml', {
+  wlWorkloadMeta,
   wlEscape: value => String(value),
+});
+const wlGroupWorkloadHtml = compile('wlGroupWorkloadHtml', {
+  wlWorkloadWeight,
+  wlEscape: value => String(value),
+});
+const wlGroupProximityDays = compile('wlGroupProximityDays', {
+  wlCalendarDayDiff,
+  wlDisplayDate,
+});
+const wlCompareClientGroups = compile('wlCompareClientGroups', { wlGroupProximityDays });
+const wlDayOverCapacity = compile('wlDayOverCapacity', {
+  wlTeamBucket,
+  wlEditorCapacity,
+  wlWorkloadWeight,
 });
 const wlDragGripSvg = compile('wlDragGripSvg');
 const wlIssueDragHandleHtml = compile('wlIssueDragHandleHtml', {
@@ -122,7 +138,7 @@ const wlApplyData = compile('wlApplyData', {
   wlTeamBucket: () => 'video',
   wlDisplayName: name => name,
   wlIsAllowedEditor: () => true,
-  wlTodayISO: () => '2026-07-15',
+  wlWorkloadTodayISO: () => '2026-07-15',
   wlIsInProgress,
   wlIsTweaksNeeded,
   wlIsToDo,
@@ -188,6 +204,9 @@ for (const [status, label, id] of [
 }
 
 console.log('\nWorkload hybrid auto/manual plan-date mode');
+check(wlWorkloadTodayISO(new Date('2026-07-22T05:59:59.000Z')) === '2026-07-21'
+    && wlWorkloadTodayISO(new Date('2026-07-22T06:00:00.000Z')) === '2026-07-22',
+  'automatic placement uses one Guatemala policy day across viewer time zones');
 const dueDate = '2026-07-20';
 const autoDate = '2026-07-17';
 const videoRows = Array.from({ length: 6 }, (_, i) => issue('To Do', 'video-' + i, dueDate));
@@ -204,8 +223,11 @@ check(autoBucket.every(row => row.dueDate === dueDate
     && !Object.prototype.hasOwnProperty.call(row, 'scheduledDate')
     && !Object.prototype.hasOwnProperty.call(row, 'effectiveWorkDate')),
   'auto bucketing stays item-local and does not mutate scheduler state onto issue rows');
-check(!wlDayOverCapacity(autoBucket.slice(0, 5)) && wlDayOverCapacity(autoBucket),
-  'video capacity is 5/day and the sixth row marks overload without spilling');
+check(wlEditorCapacity('VID', 'Video Editors') === 4
+    && !wlDayOverCapacity(autoBucket.slice(0, 4))
+    && wlDayOverCapacity(autoBucket.slice(0, 5))
+    && autoBucket.length === 6,
+  'video capacity is 4/day and overload keeps every planned item visible without spilling');
 
 const pastDue = issue('To Do', 'ordinary-overdue', '2026-07-14');
 wlApplyData([pastDue], '2026-07-15T12:00:00Z');
@@ -290,8 +312,8 @@ check(steadyDate === '2026-07-23'
     && (wlState.calendarByDate.get('2026-07-15') || []).some(row => row.id === urgent.id),
   'adding urgent work never reflows an existing item-local automatic placement');
 
-console.log('\nWorkload placement, deadline, and Linear-priority signals');
-const visualAuto = issue('To Do', 'visual-auto', '2026-07-16');
+console.log('\nWorkload placement, deadline, and weighted-capacity signals');
+const visualAuto = issue('To Do', 'visual-auto', '2026-07-15');
 const visualManual = issue('To Do', 'visual-manual', '2026-07-20');
 wlState.planByIssueId.set(visualManual.id, '2026-07-17');
 const manualOriginHtml = wlPlanOriginHtml('manual', false);
@@ -313,12 +335,14 @@ check(wlGroupPlacementMode([visualAuto]) === 'auto'
 
 const planDay = '2026-07-23';
 const dueTomorrow = wlDeadlineMeta('2026-07-24', planDay, 'Due');
+const dueInTwo = wlDeadlineMeta('2026-07-25', planDay, 'Due');
 const dueInThree = wlDeadlineMeta('2026-07-26', planDay, 'Due');
 const dueLater = wlDeadlineMeta('2026-07-27', planDay, 'Due');
 const plannedLate = wlDeadlineMeta('2026-07-22', planDay, 'Due');
 const sameDay = wlDeadlineMeta(planDay, planDay, 'Due');
-check(dueTomorrow.tone === 'red' && dueTomorrow.days === 1 && /1d buffer/.test(dueTomorrow.label)
-    && dueInThree.tone === 'orange' && dueInThree.days === 3 && /3d buffer/.test(dueInThree.label)
+check(dueTomorrow.tone === 'orange' && dueTomorrow.days === 1 && /1d buffer/.test(dueTomorrow.label)
+    && dueInTwo.tone === 'orange' && dueInTwo.days === 2 && /2d buffer/.test(dueInTwo.label)
+    && dueInThree.tone === 'green' && dueInThree.days === 3 && /3d buffer/.test(dueInThree.label)
     && dueLater.tone === 'green' && dueLater.days === 4 && /4d buffer/.test(dueLater.label)
     && plannedLate.tone === 'red' && plannedLate.days === -1 && /plan 1d late/.test(plannedLate.label)
     && sameDay.tone === 'red' && sameDay.days === 0 && /same day/.test(sameDay.label)
@@ -326,32 +350,39 @@ check(dueTomorrow.tone === 'red' && dueTomorrow.days === 1 && /1d buffer/.test(d
   'deadline proximity is derived from plan day to due day, never from today');
 const redGroup = wlGroupDeadlineSummary([
   issue('To Do', 'red-a', '2026-07-15'),
-  issue('To Do', 'red-b', '2026-07-16'),
+  issue('To Do', 'red-b', '2026-07-14'),
 ]);
 const mixedGroup = wlGroupDeadlineSummary([visualManual, visualAuto]);
 const missingGroup = wlGroupDeadlineSummary([visualAuto, issue('To Do', 'no-deadline', null)]);
-check(/wl-deadline-tag is-red/.test(wlDeadlineTagHtml('2026-07-16', '2026-07-15', 'Due'))
+check(/wl-deadline-tag is-red/.test(wlDeadlineTagHtml('2026-07-15', '2026-07-15', 'Due'))
     && redGroup.tone === 'red' && redGroup.mixed === false
     && mixedGroup.tone === '' && mixedGroup.mixed === true
     && missingGroup.tone === '' && missingGroup.mixed === true
-    && /is-red/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-c', '2026-07-16')] : []))
-    && /wl-deadline-dot/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-d', '2026-07-16')] : []))
-    && !/<svg/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-e', '2026-07-16')] : []))
+    && /is-red/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-c', '2026-07-15')] : []))
+    && /wl-deadline-dot/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-d', '2026-07-15')] : []))
+    && !/<svg/.test(wlGroupDeadlineHtml(redGroup.tone ? [issue('To Do', 'red-e', '2026-07-15')] : []))
     && wlGroupDeadlineHtml([visualManual, visualAuto]) === '',
   'sub-issues own proximity color and only a homogeneous group inherits one quiet color dot');
 
-wlState.priorityByIssueId = new Map([[visualAuto.id, 1], [visualManual.id, 4]]);
-const urgentIcon = wlPriorityIconHtml(visualAuto);
-const highIcon = wlPriorityIconHtml(2);
-const mediumIcon = wlPriorityIconHtml(3);
-const lowIcon = wlPriorityIconHtml(visualManual);
-check(/is-urgent/.test(urgentIcon) && /Urgent Linear priority/.test(urgentIcon)
-    && /is-high/.test(highIcon) && /High Linear priority/.test(highIcon)
-    && /is-medium/.test(mediumIcon) && /Medium Linear priority/.test(mediumIcon)
-    && /is-low/.test(lowIcon) && /Low Linear priority/.test(lowIcon)
-    && /1 urgent sub-issue/.test(wlGroupUrgentHtml([visualManual, visualAuto]))
-    && wlPriorityIconHtml(0) === '',
-  'native Linear priority icons stay exact per item while collapsed groups surface only an urgent count');
+wlState.workloadByIssueId = new Map([
+  [visualAuto.id, { label: '2\u00d7 Workload', weight: 2, color: '#ff9f43' }],
+  [visualManual.id, { label: '3\u00d7 Workload', weight: 3, color: '#ff5c6c' }],
+  ['invalid-weight', { label: '4\u00d7 Workload', weight: 4, color: '#000000' }],
+]);
+const invalidWeight = issue('To Do', 'invalid-weight', '2026-07-20');
+const twoBadge = wlWorkloadBadgeHtml(visualAuto, false);
+const threeCompactBadge = wlWorkloadBadgeHtml(visualManual, true);
+check(wlWorkloadWeight(visualAuto) === 2
+    && wlWorkloadWeight(visualManual) === 3
+    && wlWorkloadWeight(invalidWeight) === 1
+    && wlWorkloadUnits([visualAuto, visualManual, invalidWeight]) === 6
+    && twoBadge.includes('2\u00d7 Workload')
+    && twoBadge.includes('counts as 2 videos for capacity')
+    && threeCompactBadge.includes('>3\u00d7</span>')
+    && threeCompactBadge.includes('3\u00d7 Workload; counts as 3 videos for capacity')
+    && /2\u00d7/.test(wlGroupWorkloadHtml([visualAuto, visualManual]))
+    && /3\u00d7/.test(wlGroupWorkloadHtml([visualAuto, visualManual])),
+  'exact 2\u00d7 and 3\u00d7 Workload metadata supplies weighted units plus compact and full badges');
 wlState.planByIssueId.clear();
 
 const wlAddDays = compile('wlAddDays', { wlParseISO, wlISO });
@@ -365,7 +396,7 @@ wlState.weekStart = dueDate;
 wlState.calendarByDate = new Map([[dueDate, videoRows]]);
 const renderWeekGrid = compile('renderWeekGrid', {
   wlState,
-  wlTodayISO: () => '2026-07-19',
+  wlWorkloadTodayISO: () => '2026-07-19',
   wlAddDays,
   wlParseISO,
   wlEscape: value => String(value),
@@ -383,7 +414,7 @@ check(/class="workload-day over-capacity" data-wl-day="2026-07-20"/.test(weekHtm
 
 const renderFilteredWeekGrid = compile('renderWeekGrid', {
   wlState,
-  wlTodayISO: () => '2026-07-19',
+  wlWorkloadTodayISO: () => '2026-07-19',
   wlAddDays,
   wlParseISO,
   wlEscape: value => String(value),
@@ -412,7 +443,7 @@ wlState.year = 2026;
 wlState.month = 6;
 const renderFilteredMonthGrid = compile('renderMonthGrid', {
   wlState,
-  wlTodayISO: () => '2026-07-19',
+  wlWorkloadTodayISO: () => '2026-07-19',
   wlISO,
   wlIsWeekend,
   wlTodayRollups: () => ({ groups: [], count: 0, overCapacity: false }),
@@ -463,7 +494,19 @@ const wlRenderPlanIssueCards = compile('wlRenderPlanIssueCards', {
   wlDisplayDate,
   wlDeadlineMeta,
   wlEscape: value => String(value),
-  wlPriorityIconHtml,
+  wlWorkloadBadgeHtml,
+  wlPlanOriginHtml,
+  wlDeadlineTagHtml,
+  wlIssueDragHandleHtml,
+});
+const wlRenderPlanIssueCardsReadOnly = compile('wlRenderPlanIssueCards', {
+  wlPlanEditingEnabled: () => false,
+  _wlPlanWriteInFlight: new Map(),
+  wlPlacementMode,
+  wlDisplayDate,
+  wlDeadlineMeta,
+  wlEscape: value => String(value),
+  wlWorkloadBadgeHtml,
   wlPlanOriginHtml,
   wlDeadlineTagHtml,
   wlIssueDragHandleHtml,
@@ -471,7 +514,9 @@ const wlRenderPlanIssueCards = compile('wlRenderPlanIssueCards', {
 const renderDayRollups = compile('renderDayRollups', {
   wlTeamBucket,
   wlEditorCapacity,
+  wlWorkloadUnits,
   wlSortSubIssues,
+  wlCompareClientGroups,
   wlDisplayName: name => name,
   wlEscape: value => String(value),
   wlPlanEditingEnabled: () => true,
@@ -479,7 +524,24 @@ const renderDayRollups = compile('renderDayRollups', {
   wlGroupDeadlineSummary,
   wlRenderPlanIssueCards,
   wlGroupPlanOriginHtml,
-  wlGroupUrgentHtml,
+  wlGroupWorkloadHtml,
+  wlGroupDeadlineHtml,
+  wlGroupDragHandleHtml,
+});
+const renderDayRollupsReadOnly = compile('renderDayRollups', {
+  wlTeamBucket,
+  wlEditorCapacity,
+  wlWorkloadUnits,
+  wlSortSubIssues,
+  wlCompareClientGroups,
+  wlDisplayName: name => name,
+  wlEscape: value => String(value),
+  wlPlanEditingEnabled: () => false,
+  _wlPlanWriteInFlight: new Map(),
+  wlGroupDeadlineSummary,
+  wlRenderPlanIssueCards: wlRenderPlanIssueCardsReadOnly,
+  wlGroupPlanOriginHtml,
+  wlGroupWorkloadHtml,
   wlGroupDeadlineHtml,
   wlGroupDragHandleHtml,
 });
@@ -493,6 +555,7 @@ const wlWeekDeadlineTracks = compile('wlWeekDeadlineTracks', {
   wlGroupDeadlineSummary,
   wlCalendarDayDiff,
   wlDeadlineMeta,
+  wlCompareClientGroups,
   wlDisplayName: name => name,
 });
 const wlTimelineSameDayHtml = compile('wlTimelineSameDayHtml', {
@@ -506,11 +569,23 @@ const wlRenderTimelineTrack = compile('wlRenderTimelineTrack', {
   wlEscape: value => String(value),
   wlFormatShort,
   wlDeadlineDotHtml,
-  wlGroupUrgentHtml,
   wlGroupPlanOriginHtml,
-  wlGroupDeadlineHtml,
+  wlGroupWorkloadHtml,
   wlTimelineSameDayHtml,
   wlRenderPlanIssueCards,
+  wlGroupDragHandleHtml,
+});
+const wlRenderTimelineTrackReadOnly = compile('wlRenderTimelineTrack', {
+  wlPlanEditingEnabled: () => false,
+  _wlPlanWriteInFlight: new Map(),
+  wlDeadlineMeta,
+  wlEscape: value => String(value),
+  wlFormatShort,
+  wlDeadlineDotHtml,
+  wlGroupPlanOriginHtml,
+  wlGroupWorkloadHtml,
+  wlTimelineSameDayHtml,
+  wlRenderPlanIssueCards: wlRenderPlanIssueCardsReadOnly,
   wlGroupDragHandleHtml,
 });
 
@@ -523,6 +598,7 @@ const trackRows = [
   issue('To Do', 'track-fri', '2026-07-24'),
   issue('To Do', 'track-undated', null),
 ];
+wlState.workloadByIssueId.set('track-tue-a', { label: '2\u00d7 Workload', weight: 2, color: '#ff9f43' });
 wlState.calendarByDate = new Map([[trackStart, trackRows]]);
 const trackEditors = wlWeekDeadlineTracks(trackStart);
 const oneTrack = trackEditors[0] && trackEditors[0].tracks[0];
@@ -537,6 +613,22 @@ check(trackEditors.length === 1
     && oneTrack.endpoints[1].subs.length === 1,
   'one planned client group splits truthfully into exact-date deadline subsets without inflating plan counts');
 const trackHtml = wlRenderTimelineTrack(oneTrack, trackEditors[0], 1);
+const readOnlyTrackHtml = wlRenderTimelineTrackReadOnly(oneTrack, trackEditors[0], 1);
+const renderWeekDeadlineTimelineFixture = compile('renderWeekDeadlineTimeline', {
+  wlWorkloadTodayISO: () => '2026-07-19',
+  wlState,
+  wlAddDays,
+  wlParseISO,
+  wlFormatShort,
+  wlEscape: value => String(value),
+  wlWeekDeadlineTracks,
+  wlTeamBucket,
+  wlDisplayName: name => name,
+  wlEditorCapacity,
+  wlWorkloadUnits,
+  wlRenderTimelineTrack,
+});
+const weightedTimelineHtml = renderWeekDeadlineTimelineFixture();
 const dueButtons = trackHtml.match(/<button type="button" class="workload-timeline-due[\s\S]*?<\/button>/g) || [];
 check((trackHtml.match(/<line /g) || []).length === 2
     && [...trackHtml.matchAll(/<line [^>]*y1="([^"]+)"/g)].every(match => match[1] === '24')
@@ -548,10 +640,23 @@ check((trackHtml.match(/<line /g) || []).length === 2
       && !button.includes('data-wl-plan-group-drag'))
     && trackHtml.includes('data-wl-plan-group-drag="1"')
     && trackHtml.includes('data-wl-drag-handle="group"')
+    && trackHtml.includes('2\u00d7')
     && !/<summary class="workload-timeline-plan-chip[^>]*(?:draggable=|data-wl-plan-group-drag)/.test(trackHtml)
     && /also due on the planned day/.test(trackHtml)
     && !/data-wl-deadline-open="track-same-day"/.test(trackHtml),
   'toggle-on tracks use straight connectors, keep due endpoints read-only, and collapse same-day due work into its source');
+check(weightedTimelineHtml.includes('class="workload-timeline-day-total over-capacity"')
+    && weightedTimelineHtml.includes('6/4 · 2 over')
+    && trackRows.every(row => weightedTimelineHtml.includes(`data-wl-issue-id="${row.id}"`)),
+  'Plan plus deadlines uses weighted editor capacity and keeps every planned item visible');
+check(/automatically planned/i.test(readOnlyTrackHtml)
+    && readOnlyTrackHtml.includes('data-wl-date="2026-07-20"')
+    && (readOnlyTrackHtml.match(/<line /g) || []).length === 2
+    && (readOnlyTrackHtml.match(/<button type="button" class="workload-timeline-due/g) || []).length === 2
+    && !readOnlyTrackHtml.includes('data-wl-drag-handle')
+    && !readOnlyTrackHtml.includes('data-wl-plan-drag')
+    && !readOnlyTrackHtml.includes('data-wl-plan-group-drag'),
+  'Creative read-only deadline tracks keep the same plan and due relationships without drag controls');
 
 const boundaryRow = issue('To Do', 'track-boundary', '2026-07-19');
 wlState.calendarByDate = new Map([[trackStart, [boundaryRow]]]);
@@ -643,22 +748,26 @@ const oneOverloadedEditor = [{
     assigneeId: 'editor-over',
   })),
 }];
+wlState.workloadByIssueId.set('visible-0', { label: '2\u00d7 Workload', weight: 2, color: '#ff9f43' });
+wlState.workloadByIssueId.set('visible-1', { label: '3\u00d7 Workload', weight: 3, color: '#ff5c6c' });
 const overloadedEditorHtml = renderDayRollups(oneOverloadedEditor, dueDate);
 check((overloadedEditorHtml.match(/class="workload-plan-item"/g) || []).length === 6
     && (overloadedEditorHtml.match(/class="workload-day-client-group"/g) || []).length === 1
     && !/<details class="workload-day-client-group"[^>]*\sopen(?:\s|>)/.test(overloadedEditorHtml)
     && overloadedEditorHtml.includes('class="workload-day-card-total over-capacity"')
-    && overloadedEditorHtml.includes('6/5 · 1 over')
+    && overloadedEditorHtml.includes('9/4 · 5 over')
     && overloadedEditorHtml.includes('class="workload-day-card-chip"')
     && overloadedEditorHtml.includes('Synthetic Client')
     && overloadedEditorHtml.includes('· 6')
     && oneOverloadedEditor[0].subs.every(row => overloadedEditorHtml.includes(`data-wl-issue-id="${row.id}"`))
     && (overloadedEditorHtml.match(/data-wl-drag-handle="issue"/g) || []).length === 6
     && (overloadedEditorHtml.match(/data-wl-drag-handle="group"/g) || []).length === 1
+    && overloadedEditorHtml.includes('2\u00d7')
+    && overloadedEditorHtml.includes('3\u00d7')
     && !/<button[^>]*class="workload-plan-item[^>]*(?:draggable=|data-wl-plan-drag)/.test(overloadedEditorHtml)
     && !/<summary[^>]*class="workload-day-card-chip[^>]*(?:draggable=|data-wl-plan-group-drag)/.test(overloadedEditorHtml)
     && !overloadedEditorHtml.includes('workload-day-overflow'),
-  'one collapsed client chip retains all six overloaded items and exposes drag only on dedicated handles');
+  'one weighted overloaded client chip retains all six items and exposes drag only on dedicated handles');
 check(oneOverloadedEditor[0].subs.every(row => overloadedEditorHtml.includes(`>${row.title}</span>`))
     && !overloadedEditorHtml.includes('Synthetic Client · VID-'),
   'expanded issue labels use their own titles while identifiers stay out of the visible label');
@@ -674,14 +783,26 @@ const visualRollupHtml = renderDayRollups([{
   count: 2,
   subs: [visualAuto, visualManual],
 }], '2026-07-17');
-check(visualRollupHtml.includes('Urgent Linear priority')
-    && visualRollupHtml.includes('automatically planned')
+const readOnlyVisualRollupHtml = renderDayRollupsReadOnly([{
+  assigneeId: 'editor-1',
+  assigneeName: 'Test Editor',
+  clientName: 'Test Client',
+  teamKey: 'VID',
+  teamName: 'Video',
+  parentId: 'parent-1',
+  anySub: visualAuto,
+  count: 2,
+  subs: [visualAuto, visualManual],
+}], '2026-07-17');
+check(visualRollupHtml.includes('automatically planned')
     && visualRollupHtml.includes('manually planned')
     && visualRollupHtml.includes(`data-wl-issue-id="${visualAuto.id}"`)
     && visualRollupHtml.includes(`data-wl-issue-id="${visualManual.id}"`)
     && visualRollupHtml.includes('is-deadline-red')
-    && visualRollupHtml.includes('is-deadline-orange')
-    && /workload-plan-item-title-line[\s\S]*?wl-priority-icon[\s\S]*?workload-plan-item-label[\s\S]*?wl-plan-origin[\s\S]*?data-wl-drag-handle="issue"/.test(visualRollupHtml)
+    && visualRollupHtml.includes('is-deadline-green')
+    && visualRollupHtml.includes('2\u00d7')
+    && visualRollupHtml.includes('3\u00d7')
+    && /workload-plan-item-title-line[\s\S]*?workload-plan-item-label[\s\S]*?wl-workload-badge[\s\S]*?wl-plan-origin[\s\S]*?data-wl-drag-handle="issue"/.test(visualRollupHtml)
     && (visualRollupHtml.match(/data-wl-drag-handle="issue"/g) || []).length === 2
     && (visualRollupHtml.match(/data-wl-drag-handle="group"/g) || []).length === 1
     && !visualRollupHtml.includes('workload-plan-item-grip')
@@ -690,7 +811,21 @@ check(visualRollupHtml.includes('Urgent Linear priority')
     && !visualRollupHtml.includes('data-wl-plan-clear')
     && !visualRollupHtml.includes('workload-plan-reset')
     && !visualRollupHtml.includes('Use automatic plan'),
-  'mixed client groups stay neutral while exact item tones and quiet origin/priority signals remain visible');
+  'mixed client groups stay neutral while exact item tones, workload weights, and origin signals remain visible');
+const visibleText = html => html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+check(visibleText(readOnlyVisualRollupHtml) === visibleText(visualRollupHtml)
+    && readOnlyVisualRollupHtml.includes('automatically planned')
+    && readOnlyVisualRollupHtml.includes('manually planned')
+    && readOnlyVisualRollupHtml.includes(`data-wl-issue-id="${visualAuto.id}"`)
+    && readOnlyVisualRollupHtml.includes(`data-wl-issue-id="${visualManual.id}"`)
+    && readOnlyVisualRollupHtml.includes('is-deadline-red')
+    && readOnlyVisualRollupHtml.includes('is-deadline-green')
+    && readOnlyVisualRollupHtml.includes('2\u00d7')
+    && readOnlyVisualRollupHtml.includes('3\u00d7')
+    && !readOnlyVisualRollupHtml.includes('data-wl-drag-handle')
+    && !readOnlyVisualRollupHtml.includes('data-wl-plan-drag')
+    && !readOnlyVisualRollupHtml.includes('data-wl-plan-group-drag'),
+  'Creative sees the same calendar, workload weights, origin icons, and buffer colors while drag/edit handles stay hidden');
 wlState.planByIssueId.clear();
 const fallbackOrder = [
   { id: 'order-10', identifier: 'VID-10' },
@@ -710,6 +845,32 @@ check(wlSortSubIssues(fallbackOrder).map(row => row.identifier).join(',') === 'V
     && wlSortSubIssues(nativeRows).map(row => row.identifier).join(',') === 'VID-10,VID-1'
     && wlSortSubIssues(partialNativeRows).map(row => row.identifier).join(',') === 'VID-1,VID-2,VID-3',
   'client groups derive native Linear order when present, else identifier number order');
+const proximityGroups = [
+  { clientName: 'Later', subs: [issue('To Do', 'later-client', '2026-07-23')] },
+  { clientName: 'No deadline', subs: [issue('To Do', 'undated-client', null)] },
+  { clientName: 'Closest', subs: [issue('To Do', 'closest-client', '2026-07-20')] },
+];
+check(proximityGroups.slice().sort((a, b) => wlCompareClientGroups(a, b, '2026-07-20'))
+  .map(group => group.clientName).join(',') === 'Closest,Later,No deadline',
+  'client chips derive closest plan-to-due buffer first and put missing deadlines last');
+const proximityRollups = proximityGroups.map(group => ({
+  assigneeId: 'editor-order',
+  assigneeName: 'Editor Order',
+  clientName: group.clientName,
+  teamKey: 'VID',
+  teamName: 'Video',
+  count: 1,
+  subs: group.subs.map(sub => ({
+    ...sub,
+    assigneeId: 'editor-order',
+    assigneeName: 'Editor Order',
+    clientName: group.clientName,
+  })),
+}));
+const proximityRollupHtml = renderDayRollups(proximityRollups, '2026-07-20');
+check(proximityRollupHtml.indexOf('Closest') < proximityRollupHtml.indexOf('Later')
+    && proximityRollupHtml.indexOf('Later') < proximityRollupHtml.indexOf('No deadline'),
+  'Plan-only rendering derives client-chip proximity order instead of storing a manual order');
 const wlGroupRollups = compile('wlGroupRollups', { wlDisplayName: name => name });
 const mergedGroup = wlGroupRollups([
   { ...oneOverloadedEditor[0].subs[0], id: 'source-row' },
@@ -750,6 +911,9 @@ const workloadSkeletonHtml = compile('_svWorkloadSkeletonHtml', {
 })();
 const workloadRenderSource = grabFunc('renderWorkloadAll');
 const workloadLoadSource = grabFunc('wlLoadSnapshot');
+const workloadInitSource = grabFunc('initWorkloadView');
+const workloadBackgroundSource = grabFunc('wlRefetchSilent');
+const workloadVisibilitySource = grabFunc('_wlOnVisibilityChange');
 check(loadingPlanStatus.hidden === true
     && loadingPlanStatus.textContent === ''
     && !INDEX.includes('Loading saved work days…')
@@ -759,14 +923,46 @@ check(loadingPlanStatus.hidden === true
     && /renderWorkloadAll\(\);/.test(workloadLoadSource)
     && !workloadLoadSource.includes('deferWhilePopoverOpen')
     && /await wlLoadSnapshot\(true, null\)/.test(grabFunc('wlManualRefresh'))
-    && /await wlLoadSnapshot\(true, null\)/.test(grabFunc('wlRefetchSilent'))
-    && /wlRefetchSilent\(\)/.test(grabFunc('_wlV2OnRealtimeChange'))
+    && /hasWarmSnapshot[\s\S]*renderWorkloadAll\(\)[\s\S]*_wlV2CheckWatermark\(\)[\s\S]*return/.test(workloadInitSource)
+    && /await wlLoadSnapshot\(false, cache\)/.test(workloadInitSource)
+    && !/wlState\.(?:loading|refreshing)\s*=/.test(workloadBackgroundSource)
+    && !/planStatus\s*=\s*['"](?:loading|refreshing)['"]/.test(workloadBackgroundSource)
+    && /_wlV2CheckWatermark\(\)/.test(grabFunc('_wlV2OnRealtimeChange'))
+    && /_wlV2CheckWatermark\(\)/.test(workloadVisibilitySource)
     && (workloadSkeletonHtml.match(/class="workload-skeleton-day"/g) || []).length === 5
     && workloadSkeletonHtml.includes('aria-label="Loading saved work days"')
     && workloadSkeletonHtml.includes('class="sv-skeleton-row"')
     && workloadSkeletonHtml.includes('sv-skeleton-line')
     && workloadSkeletonHtml.includes('sv-skeleton-pill'),
-  'every initial, manual, visibility, and realtime plan refresh uses the five-day Week skeleton with no text strip');
+  'only cold and manual foreground loads use the five-day skeleton; warm, visibility, and realtime paths stay painted');
+
+const watermarkFetchSource = grabFunc('_wlV2FetchLatestWatermark');
+const watermarkCheckSource = grabFunc('_wlV2CheckWatermark');
+const watermarkPollSource = grabFunc('_wlV2EnsureWatermarkPoll');
+const workloadTeardownSource = grabFunc('_wlV2Teardown');
+check(/select=synced_at&active=eq\.true&order=synced_at\.desc&limit=1/.test(watermarkFetchSource)
+    && /cache: 'no-store'/.test(watermarkFetchSource)
+    && /Array\.isArray\(rows\)[\s\S]*rows\[0\][\s\S]*synced_at/.test(watermarkFetchSource),
+  'the foreground staleness probe reads the newest active mirror watermark without using cached HTTP state');
+check(/_wlV2WatermarkBusy \|\| document\.hidden \|\| !document\.querySelector\('\.workload-view'\)/.test(watermarkCheckSource)
+    && /wlState\.loading \|\| wlState\.refreshing \|\| wlState\.planStatus === 'loading' \|\| wlState\.planStatus === 'refreshing'/.test(watermarkCheckSource)
+    && /const latest = await _wlV2FetchLatestWatermark\(\)/.test(watermarkCheckSource)
+    && /if \(!wlState\.sourceSyncedAt\)[\s\S]*wlState\.sourceSyncedAt = latest[\s\S]*return/.test(watermarkCheckSource)
+    && /Date\.parse\(latest\) > Date\.parse\(wlState\.sourceSyncedAt\)[\s\S]*await wlRefetchSilent\(\)/.test(watermarkCheckSource)
+    && /refreshed === true[\s\S]*wlState\.sourceSyncedAt = latest/.test(watermarkCheckSource)
+    && /_wlV2FetchIssues\(\)/.test(workloadBackgroundSource)
+    && /wlFetchPlanRows\(\)/.test(workloadBackgroundSource)
+    && /wlFetchLinearMetadata\(freshIssues\)/.test(workloadBackgroundSource)
+    && !/loadLinearIssues|wlLoadSnapshot|LINEAR_ISSUES_WEBHOOK/.test(workloadBackgroundSource)
+    && /finally[\s\S]*_wlV2WatermarkBusy = false/.test(watermarkCheckSource),
+  'watermark polling consumes complete no-diff snapshots through the Supabase/Edge-only background lane');
+check(/!_wlV2Ready\(\) \|\| _wlV2WatermarkTimer/.test(watermarkPollSource)
+    && /setInterval\(_wlV2CheckWatermark, WL_V2_WATERMARK_POLL_MS\)/.test(watermarkPollSource)
+    && /_wlV2EnsureWatermarkPoll\(\)/.test(grabFunc('initWorkloadView'))
+    && /clearInterval\(_wlV2WatermarkTimer\)/.test(workloadTeardownSource)
+    && /_wlV2WatermarkTimer = null/.test(workloadTeardownSource)
+    && /_wlV2WatermarkBusy = false/.test(workloadTeardownSource),
+  'one 60-second watermark poll starts with Workload and teardown always clears its timer and busy state');
 
 const workloadShellSource = grabFunc('renderWorkloadShell');
 const tweaksIndex = workloadShellSource.indexOf('id="wlTweaks"');
@@ -860,20 +1056,33 @@ check(popoverSource.includes('Open Linear →')
     && !popoverSource.includes('workload-popover-plan-due')
     && !popoverSource.includes('workload-popover-plan-meta')
     && !popoverSource.includes('Uses deadline')
-    && /workload-popover-plan-line[\s\S]*?Work day[\s\S]*?_svDateHtml\(dateId, workDate[\s\S]*?issueId && explicitPlan[\s\S]*?Use automatic plan/.test(popoverSource)
-    && popoverSource.includes('wlPriorityIconHtml(s)')
+    && /workload-popover-plan-line[\s\S]*?Linear due date[\s\S]*?_svDateHtml\(dateId, s\.dueDate \|\| ''[\s\S]*?disabled: !canEditDue[\s\S]*?explicitPlan[\s\S]*?Use automatic plan/.test(popoverSource)
+    && popoverSource.includes('wlWorkloadBadgeHtml(s, false)')
     && popoverSource.includes('wlDeadlineTagHtml(s.dueDate, workDate)')
     && /const planControl = wlIsTweaksNeeded\(s\) \? ''/.test(popoverSource)
     && popoverSource.includes('wl-tweak-comments'),
-  'direct pinned-item popovers show priority, one deadline, and the compact Work day / automatic-reset row while group popovers do not expose reset');
+  'direct pinned-item popovers show workload weight, one editable Linear due date, and the manual-plan reset');
+
+const staffCanSource = grabFunc('_syncviewStaffCan');
+check(/capability === 'workload-linear-read'[\s\S]*role === 'admin' \|\| role === 'smm' \|\| role === 'creative'/.test(staffCanSource)
+    && /capability === 'workload-linear'[\s\S]*role === 'admin' \|\| role === 'smm'/.test(staffCanSource)
+    && /capability === 'workload-plan'[\s\S]*role === 'admin' \|\| role === 'smm'/.test(staffCanSource)
+    && /wlPlanEditingEnabled\(\)[\s\S]*wlIssueDragHandleHtml\(issueId, canDrag\)/.test(grabFunc('wlRenderPlanIssueCards')),
+  'Creative reads the same plan and workload metadata but Admin/SMM alone receive due-date or drag editing controls');
 
 check(INDEX.includes('function wlAutoPlanDate(')
     && INDEX.includes('function wlPlacementMode(')
+    && INDEX.includes("const WL_WORKLOAD_TIME_ZONE = 'America/Guatemala';")
+    && /wlWorkloadTodayISO\(\)/.test(grabFunc('wlAutoPlanDate'))
+    && ['initWorkloadView', 'wlApplyData', 'wlWireToolbar', 'renderWeekDeadlineTimeline', 'renderWeekGrid', 'renderMonthGrid']
+      .every(name => /wlWorkloadTodayISO\(\)/.test(grabFunc(name)))
+    && !['wlAutoPlanDate', 'initWorkloadView', 'wlApplyData', 'wlWireToolbar', 'renderWeekDeadlineTimeline', 'renderWeekGrid', 'renderMonthGrid']
+      .some(name => /wlTodayISO\(\)/.test(grabFunc(name)))
     && !INDEX.includes('function wlEffectiveWorkDate(')
     && !INDEX.includes('function scheduleAll(')
     && !INDEX.includes('effectiveWorkDate')
     && !INDEX.includes('scheduledDate'),
-  'hybrid source uses the bounded auto-plan helper without restoring scheduler state');
+  'hybrid source uses one company policy day and the bounded auto-plan helper without restoring scheduler state');
 check(!INDEX.includes('.workload-day.over-capacity')
     && INDEX.includes('.workload-day-card-total.over-capacity')
     && !INDEX.includes('.workload-day-count.over-capacity')

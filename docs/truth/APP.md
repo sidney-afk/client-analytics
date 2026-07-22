@@ -1,6 +1,11 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; PR #891 current unmerged candidate `c9a79ef` passed local `npm test` 150/150 and actual visible boot 23/23, but exact-head cloud source review `4741601566` (comment `3619744849`) expanded F176 at `qa/overnight_runner.sh` line 109; F179/F184 are locally remediated but the review is not clean and every affected remediation row stays OPEN (Workload five-day deadline-timeline and thumbnail-preview follow-up merged; F138 current-source correction; boot/refresh/history/read-truth register reconciled through F184; live plan-date backend unchanged)
+> Last verified: 2026-07-22 @ 0b8a2a2 (`#910` merged) + integrated boot-audit
+> vault through F184. The F176/F179 overnight-runner containment is isolated in parked draft
+> #908 by owner decision and does not block the client-entry product fix; do not expand or reopen
+> that containment scope here. The client verifier is live at v28, while the matching browser
+> caller remains an unmerged draft. The Workload Creative/list-write candidates and F27 operator
+> toolkit retain their current deliberate-manual/no-live-change boundaries.
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -14,6 +19,13 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Release and stale callers
 
+- **Owner final-integration boundary (2026-07-22).** The client verifier is already live at v28
+  and must not be redeployed in this integration. The owner selected a hard browser cutover: no
+  active-link confirmation wait is required, and an old link is expected to reach the existing
+  fresh-link-required screen after the browser merge. F176/F179 overnight-runner containment was
+  split intact into parked, unmerged draft #908 for later review. It remains recorded but is not a
+  #891 merge blocker; do not expand or reopen that scope here. The client-entry product branch
+  still requires final exact-head cloud review and owner merge.
 - The current app-update banner is advisory, not a caller-expiry control (F127). Direct `?prod=1`
   skips it; clean onboarding aliases probe a 404 path; a cached old document can adopt the first
   newer ETag/Last-Modified response as its baseline; and dismissal keeps that old code running.
@@ -48,7 +60,7 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   selector therefore fails the sibling lane. Validate once against the union, run only each lane's
   exact matches, let a no-match sibling skip cleanly, and reject a truly unknown selector before
   loading the live harness. No credential, browser, backend or live scenario was used for those
-  source findings. Current unmerged candidate `c9a79ef` locally expands the immutable registry and
+  source findings. Pre-split candidate `c9a79ef` locally expanded the immutable registry and
   census to all 39 registered probe consumers, applies the F179 union-catalog selection contract, applies
   the F184 persisted-debt owner/finalizer/retry guard, and passes local `npm test` 150/150 plus
   actual visible boot 23/23. Its exact-head cloud source review is nevertheless not clean: review
@@ -59,20 +71,19 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   boundary for legitimate scenario/master consumers. Both shell entries must capture then unset
   before any child; only a registry-approved probe or declared scenario/master broker may restore
   the staff issuer to the final operative Node process, never the legacy token or a timeout/wrapper
-  argv/log/output. Neither source pass used a credential, data, browser, backend or write. F176 remains blocked; F179/F184 are only
-  locally remediated, and every affected remediation row stays OPEN pending remediation, exact-head cloud re-review and
-  owner merge.
+  argv/log/output. Neither source pass used a credential, data, browser, backend or write. The later
+  owner split moved the F176/F179 containment work intact to parked #908 and made it non-blocking for
+  #891. Product-owned rows stay OPEN pending final exact-head cloud review and owner merge.
 - F183 is the client Brief async-lifetime boundary found by the same post-F182 cloud source review
   at `59022d` and reconfirmed at then-current `93fc297`. `_syncviewPurgeClientEntrySurface` zeroed
   `briefPollingState` and `tabSummaryCache` without first clearing retained polling intervals or
   aborting tab-summary controllers. After pagehide/BFCache capability revocation, detached work can
-  therefore complete into global Brief state, local cache and render paths. Candidate `c9a79ef`
+  therefore complete into global Brief state, local cache and render paths. Pre-split candidate `c9a79ef`
   locally generation-owns and cancels polling, delayed/active summaries and both Brief-sheet reads
   before state reset. Actual visible boot passed 23/23; the real pagehide /
   `pageshow.persisted` held-response guard proved zero late global/cache/localStorage/render mutation
-  and one fresh generation. That is synthetic local evidence, not cloud review. The candidate's
-  exact-head cloud review is not clean because it returned the separate additional F176 occurrence.
-  F183 remains OPEN through F176 remediation, exact-head cloud re-review and owner merge. No
+  and one fresh generation. That is synthetic local evidence, not cloud review. F183 remains OPEN
+  through final #891 exact-head cloud review and owner merge; parked #908 is not its blocker. No
   browser, backend, token, live data or write was used for the original finding.
 - F184 is an additional P1 from exact-head cloud source review at `adb1bca`, reconfirmed unchanged
   at then-current `13c042b`. `_writeUiResumeLegacyQueues('startup')` and its focus/pageshow/online/
@@ -83,11 +94,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   generation: inspect no queue before strict client verification; after verification, permit only
   matching-slug/client-principal Calendar or Samples rows, leaving foreign/unknown/staff debt and
   every staff-only job/repair/intake queue untouched. Staff-wide recovery requires a currently
-  verified identity/session. Current candidate `c9a79ef` locally implements that exact owner,
+  verified identity/session. Pre-split candidate `c9a79ef` locally implemented that exact owner,
   source-gate-principal, in-lock finalizer and scheduled-retry cancellation boundary and passes the
-  actual visible lifecycle guard 23/23. F184 is locally remediated, but the exact-head cloud review
-  is not clean because F176 remains blocked. F184 and every other affected remediation row stay OPEN pending F176
-  remediation, exact-head cloud re-review and owner merge. The finding is source-only; no browser,
+  actual visible lifecycle guard 23/23. F184 stays OPEN pending final #891 exact-head cloud review
+  and owner merge; the owner-parked #908 containment does not block it. The finding is source-only; no browser,
   backend, token, live data or write was used.
 
 ## Calendar
@@ -115,11 +125,11 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   Controlled synthetic-browser evidence held client A's v1 reconcile, switched visibly to B, and
   reproduced an intercepted stale write enqueued against B. Draft #891 candidate `02105e9` adds the
   proposed generation/abort/realtime/exit/BFCache guard, but it is unmerged. Exact-head source
-  continued review found F175/F176 and F178–F184. Current candidate `c9a79ef` passes local
+  continued review found F175/F176 and F178–F184. Pre-split candidate `c9a79ef` passed local
   `npm test` 150/150 and actual visible boot 23/23 with the earlier F179/F184 blockers locally
-  remediated, but exact-head cloud review found the additional `qa/overnight_runner.sh` F176
-  occurrence. The review is not clean; all affected remediation rows stay OPEN pending F176 remediation, exact-head cloud
-  re-review and owner merge, so neither Calendar row is closed.
+  remediated, while its cloud review found the additional `qa/overnight_runner.sh` F176 occurrence.
+  The owner later parked that containment in #908 as non-blocking. Both Calendar rows remain OPEN
+  pending final #891 exact-head cloud review and owner merge.
 - Cards with a single Drive-file thumbnail group their IDs into authenticated, bounded (maximum 50)
   availability calls to `thumbnail-revision-read`. That projection returns only the IDs with a real
   Previous/Current pair, so the **Compare** icon stays absent otherwise; it returns no signed URLs or
@@ -173,13 +183,20 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Workload
 
-- Workload reads the Linear-backed `workload_issues` mirror and does not write Linear due dates.
+- Workload reads the Linear-backed `workload_issues` mirror. Candidate source adds one isolated
+  `workload-linear` boundary: every staff role may read exact deadline/weight metadata, while only
+  Admin/SMM may update a sub-issue's Linear due date. The candidate is not live until both the
+  Creative-readable `workload-plan` source and new `workload-linear` source are manually deployed
+  and read back from the exact merge SHA.
 - Dated work without a saved manual override gets one deterministic, item-local automatic work day:
   one working day before its Linear deadline, floored to today. A saved manual `plan_date` wins.
   There is no queue-wide ASAP packing, capacity spill, or hidden overflow row. Because each automatic
   day depends only on that issue's deadline and today, newly urgent work never repacks existing
   automatic placements; any resulting overload remains visible for a person to resolve.
-- Capacity remains 5 video / 15 graphics per editor per day as a warning only. Each editor block
+- Capacity is 4 video workload units / 15 graphics items per editor per day as a warning only.
+  An exact Linear `2× Workload` or `3× Workload` label makes that video consume two or three
+  units; an unlabeled video consumes one. If both exact labels exist, three wins. Label weights
+  affect capacity/overload and workload ranking, never silently repack an automatic plan. Each editor block
   owns the only red over-capacity signal. The date keeps its normal background, border, number
   color, and shadow, and every item remains available instead of spilling or hiding.
 - Calendar hierarchy is date → editor → client → sub-issue. Editor blocks remain primary, each
@@ -187,6 +204,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   click. Expanded rows use the sub-issue title while the identifier stays in the accessible item
   label and opened Linear context; Workload does not emit hover-triggered `title` or `data-tip`
   tooltips.
+  Within each editor/day, client chips are ordered by the closest signed plan-to-deadline buffer,
+  with missing deadlines last and client name as the deterministic tie-breaker, so the most
+  time-sensitive group appears first.
   Within a client, render order uses native mirror sort order only when the whole group carries it;
   otherwise it derives identifier-number order. The order is never persisted.
 - Assigned active work with neither an internal work day nor a due date stays off the calendar and
@@ -199,29 +219,48 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   toolbar, default collapsed, and remember each browser's expanded sections. The toolbar remains
   directly above the Work-day calendar. **Needs a work day or deadline** renders at the bottom,
   after the calendar and **Needs assignment**.
-- A first private plan-date read and every manual, visibility, or realtime refresh uses the shared
-  animated Workload skeleton with day, editor, and client-chip placeholders. The refreshing text
-  strip is not rendered. Plan dates and priority enrichment are not browser-cached; the only new
-  browser persistence is the non-sensitive expanded/collapsed section preference plus the
-  display-only **Plan only** / **Plan + deadlines** preference, which defaults to **Plan only**.
-- The live editable-plan path keeps the Linear due date read-only and adds a separate
+- The animated Workload skeleton is limited to a cold first load, explicit manual **Refresh**, and
+  forced post-create discovery. Re-entering a warm Workload route paints its existing in-memory
+  calendar synchronously; internal navigation and browser visibility return never blank it and
+  never call n8n. Explicit Refresh and post-create discovery retain the direct no-cache Linear path.
+  After a successful explicit Refresh, Workload consumes only the current mirror watermark before
+  background polling resumes, so an older mirror snapshot cannot replace the newer direct truth.
+- Warm entry, visibility return, and the 60-second poll read only the newest Supabase
+  `workload_issues.synced_at` watermark. An unchanged cursor performs no snapshot fetch or repaint.
+  An advanced cursor fetches the issue mirror directly from Supabase plus saved plans and exact
+  label/deadline metadata through their staff Edge readers. The complete result publishes atomically,
+  metadata ids derive from that fresh issue set, and normalized comparisons ignore reconciliation and
+  audit timestamps. A successful no-diff comparison still consumes the new cursor; actual issue,
+  plan, or metadata changes trigger one deferred-safe repaint. A failed background read leaves the
+  last good calendar visible with a freshness warning and a retryable cursor. Realtime remains
+  intentionally disabled. **As of** shows the mirror watermark rather than browser request time.
+  Because an unchanged mirror cursor intentionally performs no projection reads, a plan-only change
+  made on another device converges after the scheduled mirror sweep next advances that cursor; an
+  immediate plan-side signal would require a separate backend contract.
+- Plan dates and workload-label metadata remain in memory only: identity replacement, sign-out, and
+  an expired-key `401` purge both maps and invalidate their in-flight reads without removing the warm
+  non-sensitive issue calendar. A newly verified identity rehydrates those sensitive maps in the
+  background against the retained issue snapshot, without a mirror or n8n read. The only Workload
+  browser persistence remains the existing issue cache, expanded/collapsed section preference, and
+  display-only **Plan only** / **Plan + deadlines** preference.
+- The live editable-plan path adds a separate
   internal work day. A saved `plan_date` is keyed by the sub-issue's stable id in the service-role
   `workload_plan` sidecar and overrides the automatic day. Dragging an individual issue or using the
-  branded work-day control updates only that internal date. **Use automatic plan** appears only in
-  the directly opened popover for a manually planned sub-issue; it clears that override and reveals
-  the deterministic automatic day.
+  drag handle updates only that internal date. **Use automatic plan** appears for every manually
+  planned sub-issue in its popover; it clears that override and reveals the deterministic automatic
+  day. The branded date control in that popover now edits the Linear due date through
+  `workload-linear`; Creative sees the same value in a disabled control.
 - Calendar chips and expanded issue rows use quiet sparkle/pin icons for automatic/manual placement;
   mixed groups show icon counts instead of text badges. Deadline proximity is a compact color dot,
   remains visible without opening a popover, and measures the buffer from that issue's displayed
   plan day to its due day:
-  one day or less is red, two to three days is orange, and more than three days is green. Each
+  the plan day or later is red, one to two days is orange, and three or more days is green. Each
   expanded sub-issue owns its exact tone. A collapsed client group inherits a tone only when every
   represented item has a deadline in the same band; mixed or missing deadlines show no group-level
   proximity marker. Expanded due/buffer copy is plain text with the same dot rather than a bordered
   pill.
-  Linear priority is a separate native-shape/native-color icon, best-effort enriched read-only from
-  `deliverables.priority` by the issue's stable Linear UUID. Missing or failed enrichment hides the
-  icon without blocking Workload; client difficulty is not represented.
+  Native Linear Priority is not shown or used by Workload. Exact `2× Workload` / `3× Workload`
+  labels appear as compact badges on the affected videos and as summaries on collapsed groups.
 - The persistent **Plan only** / **Plan + deadlines** segmented control sits beside the client
   filter and defaults to **Plan only**. Deadline mode is Week-only: enabling **Plan + deadlines**
   switches to Week and disables Month until **Plan only** is restored. Week is always the
@@ -233,9 +272,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   with straight lines to outlined due-date endpoints. Different deadlines split into separate
   endpoints; work due on its planned day stays on the solid plan chip with a same-day marker rather
   than a duplicate. Due endpoints are display-only references and never add to capacity.
-- Shared issue popovers link to **Open Linear**, keep the deadline only beside the sub-issue title,
-  and place the Work day picker plus save/clear state on one compact row. The automatic-plan reset
-  exists only in a directly opened manual sub-issue popover. Tweaks popovers retain their existing
+- Shared issue popovers link to **Open Linear**, keep deadline proximity beside the sub-issue title,
+  and place the branded Linear due-date picker plus optional automatic-plan reset on one compact
+  row. Tweaks popovers retain their existing
   comment and Frame reminder layout.
 - Dragging a collapsed client chip moves that exact date/editor/client group optimistically, then
   sends sequential single-issue writes through the existing `workload-plan` contract. Successful
@@ -243,10 +282,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   Dropping onto an existing matching editor/client group derives one merged chip. Expanded
   single-issue drag remains independent. Admin/SMM users start either drag only from the dedicated
   six-dot handle; the rest of each chip or issue row remains clickable and is not draggable.
-- The live Admin/SMM-authenticated `workload-plan` Edge Function is the only browser
-  projection and writer for the sidecar. Creative is denied both saved-plan reads and mutations by
-  the server role allowlist and the matching browser capability gate; its degraded view remains an
-  explicit deadline fallback and never claims an unseen override is automatic. A write is accepted
+- The staff-authenticated `workload-plan` Edge Function is the only browser projection and writer
+  for the sidecar. Candidate source separates that access: Admin/SMM/Creative may list the same
+  global saved-plan snapshot, while Admin/SMM remain the only roles allowed to set or clear a plan
+  date. Creative therefore receives the same calendar placement and automatic/manual indicators
+  after the exact function source is manually deployed. Its Linear due-date control remains visibly
+  read-only, drag handles are absent, and both servers still reject Creative mutations. Automatic
+  placement uses the shared America/Guatemala policy day so the due-minus-one-working-day floor
+  cannot vary with each viewer's browser time zone. A write is accepted
   only when
   the response reports exactly one row actually written; a short count reverts the optimistic move
   and notifies the user. A non-writable issue is rejected with `409 issue_not_writable` before any
@@ -256,20 +299,24 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   overrides as absent. Authentication or authorization denial instead purges the private projection
   immediately. Reads and writes are bounded, and only the newest overlapping refresh may publish
   plan state.
+- Candidate `workload-linear` uses the shared browser-write authenticator and the existing
+  `LINEAR_MIRROR_API_KEY`; it has no n8n, frozen-writer, runtime-flag, schema, or `workload-plan`
+  fallback. Metadata requests contain at most 100 unique active sub-issue ids and use bounded
+  20-alias Linear batches. Missing aliases, GraphQL errors, truncated/malformed label connections,
+  or omitted deadline fields cannot claim a complete metadata result. Due writes validate the exact
+  active issue/client before Linear, require an exact issue/date acknowledgement, and then make a
+  2.5-second best-effort mirror update. A pre-commit failure reverts and notifies; once Linear has
+  confirmed the commit, a zero-row/timed-out mirror update stays successful with
+  `mirror_pending=true`, keeps the new date in the browser, and warns that Workload is catching up.
 - **Deployment boundary:** effective live table/grant readback matches the locked 2026-07-19
-  sidecar contract, and the exact merged function source is live as deliberate-manual
-  `workload-plan` v2. F147 keeps the exact revoke-correction artifact provenance open. The private
-  TEST release drill proved
-  `409` revert/notify, Creative `403` list/set, one-row save plus server-truth reload, clear-to-null
-  sidecar persistence, and exact cleanup. #892 merged the F148 same-chain guard, detached-select negative
-  mutant, and test-label cleanup with the day-overload, loading-skeleton, and toolbar display
-  changes. #889's hierarchy/group-drag path and #892 are client-side only and reuse the deployed
-  one-row writer. This follow-up remains client-side only as well; together they add no Edge
-  Function, schema, migration, runtime flag, Linear writer, or frozen client-writer change. The
-  hybrid automatic placement, quiet origin/deadline treatment, priority enrichment, and optional
-  Week deadline timeline are client-only and reuse that same live boundary. #884's
-  server-atomic batch contract remains open. This follow-up performed no live operation and changed
-  no n8n workflow or real-client row.
+  sidecar contract, and `workload-plan` v2 remains a deliberate-manual deployment. This candidate
+  adds one new deliberate-manual `workload-linear` function and browser caller; it changes no
+  schema, migration, table grant, runtime flag, n8n workflow, frozen writer, or real data. Nothing
+  is live until the reviewed merge and an exact-SHA manual function deployment/readback/TEST drill.
+  A Pages-only revert removes the caller and restores the prior Workload display without changing
+  saved plan data or Linear. If the function was deployed, retiring it is a separate captured
+  operation. F147 keeps the exact plan-sidecar revoke-correction artifact provenance open, and
+  #884's server-atomic batch contract remains open.
 
 ## Linear sync surface
 

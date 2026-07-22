@@ -1,6 +1,13 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-20 @ 3d8bbfb + rebased boot-audit branch; PR #891 current unmerged candidate `c9a79ef` passed local `npm test` 150/150 and actual visible boot 23/23, but exact-head cloud review `4741601566` / comment `3619744849` expanded F176 at the overnight runner; F179/F184 are locally remediated, all affected rows remain OPEN, and #891 is blocked pending F176 remediation, exact-head cloud re-review and owner merge (current-state reconciliation through F184; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release and #889 grouping/group drag served with F147/F148 evidence follow-ups; thumbnail-preview follow-up merged as #897; boot/refresh/history/read-truth audit registered as F149–F184; coverage state in docs/testing/ASSURANCE_LEDGER.md)
+> Last verified: 2026-07-22 @ 0b8a2a2 (`#910` merged) + source-only F27 operator-toolkit
+> candidate (PR #901 stop evidence still governs live state; corrective source is not live) +
+> Phase-3 reconciliation and the public-safe boot/refresh/history audit through F184. The owner
+> split F176/F179 overnight-runner containment into parked draft #908 for later review; it is not a
+> blocker for the client-entry product fix and must not be expanded or reopened here. The client
+> verifier is live at v28; the matching browser remains draft/unserved. Workload background refresh
+> is now on `main`, while its deliberate-manual function boundaries remain unchanged. Coverage state
+> lives in `docs/testing/ASSURANCE_LEDGER.md`.
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -43,10 +50,16 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 ## Laws and enforced invariants
 
 - **`ROLLBACK.md` is law**: every forward change needs a one-step behavior kill plus a rehearsed,
-  evidence-bearing complete recovery. F27's PR #894 candidate makes the final Track-B team
-  authority reversal one guarded statement and passed an isolated TEST transaction, but remains
-  live-blocked until cloud review, migration application/readback, and a deployed TEST-client drill; F51
-  means an EF source rebuild is not automatically an exact runtime rollback. Log every deploy,
+  evidence-bearing complete recovery. PR #901 records the correctly aborted F27 install: #894 had
+  a late-writer authority-handoff race, an actorless replay-echo race, and no real-row-safe drill.
+  The owner-merged corrective source adds a server generation fence, an exact open-rollback preflight
+  echo proof, and a reserved no-provider drill with permanent audit, but remains not live. The final
+  Track-B authority reversal stays live-blocked while the source-only operator toolkit is reviewed,
+  then through two separate owner gates: first pin/deploy only `linear-inbound` and establish its
+  source-exact baseline; later snapshot the queue, migrate, deploy the remaining four fenced closures,
+  and run the bounded drill under `docs/ops/F27_INSTALL_RUNBOOK.md`. F51 records that historical
+  transitive graphs are unrecoverable; rollback instead redeploys the exact captured provider source/
+  JWT closure and requires independent deployed-source/JWT hash equality. Log every deploy,
   flag flip, migration, backup, recovery, and incident in `EXECUTION_LOG.md`.
 - `npm test` runs every `test/*.js` offline — including `test/repo-map-sync.js` (repo layout
   vs `REPO_MAP.md`) and `test/truth-sync.js` (truth docs vs code). CI runs it on every push.
@@ -66,6 +79,18 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   (staff PTO tracker, live ON since 2026-07-15 under owner decision D-36). The exact TEST
   fixture identity stays in private operator config; `ROLLBACK.md` has the public-safe
   live-state table.
+- F27 is not live. PR #901's stop evidence preserves Linear/Linear authority, F2 off, F4 false,
+  no F27 database objects, and no deployment. Do not infer otherwise from merged corrective source
+  or its disposable proof. The toolkit candidate pins only `linear-inbound` to
+  npm package @supabase/supabase-js version `2.49.8` with a frozen Deno v4
+  lock/config. The four install closures retain byte-identical exact `2.49.8`
+  import surfaces—direct in outbound/production-write and through
+  `supabase/functions/_shared/b4-write.ts` for deliverable-write/batch-write—plus provider-returned
+  source without synthetic historical locks. It also adds private snapshot/source rollback,
+  inbound-freshness, and reserved-drill operators. It performs no live action. After a separately
+  authorized inbound-only preparatory deployment establishes a pinned baseline, a later install
+  must snapshot the full live outbox and definitions before DDL, deploy/read back only the remaining
+  four generation-aware closures from one merged SHA, and retain the reserved drill audit.
 - Permissive auth is a pre-enforcement posture only. GO_LIVE Phase 0.75 must execute and prove the
   F5 forward CAS before any real-client parity cohort; the old canonical sequence omitted it (F97).
 - The first human authority handoff uses fail-safe F2→F1 order: normal outbound is armed/read back
@@ -78,12 +103,23 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   privately plus a public-safe `n8n-backups/` stub before touching it (rollback rule 2). Every live
   write drill uses only the private TEST fixture.
 - The Workload internal-plan caller, locked sidecar, and exact-source `workload-plan` v2 are live.
-  The private TEST release proved pre-write `409` rollback, Creative denial, save/reload/clear,
-  due-date preservation, and exact cleanup with all 13 flags unchanged. This Order-1 docs pass
-  performed none of those live actions. PR #889's client-only grouping/group drag is served from
-  current main and reuses sequential one-row writes; #884's server-atomic batch contract remains
-  open. F147 keeps the exact migration-correction artifact provenance open; F148 keeps the
-  insufficient same-chain true-count source guard and reused-F141 test-label cleanup open.
+  Candidate source separates list from write authorization so Creative can read the same global plan
+  snapshot while Admin/SMM retain all set/clear authority; that widening is not live until the exact
+  function source is manually deployed and changes no schema, grant, flag, or frozen writer. The
+  historical private TEST release proved pre-write `409` rollback, Creative `403` list/set under the
+  2026-07-20 deployment, save/reload/clear,
+  due-date preservation, and exact cleanup with all 13 flags unchanged. Candidate source adds a
+  separate deliberate-manual `workload-linear` function: all staff may read exact deadline and
+  `2×`/`3× Workload` metadata, Admin/SMM may edit the Linear due date, and Creative remains
+  read-only. It adds no migration, mirror column, n8n change, flag, or frozen-writer dependency and
+  is not live until an exact-SHA deploy/readback/TEST drill. The visible board uses four weighted
+  video units, retains the item-local no-reflow automatic plan, orders client pills by closest
+  plan-to-due buffer, makes forced refreshes bypass the mirror, and reacts when a 60-second mirror-
+  watermark poll advances. The upstream scheduled producer is unchanged, so the poll removes only
+  the browser-side portion of mirror delay. This docs
+  pass performed no live action. PR #889's grouping/group drag continues to reuse sequential
+  one-row plan writes; #884's server-atomic batch contract remains open. F147 keeps the exact
+  migration-correction artifact provenance open; #892 closed F148's same-chain guard/test-label gap.
 - Green Linear-reader executions are not completeness proof: F29 covers partial multi-source/status
   snapshots and deterministic 100-ID starvation; F126 covers unpaged child/comment expansion that
   can drive Calendar import/link/status writes. Require complete receipts and zero mutation on any
@@ -156,7 +192,7 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   A prior cloud source review at `adb1bca`, reconfirmed unchanged at `13c042b`, added F184: the
   unconditional legacy-queue startup plus focus/pageshow/online/visible/timer triggers can read or
   replay residual staff/session Calendar, Samples, Linear and intake debt on any client-link
-  document before strict verification settles. Current unmerged candidate `c9a79ef` locally closes
+  document before strict verification settles. Pre-split candidate `c9a79ef` locally closed
   the previously known F176 probe-registry omission and remediates F179/F184; it passed 150/150
   unit suites plus 23/23 actual visible boot groups.
   Its registry contains the exact 39 registered probe consumers (37 manifest, one workflow-direct, one
@@ -168,28 +204,25 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   process tree before probe classification. Follow-up local source tracing found the transitive
   `qa/overnight_cron_chunk.sh` pass-through, unrelated helper inheritance and no declared broker
   boundary for the legitimate scenario/master consumers.
-  The cloud review returned no separate F179/F184 thread, but all affected remediation rows remain OPEN until owner
-  merge. Those F176/F179/F183/F184 source reviews used no browser, backend, credential value, live
-  data or write. F175/F176 and F178–F184 remain OPEN; F176 runner remediation plus a new exact-head
-  cloud review are required before the owner may merge #891.
+  The cloud review returned no separate F179/F184 thread. Those F176/F179/F183/F184 source reviews
+  used no browser, backend, credential value, live data or write. On 2026-07-22 the owner split the
+  completed F176/F179 overnight-runner containment into parked, unmerged draft #908 for later review.
+  It remains recorded and OPEN/parked, is not a #891 blocker, and must not be expanded or reopened in
+  this integration. Product-owned rows remain OPEN until final #891 exact-head cloud review and owner
+  merge.
   Every remediation must satisfy F162 with a browser guard that observes the
   actual visible sequence from document start through visible failure, keyboard/touch Retry, and
   recovery. Calendar guards must also hold and release real primary/ancillary/realtime work across
   no-load exit, A → B replacement, pagehide and persisted pageshow. The Brief guard must hold its
   poll and tab-summary responses across actual pagehide/persisted BFCache, release them late, and
-  prove zero stale mutation/cache/paint plus exactly one fresh owner. F176 must retain the exact
-  manifest/workflow-direct probe census and also classify every direct process launch in both
-  operative overnight shells. Each shell captures then unsets the staff issuer and discards the
-  legacy token before any child. Only a registry-approved probe or an explicitly declared
-  scenario/master broker may restore the staff issuer, and only to the final operative Node
-  process—not a timeout/wrapper or argv/log/output. An offline actual-runner guard must prove
-  `sxr_client_persist_guard` plus scenario/master receive the staff issuer only, while staff-only,
-  Calendar, unknown/manual, cleanup, unit, server, timeout and Git children receive neither
-  credential; it must also exercise the cron handoff. Preserve the locally
-  green F179 union validation/lane partition guards for valid flat-only, tree-only and shared
-  selectors plus pre-loader rejection, and preserve F184's matching-A/foreign-B/unknown/staff-only
+  prove zero stale mutation/cache/paint plus exactly one fresh owner. The historical F176/F179
+  containment requirements remain in their register rows and dated evidence, with their complete
+  work retained only in parked #908. They are not rerun or extended as part of #891. Preserve the
+  product branch's F184 matching-A/foreign-B/unknown/staff-only
   synthetic debt, real lifecycle triggers, held-lock, timeout/pagehide cancellation, byte-identity
-  and fresh-owner assertions. These local guards do not close their rows before owner merge.
+  and fresh-owner assertions. These local guards do not close their rows before owner merge. The
+  verifier is already live at v28 and must not be redeployed; the owner-selected hard cutover does
+  not wait for link confirmations, and old links intentionally use the existing updated-link screen.
   A settled-page assertion or
   source check does not close a boot finding.
 - F140 is owner-ratified and fixed on the review branch: Samples matches Calendar, so Kasper may

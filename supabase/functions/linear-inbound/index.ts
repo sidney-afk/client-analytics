@@ -4,9 +4,10 @@
 // kill switch; disabled deliveries are verified and acknowledged without mirror
 // writes. Comment capture is normalized before any echo/loop suppression.
 
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { clearArchiveMarkers } from "./restore-markers.mjs";
 import { normalizeLinearComment, parseSyncViewBridgeBody } from "./comment-normalize.mjs";
+import { f27PreflightIdentity, outboundEchoIdentityProof } from "./f27-echo.mjs";
 
 type JsonMap = Record<string, unknown>;
 type ExistingRow = Record<string, unknown>;
@@ -716,14 +717,40 @@ async function recentOutboundEcho(
 
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase.from("mirror_outbox")
-    .select("id,entity_id,client_slug,operation,comment_id,dedup_key,payload,linear_result,status,processed_at,updated_at")
+    .select("id,entity_id,client_slug,team,operation,comment_id,dedup_key,payload,linear_result,status,processed_at,updated_at")
     .in("status", ["pending", "shadow_ok", "written", "failed", "skipped"])
     .gte("updated_at", since)
     .order("updated_at", { ascending: false })
     .limit(100);
   if (error) return null;
 
-  for (const candidate of Array.isArray(data) ? data : []) {
+  const candidates = Array.isArray(data) ? data : [];
+  const rollbackIds: string[] = [];
+  for (const candidate of candidates) {
+    const row = candidate as JsonMap;
+    const identity = f27PreflightIdentity(row, parseJson(row.linear_result));
+    const rollbackId = clean(identity && identity.rollbackId);
+    if (rollbackId && !rollbackIds.includes(rollbackId)) rollbackIds.push(rollbackId);
+  }
+
+  // Ordinary echo handling performs no F27 lookup. If a rollback-bound
+  // preflight is present, a failed lookup only disables this extra proof; it
+  // must not disable the established actor or terminal proofs for other rows.
+  let openF27Rollbacks: JsonMap[] = [];
+  if (rollbackIds.length) {
+    try {
+      const { data: rollbacks, error: rollbackError } = await supabase
+        .from("track_b_team_rollbacks")
+        .select("id,correlation_id,team,state")
+        .in("id", rollbackIds)
+        .eq("state", "open");
+      if (!rollbackError && Array.isArray(rollbacks)) openF27Rollbacks = rollbacks as JsonMap[];
+    } catch (_e) {
+      openF27Rollbacks = [];
+    }
+  }
+
+  for (const candidate of candidates) {
     const row = candidate as JsonMap;
     const result = parseJson(row.linear_result);
     // `skipped` is normally terminal/non-writable. F27 deliberately reuses it
@@ -732,17 +759,20 @@ async function recentOutboundEcho(
     if (lower(row.status) === "skipped" && !clean(result.rollback_id)) continue;
     if (clean(result.issue_id) !== issueId) continue;
     if (!outboundValueMatches(row, payload, issue, comment)) continue;
-    const actorMatches = !!actorId
-      && !!clean(result.mirror_actor_id)
-      && clean(result.mirror_actor_id) === actorId;
+    const {
+      actorMatches,
+      terminalValueProof,
+      openF27PreflightProof,
+    } = outboundEchoIdentityProof(row, result, actorId, openF27Rollbacks);
     // Linear issue webhooks do not consistently expose the API-key viewer as
     // their actor. A terminal outbox row plus the exact issue and exact value
     // is still a durable echo proof: the native ledger already owns the human
     // actor, and applying that transport echo would only advance the CAS clock.
-    // Pending rows still require an actor match so a coincident external write
-    // cannot be suppressed before our mutation has been acknowledged.
-    const terminalValueProof = lower(row.status) === "written" && !!clean(row.processed_at);
-    if (!actorMatches && !terminalValueProof) continue;
+    // F27 adds one narrower pre-terminal proof: its exact self-bound preflight
+    // is eligible only while that same rollback/correlation/team remains open.
+    // Ordinary pending rows still require an actor match, so a coincident
+    // external write cannot be suppressed before acknowledgement.
+    if (!actorMatches && !terminalValueProof && !openF27PreflightProof) continue;
     return row;
   }
   return null;

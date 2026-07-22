@@ -87,10 +87,12 @@ const manifestCheck = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'e
   encoding: 'utf8',
 });
 const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.test(line));
-ok(manifestCheck.status === 0 && slugRows.length === 28,
-`generated deploy manifest is current and contains all 28 slugs (${(manifestCheck.stderr || '').trim()})`);
+ok(manifestCheck.status === 0 && slugRows.length === 29,
+`generated deploy manifest is current and contains all 29 slugs (${(manifestCheck.stderr || '').trim()})`);
 ok(/\| `client-review-link` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Live v2 deployed by operator on 2026-07-15\./.test(manifest),
 'client-review-link is explicitly recorded as the operator-deployed v2 deliberate-manual exception');
+ok(/\| `workload-linear` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Source-only Workload Linear metadata\/deadline gateway/.test(manifest),
+'workload-linear is explicitly recorded as a source-only deliberate-manual exception');
 
 if (failures) {
   console.error(`\n${failures} Edge Function deploy provenance check(s) failed`);

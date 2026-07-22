@@ -6,6 +6,7 @@ const crypto = require('crypto');
 
 const ROOT = path.join(__dirname, '..');
 const FN = fs.readFileSync(path.join(ROOT, 'supabase/functions/linear-inbound/index.ts'), 'utf8');
+const F27_ECHO = fs.readFileSync(path.join(ROOT, 'supabase/functions/linear-inbound/f27-echo.mjs'), 'utf8');
 const CFG = fs.readFileSync(path.join(ROOT, 'supabase/config.toml'), 'utf8');
 
 function ok(cond, msg) {
@@ -140,6 +141,21 @@ ok(/including house-authored `\(via SyncView\)` bridges, is persisted first/.tes
 ok(/"pending", "shadow_ok", "written", "failed", "skipped"/.test(FN)
   && /lower\(row\.status\) === "skipped" && !clean\(result\.rollback_id\)/.test(FN),
   'only rollback-bound skipped rows participate in F27 echo matching');
+ok(/f27PreflightIdentity/.test(FN)
+  && /if \(rollbackIds\.length\)/.test(FN)
+  && /from\("track_b_team_rollbacks"\)/.test(FN)
+  && /\.eq\("state", "open"\)/.test(FN),
+  'actorless F27 preflight proof is conditional on an open rollback lookup');
+ok(/result\.f27_preflight !== true/.test(F27_ECHO)
+  && /result\.outbox_id/.test(F27_ECHO)
+  && /result\.dedup_key/.test(F27_ECHO)
+  && /result\.operation/.test(F27_ECHO)
+  && /rollback\.correlation_id/.test(F27_ECHO)
+  && /rollback\.team/.test(F27_ECHO),
+  'F27 preflight echo proof binds the exact outbox identity, correlation, and team');
+ok(/if \(!actorMatches && !terminalValueProof && !openF27PreflightProof\) continue/.test(FN)
+  && /catch \(_e\) \{\s*openF27Rollbacks = \[\];/.test(FN),
+  'F27 lookup failure rejects only the extra proof while ordinary proofs remain available');
 ok(!/shouldDropEchoComment|duplicate_comment_event/.test(FN),
   'legacy prefix drops and time-window comment dedupe must be removed in favor of durable idempotency');
 ok(/normalized\.linear_author_id\s*=[\s\S]*normalized\.transport_linear_user_id\s*=[\s\S]*normalized\.transport_actor\s*=/.test(

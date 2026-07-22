@@ -185,6 +185,13 @@ const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'linear-del
 ok(/rpc\/\$\{name\}/.test(script) && /deliverable_write/.test(script), 'healing path must call the deliverable_write RPC');
 ok(/Object\.assign\(\{\}, r\.row \|\| \{\}, \{ id: r\.id \}, r\.patch\)/.test(script),
   'healing RPC payload must merge patch onto the existing deliverable row');
+ok(/track_b_f27_write_authorization/.test(script)
+  && /const authorityGeneration = await f27WriteAuthorizationGeneration\(r\.team\)/.test(script)
+  && /track_b_f27_requeue/.test(script)
+  && /p_authority_generation: authorityGeneration/.test(script)
+  && /_f27_authority_generation: authorityGeneration/.test(script)
+  && /_f27_legacy_parity: false/.test(script),
+  'outbound healing obtains the current team generation for fenced requeue and enqueue');
 ok(!/from\("deliverables"\)\.update|from\('deliverables'\)\.update|PATCH[\s\S]{0,80}deliverables/.test(script), 'reconciler must not directly update deliverables');
 ok(/source: 'reconcile'/.test(script), 'summary/healing events must use source=reconcile');
 ok(/webhooks\(first: 100\)/.test(script) && /missing_comment_resource/.test(script),

@@ -17,8 +17,13 @@ owner merging this file (see D-32)._
 
 1. **The owner holds every switch.** Nothing flips without a deliberate owner action.
 2. **One team at a time.** Graphics (one person) first, then Video (D-28).
-3. **One-click team rollback remains live-BLOCKED (F05/F27).** PR #894's candidate passed an
-   isolated TEST transaction, but is not applied to the live project. Immediate containment is stop that team's new
+3. **One-click team rollback remains live-BLOCKED (F05/F27).** PR #901 records the correctly
+   aborted install: #894 had a late-writer handoff race, an actorless replay-echo race, and no
+   real-row-safe drill. Owner-merged corrective source adds a server generation fence, exact
+   open-rollback echo binder, and reserved no-provider drill with retained audit, but is not applied
+   or deployed. Its source-only operator toolkit must be cloud-reviewed and owner-merged; then an
+   inbound-only pinned-baseline preparation and the later F27 install each require a separate owner go.
+   Immediate containment is stop that team's new
    mutations. F2 `off` stops normal outbound only; F4 `false` stops independent parity, so disable
    both for an unknown/mixed Linear-write incident (F58). Authority returns to Linear only after an immutable team
    snapshot, owner-audited classify/replay/quarantine/discard decisions, and a machine-read team
@@ -39,6 +44,13 @@ owner merging this file (see D-32)._
 | `linear_legacy_parity_enabled` | `disabled` | Transition write-lane off (armed at Phase 1) |
 | `auth_enforcement` | `permissive` | Client-link verifier permits missing/invalid tokens; this is not a staff-write gate |
 | `write_ui_reroute_clients` | last verified live TEST-only allowlist (`clients:[<TEST_CLIENT>]`) | Required D-32 boundary; #850 merged the reroute code carried from `e3aa028`. Read the value fresh before any action; this dated row authorizes no flag change or real enrollment. |
+
+F27 objects are absent from live under PR #901's stop evidence. Merged corrective
+source and the source-only toolkit do not change this table. Follow
+`docs/ops/F27_INSTALL_RUNBOOK.md`: first a separately authorized quiet window
+deploys only locked `linear-inbound` and proves webhook freshness; only a later
+owner window snapshots the queue, migrates, deploys the remaining four closures,
+and drills. Every window starts by re-reading the values above and F27 posture.
 
 Merged & live: #810 gateway (deployed), #811 guards + daily TEST drill + nightly shadow audit,
 #812 mirror write-UI (locked for real teams), #850's dark Calendar/Samples/Submit reroutes,
@@ -67,10 +79,14 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       fence; every forward/kill/recovery action passes an isolated TEST flag-store transaction,
       exact expected-state CAS, affected-row assertion, and readback. Never paste a multi-action
       sequence or an unconditional whole-row replacement.
-      **F27 evidence:** post-review-fix head `afee809`, run `29764430971`, artifact
-      `8470167032` proved the per-team recovery statement, in-flight and unbound-receipt refusal, and F2/F4 behavior in a
-      disposable PostgreSQL store. This is one action's evidence, not closure of
-      the every-fence checklist item and not live-application authorization.
+      **F27 evidence:** the #894 head/run/artifact formerly cited here are
+      historical and superseded because they did not reproduce either P1 race
+      or a safe drill. The corrective exact-head gate must reproduce
+      authorization → finalization/generation advance → rejected late insert,
+      the actorless skipped-state replay webhook before/after fixture, and the
+      full reserved drill through snapshot/hash/classification/receipt/replay/
+      authority-CAS refusal/permanent audit. Record its new exact head/run/
+      artifact only after they exist. None is live-application authorization.
 - [ ] **The complete Production browser gate is green before merge/flip** (F105): do not accept the
       fast PR subset alone. Locked live-read/zero-mutation and fully intercepted writable states are
       explicit; interaction/behavior/pixel lanes are authority-aware; unsupported operations remain
@@ -240,11 +256,13 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       while scheduled reconcilers remain the Linear/SyncView drift-healing mechanism.
 - [ ] **Production-write TEST contract resolved** (F06): owner/implementation chooses the
       service-only spec contract or a newly justified browser-safe alternative; SPA, gateway, and
-      one cross-boundary test agree. F51 additionally requires exact-pinned dependencies/CLI,
-      lock/integrity data, tracked config/deploy commands for all 24 slugs, a complete all-function
-      source-closure/JWT/release manifest, and independent downloaded server fingerprints. Discover
-      and drill a supported exact-artifact restore route; until then, never call a same-SHA rebuild
-      an exact rollback.
+      one cross-boundary test agree. F51's source-exact rollback standard requires captured provider
+      source/entrypoint/JWT/release manifests and independent deployed-source/JWT hash readback after
+      redeploy. Historical transitive graphs are unrecoverable and explicitly not part of that
+      standard; prior version IDs are provenance, not activation handles. Separate fleet hardening
+      still tracks pinned direct imports, CLI/config manifests, and deliberate dependency updates. The
+      six onboarding-family floating imports require a later deliberate release and are not part of
+      the scoped F27 toolkit pin.
 - [ ] **Authority vocabulary is singular** (F55): every browser, EF, reconciler, n8n guard, flag
       writer, and runbook accepts exactly `linear|syncview`. Remove/migrate the backend-only
       `supabase` alias, reject missing/malformed/legacy values consistently, and pass one
@@ -390,7 +408,7 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       expanded F176/F179; then-current `93fc297` began remediation. Candidate `13c042b` passed local
       `npm test` 149/149, but exact-head cloud source review (review `4741233371`; comments
       `3619424490`, `3619424493`) found the omitted workflow-direct Samples probe under F176 and the
-      cross-catalog selector defect under F179. Current candidate `c9a79ef` locally expands the
+      cross-catalog selector defect under F179. Pre-split candidate `c9a79ef` locally expanded the
       immutable registry/census to all 39 registered probes, remediates the union-selector F179 path
       and the F184 persisted-debt owner path, and passes local `npm test` 150/150 plus actual visible
       boot 23/23. Its exact-head cloud source review is nevertheless not clean: review `4741601566`,
@@ -398,19 +416,20 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       the direct process tree inherits `SYNCVIEW_STAFF_KEY` before classification. Follow-up local
       source tracing found the cron pass-through, unrelated helper inheritance and the absent
       declared broker for legitimate scenario/master consumers. Neither source pass used a
-      credential, data, browser, backend or write. F176 remains blocked; F179/F184 are only locally
-      remediated, and all affected remediation rows stay OPEN pending remediation, exact-head cloud re-review and owner
-      merge.
+      credential, data, browser, backend or write. The owner later moved the complete F176/F179
+      overnight containment to parked, unmerged #908. It remains OPEN/parked for later review, is
+      non-blocking for #891, and must not be expanded or reopened in this integration. The client
+      verifier is already live at v28 and must not be redeployed. The hard cutover does not wait for
+      link confirmations; old links intentionally reach the existing updated-link screen.
 - [ ] **Calendar lifetime and ancillary work have one exact-client owner** (F170/F171/F162):
       one generation owns the primary read, Linear reconcile/meta continuations, realtime
       channel/timers, loader state and deferred render until all tails settle. Client/route/no-load
       replacement and pagehide abort/revoke that exact owner; persisted pageshow starts exactly one
       fresh epoch. Hold A's reconcile/meta, switch visibly to B, release A, and prove zero B
-      mutation, cache/meta persist, suppression token, writer enqueue or repaint. Draft #891 remains
-      a candidate: current `c9a79ef` is locally green at 23/23 actual visible boot and `npm test`
-      150/150, with the earlier F179/F184 blockers locally remediated. Its exact-head cloud review is
-      not clean because the additional `qa/overnight_runner.sh` F176 occurrence remains blocked.
-      All rows stay OPEN pending remediation, exact-head cloud re-review and owner merge.
+      mutation, cache/meta persist, suppression token, writer enqueue or repaint. Pre-split #891
+      candidate `c9a79ef` was locally green at 23/23 actual visible boot and `npm test` 150/150.
+      The product row stays OPEN pending final integrated-head cloud review and owner merge; parked
+      #908 is not a blocker.
 - [ ] **Client Brief async work is revoked with its client-entry capability** (F183/F162): every
       Brief polling interval and tab-summary request controller belongs to the current client-entry
       generation. Client replacement, invalidation, pagehide and BFCache suspension clear/abort
@@ -420,12 +439,11 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       tab-summary responses held, revoke the old owner, release both late, prove zero stale
       mutation/cache/paint, then prove exactly one healthy fresh generation. Source review found
       this at PR #891 `59022d` and reconfirmed it at then-current candidate `93fc297`; no browser/
-      backend/token/live-data/write evidence was used for the finding. Current candidate `c9a79ef`
+      backend/token/live-data/write evidence was used for the finding. Pre-split candidate `c9a79ef`
       passes the expanded actual visible boot lane 23/23, including the real pagehide /
       `pageshow.persisted` sequence that proves old work retired and exactly one fresh generation;
-      this is synthetic local evidence, not cloud review. Exact-head cloud review of the same
-      candidate is not clean because it returned the separate additional F176 occurrence. Keep
-      OPEN until remediation, exact-head cloud re-review and owner merge.
+      this is synthetic local evidence, not cloud review. Keep OPEN until final integrated-head
+      cloud review and owner merge; parked #908 is not a blocker.
 - [ ] **Client links never resume staff/legacy persisted debt before verification** (F184/F162):
       gate startup plus focus/pageshow/online/visible/timer queue recovery behind an exact current
       principal generation. Before strict client verification, inspect no persisted queue. After a
@@ -436,10 +454,10 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       eligible A recovery afterward, and no stale BFCache post/mutation. Then enter a fresh verified
       synthetic staff session and prove exactly one deferred staff recovery owner. Cloud source
       review found the pre-verification defect at `adb1bca` and reconfirmed it unchanged at
-      `13c042b`; no browser/backend/token/live-data/write was used. Current candidate `c9a79ef`
-      locally remediates the F184 owner/finalizer/retry boundary and passes actual visible boot
-      23/23, but its exact-head cloud review is not clean because F176 remains blocked. Keep F184 and
-      every other affected remediation row OPEN pending F176 remediation, exact-head cloud re-review and owner merge.
+      `13c042b`; no browser/backend/token/live-data/write was used. Pre-split candidate `c9a79ef`
+      locally remediated the F184 owner/finalizer/retry boundary and passed actual visible boot
+      23/23. Keep F184 OPEN pending final integrated-head cloud review and owner merge; parked #908
+      is not a blocker.
 - [ ] **Boot reads fail visibly and terminate**
       (F151/F152/F158/F163/F164/F165/F166/F167/F168/F169): HTTP 4xx/5xx,
       parseable error envelopes, malformed 200 responses, offline prerequisites and never-settling
@@ -750,9 +768,10 @@ Pick a low-activity window.
       fresh green window.
 - [ ] Kasper's queue shows her natively-created thumbnails. F04's native-link predicate is merged;
       this checkbox is the required first-real-Graphics observation, not a source-completeness check.
-- [ ] Apply D-29 on anything found. Team rollback remains live-blocked until PR #894's
-      isolated-proved F27 quarantine/classify/replay/discard tooling is reviewed, applied, read back,
-      and TEST-client drilled. Follow FLIP_RUNBOOK §R2: stop new writes,
+- [ ] Apply D-29 on anything found. Team rollback remains live-blocked until the corrective F27
+      quarantine/classify/replay/discard tooling is cloud-reviewed, owner-merged, snapshot-first
+      applied, exact-source deployed/read back across every changed writer closure, and reserved
+      no-provider drilled with its audit retained. Follow FLIP_RUNBOOK §R2: stop new writes,
       snapshot and classify every team intent, replay only owner-approved rows, prove a machine-read
       team zero, and only then change authority. Never use the default drainer as rollback proof.
 
@@ -840,4 +859,6 @@ creation impossible.
 Short version: **stop new writes + disable/read back the involved F2/F4 lane(s), both if unknown/mixed → immutable team snapshot → classify every intent →
 replay/quarantine/discard with owner reason → machine-read team zero → flip authority back → tell
 the team → fix → re-soak → re-flip.** This is not yet one-click; the authority reversal is blocked
-until F27's tooling exists. Never substitute the default drainer or a global green summary.
+until the F27 toolkit is cloud-reviewed/merged, pinned inbound is established in its own owner
+window, and the later snapshot-first install is independently verified under
+`docs/ops/F27_INSTALL_RUNBOOK.md`. Never substitute the default drainer or a global green summary.

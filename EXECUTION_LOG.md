@@ -2,6 +2,125 @@
 
 All times are UTC unless noted.
 
+## 2026-07-22 — F27 install operator toolkit; source only, nothing live
+
+- Owner selected the tight dependency correction: only `linear-inbound` moves
+  from floating `esm.sh @supabase/supabase-js@2` to
+  `npm:@supabase/supabase-js@2.49.8` and receives a function-local frozen Deno
+  v4 lock/config as a predeploy candidate-source gate only. It is not part of a
+  captured live baseline, restore bundle, deployed readback equality, or
+  historical provenance. No vendoring or cross-function lock work was added. The four
+  install closures keep their byte-identical exact
+  `2.49.8` import surfaces—direct in outbound/production-write and through
+  `_shared/b4-write.ts` for deliverable-write/batch-write—and no synthetic lock
+  is attributed to their historical deployments; no other function import changed. Six floating onboarding-
+  family imports remain a later deliberate release because their directory
+  paths auto-deploy on merge.
+- Supabase CLI 2.109.0 cannot reactivate a prior ESZip; downloaded source can
+  only be redeployed as a new version. Historical transitive dependency graphs
+  are unrecoverable and irrelevant to the owner-defined rollback standard, as
+  F51 records. F27 rollback means redeploying the exact captured
+  provider-returned source paths/bytes and entrypoint with the captured JWT
+  posture, then independently requiring deployed source/entrypoint and JWT hash
+  equality. The same source-exact standard applies to current v39; there is no
+  weaker exception. The separate quiet-window preparation establishes the new
+  pinned inbound baseline; no historical graph reconstruction or attestation is
+  required.
+- Added fail-closed operators for a repeatable-read full `mirror_outbox` row and
+  boundary-definition snapshot, snapshot-bound migration apply, a
+  content-addressed private Shared Drive store and independent byte/hash
+  round-trip, sealed per-function source capture/restore/readback rehearsal,
+  private database rollback generation and
+  execution, a REST-only `mirror_in_*` freshness gate, the complete reserved
+  `__f27_drill__` live/disposable runner, and a runbook-derived generated
+  checklist. Private bytes, project/folder IDs, credentials, row
+  bodies, and event bodies are excluded from stdout and repository evidence.
+- Rewrote `docs/ops/F27_INSTALL_RUNBOOK.md` into two separately owner-gated
+  operations. Preparation first checks the inbound candidate lock locally,
+  deploys only pinned inbound, independently reads back its provider
+  source/entrypoint and JWT hashes, and immediately proves freshness. The
+  eventual install window becomes snapshot → migration/self-
+  probe → deploy only `linear-outbound`, `production-write`,
+  `deliverable-write`, and `batch-write` → reserved drill → dormant readback.
+- This session performed no DDL, DML, deployment, drill, flag or authority
+  change, n8n operation, webhook change, or client-data access. The migration,
+  both frozen writers, all non-inbound function imports, and live state remained
+  untouched. Neither preparatory deployment nor live install is authorized by
+  this source PR; each waits for a separate explicit owner go after cloud review
+  and owner merge.
+- No Docker rehearsal is part of this toolkit. Future operator commands may use
+  `--use-docker` only as their selected deployment mechanism; it is not a claim
+  of source exactness or dependency provenance.
+- Final offline validation passed all 155 repository unit suites, truth-sync
+  400/400, repository-map sync 148/148, syntax checks for all 20 changed/new
+  JavaScript files, YAML parsing, generated-checklist write/check at runbook
+  SHA-256 `7dcfa11be108e9c19b2e96ab30e65a695229705974416d939e11886df6c91d92`,
+  public-hygiene/scope/invariant checks, Deno 2.2.15 frozen-lock consumption
+  without rewrite, and whitespace checks. The hermetic source/JWT rehearsal
+  passed with zero network/live-provider calls and independent source/JWT
+  readback; its sealed bundle SHA-256 is
+  `aa818d0c5b955e1176a7b23a2c3060fe4e75a89cb37203cfc2b0e8a7f7254899`.
+  The full disposable PostgreSQL operator proof remains a hosted PR check, not
+  a live drill.
+
+## 2026-07-21 — F27 P1 corrective source and bounded drill; nothing live
+
+- Started from PR #901's stop evidence: the attempted #894 installation was
+  correctly aborted before DDL, DML, deploy, flag/authority change, or live F27
+  object creation. The recorded posture remained Linear/Linear authority, F2
+  off, F4 false. This entry records source work only and is not a fresh live
+  readback or install authorization.
+- Corrected the authority-handoff race with a server-owned per-team generation:
+  writers bind the generation they authorized under, the outbox trigger checks
+  it at insert/reactivation, real begin snapshots it, and real finalize advances
+  it atomically with the exact one-team authority CAS. The disposable proof now
+  encodes the exact interleaving: authorize → finalize/generation commit → late
+  old-generation insert rejected. Classification/finalize now share the same
+  outbox-table then rollback-row order, and service-only fenced requeue replaces
+  an old generation atomically before reactivation.
+- Added the inbound regression before the fix for #894's actorless skipped-state
+  replay echo. The deliberate red fixture reported `FAIL: an exact open
+  rollback preflight must be an acknowledged echo proof`. Corrective source
+  permits only the exact persisted
+  issue/value/rollback/correlation/outbox/dedup/operation binder while that
+  rollback is open; ordinary actor/terminal echo behavior and the no-rollback
+  path remain pinned. The focused inbound/outbound/gateway source suites passed
+  locally; the corrective exact-head aggregate/cloud handles are recorded only
+  when they exist.
+- Added the reserved `__f27_drill__` contract: exactly one synthetic TEST row,
+  immutable snapshot/hash, classification, exact replay receipt, deterministic
+  no-external-call replay branch, an atomic server-built hash receipt with
+  idempotent readback, required refusal by the real authority finalizer,
+  replay-only classification, separate drill completion, and permanent audit
+  retention. The
+  disposable proof requires every real row, team fence, runtime flag and
+  `flag_flips` count to remain unchanged and finishes with no open rollback.
+- Corrected the future install procedure in
+  `docs/ops/F27_INSTALL_RUNBOOK.md`: full immutable outbox plus
+  constraint/trigger/dependent-function/source-closure snapshot before DDL;
+  exact migration-owned pre-COMMIT TEST enqueue self-probe; same-SHA
+  deploy/readback for `linear-outbound`, `linear-inbound`, `production-write`,
+  `deliverable-write`, and `batch-write`; retained drill audit; and a prepared
+  exact rollback generated from captured definitions and prior function
+  closures/version IDs. Operational rollback disables the new hold trigger,
+  restores the prior reconciler and five runtime closures/boundary, and retains
+  additive schema plus every audit row inertly. This supersedes the unsafe
+  two-function/delete-the-drill idea.
+- Frozen writer source was untouched: worktree and HEAD Git blob IDs are both
+  `c5acadd69fc56507fad43ec1bd89f99381977921` for
+  `calendar-upsert/index.ts` and both
+  `23485ee6f74c2a2dff3758e6fa9ff86c27035dae` for
+  `sample-review-upsert/index.ts`. These are source blob IDs, not claims about
+  live deployment bytes. No n8n file or system was changed; no client name,
+  real row body, secret, or provider request entered the evidence.
+- Final local source gates passed before publication: all 143 `npm test` suites,
+  144 repo-map checks, 397 truth-sync checks, 16 system-map checks, clean
+  `git diff --check`, and byte-identical six-file frozen-writer import closure.
+  PostgreSQL execution remains deliberately unclaimed until the exact-head
+  disposable cloud job returns its terminal proof and artifact hash.
+- Merge remains owner-only after cloud review. A live install re-attempt is a
+  separate owner-gated operation; this session did not perform it.
+
 ## 2026-07-20 — F27 per-team rollback candidate, isolated TEST proof only
 
 - Read the vault contract first: `docs/ops/FLIP_RUNBOOK.md`, F27 in the cutover
@@ -851,3 +970,165 @@ All times are UTC unless noted.
 - **Boundary preserved.** Client-side source, guards, and truth/log documentation only. No schema,
   migration, Edge Function, runtime flag, Linear writer, n8n workflow, cache, frozen writer,
   deployment, or live operation changed.
+
+## 2026-07-22 — Workload Creative read-only shared plan (candidate source only)
+
+- **SMM feedback root cause closed.** Creative sessions were denied the saved-plan projection, so
+  their browser entered the honest deadline-fallback path while Admin/SMM rendered the authoritative
+  manual and automatic plan. Candidate browser source now requests a separate staff read capability;
+  Admin, SMM, and Creative receive the same global saved-plan snapshot, placement dates, origin
+  icons, deadline buffers, overloads, and Plan + deadlines relationships after load. Automatic
+  placement is floored against the existing `America/Guatemala` company policy day so it cannot
+  vary around midnight with each viewer's browser time zone.
+- **Mutation authority stays unchanged.** The `workload-plan` function now has separate exact role
+  allowlists: Admin/SMM/Creative for `list`, Admin/SMM only for `set`. Creative still receives no
+  issue or client-group drag handles, no enabled plan control, and no optimistic write path; the
+  visible work-day controls stay read-only. A Creative set request remains server-denied with
+  `403`. Direct sidecar access stays closed.
+- **Behavioral robots cover both halves.** The production staff-key helper is exercised with
+  dummy-only credentials to prove Creative list allow, Creative write denial, Admin/SMM allow, and
+  invalid-key denial. The real browser list capture point is pinned to the read capability; regular
+  and deadline-timeline renderers prove Creative sees the same visible planned content and signals
+  with every drag handle absent. Existing exact-one-write, revert/notify, mirror-read-only,
+  same-chain true-count, tweak exclusivity, and all-visible overload guards remain green.
+- **Verification.** Focused Workload source, fail-closed, and tweak-exclusive suites passed;
+  truth sync passed 394/394, repository-map sync passed 141/141, the Edge deploy manifest was fresh,
+  and `npm test` passed all 141 suites at the final source. Production-polish passed all 10 selected
+  suites in 492.3 seconds before the reviewer-requested policy-day hardening. Exact-final-source
+  reruns then encountered only unrelated environment flakes: one 3.773-second boot reading against
+  the 3.5-second threshold (isolated rerun 481ms), one final pixel lane with transient read-only HTTP
+  500s after the other nine suites passed (isolated light/dark pixel rerun passed), and one later
+  aborted-then-200 runtime-flag read. No product code changed for those failures; cloud review must
+  rerun the aggregate gate. Whitespace checks passed.
+- **Boundary preserved.** This candidate changes browser role routing, only the `workload-plan`
+  function's list authorization, tests, and truth/rollback documentation. No migration, schema,
+  table grant, runtime flag, Linear writer, n8n workflow, browser cache, frozen writer, data row,
+  deployment, or live operation changed. The function requires a deliberate manual deploy from the
+  exact merge SHA before Creative list access becomes live.
+
+## 2026-07-22 — Workload weighted capacity, ordered work, due-date editor, and freshness candidate
+
+- **SMM feedback translated without restoring silent repacking.** Video capacity changes from five
+  raw items to four workload units; graphics stays 15. Exact Linear `2× Workload` and
+  `3× Workload` labels make a video consume two or three units, with three winning if both are
+  present. Those weights drive workload ranking and per-editor overload in both calendar modes, but
+  automatic placement remains the existing item-local due-minus-one-working-day rule. New urgent
+  work can expose an overload; it cannot silently move existing automatic work.
+- **Order and proximity match the meeting decision.** Within each editor/day, client chips derive
+  order from the closest signed plan-to-due buffer; missing deadlines sort last. Expanded
+  sub-issues retain native mirror order when complete, otherwise identifier-number order. The
+  proximity circle is red when planned on/after due, orange with one or two days, and green with
+  three or more. Native Linear Priority is removed from Workload; exact workload labels render as
+  compact badges instead.
+- **Deadline editing is isolated and fail-closed.** The popover's branded date control now edits the
+  Linear due date; a manual item still exposes **Use automatic plan** for clearing only the internal
+  sidecar override. New deliberate-manual `workload-linear` source allows Admin/SMM/Creative
+  metadata reads and Admin/SMM-only due writes. It validates active issue/client scope, uses only
+  `LINEAR_MIRROR_API_KEY`, requires an exact Linear acknowledgement, and then performs a bounded
+  true-count mirror refresh. Pre-commit failure reverts/notifies; a confirmed Linear commit with a
+  missed mirror update stays visible and returns `mirror_pending` with a warning. Independent review
+  found and closed omitted-deadline and malformed-label fail-open cases, then returned clear.
+- **Browser-side staleness is bounded; producer cadence is not.** Forced manual, visibility, and
+  post-create refreshes now bypass the mirror and use the existing Linear reader with `no-store`.
+  While Workload is visible, a 60-second poll reads only the newest mirror `synced_at`; the existing
+  full skeleton refresh runs when that watermark advances. Realtime stays disabled, timers stop on
+  teardown, and **As of** shows source time rather than browser fetch time. The upstream scheduled
+  reconciler cadence remains unchanged, so unseen new issues can still wait for that producer.
+- **Focused verification.** Workload plan source/fail-closed, browser due fail-closed, weighted
+  tweak/exclusivity, new Edge policy/source, deploy provenance, manifest generation, repository map,
+  and whitespace guards passed. Before final receipt/deploy-doc hardening, `npm test` passed all 144
+  suites and production-polish passed all 10 selected lanes in 468.3 seconds; exact-final-source
+  verification is recorded after the hardening settles.
+- **Exact-final-source verification.** The hardened browser receipt now requires the exact raw
+  due-date value, a real RFC3339 update timestamp, and a consistent mirror count/pending pair;
+  negative missing/trailing/inconsistent/malformed receipts all revert. Watermark behavior is also
+  hermetic: a stale-snapshot fallback leaves the watermark retryable, the next direct success
+  consumes it, and a third poll does not repeat the full refresh. After reconciling current `main`,
+  the final `npm test` run passed all 146 suites; truth sync passed 399/399, repository-map sync
+  passed 145/145, and the 29-slug deploy
+  manifest was fresh, focused Workload/Edge guards passed, and whitespace checks were clean. The
+  independent final rereview returned clear. No Deno CLI was available for a standalone type-check.
+- **Boundary preserved.** No migration, table grant, runtime flag, n8n workflow, frozen writer,
+  `production-write` path, real row, deployment, or live operation changed. The new function remains
+  source-only until review, merge, and a separately guided exact-SHA deployment/readback/TEST drill.
+
+## 2026-07-22 — Workload weighted planning live deployment
+
+- **Release pin and paired deployment.** Deployed only `workload-plan` and `workload-linear` from
+  exact merged release `1ed4053ab581e4e6276356c997334e4b2d49656b` using
+  `--no-verify-jwt --use-api`. No source modification was made during deployment.
+- **Exact live source readback.** `workload-plan` read back ACTIVE v3 with `verify_jwt=false`,
+  bundle `c27cc92d4edf91ecc5ca45a68680806087dfc96d8517f6872f3a3e537ef187e5`, and exact four-file
+  source fingerprint `2e778d88c64dca06895b95949e348fc9ac518c49ec70c89b3d116f9b11047b56`.
+  `workload-linear` read back ACTIVE v1 with `verify_jwt=false`, bundle
+  `6ce6ed1dffd2125e4b93cb661fc2751c60204c6aabd8564ac8f81a3024c00d3b`, and exact five-file
+  source fingerprint `c7878772a205b711182f806814f59be1bf79f7512c0ef2efc4bba78f3df00cb3`.
+- **Live CORS, authentication, and role boundary.** OPTIONS returned `204`, `no-store`, and the
+  required staff headers. Invalid credentials returned `401`. Admin, SMM, and Creative metadata
+  reads returned complete, identical projections for the same fresh three-issue TEST set. That set
+  returned only validated default/two-unit values, including one exact weighted-label match; the
+  three-unit contract remains pinned hermetically. Creative received `403` for both plan and due-date
+  writes, while the authorized Admin happy path remained available.
+- **Private TEST fail-closed drill.** A valid-format synthetic issue outside writable scope returned
+  `409 issue_not_writable` before any write. The release browser code consumed that live response,
+  restored its optimistic state, and displayed one failure notification; independent Linear and
+  mirror reads stayed unchanged. The impractical short-count race remains covered hermetically.
+- **Private TEST happy path and restoration.** One authorized due-date change returned `200` with
+  `linear_committed:true`, the exact requested acknowledgement, a valid update timestamp,
+  `mirror_updated:1`, and `mirror_pending:false`. Independent Linear, mirror, fresh metadata, and
+  server-truth reloads confirmed the result. The same path then restored the original value with an
+  exact `200` acknowledgement, and independent Linear, mirror, and metadata reads confirmed that the
+  TEST fixture was left exactly as found.
+- **Non-collateral readback.** All 13 runtime flags remained byte-identical at
+  `db3613a8ca68195bc4e6c543185933e267707852b9b953be6f36cb9eb4f6c092`; all 39 rows in the complete
+  `workload_plan` sidecar remained byte-identical at
+  `e1efe2dd18ce5458adcd0bbc1fadf2116333a8cb3bb1c6f5602e430085b58efb`. The monitored n8n workflow
+  remained inactive and unpublished at version `d149c1e6-250d-471b-98bb-b28221f0165b`, with the same
+  five-node graph and `2026-07-13T02:15:06.679Z` update timestamp.
+- **Frozen writers and Pages.** `calendar-upsert` remained ACTIVE v43 at bundle
+  `91ce449e8fd19b451f218572a0f42db385c64841b1f4b4b14ff27b76839a425f`, and
+  `sample-review-upsert` remained ACTIVE v44 at bundle
+  `50b63fbadcdf03d3de0fc04131dd9258f50aabd1631e59bcb6f57554e0b918fb`. Pages read back built at
+  `6d3964fa780ab4c7db12632e634603b24f0c3c1c`; the marker-bounded Workload core was byte-identical
+  across release, current `main`, and live Pages at
+  `da65f3b6febd009d03a250cf374fdb8058af7fe081c21e75d731ba78df1fed97`. The intervening source was
+  confined to the unrelated Kasper filming-plan surface.
+- **Boundary preserved.** No schema, migration, table grant, runtime flag, n8n workflow, frozen
+  writer, client enrollment, non-TEST Linear object, sidecar row, or unrelated data row changed. No
+  key, staff name, client value, issue id, title, per-issue label assignment, deadline value, or raw
+  provider response is recorded in this public evidence.
+- **Verification.** Exact-release `npm test` passed all 146 suites before deployment. The
+  evidence-only follow-up rerun passed all 146 suites, and `git diff --check` passed.
+
+## 2026-07-22 — Workload background change-only refresh candidate
+
+- **Warm navigation stays painted.** Re-entering Workload renders its retained in-memory calendar
+  synchronously. Internal route switches and browser visibility return perform no n8n read and show
+  no skeleton; the skeleton remains limited to cold load, explicit Refresh, and forced post-create
+  discovery.
+- **Background truth is change-only.** Automatic checks read the Supabase mirror watermark first.
+  An unchanged cursor performs no projection fetch or calendar repaint; an advanced cursor reads the
+  mirror directly from Supabase, derives metadata ids from that fresh set, compares normalized issue,
+  plan, and metadata truth without audit timestamps, and repaints once only when visible business
+  state or an editing capability changes. A successful no-diff read still consumes the cursor.
+- **Warm failure and identity boundaries stay fail-closed.** Background failure leaves the last good
+  calendar visible with a freshness warning. Identity replacement, sign-out, and either projection's
+  `401` purge both role-sensitive maps and invalidate older reads while retaining non-sensitive issue
+  data. Verified re-entry restores only the sensitive projections in memory, without renewing the
+  issue cache or requiring the mirror-v2 lane.
+- **Direct truth cannot be regressed by an older mirror.** Explicit Refresh keeps its forced no-cache
+  Linear path and rebases only the mirror cursor before automatic checks resume. A failed baseline
+  remains unset so the next check establishes it without applying mirror rows. The post-create
+  discovery path remains independently forced and unchanged.
+- **Race and robot coverage.** Hermetic checks cover no-diff cursor consumption, fresh metadata id
+  sets, issue/plan/metadata one-repaint behavior, render-eligible comparisons, mixed auth failures,
+  sign-out and identity replacement, old/new refresh ownership, manual baselining, due-write races,
+  Creative visual parity, tweak exclusivity, and forced post-create discovery.
+- **Verification and review.** After rebasing onto `main` at
+  `b215bdcd1bd40f4be9340815d241971d45e73445`, all focused Workload lanes and `git diff --check`
+  passed; the repository-wide `npm test` gate passed all 155 suites. Independent final review returned
+  clear after the auth, cache-freshness, editability, and direct-truth race regressions were pinned.
+- **Boundary preserved.** This is a Pages-only browser/test/truth-doc change. No schema, migration,
+  table grant, runtime flag, n8n workflow, Edge Function, frozen writer, deployment, or live data
+  changed. PR #891 was not touched; its separate campaign must rebase onto this merge and rerun its
+  23-group visible-boot lane.

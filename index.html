@@ -3137,9 +3137,7 @@
         .wl-plan-origin.is-manual { color: var(--sv-fg-5e6ad2); }
         .wl-plan-origin.is-fallback { color: var(--sv-fg-92400e); }
         .wl-plan-origin-count { min-width: 6px; text-align: center; }
-        .wl-group-urgent { display: inline-flex; align-items: center; gap: 1px; color: var(--sv-fg-dc2626); font-size: 0.52rem; font-weight: 850; line-height: 1; }
-        .wl-group-urgent .wl-priority-icon { width: 13px; height: 13px; flex-basis: 13px; }
-        .wl-group-urgent .wl-priority-icon svg { width: 13px; height: 13px; }
+        .wl-workload-group { display: inline-flex; align-items: center; min-height: 14px; padding: 1px 4px; border-radius: 999px; background: var(--sv-bg-fff7ed); color: var(--sv-fg-9a3412); font-size: 0.51rem; font-weight: 850; line-height: 1; white-space: nowrap; }
         .wl-deadline-summary { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; color: var(--text-muted); flex-shrink: 0; }
         .wl-deadline-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px var(--white); flex: 0 0 8px; }
         .wl-deadline-summary.is-red { color: var(--sv-fg-dc2626); }
@@ -3150,12 +3148,7 @@
         .wl-deadline-tag.is-red { color: var(--sv-fg-dc2626); }
         .wl-deadline-tag.is-orange { color: var(--sv-fg-ea580c); }
         .wl-deadline-tag.is-green { color: var(--sv-fg-16a34a); }
-        .wl-priority-icon { width: 17px; height: 17px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 17px; color: var(--text-muted); }
-        .wl-priority-icon svg { width: 17px; height: 17px; display: block; }
-        .wl-priority-icon.is-urgent { color: var(--sv-fg-dc2626); }
-        .wl-priority-icon.is-high { color: var(--sv-fg-ea580c); }
-        .wl-priority-icon.is-medium { color: var(--sv-fg-ca8a04); }
-        .wl-priority-icon.is-low { color: var(--sv-fg-6b7280); }
+        .wl-workload-badge { --wl-weight-color: var(--sv-fg-ea580c); display: inline-flex; align-items: center; min-height: 16px; padding: 1px 5px; border: 1px solid var(--wl-weight-color); border-radius: 999px; color: var(--wl-weight-color); font-size: 0.54rem; font-weight: 850; line-height: 1; white-space: nowrap; flex-shrink: 0; }
         .workload-plan-status { margin: -2px 0 10px; padding: 8px 11px; border-radius: 9px; font-size: 0.7rem; font-weight: 650; color: var(--text-secondary); background: var(--bg); border: 1px solid var(--border-light); }
         .workload-plan-status.is-warning { color: var(--sv-fg-92400e); background: var(--sv-bg-fffbeb); border-color: var(--sv-border-fde68a); }
         .workload-popover { position: absolute; z-index: 1000; background: var(--white); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px var(--sv-shadow-rgba-0-0-0-0_18); padding: 10px; min-width: 280px; max-width: 380px; max-height: 60vh; overflow-y: auto; display: none; }
@@ -7552,7 +7545,7 @@
     // Optional n8n endpoint that, given ?doc=<docId>, returns the Google Doc's
     // tabs as { ok:true, tabs:[{ tabId, title, url }] } via the Docs API. The
     // "Filming Plan Tabs" workflow (n8n id 5S4JyVVR2CpHEv9b) serves this; until
-    // it's activated the view degrades to runway-only signalling (plus any
+    // it's activated the view still shows the calendar content bank (plus any
     // manual plan_months) — failed calls are caught and treated as no coverage.
     const FILMING_PLAN_TABS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/filming-plan-tabs';
     const FILMING_PLANS_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/filming-plans';
@@ -12556,9 +12549,11 @@
         parentById: new Map(),                     // parent issue lookup for rollup link-outs
         calendarByDate: new Map(),                 // effective work day -> planned sub-issues[]
         allActiveSubs: [],                         // all non-completed sub-issues for filter options
-        issueSnapshot: [],                         // last Linear-derived issue snapshot; due dates remain read-only
+        issueSnapshot: [],                         // last Linear-derived issue snapshot; due writes go only through workload-linear
         planByIssueId: new Map(),                  // stable Linear issue id -> explicit internal plan_date
-        priorityByIssueId: new Map(),              // stable Linear issue id -> mirrored native Linear priority
+        workloadByIssueId: new Map(),              // stable Linear issue id -> exact 2× / 3× Workload label metadata
+        linearMetadataStatus: 'loading',            // 'loading' | 'refreshing' | 'ready' | 'stale' | 'unknown'
+        linearMetadataError: null,
         planHasSnapshot: false,                    // true only after one authoritative workload-plan list response
         planStatus: 'loading',                     // 'loading' | 'refreshing' | 'ready' | 'stale' | 'unknown'
         planError: null,
@@ -12568,8 +12563,10 @@
         renderQueued: false,                       // background repaint deferred while a popover is open
         sectionExpanded: wlReadSectionPrefs(),     // exception strips default collapsed; each browser remembers expansion
         fetchedAt: null,
+        sourceSyncedAt: null,                       // newest workload_issues.synced_at represented by this snapshot
         loading: false,
         refreshing: false,
+        backgroundError: null,                    // non-destructive warning; never replaces a warm calendar
         error: null
     };
 
@@ -12658,6 +12655,7 @@
             dueDate: r.due_date,
             createdAt: r.linear_created_at,
             updatedAt: r.linear_updated_at,
+            syncedAt: r.synced_at,
             sortOrder: r.sort_order,
             status: r.status,
             statusType: r.status_type,
@@ -12669,6 +12667,78 @@
             clientName: r.client_name,
         };
     }
+
+    // Background refreshes compare only fields that can change what Workload
+    // renders. Reconcile/audit timestamps are deliberately excluded: synced_at
+    // advances on every sweep even when the issue itself is unchanged, while
+    // createdAt/updatedAt are not displayed anywhere on this view.
+    function wlRenderableIssueProjection(issues) {
+        const source = Array.isArray(issues) ? issues : [];
+        const subs = source.filter(issue => issue && issue.isSubIssue
+            && wlIsActiveStatus(issue)
+            && wlIsAllowedClient(issue.clientName)
+            && (!issue.assigneeId || wlIsAllowedEditor(issue.assigneeName, issue.teamKey, issue.teamName)));
+        const parentIds = new Set(subs.map(issue => String(issue.parentId || '')).filter(Boolean));
+        return subs.concat(source.filter(issue => issue && !issue.isSubIssue && parentIds.has(String(issue.id || ''))));
+    }
+
+    function wlIssueBusinessFingerprint(issues) {
+        const rows = wlRenderableIssueProjection(issues).map(issue => [
+            String(issue && issue.id || ''),
+            String(issue && issue.identifier || ''),
+            String(issue && issue.title || ''),
+            String(issue && issue.url || ''),
+            issue && issue.isSubIssue === true,
+            String(issue && issue.parentId || ''),
+            String(issue && issue.parentIdentifier || ''),
+            issue && issue.dueDate ? String(issue.dueDate).slice(0, 10) : '',
+            String(issue && issue.sortOrder != null ? issue.sortOrder : ''),
+            String(issue && issue.status || ''),
+            String(issue && issue.statusType || ''),
+            String(issue && issue.teamKey || ''),
+            String(issue && issue.teamName || ''),
+            String(issue && issue.assigneeId || ''),
+            String(issue && issue.assigneeName || ''),
+            String(issue && issue.assigneeEmail || ''),
+            wlCanonicalClient(issue && issue.clientName || '') || String(issue && issue.clientName || '')
+        ]).sort((a, b) => a[0].localeCompare(b[0]));
+        return JSON.stringify(rows);
+    }
+
+    function wlPlanBusinessFingerprint(plans, issues) {
+        const issueIds = new Set(wlRenderableIssueProjection(issues)
+            .filter(issue => issue && issue.isSubIssue)
+            .map(issue => String(issue.id || '')));
+        const entries = plans && typeof plans.entries === 'function' ? [...plans.entries()] : [];
+        return JSON.stringify(entries
+            .filter(([issueId]) => issueIds.has(String(issueId)))
+            .map(([issueId, planDate]) => [String(issueId), String(planDate || '').slice(0, 10)])
+            .sort((a, b) => a[0].localeCompare(b[0])));
+    }
+
+    function wlMetadataBusinessFingerprint(metadata, issues) {
+        const issueIds = new Set(wlRenderableIssueProjection(issues)
+            .filter(issue => issue && issue.isSubIssue)
+            .map(issue => String(issue.id || '')));
+        const entries = metadata && typeof metadata.entries === 'function' ? [...metadata.entries()] : [];
+        return JSON.stringify(entries
+            .filter(([issueId]) => issueIds.has(String(issueId)))
+            .map(([issueId, value]) => [
+                String(issueId),
+                String(value && value.label || ''),
+                Number(value && value.weight) || 0,
+                String(value && value.color || '').toUpperCase()
+            ])
+            .sort((a, b) => a[0].localeCompare(b[0])));
+    }
+
+    function wlBackgroundBusinessFingerprint() {
+        return [
+            wlIssueBusinessFingerprint(wlState.issueSnapshot),
+            wlPlanBusinessFingerprint(wlState.planByIssueId, wlState.issueSnapshot),
+            wlMetadataBusinessFingerprint(wlState.workloadByIssueId, wlState.issueSnapshot)
+        ].join('\n');
+    }
     // Read every ACTIVE row. Supabase caps a single response at 1000 rows, so we
     // page with limit/offset until a short page — otherwise the board would
     // silently miss issues beyond the first 1000.
@@ -12677,7 +12747,7 @@
         const headers = { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
         let from = 0, all = [];
         for (let guard = 0; guard < 50; guard++) {        // hard cap 50k rows
-            const resp = await fetch(base + from, { headers });
+            const resp = await fetch(base + from, { cache: 'no-store', headers });
             if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
             const rows = await resp.json();
             if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
@@ -12689,17 +12759,18 @@
     }
 
     // Realtime: one global channel on workload_issues. A change coalesces into a
-    // debounced silent refetch (which re-reads Supabase and repaints through the
-    // shared calendar skeleton). The board has no inline editing, so there's no
-    // self-echo to suppress (writes come from n8n, not the browser).
+    // cheap watermark check; only an advanced cursor enters the Supabase-only
+    // background comparison lane. Background work never blanks the calendar.
+    const WL_V2_WATERMARK_POLL_MS = 60 * 1000;
     let _wlV2Channel = null, _wlV2RtTimer = null, _wlV2SubscribedOnce = false;
+    let _wlV2WatermarkTimer = null, _wlV2WatermarkBusy = false;
     function _wlV2OnRealtimeChange() {
         if (!document.querySelector('.workload-view')) return;
         if (_wlV2RtTimer) clearTimeout(_wlV2RtTimer);
         _wlV2RtTimer = setTimeout(() => {
             _wlV2RtTimer = null;
             if (!document.querySelector('.workload-view')) return;
-            wlRefetchSilent();
+            _wlV2CheckWatermark();
         }, WL_V2_RT_DEBOUNCE_MS);
     }
     async function _wlV2EnsureSubscribed() {
@@ -12727,8 +12798,59 @@
             _wlV2Channel = null;
         }
     }
+    async function _wlV2FetchLatestWatermark() {
+        if (!_wlV2Ready()) return '';
+        const url = CAL_SUPABASE_URL + '/rest/v1/workload_issues?select=synced_at&active=eq.true&order=synced_at.desc&limit=1';
+        const resp = await fetch(url, {
+            cache: 'no-store',
+            headers: {
+                apikey: CAL_SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json'
+            }
+        });
+        if (!resp.ok) throw new Error('Workload watermark HTTP ' + resp.status);
+        const rows = await resp.json();
+        return String(Array.isArray(rows) && rows[0] && rows[0].synced_at || '');
+    }
+    async function _wlV2CheckWatermark() {
+        if (_wlV2WatermarkBusy || document.hidden || !document.querySelector('.workload-view')) return;
+        if (wlState.loading || wlState.refreshing || wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing') return;
+        _wlV2WatermarkBusy = true;
+        try {
+            const latest = await _wlV2FetchLatestWatermark();
+            if (!latest) {
+                wlClearBackgroundRefreshFailure();
+                return;
+            }
+            if (!wlState.sourceSyncedAt) {
+                wlState.sourceSyncedAt = latest;
+                wlClearBackgroundRefreshFailure();
+                return;
+            }
+            if (Date.parse(latest) > Date.parse(wlState.sourceSyncedAt)) {
+                const refreshed = await wlRefetchSilent();
+                if (refreshed === true && (!wlState.sourceSyncedAt || Date.parse(latest) > Date.parse(wlState.sourceSyncedAt))) {
+                    wlState.sourceSyncedAt = latest;
+                }
+            } else {
+                wlClearBackgroundRefreshFailure();
+            }
+        } catch (error) {
+            console.warn('[Workload v2] watermark poll failed', error);
+            wlMarkBackgroundRefreshFailure(error);
+        } finally {
+            _wlV2WatermarkBusy = false;
+        }
+    }
+    function _wlV2EnsureWatermarkPoll() {
+        if (!_wlV2Ready() || _wlV2WatermarkTimer) return;
+        _wlV2WatermarkTimer = setInterval(_wlV2CheckWatermark, WL_V2_WATERMARK_POLL_MS);
+    }
     function _wlV2Teardown() {
         if (_wlV2RtTimer) { clearTimeout(_wlV2RtTimer); _wlV2RtTimer = null; }
+        if (_wlV2WatermarkTimer) { clearInterval(_wlV2WatermarkTimer); _wlV2WatermarkTimer = null; }
+        _wlV2WatermarkBusy = false;
         if (_wlV2Channel) {
             try {
                 if (_wlV2ClientObj && typeof _wlV2ClientObj.removeChannel === 'function') _wlV2ClientObj.removeChannel(_wlV2Channel);
@@ -12737,7 +12859,7 @@
         }
         _wlV2Channel = null; _wlV2SubscribedOnce = false;
     }
-    window.wlV2Status = function () { return { flag: _wlV2Enabled(), ready: _wlV2Ready(), subscribed: !!_wlV2Channel }; };
+    window.wlV2Status = function () { return { flag: _wlV2Enabled(), ready: _wlV2Ready(), subscribed: !!_wlV2Channel, polling: !!_wlV2WatermarkTimer, sourceSyncedAt: wlState.sourceSyncedAt }; };
 
     async function loadLinearIssues(force) {
         const cache = wlReadCache();
@@ -12748,7 +12870,10 @@
         // Supabase (sub-second). ANY failure — or a suspicious empty result —
         // falls through to the original linear-issues endpoint below, so v2 can
         // never blank or half-populate the board.
-        if (_wlV2Ready()) {
+        // A forced refresh must honor its "from Linear" contract. The mirror
+        // is the fast default read, but it can trail Linear until the upstream
+        // reconcile; only manual refresh and post-create discovery bypass it.
+        if (_wlV2Ready() && !force) {
             try {
                 const issues = await _wlV2FetchIssues();
                 if (Array.isArray(issues) && issues.length) {
@@ -12781,18 +12906,26 @@
     // Date helpers — all dates handled as YYYY-MM-DD strings for determinism.
     const WL_PLAN_READ_TIMEOUT_MS = 8000;
     const WL_PLAN_WRITE_TIMEOUT_MS = 10000;
+    const WL_LINEAR_READ_TIMEOUT_MS = 20000;
+    const WL_LINEAR_WRITE_TIMEOUT_MS = 12000;
     const _wlPlanWriteInFlight = new Map();
+    const _wlDueWriteInFlight = new Map();
     const _wlPlanLastWriteGeneration = new Map();
     let _wlPlanWriteGeneration = 0;
     let _wlPlanSessionGeneration = 0;
     let _wlPlanLoadGeneration = 0;
+    let _wlBackgroundRefreshPromise = null;
+    let _wlBackgroundRefreshMode = null;
 
     function wlPlanEditingEnabled() {
         return wlState.planStatus === 'ready' && _syncviewStaffCan('workload-plan');
     }
+    function wlLinearEditingEnabled() {
+        return wlState.linearMetadataStatus === 'ready' && _syncviewStaffCan('workload-linear');
+    }
 
     async function wlFetchPlanRows() {
-        await _syncviewRequireStaffIdentity('workload-plan');
+        await _syncviewRequireStaffIdentity('workload-plan-read');
         const sessionGeneration = _wlPlanSessionGeneration;
         const readGeneration = _wlPlanWriteGeneration;
         const controller = new AbortController();
@@ -12819,38 +12952,81 @@
         }
     }
 
-    // Priority is already mirrored read-only on deliverables. Workload joins it
-    // by Linear's stable issue UUID, so showing the native Linear signal does
-    // not add a writer, schema change, or second source of truth.
-    async function wlFetchPriorityRows() {
-        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return new Map();
-        const base = CAL_SUPABASE_URL
-            + '/rest/v1/deliverables?select=linear_issue_uuid,priority'
-            + '&linear_issue_uuid=not.is.null&priority=gt.0'
-            + '&order=linear_issue_uuid.asc&limit=1000&offset=';
-        const headers = {
-            apikey: CAL_SUPABASE_ANON_KEY,
-            Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
-            Accept: 'application/json'
-        };
-        const next = new Map();
-        let offset = 0;
-        for (let guard = 0; guard < 20; guard++) {
-            const resp = await fetch(base + offset, { headers });
-            if (!resp.ok) throw new Error('Priority HTTP ' + resp.status);
-            const rows = await resp.json();
-            if (!Array.isArray(rows)) throw new Error('Priority: unexpected payload');
-            for (const row of rows) {
-                const issueId = String(row && row.linear_issue_uuid || '').trim();
-                const priority = Number(row && row.priority);
-                if (issueId && Number.isInteger(priority) && priority >= 1 && priority <= 4) {
-                    next.set(issueId, priority);
+    async function wlFetchLinearMetadata(issues) {
+        await _syncviewRequireStaffIdentity('workload-linear-read');
+        const sessionGeneration = _wlPlanSessionGeneration;
+        const issueIds = [...new Set((issues || [])
+            .filter(issue => issue && issue.isSubIssue && wlIsActiveStatus(issue) && wlIsAllowedClient(issue.clientName))
+            .map(issue => String(issue.id || '').trim())
+            .filter(Boolean))];
+        if (!issueIds.length) return [];
+        const chunks = [];
+        for (let index = 0; index < issueIds.length; index += 100) chunks.push(issueIds.slice(index, index + 100));
+        const rows = [];
+        let cursor = 0;
+        const worker = async () => {
+            while (cursor < chunks.length) {
+                const chunk = chunks[cursor++];
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), WL_LINEAR_READ_TIMEOUT_MS);
+                try {
+                    const resp = await fetch(WORKLOAD_LINEAR_URL, {
+                        method: 'POST',
+                        cache: 'no-store',
+                        signal: controller.signal,
+                        headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, WORKLOAD_LINEAR_URL),
+                        body: JSON.stringify({ action: 'metadata', issue_ids: chunk })
+                    });
+                    let json = null;
+                    try { json = await resp.json(); } catch (error) {}
+                    if (!resp.ok || !json || json.ok !== true || json.complete !== true || !Array.isArray(json.rows)) {
+                        const error = new Error((json && json.error) || ('HTTP ' + resp.status));
+                        error.status = resp.status;
+                        throw error;
+                    }
+                    rows.push(...json.rows);
+                } finally {
+                    clearTimeout(timeout);
                 }
             }
-            if (rows.length < 1000) break;
-            offset += 1000;
+        };
+        await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, worker));
+        if (sessionGeneration !== _wlPlanSessionGeneration) throw new Error('staff_session_changed');
+        return rows;
+    }
+
+    function wlAdoptLinearMetadata(rows, issues, fetchedAt, options) {
+        const next = new Map();
+        const issueById = new Map((issues || []).map(issue => [String(issue && issue.id || ''), issue]));
+        for (const row of rows || []) {
+            const issueId = String(row && row.issue_id || '').trim();
+            if (!issueId) continue;
+            const issue = issueById.get(issueId);
+            if (issue) issue.dueDate = row.due_date ? String(row.due_date).slice(0, 10) : null;
+            const workload = row && row.workload;
+            const weight = Number(workload && workload.weight);
+            if ((weight === 2 || weight === 3) && (workload.label === '2× Workload' || workload.label === '3× Workload')) {
+                next.set(issueId, {
+                    label: workload.label,
+                    weight,
+                    color: /^#[0-9a-f]{6}$/i.test(String(workload.color || '')) ? workload.color : ''
+                });
+            }
         }
-        return next;
+        wlState.workloadByIssueId = next;
+        wlState.linearMetadataStatus = 'ready';
+        wlState.linearMetadataError = null;
+        if (Array.isArray(issues) && !(options && options.skipIssueCacheWrite)) {
+            wlWriteCache({ issues, fetchedAt: fetchedAt || Date.now() });
+        }
+    }
+
+    function wlMarkLinearMetadataFailure(error) {
+        const status = Number(error && error.status) || 0;
+        if (status === 401) _syncviewStaffIdentityClear();
+        if (status === 403) wlState.workloadByIssueId.clear();
+        wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'stale' : 'unknown';
+        wlState.linearMetadataError = (error && error.message) || 'Workload labels could not be loaded.';
     }
 
     function wlAdoptPlanRows(snapshot) {
@@ -12906,13 +13082,20 @@
         _wlPlanSessionGeneration++;
         _wlPlanLoadGeneration++;
         _wlPlanWriteInFlight.clear();
+        _wlDueWriteInFlight.clear();
         _wlPlanLastWriteGeneration.clear();
         _wlPlanWriteGeneration = 0;
+        _wlBackgroundRefreshPromise = null;
+        _wlBackgroundRefreshMode = null;
         wlState.planByIssueId.clear();
         wlState.planHasSnapshot = false;
         wlState.planStatus = 'unknown';
         wlState.planError = 'Staff sign-in is required to load saved work days.';
         wlState.planFetchedAt = null;
+        wlState.workloadByIssueId.clear();
+        wlState.linearMetadataStatus = 'unknown';
+        wlState.linearMetadataError = 'Staff sign-in is required to load Workload labels.';
+        wlState.backgroundError = null;
         if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
             wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
         }
@@ -12925,42 +13108,72 @@
     async function wlLoadSnapshot(force, fallback) {
         const loadGeneration = ++_wlPlanLoadGeneration;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
+        wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'refreshing' : 'loading';
         wlState.planError = null;
+        wlState.linearMetadataError = null;
         if (document.querySelector('.workload-view')) {
-            // Every manual, visibility, and realtime refresh paints the same
-            // calendar-shaped skeleton immediately, even over an open popover.
+            // Foreground loads deliberately use the calendar-shaped skeleton.
+            // Warm navigation and automatic freshness checks never enter here.
             renderWorkloadAll();
         }
-        const [issuesResult, plansResult, prioritiesResult] = await Promise.allSettled([
+        const [issuesResult, plansResult] = await Promise.allSettled([
             loadLinearIssues(!!force),
-            wlFetchPlanRows(),
-            wlFetchPriorityRows()
+            wlFetchPlanRows()
         ]);
+
+        let payload = null;
+        if (issuesResult.status === 'fulfilled') payload = issuesResult.value;
+        else if (fallback && Array.isArray(fallback.issues)) {
+            payload = { issues: fallback.issues, fetchedAt: fallback.fetchedAt, fromCache: true, usedFallback: true };
+        } else if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
+            payload = { issues: wlState.issueSnapshot, fetchedAt: wlState.fetchedAt, fromCache: true, usedFallback: true };
+        }
+        if (!payload) throw issuesResult.reason || new Error('Failed to load issues from Linear.');
+        const [metadataResult] = await Promise.allSettled([wlFetchLinearMetadata(payload.issues)]);
 
         // Only the newest overlapping refresh may publish plan or issue state.
         // Older calls can still populate the shared HTTP cache, but they cannot
         // overwrite a newer saved-plan snapshot or downgrade its status.
         if (loadGeneration !== _wlPlanLoadGeneration) return null;
+        const foregroundFailures = [plansResult, metadataResult]
+            .filter(result => result.status === 'rejected')
+            .map(result => result.reason);
+        const foregroundAuthFailure = foregroundFailures.find(error => Number(error && error.status) === 401)
+            || foregroundFailures.find(error => Number(error && error.status) === 403)
+            || null;
+        if (foregroundAuthFailure) {
+            if (Number(foregroundAuthFailure.status) === 401) _syncviewStaffIdentityClear();
+            else wlPurgePlanSensitiveState();
+            // Issue rows are not role-sensitive. Keep the usable calendar,
+            // but never publish either private projection after an auth denial.
+            wlApplyData(payload.issues, payload.fetchedAt);
+            return payload;
+        }
         if (plansResult.status === 'fulfilled') wlAdoptPlanRows(plansResult.value);
         else wlMarkPlanReadFailure(plansResult.reason);
-        if (prioritiesResult.status === 'fulfilled') {
-            wlState.priorityByIssueId = prioritiesResult.value;
-        } else {
-            console.warn('[workload] Linear priority enrichment unavailable; hiding priority icons', prioritiesResult.reason);
+        if (metadataResult.status === 'fulfilled') wlAdoptLinearMetadata(metadataResult.value, payload.issues, payload.fetchedAt);
+        else {
+            wlMarkLinearMetadataFailure(metadataResult.reason);
+            console.warn('[workload] Workload label metadata unavailable; using one unit per item', metadataResult.reason);
         }
-
-        let payload = null;
-        if (issuesResult.status === 'fulfilled') payload = issuesResult.value;
-        else if (fallback && Array.isArray(fallback.issues)) {
-            payload = { issues: fallback.issues, fetchedAt: fallback.fetchedAt, fromCache: true };
-        } else if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
-            payload = { issues: wlState.issueSnapshot, fetchedAt: wlState.fetchedAt, fromCache: true };
-        }
-        if (!payload) throw issuesResult.reason || new Error('Failed to load issues from Linear.');
         wlApplyData(payload.issues, payload.fetchedAt);
         return payload;
     }
 
+    const WL_WORKLOAD_TIME_ZONE = 'America/Guatemala';
+    function wlWorkloadTodayISO(now) {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: WL_WORKLOAD_TIME_ZONE,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).formatToParts(now || new Date());
+        const values = {};
+        for (const part of parts) {
+            if (part.type !== 'literal') values[part.type] = part.value;
+        }
+        return `${values.year}-${values.month}-${values.day}`;
+    }
     function wlTodayISO() {
         const d = new Date();
         return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
@@ -13028,6 +13241,18 @@
             ? Math.round((to - from) / 86400000)
             : null;
     }
+    function wlValidRfc3339Timestamp(value) {
+        if (typeof value !== 'string' || value.trim() !== value) return false;
+        const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.exec(value);
+        if (!match) return false;
+        const parts = match.slice(1, 7).map(Number);
+        const calendar = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+        return calendar.getUTCFullYear() === parts[0]
+            && calendar.getUTCMonth() === parts[1] - 1
+            && calendar.getUTCDate() === parts[2]
+            && parts[3] <= 23 && parts[4] <= 59 && parts[5] <= 59
+            && Number.isFinite(Date.parse(value));
+    }
     function wlPlacementLabel(mode) {
         return ({ auto: 'Automatically planned', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback' })[mode] || '';
     }
@@ -13074,7 +13299,7 @@
         }
         const days = wlCalendarDayDiff(plan, due);
         if (days === null) return { tone: '', days, label: lead + ' ' + wlFormatShort(due) };
-        const tone = days <= 1 ? 'red' : (days <= 3 ? 'orange' : 'green');
+        const tone = days <= 0 ? 'red' : (days <= 2 ? 'orange' : 'green');
         let label;
         if (days < 0) label = `${lead} ${wlFormatShort(due)} · plan ${Math.abs(days)}d late`;
         else if (days === 0) label = `${lead} ${wlFormatShort(due)} · same day`;
@@ -13101,13 +13326,13 @@
         }
         const tones = ['red', 'orange', 'green'].filter(tone => counts[tone] > 0);
         if (counts.missing === 0 && tones.length === 1) {
-            const labels = { red: 'with 1d or less buffer', orange: 'with 2–3d buffer', green: 'with 4d or more buffer' };
+            const labels = { red: 'planned on or after the due date', orange: 'with 1–2d buffer', green: 'with 3d or more buffer' };
             return { tone: tones[0], mixed: false, label: `All ${rows.length} ${labels[tones[0]]}`, counts };
         }
         const parts = [];
-        if (counts.red) parts.push(`${counts.red} with 1d or less buffer`);
-        if (counts.orange) parts.push(`${counts.orange} with 2–3d buffer`);
-        if (counts.green) parts.push(`${counts.green} with 4d or more buffer`);
+        if (counts.red) parts.push(`${counts.red} planned on or after the due date`);
+        if (counts.orange) parts.push(`${counts.orange} with 1–2d buffer`);
+        if (counts.green) parts.push(`${counts.green} with 3d or more buffer`);
         if (counts.missing) parts.push(`${counts.missing} without a deadline`);
         return { tone: '', mixed: true, label: `Mixed deadline proximity: ${parts.join(', ')}`, counts };
     }
@@ -13127,40 +13352,51 @@
         if (!canDrag) return '';
         return `<span class="workload-drag-handle workload-plan-drag-handle" draggable="true" data-wl-drag-handle="group" data-wl-plan-group-drag="1" data-wl-date="${wlEscape(dayISO || '')}" data-wl-assignee-id="${wlEscape(assigneeId || '')}" data-wl-client="${wlEscape(clientName || '')}" role="img" aria-label="Drag this client group to another work day">${wlDragGripSvg()}</span>`;
     }
-    function wlPriorityValue(sub) {
-        const direct = Number(sub && sub.priority);
-        if (Number.isInteger(direct) && direct >= 1 && direct <= 4) return direct;
-        const mirrored = Number(wlState.priorityByIssueId.get(String(sub && sub.id || '')));
-        return Number.isInteger(mirrored) && mirrored >= 1 && mirrored <= 4 ? mirrored : 0;
+    function wlWorkloadMeta(sub) {
+        if (wlTeamBucket(sub && sub.teamKey, sub && sub.teamName) !== 'video') return null;
+        return wlState.workloadByIssueId.get(String(sub && sub.id || '')) || null;
     }
-    function wlGroupUrgentHtml(subs) {
-        const count = (subs || []).filter(sub => wlPriorityValue(sub) === 1).length;
-        if (!count) return '';
-        const label = `${count} urgent sub-issue${count === 1 ? '' : 's'}`;
-        return `<span class="wl-group-urgent" role="img" aria-label="${wlEscape(label)}">${wlPriorityIconHtml(1)}<span>${count}</span></span>`;
+    function wlWorkloadWeight(sub) {
+        const weight = Number(wlWorkloadMeta(sub) && wlWorkloadMeta(sub).weight);
+        return weight === 2 || weight === 3 ? weight : 1;
     }
-    function wlPriorityIconHtml(valueOrSub) {
-        const value = typeof valueOrSub === 'number' ? valueOrSub : wlPriorityValue(valueOrSub);
-        const meta = {
-            1: { key: 'urgent', label: 'Urgent' },
-            2: { key: 'high', label: 'High' },
-            3: { key: 'medium', label: 'Medium' },
-            4: { key: 'low', label: 'Low' }
-        }[value];
+    function wlWorkloadUnits(subs) {
+        return (subs || []).reduce((total, sub) => total + wlWorkloadWeight(sub), 0);
+    }
+    function wlWorkloadBadgeHtml(sub, compact) {
+        const meta = wlWorkloadMeta(sub);
         if (!meta) return '';
-        let icon;
-        if (value === 1) {
-            icon = `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2.5" fill="currentColor" opacity="0.2"/><path d="M8 4.4v4.2M8 11.3h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
-        } else {
-            const active = value === 2 ? 3 : (value === 3 ? 2 : 1);
-            icon = `<svg viewBox="0 0 16 16" aria-hidden="true">
-                <rect x="2" y="9" width="3" height="5" rx="1" fill="currentColor"${active < 1 ? ' opacity="0.25"' : ''}/>
-                <rect x="6.5" y="6" width="3" height="8" rx="1" fill="currentColor"${active < 2 ? ' opacity="0.25"' : ''}/>
-                <rect x="11" y="2" width="3" height="12" rx="1" fill="currentColor"${active < 3 ? ' opacity="0.25"' : ''}/>
-            </svg>`;
+        const color = /^#[0-9a-f]{6}$/i.test(String(meta.color || '')) ? ` style="--wl-weight-color:${meta.color}"` : '';
+        const text = compact ? `${meta.weight}×` : meta.label;
+        const label = `${meta.label}; counts as ${meta.weight} videos for capacity`;
+        return `<span class="wl-workload-badge" role="img" aria-label="${wlEscape(label)}"${color}>${wlEscape(text)}</span>`;
+    }
+    function wlGroupWorkloadHtml(subs) {
+        const counts = { 2: 0, 3: 0 };
+        for (const sub of subs || []) {
+            const weight = wlWorkloadWeight(sub);
+            if (weight === 2 || weight === 3) counts[weight]++;
         }
-        const title = `${meta.label} Linear priority`;
-        return `<span class="wl-priority-icon is-${meta.key}" role="img" aria-label="${title}">${icon}</span>`;
+        return [2, 3].filter(weight => counts[weight]).map(weight => {
+            const label = `${counts[weight]} sub-issue${counts[weight] === 1 ? '' : 's'} labeled ${weight}× Workload`;
+            return `<span class="wl-workload-group" role="img" aria-label="${wlEscape(label)}">${weight}×${counts[weight] > 1 ? `·${counts[weight]}` : ''}</span>`;
+        }).join('');
+    }
+    function wlGroupProximityDays(subs, planDate) {
+        let closest = Infinity;
+        for (const sub of subs || []) {
+            const due = String(sub && sub.dueDate || '').slice(0, 10);
+            const plan = String(planDate || wlDisplayDate(sub) || '').slice(0, 10);
+            const days = wlCalendarDayDiff(plan, due);
+            if (days !== null && days < closest) closest = days;
+        }
+        return closest;
+    }
+    function wlCompareClientGroups(a, b, planDate) {
+        const aDays = wlGroupProximityDays(a && a.subs, planDate);
+        const bDays = wlGroupProximityDays(b && b.subs, planDate);
+        if (aDays !== bDays) return aDays === Infinity ? 1 : (bDays === Infinity ? -1 : aDays - bDays);
+        return String(a && a.clientName || '').localeCompare(String(b && b.clientName || ''));
     }
 
     // Status classification — user rule:
@@ -13361,7 +13597,7 @@
     function wlAutoPlanDate(sub, todayISO) {
         const dueDate = String(sub && sub.dueDate || '').slice(0, 10);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return '';
-        const today = String(todayISO || wlTodayISO()).slice(0, 10);
+        const today = String(todayISO || wlWorkloadTodayISO()).slice(0, 10);
         const suggested = wlSubWorkingDays(dueDate, 1);
         return suggested < today ? today : suggested;
     }
@@ -13404,14 +13640,14 @@
         return 'video';
     }
     function wlEditorCapacity(teamKey, teamName) {
-        return wlTeamBucket(teamKey, teamName) === 'graphics' ? 15 : 5;
+        return wlTeamBucket(teamKey, teamName) === 'graphics' ? 15 : 4;
     }
     function wlDayOverCapacity(subs) {
         const counts = new Map();
         for (const sub of subs || []) {
             const team = wlTeamBucket(sub.teamKey, sub.teamName);
             const key = (sub.assigneeId || '?') + '|' + team;
-            const next = (counts.get(key) || 0) + 1;
+            const next = (counts.get(key) || 0) + wlWorkloadWeight(sub);
             counts.set(key, next);
             if (next > wlEditorCapacity(sub.teamKey, sub.teamName)) return true;
         }
@@ -13571,8 +13807,8 @@
     }
 
     async function initWorkloadView() {
-        const now = new Date();
-        const todayISO = wlTodayISO();
+        const todayISO = wlWorkloadTodayISO();
+        const now = wlParseISO(todayISO);
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
         if (wlState.weekStart == null) { wlState.weekStart = wlWeekMondayISO(todayISO); }
         // Seed the client search dropdown with the canonical client list as
@@ -13588,19 +13824,35 @@
         } catch {}
         if (wlState.showDeadlines) wlState.viewMode = 'week';
 
+        // A route switch remounts the Workload shell, but the calendar state is
+        // already warm. Paint that in-memory snapshot synchronously and limit
+        // automatic network work to the cheap Supabase watermark check.
+        const hasWarmSnapshot = wlState.fetchedAt != null && Array.isArray(wlState.issueSnapshot);
+        if (hasWarmSnapshot) {
+            wlState.loading = false;
+            wlState.refreshing = false;
+            renderWorkloadAll();
+            wlWireToolbar();
+            wlWireClientSearch();
+            _wlV2EnsureSubscribed();
+            _wlV2EnsureWatermarkPoll();
+            if (wlState.planStatus !== 'ready' || wlState.linearMetadataStatus !== 'ready') {
+                wlRefreshSensitiveStateSilent().finally(_wlV2CheckWatermark);
+            } else {
+                _wlV2CheckWatermark();
+            }
+            return;
+        }
+
         const cache = wlReadCache();
         wlState.loading = true;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
+        wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'refreshing' : 'loading';
         // Phase 1's exact due-date view remains a safe first paint even before
         // the plan sidecar has answered. This keeps the post-merge / pre-deploy
         // window useful without a runtime gate; saved overrides replace the
         // fallback only after an authoritative list response.
-        if (cache) {
-            wlApplyData(cache.issues, cache.fetchedAt);
-            renderWorkloadAll();
-        } else {
-            renderWorkloadAll();
-        }
+        renderWorkloadAll();
 
         // Wire the toolbar and client search BEFORE the fetch so the search
         // input has its listeners attached the moment the user starts
@@ -13613,10 +13865,12 @@
         // board updates on its own when workload_issues changes. No-op when the
         // flag is off. Fire-and-forget; teardown happens on leaving the view.
         _wlV2EnsureSubscribed();
+        _wlV2EnsureWatermarkPoll();
 
         try {
-            await wlLoadSnapshot(!!cache, cache);
+            await wlLoadSnapshot(false, cache);
             wlState.error = null;
+            wlState.backgroundError = null;
         } catch (e) {
             console.error('[SyncView] Workload fetch failed:', e);
             if (!cache) wlState.error = e.message || 'Failed to load issues from Linear.';
@@ -13646,33 +13900,156 @@
         if (btn) btn.classList.remove('wl-refreshing');
     }
 
-    // Silent background refetch — fires when the browser tab becomes visible again.
-    async function wlRefetchSilent() {
-        if (!document.querySelector('.workload-view')) return;
-        wlSpinnerOn();
-        try {
-            await wlLoadSnapshot(true, null);
-            if (!document.querySelector('.workload-view')) return;
-            wlState.error = null;
-        } catch (e) {
-            console.error('[SyncView] Workload silent refresh failed:', e);
-        } finally {
-            wlSpinnerOff();
-            if (document.querySelector('.workload-view')) renderWorkloadAll({ deferWhilePopoverOpen: true });
+    // Non-destructive background refresh helpers.
+    function wlMarkBackgroundRefreshFailure(error) {
+        wlState.backgroundError = (error && error.message) || 'Background refresh failed.';
+        if (document.querySelector('.workload-view')) renderWorkloadPlanStatus();
+    }
+
+    function wlClearBackgroundRefreshFailure() {
+        if (!wlState.backgroundError) return;
+        wlState.backgroundError = null;
+        if (document.querySelector('.workload-view')) renderWorkloadPlanStatus();
+    }
+
+    // Atomic Supabase/Edge background lane. It never calls the n8n-backed
+    // loader, never selects a loading state, and publishes only a complete set
+    // of issues, saved plans, and Linear metadata.
+    async function wlRefetchSilent(options) {
+        const sensitiveOnly = !!(options && options.sensitiveOnly);
+        if (!document.querySelector('.workload-view') || (!sensitiveOnly && !_wlV2Ready())) return false;
+        if (!_syncviewStaffIdentityForHeaders()) return false;
+        if (sensitiveOnly && wlState.fetchedAt == null) return false;
+        if (_wlPlanWriteInFlight.size || _wlDueWriteInFlight.size) return false;
+        if (_wlBackgroundRefreshPromise) {
+            // A full refresh already includes the sensitive projections. A
+            // full request arriving behind a sensitive-only rehydrate must,
+            // however, wait and then read the mirror itself before its caller
+            // may consume an advanced watermark.
+            if (!sensitiveOnly && _wlBackgroundRefreshMode === 'sensitive') {
+                await _wlBackgroundRefreshPromise;
+                return wlRefetchSilent();
+            }
+            return _wlBackgroundRefreshPromise;
+        }
+
+        const run = async () => {
+            const loadGeneration = ++_wlPlanLoadGeneration;
+            const sessionGeneration = _wlPlanSessionGeneration;
+            try {
+                const freshIssues = sensitiveOnly
+                    ? wlState.issueSnapshot.map(issue => ({ ...issue }))
+                    : await _wlV2FetchIssues();
+                if (!sensitiveOnly && !freshIssues.length && wlState.issueSnapshot.length) {
+                    throw new Error('Supabase returned an empty Workload snapshot.');
+                }
+                const [plansResult, metadataResult] = await Promise.allSettled([
+                    wlFetchPlanRows(),
+                    wlFetchLinearMetadata(freshIssues)
+                ]);
+                if (loadGeneration !== _wlPlanLoadGeneration || sessionGeneration !== _wlPlanSessionGeneration) return false;
+                if (_wlPlanWriteInFlight.size || _wlDueWriteInFlight.size) return false;
+
+                const failures = [plansResult, metadataResult]
+                    .filter(result => result.status === 'rejected')
+                    .map(result => result.reason);
+                // An auth denial from either staff projection must not be
+                // masked by an unrelated network error from the other one.
+                const failed = failures.find(error => Number(error && error.status) === 401)
+                    || failures.find(error => Number(error && error.status) === 403)
+                    || failures[0]
+                    || null;
+                if (failed) throw failed;
+
+                const before = wlBackgroundBusinessFingerprint();
+                const editabilityBefore = `${wlPlanEditingEnabled()}:${wlLinearEditingEnabled()}`;
+                // Re-authentication may update due-date metadata on a retained
+                // snapshot, but it must not make that old mirror read look new.
+                const fetchedAt = sensitiveOnly ? wlState.fetchedAt : Date.now();
+                wlAdoptPlanRows(plansResult.value);
+                wlAdoptLinearMetadata(metadataResult.value, freshIssues, fetchedAt, {
+                    skipIssueCacheWrite: sensitiveOnly
+                });
+                wlApplyData(freshIssues, fetchedAt);
+                wlState.error = null;
+                wlState.backgroundError = null;
+
+                const changed = before !== wlBackgroundBusinessFingerprint();
+                const editingChanged = editabilityBefore !== `${wlPlanEditingEnabled()}:${wlLinearEditingEnabled()}`;
+                if (document.querySelector('.workload-view')) {
+                    if (changed || editingChanged) renderWorkloadAll({ deferWhilePopoverOpen: true });
+                    else renderWorkloadPlanStatus();
+                }
+                // True means the complete server snapshot was consumed. The
+                // caller must advance its watermark even when `changed` is false.
+                return true;
+            } catch (error) {
+                if (loadGeneration !== _wlPlanLoadGeneration || sessionGeneration !== _wlPlanSessionGeneration) return false;
+                const status = Number(error && error.status) || 0;
+                if (status === 401) _syncviewStaffIdentityClear();
+                else if (status === 403) wlPurgePlanSensitiveState();
+                else {
+                    console.warn('[SyncView] Workload background refresh failed:', error);
+                    wlMarkBackgroundRefreshFailure(error);
+                }
+                return false;
+            }
+        };
+
+        const pending = run();
+        _wlBackgroundRefreshPromise = pending;
+        _wlBackgroundRefreshMode = sensitiveOnly ? 'sensitive' : 'full';
+        try { return await pending; }
+        finally {
+            if (_wlBackgroundRefreshPromise === pending) {
+                _wlBackgroundRefreshPromise = null;
+                _wlBackgroundRefreshMode = null;
+            }
         }
     }
 
-    // Manual refresh — toolbar ↻ button. Spins the icon while the calendar
-    // uses the same skeleton as every automatic refresh.
+    async function wlRefreshSensitiveStateSilent() {
+        if (wlState.planStatus === 'ready' && wlState.linearMetadataStatus === 'ready') return true;
+        if (wlState.loading || wlState.refreshing
+            || wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing'
+            || wlState.linearMetadataStatus === 'loading' || wlState.linearMetadataStatus === 'refreshing') return false;
+        return wlRefetchSilent({ sensitiveOnly: true });
+    }
+
+    async function wlRebaseMirrorWatermarkAfterDirectRefresh() {
+        try {
+            const latest = await _wlV2FetchLatestWatermark();
+            if (latest) wlState.sourceSyncedAt = latest;
+            wlClearBackgroundRefreshFailure();
+        } catch (error) {
+            // Keep the cursor empty. The next successful check will establish a
+            // baseline without applying an older mirror over fresh Linear truth.
+            console.warn('[SyncView] Workload mirror baseline failed:', error);
+            wlMarkBackgroundRefreshFailure(error);
+        }
+    }
+
+    // Manual refresh — toolbar ↻ button. This explicit action intentionally
+    // keeps the direct no-cache Linear path and the calendar skeleton.
     async function wlManualRefresh() {
         if (!document.querySelector('.workload-view') || wlState.refreshing) return;
+        const priorWatermark = wlState.sourceSyncedAt;
+        const shouldRebaseMirror = _wlV2Ready();
+        if (shouldRebaseMirror) wlState.sourceSyncedAt = null;
         wlState.refreshing = true;
         wlSpinnerOn();
         try {
-            await wlLoadSnapshot(true, null);
+            const payload = await wlLoadSnapshot(true, null);
             if (!document.querySelector('.workload-view')) return;
+            wlState.backgroundError = null;
+            if (shouldRebaseMirror && payload && !payload.usedFallback) {
+                await wlRebaseMirrorWatermarkAfterDirectRefresh();
+            } else if (shouldRebaseMirror) {
+                wlState.sourceSyncedAt = priorWatermark;
+            }
             wlState.error = null;
         } catch (err) {
+            if (shouldRebaseMirror) wlState.sourceSyncedAt = priorWatermark;
             wlState.error = err.message || 'Refresh failed.';
         } finally {
             wlState.refreshing = false;
@@ -13681,13 +14058,14 @@
         }
     }
 
-    // Pull fresh data the moment the user tabs back to the browser so they
-    // don't stare at minutes-old numbers. Registered once at module scope.
+    // Returning to the browser checks only the Supabase watermark. The warm
+    // calendar remains mounted while any advanced snapshot is compared.
+    function _wlOnVisibilityChange() {
+        if (!document.hidden && document.querySelector('.workload-view')) _wlV2CheckWatermark();
+    }
     if (typeof document !== 'undefined' && !window.__wlVisibilityWired) {
         window.__wlVisibilityWired = true;
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && document.querySelector('.workload-view')) wlRefetchSilent();
-        });
+        document.addEventListener('visibilitychange', _wlOnVisibilityChange);
     }
 
     // Debug helper — run  wlDebug()  in the browser console while on the Workload tab.
@@ -13716,7 +14094,7 @@
         Object.entries(byStatus).sort((a, b) => b[1] - a[1]).forEach(([k, n]) => console.log(n, k));
 
         console.log('\n--- Sub-issues with dueDate in the next 14 days ---');
-        const today = wlTodayISO();
+        const today = wlWorkloadTodayISO();
         const cutoff = wlAddWorkingDays(today, 14);
         subs.filter(s => s.dueDate && s.dueDate >= today && s.dueDate <= cutoff)
             .sort((a, b) => (a.dueDate > b.dueDate ? 1 : -1))
@@ -13750,6 +14128,11 @@
 
     function wlApplyData(issues, fetchedAt) {
         wlState.issueSnapshot = Array.isArray(issues) ? issues : [];
+        wlState.sourceSyncedAt = wlState.issueSnapshot.reduce((latest, issue) => {
+            const candidate = String(issue && issue.syncedAt || '');
+            if (!candidate || !Number.isFinite(Date.parse(candidate))) return latest;
+            return !latest || Date.parse(candidate) > Date.parse(latest) ? candidate : latest;
+        }, '') || wlState.sourceSyncedAt || null;
         const parentById = new Map();
         const subsByParentId = new Map();
         for (const i of issues) {
@@ -13813,7 +14196,7 @@
         wlState.subsByParentId = subsByParentId;
         wlState.allActiveSubs  = subs; // used to populate the client dropdown
 
-        const todayISO     = wlTodayISO();
+        const todayISO     = wlWorkloadTodayISO();
         const nowWorking   = [];
         const tweaksNeeded = [];
         const planned      = [];
@@ -13882,6 +14265,16 @@
         }
     }
 
+    function wlApplyDueLocal(issueId, dueDate) {
+        const key = String(issueId || '');
+        for (const issue of wlState.issueSnapshot || []) {
+            if (String(issue && issue.id || '') === key) issue.dueDate = dueDate || null;
+        }
+        if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
+            wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
+        }
+    }
+
     function wlFocusPlanItem(issueId) {
         setTimeout(() => {
             const match = [...document.querySelectorAll('[data-wl-issue-id]')]
@@ -13928,7 +14321,100 @@
         }
     }
 
-    // F141 fail-closed boundary. The optimistic value is already visible when
+    async function _wlDueWriteRequest(issue, dueDate) {
+        await _syncviewRequireStaffIdentity('workload-linear');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), WL_LINEAR_WRITE_TIMEOUT_MS);
+        try {
+            return await fetch(WORKLOAD_LINEAR_URL, {
+                method: 'POST',
+                cache: 'no-store',
+                signal: controller.signal,
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, WORKLOAD_LINEAR_URL),
+                body: JSON.stringify({
+                    action: 'set_due_date',
+                    issue_id: String(issue.id || ''),
+                    client: String(issue.clientName || ''),
+                    due_date: dueDate
+                })
+            });
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+
+    async function wlSetDueDate(issueId, value) {
+        const key = String(issueId || '');
+        const issue = (wlState.allActiveSubs || []).find(row => String(row.id || '') === key);
+        if (!issue || wlIsTweaksNeeded(issue)) return false;
+        if (!wlLinearEditingEnabled()) {
+            if (typeof showNotify === 'function') {
+                showNotify('Linear due-date editing unavailable', 'Workload labels are not current. Refresh and try again.');
+            }
+            renderWorkloadAll();
+            return false;
+        }
+        if (_wlDueWriteInFlight.has(key)) return false;
+        const dueDate = value == null || value === '' ? null : String(value).slice(0, 10);
+        if (dueDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return false;
+        const previousDate = String(issue.dueDate || '').slice(0, 10) || null;
+        if (dueDate === previousDate) return true;
+
+        const sessionGeneration = _wlPlanSessionGeneration;
+        const token = {};
+        // Any snapshot already in flight predates this optimistic Linear write.
+        // Invalidate it now so a fast successful save cannot be overwritten by
+        // an older metadata response after the write token is removed.
+        _wlPlanLoadGeneration++;
+        _wlDueWriteInFlight.set(key, token);
+        wlApplyDueLocal(key, dueDate);
+        renderWorkloadAll();
+        try {
+            const resp = await _wlDueWriteRequest(issue, dueDate);
+            if (sessionGeneration !== _wlPlanSessionGeneration) return false;
+            let json = null;
+            try { json = await resp.json(); } catch (error) {}
+            const hasDueDateReceipt = !!json && Object.prototype.hasOwnProperty.call(json, 'due_date');
+            const acknowledgedDate = hasDueDateReceipt && json.due_date === null ? null : json && json.due_date;
+            const mirrorUpdated = json && json.mirror_updated;
+            const mirrorPending = json && json.mirror_pending;
+            const updatedAt = json && json.updated_at;
+            const validUpdatedAt = wlValidRfc3339Timestamp(updatedAt);
+            const exactAck = resp.ok && json && json.ok === true
+                && json.linear_committed === true
+                && hasDueDateReceipt
+                && String(json.issue_id || '') === key
+                && (acknowledgedDate === null || typeof acknowledgedDate === 'string')
+                && acknowledgedDate === dueDate
+                && validUpdatedAt
+                && (mirrorUpdated === 0 || mirrorUpdated === 1)
+                && mirrorPending === (mirrorUpdated === 0);
+            if (!exactAck) {
+                const error = new Error((json && json.error) || ('HTTP ' + resp.status));
+                error.status = resp.status;
+                throw error;
+            }
+            wlApplyDueLocal(key, acknowledgedDate);
+            if (mirrorPending && typeof showNotify === 'function') {
+                showNotify('Due date updated in Linear', 'Workload is catching up. The new due date is kept here in the meantime.');
+            }
+            return true;
+        } catch (error) {
+            if (sessionGeneration !== _wlPlanSessionGeneration) return false;
+            wlApplyDueLocal(key, previousDate);
+            if (Number(error && error.status) === 401) _syncviewStaffIdentityClear();
+            if (Number(error && error.status) === 403) wlPurgePlanSensitiveState();
+            if (typeof showNotify === 'function') {
+                showNotify("Couldn't update the Linear due date", 'The previous due date was restored. Please try again.');
+            }
+            return false;
+        } finally {
+            if (_wlDueWriteInFlight.get(key) === token) _wlDueWriteInFlight.delete(key);
+            if (document.querySelector('.workload-view')) renderWorkloadAll();
+        }
+    }
+
+    // Workload fail-closed boundary. The optimistic value is already visible when
     // this runs; anything except one actually-written, matching row restores
     // the precise previous value and tells the user.
     async function _wlPersistPlanDate(issue, planDate, previousDate, sessionGeneration, quiet) {
@@ -14182,8 +14668,8 @@
                 if (action === 'prev') { wlShiftPeriod(-1); renderWorkloadAll(); return; }
                 if (action === 'next') { wlShiftPeriod(1);  renderWorkloadAll(); return; }
                 if (action === 'today') {
-                    const today = wlTodayISO();
-                    const n = new Date();
+                    const today = wlWorkloadTodayISO();
+                    const n = wlParseISO(today);
                     wlState.year = n.getFullYear(); wlState.month = n.getMonth();
                     wlState.weekStart = wlWeekMondayISO(today);
                     renderWorkloadAll();
@@ -14218,13 +14704,13 @@
         });
 
         root.addEventListener('change', (e) => {
-            const wrap = e.target && e.target.closest && e.target.closest('[data-wl-plan-issue]');
+            const wrap = e.target && e.target.closest && e.target.closest('[data-wl-due-issue]');
             if (!wrap || !e.target.matches('input[type="date"]')) return;
-            const issueId = wrap.getAttribute('data-wl-plan-issue') || '';
+            const issueId = wrap.getAttribute('data-wl-due-issue') || '';
             const nextDate = e.target.value || null;
             // The shared branded picker dispatches change before it closes.
             // Let it restore focus first, then repaint the calendar.
-            setTimeout(() => wlSetPlanDate(issueId, nextDate), 0);
+            setTimeout(() => wlSetDueDate(issueId, nextDate), 0);
         });
 
         const clearDropTargets = () => {
@@ -14599,6 +15085,19 @@
         const el = document.getElementById('wlPlanStatus');
         if (!el) return;
         const status = wlState.planStatus;
+        const metadataStatus = wlState.linearMetadataStatus;
+        if (wlState.backgroundError) {
+            el.hidden = false;
+            el.className = 'workload-plan-status is-warning';
+            el.textContent = 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.';
+            return;
+        }
+        if (status === 'ready' && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
+            el.hidden = false;
+            el.className = 'workload-plan-status is-warning';
+            el.textContent = 'Workload labels could not be refreshed. Capacity may be understated; Linear due-date editing is paused.';
+            return;
+        }
         if (status === 'ready' || status === 'loading' || status === 'refreshing') {
             el.hidden = true;
             el.className = 'workload-plan-status';
@@ -14645,8 +15144,8 @@
         }
         if (freshEl) {
             if (wlState.loading && !wlState.fetchedAt) freshEl.innerHTML = _svSkel('sv-skeleton-pill', 'width:74px;height:12px;');
-            else if (wlState.fetchedAt) {
-                const d = new Date(wlState.fetchedAt);
+            else if (wlState.sourceSyncedAt || wlState.fetchedAt) {
+                const d = new Date(wlState.sourceSyncedAt || wlState.fetchedAt);
                 const hh = String(d.getHours()).padStart(2, '0');
                 const mm = String(d.getMinutes()).padStart(2, '0');
                 freshEl.textContent = 'As of ' + hh + ':' + mm;
@@ -14665,8 +15164,8 @@
         const calendarHint = document.getElementById('wlCalendarHint');
         if (calendarHint) {
             calendarHint.innerHTML = wlState.showDeadlines
-                ? '<strong>Solid</strong> means planned; <strong>outlined</strong> means deadline only. The color dot measures buffer. Drag plans by the six-dot handle. Lines and deadline copies never affect capacity.'
-                : 'Sparkle means automatic; pin means manual. Color measures the plan-to-deadline buffer. Drag plans by the six-dot handle.';
+                ? '<strong>Solid</strong> means planned; <strong>outlined</strong> means deadline only. The color dot measures buffer. A 2× or 3× label uses that many video-capacity units. Lines and deadline copies never affect capacity.'
+                : 'Sparkle means automatic; pin means manual. Color measures the plan-to-deadline buffer. A 2× or 3× label uses that many video-capacity units.';
         }
 
         wlPopulateFilterOptions();
@@ -14770,7 +15269,8 @@
     // an editor with no active sub-issues sorts first as the freest. The count
     // matches what's visible across the calendar and active strips, deduped on
     // id, including the undated lane. "Days of work" = count / per-day
-    // capacity (5 for video). Honours the team filter (video-only panel) and
+    // capacity (4 units for video). A 2× / 3× Workload label consumes that
+    // many units. Honours the team filter (video-only panel) and
     // the client filter for counts, but always lists the roster.
     function renderEditorWorkload() {
         const wrap = document.getElementById('wlCapacity');
@@ -14799,9 +15299,11 @@
                     teamKey: s.teamKey,
                     teamName: s.teamName,
                     count: 0,
+                    units: 0,
                 });
             }
             byEditor.get(s.assigneeId).count++;
+            byEditor.get(s.assigneeId).units += wlWorkloadWeight(s);
         };
         // Seed the full video-editor roster first so everyone shows up, even
         // an editor with zero active sub-issues — they're the freest of all
@@ -14814,7 +15316,7 @@
         // display name wins over the raw Linear email.
         if (wlState.team === 'all' || wlState.team === 'video') {
             for (const r of WL_VIDEO_EDITORS) {
-                byEditor.set(r.id, { assigneeId: r.id, assigneeName: r.name, teamKey: '', teamName: '', count: 0 });
+                byEditor.set(r.id, { assigneeId: r.id, assigneeName: r.name, teamKey: '', teamName: '', count: 0, units: 0 });
             }
         }
         for (const s of (wlState.planned      || [])) consider(s);
@@ -14831,7 +15333,7 @@
         wrap.classList.remove('empty');
 
         const editors = [...byEditor.values()].sort((a, b) => {
-            if (a.count !== b.count) return a.count - b.count;
+            if (a.units !== b.units) return a.units - b.units;
             return wlDisplayName(a.assigneeName).localeCompare(wlDisplayName(b.assigneeName));
         });
 
@@ -14839,7 +15341,7 @@
             const cap = wlEditorCapacity(ed.teamKey, ed.teamName);
             // An editor with no active work shows 0 days (the freest); everyone
             // else rounds up to at least one day.
-            const days = ed.count === 0 ? 0 : Math.max(1, Math.ceil(ed.count / cap));
+            const days = ed.units === 0 ? 0 : Math.max(1, Math.ceil(ed.units / cap));
             let cls;
             if (days <= 1)      cls = 'free';
             else if (days <= 2) cls = 'light';
@@ -14851,7 +15353,7 @@
             // their active sub-issues (planned + in-progress, deduped).
             // data-wl-source="active" tells wlOpenRollupPopover to use that
             // combined source instead of the day-bound or in-progress lists.
-            return `<button type="button" class="workload-capacity-chip ${cls}" aria-label="${wlEscape(name)} · ${ed.count} active sub-issue${ed.count !== 1 ? 's' : ''} · about ${days} day${days !== 1 ? 's' : ''} of work at ${cap} per day" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="active" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-editor-name="${wlEscape(name)}">
+            return `<button type="button" class="workload-capacity-chip ${cls}" aria-label="${wlEscape(name)} · ${ed.count} active sub-issue${ed.count !== 1 ? 's' : ''} · ${ed.units} workload unit${ed.units !== 1 ? 's' : ''} · about ${days} day${days !== 1 ? 's' : ''} of work at ${cap} units per day" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="active" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-editor-name="${wlEscape(name)}">
                 <span class="wl-cap-name">${wlEscape(name)}</span>
                 <span class="wl-cap-label">${wlEscape(label)}</span>
             </button>`;
@@ -15073,7 +15575,7 @@
                     };
                 });
                 return track;
-            }).sort((a, b) => a.planDate.localeCompare(b.planDate) || a.clientName.localeCompare(b.clientName));
+            }).sort((a, b) => a.planDate.localeCompare(b.planDate) || wlCompareClientGroups(a, b, a.planDate));
             editor.tracks = tracks;
             delete editor.trackMap;
             return editor;
@@ -15143,7 +15645,7 @@
                     ${wlDeadlineDotHtml()}
                     <span class="workload-timeline-due-name">${wlEscape(boundaryLabel)}</span>
                     <span class="workload-timeline-due-count">· ${endpoint.subs.length}</span>
-                    ${wlGroupUrgentHtml(endpoint.subs)}
+                    ${wlGroupWorkloadHtml(endpoint.subs)}
                 </button>
             </span>`);
         }
@@ -15157,7 +15659,7 @@
                     </span>
                     <span class="workload-day-card-chip-meta">
                         ${wlGroupPlanOriginHtml(track.subs)}
-                        ${wlGroupUrgentHtml(track.subs)}
+                        ${wlGroupWorkloadHtml(track.subs)}
                         ${wlTimelineSameDayHtml(track)}
                         ${wlGroupDragHandleHtml(track.planDate, editor.assigneeId, track.clientName, canDragGroup)}
                     </span>
@@ -15169,7 +15671,7 @@
     }
 
     function renderWeekDeadlineTimeline() {
-        const todayISO = wlTodayISO();
+        const todayISO = wlWorkloadTodayISO();
         const start = wlState.weekStart;
         const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const dates = Array.from({ length: 5 }, (_, index) => wlAddDays(start, index));
@@ -15194,12 +15696,13 @@
                 <span class="workload-timeline-editor-name">${wlEscape(name)}</span>
             </div>` + editor.dailySubs.map((subs, index) => {
                 const count = subs.length;
-                const overBy = Math.max(0, count - capacity);
+                const units = wlWorkloadUnits(subs);
+                const overBy = Math.max(0, units - capacity);
                 const date = dates[index];
                 const totalLabel = overBy
-                    ? `${name} is ${overBy} over the ${capacity} per-day capacity; all work remains visible`
-                    : `${count} planned sub-issue${count === 1 ? '' : 's'}`;
-                const total = count ? `<button type="button" class="workload-timeline-day-total${overBy ? ' over-capacity' : ''}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(editor.assigneeId || '')}" data-wl-client="" data-wl-date="${wlEscape(date)}" data-wl-editor-name="${wlEscape(name)}" aria-label="${wlEscape(totalLabel)}">${overBy ? `${count}/${capacity} · ${overBy} over` : `${count}/${capacity}`}</button>` : '';
+                    ? `${name} is ${overBy} workload unit${overBy === 1 ? '' : 's'} over the ${capacity}-unit daily capacity; all work remains visible`
+                    : `${count} planned sub-issue${count === 1 ? '' : 's'} using ${units} of ${capacity} workload units`;
+                const total = count ? `<button type="button" class="workload-timeline-day-total${overBy ? ' over-capacity' : ''}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(editor.assigneeId || '')}" data-wl-client="" data-wl-date="${wlEscape(date)}" data-wl-editor-name="${wlEscape(name)}" aria-label="${wlEscape(totalLabel)}">${overBy ? `${units}/${capacity} · ${overBy} over` : `${units}/${capacity}`}</button>` : '';
                 return `<div class="workload-timeline-editor-day">${total}</div>`;
             }).join('');
             const tracks = editor.tracks.map(track => wlRenderTimelineTrack(track, editor, ++trackNumber)).join('');
@@ -15218,7 +15721,7 @@
     }
 
     function renderWeekGrid() {
-        const todayISO = wlTodayISO();
+        const todayISO = wlWorkloadTodayISO();
         const start = wlState.weekStart; // Monday of the visible work week
         const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         let weekdayHtml = '<div class="workload-weekdays week">';
@@ -15260,7 +15763,7 @@
 
     function renderMonthGrid() {
         const { year, month } = wlState;
-        const todayISO = wlTodayISO();
+        const todayISO = wlWorkloadTodayISO();
         const firstDow = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const leading = firstDow;
@@ -15324,8 +15827,8 @@
                 <button type="button" class="workload-plan-item${canDrag ? '' : ' is-readonly'}${tone ? ' is-deadline-' + tone : ''}" data-wl-issue-open="1" data-wl-issue-id="${wlEscape(issueId)}" data-wl-parent-id="${wlEscape(s.parentId || '')}" data-wl-assignee-id="${wlEscape(s.assigneeId || '')}" data-wl-client="${wlEscape(s.clientName || '')}" data-wl-date="${wlEscape(dayISO || '')}" aria-label="${wlEscape(titleAttr)}">
                     <span class="workload-plan-item-content">
                         <span class="workload-plan-item-title-line">
-                            ${wlPriorityIconHtml(s)}
                             <span class="workload-plan-item-label">${wlEscape(label)}</span>
+                            ${wlWorkloadBadgeHtml(s, true)}
                             ${wlPlanOriginHtml(mode, false)}
                             ${wlIssueDragHandleHtml(issueId, canDrag)}
                         </span>
@@ -15361,7 +15864,7 @@
                 });
             }
             const ed = byEditor.get(key);
-            ed.total += g.count;
+            ed.total += wlWorkloadUnits(g.subs);
             ed.clients.push(g);
             ed.subs.push(...(Array.isArray(g.subs) ? g.subs : (g.anySub ? [g.anySub] : [])));
         }
@@ -15378,7 +15881,7 @@
             const name = wlDisplayName(ed.assigneeName) || 'Unknown';
             const capacity = wlEditorCapacity(ed.teamKey, ed.teamName);
             const overBy = Math.max(0, ed.total - capacity);
-            const clientGroups = ed.clients.map(g => {
+            const clientGroups = ed.clients.slice().sort((a, b) => wlCompareClientGroups(a, b, dayISO)).map(g => {
                 const clientName = g.clientName || '—';
                 const orderedSubs = wlSortSubIssues(g.subs);
                 const groupDeadline = wlGroupDeadlineSummary(orderedSubs);
@@ -15394,7 +15897,7 @@
                         </span>
                         <span class="workload-day-card-chip-meta">
                             ${wlGroupPlanOriginHtml(orderedSubs)}
-                            ${wlGroupUrgentHtml(orderedSubs)}
+                            ${wlGroupWorkloadHtml(orderedSubs)}
                             ${wlGroupDeadlineHtml(orderedSubs)}
                             ${wlGroupDragHandleHtml(dayISO, ed.assigneeId, g.clientName, canDragGroup)}
                         </span>
@@ -15405,7 +15908,7 @@
             return `<div class="workload-day-card team-${team}">
                 <div class="workload-day-card-head">
                     <span class="workload-day-card-name">${wlEscape(name)}</span>
-                    <button type="button" class="workload-day-card-total${overBy ? ' over-capacity' : ''}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}" data-wl-editor-name="${wlEscape(name)}" aria-label="${overBy ? `${name} is ${overBy} over the ${capacity} per-day capacity; all work remains visible` : `See the ${ed.total} sub-issue${ed.total !== 1 ? 's' : ''}`}">${overBy ? `${ed.total}/${capacity} · ${overBy} over` : ed.total}</button>
+                    <button type="button" class="workload-day-card-total${overBy ? ' over-capacity' : ''}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}" data-wl-editor-name="${wlEscape(name)}" aria-label="${overBy ? `${name} is ${overBy} workload unit${overBy === 1 ? '' : 's'} over the ${capacity}-unit daily capacity; all work remains visible` : `See ${ed.total} workload unit${ed.total === 1 ? '' : 's'} across ${ed.subs.length} sub-issue${ed.subs.length === 1 ? '' : 's'}`}">${overBy ? `${ed.total}/${capacity} · ${overBy} over` : ed.total}</button>
                 </div>
                 <div class="workload-day-card-clients">${clientGroups}</div>
             </div>`;
@@ -15599,15 +16102,17 @@
             const explicitPlan = wlPlanDate(s) || null;
             const workDate = wlDisplayDate(s) || '';
             const placementMode = wlPlacementMode(s);
-            const saving = _wlPlanWriteInFlight.has(String(s.id || ''));
-            const canEditPlan = !wlIsTweaksNeeded(s) && wlPlanEditingEnabled() && !saving;
-            const dateId = 'wlPlanDate_' + String(s.id || '').replace(/[^A-Za-z0-9_-]/g, '_');
-            const planControl = wlIsTweaksNeeded(s) ? '' : `<div class="workload-popover-plan" data-wl-plan-issue="${wlEscape(s.id || '')}">
+            const savingPlan = _wlPlanWriteInFlight.has(String(s.id || ''));
+            const savingDue = _wlDueWriteInFlight.has(String(s.id || ''));
+            const canEditPlan = !wlIsTweaksNeeded(s) && wlPlanEditingEnabled() && !savingPlan;
+            const canEditDue = !wlIsTweaksNeeded(s) && wlLinearEditingEnabled() && !savingDue;
+            const dateId = 'wlDueDate_' + String(s.id || '').replace(/[^A-Za-z0-9_-]/g, '_');
+            const planControl = wlIsTweaksNeeded(s) ? '' : `<div class="workload-popover-plan" data-wl-due-issue="${wlEscape(s.id || '')}">
                 <div class="workload-popover-plan-line">
-                    <span class="workload-popover-plan-label">${wlPlanOriginHtml(placementMode, false)} Work day</span>
-                    ${_svDateHtml(dateId, workDate, { placeholder: 'Choose work day', disabled: !canEditPlan })}
-                    ${saving ? '<span class="workload-popover-plan-saving" role="status">Saving…</span>' : ''}
-                    ${issueId && explicitPlan ? `<button type="button" class="workload-plan-clear" data-wl-plan-clear="${wlEscape(s.id || '')}"${canEditPlan ? '' : ' disabled'}>Use automatic plan</button>` : ''}
+                    <span class="workload-popover-plan-label">Linear due date</span>
+                    ${_svDateHtml(dateId, s.dueDate || '', { placeholder: 'Choose due date', disabled: !canEditDue })}
+                    ${savingDue ? '<span class="workload-popover-plan-saving" role="status">Saving…</span>' : ''}
+                    ${explicitPlan ? `<button type="button" class="workload-plan-clear" data-wl-plan-clear="${wlEscape(s.id || '')}"${canEditPlan ? '' : ' disabled'}>${wlPlanOriginHtml(placementMode, false)} Use automatic plan</button>` : ''}
                 </div>
             </div>`;
             const clientTag = showClient && s.clientName
@@ -15623,8 +16128,8 @@
                 : '';
             return `<div class="workload-popover-item">
                 <a class="workload-popover-item-main" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer">
-                    ${wlPriorityIconHtml(s)}
                     <span class="workload-popover-item-title">${wlEscape(s.title || s.identifier)}</span>
+                    ${wlWorkloadBadgeHtml(s, false)}
                     ${clientTag}
                     ${wlDeadlineTagHtml(s.dueDate, workDate)}
                 </a>
@@ -18396,6 +18901,7 @@
     const CAL_SUPABASE_ANON_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA'; // browser-safe publishable key; read-only via RLS
     const CAL_SUPABASE_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; // UMD → window.supabase
     const WORKLOAD_PLAN_URL = CAL_SUPABASE_URL + '/functions/v1/workload-plan';
+    const WORKLOAD_LINEAR_URL = CAL_SUPABASE_URL + '/functions/v1/workload-linear';
     const CLIENT_TOKEN_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/client-token-verify';
     const CLIENT_REVIEW_LINK_URL = CAL_SUPABASE_URL + '/functions/v1/client-review-link';
     const STAFF_KEY_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/key-verify';
@@ -18443,6 +18949,11 @@
             if (identity) localStorage.setItem(SYNCVIEW_STAFF_IDENTITY_KEY, JSON.stringify(identity));
             else localStorage.removeItem(SYNCVIEW_STAFF_IDENTITY_KEY);
         } catch (e) {}
+        if (identity && _syncviewStaffIdentityVerified) {
+            try {
+                if (typeof wlRefreshSensitiveStateSilent === 'function') wlRefreshSensitiveStateSilent();
+            } catch (e) {}
+        }
     }
     function _syncviewStaffIdentityClear() {
         _syncviewStaffPurgeSensitiveState();
@@ -18513,7 +19024,10 @@
         if (capability === 'weekly-report-submit') return role === 'admin' || role === 'smm';
         if (capability === 'weekly-report-manage') return role === 'admin';
         if (capability === 'pto-admin') return role === 'admin';
+        if (capability === 'workload-plan-read') return role === 'admin' || role === 'smm' || role === 'creative';
         if (capability === 'workload-plan') return role === 'admin' || role === 'smm';
+        if (capability === 'workload-linear-read') return role === 'admin' || role === 'smm' || role === 'creative';
+        if (capability === 'workload-linear') return role === 'admin' || role === 'smm';
         return !!identity;
     }
     async function _syncviewRequireStaffIdentity(capability) {
@@ -18532,7 +19046,10 @@
             else if (capability === 'weekly-report-submit') message = 'Weekly reports are available to Admin or SMM accounts. Sign out first to use another authorized account.';
             else if (capability === 'weekly-report-manage') message = 'Weekly report management requires an Admin account. Sign out first to use another authorized account.';
             else if (capability === 'pto-admin') message = 'Time Off approvals and setup require an Admin account. Sign out first to use another authorized account.';
+            else if (capability === 'workload-plan-read') message = 'The shared Workload calendar requires an Admin, SMM, or Creative account. Sign out first to use another authorized account.';
             else if (capability === 'workload-plan') message = 'Work-day planning requires an Admin or SMM account. Sign out first to use another authorized account.';
+            else if (capability === 'workload-linear-read') message = 'Workload labels require an Admin, SMM, or Creative account. Sign out first to use another authorized account.';
+            else if (capability === 'workload-linear') message = 'Linear due-date editing requires an Admin or SMM account. Sign out first to use another authorized account.';
             const error = new Error(message);
             error.status = 403;
             throw error;
@@ -51062,7 +51579,7 @@
         editorsDayFilter: {}, // editorKey -> 'YYYY-MM-DD' when filtered to a single day
         editorsClientExpanded: {}, // editorKey -> { clientName -> bool }; absent = use view default
         editorsAvgMode: false, // false = weekly totals, true = per-workday averages
-        filmingData: null,    // { rows:[{client,slug,docUrl,docId,notes,months:Set,runwayDate,daysLeft,status,reason}], loadedAt }
+        filmingData: null,    // { rows:[{client,slug,docUrl,docId,notes,months:Set,contentTotal,tabRead,tabTitles,latestPlanMonth,nextPlanMonth,status,reason}], loadedAt }
         filmingLoading: false,
         filmingError: null,
         filmingLoadedAt: 0,
@@ -51080,11 +51597,14 @@
     // into a new "last week").
     const KASPER_EDITORS_CACHE_KEY = 'syncview_kasper_editors_v2';
     const KASPER_EDITORS_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks — pure sanity bound
-    const KASPER_FILMING_CACHE_KEY = 'syncview_kasper_filming_v1';
-    const KASPER_FILMING_CACHE_MAX_AGE_MS = 30 * 60 * 1000; // 30 min — runway/coverage drift slowly
-    // "Both combined" alert thresholds, in days of content runway left.
-    const FILMING_RED_DAYS = 10;
-    const FILMING_AMBER_DAYS = 21;
+    const KASPER_FILMING_CACHE_KEY = 'syncview_kasper_filming_v3';
+    const KASPER_FILMING_CACHE_MAX_AGE_MS = 30 * 60 * 1000; // 30 min — content/coverage drift slowly
+    // Content-bank thresholds. These are intentionally counts, not an assumed
+    // posting cadence: every client can see exactly how much active calendar
+    // content is available, whether or not it already has a calendar date.
+    const FILMING_CONTENT_RED_COUNT = 10;
+    const FILMING_CONTENT_COVERED_COUNT = 21;
+    const FILMING_PLAN_SOON_DAYS = 14;
     function _kasperFallbackToReview() {
         _kasperState.tab = 'review';
         try { localStorage.setItem(KASPER_SUBTAB_KEY, 'review'); } catch (e) {}
@@ -52216,13 +52736,12 @@
     }
 
     /* ── Filming Plans ─────────────────────────────────────────────
-       One row per client. Tells Kasper who is about to run out of content
-       and has no plan for the upcoming month ("both combined" alert):
-         • runway  = days until the client's latest scheduled calendar post
-         • coverage = does a plan exist for the month after runway ends?
-       Plan months come from the Docs-tabs webhook when configured, else from
-       an optional manual `plan_months` value. Source of links: Supabase
-       filming_plans rows. */
+       One row per client. The content bank counts every active calendar card
+       that is either undated or dated today/future; archived and past-dated
+       cards are excluded. This makes undated, already-created content visible
+       without pretending it has a calendar slot. Plan months come from the
+       Docs-tabs webhook when configured, else optional `plan_months` data.
+       Source of Doc links: Supabase filming_plans rows. */
     function _filmsTodayISO() {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -52295,14 +52814,16 @@
         return out;
     }
 
-    // Latest scheduled_date across a client's live (non-archived) calendar posts.
-    async function _filmsFetchRunway(slug) {
+    // Active content = every non-archived card which has not passed its
+    // scheduled date. Undated cards count because they are content waiting to
+    // be scheduled; past-dated cards are treated as already consumed.
+    async function _filmsFetchContentBank(slug) {
         try {
             // v2: read this client's posts from Supabase instead of the Sheet
             // (gated on _calV2Ready() so v1 is byte-identical). _calV2FetchPosts
             // already falls back to the n8n calendar-get webhook on any Supabase
-            // error, so the runway can never blank. The runway is just a computed
-            // summary (latest scheduled date), so a refresh-on-open is enough —
+            // error, so the content bank can never blank. The bank is a computed
+            // summary, so a refresh-on-open is enough —
             // no realtime subscription needed here.
             let json;
             if (_calV2Ready()) {
@@ -52313,50 +52834,84 @@
                 json = await resp.json();
             }
             if (!json || !json.ok || !Array.isArray(json.posts)) return null;
-            let latest = '';
+            const today = _filmsTodayISO();
+            let total = 0;
             for (const p of json.posts) {
                 if ((p.status || '').toLowerCase() === 'archived') continue;
                 const d = _calCoerceDate(p.scheduled_date);
-                if (d && d > latest) latest = d;
+                if (!d || d >= today) total++;
             }
-            return latest || null;
+            return total;
         } catch (e) { return null; }
     }
 
-    // Plan months for one doc via the optional Docs-tabs webhook.
+    // Plan months for one doc via the optional Docs-tabs webhook. Keep the
+    // returned titles too: a changed response shape or an unrecognised title
+    // must not silently turn into the misleading word "unknown".
     async function _filmsFetchTabMonths(docId) {
-        if (!FILMING_PLAN_TABS_URL || !docId) return null;
+        const empty = { months: [], titles: [], read: false, error: '' };
+        if (!FILMING_PLAN_TABS_URL || !docId) return empty;
         try {
             const resp = await fetch(FILMING_PLAN_TABS_URL + '?doc=' + encodeURIComponent(docId) + '&_t=' + Date.now());
-            if (!resp.ok) return null;
+            if (!resp.ok) return Object.assign({}, empty, { error: `Tab lookup failed (${resp.status})` });
             const json = await resp.json();
-            const tabs = json && (json.tabs || json.data) ;
-            if (!Array.isArray(tabs)) return null;
+            // The webhook currently returns { tabs }, but accept the common
+            // wrapper and raw Google Docs shapes as well so title data cannot
+            // be dropped during a workflow response change.
+            const tabs = Array.isArray(json) ? json
+                : (json && (json.tabs
+                    || (json.data && (json.data.tabs || json.data))
+                    || (json.document && json.document.tabs)));
+            if (!Array.isArray(tabs)) return Object.assign({}, empty, { error: 'Tab lookup returned no tab list' });
             const months = [];
+            const titles = [];
             for (const tb of tabs) {
-                const mk = _filmsParseMonth(tb && (tb.title || tb.name));
+                const title = String(tb && (tb.title || tb.name || (tb.tabProperties && tb.tabProperties.title)) || '').trim();
+                if (title) titles.push(title);
+                const mk = _filmsParseMonth(title);
                 if (mk) months.push(mk);
             }
-            return months;
-        } catch (e) { return null; }
+            return { months, titles, read: true, error: '' };
+        } catch (e) { return Object.assign({}, empty, { error: 'Tab lookup failed' }); }
+    }
+
+    function _filmsLatestPlanMonth(row) {
+        const months = Array.from((row && row.months) || []).filter(mk => /^20\d{2}-\d{2}$/.test(mk));
+        return months.sort().pop() || '';
+    }
+
+    function _filmsPlanDetails(row) {
+        const latestPlanMonth = _filmsLatestPlanMonth(row);
+        if (!row.docUrl) return { latestPlanMonth: '', nextPlanMonth: '', daysUntilPlan: null, state: 'missing-doc' };
+        if (!latestPlanMonth) {
+            const state = row.tabRead ? 'unrecognised' : 'unavailable';
+            return { latestPlanMonth: '', nextPlanMonth: '', daysUntilPlan: null, state };
+        }
+        // A June filming plan supplies July content, so the next plan is due in
+        // August. A new tab then advances the cycle by another two months.
+        const nextPlanMonth = _filmsAddMonth(latestPlanMonth, 2);
+        const daysUntilPlan = _filmsDaysUntil(nextPlanMonth + '-01');
+        return {
+            latestPlanMonth,
+            nextPlanMonth,
+            daysUntilPlan,
+            state: daysUntilPlan <= 0 ? 'overdue' : (daysUntilPlan <= FILMING_PLAN_SOON_DAYS ? 'soon' : 'covered'),
+        };
     }
 
     function _filmsClassify(row) {
-        // No content scheduled at all → almost certainly needs attention.
-        if (!row.runwayDate) {
-            if (!row.docUrl) return { status: 'red', reason: 'No filming Doc linked & no scheduled content' };
-            return { status: 'red', reason: 'No scheduled content on the calendar' };
-        }
-        const days = row.daysLeft;
-        const neededMonth = _filmsAddMonth(_filmsMonthKey(row.runwayDate), 1); // month after content runs out
-        const covered = row.months && Array.from(row.months).some(mk => mk >= neededMonth);
-        if (covered) return { status: 'green', reason: `Plan ready for ${_filmsMonthShort(neededMonth)}` };
-        // Not covered → urgency is driven by runway (the "both combined" rule).
-        const noData = !FILMING_PLAN_TABS_URL && (!row.months || row.months.size === 0);
-        const tail = noData ? ' · coverage unknown' : '';
-        if (days <= FILMING_RED_DAYS)  return { status: 'red',   reason: `${days}d of content left, no ${_filmsMonthShort(neededMonth)} plan${tail}` };
-        if (days <= FILMING_AMBER_DAYS) return { status: 'amber', reason: `${days}d left, ${_filmsMonthShort(neededMonth)} plan not started${tail}` };
-        return { status: 'green', reason: `${days}d of runway` + (row.docUrl ? '' : ' · no Doc linked') };
+        const contentTotal = row.contentTotal;
+        const plan = _filmsPlanDetails(row);
+        Object.assign(row, plan);
+        if (plan.state === 'missing-doc') return { status: 'red', reason: 'No filming Doc linked' };
+        if (contentTotal == null) return { status: 'amber', reason: 'Content total unavailable' };
+        if (contentTotal <= FILMING_CONTENT_RED_COUNT) return { status: 'red', reason: `${contentTotal} pieces of content` };
+        if (plan.state === 'overdue') return { status: 'red', reason: `${_filmsMonthShort(plan.nextPlanMonth)} plan overdue` };
+        if (plan.state === 'unavailable') return { status: 'amber', reason: row.tabError || 'Could not read filming-plan tabs' };
+        if (plan.state === 'unrecognised') return { status: 'amber', reason: 'No dated filming-plan tab found' };
+        if (plan.state === 'soon') return { status: 'amber', reason: `${_filmsMonthShort(plan.nextPlanMonth)} plan due in ${plan.daysUntilPlan}d` };
+        if (contentTotal < FILMING_CONTENT_COVERED_COUNT) return { status: 'amber', reason: `${contentTotal} pieces of content` };
+        return { status: 'green', reason: `Next plan: ${_filmsMonthShort(plan.nextPlanMonth)}` };
     }
 
     const _FILMS_RANK = { red: 0, amber: 1, green: 2 };
@@ -52377,8 +52932,13 @@
                 notes: (r.notes || '').trim(),
                 slug: calClientSlug(client),
                 months,                 // may be augmented by the tabs webhook
-                runwayDate: null,
-                daysLeft: null,
+                contentTotal: null,
+                tabRead: false,
+                tabTitles: [],
+                tabError: '',
+                latestPlanMonth: '',
+                nextPlanMonth: '',
+                daysUntilPlan: null,
                 status: 'amber',
                 reason: '',
             });
@@ -52400,8 +52960,13 @@
                 notes: String(plan.notes || '').trim(),
                 slug: calClientSlug(client),
                 months,
-                runwayDate: null,
-                daysLeft: null,
+                contentTotal: null,
+                tabRead: false,
+                tabTitles: [],
+                tabError: '',
+                latestPlanMonth: '',
+                nextPlanMonth: '',
+                daysUntilPlan: null,
                 status: 'amber',
                 reason: '',
             });
@@ -52449,8 +53014,8 @@
                     <span class="kfilm-dot kfilm-red"></span> needs a plan now —
                     <span class="kfilm-dot kfilm-amber"></span> start one soon —
                     <span class="kfilm-dot kfilm-green"></span> covered.</p>
-                <p><strong>Content runway</strong> is the date of the last scheduled post on that client's content calendar — i.e. when we run out of content.</p>
-                <p><strong>The alert</strong> only goes red/amber when content is running low <em>and</em> there's no filming plan for the upcoming month. Click a client to see which months already have a plan, and open the Doc.</p>
+                <p><strong>Content</strong> is every active calendar card that is still available: undated cards and cards scheduled today or later. Archived and past-dated cards do not count.</p>
+                <p><strong>The alert</strong> goes red for very low content or an overdue filming plan, amber when content is getting low or the next plan is due within two weeks. A monthly tab is treated as creating content for the following month.</p>
                 <p class="ked-info-note">Plan links live in the <strong>Filming Plans</strong> source-of-truth tab. Month coverage is read from each Doc's tabs when the tabs webhook is configured; otherwise from an optional <code>plan_months</code> value.</p>
             </div>
             <div id="kfilmBody">${_svLoadingSkeletonHtml('kasper', { label: 'Loading filming plans' })}</div>`;
@@ -52499,21 +53064,23 @@
                 _filmsPaint();
                 return;
             }
-            // Runway (per client) + optional Doc-tab months (per doc), bounded concurrency.
+            // Content bank (per client) + optional Doc-tab months (per doc), bounded concurrency.
             await _filmsMapLimit(rows, 5, async (row) => {
-                const [runway, tabMonths] = await Promise.all([
-                    _filmsFetchRunway(row.slug),
+                const [contentTotal, tabResult] = await Promise.all([
+                    _filmsFetchContentBank(row.slug),
                     _filmsFetchTabMonths(row.docId),
                 ]);
-                row.runwayDate = runway;
-                row.daysLeft = runway ? _filmsDaysUntil(runway) : null;
-                if (Array.isArray(tabMonths)) tabMonths.forEach(mk => row.months.add(mk));
+                row.contentTotal = contentTotal;
+                row.tabRead = !!(tabResult && tabResult.read);
+                row.tabTitles = (tabResult && Array.isArray(tabResult.titles)) ? tabResult.titles : [];
+                row.tabError = (tabResult && tabResult.error) || '';
+                if (tabResult && Array.isArray(tabResult.months)) tabResult.months.forEach(mk => row.months.add(mk));
                 const cls = _filmsClassify(row);
                 row.status = cls.status;
                 row.reason = cls.reason;
             });
             rows.sort((a, b) => (_FILMS_RANK[a.status] - _FILMS_RANK[b.status])
-                || ((a.daysLeft == null ? 1e9 : a.daysLeft) - (b.daysLeft == null ? 1e9 : b.daysLeft))
+                || ((a.contentTotal == null ? 1e9 : a.contentTotal) - (b.contentTotal == null ? 1e9 : b.contentTotal))
                 || a.client.localeCompare(b.client));
             _kasperState.filmingData = { rows };
             _kasperState.filmingLoadedAt = Date.now();
@@ -52567,9 +53134,13 @@
                 : `<span class="kfilm-nodoc">No Doc linked</span>`;
             const calUrl = `${location.pathname}#calendar/${encodeURIComponent(r.slug)}`;
             const calBtn = `<a class="kfilm-open kfilm-cal" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Calendar ↗</a>`;
-            const runwayTxt = r.runwayDate
-                ? `Content until <strong>${_filmsDatePretty(r.runwayDate)}</strong>${r.daysLeft != null ? ` · ${r.daysLeft}d left` : ''}`
-                : `<span class="kfilm-muted">No scheduled content</span>`;
+            const contentTxt = r.contentTotal == null
+                ? `<span class="kfilm-muted">Content total unavailable</span>`
+                : `<strong>${r.contentTotal}</strong> piece${r.contentTotal === 1 ? '' : 's'} of content`;
+            const rawTab = !r.latestPlanMonth && r.tabTitles && r.tabTitles.length ? r.tabTitles[0] : '';
+            const planTxt = r.latestPlanMonth
+                ? `Latest filming plan: <strong>${_filmsMonthShort(r.latestPlanMonth)}</strong> · ${_calEsc(r.reason)}`
+                : (rawTab ? `Filming Doc tab: <strong>${_calEsc(rawTab)}</strong> · ${_calEsc(r.reason)}` : _calEsc(r.reason));
             let strip = '';
             if (expanded) {
                 const cells = gridMonths.map(mk => {
@@ -52590,8 +53161,8 @@
                 <div class="kfilm-main">
                     <span class="kfilm-dot kfilm-${r.status}"></span>
                     <div class="kfilm-name">${_calEsc(r.client)}</div>
-                    <div class="kfilm-runway">${runwayTxt}</div>
-                    <div class="kfilm-reason">${_calEsc(r.reason)}</div>
+                    <div class="kfilm-runway">${contentTxt}</div>
+                    <div class="kfilm-reason">${planTxt}</div>
                     <div class="kfilm-actions">${calBtn}${open}<span class="kfilm-caret">${expanded ? '▾' : '▸'}</span></div>
                 </div>
                 ${strip}

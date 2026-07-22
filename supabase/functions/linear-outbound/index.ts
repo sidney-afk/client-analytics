@@ -18,7 +18,14 @@ import {
   pendingAgeAlertTeams,
   pendingAgeThresholdMinutes,
 } from "./monitoring.mjs";
-import { bindF27LinearResult, f27ReplayRequest } from "./f27-replay.mjs";
+import {
+  bindF27LinearResult,
+  bindF27ReplayScope,
+  f27ReplayRequest,
+  hasExactF27DrillStops,
+  isExactF27DrillAuthority,
+  isExactF27DrillReceipt,
+} from "./f27-replay.mjs";
 
 type JsonMap = Record<string, unknown>;
 type OutboxRow = JsonMap & {
@@ -40,6 +47,7 @@ type OutboxRow = JsonMap & {
   depends_on_id?: number | null;
   linear_result?: JsonMap | null;
   lock_token?: string | null;
+  f27_drill_rollback_id?: string | null;
 };
 
 const LINEAR_URL = "https://api.linear.app/graphql";
@@ -725,6 +733,16 @@ async function targetResult(supabase: SupabaseClient, dedupKey: string): Promise
   return data && typeof data === "object" ? data as JsonMap : null;
 }
 
+async function f27TargetResult(supabase: SupabaseClient, dedupKey: string): Promise<JsonMap | null> {
+  if (!dedupKey) return null;
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("id,status,operation,team,client_slug,dedup_key,legacy_parity,test_only,f27_drill_rollback_id,attempts,next_retry_at,last_error,linear_result")
+    .eq("dedup_key", dedupKey)
+    .maybeSingle();
+  if (error) throw new Error("F27 target outbox read failed");
+  return data && typeof data === "object" ? data as JsonMap : null;
+}
+
 async function f27ReplayAuthorization(
   supabase: SupabaseClient,
   request: JsonMap,
@@ -734,20 +752,19 @@ async function f27ReplayAuthorization(
   const dedupKey = clean(request.dedupKey);
   const { data: rollback, error: rollbackError } = await supabase
     .from("track_b_team_rollbacks")
-    .select("id,correlation_id,team,state")
+    .select("id,correlation_id,team,state,is_drill")
     .eq("id", rollbackId)
     .eq("state", "open")
     .maybeSingle();
   if (rollbackError || !rollback) throw new Error("F27 open rollback required");
 
   let outbox = row as JsonMap | null;
-  if (!outbox) outbox = await targetResult(supabase, dedupKey);
-  if (!outbox || clean(outbox.dedup_key) !== dedupKey || clean(outbox.team) !== clean(rollback.team)) {
-    throw new Error("F27 replay target mismatch");
-  }
+  if (!outbox) outbox = await f27TargetResult(supabase, dedupKey);
+  if (!outbox) throw new Error("F27 replay target mismatch");
+  const replay = bindF27ReplayScope(request, rollback, outbox) as JsonMap;
   const { data: intent, error: intentError } = await supabase
     .from("track_b_team_rollback_intents")
-    .select("classification,terminal_receipt")
+    .select("classification,terminal_receipt,row_sha256")
     .eq("rollback_id", rollbackId)
     .eq("outbox_id", Number(outbox.id))
     .eq("classification", "replay")
@@ -763,10 +780,39 @@ async function f27ReplayAuthorization(
   if (modeFrom(outbound) !== "off" || parity.enabled !== false) {
     throw new Error("F27 emergency stops required");
   }
-  if (authorityFor(clean(outbox.team), authority) !== "syncview") {
+  if (replay.isDrill === true) {
+    if (!hasExactF27DrillStops(outbound, parity)) {
+      throw new Error("F27 emergency stops required");
+    }
+    if (!isExactF27DrillAuthority(authority)) {
+      throw new Error("F27 drill Linear authority required");
+    }
+  } else if (authorityFor(clean(outbox.team), authority) !== "syncview") {
     throw new Error("F27 SyncView authority required");
   }
-  return { rollbackId, dedupKey, correlationId: clean(rollback.correlation_id) };
+  return { ...replay, intentSnapshotSha256: clean(intent.row_sha256) };
+}
+
+async function executeF27DrillReplay(
+  supabase: SupabaseClient,
+  replay: JsonMap,
+  row: OutboxRow,
+): Promise<JsonMap> {
+  const rollbackId = clean(replay.rollbackId);
+  const lockToken = clean(row.lock_token);
+  if (!rollbackId || !lockToken) throw new Error("F27 drill lock required");
+  const { data, error } = await supabase.rpc("track_b_f27_execute_drill_replay", {
+    p_rollback_id: rollbackId,
+    p_outbox_id: Number(row.id),
+    p_lock_token: lockToken,
+  });
+  const receipt = data && typeof data === "object" && !Array.isArray(data)
+    ? data as JsonMap
+    : {};
+  if (error || !isExactF27DrillReceipt(receipt, replay, row)) {
+    throw new Error("F27 drill replay refused");
+  }
+  return receipt;
 }
 
 async function currentControl(
@@ -898,6 +944,7 @@ Deno.serve(async (req: Request) => {
 
   let rows: OutboxRow[] = [];
   let mirrorActor: JsonMap = {};
+  let f27DrillReceipt: JsonMap | null = null;
   if (f27ReplayRequestValue) {
     f27ReplayRequestValue = await f27ReplayAuthorization(supabase, f27ReplayRequestValue);
   }
@@ -913,7 +960,10 @@ Deno.serve(async (req: Request) => {
       Boolean(f27ReplayRequestValue),
     );
     counts.enqueued = rows.length;
-    if (initialMode === "live" || f27ReplayRequestValue || rows.some(row => row.legacy_parity === true)) {
+    if (f27ReplayRequestValue?.isDrill !== true
+        && (initialMode === "live"
+          || f27ReplayRequestValue
+          || rows.some(row => row.legacy_parity === true))) {
       mirrorActor = await readViewer();
     }
   }
@@ -928,6 +978,13 @@ Deno.serve(async (req: Request) => {
       f27Replay = f27ReplayRequestValue
         ? await f27ReplayAuthorization(supabase, f27ReplayRequestValue, row)
         : null;
+      if (f27Replay && f27Replay.isDrill === true) {
+        // The service RPC terminalizes only the bound reserved fixture. Branch
+        // here so a drill can never resolve an entity or call Linear.
+        f27DrillReceipt = await executeF27DrillReplay(supabase, f27Replay, row);
+        counts.written++;
+        continue;
+      }
       const control = await currentControl(supabase, row, testOverride, f27Replay);
       if (control.mode === "off") {
         counts.paused++;
@@ -1144,5 +1201,11 @@ Deno.serve(async (req: Request) => {
     },
   };
   const eventId = await writeSummary(supabase, summary);
-  return json({ ok: counts.failed === 0, event_id: eventId, ...summary, target });
+  return json({
+    ok: counts.failed === 0,
+    event_id: eventId,
+    ...summary,
+    target,
+    ...(f27DrillReceipt ? { f27_drill_receipt: f27DrillReceipt } : {}),
+  });
 });

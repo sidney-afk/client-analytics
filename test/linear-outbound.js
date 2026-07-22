@@ -375,7 +375,8 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   'normal targeted requests are accepted only through the confirmed live SyncView lane');
 
   const inbound = read('supabase/functions/linear-inbound/index.ts');
-  ok(/mirror_actor_id/.test(inbound)
+  const inboundEchoProof = read('supabase/functions/linear-inbound/f27-echo.mjs');
+  ok(/mirror_actor_id/.test(inboundEchoProof)
     && /outboundValueMatches/.test(inbound)
     && /mirror_out_echo_dropped/.test(inbound),
   'inbound echo drop requires mirror identity plus matching written intent');
@@ -490,7 +491,7 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   ok(/classifyOutboundDeliverable/.test(reconciler)
     && /classifyOutboundBatch/.test(reconciler)
     && /mirror_outbox_enqueue/.test(reconciler)
-    && /mirror_outbox_requeue/.test(reconciler)
+    && /track_b_f27_requeue/.test(reconciler)
     && /authority === 'syncview'/.test(reconciler),
   'reconciler measures and queues healing only in the outbound authority direction');
   ok(/B4_TEST_AUTHORITY_CLIENT/.test(reconciler)

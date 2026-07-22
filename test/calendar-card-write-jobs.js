@@ -88,7 +88,9 @@ globalThis.fetch = async (url, opts) => {
 };
 
 let linearResponses = []; // queue; each entry: array | 'throw'
-globalThis.loadLinearIssues = async () => {
+let linearForceLog = [];
+globalThis.loadLinearIssues = async force => {
+  linearForceLog.push(force);
   const next = linearResponses.length > 1 ? linearResponses.shift() : linearResponses[0];
   if (next === 'throw') throw new Error('HTTP 502');
   return { issues: next };
@@ -119,7 +121,7 @@ function issuesFor(title, nums) {
   return out;
 }
 function reset() {
-  _store.clear(); fetchLog = []; notifications = [];
+  _store.clear(); fetchLog = []; notifications = []; linearForceLog = [];
   fetchOkFor = () => true;
   linearResponses = [issuesFor('T', [1, 2, 3])];
   globalThis._calCardJobsResumePromise = null;
@@ -152,6 +154,8 @@ reset();
   const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
   await _writeLinearVideoCardsToCalendar('Fixture Client', videos3, 'T', { mode: 'both', job });
   ok(fetchLog.length === 3, 'one upsert POST per video');
+  ok(linearForceLog.length > 0 && linearForceLog.every(force => force === true),
+    'post-create discovery always forces the direct no-cache Linear path');
   ok(fetchLog[0].body.client === 'fixtureclient', 'client slug is normalized (fixtureclient)');
   ok(fetchLog[0].body.post.id === 'p_lin_vid1', 'deterministic p_lin_ id from the VID sub-issue');
   ok(fetchLog[0].body.post.linear_issue_id === LIN + 'VID-1/video-1'

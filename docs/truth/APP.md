@@ -132,18 +132,30 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   toolbar, default collapsed, and remember each browser's expanded sections. The toolbar remains
   directly above the Work-day calendar. **Needs a work day or deadline** renders at the bottom,
   after the calendar and **Needs assignment**.
-- A first private plan/metadata read and every manual, visibility, or mirror-watermark refresh uses the shared
-  animated Workload skeleton with day, editor, and client-chip placeholders. The refreshing text
-  strip is not rendered. Plan dates and workload-label metadata are not browser-cached; the only new
-  browser persistence is the non-sensitive expanded/collapsed section preference plus the
-  display-only **Plan only** / **Plan + deadlines** preference, which defaults to **Plan only**.
-  Forced manual, visibility, and post-create refreshes bypass the scheduled mirror and use the
-  existing Linear reader with `no-store`. While Workload is visible, a 60-second lightweight poll
-  reads only the newest `workload_issues.synced_at`; the full existing skeleton refresh runs only
-  when that watermark advances. This bounds browser-side reaction after a mirror update, not the
-  upstream scheduled reconcile itself, so unseen new Linear work can still wait for that producer.
-  Realtime remains intentionally disabled. **As of** shows the mirror watermark rather than the
-  browser request time, so an old mirror cannot look newly fetched.
+- The animated Workload skeleton is limited to a cold first load, explicit manual **Refresh**, and
+  forced post-create discovery. Re-entering a warm Workload route paints its existing in-memory
+  calendar synchronously; internal navigation and browser visibility return never blank it and
+  never call n8n. Explicit Refresh and post-create discovery retain the direct no-cache Linear path.
+  After a successful explicit Refresh, Workload consumes only the current mirror watermark before
+  background polling resumes, so an older mirror snapshot cannot replace the newer direct truth.
+- Warm entry, visibility return, and the 60-second poll read only the newest Supabase
+  `workload_issues.synced_at` watermark. An unchanged cursor performs no snapshot fetch or repaint.
+  An advanced cursor fetches the issue mirror directly from Supabase plus saved plans and exact
+  label/deadline metadata through their staff Edge readers. The complete result publishes atomically,
+  metadata ids derive from that fresh issue set, and normalized comparisons ignore reconciliation and
+  audit timestamps. A successful no-diff comparison still consumes the new cursor; actual issue,
+  plan, or metadata changes trigger one deferred-safe repaint. A failed background read leaves the
+  last good calendar visible with a freshness warning and a retryable cursor. Realtime remains
+  intentionally disabled. **As of** shows the mirror watermark rather than browser request time.
+  Because an unchanged mirror cursor intentionally performs no projection reads, a plan-only change
+  made on another device converges after the scheduled mirror sweep next advances that cursor; an
+  immediate plan-side signal would require a separate backend contract.
+- Plan dates and workload-label metadata remain in memory only: identity replacement, sign-out, and
+  an expired-key `401` purge both maps and invalidate their in-flight reads without removing the warm
+  non-sensitive issue calendar. A newly verified identity rehydrates those sensitive maps in the
+  background against the retained issue snapshot, without a mirror or n8n read. The only Workload
+  browser persistence remains the existing issue cache, expanded/collapsed section preference, and
+  display-only **Plan only** / **Plan + deadlines** preference.
 - The live editable-plan path adds a separate
   internal work day. A saved `plan_date` is keyed by the sub-issue's stable id in the service-role
   `workload_plan` sidecar and overrides the automatic day. Dragging an individual issue or using the

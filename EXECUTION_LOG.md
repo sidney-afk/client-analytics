@@ -1099,3 +1099,36 @@ All times are UTC unless noted.
   provider response is recorded in this public evidence.
 - **Verification.** Exact-release `npm test` passed all 146 suites before deployment. The
   evidence-only follow-up rerun passed all 146 suites, and `git diff --check` passed.
+
+## 2026-07-22 — Workload background change-only refresh candidate
+
+- **Warm navigation stays painted.** Re-entering Workload renders its retained in-memory calendar
+  synchronously. Internal route switches and browser visibility return perform no n8n read and show
+  no skeleton; the skeleton remains limited to cold load, explicit Refresh, and forced post-create
+  discovery.
+- **Background truth is change-only.** Automatic checks read the Supabase mirror watermark first.
+  An unchanged cursor performs no projection fetch or calendar repaint; an advanced cursor reads the
+  mirror directly from Supabase, derives metadata ids from that fresh set, compares normalized issue,
+  plan, and metadata truth without audit timestamps, and repaints once only when visible business
+  state or an editing capability changes. A successful no-diff read still consumes the cursor.
+- **Warm failure and identity boundaries stay fail-closed.** Background failure leaves the last good
+  calendar visible with a freshness warning. Identity replacement, sign-out, and either projection's
+  `401` purge both role-sensitive maps and invalidate older reads while retaining non-sensitive issue
+  data. Verified re-entry restores only the sensitive projections in memory, without renewing the
+  issue cache or requiring the mirror-v2 lane.
+- **Direct truth cannot be regressed by an older mirror.** Explicit Refresh keeps its forced no-cache
+  Linear path and rebases only the mirror cursor before automatic checks resume. A failed baseline
+  remains unset so the next check establishes it without applying mirror rows. The post-create
+  discovery path remains independently forced and unchanged.
+- **Race and robot coverage.** Hermetic checks cover no-diff cursor consumption, fresh metadata id
+  sets, issue/plan/metadata one-repaint behavior, render-eligible comparisons, mixed auth failures,
+  sign-out and identity replacement, old/new refresh ownership, manual baselining, due-write races,
+  Creative visual parity, tweak exclusivity, and forced post-create discovery.
+- **Verification and review.** After rebasing onto `main` at
+  `b215bdcd1bd40f4be9340815d241971d45e73445`, all focused Workload lanes and `git diff --check`
+  passed; the repository-wide `npm test` gate passed all 155 suites. Independent final review returned
+  clear after the auth, cache-freshness, editability, and direct-truth race regressions were pinned.
+- **Boundary preserved.** This is a Pages-only browser/test/truth-doc change. No schema, migration,
+  table grant, runtime flag, n8n workflow, Edge Function, frozen writer, deployment, or live data
+  changed. PR #891 was not touched; its separate campaign must rebase onto this merge and rerun its
+  23-group visible-boot lane.

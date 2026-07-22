@@ -276,3 +276,10 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   correct those in Linear individually if business intent changed.
   Preserve Creative write denial throughout and do not route through `production-write`, n8n,
   `calendar-upsert`, or `sample-review-upsert` as a fallback.
+- **Workload background change-only refresh candidate 2026-07-22 (Pages-only)**: this change touches
+  only the browser Workload reader and its tests/docs. It adds no function, schema, migration, grant,
+  runtime flag, n8n workflow, or writer change. Roll back with a normal reviewed revert of this merge;
+  no live-service rollback or deploy is involved. That revert deliberately restores the prior
+  tab-switch/visibility behavior, including forced Linear-reader traffic and calendar skeletons, so
+  use it only for a worse browser regression. Keep the existing manual Refresh and post-create direct
+  paths intact, and never compensate by changing n8n, a runtime flag, or either frozen client writer.

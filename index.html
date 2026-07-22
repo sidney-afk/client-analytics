@@ -12566,6 +12566,7 @@
         sourceSyncedAt: null,                       // newest workload_issues.synced_at represented by this snapshot
         loading: false,
         refreshing: false,
+        backgroundError: null,                    // non-destructive warning; never replaces a warm calendar
         error: null
     };
 
@@ -12666,6 +12667,78 @@
             clientName: r.client_name,
         };
     }
+
+    // Background refreshes compare only fields that can change what Workload
+    // renders. Reconcile/audit timestamps are deliberately excluded: synced_at
+    // advances on every sweep even when the issue itself is unchanged, while
+    // createdAt/updatedAt are not displayed anywhere on this view.
+    function wlRenderableIssueProjection(issues) {
+        const source = Array.isArray(issues) ? issues : [];
+        const subs = source.filter(issue => issue && issue.isSubIssue
+            && wlIsActiveStatus(issue)
+            && wlIsAllowedClient(issue.clientName)
+            && (!issue.assigneeId || wlIsAllowedEditor(issue.assigneeName, issue.teamKey, issue.teamName)));
+        const parentIds = new Set(subs.map(issue => String(issue.parentId || '')).filter(Boolean));
+        return subs.concat(source.filter(issue => issue && !issue.isSubIssue && parentIds.has(String(issue.id || ''))));
+    }
+
+    function wlIssueBusinessFingerprint(issues) {
+        const rows = wlRenderableIssueProjection(issues).map(issue => [
+            String(issue && issue.id || ''),
+            String(issue && issue.identifier || ''),
+            String(issue && issue.title || ''),
+            String(issue && issue.url || ''),
+            issue && issue.isSubIssue === true,
+            String(issue && issue.parentId || ''),
+            String(issue && issue.parentIdentifier || ''),
+            issue && issue.dueDate ? String(issue.dueDate).slice(0, 10) : '',
+            String(issue && issue.sortOrder != null ? issue.sortOrder : ''),
+            String(issue && issue.status || ''),
+            String(issue && issue.statusType || ''),
+            String(issue && issue.teamKey || ''),
+            String(issue && issue.teamName || ''),
+            String(issue && issue.assigneeId || ''),
+            String(issue && issue.assigneeName || ''),
+            String(issue && issue.assigneeEmail || ''),
+            wlCanonicalClient(issue && issue.clientName || '') || String(issue && issue.clientName || '')
+        ]).sort((a, b) => a[0].localeCompare(b[0]));
+        return JSON.stringify(rows);
+    }
+
+    function wlPlanBusinessFingerprint(plans, issues) {
+        const issueIds = new Set(wlRenderableIssueProjection(issues)
+            .filter(issue => issue && issue.isSubIssue)
+            .map(issue => String(issue.id || '')));
+        const entries = plans && typeof plans.entries === 'function' ? [...plans.entries()] : [];
+        return JSON.stringify(entries
+            .filter(([issueId]) => issueIds.has(String(issueId)))
+            .map(([issueId, planDate]) => [String(issueId), String(planDate || '').slice(0, 10)])
+            .sort((a, b) => a[0].localeCompare(b[0])));
+    }
+
+    function wlMetadataBusinessFingerprint(metadata, issues) {
+        const issueIds = new Set(wlRenderableIssueProjection(issues)
+            .filter(issue => issue && issue.isSubIssue)
+            .map(issue => String(issue.id || '')));
+        const entries = metadata && typeof metadata.entries === 'function' ? [...metadata.entries()] : [];
+        return JSON.stringify(entries
+            .filter(([issueId]) => issueIds.has(String(issueId)))
+            .map(([issueId, value]) => [
+                String(issueId),
+                String(value && value.label || ''),
+                Number(value && value.weight) || 0,
+                String(value && value.color || '').toUpperCase()
+            ])
+            .sort((a, b) => a[0].localeCompare(b[0])));
+    }
+
+    function wlBackgroundBusinessFingerprint() {
+        return [
+            wlIssueBusinessFingerprint(wlState.issueSnapshot),
+            wlPlanBusinessFingerprint(wlState.planByIssueId, wlState.issueSnapshot),
+            wlMetadataBusinessFingerprint(wlState.workloadByIssueId, wlState.issueSnapshot)
+        ].join('\n');
+    }
     // Read every ACTIVE row. Supabase caps a single response at 1000 rows, so we
     // page with limit/offset until a short page — otherwise the board would
     // silently miss issues beyond the first 1000.
@@ -12674,7 +12747,7 @@
         const headers = { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
         let from = 0, all = [];
         for (let guard = 0; guard < 50; guard++) {        // hard cap 50k rows
-            const resp = await fetch(base + from, { headers });
+            const resp = await fetch(base + from, { cache: 'no-store', headers });
             if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
             const rows = await resp.json();
             if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
@@ -12686,9 +12759,8 @@
     }
 
     // Realtime: one global channel on workload_issues. A change coalesces into a
-    // debounced silent refetch (which re-reads Supabase and repaints through the
-    // shared calendar skeleton). The board has no inline editing, so there's no
-    // self-echo to suppress (writes come from n8n, not the browser).
+    // cheap watermark check; only an advanced cursor enters the Supabase-only
+    // background comparison lane. Background work never blanks the calendar.
     const WL_V2_WATERMARK_POLL_MS = 60 * 1000;
     let _wlV2Channel = null, _wlV2RtTimer = null, _wlV2SubscribedOnce = false;
     let _wlV2WatermarkTimer = null, _wlV2WatermarkBusy = false;
@@ -12698,7 +12770,7 @@
         _wlV2RtTimer = setTimeout(() => {
             _wlV2RtTimer = null;
             if (!document.querySelector('.workload-view')) return;
-            wlRefetchSilent();
+            _wlV2CheckWatermark();
         }, WL_V2_RT_DEBOUNCE_MS);
     }
     async function _wlV2EnsureSubscribed() {
@@ -12747,17 +12819,26 @@
         _wlV2WatermarkBusy = true;
         try {
             const latest = await _wlV2FetchLatestWatermark();
-            if (!latest) return;
+            if (!latest) {
+                wlClearBackgroundRefreshFailure();
+                return;
+            }
             if (!wlState.sourceSyncedAt) {
                 wlState.sourceSyncedAt = latest;
+                wlClearBackgroundRefreshFailure();
                 return;
             }
             if (Date.parse(latest) > Date.parse(wlState.sourceSyncedAt)) {
                 const refreshed = await wlRefetchSilent();
-                if (refreshed === true) wlState.sourceSyncedAt = latest;
+                if (refreshed === true && (!wlState.sourceSyncedAt || Date.parse(latest) > Date.parse(wlState.sourceSyncedAt))) {
+                    wlState.sourceSyncedAt = latest;
+                }
+            } else {
+                wlClearBackgroundRefreshFailure();
             }
         } catch (error) {
             console.warn('[Workload v2] watermark poll failed', error);
+            wlMarkBackgroundRefreshFailure(error);
         } finally {
             _wlV2WatermarkBusy = false;
         }
@@ -12791,7 +12872,7 @@
         // never blank or half-populate the board.
         // A forced refresh must honor its "from Linear" contract. The mirror
         // is the fast default read, but it can trail Linear until the upstream
-        // reconcile; manual/visibility/create polling therefore bypasses it.
+        // reconcile; only manual refresh and post-create discovery bypass it.
         if (_wlV2Ready() && !force) {
             try {
                 const issues = await _wlV2FetchIssues();
@@ -12833,6 +12914,8 @@
     let _wlPlanWriteGeneration = 0;
     let _wlPlanSessionGeneration = 0;
     let _wlPlanLoadGeneration = 0;
+    let _wlBackgroundRefreshPromise = null;
+    let _wlBackgroundRefreshMode = null;
 
     function wlPlanEditingEnabled() {
         return wlState.planStatus === 'ready' && _syncviewStaffCan('workload-plan');
@@ -12912,7 +12995,7 @@
         return rows;
     }
 
-    function wlAdoptLinearMetadata(rows, issues, fetchedAt) {
+    function wlAdoptLinearMetadata(rows, issues, fetchedAt, options) {
         const next = new Map();
         const issueById = new Map((issues || []).map(issue => [String(issue && issue.id || ''), issue]));
         for (const row of rows || []) {
@@ -12933,7 +13016,9 @@
         wlState.workloadByIssueId = next;
         wlState.linearMetadataStatus = 'ready';
         wlState.linearMetadataError = null;
-        if (Array.isArray(issues)) wlWriteCache({ issues, fetchedAt: fetchedAt || Date.now() });
+        if (Array.isArray(issues) && !(options && options.skipIssueCacheWrite)) {
+            wlWriteCache({ issues, fetchedAt: fetchedAt || Date.now() });
+        }
     }
 
     function wlMarkLinearMetadataFailure(error) {
@@ -13000,6 +13085,8 @@
         _wlDueWriteInFlight.clear();
         _wlPlanLastWriteGeneration.clear();
         _wlPlanWriteGeneration = 0;
+        _wlBackgroundRefreshPromise = null;
+        _wlBackgroundRefreshMode = null;
         wlState.planByIssueId.clear();
         wlState.planHasSnapshot = false;
         wlState.planStatus = 'unknown';
@@ -13008,6 +13095,7 @@
         wlState.workloadByIssueId.clear();
         wlState.linearMetadataStatus = 'unknown';
         wlState.linearMetadataError = 'Staff sign-in is required to load Workload labels.';
+        wlState.backgroundError = null;
         if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
             wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
         }
@@ -13024,8 +13112,8 @@
         wlState.planError = null;
         wlState.linearMetadataError = null;
         if (document.querySelector('.workload-view')) {
-            // Every manual, visibility, and realtime refresh paints the same
-            // calendar-shaped skeleton immediately, even over an open popover.
+            // Foreground loads deliberately use the calendar-shaped skeleton.
+            // Warm navigation and automatic freshness checks never enter here.
             renderWorkloadAll();
         }
         const [issuesResult, plansResult] = await Promise.allSettled([
@@ -13047,6 +13135,20 @@
         // Older calls can still populate the shared HTTP cache, but they cannot
         // overwrite a newer saved-plan snapshot or downgrade its status.
         if (loadGeneration !== _wlPlanLoadGeneration) return null;
+        const foregroundFailures = [plansResult, metadataResult]
+            .filter(result => result.status === 'rejected')
+            .map(result => result.reason);
+        const foregroundAuthFailure = foregroundFailures.find(error => Number(error && error.status) === 401)
+            || foregroundFailures.find(error => Number(error && error.status) === 403)
+            || null;
+        if (foregroundAuthFailure) {
+            if (Number(foregroundAuthFailure.status) === 401) _syncviewStaffIdentityClear();
+            else wlPurgePlanSensitiveState();
+            // Issue rows are not role-sensitive. Keep the usable calendar,
+            // but never publish either private projection after an auth denial.
+            wlApplyData(payload.issues, payload.fetchedAt);
+            return payload;
+        }
         if (plansResult.status === 'fulfilled') wlAdoptPlanRows(plansResult.value);
         else wlMarkPlanReadFailure(plansResult.reason);
         if (metadataResult.status === 'fulfilled') wlAdoptLinearMetadata(metadataResult.value, payload.issues, payload.fetchedAt);
@@ -13722,19 +13824,35 @@
         } catch {}
         if (wlState.showDeadlines) wlState.viewMode = 'week';
 
+        // A route switch remounts the Workload shell, but the calendar state is
+        // already warm. Paint that in-memory snapshot synchronously and limit
+        // automatic network work to the cheap Supabase watermark check.
+        const hasWarmSnapshot = wlState.fetchedAt != null && Array.isArray(wlState.issueSnapshot);
+        if (hasWarmSnapshot) {
+            wlState.loading = false;
+            wlState.refreshing = false;
+            renderWorkloadAll();
+            wlWireToolbar();
+            wlWireClientSearch();
+            _wlV2EnsureSubscribed();
+            _wlV2EnsureWatermarkPoll();
+            if (wlState.planStatus !== 'ready' || wlState.linearMetadataStatus !== 'ready') {
+                wlRefreshSensitiveStateSilent().finally(_wlV2CheckWatermark);
+            } else {
+                _wlV2CheckWatermark();
+            }
+            return;
+        }
+
         const cache = wlReadCache();
         wlState.loading = true;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
+        wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'refreshing' : 'loading';
         // Phase 1's exact due-date view remains a safe first paint even before
         // the plan sidecar has answered. This keeps the post-merge / pre-deploy
         // window useful without a runtime gate; saved overrides replace the
         // fallback only after an authoritative list response.
-        if (cache) {
-            wlApplyData(cache.issues, cache.fetchedAt);
-            renderWorkloadAll();
-        } else {
-            renderWorkloadAll();
-        }
+        renderWorkloadAll();
 
         // Wire the toolbar and client search BEFORE the fetch so the search
         // input has its listeners attached the moment the user starts
@@ -13750,8 +13868,9 @@
         _wlV2EnsureWatermarkPoll();
 
         try {
-            await wlLoadSnapshot(!!cache, cache);
+            await wlLoadSnapshot(false, cache);
             wlState.error = null;
+            wlState.backgroundError = null;
         } catch (e) {
             console.error('[SyncView] Workload fetch failed:', e);
             if (!cache) wlState.error = e.message || 'Failed to load issues from Linear.';
@@ -13781,35 +13900,156 @@
         if (btn) btn.classList.remove('wl-refreshing');
     }
 
-    // Silent background refetch — fires when the browser tab becomes visible again.
-    async function wlRefetchSilent() {
-        if (!document.querySelector('.workload-view')) return false;
-        wlSpinnerOn();
-        try {
-            const payload = await wlLoadSnapshot(true, null);
-            if (!document.querySelector('.workload-view')) return false;
-            wlState.error = null;
-            return !!payload && payload.usedFallback !== true;
-        } catch (e) {
-            console.error('[SyncView] Workload silent refresh failed:', e);
-            return false;
-        } finally {
-            wlSpinnerOff();
-            if (document.querySelector('.workload-view')) renderWorkloadAll({ deferWhilePopoverOpen: true });
+    // Non-destructive background refresh helpers.
+    function wlMarkBackgroundRefreshFailure(error) {
+        wlState.backgroundError = (error && error.message) || 'Background refresh failed.';
+        if (document.querySelector('.workload-view')) renderWorkloadPlanStatus();
+    }
+
+    function wlClearBackgroundRefreshFailure() {
+        if (!wlState.backgroundError) return;
+        wlState.backgroundError = null;
+        if (document.querySelector('.workload-view')) renderWorkloadPlanStatus();
+    }
+
+    // Atomic Supabase/Edge background lane. It never calls the n8n-backed
+    // loader, never selects a loading state, and publishes only a complete set
+    // of issues, saved plans, and Linear metadata.
+    async function wlRefetchSilent(options) {
+        const sensitiveOnly = !!(options && options.sensitiveOnly);
+        if (!document.querySelector('.workload-view') || (!sensitiveOnly && !_wlV2Ready())) return false;
+        if (!_syncviewStaffIdentityForHeaders()) return false;
+        if (sensitiveOnly && wlState.fetchedAt == null) return false;
+        if (_wlPlanWriteInFlight.size || _wlDueWriteInFlight.size) return false;
+        if (_wlBackgroundRefreshPromise) {
+            // A full refresh already includes the sensitive projections. A
+            // full request arriving behind a sensitive-only rehydrate must,
+            // however, wait and then read the mirror itself before its caller
+            // may consume an advanced watermark.
+            if (!sensitiveOnly && _wlBackgroundRefreshMode === 'sensitive') {
+                await _wlBackgroundRefreshPromise;
+                return wlRefetchSilent();
+            }
+            return _wlBackgroundRefreshPromise;
+        }
+
+        const run = async () => {
+            const loadGeneration = ++_wlPlanLoadGeneration;
+            const sessionGeneration = _wlPlanSessionGeneration;
+            try {
+                const freshIssues = sensitiveOnly
+                    ? wlState.issueSnapshot.map(issue => ({ ...issue }))
+                    : await _wlV2FetchIssues();
+                if (!sensitiveOnly && !freshIssues.length && wlState.issueSnapshot.length) {
+                    throw new Error('Supabase returned an empty Workload snapshot.');
+                }
+                const [plansResult, metadataResult] = await Promise.allSettled([
+                    wlFetchPlanRows(),
+                    wlFetchLinearMetadata(freshIssues)
+                ]);
+                if (loadGeneration !== _wlPlanLoadGeneration || sessionGeneration !== _wlPlanSessionGeneration) return false;
+                if (_wlPlanWriteInFlight.size || _wlDueWriteInFlight.size) return false;
+
+                const failures = [plansResult, metadataResult]
+                    .filter(result => result.status === 'rejected')
+                    .map(result => result.reason);
+                // An auth denial from either staff projection must not be
+                // masked by an unrelated network error from the other one.
+                const failed = failures.find(error => Number(error && error.status) === 401)
+                    || failures.find(error => Number(error && error.status) === 403)
+                    || failures[0]
+                    || null;
+                if (failed) throw failed;
+
+                const before = wlBackgroundBusinessFingerprint();
+                const editabilityBefore = `${wlPlanEditingEnabled()}:${wlLinearEditingEnabled()}`;
+                // Re-authentication may update due-date metadata on a retained
+                // snapshot, but it must not make that old mirror read look new.
+                const fetchedAt = sensitiveOnly ? wlState.fetchedAt : Date.now();
+                wlAdoptPlanRows(plansResult.value);
+                wlAdoptLinearMetadata(metadataResult.value, freshIssues, fetchedAt, {
+                    skipIssueCacheWrite: sensitiveOnly
+                });
+                wlApplyData(freshIssues, fetchedAt);
+                wlState.error = null;
+                wlState.backgroundError = null;
+
+                const changed = before !== wlBackgroundBusinessFingerprint();
+                const editingChanged = editabilityBefore !== `${wlPlanEditingEnabled()}:${wlLinearEditingEnabled()}`;
+                if (document.querySelector('.workload-view')) {
+                    if (changed || editingChanged) renderWorkloadAll({ deferWhilePopoverOpen: true });
+                    else renderWorkloadPlanStatus();
+                }
+                // True means the complete server snapshot was consumed. The
+                // caller must advance its watermark even when `changed` is false.
+                return true;
+            } catch (error) {
+                if (loadGeneration !== _wlPlanLoadGeneration || sessionGeneration !== _wlPlanSessionGeneration) return false;
+                const status = Number(error && error.status) || 0;
+                if (status === 401) _syncviewStaffIdentityClear();
+                else if (status === 403) wlPurgePlanSensitiveState();
+                else {
+                    console.warn('[SyncView] Workload background refresh failed:', error);
+                    wlMarkBackgroundRefreshFailure(error);
+                }
+                return false;
+            }
+        };
+
+        const pending = run();
+        _wlBackgroundRefreshPromise = pending;
+        _wlBackgroundRefreshMode = sensitiveOnly ? 'sensitive' : 'full';
+        try { return await pending; }
+        finally {
+            if (_wlBackgroundRefreshPromise === pending) {
+                _wlBackgroundRefreshPromise = null;
+                _wlBackgroundRefreshMode = null;
+            }
         }
     }
 
-    // Manual refresh — toolbar ↻ button. Spins the icon while the calendar
-    // uses the same skeleton as every automatic refresh.
+    async function wlRefreshSensitiveStateSilent() {
+        if (wlState.planStatus === 'ready' && wlState.linearMetadataStatus === 'ready') return true;
+        if (wlState.loading || wlState.refreshing
+            || wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing'
+            || wlState.linearMetadataStatus === 'loading' || wlState.linearMetadataStatus === 'refreshing') return false;
+        return wlRefetchSilent({ sensitiveOnly: true });
+    }
+
+    async function wlRebaseMirrorWatermarkAfterDirectRefresh() {
+        try {
+            const latest = await _wlV2FetchLatestWatermark();
+            if (latest) wlState.sourceSyncedAt = latest;
+            wlClearBackgroundRefreshFailure();
+        } catch (error) {
+            // Keep the cursor empty. The next successful check will establish a
+            // baseline without applying an older mirror over fresh Linear truth.
+            console.warn('[SyncView] Workload mirror baseline failed:', error);
+            wlMarkBackgroundRefreshFailure(error);
+        }
+    }
+
+    // Manual refresh — toolbar ↻ button. This explicit action intentionally
+    // keeps the direct no-cache Linear path and the calendar skeleton.
     async function wlManualRefresh() {
         if (!document.querySelector('.workload-view') || wlState.refreshing) return;
+        const priorWatermark = wlState.sourceSyncedAt;
+        const shouldRebaseMirror = _wlV2Ready();
+        if (shouldRebaseMirror) wlState.sourceSyncedAt = null;
         wlState.refreshing = true;
         wlSpinnerOn();
         try {
-            await wlLoadSnapshot(true, null);
+            const payload = await wlLoadSnapshot(true, null);
             if (!document.querySelector('.workload-view')) return;
+            wlState.backgroundError = null;
+            if (shouldRebaseMirror && payload && !payload.usedFallback) {
+                await wlRebaseMirrorWatermarkAfterDirectRefresh();
+            } else if (shouldRebaseMirror) {
+                wlState.sourceSyncedAt = priorWatermark;
+            }
             wlState.error = null;
         } catch (err) {
+            if (shouldRebaseMirror) wlState.sourceSyncedAt = priorWatermark;
             wlState.error = err.message || 'Refresh failed.';
         } finally {
             wlState.refreshing = false;
@@ -13818,13 +14058,14 @@
         }
     }
 
-    // Pull fresh data the moment the user tabs back to the browser so they
-    // don't stare at minutes-old numbers. Registered once at module scope.
+    // Returning to the browser checks only the Supabase watermark. The warm
+    // calendar remains mounted while any advanced snapshot is compared.
+    function _wlOnVisibilityChange() {
+        if (!document.hidden && document.querySelector('.workload-view')) _wlV2CheckWatermark();
+    }
     if (typeof document !== 'undefined' && !window.__wlVisibilityWired) {
         window.__wlVisibilityWired = true;
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && document.querySelector('.workload-view')) wlRefetchSilent();
-        });
+        document.addEventListener('visibilitychange', _wlOnVisibilityChange);
     }
 
     // Debug helper — run  wlDebug()  in the browser console while on the Workload tab.
@@ -14121,6 +14362,10 @@
 
         const sessionGeneration = _wlPlanSessionGeneration;
         const token = {};
+        // Any snapshot already in flight predates this optimistic Linear write.
+        // Invalidate it now so a fast successful save cannot be overwritten by
+        // an older metadata response after the write token is removed.
+        _wlPlanLoadGeneration++;
         _wlDueWriteInFlight.set(key, token);
         wlApplyDueLocal(key, dueDate);
         renderWorkloadAll();
@@ -14841,6 +15086,12 @@
         if (!el) return;
         const status = wlState.planStatus;
         const metadataStatus = wlState.linearMetadataStatus;
+        if (wlState.backgroundError) {
+            el.hidden = false;
+            el.className = 'workload-plan-status is-warning';
+            el.textContent = 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.';
+            return;
+        }
         if (status === 'ready' && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
             el.hidden = false;
             el.className = 'workload-plan-status is-warning';
@@ -18698,6 +18949,11 @@
             if (identity) localStorage.setItem(SYNCVIEW_STAFF_IDENTITY_KEY, JSON.stringify(identity));
             else localStorage.removeItem(SYNCVIEW_STAFF_IDENTITY_KEY);
         } catch (e) {}
+        if (identity && _syncviewStaffIdentityVerified) {
+            try {
+                if (typeof wlRefreshSensitiveStateSilent === 'function') wlRefreshSensitiveStateSilent();
+            } catch (e) {}
+        }
     }
     function _syncviewStaffIdentityClear() {
         _syncviewStaffPurgeSensitiveState();

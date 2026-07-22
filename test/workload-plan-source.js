@@ -30,6 +30,10 @@ const clientMetadataRead = INDEX.slice(
   INDEX.indexOf('async function wlFetchLinearMetadata('),
   INDEX.indexOf('function wlAdoptLinearMetadata('),
 );
+const clientMetadataAdopt = INDEX.slice(
+  INDEX.indexOf('function wlAdoptLinearMetadata('),
+  INDEX.indexOf('function wlMarkLinearMetadataFailure('),
+);
 const clientWrite = INDEX.slice(
   INDEX.indexOf('async function _wlPlanWriteRequest('),
   INDEX.indexOf('async function _wlDueWriteRequest('),
@@ -77,6 +81,38 @@ const groupDragHandle = INDEX.slice(
 const watermarkSource = INDEX.slice(
   INDEX.indexOf('async function _wlV2FetchLatestWatermark('),
   INDEX.indexOf('window.wlV2Status'),
+);
+const backgroundRefresh = INDEX.slice(
+  INDEX.indexOf('async function wlRefetchSilent('),
+  INDEX.indexOf('// Manual refresh'),
+);
+const workloadInit = INDEX.slice(
+  INDEX.indexOf('async function initWorkloadView('),
+  INDEX.indexOf('function wlSpinnerOn('),
+);
+const workloadManualRefresh = INDEX.slice(
+  INDEX.indexOf('async function wlManualRefresh('),
+  INDEX.indexOf('function _wlOnVisibilityChange('),
+);
+const workloadMirrorRebase = INDEX.slice(
+  INDEX.indexOf('async function wlRebaseMirrorWatermarkAfterDirectRefresh('),
+  INDEX.indexOf('async function wlManualRefresh('),
+);
+const workloadForegroundLoad = INDEX.slice(
+  INDEX.indexOf('async function wlLoadSnapshot('),
+  INDEX.indexOf('const WL_WORKLOAD_TIME_ZONE'),
+);
+const workloadVisibility = INDEX.slice(
+  INDEX.indexOf('function _wlOnVisibilityChange('),
+  INDEX.indexOf('// Debug helper'),
+);
+const renderableIssueProjection = INDEX.slice(
+  INDEX.indexOf('function wlRenderableIssueProjection('),
+  INDEX.indexOf('function wlBackgroundBusinessFingerprint('),
+);
+const staffIdentitySave = INDEX.slice(
+  INDEX.indexOf('function _syncviewStaffIdentitySave('),
+  INDEX.indexOf('function _syncviewStaffIdentityClear('),
 );
 const rollupPopover = INDEX.slice(
   INDEX.indexOf('function wlOpenRollupPopover('),
@@ -290,10 +326,24 @@ ok(/if \(_wlV2Ready\(\) && !force\)/.test(clientIssueRead)
   && /const url = force[\s\S]*LINEAR_ISSUES_WEBHOOK/.test(clientIssueRead)
   && /cache: 'no-store'/.test(clientIssueRead),
 'forced Workload refresh bypasses the scheduled mirror and reads Linear without browser cache');
-ok(/usedFallback: true/.test(INDEX)
-  && /const payload = await wlLoadSnapshot\(true, null\)/.test(INDEX)
-  && /payload\.usedFallback !== true/.test(INDEX),
-'silent refresh reports success only when the forced issue fetch did not fall back to stale state');
+ok(/await wlLoadSnapshot\(true, null\)/.test(workloadManualRefresh)
+  && /_wlV2FetchIssues\(\)/.test(backgroundRefresh)
+  && /wlFetchPlanRows\(\)/.test(backgroundRefresh)
+  && /wlFetchLinearMetadata\(freshIssues\)/.test(backgroundRefresh)
+  && !/loadLinearIssues|wlLoadSnapshot|LINEAR_ISSUES_WEBHOOK/.test(backgroundRefresh)
+  && /_wlV2CheckWatermark\(\)/.test(workloadVisibility)
+  && !/wlRefetchSilent|wlLoadSnapshot|loadLinearIssues/.test(workloadVisibility),
+'manual refresh alone keeps the forced Linear path while visibility background work stays Supabase/Edge-only');
+ok(/const priorWatermark = wlState\.sourceSyncedAt/.test(workloadManualRefresh)
+  && /const shouldRebaseMirror = _wlV2Ready\(\)/.test(workloadManualRefresh)
+  && workloadManualRefresh.indexOf('wlState.sourceSyncedAt = null') < workloadManualRefresh.indexOf('wlLoadSnapshot(true, null)')
+  && /payload && !payload\.usedFallback[\s\S]*await wlRebaseMirrorWatermarkAfterDirectRefresh\(\)/.test(workloadManualRefresh)
+  && (workloadManualRefresh.match(/wlState\.sourceSyncedAt = priorWatermark/g) || []).length === 2
+  && /const latest = await _wlV2FetchLatestWatermark\(\)/.test(workloadMirrorRebase)
+  && /if \(latest\) wlState\.sourceSyncedAt = latest/.test(workloadMirrorRebase)
+  && /catch \(error\)[\s\S]*wlMarkBackgroundRefreshFailure\(error\)/.test(workloadMirrorRebase)
+  && !/_wlV2FetchIssues|wlRefetchSilent|wlApplyData|loadLinearIssues/.test(workloadMirrorRebase),
+'successful manual Linear refresh rebases only the mirror cursor and leaves a failed baseline empty for the next cheap check');
 ok(/action: 'set'/.test(clientWrite)
   && /issue_id: String\(issue\.id/.test(clientWrite)
   && /client: String\(issue\.clientName/.test(clientWrite)
@@ -373,9 +423,47 @@ ok(/planStatus === 'ready'/.test(INDEX)
   && /last good plan is shown; editing is paused/.test(INDEX)
   && /Deadlines are shown as a clearly marked fallback; editing is disabled/.test(INDEX),
 'failed plan reads never masquerade as an authoritative empty override map');
-ok(/if \(cache\) \{\s*wlApplyData\(cache\.issues, cache\.fetchedAt\);\s*renderWorkloadAll\(\);/.test(INDEX)
-  && !/if \(cache && wlState\.planHasSnapshot\)/.test(INDEX),
-'cached Phase-1 due dates paint immediately while the sidecar is unavailable');
+ok(/const hasWarmSnapshot = wlState\.fetchedAt != null && Array\.isArray\(wlState\.issueSnapshot\)/.test(workloadInit)
+  && /if \(hasWarmSnapshot\)[\s\S]*renderWorkloadAll\(\)[\s\S]*_wlV2CheckWatermark\(\)[\s\S]*return/.test(workloadInit)
+  && /await wlLoadSnapshot\(false, cache\)/.test(workloadInit)
+  && !/wlLoadSnapshot\(!!cache/.test(workloadInit),
+ 'warm route re-entry paints the in-memory calendar immediately and cold loading does not force n8n');
+ok(/wlState\.planStatus !== 'ready' \|\| wlState\.linearMetadataStatus !== 'ready'/.test(workloadInit)
+  && /wlRefreshSensitiveStateSilent\(\)\.finally\(_wlV2CheckWatermark\)/.test(workloadInit)
+  && /async function wlRefreshSensitiveStateSilent\(\)[\s\S]*wlRefetchSilent\(\{ sensitiveOnly: true \}\)/.test(backgroundRefresh)
+  && /const sensitiveOnly = !!\(options && options\.sensitiveOnly\)/.test(backgroundRefresh)
+  && /sensitiveOnly\s*\?\s*wlState\.issueSnapshot\.map\(issue => \(\{ \.\.\.issue \}\)\)\s*:\s*await _wlV2FetchIssues\(\)/.test(backgroundRefresh)
+  && /if \(!_syncviewStaffIdentityForHeaders\(\)\) return false/.test(backgroundRefresh)
+  && /identity && _syncviewStaffIdentityVerified[\s\S]*wlRefreshSensitiveStateSilent\(\)/.test(staffIdentitySave),
+'a verified sign-in or warm non-ready remount rehydrates only sensitive maps against the retained issue snapshot');
+ok(/\(!sensitiveOnly && !_wlV2Ready\(\)\)/.test(backgroundRefresh)
+  && !backgroundRefresh.includes('|| !_wlV2Ready()) return false')
+  && /const fetchedAt = sensitiveOnly \? wlState\.fetchedAt : Date\.now\(\)/.test(backgroundRefresh)
+  && /skipIssueCacheWrite: sensitiveOnly/.test(backgroundRefresh)
+  && /function wlAdoptLinearMetadata\(rows, issues, fetchedAt, options\)/.test(clientMetadataAdopt)
+  && /Array\.isArray\(issues\) && !\(options && options\.skipIssueCacheWrite\)/.test(clientMetadataAdopt),
+'sensitive-only hydration works without wl2 while preserving mirror and persisted-cache freshness');
+const sensitivePurge = INDEX.slice(
+  INDEX.indexOf('function wlPurgePlanSensitiveState('),
+  INDEX.indexOf('async function wlLoadSnapshot('),
+);
+ok(/let _wlBackgroundRefreshPromise = null;[\s\S]{0,100}let _wlBackgroundRefreshMode = null;/.test(INDEX)
+  && /_wlBackgroundRefreshPromise = null;[\s\S]{0,100}_wlBackgroundRefreshMode = null;/.test(sensitivePurge)
+  && /!sensitiveOnly && _wlBackgroundRefreshMode === 'sensitive'[\s\S]*await _wlBackgroundRefreshPromise[\s\S]*return wlRefetchSilent\(\)/.test(backgroundRefresh)
+  && /const pending = run\(\)[\s\S]*_wlBackgroundRefreshPromise = pending[\s\S]*_wlBackgroundRefreshMode = sensitiveOnly \? 'sensitive' : 'full'/.test(backgroundRefresh)
+  && /if \(_wlBackgroundRefreshPromise === pending\)[\s\S]*_wlBackgroundRefreshPromise = null[\s\S]*_wlBackgroundRefreshMode = null/.test(backgroundRefresh),
+'mode-aware single-flight queues a full mirror read behind sensitive hydration and stale finally blocks cannot clear a newer session');
+ok(backgroundRefresh.includes('const editabilityBefore = `${wlPlanEditingEnabled()}:${wlLinearEditingEnabled()}`;')
+  && backgroundRefresh.includes('const editingChanged = editabilityBefore !== `${wlPlanEditingEnabled()}:${wlLinearEditingEnabled()}`;')
+  && !/const wasEditable\s*=/.test(backgroundRefresh),
+'plan and metadata editability recover independently and either capability change can repaint unchanged maps');
+ok(/const failures = \[plansResult, metadataResult\][\s\S]*\.filter\(result => result\.status === 'rejected'\)[\s\S]*\.map\(result => result\.reason\)/.test(backgroundRefresh)
+  && /failures\.find\(error => Number\(error && error\.status\) === 401\)[\s\S]*failures\.find\(error => Number\(error && error\.status\) === 403\)[\s\S]*failures\[0\]/.test(backgroundRefresh),
+'background auth denial takes precedence over a concurrent generic projection failure');
+ok(/const foregroundFailures = \[plansResult, metadataResult\][\s\S]*const foregroundAuthFailure = foregroundFailures\.find\(error => Number\(error && error\.status\) === 401\)[\s\S]*foregroundFailures\.find\(error => Number\(error && error\.status\) === 403\)/.test(workloadForegroundLoad)
+  && workloadForegroundLoad.indexOf('if (foregroundAuthFailure)') < workloadForegroundLoad.indexOf("if (plansResult.status === 'fulfilled') wlAdoptPlanRows")
+  && /if \(Number\(foregroundAuthFailure\.status\) === 401\) _syncviewStaffIdentityClear\(\);[\s\S]*else wlPurgePlanSensitiveState\(\);[\s\S]*wlApplyData\(payload\.issues, payload\.fetchedAt\);[\s\S]*return payload/.test(workloadForegroundLoad),
+'foreground auth denial is handled before either private projection adopts while public issue data remains usable');
 ok(/const WL_PLAN_READ_TIMEOUT_MS = 8000/.test(INDEX)
   && /const controller = new AbortController\(\)/.test(INDEX)
   && /signal: controller\.signal/.test(INDEX),
@@ -389,11 +477,19 @@ ok(/order=synced_at\.desc&limit=1/.test(watermarkSource)
   && /WL_V2_WATERMARK_POLL_MS = 60 \* 1000/.test(INDEX)
   && /Date\.parse\(latest\) > Date\.parse\(wlState\.sourceSyncedAt\)/.test(watermarkSource)
   && /const refreshed = await wlRefetchSilent\(\)/.test(watermarkSource)
-  && /refreshed === true\) wlState\.sourceSyncedAt = latest/.test(watermarkSource)
+  && /refreshed === true[\s\S]*wlState\.sourceSyncedAt = latest/.test(watermarkSource)
   && /setInterval\(_wlV2CheckWatermark, WL_V2_WATERMARK_POLL_MS\)/.test(watermarkSource)
   && /clearInterval\(_wlV2WatermarkTimer\)/.test(watermarkSource)
-  && /syncedAt: r\.synced_at/.test(INDEX),
-'foreground Workload polling is bound to the mirror watermark and is torn down with the view');
+  && /syncedAt: r\.synced_at/.test(INDEX)
+  && /function wlIssueBusinessFingerprint\([\s\S]*function wlPlanBusinessFingerprint/.test(INDEX)
+  && !/function wlIssueBusinessFingerprint\([^]*?\.syncedAt[^]*?function wlPlanBusinessFingerprint/.test(INDEX),
+ 'background polling consumes the mirror watermark while normalized business comparison ignores synced_at');
+ok(/issue && issue\.isSubIssue[\s\S]*wlIsActiveStatus\(issue\)[\s\S]*wlIsAllowedClient\(issue\.clientName\)[\s\S]*wlIsAllowedEditor\(issue\.assigneeName, issue\.teamKey, issue\.teamName\)/.test(renderableIssueProjection)
+  && /parentIds\.has\(String\(issue\.id \|\| ''\)\)/.test(renderableIssueProjection)
+  && (renderableIssueProjection.match(/wlRenderableIssueProjection\(issues\)/g) || []).length === 4
+  && /\.filter\(\(\[issueId\]\) => issueIds\.has\(String\(issueId\)\)\)/.test(renderableIssueProjection)
+  && !/syncedAt/.test(renderableIssueProjection),
+'background fingerprints include only render-eligible issues and their relevant plan/metadata rows');
 ok(/function wlPurgePlanSensitiveState\(/.test(INDEX)
   && /_wlPlanSessionGeneration\+\+/.test(INDEX)
   && /_wlPlanLoadGeneration\+\+/.test(INDEX)

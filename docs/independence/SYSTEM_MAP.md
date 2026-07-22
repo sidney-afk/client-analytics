@@ -168,6 +168,82 @@ Everything below is shared by every surface; per-surface sections only note devi
   calendar-card jobs), clean onboarding aliases probe a public 404 path, and the first network token
   becomes the baseline even when a cached older document is running. No embedded build/authority
   epoch, server minimum-version rejection, or build-population telemetry currently expires callers.
+- **Client-entry QA credential/transport boundary (F173–F182; exact-head review at draft #891
+  `02105e9`).** The candidate corrects F173's EF courier residue/argv path and F174's invalid
+  overnight client route, but completed review found seven then-open release gates. Direct shared-SXR
+  helpers still build protected REST URLs/headers into shell curl argv/errors (F175); both
+  nightlies export the TEST token into inherited job/process state (F176); token-bearing client
+  targets can reach static-server access and Playwright navigation failure output (F178); and raw
+  manual-dispatch text is shell-interpolated in credential-bearing steps (F179). The full-quota
+  probe, EF drift/settings helpers, and optional vision API also retain private shell/file
+  transports outside the common guard (F180–F182). Evidence is source-only except for isolated
+  local synthetic Python/Playwright proof of F178 and inert, no-payload-execution substitution
+  proof of F179; no real token/staff/API key, external network, backend/API, live data or writer
+  was used. F177 is the completed docs-only review-status correction. Post-F182 cloud source review
+  at PR #891 `59022d` expanded F176 because `run-probes` still reconstructs the staff issuer key
+  into every manually selected probe, including non-client probes, and expanded F179 because a
+  valid selector component can mask empty/unknown components instead of failing the complete
+  manual input. Then-current candidate `93fc297` began remediation. Candidate `13c042b` passed local
+  `npm test` 149/149, but exact-head cloud source review (review `4741233371`; comments
+  `3619424490`, `3619424493`) showed that
+  inventory was incomplete: the Samples workflow directly selects `sxr_client_persist_guard.js`
+  outside the nightly-manifest census, the registry omits it, and the probe calls
+  `sxr_courier_lib.client()` without receiving the staff issuer key (expanded F176). The same
+  review found that `qa/master.js` passes one `scn` to both flat and tree, while each
+  `run_scenarios.js` invocation requires every term to match only its own catalog; legitimate
+  flat-only and tree-only selectors fail their sibling lane (expanded F179). Selector validity
+  must be decided once against the catalog union, after which each lane runs only its exact
+  matches or skips cleanly; a union-unknown selector must fail before the live harness loads.
+  No credential, browser, backend or live scenario was used for those source findings. Pre-split
+  candidate `c9a79ef` locally inventoried all 39 registered probe consumers, applied
+  the union-selector F179 remediation, applies the F184 persisted-debt owner/finalizer/retry
+  remediation, and passes local `npm test` 150/150 plus actual visible boot 23/23. Its exact-head
+  cloud source review is not clean: review `4741601566`, comment `3619744849` at
+  `qa/overnight_runner.sh:109`, found an additional F176 occurrence: its direct process tree inherits
+  `SYNCVIEW_STAFF_KEY` before the 39-probe registry can classify probe children. Follow-up local
+  source tracing found `qa/overnight_cron_chunk.sh` forwarding both credentials, unrelated helper
+  inheritance and no declared broker boundary for legitimate scenario/master consumers. Both shell
+  entries must capture then unset before any child; only a registry-approved probe or declared
+  scenario/master broker may restore the staff issuer to the final operative Node process, never the
+  legacy token or a timeout/wrapper argv/log/output. No credential, data, browser, backend or write
+  was used for either source pass. The owner later isolated the completed F176/F179 containment in
+  parked, unmerged #908 for later review. It remains recorded but is non-blocking for #891 and must
+  not be expanded or reopened here. Product-owned rows stay OPEN pending final #891 exact-head cloud
+  review and owner merge.
+- **Client Brief async lifetime boundary (F183; post-F182 exact-head cloud source review at PR #891
+  `59022d`, reconfirmed at then-current candidate `93fc297`).** `_syncviewPurgeClientEntrySurface()` clears
+  `briefPollingState` and `tabSummaryCache` without first clearing the polling intervals retained
+  by the old state or aborting the controllers created by `fetchTabSummary()`. Pagehide/BFCache
+  capability revocation can therefore discard the cancellation handles while detached Brief jobs
+  continue into global state, cache/localStorage and render mutations. Remediation must cancel
+  intervals/controllers under the exact client-entry generation before zeroing state, make every
+  late mutation prove currentness, and drive the actual visible Brief pagehide/persisted-BFCache
+  held-response sequence. Pre-split candidate `c9a79ef` passed actual visible boot 23/23;
+  its real pagehide / `pageshow.persisted` guard held polling, summary and Brief-sheet
+  reads, denied late global/cache/localStorage/render mutation, and settled one fresh generation.
+  No browser, backend, token, live data or write was used for the original finding, and the
+  synthetic local proof is not cloud review; keep F183 OPEN through final #891 exact-head cloud
+  review and owner merge. Parked #908 is not its blocker.
+- **Pre-verification legacy-queue replay boundary (F184; exact-head cloud source review at PR #891
+  `adb1bca`, reconfirmed unchanged at then-current `13c042b`).** Every document installs startup,
+  focus, pageshow, online, visible and timer calls into `_writeUiResumeLegacyQueues()`. On a client
+  link these can run while strict verification is pending or after it fails, reading or replaying
+  residual same-origin Calendar/Samples Linear outboxes, Calendar card jobs, source-repair debt and
+  native intake from a prior staff/session context. F184 is distinct from F171's stale in-memory
+  client-A continuation: this is persisted cross-session retry-debt ownership without a verified
+  principal. Gate every trigger behind an exact current principal generation. Before strict client
+  verification, inspect no queue; afterward, a client document may resume only matching-slug,
+  client-principal Calendar/Samples rows and must leave foreign/unknown/staff debt plus every
+  staff-only job/repair/intake queue untouched. Staff-wide recovery requires a currently verified
+  identity/session. Add a visible seeded A/B/unknown/staff-debt guard across invalid/rotated/valid
+  client entry and every resume trigger, proving only eligible A debt drains after A verifies and
+  stale BFCache work cannot post or mutate, followed by exactly one verified staff recovery owner. The
+  source-only finding used no browser, backend, token, live data or write. Pre-split candidate
+  `c9a79ef` locally gated resume behind an exact client generation or verified staff
+  epoch, restricts client recovery to matching client-principal debt, rechecks ownership inside the
+  per-surface finalizer lock when delivery has not started, exercises the actual retry timer and
+  pagehide cancellation, and passed actual visible boot 23/23. F184 stays OPEN pending final #891
+  exact-head cloud review and owner merge; the owner-parked #908 containment does not block it.
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
   constant declared *before* the main Supabase URL constant (TDZ avoidance) — that is why §7 counts
   "20 literal + 4 composed" Edge Functions.
@@ -226,6 +302,11 @@ n8n in the metric read path.*
   missing/empty input and still wrote 29 client results. Its SPA output has no source-coverage/
   freshness field to distinguish provider failure from real no-content. No Top Videos row value was
   inspected.
+- **Staff document-lifetime gap (F172; SOURCE-ONLY at `86fe60c`).** Staff Analytics bootstrap has
+  no document/BFCache generation or abort controller around essentials, extras, cache publication
+  and re-render. Draft #891 candidate `02105e9` passes its new data run only for client links and
+  its suspension handler exits for staff, so the unmerged candidate does not close this path. No
+  staff browser reproduction or runtime-frequency claim exists yet.
 - **Notable.** Client-viewable brief pages can write to the agency Hook Library (`add-hook-to-library`
   ungated) and can trigger the `generate-content-summary` AI workflow (ungated). Two hardcoded
   per-client display special-cases exist in the render path. Correction: `content-ready` is **not**
@@ -312,6 +393,18 @@ n8n in the metric read path.*
   new v1 queue entry; ambiguous results require the principal-bound `reconcile_only` receipt above.
   Caption jobs are poller-authoritative with 45 s/3 min/12 min
   watchdogs. Realtime subscribe failure degrades to fetch-on-focus.
+- **Lifecycle/cross-client gaps (F170/F171; CONTROLLED SYNTHETIC BROWSER at `86fe60c`).**
+  The primary Calendar read, post-load Linear reconcile/meta reads, realtime channel/timers,
+  loader state and deferred render do not share one surface generation through terminal
+  settlement. No-load exits/pagehide/BFCache can leave ownership alive. A held client-A v1
+  reconcile released after a visible switch to B reproduced mutation of B plus an intercepted
+  Calendar write enqueue under B. Draft #891 candidate `02105e9` adds the proposed
+  generation-owned abort/realtime/exit/BFCache guards, but it is unmerged. Exact-head source
+  continued review found F175/F176 and F178–F184. Pre-split candidate `c9a79ef` passed local
+  `npm test` 150/150 and actual visible boot 23/23 with the earlier F179/F184 blockers locally
+  remediated, while its cloud review found the additional `qa/overnight_runner.sh` F176 occurrence.
+  The owner later parked that containment in #908 as non-blocking. Both Calendar rows remain OPEN
+  pending final #891 exact-head cloud review and owner merge.
 - **Retirement warning (F104).** The former Phase-4 checklist is quarantined: it falsely treated the
   opt-out and fallback branches as unreachable and would also remove the v2 metadata reader's
   `LINEAR_STATUSES_URL`. No flag, fallback, helper, workflow, or Sheet is retired without measured
@@ -432,9 +525,11 @@ n8n in the metric read path.*
   full `deliverables` row (brief + raw, on open), bulk brief hydration 6.5 s post-boot / on palette
   open. Issue-detail comments page through the protected `production-comments` Edge Function in
   50-row `{created_at,id}` cursor pages; it returns the normalized native thread, not the old
-  actor/action activity summaries. `_prodLoadEventsFor`/`_prodActivity` exist but are never called,
-  so persisted native events are not shown (F138). Also fires the shared Sheets essentials in the background for
-  app chrome. The tab also reads the single `prod_authority` runtime-flag row to gate controls.
+  actor/action activity summaries. Issue detail calls `_prodLoadEventsFor` to derive its Properties
+  status-history hover, but the reader pre-seeds/catches to empty and `_prodActivity` still has no
+  render caller, so persisted native Activity is not shown and read failure is not distinguishable
+  from no events (F138). Also fires the shared Sheets essentials in the background for app chrome.
+  The tab also reads the single `prod_authority` runtime-flag row to gate controls.
 - **Writes.** Status, comment, due date, and assignee use the authenticated `production-write` Edge
   Function. The browser supplies the native deliverable ID, a bounded idempotency key, and CAS for
   scalar changes; verified staff headers come from the shared role-key identity path. Controls are
@@ -452,7 +547,8 @@ n8n in the metric read path.*
   Creative authorization also lacks current-status/assignee input, so same-team creatives can regress
   reviewer/terminal work or cancel/duplicate it unless a separate owner policy is enforced (F136).
   Video's four typed resources collapse into one priority-selected URL always labelled Delivered file
-  (F137), and native activity events are never loaded/rendered (F138).
+  (F137), and native activity events are read only for a failure-collapsed status-history hover,
+  never rendered as Activity (F138).
   Production work data also has no realtime/bounded foreground refresh or ordinary manual refresh;
   only authority polls, so an all-day foreground creative tab can remain stale indefinitely (F95).
   Its due picker also freezes a browser-local “today” at script load while overdue compares a fresh
@@ -1213,7 +1309,7 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 - **Edge functions (24):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan`
 - **Not counted above:** 20 of the 24 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live; `workload-linear` is app-called candidate source but not live until its exact-SHA manual deploy.
 - **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
-- **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, and the one-row `syncview_runtime_flags` authority read. A dormant event-loader target names `deliverable_events`, but runtime never invokes it (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
+- **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, the one-row `syncview_runtime_flags` authority read, and issue-detail `deliverable_events`. The event read currently feeds only a status-history hover, collapses failure to empty, and has no visible Activity renderer call (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (6):** `calendar_upsert_ef_clients` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`
 - **Flag semantics:** the three `*_ef_clients` values are per-client-slug allowlists; a listed client's writes go to Edge Functions, while an unlisted client currently selects an unauthenticated n8n writer. Flag-read and some EF failures can do the same, so this is F67 fail-open behavior and the flags are not safe auth-preserving rollback switches. All three carry the full active roster since 2026-07-07 (Track A closed 2026-07-10). `write_ui_reroute_clients` is the separate #850 status/comment/intake cohort: it was last verified TEST-only, and missing/malformed/read-failed state selects the exact legacy lane. `prod_authority` is the strict per-team Linear/SyncView write-authority map used by the Linear mirror; missing/malformed/unknown values keep controls read-only. `pto_v1` is a fail-closed off/on visibility and behavior gate; the base migration seeded off, the evidenced live state is on under D-36, and there is no n8n fallback. Other plan-side flags remain backend-only.
 

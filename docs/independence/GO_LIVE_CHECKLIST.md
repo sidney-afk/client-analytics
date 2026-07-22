@@ -364,6 +364,107 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       render in the active tab, preserve any cache under an honest stale banner, and expose a visible
       keyboard/touch Retry. Pass Review and Messages cold failure, cached failure, retry success/
       repeat failure, tab-switch/abort race, mobile and keyboard tests; no indefinite skeleton.
+      Expected/attempted/successful/failed client receipts prove queue completeness, and optional
+      SMM attribution cannot block the core queue.
+- [ ] **Client entry is fail-closed and paints only the requested client surface**
+      (F102/F117/F149): unknown or conflicting client routes never fall through to staff content,
+      legacy Samples links retain the verified client principal, and Calendar/Brief reloads never
+      expose Analytics chrome or data. Prove the visible sequence from document start through
+      settlement on synthetic fixtures, including hard reload and second reload.
+- [ ] **Client-entry product QA preserves every protected credential, payload and strict route contract**
+      (F173/F174/F175/F178/F180/F181/F182): all product-owned QA HTTP paths use one fixed-argv,
+      fileless, in-memory transport.
+      This includes the browser courier, direct shared-SXR helpers, p94 full-quota courier, EF
+      drift/settings helpers, and optional vision API; protected keys, tokens, URLs, headers,
+      request bodies and response headers never enter argv, files, command-bearing errors, child
+      environments, artifacts or logs. Static-server access output and Playwright navigation
+      failures cannot retain a token-bearing request target, and runner tails/reports are redacted
+      at the credential-owning boundary. Drive the actual visible TEST client route and fail closed
+      when a current token is unavailable.
+      **PARKED #908 — NON-BLOCKING (F176/F179):** the completed overnight-runner, cron, broker,
+      selector-union, registry/census, environment-containment and descriptor-guard work remains
+      intact in unmerged draft #908 for later review. Do not execute, expand or reopen that work for
+      #891; it is not a client-entry product release prerequisite by owner decision. Historical
+      review evidence follows. Exact-head review of draft #891 `02105e9`
+      completed and found F175/F176 and F178–F182. Post-F182 cloud source review at `59022d`
+      expanded F176/F179; then-current `93fc297` began remediation. Candidate `13c042b` passed local
+      `npm test` 149/149, but exact-head cloud source review (review `4741233371`; comments
+      `3619424490`, `3619424493`) found the omitted workflow-direct Samples probe under F176 and the
+      cross-catalog selector defect under F179. Pre-split candidate `c9a79ef` locally expanded the
+      immutable registry/census to all 39 registered probes, remediates the union-selector F179 path
+      and the F184 persisted-debt owner path, and passes local `npm test` 150/150 plus actual visible
+      boot 23/23. Its exact-head cloud source review is nevertheless not clean: review `4741601566`,
+      comment `3619744849` at `qa/overnight_runner.sh:109`, found an additional F176 occurrence where
+      the direct process tree inherits `SYNCVIEW_STAFF_KEY` before classification. Follow-up local
+      source tracing found the cron pass-through, unrelated helper inheritance and the absent
+      declared broker for legitimate scenario/master consumers. Neither source pass used a
+      credential, data, browser, backend or write. The owner later moved the complete F176/F179
+      overnight containment to parked, unmerged #908. It remains OPEN/parked for later review, is
+      non-blocking for #891, and must not be expanded or reopened in this integration. The client
+      verifier is already live at v28 and must not be redeployed. The hard cutover does not wait for
+      link confirmations; old links intentionally reach the existing updated-link screen.
+- [ ] **Calendar lifetime and ancillary work have one exact-client owner** (F170/F171/F162):
+      one generation owns the primary read, Linear reconcile/meta continuations, realtime
+      channel/timers, loader state and deferred render until all tails settle. Client/route/no-load
+      replacement and pagehide abort/revoke that exact owner; persisted pageshow starts exactly one
+      fresh epoch. Hold A's reconcile/meta, switch visibly to B, release A, and prove zero B
+      mutation, cache/meta persist, suppression token, writer enqueue or repaint. Pre-split #891
+      candidate `c9a79ef` was locally green at 23/23 actual visible boot and `npm test` 150/150.
+      The product row stays OPEN pending final integrated-head cloud review and owner merge; parked
+      #908 is not a blocker.
+- [ ] **Client Brief async work is revoked with its client-entry capability** (F183/F162): every
+      Brief polling interval and tab-summary request controller belongs to the current client-entry
+      generation. Client replacement, invalidation, pagehide and BFCache suspension clear/abort
+      those exact owners before `briefPollingState` or `tabSummaryCache` is zeroed; every late
+      response, cache/localStorage write, global mutation and render proves the same current run.
+      Drive the actual visible client Brief pagehide → persisted-BFCache sequence with poll and
+      tab-summary responses held, revoke the old owner, release both late, prove zero stale
+      mutation/cache/paint, then prove exactly one healthy fresh generation. Source review found
+      this at PR #891 `59022d` and reconfirmed it at then-current candidate `93fc297`; no browser/
+      backend/token/live-data/write evidence was used for the finding. Pre-split candidate `c9a79ef`
+      passes the expanded actual visible boot lane 23/23, including the real pagehide /
+      `pageshow.persisted` sequence that proves old work retired and exactly one fresh generation;
+      this is synthetic local evidence, not cloud review. Keep OPEN until final integrated-head
+      cloud review and owner merge; parked #908 is not a blocker.
+- [ ] **Client links never resume staff/legacy persisted debt before verification** (F184/F162):
+      gate startup plus focus/pageshow/online/visible/timer queue recovery behind an exact current
+      principal generation. Before strict client verification, inspect no persisted queue. After a
+      valid client-A verdict, only matching-slug/client-principal Calendar/Samples retry rows may
+      drain; foreign-B, empty/unknown and staff-owned rows plus every Calendar job, source/Kasper
+      repair and native-intake queue remain byte-identical. Seed all four debt classes, drive every
+      trigger including real `pageshow.persisted`, and prove zero activity before the verdict, only
+      eligible A recovery afterward, and no stale BFCache post/mutation. Then enter a fresh verified
+      synthetic staff session and prove exactly one deferred staff recovery owner. Cloud source
+      review found the pre-verification defect at `adb1bca` and reconfirmed it unchanged at
+      `13c042b`; no browser/backend/token/live-data/write was used. Pre-split candidate `c9a79ef`
+      locally remediated the F184 owner/finalizer/retry boundary and passed actual visible boot
+      23/23. Keep F184 OPEN pending final integrated-head cloud review and owner merge; parked #908
+      is not a blocker.
+- [ ] **Boot reads fail visibly and terminate**
+      (F151/F152/F158/F163/F164/F165/F166/F167/F168/F169): HTTP 4xx/5xx,
+      parseable error envelopes, malformed 200 responses, offline prerequisites and never-settling
+      dependencies cannot become authoritative output/empty data or an indefinite skeleton. Cover
+      Analytics, Calendar prerequisites, Templates detail, Production core, Kasper Samples, actual
+      Brief synthesis, Samples Review fallback, top-level/Kasper Filming, Onboarding inbox/profile/
+      standalone, Weekly Reports, Credentials list/modal/history, and Editors. Every route reaches
+      content, an honestly labelled stale state, or a keyboard/touch Retry within its named deadline;
+      Retry recovers without document reload and late/superseded responses cannot repaint.
+- [ ] **Partial and failed aggregate reads never look complete** (F29/F45/F130/F138): Workload
+      retains a visible stale/unavailable reason after issue-read failure; the Linear picker never
+      turns failed project reads into “No projects loaded”; Kasper Review/Messages disclose per-client
+      queue incompleteness; Production Activity distinguishes loading, complete-empty, stale, and
+      failed event reads. Preserve last-good data only under an explicit banner, expose Retry, and
+      drive each actual boot/refresh/failure/recovery sequence under F162.
+- [ ] **Staff boot and history preserve one route and one data owner**
+      (F150/F153/F154/F162/F172):
+      direct Samples Review → Home starts the Analytics requirement; deep links round-trip their
+      client/card/subtab; Back → Forward → Back uses the same teardown/mount lifecycle as clicks.
+      Staff Analytics bootstrap owns and aborts essentials/extras/cache/render by document
+      generation across route exit, pagehide and persisted pageshow; late completions cannot mutate
+      or repaint a replacement document. F172 remains source-only until this visible sequence is
+      reproduced and repaired.
+      Each remediation's browser lane must record actual early visible frames and transitions; a
+      settled-page or source-only assertion cannot close the finding.
 - [ ] **B1 has a success-only durable checkpoint and typed terminal heartbeat** (F131): per-row
       writes, successful summaries, and failed summaries use distinct event types; only a complete
       write/readback advances the stored high-water. Failure at every write stage retries from the

@@ -1,12 +1,13 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-22 @ 6d3964f + source-only F27 operator-toolkit candidate (PR #901 stop
-> evidence still governs live state; corrective P1/drill source is merged but not live) + Phase-3 Order-1 reconciliation through F148 + Workload
-> Creative read-only plan candidate (F04/F07/F08 source defects closed with live observations still gated; F12 missing
-> real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open;
-> F143 deployed; F145 merged as #885; Workload release and #889 served with F147/F148 follow-ups;
-> current live function denies Creative list/set until the candidate source is manually deployed;
-> coverage state in `docs/testing/ASSURANCE_LEDGER.md`)
+> Last verified: 2026-07-22 @ 0b8a2a2 (`#910` merged) + source-only F27 operator-toolkit
+> candidate (PR #901 stop evidence still governs live state; corrective source is not live) +
+> Phase-3 reconciliation and the public-safe boot/refresh/history audit through F184. The owner
+> split F176/F179 overnight-runner containment into parked draft #908 for later review; it is not a
+> blocker for the client-entry product fix and must not be expanded or reopened here. The client
+> verifier is live at v28; the matching browser remains draft/unserved. Workload background refresh
+> is now on `main`, while its deliberate-manual function boundaries remain unchanged. Coverage state
+> lives in `docs/testing/ASSURANCE_LEDGER.md`.
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -141,7 +142,8 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
 - The bounded SMM/editor walks remain blocked: native Create Post can split title truth and strand
   browser-owned recovery (F133/F134); Calendar/Samples reorder has no touch/keyboard path (F135);
   creatives can regress reviewer/terminal work (F136); Video assets collapse into one mislabeled
-  link (F137); and persisted native activity is never loaded or shown (F138).
+  link (F137); and persisted native activity is requested only for status-history derivation, then
+  failure-collapsed and never shown as Activity (F138).
 - F145 is merged on `main` via #885 without a schema, n8n, writer, flag, or live-data change: Production
   projects each deliverable's persisted Linear parent UUID and resolves it globally to the live
   native parent row. Batch/title similarity no longer invents hierarchy; missing or malformed
@@ -152,6 +154,77 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   later failed fast + interaction while heavy/review-packet passed. The PR-head and merge trees are
   identical, so the red run is not evidence of an F145 code delta, but current-main test health
   remains open.
+- The public-safe boot/refresh/history/read-truth audit owns F149–F184. Client entry remains first:
+  F102/F117 plus the Calendar/Brief wrong-shell refresh in F149. Browser-proven silent read failures
+  and indefinite boot states are F151/F152/F158; staff data, Back/Forward and deep-link continuity
+  are F150/F153/F154; F155–F161 cover lower-severity route consistency. Publication-time
+  **source-only targeted recon** adds Brief synthesis (F163), Samples Review fallback (F164),
+  Filming (F165), Onboarding (F166), Weekly Reports (F167), Credentials/history (F168), and Editors
+  (F169), while expanding existing Workload F29, Linear picker F45, Kasper Review/Messages F130,
+  Production Activity F138, and deadline F152 ownership. No new browser proof is claimed for those
+  source-only paths. Remediation-phase controlled synthetic-browser evidence adds Calendar
+  primary/ancillary/realtime lifetime ownership in F170 and a P0 held client-A → client-B
+  continuation/write boundary in F171. Draft #891 candidate `02105e9` proposes generation-owned
+  abort/realtime/exit/BFCache guards, but it is unmerged. F172 is a
+  separately labelled **source-only** staff Analytics document/BFCache lease gap; no staff browser
+  reproduction or runtime frequency is claimed, and the client-only draft does not close it.
+  Initial exact-head source review added F173/F174; `02105e9` carries their source corrections.
+  Completed exact-head review of candidate `02105e9` with audit companion `3189203` then found
+  seven further P1 release-control gaps: direct shared-SXR curl argv/error exposure (F175),
+  job-wide TEST-token export (F176), static-server and Playwright navigation error/log disclosure
+  (F178), manual-dispatch shell injection in credential-bearing steps (F179), and private
+  shell/file transports in the full-quota probe, EF auxiliary checks, and optional vision API
+  path (F180–F182). F177 records and resolves the stale APP/SYSTEM_MAP wording that still
+  described review as pending. Evidence is source-only except for isolated local synthetic
+  Python/Playwright proof of F178 and inert, no-payload-execution substitution proof of F179; no
+  real token/staff/API key, external network, backend/API, live data or writer was used.
+  Post-F182 cloud source review at PR #891 `59022d` found that `run-probes` still reattaches the
+  staff issuer key to every manually selected probe, including non-client probes (expanded F176),
+  and that valid selector components can mask empty/unknown components before the scenario runner
+  (expanded F179). It also added F183: client Brief purge clears polling/summary state without
+  first cancelling the retained intervals/controllers, so late pagehide/BFCache work can mutate
+  cache, state or visible output after capability revocation. Source inspection reconfirmed F183
+  at then-current candidate `93fc297`. Candidate `13c042b` passed local `npm test` 149/149 and both
+  direct and master visible boot lanes 22/22, but exact-head cloud source review (review
+  `4741233371`; comments `3619424490`, `3619424493`) expanded F176 to the omitted workflow-direct
+  `sxr_client_persist_guard.js` issuer consumer and expanded F179 to the one-selector/two-catalog
+  defect.
+  A prior cloud source review at `adb1bca`, reconfirmed unchanged at `13c042b`, added F184: the
+  unconditional legacy-queue startup plus focus/pageshow/online/visible/timer triggers can read or
+  replay residual staff/session Calendar, Samples, Linear and intake debt on any client-link
+  document before strict verification settles. Pre-split candidate `c9a79ef` locally closed
+  the previously known F176 probe-registry omission and remediates F179/F184; it passed 150/150
+  unit suites plus 23/23 actual visible boot groups.
+  Its registry contains the exact 39 registered probe consumers (37 manifest, one workflow-direct, one
+  temporal); selector validation uses the real flat/tree/visual union; and the F184 lane drives the
+  actual retry timeout, held finalizer lock, pagehide/BFCache cancellation and same-slug foreign
+  principal exclusion. Exact-head cloud source review of `c9a79ef` (review `4741601566`; comment
+  `3619744849`) returned one further P1 occurrence under existing F176, not a new row: when an
+  operator supplies `SYNCVIEW_STAFF_KEY`, `qa/overnight_runner.sh` retains it across its direct
+  process tree before probe classification. Follow-up local source tracing found the transitive
+  `qa/overnight_cron_chunk.sh` pass-through, unrelated helper inheritance and no declared broker
+  boundary for the legitimate scenario/master consumers.
+  The cloud review returned no separate F179/F184 thread. Those F176/F179/F183/F184 source reviews
+  used no browser, backend, credential value, live data or write. On 2026-07-22 the owner split the
+  completed F176/F179 overnight-runner containment into parked, unmerged draft #908 for later review.
+  It remains recorded and OPEN/parked, is not a #891 blocker, and must not be expanded or reopened in
+  this integration. Product-owned rows remain OPEN until final #891 exact-head cloud review and owner
+  merge.
+  Every remediation must satisfy F162 with a browser guard that observes the
+  actual visible sequence from document start through visible failure, keyboard/touch Retry, and
+  recovery. Calendar guards must also hold and release real primary/ancillary/realtime work across
+  no-load exit, A → B replacement, pagehide and persisted pageshow. The Brief guard must hold its
+  poll and tab-summary responses across actual pagehide/persisted BFCache, release them late, and
+  prove zero stale mutation/cache/paint plus exactly one fresh owner. The historical F176/F179
+  containment requirements remain in their register rows and dated evidence, with their complete
+  work retained only in parked #908. They are not rerun or extended as part of #891. Preserve the
+  product branch's F184 matching-A/foreign-B/unknown/staff-only
+  synthetic debt, real lifecycle triggers, held-lock, timeout/pagehide cancellation, byte-identity
+  and fresh-owner assertions. These local guards do not close their rows before owner merge. The
+  verifier is already live at v28 and must not be redeployed; the owner-selected hard cutover does
+  not wait for link confirmations, and old links intentionally use the existing updated-link screen.
+  A settled-page assertion or
+  source check does not close a boot finding.
 - F140 is owner-ratified and fixed on the review branch: Samples matches Calendar, so Kasper may
   stack change requests and then Finish hands the card to the SMM. The strict Finish gate remains;
   the fix prevents a fresh status companion from being mistaken for recovery debt before its first

@@ -1,7 +1,11 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-22 @ 3d8bbfb + Workload Creative read-only plan candidate
-> (live plan-date backend remains unchanged until the exact function source is manually deployed)
+> Last verified: 2026-07-22 @ 0b8a2a2 (`#910` merged) + integrated boot-audit
+> vault through F184. The F176/F179 overnight-runner containment is isolated in parked draft
+> #908 by owner decision and does not block the client-entry product fix; do not expand or reopen
+> that containment scope here. The client verifier is live at v28, while the matching browser
+> caller remains an unmerged draft. The Workload Creative/list-write candidates and F27 operator
+> toolkit retain their current deliberate-manual/no-live-change boundaries.
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -15,6 +19,13 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Release and stale callers
 
+- **Owner final-integration boundary (2026-07-22).** The client verifier is already live at v28
+  and must not be redeployed in this integration. The owner selected a hard browser cutover: no
+  active-link confirmation wait is required, and an old link is expected to reach the existing
+  fresh-link-required screen after the browser merge. F176/F179 overnight-runner containment was
+  split intact into parked, unmerged draft #908 for later review. It remains recorded but is not a
+  #891 merge blocker; do not expand or reopen that scope here. The client-entry product branch
+  still requires final exact-head cloud review and owner merge.
 - The current app-update banner is advisory, not a caller-expiry control (F127). Direct `?prod=1`
   skips it; clean onboarding aliases probe a 404 path; a cached old document can adopt the first
   newer ETag/Last-Modified response as its baseline; and dismissal keeps that old code running.
@@ -22,6 +33,72 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   and servers do not return `upgrade_required` before mutation. Build-population telemetry is absent.
   Go-live therefore requires a fixed same-origin manifest plus server minimum-build/epoch enforcement,
   with owner-defined optional versus mandatory release behavior and draft/queue-safe reauthentication.
+- F172 is a **source-only** staff Analytics lifetime gap: current-main `fetchAll()` has no
+  document/BFCache run or abort lease. Draft #891 `02105e9` passes its new run only for client links and its
+  suspension owner exits for staff, so the unmerged candidate does not close the staff path. No
+  staff browser reproduction or runtime frequency is claimed; the staff-flow phase must add the
+  actual visible pagehide/BFCache/late-completion guard.
+- Client-entry release-harness review is complete on draft #891 `02105e9` with audit companion
+  `3189203`; it is not pending. It found F175/F176 and F178–F182: protected URLs/headers and keys
+  still reach direct shell argv/errors, the TEST token is exported job-wide, token-bearing client
+  targets can reach static-server/Playwright failure output, manual dispatch text is shell-injected
+  into credential-bearing steps, and the p94/EF auxiliary/vision paths retain private shell/file
+  transports. Evidence is source-only except for isolated local synthetic Python/Playwright proof
+  of F178 and inert, no-payload-execution substitution proof of F179; no real token/staff/API key,
+  external network, backend/API, live data or writer was used. F175/F176 and F178–F182 were merge
+  blockers at that reviewed head pending remediation and post-remediation exact-head review. F177 is the docs-only
+  correction of the former stale review-status wording. Continued cloud source review at PR #891
+  `59022d` expanded F176/F179: `run-probes` still reconstructs the staff issuer key into every
+  manually selected probe, including non-client probes, and selector handling lets a valid
+  component mask empty/unknown components instead of rejecting the complete value. Then-current
+  candidate `93fc297` began remediation. Candidate `13c042b` passed local `npm test` 149/149, but
+  exact-head cloud source review (review `4741233371`; comments `3619424490`, `3619424493`)
+  returned two P1 blockers. F176's registry/census omitted workflow-direct
+  `sxr_client_persist_guard.js`; that scheduled Samples probe calls `sxr_courier_lib.client()` but
+  receives no staff issuer key. F179 passes the same `scn` to the flat and tree runners, while each
+  runner independently requires every term in its own catalog; a legitimate catalog-specific
+  selector therefore fails the sibling lane. Validate once against the union, run only each lane's
+  exact matches, let a no-match sibling skip cleanly, and reject a truly unknown selector before
+  loading the live harness. No credential, browser, backend or live scenario was used for those
+  source findings. Pre-split candidate `c9a79ef` locally expanded the immutable registry and
+  census to all 39 registered probe consumers, applies the F179 union-catalog selection contract, applies
+  the F184 persisted-debt owner/finalizer/retry guard, and passes local `npm test` 150/150 plus
+  actual visible boot 23/23. Its exact-head cloud source review is nevertheless not clean: review
+  `4741601566`, comment `3619744849` at `qa/overnight_runner.sh` line 109, found an additional F176
+  occurrence: the direct process tree inherits `SYNCVIEW_STAFF_KEY` before the 39-probe registry can
+  classify probe children. Follow-up local source tracing found the transitive
+  `qa/overnight_cron_chunk.sh` pass-through, unrelated helper inheritance and no declared broker
+  boundary for legitimate scenario/master consumers. Both shell entries must capture then unset
+  before any child; only a registry-approved probe or declared scenario/master broker may restore
+  the staff issuer to the final operative Node process, never the legacy token or a timeout/wrapper
+  argv/log/output. Neither source pass used a credential, data, browser, backend or write. The later
+  owner split moved the F176/F179 containment work intact to parked #908 and made it non-blocking for
+  #891. Product-owned rows stay OPEN pending final exact-head cloud review and owner merge.
+- F183 is the client Brief async-lifetime boundary found by the same post-F182 cloud source review
+  at `59022d` and reconfirmed at then-current `93fc297`. `_syncviewPurgeClientEntrySurface` zeroed
+  `briefPollingState` and `tabSummaryCache` without first clearing retained polling intervals or
+  aborting tab-summary controllers. After pagehide/BFCache capability revocation, detached work can
+  therefore complete into global Brief state, local cache and render paths. Pre-split candidate `c9a79ef`
+  locally generation-owns and cancels polling, delayed/active summaries and both Brief-sheet reads
+  before state reset. Actual visible boot passed 23/23; the real pagehide /
+  `pageshow.persisted` held-response guard proved zero late global/cache/localStorage/render mutation
+  and one fresh generation. That is synthetic local evidence, not cloud review. F183 remains OPEN
+  through final #891 exact-head cloud review and owner merge; parked #908 is not its blocker. No
+  browser, backend, token, live data or write was used for the original finding.
+- F184 is an additional P1 from exact-head cloud source review at `adb1bca`, reconfirmed unchanged
+  at then-current `13c042b`. `_writeUiResumeLegacyQueues('startup')` and its focus/pageshow/online/
+  visible/timer triggers run on every client-link document before strict verification settles, so
+  persisted same-origin Calendar/Samples/Linear/intake debt from a prior staff/session context can
+  be read or replayed before an invalid/rotated client link reaches terminal UI. This is distinct
+  from F171's held client-A continuation. Gate every resume owner behind an exact current principal
+  generation: inspect no queue before strict client verification; after verification, permit only
+  matching-slug/client-principal Calendar or Samples rows, leaving foreign/unknown/staff debt and
+  every staff-only job/repair/intake queue untouched. Staff-wide recovery requires a currently
+  verified identity/session. Pre-split candidate `c9a79ef` locally implemented that exact owner,
+  source-gate-principal, in-lock finalizer and scheduled-retry cancellation boundary and passes the
+  actual visible lifecycle guard 23/23. F184 stays OPEN pending final #891 exact-head cloud review
+  and owner merge; the owner-parked #908 containment does not block it. The finding is source-only; no browser,
+  backend, token, live data or write was used.
 
 ## Client-entry boot boundary (review candidate)
 
@@ -95,6 +172,16 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   persisted `thumb_rev` in the actual browser cache key. Calendar adopts a newer server revision
   across cache/LWW guards and advances existing image nodes on realtime without waiting for a hard
   refresh or a focused-field repaint.
+- F170/F171: the current Calendar primary read, post-load Linear/meta continuations, realtime
+  channel/timers, loader state and deferred render do not share one document/surface generation.
+  Controlled synthetic-browser evidence held client A's v1 reconcile, switched visibly to B, and
+  reproduced an intercepted stale write enqueued against B. Draft #891 candidate `02105e9` adds the
+  proposed generation/abort/realtime/exit/BFCache guard, but it is unmerged. Exact-head source
+  continued review found F175/F176 and F178–F184. Pre-split candidate `c9a79ef` passed local
+  `npm test` 150/150 and actual visible boot 23/23 with the earlier F179/F184 blockers locally
+  remediated, while its cloud review found the additional `qa/overnight_runner.sh` F176 occurrence.
+  The owner later parked that containment in #908 as non-blocking. Both Calendar rows remain OPEN
+  pending final #891 exact-head cloud review and owner merge.
 - Cards with a single Drive-file thumbnail group their IDs into authenticated, bounded (maximum 50)
   availability calls to `thumbnail-revision-read`. That projection returns only the IDs with a real
   Previous/Current pair, so the **Compare** icon stays absent otherwise; it returns no signed URLs or
@@ -312,8 +399,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `linear_raw.issue.parent.id`: `_prodAdapter()` resolves the real Linear parent globally across
   creation batches/teams/clients. It never elects a parent from batch membership or title; an
   unavailable, ambiguous, self, cyclic, or archived target leaves the row visible as a root.
-  Native events are written, and loader/renderer helpers exist, but no runtime call loads or displays
-  them; detail shows Comments only (F138).
+  Native events are written. Issue detail invokes the event loader for the Properties status-history
+  hover, but the loader collapses failure to an empty array and the Activity renderer still has no
+  render caller; detail shows Comments only (F138).
 - Creative policy is same-team-wide and checks next status without current status or assignee, so it
   can regress reviewer/terminal work or mutate peer work after a flip (F37/F136).
 - Video delivery/source data is collapsed from four typed fields to one priority winner labelled

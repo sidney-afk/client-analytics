@@ -191,10 +191,10 @@ WHERE key = 'linear_legacy_parity_enabled' AND value = '{"enabled":true}';
 -- team is still SyncView-authoritative and captures generation zero. It does
 -- not insert until after the rollback finalizer commits below.
 SELECT
-  authorization::text AS write_authorization,
-  (authorization->>'generation')::bigint AS authorized_generation
+  auth_result::text AS write_authorization,
+  (auth_result->>'generation')::bigint AS authorized_generation
 FROM (
-  SELECT public.track_b_f27_write_authorization('graphics') AS authorization
+  SELECT public.track_b_f27_write_authorization('graphics') AS auth_result
 ) q \gset
 SELECT set_config('f27.write_authorization', :'write_authorization', false);
 SELECT set_config('f27.authorized_generation', :'authorized_generation', false);

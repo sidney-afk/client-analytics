@@ -120,6 +120,9 @@ ok(/late pre-authorized insert unexpectedly succeeded/.test(proof)
   && /f27_authority_generation_stale:graphics/.test(proof)
   && /f27_generation_cas_not_exact/.test(proof),
   'proof reproduces authorize then finalize commit then rejected late insert');
+ok(/auth_result::text AS write_authorization/.test(proof)
+  && !/\bauthorization::text AS write_authorization/.test(proof),
+  'PostgreSQL proof avoids the reserved AUTHORIZATION keyword as a value alias');
 ok(/unfenced post-CAS requeue unexpectedly succeeded/.test(proof)
   && /CREATE OR REPLACE FUNCTION public\.mirror_outbox_requeue\(p_id bigint\)/.test(proof)
   && /f27_fenced_post_cas_requeue_failed/.test(proof),

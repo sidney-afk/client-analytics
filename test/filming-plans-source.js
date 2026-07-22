@@ -124,6 +124,8 @@ ok(/_filmsAddMonth\(latestPlanMonth, 2\)/.test(planDetails),
   'a monthly filming-plan tab must advance the next expected filming plan by two calendar months');
 ok(/pieces of content/.test(INDEX) && /Latest filming plan:/.test(INDEX),
   'Kasper filming rows must show total content and the latest filming-plan month');
+ok(/syncview_kasper_filming_v3/.test(INDEX),
+  'Kasper filming cache version must invalidate earlier unknown tab results');
 
 const logic = [
   grabFunc('_filmsAddMonth'),
@@ -164,4 +166,21 @@ assert.strictEqual(sample.result.status, 'green', '21 active pieces with a Septe
 sample = classifyContent(99, [], '');
 assert.strictEqual(sample.result.status, 'red', 'missing filming Doc remains an immediate action item');
 
-console.log('filming-plans source checks passed');
+const tabLogic = [grabFunc('_filmsParseMonth'), 'async ' + grabFunc('_filmsFetchTabMonths')].join('\n');
+const tabContext = {
+  FILMING_PLAN_TABS_URL: 'https://example.test/filming-plan-tabs',
+  Date: { now: () => 1 },
+  fetch: async () => ({
+    ok: true,
+    json: async () => ({ tabs: [{ title: 'April 2026' }] }),
+  }),
+};
+vm.createContext(tabContext);
+vm.runInContext(tabLogic, tabContext);
+(async () => {
+  const tabResult = await tabContext._filmsFetchTabMonths('doc-id');
+  assert.deepStrictEqual(Array.from(tabResult.months), ['2026-04'], 'tab reader must recognise a month-named tab from the live webhook shape');
+  assert.deepStrictEqual(Array.from(tabResult.titles), ['April 2026'], 'tab reader must retain received titles instead of hiding them as unknown');
+  assert.strictEqual(tabResult.read, true, 'successful tab lookup must be distinguished from an unavailable lookup');
+  console.log('filming-plans source checks passed');
+})().catch((err) => { console.error(err); process.exit(1); });

@@ -1,7 +1,7 @@
 # App logic (`index.html`) — current truth
 
 > Last verified: 2026-07-22 @ 0b8a2a2 (`#910` merged) + integrated boot-audit
-> vault through F184. The F176/F179 overnight-runner containment is isolated in parked draft
+> vault through F185. The F176/F179 overnight-runner containment is isolated in parked draft
 > #908 by owner decision and does not block the client-entry product fix; do not expand or reopen
 > that containment scope here. The client verifier is live at v28, while the matching browser
 > caller remains an unmerged draft. The Workload Creative/list-write candidates and F27 operator
@@ -26,6 +26,11 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   split intact into parked, unmerged draft #908 for later review. It remains recorded but is not a
   #891 merge blocker; do not expand or reopen that scope here. The client-entry product branch
   still requires final exact-head cloud review and owner merge.
+- **Deferred final-review portability finding (F185).** Exact-head cloud review at `f91aba17`
+  found that the client-entry visible-boot workflow installs Chromium system dependencies only on a
+  browser-cache miss. The hosted 23/23 lane passed, but a fresh cache-hit runner may lack those Linux
+  packages. The owner scope freezes this as a non-blocking, separate follow-up; #891 does not change
+  the workflow for F185.
 - The current app-update banner is advisory, not a caller-expiry control (F127). Direct `?prod=1`
   skips it; clean onboarding aliases probe a 404 path; a cached old document can adopt the first
   newer ETag/Last-Modified response as its baseline; and dismissal keeps that old code running.

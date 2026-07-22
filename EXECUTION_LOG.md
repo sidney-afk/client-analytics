@@ -910,6 +910,44 @@ All times are UTC unless noted.
   migration, Edge Function, runtime flag, Linear writer, n8n workflow, cache, frozen writer,
   deployment, or live operation changed.
 
+## 2026-07-20 — Client-entry visible-boot remediation candidate (source only)
+
+- **F102 fail-closed entry boundary.** A `?c` document now owns first paint and must receive the
+  explicit strict v1 verifier contract for one active client/current token/exact view and slug before
+  staff auth, cache hydration, client data, or routing. Invalid/mixed entries share one client-safe
+  terminal surface; verifier/network/5xx failures show Retry and never fake empty data. The verifier
+  resolves the token and referenced active client in one joined statement. Legacy/non-strict callers
+  retain their existing permissive-window behavior; `auth_enforcement` is unchanged.
+- **Client route and F117 binding repair.** Calendar/Brief reloads retain truthful first frames,
+  client tabs use query/history state rather than staff hashes, an empty Analytics switch fails
+  visibly instead of dereferencing a missing row, and Brief remains available while extras stream.
+  Legacy `v=samples` verifies first, canonicalizes in place, and mounts only the exact verified
+  client's Review shell. Residual pins/preferences and sticky Samples opt-out cannot rebind the
+  client or be mutated by the client document. This repairs F117's browser handoff only; the
+  separate F67/F88 server-read/write dependencies remain open.
+- **Capability lifetime is bound to the visible document.** Analytics reads carry a generation,
+  canonical-URL, slug, capability, and abort lease; Samples tracks and aborts its active transport.
+  Replacement, invalidation, teardown, and `pagehide` revoke those leases before capability/data
+  teardown. Late synthetic responses that deliberately ignore abort cannot apply, recreate cache,
+  repaint, or restart seeded staff caption work. Brief polling, delayed tab-summary starts, active
+  tab-summary transport, and Brief-sheet reads now share that same lifetime; late completions cannot
+  repopulate globals, localStorage, or DOM. Client entry also bypasses staff-only template,
+  pending-brief, PTO-flag, caption-prompt, and residual caption-job startup.
+- **Visible-sequence guard.** The new fully intercepted `boot` QA lane streams `index.html` in two
+  chunks and records animation-frame-visible state from static paint through verification, route
+  loader, settle, reload, Back/Forward, actual `pageshow.persisted` BFCache denial, rotated-token
+  denial, and legacy Samples reload/traversal. Twenty-three scenario groups passed in one attempt per
+  navigation with fictional data, zero unmocked requests, and zero console/page errors. Held
+  Analytics, Calendar, Brief, and Samples reads prove abort plus late-response denial; every F117
+  frame rejects generic SXR, a wrong embedded client, and the Add-client switcher. The lane is
+  registered in `qa/master.js` and a dedicated PR workflow.
+- **No live operation.** This entry records a draft review candidate only. No Edge Function, Pages
+  deployment, runtime flag, authority, database row, n8n workflow, Linear object, or client data was
+  touched. Frozen `calendar-upsert` and `sample-review-upsert` source remains byte-identical to the
+  base. Release order is deliberate-manual: cloud review the exact head, deploy/read back the exact
+  `client-token-verify` source, pass the strict-protocol TEST-client drill, then serve the matching
+  browser caller. Codex does not merge the owner PR.
+
 ## 2026-07-22 — Workload Creative read-only shared plan (candidate source only)
 
 - **SMM feedback root cause closed.** Creative sessions were denied the saved-plan projection, so

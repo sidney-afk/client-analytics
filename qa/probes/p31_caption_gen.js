@@ -77,7 +77,14 @@ const seed = (id, caption) => Q.up({ id, name: 'CG ' + id.slice(-6), platforms: 
 
     // E. client guard
     const cli = await ctx.newPage();
-    await cli.goto('http://localhost:8000/index.html?c=Sidney%20Laruel&v=calendar&v2debug=1', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    const clientToken = await Q.currentTestClientToken();
+    await Q.gotoTestClientEntry(cli, {
+      origin: Q.ORIGIN,
+      view: 'calendar',
+      name: Q.TEST_CLIENT.name,
+      token: clientToken,
+      gotoOptions: { waitUntil: 'domcontentloaded', timeout: 45000 },
+    });
     await cli.waitForTimeout(5000);
     await Q.waitForPost(cli, CLI);
     genPosts = [];

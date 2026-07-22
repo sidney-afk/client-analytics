@@ -9,9 +9,9 @@
  * detection expressions (mode params, storage keys, the fast-tab list, the sxr
  * flag). Those copies live ~25k lines apart and would drift silently — this
  * suite pins each gate copy to its canonical app-side counterpart so a change
- * to one without the other fails CI. It also pins the lift points: every tag
- * the gate can set must still have the app-side removal that hands control
- * back to the real routing.
+ * to one without the other fails CI. It also pins the lift points: transient
+ * route tags must hand control back to real routing, while boot-client stays
+ * for the lifetime of a client-owned document so staff chrome cannot appear.
  */
 const fs = require('fs');
 const path = require('path');
@@ -34,6 +34,37 @@ function check(label, cond) {
   else { console.log('  FAIL  ' + label); failures++; }
 }
 const count = (hay, needle) => hay.split(needle).length - 1;
+function extractFunction(body, name) {
+  const marker = 'function ' + name + '(';
+  const start = body.indexOf(marker);
+  if (start < 0) return '';
+  const brace = body.indexOf('{', start);
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+  for (let i = brace; i < body.length; i++) {
+    const ch = body[i];
+    const next = body[i + 1];
+    if (lineComment) { if (ch === '\n') lineComment = false; continue; }
+    if (blockComment) { if (ch === '*' && next === '/') { blockComment = false; i++; } continue; }
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '/' && next === '/') { lineComment = true; i++; continue; }
+    if (ch === '/' && next === '*') { blockComment = true; i++; continue; }
+    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
+    if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) return body.slice(start, i + 1);
+  }
+  return '';
+}
+const NAV_TO = extractFunction(APP, 'navTo');
+const RENDER = extractFunction(APP, 'render');
 
 // 1. Mode detection expressions exist in BOTH the gate and the entry router.
 for (const expr of [
@@ -45,8 +76,8 @@ for (const expr of [
 }
 check("intake trigger mirrored (?intake=1)",
   GATE.includes("q.get('intake') === '1'") && APP.includes("get('intake')==='1'"));
-check("client-link trigger mirrored (?c=)",
-  GATE.includes("q.get('c')") && APP.includes("get('c')"));
+check("client-link ownership trigger mirrored (?c key, including empty c)",
+  GATE.includes("q.has('c')") && APP.includes("_clientEntryParams.has('c')"));
 
 // 2. Storage keys/values the gate reads must match the app's constants.
 check("auth key: gate reads 'syncview_auth_v1'==='ok', app defines _AUTH_KEY",
@@ -84,8 +115,11 @@ if (gateFast && appFast) {
 const SXR_EXPR = "(sv === '1' || sv === 'true') || (sv !== '0' && sv !== 'false' && localStorage.getItem('syncview_sxr_off') !== '1')";
 const SXR_EXPR_INLINE = SXR_EXPR.replace(/\bsv\b/g, '_q');
 check('gate carries the GA default-on sxr boot flag', GATE.includes(SXR_EXPR));
-check('app has >=2 inline GA default-on sxr boot checks (deep link + portal)',
-  count(APP, SXR_EXPR_INLINE) >= 2);
+check('app keeps the inline GA default-on sxr check for staff deep links',
+  count(APP, SXR_EXPR_INLINE) >= 1);
+check('client SXR boot is capability-owned instead of preference-owned',
+  APP.includes("cap.view === 'sample-reviews'")
+  && APP.includes("_syncviewClientEntryCapability.view === 'sample-reviews'"));
 check('no boot copy reads the legacy syncview_sxr_on key (stale default-OFF gate)',
   !GATE.includes("localStorage.getItem('syncview_sxr_on')")
   && count(APP, "localStorage.getItem('syncview_sxr_on')") === 0);
@@ -106,21 +140,23 @@ check('semantic: ?sxr=1 overrides the sticky opt-out', evalSxr('1', '1') === tru
 check('gate can set data-boot-nav', GATE.includes("de.setAttribute('data-boot-nav'"));
 check('gate can set data-boot-subtab', GATE.includes("de.setAttribute('data-boot-subtab'"));
 check('navTo() lifts data-boot-nav',
-  /function navTo\(page[\s\S]{0,600}documentElement\.removeAttribute\('data-boot-nav'\)/.test(APP));
+  NAV_TO.includes("document.documentElement.removeAttribute('data-boot-nav')"));
 check('navTo() lifts data-boot-subtab',
-  /function navTo\(page[\s\S]{0,650}documentElement\.removeAttribute\('data-boot-subtab'\)/.test(APP));
+  NAV_TO.includes("document.documentElement.removeAttribute('data-boot-subtab')"));
 check('render() lifts data-boot-nav (belt-and-braces)',
-  /function render\(sel,clientOnly\)\{[\s\S]{0,600}documentElement\.removeAttribute\('data-boot-nav'\)/.test(APP));
+  RENDER.includes("document.documentElement.removeAttribute('data-boot-nav')"));
 check('render() lifts data-boot-subtab (belt-and-braces)',
-  /function render\(sel,clientOnly\)\{[\s\S]{0,650}documentElement\.removeAttribute\('data-boot-subtab'\)/.test(APP));
+  RENDER.includes("document.documentElement.removeAttribute('data-boot-subtab')"));
 check("init()'s catch lifts data-boot-nav",
   count(APP, "documentElement.removeAttribute('data-boot-nav')") >= 3);
 check("init()'s catch lifts data-boot-subtab",
   count(APP, "documentElement.removeAttribute('data-boot-subtab')") >= 3);
 check('submitPassword() lifts boot-password',
   /function submitPassword\(\)\{[\s\S]{0,900}documentElement\.classList\.remove\('boot-password'\)/.test(APP));
-check('?c= boot block lifts boot-client',
-  APP.includes("documentElement.classList.remove('boot-client')"));
+check('?c client ownership remains locked for the whole document',
+  !APP.includes("classList.remove('boot-client')")
+  && APP.includes('_syncviewStartClientEntry(false)')
+  && APP.includes("if(_isClientLink){"));
 
 // 6. The CSS gate rules the tags rely on must exist in the static style block.
 for (const rule of [
@@ -150,6 +186,17 @@ check('static boot skeleton has a Calendar Sheet card-strip variant',
   && INDEX.includes('cal-skeleton-sheet')
   && INDEX.includes('cal-skeleton-card-body')
   && !/boot-skeleton-variant boot-skeleton-calendar[\s\S]{0,7000}<div class="cal-month-wrap">/.test(INDEX));
+check('static boot skeleton has a neutral client verification variant',
+  INDEX.includes('boot-skeleton-variant boot-skeleton-client-verify')
+  && INDEX.includes('data-boot-surface="client-verify"'));
+check('static boot skeleton has client analytics and Brief variants',
+  INDEX.includes('boot-skeleton-variant boot-skeleton-client-profile')
+  && INDEX.includes('data-boot-surface="client-analytics"')
+  && INDEX.includes('boot-skeleton-variant boot-skeleton-client-brief')
+  && INDEX.includes('data-boot-surface="client-brief"'));
+check('client Calendar/Brief history state is predicted before paint',
+  GATE.includes("de.setAttribute('data-boot-nav', 'client')")
+  && GATE.includes("st.clientTab === 'calendar' || st.clientTab === 'brief'"));
 
 // 8. The gate must never log or throw: whole body wrapped in try/catch and
 //    no console.* calls inside (headless probes fail on any console error).

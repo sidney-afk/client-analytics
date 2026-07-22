@@ -1,6 +1,11 @@
 // Extended harness for overnight calendar testing. Builds on the repo's golden_lib.
 // Scope: ONLY the `sidneylaruel` test client. Every probe must clean up (archive) what it creates.
 const G = require('../golden_lib.js');
+const {
+  TEST_CLIENT,
+  currentTestClientToken,
+  gotoTestClientEntry,
+} = require('../test-client-entry.js');
 // Playwright: use the locally-installed module in CI; fall back to the
 // container's global path for ad-hoc local runs.
 const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
@@ -49,6 +54,20 @@ async function _ctx(browser, opts = {}) {
 }
 async function _open(browser, url, opts) { const c = await _ctx(browser, opts); const p = await c.newPage(); capture(p);
   await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); await p.waitForTimeout(700); return p; }
+async function _openClient(browser, view, name, token, opts) {
+  const c = await _ctx(browser, opts);
+  const p = await c.newPage();
+  capture(p);
+  await gotoTestClientEntry(p, {
+    origin: ORIGIN,
+    view,
+    name,
+    token,
+    gotoOptions: { waitUntil: 'domcontentloaded', timeout: 45000 },
+  });
+  await p.waitForTimeout(700);
+  return p;
+}
 
 // SMM surface (manager) — full edit rights
 async function smmPage(browser, slug = 'sidneylaruel', opts) {
@@ -57,7 +76,12 @@ async function smmPage(browser, slug = 'sidneylaruel', opts) {
   await p.waitForTimeout(2500);
   return p;
 }
-async function clientPage(browser, opts) { const p = await _open(browser, `${ORIGIN}/index.html?c=Sidney%20Laruel&v=calendar&v2debug=1`, opts); await p.waitForTimeout(5000); return p; }
+async function clientPage(browser, opts) {
+  const token = await currentTestClientToken();
+  const p = await _openClient(browser, 'calendar', TEST_CLIENT.name, token, opts);
+  await p.waitForTimeout(5000);
+  return p;
+}
 async function kasperPage(browser, opts) { const p = await _open(browser, `${ORIGIN}/index.html?Kasper=1&v2debug=1`, opts); await p.waitForTimeout(8000); return p; }
 
 // force a fresh calendar load + wait for a pid to appear in calState with optional predicate
@@ -130,5 +154,6 @@ module.exports = Object.assign({}, G, {
   up, rawRow, pollRaw, capture, smmPage, clientPage, kasperPage, waitForPost, makeOk,
   smmResolveTweak, clientApprove, clientRequest, overallOn, clientCompActive,
   stubRerouteFlagDark,
-  ORIGIN, UPSERT, SUPA, KEY, launch: G.launch,
+  ORIGIN, UPSERT, SUPA, KEY,
+  TEST_CLIENT, currentTestClientToken, gotoTestClientEntry, launch: G.launch,
 });

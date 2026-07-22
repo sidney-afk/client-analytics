@@ -23,6 +23,8 @@
 | Path | What it is |
 |---|---|
 | `master.js` | Unified orchestrator — one summary/exit code for its registered lanes (`npm run test:master` = fast profile; `npm run test:master:full` = every master-registered lane). PTO remains a separate feature-scoped command. |
+| `boot/` | Fully synthetic full-Chromium lane that streams `index.html` in two chunks and asserts the actual visible first-paint/reload/BFCache sequence for client Calendar, Brief, invalid and retryable verifier entry, pending analytics/Calendar/Samples reads, Calendar route/Linear-tail/realtime replacement, pending and settled staff Calendar BFCache recovery, and legacy Samples exact-client traversal. |
+| `test-client-entry.js` | Strict TEST-client URL builder plus the nightly-only current-token resolver. It fails closed without the protected job token and emits only `c,t,v[,sxr]`; no token is committed or logged. |
 | `run-probes.js` | Runs the probes listed in `probes/nightly-manifest.txt` (`npm run test:e2e`; nightly CI). |
 | `probes/` | Individual live probes. The **manifest** decides what the nightly gate runs; probes not in it (`p00`–`p27`, `p_g2*`) are kept as reference material only. |
 | `scenario_engine.js` + `scenarios.js` + `scenario_tree.js` | The multi-actor Samples review lifecycle: seeds a card, drives the real SMM/Kasper/Client handlers through the UI, and asserts DB + DOM after every step. The scenario library covers the golden review paths end to end (clean approve, Kasper/client tweak loops, approve-after-tweaks, undo, archive). |
@@ -37,10 +39,19 @@
 ```bash
 npm run test:e2e            # manifest probes (live backend)
 npm run test:master         # all master-registered lanes + vision pass
+npm run test:boot           # offline streamed first-paint/reload guard
+node qa/master.js --lane=boot                              # same guard through the QA orchestrator
 npm run test:pto-lifecycle  # fully mocked PTO lifecycle + screenshot series
 node qa/master.js --lane=scenarios --scn=create_via_ui   # a single scenario
 node qa/probes/p88_realtime_handler.js                   # a single probe
 ```
+
+Live client-route lanes require the current protected token for the TEST client. Each
+operative harness resolves it through the protected `client-review-link` issuer using
+`SYNCVIEW_STAFF_KEY`, keeps it only in local process memory, and passes it explicitly to
+`gotoTestClientEntry`, which redacts navigation failures. The token is never exported through `GITHUB_ENV` or `process.env`,
+and browser/unrelated child environments have client-entry credentials stripped. Never
+put the value in a command, fixture, URL example, source file, or log.
 
 ## How the harness works (`golden_lib.js`)
 

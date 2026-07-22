@@ -25,10 +25,16 @@
 // which triggers the same REST refetch + pill re-render a real push would.
 // ============================================================================
 'use strict';
-const { execSync } = require('child_process');
+const { spawnSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const {
+  clientEntrySafeChildEnv,
+  currentTestClientToken,
+  gotoTestClientEntry,
+} = require('../test-client-entry.js');
 let PW; try { PW = require('playwright'); } catch { PW = require('/opt/node22/lib/node_modules/playwright'); }
 
 // In-process static server (a detached Bash server gets killed by the sandbox, so
@@ -71,12 +77,97 @@ const SXR_REORDER_N8N = N8N + '/sample-review-reorder';
 const LINEAR_HOOK = /\/webhook\/(linear-set-status|linear-add-comment|linear-subissues|linear-issue-statuses)\b/;
 const EXT = /(supabase\.co|synchrosocial\.app\.n8n\.cloud|cdn\.jsdelivr\.net|docs\.google\.com|drive\.google\.com|googleusercontent\.com|ytimg\.com|youtube\.com|ggpht\.com|vimeocdn\.com|frame\.io|placeholder\.com|imgur\.com)/;
 
-const TMP = process.env.EFWP_TMP || '/tmp/qa-efwp';
-try { fs.mkdirSync(TMP, { recursive: true }); } catch {}
+const _CURL = process.platform === 'win32' ? 'curl.exe' : 'curl';
+const _CURL_OPTIONS = Object.freeze({
+  timeout: 60000,
+  maxBuffer: 64 * 1024 * 1024,
+  windowsHide: true,
+  env: clientEntrySafeChildEnv(),
+});
+const _COURIER_HEADER_SKIP = /^(host|origin|referer|connection|content-length|accept-encoding)$/i;
 
-let _seq = 0;
-function _q(a) { return `'${String(a).replace(/'/g, "'\\''")}'`; }
-const _exec = (cmd, extra) => execSync(cmd, Object.assign({ encoding: 'utf8', timeout: 60000 }, extra || {}));
+function _curlConfigValue(value) {
+  let text;
+  if (Buffer.isBuffer(value)) {
+    text = value.toString('utf8');
+    if (!Buffer.from(text, 'utf8').equals(value)) throw new Error('binary courier request bodies are unsupported');
+  } else {
+    text = String(value == null ? '' : value);
+  }
+  if (/[\u0000-\u0008\u000c\u000e-\u001f\u007f]/.test(text)) {
+    throw new Error('unsupported control byte in courier request');
+  }
+  return '"' + text
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\t/g, '\\t')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\v/g, '\\v') + '"';
+}
+function _curlMarker() {
+  return `__SYNCVIEW_CURL_META_${crypto.randomBytes(18).toString('hex')}__`;
+}
+function _curlRequestConfig(method, url, headers, postData, marker) {
+  const lines = [
+    'silent',
+    'show-error',
+    'location',
+    `max-time = ${_curlConfigValue(String(_CURL_OPTIONS.timeout / 1000))}`,
+    `request = ${_curlConfigValue(method)}`,
+    `url = ${_curlConfigValue(url)}`,
+  ];
+  for (const [k, v] of Object.entries(headers || {})) {
+    if (_COURIER_HEADER_SKIP.test(k)) continue;
+    const name = String(k || '').trim();
+    const value = String(v == null ? '' : v);
+    if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name) || /[\u0000\r\n]/.test(value)) {
+      throw new Error('invalid courier header');
+    }
+    lines.push(`header = ${_curlConfigValue(`${name}: ${value}`)}`);
+  }
+  if (postData !== undefined && postData !== null) {
+    // data-raw preserves literal request bytes and never treats a leading @ as
+    // a filename, unlike data-binary.
+    lines.push(`data-raw = ${_curlConfigValue(postData)}`);
+  }
+  lines.push(`write-out = ${_curlConfigValue(`${marker}%{http_code}\t%{content_type}${marker}`)}`);
+  return lines.join('\n') + '\n';
+}
+function _curlResult(output, marker) {
+  const bytes = Buffer.isBuffer(output) ? output : Buffer.from(output || '');
+  const markerBytes = Buffer.from(marker, 'utf8');
+  const close = bytes.lastIndexOf(markerBytes);
+  if (close < 0 || close + markerBytes.length !== bytes.length) throw new Error('curl metadata missing');
+  const open = bytes.lastIndexOf(markerBytes, close - 1);
+  if (open < 0) throw new Error('curl metadata malformed');
+  const metadata = bytes.subarray(open + markerBytes.length, close).toString('utf8');
+  const separator = metadata.indexOf('\t');
+  const statusText = separator < 0 ? '' : metadata.slice(0, separator);
+  const ctype = separator < 0 ? '' : metadata.slice(separator + 1);
+  if (!/^\d{3}$/.test(statusText)) throw new Error('curl status missing');
+  return {
+    status: Number(statusText),
+    ctype: ctype.trim() || 'application/json',
+    body: Buffer.from(bytes.subarray(0, open)),
+  };
+}
+function _curlRequestSync(method, url, headers, postData) {
+  try {
+    const marker = _curlMarker();
+    const config = _curlRequestConfig(method, url, headers, postData, marker);
+    const result = spawnSync(_CURL, ['--config', '-'], Object.assign({}, _CURL_OPTIONS, {
+      input: config,
+    }));
+    if (result.error || result.status !== 0) throw new Error('curl request failed');
+    return _curlResult(result.stdout, marker);
+  } catch {
+    throw new Error('curl request failed');
+  }
+}
+function _courierFailure() {
+  return { status: 502, ctype: 'text/plain', body: Buffer.from('courier-failed') };
+}
 
 // ---- Linear FORWARD allowlist (issue identifiers the test client owns) -------
 // A push is forwarded to LIVE n8n only if its payload.issue contains one of these
@@ -94,28 +185,20 @@ function setBlockN8nWrites(v) { _blockN8nWrites = !!v; }
 
 // ---- Node-side network (through the egress proxy) ---------------------------
 function _courierFetch(method, url, headers, postData) {
-  const bodyFile = `${TMP}/_resp_${process.pid}_${++_seq}.bin`;
-  const args = ['-s', '-L', '-D', '-', '-o', bodyFile, '-X', method];
-  for (const [k, v] of Object.entries(headers || {})) {
-    if (/^(host|origin|referer|connection|content-length|accept-encoding)$/i.test(k)) continue;
-    args.push('-H', `${k}: ${v}`);
+  try {
+    return _curlRequestSync(method, url, headers, postData);
+  } catch {
+    return _courierFailure();
   }
-  if (postData) { const pf = `${TMP}/_pd_${process.pid}_${_seq}.bin`; fs.writeFileSync(pf, postData); args.push('--data-binary', '@' + pf); }
-  args.push(url);
-  let head = '';
-  try { head = _exec('curl ' + args.map(_q).join(' '), { maxBuffer: 64 * 1024 * 1024 }); }
-  catch (e) { return { status: 502, ctype: 'text/plain', body: Buffer.from('courier-failed: ' + (e.message || '')) }; }
-  const re = /HTTP\/[\d.]+\s+(\d{3})\b/g; let _m, _last = null;
-  while ((_m = re.exec(head)) !== null) _last = _m[1];
-  const status = _last ? parseInt(_last, 10) : 200;
-  const ct = (head.match(/content-type:\s*([^\r\n]+)/i) || [])[1];
-  const body = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile) : Buffer.from('');
-  return { status, ctype: (ct || 'application/json').trim(), body };
 }
 
 // Read helpers (Supabase REST via Node/proxy).
 function _supaGet(table, qs) {
-  const out = _exec(`curl -s ${_q(SUPA + '/rest/v1/' + table + '?' + qs)} -H ${_q('apikey: ' + KEY)} -H ${_q('Authorization: Bearer ' + KEY)}`, { maxBuffer: 32 * 1024 * 1024 });
+  const out = _curlRequestSync(
+    'GET',
+    SUPA + '/rest/v1/' + table + '?' + qs,
+    { apikey: KEY, Authorization: 'Bearer ' + KEY },
+  ).body.toString('utf8');
   try { return JSON.parse(out); } catch { return []; }
 }
 const supaCal = (qs) => _supaGet('calendar_posts', qs);
@@ -135,15 +218,21 @@ async function pollSample(pid, pred, sel = '*', ms = 20000, step = 800) {
 // Direct writes via a chosen endpoint (used for setup/teardown ONLY — clearly
 // labeled; the LIVE tests drive the real UI). base='' keeps whole-card semantics.
 function calUpN8n(post, base) {
-  const f = `${TMP}/_up_${process.pid}_${++_seq}.json`;
-  fs.writeFileSync(f, JSON.stringify({ client: 'sidneylaruel', post, comments_base_at: base || '' }));
-  const out = _exec(`curl -s -X POST ${_q(CAL_N8N)} -H 'Content-Type: application/json' -d @${f}`);
+  const out = _curlRequestSync(
+    'POST',
+    CAL_N8N,
+    { 'Content-Type': 'application/json' },
+    JSON.stringify({ client: 'sidneylaruel', post, comments_base_at: base || '' }),
+  ).body.toString('utf8');
   try { return JSON.parse(out); } catch { return { _raw: out }; }
 }
 function sampleUpN8n(sample, base) {
-  const f = `${TMP}/_sup_${process.pid}_${++_seq}.json`;
-  fs.writeFileSync(f, JSON.stringify({ client: 'sidneylaruel', sample, comments_base_at: base || '' }));
-  const out = _exec(`curl -s -X POST ${_q(SXR_N8N)} -H 'Content-Type: application/json' -d @${f}`);
+  const out = _curlRequestSync(
+    'POST',
+    SXR_N8N,
+    { 'Content-Type': 'application/json' },
+    JSON.stringify({ client: 'sidneylaruel', sample, comments_base_at: base || '' }),
+  ).body.toString('utf8');
   try { return JSON.parse(out); } catch { return { _raw: out }; }
 }
 
@@ -254,7 +343,13 @@ async function makeCtx(browser, opts = {}) {
   return { ctx, rec };
 }
 
-async function launch() { return await PW.chromium.launch({ headless: true, args: ['--ignore-certificate-errors'] }); }
+async function launch() {
+  return await PW.chromium.launch({
+    headless: true,
+    args: ['--ignore-certificate-errors'],
+    env: clientEntrySafeChildEnv(),
+  });
+}
 
 function _capture(page) {
   page._errs = [];
@@ -275,6 +370,20 @@ async function _open(browser, urlPath, opts = {}) {
   const page = await ctx.newPage();
   _capture(page);
   await page.goto(_origin + urlPath, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await page.waitForTimeout(600);
+  return { page, ctx, rec };
+}
+async function _openClient(browser, view, name, token, opts = {}) {
+  const { ctx, rec } = await makeCtx(browser, opts);
+  const page = await ctx.newPage();
+  _capture(page);
+  await gotoTestClientEntry(page, {
+    origin: _origin,
+    view,
+    name,
+    token,
+    gotoOptions: { waitUntil: 'domcontentloaded', timeout: 45000 },
+  });
   await page.waitForTimeout(600);
   return { page, ctx, rec };
 }
@@ -338,8 +447,9 @@ async function smmCal(browser, slug = 'sidneylaruel') {
   await h.page.waitForTimeout(500);
   return h;
 }
-async function clientCal(browser, name = 'Sidney Laruel') {
-  const h = await _open(browser, `/index.html?c=${encodeURIComponent(name)}&v=calendar&v2debug=1`);
+async function clientCal(browser, name = 'Sidney Laruel', token) {
+  const currentToken = token === undefined ? await currentTestClientToken() : token;
+  const h = await _openClient(browser, 'calendar', name, currentToken);
   h.loaded = await _forceCalLoad(h.page);
   await h.page.waitForTimeout(500);
   return h;
@@ -381,8 +491,9 @@ async function smmSamples(browser, slug = 'sidneylaruel') {
   await h.page.waitForTimeout(500);
   return h;
 }
-async function clientSamples(browser, name = 'Sidney Laruel') {
-  const h = await _open(browser, `/index.html?sxr=1&c=${encodeURIComponent(name)}&v=sample-reviews&v2debug=1`);
+async function clientSamples(browser, name = 'Sidney Laruel', token) {
+  const currentToken = token === undefined ? await currentTestClientToken() : token;
+  const h = await _openClient(browser, 'sample-reviews', name, currentToken);
   await h.page.waitForTimeout(2500);
   return h;
 }
@@ -407,5 +518,9 @@ module.exports = {
   launch, makeCtx, _open, appErrs,
   smmCal, clientCal, kasperCal, smmSamples, clientSamples, kasperSamples,
   supaCal, supaSample, supaCalEvents, supaSampleEvents, supaGet: _supaGet, calRow, sampleRow, pollCal, pollSample,
-  calUpN8n, sampleUpN8n, setLinearForwardAllow, setBlockN8nWrites, classify, makeOk,
+  calUpN8n, sampleUpN8n, filelessHttpRequest: _curlRequestSync,
+  setLinearForwardAllow, setBlockN8nWrites, classify, makeOk,
+  __test: Object.freeze({
+    courierFetch: _courierFetch,
+  }),
 };

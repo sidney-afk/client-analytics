@@ -30,7 +30,14 @@ const vurl = (id) => 'https://linear.app/sidtest/issue/' + id;
     await Q.pollRaw(REQ, r => String(r.linear_issue_id || '').includes('LCREQ-' + TS), 'linear_issue_id', 14000);
     await Q.pollRaw(APP, r => String(r.linear_issue_id || '').includes('LCAPP-' + TS), 'linear_issue_id', 14000);
 
-    await cli.goto('http://localhost:8000/index.html?c=Sidney%20Laruel&v=calendar&v2debug=1', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    const clientToken = await Q.currentTestClientToken();
+    await Q.gotoTestClientEntry(cli, {
+      origin: Q.ORIGIN,
+      view: 'calendar',
+      name: Q.TEST_CLIENT.name,
+      token: clientToken,
+      gotoOptions: { waitUntil: 'domcontentloaded', timeout: 45000 },
+    });
     await cli.waitForTimeout(5000);
 
     // fire both client actions, then wait generously and assert on the final captured arrays

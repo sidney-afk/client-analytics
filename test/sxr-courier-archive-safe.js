@@ -10,6 +10,12 @@ const path = require('path');
 const vm = require('vm');
 
 const src = fs.readFileSync(path.resolve(__dirname, '..', 'qa', 'sxr_courier_lib.js'), 'utf8');
+if (!/function _sleepSync\(ms\)\s*\{\s*Atomics\.wait\(/.test(src)) {
+  throw new Error('archive retry delay must stay in-process');
+}
+if (/\bexecSync\b|_exec\(\s*['"`]sleep/.test(src)) {
+  throw new Error('archive retry delay must not spawn a shell');
+}
 
 function extractFunction(name) {
   const start = src.indexOf('function ' + name + '(');
@@ -32,7 +38,7 @@ function makeSampleArchive(reads) {
   const sandbox = {
     up(sample) { calls.up.push(sample); return { ok: true }; },
     supa(qs) { calls.supa.push(qs); return reads.length ? reads.shift() : []; },
-    _exec(cmd) { if (/sleep/.test(cmd)) calls.sleep++; return ''; },
+    _sleepSync(ms) { if (ms === 1500) calls.sleep++; },
   };
   vm.runInNewContext(extractFunction('archiveSafe') + '\nthis.archiveSafe = archiveSafe;', sandbox);
   return { archiveSafe: sandbox.archiveSafe, calls };
@@ -43,7 +49,7 @@ function makeCalendarArchive(reads) {
   const sandbox = {
     upCal(post) { calls.upCal.push(post); return { ok: true }; },
     supaCal(qs) { calls.supaCal.push(qs); return reads.length ? reads.shift() : []; },
-    _exec(cmd) { if (/sleep/.test(cmd)) calls.sleep++; return ''; },
+    _sleepSync(ms) { if (ms === 1500) calls.sleep++; },
   };
   vm.runInNewContext(extractFunction('archiveCalSafe') + '\nthis.archiveCalSafe = archiveCalSafe;', sandbox);
   return { archiveCalSafe: sandbox.archiveCalSafe, calls };
@@ -61,6 +67,7 @@ function ok(cond, msg, detail) {
   const res = archiveSafe('sr_missing', 2);
   ok(res === true, 'sample cleanup treats a repeatedly missing row as already clean', 'got ' + res);
   ok(calls.up.length === 0, 'sample cleanup does not POST archive for a missing row', 'up calls=' + calls.up.length);
+  ok(calls.sleep === 2, 'sample missing-row retries use the in-process delay', 'sleep calls=' + calls.sleep);
 }
 
 {
@@ -82,6 +89,7 @@ function ok(cond, msg, detail) {
   const res = archiveCalSafe('cal_missing', 2);
   ok(res === true, 'calendar cleanup treats a repeatedly missing row as already clean', 'got ' + res);
   ok(calls.upCal.length === 0, 'calendar cleanup does not POST archive for a missing row', 'upCal calls=' + calls.upCal.length);
+  ok(calls.sleep === 2, 'calendar missing-row retries use the in-process delay', 'sleep calls=' + calls.sleep);
 }
 
 {

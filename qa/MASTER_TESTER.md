@@ -13,6 +13,7 @@ the thing you used to do by hand, opening the page and clicking around.
 | Lane | Was | What it checks | Browser? |
 |------|-----|----------------|----------|
 | `unit` | `test/run-all.js` (every `test/*.js`, auto-discovered) | pure transform/state-machine logic | no |
+| `boot` | `qa/boot/client-entry-sequence.js` | streams the real document and records visible first paint through verification, route loader, settle, reload, history, active Calendar primary/post-load/realtime replacement, staff Calendar BFCache recovery, and actual client `pageshow.persisted` denial (including late pending reads) with fictional data; no settled-page shortcut and no retries | yes (fully synthetic) |
 | `parity` | `parity_*.js`, `render_parity.js`, `realtime_parity.js` | Samples `_sxr*` is a faithful clone of calendar `_cal*` (logic + DOM + CSS + realtime/immediacy wiring) | yes¹ |
 | `realtime` | `realtime_parity.js` + `p88_realtime_handler.js` *(new)* | **Layer A** (static, no browser): every calendar realtime/immediacy hook has a wired samples twin (subscription + teardown + dataChanged gate). **Layer B** (real browser): GIVEN a push, the never-reloaded surface repaints, a no-op echo doesn't rebuild, and the Kasper queue updates. Together: A = "the socket calls the handler", B = "the handler updates the UI". | yes (B only) |
 | `probes` | `run-probes.js` + `p*.js` | calendar lifecycle/routing/sync — drives via app **handlers** (`page.evaluate`), not real clicks | yes |
@@ -44,10 +45,10 @@ runs them all (zero coverage loss); the default `fast` profile runs a smoke subs
 
 ## Profiles
 
-- **fast** (default) — `unit` + `parity(logic)` + a scenario smoke set + a visual
+- **fast** (default) — `unit` + `boot` + `parity(logic)` + a scenario smoke set + a visual
   smoke set. Run this on every change.
 - **full** — every lane: the whole scenario library, the branching tree, all
-  nightly probes, parity, realtime, temporal, visual. Run this nightly / before a release.
+  nightly probes, boot, parity, realtime, temporal, visual. Run this nightly / before a release.
 
 ## Usage
 
@@ -63,10 +64,13 @@ node qa/master.js --profile=full
 # just some lanes
 node qa/master.js --lane=unit,visual
 
+# actual visible first-paint/reload sequence only (fully synthetic)
+node qa/master.js --lane=boot
+
 # focus on specific scenarios (and feed the eyes a change note)
 MASTER_CHANGE_NOTE="redid the approve button" node qa/master.js --lane=visual --scn=clean_both
 
-# reuse an already-running :8000 static server
+# explicitly trust an already-running, silent :8000 static server
 node qa/master.js --no-server
 
 # the branching scenario tree

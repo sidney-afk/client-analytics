@@ -67,10 +67,18 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
   assert(body.includes('await _syncviewIssueClientShareUrl'), name + ' must issue only at copy time');
 }
 
-const clientVerifier = extract('_syncviewVerifyClientLinkAccess');
-assert(clientVerifier.includes('fetch(CLIENT_TOKEN_VERIFY_URL'));
-assert(!/clientMap|client_review_token/.test(clientVerifier), 'client boot must verify service-side only');
-assert(!/localStorage|sessionStorage/.test(clientVerifier), 'raw client token must not be copied into browser storage');
+const clientPreflight = extract('_syncviewPreflightClientEntry');
+const clientBindingVerifier = extract('_syncviewVerifyClientLinkAccess');
+assert(clientPreflight.includes('fetch(CLIENT_TOKEN_VERIFY_URL'));
+assert(clientPreflight.includes('strict: true'), 'client entry must request strict verification even while the global flag is permissive');
+assert(clientPreflight.includes('json.valid !== true'), 'a permissive ok response without a valid token must not authorize entry');
+assert(clientPreflight.includes("cache: 'no-store'"), 'client verification response must not be browser-cached');
+assert(!/clientMap|client_review_token/.test(clientPreflight), 'client boot must verify service-side only');
+assert(!/localStorage|sessionStorage/.test(clientPreflight), 'raw client token must not be copied into browser storage');
+assert(!/fetch\(/.test(clientBindingVerifier), 'post-preflight checks must use the verified in-memory binding, not issue a second request');
+assert(clientBindingVerifier.includes('cap && cap.verified'));
+assert(clientBindingVerifier.includes('_syncviewClientEntrySlug(clientName) === cap.slug'));
+assert(clientBindingVerifier.includes('_syncviewInvalidClientLinkScreen()'));
 
 const sanitizer = extract('_clientsInfoPublicRows');
 const sanitizeContext = {

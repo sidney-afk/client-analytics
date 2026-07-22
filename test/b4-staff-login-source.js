@@ -84,6 +84,8 @@ ok(!/syncview_runtime_flags[^\n]{0,120}(PATCH|POST|update)/i.test(functionSource
 const context = vm.createContext({
   CAL_SUPABASE_URL: 'https://project.example',
   _isClientLink: false,
+  _syncviewClientEntryDataRun: null,
+  _syncviewClientEntryRunCurrent: run => Boolean(run && run.verified === true),
   _syncviewClientWriteToken: () => 'client-token',
   _syncviewStaffIdentityForHeaders: () => ({
     key: 'dummy-role-key',
@@ -102,8 +104,11 @@ const n8nHeaders = context._syncviewEfHeaders({ 'Content-Type': 'application/jso
 ok(!n8nHeaders['X-Syncview-Key'], 'role key is never sent to an n8n fallback');
 
 context._isClientLink = true;
+const unverifiedClientHeaders = context._syncviewEfHeaders({ 'Content-Type': 'application/json' }, 'https://project.example/functions/v1/calendar-upsert');
+ok(!unverifiedClientHeaders['X-Syncview-Client-Token'], 'unverified client links cannot attach the client token');
+context._syncviewClientEntryDataRun = { verified: true };
 const clientHeaders = context._syncviewEfHeaders({ 'Content-Type': 'application/json' }, 'https://project.example/functions/v1/calendar-upsert');
-ok(clientHeaders['X-Syncview-Client-Token'] === 'client-token', 'client links keep the client-token path');
+ok(clientHeaders['X-Syncview-Client-Token'] === 'client-token', 'strictly verified client links keep the client-token path');
 ok(!clientHeaders['X-Syncview-Key'], 'client links never receive the staff role key');
 
 if (failures) {

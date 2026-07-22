@@ -82,7 +82,7 @@ const CLIP_STUB = () => {
         const req = route.request();
         if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST,OPTIONS' }, body: '' });
         sawKeyHeader = req.headers()['x-syncview-key'] || null;
-        return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: true, token: 'ot4-mock-token-' + TS }) });
+        return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: true, client: 'sidneylaruel', token: 'ot4-mock-token-' + TS }) });
       });
       await p.evaluate(ctxSeed, TS);
       await p.reload({ waitUntil: 'domcontentloaded' });
@@ -110,7 +110,14 @@ const CLIP_STUB = () => {
     // ---- C) the minted link loads as a client surface ---------------------
     if (mintedUrl) {
       const qs = new URL(mintedUrl).search;
-      const p = await open(browser, '/index.html' + qs + '&v2debug=1');
+      const p = await open(browser, '/index.html' + qs, {
+        syntheticClientEntry: {
+          slug: 'sidneylaruel',
+          displayName: 'Sidney Laruel',
+          token: 'ot4-mock-token-' + TS,
+          view: 'calendar',
+        },
+      });
       await H.sleep(4000);
       const st = await p.evaluate(() => ({
         clientLink: (() => { try { return !!_isClientLink; } catch (e) { return 'n/a'; } })(),

@@ -53,7 +53,22 @@ ok(/\[functions\.key-verify\]\s*verify_jwt = false/.test(CFG), 'key-verify confi
   'auth_enforcement',
   'permissive',
   'fresh_link_required',
+  'CLIENT_ENTRY_VIEWS',
+  'CLIENT_ENTRY_PROTOCOL',
+  'const strict = body.strict === true',
+  '.select("slug,review_token,client:clients!inner(slug,display_name,active)")',
+  'client.active === true',
 ].forEach(token => ok(TOKEN_FN.includes(token), 'client-token-verify token missing: ' + token));
+ok((TOKEN_FN.match(/\.maybeSingle\(\)/g) || []).length >= 1
+  && !TOKEN_FN.includes('.from("clients")'),
+  'strict client/token proof must use one joined snapshot, not split client and token reads');
+ok(/const allowed = valid \|\| \(!strict && mode !== "enforced"\)/.test(TOKEN_FN),
+  'strict client entry must require an active client and current token without changing the global flag');
+ok(/!CLIENT_ENTRY_VIEWS\.has\(view\)/.test(TOKEN_FN),
+  'client-token-verify must reject unsupported client-entry views');
+ok(/reason: !allowed && strict \? "invalid_link" : reason/.test(TOKEN_FN)
+  && /slug: valid \|\| !strict \? slug : undefined/.test(TOKEN_FN),
+  'strict denials must not expose whether a client, token row, or token value matched');
 
 [
   'ROLE_KEY_ADMIN',
@@ -72,13 +87,26 @@ ok(KEY_FN.includes('../_shared/staff-role-auth.ts'), 'key-verify must import the
 
 [
   'CLIENT_TOKEN_VERIFY_URL',
+  'SYNCVIEW_CLIENT_ENTRY_VIEWS',
+  'SYNCVIEW_CLIENT_ENTRY_KEYS',
+  '_syncviewPreflightClientEntry',
   '_syncviewVerifyClientLinkAccess',
-  'client-token verifier unavailable; preserving permissive client-link behavior',
+  'strict: true',
+  'SYNCVIEW_CLIENT_ENTRY_PROTOCOL',
+  'json.active !== true',
+  'json.strict !== true',
+  'json.protocol !== SYNCVIEW_CLIENT_ENTRY_PROTOCOL',
+  'json.valid !== true',
+  "_clientEntryParams.has('c')",
   'X-Syncview-Client-Token',
 ].forEach(token => ok(INDEX.includes(token), 'browser token missing: ' + token));
 
-ok((INDEX.match(/await _syncviewVerifyClientLinkAccess/g) || []).length >= 4,
-  'all client-link boot paths must call the server verifier');
+ok((INDEX.match(/await _syncviewVerifyClientLinkAccess/g) || []).length >= 3,
+  'all verified client-link boot paths must re-check the exact in-memory capability');
+ok((INDEX.match(/fetch\(CLIENT_TOKEN_VERIFY_URL/g) || []).length === 1,
+  'client entry must have one centralized preflight verifier request');
+ok(!INDEX.includes('client-token verifier unavailable; preserving permissive client-link behavior'),
+  'client entry must never preserve permissive access after verifier failure');
 ok((EDGE_WRITERS.match(/x-syncview-client-token/g) || []).length >= 4,
   'Edge Function CORS must allow the client-token header');
 

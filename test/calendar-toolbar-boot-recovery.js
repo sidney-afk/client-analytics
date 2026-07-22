@@ -48,8 +48,8 @@ function ok(condition, label) {
   const renderShellSource = grabFunc('_calRenderShell');
   const viewChangeSource = grabFunc('onCalViewChange');
 
-  ok(/const dataLoad = fetchAll\(\);[\s\S]{0,160}dataLoad\.essentials\.then\(_applyAllDataDependentChrome/.test(INDEX),
-    'normal boot attaches Calendar chrome recovery to essentials');
+  ok(/const dataLoad = fetchAll\(_isClientLink\?clientEntryRun:null\);[\s\S]{0,220}dataLoad\.essentials\.then\(\(\) => \{[\s\S]{0,120}if\(_clientEntryStillCurrent\(\)\)_applyAllDataDependentChrome\(\);/.test(INDEX),
+    'normal boot attaches lease-guarded Calendar chrome recovery to essentials');
   ok(!/dataPromise\.then\(_applyAllDataDependentChrome/.test(INDEX),
     'normal boot does not defer a duplicate recovery until analytics extras finish');
   ok(/dataLoad\.essentials\.then\(_calResolvePendingDeepLink, _calResolvePendingDeepLink\)/.test(INDEX),

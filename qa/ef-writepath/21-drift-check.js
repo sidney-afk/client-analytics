@@ -6,18 +6,15 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
-const KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
-const SUPA = 'https://uzltbbrjidmjwwfakwve.supabase.co';
+const L = require('./lib.js');
 const ROOT = path.resolve(__dirname, '..', '..');
 // The flagged-client roster is read from the live runtime flag at run time — never
 // hard-coded, so no client identifiers are committed to this public repo.
 function flaggedClients() {
-  const out = execSync(`curl -s ${JSON.stringify(SUPA + '/rest/v1/syncview_runtime_flags?select=value&key=eq.calendar_upsert_ef_clients&limit=1')} -H ${JSON.stringify('apikey: ' + KEY)} -H ${JSON.stringify('Authorization: Bearer ' + KEY)}`, { encoding: 'utf8' });
-  try { const rows = JSON.parse(out); const v = rows && rows[0] && rows[0].value; return (v && Array.isArray(v.clients)) ? v.clients : []; }
-  catch { return []; }
+  const rows = L.supaGet('syncview_runtime_flags', 'select=value&key=eq.calendar_upsert_ef_clients&limit=1');
+  const v = rows && rows[0] && rows[0].value;
+  return (v && Array.isArray(v.clients)) ? v.clients : [];
 }
-const CLIENTS = flaggedClients();
 
 // Columns the EF legitimately does not carry in ALLOWED but that exist as
 // id/foreign/trigger/DDL-owned system columns — not drift.
@@ -32,8 +29,7 @@ function allowedFrom(file) {
   return new Set(m[1].split(',').map(x => (x.match(/"([^"]+)"/) || [])[1]).filter(Boolean));
 }
 function get(table, qs) {
-  const out = execSync(`curl -s ${JSON.stringify(SUPA + '/rest/v1/' + table + '?' + qs)} -H ${JSON.stringify('apikey: ' + KEY)} -H ${JSON.stringify('Authorization: Bearer ' + KEY)}`, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  try { return JSON.parse(out); } catch { return []; }
+  return L.supaGet(table, qs);
 }
 const nonEmpty = (v) => v !== null && v !== undefined && String(v).trim() !== '';
 
@@ -53,7 +49,8 @@ function checkTable(table, allowed, client) {
   return { count: Array.isArray(rows) ? rows.length : 0, drift, dupLinks: Object.keys(dupLinks) };
 }
 
-(function () {
+function run() {
+  const CLIENTS = flaggedClients();
   const calAllowed = allowedFrom('supabase/functions/calendar-upsert/index.ts');
   const sxrAllowed = allowedFrom('supabase/functions/sample-review-upsert/index.ts');
   console.log('calendar-upsert ALLOWED cols:', calAllowed.size, '| sample-review-upsert ALLOWED cols:', sxrAllowed.size);
@@ -73,4 +70,8 @@ function checkTable(table, allowed, client) {
   try { fs.writeFileSync('/tmp/qa-efwp/results-drift.json', JSON.stringify(summary, null, 2)); } catch (e) {}
   console.log(`\nDRIFT-CHECK: ${CLIENTS.length - fail}/${CLIENTS.length} clients clean (no dropped-column drift, no dup links)`);
   process.exit(fail ? 1 : 0);
-})();
+}
+
+if (require.main === module) run();
+
+module.exports = { flaggedClients, get, run };

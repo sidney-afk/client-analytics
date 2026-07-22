@@ -331,17 +331,20 @@ Do not enroll a real cohort on any other value or after proof expiry.
 3. If a flipped team is affected, snapshot its outbox and follow R2. Do not flip authority blindly.
 4. Tell the team which system is authoritative and which mutations are stopped. Then diagnose.
 
-## R2 — Pause a flipped team back to Linear (candidate proved; live application still blocked)
+## R2 — Pause a flipped team back to Linear (no executable authority-return tool)
 
 **The old “run the default drainer and require green/pending 0” instruction was unsafe.** The
 worker's normal summary does not provide an auditable per-team zero for this rollback, and stopping
 outbound first prevents a normal drain. Blindly flipping authority can strand newer SyncView work;
 blindly draining can send the very writes that triggered the incident.
 
-PR #894 carries the additive F27 candidate and an isolated TEST proof, but the
-migration is not live-applied. Until its reviewed migration/readback and a
-deployed TEST-client drill are separately owner-approved and complete, there is
-no live one-click team rollback. Use this incident containment sequence:
+Do not apply or deploy merged PR #894. Its 2026-07-21 live preflight stopped
+before mutation: the source is real-team-wide rather than TEST/client-scoped,
+its off-state/final-CAS and durable-evidence contracts conflict with the former
+drill recipe, and two P1 races remain. Until corrective source, owner-ratified
+scope, clean exact-head cloud review, migration/deploy readback, and a matching
+deployed drill are complete, there is no live one-click team rollback. Use this
+incident containment sequence:
 
 1. Stop new mutations for the affected team and disable/read back the involved outbound lane(s) if
    Linear writes may be wrong: F2 `off` for normal rows, F4 `false` for parity rows, **both** when
@@ -359,21 +362,11 @@ no live one-click team rollback. Use this incident containment sequence:
 If the tooling in steps 2–4 is unavailable, keep the team stopped and SyncView-authoritative with
 outbound off. Escalate; do not improvise a database delete or default drain.
 
-Once the reviewed F27 migration is explicitly proved live, step 5 is exactly
-one statement. The values are copied from the correlated open rollback receipt;
-the function refuses stale authority, nonzero/unclassified team residue,
-missing replay receipts, F2 not-off, or F4 not-false:
-
-```sql
-select public.track_b_f27_finalize(
-  '<ROLLBACK_ID>'::uuid,
-  '<EXACT_AUTHORITY_FROM_BEGIN_RECEIPT>'::jsonb,
-  'owner-runbook'
-);
-```
-
-This block is not usable while the candidate remains unapplied. Never replace
-either placeholder from memory or loosen the function's checks.
+Do not call any `track_b_f27_*` function from merged #894. A corrective source
+PR must publish the new exact operator statement, its expected-state receipt,
+and its complete recovery contract only after the live implementation and drill
+match. Until then, keep the affected team stopped and escalate rather than
+copying an historical SQL block from git history.
 
 ## R3 — If Supabase itself is down
 

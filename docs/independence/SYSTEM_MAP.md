@@ -1110,7 +1110,10 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   F27/F58 supersede D-26's direct pause: stop new team mutations and disable the involved outbound
   lane(s), both normal F2 and parity F4 if unknown/mixed, for immediate
   containment; return authority to `linear` only after audited team intent resolution and a
-  machine-read zero. The #812 Linear-mirror caller is live on Pages but stays read-only under current authority; card
+  machine-read zero. **That authority-return tool is not live:** the 2026-07-21 installation
+  preflight blocked merged #894 before mutation because its team-wide contract cannot run the
+  requested TEST/client drill and two P1 races remain. No real team may flip while this gate is
+  open. The #812 Linear-mirror caller is live on Pages but stays read-only under current authority; card
   predicates, Workload, and intake remain on their current paths until their separate
   owner-approved handoff.
   **F98 forward-order correction:** for the first handoff, F2 normal outbound must be live/read back
@@ -1127,8 +1130,8 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   status+comment and Submit create callers behind D-32's TEST-default per-client allowlist; the
   lane remains unsafe for real enrollment until every open gate closes. F55 is additionally open because the browser accepts
   only canonical `syncview`, while several backend consumers still accept legacy `supabase` as an
-  alias. D-28 requires cohort soak before a Graphics-first flip; a D-29 data incident is contained
-  per F27 and cannot use a blind authority reversal. The disposable two-team TEST drill completed 18
+  alias. D-28 requires cohort soak before a Graphics-first flip; a D-29 data incident cannot use a
+  blind authority reversal, and F27 is not yet an executable live containment path. The disposable two-team TEST drill completed 18
   operations, observed zero unexpected echoes, reconciled `0/0/0`, cleaned up, and proved the
   pre-existing runtime flags unchanged.
 - **B5 (after clean batch cycles per team).** Linear frozen → archived; the `linear-*` n8n family and

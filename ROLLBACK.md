@@ -70,6 +70,11 @@ schedule while F132 is open; if reducing duplicate cadence, remove the pager's l
 
 Update in the same PR as any change. "Rollback" must be executable by the owner alone.
 
+> **Workload candidate clarification (2026-07-22):** the existing Workload row describes the
+> currently serving plan-date boundary, where Linear deadlines are display-only. The source-only
+> weighted-capacity/deadline candidate is covered by the dedicated rollback anchor below; its sole
+> authorized Linear deadline path is `workload-linear`, and nothing from that candidate is live yet.
+
 | Surface | Current production path | Kill switch / rollback | Last verified |
 |---|---|---|---|
 | Production mirror hierarchy (F145) | PR #885 is merged on `main` as `f00da653`: Production follows each deliverable's persisted Linear parent UUID globally instead of inventing hierarchy from batch/title similarity. Pages run `29713997171` deployed that merge, and read-only live-HTML inspection found `_prodResolveParentLinks` plus the raw-parent projection with no `batchParent`. This changed only the browser projection/adapter and guards; no schema, data, writer, runtime flag, authority, Edge Function, or n8n state changed. | Run `git revert -m 1 f00da65341797ec55f2f9a0d53b97e6bccd7056f`, push through the normal reviewed path, then require the resulting Pages deployment and live-HTML readback before calling rollback complete. No flag flip, database cleanup, n8n edit, writer rollback, or client drill is required because this is a read-only hierarchy projection. | 2026-07-20 (exact-head run `29711105120` attempt 2 passed all four F145 lanes; Pages run `29713997171` served the merge. Current-main run `29713997723` later failed fast + interaction while heavy/review-packet passed; the PR-head and merge trees are identical, so this is not evidence of an F145 code delta, but the current-main gate remains red for separate triage.) |
@@ -247,3 +252,18 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   JSON snapshots are stored outside the public repo. B1 does not edit n8n workflows. The
   additive B1 model has since been backfilled under owner-approved handling rules, while no
   user-facing route depends on it yet.
+- **Workload weighted planning + Linear deadline candidate 2026-07-22 (source-only)**: this branch
+  changes Pages behavior and adds the deliberate-manual `workload-linear` function source; it adds
+  no migration, table grant, n8n edit, flag, frozen-writer change, or live data. Before a function
+  deploy, rollback is a normal reviewed revert of the candidate merge. The release must deploy both
+  the candidate `workload-plan` read split and the new `workload-linear` gateway from the exact merge
+  SHA. After deployment, a Pages revert restores the prior visible browser behavior, but it is **not**
+  a complete write kill: an already-loaded tab or direct authenticated caller could still reach the
+  deadline gateway. A full rollback therefore also (1) redeploys the prior exact `workload-plan` v2
+  closure from `fd3e0eaa` and reads back Creative list/set denial, and (2) deletes the newly introduced
+  `workload-linear` function with a captured pre-state, then reads back its absence/404. Re-release
+  restores both functions only from the reviewed exact merge SHA and repeats the role/write drill.
+  Never automatically reverse already-confirmed Linear due-date edits during rollback—review and
+  correct those in Linear individually if business intent changed.
+  Preserve Creative write denial throughout and do not route through `production-write`, n8n,
+  `calendar-upsert`, or `sample-review-upsert` as a fallback.

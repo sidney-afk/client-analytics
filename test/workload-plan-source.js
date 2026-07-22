@@ -18,13 +18,21 @@ const CONFIG = read('supabase/config.toml');
 const THUMBNAIL_DEPLOY = read('.github/workflows/deploy-thumbnail-edge-functions.yml');
 const DEPLOY_MANIFEST = read('docs/ops/EF_DEPLOY_MANIFEST.md');
 const INDEX = read('index.html');
+const clientIssueRead = INDEX.slice(
+  INDEX.indexOf('async function loadLinearIssues('),
+  INDEX.indexOf('// Date helpers'),
+);
 const clientRead = INDEX.slice(
   INDEX.indexOf('async function wlFetchPlanRows('),
-  INDEX.indexOf('async function wlFetchPriorityRows('),
+  INDEX.indexOf('async function wlFetchLinearMetadata('),
+);
+const clientMetadataRead = INDEX.slice(
+  INDEX.indexOf('async function wlFetchLinearMetadata('),
+  INDEX.indexOf('function wlAdoptLinearMetadata('),
 );
 const clientWrite = INDEX.slice(
   INDEX.indexOf('async function _wlPlanWriteRequest('),
-  INDEX.indexOf('async function _wlPersistPlanDate('),
+  INDEX.indexOf('async function _wlDueWriteRequest('),
 );
 const clientPersist = INDEX.slice(
   INDEX.indexOf('async function _wlPersistPlanDate('),
@@ -34,9 +42,13 @@ const clientSet = INDEX.slice(
   INDEX.indexOf('async function wlSetPlanDate('),
   INDEX.indexOf('async function wlMovePlanGroup('),
 );
-const priorityRead = INDEX.slice(
-  INDEX.indexOf('async function wlFetchPriorityRows('),
-  INDEX.indexOf('function wlAdoptPlanRows('),
+const clientDueWrite = INDEX.slice(
+  INDEX.indexOf('async function _wlDueWriteRequest('),
+  INDEX.indexOf('async function wlSetDueDate('),
+);
+const clientDueSet = INDEX.slice(
+  INDEX.indexOf('async function wlSetDueDate('),
+  INDEX.indexOf('// Workload fail-closed boundary.'),
 );
 const clientGroupMove = INDEX.slice(
   INDEX.indexOf('async function wlMovePlanGroup('),
@@ -60,7 +72,11 @@ const issueDragHandle = INDEX.slice(
 );
 const groupDragHandle = INDEX.slice(
   INDEX.indexOf('function wlGroupDragHandleHtml('),
-  INDEX.indexOf('function wlPriorityValue('),
+  INDEX.indexOf('function wlWorkloadMeta('),
+);
+const watermarkSource = INDEX.slice(
+  INDEX.indexOf('async function _wlV2FetchLatestWatermark('),
+  INDEX.indexOf('window.wlV2Status'),
 );
 const rollupPopover = INDEX.slice(
   INDEX.indexOf('function wlOpenRollupPopover('),
@@ -261,6 +277,23 @@ ok(/if \(capability === 'workload-plan-read'\) return role === 'admin' \|\| role
   && /return wlState\.planStatus === 'ready' && _syncviewStaffCan\('workload-plan'\);/.test(INDEX)
   && /Work-day planning requires an Admin or SMM account/.test(INDEX),
 'browser exposes authoritative plan reads to staff while keeping editing Admin/SMM-only');
+ok(/const WORKLOAD_LINEAR_URL\s*=\s*CAL_SUPABASE_URL \+ '\/functions\/v1\/workload-linear'/.test(INDEX)
+  && /_syncviewRequireStaffIdentity\('workload-linear-read'\)/.test(clientMetadataRead)
+  && /action: 'metadata', issue_ids: chunk/.test(clientMetadataRead)
+  && /index \+= 100/.test(clientMetadataRead)
+  && /Math\.min\(3, chunks\.length\)/.test(clientMetadataRead)
+  && /json\.complete !== true/.test(clientMetadataRead)
+  && /if \(capability === 'workload-linear-read'\) return role === 'admin' \|\| role === 'smm' \|\| role === 'creative';/.test(INDEX)
+  && /if \(capability === 'workload-linear'\) return role === 'admin' \|\| role === 'smm';/.test(INDEX),
+'Workload metadata is bounded and readable by all staff while Linear due writes remain Admin/SMM-only');
+ok(/if \(_wlV2Ready\(\) && !force\)/.test(clientIssueRead)
+  && /const url = force[\s\S]*LINEAR_ISSUES_WEBHOOK/.test(clientIssueRead)
+  && /cache: 'no-store'/.test(clientIssueRead),
+'forced Workload refresh bypasses the scheduled mirror and reads Linear without browser cache');
+ok(/usedFallback: true/.test(INDEX)
+  && /const payload = await wlLoadSnapshot\(true, null\)/.test(INDEX)
+  && /payload\.usedFallback !== true/.test(INDEX),
+'silent refresh reports success only when the forced issue fetch did not fall back to stale state');
 ok(/action: 'set'/.test(clientWrite)
   && /issue_id: String\(issue\.id/.test(clientWrite)
   && /client: String\(issue\.clientName/.test(clientWrite)
@@ -269,12 +302,33 @@ ok(/action: 'set'/.test(clientWrite)
 'browser plan payload contains stable issue, client, and plan_date but never a Linear deadline write');
 ok(!/calendar-upsert|sample-review-upsert|webhook|syncview_runtime_flags/.test(clientWrite),
 'plan persistence cannot fall back to a frozen writer, webhook, or runtime flag');
-ok(/\/rest\/v1\/deliverables\?select=linear_issue_uuid,priority/.test(priorityRead)
-    && /linear_issue_uuid=not\.is\.null&priority=gt\.0/.test(priorityRead)
-    && /Number\.isInteger\(priority\) && priority >= 1 && priority <= 4/.test(priorityRead)
-    && !/\b(?:method|body)\s*:/.test(priorityRead)
-    && !/localStorage|sessionStorage|calendar-upsert|sample-review-upsert|syncview_runtime_flags/.test(priorityRead),
-'Linear priority enrichment is a best-effort read-only join by stable issue id with no browser cache or writer');
+ok(/workload\.label === '2× Workload' \|\| workload\.label === '3× Workload'/.test(INDEX)
+    && /weight === 2 \|\| weight === 3/.test(INDEX)
+    && /function wlWorkloadWeight\(/.test(INDEX)
+    && /wlTeamBucket\(sub && sub\.teamKey, sub && sub\.teamName\) !== 'video'/.test(INDEX)
+    && !/function wlPriorityValue\(|function wlPriorityIconHtml\(|priorityByIssueId/.test(INDEX),
+'exact Workload labels replace native Linear priority and only weight video capacity');
+ok(/_syncviewRequireStaffIdentity\('workload-linear'\)/.test(clientDueWrite)
+    && /action: 'set_due_date'/.test(clientDueWrite)
+    && /issue_id: String\(issue\.id/.test(clientDueWrite)
+    && /client: String\(issue\.clientName/.test(clientDueWrite)
+    && /due_date: dueDate/.test(clientDueWrite)
+    && !/WORKLOAD_PLAN_URL|calendar-upsert|sample-review-upsert|webhook|syncview_runtime_flags/.test(clientDueWrite),
+'Linear due-date writes use only the isolated Workload endpoint with stable issue and client scope');
+ok(/const exactAck = resp\.ok/.test(clientDueSet)
+    && /json\.linear_committed === true/.test(clientDueSet)
+    && /hasOwnProperty\.call\(json, 'due_date'\)/.test(clientDueSet)
+    && /String\(json\.issue_id \|\| ''\) === key/.test(clientDueSet)
+    && /acknowledgedDate === dueDate/.test(clientDueSet)
+    && /wlValidRfc3339Timestamp\(updatedAt\)/.test(clientDueSet)
+    && /function wlValidRfc3339Timestamp\(/.test(INDEX)
+    && /mirrorUpdated === 0 \|\| mirrorUpdated === 1/.test(clientDueSet)
+    && /mirrorPending === \(mirrorUpdated === 0\)/.test(clientDueSet)
+    && /wlApplyDueLocal\(key, previousDate\)/.test(clientDueSet)
+    && /Couldn't update the Linear due date/.test(clientDueSet)
+    && /json\.mirror_pending/.test(clientDueSet)
+    && /Workload is catching up/.test(clientDueSet),
+'browser accepts only an exact Linear acknowledgement, reverts every failure, and keeps a committed mirror-pending date');
 ok(/json\.updated !== 1/.test(clientPersist)
   && /String\(saved\.issue_id/.test(clientPersist)
   && /saved\.plan_date/.test(clientPersist)
@@ -294,13 +348,15 @@ ok(/data-wl-drag-handle="issue"/.test(issueDragHandle)
   && !/<summary class="workload-day-card-chip[^>]*(?:draggable=|data-wl-plan-group-drag)/.test(dayRollups)
   && !/<summary class="workload-timeline-plan-chip[^>]*(?:draggable=|data-wl-plan-group-drag)/.test(timelineTrack)
   && !/data-wl-plan-clear/.test(dayRollups)
-  && /_svDateHtml\(dateId, workDate/.test(rollupPopover)
-  && /issueId && explicitPlan/.test(rollupPopover)
+  && /data-wl-due-issue/.test(rollupPopover)
+  && /_svDateHtml\(dateId, s\.dueDate \|\| ''/.test(rollupPopover)
+  && /Linear due date/.test(rollupPopover)
+  && /explicitPlan \?/.test(rollupPopover)
   && /data-wl-plan-clear/.test(rollupPopover)
   && /Use automatic plan/.test(rollupPopover)
   && /function wlDisplayDate\(/.test(INDEX)
   && /function wlPlacementMode\(/.test(INDEX),
- 'UX limits issue and collapsed-client drag to dedicated handles while preserving branded editing and direct-item-only automatic reset');
+ 'UX limits drag to dedicated handles while preserving branded due-date editing and a visible automatic-plan reset');
 ok(/!issues\.length \|\| !wlPlanEditingEnabled\(\)/.test(clientGroupMove)
   && /issues\.some\(issue => wlIsTweaksNeeded\(issue\) \|\| _wlPlanWriteInFlight\.has/.test(clientGroupMove)
   && /for \(const move of moves\)[\s\S]*?await _wlPersistPlanDate\([\s\S]*?true[\s\S]*?\);/.test(clientGroupMove)
@@ -329,6 +385,15 @@ ok(/const WL_PLAN_WRITE_TIMEOUT_MS = 10000/.test(INDEX)
   && /signal: controller\.signal/.test(clientWrite)
   && /clearTimeout\(timeout\)/.test(clientWrite),
 'plan writes are bounded so a stalled save reaches the existing revert-and-notify path');
+ok(/order=synced_at\.desc&limit=1/.test(watermarkSource)
+  && /WL_V2_WATERMARK_POLL_MS = 60 \* 1000/.test(INDEX)
+  && /Date\.parse\(latest\) > Date\.parse\(wlState\.sourceSyncedAt\)/.test(watermarkSource)
+  && /const refreshed = await wlRefetchSilent\(\)/.test(watermarkSource)
+  && /refreshed === true\) wlState\.sourceSyncedAt = latest/.test(watermarkSource)
+  && /setInterval\(_wlV2CheckWatermark, WL_V2_WATERMARK_POLL_MS\)/.test(watermarkSource)
+  && /clearInterval\(_wlV2WatermarkTimer\)/.test(watermarkSource)
+  && /syncedAt: r\.synced_at/.test(INDEX),
+'foreground Workload polling is bound to the mirror watermark and is torn down with the view');
 ok(/function wlPurgePlanSensitiveState\(/.test(INDEX)
   && /_wlPlanSessionGeneration\+\+/.test(INDEX)
   && /_wlPlanLoadGeneration\+\+/.test(INDEX)

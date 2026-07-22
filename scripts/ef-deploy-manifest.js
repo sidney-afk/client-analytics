@@ -38,6 +38,7 @@ const WORKFLOWS = Object.freeze([
 
 const DELIBERATE_MANUAL = Object.freeze({
   'client-review-link': 'Live v2 deployed by operator on 2026-07-15.',
+  'workload-linear': 'Source-only Workload Linear metadata/deadline gateway; first deploy requires an exact-SHA operator release, `--no-verify-jwt`, fingerprint readback, and a TEST-client drill.',
   'workload-plan': 'Live v2 deployed by operator from `fd3e0eaa` on 2026-07-20; future redeploys require `--no-verify-jwt` and exact-SHA fingerprint readback.',
 });
 

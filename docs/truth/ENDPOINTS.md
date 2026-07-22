@@ -1,8 +1,8 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-22 @ 3d8bbfb + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
-> candidate (19 literal + 4 composed; live Edge inventory 28 including `workload-plan` v2; #850
-> write gateway deployed dark; candidate function source requires manual deployment)
+> Last verified: 2026-07-22 @ eea504a (source candidate + Phase-3 Order-1 reconciliation)
+> (20 literal + 4 composed app callers; 29 source slugs / 28 live until `workload-linear` is manually
+> deployed; #850 write gateway remains deployed dark)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -78,7 +78,7 @@ Other:
 - `webhook/content-ready` — content-ready notification
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (19 literal URLs + 4 composed onboarding URLs)
+## Supabase Edge Functions (20 literal URLs + 4 composed onboarding URLs)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
@@ -105,6 +105,17 @@ Other:
   merge `fd3e0eaa`; that live version still denies Creative list/set until the candidate source is
   manually deployed. Live readback matches the locked table posture represented by
   `2026-07-19-workload-plan.sql`, while F147 tracks the exact revoke-correction artifact provenance.
+- `functions/v1/workload-linear` — source-only deliberate-manual Workload metadata/deadline gateway.
+  Admin/SMM/Creative may request bounded exact due dates and `2× Workload` / `3× Workload`
+  label metadata for active mirrored sub-issues; Admin/SMM alone may update a Linear due date.
+  Metadata rejects incomplete alias/label connections, and writes require an exact Linear
+  issue/date acknowledgement before a bounded best-effort mirror update. A missed mirror update is
+  an explicit successful `mirror_pending` receipt, never a false pre-commit failure. The function
+  uses only shared staff/browser-write auth plus `LINEAR_MIRROR_API_KEY`; it has no schema, n8n,
+  frozen-writer, plan-sidecar, or runtime-flag fallback. It is not live and has no CI deploy path.
+  Release is paired: exact-merge-SHA `workload-plan` must be deployed/read back before
+  `workload-linear`, then Creative must prove plan/metadata reads `200` and both functions must prove
+  mutation `403`; deploying only `workload-linear` preserves the old role-dependent calendar.
 - `functions/v1/production-comments` — bounded, no-store Production-thread reader; it verifies a
   staff role key and active roster selection before service-role reads, but does not enforce the
   requested deliverable's team against that member (F39). Comment bodies are not anon-readable;

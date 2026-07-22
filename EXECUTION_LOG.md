@@ -886,3 +886,48 @@ All times are UTC unless noted.
   table grant, runtime flag, Linear writer, n8n workflow, browser cache, frozen writer, data row,
   deployment, or live operation changed. The function requires a deliberate manual deploy from the
   exact merge SHA before Creative list access becomes live.
+
+## 2026-07-22 — Workload weighted capacity, ordered work, due-date editor, and freshness candidate
+
+- **SMM feedback translated without restoring silent repacking.** Video capacity changes from five
+  raw items to four workload units; graphics stays 15. Exact Linear `2× Workload` and
+  `3× Workload` labels make a video consume two or three units, with three winning if both are
+  present. Those weights drive workload ranking and per-editor overload in both calendar modes, but
+  automatic placement remains the existing item-local due-minus-one-working-day rule. New urgent
+  work can expose an overload; it cannot silently move existing automatic work.
+- **Order and proximity match the meeting decision.** Within each editor/day, client chips derive
+  order from the closest signed plan-to-due buffer; missing deadlines sort last. Expanded
+  sub-issues retain native mirror order when complete, otherwise identifier-number order. The
+  proximity circle is red when planned on/after due, orange with one or two days, and green with
+  three or more. Native Linear Priority is removed from Workload; exact workload labels render as
+  compact badges instead.
+- **Deadline editing is isolated and fail-closed.** The popover's branded date control now edits the
+  Linear due date; a manual item still exposes **Use automatic plan** for clearing only the internal
+  sidecar override. New deliberate-manual `workload-linear` source allows Admin/SMM/Creative
+  metadata reads and Admin/SMM-only due writes. It validates active issue/client scope, uses only
+  `LINEAR_MIRROR_API_KEY`, requires an exact Linear acknowledgement, and then performs a bounded
+  true-count mirror refresh. Pre-commit failure reverts/notifies; a confirmed Linear commit with a
+  missed mirror update stays visible and returns `mirror_pending` with a warning. Independent review
+  found and closed omitted-deadline and malformed-label fail-open cases, then returned clear.
+- **Browser-side staleness is bounded; producer cadence is not.** Forced manual, visibility, and
+  post-create refreshes now bypass the mirror and use the existing Linear reader with `no-store`.
+  While Workload is visible, a 60-second poll reads only the newest mirror `synced_at`; the existing
+  full skeleton refresh runs when that watermark advances. Realtime stays disabled, timers stop on
+  teardown, and **As of** shows source time rather than browser fetch time. The upstream scheduled
+  reconciler cadence remains unchanged, so unseen new issues can still wait for that producer.
+- **Focused verification.** Workload plan source/fail-closed, browser due fail-closed, weighted
+  tweak/exclusivity, new Edge policy/source, deploy provenance, manifest generation, repository map,
+  and whitespace guards passed. Before final receipt/deploy-doc hardening, `npm test` passed all 144
+  suites and production-polish passed all 10 selected lanes in 468.3 seconds; exact-final-source
+  verification is recorded after the hardening settles.
+- **Exact-final-source verification.** The hardened browser receipt now requires the exact raw
+  due-date value, a real RFC3339 update timestamp, and a consistent mirror count/pending pair;
+  negative missing/trailing/inconsistent/malformed receipts all revert. Watermark behavior is also
+  hermetic: a stale-snapshot fallback leaves the watermark retryable, the next direct success
+  consumes it, and a third poll does not repeat the full refresh. The final `npm test` run passed all
+  144 suites; truth sync passed 396/396, repository-map sync passed 142/142, the 29-slug deploy
+  manifest was fresh, focused Workload/Edge guards passed, and whitespace checks were clean. The
+  independent final rereview returned clear. No Deno CLI was available for a standalone type-check.
+- **Boundary preserved.** No migration, table grant, runtime flag, n8n workflow, frozen writer,
+  `production-write` path, real row, deployment, or live operation changed. The new function remains
+  source-only until review, merge, and a separately guided exact-SHA deployment/readback/TEST drill.

@@ -88,11 +88,18 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   function source is manually deployed and changes no schema, grant, flag, or frozen writer. The
   historical private TEST release proved pre-write `409` rollback, Creative `403` list/set under the
   2026-07-20 deployment, save/reload/clear,
-  due-date preservation, and exact cleanup with all 13 flags unchanged. This Order-1 docs pass
-  performed none of those live actions. PR #889's client-only grouping/group drag is served from
-  current main and reuses sequential one-row writes; #884's server-atomic batch contract remains
-  open. F147 keeps the exact migration-correction artifact provenance open; F148 keeps the
-  insufficient same-chain true-count source guard and reused-F141 test-label cleanup open.
+  due-date preservation, and exact cleanup with all 13 flags unchanged. Candidate source adds a
+  separate deliberate-manual `workload-linear` function: all staff may read exact deadline and
+  `2×`/`3× Workload` metadata, Admin/SMM may edit the Linear due date, and Creative remains
+  read-only. It adds no migration, mirror column, n8n change, flag, or frozen-writer dependency and
+  is not live until an exact-SHA deploy/readback/TEST drill. The visible board uses four weighted
+  video units, retains the item-local no-reflow automatic plan, orders client pills by closest
+  plan-to-due buffer, makes forced refreshes bypass the mirror, and reacts when a 60-second mirror-
+  watermark poll advances. The upstream scheduled producer is unchanged, so the poll removes only
+  the browser-side portion of mirror delay. This docs
+  pass performed no live action. PR #889's grouping/group drag continues to reuse sequential
+  one-row plan writes; #884's server-atomic batch contract remains open. F147 keeps the exact
+  migration-correction artifact provenance open; #892 closed F148's same-chain guard/test-label gap.
 - Green Linear-reader executions are not completeness proof: F29 covers partial multi-source/status
   snapshots and deterministic 100-ID starvation; F126 covers unpaged child/comment expansion that
   can drive Calendar import/link/status writes. Require complete receipts and zero mutation on any

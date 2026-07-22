@@ -100,20 +100,20 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
 ## Workload internal plan-date contract (live)
 
-- Linear `due_date` remains display-only in Workload. The new `workload_plan.plan_date` is an
+- In the current live release, Linear `due_date` remains display-only in Workload. The
+  `workload_plan.plan_date` is an
   independent Admin/SMM-owned scheduling value keyed by the exact sub-issue id; clearing it restores
   the item-local automatic day derived from the mirrored deadline.
 - The browser never calls `workload_plan` through PostgREST. It uses the staff-authenticated
   `workload-plan` Edge Function. Candidate source allows Admin/SMM/Creative to list the same global
   plan projection, while only Admin/SMM may set or clear an internal plan day. Creative receives no
-  enabled browser editing controls (the visible work-day controls are read-only), and the server validates an active sub-issue and normalized client
+  enabled browser planning controls or drag handles, and the server validates an active sub-issue and normalized client
   scope before every service-role write. The list widening is not live until this exact function
   source is manually deployed.
 - The Workload actual-count contract requires the function to report the number of rows it actually
   wrote, not the number requested, and the browser to require exactly one. A short count, non-OK
-  response, or malformed result reverts the optimistic date and notifies the user. Existing Workload
-  test comments reuse `F141`, but that register ID belongs to the Samples reorder finding; F148 is the
-  open Workload source-guard gap.
+  response, or malformed result reverts the optimistic date and notifies the user. Workload guards
+  use Workload-specific names; F141 remains reserved for the Samples reorder finding.
 - The projection uses stable issue-id keyset pages and rejects partial-list success. Browser reads
   and writes have bounded abort timers; only the newest overlapping refresh may publish state.
   Ordinary read failures retain a last-good snapshot with editing paused, while `401`/`403`
@@ -123,6 +123,27 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   covered a pre-write `409 issue_not_writable` browser revert/notify, Creative `403` on list and set,
   one actual-row save surviving a fresh list, clear to due-date fallback, exact row cleanup, and
   unchanged runtime flags.
+
+## Workload Linear metadata/deadline contract (candidate; not live)
+
+- `workload-linear` is an isolated deliberate-manual Edge Function. Admin/SMM/Creative may request
+  exact due-date and `2× Workload` / `3× Workload` metadata for at most 100 unique active
+  sub-issue ids; only Admin/SMM may call `set_due_date`. It uses the shared browser-write auth
+  helper and `LINEAR_MIRROR_API_KEY`, never `production-write`, n8n, a frozen client writer, or a
+  runtime flag.
+- Metadata is alias-batched 20 ids at a time and reports honest requested/returned/completeness
+  counts. Missing GraphQL aliases, errors, malformed/truncated label connections, or an omitted
+  due-date field keep `complete=false`; the browser rejects that chunk instead of silently
+  downgrading a weighted item to one unit.
+- A due write validates the exact active mirrored sub-issue/client before Linear and requires an
+  exact returned issue id and due date. Only after that commit does it make a 2.5-second bounded
+  update to `workload_issues.due_date`, `linear_updated_at`, and `synced_at`. The selected-row count
+  is the actual mirror count. Zero/multiple/timed-out mirror rows return success with
+  `mirror_pending=true` because a confirmed Linear commit must not be reversed or reported as a
+  failure; the normal mirror reader converges it later.
+- No migration or grant change is required. The function is absent from `supabase/config.toml` and
+  has no CI deployment path. Deploy only after merge from the exact SHA with `--no-verify-jwt`,
+  fingerprint readback, and a private TEST drill.
 
 ## Edge Functions
 
@@ -138,18 +159,22 @@ from a manual `workflow_dispatch` pinned to one exact 40-character SHA already o
 `production-write` v24 and passing both source fingerprints. An ordinary merge still deploys
 neither function.
 
-Live set in `docs/truth/ENDPOINTS.md`. Source and live inventory now represent 28 functions;
+Live set in `docs/truth/ENDPOINTS.md`. Source now represents 29 deployable function slugs while the
+live inventory remains 28 until `workload-linear` is deliberately deployed;
 `workload-plan` is ACTIVE v2 with the four-file deployed source closure byte-identical to merge
 `fd3e0eaa`; that deployed version still denies Creative list and set. The candidate widens only list
-access and requires a deliberate manual deployment after merge. It is intentionally absent from
+access and requires a deliberate manual deployment after merge. The release is a paired exact-SHA
+operation: deploy/read back `workload-plan` first so Creative receives the shared plan snapshot, then
+deploy/read back `workload-linear`; deploying only the new gateway leaves Creative on the old
+deadline-fallback calendar. Both are intentionally absent from
 `supabase/config.toml`, because that shared file is a push trigger for the unrelated thumbnail
-deploy workflow; the post-merge operator deploy uses explicit `--no-verify-jwt` instead. The
+deploy workflow; the post-merge operator deploys use explicit `--no-verify-jwt` instead. The
 existing onboarding deploy Action covers 8 push-safe functions plus 2 guarded manual-only
 functions and still uses an unpinned latest CLI. The separate pinned `2.109.0`
 thumbnail workflow deployed and read back `calendar-upsert` v32, `sample-review-upsert` v33,
 `thumbnail-revision-read` v12, and `thumbnail-revision-scan` v17 from the merged release. Seven
 functions use floating `supabase-js@2` (six npm aliases plus one `esm.sh` alias), and no function
-has a committed lock/import map. Treat every deployment/rebuild/rollback as F51-gated until all 28
+has a committed lock/import map. Treat every deployment/rebuild/rollback as F51-gated until all 29
 source closures, dependencies, JWT settings, toolchain, release SHA, and downloaded server
 fingerprints are manifested and independently read back.
 

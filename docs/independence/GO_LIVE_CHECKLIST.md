@@ -19,8 +19,10 @@ owner merging this file (see D-32)._
 2. **One team at a time.** Graphics (one person) first, then Video (D-28).
 3. **One-click team rollback remains live-BLOCKED (F05/F27).** PR #901 records the correctly
    aborted install: #894 had a late-writer handoff race, an actorless replay-echo race, and no
-   real-row-safe drill. Corrective source adds a server generation fence, exact open-rollback echo
-   binder, and reserved no-provider drill with retained audit, but is not applied or deployed.
+   real-row-safe drill. Owner-merged corrective source adds a server generation fence, exact
+   open-rollback echo binder, and reserved no-provider drill with retained audit, but is not applied
+   or deployed. Its source-only operator toolkit must be cloud-reviewed and owner-merged; then an
+   inbound-only pinned-baseline preparation and the later F27 install each require a separate owner go.
    Immediate containment is stop that team's new
    mutations. F2 `off` stops normal outbound only; F4 `false` stops independent parity, so disable
    both for an unknown/mixed Linear-write incident (F58). Authority returns to Linear only after an immutable team
@@ -43,10 +45,12 @@ owner merging this file (see D-32)._
 | `auth_enforcement` | `permissive` | Client-link verifier permits missing/invalid tokens; this is not a staff-write gate |
 | `write_ui_reroute_clients` | last verified live TEST-only allowlist (`clients:[<TEST_CLIENT>]`) | Required D-32 boundary; #850 merged the reroute code carried from `e3aa028`. Read the value fresh before any action; this dated row authorizes no flag change or real enrollment. |
 
-F27 objects are absent from live under PR #901's stop evidence. The corrective
-source does not change this table. Any future install is a separate owner-gated
-operation under `docs/ops/F27_INSTALL_RUNBOOK.md` and must start by re-reading
-every value above plus the absence of F27 objects.
+F27 objects are absent from live under PR #901's stop evidence. Merged corrective
+source and the source-only toolkit do not change this table. Follow
+`docs/ops/F27_INSTALL_RUNBOOK.md`: first a separately authorized quiet window
+deploys only locked `linear-inbound` and proves webhook freshness; only a later
+owner window snapshots the queue, migrates, deploys the remaining four closures,
+and drills. Every window starts by re-reading the values above and F27 posture.
 
 Merged & live: #810 gateway (deployed), #811 guards + daily TEST drill + nightly shadow audit,
 #812 mirror write-UI (locked for real teams), #850's dark Calendar/Samples/Submit reroutes,
@@ -252,11 +256,13 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       while scheduled reconcilers remain the Linear/SyncView drift-healing mechanism.
 - [ ] **Production-write TEST contract resolved** (F06): owner/implementation chooses the
       service-only spec contract or a newly justified browser-safe alternative; SPA, gateway, and
-      one cross-boundary test agree. F51 additionally requires exact-pinned dependencies/CLI,
-      lock/integrity data, tracked config/deploy commands for all 24 slugs, a complete all-function
-      source-closure/JWT/release manifest, and independent downloaded server fingerprints. Discover
-      and drill a supported exact-artifact restore route; until then, never call a same-SHA rebuild
-      an exact rollback.
+      one cross-boundary test agree. F51's source-exact rollback standard requires captured provider
+      source/entrypoint/JWT/release manifests and independent deployed-source/JWT hash readback after
+      redeploy. Historical transitive graphs are unrecoverable and explicitly not part of that
+      standard; prior version IDs are provenance, not activation handles. Separate fleet hardening
+      still tracks pinned direct imports, CLI/config manifests, and deliberate dependency updates. The
+      six onboarding-family floating imports require a later deliberate release and are not part of
+      the scoped F27 toolkit pin.
 - [ ] **Authority vocabulary is singular** (F55): every browser, EF, reconciler, n8n guard, flag
       writer, and runbook accepts exactly `linear|syncview`. Remove/migrate the backend-only
       `supabase` alias, reject missing/malformed/legacy values consistently, and pass one
@@ -734,5 +740,6 @@ creation impossible.
 Short version: **stop new writes + disable/read back the involved F2/F4 lane(s), both if unknown/mixed → immutable team snapshot → classify every intent →
 replay/quarantine/discard with owner reason → machine-read team zero → flip authority back → tell
 the team → fix → re-soak → re-flip.** This is not yet one-click; the authority reversal is blocked
-until the corrective F27 tooling is installed and independently verified under
+until the F27 toolkit is cloud-reviewed/merged, pinned inbound is established in its own owner
+window, and the later snapshot-first install is independently verified under
 `docs/ops/F27_INSTALL_RUNBOOK.md`. Never substitute the default drainer or a global green summary.

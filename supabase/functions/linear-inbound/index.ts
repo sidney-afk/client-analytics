@@ -4,7 +4,7 @@
 // kill switch; disabled deliveries are verified and acknowledged without mirror
 // writes. Comment capture is normalized before any echo/loop suppression.
 
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { clearArchiveMarkers } from "./restore-markers.mjs";
 import { normalizeLinearComment, parseSyncViewBridgeBody } from "./comment-normalize.mjs";
 import { f27PreflightIdentity, outboundEchoIdentityProof } from "./f27-echo.mjs";

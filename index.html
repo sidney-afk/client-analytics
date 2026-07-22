@@ -51323,7 +51323,7 @@
         editorsDayFilter: {}, // editorKey -> 'YYYY-MM-DD' when filtered to a single day
         editorsClientExpanded: {}, // editorKey -> { clientName -> bool }; absent = use view default
         editorsAvgMode: false, // false = weekly totals, true = per-workday averages
-        filmingData: null,    // { rows:[{client,slug,docUrl,docId,notes,months:Set,contentTotal,latestPlanMonth,nextPlanMonth,status,reason}], loadedAt }
+        filmingData: null,    // { rows:[{client,slug,docUrl,docId,notes,months:Set,contentTotal,tabRead,tabTitles,latestPlanMonth,nextPlanMonth,status,reason}], loadedAt }
         filmingLoading: false,
         filmingError: null,
         filmingLoadedAt: 0,
@@ -51341,7 +51341,7 @@
     // into a new "last week").
     const KASPER_EDITORS_CACHE_KEY = 'syncview_kasper_editors_v2';
     const KASPER_EDITORS_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks — pure sanity bound
-    const KASPER_FILMING_CACHE_KEY = 'syncview_kasper_filming_v2';
+    const KASPER_FILMING_CACHE_KEY = 'syncview_kasper_filming_v3';
     const KASPER_FILMING_CACHE_MAX_AGE_MS = 30 * 60 * 1000; // 30 min — content/coverage drift slowly
     // Content-bank thresholds. These are intentionally counts, not an assumed
     // posting cadence: every client can see exactly how much active calendar
@@ -52589,22 +52589,34 @@
         } catch (e) { return null; }
     }
 
-    // Plan months for one doc via the optional Docs-tabs webhook.
+    // Plan months for one doc via the optional Docs-tabs webhook. Keep the
+    // returned titles too: a changed response shape or an unrecognised title
+    // must not silently turn into the misleading word "unknown".
     async function _filmsFetchTabMonths(docId) {
-        if (!FILMING_PLAN_TABS_URL || !docId) return null;
+        const empty = { months: [], titles: [], read: false, error: '' };
+        if (!FILMING_PLAN_TABS_URL || !docId) return empty;
         try {
             const resp = await fetch(FILMING_PLAN_TABS_URL + '?doc=' + encodeURIComponent(docId) + '&_t=' + Date.now());
-            if (!resp.ok) return null;
+            if (!resp.ok) return Object.assign({}, empty, { error: `Tab lookup failed (${resp.status})` });
             const json = await resp.json();
-            const tabs = json && (json.tabs || json.data) ;
-            if (!Array.isArray(tabs)) return null;
+            // The webhook currently returns { tabs }, but accept the common
+            // wrapper and raw Google Docs shapes as well so title data cannot
+            // be dropped during a workflow response change.
+            const tabs = Array.isArray(json) ? json
+                : (json && (json.tabs
+                    || (json.data && (json.data.tabs || json.data))
+                    || (json.document && json.document.tabs)));
+            if (!Array.isArray(tabs)) return Object.assign({}, empty, { error: 'Tab lookup returned no tab list' });
             const months = [];
+            const titles = [];
             for (const tb of tabs) {
-                const mk = _filmsParseMonth(tb && (tb.title || tb.name));
+                const title = String(tb && (tb.title || tb.name || (tb.tabProperties && tb.tabProperties.title)) || '').trim();
+                if (title) titles.push(title);
+                const mk = _filmsParseMonth(title);
                 if (mk) months.push(mk);
             }
-            return months;
-        } catch (e) { return null; }
+            return { months, titles, read: true, error: '' };
+        } catch (e) { return Object.assign({}, empty, { error: 'Tab lookup failed' }); }
     }
 
     function _filmsLatestPlanMonth(row) {
@@ -52615,7 +52627,10 @@
     function _filmsPlanDetails(row) {
         const latestPlanMonth = _filmsLatestPlanMonth(row);
         if (!row.docUrl) return { latestPlanMonth: '', nextPlanMonth: '', daysUntilPlan: null, state: 'missing-doc' };
-        if (!latestPlanMonth) return { latestPlanMonth: '', nextPlanMonth: '', daysUntilPlan: null, state: 'unknown' };
+        if (!latestPlanMonth) {
+            const state = row.tabRead ? 'unrecognised' : 'unavailable';
+            return { latestPlanMonth: '', nextPlanMonth: '', daysUntilPlan: null, state };
+        }
         // A June filming plan supplies July content, so the next plan is due in
         // August. A new tab then advances the cycle by another two months.
         const nextPlanMonth = _filmsAddMonth(latestPlanMonth, 2);
@@ -52636,7 +52651,8 @@
         if (contentTotal == null) return { status: 'amber', reason: 'Content total unavailable' };
         if (contentTotal <= FILMING_CONTENT_RED_COUNT) return { status: 'red', reason: `${contentTotal} pieces of content` };
         if (plan.state === 'overdue') return { status: 'red', reason: `${_filmsMonthShort(plan.nextPlanMonth)} plan overdue` };
-        if (plan.state === 'unknown') return { status: 'amber', reason: 'Latest filming plan unknown' };
+        if (plan.state === 'unavailable') return { status: 'amber', reason: row.tabError || 'Could not read filming-plan tabs' };
+        if (plan.state === 'unrecognised') return { status: 'amber', reason: 'No dated filming-plan tab found' };
         if (plan.state === 'soon') return { status: 'amber', reason: `${_filmsMonthShort(plan.nextPlanMonth)} plan due in ${plan.daysUntilPlan}d` };
         if (contentTotal < FILMING_CONTENT_COVERED_COUNT) return { status: 'amber', reason: `${contentTotal} pieces of content` };
         return { status: 'green', reason: `Next plan: ${_filmsMonthShort(plan.nextPlanMonth)}` };
@@ -52661,6 +52677,9 @@
                 slug: calClientSlug(client),
                 months,                 // may be augmented by the tabs webhook
                 contentTotal: null,
+                tabRead: false,
+                tabTitles: [],
+                tabError: '',
                 latestPlanMonth: '',
                 nextPlanMonth: '',
                 daysUntilPlan: null,
@@ -52686,6 +52705,9 @@
                 slug: calClientSlug(client),
                 months,
                 contentTotal: null,
+                tabRead: false,
+                tabTitles: [],
+                tabError: '',
                 latestPlanMonth: '',
                 nextPlanMonth: '',
                 daysUntilPlan: null,
@@ -52788,12 +52810,15 @@
             }
             // Content bank (per client) + optional Doc-tab months (per doc), bounded concurrency.
             await _filmsMapLimit(rows, 5, async (row) => {
-                const [contentTotal, tabMonths] = await Promise.all([
+                const [contentTotal, tabResult] = await Promise.all([
                     _filmsFetchContentBank(row.slug),
                     _filmsFetchTabMonths(row.docId),
                 ]);
                 row.contentTotal = contentTotal;
-                if (Array.isArray(tabMonths)) tabMonths.forEach(mk => row.months.add(mk));
+                row.tabRead = !!(tabResult && tabResult.read);
+                row.tabTitles = (tabResult && Array.isArray(tabResult.titles)) ? tabResult.titles : [];
+                row.tabError = (tabResult && tabResult.error) || '';
+                if (tabResult && Array.isArray(tabResult.months)) tabResult.months.forEach(mk => row.months.add(mk));
                 const cls = _filmsClassify(row);
                 row.status = cls.status;
                 row.reason = cls.reason;
@@ -52856,9 +52881,10 @@
             const contentTxt = r.contentTotal == null
                 ? `<span class="kfilm-muted">Content total unavailable</span>`
                 : `<strong>${r.contentTotal}</strong> piece${r.contentTotal === 1 ? '' : 's'} of content`;
+            const rawTab = !r.latestPlanMonth && r.tabTitles && r.tabTitles.length ? r.tabTitles[0] : '';
             const planTxt = r.latestPlanMonth
                 ? `Latest filming plan: <strong>${_filmsMonthShort(r.latestPlanMonth)}</strong> · ${_calEsc(r.reason)}`
-                : _calEsc(r.reason);
+                : (rawTab ? `Filming Doc tab: <strong>${_calEsc(rawTab)}</strong> · ${_calEsc(r.reason)}` : _calEsc(r.reason));
             let strip = '';
             if (expanded) {
                 const cells = gridMonths.map(mk => {

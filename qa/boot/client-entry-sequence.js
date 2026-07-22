@@ -306,6 +306,7 @@ function installBootObserver(config) {
   window.__syncviewBootSnapshot = () => {
     const staticDataSurface = firstVisible('[data-boot-surface]');
     const entryState = firstVisible('[data-client-entry-state]');
+    const extrasState = firstVisible('[data-client-extras-state]');
     const entryLoading = firstVisible('[data-client-entry-loading]');
     const activeClientTab = firstVisible('.view-tab-btn.active');
     const activeSurfaceTab = firstVisible('.cal-view-btn.active');
@@ -316,7 +317,8 @@ function installBootObserver(config) {
       .find(name => name && visibleContentText.includes(String(name))) || '';
     let surface = 'other';
 
-    if (entryState) surface = `entry:${entryState.getAttribute('data-client-entry-state')}`;
+    if (extrasState && extrasState.getAttribute('data-client-extras-state') === 'error') surface = 'extras:error';
+    else if (entryState) surface = `entry:${entryState.getAttribute('data-client-entry-state')}`;
     else if (entryLoading) surface = `loading:${entryLoading.getAttribute('data-client-entry-loading')}`;
     else if (staticDataSurface) surface = `static:${staticDataSurface.getAttribute('data-boot-surface')}`;
     else if (firstVisible('.boot-skeleton-calendar')) surface = 'static:calendar';
@@ -332,6 +334,7 @@ function installBootObserver(config) {
       bootNav: document.documentElement.getAttribute('data-boot-nav') || '',
       bootSubtab: document.documentElement.getAttribute('data-boot-subtab') || '',
       bootClient: document.documentElement.classList.contains('boot-client'),
+      extrasState: extrasState ? extrasState.getAttribute('data-client-extras-state') : '',
       headerVisible: visible(document.querySelector('header.header')),
       pageTopVisible: visible(document.getElementById('pageTop')),
       passwordVisible: visible(document.getElementById('passwordOverlay')),
@@ -959,9 +962,35 @@ async function installSyntheticNetwork(context, origin, config = {}) {
     verifierCalls: [],
     verifierResponses: [],
     sensitiveClientReads: [],
+    extraRequests: [],
+    extraResponses: [],
+    extraHolds: [],
     sampleReads: [],
     calendarReads: [],
     unmocked: [],
+  };
+  const extraSheets = ['TopVideos', 'Competitor Briefs', 'Market Research Briefs', 'ContentSummaries'];
+  state.waitForHeldExtras = async (attempt, count = extraSheets.length, timeoutMs = 10_000) => {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (state.extraHolds.filter(hold => hold.attempt === attempt).length === count) return;
+      await sleep(20);
+    }
+    throw new Error(`timed out waiting for ${count} held extras on attempt ${attempt}`);
+  };
+  state.waitForExtraResponses = async (attempt, count = extraSheets.length, timeoutMs = 10_000) => {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (state.extraResponses.filter(response => response.attempt === attempt).length === count) return;
+      await sleep(20);
+    }
+    throw new Error(`timed out waiting for ${count} extras responses on attempt ${attempt}`);
+  };
+  state.releaseExtras = attempt => {
+    const held = state.extraHolds.filter(hold => hold.attempt === attempt);
+    state.extraHolds = state.extraHolds.filter(hold => hold.attempt !== attempt);
+    held.forEach(hold => hold.release());
+    return held.length;
   };
 
   const fulfillJson = (route, value, status = 200) => route.fulfill({
@@ -1008,7 +1037,28 @@ async function installSyntheticNetwork(context, origin, config = {}) {
       // Calendar intentionally awaits essentials but streams extras in the
       // background. Keep essentials faster so this lane guards the real race:
       // Brief must become available after extras without requiring a reload.
-      await sleep(sheet === 'Metrics' || sheet === 'Clients Info' ? 40 : 140);
+      const isExtra = extraSheets.includes(sheet);
+      let extraRequest = null;
+      let extraPlan = null;
+      if (isExtra) {
+        const attempt = Math.floor(state.extraRequests.length / extraSheets.length);
+        extraPlan = Array.isArray(config.extrasPlan) ? (config.extrasPlan[attempt] || null) : null;
+        extraRequest = { at, sheet, attempt, held: Boolean(extraPlan && extraPlan.hold) };
+        state.extraRequests.push(extraRequest);
+        if (extraRequest.held) {
+          await new Promise(release => state.extraHolds.push({ attempt, sheet, release }));
+        } else {
+          await sleep(140);
+        }
+        if (extraPlan && extraPlan.rejectSheet === sheet) {
+          extraRequest.outcome = 'rejected';
+          state.extraResponses.push({ at: Date.now(), sheet, attempt, outcome: 'rejected' });
+          await route.abort('failed');
+          return;
+        }
+      } else {
+        await sleep(40);
+      }
       const body = sheet === 'Metrics' ? (config.zeroAnalytics ? METRICS_CSV.split('\n')[0] + '\n' : METRICS_CSV)
         : sheet === 'Clients Info' ? CLIENTS_CSV
           : sheet === 'TopVideos' ? TOP_VIDEOS_CSV
@@ -1018,6 +1068,10 @@ async function installSyntheticNetwork(context, origin, config = {}) {
                   : null;
       if (body !== null) {
         await fulfillText(route, body, 'text/csv; charset=utf-8');
+        if (extraRequest) {
+          extraRequest.outcome = 'fulfilled';
+          state.extraResponses.push({ at: Date.now(), sheet, attempt: extraRequest.attempt, outcome: 'fulfilled' });
+        }
         return;
       }
     }
@@ -1308,6 +1362,7 @@ function traceExcerpt(frames) {
   return frames.slice(0, 20).map(frame => ({
     at: frame.at,
     surface: frame.surface,
+    extrasState: frame.extrasState,
     activeClientTab: frame.activeClientTab,
     activeSurfaceTab: frame.activeSurfaceTab,
     calendarLoadingVisible: frame.calendarLoadingVisible,
@@ -1449,7 +1504,12 @@ async function runClientTabScenario(browser, server, view) {
   const tabLabel = view === 'calendar' ? 'Content Calendar' : 'Brief';
   const label = `zero-analytics client ${view} boot/reload`;
   const run = await openCase(browser, server, {
-    network: { zeroAnalytics: true },
+    network: {
+      zeroAnalytics: true,
+      extrasPlan: view === 'calendar'
+        ? [{}, { hold: true, rejectSheet: 'Competitor Briefs' }, { hold: true }]
+        : null,
+    },
     storage: {
       local: {
         syncview_calendar_prefs: JSON.stringify({ client: CLIENT_B, view: 'organizer', zoom: 'l' }),
@@ -1465,7 +1525,10 @@ async function runClientTabScenario(browser, server, view) {
       () => run.page.goto(`${server.origin}/index.html?${query}`, { waitUntil: 'load', timeout: 15_000 }),
       'static:client-verify',
     );
-    if (view === 'calendar') await waitForCalendarSettled(run.page);
+    if (view === 'calendar') {
+      await waitForCalendarSettled(run.page);
+      await run.network.waitForExtraResponses(0);
+    }
     else await waitForClientTab(run.page, tabLabel);
     const firstFrames = await traceOf(run.page);
     assert.ok(firstFrames.some(frame => frame.surface === 'static:client-verify'), `${label}: neutral verifier must paint first`);
@@ -1478,7 +1541,10 @@ async function runClientTabScenario(browser, server, view) {
       () => run.page.reload({ waitUntil: 'load', timeout: 15_000 }),
       'static:client-verify',
     );
-    if (view === 'calendar') await waitForCalendarSettled(run.page);
+    if (view === 'calendar') {
+      await waitForCalendarSettled(run.page);
+      await run.network.waitForHeldExtras(1);
+    }
     else await waitForClientTab(run.page, tabLabel);
     const reloadFrames = await traceOf(run.page);
     assert.ok(reloadFrames.some(frame => frame.surface === 'static:client-verify'), `${label}: reload must repaint neutral verifier`);
@@ -1514,8 +1580,103 @@ async function runClientTabScenario(browser, server, view) {
 
     if (view === 'calendar') {
       await waitForClientTabButton(run.page, 'Brief');
+      await run.page.evaluate(() => { window.__syncviewBootTrace = []; });
+      await armTrustedClickTraceBoundary(run.page, '.view-tab-btn', 'Brief');
       await run.page.getByRole('button', { name: 'Brief', exact: true }).click({ timeout: 10_000 });
+      await run.page.waitForSelector('[data-client-extras-state="loading"][data-client-entry-loading="brief"]', {
+        state: 'visible',
+        timeout: 10_000,
+      });
+      const pending = await run.page.evaluate(() => ({
+        v: new URLSearchParams(location.search).get('v'),
+        clientTab: history.state && history.state.clientTab,
+        extrasStatus: _fetchExtrasState.status,
+        fakeEmpty: /No Keywords Brief yet|No competitors brief yet/i.test(document.getElementById('content')?.innerText || ''),
+        click: window.__syncviewBootClickBoundary,
+      }));
+      assert.deepEqual(
+        { v: pending.v, clientTab: pending.clientTab, extrasStatus: pending.extrasStatus, fakeEmpty: pending.fakeEmpty },
+        { v: 'brief', clientTab: 'brief', extrasStatus: 'loading', fakeEmpty: false },
+        `${label}: held extras must move URL/history to Brief while the visible route stays on its loader`,
+      );
+      assert.deepEqual(
+        pending.click,
+        { count: 1, target: 'Brief', isTrusted: true },
+        `${label}: the extras race must be driven by one real trusted Brief click`,
+      );
+      assert.equal(run.network.verifierCalls.length, 2, `${label}: tab click must reuse the verified capability`);
+      const firstLoadingFrames = await traceOf(run.page);
+      assert.ok(firstLoadingFrames.some(frame => frame.surface === 'loading:brief'),
+        `${label}: Brief loader must visibly paint while extras are held`);
+      assertTruthfulTrace(firstLoadingFrames, `${label} Calendar -> held Brief`, { clientOwned: true });
+
+      assert.equal(run.network.releaseExtras(1), 4, `${label}: failure releases the exact four held extras`);
+      await run.page.waitForSelector('[data-client-extras-state="error"]', { state: 'visible', timeout: 10_000 });
+      await run.network.waitForExtraResponses(1);
+      const retry = run.page.getByRole('button', { name: 'Try again', exact: true });
+      await retry.focus();
+      const failed = await run.page.evaluate(() => ({
+        activeText: document.activeElement?.textContent.replace(/\s+/g, ' ').trim() || '',
+        extrasStatus: _fetchExtrasState.status,
+        fakeEmpty: /No Keywords Brief yet|No competitors brief yet/i.test(document.getElementById('content')?.innerText || ''),
+        body: document.getElementById('content')?.innerText || '',
+      }));
+      assert.equal(failed.extrasStatus, 'error', `${label}: rejected extras must become an explicit error state`);
+      assert.equal(failed.fakeEmpty, false, `${label}: rejected extras must never masquerade as an empty Brief`);
+      assert.match(failed.body, /not replaced with an empty result/i, `${label}: failure copy must explain that empty data was not faked`);
+      assert.equal(failed.activeText, 'Try again', `${label}: extras retry must be keyboard focusable`);
+      await traceOf(run.page);
+
+      await run.page.keyboard.press('Enter');
+      await run.page.waitForSelector('[data-client-extras-state="loading"][data-client-entry-loading="brief"]', {
+        state: 'visible',
+        timeout: 10_000,
+      });
+      await run.network.waitForHeldExtras(2);
+      const retryPending = await run.page.evaluate(() => ({
+        extrasStatus: _fetchExtrasState.status,
+        v: new URLSearchParams(location.search).get('v'),
+        clientTab: history.state && history.state.clientTab,
+        navigations: performance.getEntriesByType('navigation').length,
+      }));
+      assert.deepEqual(
+        { extrasStatus: retryPending.extrasStatus, v: retryPending.v, clientTab: retryPending.clientTab },
+        { extrasStatus: 'loading', v: 'brief', clientTab: 'brief' },
+        `${label}: explicit retry must repaint the same Brief loader without changing route ownership`,
+      );
+      assert.equal(retryPending.navigations, 1, `${label}: extras retry must not reload the document`);
+      assert.equal(run.network.verifierCalls.length, 2, `${label}: extras retry must not repeat strict verification`);
+      assert.equal(run.network.extraRequests.filter(request => request.attempt === 2).length, 4,
+        `${label}: retry must start one fresh four-sheet extras attempt`);
+      const essentialReads = run.network.sensitiveClientReads.filter(read => (
+        read.kind === 'sheet:Metrics' || read.kind === 'sheet:Clients Info'
+      ));
+      assert.equal(essentialReads.length, 4, `${label}: extras retry must preserve essentials instead of refetching them`);
+      await traceOf(run.page);
+
+      assert.equal(run.network.releaseExtras(2), 4, `${label}: success releases the exact four retry requests`);
+      await run.network.waitForExtraResponses(2);
       await waitForClientTab(run.page, 'Brief');
+      const recovered = await run.page.evaluate(() => ({
+        extrasStatus: _fetchExtrasState.status,
+        briefCount: briefs.length,
+        loading: Boolean(document.querySelector('[data-client-extras-state="loading"]')),
+        error: Boolean(document.querySelector('[data-client-extras-state="error"]')),
+        active: document.querySelector('.view-tab-btn.active')?.textContent.replace(/\s+/g, ' ').trim() || '',
+      }));
+      assert.deepEqual(
+        recovered,
+        { extrasStatus: 'ready', briefCount: 1, loading: false, error: false, active: 'Brief' },
+        `${label}: successful retry must rerender the active Brief with its loaded data`,
+      );
+      const recoveredFrames = await traceOf(run.page);
+      const firstLoaderAt = recoveredFrames.findIndex(frame => frame.surface === 'loading:brief');
+      const errorAt = recoveredFrames.findIndex(frame => frame.surface === 'extras:error');
+      const secondLoaderAt = recoveredFrames.findIndex((frame, index) => index > errorAt && frame.surface === 'loading:brief');
+      const mountedAt = recoveredFrames.findIndex((frame, index) => index > secondLoaderAt && frame.surface === 'mounted:client-brief');
+      assert.ok(firstLoaderAt >= 0 && errorAt > firstLoaderAt && secondLoaderAt > errorAt && mountedAt > secondLoaderAt,
+        `${label}: visible sequence must be Brief loader -> retry -> Brief loader -> mounted Brief\n${JSON.stringify(traceExcerpt(recoveredFrames), null, 2)}`);
+
       await run.page.goBack();
       await waitForCalendarSettled(run.page);
       await run.page.goForward();
@@ -1549,7 +1710,16 @@ async function runClientTabScenario(browser, server, view) {
     assert.equal(final.hasBrief, false, `${label}: Brief DOM must not remain after Analytics click`);
     assert.match(final.body, /No analytics yet/i, `${label}: zero-data Analytics must render a visible honest empty state`);
     assert.equal(final.body.includes(CLIENT_B), false, `${label}: residual client must never become visible`);
-    assertHealthyHarness(run, label);
+    if (view === 'calendar') {
+      const expectedExtrasErrors = run.consoleErrors.filter(message => /Failed to load resource: net::ERR_FAILED/i.test(message));
+      assert.equal(expectedExtrasErrors.length, 1, `${label}: Chromium should report exactly the injected extras rejection`);
+      assert.deepEqual(run.consoleErrors.filter(message => !expectedExtrasErrors.includes(message)), [],
+        `${label}: no unexpected browser console errors`);
+      assert.deepEqual(run.network.unmocked, [], `${label}: every external request must be explicitly mocked`);
+      assert.deepEqual(run.pageErrors, [], `${label}: uncaught page errors are not allowed`);
+    } else {
+      assertHealthyHarness(run, label);
+    }
     passGroup(label);
   } finally {
     await run.context.close();

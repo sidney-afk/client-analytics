@@ -83,6 +83,10 @@ const scheduleTabSummarySource = extract('_scheduleTabSummary');
 const tabSummarySource = extract('fetchTabSummary');
 const renderTabSummarySource = extract('renderTabSummary');
 const prefetchTabSummarySource = extract('prefetchAllTabSummaries');
+const fetchExtrasSource = extract('fetchExtras');
+const clientExtrasGateSource = extract('_syncviewRenderClientExtrasGate');
+const clientExtrasRetrySource = extract('_syncviewRetryClientExtras');
+const clientExtrasWatchSource = extract('_syncviewWatchClientExtras');
 const fetchBriefsSource = extract('fetchBriefs');
 const startBriefPollingSource = extract('startBriefPolling');
 const calAbortSource = extract('_calAbortActiveLoad');
@@ -227,6 +231,38 @@ assert(
 assert(
   renderSource.includes("if(tab!=='calendar'&&typeof _calV2Teardown==='function')_calV2Teardown();"),
   'Calendar → Brief/Analytics/profile exits must retire transport without relying on navTo',
+);
+assert(
+  renderSource.includes('if(clientOnly&&_syncviewRenderClientExtrasGate(sel,tab))return;'),
+  'verified client Brief/Analytics renders must pass through the extras lifecycle gate',
+);
+for (const token of [
+  "_fetchExtrasState={status:'loading',run:clientEntryRun||null}",
+  'attempt===_fetchExtrasAttempt&&_fetchExtrasPromise===tracked',
+  "_fetchExtrasState={status:'ready',run:clientEntryRun||null}",
+  '_fetchExtrasPromise=null',
+  "_fetchExtrasState={status:current?'error':'idle'",
+]) {
+  assert(fetchExtrasSource.includes(token), 'extras promise lifecycle guard is missing: ' + token);
+}
+for (const token of [
+  "if(state==='ready')return false",
+  "if(state==='error')_syncviewClientExtrasErrorScreen",
+  "_syncviewClientEntryLoader({client:cap.client,view:tab},{extras:true})",
+]) {
+  assert(clientExtrasGateSource.includes(token), 'client extras visible gate is missing: ' + token);
+}
+assert(
+  clientExtrasRetrySource.includes('const request=fetchExtras(run);')
+    && clientExtrasRetrySource.includes('_syncviewRenderClientExtrasGate(cap.client,tab);')
+    && clientExtrasRetrySource.includes('_syncviewWatchClientExtras(request,run);')
+    && !clientExtrasRetrySource.includes('_syncviewStartClientEntry'),
+  'extras retry must make one fresh extras request without repeating client verification',
+);
+assert(
+  (clientExtrasWatchSource.match(/_syncviewRefreshClientExtrasRoute\(clientEntryRun\)/g) || []).length === 2
+    && clientExtrasWatchSource.includes('_syncviewClientEntryRunCurrent(clientEntryRun)'),
+  'extras success and failure must both repaint only the current active client route',
 );
 assert(
   mountSxrClientSource.includes("if (typeof _calV2Teardown === 'function') _calV2Teardown();"),

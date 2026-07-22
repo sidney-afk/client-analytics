@@ -8362,6 +8362,8 @@
        two and the analytics-heavy fetches (top videos, briefs, MR briefs,
        content summaries) load in the background. */
     let _fetchExtrasPromise = null;
+    let _fetchExtrasAttempt = 0;
+    let _fetchExtrasState = { status: 'idle', run: null };
 
     /* ── Analytics snapshot cache (stale-while-revalidate) ────────────────
        The six analytics CSVs change once a day (the morning scrape), yet
@@ -8515,7 +8517,9 @@
     }
     async function fetchExtras(clientEntryRun){
         if (_fetchExtrasPromise) return _fetchExtrasPromise;
-        _fetchExtrasPromise = (async () => {
+        const attempt=++_fetchExtrasAttempt;
+        _fetchExtrasState={status:'loading',run:clientEntryRun||null};
+        const request=(async () => {
             const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
             const [tr,br,mrb,cs]=await Promise.all([
                 fetch(TOPVIDS_URL,requestOpts),
@@ -8534,6 +8538,19 @@
             _applyExtraTexts(topvidsText, briefsText, mrbText, csText);
             _analyticsCacheWrite({ topvids: topvidsText, briefs: briefsText, mrbriefs: mrbText, summaries: csText || '' });
         })();
+        const tracked=request.then(() => {
+            if(attempt===_fetchExtrasAttempt&&_fetchExtrasPromise===tracked){
+                _fetchExtrasState={status:'ready',run:clientEntryRun||null};
+            }
+        }, err => {
+            if(attempt===_fetchExtrasAttempt&&_fetchExtrasPromise===tracked){
+                _fetchExtrasPromise=null;
+                const current=!clientEntryRun||_syncviewClientEntryRunCurrent(clientEntryRun);
+                _fetchExtrasState={status:current?'error':'idle',run:current?(clientEntryRun||null):null};
+            }
+            throw err;
+        });
+        _fetchExtrasPromise=tracked;
         return _fetchExtrasPromise;
     }
     function fetchAll(clientEntryRun){
@@ -9036,6 +9053,55 @@
         // This keeps the tab stable while analytics extras stream in and lets
         // the existing visible empty-Brief copy own the genuine no-data case.
         return !!(_isClientLink&&cap&&cap.verified&&_syncviewClientEntrySlug(name)===cap.slug);
+    }
+
+    function _syncviewRefreshClientExtrasRoute(clientEntryRun){
+        if(!_isClientLink||!_syncviewClientEntryRunCurrent(clientEntryRun))return;
+        const cap=_syncviewClientEntryCapability;
+        if(!cap||!cap.verified)return;
+        const tab=clientViewTab[cap.client]||cap.view;
+        if(tab==='analytics'||tab==='brief')render(cap.client,true);
+    }
+
+    function _syncviewWatchClientExtras(promise,clientEntryRun){
+        Promise.resolve(promise).then(() => {
+            if(!_syncviewClientEntryRunCurrent(clientEntryRun))return;
+            _applyAllDataDependentChrome();
+            _syncviewRefreshClientExtrasRoute(clientEntryRun);
+        }, err => {
+            if(!_syncviewClientEntryRunCurrent(clientEntryRun))return;
+            console.warn('[SyncView] background fetchExtras failed',err);
+            _syncviewRefreshClientExtrasRoute(clientEntryRun);
+        });
+    }
+
+    function _syncviewRenderClientExtrasGate(name,tab){
+        if(!_isClientLink||!['analytics','brief'].includes(tab))return false;
+        const cap=_syncviewClientEntryCapability;
+        const run=_syncviewClientEntryDataRun;
+        if(!cap||!cap.verified||_syncviewClientEntrySlug(name)!==cap.slug||!_syncviewClientEntryRunCurrent(run)){
+            _syncviewInvalidClientLinkScreen();
+            return true;
+        }
+        const state=_fetchExtrasState.run===run?_fetchExtrasState.status:'idle';
+        if(state==='ready')return false;
+        if(state==='error')_syncviewClientExtrasErrorScreen({client:cap.client,view:tab});
+        else _syncviewClientEntryLoader({client:cap.client,view:tab},{extras:true});
+        return true;
+    }
+
+    function _syncviewRetryClientExtras(){
+        const cap=_syncviewClientEntryCapability;
+        const run=_syncviewClientEntryDataRun;
+        if(!cap||!cap.verified||!_syncviewClientEntryRunCurrent(run)){
+            _syncviewInvalidClientLinkScreen();
+            return;
+        }
+        const tab=clientViewTab[cap.client]||cap.view;
+        if(!['analytics','brief'].includes(tab))return;
+        const request=fetchExtras(run);
+        _syncviewRenderClientExtrasGate(cap.client,tab);
+        _syncviewWatchClientExtras(request,run);
     }
 
     function setClientViewTab(encodedName,tab){
@@ -10528,6 +10594,7 @@
         // Calendar transport/realtime lease before replacing its surface with
         // Analytics, Brief, or the profile overview.
         if(tab!=='calendar'&&typeof _calV2Teardown==='function')_calV2Teardown();
+        if(clientOnly&&_syncviewRenderClientExtrasGate(sel,tab))return;
         const existingBack=titleRow.querySelector('.back-btn');
         if(sel!=='all'&&!clientOnly){
             pageTop.classList.remove('overview-mode');
@@ -43384,11 +43451,7 @@
             }
 
             if (isClientCalendarLink) {
-                fetchExtras(clientEntryRun).then(() => {
-                    if(_clientEntryStillCurrent())_applyAllDataDependentChrome();
-                }, err => {
-                    if(_clientEntryStillCurrent())console.warn('[SyncView] background fetchExtras failed', err);
-                });
+                _syncviewWatchClientExtras(fetchExtras(clientEntryRun),clientEntryRun);
                 await fetchEssentials(clientEntryRun);
                 if(!_clientEntryStillCurrent())return;
                 await Promise.resolve();
@@ -43833,6 +43896,8 @@
             contentSummaryState = {}; generalBriefState = {}; tabSummaryCache = {};
             pendingBriefs = {}; briefPollingState = {};
             _fetchExtrasPromise = null;
+            ++_fetchExtrasAttempt;
+            _fetchExtrasState = { status: 'idle', run: null };
             _autoSummaryAttempted.clear();
         } catch (e) {}
         try {
@@ -43905,15 +43970,27 @@
             ${retry}
         </div>`;
     }
-    function _syncviewClientEntryLoader(entry) {
+    function _syncviewClientEntryLoader(entry,opts) {
         const content = document.getElementById('content');
         if (!content || !entry) return;
+        opts=opts||{};
         let kind = 'analytics-client';
         let label = 'Loading your analytics...';
         if (entry.view === 'calendar') { kind = 'calendar'; label = 'Loading content calendar...'; }
         else if (entry.view === 'brief') { kind = 'client-brief'; label = 'Loading your brief...'; }
         else if (entry.view === 'samples' || entry.view === 'sample-reviews') { kind = 'review'; label = 'Loading sample reviews...'; }
-        content.innerHTML = `<div data-client-entry-loading="${entry.view}">${_svLoadingSkeletonHtml(kind, { label, name: entry.client })}</div>`;
+        const extrasAttr=opts.extras?' data-client-extras-state="loading"':'';
+        content.innerHTML = `<div data-client-entry-loading="${entry.view}"${extrasAttr}>${_svLoadingSkeletonHtml(kind, { label, name: entry.client })}</div>`;
+    }
+    function _syncviewClientExtrasErrorScreen(entry) {
+        const content=document.getElementById('content');
+        if(!content||!entry)return;
+        const subject=entry.view==='brief'?'brief':'analytics';
+        content.innerHTML=`<div data-client-extras-state="error" data-client-extras-view="${entry.view}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px;padding:40px;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;">
+            <div style="font-size:1.15rem;font-weight:700;color:var(--sv-fg-111);">We could not load your ${subject}</div>
+            <div style="font-size:0.9rem;color:var(--sv-fg-777);max-width:420px;line-height:1.45;">Your data was not replaced with an empty result. Check your connection and try again.</div>
+            <button type="button" class="share-btn" onclick="_syncviewRetryClientExtras()" style="margin-top:4px;">Try again</button>
+        </div>`;
     }
     function _syncviewCanonicalizeClientEntry(entry) {
         const q = new URLSearchParams(location.search);

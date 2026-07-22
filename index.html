@@ -19295,7 +19295,8 @@
     }
     function _syncviewStaffIdentityClear() {
         _syncviewStaffPurgeSensitiveState();
-        _syncviewInvalidateStaffVerification();
+        if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
+        else _syncviewStaffIdentityVerified = false;
         _syncviewStaffIdentitySave(null);
         try { if (typeof _prodComments !== 'undefined') _prodComments.clear(); } catch (e) {}
         _syncviewStaffClearLegacyIdentityStorage();
@@ -19320,7 +19321,8 @@
         _syncviewStaffIdentityLoaded = true;
         if (!nextSignature) {
             _syncviewStaffPurgeSensitiveState();
-            _syncviewInvalidateStaffVerification();
+            if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
+            else _syncviewStaffIdentityVerified = false;
             try { if (typeof _prodComments !== 'undefined') _prodComments.clear(); } catch (e) {}
             _syncviewStaffClearLegacyIdentityStorage();
             _syncviewStaffRefreshChrome();
@@ -19328,7 +19330,8 @@
         }
         if (nextSignature === currentSignature && _syncviewStaffIdentityVerified) return;
         if (nextSignature !== currentSignature) _syncviewStaffPurgeSensitiveState();
-        _syncviewInvalidateStaffVerification();
+        if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
+        else _syncviewStaffIdentityVerified = false;
         if (nextSignature !== currentSignature) {
             try { if (typeof _prodComments !== 'undefined') _prodComments.clear(); } catch (e) {}
         }
@@ -19843,7 +19846,8 @@
             if (!_syncviewStaffEligible()) { _syncviewStaffRefreshChrome(); return null; }
             const current = _syncviewStaffIdentityLoad();
             if (!current || !current.key || !current.member || !current.member.id) {
-                _syncviewInvalidateStaffVerification();
+                if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
+                else _syncviewStaffIdentityVerified = false;
                 _syncviewStaffRefreshChrome();
                 _syncviewScheduleStaffPrompt();
                 return null;
@@ -19864,7 +19868,8 @@
                     _syncviewStaffIdentityClear();
                     _syncviewScheduleStaffPrompt();
                 } else {
-                    _syncviewInvalidateStaffVerification();
+                    if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
+                    else _syncviewStaffIdentityVerified = false;
                     _syncviewStaffRefreshChrome();
                     console.warn('[SyncView] staff key verifier unavailable; keeping auth permissive', e);
                 }

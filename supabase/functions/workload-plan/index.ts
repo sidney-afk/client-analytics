@@ -1,9 +1,9 @@
 // Supabase Edge Function: workload-plan
 //
-// Admin/SMM-only projection and writer for internal Workload plan days. Client
-// deadlines remain display-only Linear mirror data; this function reads
-// workload_issues only to validate the exact active sub-issue/client scope and
-// writes only the isolated workload_plan sidecar.
+// Staff-readable projection and Admin/SMM-only writer for internal Workload
+// plan days. Client deadlines remain display-only Linear mirror data; this
+// function reads workload_issues only to validate the exact active sub-issue/
+// client scope and writes only the isolated workload_plan sidecar.
 
 import {
   createClient,
@@ -28,7 +28,12 @@ const CORS: Record<string, string> = {
   "Cache-Control": "no-store",
 };
 
-const WORKLOAD_PLAN_STAFF_ROLES: readonly StaffRoleKey[] = [
+const WORKLOAD_PLAN_READ_ROLES: readonly StaffRoleKey[] = [
+  "admin",
+  "smm",
+  "creative",
+];
+const WORKLOAD_PLAN_WRITE_ROLES: readonly StaffRoleKey[] = [
   "admin",
   "smm",
 ];
@@ -68,8 +73,8 @@ function clean(value: unknown): string {
   return String(value == null ? "" : value).trim();
 }
 
-function isWorkloadPlanStaffRole(role: string): role is StaffRoleKey {
-  return (WORKLOAD_PLAN_STAFF_ROLES as readonly string[]).includes(role);
+function isWorkloadPlanWriteRole(role: string): role is StaffRoleKey {
+  return (WORKLOAD_PLAN_WRITE_ROLES as readonly string[]).includes(role);
 }
 
 function serviceClient(): SupabaseClient {
@@ -118,7 +123,7 @@ function planRow(row: JsonMap): PlanRow {
 
 function requireListStaff(req: Request): StaffRoleKey {
   const key = clean(req.headers.get("x-syncview-key"));
-  const auth = authorizeStaffKey(key, WORKLOAD_PLAN_STAFF_ROLES);
+  const auth = authorizeStaffKey(key, WORKLOAD_PLAN_READ_ROLES);
   if (!auth.ok || !auth.role) {
     throw new WorkloadPlanError(
       staffAuthFailureStatus(auth),
@@ -255,7 +260,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
     if (
       principal.kind !== "staff" ||
-      !isWorkloadPlanStaffRole(principal.role)
+      !isWorkloadPlanWriteRole(principal.role)
     ) {
       throw new WorkloadPlanError(403, "staff_required");
     }

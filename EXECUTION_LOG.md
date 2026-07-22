@@ -2,6 +2,67 @@
 
 All times are UTC unless noted.
 
+## 2026-07-22 — F27 install operator toolkit; source only, nothing live
+
+- Owner selected the tight dependency correction: only `linear-inbound` moves
+  from floating `esm.sh @supabase/supabase-js@2` to
+  `npm:@supabase/supabase-js@2.49.8` and receives a function-local frozen Deno
+  v4 lock/config as a predeploy candidate-source gate only. It is not part of a
+  captured live baseline, restore bundle, deployed readback equality, or
+  historical provenance. No vendoring or cross-function lock work was added. The four
+  install closures keep their byte-identical exact
+  `2.49.8` import surfaces—direct in outbound/production-write and through
+  `_shared/b4-write.ts` for deliverable-write/batch-write—and no synthetic lock
+  is attributed to their historical deployments; no other function import changed. Six floating onboarding-
+  family imports remain a later deliberate release because their directory
+  paths auto-deploy on merge.
+- Supabase CLI 2.109.0 cannot reactivate a prior ESZip; downloaded source can
+  only be redeployed as a new version. Historical transitive dependency graphs
+  are unrecoverable and irrelevant to the owner-defined rollback standard, as
+  F51 records. F27 rollback means redeploying the exact captured
+  provider-returned source paths/bytes and entrypoint with the captured JWT
+  posture, then independently requiring deployed source/entrypoint and JWT hash
+  equality. The same source-exact standard applies to current v39; there is no
+  weaker exception. The separate quiet-window preparation establishes the new
+  pinned inbound baseline; no historical graph reconstruction or attestation is
+  required.
+- Added fail-closed operators for a repeatable-read full `mirror_outbox` row and
+  boundary-definition snapshot, snapshot-bound migration apply, a
+  content-addressed private Shared Drive store and independent byte/hash
+  round-trip, sealed per-function source capture/restore/readback rehearsal,
+  private database rollback generation and
+  execution, a REST-only `mirror_in_*` freshness gate, the complete reserved
+  `__f27_drill__` live/disposable runner, and a runbook-derived generated
+  checklist. Private bytes, project/folder IDs, credentials, row
+  bodies, and event bodies are excluded from stdout and repository evidence.
+- Rewrote `docs/ops/F27_INSTALL_RUNBOOK.md` into two separately owner-gated
+  operations. Preparation first checks the inbound candidate lock locally,
+  deploys only pinned inbound, independently reads back its provider
+  source/entrypoint and JWT hashes, and immediately proves freshness. The
+  eventual install window becomes snapshot → migration/self-
+  probe → deploy only `linear-outbound`, `production-write`,
+  `deliverable-write`, and `batch-write` → reserved drill → dormant readback.
+- This session performed no DDL, DML, deployment, drill, flag or authority
+  change, n8n operation, webhook change, or client-data access. The migration,
+  both frozen writers, all non-inbound function imports, and live state remained
+  untouched. Neither preparatory deployment nor live install is authorized by
+  this source PR; each waits for a separate explicit owner go after cloud review
+  and owner merge.
+- No Docker rehearsal is part of this toolkit. Future operator commands may use
+  `--use-docker` only as their selected deployment mechanism; it is not a claim
+  of source exactness or dependency provenance.
+- Final offline validation passed all 155 repository unit suites, truth-sync
+  400/400, repository-map sync 148/148, syntax checks for all 20 changed/new
+  JavaScript files, YAML parsing, generated-checklist write/check at runbook
+  SHA-256 `7dcfa11be108e9c19b2e96ab30e65a695229705974416d939e11886df6c91d92`,
+  public-hygiene/scope/invariant checks, Deno 2.2.15 frozen-lock consumption
+  without rewrite, and whitespace checks. The hermetic source/JWT rehearsal
+  passed with zero network/live-provider calls and independent source/JWT
+  readback; its sealed bundle SHA-256 is
+  `aa818d0c5b955e1176a7b23a2c3060fe4e75a89cb37203cfc2b0e8a7f7254899`.
+  The full disposable PostgreSQL operator proof remains a hosted PR check, not
+  a live drill.
+
 ## 2026-07-21 — F27 P1 corrective source and bounded drill; nothing live
 
 - Started from PR #901's stop evidence: the attempted #894 installation was

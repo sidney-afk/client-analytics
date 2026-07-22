@@ -6,7 +6,33 @@ on:
     paths:
       - "migrations/2026-07-20-f27-team-rollback.sql"
       - "scripts/f27-team-rollback-proof.sql"
+      - "scripts/f27-drill-runner.js"
+      - "scripts/f27-drill-runner-fixture.sql"
+      - "scripts/f27-apply-migration.js"
+      - "scripts/f27-edge-source-rollback.js"
+      - "scripts/f27-edge-source-rollback-lib.js"
+      - "scripts/f27-edge-source-rollback-supabase-adapter.js"
+      - "scripts/f27-inbound-freshness.js"
+      - "scripts/f27-database-rollback-recipe.js"
+      - "scripts/f27-database-rollback-execute.js"
+      - "scripts/f27-install-checklist.js"
+      - "scripts/f27-mirror-outbox-snapshot.js"
+      - "scripts/f27-private-snapshot-store.js"
       - "test/f27-team-rollback.js"
+      - "test/f27-drill-runner.js"
+      - "test/f27-apply-migration.js"
+      - "test/f27-edge-source-rollback.js"
+      - "test/f27-inbound-freshness.js"
+      - "test/f27-database-rollback-recipe.js"
+      - "test/f27-database-rollback-execute.js"
+      - "test/f27-install-checklist.js"
+      - "test/f27-mirror-outbox-snapshot.js"
+      - "test/f27-private-snapshot-store.js"
+      - "supabase/functions/linear-inbound/deno.json"
+      - "supabase/functions/linear-inbound/deno.lock"
+      - "supabase/functions/linear-inbound/index.ts"
+      - "docs/ops/F27_INSTALL_RUNBOOK.md"
+      - "docs/ops/F27_INSTALL_CHECKLIST.md"
       - ".github/workflows/f27-team-rollback-proof.yml"
 
 permissions:
@@ -35,6 +61,32 @@ jobs:
       PGDATABASE: postgres
     steps:
       - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.0
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.2.15
+      - name: Validate the already-produced frozen inbound lock
+        run: |
+          deno --version
+          deno cache --frozen \
+            --config supabase/functions/linear-inbound/deno.json \
+            supabase/functions/linear-inbound/index.ts
+          git diff --exit-code -- \
+            supabase/functions/linear-inbound/deno.json \
+            supabase/functions/linear-inbound/deno.lock
+      - name: Validate fail-closed operator contracts
+        run: |
+          node test/f27-apply-migration.js
+          node test/f27-drill-runner.js
+          node test/f27-edge-source-rollback.js
+          node test/f27-inbound-freshness.js
+          node test/f27-database-rollback-recipe.js
+          node test/f27-database-rollback-execute.js
+          node test/f27-install-checklist.js
+          node test/f27-mirror-outbox-snapshot.js
+          node test/f27-private-snapshot-store.js
       - name: Run isolated TEST transaction
         run: |
           set -o pipefail
@@ -50,6 +102,51 @@ jobs:
             echo "- observer: GitHub Actions (outside n8n)"
             echo "- terminal: F27_PROOF_OK"
             echo "- receipt hash: $(cut -d' ' -f1 f27-proof/terminal.sha256)"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fingerprint the exact post-migration contract
+        run: |
+          set -o pipefail
+          F27_DISPOSABLE_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
+          F27_CONFIRM_DISPOSABLE_POST_CONTRACT=1 \
+            node scripts/f27-mirror-outbox-snapshot.js \
+              --mode fingerprint-post \
+              --confirm-database postgres \
+              --release-sha "$(git rev-parse HEAD)" \
+            | tee f27-proof/post-contract.json
+          grep -q '"status":"PASS"' f27-proof/post-contract.json
+          sha256sum f27-proof/post-contract.json | tee f27-proof/post-contract.sha256
+          {
+            echo
+            echo "## F27 exact post-migration contract"
+            echo
+            echo "- source: checked-in migration on disposable PostgreSQL 16"
+            echo "- terminal: PASS"
+            echo "- public receipt hash: $(cut -d' ' -f1 f27-proof/post-contract.sha256)"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Run the packaged reserved-drill operator
+        run: |
+          set -o pipefail
+          createdb f27_operator_toolkit
+          PGDATABASE=f27_operator_toolkit \
+            psql -X -q -v ON_ERROR_STOP=1 -f scripts/f27-drill-runner-fixture.sql \
+            > f27-proof/operator-fixture.txt
+          PGDATABASE=f27_operator_toolkit \
+            node scripts/f27-drill-runner.js \
+              --transport=psql \
+              --confirm=F27_DISPOSABLE_DRILL_ONLY \
+              --confirm-database=f27_operator_toolkit \
+              --actor=f27-ci \
+            | tee f27-proof/operator-terminal.json
+          grep -q "F27_DRILL_RUNNER_OK" f27-proof/operator-terminal.json
+          sha256sum f27-proof/operator-terminal.json | tee f27-proof/operator-terminal.sha256
+          {
+            echo
+            echo "## F27 packaged operator proof"
+            echo
+            echo "- transport: disposable PostgreSQL 16"
+            echo "- terminal: F27_DRILL_RUNNER_OK"
+            echo "- authority CAS: refused"
+            echo "- operator receipt hash: $(cut -d' ' -f1 f27-proof/operator-terminal.sha256)"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:

@@ -744,8 +744,9 @@ n8n in the metric read path.*
   never store display order. Video capacity is four weighted units: exact `2× Workload` and
   `3× Workload` labels consume two or three units, default one; graphics remains 15 items. Only
   each editor's capacity pill turns red; the day cell keeps normal styling and every item remains visible.
-  Past-due assigned non-tweak work is excluded from the calendar; it appears in Overdue, and a
-  past-due In-progress item also remains in In progress now. Tweaks remains exclusive. Overdue,
+  Past-due assigned non-tweak work without a manual plan is excluded from the calendar and appears
+  in Overdue. A manually pinned past-due item stays on its exact work day and also appears in
+  Overdue; a past-due In-progress item also remains in In progress now. Tweaks remains exclusive. Overdue,
   in-progress, and tweaks sections precede the intact period/filter toolbar, default collapsed, and
   persist each browser's expansion preference. The toolbar sits directly above the calendar;
   undated work follows the calendar and unassigned lane at the bottom. Client chips and issue rows

@@ -1132,3 +1132,18 @@ All times are UTC unless noted.
   table grant, runtime flag, n8n workflow, Edge Function, frozen writer, deployment, or live data
   changed. PR #891 was not touched; its separate campaign must rebase onto this merge and rerun its
   23-group visible-boot lane.
+
+## 2026-07-22 — Workload pinned deadline-edit follow-up
+
+- **Manual intent survives deadline edits.** Changing a sub-issue's Linear due date leaves an
+  explicit internal work-day pin unchanged, including when the new deadline is already past. A
+  pinned overdue item remains on its exact planned day and is also visible in **Overdue**.
+- **Automatic placement remains dynamic.** When no manual plan exists, changing the Linear due date
+  rederives the automatic work day from the new deadline. Unpinned overdue work remains
+  **Overdue**-only, and tweak-bucket exclusivity is unchanged.
+- **Regression coverage.** Browser and bucketing checks pin the optimistic, confirmed, and reverted
+  due-edit paths for both placement modes. All focused Workload/write-contract checks passed,
+  `git diff --check` passed, and the repository-wide `npm test` gate passed all 155 suites.
+- **Boundary preserved.** This is a Pages-only browser/test/truth-doc follow-up based on merged PR
+  #910. No schema, migration, runtime flag, n8n workflow, Edge Function, frozen writer, deployment,
+  or live data changed; PR #891 remains untouched.

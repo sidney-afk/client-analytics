@@ -142,9 +142,11 @@ const wlApplyData = compile('wlApplyData', {
   wlIsInProgress,
   wlIsTweaksNeeded,
   wlIsToDo,
+  wlPlanDate,
   wlDisplayDate,
   wlBucketByDisplayDate,
 });
+const wlApplyDueLocal = compile('wlApplyDueLocal', { wlState, wlApplyData });
 
 function issue(status, id, dueDate) {
   return {
@@ -248,9 +250,9 @@ const manuallyPlannedPastDue = issue('To Do', 'manual-overdue', '2026-07-14');
 wlState.planByIssueId.set(manuallyPlannedPastDue.id, '2026-07-18');
 wlApplyData([manuallyPlannedPastDue], '2026-07-15T12:00:00Z');
 check(wlState.overdue.map(row => row.id).includes('manual-overdue')
-    && !wlState.planned.map(row => row.id).includes('manual-overdue')
-    && ![...wlState.calendarByDate.values()].flat().map(row => row.id).includes('manual-overdue'),
-  'a manual plan override cannot return past-due work to the work-day calendar');
+    && wlState.planned.map(row => row.id).includes('manual-overdue')
+    && (wlState.calendarByDate.get('2026-07-18') || []).map(row => row.id).includes('manual-overdue'),
+  'a past-due manual pin stays on its exact work day and also appears in Overdue');
 wlState.planByIssueId.delete(manuallyPlannedPastDue.id);
 
 const graphicRows = Array.from({ length: 16 }, (_, i) => ({
@@ -273,6 +275,27 @@ check((wlState.calendarByDate.get('2026-07-23') || []).map(row => row.id).includ
     && !wlState.calendarByDate.has('2026-07-20')
     && wlPlacementMode(planned) === 'manual',
   'an explicit plan_date displays on that exact work day instead of changing the deadline');
+
+const pinnedDueEdit = issue('To Do', 'pinned-due-edit', '2026-07-24');
+wlState.planByIssueId.set(pinnedDueEdit.id, '2026-07-21');
+wlApplyData([pinnedDueEdit], '2026-07-15T12:00:00Z');
+wlApplyDueLocal(pinnedDueEdit.id, '2026-07-14');
+check(wlDisplayDate(pinnedDueEdit) === '2026-07-21'
+    && wlState.planByIssueId.get(pinnedDueEdit.id) === '2026-07-21'
+    && (wlState.calendarByDate.get('2026-07-21') || []).some(row => row.id === pinnedDueEdit.id)
+    && wlState.overdue.some(row => row.id === pinnedDueEdit.id),
+  'changing a Linear due date to the past keeps the exact pin and also shows Overdue');
+wlState.planByIssueId.delete(pinnedDueEdit.id);
+
+const automaticDueEdit = issue('To Do', 'automatic-due-edit', '2026-07-24');
+wlApplyData([automaticDueEdit], '2026-07-15T12:00:00Z');
+const automaticBeforeEdit = wlDisplayDate(automaticDueEdit);
+wlApplyDueLocal(automaticDueEdit.id, '2026-07-27');
+check(automaticBeforeEdit === '2026-07-23'
+    && wlDisplayDate(automaticDueEdit) === '2026-07-24'
+    && (wlState.calendarByDate.get('2026-07-24') || []).some(row => row.id === automaticDueEdit.id),
+  'changing a Linear due date rederives only an automatically planned work day');
+
 wlState.planByIssueId.delete(planned.id);
 wlApplyData([planned], '2026-07-15T12:00:00Z');
 check((wlState.calendarByDate.get(autoDate) || []).map(row => row.id).includes(planned.id),
@@ -715,7 +738,7 @@ wlApplyData([pastDue, timelineOrdinary], '2026-07-15T12:00:00Z');
 const overdueSafeTracks = wlWeekDeadlineTracks(trackStart);
 const overdueSafeIds = overdueSafeTracks.flatMap(editor => editor.tracks.flatMap(track => track.subs.map(sub => sub.id)));
 check(overdueSafeIds.includes(timelineOrdinary.id) && !overdueSafeIds.includes(pastDue.id),
-  'deadline tracks inherit the calendar bucket and cannot reintroduce overdue work');
+  'deadline tracks inherit the calendar bucket and cannot reintroduce unpinned overdue work');
 wlState.planByIssueId.clear();
 const elevenEditors = Array.from({ length: 11 }, (_, i) => ({
   assigneeId: 'editor-' + i,

@@ -990,3 +990,51 @@ All times are UTC unless noted.
 - **Boundary preserved.** No migration, table grant, runtime flag, n8n workflow, frozen writer,
   `production-write` path, real row, deployment, or live operation changed. The new function remains
   source-only until review, merge, and a separately guided exact-SHA deployment/readback/TEST drill.
+
+## 2026-07-22 — Workload weighted planning live deployment
+
+- **Release pin and paired deployment.** Deployed only `workload-plan` and `workload-linear` from
+  exact merged release `1ed4053ab581e4e6276356c997334e4b2d49656b` using
+  `--no-verify-jwt --use-api`. No source modification was made during deployment.
+- **Exact live source readback.** `workload-plan` read back ACTIVE v3 with `verify_jwt=false`,
+  bundle `c27cc92d4edf91ecc5ca45a68680806087dfc96d8517f6872f3a3e537ef187e5`, and exact four-file
+  source fingerprint `2e778d88c64dca06895b95949e348fc9ac518c49ec70c89b3d116f9b11047b56`.
+  `workload-linear` read back ACTIVE v1 with `verify_jwt=false`, bundle
+  `6ce6ed1dffd2125e4b93cb661fc2751c60204c6aabd8564ac8f81a3024c00d3b`, and exact five-file
+  source fingerprint `c7878772a205b711182f806814f59be1bf79f7512c0ef2efc4bba78f3df00cb3`.
+- **Live CORS, authentication, and role boundary.** OPTIONS returned `204`, `no-store`, and the
+  required staff headers. Invalid credentials returned `401`. Admin, SMM, and Creative metadata
+  reads returned complete, identical projections for the same fresh three-issue TEST set. That set
+  returned only validated default/two-unit values, including one exact weighted-label match; the
+  three-unit contract remains pinned hermetically. Creative received `403` for both plan and due-date
+  writes, while the authorized Admin happy path remained available.
+- **Private TEST fail-closed drill.** A valid-format synthetic issue outside writable scope returned
+  `409 issue_not_writable` before any write. The release browser code consumed that live response,
+  restored its optimistic state, and displayed one failure notification; independent Linear and
+  mirror reads stayed unchanged. The impractical short-count race remains covered hermetically.
+- **Private TEST happy path and restoration.** One authorized due-date change returned `200` with
+  `linear_committed:true`, the exact requested acknowledgement, a valid update timestamp,
+  `mirror_updated:1`, and `mirror_pending:false`. Independent Linear, mirror, fresh metadata, and
+  server-truth reloads confirmed the result. The same path then restored the original value with an
+  exact `200` acknowledgement, and independent Linear, mirror, and metadata reads confirmed that the
+  TEST fixture was left exactly as found.
+- **Non-collateral readback.** All 13 runtime flags remained byte-identical at
+  `db3613a8ca68195bc4e6c543185933e267707852b9b953be6f36cb9eb4f6c092`; all 39 rows in the complete
+  `workload_plan` sidecar remained byte-identical at
+  `e1efe2dd18ce5458adcd0bbc1fadf2116333a8cb3bb1c6f5602e430085b58efb`. The monitored n8n workflow
+  remained inactive and unpublished at version `d149c1e6-250d-471b-98bb-b28221f0165b`, with the same
+  five-node graph and `2026-07-13T02:15:06.679Z` update timestamp.
+- **Frozen writers and Pages.** `calendar-upsert` remained ACTIVE v43 at bundle
+  `91ce449e8fd19b451f218572a0f42db385c64841b1f4b4b14ff27b76839a425f`, and
+  `sample-review-upsert` remained ACTIVE v44 at bundle
+  `50b63fbadcdf03d3de0fc04131dd9258f50aabd1631e59bcb6f57554e0b918fb`. Pages read back built at
+  `6d3964fa780ab4c7db12632e634603b24f0c3c1c`; the marker-bounded Workload core was byte-identical
+  across release, current `main`, and live Pages at
+  `da65f3b6febd009d03a250cf374fdb8058af7fe081c21e75d731ba78df1fed97`. The intervening source was
+  confined to the unrelated Kasper filming-plan surface.
+- **Boundary preserved.** No schema, migration, table grant, runtime flag, n8n workflow, frozen
+  writer, client enrollment, non-TEST Linear object, sidecar row, or unrelated data row changed. No
+  key, staff name, client value, issue id, title, per-issue label assignment, deadline value, or raw
+  provider response is recorded in this public evidence.
+- **Verification.** Exact-release `npm test` passed all 146 suites before deployment. The
+  evidence-only follow-up rerun passed all 146 suites, and `git diff --check` passed.

@@ -14207,6 +14207,7 @@
             const inProg     = wlIsInProgress(s);
             const needsTweak = wlIsTweaksNeeded(s);
             const hasDue     = !!s.dueDate;
+            const hasManualPlan = !!wlPlanDate(s);
             const workDate   = wlDisplayDate(s);
             if (!s.assigneeId) {
                 if (inProg || workDate) unassigned.push(s);
@@ -14223,26 +14224,25 @@
                 tweaksNeeded.push(s);
                 continue;
             }
-            // Any past-due non-tweak work leaves the work-day calendar and
-            // goes to Overdue. If an editor is actively working on it, keep a
-            // second status reference in In progress now; neither copy counts
-            // toward a calendar day. A saved manual day cannot override this
-            // exception routing.
+            // Past-due non-tweak work always appears in Overdue. Automatic
+            // placement leaves the calendar, but an explicit manual pin keeps
+            // its exact work day: changing the Linear deadline must not move a
+            // plan that a person deliberately placed.
             const isOverdue = hasDue && s.dueDate < todayISO;
             if (isOverdue) {
                 overdue.push(s);
                 if (inProg) nowWorking.push(s);
-                continue;
+                if (!hasManualPlan) continue;
             }
-            if (inProg) nowWorking.push(s);
+            if (inProg && !isOverdue) nowWorking.push(s);
             if (!workDate) {
                 undated.push(s);
                 continue;
             }
             // Explicit internal plan_date wins; otherwise this item's own
             // deadline produces its automatic day. Current In Progress work
-            // may also appear in its status strip; overdue and tweaks are
-            // calendar-exclusive.
+            // may also appear in its status strip; unpinned overdue work and
+            // all tweaks are calendar-exclusive.
             planned.push(s);
         }
 

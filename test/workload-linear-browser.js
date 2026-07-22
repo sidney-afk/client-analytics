@@ -33,7 +33,7 @@ function extract(name) {
   throw new Error('unclosed ' + name);
 }
 
-function harness(reply, role = 'admin') {
+function harness(reply, role = 'admin', manualPlanDate = null) {
   const issue = {
     id: 'synthetic-issue-1',
     clientName: 'Synthetic Client',
@@ -43,6 +43,7 @@ function harness(reply, role = 'admin') {
   const paints = [];
   let fetches = 0;
   let optimisticAtRequest = null;
+  let optimisticPlacementAtRequest = null;
   const context = {
     WORKLOAD_LINEAR_URL: 'https://example.invalid/functions/v1/workload-linear',
     WL_LINEAR_WRITE_TIMEOUT_MS: 12000,
@@ -54,6 +55,8 @@ function harness(reply, role = 'admin') {
       issueSnapshot: [issue],
       fetchedAt: 1,
       linearMetadataStatus: 'ready',
+      planByIssueId: new Map(manualPlanDate ? [[issue.id, manualPlanDate]] : []),
+      planHasSnapshot: true,
     },
     _syncviewStaffIdentityForHeaders: () => role ? { role } : null,
     _syncviewStaffRoleValue: identity => String(identity && identity.role || '').trim().toLowerCase(),
@@ -62,12 +65,14 @@ function harness(reply, role = 'admin') {
     _syncviewStaffIdentityClear: () => {},
     wlPurgePlanSensitiveState: () => {},
     wlIsTweaksNeeded: () => false,
+    wlWorkloadTodayISO: () => '2026-07-22',
     wlApplyData: () => paints.push(issue.dueDate),
     renderWorkloadAll: () => paints.push(issue.dueDate),
     showNotify: (title, body) => notifies.push([title, body]),
     fetch: async () => {
       fetches++;
       optimisticAtRequest = issue.dueDate;
+      optimisticPlacementAtRequest = context.wlDisplayDate(issue);
       if (reply instanceof Error) throw reply;
       return {
         ok: reply.httpOk !== false,
@@ -84,6 +89,12 @@ function harness(reply, role = 'admin') {
   context.globalThis = context;
   vm.createContext(context);
   for (const name of [
+    'wlISO',
+    'wlParseISO',
+    'wlSubWorkingDays',
+    'wlPlanDate',
+    'wlAutoPlanDate',
+    'wlDisplayDate',
     '_syncviewStaffCan',
     'wlLinearEditingEnabled',
     'wlApplyDueLocal',
@@ -98,6 +109,7 @@ function harness(reply, role = 'admin') {
     paints,
     get fetches() { return fetches; },
     get optimisticAtRequest() { return optimisticAtRequest; },
+    get optimisticPlacementAtRequest() { return optimisticPlacementAtRequest; },
   };
 }
 
@@ -317,10 +329,28 @@ async function run() {
     mirror_updated: 1,
     mirror_pending: false,
   } });
+  assert.strictEqual(happy.context.wlDisplayDate(happy.issue), '2026-08-07', 'automatic placement starts one working day before due');
   assert.strictEqual(await happy.context.wlSetDueDate('synthetic-issue-1', '2026-08-12'), true);
   assert.strictEqual(happy.optimisticAtRequest, '2026-08-12', 'new deadline is optimistic before the request');
+  assert.strictEqual(happy.optimisticPlacementAtRequest, '2026-08-11', 'automatic placement follows the optimistic deadline');
   assert.strictEqual(happy.issue.dueDate, '2026-08-12');
+  assert.strictEqual(happy.context.wlDisplayDate(happy.issue), '2026-08-11', 'automatic placement follows the confirmed deadline');
   assert.deepStrictEqual(happy.notifies, []);
+
+  const pinned = harness({ body: {
+    ok: true,
+    linear_committed: true,
+    issue_id: 'synthetic-issue-1',
+    due_date: '2026-08-12',
+    updated_at: '2026-07-22T12:00:00Z',
+    mirror_updated: 1,
+    mirror_pending: false,
+  } }, 'admin', '2026-08-05');
+  assert.strictEqual(pinned.context.wlDisplayDate(pinned.issue), '2026-08-05', 'manual placement starts on the saved pin');
+  assert.strictEqual(await pinned.context.wlSetDueDate('synthetic-issue-1', '2026-08-12'), true);
+  assert.strictEqual(pinned.optimisticPlacementAtRequest, '2026-08-05', 'manual placement stays pinned during the optimistic deadline update');
+  assert.strictEqual(pinned.context.wlDisplayDate(pinned.issue), '2026-08-05', 'manual placement stays pinned after the confirmed deadline update');
+  assert.strictEqual(pinned.context.wlState.planByIssueId.get('synthetic-issue-1'), '2026-08-05', 'the due writer never changes the saved plan date');
 
   const mismatch = harness({ body: {
     ok: true,
@@ -396,6 +426,8 @@ async function run() {
   const rejected = harness({ httpOk: false, status: 409, body: { ok: false, error: 'issue_not_writable' } });
   assert.strictEqual(await rejected.context.wlSetDueDate('synthetic-issue-1', '2026-08-12'), false);
   assert.strictEqual(rejected.issue.dueDate, '2026-08-10', 'pre-write rejection reverts');
+  assert.strictEqual(rejected.optimisticPlacementAtRequest, '2026-08-11', 'failed automatic write still previews the derived new day');
+  assert.strictEqual(rejected.context.wlDisplayDate(rejected.issue), '2026-08-07', 'failed automatic write restores the previous derived day');
   assert.match(rejected.notifies[0][1], /previous due date was restored/i);
 
   const shortMirror = harness({ body: {

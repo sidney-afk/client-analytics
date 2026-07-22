@@ -124,10 +124,11 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   otherwise it derives identifier-number order. The order is never persisted.
 - Assigned active work with neither an internal work day nor a due date stays off the calendar and
   appears in **Needs a work day or deadline**. An undated issue with an explicit plan day does enter
-  the calendar. Past-due assigned work stays off the calendar and enters **Overdue**; past-due
-  In-progress work also remains visible in **In progress now**. `Tweak Needed` / `Tweaks Needed`
-  remains an exclusive strip and never enters the calendar or either overlapping status strip, even
-  when it retains a due date or saved plan override.
+  the calendar. Past-due assigned work without a manual plan stays off the calendar and enters
+  **Overdue**. A manually pinned past-due issue stays on its exact work day and also appears in
+  **Overdue**; past-due In-progress work also remains visible in **In progress now**. `Tweak Needed`
+  / `Tweaks Needed` remains an exclusive strip and never enters the calendar or either overlapping
+  status strip, even when it retains a due date or saved plan override.
 - **Overdue**, **In progress now**, and **Tweaks needed** render before the intact period/filter
   toolbar, default collapsed, and remember each browser's expanded sections. The toolbar remains
   directly above the Work-day calendar. **Needs a work day or deadline** renders at the bottom,
@@ -162,7 +163,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   drag handle updates only that internal date. **Use automatic plan** appears for every manually
   planned sub-issue in its popover; it clears that override and reveals the deterministic automatic
   day. The branded date control in that popover now edits the Linear due date through
-  `workload-linear`; Creative sees the same value in a disabled control.
+  `workload-linear`; changing that deadline rederives only an automatic work day, while an explicit
+  manual pin stays unchanged. Creative sees the same value in a disabled control.
 - Calendar chips and expanded issue rows use quiet sparkle/pin icons for automatic/manual placement;
   mixed groups show icon counts instead of text badges. Deadline proximity is a compact color dot,
   remains visible without opening a popover, and measures the buffer from that issue's displayed

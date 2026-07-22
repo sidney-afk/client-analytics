@@ -22,6 +22,17 @@ jobs:
       - name: Run unit suite (test/*.js)
         run: node test/run-all.js
 
+  overnight-entry-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Drive protected runner and cron boot boundaries on Windows
+        run: node test/overnight-runner-client-entry-boundary.js
+
   f27-team-rollback-proof:
     if: contains(github.event.head_commit.message || '', 'F27') || github.event_name == 'pull_request'
     runs-on: ubuntu-latest

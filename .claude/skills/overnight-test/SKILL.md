@@ -12,9 +12,25 @@ behind. **Do not stop on your own.**
 
 > Two overnight modes exist — don't mix them up. THIS skill is the
 > **agent-driven mode**: you author new probes continuously. The
-> **script mode** (`qa/overnight_runner.sh` / `qa/overnight_cron_chunk.sh`)
+> **script mode** (`node qa/overnight_entry.js runner` / `node qa/overnight_entry.js cron`)
 > replays existing coverage on a scheduler with no agent. Run one or the
 > other, not both at once.
+
+Before the staff key enters Node, script mode requires the trusted caller to
+leave `NODE_OPTIONS`, `LD_PRELOAD`, `LD_AUDIT`, `LD_LIBRARY_PATH`,
+`DYLD_INSERT_LIBRARIES`, and `DYLD_LIBRARY_PATH` unset. The broker diagnoses
+these controls but cannot undo startup code already executed by Node or the OS
+loader. Its child boundary then scrubs interpreter controls and requires
+trusted Bash 5.1+ (Git Bash on Windows), refusing an incompatible shell
+visibly.
+On Windows, script mode pins helpers under `C:\Windows` and Git Bash under
+`C:\Program Files`; caller-overridden roots and per-user Git installs fail
+closed before issuer release.
+The broker releases the issuer only after the platform process-tree guardian
+reports ready, and accepts completion only after that guardian reports an empty
+tree. Protected POSIX workloads must remain foreground-attached: operative
+commands stay in their assigned process group and do not daemonize into a
+different session.
 
 ## 0. Continuous execution — THE most important rule
 
@@ -54,9 +70,10 @@ Full contract: `docs/testing/HEADLESS-TESTING-GUIDE.md` §5. Operationally:
   live `linear-set-status` / `linear-add-comment` webhooks.
 - **Assert 0 app JS errors** on every probe (`appErrs(page)` — it already
   filters the expected realtime-WebSocket noise under the courier).
-- **Run the static server as a CHILD of each probe command** (it dies between
-  Bash calls otherwise):
-  `python3 -m http.server 8000 & SRV=$!; sleep 1.5; node qa/probes/<x>.js; EC=$?; kill $SRV; exit $EC`
+- **Run protected client probes through the owned-server runner**:
+  `PROBE_ATTEMPTS=1 node qa/run-probes.js <x>`. It silences its server, strips
+  client-entry credentials from that child, and refuses a pre-existing port
+  occupant instead of sending a token-bearing URL to an unowned process.
 - When the sandbox proxy blocks the BROWSER's own egress, the harness runs
   the real app in real Chromium and couriers backend calls via Node/curl.
   Keep the courier ON (default) in such sandboxes; `SXR_COURIER=0` only with
@@ -92,10 +109,49 @@ Full contract: `docs/testing/HEADLESS-TESTING-GUIDE.md` §5. Operationally:
 **Default binding: Samples (Review) first, then the whole app.** Surfaces
 (flag `?sxr=1`, default OFF):
 
-- SMM/editor: `/index.html?sxr=1&v2debug=1#sample-reviews/sidneylaruel`
-- Client share: `/index.html?sxr=1&c=Sidney%20Laruel&v=sample-reviews&v2debug=1`
-- Kasper: `/index.html?Kasper=1&sxr=1&v2debug=1#kasper` then
+- SMM/editor (staff only): `/index.html?sxr=1&v2debug=1#sample-reviews/sidneylaruel`
+- Client share: resolve the current protected TEST token and build the route
+  with the redacted `gotoTestClientEntry` helper as described below. Never type,
+  paste, or concatenate a client-entry URL.
+- Kasper (staff only): `/index.html?Kasper=1&sxr=1&v2debug=1#kasper` then
   `_kasperGotoTab('samples')`
+
+**Strict TEST client-entry bootstrap (required before opening Client share):**
+
+1. In the same Node process as the browser probe, import `TEST_CLIENT`,
+   `resolveCurrentTestClientToken`, and `gotoTestClientEntry` from
+   `qa/test-client-entry.js` (adjust only the relative import path).
+2. Require the protected `SYNCVIEW_STAFF_KEY`, resolve once at probe startup,
+   and keep the returned credential in process memory only:
+
+   ```js
+   const clientToken = await resolveCurrentTestClientToken();
+   await gotoTestClientEntry(page, {
+     origin: ORIGIN,
+     view: 'sample-reviews',
+     name: TEST_CLIENT.name,
+     token: clientToken,
+     gotoOptions: { waitUntil: 'domcontentloaded', timeout: 45000 },
+   });
+   ```
+
+3. Never replace that redacted navigation helper with a direct `page.goto`:
+   Playwright includes the complete URL in navigation errors. Never log or
+   persist the path/token, put either one in command arguments, or copy either
+   one into a report/fixture. Do not copy the token into `process.env`; browser
+   and helper child processes can inherit that environment. Discard the static
+   server's stdout/stderr; never write its access log to a file.
+
+The shared builder restricts live navigation to `sidneylaruel` and emits only
+the canonical strict-entry keys: `c,t` plus `v` and, for Samples, `sxr`.
+Client-entry URLs must always contain the current `t` credential and must never
+contain `v2debug`, `Kasper`, `prod`, hashes, duplicate keys, or any other
+staff/debug state. `v2debug` above is valid only on the two staff-only routes.
+Scheduled jobs expose `SYNCVIEW_STAFF_KEY` only to each operative harness
+command. The harness resolves the current token inside its own Node process,
+passes it explicitly through the redacted builder, and strips client-entry credentials
+from browser and unrelated child environments. Never export the token through
+`GITHUB_ENV`, `process.env`, or a stored rotation-prone client-token secret.
 
 **START with the COLD-OPEN user journey for each surface, before any edge
 case** (the general principle and its war story live in

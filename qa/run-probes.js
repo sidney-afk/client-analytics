@@ -20,7 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const {
-  STAFF_KEY_ENV,
+  clientEntryProbeChildEnv,
   clientEntrySafeChildEnv,
 } = require('./test-client-entry.js');
 const {
@@ -106,8 +106,7 @@ async function waitForOwnedServer(child, failed, ms = 30000) {
   for (const f of probes) {
     let ok = false, lastOut = '';
     for (let attempt = 1; attempt <= MAX_ATTEMPTS && !ok; attempt++) {
-      const probeEnv = clientEntrySafeChildEnv();
-      if (process.env[STAFF_KEY_ENV]) probeEnv[STAFF_KEY_ENV] = process.env[STAFF_KEY_ENV];
+      const probeEnv = clientEntryProbeChildEnv(f);
       const r = spawnSync(process.execPath, [path.join(PROBES, f)], {
         cwd: PROBES,
         encoding: 'utf8',

@@ -51,11 +51,18 @@ const VJUDGE = require('./vision_judge.js');
 const {
   STAFF_KEY_ENV,
   clientEntrySafeChildEnv,
+  probeNeedsClientEntry,
 } = require('./test-client-entry.js');
 const {
   NIGHTLY_SCENARIO_ENV,
   parseScenarioFilter,
 } = require('./nightly-input.js');
+const {
+  ScenarioSelectionError,
+  buildScenarioCatalogs,
+  selectScenarioLane,
+  selectScenarioLanes,
+} = require('./scenario-selection.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const QA = __dirname;
@@ -70,12 +77,18 @@ const SCN_TIMEOUT_MS = Number(process.env.SCN_TIMEOUT_MS || 1800000); // suites 
 
 // ---------------------------------------------------------------- arg parsing
 function parseArgs(argv, envSource = process.env) {
-  const a = { profile: 'fast', lanes: null, scn: null, server: true, repeat: 1, untilMs: 0, untilFail: false };
+  const a = { profile: 'fast', lanes: null, scn: null, scnProvided: false, server: true, repeat: 1, untilMs: 0, untilFail: false };
+  let scnOptionCount = 0;
   for (const tok of argv) {
     if (tok === '--no-server') a.server = false;
     else if (tok.startsWith('--profile=')) a.profile = tok.slice(10);
     else if (tok.startsWith('--lane=')) a.lanes = tok.slice(7).split(',').map(s => s.trim()).filter(Boolean);
-    else if (tok.startsWith('--scn=')) a.scn = parseScenarioFilter(tok.slice(6));
+    else if (tok.startsWith('--scn=')) {
+      scnOptionCount++;
+      if (scnOptionCount > 1) throw new Error('duplicate scenario option');
+      a.scn = parseScenarioFilter(tok.slice(6));
+      a.scnProvided = true;
+    }
     else if (tok.startsWith('--repeat=')) a.repeat = Math.max(1, Number(tok.slice(9)) || 1);
     else if (tok.startsWith('--until=')) {
       // --until=fail  → loop until a lane fails
@@ -84,8 +97,12 @@ function parseArgs(argv, envSource = process.env) {
       if (v === 'fail') { a.untilFail = true; a.repeat = Infinity; }
       else { const m = v.match(/^(\d+)([smh])$/); if (m) { a.untilMs = Number(m[1]) * (m[2] === 's' ? 1e3 : m[2] === 'm' ? 6e4 : 36e5); a.repeat = Infinity; } }
     }
+    else throw new Error('invalid master argument');
   }
-  if (a.scn == null) a.scn = parseScenarioFilter(envSource[NIGHTLY_SCENARIO_ENV]);
+  if (!a.scnProvided && Object.prototype.hasOwnProperty.call(envSource, NIGHTLY_SCENARIO_ENV)) {
+    a.scn = parseScenarioFilter(envSource[NIGHTLY_SCENARIO_ENV]);
+    a.scnProvided = true;
+  }
   return a;
 }
 
@@ -255,7 +272,7 @@ function laneProbes(cfg = {}) {
     const r = runNode(path.join(PROBES, f), {
       cwd: PROBES,
       attempts: PROBE_ATTEMPTS,
-      needsClientEntry: true,
+      needsClientEntry: probeNeedsClientEntry(f),
     });
     ms += r.ms; if (!r.ok) failed.push(f + (r.errNote ? ' [' + r.errNote + ']' : ''));
   }
@@ -274,15 +291,26 @@ function laneTemporal(cfg) {
     const r = runNode(path.join(PROBES, f), {
       cwd: PROBES,
       attempts: 2,
-      needsClientEntry: true,
+      needsClientEntry: probeNeedsClientEntry(f),
     });
     ms += r.ms; if (!r.ok) failed.push(f + (r.errNote ? ' [' + r.errNote + ']' : ''));
   }
   return { ok: failed.length === 0, ms, summary: failed.length ? `${failed.length}/${files.length} FAILED: ${failed.join(', ')}` : `all ${files.length} temporal probes passed`, tail: '' };
 }
 
-function laneScenarios(cfg) {
-  const args = []; if (cfg.filter) args.push(cfg.filter);
+function skippedScenarioLane(lane) {
+  return {
+    ok: true,
+    skipped: true,
+    summary: `SCENARIO_SELECTION_SKIP lane=${lane} reason=no-local-match`,
+    ms: 0,
+    tail: '',
+  };
+}
+
+function laneScenarios(selection) {
+  if (selection.skipped) return skippedScenarioLane('flat');
+  const args = []; if (selection.filter) args.push(selection.filter);
   const r = runNode(path.join(PROBES, 'run_scenarios.js'), {
     cwd: ROOT,
     args,
@@ -298,8 +326,9 @@ function laneScenarios(cfg) {
 
 // Same engine as scenarios, but specs come from the BRANCHING scenario tree
 // (qa/scenario_tree.js, compiled to flat paths) via run_scenarios.js --tree.
-function laneTree(cfg) {
-  const args = []; if (cfg.filter) args.push(cfg.filter); args.push('--tree');
+function laneTree(selection) {
+  if (selection.skipped) return skippedScenarioLane('tree');
+  const args = []; if (selection.filter) args.push(selection.filter); args.push('--tree');
   const r = runNode(path.join(PROBES, 'run_scenarios.js'), {
     cwd: ROOT,
     args,
@@ -317,9 +346,10 @@ function laneTree(cfg) {
 // doc for the vision pass. Capture failing != lane failing; the lane only fails
 // if the capture run itself errored (so a UI bug surfaces in the vision pass,
 // not as a false green/red here).
-function laneVisual(cfg) {
+function laneVisual(selection) {
+  if (selection.skipped) return skippedScenarioLane('visual');
   try { fs.rmSync(SHOT_DIR, { recursive: true, force: true }); } catch {}
-  const args = [cfg.filter || '', '--shots'].filter(Boolean);
+  const args = [selection.filter || '', '--shots'].filter(Boolean);
   const r = runNode(path.join(PROBES, 'run_scenarios.js'), {
     cwd: ROOT,
     args,
@@ -369,9 +399,14 @@ function laneVisual(cfg) {
 
 // ---------------------------------------------------------------- orchestrator
 (async () => {
-  const args = parseArgs(process.argv.slice(2));
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (_) {
+    console.error('MASTER ERROR: invalid scenario selector input');
+    process.exit(2);
+  }
   const plan = profilePlan(args.profile);
-  if (args.scn != null) { if (plan.scenarios) plan.scenarios.filter = args.scn; if (plan.tree) plan.tree.filter = args.scn; if (plan.visual) plan.visual.filter = args.scn; }
   let lanes = args.lanes || LANE_ORDER.filter(l => plan[l]);
   const unknown = lanes.filter(l => !LANE_ORDER.includes(l));
   lanes = lanes.filter(l => LANE_ORDER.includes(l));
@@ -379,9 +414,50 @@ function laneVisual(cfg) {
   if (unknown.length) console.error(`Unknown lane(s): ${unknown.join(', ')} — known: ${LANE_ORDER.join(', ')}`);
   if (!lanes.length) { console.error('No known lanes selected — exiting.'); process.exit(2); }
 
+  // Resolve one selector against the flat+tree union before any server,
+  // browser, courier, vision, or artifact work. A selector may legitimately
+  // match only one lane; the other lane then records an explicit safe skip.
+  const scenarioLaneKind = { scenarios: 'flat', tree: 'tree', visual: 'visual' };
+  const selectedScenarioLanes = lanes.filter(lane => scenarioLaneKind[lane]);
+  const scenarioSelections = {};
+  if (selectedScenarioLanes.length || args.scnProvided) {
+    try {
+      const { base: flatBase } = require('./scenarios.js');
+      const { base: treeBase } = require('./scenario_tree.js');
+      const catalogs = buildScenarioCatalogs(flatBase(), treeBase());
+      const providedSelections = args.scnProvided
+        ? selectScenarioLanes(args.scn, catalogs)
+        : null;
+      if (!selectedScenarioLanes.length && !providedSelections) {
+        // Even a unit-only invocation must fail closed on supplied dispatch
+        // input; otherwise an unsafe manual selector can appear accepted.
+        selectScenarioLane(args.scn, 'flat', catalogs);
+      }
+      for (const lane of selectedScenarioLanes) {
+        const configured = plan[lane] || { filter: null };
+        scenarioSelections[lane] = providedSelections
+          ? providedSelections[scenarioLaneKind[lane]]
+          : selectScenarioLane(configured.filter, scenarioLaneKind[lane], catalogs);
+      }
+    } catch (error) {
+      const message = error instanceof ScenarioSelectionError
+        ? error.message
+        : 'scenario selection failed';
+      console.error(`MASTER ERROR: ${message}`);
+      process.exit(2);
+    }
+  }
+
   // Boot owns an ephemeral streaming server; the other browser lanes share
   // the static :8000 server managed below.
-  const needsBrowser = lanes.some(l => l !== 'unit' && l !== 'boot');
+  const needsBrowser = lanes.some(lane => (
+    lane !== 'unit'
+      && lane !== 'boot'
+      && !(scenarioSelections[lane] && scenarioSelections[lane].skipped)
+  ));
+  const allLanesPreSkipped = lanes.every(lane => (
+    scenarioSelections[lane] && scenarioSelections[lane].skipped
+  ));
   console.log(`\n🧪 MASTER TESTER — profile=${args.profile}  lanes=[${lanes.join(', ')}]\n`);
 
   let srv = null, killServer = () => {};
@@ -425,9 +501,9 @@ function laneVisual(cfg) {
         else if (lane === 'realtime') res = laneRealtime();
         else if (lane === 'probes') res = laneProbes(plan.probes || {});
         else if (lane === 'temporal') res = laneTemporal(plan.temporal || { glob: /^ot_temporal_.*\.js$/ });
-        else if (lane === 'scenarios') res = laneScenarios(plan.scenarios || { filter: null });
-        else if (lane === 'tree') res = laneTree(plan.tree || { filter: null });
-        else if (lane === 'visual') res = laneVisual(plan.visual || { filter: null });
+        else if (lane === 'scenarios') res = laneScenarios(scenarioSelections.scenarios);
+        else if (lane === 'tree') res = laneTree(scenarioSelections.tree);
+        else if (lane === 'visual') res = laneVisual(scenarioSelections.visual);
       } catch (e) { res = { ok: false, summary: 'LANE CRASHED: ' + (e.message || e), ms: 0, tail: '' }; }
       results[lane] = res;
       const tag = res.skipped ? '∅' : res.needsVision ? '👁' : res.ok ? '✅' : '❌';
@@ -451,7 +527,12 @@ function laneVisual(cfg) {
     const iterFail = Object.entries(results).some(([, r]) => !r.skipped && !r.ok);
     anyFail = anyFail || iterFail;
     iterations.push({ n: iter, failed: iterFail, ms: Date.now() - startedAt, lanes: Object.fromEntries(Object.entries(results).map(([k, r]) => [k, { ok: !!r.ok, skipped: !!r.skipped, needsVision: !!r.needsVision, summary: r.summary, ms: r.ms }])) });
-    writeJsonReport(args, lanes, iterations, anyFail, startedAt);   // durable after EVERY iteration
+    if (!allLanesPreSkipped) {
+      writeJsonReport(args, lanes, iterations, anyFail, startedAt);   // durable after EVERY iteration
+    }
+    // Repeating a plan with no executable lane would be a tight zero-work
+    // spin (especially for --until=fail). One truthful skip is terminal.
+    if (allLanesPreSkipped) break;
     if (args.untilFail && iterFail) break;
     if (args.untilMs && Date.now() - startedAt >= args.untilMs) break;
     if (!args.untilMs && !args.untilFail && iter >= args.repeat) break;
@@ -479,7 +560,7 @@ function laneVisual(cfg) {
     console.log(`    run the /master-test skill to have Claude review them, or open them yourself.`);
   }
   console.log('\n' + (hardFail ? '❌ MASTER: one or more lanes FAILED' : '✅ MASTER: all pass/fail lanes green'));
-  writeReport(args, lanes, results, hardFail, iterations);
+  if (!allLanesPreSkipped) writeReport(args, lanes, results, hardFail, iterations);
   process.exit(hardFail ? 1 : 0);
 })().catch(e => { console.error('MASTER ERROR', e && e.stack || e); process.exit(2); });
 

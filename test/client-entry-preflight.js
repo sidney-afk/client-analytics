@@ -238,6 +238,8 @@ assert(
 );
 for (const token of [
   "_fetchExtrasState={status:'loading',run:clientEntryRun||null}",
+  "if(!tr.ok||!br.ok||!mrb.ok)throw new Error('analytics_extras_http')",
+  'const csText=cs&&cs.ok?await cs.text():null',
   'attempt===_fetchExtrasAttempt&&_fetchExtrasPromise===tracked',
   "_fetchExtrasState={status:'ready',run:clientEntryRun||null}",
   '_fetchExtrasPromise=null',
@@ -245,6 +247,11 @@ for (const token of [
 ]) {
   assert(fetchExtrasSource.includes(token), 'extras promise lifecycle guard is missing: ' + token);
 }
+assert(
+  fetchExtrasSource.indexOf("if(!tr.ok||!br.ok||!mrb.ok)throw new Error('analytics_extras_http')")
+    < fetchExtrasSource.indexOf('const topvidsText=await tr.text();'),
+  'all required extras HTTP statuses must be validated before any response body can be parsed or applied',
+);
 for (const token of [
   "if(state==='ready')return false",
   "if(state==='error')_syncviewClientExtrasErrorScreen",

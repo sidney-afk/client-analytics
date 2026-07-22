@@ -999,8 +999,8 @@ async function installSyntheticNetwork(context, origin, config = {}) {
     headers: { 'access-control-allow-origin': '*' },
     body: jsonBody(value),
   });
-  const fulfillText = (route, value, contentType = 'text/plain; charset=utf-8') => route.fulfill({
-    status: 200,
+  const fulfillText = (route, value, contentType = 'text/plain; charset=utf-8', status = 200) => route.fulfill({
+    status,
     contentType,
     headers: { 'access-control-allow-origin': '*' },
     body: value,
@@ -1067,10 +1067,18 @@ async function installSyntheticNetwork(context, origin, config = {}) {
                 : sheet === 'ContentSummaries' ? SUMMARIES_CSV
                   : null;
       if (body !== null) {
-        await fulfillText(route, body, 'text/csv; charset=utf-8');
+        const responseStatus = extraPlan && extraPlan.statusSheet === sheet
+          ? Number(extraPlan.status || 500)
+          : 200;
+        await fulfillText(
+          route,
+          responseStatus >= 400 ? 'synthetic extras failure' : body,
+          responseStatus >= 400 ? 'text/plain; charset=utf-8' : 'text/csv; charset=utf-8',
+          responseStatus,
+        );
         if (extraRequest) {
-          extraRequest.outcome = 'fulfilled';
-          state.extraResponses.push({ at: Date.now(), sheet, attempt: extraRequest.attempt, outcome: 'fulfilled' });
+          extraRequest.outcome = responseStatus >= 400 ? `http-${responseStatus}` : 'fulfilled';
+          state.extraResponses.push({ at: Date.now(), sheet, attempt: extraRequest.attempt, outcome: extraRequest.outcome });
         }
         return;
       }
@@ -1507,7 +1515,7 @@ async function runClientTabScenario(browser, server, view) {
     network: {
       zeroAnalytics: true,
       extrasPlan: view === 'calendar'
-        ? [{}, { hold: true, rejectSheet: 'Competitor Briefs' }, { hold: true }]
+        ? [{}, { hold: true, statusSheet: 'Competitor Briefs', status: 500 }, { hold: true }]
         : null,
     },
     storage: {
@@ -1613,6 +1621,11 @@ async function runClientTabScenario(browser, server, view) {
       assert.equal(run.network.releaseExtras(1), 4, `${label}: failure releases the exact four held extras`);
       await run.page.waitForSelector('[data-client-extras-state="error"]', { state: 'visible', timeout: 10_000 });
       await run.network.waitForExtraResponses(1);
+      assert.ok(run.network.extraResponses.some(response => (
+        response.attempt === 1
+        && response.sheet === 'Competitor Briefs'
+        && response.outcome === 'http-500'
+      )), `${label}: one held extras response must exercise the HTTP 500 path`);
       const retry = run.page.getByRole('button', { name: 'Try again', exact: true });
       await retry.focus();
       const failed = await run.page.evaluate(() => ({
@@ -1621,9 +1634,10 @@ async function runClientTabScenario(browser, server, view) {
         fakeEmpty: /No Keywords Brief yet|No competitors brief yet/i.test(document.getElementById('content')?.innerText || ''),
         body: document.getElementById('content')?.innerText || '',
       }));
-      assert.equal(failed.extrasStatus, 'error', `${label}: rejected extras must become an explicit error state`);
-      assert.equal(failed.fakeEmpty, false, `${label}: rejected extras must never masquerade as an empty Brief`);
+      assert.equal(failed.extrasStatus, 'error', `${label}: HTTP 500 extras must become an explicit error state`);
+      assert.equal(failed.fakeEmpty, false, `${label}: HTTP 500 extras must never masquerade as an empty Brief`);
       assert.match(failed.body, /not replaced with an empty result/i, `${label}: failure copy must explain that empty data was not faked`);
+      assert.doesNotMatch(failed.body, /synthetic extras failure/i, `${label}: upstream HTTP body must not reach the client surface`);
       assert.equal(failed.activeText, 'Try again', `${label}: extras retry must be keyboard focusable`);
       await traceOf(run.page);
 
@@ -1711,8 +1725,10 @@ async function runClientTabScenario(browser, server, view) {
     assert.match(final.body, /No analytics yet/i, `${label}: zero-data Analytics must render a visible honest empty state`);
     assert.equal(final.body.includes(CLIENT_B), false, `${label}: residual client must never become visible`);
     if (view === 'calendar') {
-      const expectedExtrasErrors = run.consoleErrors.filter(message => /Failed to load resource: net::ERR_FAILED/i.test(message));
-      assert.equal(expectedExtrasErrors.length, 1, `${label}: Chromium should report exactly the injected extras rejection`);
+      const expectedExtrasErrors = run.consoleErrors.filter(message => (
+        /Failed to load resource/i.test(message) && /\b500\b/.test(message)
+      ));
+      assert.equal(expectedExtrasErrors.length, 1, `${label}: Chromium should report exactly the injected extras HTTP 500`);
       assert.deepEqual(run.consoleErrors.filter(message => !expectedExtrasErrors.includes(message)), [],
         `${label}: no unexpected browser console errors`);
       assert.deepEqual(run.network.unmocked, [], `${label}: every external request must be explicitly mocked`);
@@ -4381,6 +4397,7 @@ async function main() {
     await runLegacySamplesScenario(browser, server);
     await runStaffCalendarOwnedTailAndBfcacheScenario(browser, server);
     await runClientLegacyResumeLeaseScenario(browser, server);
+    assert.equal(passedGroups, 23, 'visible client-entry boot lane must run exactly 23 scenario groups');
     console.log(`SUMMARY ${passedGroups} scenario groups passed (${Date.now() - startedAt} ms, one attempt per navigation)`);
   } finally {
     if (browser) await browser.close();

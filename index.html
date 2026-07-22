@@ -8530,10 +8530,11 @@
                     return null;
                 }),
             ]);
+            if(!tr.ok||!br.ok||!mrb.ok)throw new Error('analytics_extras_http');
             const topvidsText=await tr.text();
             const briefsText=await br.text();
             const mrbText=await mrb.text();
-            const csText=cs?await cs.text():null;
+            const csText=cs&&cs.ok?await cs.text():null;
             if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
             _applyExtraTexts(topvidsText, briefsText, mrbText, csText);
             _analyticsCacheWrite({ topvids: topvidsText, briefs: briefsText, mrbriefs: mrbText, summaries: csText || '' });

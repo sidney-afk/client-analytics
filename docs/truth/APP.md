@@ -36,7 +36,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   and verifier 5xx failures show a distinct retry surface and never fake an empty dataset.
 - Calendar, Brief, and Analytics serialize their client tab in the query/history envelope rather
   than a staff hash. A verified client can always open the supported Brief tab while slower extras
-  stream; genuine absence uses the existing visible no-brief copy. Legacy `v=samples` is verified
+  stream: the requested route owns a loader until required responses succeed, a failed required response
+  shows a keyboard-operable retry instead of fake-empty data, and an explicit retry fetches only
+  extras before repainting the still-active route. Genuine absence uses the existing visible
+  no-brief copy. Legacy `v=samples` is verified
   first, then replaced in place with `v=sample-reviews&sxr=1` and mounted directly for the exact
   verified client. Staff Samples preferences, pins, and sticky opt-out neither rebind nor mutate.
 - Verification grants only an in-memory capability. Every client analytics continuation is leased
@@ -54,11 +57,13 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   brief, PTO-flag, caption-prompt, and residual caption-job startup work.
 - `qa/boot/client-entry-sequence.js` guards the actual visible sequence by streaming the document,
   painting the static frame, and recording animation-frame states through verify, route loader,
-  settle, reload, Back/Forward, and real `pageshow.persisted` BFCache returns. Its 21 groups include
+  settle, reload, Back/Forward, and real `pageshow.persisted` BFCache returns. Its 23 groups include
   verifier 408 and 500 responses that visibly offer keyboard-operable retry and recover without a document reload,
   rotated-token denial, deliberately late analytics, Calendar, and Samples responses after capability revocation,
-  Calendar → Brief/Analytics retirement, A → B visible-loader ownership, stale realtime-factory denial,
-  held v1 reconcile/metadata denial after client replacement, and pending/settled staff BFCache recovery,
+  Calendar → Brief/Analytics retirement, a held Calendar-to-Brief extras loader → visible retry →
+  loader → mounted Brief sequence, A → B visible-loader ownership, stale realtime-factory denial,
+  held v1 reconcile/metadata denial after client replacement, pending/settled staff BFCache recovery,
+  the exact-client legacy queue resume lease,
   and legacy Samples exact-client migration/traversal with generic/wrong-client frames forbidden. It
   is fully synthetic/intercepted, makes one attempt per navigation, and is registered as the `boot`
   QA lane plus the dedicated client-entry pull-request check.

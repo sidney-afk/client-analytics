@@ -851,3 +851,38 @@ All times are UTC unless noted.
 - **Boundary preserved.** Client-side source, guards, and truth/log documentation only. No schema,
   migration, Edge Function, runtime flag, Linear writer, n8n workflow, cache, frozen writer,
   deployment, or live operation changed.
+
+## 2026-07-22 — Workload Creative read-only shared plan (candidate source only)
+
+- **SMM feedback root cause closed.** Creative sessions were denied the saved-plan projection, so
+  their browser entered the honest deadline-fallback path while Admin/SMM rendered the authoritative
+  manual and automatic plan. Candidate browser source now requests a separate staff read capability;
+  Admin, SMM, and Creative receive the same global saved-plan snapshot, placement dates, origin
+  icons, deadline buffers, overloads, and Plan + deadlines relationships after load. Automatic
+  placement is floored against the existing `America/Guatemala` company policy day so it cannot
+  vary around midnight with each viewer's browser time zone.
+- **Mutation authority stays unchanged.** The `workload-plan` function now has separate exact role
+  allowlists: Admin/SMM/Creative for `list`, Admin/SMM only for `set`. Creative still receives no
+  issue or client-group drag handles, no enabled plan control, and no optimistic write path; the
+  visible work-day controls stay read-only. A Creative set request remains server-denied with
+  `403`. Direct sidecar access stays closed.
+- **Behavioral robots cover both halves.** The production staff-key helper is exercised with
+  dummy-only credentials to prove Creative list allow, Creative write denial, Admin/SMM allow, and
+  invalid-key denial. The real browser list capture point is pinned to the read capability; regular
+  and deadline-timeline renderers prove Creative sees the same visible planned content and signals
+  with every drag handle absent. Existing exact-one-write, revert/notify, mirror-read-only,
+  same-chain true-count, tweak exclusivity, and all-visible overload guards remain green.
+- **Verification.** Focused Workload source, fail-closed, and tweak-exclusive suites passed;
+  truth sync passed 394/394, repository-map sync passed 141/141, the Edge deploy manifest was fresh,
+  and `npm test` passed all 141 suites at the final source. Production-polish passed all 10 selected
+  suites in 492.3 seconds before the reviewer-requested policy-day hardening. Exact-final-source
+  reruns then encountered only unrelated environment flakes: one 3.773-second boot reading against
+  the 3.5-second threshold (isolated rerun 481ms), one final pixel lane with transient read-only HTTP
+  500s after the other nine suites passed (isolated light/dark pixel rerun passed), and one later
+  aborted-then-200 runtime-flag read. No product code changed for those failures; cloud review must
+  rerun the aggregate gate. Whitespace checks passed.
+- **Boundary preserved.** This candidate changes browser role routing, only the `workload-plan`
+  function's list authorization, tests, and truth/rollback documentation. No migration, schema,
+  table grant, runtime flag, Linear writer, n8n workflow, browser cache, frozen writer, data row,
+  deployment, or live operation changed. The function requires a deliberate manual deploy from the
+  exact merge SHA before Creative list access becomes live.

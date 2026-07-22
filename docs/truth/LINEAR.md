@@ -1,6 +1,8 @@
 # Linear — current truth
 
-> Last verified: 2026-07-20 @ c722984 + Phase-3 Order-1 reconciliation (F145 parent-link projection merged; Workload plan-date release live; Linear deadline unchanged in the private TEST drill)
+> Last verified: 2026-07-22 @ 3d8bbfb + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
+> candidate (F145 parent-link projection merged; plan-date release live; Linear deadline and writer
+> authority unchanged; candidate function source requires manual deployment)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -53,10 +55,12 @@
 - **Workload dates remain one-way from Linear:** `workload_issues.due_date` is the client deadline
   displayed by Workload and the editable-plan path never writes it. Internal scheduling lives
   separately in the live `workload_plan.plan_date` sidecar keyed by the stable sub-issue id;
-  clearing that value restores exact due-date placement. No column is added to the B3-managed
+  clearing that value restores the item-local automatic day derived from the mirrored deadline. No column is added to the B3-managed
   `workload_issues` mirror, and no Linear API, n8n bridge, reconciler, or due-date writer is added.
-  The sidecar migration and Admin/SMM-authenticated `workload-plan` Edge Function are live; release
+  The sidecar migration and Admin/SMM-authenticated `workload-plan` writer are live; release
   readback proved the mirrored deadline byte-identical before/after the private TEST set/clear cycle.
+  Candidate source widens only the function's global plan projection to Creative so every staff role
+  sees the same saved plan after manual deployment; Admin/SMM remain the only plan-date writers.
 - The legacy n8n inbound receiver `MJbMZ789B5ExZz9x` is **inactive/unpublished**
   (`activeVersionId=null`). Its saved graph has A1/A2 routing and authority gates, but it is not a
   current real-time producer. Calendar/Samples status healing therefore depends on the scheduled

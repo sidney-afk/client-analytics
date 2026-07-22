@@ -12792,7 +12792,7 @@
     }
 
     async function wlFetchPlanRows() {
-        await _syncviewRequireStaffIdentity('workload-plan');
+        await _syncviewRequireStaffIdentity('workload-plan-read');
         const sessionGeneration = _wlPlanSessionGeneration;
         const readGeneration = _wlPlanWriteGeneration;
         const controller = new AbortController();
@@ -12961,6 +12961,20 @@
         return payload;
     }
 
+    const WL_WORKLOAD_TIME_ZONE = 'America/Guatemala';
+    function wlWorkloadTodayISO(now) {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: WL_WORKLOAD_TIME_ZONE,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).formatToParts(now || new Date());
+        const values = {};
+        for (const part of parts) {
+            if (part.type !== 'literal') values[part.type] = part.value;
+        }
+        return `${values.year}-${values.month}-${values.day}`;
+    }
     function wlTodayISO() {
         const d = new Date();
         return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
@@ -13361,7 +13375,7 @@
     function wlAutoPlanDate(sub, todayISO) {
         const dueDate = String(sub && sub.dueDate || '').slice(0, 10);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return '';
-        const today = String(todayISO || wlTodayISO()).slice(0, 10);
+        const today = String(todayISO || wlWorkloadTodayISO()).slice(0, 10);
         const suggested = wlSubWorkingDays(dueDate, 1);
         return suggested < today ? today : suggested;
     }
@@ -13571,8 +13585,8 @@
     }
 
     async function initWorkloadView() {
-        const now = new Date();
-        const todayISO = wlTodayISO();
+        const todayISO = wlWorkloadTodayISO();
+        const now = wlParseISO(todayISO);
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
         if (wlState.weekStart == null) { wlState.weekStart = wlWeekMondayISO(todayISO); }
         // Seed the client search dropdown with the canonical client list as
@@ -13716,7 +13730,7 @@
         Object.entries(byStatus).sort((a, b) => b[1] - a[1]).forEach(([k, n]) => console.log(n, k));
 
         console.log('\n--- Sub-issues with dueDate in the next 14 days ---');
-        const today = wlTodayISO();
+        const today = wlWorkloadTodayISO();
         const cutoff = wlAddWorkingDays(today, 14);
         subs.filter(s => s.dueDate && s.dueDate >= today && s.dueDate <= cutoff)
             .sort((a, b) => (a.dueDate > b.dueDate ? 1 : -1))
@@ -13813,7 +13827,7 @@
         wlState.subsByParentId = subsByParentId;
         wlState.allActiveSubs  = subs; // used to populate the client dropdown
 
-        const todayISO     = wlTodayISO();
+        const todayISO     = wlWorkloadTodayISO();
         const nowWorking   = [];
         const tweaksNeeded = [];
         const planned      = [];
@@ -14182,8 +14196,8 @@
                 if (action === 'prev') { wlShiftPeriod(-1); renderWorkloadAll(); return; }
                 if (action === 'next') { wlShiftPeriod(1);  renderWorkloadAll(); return; }
                 if (action === 'today') {
-                    const today = wlTodayISO();
-                    const n = new Date();
+                    const today = wlWorkloadTodayISO();
+                    const n = wlParseISO(today);
                     wlState.year = n.getFullYear(); wlState.month = n.getMonth();
                     wlState.weekStart = wlWeekMondayISO(today);
                     renderWorkloadAll();
@@ -15169,7 +15183,7 @@
     }
 
     function renderWeekDeadlineTimeline() {
-        const todayISO = wlTodayISO();
+        const todayISO = wlWorkloadTodayISO();
         const start = wlState.weekStart;
         const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const dates = Array.from({ length: 5 }, (_, index) => wlAddDays(start, index));
@@ -15218,7 +15232,7 @@
     }
 
     function renderWeekGrid() {
-        const todayISO = wlTodayISO();
+        const todayISO = wlWorkloadTodayISO();
         const start = wlState.weekStart; // Monday of the visible work week
         const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         let weekdayHtml = '<div class="workload-weekdays week">';
@@ -15260,7 +15274,7 @@
 
     function renderMonthGrid() {
         const { year, month } = wlState;
-        const todayISO = wlTodayISO();
+        const todayISO = wlWorkloadTodayISO();
         const firstDow = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const leading = firstDow;
@@ -18513,6 +18527,7 @@
         if (capability === 'weekly-report-submit') return role === 'admin' || role === 'smm';
         if (capability === 'weekly-report-manage') return role === 'admin';
         if (capability === 'pto-admin') return role === 'admin';
+        if (capability === 'workload-plan-read') return role === 'admin' || role === 'smm' || role === 'creative';
         if (capability === 'workload-plan') return role === 'admin' || role === 'smm';
         return !!identity;
     }
@@ -18532,6 +18547,7 @@
             else if (capability === 'weekly-report-submit') message = 'Weekly reports are available to Admin or SMM accounts. Sign out first to use another authorized account.';
             else if (capability === 'weekly-report-manage') message = 'Weekly report management requires an Admin account. Sign out first to use another authorized account.';
             else if (capability === 'pto-admin') message = 'Time Off approvals and setup require an Admin account. Sign out first to use another authorized account.';
+            else if (capability === 'workload-plan-read') message = 'The shared Workload calendar requires an Admin, SMM, or Creative account. Sign out first to use another authorized account.';
             else if (capability === 'workload-plan') message = 'Work-day planning requires an Admin or SMM account. Sign out first to use another authorized account.';
             const error = new Error(message);
             error.status = 403;

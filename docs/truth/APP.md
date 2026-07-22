@@ -1,7 +1,7 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-20 @ c51f897 + Workload five-day deadline-timeline candidate
-> (live plan-date backend unchanged)
+> Last verified: 2026-07-22 @ 3d8bbfb + Workload Creative read-only plan candidate
+> (live plan-date backend remains unchanged until the exact function source is manually deployed)
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
 > `test/truth-sync.js`.
@@ -166,10 +166,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   Dropping onto an existing matching editor/client group derives one merged chip. Expanded
   single-issue drag remains independent. Admin/SMM users start either drag only from the dedicated
   six-dot handle; the rest of each chip or issue row remains clickable and is not draggable.
-- The live Admin/SMM-authenticated `workload-plan` Edge Function is the only browser
-  projection and writer for the sidecar. Creative is denied both saved-plan reads and mutations by
-  the server role allowlist and the matching browser capability gate; its degraded view remains an
-  explicit deadline fallback and never claims an unseen override is automatic. A write is accepted
+- The staff-authenticated `workload-plan` Edge Function is the only browser projection and writer
+  for the sidecar. Candidate source separates that access: Admin/SMM/Creative may list the same
+  global saved-plan snapshot, while Admin/SMM remain the only roles allowed to set or clear a plan
+  date. Creative therefore receives the same calendar placement and automatic/manual indicators
+  after the exact function source is manually deployed. Its work-day controls remain visibly
+  read-only, drag handles are absent, and the server still rejects Creative mutations. Automatic
+  placement uses the shared America/Guatemala policy day so the due-minus-one-working-day floor
+  cannot vary with each viewer's browser time zone. A write is accepted
   only when
   the response reports exactly one row actually written; a short count reverts the optimistic move
   and notifies the user. A non-writable issue is rejected with `409 issue_not_writable` before any
@@ -180,10 +184,13 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   immediately. Reads and writes are bounded, and only the newest overlapping refresh may publish
   plan state.
 - **Deployment boundary:** effective live table/grant readback matches the locked 2026-07-19
-  sidecar contract, and the exact merged function source is live as deliberate-manual
-  `workload-plan` v2. F147 keeps the exact revoke-correction artifact provenance open. The private
+  sidecar contract, and `workload-plan` v2 remains the deliberate-manual deployment. The candidate
+  read/write role split changes no schema, grant, runtime flag, frozen writer, or Linear due date;
+  Creative list access remains unavailable live until this exact function source is manually
+  deployed. F147 keeps the exact revoke-correction artifact provenance open. The historical private
   TEST release drill proved
-  `409` revert/notify, Creative `403` list/set, one-row save plus server-truth reload, clear-to-null
+  `409` revert/notify, Creative `403` list/set under the 2026-07-20 deployment, one-row save plus
+  server-truth reload, clear-to-null
   sidecar persistence, and exact cleanup. #892 merged the F148 same-chain guard, detached-select negative
   mutant, and test-label cleanup with the day-overload, loading-skeleton, and toolbar display
   changes. #889's hierarchy/group-drag path and #892 are client-side only and reuse the deployed

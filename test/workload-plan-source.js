@@ -7,6 +7,8 @@
 
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
+const { spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
@@ -16,6 +18,10 @@ const CONFIG = read('supabase/config.toml');
 const THUMBNAIL_DEPLOY = read('.github/workflows/deploy-thumbnail-edge-functions.yml');
 const DEPLOY_MANIFEST = read('docs/ops/EF_DEPLOY_MANIFEST.md');
 const INDEX = read('index.html');
+const clientRead = INDEX.slice(
+  INDEX.indexOf('async function wlFetchPlanRows('),
+  INDEX.indexOf('async function wlFetchPriorityRows('),
+);
 const clientWrite = INDEX.slice(
   INDEX.indexOf('async function _wlPlanWriteRequest('),
   INDEX.indexOf('async function _wlPersistPlanDate('),
@@ -105,21 +111,80 @@ for (const header of [
 ]) {
   ok(EDGE.includes(header), 'CORS includes ' + header);
 }
-const workloadPlanRoles = EDGE.slice(
-  EDGE.indexOf('const WORKLOAD_PLAN_STAFF_ROLES'),
+const workloadPlanReadRoles = EDGE.slice(
+  EDGE.indexOf('const WORKLOAD_PLAN_READ_ROLES'),
+  EDGE.indexOf('const WORKLOAD_PLAN_WRITE_ROLES'),
+);
+const workloadPlanWriteRoles = EDGE.slice(
+  EDGE.indexOf('const WORKLOAD_PLAN_WRITE_ROLES'),
   EDGE.indexOf('const SAFE_ISSUE_ID'),
 );
-const workloadPlanRoleValues = [...workloadPlanRoles.matchAll(/"([^"]+)"/g)]
+const workloadPlanReadRoleValues = [...workloadPlanReadRoles.matchAll(/"([^"]+)"/g)]
   .map(match => match[1]);
-ok(/authorizeStaffKey\(key, WORKLOAD_PLAN_STAFF_ROLES\)/.test(EDGE)
+const workloadPlanWriteRoleValues = [...workloadPlanWriteRoles.matchAll(/"([^"]+)"/g)]
+  .map(match => match[1]);
+ok(/authorizeStaffKey\(key, WORKLOAD_PLAN_READ_ROLES\)/.test(EDGE)
   && /staffAuthFailureStatus\(auth\)/.test(EDGE)
-  && workloadPlanRoleValues.join(',') === 'admin,smm',
-'global list action is restricted to the exact Admin and SMM feature allowlist');
+  && workloadPlanReadRoleValues.join(',') === 'admin,smm,creative',
+'global list action is restricted to the exact Admin, SMM, and Creative read allowlist');
 ok(/authorizeBrowserWrite\([\s\S]{0,180}client,[\s\S]{0,80}"workload-plan"/.test(EDGE)
   && /principal\.kind !== "staff"/.test(EDGE)
-  && /!isWorkloadPlanStaffRole\(principal\.role\)/.test(EDGE)
-  && /WORKLOAD_PLAN_STAFF_ROLES as readonly string\[\]/.test(EDGE),
-'set action uses the same Admin/SMM allowlist and rejects Creative, client, and automation principals');
+  && /!isWorkloadPlanWriteRole\(principal\.role\)/.test(EDGE)
+  && /WORKLOAD_PLAN_WRITE_ROLES as readonly string\[\]/.test(EDGE)
+  && workloadPlanWriteRoleValues.join(',') === 'admin,smm',
+'set action uses the exact Admin/SMM write allowlist and rejects Creative, client, and automation principals');
+
+// Execute the production role-key helper with dummy-only secrets so the split
+// is behavioral, not just a source spelling assertion. The writer still uses
+// authorizeBrowserWrite in production; this matrix pins the role decision it
+// receives after that shared authentication step.
+const helperUrl = pathToFileURL(path.join(ROOT, 'supabase/functions/_shared/staff-role-auth.ts')).href
+  + '?workload-plan-source';
+const authRunner = `
+  const { authorizeStaffKey, staffAuthFailureStatus } = await import(${JSON.stringify(helperUrl)});
+  const secrets = {
+    ROLE_KEY_ADMIN: 'dummy-admin',
+    ROLE_KEY_SMM: 'dummy-smm',
+    ROLE_KEY_CREATIVE: 'dummy-creative',
+  };
+  const getSecret = name => secrets[name];
+  const readRoles = ${JSON.stringify(workloadPlanReadRoleValues)};
+  const writeRoles = ${JSON.stringify(workloadPlanWriteRoleValues)};
+  const result = (key, roles) => {
+    const auth = authorizeStaffKey(key, roles, [], getSecret);
+    return { ...auth, status: auth.ok ? 200 : staffAuthFailureStatus(auth) };
+  };
+  process.stdout.write(JSON.stringify({
+    read: {
+      admin: result('dummy-admin', readRoles),
+      smm: result('dummy-smm', readRoles),
+      creative: result('dummy-creative', readRoles),
+      wrong: result('dummy-wrong', readRoles),
+      empty: result('', readRoles),
+    },
+    write: {
+      admin: result('dummy-admin', writeRoles),
+      smm: result('dummy-smm', writeRoles),
+      creative: result('dummy-creative', writeRoles),
+    },
+  }));
+`;
+const authChild = spawnSync(process.execPath, [
+  '--no-warnings',
+  '--experimental-strip-types',
+  '--input-type=module',
+  '--eval',
+  authRunner,
+], { encoding: 'utf8' });
+ok(authChild.status === 0, `could not execute workload plan role matrix: ${authChild.stderr || authChild.stdout}`);
+const authMatrix = authChild.status === 0 ? JSON.parse(authChild.stdout) : null;
+ok(authMatrix
+  && ['admin', 'smm', 'creative'].every(role => authMatrix.read[role].ok && authMatrix.read[role].status === 200)
+  && ['admin', 'smm'].every(role => authMatrix.write[role].ok && authMatrix.write[role].status === 200)
+  && !authMatrix.write.creative.ok && authMatrix.write.creative.status === 403
+  && !authMatrix.read.wrong.ok && authMatrix.read.wrong.status === 401
+  && !authMatrix.read.empty.ok && authMatrix.read.empty.status === 401,
+'production staff auth allows Creative to read while write remains Admin/SMM-only');
 ok(!/req\.headers\.get\(["']x-syncview-(?:actor|role)["']\)/i.test(EDGE)
   && /updated_by: principal\.actor/.test(EDGE),
 'writer ignores spoofable actor/role metadata and stores the server principal');
@@ -184,13 +249,18 @@ ok(/console\.log\(JSON\.stringify\(\{[\s\S]{0,180}fn: "workload-plan"[\s\S]{0,18
 
 ok(/const WORKLOAD_PLAN_URL\s*=\s*CAL_SUPABASE_URL \+ '\/functions\/v1\/workload-plan'/.test(INDEX)
   && INDEX.indexOf('const CAL_SUPABASE_URL') < INDEX.indexOf('const WORKLOAD_PLAN_URL')
+  && /_syncviewRequireStaffIdentity\('workload-plan-read'\)/.test(clientRead)
+  && /_syncviewEfHeaders\(\{ 'Content-Type': 'application\/json' \}, WORKLOAD_PLAN_URL\)/.test(clientRead)
+  && /body: JSON\.stringify\(\{ action: 'list' \}\)/.test(clientRead)
+  && !/action: 'set'/.test(clientRead)
   && /_syncviewRequireStaffIdentity\('workload-plan'\)/.test(clientWrite)
   && /_syncviewEfHeaders\(\{ 'Content-Type': 'application\/json' \}, WORKLOAD_PLAN_URL\)/.test(clientWrite),
-'browser uses only the Admin/SMM-authenticated workload-plan endpoint');
-ok(/if \(capability === 'workload-plan'\) return role === 'admin' \|\| role === 'smm';/.test(INDEX)
+'browser uses the staff-readable projection and the Admin/SMM-authenticated writer on the workload-plan endpoint');
+ok(/if \(capability === 'workload-plan-read'\) return role === 'admin' \|\| role === 'smm' \|\| role === 'creative';/.test(INDEX)
+  && /if \(capability === 'workload-plan'\) return role === 'admin' \|\| role === 'smm';/.test(INDEX)
   && /return wlState\.planStatus === 'ready' && _syncviewStaffCan\('workload-plan'\);/.test(INDEX)
   && /Work-day planning requires an Admin or SMM account/.test(INDEX),
-'browser exposes plan reads and editing only to Admin and SMM identities');
+'browser exposes authoritative plan reads to staff while keeping editing Admin/SMM-only');
 ok(/action: 'set'/.test(clientWrite)
   && /issue_id: String\(issue\.id/.test(clientWrite)
   && /client: String\(issue\.clientName/.test(clientWrite)

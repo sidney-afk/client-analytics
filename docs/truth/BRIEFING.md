@@ -1,6 +1,11 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-20 @ c903676 + Phase-3 Order-1 docs branch (current-state reconciliation through F148; F04/F07/F08 implementation defects closed with live observations still gated; F12 corrected OPEN for missing real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open; F143 deployed + preflight re-verified; F145 parent-link hierarchy merged as #885; Workload release live and #889 client-only grouping/group drag served with F147/F148 evidence follow-ups; coverage state in docs/testing/ASSURANCE_LEDGER.md)
+> Last verified: 2026-07-22 @ 3d8bbfb + Phase-3 Order-1 reconciliation through F148 + Workload
+> Creative read-only plan candidate (F04/F07/F08 source defects closed with live observations still gated; F12 missing
+> real-generation/failure receipts; F124 CLIENTS METRICS half live-proved with TOP VIDEOS open;
+> F143 deployed; F145 merged as #885; Workload release and #889 served with F147/F148 follow-ups;
+> current live function denies Creative list/set until the candidate source is manually deployed;
+> coverage state in `docs/testing/ASSURANCE_LEDGER.md`)
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -78,7 +83,11 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   privately plus a public-safe `n8n-backups/` stub before touching it (rollback rule 2). Every live
   write drill uses only the private TEST fixture.
 - The Workload internal-plan caller, locked sidecar, and exact-source `workload-plan` v2 are live.
-  The private TEST release proved pre-write `409` rollback, Creative denial, save/reload/clear,
+  Candidate source separates list from write authorization so Creative can read the same global plan
+  snapshot while Admin/SMM retain all set/clear authority; that widening is not live until the exact
+  function source is manually deployed and changes no schema, grant, flag, or frozen writer. The
+  historical private TEST release proved pre-write `409` rollback, Creative `403` list/set under the
+  2026-07-20 deployment, save/reload/clear,
   due-date preservation, and exact cleanup with all 13 flags unchanged. This Order-1 docs pass
   performed none of those live actions. PR #889's client-only grouping/group drag is served from
   current main and reuses sequential one-row writes; #884's server-atomic batch contract remains

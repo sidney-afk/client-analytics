@@ -65,7 +65,9 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   Slack/Linear/project mappings.
 - The live `workload_plan` table is a separate, service-role-only internal-date sidecar keyed
   by stable sub-issue id. It adds no mirror column or foreign key, has no browser REST path, and is
-  exposed only through the live Admin/SMM-authenticated `workload-plan` function. Effective schema
+  exposed only through the staff-authenticated `workload-plan` function. Candidate source widens
+  the global list projection to Creative but leaves mutations Admin/SMM-only; that split is not live
+  until the exact function source is manually deployed. Effective schema
   and grants were read back and the exact-source function is deployed; the release drill ended with
   zero sidecar-row residue. F147 tracks the exact revoke-correction artifact provenance.
 - **Edge Functions.** 28 are represented under `supabase/functions/`; **the app calls 23**
@@ -673,8 +675,9 @@ n8n in the metric read path.*
   would flood boards); liveness is a 5-min cache TTL + visibility refetch + manual refresh. n8n
   `linear-tweak-comments` (Tweak-Needed popover, 5-min cache). n8n `editors-week` (**one** browser
   fetch site, but a publicly callable arbitrary-range endpoint) returns issue histories; all report
-  metrics are computed client-side. The live editable path additionally reads internal plan dates
-  through Admin/SMM-authenticated EF `workload-plan`; it never reads the sidecar through PostgREST.
+  metrics are computed client-side. The editable path additionally reads internal plan dates
+  through staff-authenticated EF `workload-plan`; candidate source allows Admin/SMM/Creative to list
+  the same global projection and never reads the sidecar through PostgREST.
   A separate best-effort, read-only `deliverables` REST projection supplies positive Linear priority
   values by matching `linear_issue_uuid` to the workload issue's stable id. A failed refresh keeps
   last-good priority values when available; without them, or without a match, no icon is shown and
@@ -695,10 +698,13 @@ n8n in the metric read path.*
   plan-date path; plan and best-effort priority state are held as issue-id maps in the running page
   and are not browser-cached. A first private plan read and every manual, visibility, or realtime
   refresh holds the calendar on the shared animated day/editor/client-chip skeleton.
-- **Roles.** Plan projection/list access and per-issue plan-date writes are Admin/SMM-only after
-  verified role-key authentication. Creative remains a recognized staff role on unrelated surfaces
-  but is denied by both the `workload-plan` function and browser capability gate. Editors view
-  remains further gated behind the Kasper unlock.
+- **Roles.** Candidate plan projection/list access is Admin/SMM/Creative after verified role-key
+  authentication; per-issue plan-date writes remain Admin/SMM-only. The browser gives Creative the
+  same saved plan snapshot and placement indicators, visibly read-only work-day controls, and no
+  drag handles, while the function continues to reject Creative mutations. Automatic placement is
+  floored against the shared `America/Guatemala` policy day instead of each viewer's local day. This list widening requires the exact candidate
+  function source to be manually deployed after merge. Editors view remains further gated behind
+  the Kasper unlock.
 - **Failure/fallback.** REST error / non-array / 0 rows → automatic n8n fallback (no user signal).
   Both fail + cache → stale board (error only set when no cache); no cache → red error card.
   Plan-list failure retains last-good overrides when available; without one, the UI
@@ -751,8 +757,8 @@ n8n in the metric read path.*
   Shared popovers link to Linear, keep one title-row deadline, and use
   one compact branded Work day row; only a directly opened manual sub-issue exposes the automatic
   reset. Tweaks retains its comment layout. The migration, EF, and original plan-date browser behavior are
-  live; the private TEST release drill proved save/reload/clear, pre-write `409` rollback, Creative
-  denial, and exact
+  live; the historical private TEST release drill proved save/reload/clear, pre-write `409` rollback,
+  Creative `403` list/set under the 2026-07-20 deployment, and exact
   cleanup. PR #889's hierarchy/group-drag path changes only `index.html` and tests/docs and is
   served by current-main Pages run `29752646229`; it reuses sequential one-row writes and adds no
   backend boundary. PR #892 / merge `07d123d` likewise changes only `index.html` and tests/docs; it

@@ -1,6 +1,8 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-20 @ c722984 + Phase-3 Order-1 reconciliation (Workload plan-date effective schema/exact-source function live and TEST drill cleaned; exact correction provenance F147; #850 write gateway deployed dark)
+> Last verified: 2026-07-22 @ 3d8bbfb + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
+> candidate (plan-date effective schema/grants and v2 live; exact correction provenance F147; #850
+> write gateway deployed dark; candidate function source requires manual deployment)
 > Live facts from `docs/audits/2026-07-05-supabase.md` (verified 2026-07-05) unless noted.
 
 ## Tables
@@ -99,12 +101,14 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 ## Workload internal plan-date contract (live)
 
 - Linear `due_date` remains display-only in Workload. The new `workload_plan.plan_date` is an
-  independent Admin/SMM-owned scheduling value keyed by the exact sub-issue id; clearing it falls
-  back to the mirrored due date.
-- The browser never calls `workload_plan` through PostgREST. It uses the Admin/SMM-authenticated
-  `workload-plan` Edge Function to list, set, or clear an internal plan day; Creative is denied for
-  both projection reads and mutations. The server validates an active sub-issue and normalized
-  client scope before the service-role write.
+  independent Admin/SMM-owned scheduling value keyed by the exact sub-issue id; clearing it restores
+  the item-local automatic day derived from the mirrored deadline.
+- The browser never calls `workload_plan` through PostgREST. It uses the staff-authenticated
+  `workload-plan` Edge Function. Candidate source allows Admin/SMM/Creative to list the same global
+  plan projection, while only Admin/SMM may set or clear an internal plan day. Creative receives no
+  enabled browser editing controls (the visible work-day controls are read-only), and the server validates an active sub-issue and normalized client
+  scope before every service-role write. The list widening is not live until this exact function
+  source is manually deployed.
 - The Workload actual-count contract requires the function to report the number of rows it actually
   wrote, not the number requested, and the browser to require exactly one. A short count, non-OK
   response, or malformed result reverts the optimistic date and notifies the user. Existing Workload
@@ -114,10 +118,11 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   and writes have bounded abort timers; only the newest overlapping refresh may publish state.
   Ordinary read failures retain a last-good snapshot with editing paused, while `401`/`403`
   responses purge the private plan projection instead of leaving revoked data visible.
-- This path has no n8n or Linear-write fallback and no runtime flag. The migration, function, and
-  browser caller are live. Release proof covered a pre-write `409 issue_not_writable` browser
-  revert/notify, Creative `403` on list and set, one actual-row save surviving a fresh list, clear to
-  due-date fallback, exact row cleanup, and unchanged runtime flags.
+- This path has no n8n or Linear-write fallback and no runtime flag. The migration, v2 function, and
+  browser caller are live; the candidate list widening is not. Historical 2026-07-20 release proof
+  covered a pre-write `409 issue_not_writable` browser revert/notify, Creative `403` on list and set,
+  one actual-row save surviving a fresh list, clear to due-date fallback, exact row cleanup, and
+  unchanged runtime flags.
 
 ## Edge Functions
 
@@ -135,7 +140,8 @@ neither function.
 
 Live set in `docs/truth/ENDPOINTS.md`. Source and live inventory now represent 28 functions;
 `workload-plan` is ACTIVE v2 with the four-file deployed source closure byte-identical to merge
-`fd3e0eaa`. It is intentionally absent from
+`fd3e0eaa`; that deployed version still denies Creative list and set. The candidate widens only list
+access and requires a deliberate manual deployment after merge. It is intentionally absent from
 `supabase/config.toml`, because that shared file is a push trigger for the unrelated thumbnail
 deploy workflow; the post-merge operator deploy uses explicit `--no-verify-jwt` instead. The
 existing onboarding deploy Action covers 8 push-safe functions plus 2 guarded manual-only

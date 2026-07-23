@@ -159,6 +159,7 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     'wlScheduleNativeDueReceiptRetry',
     '_wlOnNativeDueReceiptStorage',
     '_wlDueWriteRequest',
+    'wlQueueSensitiveAuthorityRefresh',
     'wlSetDueDate',
   ]) vm.runInContext(extract(name), context);
   return {
@@ -1272,6 +1273,26 @@ async function run() {
   assert.strictEqual(staleNativeRoute.fetches, 1,
     'a second due attempt fails closed without reusing the rejected native gateway route');
   assert.match(staleNativeRoute.notifies[0][0], /authority changed/i);
+
+  const overlappedNativeRoute = harness({
+    httpOk: false,
+    status: 409,
+    body: {
+      ok: false,
+      error: 'team_is_linear_authoritative',
+    },
+  }, 'admin', null, 'syncview');
+  const incumbentAuthorityRefresh = deferred();
+  overlappedNativeRoute.context._wlBackgroundRefreshPromise = incumbentAuthorityRefresh.promise;
+  assert.strictEqual(await overlappedNativeRoute.context.wlSetDueDate('synthetic-issue-1', '2027-01-05'), false);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.strictEqual(overlappedNativeRoute.sensitiveRefreshes, 0,
+    'an authority rejection never reuses an older invalidated background read');
+  incumbentAuthorityRefresh.resolve(false);
+  await incumbentAuthorityRefresh.promise;
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.strictEqual(overlappedNativeRoute.sensitiveRefreshes, 1,
+    'fresh sensitive authority metadata is requested after the incumbent read settles');
 
   const pinned = harness({ body: {
     ok: true,

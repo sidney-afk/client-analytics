@@ -14802,6 +14802,15 @@
         }
     }
 
+    async function wlQueueSensitiveAuthorityRefresh(expectedSessionGeneration) {
+        const incumbent = _wlBackgroundRefreshPromise;
+        if (incumbent) {
+            try { await incumbent; } catch (error) {}
+        }
+        if (expectedSessionGeneration !== _wlPlanSessionGeneration) return false;
+        return wlRefetchSilent({ sensitiveOnly: true });
+    }
+
     async function wlRefreshSensitiveStateSilent() {
         if (wlState.planStatus === 'ready' && wlState.linearMetadataStatus === 'ready') return true;
         if (wlState.loading || wlState.refreshing
@@ -15563,7 +15572,7 @@
                 wlState.linearMetadataError = 'Due-date authority changed. Workload is refreshing its write route.';
                 setTimeout(() => {
                     try {
-                        const refresh = wlRefetchSilent({ sensitiveOnly: true });
+                        const refresh = wlQueueSensitiveAuthorityRefresh(sessionGeneration);
                         if (refresh && typeof refresh.catch === 'function') refresh.catch(() => {});
                     } catch (refreshError) {}
                 }, 0);

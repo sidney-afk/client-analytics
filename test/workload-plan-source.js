@@ -94,6 +94,10 @@ const backgroundRefresh = INDEX.slice(
   INDEX.indexOf('async function wlRefetchSilent('),
   INDEX.indexOf('// Manual refresh'),
 );
+const sensitiveAuthorityRefresh = INDEX.slice(
+  INDEX.indexOf('async function wlQueueSensitiveAuthorityRefresh('),
+  INDEX.indexOf('async function wlRefreshSensitiveStateSilent('),
+);
 const workloadInit = INDEX.slice(
   INDEX.indexOf('async function initWorkloadView('),
   INDEX.indexOf('function wlSpinnerOn('),
@@ -405,8 +409,13 @@ ok(/const exactAck = resp\.ok/.test(clientDueSet)
     && /route\.authority === 'syncview' && authorityErrorCode === 'team_is_linear_authoritative'/.test(clientDueSet)
     && /dueAuthorityByIssueId\.delete\(key\)/.test(clientDueSet)
     && /nativeDueTargetByIssueId\.delete\(key\)/.test(clientDueSet)
-    && /wlRefetchSilent\(\{\s*sensitiveOnly:\s*true\s*\}\)/.test(clientDueSet),
+    && /wlQueueSensitiveAuthorityRefresh\(sessionGeneration\)/.test(clientDueSet),
   'browser accepts exact acknowledgements, invalidates either stale authority route, and advances native state locally');
+ok(/const incumbent = _wlBackgroundRefreshPromise/.test(sensitiveAuthorityRefresh)
+    && /if \(incumbent\)[\s\S]*await incumbent/.test(sensitiveAuthorityRefresh)
+    && /expectedSessionGeneration !== _wlPlanSessionGeneration/.test(sensitiveAuthorityRefresh)
+    && /return wlRefetchSilent\(\{\s*sensitiveOnly:\s*true\s*\}\)/.test(sensitiveAuthorityRefresh),
+  'authority rejection queues a fresh sensitive read behind the invalidated incumbent refresh');
 ok(/json\.updated !== 1/.test(clientPersist)
   && /String\(saved\.issue_id/.test(clientPersist)
   && /saved\.plan_date/.test(clientPersist)

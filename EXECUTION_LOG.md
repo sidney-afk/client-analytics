@@ -1233,3 +1233,27 @@ All times are UTC unless noted.
 - **Boundary preserved.** This is a Pages-only browser/test/truth-doc follow-up based on merged PR
   #910. No schema, migration, runtime flag, n8n workflow, Edge Function, frozen writer, deployment,
   or live data changed; PR #891 remains untouched.
+
+## 2026-07-23 — Workload editor matrix and unified calendar candidate
+
+- **SMM feedback consolidates the workload summary.** The four stacked editor-capacity and
+  exception strips are replaced by one compact, line-light editor matrix. Each editor has one row
+  with capacity, Overdue, In progress, and Tweaks counts; each status column expands independently
+  to the existing client chips and retains its saved open or closed preference.
+- **The calendar is one visual module.** The period navigation, Week/Month controls, refresh,
+  content filters, editor/client filters, and Plan + Due Date switch now sit inside the Work-day
+  calendar shell. Its title is centered and prominent; the redundant icon legend and visible
+  freshness timestamp are removed.
+- **The client-email sender is retired.** The Content revision email button, modal, browser
+  webhook caller, and public endpoint inventory entry are removed so the Workload surface cannot
+  trigger that client email.
+- **Behavioral boundaries are preserved.** Automatic and pinned placement, due-date overlays,
+  group and single-item dragging, weighted capacity, overdue handling, tweak exclusivity, and
+  Admin/SMM editing versus Creative read-only behavior are unchanged.
+- **Verification.** The focused Workload guard, system-map synchronization, truth synchronization,
+  and repository-wide test suite passed on the candidate state. Every production-polish component
+  passed; its combined run reached pixel parity after the first nine lanes passed, then one
+  live-fixture guard assertion was transient. The exact pixel suite passed both light and dark on a
+  clean retry. The whitespace diff check also passed.
+- **Boundary preserved.** This is a Pages-only browser/test/truth-doc change. No schema, migration,
+  runtime flag, n8n workflow, Edge Function, frozen writer, deployment, or live data changed.

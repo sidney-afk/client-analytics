@@ -15,7 +15,7 @@ clients fall to n8n. Flag-read failure and some EF failures also silently select
 n8n writer (F67); this is an open auth/failover defect, not a safe fallback contract. See the audit
 register and `ROLLBACK.md` before changing routing.
 
-## n8n webhooks (55)
+## n8n webhooks (54)
 
 Calendar:
 - `webhook/calendar-get`, `webhook/calendar-upsert-post`, `webhook/calendar-append-post`,
@@ -75,7 +75,6 @@ Other:
 - `webhook/send-urgent-slack` — urgent pings to Slack
 - `webhook/weekly-slack-top-reel` — weekly top-reel Slack post
 - `webhook/filming-plan-tabs` — filming-plans tab data
-- `webhook/content-ready` — content-ready notification
 - `webhook/add-hook-to-library` — hook library capture
 
 ## Supabase Edge Functions (20 literal URLs + 4 composed onboarding URLs)

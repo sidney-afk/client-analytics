@@ -1057,24 +1057,38 @@ check(/!_wlV2Ready\(\) \|\| _wlV2WatermarkTimer/.test(watermarkPollSource)
   'one 60-second watermark poll starts with Workload and teardown always clears its timer and busy state');
 
 const workloadShellSource = grabFunc('renderWorkloadShell');
-const tweaksIndex = workloadShellSource.indexOf('id="wlTweaks"');
+const overviewIndex = workloadShellSource.indexOf('id="wlOverview"');
+const calendarModuleIndex = workloadShellSource.indexOf('class="workload-calendar-module"');
 const undatedIndex = workloadShellSource.indexOf('id="wlUndated"');
 const unassignedIndex = workloadShellSource.indexOf('id="wlUnassigned"');
 const toolbarIndex = workloadShellSource.indexOf('class="workload-toolbar"');
-const calendarLabelIndex = workloadShellSource.indexOf('class="workload-section-label workload-calendar-label"');
+const calendarHeadingIndex = workloadShellSource.indexOf('class="workload-calendar-heading"');
 const calendarBodyIndex = workloadShellSource.indexOf('id="wlBody"');
 const clientFilterIndex = workloadShellSource.indexOf('id="wlClientSearchInput"');
 const deadlineModeIndex = workloadShellSource.indexOf('class="workload-pills workload-deadline-mode"');
 check((workloadShellSource.match(/class="workload-toolbar"/g) || []).length === 1
-    && tweaksIndex < toolbarIndex
-    && toolbarIndex < calendarLabelIndex
-    && calendarLabelIndex < calendarBodyIndex
+    && overviewIndex < toolbarIndex
+    && calendarModuleIndex < calendarHeadingIndex
+    && calendarHeadingIndex < toolbarIndex
+    && toolbarIndex < calendarBodyIndex
     && calendarBodyIndex < unassignedIndex
     && unassignedIndex < undatedIndex
     && clientFilterIndex < deadlineModeIndex
     && ['prev', 'today', 'next'].every(value => workloadShellSource.includes(`data-wl-nav="${value}"`))
     && ['week', 'month'].every(value => workloadShellSource.includes(`data-wl-view="${value}"`)),
-  'the intact period toolbar sits below exception strips and directly before the calendar, with undated work at the bottom');
+  'the intact period toolbar lives inside the calendar module, with undated work at the bottom');
+check(/\.workload-calendar-module \{[^}]*overflow: visible[^}]*border: 1px solid var\(--border\)/.test(INDEX)
+    && /\.workload-calendar-module #wlBody > \.workload-grid-wrap \{[^}]*border: 0[^}]*padding: 0[^}]*background: transparent/.test(INDEX)
+    && /class="workload-calendar-heading"[\s\S]*?<h2>Work-day calendar<\/h2>/.test(workloadShellSource)
+    && !workloadShellSource.includes('id="wlFreshness"')
+    && !workloadShellSource.includes('id="wlCalendarHint"')
+    && !INDEX.includes('Sparkle means automatic')
+    && !INDEX.includes("'As of '")
+    && !INDEX.includes('CONTENT_REVISION_WEBHOOK')
+    && !INDEX.includes('content-ready')
+    && !INDEX.includes('openRevisionModal')
+    && !INDEX.includes('Content revision email'),
+  'the calendar owns one unclipped control shell and the client-email sender is absent');
 
 const weekendNoticeSource = grabFunc('renderWorkloadWeekendNotice');
 check(workloadShellSource.includes('id="wlWeekendNotice"')
@@ -1098,6 +1112,7 @@ const defaultSectionPrefs = wlReadSectionPrefs();
 sectionStorage.set(sectionPrefKey, JSON.stringify({ overdue: true, inprogress: false, tweaks: true, ignored: true }));
 const savedSectionPrefs = wlReadSectionPrefs();
 const toolbarSource = grabFunc('wlWireToolbar');
+const overviewSource = grabFunc('renderWorkloadOverviewMatrix');
 check(defaultSectionPrefs.overdue === false
     && defaultSectionPrefs.inprogress === false
     && defaultSectionPrefs.tweaks === false
@@ -1106,10 +1121,13 @@ check(defaultSectionPrefs.overdue === false
     && savedSectionPrefs.tweaks === true
     && !Object.prototype.hasOwnProperty.call(savedSectionPrefs, 'ignored')
     && (workloadShellSource.match(/data-wl-section-toggle=/g) || []).length === 3
-    && (workloadShellSource.match(/workload-exception-rollups/g) || []).length === 3
+    && workloadShellSource.includes('class="workload-overview-matrix empty"')
+    && ['overdue', 'inprogress', 'tweaks'].every(key => overviewSource.includes(`key: '${key}'`))
+    && overviewSource.includes('data-wl-section-panel="${spec.key}"')
     && /localStorage\.setItem\(WL_SECTION_PREF_KEY,\s*JSON\.stringify\(wlState\.sectionExpanded\)\)/.test(toolbarSource)
+    && /matrix\.querySelectorAll\(`\[data-wl-section-panel="\$\{section\}"\]`\)/.test(toolbarSource)
     && /panel\.hidden = !expanded/.test(toolbarSource),
-  'overdue, in-progress, and tweaks default collapsed and persist each browser expansion');
+  'overdue, in-progress, and tweaks stay compact in the editor matrix and persist each browser expansion');
 
 const deadlineStorage = new Map();
 const deadlineLocalStorage = {
@@ -1331,7 +1349,7 @@ check(/\.workload-timeline-editor-banner \{[^}]*grid-column: 1[^}]*border-left: 
   'Plan + Due Date gives every editor a compact team-accented rail aligned with its five daily totals');
 
 const workloadRuntimeStart = INDEX.indexOf('const LINEAR_ISSUES_WEBHOOK');
-const workloadRuntimeEnd = INDEX.indexOf("let crSelectedClient = '';");
+const workloadRuntimeEnd = INDEX.indexOf('function onLinearSearchInput()');
 const workloadRuntime = INDEX.slice(workloadRuntimeStart, workloadRuntimeEnd);
 const looseIssueSource = grabFunc('renderLooseIssueStrip');
 const planOriginSource = grabFunc('wlPlanOriginHtml');

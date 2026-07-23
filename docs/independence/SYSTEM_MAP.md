@@ -752,11 +752,15 @@ n8n in the metric read path.*
   undated work follows the calendar and unassigned lane at the bottom. Client chips and issue rows
   expose quiet sparkle/pin auto/manual icons, compact color-dot deadline proximity measured from
   displayed plan day to due day (red when planned on/after due, orange at one to two days, green at
-  three or more), plus compact exact workload-weight badges. Native Linear Priority is neither
-  displayed nor used by Workload. The tone belongs to
+  three or more), plus compact exact per-item workload-weight badges. Native Linear Priority is
+  neither displayed nor used by Workload. A collapsed group replaces repeated `2×` / `3×` counts
+  with one stacked some/all extra-work icon whose branded tooltip preserves the exact composition.
+  The tone belongs to
   each sub-issue and reaches a collapsed group only when every represented deadline shares one band;
-  mixed or missing deadlines render no group-level proximity marker. Expanded due/buffer copy is
-  unboxed text, and Workload renderers do not emit hover-triggered `title` or `data-tip` tooltips.
+  that single dot leads the client name without a proximity-colored chip edge. Mixed or missing
+  deadlines render no group-level marker. Expanded due/buffer copy is unboxed text with no colored
+  row edge. Workload emits no native `title` hovers; its compact placement, proximity, weight, and
+  drag cues use the shared branded `data-tip` tooltip.
   The persistent **Plan only** / **Plan +
   deadlines** segmented control sits beside the client filter. Week is a Monday-anchored five-column
   Monday-Friday range; manual plan days and deadlines on the weekend remain discoverable, with their

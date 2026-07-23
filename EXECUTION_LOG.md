@@ -2,6 +2,29 @@
 
 All times are UTC unless noted.
 
+## 2026-07-22 — Workload compact signals and branded icon help; client only
+
+- Removed the duplicate plan-to-deadline proximity treatment from Workload
+  client chips: a homogeneous client group now has one color dot immediately
+  before its name, while the old red/orange/green chip edge is gone. Expanded
+  sub-issues keep their exact due/buffer dot and text without a colored row
+  edge; mixed or missing-deadline groups remain neutral.
+- Replaced repeated collapsed-group `2×` / `3×` summaries with one stacked
+  extra-work icon. The icon distinguishes whether some or all represented
+  sub-issues carry extra weight, and its branded tooltip preserves the exact
+  composition and capacity meaning. Expanded weighted sub-issues retain their
+  exact compact `2×` or `3×` badge.
+- Added shared branded `data-tip` help to automatic/manual placement icons,
+  proximity dots and due/buffer text, workload-weight signals, and the
+  dedicated issue/group drag handles. Workload continues to emit no native
+  browser `title` hovers, and Creative retains the same read-only visual
+  signals without drag controls.
+- This is a client-side display change only. No Edge Function, schema,
+  migration, runtime flag, n8n workflow, Linear writer, or frozen client writer
+  changed. Focused Workload placement, Linear browser, plan-source,
+  fail-closed, and calendar-card durability guards passed before the final
+  repository gate. The final gate passed all 155 repository unit suites.
+
 ## 2026-07-22 — F27 install operator toolkit; source only, nothing live
 
 - Owner selected the tight dependency correction: only `linear-inbound` moves

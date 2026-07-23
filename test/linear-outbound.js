@@ -60,9 +60,10 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     comments: { nodes: [] },
   };
 
-  ok(mapping.OUTBOUND_OPERATIONS.length === 11
-    && mapping.OUTBOUND_OPERATIONS.includes('labels'),
-  'the strict outbound operation catalog adds labels without dropping an existing operation');
+  ok(mapping.OUTBOUND_OPERATIONS.length === 12
+    && mapping.OUTBOUND_OPERATIONS.includes('labels')
+    && mapping.OUTBOUND_OPERATIONS.includes('description'),
+  'the strict outbound operation catalog adds description after labels without dropping an existing operation');
   ok(mapping.D27_LIVE_ERA_START === D27_LIVE_ERA_START,
     'reconciler and Edge Function share the exact D-27 live-era boundary');
   const status = mapping.buildMutation(baseRow, { state_id: 'state_approved', linear_issue_id: 'issue_fixture' });
@@ -145,6 +146,53 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     { ...issue, updatedAt: '2026-07-11T12:05:00Z', labelIds: ['label-z'] },
     { field_updated_at: '2026-07-11T12:04:00Z' },
   ).decision === 'stale', 'newer Linear label clocks prevent an outbound overwrite');
+  const markdownDescription = '  # Exact Markdown\n\n- trailing spaces  \n';
+  const description = mapping.buildMutation({
+    ...baseRow,
+    operation: 'description',
+    payload: { linear_issue_id: 'issue_fixture', description: markdownDescription },
+  });
+  const clearDescription = mapping.buildMutation({
+    ...baseRow,
+    operation: 'description',
+    payload: { linear_issue_id: 'issue_fixture', description: '' },
+  });
+  ok(description.kind === 'issueUpdate'
+    && description.variables.input.description === markdownDescription
+    && clearDescription.variables.input.description === null,
+  'description maps exact Markdown to issueUpdate.description and an empty clear to explicit null');
+  ok(mapping.decideConflict(
+    { ...baseRow, operation: 'description', payload: { description: markdownDescription } },
+    { ...issue, description: markdownDescription },
+  ).decision === 'already_applied'
+    && mapping.decideConflict(
+      { ...baseRow, operation: 'description', payload: { description: markdownDescription } },
+      { ...issue, description: markdownDescription.trim() },
+    ).decision === 'apply'
+    && mapping.decideConflict(
+      {
+        ...baseRow,
+        operation: 'description',
+        source_edited_at: '2026-07-11T11:58:00Z',
+        payload: { description: markdownDescription },
+      },
+      { ...issue, description: 'newer Linear Markdown', updatedAt: '2026-07-11T12:05:00Z' },
+      { field_updated_at: '2026-07-11T12:04:00Z' },
+    ).decision === 'stale',
+  'description conflict handling is whitespace-exact and refuses a newer Linear field clock');
+  for (const invalidDescription of [null, 7, 'before\0after', 'x'.repeat(100_001)]) {
+    let rejected = false;
+    try {
+      mapping.buildMutation({
+        ...baseRow,
+        operation: 'description',
+        payload: { linear_issue_id: 'issue_fixture', description: invalidDescription },
+      });
+    } catch (error) {
+      rejected = /valid description required/.test(String(error && error.message));
+    }
+    ok(rejected, `outbound description rejects invalid payload ${typeof invalidDescription}`);
+  }
   const archive = mapping.buildMutation({ ...baseRow, operation: 'archive', payload: { linear_issue_id: 'issue_fixture' } });
   const restore = mapping.buildMutation({ ...baseRow, operation: 'restore', payload: { linear_issue_id: 'issue_fixture' } });
   ok(archive.kind === 'issueArchive' && restore.kind === 'issueUnarchive',
@@ -222,7 +270,7 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && historicalWriteDisposition('parent', oldActiveEntity) === null
     && historicalWriteDisposition('restore', completedHistoricalEntity).decision === 'tolerated_historical',
   'D-27 uses the live-era boundary plus explicit backfill or completed-work evidence');
-  ok(['create', 'status', 'comment', 'due', 'assignee', 'title', 'priority', 'labels', 'archive']
+  ok(['create', 'status', 'comment', 'due', 'assignee', 'title', 'description', 'priority', 'labels', 'archive']
     .every(operation => historicalWriteDisposition(operation, historicalEntity) === null),
   'all non-parent/non-restore operations on historical work remain writable');
   ok(mapping.decideConflict(
@@ -361,6 +409,13 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     'comment requeue RPC is service-role only');
 
   const ef = read('supabase/functions/linear-outbound/index.ts');
+  const mappingSource = read('supabase/functions/linear-outbound/mapping.mjs');
+  ok(!/production-write\/policy\.mjs/.test(mappingSource)
+    && /const MAX_DESCRIPTION_LENGTH = 100_000/.test(mappingSource)
+    && /!value\.includes\("\\0"\)/.test(mappingSource),
+  'linear-outbound keeps an independent deployable exact-description validator with the same bound and NUL rejection');
+  ok(/description: typeof issue\.description === "string" \? issue\.description : null/.test(ef),
+    'outbound receipts retain exact Linear description text for audit and recovery');
   ok(/linear_outbound_enabled/.test(ef) && /prod_authority/.test(ef),
     'drainer reads both switch and team authority');
   ok(/currentControl\(supabase, row, testOverride, f27Replay\)/.test(ef),
@@ -455,6 +510,33 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
         labelIds: ['label-a'],
       }, {}) === false,
     'label echoes drop only for the exact canonical full selected-ID receipt');
+    const descriptionReceipt = {
+      operation: 'description', status: 'written',
+      linear_result: { expected: { input: { description: markdownDescription } } },
+    };
+    const clearDescriptionReceipt = {
+      operation: 'description', status: 'written',
+      linear_result: { expected: { input: { description: null } } },
+    };
+    ok(echoContext.outboundValueMatches(
+      descriptionReceipt,
+      { action: 'update' },
+      { description: markdownDescription },
+      {},
+    ) === true
+      && echoContext.outboundValueMatches(
+        descriptionReceipt,
+        { action: 'update' },
+        { description: markdownDescription.trim() },
+        {},
+      ) === false
+      && echoContext.outboundValueMatches(
+        clearDescriptionReceipt,
+        { action: 'update' },
+        { description: null },
+        {},
+      ) === true,
+    'description echoes require the exact Markdown receipt while explicit null matches the empty clear intent');
   }
 
   const sharedWrite = read('supabase/functions/_shared/b4-write.ts');

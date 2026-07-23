@@ -1,6 +1,6 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-23 @ ca548ae + source-only F201 candidate, integrated boot-audit vault
+> Last verified: 2026-07-23 @ b1a942d + source-only F200/F202 candidates, integrated boot-audit vault
 > through F199, and Production/Graphics audit through F205. The F176/F179 overnight-runner containment is isolated in parked draft
 > #908 by owner decision and does not block the client-entry product fix; do not expand or reopen
 > that containment scope here. The client verifier v28 and matching #891 browser are live. The
@@ -422,7 +422,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   idempotency. Real-team writes remain authority-gated; the pre-flip TEST drill remains service-only.
   Only that service-authenticated TEST drill may bootstrap an older TEST row's missing native
   selection from the same complete Linear snapshot; normal SyncView rows remain strictly native.
-  The migration/function/UI candidate is not live in this session.
+  F202 candidate source adds exact-Markdown description source/preview editing for root and child
+  deliverables through the same gateway, with CAS/idempotency, audit/outbox mirror intent,
+  authoritative refresh, read-failure recovery, and dirty-draft conflict preservation. Neither
+  candidate migration/function/UI path is live in this session.
 - A protected-write 401 becomes toast copy only: Production does not clear/reverify the staff session,
   open sign-in, preserve/replay the action after fresh authorization, or otherwise recover (F10).
 - F94: manual assignment is not eligibility-safe yet. The picker/server accept any active same-team
@@ -446,17 +449,17 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   can regress reviewer/terminal work or mutate peer work after a flip (F37/F136).
 - Video delivery/source data is collapsed from four typed fields to one priority winner labelled
   “Delivered file”; filming plan/raw footage can be hidden or mislabeled (F137).
-- The 2026-07-23 full-day audit remains immutable findings evidence. F201 is now source-only
-  `IN-PROGRESS`: label read/display/set plus the exact native Workload metadata seam are implemented
-  in the candidate, with migration/deployment/drill/review/merge still gated. Parent/sub-issue
-  description writes (F202) and native parent/sub-issue creation with zero implicit Calendar linkage
-  (F203) remain unimplemented and were not started.
-- F200 is distinct from F145: the real parent link resolves correctly, but each row independently
-  renders its persisted `client_slug`. Read-only aggregate proof found 72 of 4,600 render-eligible
-  mirror rows `unattributed` (70 missing-project ambiguous; two hierarchy-attribution failures;
-  zero provably deliberate internal/TEST). Linear project names must not create clients; the active
-  SyncView roster is the sole client catalog. All current rows must be classified; future unknowns
-  need visible repair state.
+- The 2026-07-23 full-day audit remains immutable findings evidence. F200/F201/F202 are source-only
+  `IN-PROGRESS`; their live repair/migration/deployment/TEST-drill/review/merge gates remain closed.
+  F203 native parent/sub-issue creation with zero implicit Calendar linkage remains unimplemented and
+  was not started.
+- F200 is distinct from F145: the native parent link remains the hierarchy owner, while candidate
+  attribution now derives client identity only from active-roster project IDs or an owner-approved
+  explicit roster/internal/TEST classification. B1 never inserts Linear-derived clients. Production
+  renders `needs_attribution`, provisional unanimous-child family, and conflict states visibly
+  instead of trusting a stale `client_slug`; inbound and scheduled reconciliation invalidate or
+  compare project/client/hierarchy plus mapping revision. The exact 72-row repair remains a later
+  owner-approved private-manifest operation and ran zero writes here.
 - F204 owns the unresolved saved/shared-view and manual-board-order scope. F205 is a current
   wrong-data bug: board cards read client status/lead/target from `CLIENTS`, while project detail and
   its pickers read the slimmer `PROJECTS` object and can substitute In Progress/No lead/No target.

@@ -165,14 +165,14 @@ async function assertNoWriteRequests(requests) {
     if (await page.locator('.prod-error').count()) throw new Error('Production preview rendered an error card');
     const adapterFixture = await page.evaluate(() => {
       const adapted = window._prodAdapter({
-        clients: [{ slug: 'noemoji', display_name: 'No Emoji', board_status: 'in_progress' }],
+        clients: [{ slug: 'noemoji', display_name: 'No Emoji', active: true, board_status: 'in_progress', linear_project_ids: [{ id: 'project-noemoji' }] }],
         members: [{ id: 'm1', name: 'Maya Singh' }],
         batches: [
           { id: 'parent-batch', client_slug: 'noemoji', team: 'video', name: 'Real Parent Batch' },
           { id: 'creation-batch', client_slug: 'noemoji', team: 'video', name: 'Creation Batch' },
         ],
         deliverables: [
-          { id: 'parent', linear_issue_uuid: 'linear-parent', identifier: 'VID-1', batch_id: 'parent-batch', client_slug: 'noemoji', team: 'video', title: 'Real Parent Issue', status: 'in_progress', assignee_id: 'm1' },
+          { id: 'parent', linear_issue_uuid: 'linear-parent', raw_project_id: 'project-noemoji', identifier: 'VID-1', batch_id: 'parent-batch', client_slug: 'noemoji', team: 'video', title: 'Real Parent Issue', status: 'in_progress', assignee_id: 'm1' },
           { id: 'child-a', linear_issue_uuid: 'linear-child-a', raw_issue_parent_id: 'linear-parent', identifier: 'VID-2', batch_id: 'creation-batch', client_slug: 'noemoji', team: 'video', title: 'Creation Batch', status: 'smm_approval', assignee_id: 'm1' },
           { id: 'child-b', linear_issue_uuid: 'linear-child-b', raw_issue_parent_id: 'linear-parent', identifier: 'VID-3', batch_id: 'creation-batch', client_slug: 'noemoji', team: 'video', title: 'TEST 2', status: 'client_approval', assignee_id: 'm1' },
           { id: 'child-c', linear_issue_uuid: 'linear-child-c', raw_issue_parent_id: 'linear-parent', identifier: 'VID-4', batch_id: 'creation-batch', client_slug: 'noemoji', team: 'video', title: 'TEST 3', status: 'canceled', assignee_id: 'm1', raw_issue_canceled_at: '2026-07-08T20:26:05.371Z', due_date: '2025-06-04', status_at: '2026-07-08T20:26:06.986067+00:00' },
@@ -225,6 +225,87 @@ async function assertNoWriteRequests(requests) {
         editorColor: adapted.EDITORS.m1.color,
       };
     });
+    const attributionFixture = await page.evaluate(() => {
+      const adapted = window._prodAdapter({
+        clients: [
+          { slug: 'client-a', display_name: 'Client A', active: true, kind: 'client', linear_project_ids: [{ id: 'project-a' }] },
+          { slug: 'client-b', display_name: 'Client B', active: true, kind: 'client', linear_project_ids: [{ id: 'project-b' }] },
+          { slug: 'test-owner', display_name: 'TEST Owner', active: true, kind: 'test', linear_project_ids: [{ id: 'project-test' }] },
+          { slug: 'inactive-stale', display_name: 'Inactive stale', active: false, kind: 'client', linear_project_ids: [{ id: 'project-inactive' }] },
+        ],
+        members: [],
+        batches: [],
+        deliverables: [
+          { id: 'resolved', linear_issue_uuid: 'linear-resolved', raw_project_id: 'project-a', client_slug: 'client-b', team: 'graphics', title: 'Resolved direct', status: 'todo' },
+          { id: 'provisional-parent', linear_issue_uuid: 'linear-provisional-parent', client_slug: 'unattributed', team: 'graphics', title: 'Provisional parent', status: 'todo' },
+          { id: 'provisional-child', linear_issue_uuid: 'linear-provisional-child', raw_issue_parent_id: 'linear-provisional-parent', raw_project_id: 'project-test', client_slug: 'test-owner', team: 'graphics', title: 'Provisional child', status: 'todo' },
+          { id: 'needs', linear_issue_uuid: 'linear-needs', raw_project_id: 'unknown-project', client_slug: 'client-b', raw_attribution_state: 'needs_attribution', raw_attribution_reason: 'direct_project_unmapped', team: 'graphics', title: 'Needs repair', status: 'todo' },
+          { id: 'conflict', linear_issue_uuid: 'linear-conflict', raw_project_id: 'project-a', client_slug: 'client-a', raw_attribution_state: 'conflict', raw_attribution_client_slug: 'client-a', raw_attribution_reason: 'parent_child_client_conflict', team: 'graphics', title: 'Conflict repair', status: 'todo' },
+          { id: 'explicit', linear_issue_uuid: 'linear-explicit', client_slug: 'client-b', raw_attribution_schema: 'syncview_attribution_v1', raw_attribution_state: 'resolved', raw_attribution_client_slug: 'client-b', raw_attribution_owner_kind: 'client', raw_attribution_source: 'explicit_roster_classification', raw_attribution_mapping_revision: 'fixture-revision', raw_attribution_explicit_owner_approved: true, raw_attribution_explicit_decision_ref: 'owner-approved-fixture', raw_attribution_explicit_manifest_sha256: 'a'.repeat(64), team: 'graphics', title: 'Explicit resolution', status: 'todo' },
+          { id: 'explicit-invalid', linear_issue_uuid: 'linear-explicit-invalid', client_slug: 'client-b', raw_attribution_schema: 'syncview_attribution_v1', raw_attribution_state: 'resolved', raw_attribution_client_slug: 'client-b', raw_attribution_owner_kind: 'client', raw_attribution_source: 'explicit_roster_classification', raw_attribution_mapping_revision: 'fixture-revision', raw_attribution_explicit_owner_approved: false, raw_attribution_explicit_decision_ref: '', raw_attribution_explicit_manifest_sha256: 'not-a-proof', team: 'graphics', title: 'Invalid explicit resolution', status: 'todo' },
+        ],
+      });
+      const byId = Object.fromEntries(adapted.ISSUES.map(issue => [issue.id, issue]));
+      const previous = _prodState.adapter;
+      _prodState.adapter = adapted;
+      const provisionalChip = _prodIssueProjectChipHTML(byId['provisional-parent']);
+      const needsChip = _prodIssueProjectChipHTML(byId.needs);
+      const conflictChip = _prodIssueProjectChipHTML(byId.conflict);
+      const provisionalTestOverride = _prodTestWriteOverride(byId['provisional-parent']);
+      _prodState.adapter = previous;
+      return {
+        projects: Object.keys(adapted.PROJECTS).sort(),
+        resolved: byId.resolved.attribution,
+        resolvedProject: byId.resolved.project,
+        provisional: byId['provisional-parent'].attribution,
+        provisionalProject: byId['provisional-parent'].project,
+        needs: byId.needs.attribution,
+        needsProject: byId.needs.project,
+        conflict: byId.conflict.attribution,
+        conflictProject: byId.conflict.project,
+        explicit: byId.explicit.attribution,
+        explicitInvalid: byId['explicit-invalid'].attribution,
+        provisionalWritable: _prodAttributionResolved(byId['provisional-parent']),
+        needsWritable: _prodAttributionResolved(byId.needs),
+        conflictWritable: _prodAttributionResolved(byId.conflict),
+        provisionalTestOverride,
+        provisionalChip,
+        needsChip,
+        conflictChip,
+      };
+    });
+    if (attributionFixture.projects.includes('inactive-stale')) throw new Error('Inactive roster client entered the Production project catalog');
+    if (attributionFixture.resolved.state !== 'resolved' || attributionFixture.resolvedProject !== 'client-a') {
+      throw new Error('Direct active-roster project mapping did not beat a stale persisted client_slug');
+    }
+    if (attributionFixture.provisional.state !== 'provisional_child_family'
+      || attributionFixture.provisionalProject !== 'test-owner'
+      || attributionFixture.provisionalWritable
+      || attributionFixture.provisionalTestOverride) {
+      throw new Error('Unanimous child-family parent was not visibly provisional and fail-closed, including TEST override');
+    }
+    if (attributionFixture.needs.state !== 'needs_attribution'
+      || attributionFixture.needsProject !== '__needs_attribution__'
+      || attributionFixture.needsWritable) {
+      throw new Error('needs_attribution let the old persisted client_slug silently win or remain writable');
+    }
+    if (attributionFixture.conflict.state !== 'conflict'
+      || attributionFixture.conflictProject !== '__attribution_conflict__'
+      || attributionFixture.conflictWritable) {
+      throw new Error('conflict attribution let the old persisted client_slug silently win or remain writable');
+    }
+    if (attributionFixture.explicit.state !== 'resolved' || attributionFixture.explicit.clientSlug !== 'client-b') {
+      throw new Error('Persisted explicit active-roster resolution was not accepted after mapped project/ancestor resolution');
+    }
+    if (attributionFixture.explicitInvalid.state !== 'needs_attribution'
+      || attributionFixture.explicitInvalid.reason !== 'persisted_explicit_owner_proof_invalid') {
+      throw new Error('Persisted explicit resolution without durable owner proof did not fail closed into repair');
+    }
+    if (/onclick=/.test(attributionFixture.provisionalChip)
+      || /onclick=/.test(attributionFixture.needsChip)
+      || /onclick=/.test(attributionFixture.conflictChip)) {
+      throw new Error('A provisional/repair/conflict attribution chip remained navigable');
+    }
     if (adapterFixture.parentChildren.join(',') !== 'child-a,child-b,child-c') throw new Error('Adapter did not put exact siblings under their real Linear parent');
     if (adapterFixture.childAChildren !== 0 || adapterFixture.childAIsParent) throw new Error('Adapter let the title-matched creation-batch sibling become a parent');
     if (!adapterFixture.trueParentMarked) throw new Error('Adapter did not mark the real cross-batch Linear parent');

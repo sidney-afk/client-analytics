@@ -217,6 +217,117 @@ BEGIN
   END IF;
 END $$;
 
+CREATE TEMP TABLE f202_prior_rows AS
+SELECT
+  id,
+  encode(
+    extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'),
+    'hex'
+  ) AS row_hash
+FROM public.mirror_outbox o
+ORDER BY id;
+
+\ir ../migrations/2026-07-23-f202-production-descriptions.sql
+
+-- The owner-approved F202 CHECK replacement is the next strict superset.
+-- Prove all eleven F201 operations plus description through the installed
+-- pre-F27 enqueue, including the exact Markdown payload, while the five
+-- pre-existing fixture rows remain byte-identical.
+BEGIN;
+DO $$
+DECLARE
+  v_operation text;
+BEGIN
+  FOREACH v_operation IN ARRAY ARRAY[
+    'create', 'status', 'comment', 'due', 'assignee', 'title',
+    'priority', 'parent', 'archive', 'restore', 'labels', 'description'
+  ] LOOP
+    PERFORM public.mirror_outbox_enqueue(
+      'deliverable',
+      'f202-' || v_operation,
+      v_operation,
+      case when v_operation = 'description'
+        then jsonb_build_object('description', E'  # F202\n\n- exact Markdown  \n')
+        else jsonb_build_object('operation', v_operation)
+      end,
+      'f202:' || v_operation,
+      now(),
+      'test-client',
+      'video',
+      'f202-disposable-proof',
+      'system',
+      null,
+      null,
+      null,
+      null,
+      true
+    );
+  END LOOP;
+
+  IF (
+    SELECT count(*) FROM public.mirror_outbox
+    WHERE dedup_key LIKE 'f202:%'
+      AND operation IN (
+        'create', 'status', 'comment', 'due', 'assignee', 'title',
+        'priority', 'parent', 'archive', 'restore', 'labels', 'description'
+      )
+  ) <> 12 OR NOT EXISTS (
+    SELECT 1 FROM public.mirror_outbox
+    WHERE dedup_key = 'f202:description'
+      AND operation = 'description'
+      AND op = 'update_fields'
+      AND payload = jsonb_build_object(
+        'description',
+        E'  # F202\n\n- exact Markdown  \n'
+      )
+  ) THEN
+    RAISE EXCEPTION 'f202_operation_superset_not_exact';
+  END IF;
+
+  BEGIN
+    PERFORM public.mirror_outbox_enqueue(
+      'deliverable', 'f202-invalid', 'unexpected',
+      '{}'::jsonb, 'f202:invalid', now(), 'test-client', 'video',
+      'f202-disposable-proof', 'system', null, null, null, null, true
+    );
+    RAISE EXCEPTION 'f202_invalid_operation_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'invalid outbound operation' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    INSERT INTO public.mirror_outbox(
+      payload, entity, entity_id, operation, client_slug, team, dedup_key,
+      source_edited_at, status, test_only
+    ) VALUES (
+      '{}'::jsonb, 'deliverable', 'f202-direct-invalid', 'unexpected',
+      'test-client', 'video', 'f202:direct-invalid', now(), 'pending', true
+    );
+    RAISE EXCEPTION 'f202_check_unexpectedly_accepted_unrelated_operation';
+  EXCEPTION WHEN check_violation THEN
+    null;
+  END;
+END $$;
+ROLLBACK;
+
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.mirror_outbox) <> 5
+     OR EXISTS (
+       SELECT 1
+       FROM public.mirror_outbox o
+       FULL OUTER JOIN f202_prior_rows p ON p.id = o.id
+       WHERE o.id IS NULL
+          OR p.id IS NULL
+          OR encode(
+            extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'),
+            'hex'
+          ) IS DISTINCT FROM p.row_hash
+     ) THEN
+    RAISE EXCEPTION 'f202_existing_rows_not_preserved';
+  END IF;
+END $$;
+
 \ir ../migrations/2026-07-20-f27-team-rollback.sql
 
 DO $$
@@ -231,8 +342,9 @@ BEGIN
   END IF;
 END $$;
 
--- A future F27 install must preserve F201. Exercise labels through the
--- generation-fenced enqueue body, then discard the disposable TEST row.
+-- A future F27 install must preserve F201 and F202. Exercise labels and an
+-- exact Markdown description through the generation-fenced enqueue body, then
+-- discard both disposable TEST rows.
 BEGIN;
 SELECT public.mirror_outbox_enqueue(
   'deliverable',
@@ -257,6 +369,29 @@ SELECT public.mirror_outbox_enqueue(
   null,
   true
 );
+SELECT public.mirror_outbox_enqueue(
+  'deliverable',
+  'f202-f27-description',
+  'description',
+  jsonb_build_object(
+    'description', E'  # F202\n\n- exact Markdown  \n',
+    '_f27_authority_generation', (
+      select generation from public.track_b_f27_team_fences where team = 'video'
+    ),
+    '_f27_legacy_parity', false
+  ),
+  'f202:f27:description',
+  now(),
+  'test-client',
+  'video',
+  'f202-disposable-proof',
+  'system',
+  null,
+  null,
+  null,
+  null,
+  true
+);
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -267,6 +402,18 @@ BEGIN
       AND payload = '{"label_ids":["f201-label"]}'::jsonb
   ) THEN
     RAISE EXCEPTION 'f201_f27_labels_enqueue_not_exact';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.mirror_outbox
+    WHERE dedup_key = 'f202:f27:description'
+      AND operation = 'description'
+      AND op = 'update_fields'
+      AND payload = jsonb_build_object(
+        'description',
+        E'  # F202\n\n- exact Markdown  \n'
+      )
+  ) THEN
+    RAISE EXCEPTION 'f202_f27_description_enqueue_not_exact';
   END IF;
 END $$;
 ROLLBACK;
@@ -966,6 +1113,9 @@ SELECT jsonb_build_object(
     'f201_operation_superset_exact',
     'f201_existing_rows_preserved',
     'f201_f27_labels_enqueue_exact',
+    'f202_operation_superset_exact',
+    'f202_existing_rows_preserved',
+    'f202_f27_description_enqueue_exact',
     'exact_prior_flags_restored',
     'other_team_unchanged',
     'zero_payload_loss',

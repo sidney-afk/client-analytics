@@ -45,6 +45,8 @@ vm.createContext(context);
 vm.runInContext([
   extract('_prodAuthorityValue'),
   extract('_prodWriteTeam'),
+  extract('_prodAttributionResolved'),
+  extract('_prodAttributionGateText'),
   extract('_prodTestWriteOverride'),
   extract('_prodRoleCanWrite'),
   extract('_prodCanWrite'),
@@ -52,8 +54,8 @@ vm.runInContext([
   extract('_prodWriteGateAttrs'),
 ].join('\n'), context);
 
-const video = { id: 'v', team: 'video', project: 'client' };
-const graphics = { id: 'g', team: 'graphics', project: 'client' };
+const video = { id: 'v', team: 'video', project: 'client', authorityProject: 'client', attribution: { state: 'resolved' } };
+const graphics = { id: 'g', team: 'graphics', project: 'client', authorityProject: 'client', attribution: { state: 'resolved' } };
 ok(context._prodAuthorityValue({ video: 'linear', graphics: 'syncview' }).graphics === 'syncview', 'strict authority parser accepts the two known team stances');
 ok(context._prodAuthorityValue({ video: 'linear' }) === null
   && context._prodAuthorityValue({ video: 'linear', graphics: 'other' }) === null
@@ -63,6 +65,11 @@ ok(context._prodCanWrite(video, 'status') === false && context._prodCanWrite(gra
 'team controls follow independent video/graphics authority stances');
 context.clientKind = 'test';
 ok(context._prodCanWrite(video, 'status') === true, 'active TEST clients reach the fail-closed pre-flip browser override boundary');
+const provisionalTest = { id: 'p', team: 'video', project: 'client', attribution: { state: 'provisional_child_family' } };
+ok(context._prodCanWrite(provisionalTest, 'status') === false
+  && context._prodTestWriteOverride(provisionalTest) === false
+  && /provisional/.test(context._prodWriteGateText(provisionalTest, 'status')),
+'provisional/repair attribution stays fail-closed and cannot inherit the TEST override');
 context.clientKind = 'video';
 context.identity = { role: 'creative', member: { team: 'video' } };
 ok(context._prodCanWrite(video, 'status') === false, 'authority still blocks an otherwise compatible creative');
@@ -166,6 +173,52 @@ ok(/data-prod-label-search-input/.test(source)
 ok(/_prodState\.labels = new Map\(\[\.\.\._prodState\.labels\]\.filter/.test(extract('_prodRefresh'))
   && /_prodEnsureLabels\(_prodState\.openId, false\)/.test(extract('_prodRender')),
 'refresh discards non-pending label state and reopens from the protected source');
+ok(/linear_project_ids/.test(source)
+  && /raw_project_id:linear_raw->issue->project->>id/.test(source)
+  && /raw_attribution_state:linear_raw->attribution->>state/.test(source)
+  && /client\.active !== true/.test(extract('_prodResolveAttributions')),
+'F200 attribution reads only active-roster project IDs plus lightweight project/attribution aliases');
+ok(/'direct_project'/.test(extract('_prodResolveAttributions'))
+  && /'nearest_mapped_ancestor'/.test(extract('_prodResolveAttributions'))
+  && /'provisional_child_family'/.test(extract('_prodResolveAttributions'))
+  && /persisted\.schema === 'syncview_attribution_v1'/.test(extract('_prodResolveAttributions'))
+  && /persisted\.explicit_owner_approved === true/.test(extract('_prodResolveAttributions'))
+  && /\^\[a-f0-9\]\{64\}\$/.test(extract('_prodResolveAttributions'))
+  && /PROD_ATTRIBUTION_NEEDS/.test(extract('_prodAdapter'))
+  && /PROD_ATTRIBUTION_CONFLICT/.test(extract('_prodAdapter')),
+'F200 resolves direct, ancestor, owner-proved explicit, provisional, needs-repair, and conflict display states');
+ok(/!_prodAttributionResolved\(issue\)/.test(extract('_prodCanWrite'))
+  && /if \(!_prodAttributionResolved\(issue\)\) return false/.test(extract('_prodTestWriteOverride'))
+  && /data-prod-attribution-chip/.test(source)
+  && /This is an attribution repair group, not a client project/.test(extract('_prodOpenProject')),
+'non-resolved attribution is visibly repair-only, non-navigable, and excluded from writes including TEST override');
+ok(/'id,brief,updated_at'/.test(extract('_prodEnsureDescription'))
+  && /requestToken !== _prodState\.descriptionRequestTokens\.get\(id\)/.test(extract('_prodEnsureDescription'))
+  && /Description could not refresh\. The text shown may be outdated\./.test(extract('_prodEnsureDescription'))
+  && /_prodMarkDescriptionsStale\(\)/.test(extract('_prodRefresh')),
+'description reads expose stale/error truth and discard late completions after a light refresh');
+ok(/_prodGatewayWrite\(issue, 'description', \{ description \}, state\.requestId\)/.test(extract('_prodSaveDescription'))
+  && /if \(!state\.requestId\) state\.requestId = _prodWriteRequestId\('description'\)/.test(extract('_prodSaveDescription'))
+  && /_prodNextDescriptionRequestToken\(id\)/.test(extract('_prodSaveDescription'))
+  && /description\.includes\('\\0'\)/.test(extract('_prodSaveDescription'))
+  && /\['status', 'status_at', 'due_date', 'assignee_id', 'brief', 'updated_at', 'linear_raw'\]/.test(extract('_prodApplyGatewayRow')),
+'description edits preserve exact Markdown, reject NUL, invalidate stale reads, and adopt the guarded gateway brief');
+ok(/state\.draft = value/.test(extract('_prodDescriptionDraftInput'))
+  && /state\.error = state\.remoteChanged/.test(extract('_prodDescriptionDraftInput'))
+  && /state\.remoteChanged = !!serverRow/.test(extract('_prodSaveDescription'))
+  && /state\.requestId = ''/.test(extract('_prodSaveDescription'))
+  && /_prodFocusDescriptionControl\(id, 'source'\)/.test(extract('_prodSaveDescription')),
+'description write errors retain the draft while conflict rows replace the server baseline and CAS cursor');
+ok(/const descriptionTokens = new Map\(_prodState\.descriptionRequestTokens\)/.test(extract('_prodLoadBriefs'))
+  && /state\.saving \|\| state\.editing \|\| startedToken !== currentToken/.test(extract('_prodLoadBriefs')),
+'bulk brief hydration cannot overwrite an active draft, pending save, or newer per-issue description result');
+ok(/data-prod-description-control="source"/.test(source)
+  && /data-prod-description-control="preview"/.test(source)
+  && /maxlength="100000"/.test(source)
+  && /event\.key === 'Escape'/.test(extract('_prodDescriptionEditorKeydown'))
+  && /_prodFocusDescriptionControl\(id, 'edit'\)/.test(extract('_prodCancelDescriptionEdit'))
+  && /_prodCaptureDescriptionFocus\(root\)/.test(extract('_prodRender')),
+'description source/preview editing is bounded, keyboard accessible, and preserves focus/caret across rerenders');
 ok(/editors\[k\]\.active !== false[\s\S]{0,120}editors\[k\]\.raw\.team/.test(source), 'assignee choices are active and scoped to the deliverable team');
 ok(/data-prod-comment-form/.test(source)
   && /audience: draft\.audience/.test(source)

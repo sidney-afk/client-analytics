@@ -53,6 +53,13 @@ The complete ranked audit is
 | Saved views and ordering | Current personal Show sub-issues/group/Due-Updated-Created settings remain valid, but shared named views, favorites, board moves, and manual order need an owner scope decision before implementation. | F204 |
 | Project property truth | A project card, its detail page, and status/lead/target pickers read one canonical object and cannot substitute defaults for loaded non-default values. | F205 |
 
+F200/F202 are now source-only implementation candidates, not live claims. F200 uses the active
+roster/project-ID map, renders provisional/repair/conflict attribution explicitly, removes B1
+client insertion, rechecks inbound/reconcile state, and gates the audited 72-row repair behind an
+exact private owner manifest. F202 adds Admin/SMM exact-Markdown source/preview editing only for
+root and child deliverables, with CAS/idempotency, audit/outbox mirror, authoritative refresh, and
+conflict draft recovery. Their live repair/migration/function/TEST-drill gates remain closed.
+
 ## 2026-07-09 Foundation Hardening Audit
 
 Full report: `docs/audits/2026-07-09-production-foundation-audit.md`.

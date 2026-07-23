@@ -8,8 +8,11 @@ export const OPERATIONS = Object.freeze([
   "due",
   "assignee",
   "labels",
+  "description",
   "intake_create",
 ]);
+
+export const MAX_DESCRIPTION_LENGTH = 100_000;
 
 export const DELIVERABLE_STATUSES = Object.freeze([
   "triage",
@@ -183,6 +186,18 @@ export function canonicalLabelIds(value) {
     ids.push(id);
   }
   return [...new Set(ids)].sort();
+}
+
+// A Production description is Markdown source, not normalized prose. Preserve
+// every code unit (including leading/trailing whitespace and line endings);
+// only its type, bounded size, and PostgreSQL text compatibility are part of
+// the gateway contract. The empty string is a valid clear intent.
+export function canonicalDescription(value) {
+  return typeof value === "string"
+      && value.length <= MAX_DESCRIPTION_LENGTH
+      && !value.includes("\0")
+    ? value
+    : null;
 }
 
 // Match the legacy linear-set-status bridge exactly: an overdue YYYY-MM-DD

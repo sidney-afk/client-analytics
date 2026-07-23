@@ -283,6 +283,8 @@ async function txt(page, sel) {
         error: _prodState.error,
         briefsLoaded: _prodState.briefsLoaded,
         briefsLoading: _prodState.briefsLoading,
+        descriptions: _prodState.descriptions,
+        descriptionRequestTokens: _prodState.descriptionRequestTokens,
         view: _prodState.view,
         openId: _prodState.openId,
         openBatchId: _prodState.openBatchId,
@@ -308,8 +310,12 @@ async function txt(page, sel) {
         _prodState.batches = hydratedBatches;
         _prodState.deliverables = hydrated;
         _prodState.adapter = null;
+        _prodState.descriptions = new Map();
+        _prodState.descriptionRequestTokens = new Map();
         _prodState.linearRaw.set(id, { issue: { id: 'description-flicker-fixture' } });
         _prodState.events.set(id, []);
+        _prodDescriptionState(id);
+        _prodAdoptDescriptionValue(id, sentinel, String(target.updated_at || ''));
         _prodOpenDeliverable(id);
         const before = (document.querySelector('[data-prod-detail="' + CSS.escape(id) + '"] .prod-desc')?.textContent || '').trim();
 
@@ -384,6 +390,8 @@ async function txt(page, sel) {
         const pendingRow = (_prodState.deliverables || []).find(row => String(row && row.id || '') === id);
         delete pendingRow.brief; delete pendingRow.linear_raw; delete pendingRow.desc;
         _prodState.linearRaw.set(id, null);
+        _prodState.descriptions.delete(id);
+        _prodState.descriptionRequestTokens.delete(id);
         _prodState.adapter = null;
         _prodState.view = 'detail'; _prodState.openId = id; _prodState.openBatchId = ''; _prodState.openProjectId = '';
         _prodRender();
@@ -399,6 +407,8 @@ async function txt(page, sel) {
         _prodState.linearRaw.set(id, {});
         _prodState.adapter = null;
         await _prodLoadData({ silent: true });
+        _prodDescriptionState(id);
+        _prodAdoptDescriptionValue(id, '', String(pendingRow.updated_at || ''));
         _prodRender();
         const emptyDesc = document.querySelector('[data-prod-detail="' + CSS.escape(id) + '"] .prod-desc');
         const loadedEmpty = (emptyDesc?.querySelector('.prod-desc-empty')?.textContent || '').trim() === 'No description.'
@@ -1076,7 +1086,10 @@ async function txt(page, sel) {
         const card = document.querySelector('.prod-card[data-prod-client-card]');
         if (!card) return true;
         const slug = card.getAttribute('data-prod-client-card');
-        const real = _prodIssueRows().filter(x => x.project === slug && !x.parent).length;
+        // Project cards count the exact currently visible issue rows. A child
+        // whose parent is outside this client/repair scope remains visible by
+        // design, so roots-only counting is no longer a valid F200 assertion.
+        const real = _prodIssueRows().filter(x => x.project === slug).length;
         const shown = card.querySelector('.prod-card-meta span').textContent;
         return shown === real + ' issue' + (real === 1 ? '' : 's');
       });

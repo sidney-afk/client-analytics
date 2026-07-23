@@ -5,7 +5,8 @@
  *
  * Default mode is read-only plan/verify. Use --apply only after the B1 handling
  * rules are approved. Writes are limited to Track B tables plus approved
- * insert-only clients/team_members reconciliation rows.
+ * team_members reconciliation rows. The active SyncView roster is the sole
+ * client catalog; this job never creates a client from Linear data.
  *
  * Private assignee reconciliation rules are supplied by B1_ASSIGNEE_RULES_FILE
  * or B1_ASSIGNEE_RULES_JSON. Do not commit those rules to this public repo.
@@ -16,6 +17,13 @@ const path = require('path');
 const crypto = require('crypto');
 const { authorityForTeam, loadAuthority } = require('./prod-authority-guard');
 const { publicB1Artifact } = require('./public-b1-artifact');
+const {
+  attributionForIssue,
+  persistedExplicitClassifications,
+  resolveAttributionGraph,
+  storageClientSlug,
+  withAttribution,
+} = require('./f200-attribution');
 
 const ROOT = path.join(__dirname, '..');
 const LINEAR_API_KEY = String(process.env.LINEAR_API_KEY
@@ -99,14 +107,6 @@ function loadPrivateAssigneeRules() {
   return parsed && typeof parsed === 'object' ? parsed : {};
 }
 
-function wlNormalizeClient(s) {
-  let t = clean(s).toLowerCase();
-  try { t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (_) {}
-  t = t.replace(/^dr\.?\s+/, '');
-  t = t.replace(/\s+(?:and|&)\s+/g, '&');
-  return t.replace(/[^a-z0-9&]+/g, '');
-}
-
 function sha(input, len = 24) {
   return crypto.createHash('sha1').update(String(input)).digest('hex').slice(0, len);
 }
@@ -174,27 +174,10 @@ function classifyKind(issue) {
   return 'other';
 }
 
-function issueClientCandidate(issue) {
-  const names = [
-    issue.project && issue.project.name,
-    issue.parent && issue.parent.project && issue.parent.project.name,
-  ].filter(Boolean);
-  for (const name of names) {
-    const slug = wlNormalizeClient(name);
-    if (slug) return { slug, display: name, source: name, projectId: issue.project && issue.project.id || issue.parent && issue.parent.project && issue.parent.project.id || '' };
-  }
-  return { slug: 'unattributed', display: 'Unattributed', source: 'no_project', projectId: '' };
-}
-
-function clientKind(slug) {
-  if (slug === 'unattributed') return 'internal';
-  if (/test|example|onboarding|dummy|sample/.test(slug)) return 'test';
-  return 'client';
-}
-
-function batchGroupKey(issue) {
+function batchGroupKey(issue, attributionGraph, unresolvedClientSlug) {
   const parent = issue.parent || issue;
-  const client = issueClientCandidate(issue).slug || 'unattributed';
+  const attribution = attributionForIssue(attributionGraph, issue);
+  const client = storageClientSlug(attribution, unresolvedClientSlug) || 'needs_attribution';
   const title = normalizeText(parent.title || issue.title || 'Untitled batch');
   const desc = normalizeText(parent.description || '');
   return `${client}|${title}|${desc}`;
@@ -634,17 +617,18 @@ function operationalIssues(issues, linkedIdentifiers, asOf, months) {
   });
 }
 
-function batchRowsFor(operational) {
+function batchRowsFor(operational, attributionGraph, unresolvedClientSlug) {
   const groups = new Map();
   for (const issue of operational) {
-    const key = batchGroupKey(issue);
+    const key = batchGroupKey(issue, attributionGraph, unresolvedClientSlug);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(issue);
   }
   return Array.from(groups.entries()).map(([key, group]) => {
     const first = group[0];
     const parent = first.parent || first;
-    const client = issueClientCandidate(first);
+    const attribution = attributionForIssue(attributionGraph, first);
+    const clientSlug = storageClientSlug(attribution, unresolvedClientSlug);
     const teams = new Set(group.map(linearTeam).filter(Boolean));
     const parentIds = {};
     for (const issue of group) {
@@ -659,7 +643,7 @@ function batchRowsFor(operational) {
     }
     return {
       id: batchIdForKey(key),
-      client_slug: client.slug,
+      client_slug: clientSlug,
       team: teams.size === 1 ? Array.from(teams)[0] : null,
       name: clean(parent.title || first.title || 'Untitled batch'),
       description: clean(parent.description || '') || null,
@@ -672,8 +656,17 @@ function batchRowsFor(operational) {
   }).sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function deliverableRow(issue, batchByKey, memberByLinear, memberByEmail, linksByIdentifier) {
-  const client = issueClientCandidate(issue);
+function deliverableRow(
+  issue,
+  batchByKey,
+  memberByLinear,
+  memberByEmail,
+  linksByIdentifier,
+  attributionGraph,
+  unresolvedClientSlug,
+) {
+  const attribution = attributionForIssue(attributionGraph, issue);
+  const clientSlug = storageClientSlug(attribution, unresolvedClientSlug);
   const kind = classifyKind(issue);
   const links = linksByIdentifier.get(clean(issue.identifier).toUpperCase()) || [];
   const preferred = links.find(l => l.kind === kind) || null;
@@ -683,8 +676,8 @@ function deliverableRow(issue, batchByKey, memberByLinear, memberByEmail, linksB
   return {
     id: deliverableId(issue),
     identifier: clean(issue.identifier),
-    batch_id: batchByKey.get(batchGroupKey(issue)).id,
-    client_slug: client.slug,
+    batch_id: batchByKey.get(batchGroupKey(issue, attributionGraph, unresolvedClientSlug)).id,
+    client_slug: clientSlug,
     team: linearTeam(issue),
     kind,
     title: clean(issue.title || issue.identifier || 'Untitled deliverable'),
@@ -705,7 +698,7 @@ function deliverableRow(issue, batchByKey, memberByLinear, memberByEmail, linksB
     linear_identifier: clean(issue.identifier),
     linear_issue_url: clean(issue.url),
     linear_aliases: { identifier: issue.identifier, url: issue.url },
-    linear_raw: {
+    linear_raw: withAttribution({
       issue,
       backfill: {
         card_links: links,
@@ -713,19 +706,20 @@ function deliverableRow(issue, batchByKey, memberByLinear, memberByEmail, linksB
         duplicate_card_link_count: links.length,
         delivery_link_sweep: 'not_run_non_blocking',
       },
-    },
+    }, attribution),
   };
 }
 
-function archiveRow(issue, operationalSet) {
-  const client = issueClientCandidate(issue);
+function archiveRow(issue, operationalSet, attributionGraph, unresolvedClientSlug) {
+  const attribution = attributionForIssue(attributionGraph, issue);
+  const clientSlug = storageClientSlug(attribution, unresolvedClientSlug);
   const parent = issue.parent || {};
   return {
     linear_uuid: clean(issue.id),
     identifier: clean(issue.identifier),
     aliases: { identifier: issue.identifier, url: issue.url },
     team: issueTeam(issue),
-    client_slug: client.slug,
+    client_slug: clientSlug,
     parent_uuid: clean(parent.id),
     parent_identifier: clean(parent.identifier),
     title: clean(issue.title),
@@ -738,48 +732,34 @@ function archiveRow(issue, operationalSet) {
     completed_at: issue.completedAt || issue.canceledAt || null,
     archived_at: issue.archivedAt || null,
     comments: null,
-    raw: { issue, archive_reason: operationalSet.has(issue.id) ? 'operational' : 'non_operational_issue_level_backfill' },
+    raw: withAttribution({
+      issue,
+      archive_reason: operationalSet.has(issue.id) ? 'operational' : 'non_operational_issue_level_backfill',
+    }, attribution),
   };
 }
 
-function publicClientRow(planned) {
-  return {
-    slug: planned.slug,
-    display_name: planned.display_name,
-    active: false,
-    kind: planned.kind,
-    source: 'linear_backfill',
-    linear_project_ids: planned.linear_project_ids,
-    board_status: 'backlog',
-  };
+function attributionRepairRows(issues, attributionGraph) {
+  return (issues || []).map(issue => {
+    const attribution = attributionForIssue(attributionGraph, issue);
+    return {
+      linear_issue_uuid: clean(issue.id),
+      identifier: clean(issue.identifier),
+      state: clean(attribution && attribution.state) || 'needs_attribution',
+      source: clean(attribution && attribution.source) || 'none',
+      repair_required: !attribution || attribution.repair_required === true,
+      mapping_revision: clean(attribution && attribution.mapping_revision),
+    };
+  }).filter(row => row.state !== 'resolved' || row.repair_required);
 }
 
-function missingClientPlans(operational, batches, existingClients) {
-  const bySlug = new Map();
-  const seen = new Set(existingClients.map(c => c.slug));
-  function add(slug, display, projectId) {
-    if (!slug || seen.has(slug)) return;
-    if (!bySlug.has(slug)) {
-      bySlug.set(slug, {
-        slug,
-        display_name: display || slug,
-        kind: clientKind(slug),
-        linear_project_ids: [],
-        issue_count: 0,
-      });
-    }
-    const row = bySlug.get(slug);
-    if (projectId && !row.linear_project_ids.includes(projectId)) row.linear_project_ids.push(projectId);
-    row.issue_count++;
-  }
-  for (const issue of operational) {
-    const c = issueClientCandidate(issue);
-    add(c.slug, c.display, c.projectId);
-  }
-  for (const batch of batches) {
-    add(batch.client_slug, batch.name === 'Unattributed' ? 'Unattributed' : batch.client_slug, '');
-  }
-  return Array.from(bySlug.values()).sort((a, b) => a.slug.localeCompare(b.slug));
+function unresolvedAttributionSentinel(clients) {
+  // Legacy schema requires a client_slug FK. This value is storage-only:
+  // linear_raw.attribution remains needs/provisional/conflict and the UI must
+  // never present the sentinel as a normal roster client.
+  return (clients || []).some(row => clean(row && row.slug) === 'unattributed')
+    ? 'unattributed'
+    : '';
 }
 
 function unresolvedAssigneePlans(operational, existingMembers) {
@@ -866,7 +846,7 @@ async function buildPlan() {
     supabaseRows('calendar_posts', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
     supabaseRows('sample_reviews', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
     supabaseRows('batches', 'id,client_slug,team,name,description,status,created_by,linear_parent_ids'),
-    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,linear_issue_uuid,linear_identifier,linear_issue_url'),
+    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw'),
     supabaseRows('linear_archive', 'linear_uuid,identifier,title,state,client_slug,team'),
     supabaseRows('deliverable_events', 'id,deliverable_id,batch_id,client_slug,action,source,payload'),
   ]);
@@ -876,10 +856,23 @@ async function buildPlan() {
   const linkedIdentifiers = new Set(Array.from(linksByIdentifier.keys()));
   const operational = operationalIssues(issues, linkedIdentifiers, asOf, cutoffMonths);
   const operationalSet = new Set(operational.map(i => i.id));
-  const batches = batchRowsFor(operational);
+  const issueScope = new Set(issues.map(issue => clean(issue.id)).filter(Boolean));
+  const explicitClassifications = persistedExplicitClassifications(
+    existingDeliverables.filter(row => issueScope.has(clean(row.linear_issue_uuid))),
+    clients,
+  );
+  const attributionGraph = resolveAttributionGraph(issues, clients, {
+    explicitClassifications,
+    familyComplete: true,
+  });
+  const unresolvedClientSlug = unresolvedAttributionSentinel(clients);
+  const batches = batchRowsFor(operational, attributionGraph, unresolvedClientSlug);
   const batchByKey = new Map();
-  for (const b of batches) for (const issue of b._issues) batchByKey.set(batchGroupKey(issue), b);
-  const missingClients = missingClientPlans(operational, batches, clients);
+  for (const b of batches) {
+    for (const issue of b._issues) {
+      batchByKey.set(batchGroupKey(issue, attributionGraph, unresolvedClientSlug), b);
+    }
+  }
   const assigneeResolution = buildAssigneeResolution(operational, members);
 
   const { byLinear: memberByLinear, byEmail: memberByEmail } = memberLookups(members);
@@ -889,15 +882,27 @@ async function buildPlan() {
   const existingBatchById = new Map(existingBatches.map(r => [r.id, r]));
   const existingDeliverableById = new Map(existingDeliverables.map(r => [r.id, r]));
   const existingArchiveById = new Map(existingArchive.map(r => [r.linear_uuid, r]));
-  const deliverables = operational.map(issue => deliverableRow(issue, batchByKey, memberByLinear, memberByEmail, linksByIdentifier));
-  const archive = issues.filter(issue => !operationalSet.has(issue.id)).map(issue => archiveRow(issue, operationalSet));
+  const deliverables = operational.map(issue => deliverableRow(
+    issue,
+    batchByKey,
+    memberByLinear,
+    memberByEmail,
+    linksByIdentifier,
+    attributionGraph,
+    unresolvedClientSlug,
+  ));
+  const archive = issues.filter(issue => !operationalSet.has(issue.id))
+    .map(issue => archiveRow(issue, operationalSet, attributionGraph, unresolvedClientSlug));
 
   const batchFields = ['client_slug', 'team', 'name', 'description', 'status', 'created_by'];
-  const deliverableFields = ['identifier', 'batch_id', 'client_slug', 'team', 'kind', 'title', 'status', 'assignee_id', 'due_date', 'priority', 'origin', 'card_id', 'linear_issue_uuid', 'linear_identifier', 'linear_issue_url'];
+  const deliverableFields = ['identifier', 'batch_id', 'client_slug', 'team', 'kind', 'title', 'status', 'assignee_id', 'due_date', 'priority', 'origin', 'card_id', 'linear_issue_uuid', 'linear_identifier', 'linear_issue_url', 'linear_raw'];
   const archiveFields = ['identifier', 'title', 'state', 'client_slug', 'team'];
-  const batchWrites = batches.filter(r => !compareRow(existingBatchById.get(r.id), r, batchFields));
-  const deliverableWrites = deliverables.filter(r => !compareRow(existingDeliverableById.get(r.id), r, deliverableFields));
-  const archiveWrites = archive.filter(r => !compareRow(existingArchiveById.get(r.linear_uuid), r, archiveFields));
+  const batchWrites = batches.filter(r => r.client_slug
+    && !compareRow(existingBatchById.get(r.id), r, batchFields));
+  const deliverableWrites = deliverables.filter(r => r.client_slug
+    && !compareRow(existingDeliverableById.get(r.id), r, deliverableFields));
+  const archiveWrites = archive.filter(r => r.client_slug
+    && !compareRow(existingArchiveById.get(r.linear_uuid), r, archiveFields));
   const otherKind = deliverables.filter(d => d.kind === 'other').map(d => ({ identifier: d.identifier, title: d.title, team: d.team }));
 
   const eventSourceCounts = existingEvents.reduce((acc, e) => {
@@ -914,7 +919,10 @@ async function buildPlan() {
     operational_count: operational.length,
     archive_count: archive.length,
     linked_live_card_included: operational.filter(i => linkedIdentifiers.has(clean(i.identifier).toUpperCase())).length,
-    missing_clients: missingClients,
+    missing_clients: [],
+    attribution: attributionGraph.summary,
+    attribution_repairs: attributionRepairRows(issues, attributionGraph),
+    attribution_storage_sentinel_present: !!unresolvedClientSlug,
     missing_assignees: assigneeResolution.distinct,
     team_member_link_updates: assigneeResolution.linkUpdates,
     team_member_inserts: assigneeResolution.inserts,
@@ -924,7 +932,7 @@ async function buildPlan() {
     deliverables,
     archive,
     writes: {
-      clients: missingClients.map(publicClientRow),
+      clients: [],
       team_members: assigneeResolution.inserts.map(({ count, teams, sample_identifiers, ...row }) => row),
       team_member_link_updates: assigneeResolution.linkUpdates.map(({ existing, name, ...row }) => row),
       batches: batchWrites.map(({ _issues, ...r }) => r),
@@ -965,7 +973,8 @@ function batchShapeSummary(batches) {
   };
 }
 
-function softClosedDeliverableRow(issue, existing) {
+function softClosedDeliverableRow(issue, existing, attributionGraph, unresolvedClientSlug) {
+  const attribution = attributionForIssue(attributionGraph, issue);
   const fallbackStatus = issue.state && issue.state.type === 'canceled'
     ? 'canceled'
     : issue.state && issue.state.type === 'completed'
@@ -975,7 +984,7 @@ function softClosedDeliverableRow(issue, existing) {
     id: existing.id,
     identifier: existing.identifier || clean(issue.identifier),
     batch_id: existing.batch_id,
-    client_slug: existing.client_slug,
+    client_slug: storageClientSlug(attribution, unresolvedClientSlug),
     team: existing.team || linearTeam(issue),
     kind: existing.kind || classifyKind(issue),
     title: clean(issue.title || existing.title || issue.identifier || 'Untitled deliverable'),
@@ -994,13 +1003,13 @@ function softClosedDeliverableRow(issue, existing) {
     linear_identifier: clean(issue.identifier),
     linear_issue_url: clean(issue.url),
     linear_aliases: { identifier: issue.identifier, url: issue.url },
-    linear_raw: {
+    linear_raw: withAttribution({
       issue,
       incremental_refresh: {
         soft_handled: true,
         reason: closedAt(issue) ? 'closed_or_archived' : 'outside_operational_window',
       },
-    },
+    }, attribution),
   };
 }
 
@@ -1031,7 +1040,7 @@ async function buildIncrementalPlan() {
     supabaseRows('calendar_posts', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
     supabaseRows('sample_reviews', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
     supabaseRows('batches', 'id,client_slug,team,name,description,status,created_by,linear_parent_ids'),
-    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,created_by,created_at,linear_issue_uuid,linear_identifier,linear_issue_url'),
+    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,created_by,created_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw'),
     supabaseRows('linear_archive', 'linear_uuid,identifier,title,state,client_slug,team'),
   ]);
   const issues = PROJECT_FILTER
@@ -1054,28 +1063,59 @@ async function buildIncrementalPlan() {
   const operationalSet = new Set(operational.map(i => i.id));
   const operationalById = new Map(operational.map(i => [clean(i.id), i]));
   const nonOperational = issues.filter(issue => !operationalById.has(clean(issue.id)));
-  const batches = batchRowsFor(operational);
+  // Incremental Linear input is not a complete family snapshot. Direct and
+  // embedded-ancestor mappings are safe; child-family inference stays off.
+  const issueScope = new Set(issues.map(issue => clean(issue.id)).filter(Boolean));
+  const explicitClassifications = persistedExplicitClassifications(
+    existingDeliverables.filter(row => issueScope.has(clean(row.linear_issue_uuid))),
+    clients,
+  );
+  const attributionGraph = resolveAttributionGraph(issues, clients, {
+    explicitClassifications,
+    familyComplete: false,
+  });
+  const unresolvedClientSlug = unresolvedAttributionSentinel(clients);
+  const batches = batchRowsFor(operational, attributionGraph, unresolvedClientSlug);
   const batchByKey = new Map();
-  for (const b of batches) for (const issue of b._issues) batchByKey.set(batchGroupKey(issue), b);
+  for (const b of batches) {
+    for (const issue of b._issues) {
+      batchByKey.set(batchGroupKey(issue, attributionGraph, unresolvedClientSlug), b);
+    }
+  }
 
-  const missingClients = missingClientPlans(operational, batches, clients);
   const { byLinear: memberByLinear, byEmail: memberByEmail } = memberLookups(members);
-  const deliverables = operational.map(issue => deliverableRow(issue, batchByKey, memberByLinear, memberByEmail, linksByIdentifier));
+  const deliverables = operational.map(issue => deliverableRow(
+    issue,
+    batchByKey,
+    memberByLinear,
+    memberByEmail,
+    linksByIdentifier,
+    attributionGraph,
+    unresolvedClientSlug,
+  ));
   const softHandledDeliverables = nonOperational
     .map(issue => ({ issue, existing: existingDeliverableByUuid.get(clean(issue.id)) }))
     .filter(row => row.existing)
-    .map(row => softClosedDeliverableRow(row.issue, row.existing));
-  const archive = nonOperational.map(issue => archiveRow(issue, operationalSet));
+    .map(row => softClosedDeliverableRow(
+      row.issue,
+      row.existing,
+      attributionGraph,
+      unresolvedClientSlug,
+    ));
+  const archive = nonOperational
+    .map(issue => archiveRow(issue, operationalSet, attributionGraph, unresolvedClientSlug));
 
   const existingBatchById = new Map(existingBatches.map(r => [r.id, r]));
   const existingDeliverableById = new Map(existingDeliverables.map(r => [r.id, r]));
   const existingArchiveById = new Map(existingArchive.map(r => [r.linear_uuid, r]));
   const batchFields = ['client_slug', 'team', 'name', 'description', 'status', 'created_by'];
-  const deliverableFields = ['identifier', 'batch_id', 'client_slug', 'team', 'kind', 'title', 'status', 'assignee_id', 'due_date', 'priority', 'origin', 'card_id', 'linear_issue_uuid', 'linear_identifier', 'linear_issue_url'];
+  const deliverableFields = ['identifier', 'batch_id', 'client_slug', 'team', 'kind', 'title', 'status', 'assignee_id', 'due_date', 'priority', 'origin', 'card_id', 'linear_issue_uuid', 'linear_identifier', 'linear_issue_url', 'linear_raw'];
   const archiveFields = ['identifier', 'title', 'state', 'client_slug', 'team'];
   const deliverableCandidates = [...deliverables, ...softHandledDeliverables];
-  const batchCandidates = batches.filter(r => !compareRow(existingBatchById.get(r.id), r, batchFields));
-  const deliverableWriteCandidates = deliverableCandidates.filter(r => !compareRow(existingDeliverableById.get(r.id), r, deliverableFields));
+  const batchCandidates = batches.filter(r => r.client_slug
+    && !compareRow(existingBatchById.get(r.id), r, batchFields));
+  const deliverableWriteCandidates = deliverableCandidates.filter(r => r.client_slug
+    && !compareRow(existingDeliverableById.get(r.id), r, deliverableFields));
   const batchAllowed = row => authorityState.write_safe === true
     && (row._issues || []).every(issue => authorityForTeam(prodAuthority, linearTeam(issue)) === 'linear');
   const deliverableAllowed = row => authorityState.write_safe === true
@@ -1084,10 +1124,6 @@ async function buildIncrementalPlan() {
   const gatedBatches = batchCandidates.filter(row => !batchAllowed(row));
   const allowedDeliverables = deliverableWriteCandidates.filter(deliverableAllowed);
   const gatedDeliverables = deliverableWriteCandidates.filter(row => !deliverableAllowed(row));
-  const allowedClientSlugs = new Set((authorityState.write_safe === true ? operational : [])
-    .filter(issue => authorityForTeam(prodAuthority, linearTeam(issue)) === 'linear')
-    .map(issue => issueClientCandidate(issue).slug));
-
   return {
     generated_at: startedAt,
     mode: 'incremental',
@@ -1099,6 +1135,9 @@ async function buildIncrementalPlan() {
     operational_count: operational.length,
     soft_handled_count: softHandledDeliverables.length,
     archive_count: archive.length,
+    attribution: attributionGraph.summary,
+    attribution_repairs: attributionRepairRows(issues, attributionGraph),
+    attribution_storage_sentinel_present: !!unresolvedClientSlug,
     authority: {
       value: prodAuthority,
       source: authorityState.source,
@@ -1114,10 +1153,11 @@ async function buildIncrementalPlan() {
       },
     },
     writes: {
-      clients: missingClients.filter(row => allowedClientSlugs.has(row.slug)).map(publicClientRow),
+      clients: [],
       batches: allowedBatches.map(({ _issues, ...r }) => r),
       deliverables: allowedDeliverables,
-      linear_archive: archive.filter(r => !compareRow(existingArchiveById.get(r.linear_uuid), r, archiveFields)),
+      linear_archive: archive.filter(r => r.client_slug
+        && !compareRow(existingArchiveById.get(r.linear_uuid), r, archiveFields)),
     },
     raw: { issues },
   };
@@ -1133,19 +1173,6 @@ async function applyIncrementalPlan(plan) {
     summary_event_written: 0,
   };
   try {
-    for (const client of plan.writes.clients) {
-      const teams = new Set();
-      for (const row of plan.writes.batches) {
-        if (row.client_slug !== client.slug) continue;
-        if (row.team) teams.add(row.team);
-        else { teams.add('video'); teams.add('graphics'); }
-      }
-      for (const row of plan.writes.deliverables) if (row.client_slug === client.slug) teams.add(row.team);
-      await assertFreshLinearAuthority(teams.size ? [...teams] : ['video', 'graphics']);
-      await supabaseInsert('clients', [client]);
-      result.inserted_clients++;
-    }
-
     for (const batch of plan.writes.batches) {
       await assertFreshLinearAuthority(batch.team || ['video', 'graphics']);
       await supabaseRpc('batch_write', {
@@ -1222,7 +1249,6 @@ async function applyReconciliation(plan) {
   if (plan.unhandled_assignees.length) {
     fail(`unhandled assignees detected; refusing to apply: ${plan.unhandled_assignees.map(a => a.name).join(', ')}`);
   }
-  await supabaseInsert('clients', plan.writes.clients);
   await supabaseInsert('team_members', plan.writes.team_members);
 
   let patchedMembers = 0;
@@ -1237,7 +1263,7 @@ async function applyReconciliation(plan) {
   }
 
   return {
-    inserted_clients: plan.writes.clients.length,
+    inserted_clients: 0,
     inserted_team_members: plan.writes.team_members.length,
     patched_team_members: patchedMembers,
   };
@@ -1387,11 +1413,17 @@ function render(plan, applyResult, verification) {
     plan.missing_assignees.map(a => [a.name, a.email || '', a.count, a.teams.join(', '), a.role, a.team || '']),
   ));
   lines.push('');
-  lines.push('## Missing Client Inserts');
+  lines.push('## Attribution Repair Rows');
   lines.push('');
   lines.push(mdTable(
-    ['Slug', 'Display', 'Kind', 'Active', 'Issue count'],
-    plan.missing_clients.map(c => [c.slug, c.display_name, c.kind, 'false', c.issue_count]),
+    ['Linear issue', 'Identifier', 'State', 'Source', 'Repair required'],
+    plan.attribution_repairs.map(row => [
+      row.linear_issue_uuid,
+      row.identifier,
+      row.state,
+      row.source,
+      row.repair_required ? 'yes' : 'no',
+    ]),
   ));
   lines.push('');
   lines.push('## Other Kind Titles');
@@ -1547,4 +1579,16 @@ async function main() {
   console.log(report);
 }
 
-main().catch(err => fail(err && err.stack ? err.stack : String(err)));
+if (require.main === module) {
+  main().catch(err => fail(err && err.stack ? err.stack : String(err)));
+}
+
+module.exports = {
+  batchGroupKey,
+  batchRowsFor,
+  deliverableRow,
+  archiveRow,
+  softClosedDeliverableRow,
+  attributionRepairRows,
+  unresolvedAttributionSentinel,
+};

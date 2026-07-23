@@ -253,6 +253,33 @@ async function verifyFixture(asset) {
       assert(row.brief === 'Video 1' && issue.description === 'Video 1', 'graphics fallback description did not round-trip');
     }
   }
+  const description = `  # F202 ${RUN_ID}\n\n- ${asset.team} **Markdown**  \n`;
+  const descriptionResponse = await gateway({
+    operation: 'description',
+    surface: 'production',
+    entity: 'deliverable',
+    id: row.id,
+    expected_updated_at: row.updated_at,
+    description,
+  });
+  assert(descriptionResponse.row && descriptionResponse.row.brief === description,
+    `${asset.team} description gateway response changed Markdown bytes`);
+  asset.operations.push('description');
+  await poll(`${asset.team} description round-trip`, async () => {
+    const [nativeRows, linearData] = await Promise.all([
+      rest(`deliverables?select=id,brief,updated_at&id=eq.${encodeURIComponent(row.id)}&limit=1`),
+      linear('query ProductionWriteDrillDescription($id: String!) { issue(id: $id) { id description } }',
+        { id: row.linear_issue_uuid }),
+    ]);
+    const native = nativeRows[0];
+    const mirrored = linearData.issue;
+    return native && mirrored
+      && native.brief === description
+      && mirrored.description === description
+      ? { native, mirrored }
+      : null;
+  });
+  asset.row = descriptionResponse.row || asset.row;
   assert(!issue.dueDate && !issue.assignee, `${asset.team} due/assignee clear did not reach Linear`);
   assert((issue.comments.nodes || []).filter(comment => clean(comment.body).includes(asset.commentMarker)).length === 1, `${asset.team} Linear comment is missing or duplicated`);
   const nativeComments = await rest(`production_comments?select=id&deliverable_id=eq.${encodeURIComponent(row.id)}&body=eq.${encodeURIComponent(asset.commentMarker)}`);

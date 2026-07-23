@@ -308,6 +308,82 @@ function payloadChangesLabels(payload: JsonMap): boolean {
     .some(key => Object.prototype.hasOwnProperty.call(updatedFrom, key));
 }
 
+function payloadChangesDescription(payload: JsonMap): boolean {
+  const data = objectAt(payload.data);
+  const updatedFrom = objectAt(payload.updatedFrom || data.updatedFrom);
+  return Object.prototype.hasOwnProperty.call(updatedFrom, "description");
+}
+
+function payloadAttributionChangeFields(payload: JsonMap): string[] {
+  const data = objectAt(payload.data);
+  const updatedFrom = objectAt(payload.updatedFrom || data.updatedFrom);
+  return ["project", "projectId", "parent", "parentId"]
+    .filter(key => Object.prototype.hasOwnProperty.call(updatedFrom, key));
+}
+
+function invalidateClientAttribution(rawValue: unknown, existing: ExistingRow, fields: string[]): JsonMap {
+  const raw = parseJson(rawValue);
+  const previous = parseJson(raw.attribution);
+  raw.attribution = {
+    schema: "syncview_attribution_v1",
+    state: "needs_attribution",
+    client_slug: null,
+    owner_kind: null,
+    source: "linear_inbound_structure_change",
+    mapping_revision: clean(previous.mapping_revision) || null,
+    repair_required: true,
+    reason: "project_or_parent_changed_reconcile_required",
+    invalidated_fields: [...new Set(fields)].sort(),
+    previous_state: clean(previous.state) || null,
+    previous_client_slug: clean(previous.client_slug || existing.client_slug) || null,
+  };
+  return raw;
+}
+
+function mergeAttributionStructureRaw(existing: ExistingRow, issue: JsonMap, payload: JsonMap): JsonMap {
+  const raw = parseJson(existing.linear_raw);
+  const previousIssue = raw.issue && typeof raw.issue === "object"
+    ? raw.issue as JsonMap
+    : {};
+  const nextIssue: JsonMap = { ...previousIssue };
+  const changed = new Set(payloadAttributionChangeFields(payload));
+  const projectChanged = changed.has("project") || changed.has("projectId");
+  const parentChanged = changed.has("parent") || changed.has("parentId");
+
+  if (projectChanged) {
+    if (has(issue, "project")) nextIssue.project = issue.project;
+    else if (has(issue, "projectId")) {
+      const id = clean(issue.projectId);
+      nextIssue.project = id ? { id } : null;
+    } else nextIssue.project = null;
+    if (has(issue, "projectId")) nextIssue.projectId = clean(issue.projectId) || null;
+  }
+  if (parentChanged) {
+    if (has(issue, "parent")) nextIssue.parent = issue.parent;
+    else if (has(issue, "parentId")) {
+      const id = clean(issue.parentId);
+      nextIssue.parent = id ? { id } : null;
+    } else nextIssue.parent = null;
+    if (has(issue, "parentId")) nextIssue.parentId = clean(issue.parentId) || null;
+  }
+  raw.issue = nextIssue;
+  raw.inbound = {
+    webhook_action: payloadAction(payload),
+    webhook_timestamp: clean(payload.webhookTimestamp || payload.webhook_timestamp),
+    delivery_id: clean(payload.id || payload.webhookId || payload.deliveryId),
+  };
+  const timestampMs = webhookTimestampMs(payload);
+  const timestamp = Number.isFinite(timestampMs)
+    ? new Date(timestampMs).toISOString()
+    : clean(issue.updatedAt);
+  if (timestamp) {
+    const clocks = parseJson(raw.field_updated_at);
+    clocks.attribution = timestamp;
+    raw.field_updated_at = clocks;
+  }
+  return raw;
+}
+
 function updateLinearFieldClocks(raw: JsonMap, payload: JsonMap, issue: JsonMap): void {
   const data = objectAt(payload.data);
   const updatedFrom = objectAt(payload.updatedFrom || data.updatedFrom);
@@ -327,14 +403,16 @@ function updateLinearFieldClocks(raw: JsonMap, payload: JsonMap, issue: JsonMap)
   mark("due", ["dueDate"]);
   mark("assignee", ["assignee", "assigneeId"]);
   mark("title", ["title"]);
+  mark("description", ["description"]);
   mark("priority", ["priority"]);
   mark("parent", ["parent", "parentId"]);
+  mark("attribution", ["project", "projectId", "parent", "parentId"]);
   mark("labels", ["labels", "labelIds", "addedLabelIds", "removedLabelIds"]);
   if (["archive", "restore", "remove", "delete"].includes(action) || changed.has("archivedAt")) {
     clocks[action === "restore" ? "restore" : "archive"] = timestamp;
   }
   if (action === "create") {
-    for (const [field, key] of [["status", "state"], ["due", "dueDate"], ["assignee", "assignee"], ["title", "title"], ["priority", "priority"], ["parent", "parent"], ["labels", "labels"]]) {
+    for (const [field, key] of [["status", "state"], ["due", "dueDate"], ["assignee", "assignee"], ["title", "title"], ["description", "description"], ["priority", "priority"], ["parent", "parent"], ["labels", "labels"]]) {
       if (has(issue, key)) clocks[field] = timestamp;
     }
   }
@@ -344,9 +422,24 @@ function updateLinearFieldClocks(raw: JsonMap, payload: JsonMap, issue: JsonMap)
 function mergeLinearRaw(existing: ExistingRow, issue: JsonMap, payload: JsonMap): JsonMap {
   const raw = parseJson(existing.linear_raw);
   const previousIssue = raw.issue && typeof raw.issue === "object" ? raw.issue as JsonMap : {};
+  const attributionChanges = payloadAttributionChangeFields(payload);
+  const parentChanged = attributionChanges.some(key => key === "parent" || key === "parentId");
+  const projectChanged = attributionChanges.some(key => key === "project" || key === "projectId");
   raw.issue = { ...issue };
-  if (!has(issue, "parent") && previousIssue.parent !== undefined) {
+  if (!has(issue, "parent") && !has(issue, "parentId") && !parentChanged && previousIssue.parent !== undefined) {
     (raw.issue as JsonMap).parent = previousIssue.parent;
+  } else if (!has(issue, "parent") && has(issue, "parentId")) {
+    const id = clean(issue.parentId);
+    (raw.issue as JsonMap).parent = id ? { id } : null;
+  }
+  if (!has(issue, "project") && !has(issue, "projectId") && !projectChanged && previousIssue.project !== undefined) {
+    (raw.issue as JsonMap).project = previousIssue.project;
+  } else if (!has(issue, "project") && has(issue, "projectId")) {
+    const id = clean(issue.projectId);
+    (raw.issue as JsonMap).project = id ? { id } : null;
+  }
+  if (!has(issue, "description") && previousIssue.description !== undefined) {
+    (raw.issue as JsonMap).description = previousIssue.description;
   }
   if (has(issue, "labels") || has(issue, "labelIds")) {
     const relation = normalizeIssueLabelRelation(issue, previousIssue);
@@ -577,10 +670,52 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
   const row: JsonMap = baseDeliverableRow(existing);
   const eventPayload: JsonMap = { linear_issue_uuid: linearIssueUuid(issue), linear_identifier: linearIdentifier(issue) };
   const action = payloadAction(payload);
+  const attributionChangeFields = payloadAttributionChangeFields(payload);
   let eventAction = "fields";
 
   if (await isDetectOnlyTeam(supabase, clean(existing.team))) {
-    await recordDetectOnly(supabase, existing, { ...eventPayload, detect_only: true, issue });
+    if (attributionChangeFields.length) {
+      // Authority remains detect-only for every business field. Attribution
+      // metadata is the narrow exception: retaining the former client after a
+      // project/hierarchy change would be a silent false ownership claim.
+      const attributionRow: JsonMap = baseDeliverableRow(existing);
+      attributionRow.client_slug = "unattributed";
+      attributionRow.linear_raw = invalidateClientAttribution(
+        mergeAttributionStructureRaw(existing, issue, payload),
+        existing,
+        attributionChangeFields,
+      );
+      const attributionPayload: JsonMap = {
+        ...eventPayload,
+        detect_only: true,
+        attribution_invalidated: {
+          state: "needs_attribution",
+          changed_fields: attributionChangeFields,
+        },
+      };
+      const written = await writeDeliverableMirror(
+        supabase,
+        attributionRow,
+        eventFor(
+          existing,
+          "attribution_change",
+          attributionPayload,
+          clean(existing.status),
+          clean(existing.status),
+        ),
+      );
+      return {
+        ok: true,
+        detect_only: true,
+        attribution_invalidated: true,
+        deliverable_id: clean(written.id),
+      };
+    }
+    await recordDetectOnly(supabase, existing, {
+      ...eventPayload,
+      detect_only: true,
+      issue,
+    });
     return { ok: true, detect_only: true };
   }
 
@@ -595,9 +730,15 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
     row.linear_raw = mergeLinearRaw(existing, issue, payload);
 
     if (has(issue, "title")) row.title = clean(issue.title);
-    if (has(issue, "description")) row.brief = clean(issue.description);
+    if (has(issue, "description")) {
+      row.brief = typeof issue.description === "string" ? issue.description : null;
+    }
     if (has(issue, "dueDate")) row.due_date = clean(issue.dueDate);
     if (has(issue, "priority")) row.priority = issue.priority == null ? "" : String(issue.priority);
+    if (payloadChangesDescription(payload)) {
+      eventPayload.description_changed = true;
+      eventAction = "description_change";
+    }
     if (payloadChangesLabels(payload)) {
       eventPayload.label_ids = canonicalIssueLabelIds(issue);
       eventAction = "labels_change";
@@ -643,8 +784,12 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
       eventAction = eventAction === "status_change" ? eventAction : "assign";
     }
 
-    if (has(issue, "parent")) {
-      const parent = issue.parent && typeof issue.parent === "object" ? issue.parent as JsonMap : null;
+    if (has(issue, "parent") || has(issue, "parentId")) {
+      const parent = issue.parent && typeof issue.parent === "object"
+        ? issue.parent as JsonMap
+        : clean(issue.parentId)
+          ? { id: clean(issue.parentId) }
+          : null;
       eventPayload.parent_change = parent ? { id: clean(parent.id), identifier: clean(parent.identifier), title: clean(parent.title) } : null;
     }
 
@@ -654,6 +799,19 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
     } else if (action === "restore") {
       row.linear_raw = clearArchiveMarkers(linearRawWithFlag(existing, issue, payload, "restored", true));
       eventAction = "restore";
+    }
+
+    if (attributionChangeFields.length) {
+      // `unattributed` is the legacy FK storage sentinel only. The durable raw
+      // state is what the UI/reconciler must present and repair; never retain a
+      // stale normal-client slug after project or hierarchy ownership changes.
+      row.client_slug = "unattributed";
+      row.linear_raw = invalidateClientAttribution(row.linear_raw, existing, attributionChangeFields);
+      eventPayload.attribution_invalidated = {
+        state: "needs_attribution",
+        changed_fields: attributionChangeFields,
+      };
+      if (eventAction === "fields") eventAction = "attribution_change";
     }
   }
 
@@ -719,6 +877,20 @@ function outboundValueMatches(row: JsonMap, payload: JsonMap, issue: JsonMap, co
   if (operation === "due") return clean(issue.dueDate) === clean(expected.dueDate);
   if (operation === "assignee") return clean(objectAt(issue.assignee).id) === clean(expected.assigneeId);
   if (operation === "title") return clean(issue.title) === clean(expected.title);
+  if (operation === "description") {
+    if (!Object.prototype.hasOwnProperty.call(expected, "description")) return false;
+    const actual = issue.description == null
+      ? ""
+      : typeof issue.description === "string"
+        ? issue.description
+        : null;
+    const intended = expected.description == null
+      ? ""
+      : typeof expected.description === "string"
+        ? expected.description
+        : null;
+    return actual !== null && intended !== null && actual === intended;
+  }
   if (operation === "priority") return Number(issue.priority || 0) === Number(expected.priority || 0);
   if (operation === "parent") return clean(objectAt(issue.parent).id) === clean(expected.parentId);
   if (operation === "labels") {

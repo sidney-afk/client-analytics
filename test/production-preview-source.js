@@ -87,7 +87,7 @@ check('preview hierarchy follows only resolved Linear parent links',
   && !/batchParent|batchTeamKey|_prodSameTitle|_prodIsBatchParent/.test(prodBlock));
 check('preview lazy-loads full linear_raw for a single detail row',
   /async function _prodLoadLinearRawFor\(id\)/.test(prodBlock)
-  && /_prodRestRows\('deliverables', 'id,brief,linear_raw', 'id=eq\.'/.test(prodBlock)
+  && /_prodRestRows\('deliverables', 'id,linear_raw', 'id=eq\.'/.test(prodBlock)
   && /_prodLoadLinearRawFor\(id\)/.test(prodBlock)
   && /function _prodRender\(\)[\s\S]{0,900}_prodLoadLinearRawFor\(_prodState\.openId\)/.test(prodBlock));
 check('preview background-loads brief text outside boot',
@@ -103,8 +103,10 @@ check('preview preserves hydrated descriptions across projected refresh rows',
 check('preview distinguishes pending descriptions from authoritative empty values',
   /function _prodDescriptionHTML\(value, loaded, emptyText, rich\)/.test(prodBlock)
   && /data-prod-desc-loading/.test(prodBlock)
-  && /descLoaded: !!descField/.test(prodBlock)
-  && /_prodState\.linearRaw\.has\(d\.id\)[\s\S]{0,90}_prodState\.linearRaw\.get\(d\.id\) !== null/.test(prodBlock));
+  && /_prodRestRows\('deliverables', 'id,brief,updated_at', 'id=eq\.'/.test(prodBlock)
+  && /state\.status = 'error'/.test(prodBlock)
+  && /state\.status = 'stale'/.test(prodBlock)
+  && /_prodDescriptionHTML\(state\.value, state\.hasValue, 'No description\.', true\)/.test(prodBlock));
 check('preview maps project and batch descriptions through the shared loaded-state renderer',
   /descField = _prodHasOwn\(c, 'board_desc'\)/.test(prodBlock)
   && /_prodDescriptionHTML\(c\.desc, !!c\.descLoaded, 'No project description\.', false\)/.test(prodBlock)

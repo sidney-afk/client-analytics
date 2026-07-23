@@ -108,6 +108,10 @@ const SERVICE_ONLY_TEST_CONTRACT = Object.freeze({
     && !/X-Syncview-(?:Key|Client-Token)/i.test(drillGateway)
     && policyAllows(SERVICE_ONLY_TEST_CONTRACT),
   'the real TEST drill producer and gateway policy share the one service-role/no-browser/exact-confirm contract');
+  ok(/operation: 'description'[\s\S]{0,220}expected_updated_at: row\.updated_at[\s\S]{0,120}description,/.test(drill)
+    && /descriptionResponse\.row\.brief === description/.test(drill)
+    && /native\.brief === description[\s\S]{0,80}mirrored\.description === description/.test(drill),
+  'the existing owner-gated TEST drill proves one guarded description and exact native/Linear Markdown readback');
 
   let captured = null;
   const context = {
@@ -141,6 +145,7 @@ const SERVICE_ONLY_TEST_CONTRACT = Object.freeze({
   vm.createContext(context);
   vm.runInContext([
     extractFunction(spa, '_syncviewEfHeaders'),
+    extractFunction(spa, '_prodAttributionResolved'),
     extractFunction(spa, '_prodTestWriteOverride'),
     extractFunction(spa, '_prodGatewayWrite'),
   ].join('\n'), context);
@@ -148,6 +153,8 @@ const SERVICE_ONLY_TEST_CONTRACT = Object.freeze({
   await context._prodGatewayWrite({
     id: 'deliverable-test-contract',
     project: 'test-client',
+    authorityProject: 'test-client',
+    attribution: { state: 'resolved' },
     updatedRaw: '2026-07-15T00:00:00.000Z',
     sourceStatus: 'in_progress',
   }, 'status', { status: 'smm_approval' }, 'prod:test-contract:0001');

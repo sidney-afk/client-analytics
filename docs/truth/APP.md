@@ -275,10 +275,13 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   **Overdue**; past-due In-progress work also remains visible in **In progress now**. `Tweak Needed`
   / `Tweaks Needed` remains an exclusive strip and never enters the calendar or either overlapping
   status strip, even when it retains a due date or saved plan override.
-- **Overdue**, **In progress now**, and **Tweaks needed** render before the intact period/filter
-  toolbar, default collapsed, and remember each browser's expanded sections. The toolbar remains
-  directly above the Work-day calendar. **Needs a work day or deadline** renders at the bottom,
-  after the calendar and **Needs assignment**.
+- The top summary is one line-light editor matrix: editor identity and capacity lead each row,
+  followed by compact **Overdue**, **In progress**, and **Tweaks** cells. Counts remain visible;
+  each status header expands or collapses only its client chips and remembers that browser
+  preference. The centered **Work-day calendar** heading, period navigation, Week/Month controls,
+  team/editor/client filters, and Plan/Due Date control share one static calendar box. Only the
+  weekday/calendar body is replaced during rendering. **Needs a work day or deadline** remains at
+  the bottom, after the calendar and **Needs assignment**.
 - The animated Workload skeleton is limited to a cold first load, explicit manual **Refresh**, and
   forced post-create discovery. Re-entering a warm Workload route paints its existing in-memory
   calendar synchronously; internal navigation and browser visibility return never blank it and
@@ -293,8 +296,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   audit timestamps. A successful no-diff comparison still consumes the new cursor; actual issue,
   plan, or metadata changes trigger one deferred-safe repaint. A failed background read leaves the
   last good calendar visible with a freshness warning and a retryable cursor. Realtime remains
-  intentionally disabled. **As of** shows the mirror watermark rather than browser request time.
-  Because an unchanged mirror cursor intentionally performs no projection reads, a plan-only change
+  intentionally disabled. The calendar does not render a freshness timestamp. Because an unchanged
+  mirror cursor intentionally performs no projection reads, a plan-only change
   made on another device converges after the scheduled mirror sweep next advances that cursor; an
   immediate plan-side signal would require a separate backend contract.
 - Plan dates and workload-label metadata remain in memory only: identity replacement, sign-out, and
@@ -346,6 +349,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   and place the branded Linear due-date picker plus optional automatic-plan reset on one compact
   row. Tweaks popovers retain their existing
   comment and Frame reminder layout.
+- Workload no longer renders or calls the former `content-ready` client-email action. Its button,
+  modal, webhook constant, and browser sender are absent, so Workload cannot be used to trigger
+  repeated client revision emails.
 - Dragging a collapsed client chip moves that exact date/editor/client group optimistically, then
   sends sequential single-issue writes through the existing `workload-plan` contract. Successful
   items stay moved; each failed item returns to its prior day, with one aggregate result notice.

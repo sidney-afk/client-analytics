@@ -3113,7 +3113,6 @@
         .workload-toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .workload-title-group { display: flex; flex-direction: column; gap: 2px; }
         .workload-title { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); }
-        .workload-freshness { font-size: 0.68rem; color: var(--text-muted); font-weight: 500; }
         .workload-nav { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .workload-nav button { border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; background: var(--white); cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); transition: all 0.13s; min-width: 36px; }
         .workload-nav button:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); background: var(--bg); }
@@ -3151,7 +3150,6 @@
         .workload-exception-section.is-collapsed .workload-section-toggle { margin-bottom: 0; }
         .workload-exception-rollups[hidden] { display: none; }
         @media (prefers-reduced-motion: reduce) { .workload-section-toggle-chevron { transition: none; } }
-        .workload-calendar-label { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
         .workload-section-hint { font-size: 0.7rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
         .workload-section-hint strong { color: var(--text-secondary); font-weight: 700; }
         .workload-weekend-notice { position: relative; margin-left: auto; text-transform: none; letter-spacing: 0; }
@@ -3310,6 +3308,81 @@
         .workload-tweaks .wl-now-card-total:hover { background: var(--wl-tweaks-accent-hover); }
         .workload-tweaks .wl-now-client-chip { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
         .workload-tweaks .wl-now-client-chip:hover { background: var(--wl-tweaks-chip-hover); }
+        /* Workload overview matrix — one softly raised row per editor, with
+           whitespace instead of a ruled grid. Status counts always remain
+           visible; each saved section preference only expands its client
+           chips, preserving the existing collapsed-by-default behavior. */
+        .workload-overview-matrix { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 14px; background: var(--white); }
+        .workload-overview-matrix.empty { display: none; }
+        .workload-overview-head,
+        .workload-overview-row { display: grid; grid-template-columns: minmax(180px, 1.2fr) minmax(130px, 0.72fr) repeat(3, minmax(170px, 1fr)); gap: 12px; align-items: center; }
+        .workload-overview-head { padding: 2px 10px 9px; }
+        .workload-overview-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .workload-overview-heading strong { color: var(--sv-fg-4f46e5); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+        .workload-overview-heading span,
+        .workload-overview-capacity-head { color: var(--text-muted); font-size: 0.62rem; font-weight: 650; }
+        .workload-overview-status-head { min-width: 0; min-height: 34px; display: flex; align-items: center; gap: 7px; padding: 4px 2px; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 0.65rem; font-weight: 800; text-align: left; cursor: pointer; }
+        .workload-overview-status-head:hover { color: var(--text-primary); background: var(--bg); }
+        .workload-overview-status-head:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .workload-overview-status-head::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--wl-overview-accent); flex: 0 0 7px; }
+        .workload-overview-status-head.is-overdue { --wl-overview-accent: var(--wl-overdue-accent); }
+        .workload-overview-status-head.is-inprogress { --wl-overview-accent: var(--wl-progress-accent); }
+        .workload-overview-status-head.is-tweaks { --wl-overview-accent: var(--wl-tweaks-accent); }
+        .workload-overview-head-total { min-width: 22px; padding: 2px 6px; border-radius: 999px; background: var(--wl-overview-accent); color: var(--wl-status-fg); font-size: 0.58rem; font-weight: 850; line-height: 1.2; text-align: center; }
+        .workload-overview-status-head .workload-section-toggle-chevron { margin-left: 0; }
+        .workload-overview-rows { display: flex; flex-direction: column; gap: 8px; }
+        .workload-overview-row { padding: 10px 12px; border: 0; border-radius: 11px; background: var(--bg); transition: background 0.12s ease, box-shadow 0.12s ease; }
+        .workload-overview-row:hover { background: var(--white); box-shadow: 0 2px 8px var(--sv-shadow-rgba-0-0-0-0_06); }
+        .workload-overview-editor,
+        .workload-overview-capacity { min-width: 0; display: flex; align-items: center; gap: 9px; padding: 0; border: 0; background: transparent; color: var(--text-primary); font: inherit; text-align: left; cursor: pointer; }
+        .workload-overview-editor:focus-visible,
+        .workload-overview-capacity:focus-visible,
+        .workload-overview-status-total:focus-visible,
+        .wl-now-client-chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .workload-overview-avatar { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; background: var(--sv-bg-ecedfb); color: var(--sv-fg-5e6ad2); font-size: 0.62rem; font-weight: 850; flex: 0 0 28px; }
+        .workload-overview-editor-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .workload-overview-editor-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.73rem; font-weight: 800; }
+        .workload-overview-editor-team { color: var(--text-muted); font-size: 0.56rem; font-weight: 650; }
+        .workload-overview-capacity { display: grid; grid-template-columns: minmax(54px, auto) minmax(46px, 1fr); gap: 8px; }
+        .workload-overview-capacity-label { color: var(--text-secondary); font-size: 0.64rem; font-weight: 800; white-space: nowrap; }
+        .workload-overview-capacity.free .workload-overview-capacity-label { color: var(--sv-fg-059669); }
+        .workload-overview-capacity.light .workload-overview-capacity-label { color: var(--sv-fg-0284c7); }
+        .workload-overview-capacity.busy .workload-overview-capacity-label { color: var(--sv-fg-b45309); }
+        .workload-overview-capacity.full .workload-overview-capacity-label { color: var(--sv-fg-dc2626); }
+        .workload-overview-meter { height: 5px; overflow: hidden; border-radius: 999px; background: var(--border-light); }
+        .workload-overview-meter > span { display: block; width: var(--wl-capacity-fill); max-width: 100%; height: 100%; border-radius: inherit; background: var(--wl-capacity-color); }
+        .workload-overview-capacity.free { --wl-capacity-color: var(--sv-fg-059669); }
+        .workload-overview-capacity.light { --wl-capacity-color: var(--sv-fg-0284c7); }
+        .workload-overview-capacity.busy { --wl-capacity-color: var(--sv-fg-b45309); }
+        .workload-overview-capacity.full { --wl-capacity-color: var(--sv-fg-dc2626); }
+        .workload-overview-status { min-width: 0; min-height: 38px; display: flex; align-items: center; gap: 6px; padding: 6px 7px; border: 0; border-radius: 9px; background: var(--white); }
+        .workload-overview-status.is-empty { color: var(--text-muted); background: transparent; font-size: 0.62rem; font-weight: 650; }
+        .workload-overview-status-clients { min-width: 0; flex: 1; display: flex; flex-wrap: wrap; gap: 4px; }
+        .workload-overview-status-clients[hidden] { display: none; }
+        .workload-overview-status-total { min-width: 24px; min-height: 24px; margin-left: auto; padding: 2px 7px; border: 0; border-radius: 999px; background: var(--wl-overview-accent); color: var(--wl-status-fg); font: inherit; font-size: 0.62rem; font-weight: 850; cursor: pointer; flex-shrink: 0; }
+        .workload-overview-status.is-overdue { --wl-overview-accent: var(--wl-overdue-accent); }
+        .workload-overview-status.is-inprogress { --wl-overview-accent: var(--wl-progress-accent); }
+        .workload-overview-status.is-tweaks { --wl-overview-accent: var(--wl-tweaks-accent); }
+        .workload-overview-status.is-overdue .wl-now-client-chip { background: var(--wl-overdue-chip-bg); color: var(--wl-overdue-chip-fg); }
+        .workload-overview-status.is-inprogress .wl-now-client-chip { background: var(--wl-progress-chip-bg); color: var(--wl-progress-chip-fg); }
+        .workload-overview-status.is-tweaks .wl-now-client-chip { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
+        @media (max-width: 900px) {
+            .workload-overview-head { grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(110px, 1fr)); }
+            .workload-overview-capacity-head { display: none; }
+            .workload-overview-row { grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.8fr); }
+            .workload-overview-status { grid-column: 1 / -1; display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; }
+            .workload-overview-status::before { content: attr(data-wl-status-label); color: var(--text-muted); font-size: 0.58rem; font-weight: 800; text-transform: uppercase; }
+            .workload-overview-status.is-empty { grid-template-columns: 92px 1fr; }
+        }
+        @media (max-width: 560px) {
+            .workload-overview-matrix { padding: 9px; }
+            .workload-overview-head { grid-template-columns: repeat(3, minmax(0, 1fr)); padding-inline: 4px; }
+            .workload-overview-heading { grid-column: 1 / -1; margin-bottom: 2px; }
+            .workload-overview-status-head { justify-content: center; font-size: 0.58rem; }
+            .workload-overview-status-head .workload-section-toggle-chevron { display: none; }
+            .workload-overview-row { grid-template-columns: 1fr; padding: 10px; }
+            .workload-overview-capacity { max-width: 220px; }
+        }
         .workload-chips { display: flex; flex-wrap: wrap; gap: 6px; }
         .workload-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
         .workload-chip:hover { border-color: var(--sv-border-aaa); background: var(--white); }
@@ -3317,6 +3390,13 @@
         .workload-loose-item { display: inline-flex; align-items: center; gap: 5px; }
         .workload-loose-plan { min-height: 30px; border: 1px solid var(--border); border-radius: 999px; padding: 5px 9px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.66rem; font-weight: 700; cursor: pointer; }
         .workload-loose-plan:hover { border-color: var(--sv-border-6c5ce7); color: var(--sv-fg-6c5ce7); }
+        .workload-calendar-module { overflow: visible; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+        .workload-calendar-heading { position: relative; min-height: 34px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+        .workload-calendar-heading h2 { margin: 0; color: var(--text-primary); font-size: 1.45rem; font-weight: 850; letter-spacing: -0.025em; text-align: center; }
+        .workload-calendar-heading .workload-weekend-notice { position: absolute; right: 0; margin-left: 0; }
+        .workload-calendar-module .workload-title { font-size: 1rem; }
+        .workload-calendar-module > .workload-toolbar { margin-bottom: 12px; }
+        .workload-calendar-module #wlBody > .workload-grid-wrap { border: 0; border-radius: 0; padding: 0; background: transparent; }
         .workload-grid-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
         .workload-deadline-mode button { padding-inline: 10px; }
         .workload-pills button:disabled { opacity: 0.42; cursor: not-allowed; }
@@ -3493,39 +3573,14 @@
         .workload-legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
         .workload-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
         .workload-error { padding: 16px; border-radius: 10px; background: var(--sv-bg-fef2f2); border: 1px solid var(--sv-border-fecaca); color: var(--sv-fg-991b1b); font-size: 0.82rem; font-weight: 500; }
-        /* Revision email button */
-        .wl-revision-btn { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 20px; border: 1.5px solid var(--sv-border-6c5ce7); background: transparent; color: var(--sv-fg-6c5ce7); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.74rem; font-weight: 700; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-        .wl-revision-btn:hover { background: var(--sv-bg-6c5ce7); color: var(--sv-fg-fff); }
-        /* Revision modal */
-        .cr-overlay { display: none; position: fixed; inset: 0; background: var(--sv-bg-rgba-0-0-0-0_35); z-index: 300; align-items: center; justify-content: center; padding: 20px; }
-        .cr-overlay.open { display: flex; }
-        .cr-modal { background: var(--white); border-radius: 18px; width: 440px; max-width: 96vw; box-shadow: 0 20px 60px var(--sv-shadow-rgba-0-0-0-0_18); animation: fadeIn 0.15s ease; overflow: hidden; }
-        .cr-modal-head { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-        .cr-modal-head-text h3 { margin: 0 0 3px; font-size: 1rem; font-weight: 800; color: var(--text-primary); }
-        .cr-modal-head-text p { margin: 0; font-size: 0.74rem; color: var(--text-muted); }
-        .cr-modal-close { width: 26px; height: 26px; padding: 0; box-sizing: border-box; background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.2rem; line-height: 1; border-radius: 6px; transition: all 0.1s; flex-shrink: 0; }
-        .cr-modal-close:hover { background: var(--bg); color: var(--text-primary); }
-        .cr-modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
-        .cr-label { font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
-        .cr-search-wrap { position: relative; }
-        .cr-search-input { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.85rem; font-weight: 500; color: var(--text-primary); background: var(--white); outline: none; box-sizing: border-box; transition: border-color 0.15s; }
-        .cr-search-input:focus { border-color: var(--sv-border-6c5ce7); }
-        .cr-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--white); border-radius: 12px; box-shadow: 0 8px 30px var(--sv-shadow-rgba-0-0-0-0_12); padding: 6px; z-index: 10; max-height: 220px; overflow-y: auto; }
-        .cr-result-item { display: block; width: 100%; padding: 8px 12px; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); text-align: left; cursor: pointer; border-radius: 8px; }
-        .cr-result-item:hover, .cr-result-item.active { background: var(--bg); color: var(--text-primary); font-weight: 600; }
-        .cr-send-btn { width: 100%; padding: 12px; border-radius: 10px; border: none; background: var(--sv-bg-6c5ce7); color: var(--sv-fg-fff); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.88rem; font-weight: 700; cursor: pointer; transition: all 0.15s; }
-        .cr-send-btn:hover:not(:disabled) { background: var(--sv-bg-5a4bd1); }
-        .cr-send-btn:disabled { opacity: 0.55; cursor: default; }
-        .cr-status { font-size: 0.78rem; font-weight: 600; text-align: center; min-height: 18px; }
-        .cr-status.success { color: var(--sv-fg-10b981); }
-        .cr-status.error   { color: var(--sv-fg-dc2626); }
-
         /* ── Templates view ── */
         @media (max-width: 768px) {
             .workload-grid-wrap { overflow-x: auto; overscroll-behavior-inline: contain; }
             .workload-weekdays.week, .workload-grid.week { min-width: 800px; }
             .workload-weekdays.month, .workload-grid.month { min-width: 840px; }
             .workload-popover { width: min(360px, calc(100vw - 20px)); min-width: 0; max-width: none; box-sizing: border-box; }
+            .workload-calendar-heading { flex-direction: column; gap: 8px; }
+            .workload-calendar-heading .workload-weekend-notice { position: static; }
         }
 
         .tpl-view { max-width: 980px; margin: 24px auto 80px; padding: 0 28px; font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -12853,7 +12908,6 @@
     /* ── Workload Calendar ── */
     const LINEAR_ISSUES_WEBHOOK        = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';
     const LINEAR_TWEAK_COMMENTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-tweak-comments';
-    const CONTENT_REVISION_WEBHOOK     = 'https://synchrosocial.app.n8n.cloud/webhook/content-ready';
     const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
     const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';
@@ -14037,90 +14091,86 @@
         const inProgressOpen = wlState.sectionExpanded.inprogress === true;
         const tweaksOpen = wlState.sectionExpanded.tweaks === true;
         return `<div class="workload-view">
-            <div id="wlCapacity" class="workload-capacity empty">
-                <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">most free → busiest</span></div>
-                <div class="workload-capacity-row" id="wlCapacityRow"></div>
-            </div>
-            <div id="wlOverdue" class="workload-overdue workload-exception-section${overdueOpen ? '' : ' is-collapsed'} empty">
-                <button type="button" class="workload-section-label workload-section-toggle" data-wl-section-toggle="overdue" aria-expanded="${overdueOpen}" aria-controls="wlOverdueRollups"><span>Overdue</span><span class="wl-now-total" id="wlOverdueTotal" hidden></span><span class="workload-section-toggle-chevron" aria-hidden="true">⌄</span></button>
-                <div class="workload-in-progress-rollups workload-exception-rollups" id="wlOverdueRollups"${overdueOpen ? '' : ' hidden'}></div>
-            </div>
-            <div id="wlInProgress" class="workload-in-progress workload-exception-section${inProgressOpen ? '' : ' is-collapsed'} empty">
-                <button type="button" class="workload-section-label workload-section-toggle" data-wl-section-toggle="inprogress" aria-expanded="${inProgressOpen}" aria-controls="wlInProgressRollups"><span>In progress now</span><span class="wl-now-total" id="wlInProgressTotal" hidden></span><span class="workload-section-toggle-chevron" aria-hidden="true">⌄</span></button>
-                <div class="workload-in-progress-rollups workload-exception-rollups" id="wlInProgressRollups"${inProgressOpen ? '' : ' hidden'}></div>
-            </div>
-            <div id="wlTweaks" class="workload-tweaks workload-exception-section${tweaksOpen ? '' : ' is-collapsed'} empty">
-                <button type="button" class="workload-section-label workload-section-toggle" data-wl-section-toggle="tweaks" aria-expanded="${tweaksOpen}" aria-controls="wlTweaksRollups"><span>Tweaks needed</span><span class="wl-now-total" id="wlTweaksTotal" hidden></span><span class="workload-section-toggle-chevron" aria-hidden="true">⌄</span></button>
-                <div class="workload-in-progress-rollups workload-exception-rollups" id="wlTweaksRollups"${tweaksOpen ? '' : ' hidden'}></div>
-            </div>
-            <div class="workload-toolbar">
-                <div class="workload-toolbar-row">
-                    <div class="workload-title-group">
-                        <div class="workload-title" id="wlTitle" tabindex="-1">—</div>
-                        <div class="workload-freshness" id="wlFreshness"></div>
+            <section id="wlOverview" class="workload-overview-matrix empty" aria-labelledby="wlOverviewTitle">
+                <div class="workload-overview-head">
+                    <div class="workload-overview-heading" id="wlOverviewTitle">
+                        <strong>Team workload</strong>
+                        <span>freest → busiest</span>
                     </div>
-                    <div class="workload-toolbar-right">
-                        <button type="button" class="wl-revision-btn" onclick="openRevisionModal()">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,4 12,13 22,4"/></svg>
-                            Content revision email
-                        </button>
+                    <div class="workload-overview-capacity-head">Capacity</div>
+                    <button type="button" class="workload-overview-status-head is-overdue" data-wl-section-toggle="overdue" aria-expanded="${overdueOpen}" aria-controls="wlOverviewRows">
+                        <span>Overdue</span><span class="workload-overview-head-total" id="wlOverdueTotal">0</span><span class="workload-section-toggle-chevron" aria-hidden="true">⌄</span>
+                    </button>
+                    <button type="button" class="workload-overview-status-head is-inprogress" data-wl-section-toggle="inprogress" aria-expanded="${inProgressOpen}" aria-controls="wlOverviewRows">
+                        <span>In progress</span><span class="workload-overview-head-total" id="wlInProgressTotal">0</span><span class="workload-section-toggle-chevron" aria-hidden="true">⌄</span>
+                    </button>
+                    <button type="button" class="workload-overview-status-head is-tweaks" data-wl-section-toggle="tweaks" aria-expanded="${tweaksOpen}" aria-controls="wlOverviewRows">
+                        <span>Tweaks</span><span class="workload-overview-head-total" id="wlTweaksTotal">0</span><span class="workload-section-toggle-chevron" aria-hidden="true">⌄</span>
+                    </button>
+                </div>
+                <div class="workload-overview-rows" id="wlOverviewRows"></div>
+            </section>
+            <section class="workload-calendar-module">
+                <div class="workload-calendar-heading">
+                    <h2>Work-day calendar</h2>
+                    <details id="wlWeekendNotice" class="workload-weekend-notice" hidden>
+                        <summary><span id="wlWeekendNoticeLabel">Weekend dates</span></summary>
+                        <div id="wlWeekendNoticePanel" class="workload-weekend-notice-panel"></div>
+                    </details>
+                </div>
+                <div class="workload-toolbar">
+                    <div class="workload-toolbar-row">
+                        <div class="workload-title-group">
+                            <div class="workload-title" id="wlTitle" tabindex="-1">—</div>
+                        </div>
+                        <div class="workload-toolbar-right">
+                            <div class="workload-nav">
+                                <button type="button" data-wl-nav="prev" aria-label="Previous period">‹</button>
+                                <button type="button" data-wl-nav="today">Today</button>
+                                <button type="button" data-wl-nav="next" aria-label="Next period">›</button>
+                            </div>
+                            <div class="workload-pills" id="wlViewPills" role="tablist" aria-label="View">
+                                <button type="button" data-wl-view="week">Week</button>
+                                <button type="button" data-wl-view="month">Month</button>
+                            </div>
+                            <div class="workload-nav">
+                                <button type="button" data-wl-nav="refresh" aria-label="Refresh from Linear"><span class="wl-refresh-icon">↻</span></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="workload-toolbar-row">
+                        <div class="workload-toolbar-left">
+                            <div class="workload-pills" id="wlTeamPills" role="tablist" aria-label="Team">
+                                <button type="button" data-wl-team="all">All</button>
+                                <button type="button" data-wl-team="video">Video</button>
+                                <button type="button" data-wl-team="graphics">Graphics</button>
+                            </div>
+                            <div class="workload-filters">
+                                <div class="wl-dropdown" data-wl-filter="editor">
+                                    <button type="button" class="dropdown-trigger" data-wl-dropdown-trigger="editor" aria-haspopup="listbox" aria-expanded="false">
+                                        <span data-wl-dropdown-label>All editors</span>
+                                        <span class="dd-arrow">▾</span>
+                                    </button>
+                                    <div class="dropdown-menu" data-wl-dropdown-menu="editor" role="listbox"></div>
+                                </div>
+                                <div class="wl-client-search" data-wl-filter="client">
+                                    <input type="text" class="wl-client-search-input" id="wlClientSearchInput" placeholder="All clients" autocomplete="off">
+                                    <button type="button" class="wl-client-search-clear" id="wlClientSearchClear" hidden aria-label="Clear"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+                                    <div class="wl-client-search-results" id="wlClientSearchResults" hidden role="listbox"></div>
+                                </div>
+                                <div class="workload-pills workload-deadline-mode" role="tablist" aria-label="Plan and due date display">
+                                    <button type="button" role="tab" data-wl-deadline-mode="plan" aria-selected="${wlState.showDeadlines ? 'false' : 'true'}"${wlState.showDeadlines ? '' : ' class="active"'}>Plan only</button>
+                                    <button type="button" role="tab" data-wl-deadline-mode="deadlines" aria-selected="${wlState.showDeadlines ? 'true' : 'false'}"${wlState.showDeadlines ? ' class="active"' : ''}>Plan + Due Date</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="workload-toolbar-row">
-                    <div class="workload-toolbar-left">
-                        <div class="workload-nav">
-                            <button type="button" data-wl-nav="prev" aria-label="Previous period">‹</button>
-                            <button type="button" data-wl-nav="today">Today</button>
-                            <button type="button" data-wl-nav="next" aria-label="Next period">›</button>
-                        </div>
-                        <div class="workload-pills" id="wlViewPills" role="tablist" aria-label="View">
-                            <button type="button" data-wl-view="week">Week</button>
-                            <button type="button" data-wl-view="month">Month</button>
-                        </div>
-                        <div class="workload-nav">
-                            <button type="button" data-wl-nav="refresh" aria-label="Refresh from Linear"><span class="wl-refresh-icon">↻</span></button>
-                        </div>
-                        <span class="workload-toolbar-divider" aria-hidden="true"></span>
-                        <div class="workload-pills" id="wlTeamPills" role="tablist" aria-label="Team">
-                            <button type="button" data-wl-team="all">All</button>
-                            <button type="button" data-wl-team="video">Video</button>
-                            <button type="button" data-wl-team="graphics">Graphics</button>
-                        </div>
-                        <div class="workload-filters">
-                            <div class="wl-dropdown" data-wl-filter="editor">
-                                <button type="button" class="dropdown-trigger" data-wl-dropdown-trigger="editor" aria-haspopup="listbox" aria-expanded="false">
-                                    <span data-wl-dropdown-label>All editors</span>
-                                    <span class="dd-arrow">▾</span>
-                                </button>
-                                <div class="dropdown-menu" data-wl-dropdown-menu="editor" role="listbox"></div>
-                            </div>
-                            <div class="wl-client-search" data-wl-filter="client">
-                                <input type="text" class="wl-client-search-input" id="wlClientSearchInput" placeholder="All clients" autocomplete="off">
-                                <button type="button" class="wl-client-search-clear" id="wlClientSearchClear" hidden aria-label="Clear"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
-                                <div class="wl-client-search-results" id="wlClientSearchResults" hidden role="listbox"></div>
-                            </div>
-                            <div class="workload-pills workload-deadline-mode" role="tablist" aria-label="Plan and due date display">
-                                <button type="button" role="tab" data-wl-deadline-mode="plan" aria-selected="${wlState.showDeadlines ? 'false' : 'true'}"${wlState.showDeadlines ? '' : ' class="active"'}>Plan only</button>
-                                <button type="button" role="tab" data-wl-deadline-mode="deadlines" aria-selected="${wlState.showDeadlines ? 'true' : 'false'}"${wlState.showDeadlines ? ' class="active"' : ''}>Plan + Due Date</button>
-                            </div>
-                        </div>
-                    </div>
+                <div id="wlPlanStatus" class="workload-plan-status" role="status" hidden></div>
+                <div id="wlBody">
+                    ${_svLoadingSkeletonHtml('workload')}
                 </div>
-            </div>
-            <div class="workload-section-label workload-calendar-label">
-                <span>Work-day calendar</span>
-                <span class="workload-section-hint" id="wlCalendarHint">
-                    Sparkle means automatic; pin means manual. The color dot shows plan-to-deadline buffer; the stacked icon means extra workload. Hover any icon for details.
-                </span>
-                <details id="wlWeekendNotice" class="workload-weekend-notice" hidden>
-                    <summary><span id="wlWeekendNoticeLabel">Weekend dates</span></summary>
-                    <div id="wlWeekendNoticePanel" class="workload-weekend-notice-panel"></div>
-                </details>
-            </div>
-            <div id="wlPlanStatus" class="workload-plan-status" role="status" hidden></div>
-            <div id="wlBody">
-                ${_svLoadingSkeletonHtml('workload')}
-            </div>
+            </section>
             <div id="wlUnassigned" class="workload-needs-assignment empty">
                 <div class="workload-section-label">Needs assignment</div>
                 <div class="workload-chips" id="wlUnassignedChips"></div>
@@ -14138,30 +14188,6 @@
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:var(--wl-overdue-accent)"></span>Over capacity</span>
             </div>
             <div id="wlPopover" class="workload-popover" role="dialog" aria-hidden="true"></div>
-        </div>
-        <div class="cr-overlay" id="crOverlay" onclick="if(event.target===this)closeRevisionModal()">
-            <div class="cr-modal" role="dialog" aria-modal="true" aria-labelledby="crModalTitle">
-                <div class="cr-modal-head">
-                    <div class="cr-modal-head-text">
-                        <h3 id="crModalTitle">Content revision email</h3>
-                        <p>Notify a client that their content is ready for review.</p>
-                    </div>
-                    <button type="button" class="cr-modal-close" onclick="closeRevisionModal()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
-                </div>
-                <div class="cr-modal-body">
-                    <div>
-                        <div class="cr-label">Client</div>
-                        <div class="cr-search-wrap" id="crSearchWrap">
-                            <input type="text" class="cr-search-input" id="crClientInput"
-                                placeholder="Search clients…" autocomplete="off"
-                                oninput="crOnInput()" onkeydown="crOnKey(event)">
-                            <div class="cr-results" id="crResults" style="display:none"></div>
-                        </div>
-                    </div>
-                    <button type="button" class="cr-send-btn" id="crSendBtn" onclick="crSend()" disabled>Send email</button>
-                    <div class="cr-status" id="crStatus"></div>
-                </div>
-            </div>
         </div>`;
     }
 
@@ -14250,9 +14276,7 @@
 
     function wlSpinnerOn() {
         const btn = document.querySelector('[data-wl-nav="refresh"]');
-        const freshEl = document.getElementById('wlFreshness');
         if (btn) btn.classList.add('wl-refreshing');
-        if (freshEl) freshEl.textContent = 'Refreshing…';
     }
     function wlSpinnerOff() {
         const btn = document.querySelector('[data-wl-nav="refresh"]');
@@ -14961,6 +14985,13 @@
                 wlState.sectionExpanded[section] = expanded;
                 try { localStorage.setItem(WL_SECTION_PREF_KEY, JSON.stringify(wlState.sectionExpanded)); } catch {}
                 sectionToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                const matrix = sectionToggle.closest('.workload-overview-matrix');
+                if (matrix) {
+                    matrix.querySelectorAll(`[data-wl-section-panel="${section}"]`).forEach(panel => {
+                        panel.hidden = !expanded;
+                    });
+                    return;
+                }
                 const panel = document.getElementById(sectionToggle.getAttribute('aria-controls') || '');
                 if (panel) panel.hidden = !expanded;
                 sectionToggle.closest('.workload-exception-section')?.classList.toggle('is-collapsed', !expanded);
@@ -15490,7 +15521,6 @@
         // popover's anchor element, so close it before painting the new DOM.
         if (wlState.popoverAnchor) wlClosePopover(false);
         const titleEl = document.getElementById('wlTitle');
-        const freshEl = document.getElementById('wlFreshness');
         if (titleEl) {
             if (wlState.viewMode === 'week') {
                 const ws = wlState.weekStart;
@@ -15505,15 +15535,6 @@
                     .toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
             }
         }
-        if (freshEl) {
-            if (wlState.loading && !wlState.fetchedAt) freshEl.innerHTML = _svSkel('sv-skeleton-pill', 'width:74px;height:12px;');
-            else if (wlState.sourceSyncedAt || wlState.fetchedAt) {
-                const d = new Date(wlState.sourceSyncedAt || wlState.fetchedAt);
-                const hh = String(d.getHours()).padStart(2, '0');
-                const mm = String(d.getMinutes()).padStart(2, '0');
-                freshEl.textContent = 'As of ' + hh + ':' + mm;
-            } else freshEl.textContent = '';
-        }
         document.querySelectorAll('[data-wl-deadline-mode]').forEach(button => {
             const active = (button.getAttribute('data-wl-deadline-mode') === 'deadlines') === (wlState.showDeadlines === true);
             button.classList.toggle('active', active);
@@ -15524,19 +15545,10 @@
             monthButton.disabled = wlState.showDeadlines === true;
             monthButton.setAttribute('aria-label', wlState.showDeadlines ? 'Month unavailable while Plan + Due Date is selected' : 'Month');
         }
-        const calendarHint = document.getElementById('wlCalendarHint');
-        if (calendarHint) {
-            calendarHint.innerHTML = wlState.showDeadlines
-                ? '<strong>Solid</strong> means planned; <strong>outlined</strong> means deadline only. The color dot shows buffer; the stacked icon means extra workload. Hover icons for details. Lines and deadline copies never affect capacity.'
-                : 'Sparkle means automatic; pin means manual. The color dot shows plan-to-deadline buffer; the stacked icon means extra workload. Hover icons for details.';
-        }
 
         wlPopulateFilterOptions();
         renderWorkloadPlanStatus();
-        renderEditorWorkload();
-        renderOverdueStrip();
-        renderInProgressStrip();
-        renderTweaksNeededStrip();
+        renderWorkloadOverviewMatrix();
         renderUndatedStrip();
         renderUnassignedStrip();
         renderWorkloadWeekendNotice();
@@ -15624,6 +15636,180 @@
         const plannedSubs = allDue.filter(wlPassesFilters);
         const groups = wlGroupRollups(plannedSubs);
         return { groups, count: plannedSubs.length, overCapacity: wlDayOverCapacity(plannedSubs) };
+    }
+
+    // Compact editor matrix: capacity and the three exception queues share one
+    // row per editor. Whitespace between softly raised rows replaces the old
+    // stack of full-width colored strips. Queue totals stay visible while the
+    // saved section preferences control only the client-level detail chips.
+    function renderWorkloadOverviewMatrix() {
+        const wrap = document.getElementById('wlOverview');
+        const rowsEl = document.getElementById('wlOverviewRows');
+        if (!wrap || !rowsEl) return;
+
+        const statusSpecs = [
+            { key: 'overdue', sourceMode: 'overdue', suffix: 'overdue', rows: wlState.overdue || [] },
+            { key: 'inprogress', sourceMode: 'inprogress', suffix: 'in progress', rows: wlState.nowWorking || [] },
+            { key: 'tweaks', sourceMode: 'tweaks', suffix: 'awaiting tweaks', rows: wlState.tweaksNeeded || [] },
+        ];
+        const byEditor = new Map();
+        const ensureEditor = (source, fallbackName) => {
+            const assigneeId = String(source && source.assigneeId || '').trim();
+            if (!assigneeId) return null;
+            const teamKey = source && source.teamKey || 'VID';
+            const teamName = source && source.teamName || 'Video';
+            if (wlState.team !== 'all' && wlTeamBucket(teamKey, teamName) !== wlState.team) return null;
+            if (wlState.editor !== 'all' && assigneeId !== wlState.editor) return null;
+            if (!byEditor.has(assigneeId)) {
+                byEditor.set(assigneeId, {
+                    assigneeId,
+                    assigneeName: fallbackName || source.assigneeName || '',
+                    teamKey,
+                    teamName,
+                    count: 0,
+                    units: 0,
+                    statuses: {
+                        overdue: { total: 0, clients: new Map() },
+                        inprogress: { total: 0, clients: new Map() },
+                        tweaks: { total: 0, clients: new Map() },
+                    },
+                });
+            }
+            return byEditor.get(assigneeId);
+        };
+
+        // Keep every current video editor visible, including a completely free
+        // editor. Live issue data merges onto these stable-id roster rows.
+        if (wlState.team === 'all' || wlState.team === 'video') {
+            for (const rosterEditor of WL_VIDEO_EDITORS) {
+                ensureEditor({
+                    assigneeId: rosterEditor.id,
+                    assigneeName: rosterEditor.name,
+                    teamKey: 'VID',
+                    teamName: 'Video',
+                }, rosterEditor.name);
+            }
+        }
+
+        for (const spec of statusSpecs) {
+            let visibleTotal = 0;
+            for (const sub of spec.rows) {
+                if (!wlPassesFilters(sub)) continue;
+                const editor = ensureEditor(sub);
+                if (!editor) continue;
+                visibleTotal++;
+                const status = editor.statuses[spec.key];
+                status.total++;
+                const clientKey = (sub.parentId || '') + '|' + (sub.clientName || '');
+                if (!status.clients.has(clientKey)) {
+                    status.clients.set(clientKey, {
+                        clientName: sub.clientName,
+                        parentId: sub.parentId,
+                        assigneeId: sub.assigneeId,
+                        anySub: sub,
+                        count: 0,
+                    });
+                }
+                status.clients.get(clientKey).count++;
+            }
+            const totalEl = document.getElementById(
+                spec.key === 'overdue' ? 'wlOverdueTotal' :
+                spec.key === 'inprogress' ? 'wlInProgressTotal' :
+                'wlTweaksTotal'
+            );
+            if (totalEl) totalEl.textContent = String(visibleTotal);
+        }
+
+        // One issue contributes to capacity once even when it appears in more
+        // than one status queue. Queue columns deliberately keep those distinct
+        // status views, matching the existing popover behavior.
+        const seen = new Set();
+        const considerCapacity = (sub) => {
+            if (!wlPassesFilters(sub)) return;
+            const issueKey = String(sub.id || sub.identifier || '');
+            if (!issueKey || seen.has(issueKey)) return;
+            seen.add(issueKey);
+            const editor = ensureEditor(sub);
+            if (!editor) return;
+            editor.count++;
+            editor.units += wlWorkloadWeight(sub);
+        };
+        for (const source of [
+            wlState.planned,
+            wlState.nowWorking,
+            wlState.tweaksNeeded,
+            wlState.overdue,
+            wlState.undated,
+        ]) {
+            for (const sub of source || []) considerCapacity(sub);
+        }
+
+        const editors = [...byEditor.values()].sort((a, b) => {
+            const aCapacity = wlEditorCapacity(a.teamKey, a.teamName);
+            const bCapacity = wlEditorCapacity(b.teamKey, b.teamName);
+            const loadDiff = (a.units / aCapacity) - (b.units / bCapacity);
+            if (loadDiff) return loadDiff;
+            return wlDisplayName(a.assigneeName).localeCompare(wlDisplayName(b.assigneeName));
+        });
+        wrap.classList.toggle('empty', editors.length === 0);
+        if (!editors.length) {
+            rowsEl.innerHTML = '';
+            return;
+        }
+
+        const statusCellHtml = (editor, spec) => {
+            const status = editor.statuses[spec.key];
+            const statusClass = `is-${spec.key}`;
+            const statusLabel = spec.key === 'inprogress' ? 'In progress' :
+                (spec.key === 'tweaks' ? 'Tweaks' : 'Overdue');
+            if (!status.total) {
+                return `<div class="workload-overview-status ${statusClass} is-empty" data-wl-status-label="${statusLabel}"><span>Clear</span></div>`;
+            }
+            const clients = [...status.clients.values()].sort((a, b) => {
+                if (a.count !== b.count) return b.count - a.count;
+                return String(a.clientName || '').localeCompare(String(b.clientName || ''));
+            });
+            const inProgress = spec.sourceMode === 'inprogress' ? '1' : '0';
+            const chips = clients.map(client => {
+                const label = client.clientName || '—';
+                return `<a class="wl-now-client-chip" href="${wlEscape(wlParentUrl(client.anySub) || '#')}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape(label)} · ${client.count} ${spec.suffix}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="${spec.sourceMode}" data-wl-parent-id="${wlEscape(client.parentId || '')}" data-wl-assignee-id="${wlEscape(client.assigneeId || '')}" data-wl-client="${wlEscape(client.clientName || '')}" data-wl-in-progress="${inProgress}" data-wl-editor-name="${wlEscape(wlDisplayName(editor.assigneeName) || 'Unknown')}">
+                    <span class="wl-now-client-chip-name">${wlEscape(label)}</span>
+                    <span class="wl-now-client-chip-count">${client.count}</span>
+                </a>`;
+            }).join('');
+            const totalLabel = `See ${status.total} sub-issue${status.total === 1 ? '' : 's'} ${spec.suffix}`;
+            return `<div class="workload-overview-status ${statusClass}" data-wl-status-label="${statusLabel}">
+                <div class="workload-overview-status-clients" data-wl-section-panel="${spec.key}"${wlState.sectionExpanded[spec.key] === true ? '' : ' hidden'}>${chips}</div>
+                <button type="button" class="workload-overview-status-total" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="${spec.sourceMode}" data-wl-assignee-id="${wlEscape(editor.assigneeId)}" data-wl-client="" data-wl-in-progress="${inProgress}" data-wl-editor-name="${wlEscape(wlDisplayName(editor.assigneeName) || 'Unknown')}" aria-label="${wlEscape(totalLabel)}">${status.total}</button>
+            </div>`;
+        };
+
+        rowsEl.innerHTML = editors.map(editor => {
+            const capacity = wlEditorCapacity(editor.teamKey, editor.teamName);
+            const days = editor.units === 0 ? 0 : Math.max(1, Math.ceil(editor.units / capacity));
+            const capacityClass = days <= 1 ? 'free' : (days <= 2 ? 'light' : (days <= 4 ? 'busy' : 'full'));
+            const capacityLabel = days === 0 ? 'Free' : `~${days} day${days === 1 ? '' : 's'}`;
+            const fill = Math.min(100, Math.round((editor.units / (capacity * 4)) * 100));
+            const name = wlDisplayName(editor.assigneeName) || 'Unknown';
+            const team = wlTeamBucket(editor.teamKey, editor.teamName);
+            const teamLabel = team === 'graphics' ? 'Graphics' : 'Video';
+            const activeLabel = `${name} · ${editor.count} active sub-issue${editor.count === 1 ? '' : 's'} · ${editor.units} workload unit${editor.units === 1 ? '' : 's'}`;
+            const rollupAttrs = `data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="active" data-wl-assignee-id="${wlEscape(editor.assigneeId)}" data-wl-client="" data-wl-editor-name="${wlEscape(name)}"`;
+            return `<div class="workload-overview-row">
+                <button type="button" class="workload-overview-editor" ${rollupAttrs} aria-label="${wlEscape(activeLabel)}">
+                    <span class="workload-overview-avatar">${wlEscape(wlInitials(name))}</span>
+                    <span class="workload-overview-editor-copy">
+                        <span class="workload-overview-editor-name">${wlEscape(name)}</span>
+                        <span class="workload-overview-editor-team">${teamLabel}</span>
+                    </span>
+                </button>
+                <button type="button" class="workload-overview-capacity ${capacityClass}" ${rollupAttrs} aria-label="${wlEscape(activeLabel + ` · ${capacityLabel} at ${capacity} units per day`)}" style="--wl-capacity-fill:${fill}%">
+                    <span class="workload-overview-capacity-label">${capacityLabel}</span>
+                    <span class="workload-overview-meter" aria-hidden="true"><span></span></span>
+                </button>
+                ${statusSpecs.map(spec => statusCellHtml(editor, spec)).join('')}
+            </div>`;
+        }).join('');
     }
 
     // Editor workload — ranks every current video editor by how busy they are
@@ -16643,113 +16829,6 @@
             renderWorkloadAll();
         } else if (returnFocus && anchor && document.contains(anchor) && typeof anchor.focus === 'function') {
             anchor.focus();
-        }
-    }
-
-    // ── Content Revision Email modal ─────────────────────────────────────
-    let crSelectedClient = '';
-
-    function openRevisionModal() {
-        const overlay = document.getElementById('crOverlay');
-        if (!overlay) return;
-        crSelectedClient = '';
-        const input = document.getElementById('crClientInput');
-        const btn   = document.getElementById('crSendBtn');
-        const status = document.getElementById('crStatus');
-        if (input)  { input.value = ''; }
-        if (btn)    { btn.disabled = true; btn.textContent = 'Send email'; }
-        if (status) { status.textContent = ''; status.className = 'cr-status'; }
-        crHideResults();
-        overlay.classList.add('open');
-        setTimeout(() => input?.focus(), 60);
-        // Ensure projects are loaded for autocomplete
-        if (!linearProjects.length && !linearProjectsLoading) fetchLinearProjects();
-    }
-
-    function closeRevisionModal() {
-        document.getElementById('crOverlay')?.classList.remove('open');
-        crHideResults();
-    }
-
-    function crHideResults() {
-        const el = document.getElementById('crResults');
-        if (el) { el.style.display = 'none'; el.innerHTML = ''; }
-    }
-
-    function crOnInput() {
-        const q = (document.getElementById('crClientInput')?.value || '').trim().toLowerCase();
-        crSelectedClient = '';
-        document.getElementById('crSendBtn').disabled = true;
-
-        if (!q) { crHideResults(); return; }
-
-        const names = linearProjects.length
-            ? linearProjects
-            : [...new Set((wlState.allActiveSubs || []).map(s => s.clientName).filter(Boolean))].sort();
-
-        const starts   = names.filter(n => n.toLowerCase().startsWith(q));
-        const contains = names.filter(n => !n.toLowerCase().startsWith(q) && n.toLowerCase().includes(q));
-        const matches  = [...starts, ...contains].slice(0, 8);
-
-        const el = document.getElementById('crResults');
-        if (!el) return;
-        if (!matches.length) { crHideResults(); return; }
-        el.innerHTML = matches.map(name =>
-            `<button type="button" class="cr-result-item" data-client="${wlEscape(name)}" onclick="crSelectClient(this.dataset.client)">${wlEscape(name)}</button>`
-        ).join('');
-        el.style.display = 'block';
-    }
-
-    function crOnKey(e) {
-        const el = document.getElementById('crResults');
-        if (!el || el.style.display === 'none') return;
-        const items = el.querySelectorAll('.cr-result-item');
-        const active = el.querySelector('.cr-result-item.active');
-        let idx = [...items].indexOf(active);
-        if (e.key === 'ArrowDown')  { e.preventDefault(); idx = Math.min(idx + 1, items.length - 1); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max(idx - 1, 0); }
-        else if (e.key === 'Enter' && active) { e.preventDefault(); active.click(); return; }
-        else if (e.key === 'Escape') { closeRevisionModal(); return; }
-        else return;
-        items.forEach((it, i) => it.classList.toggle('active', i === idx));
-    }
-
-    function crSelectClient(name) {
-        crSelectedClient = name;
-        const input = document.getElementById('crClientInput');
-        const btn   = document.getElementById('crSendBtn');
-        if (input) input.value = name;
-        if (btn)   btn.disabled = false;
-        crHideResults();
-        input?.focus();
-    }
-
-    async function crSend() {
-        if (!crSelectedClient) return;
-        const btn    = document.getElementById('crSendBtn');
-        const status = document.getElementById('crStatus');
-        btn.disabled = true;
-        btn.textContent = 'Sending…';
-        status.textContent = '';
-        status.className = 'cr-status';
-        try {
-            await fetch(CONTENT_REVISION_WEBHOOK, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: crSelectedClient })
-            });
-            status.textContent = `✓ Email sent to ${crSelectedClient}`;
-            status.className = 'cr-status success';
-            btn.textContent = 'Send email';
-            // Reset for another send without closing
-            crSelectedClient = '';
-            document.getElementById('crClientInput').value = '';
-            btn.disabled = true;
-        } catch (err) {
-            status.textContent = 'Failed to send — check your connection and try again.';
-            status.className = 'cr-status error';
-            btn.disabled = false;
-            btn.textContent = 'Send email';
         }
     }
 

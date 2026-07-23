@@ -77,8 +77,8 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   scheduled thumbnail Drive scanner (`thumbnail-revision-scan`). `production-write` is app-called
   by merged #812. Real teams remain read-only under Linear authority; the bounded active-TEST lane
   can write.
-- **n8n** (single host). **55 webhook paths** referenced by the app (§7). Live-instance check
-  2026-07-11: **54 of 55 are served by ACTIVE workflows**; the lone exception is `ttp-status`, which
+- **n8n** (single host). **54 webhook paths** referenced by the app (§7). Live-instance check
+  2026-07-11: **53 of 54 are served by ACTIVE workflows**; the lone exception is `ttp-status`, which
   has **no serving webhook** — its constant is defined but never fetched, and TikTok-Pilot status is
   advanced by a schedule-only cron and re-read via `ttp-list`. The n8n families: legacy calendar /
   samples unauthenticated compatibility writers (selected by F67 fail-open routing, not safe
@@ -309,8 +309,8 @@ n8n in the metric read path.*
   staff browser reproduction or runtime-frequency claim exists yet.
 - **Notable.** Client-viewable brief pages can write to the agency Hook Library (`add-hook-to-library`
   ungated) and can trigger the `generate-content-summary` AI workflow (ungated). Two hardcoded
-  per-client display special-cases exist in the render path. Correction: `content-ready` is **not**
-  here — it belongs to Workload.
+  per-client display special-cases exist in the render path. Correction: the retired
+  `content-ready` browser caller belonged to Workload, not Analytics.
 - **Track B.** No impact — analytics stays on Sheets by owner decision D2; sources remain out of the
   Linear program.
 
@@ -781,9 +781,9 @@ n8n in the metric read path.*
   Candidate `workload-linear` reads exact current due-date and `2× Workload` / `3× Workload`
   label metadata from Linear for bounded active issue-id batches. It is staff-authenticated and
   source-only until an exact-SHA manual deploy; Workload no longer reads `deliverables.priority`.
-- **Writes.** n8n `content-ready` (manual "content ready for review" email; **never checks
-  `resp.ok`** — HTTP errors display as success). The app writes or clears one internal
-  `plan_date` through `workload-plan`, keyed by the exact sub-issue id. It never writes Linear
+- **Writes.** Workload no longer exposes or calls the former n8n `content-ready` client-email
+  action; the button, modal, constant, and browser sender are absent. The app writes or clears one
+  internal `plan_date` through `workload-plan`, keyed by the exact sub-issue id. It never writes Linear
   `due_date`, and there is no n8n fallback. Candidate Admin/SMM users may separately update the
   Linear deadline through `workload-linear`; Creative remains read-only. A confirmed Linear commit
   is followed by a bounded best-effort update of the existing mirror row. Collapsed client-group drag reuses that same action as
@@ -825,8 +825,8 @@ n8n in the metric read path.*
   transitions are attributed to the current assignee. Authenticate/scope it immediately; B5 also
   requires complete native load/finish/open/timeline/event-time parity.
 - **Notable / corrections.** v1's "3 call sites" for `editors-week` is wrong — one fetch site (the
-  others are the constant + comments). The realtime channel is dormant. `content-ready`'s missing
-  `resp.ok` check is a real bug-shape. `loadLinearIssues` is also the Calendar bulk-create link poll's
+  others are the constant + comments). The realtime channel is dormant. The former `content-ready`
+  browser caller has been removed. `loadLinearIssues` is also the Calendar bulk-create link poll's
   data source (shared feeder + cache). Placement is manual `plan_date` first; otherwise, when the
   private plan snapshot is authoritative, the automatic day is one working day before the Linear
   deadline floored to today. **Use automatic plan** is available in the popover for every manually
@@ -842,10 +842,12 @@ n8n in the metric read path.*
   each editor's capacity pill turns red; the day cell keeps normal styling and every item remains visible.
   Past-due assigned non-tweak work without a manual plan is excluded from the calendar and appears
   in Overdue. A manually pinned past-due item stays on its exact work day and also appears in
-  Overdue; a past-due In-progress item also remains in In progress now. Tweaks remains exclusive. Overdue,
-  in-progress, and tweaks sections precede the intact period/filter toolbar, default collapsed, and
-  persist each browser's expansion preference. The toolbar sits directly above the calendar;
-  undated work follows the calendar and unassigned lane at the bottom. Client chips and issue rows
+  Overdue; a past-due In-progress item also remains in In progress now. Tweaks remains exclusive.
+  One line-light editor matrix combines capacity with Overdue, In progress, and Tweaks cells; counts
+  stay visible while each status header persists whether its client chips are expanded. A centered
+  Work-day calendar heading and the complete period/filter toolbar live inside one static calendar
+  box, with no helper legend or freshness timestamp. Undated work follows the calendar and
+  unassigned lane at the bottom. Client chips and issue rows
   expose quiet sparkle/pin auto/manual icons, compact color-dot deadline proximity measured from
   displayed plan day to due day (red when planned on/after due, orange at one to two days, green at
   three or more), plus compact exact per-item workload-weight badges. Native Linear Priority is
@@ -1306,8 +1308,8 @@ Also folded in: two surfaces v1 hid (SMM Weekly Reports §4.14, Client Credentia
 live flag-gated Time Off surface (§4.16); the five
 deployed-but-uncalled Edge Functions (§2); and corrections to stale v1 claims (dead
 `calendar-append/delete-post`, `kasper-queue` demoted to middle fallback, `editors-week` single fetch
-site, SXR default-ON, non-existent `client-links-refresh`, `linear-tweak-comments`/`content-ready`
-re-homed).
+site, SXR default-ON, non-existent `client-links-refresh`, `linear-tweak-comments` re-homed, and
+the former Workload `content-ready` browser caller retired).
 
 ## 7. Endpoint inventory (machine-checked)
 
@@ -1316,7 +1318,7 @@ so it runs on every push) re-derives every list below from `index.html` and fail
 they drift — in either direction, including the counts. When it fails: update the owning surface's
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
-- **n8n webhooks (55):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `content-ready` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
+- **n8n webhooks (54):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
 - **Edge functions (24):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan`
 - **Not counted above:** 20 of the 24 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live; `workload-linear` is app-called candidate source but not live until its exact-SHA manual deploy.
 - **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`

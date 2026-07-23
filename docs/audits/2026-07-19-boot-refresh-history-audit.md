@@ -35,7 +35,7 @@
 > of the access/error/log propagation and inert, no-payload-execution
 > substitution proof of the workflow-expression injection shape.
 > Current status and remediation live in
-> `docs/independence/CUTOVER_AUDIT_2026-07-13.md` (F149–F184) and
+> `docs/independence/CUTOVER_AUDIT_2026-07-13.md` (F149–F185) and
 > `docs/truth/BRIEFING.md`; do not edit this audit to track later fixes.
 
 ## Evidence lock

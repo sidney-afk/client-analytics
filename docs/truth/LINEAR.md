@@ -1,6 +1,7 @@
 # Linear — current truth
 
-> Last verified: 2026-07-22 @ eea504a (source candidate + Phase-3 Order-1 reconciliation)
+> Last verified: 2026-07-23 @ f781add (docs-only audit rebase; product source unchanged from
+> Production/Graphics audit base `1e7c0fd` + Phase-3 Order-1 reconciliation)
 > (F145 parent-link projection merged; plan-date release live; isolated Workload Linear metadata/due
 > gateway remains source-only until exact-SHA manual deployment)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
@@ -15,15 +16,19 @@
   with a trailing space; VID "For Client Approval" vs GRA "For Client approval" (case).
   State UUIDs stable since 2026-07-03.
 - 14 users; one house integration identity performs legacy bridge mutations. ~120 new issues/week.
-- ~89 non-archived projects (~75 unique clients). Open issues at last count: 1,869
+- ~89 non-archived projects (~75 unique clients). Open issues at the 2026-07-05 count: 1,869
   (GRA 470 / VID 1,399), 841 of them backlog/triage outside cycles; ~44% of open issues are
-  zombies older than 12 months (mostly 2023 VID backlog). **137 open issues have no project**
-  (client-attribution gap).
+  zombies older than 12 months (mostly 2023 VID backlog). That snapshot had 137 open issues with no
+  project. The separate 2026-07-23 native-mirror count is **72 of 4,600 render-eligible rows
+  `unattributed`**: 70 missing-project ambiguous and two hierarchy-attribution failures; zero could
+  be proved deliberately internal/TEST from current data (F200).
 - `updatedAt` is unusable for cutoffs (bulk touches make ~95% look recent) — cut on
   `createdAt`/`completedAt`.
 - **Priority IS used again** on current batches (Urgent/High/Medium), but Workload no longer reads or
   displays it. SMMs may apply the exact `2× Workload` / `3× Workload` labels to difficult videos;
-  candidate Workload metadata treats those as two or three video-capacity units.
+  candidate Workload metadata treats those as two or three video-capacity units. The owner ratified
+  real label display/set in Production on 2026-07-23; the current Production fetch, adapter, picker,
+  and gateway still have no label contract (F201).
 - Batch mirroring is NOT universal: true GRA+VID mirrored pairs, VID-only, GRA-only, single
   parents with mixed-team children, and bidirectional cross-team parenting all exist.
   Archived history contains legacy states ("Tweak Applied"), ghost authors, and hard-deleted
@@ -53,6 +58,13 @@
   deliverables. Creation batch, team, client, and title are not parent-election boundaries;
   unresolved or malformed links remain visible roots. Parent-only webhook changes remain
   refresh-eventual through the existing B1/reconcile path rather than becoming a new n8n dependency.
+- **Client-attribution correction (F200):** parent-link resolution does not resolve client identity.
+  Backfill derives a slug from the issue project or its parent's project and otherwise falls to
+  `unattributed`; inbound/reconciliation do not remap project/client changes. A project-bearing child
+  therefore cannot repair its projectless parent. The active SyncView roster is now the ratified sole
+  client catalog: each Linear project must map to one roster client or explicit internal/TEST
+  classification. All current rows must be classified; future unknowns become visible repair state.
+  The scheduled B1 refresh must not insert clients derived from Linear names.
 - **Current live Workload deadlines remain one-way from Linear.** Candidate source adds an isolated
   Admin/SMM-only `workload-linear` due-date writer using `LINEAR_MIRROR_API_KEY`; Creative receives
   the same metadata but remains read-only. The function validates the exact active mirrored

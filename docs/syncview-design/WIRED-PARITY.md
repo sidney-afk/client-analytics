@@ -35,6 +35,24 @@ The dated sections below remain historical evidence: their “current,” “now
 | Writable-state browser proof | ✅ ported | `prod-write-gateway-browser.js` uses a fully intercepted local mock to prove mixed authority, four supported operations, CAS, verified-role attribution, TEST override, and stale-tab rejection without reaching a live backend. `test/production-write-ui-source.js` pins the source contract. |
 | Project moves, deletes/undo, new issues/sub-issues, favorites, comment edit/delete, and other unimplemented mutations | 🔒 unsupported/guarded | Historical prototype controls do not create runtime authority. Keep them guarded or absent until a separately designed, server-authorized, tested, and owner-approved milestone. |
 
+## 2026-07-23 owner-ratified full-day parity target
+
+This is a target contract, not a claim that the controls exist. It supersedes historical scope
+decisions that removed labels, description writes, or manual issue creation. Until each guarded
+contract is implemented and proved, the current unsupported/read-only state above remains truthful.
+The complete ranked audit is
+`docs/audits/2026-07-23-production-tab-graphics-gap-audit.md`.
+
+| Behavior | Ratified target | Current gap owner |
+|---|---|---|
+| Client identity | The active SyncView roster is the only client catalog. Every current Linear project resolves to one roster client or an explicit internal/TEST classification; future unknowns enter visible repair. Parent/sub-issue families cannot silently disagree. | F200, with F54/F69 extensions |
+| Labels | Read and guarded-set the real label catalog with Linear-parity search, colors, checkboxes, selected state, and description tooltips. Exact `2× Workload` / `3× Workload` labels must reach native Workload capacity. | F201 + F40 |
+| Descriptions | Read and guarded-write descriptions on parent issues and sub-issues through `production-write`, preserving Markdown and conflict/audit semantics. | F202 |
+| Native creation | Create parent issues and sub-issues inside Production. Creating work performs no implicit Calendar/Samples card or link write. | F203 |
+| Calendar/Samples relationship | Linking remains a separate explicit action. Native IDs own Production deep links and a later owner-selected picker/create-and-link/reverse-link UX; status/assignee/thread projections must converge. | F50/F112/F126/F43 |
+| Saved views and ordering | Current personal Show sub-issues/group/Due-Updated-Created settings remain valid, but shared named views, favorites, board moves, and manual order need an owner scope decision before implementation. | F204 |
+| Project property truth | A project card, its detail page, and status/lead/target pickers read one canonical object and cannot substitute defaults for loaded non-default values. | F205 |
+
 ## 2026-07-09 Foundation Hardening Audit
 
 Full report: `docs/audits/2026-07-09-production-foundation-audit.md`.

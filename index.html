@@ -3309,27 +3309,23 @@
         .workload-tweaks .wl-now-client-chip { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
         .workload-tweaks .wl-now-client-chip:hover { background: var(--wl-tweaks-chip-hover); }
         /* Workload overview matrix — one softly raised row per editor, with
-           whitespace instead of a ruled grid. Status counts always remain
-           visible; each saved section preference only expands its client
-           chips, preserving the existing collapsed-by-default behavior. */
+           whitespace instead of a ruled grid. Status counts and client chips
+           remain visible in every status column. */
         .workload-overview-matrix { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 14px; background: var(--white); }
         .workload-overview-matrix.empty { display: none; }
         .workload-overview-head,
         .workload-overview-row { display: grid; grid-template-columns: minmax(180px, 1.2fr) minmax(130px, 0.72fr) repeat(3, minmax(170px, 1fr)); gap: 12px; align-items: center; }
         .workload-overview-head { padding: 2px 10px 9px; }
         .workload-overview-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-        .workload-overview-heading strong { color: var(--sv-fg-4f46e5); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+        .workload-overview-heading strong { color: var(--sv-fg-4f46e5); font-size: 0.86rem; font-weight: 850; letter-spacing: 0.06em; text-transform: uppercase; }
         .workload-overview-heading span,
-        .workload-overview-capacity-head { color: var(--text-muted); font-size: 0.62rem; font-weight: 650; }
-        .workload-overview-status-head { min-width: 0; min-height: 34px; display: flex; align-items: center; gap: 7px; padding: 4px 2px; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 0.65rem; font-weight: 800; text-align: left; cursor: pointer; }
-        .workload-overview-status-head:hover { color: var(--text-primary); background: var(--bg); }
-        .workload-overview-status-head:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .workload-overview-capacity-head { color: var(--text-muted); font-size: 0.68rem; font-weight: 750; text-align: center; }
+        .workload-overview-status-head { min-width: 0; min-height: 34px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 4px 2px; color: var(--text-secondary); font: inherit; font-size: 0.72rem; font-weight: 850; text-align: center; }
         .workload-overview-status-head::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--wl-overview-accent); flex: 0 0 7px; }
         .workload-overview-status-head.is-overdue { --wl-overview-accent: var(--wl-overdue-accent); }
         .workload-overview-status-head.is-inprogress { --wl-overview-accent: var(--wl-progress-accent); }
         .workload-overview-status-head.is-tweaks { --wl-overview-accent: var(--wl-tweaks-accent); }
         .workload-overview-head-total { min-width: 22px; padding: 2px 6px; border-radius: 999px; background: var(--wl-overview-accent); color: var(--wl-status-fg); font-size: 0.58rem; font-weight: 850; line-height: 1.2; text-align: center; }
-        .workload-overview-status-head .workload-section-toggle-chevron { margin-left: 0; }
         .workload-overview-rows { display: flex; flex-direction: column; gap: 8px; }
         .workload-overview-row { padding: 10px 12px; border: 0; border-radius: 11px; background: var(--bg); transition: background 0.12s ease, box-shadow 0.12s ease; }
         .workload-overview-row:hover { background: var(--white); box-shadow: 0 2px 8px var(--sv-shadow-rgba-0-0-0-0_06); }
@@ -3356,9 +3352,8 @@
         .workload-overview-capacity.busy { --wl-capacity-color: var(--sv-fg-b45309); }
         .workload-overview-capacity.full { --wl-capacity-color: var(--sv-fg-dc2626); }
         .workload-overview-status { min-width: 0; min-height: 38px; display: flex; align-items: center; gap: 6px; padding: 6px 7px; border: 0; border-radius: 9px; background: var(--white); }
-        .workload-overview-status.is-empty { color: var(--text-muted); background: transparent; font-size: 0.62rem; font-weight: 650; }
-        .workload-overview-status-clients { min-width: 0; flex: 1; display: flex; flex-wrap: wrap; gap: 4px; }
-        .workload-overview-status-clients[hidden] { display: none; }
+        .workload-overview-status.is-empty { justify-content: center; color: var(--text-muted); background: transparent; font-size: 0.68rem; font-weight: 700; text-align: center; }
+        .workload-overview-status-clients { min-width: 0; flex: 1; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
         .workload-overview-status-total { min-width: 24px; min-height: 24px; margin-left: auto; padding: 2px 7px; border: 0; border-radius: 999px; background: var(--wl-overview-accent); color: var(--wl-status-fg); font: inherit; font-size: 0.62rem; font-weight: 850; cursor: pointer; flex-shrink: 0; }
         .workload-overview-status.is-overdue { --wl-overview-accent: var(--wl-overdue-accent); }
         .workload-overview-status.is-inprogress { --wl-overview-accent: var(--wl-progress-accent); }
@@ -3379,7 +3374,6 @@
             .workload-overview-head { grid-template-columns: repeat(3, minmax(0, 1fr)); padding-inline: 4px; }
             .workload-overview-heading { grid-column: 1 / -1; margin-bottom: 2px; }
             .workload-overview-status-head { justify-content: center; font-size: 0.58rem; }
-            .workload-overview-status-head .workload-section-toggle-chevron { display: none; }
             .workload-overview-row { grid-template-columns: 1fr; padding: 10px; }
             .workload-overview-capacity { max-width: 220px; }
         }
@@ -12911,17 +12905,8 @@
     const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
     const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';
-    const WL_SECTION_PREF_KEY     = 'syncview_workloadSections_v1';
     const WL_DEADLINE_PREF_KEY    = 'syncview_workloadDeadlineOverlay_v1';
 
-    function wlReadSectionPrefs() {
-        const prefs = { overdue: false, inprogress: false, tweaks: false };
-        try {
-            const saved = JSON.parse(localStorage.getItem(WL_SECTION_PREF_KEY) || '{}');
-            for (const key of Object.keys(prefs)) prefs[key] = saved && saved[key] === true;
-        } catch {}
-        return prefs;
-    }
 
     function wlReadDeadlinePref() {
         try { return localStorage.getItem(WL_DEADLINE_PREF_KEY) === '1'; }
@@ -12955,7 +12940,6 @@
         subsByParentId: new Map(),
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         renderQueued: false,                       // background repaint deferred while a popover is open
-        sectionExpanded: wlReadSectionPrefs(),     // exception strips default collapsed; each browser remembers expansion
         fetchedAt: null,
         sourceSyncedAt: null,                       // newest workload_issues.synced_at represented by this snapshot
         loading: false,
@@ -14087,9 +14071,6 @@
     }
 
     function renderWorkloadShell() {
-        const overdueOpen = wlState.sectionExpanded.overdue === true;
-        const inProgressOpen = wlState.sectionExpanded.inprogress === true;
-        const tweaksOpen = wlState.sectionExpanded.tweaks === true;
         return `<div class="workload-view">
             <section id="wlOverview" class="workload-overview-matrix empty" aria-labelledby="wlOverviewTitle">
                 <div class="workload-overview-head">
@@ -14098,15 +14079,9 @@
                         <span>freest → busiest</span>
                     </div>
                     <div class="workload-overview-capacity-head">Capacity</div>
-                    <button type="button" class="workload-overview-status-head is-overdue" data-wl-section-toggle="overdue" aria-expanded="${overdueOpen}" aria-controls="wlOverviewRows">
-                        <span>Overdue</span><span class="workload-overview-head-total" id="wlOverdueTotal">0</span><span class="workload-section-toggle-chevron" aria-hidden="true">⌄</span>
-                    </button>
-                    <button type="button" class="workload-overview-status-head is-inprogress" data-wl-section-toggle="inprogress" aria-expanded="${inProgressOpen}" aria-controls="wlOverviewRows">
-                        <span>In progress</span><span class="workload-overview-head-total" id="wlInProgressTotal">0</span><span class="workload-section-toggle-chevron" aria-hidden="true">⌄</span>
-                    </button>
-                    <button type="button" class="workload-overview-status-head is-tweaks" data-wl-section-toggle="tweaks" aria-expanded="${tweaksOpen}" aria-controls="wlOverviewRows">
-                        <span>Tweaks</span><span class="workload-overview-head-total" id="wlTweaksTotal">0</span><span class="workload-section-toggle-chevron" aria-hidden="true">⌄</span>
-                    </button>
+                    <div class="workload-overview-status-head is-overdue"><span>Overdue</span><span class="workload-overview-head-total" id="wlOverdueTotal">0</span></div>
+                    <div class="workload-overview-status-head is-inprogress"><span>In progress</span><span class="workload-overview-head-total" id="wlInProgressTotal">0</span></div>
+                    <div class="workload-overview-status-head is-tweaks"><span>Tweaks</span><span class="workload-overview-head-total" id="wlTweaksTotal">0</span></div>
                 </div>
                 <div class="workload-overview-rows" id="wlOverviewRows"></div>
             </section>
@@ -14962,7 +14937,6 @@
 
         root.addEventListener('click', (e) => {
             const dragHandle = e.target.closest('[data-wl-drag-handle]');
-            const sectionToggle = e.target.closest('[data-wl-section-toggle]');
             const countBadge = e.target.closest('[data-wl-count-badge]');
             const rollup     = e.target.closest('[data-wl-rollup]');
             const popClose   = e.target.closest('[data-wl-popover-close]');
@@ -14975,26 +14949,6 @@
             if (dragHandle) {
                 e.preventDefault();
                 e.stopPropagation();
-                return;
-            }
-            if (sectionToggle) {
-                e.preventDefault();
-                const section = sectionToggle.getAttribute('data-wl-section-toggle') || '';
-                if (!Object.prototype.hasOwnProperty.call(wlState.sectionExpanded, section)) return;
-                const expanded = sectionToggle.getAttribute('aria-expanded') !== 'true';
-                wlState.sectionExpanded[section] = expanded;
-                try { localStorage.setItem(WL_SECTION_PREF_KEY, JSON.stringify(wlState.sectionExpanded)); } catch {}
-                sectionToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-                const matrix = sectionToggle.closest('.workload-overview-matrix');
-                if (matrix) {
-                    matrix.querySelectorAll(`[data-wl-section-panel="${section}"]`).forEach(panel => {
-                        panel.hidden = !expanded;
-                    });
-                    return;
-                }
-                const panel = document.getElementById(sectionToggle.getAttribute('aria-controls') || '');
-                if (panel) panel.hidden = !expanded;
-                sectionToggle.closest('.workload-exception-section')?.classList.toggle('is-collapsed', !expanded);
                 return;
             }
             if (popClose) { e.preventDefault(); wlClosePopover(true); return; }
@@ -15640,8 +15594,8 @@
 
     // Compact editor matrix: capacity and the three exception queues share one
     // row per editor. Whitespace between softly raised rows replaces the old
-    // stack of full-width colored strips. Queue totals stay visible while the
-    // saved section preferences control only the client-level detail chips.
+    // stack of full-width colored strips. Queue totals and client chips stay
+    // visible so the matrix is useful at a glance.
     function renderWorkloadOverviewMatrix() {
         const wrap = document.getElementById('wlOverview');
         const rowsEl = document.getElementById('wlOverviewRows');
@@ -15779,7 +15733,7 @@
             }).join('');
             const totalLabel = `See ${status.total} sub-issue${status.total === 1 ? '' : 's'} ${spec.suffix}`;
             return `<div class="workload-overview-status ${statusClass}" data-wl-status-label="${statusLabel}">
-                <div class="workload-overview-status-clients" data-wl-section-panel="${spec.key}"${wlState.sectionExpanded[spec.key] === true ? '' : ' hidden'}>${chips}</div>
+                <div class="workload-overview-status-clients">${chips}</div>
                 <button type="button" class="workload-overview-status-total" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="${spec.sourceMode}" data-wl-assignee-id="${wlEscape(editor.assigneeId)}" data-wl-client="" data-wl-in-progress="${inProgress}" data-wl-editor-name="${wlEscape(wlDisplayName(editor.assigneeName) || 'Unknown')}" aria-label="${wlEscape(totalLabel)}">${status.total}</button>
             </div>`;
         };

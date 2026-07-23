@@ -1257,3 +1257,15 @@ All times are UTC unless noted.
   clean retry. The whitespace diff check also passed.
 - **Boundary preserved.** This is a Pages-only browser/test/truth-doc change. No schema, migration,
   runtime flag, n8n workflow, Edge Function, frozen writer, deployment, or live data changed.
+
+## 2026-07-23 — Workload matrix always-visible follow-up
+
+- **Status detail stays visible.** Removed the Overdue, In progress, and Tweaks expand/collapse
+  controls, their hidden client panels, and their section-preference storage. Counts and client
+  chips are now always present in the editor matrix.
+- **Header alignment is clearer.** Centered the status headings and empty `Clear` cells, increased
+  the matrix title and status-label scale, and kept the existing responsive layout.
+- **Boundary preserved.** This is a Pages-only browser/test change. Automatic and pinned planning,
+  weighted capacity, drag behavior, Creative read-only parity, overdue handling, and tweak
+  exclusivity remain unchanged. No schema, migration, runtime flag, n8n workflow, Edge Function,
+  frozen writer, deployment, or live data changed.

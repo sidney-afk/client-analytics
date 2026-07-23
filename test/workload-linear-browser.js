@@ -1244,9 +1244,34 @@ async function run() {
     'a server-proven authority flip restores the previous due date');
   assert.strictEqual(staleLinearRoute.context.wlState.linearMetadataStatus, 'stale',
     'a stale pre-flip browser route is invalidated before another edit');
+  assert.strictEqual(staleLinearRoute.context.wlState.dueAuthorityByIssueId.has('synthetic-issue-1'), false,
+    'the rejected Linear route is removed until exact metadata is re-read');
   assert.strictEqual(staleLinearRoute.sensitiveRefreshes, 1,
     'the browser immediately refreshes exact authority metadata after a stale-route rejection');
   assert.match(staleLinearRoute.notifies[0][0], /authority changed/i);
+
+  const staleNativeRoute = harness({
+    httpOk: false,
+    status: 409,
+    body: {
+      ok: false,
+      error: 'team_is_linear_authoritative',
+    },
+  }, 'admin', null, 'syncview');
+  assert.strictEqual(await staleNativeRoute.context.wlSetDueDate('synthetic-issue-1', '2027-01-05'), false);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.strictEqual(staleNativeRoute.issue.dueDate, '2026-08-10',
+    'a rejected cached native route restores the previous due date');
+  assert.strictEqual(staleNativeRoute.context.wlState.linearMetadataStatus, 'stale');
+  assert.strictEqual(staleNativeRoute.context.wlState.dueAuthorityByIssueId.has('synthetic-issue-1'), false);
+  assert.strictEqual(staleNativeRoute.context.wlState.nativeDueTargetByIssueId.has('synthetic-issue-1'), false,
+    'the reciprocal authority rejection clears both the stale stance and native CAS target');
+  assert.strictEqual(staleNativeRoute.sensitiveRefreshes, 1,
+    'a native-to-Linear flip re-reads the guarded sensitive authority route');
+  assert.strictEqual(await staleNativeRoute.context.wlSetDueDate('synthetic-issue-1', '2027-01-06'), false);
+  assert.strictEqual(staleNativeRoute.fetches, 1,
+    'a second due attempt fails closed without reusing the rejected native gateway route');
+  assert.match(staleNativeRoute.notifies[0][0], /authority changed/i);
 
   const pinned = harness({ body: {
     ok: true,

@@ -400,8 +400,13 @@ ok(/const exactAck = resp\.ok/.test(clientDueSet)
     && /Workload is catching up/.test(clientDueSet)
     && /json\.native_committed === true/.test(clientDueSet)
     && /json\.authority === 'syncview'/.test(clientDueSet)
-    && /wlAdoptNativeDueGatewayRow\(row\)/.test(clientDueSet),
-  'browser accepts exact authority-specific acknowledgements, reverts failures, and advances native state locally');
+    && /wlAdoptNativeDueGatewayRow\(row\)/.test(clientDueSet)
+    && /route\.authority === 'linear' && authorityErrorCode === 'team_is_syncview_authoritative'/.test(clientDueSet)
+    && /route\.authority === 'syncview' && authorityErrorCode === 'team_is_linear_authoritative'/.test(clientDueSet)
+    && /dueAuthorityByIssueId\.delete\(key\)/.test(clientDueSet)
+    && /nativeDueTargetByIssueId\.delete\(key\)/.test(clientDueSet)
+    && /wlRefetchSilent\(\{\s*sensitiveOnly:\s*true\s*\}\)/.test(clientDueSet),
+  'browser accepts exact acknowledgements, invalidates either stale authority route, and advances native state locally');
 ok(/json\.updated !== 1/.test(clientPersist)
   && /String\(saved\.issue_id/.test(clientPersist)
   && /saved\.plan_date/.test(clientPersist)

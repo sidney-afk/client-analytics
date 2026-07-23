@@ -15552,9 +15552,13 @@
         } catch (error) {
             if (sessionGeneration !== _wlPlanSessionGeneration) return false;
             wlApplyDueLocal(key, previousDate);
-            const authorityStale = route.authority === 'linear'
-                && (error && (error.code === 'team_is_syncview_authoritative' || error.code === 'authority_unavailable'));
+            const authorityErrorCode = String(error && error.code || '');
+            const authorityStale = authorityErrorCode === 'authority_unavailable'
+                || (route.authority === 'linear' && authorityErrorCode === 'team_is_syncview_authoritative')
+                || (route.authority === 'syncview' && authorityErrorCode === 'team_is_linear_authoritative');
             if (authorityStale) {
+                if (wlState.dueAuthorityByIssueId) wlState.dueAuthorityByIssueId.delete(key);
+                if (wlState.nativeDueTargetByIssueId) wlState.nativeDueTargetByIssueId.delete(key);
                 wlState.linearMetadataStatus = 'stale';
                 wlState.linearMetadataError = 'Due-date authority changed. Workload is refreshing its write route.';
                 setTimeout(() => {

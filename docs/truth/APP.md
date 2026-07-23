@@ -115,8 +115,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - Calendar hierarchy is date → editor → client → sub-issue. Editor blocks remain primary, each
   client starts as one collapsed `Client · N` chip, and only that client's sub-issues expand on
   click. Expanded rows use the sub-issue title while the identifier stays in the accessible item
-  label and opened Linear context; Workload does not emit hover-triggered `title` or `data-tip`
-  tooltips.
+  label and opened Linear context. Workload never emits native `title` hovers; placement, proximity,
+  workload-weight, and drag icons use the shared branded `data-tip` tooltip instead.
   Within each editor/day, client chips are ordered by the closest signed plan-to-deadline buffer,
   with missing deadlines last and client name as the deterministic tie-breaker, so the most
   time-sensitive group appears first.
@@ -171,11 +171,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   plan day to its due day:
   the plan day or later is red, one to two days is orange, and three or more days is green. Each
   expanded sub-issue owns its exact tone. A collapsed client group inherits a tone only when every
-  represented item has a deadline in the same band; mixed or missing deadlines show no group-level
-  proximity marker. Expanded due/buffer copy is plain text with the same dot rather than a bordered
-  pill.
+  represented item has a deadline in the same band; that single dot leads the client name and no
+  proximity-colored edge is repeated on the chip. Mixed or missing deadlines show no group-level
+  marker. Expanded due/buffer copy is plain text with the same dot rather than a bordered pill or
+  colored row edge.
   Native Linear Priority is not shown or used by Workload. Exact `2× Workload` / `3× Workload`
-  labels appear as compact badges on the affected videos and as summaries on collapsed groups.
+  labels appear as compact badges on the affected videos. A collapsed group shows one stacked
+  some/all extra-work icon instead of repeated weight counts; its branded tooltip carries the exact
+  `2×` / `3×` composition and capacity meaning.
 - The persistent **Plan only** / **Plan + deadlines** segmented control sits beside the client
   filter and defaults to **Plan only**. Deadline mode is Week-only: enabling **Plan + deadlines**
   switches to Week and disables Month until **Plan only** is restored. Week is always the

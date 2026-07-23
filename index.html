@@ -3137,7 +3137,10 @@
         .wl-plan-origin.is-manual { color: var(--sv-fg-5e6ad2); }
         .wl-plan-origin.is-fallback { color: var(--sv-fg-92400e); }
         .wl-plan-origin-count { min-width: 6px; text-align: center; }
-        .wl-workload-group { display: inline-flex; align-items: center; min-height: 14px; padding: 1px 4px; border-radius: 999px; background: var(--sv-bg-fff7ed); color: var(--sv-fg-9a3412); font-size: 0.51rem; font-weight: 850; line-height: 1; white-space: nowrap; }
+        .wl-workload-group { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; color: var(--sv-fg-9a3412); flex: 0 0 16px; transition: background 0.12s, opacity 0.12s; }
+        .wl-workload-group.is-some { opacity: 0.68; }
+        .wl-workload-group:hover { background: var(--sv-bg-fff7ed); opacity: 1; }
+        .wl-workload-group svg { width: 14px; height: 14px; display: block; }
         .wl-deadline-summary { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; color: var(--text-muted); flex-shrink: 0; }
         .wl-deadline-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px var(--white); flex: 0 0 8px; }
         .wl-deadline-summary.is-red { color: var(--sv-fg-dc2626); }
@@ -3149,6 +3152,7 @@
         .wl-deadline-tag.is-orange { color: var(--sv-fg-ea580c); }
         .wl-deadline-tag.is-green { color: var(--sv-fg-16a34a); }
         .wl-workload-badge { --wl-weight-color: var(--sv-fg-ea580c); display: inline-flex; align-items: center; min-height: 16px; padding: 1px 5px; border: 1px solid var(--wl-weight-color); border-radius: 999px; color: var(--wl-weight-color); font-size: 0.54rem; font-weight: 850; line-height: 1; white-space: nowrap; flex-shrink: 0; }
+        .wl-plan-origin[data-tip], .wl-deadline-summary[data-tip], .wl-deadline-tag[data-tip], .wl-workload-badge[data-tip], .wl-workload-group[data-tip] { cursor: help; }
         .workload-plan-status { margin: -2px 0 10px; padding: 8px 11px; border-radius: 9px; font-size: 0.7rem; font-weight: 650; color: var(--text-secondary); background: var(--bg); border: 1px solid var(--border-light); }
         .workload-plan-status.is-warning { color: var(--sv-fg-92400e); background: var(--sv-bg-fffbeb); border-color: var(--sv-border-fde68a); }
         .workload-popover { position: absolute; z-index: 1000; background: var(--white); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px var(--sv-shadow-rgba-0-0-0-0_18); padding: 10px; min-width: 280px; max-width: 380px; max-height: 60vh; overflow-y: auto; display: none; }
@@ -3317,9 +3321,6 @@
         .workload-day-card-chip::-webkit-details-marker { display: none; }
         .workload-grid.week .workload-day-card-chip { font-size: 0.7rem; padding: 3px 9px; }
         .workload-day-card-chip:hover { background: var(--sv-bg-fff); box-shadow: 0 0 0 1px var(--border) inset; }
-        .workload-day-card-chip.is-deadline-red { box-shadow: inset 3px 0 0 var(--sv-bg-ef4444); }
-        .workload-day-card-chip.is-deadline-orange { box-shadow: inset 3px 0 0 var(--sv-bg-f97316); }
-        .workload-day-card-chip.is-deadline-green { box-shadow: inset 3px 0 0 var(--sv-bg-22c55e); }
         .workload-day-card-chip-main { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
         .workload-day-card-chip-meta { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 3px; max-width: 100%; }
         .workload-day-card-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -3343,9 +3344,6 @@
         .workload-drag-handle:hover { background: var(--white); color: var(--sv-fg-5e6ad2); opacity: 1; }
         .workload-drag-handle:active { cursor: grabbing; }
         .workload-drag-handle svg { width: 15px; height: 15px; display: block; }
-        .workload-plan-item.is-deadline-red { border-left-color: var(--sv-bg-ef4444); }
-        .workload-plan-item.is-deadline-orange { border-left-color: var(--sv-bg-f97316); }
-        .workload-plan-item.is-deadline-green { border-left-color: var(--sv-bg-22c55e); }
 
         /* Show-deadlines Week view: each planned editor/client group owns one
            fixed row, so its deadline relationships stay straight at every
@@ -3376,9 +3374,6 @@
         .workload-timeline-plan-chip { position: absolute; left: 8px; right: 8px; top: var(--wl-source-top); min-height: 34px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 5px 8px; border: 1px solid var(--border); border-left: 3px solid var(--sv-border-6c5ce7); border-radius: 8px; background: var(--white); color: var(--text-primary); font-size: 0.61rem; font-weight: 700; list-style: none; cursor: pointer; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_06); }
         .workload-timeline-plan-chip::-webkit-details-marker { display: none; }
         .workload-timeline-plan-chip.is-dragging { opacity: 0.45; }
-        .workload-timeline-plan-chip.is-deadline-red { border-left-color: var(--sv-bg-ef4444); }
-        .workload-timeline-plan-chip.is-deadline-orange { border-left-color: var(--sv-bg-f97316); }
-        .workload-timeline-plan-chip.is-deadline-green { border-left-color: var(--sv-bg-22c55e); }
         .workload-timeline-source[open] .workload-timeline-plan-chip { background: var(--sv-bg-fff); }
         .workload-timeline-items { margin: var(--wl-track-height) 8px 8px; display: flex; flex-direction: column; gap: 4px; }
         .workload-timeline-endpoint-slot { position: relative; z-index: 3; grid-row: 1; min-width: 0; min-height: var(--wl-track-height); pointer-events: none; }
@@ -13269,7 +13264,12 @@
         }
         const amount = Number(count) > 0 ? ` <span class="wl-plan-origin-count">${Number(count)}</span>` : '';
         const accessible = Number(count) > 0 ? `${Number(count)} ${label.toLowerCase()}` : label;
-        return `<span class="wl-plan-origin is-${wlEscape(mode)}" role="img" aria-label="${wlEscape(accessible)}">${icon}${amount}</span>`;
+        const tip = mode === 'manual'
+            ? 'Manual plan: stays on this work day until someone changes or clears it.'
+            : (mode === 'fallback'
+                ? 'Deadline fallback: no plan day is saved, so this uses the due date.'
+                : 'Automatic plan: follows the Linear due date and moves when that deadline changes.');
+        return `<span class="wl-plan-origin is-${wlEscape(mode)}" role="img" aria-label="${wlEscape(accessible)}" data-tip="${wlEscape(tip)}">${icon}${amount}</span>`;
     }
     function wlGroupPlacementMode(subs) {
         const modes = new Set((subs || []).map(wlPlacementMode).filter(mode => mode !== 'none'));
@@ -13308,7 +13308,13 @@
     }
     function wlDeadlineTagHtml(dueDate, planDate, prefix) {
         const meta = wlDeadlineMeta(dueDate, planDate, prefix);
-        return `<span class="wl-deadline-tag${meta.tone ? ' is-' + meta.tone : ''}">${wlEscape(meta.label)}</span>`;
+        const meanings = {
+            red: 'Red: planned on or after the due date.',
+            orange: 'Orange: one or two days between the work day and due date.',
+            green: 'Green: three or more days between the work day and due date.',
+        };
+        const tip = [meanings[meta.tone] || '', meta.label].filter(Boolean).join(' ');
+        return `<span class="wl-deadline-tag${meta.tone ? ' is-' + meta.tone : ''}" data-tip="${wlEscape(tip)}">${wlEscape(meta.label)}</span>`;
     }
     function wlDeadlineDotHtml() {
         return '<span class="wl-deadline-dot" aria-hidden="true"></span>';
@@ -13339,18 +13345,20 @@
     function wlGroupDeadlineHtml(subs) {
         const meta = wlGroupDeadlineSummary(subs);
         if (!meta.label || !meta.tone) return '';
-        return `<span class="wl-deadline-summary is-${meta.tone}" role="img" aria-label="${wlEscape(meta.label)}">${wlDeadlineDotHtml()}</span>`;
+        const toneLabel = ({ red: 'Red proximity', orange: 'Orange proximity', green: 'Green proximity' })[meta.tone] || 'Deadline proximity';
+        const tip = `${toneLabel}: ${meta.label}.`;
+        return `<span class="wl-deadline-summary is-${meta.tone}" role="img" aria-label="${wlEscape(meta.label)}" data-tip="${wlEscape(tip)}">${wlDeadlineDotHtml()}</span>`;
     }
     function wlDragGripSvg() {
         return '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg>';
     }
     function wlIssueDragHandleHtml(issueId, canDrag) {
         if (!canDrag) return '';
-        return `<span class="workload-drag-handle workload-plan-drag-handle" draggable="true" data-wl-drag-handle="issue" data-wl-plan-drag="${wlEscape(issueId)}" role="img" aria-label="Drag to another work day">${wlDragGripSvg()}</span>`;
+        return `<span class="workload-drag-handle workload-plan-drag-handle" draggable="true" data-wl-drag-handle="issue" data-wl-plan-drag="${wlEscape(issueId)}" role="img" aria-label="Drag to another work day" data-tip="Drag this sub-issue to another work day.">${wlDragGripSvg()}</span>`;
     }
     function wlGroupDragHandleHtml(dayISO, assigneeId, clientName, canDrag) {
         if (!canDrag) return '';
-        return `<span class="workload-drag-handle workload-plan-drag-handle" draggable="true" data-wl-drag-handle="group" data-wl-plan-group-drag="1" data-wl-date="${wlEscape(dayISO || '')}" data-wl-assignee-id="${wlEscape(assigneeId || '')}" data-wl-client="${wlEscape(clientName || '')}" role="img" aria-label="Drag this client group to another work day">${wlDragGripSvg()}</span>`;
+        return `<span class="workload-drag-handle workload-plan-drag-handle" draggable="true" data-wl-drag-handle="group" data-wl-plan-group-drag="1" data-wl-date="${wlEscape(dayISO || '')}" data-wl-assignee-id="${wlEscape(assigneeId || '')}" data-wl-client="${wlEscape(clientName || '')}" role="img" aria-label="Drag this client group to another work day" data-tip="Drag this entire client group to another work day.">${wlDragGripSvg()}</span>`;
     }
     function wlWorkloadMeta(sub) {
         if (wlTeamBucket(sub && sub.teamKey, sub && sub.teamName) !== 'video') return null;
@@ -13369,18 +13377,24 @@
         const color = /^#[0-9a-f]{6}$/i.test(String(meta.color || '')) ? ` style="--wl-weight-color:${meta.color}"` : '';
         const text = compact ? `${meta.weight}×` : meta.label;
         const label = `${meta.label}; counts as ${meta.weight} videos for capacity`;
-        return `<span class="wl-workload-badge" role="img" aria-label="${wlEscape(label)}"${color}>${wlEscape(text)}</span>`;
+        return `<span class="wl-workload-badge" role="img" aria-label="${wlEscape(label)}" data-tip="${wlEscape(label)}"${color}>${wlEscape(text)}</span>`;
     }
     function wlGroupWorkloadHtml(subs) {
+        const rows = Array.isArray(subs) ? subs : [];
         const counts = { 2: 0, 3: 0 };
-        for (const sub of subs || []) {
+        for (const sub of rows) {
             const weight = wlWorkloadWeight(sub);
             if (weight === 2 || weight === 3) counts[weight]++;
         }
-        return [2, 3].filter(weight => counts[weight]).map(weight => {
-            const label = `${counts[weight]} sub-issue${counts[weight] === 1 ? '' : 's'} labeled ${weight}× Workload`;
-            return `<span class="wl-workload-group" role="img" aria-label="${wlEscape(label)}">${weight}×${counts[weight] > 1 ? `·${counts[weight]}` : ''}</span>`;
-        }).join('');
+        const extraCount = counts[2] + counts[3];
+        if (!extraCount) return '';
+        const allExtra = extraCount === rows.length;
+        const details = [2, 3].filter(weight => counts[weight]).map(weight =>
+            `${counts[weight]} at ${weight}× Workload`
+        ).join(', ');
+        const label = `${allExtra ? 'All' : 'Some'} sub-issues use extra workload: ${details}. Capacity totals use these weights.`;
+        const icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m2.5 5 5.5-2.7L13.5 5 8 7.8 2.5 5Zm0 3L8 10.8 13.5 8M2.5 11 8 13.7l5.5-2.7" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        return `<span class="wl-workload-group is-${allExtra ? 'all' : 'some'}" role="img" aria-label="${wlEscape(label)}" data-tip="${wlEscape(label)}">${icon}</span>`;
     }
     function wlGroupProximityDays(subs, planDate) {
         let closest = Infinity;
@@ -13751,7 +13765,7 @@
             <div class="workload-section-label workload-calendar-label">
                 <span>Work-day calendar</span>
                 <span class="workload-section-hint" id="wlCalendarHint">
-                    Sparkle means automatic; pin means manual. Deadline color appears per sub-issue and only reaches a client group when every item shares one proximity band.
+                    Sparkle means automatic; pin means manual. The color dot shows plan-to-deadline buffer; the stacked icon means extra workload. Hover any icon for details.
                 </span>
                 <details id="wlWeekendNotice" class="workload-weekend-notice" hidden>
                     <summary><span id="wlWeekendNoticeLabel">Weekend dates</span></summary>
@@ -15164,8 +15178,8 @@
         const calendarHint = document.getElementById('wlCalendarHint');
         if (calendarHint) {
             calendarHint.innerHTML = wlState.showDeadlines
-                ? '<strong>Solid</strong> means planned; <strong>outlined</strong> means deadline only. The color dot measures buffer. A 2× or 3× label uses that many video-capacity units. Lines and deadline copies never affect capacity.'
-                : 'Sparkle means automatic; pin means manual. Color measures the plan-to-deadline buffer. A 2× or 3× label uses that many video-capacity units.';
+                ? '<strong>Solid</strong> means planned; <strong>outlined</strong> means deadline only. The color dot shows buffer; the stacked icon means extra workload. Hover icons for details. Lines and deadline copies never affect capacity.'
+                : 'Sparkle means automatic; pin means manual. The color dot shows plan-to-deadline buffer; the stacked icon means extra workload. Hover icons for details.';
         }
 
         wlPopulateFilterOptions();
@@ -15614,7 +15628,6 @@
         const canDragGroup = wlPlanEditingEnabled() && !!track.clientName && track.subs.length
             && track.subs.every(sub => String(sub.id || '') && !_wlPlanWriteInFlight.has(String(sub.id || '')));
         const clientName = track.clientName || '—';
-        const toneClass = track.deadline.tone ? ` is-deadline-${track.deadline.tone}` : '';
         const lineParts = [];
         const endpointParts = [];
         for (let index = 0; index < track.endpoints.length; index++) {
@@ -15652,8 +15665,9 @@
         return `<div class="workload-timeline-relationship" data-wl-track="${trackNumber}" style="--wl-track-height:${height}px;">
             <svg class="workload-timeline-lines" viewBox="0 0 500 ${height}" preserveAspectRatio="none" aria-hidden="true">${lineParts.join('')}</svg>
             <details class="workload-timeline-source" style="grid-column:${track.planIndex + 1};--wl-source-top:${sourceY - 17}px;">
-                <summary class="workload-timeline-plan-chip${toneClass}" data-wl-date="${wlEscape(track.planDate)}" data-wl-assignee-id="${wlEscape(editor.assigneeId || '')}" data-wl-client="${wlEscape(track.clientName || '')}">
+                <summary class="workload-timeline-plan-chip" data-wl-date="${wlEscape(track.planDate)}" data-wl-assignee-id="${wlEscape(editor.assigneeId || '')}" data-wl-client="${wlEscape(track.clientName || '')}">
                     <span class="workload-day-card-chip-main">
+                        ${wlGroupDeadlineHtml(track.subs)}
                         <span class="workload-day-card-chip-name">${wlEscape(clientName)}</span>
                         <span class="workload-day-card-chip-count">· ${track.subs.length}</span>
                     </span>
@@ -15821,10 +15835,9 @@
             const mode = wlPlacementMode(s);
             const label = s.title || s.identifier || 'Work';
             const planDate = dayISO || wlDisplayDate(s);
-            const tone = wlDeadlineMeta(s.dueDate, planDate).tone;
             const titleAttr = [s.identifier || '', s.title || '', 'open details'].filter(Boolean).join(' · ');
             return `<div class="workload-plan-item-wrap">
-                <button type="button" class="workload-plan-item${canDrag ? '' : ' is-readonly'}${tone ? ' is-deadline-' + tone : ''}" data-wl-issue-open="1" data-wl-issue-id="${wlEscape(issueId)}" data-wl-parent-id="${wlEscape(s.parentId || '')}" data-wl-assignee-id="${wlEscape(s.assigneeId || '')}" data-wl-client="${wlEscape(s.clientName || '')}" data-wl-date="${wlEscape(dayISO || '')}" aria-label="${wlEscape(titleAttr)}">
+                <button type="button" class="workload-plan-item${canDrag ? '' : ' is-readonly'}" data-wl-issue-open="1" data-wl-issue-id="${wlEscape(issueId)}" data-wl-parent-id="${wlEscape(s.parentId || '')}" data-wl-assignee-id="${wlEscape(s.assigneeId || '')}" data-wl-client="${wlEscape(s.clientName || '')}" data-wl-date="${wlEscape(dayISO || '')}" aria-label="${wlEscape(titleAttr)}">
                     <span class="workload-plan-item-content">
                         <span class="workload-plan-item-title-line">
                             <span class="workload-plan-item-label">${wlEscape(label)}</span>
@@ -15884,21 +15897,20 @@
             const clientGroups = ed.clients.slice().sort((a, b) => wlCompareClientGroups(a, b, dayISO)).map(g => {
                 const clientName = g.clientName || '—';
                 const orderedSubs = wlSortSubIssues(g.subs);
-                const groupDeadline = wlGroupDeadlineSummary(orderedSubs);
                 const canDragGroup = wlPlanEditingEnabled() && !!g.clientName && orderedSubs.length
                     && orderedSubs.every(s => String(s.id || '')
                         && !_wlPlanWriteInFlight.has(String(s.id || '')));
                 const issueCards = wlRenderPlanIssueCards(orderedSubs, dayISO);
                 return `<details class="workload-day-client-group">
-                    <summary class="workload-day-card-chip${groupDeadline.tone ? ' is-deadline-' + groupDeadline.tone : ''}" data-wl-date="${wlEscape(dayISO || '')}" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}">
+                    <summary class="workload-day-card-chip" data-wl-date="${wlEscape(dayISO || '')}" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}">
                         <span class="workload-day-card-chip-main">
+                            ${wlGroupDeadlineHtml(orderedSubs)}
                             <span class="workload-day-card-chip-name">${wlEscape(clientName)}</span>
                             <span class="workload-day-card-chip-count">· ${g.count}</span>
                         </span>
                         <span class="workload-day-card-chip-meta">
                             ${wlGroupPlanOriginHtml(orderedSubs)}
                             ${wlGroupWorkloadHtml(orderedSubs)}
-                            ${wlGroupDeadlineHtml(orderedSubs)}
                             ${wlGroupDragHandleHtml(dayISO, ed.assigneeId, g.clientName, canDragGroup)}
                         </span>
                     </summary>

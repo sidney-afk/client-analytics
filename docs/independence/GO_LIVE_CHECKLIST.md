@@ -415,8 +415,8 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       fresh epoch. Hold A's reconcile/meta, switch visibly to B, release A, and prove zero B
       mutation, cache/meta persist, suppression token, writer enqueue or repaint. Pre-split #891
       candidate `c9a79ef` was locally green at 23/23 actual visible boot and `npm test` 150/150.
-      The product row stays OPEN pending final integrated-head cloud review and owner merge; parked
-      #908 is not a blocker.
+      Final integrated-head cloud review completed at `babbb2d`; the product row stays OPEN only
+      through owner merge, and parked #908 is not a blocker.
 - [ ] **Client Brief async work is revoked with its client-entry capability** (F183/F162): every
       Brief polling interval and tab-summary request controller belongs to the current client-entry
       generation. Client replacement, invalidation, pagehide and BFCache suspension clear/abort
@@ -443,8 +443,8 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       review found the pre-verification defect at `adb1bca` and reconfirmed it unchanged at
       `13c042b`; no browser/backend/token/live-data/write was used. Pre-split candidate `c9a79ef`
       locally remediated the F184 owner/finalizer/retry boundary and passed actual visible boot
-      23/23. Keep F184 OPEN pending final integrated-head cloud review and owner merge; parked #908
-      is not a blocker.
+      23/23. Final integrated-head cloud review completed at `babbb2d`; keep F184 OPEN only through
+      owner merge, and parked #908 is not a blocker.
 - [ ] **Boot reads fail visibly and terminate**
       (F151/F152/F158/F163/F164/F165/F166/F167/F168/F169): HTTP 4xx/5xx,
       parseable error envelopes, malformed 200 responses, offline prerequisites and never-settling

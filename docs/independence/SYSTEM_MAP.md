@@ -208,8 +208,8 @@ Everything below is shared by every surface; per-surface sections only note devi
   legacy token or a timeout/wrapper argv/log/output. No credential, data, browser, backend or write
   was used for either source pass. The owner later isolated the completed F176/F179 containment in
   parked, unmerged #908 for later review. It remains recorded but is non-blocking for #891 and must
-  not be expanded or reopened here. Product-owned rows stay OPEN pending final #891 exact-head cloud
-  review and owner merge.
+  not be expanded or reopened here. Final #891 exact-head cloud review completed at `babbb2d` with
+  no new findings; product-owned rows stay OPEN only through owner merge, while F185 remains deferred.
 - **Client Brief async lifetime boundary (F183; post-F182 exact-head cloud source review at PR #891
   `59022d`, reconfirmed at then-current candidate `93fc297`).** `_syncviewPurgeClientEntrySurface()` clears
   `briefPollingState` and `tabSummaryCache` without first clearing the polling intervals retained
@@ -242,8 +242,8 @@ Everything below is shared by every surface; per-surface sections only note devi
   `c9a79ef` locally gated resume behind an exact client generation or verified staff
   epoch, restricts client recovery to matching client-principal debt, rechecks ownership inside the
   per-surface finalizer lock when delivery has not started, exercises the actual retry timer and
-  pagehide cancellation, and passed actual visible boot 23/23. F184 stays OPEN pending final #891
-  exact-head cloud review and owner merge; the owner-parked #908 containment does not block it.
+  pagehide cancellation, and passed actual visible boot 23/23. Final #891 exact-head cloud review
+  completed at `babbb2d`; F184 stays OPEN only through owner merge, and owner-parked #908 does not block it.
 - **Config note.** The onboarding/list Edge Functions are composed onto a hardcoded edge-base
   constant declared *before* the main Supabase URL constant (TDZ avoidance) — that is why §7 counts
   "20 literal + 4 composed" Edge Functions.
@@ -403,8 +403,8 @@ n8n in the metric read path.*
   continued review found F175/F176 and F178–F184. Pre-split candidate `c9a79ef` passed local
   `npm test` 150/150 and actual visible boot 23/23 with the earlier F179/F184 blockers locally
   remediated, while its cloud review found the additional `qa/overnight_runner.sh` F176 occurrence.
-  The owner later parked that containment in #908 as non-blocking. Both Calendar rows remain OPEN
-  pending final #891 exact-head cloud review and owner merge.
+  The owner later parked that containment in #908 as non-blocking. Final #891 exact-head cloud review
+  completed at `babbb2d`; both Calendar rows remain OPEN only through owner merge.
 - **Retirement warning (F104).** The former Phase-4 checklist is quarantined: it falsely treated the
   opt-out and fallback branches as unreachable and would also remove the v2 metadata reader's
   `LINEAR_STATUSES_URL`. No flag, fallback, helper, workflow, or Sheet is retired without measured

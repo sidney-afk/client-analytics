@@ -467,10 +467,11 @@ Read-only Round 2 audit at `a479cd01e3a2dc83a7b5f29284292879b740d1c4`.
 PR #891 is merged and live; its client-facing routes were outside this round.
 The new rows below cover only staff surfaces. Evidence is current-source-only
 except for one fully intercepted, fictional visible-browser observation added
-to existing F155. No application source, product test, harness, backend, live
-data, identity, credential, token, writer, deployment, flag, migration, or
-workflow was read or changed by the audit. The public-safe evidence and the
-owner's one-line decisions are in
+to existing F155. Application source was inspected read-only. No application
+source, product test, harness, backend, writer, deployment configuration, flag,
+migration, or workflow was changed; no live system, data, identity, credential,
+token, or link was accessed. Frozen writers remain byte-identical to the audited
+commit. The public-safe evidence and the owner's one-line decisions are in
 `docs/audits/2026-07-22-staff-boot-refresh-history-audit.md`.
 
 | ID | Grade | Evidence | Recommended fix | Status |

@@ -64,6 +64,7 @@
 | A dated audit | `docs/audits/` (immutable evidence; conclusions live in `docs/truth/`) | — |
 | F27 corrective source proof | `docs/audits/2026-07-21-f27-corrective-source-proof.md` | `rg 'P1-1|P1-2|Safe drill contract'` |
 | F27 install operator toolkit proof | `docs/audits/2026-07-22-f27-install-operator-toolkit.md` | `rg 'Preparatory|private round-trip|source-exact|nothing live'` |
+| Production/Graphics full-day gap audit (F200–F205) | `docs/audits/2026-07-23-production-tab-graphics-gap-audit.md` | `rg 'One ranked punch list|F200|Owner-reproduced'` |
 
 ## For the owner (no session running)
 

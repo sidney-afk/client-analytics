@@ -537,7 +537,7 @@ n8n in the metric read path.*
   can send the gateway's bounded TEST override before a flip. The browser never requests legacy
   parity, changes flags, calls an n8n mutation, or writes Linear directly. Project moves, creates,
   deletes, and the remaining artifact affordances stay read-only.
-- **Current hard gaps (F50/F53/F54/F94/F136–F138).** A successful deliverable status write does **not** project to
+- **Current hard gaps (F50/F53/F54/F94/F136–F138/F200–F205).** A successful deliverable status write does **not** project to
   the linked Calendar/Samples card, whose component status remains a separate downstream truth.
   Graphics has no canonical protected file/delivery-link operation; a manual card-side organizer
   edit does not set `deliverables.file_url`. Inactive clients are loaded into ordinary queues, and
@@ -555,6 +555,13 @@ n8n in the metric read path.*
   UTC day; no Production timezone contract reconciles them (F99). Mouse due choices/cells also
   discard the selected year, while keyboard Enter preserves it, and stored `MM/DD` cannot seed the
   correct picker month/selection (F100).
+  The 2026-07-23 read-only full-day audit adds the remaining current gaps without changing runtime:
+  72 of 4,600 mirror rows require complete roster-owned attribution or explicit internal/TEST
+  classification (F200); Production has no label model/write, description edit, or native
+  parent/sub-issue create operation (F201–F203); shared views/manual board ordering await owner scope
+  (F204); and project detail/pickers can replace the card's real status/lead/target with defaults
+  because they read a slimmer project object (F205). See
+  `docs/audits/2026-07-23-production-tab-graphics-gap-audit.md`.
   These are pre-flip build/authorization gates, not polish.
 - **State.** `syncview_prod_display_v1` (groupBy/orderBy/showSubIssues), shared `syncview_nav` /
   `syncview_auth_v1`. Deep-link params: `group`, `order`, `subs`, `team`, `view`, `issues`,

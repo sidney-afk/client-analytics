@@ -345,6 +345,21 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       assignment scope, comment scope, and actor attribution use the server-verified immutable member
       ID. The TEST matrix covers every active creative plus peer-assigned, unassigned, direct-link,
       account-switch and zero-row cases; unsigned/revoked sessions show no personal queue.
+- [ ] **Production client attribution is roster-owned and explicit** (F200): every current mirror row
+      resolves to one active SyncView roster client or an explicit internal/TEST classification;
+      no current row remains unresolved. Future newly observed unknowns fail visibly into repair,
+      and Linear project names cannot create clients. Close the public-safe 72/4,600 cohort with
+      exact before/after counts, retain F145's true hierarchy, and prove the TEST child/parent family
+      displays one consistent project without silent conflict inference.
+- [ ] **Graphics has the ratified full-day mutation surface** (F201/F202/F203): Production reads and
+      guarded-sets the real label catalog (including exact Workload labels), reads and guarded-writes
+      parent/sub-issue descriptions, and creates parents/sub-issues with durable recovery. A label
+      reaches native Workload capacity after flip; description/create survive conflict/retry/second
+      device; and issue creation alone causes zero Calendar/Samples card or link writes.
+- [ ] **Project properties have one read truth** (F205): a non-default fictional project proves the
+      same status, lead, and target on board card, project detail, and each picker. No loaded value
+      may become In Progress/No lead/No target because the surface selected a slimmer adapter object.
+      The owner separately chooses whether these properties stay read-only for the Graphics move.
 - [ ] **Foreground Production converges** (F95): an all-day-open creative tab receives bounded
       assignment/status/due/artifact/comment changes from another device without requiring blur,
       backgrounding, or reload. Realtime/poll fallback, last-success age, stale UX, manual refresh,

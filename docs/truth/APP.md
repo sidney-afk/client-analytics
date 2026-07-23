@@ -1,10 +1,11 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-22 @ 0b8a2a2 (`#910` merged) + integrated boot-audit
-> vault through F185. The F176/F179 overnight-runner containment is isolated in parked draft
+> Last verified: 2026-07-23 @ f781add (docs-only audit rebase; product source unchanged from
+> Production/Graphics audit base `1e7c0fd`) + integrated boot-audit vault through F199 +
+> Production/Graphics audit through F205. The F176/F179 overnight-runner containment is isolated in parked draft
 > #908 by owner decision and does not block the client-entry product fix; do not expand or reopen
-> that containment scope here. The client verifier is live at v28, while the matching browser
-> caller remains an unmerged draft. The Workload Creative/list-write candidates and F27 operator
+> that containment scope here. The client verifier v28 and matching #891 browser are live. The
+> Workload Creative/list-write candidates and F27 operator
 > toolkit retain their current deliberate-manual/no-live-change boundaries.
 > Seeded from the 2026-07-05 logic audits (`docs/audits/2026-07-05-logic-*.md`); grown in
 > place by the ongoing deep audit. Symbols named here are drift-checked by
@@ -424,6 +425,21 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   can regress reviewer/terminal work or mutate peer work after a flip (F37/F136).
 - Video delivery/source data is collapsed from four typed fields to one priority winner labelled
   “Delivered file”; filming plan/raw footage can be hidden or mislabeled (F137).
+- The 2026-07-23 full-day audit is findings-only and changes no runtime. Ratified target scope now
+  includes real label display/set with exact Workload labels (F201), parent/sub-issue description
+  writes (F202), and native parent/sub-issue creation with zero implicit Calendar linkage (F203).
+  Production currently implements none of those write contracts.
+- F200 is distinct from F145: the real parent link resolves correctly, but each row independently
+  renders its persisted `client_slug`. Read-only aggregate proof found 72 of 4,600 render-eligible
+  mirror rows `unattributed` (70 missing-project ambiguous; two hierarchy-attribution failures;
+  zero provably deliberate internal/TEST). Linear project names must not create clients; the active
+  SyncView roster is the sole client catalog. All current rows must be classified; future unknowns
+  need visible repair state.
+- F204 owns the unresolved saved/shared-view and manual-board-order scope. F205 is a current
+  wrong-data bug: board cards read client status/lead/target from `CLIENTS`, while project detail and
+  its pickers read the slimmer `PROJECTS` object and can substitute In Progress/No lead/No target.
+  F187/F154 additionally own stale Production scope on Back/Forward and invalid detail URLs after a
+  refresh proves the entity absent.
 - Current Production contracts are `docs/syncview-design/WIRED-PARITY.md`, `ADAPTER.md`, and the
   wired suites; `SyncView.html`/tokens are frozen visual evidence, while the old handoff/loop files
   are non-operative tombstones under F56/F64. UI changes must pass `npm run test:prod-polish`.

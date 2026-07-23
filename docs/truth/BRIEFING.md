@@ -1,15 +1,17 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-22 @ a479cd0 (`#910`, the vault companion, and client-entry PR #891
-> merged/live) + source-only F27 operator-toolkit candidate (PR #901 stop evidence still governs
-> live state; corrective source is not live) + Phase-3 reconciliation and the public-safe
-> boot/refresh/history audits through F199. The owner split F176/F179 overnight-runner containment
-> into parked draft #908 for later review; it is not a blocker, must not be expanded or reopened,
-> and was outside the staff audit. Client-token verifier v28 and the matching #891 browser are live.
-> Round 2 is audit-only: F186–F199 are an unremediated staff punch list, with one BLOCKER at F186;
-> no product code, test, harness, deployment, flag, migration, workflow, backend, writer, or live
-> data changed. Workload background refresh is on `main`, while its deliberate-manual function
-> boundaries remain unchanged. Coverage state lives in `docs/testing/ASSURANCE_LEDGER.md`.
+> Last verified: 2026-07-23 @ f781add (read-only Production/Graphics audit rebase; product source
+> unchanged from audit base `1e7c0fd`) + source-only F27 operator-toolkit candidate (PR #901 stop
+> evidence still governs live state; corrective source is not live) + Phase-3 reconciliation, the
+> public-safe boot/refresh/history audits ending at F199, and the read-only Production/Graphics gap
+> audit through F205. The owner split F176/F179 overnight-runner containment into parked draft #908
+> for later review; it is not a blocker, must not be expanded or reopened, and was outside both
+> audits. Client-token verifier v28 and the matching #891 browser are live. Round 2 is audit-only:
+> F186–F199 remain an unremediated staff punch list, with one BLOCKER at F186; F200–F205 are the
+> unremediated Production/Graphics findings. No product code, test harness, deployment, flag,
+> migration, workflow, backend, writer, or live data changed. Workload background refresh is on
+> `main`, while its deliberate-manual function boundaries remain unchanged. Coverage state lives in
+> `docs/testing/ASSURANCE_LEDGER.md`.
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -156,6 +158,15 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   later failed fast + interaction while heavy/review-packet passed. The PR-head and merge trees are
   identical, so the red run is not evidence of an F145 code delta, but current-main test health
   remains open.
+- The 2026-07-23 findings-only Production/Graphics audit adds F200–F205 and authorizes no fix or live
+  change. Of 4,600 mirror rows, 72 render-eligible nonterminal rows are `unattributed`: 70
+  missing-project ambiguous and two hierarchy-attribution failures; zero are proven deliberate
+  internal/TEST. F200 makes the active SyncView roster the sole client catalog and keeps F145 DONE.
+  Owner-ratified full-day target gaps are labels/Workload round-trip (F201), parent/sub-issue
+  description writes (F202), and native issue/sub-issue creation with no implicit Calendar linkage
+  (F203). F204 owns saved/shared views and manual board ordering; F205 records project board/detail
+  status/lead/target disagreement. Existing bridge, comments, assets, freshness, mobile, due,
+  Activity, and navigation defects retain their prior F owners.
 - The public-safe boot/refresh/history/read-truth audit owns F149–F185. Client entry remains first:
   F102/F117 plus the Calendar/Brief wrong-shell refresh in F149. Browser-proven silent read failures
   and indefinite boot states are F151/F152/F158; staff data, Back/Forward and deep-link continuity

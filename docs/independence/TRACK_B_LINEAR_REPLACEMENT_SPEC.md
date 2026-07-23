@@ -6,7 +6,7 @@ re-audit (live Linear / n8n / Supabase / Sheets diffs vs 2026-07-03, plus the fo
 `2026-07-05-logic-calendar.md`, `-logic-samples.md`, `-logic-reviews.md`, `-logic-sync.md`).
 Read `2026-07-05-reaudit-summary.md` first — it indexes the 20 findings that shaped this revision.
 
-**Status: IN EXECUTION — current checkpoint reconciled 2026-07-20.** Track A and B0–B3 are live; the B4
+**Status: IN EXECUTION — current checkpoint reconciled 2026-07-23.** Track A and B0–B3 are live; the B4
 outbound pipe has historical TEST/shadow/live proof, and #812's Production controls are deployed
 but authority-gated. PR #850 / `9968bd9` superseded closed-unmerged #813 and merged the TEST-default
 dark cohort; pinned run `29601466479` deployed its provider/gateway from `main@9d76df6`. Human
@@ -14,7 +14,9 @@ cutover remains blocked: no real-client enrollment is authorized, current runtim
 read fresh before any action, and the open findings in `CUTOVER_AUDIT_2026-07-13.md` plus
 `GO_LIVE_CHECKLIST.md` are mandatory gates. Use
 `B4_READINESS.md`, `ROLLBACK.md`, and `docs/ops/FLIP_RUNBOOK.md` for current execution state; do not
-restart completed B0–B3 work from the historical planning prose below.
+restart completed B0–B3 work from the historical planning prose below. The 2026-07-23 audit-only
+checkpoint adds F200–F205 and supersedes the historical removal of labels, description writes, and
+manual issue/sub-issue creation; it changes no runtime behavior.
 
 **#850 merged dark-cohort overlay (`e3aa028` implementation, landed via `9968bd9`):** the shipped path adds a TEST-default
 `write_ui_reroute_clients` cohort boundary, authenticated Calendar/SXR/Submit reroutes, and the
@@ -39,8 +41,12 @@ enrollment, or Linear write.
   per team — never hardcode identifier seeds, §10.3**). Measured id ceilings 2026-07-03:
   VID-12815 / GRA-6578. 497 open issues are overdue; 336 review-state issues are >3 months old.
 - 5 rostered editors/designers, **4 active** (martin idle since Jun 6 with assigned stale WIP).
-- Fields used on deliverables: **state, assignee, due date, comments** — plus **priority, which is
-  in use again** on July batches (§14 D-3). Labels, estimates, attachments, milestones unused.
+- Fields demonstrated on recent deliverables: **state, assignee, due date, project, hierarchy,
+  comments, and descriptions** — plus **priority, which is in use again** on July batches (§14
+  D-3). A 2026-07-23 recent-creation aggregate found no Linear attachment or label rows, but that is
+  not a scope-removal decision: Graphics delivery uses SyncView file/folder fields, and the owner
+  has ratified real label display/set plus exact `2× Workload` / `3× Workload` parity. Estimates,
+  cycles, and milestones remain outside the current target.
 - Real interactive write volume is small: ~25 calendar upserts, ~41 status pushes, ~27 inbound
   Linear events, ~69 sample upserts per day. Throughput is a non-issue; **correctness is the game.**
 
@@ -553,18 +559,21 @@ rows), Linear projects (89 non-archived ≈ 75 unique names), and the SMM sheet 
 client the app has never seen). Live slug sets: `calendar_posts` 21, `caption_prompts` 25,
 `workload_issues.client_name` 56 messy variants.
 
-**The fix:** the `clients` table becomes the boss list.
+**The fix:** the active, owner-managed SyncView roster represented by `clients` is the boss list.
+Linear projects are mappings/attributes; they never create roster clients.
 
 - **Reconciliation (one-off, B1):** union all four sources keyed by normalized slug — the
   normalizer is **`wlNormalizeClient` ported exactly** (index.html:9001: lowercase, strip
   accents, strip leading "dr.", and/&→`&`, strip other non-alphanumerics).
 - **Duplicate Linear projects merge:** `clients.linear_project_ids` holds ALL project ids per
   client (up to 3 measured), including the measured client whose VID and GRA work uses split projects.
-- **Special rows seeded at B1:** one internal operations row, one dedicated TEST row, and
-  **`unattributed`** (`kind='internal'`, `active=true` — the repair-queue
-  home for the 137 open issues with no project; visible in staff UI, excluded from client-facing
-  pickers by `kind`). The roster cutover query stays `where active` (today's effective roster
-  already includes the internal/test rows).
+- **Special ownership:** one explicit internal operations row and one dedicated TEST row remain
+  deliberate roster identities. `unattributed` is not a client and must not be an active catalog
+  row: a missing/unknown project becomes `needs_attribution` repair state until an owner maps it or
+  explicitly classifies the work internal/TEST. The roster cutover query stays `where active`.
+- **Scheduled-refresh constraint (F200/F69):** the incremental B1 refresh may update mirror work
+  only. It must never insert a `clients` row derived from a Linear project/name; an unknown project
+  emits a bounded mapping-repair candidate and leaves the active roster byte-identical.
 - **Owner review list (B1 gate):** 26 three-source clients; 3 sheet-only rows; 4 seed-only rows
   (two default inactive, one internal, one TEST); two cross-source status/ownership conflicts; one
   normalized-spelling collision; and a junk/test quarantine. Exact identifiers and the chosen
@@ -875,9 +884,12 @@ Two pulls from Linear GraphQL, idempotent (keyed on `linear_issue_uuid`), re-run
 - **Pre-migration cleanup (D-4):** owner-triage the 824 zombies + 336 stale-WIP in Linear first.
 - **Batch shapes (all measured-real):** mirrored pairs (identical title+description → ONE batch
   row, both `linear_parent_ids`); single-team parents; mixed-team children; cross-team children
-  both directions; orphan sub-issues → per-client synthetic "(no batch)"; **137 no-project
-  issues** → parent's project, else title parse, else the `unattributed` client (visible repair
-  queue, B1 gate reviews it).
+  both directions; orphan sub-issues → per-client synthetic "(no batch)". **Historical
+  implementation warning, superseded by F200:** the original pull mapped no-project issues through
+  a parent, then title parsing, then an active `unattributed` client. The ratified contract is exact
+  project-ID→roster mapping or explicit internal/TEST; missing/ambiguous work becomes visible
+  `needs_attribution`, and a projectless parent/child family must be checked for consistent
+  attribution rather than silently accepted.
 - **Fields:** status per §2.1 (state UUID), assignee via `team_members` (unknown → recorded),
   due/priority verbatim, `identifier = linear_identifier`, and a `linear_raw` snapshot. Some original
   backfill snapshots retained an issue comment array, but later incremental/inbound payloads can omit
@@ -1433,8 +1445,14 @@ with a flip-checklist assertion that the seed range collides with nothing in
 
 **10.4 Deep links:** `?prod=1&d=<id>` (detail), `?prod=1&team=<t>` (list/board).
 
-**10.5 Kept/removed** (unchanged): no priority/labels/cycles/inbox/triage-nav/manual new-issue;
-Triage *status* kept for migrated data. Follows the staff theme toggle; light default.
+**10.5 Kept/removed (owner-ratified revision 2026-07-23):** labels are kept and guarded-writable,
+including exact `2× Workload` / `3× Workload`; descriptions are readable and guarded-writable on
+parents and sub-issues; and Production can create parent issues and sub-issues. Creation never
+implicitly creates or links a Calendar/Samples card. Priority remains mirror-stored and hidden under D-3;
+cycles, Inbox, and triage navigation remain removed; Triage *status* stays for migrated data. The
+surface follows the staff theme toggle with light default. F200–F205 and
+`docs/audits/2026-07-23-production-tab-graphics-gap-audit.md` carry the implementation gaps and
+unresolved taste/scope questions.
 
 **10.6 The behavioral test suites are in-repo (D-17 resolved 2026-07-05):**
 `behav.js` (138 assertions), `qa-features.js`, `sweep.js`, `build.js`, and the parity-audit

@@ -33,14 +33,17 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const members = [
     { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics', active: true },
     { id: 'designer', name: 'Browser Designer', role: 'designer', team: 'graphics', active: true },
+    { id: 'unmapped-designer', name: 'Browser Unmapped', role: 'designer', team: 'graphics', active: true },
     { id: 'editor', name: 'Browser Editor', role: 'editor', team: 'video', active: true },
   ];
+  const mappedCreateAssigneeIds = new Set(['designer', 'editor']);
   const deliverables = [
     { id: 'gra-fixture', identifier: 'GRA-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Graphics fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'vid-fixture', identifier: 'VID-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'video', title: 'Video fixture', status: 'in_progress', status_at: now, assignee_id: 'editor', due_date: null, created_at: now, updated_at: now },
     { id: 'test-fixture-row', identifier: 'GRA-TEST-OVERRIDE', raw_project_id: 'linear-project-test', client_slug: 'test-fixture', team: 'graphics', title: 'TEST override fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-description-parent', identifier: 'GRA-DESC-P', linear_issue_uuid: 'linear-description-parent', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Description parent fixture', brief: '# Parent brief\n\n- First item\n\n**Owner:** Browser Admin', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-description-child', identifier: 'GRA-DESC-C', linear_issue_uuid: 'linear-description-child', raw_issue_parent_id: 'linear-description-parent', client_slug: 'normal-fixture', team: 'graphics', title: 'Description sub-issue fixture', brief: '## Child brief\n\n`source` text', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
+    { id: 'gra-repaired-identity', identifier: 'GRA-REPAIRED', linear_issue_uuid: 'linear-repaired-identity', raw_project_id: 'linear-project-normal', identity_repair_state: 'resolved', identity_repair_reason: 'owner_repaired', identity_repair_resolved_linear_issue_id: 'linear-repaired-identity', client_slug: 'normal-fixture', team: 'graphics', title: 'Resolved identity repair fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
   ];
   const batches = [
     { id: 'batch-latest', client_slug: 'calendarfixture', team: null, name: 'Current fixture batch', status: 'active', created_at: '2026-07-13T10:00:00.000Z', updated_at: '2026-07-13T11:00:00.000Z' },
@@ -232,6 +235,11 @@ function expect(value, message) { if (!value) throw new Error(message); }
         complete: true,
         authority: 'syncview',
         catalog: labelCatalog,
+        assignees: members
+          .filter(member => member.active === true
+            && member.team === body.team
+            && mappedCreateAssigneeIds.has(member.id))
+          .map(member => ({ id: member.id, name: member.name })),
       };
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(read.response) });
       return;
@@ -478,6 +486,18 @@ function expect(value, message) { if (!value) throw new Error(message); }
       gate: _prodWriteGateText(_prodIssue('gra-fixture'), 'comment'),
     }));
     expect(initialGate.canWrite, 'graphics write gate did not open: ' + JSON.stringify({ initialGate, restHits }));
+    const repairedProjection = await page.evaluate(() => {
+      const issue = _prodIssue('gra-repaired-identity');
+      return {
+        required: issue?.identityRepair?.required,
+        canWrite: _prodCanWrite(issue, 'status'),
+        detailRawLoaded: _prodState.linearRaw.has('gra-repaired-identity'),
+      };
+    });
+    expect(repairedProjection.required === false
+      && repairedProjection.canWrite === true
+      && repairedProjection.detailRawLoaded === false,
+    'a resolved identity repair stayed read-only until the detail-only raw load');
     await page.waitForSelector('[data-prod-comment-form="gra-fixture"]');
     expect((await page.locator('.prod-preview-chip').textContent()).includes('Graphics writable'), 'mixed-team authority was not visible in the mirror chrome');
     expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'false', 'SyncView-authoritative graphics controls were not enabled');
@@ -596,8 +616,14 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && createOptionsRead.body.team === 'graphics'
       && createOptionsRead.headers['x-syncview-key'] === 'browser-role-key'
       && createOptionsRead.headers['x-syncview-actor'] === 'Browser Admin'
-      && createOptionsRead.response.complete === true,
-    'creation did not read a protected complete team label catalog');
+      && createOptionsRead.response.complete === true
+      && JSON.stringify(createOptionsRead.response.assignees) === JSON.stringify([
+        { id: 'designer', name: 'Browser Designer' },
+      ])
+      && !Object.prototype.hasOwnProperty.call(createOptionsRead.response.assignees[0], 'linear_user_id')
+      && await page.locator('#prodCreateAssigneeMenu [data-value="unmapped-designer"]').count() === 0
+      && await page.locator('#prodCreateAssigneeMenu [data-value="designer"]').count() === 1,
+    'creation did not read a protected complete label catalog plus public-safe mapped assignee options');
     const createWorkloadOption = page.locator('[data-prod-create-label-option="workload-3"]');
     expect(await createWorkloadOption.locator('input[type="checkbox"]').isChecked() === false,
       'creation label catalog did not start with an explicit unchecked state');

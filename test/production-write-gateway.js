@@ -509,6 +509,7 @@ function extractFunction(name) {
   const createPrincipalScope = extractFunction('productionCreatePrincipalScope');
   const createScope = extractFunction('productionCreateScope');
   const createOptions = extractFunction('handleCreateOptions');
+  const createAssignees = extractFunction('mappedCreateAssignees');
   const createParentRoute = extractFunction('productionCreateParentRoute');
   const createHandler = extractFunction('handleProductionCreate');
   const createReplayStart = edge.indexOf('async function productionCreateReplay(');
@@ -527,6 +528,15 @@ function extractFunction(name) {
     && /lower\(client\.kind\) === "test" && !principal\.testOnly/.test(createPrincipalScope)
     && /test_scope_service_only/.test(createPrincipalScope),
   'create_options is a protected Production-only complete catalog for an active Admin/SMM or exact service TEST scope');
+  ok(/from\("team_members"\)/.test(createAssignees)
+    && /\.select\("id,name,team,active,linear_user_id"\)/.test(createAssignees)
+    && /\.eq\("active", true\)/.test(createAssignees)
+    && /\.eq\("team", normalizedTeam\)/.test(createAssignees)
+    && /clean\(member\.linear_user_id\)/.test(createAssignees)
+    && /\.map\(member => \(\{[\s\S]{0,100}id: clean\(member\.id\),[\s\S]{0,100}name: clean\(member\.name\)/.test(createAssignees)
+    && /Promise\.all\(\[[\s\S]{0,100}linearLabelCatalog[\s\S]{0,100}mappedCreateAssignees\(supabase, scope\.team\)/.test(createOptions)
+    && /catalog,[\s\S]{0,40}assignees/.test(createOptions),
+  'create_options returns only active same-team Linear-mapped assignee IDs and names without exposing Linear identity mappings');
 
   const principalPosition = createHandler.indexOf('productionCreatePrincipalScope(');
   const replayPosition = createHandler.indexOf('productionCreateReplay(');

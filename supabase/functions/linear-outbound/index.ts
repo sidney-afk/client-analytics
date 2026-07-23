@@ -15,6 +15,7 @@ import {
   issueFields,
   mergeBatchParentIds,
   stateIdForSlug,
+  terminalCreateDependencyConflict,
 } from "./mapping.mjs";
 import {
   pendingAgeAlertTeams,
@@ -370,11 +371,20 @@ async function dependencyResult(supabase: SupabaseClient, row: OutboxRow): Promi
   const id = Number(row.depends_on_id || 0);
   if (!id) return {};
   const { data, error } = await supabase.from("mirror_outbox")
-    .select("id,status,linear_result")
+    .select("id,status,operation,entity,entity_id,linear_result")
     .eq("id", id)
     .maybeSingle();
   if (error || !data) throw new Error("outbox dependency missing");
   const result = parseJson(data.linear_result);
+  if (terminalCreateDependencyConflict(data)) {
+    return {
+      terminal_create_conflict: true,
+      status: data.status,
+      dependency_outbox_id: Number(data.id),
+      dependency_entity_id: clean(data.entity_id),
+      conflict: parseJson(result.conflict),
+    };
+  }
   if (data.status === "written") return result;
   if (data.status === "shadow_ok") {
     const wouldSend = parseJson(result.would_send);
@@ -1181,6 +1191,38 @@ Deno.serve(async (req: Request) => {
         }
       }
       let dependency = await dependencyResult(supabase, row);
+      const plannedLinearIssueId = clean(parseJson(row.payload).planned_linear_issue_id);
+      if (dependency.terminal_create_conflict === true
+          && row.operation === "create"
+          && row.entity === "deliverable"
+          && plannedLinearIssueId) {
+        // A child cannot ever resolve a parent whose deterministic create ID
+        // belongs to another Linear issue. Give the child its own structured
+        // terminal receipt and native read-only marker before releasing it, so
+        // neither this create nor later edits can target the foreign identity.
+        const linearResult = bindF27LinearResult({
+          conflict: {
+            decision: "idempotency_conflict",
+            reason: "parent_linear_create_idempotency_conflict",
+            dependency_outbox_id: Number(dependency.dependency_outbox_id),
+            dependency_entity_id: clean(dependency.dependency_entity_id),
+          },
+        }, f27Replay, row);
+        await checkpointLinearResult(supabase, row, linearResult);
+        await quarantineCreateIdentity(supabase, row);
+        counts.failed++;
+        counts.skipped++;
+        await releaseRow(supabase, row, {
+          status: "skipped",
+          processed_at: f27Replay ? null : new Date().toISOString(),
+          linear_result: linearResult,
+          last_error: f27Replay
+            ? "F27 replay declined: parent_create_idempotency_conflict"
+            : "parent_create_idempotency_conflict",
+          next_retry_at: f27Replay ? new Date(Date.now() + 30_000).toISOString() : null,
+        });
+        continue;
+      }
       if (dependency.waiting === true) {
         await unlockPending(supabase, row, 15);
         continue;

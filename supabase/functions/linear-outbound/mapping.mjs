@@ -124,6 +124,14 @@ function parseObject(value) {
   }
 }
 
+export function terminalCreateDependencyConflict(value) {
+  const row = parseObject(value);
+  const conflict = parseObject(parseObject(row.linear_result).conflict);
+  return lower(row.operation) === "create"
+    && lower(row.status) === "skipped"
+    && lower(conflict.decision) === "idempotency_conflict";
+}
+
 function dateMs(value) {
   const parsed = Date.parse(clean(value));
   return Number.isFinite(parsed) ? parsed : null;

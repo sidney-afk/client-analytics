@@ -19990,6 +19990,7 @@
                 _prodState.labels.clear();
                 _prodState.createCatalogToken++;
                 _prodState.createCatalog = [];
+                _prodState.createAssignees = [];
                 _prodState.createCatalogStatus = 'idle';
                 _prodState.createCatalogError = '';
                 _prodState.createDraft = null;
@@ -40430,6 +40431,7 @@
             descriptionRequestTokens: new Map(),
             createDraft: null,
             createCatalog: [],
+            createAssignees: [],
             createCatalogStatus: 'idle',
             createCatalogError: '',
             createCatalogToken: 0,
@@ -40930,7 +40932,11 @@
                     ? row.identity_repair_reason
                     : '') || nested.reason || ''
             ).trim();
-            const resolvedLinearIssueId = String(nested.resolved_linear_issue_id || '').trim();
+            const resolvedLinearIssueId = String(
+                _prodHasOwn(row, 'identity_repair_resolved_linear_issue_id')
+                    ? row.identity_repair_resolved_linear_issue_id
+                    : nested.resolved_linear_issue_id || ''
+            ).trim();
             const currentLinearIssueId = String(
                 row && row.linear_issue_uuid || raw && raw.issue && raw.issue.id || ''
             ).trim();
@@ -42446,10 +42452,35 @@
             ).sort((a, b) => String(a.title || _prodIssueLabel(a)).localeCompare(String(b.title || _prodIssueLabel(b))));
         }
         function _prodCreateAssignees(draft) {
-            return Object.values(_prodEditors()).filter(member =>
-                member && member.active !== false
-                && _prodWriteTeam(member.raw && member.raw.team) === _prodWriteTeam(draft.team)
-            ).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            return (_prodState.createAssignees || []).slice()
+                .sort((a, b) => String(a.name).localeCompare(String(b.name)) || String(a.id).localeCompare(String(b.id)));
+        }
+        function _prodNormalizeCreateAssignees(values) {
+            if (!Array.isArray(values)) return null;
+            const seen = new Set();
+            const normalized = [];
+            for (const value of values) {
+                if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+                const id = String(value.id || '').trim();
+                const name = String(value.name || '').trim();
+                if (!id || !name || seen.has(id)) return null;
+                seen.add(id);
+                normalized.push({ id, name });
+            }
+            return normalized;
+        }
+        function _prodCreateAssigneeFieldHTML(draft) {
+            const assigneeItems = [{ value: '', label: 'Unassigned' }].concat(
+                _prodCreateAssignees(draft).map(member => ({
+                    value: member.id,
+                    label: member.name
+                }))
+            );
+            return '<label for="prodCreateAssigneeBtn">Assignee</label>'
+                + _svSelectHtml('prodCreateAssignee', assigneeItems, draft.assigneeId, 'Unassigned', {
+                    disabled: draft.ambiguous === true,
+                    onchange: '_prodCreateField("assigneeId",this.value)'
+                });
         }
         function _prodCreateCatalogHTML() {
             const draft = _prodState.createDraft;
@@ -42485,7 +42516,6 @@
                     && String(client.raw.kind || '').trim().toLowerCase() !== 'test')
                 .sort((a, b) => String(a.name).localeCompare(String(b.name)));
             const parents = _prodCreateParents(draft);
-            const assignees = _prodCreateAssignees(draft);
             const modeItems = [
                 { value: 'parent', label: 'Parent issue' },
                 { value: 'subissue', label: 'Sub-issue' }
@@ -42501,10 +42531,6 @@
             const parentItems = [{ value: '', label: 'Choose parent issue' }].concat(parents.map(issue => ({
                 value: issue.id,
                 label: _prodIssueLabel(issue) + ' Â· ' + (issue.title || 'Untitled issue')
-            })));
-            const assigneeItems = [{ value: '', label: 'Unassigned' }].concat(assignees.map(member => ({
-                value: member.id,
-                label: member.name
             })));
             const statusItems = PROD_STATUS_ORDER.map(status => {
                 const value = PROD_STATUS_FROM_ARTIFACT[status] || status;
@@ -42522,7 +42548,7 @@
                 + '<div class="prod-create-field wide"><label for="prodCreateDescription">Description (Markdown)</label><textarea class="prod-create-textarea" id="prodCreateDescription" maxlength="100000" oninput="_prodCreateField(' + _jsAttrArg('description') + ',this.value)" placeholder="Add context, acceptance criteria, and linksâ€¦"' + recoveryLockAttr + '>' + _calEsc(draft.description) + '</textarea></div>'
                 + '<div class="prod-create-field"><label for="prodCreateStatusBtn">Status</label>' + _svSelectHtml('prodCreateStatus', statusItems, draft.status, 'Choose status', { disabled: recoveryLocked, onchange: '_prodCreateField("status",this.value)' }) + '</div>'
                 + '<div class="prod-create-field"><label for="prodCreateDueBtn">Due date</label>' + _svDateHtml('prodCreateDue', draft.dueDate, { disabled: recoveryLocked, today: wlWorkloadTodayISO(), placeholder: 'Choose due date', onchange: '_prodCreateField("dueDate",this.value)' }) + '</div>'
-                + '<div class="prod-create-field"><label for="prodCreateAssigneeBtn">Assignee</label>' + _svSelectHtml('prodCreateAssignee', assigneeItems, draft.assigneeId, 'Unassigned', { disabled: recoveryLocked, onchange: '_prodCreateField("assigneeId",this.value)' }) + '</div>'
+                + '<div class="prod-create-field" data-prod-create-assignee-field="1">' + _prodCreateAssigneeFieldHTML(draft) + '</div>'
                 + '<div class="prod-create-field"><label>Selected labels</label><input class="prod-create-input" value="' + _calEscAttr(String((draft.labelIds || []).length) + ' selected') + '" disabled></div>'
                 + '<div class="prod-create-field wide"><label>Labels</label><div class="prod-create-label-box"><div class="prod-create-label-head"><span>Catalog</span><input class="prod-create-label-search" type="search" placeholder="Search labels" oninput="_prodFilterCreateLabels(this.value)" aria-label="Search labels"' + recoveryLockAttr + '></div><div class="prod-create-label-list" data-prod-create-label-list="1">' + _prodCreateCatalogHTML() + '</div></div></div>'
                 + '<div class="prod-create-note">Creation writes only the Production issue hierarchy. It does not create, choose, or link a Calendar/Samples card.</div>'
@@ -42543,6 +42569,12 @@
         function _prodRenderCreateCatalog() {
             const host = document.querySelector('[data-prod-create-label-list]');
             if (host) host.innerHTML = _prodCreateCatalogHTML();
+        }
+        function _prodRenderCreateAssignees() {
+            const host = document.querySelector('[data-prod-create-assignee-field]');
+            if (host && _prodState.createDraft) {
+                host.innerHTML = _prodCreateAssigneeFieldHTML(_prodState.createDraft);
+            }
         }
         function _prodOpenCreate(parentId) {
             const parent = parentId ? _prodIssue(parentId) : null;
@@ -42578,6 +42610,7 @@
                 return false;
             }
             _prodState.createCatalog = [];
+            _prodState.createAssignees = [];
             _prodState.createCatalogStatus = 'loading';
             _prodState.createCatalogError = '';
             _prodState.createError = '';
@@ -42614,6 +42647,7 @@
             draft.labelIds = [];
             _prodRenewCreateIntent();
             _prodState.createCatalog = [];
+            _prodState.createAssignees = [];
             _prodState.createCatalogStatus = 'loading';
             _prodRenderCreateModal();
             _prodLoadCreateOptions(false);
@@ -42649,6 +42683,7 @@
             draft.labelIds = [];
             _prodRenewCreateIntent();
             _prodState.createCatalog = [];
+            _prodState.createAssignees = [];
             _prodState.createCatalogStatus = 'loading';
             _prodRenderCreateModal();
             _prodLoadCreateOptions(false);
@@ -42677,7 +42712,11 @@
             const token = ++_prodState.createCatalogToken;
             _prodState.createCatalogStatus = 'loading';
             _prodState.createCatalogError = '';
-            if (force) _prodRenderCreateCatalog();
+            _prodState.createAssignees = [];
+            if (force) {
+                _prodRenderCreateCatalog();
+                _prodRenderCreateAssignees();
+            }
             try {
                 const response = await fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
@@ -42703,15 +42742,23 @@
                     throw error;
                 }
                 const catalog = _prodNormalizeLabelList(json.catalog);
+                const assignees = _prodNormalizeCreateAssignees(json.assignees);
                 if (!catalog) throw new Error('label_catalog_incomplete');
+                if (!assignees) throw new Error('assignee_options_incomplete');
                 if (token !== _prodState.createCatalogToken || !_prodState.createDraft
                     || draft.clientSlug !== _prodState.createDraft.clientSlug
                     || draft.team !== _prodState.createDraft.team) return;
                 const allowed = new Set(catalog.map(label => label.id));
+                const allowedAssignees = new Set(assignees.map(member => member.id));
                 if (!draft.ambiguous) {
                     draft.labelIds = (draft.labelIds || []).filter(labelId => allowed.has(labelId));
+                    if (draft.assigneeId && !allowedAssignees.has(draft.assigneeId)) {
+                        draft.assigneeId = '';
+                        _prodRenewCreateIntent();
+                    }
                 }
                 _prodState.createCatalog = catalog;
+                _prodState.createAssignees = assignees;
                 _prodState.createCatalogStatus = 'ready';
                 _prodPersistCreateDraft();
             } catch (error) {
@@ -42727,6 +42774,7 @@
                             : 'The complete Linear label catalog could not be loaded.';
             }
             _prodRenderCreateCatalog();
+            _prodRenderCreateAssignees();
         }
         function _prodCreateErrorText(error) {
             const code = String(error && error.code || '');
@@ -42818,6 +42866,10 @@
             const catalogIds = new Set((_prodState.createCatalog || []).map(label => label.id));
             if (!errorText && !draft.ambiguous && (draft.labelIds || []).some(labelId => !catalogIds.has(labelId))) {
                 errorText = 'Reload the label catalog before creating.';
+            }
+            const assigneeIds = new Set((_prodState.createAssignees || []).map(member => member.id));
+            if (!errorText && !draft.ambiguous && draft.assigneeId && !assigneeIds.has(draft.assigneeId)) {
+                errorText = 'Choose an active, Linear-mapped assignee from this team.';
             }
             if (errorText) {
                 _prodState.createError = errorText;
@@ -44863,7 +44915,7 @@
                     _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10),
                     _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
                     _prodRestRows('batches', 'id,client_slug,team,name,description,filming_doc_url,footage_folder_url,delivery_folder_url,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids', 'order=created_at.desc', 1000, 25),
-                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state:linear_raw->identity_repair->>state,identity_repair_reason:linear_raw->identity_repair->>reason,raw_issue_parent_id:linear_raw->issue->parent->>id,raw_project_id:linear_raw->issue->project->>id,raw_attribution_schema:linear_raw->attribution->>schema,raw_attribution_state:linear_raw->attribution->>state,raw_attribution_client_slug:linear_raw->attribution->>client_slug,raw_attribution_owner_kind:linear_raw->attribution->>owner_kind,raw_attribution_source:linear_raw->attribution->>source,raw_attribution_provisional_client_slug:linear_raw->attribution->>provisional_client_slug,raw_attribution_mapping_revision:linear_raw->attribution->>mapping_revision,raw_attribution_repair_required:linear_raw->attribution->>repair_required,raw_attribution_reason:linear_raw->attribution->>reason,raw_attribution_explicit_owner_approved:linear_raw->attribution->>explicit_owner_approved,raw_attribution_explicit_decision_ref:linear_raw->attribution->>explicit_decision_ref,raw_attribution_explicit_manifest_sha256:linear_raw->attribution->>explicit_manifest_sha256,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived', 'order=team.asc,status.asc,due_date.asc', 1000, 50),
+                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state:linear_raw->identity_repair->>state,identity_repair_reason:linear_raw->identity_repair->>reason,identity_repair_resolved_linear_issue_id:linear_raw->identity_repair->>resolved_linear_issue_id,raw_issue_parent_id:linear_raw->issue->parent->>id,raw_project_id:linear_raw->issue->project->>id,raw_attribution_schema:linear_raw->attribution->>schema,raw_attribution_state:linear_raw->attribution->>state,raw_attribution_client_slug:linear_raw->attribution->>client_slug,raw_attribution_owner_kind:linear_raw->attribution->>owner_kind,raw_attribution_source:linear_raw->attribution->>source,raw_attribution_provisional_client_slug:linear_raw->attribution->>provisional_client_slug,raw_attribution_mapping_revision:linear_raw->attribution->>mapping_revision,raw_attribution_repair_required:linear_raw->attribution->>repair_required,raw_attribution_reason:linear_raw->attribution->>reason,raw_attribution_explicit_owner_approved:linear_raw->attribution->>explicit_owner_approved,raw_attribution_explicit_decision_ref:linear_raw->attribution->>explicit_decision_ref,raw_attribution_explicit_manifest_sha256:linear_raw->attribution->>explicit_manifest_sha256,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived', 'order=team.asc,status.asc,due_date.asc', 1000, 50),
                     _prodFetchAuthority()
                 ]);
                 const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
@@ -44947,6 +44999,7 @@
                         const identityRepair = raw && raw.identity_repair || {};
                         row.identity_repair_state = identityRepair.state || null;
                         row.identity_repair_reason = identityRepair.reason || null;
+                        row.identity_repair_resolved_linear_issue_id = identityRepair.resolved_linear_issue_id || null;
                     }
                     _prodState.adapter = null;
                     if (_prodState.openId === id) _prodRender();

@@ -286,6 +286,22 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
       && conflict.mismatched_fields.includes(field),
     `deterministic create recovery terminalizes ${field} drift as an idempotency conflict`);
   }
+  ok(mapping.terminalCreateDependencyConflict({
+    operation: 'create',
+    status: 'skipped',
+    linear_result: { conflict: { decision: 'idempotency_conflict' } },
+  }) === true
+    && mapping.terminalCreateDependencyConflict({
+      operation: 'create',
+      status: 'failed',
+      linear_result: { conflict: { decision: 'idempotency_conflict' } },
+    }) === false
+    && mapping.terminalCreateDependencyConflict({
+      operation: 'create',
+      status: 'skipped',
+      linear_result: { conflict: { decision: 'identity_repair_required' } },
+    }) === false,
+  'only a terminal skipped create with an exact idempotency-conflict receipt terminalizes its dependency');
 
   const nativeCreateEntity = {
     linear_raw: {
@@ -596,6 +612,7 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   const rowLoopStart = ef.indexOf('for (const candidate of rows)');
   const identityLoopGuard = ef.indexOf('const identityState = await createIdentityState(supabase, row, entity)', rowLoopStart);
   const dependencyRead = ef.indexOf('dependencyResult(supabase, row)', rowLoopStart);
+  const dependencyConflictGuard = ef.indexOf('dependency.terminal_create_conflict === true', dependencyRead);
   const linearRead = ef.indexOf('readIssue(issueId', rowLoopStart);
   const mutationBuild = ef.indexOf('buildMutation(row, context)', rowLoopStart);
   const identityLoopBlock = ef.slice(identityLoopGuard, dependencyRead);
@@ -616,13 +633,28 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && identityLoopBlock.indexOf('status: "skipped"')
       > identityLoopBlock.indexOf('identityState === "conflict"'),
   'all later deliverable and deliverable-comment intents wait for a written F203 create or terminal-skip before any foreign issue read or mutation');
+  const dependencyConflictEnd = ef.indexOf('if (dependency.waiting === true)', dependencyConflictGuard);
+  const dependencyConflictBlock = ef.slice(dependencyConflictGuard, dependencyConflictEnd);
+  ok(/terminalCreateDependencyConflict\(data\)/.test(ef)
+    && /\.select\("id,status,operation,entity,entity_id,linear_result"\)/.test(ef)
+    && dependencyConflictGuard > dependencyRead
+    && dependencyConflictGuard < linearRead
+    && /row\.operation === "create"/.test(dependencyConflictBlock)
+    && /row\.entity === "deliverable"/.test(dependencyConflictBlock)
+    && /reason: "parent_linear_create_idempotency_conflict"/.test(dependencyConflictBlock)
+    && dependencyConflictBlock.indexOf('checkpointLinearResult(supabase, row, linearResult)')
+      < dependencyConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
+    && dependencyConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
+      < dependencyConflictBlock.indexOf('status: "skipped"')
+    && /last_error: f27Replay[\s\S]{0,140}"parent_create_idempotency_conflict"/.test(dependencyConflictBlock),
+  'a child create inherits a terminal parent conflict, persists its own read-only quarantine, and skips before any Linear read');
   const preConflictStart = ef.indexOf('if (conflict.decision === "idempotency_conflict" && row.operation === "create")');
   const preConflictEnd = ef.indexOf('if (conflict.decision === "failed")', preConflictStart);
   const preConflictBlock = ef.slice(preConflictStart, preConflictEnd);
   const postConflictStart = ef.indexOf('const createVerification = row.operation === "create"');
   const postConflictEnd = ef.indexOf('if (createVerification && createVerification.decision !== "already_exists")', postConflictStart);
   const postConflictBlock = ef.slice(postConflictStart, postConflictEnd);
-  ok((ef.match(/await quarantineCreateIdentity\(supabase, row\)/g) || []).length === 2
+  ok((ef.match(/await quarantineCreateIdentity\(supabase, row\)/g) || []).length === 3
     && preConflictBlock.indexOf('checkpointLinearResult(supabase, row, linearResult)')
       < preConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
     && preConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')

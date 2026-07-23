@@ -1565,6 +1565,32 @@ async function validateCreateAssignee(
   return { id: clean((data as JsonMap).id), linearUserId };
 }
 
+async function mappedCreateAssignees(
+  supabase: SupabaseClient,
+  team: string,
+): Promise<JsonMap[]> {
+  const normalizedTeam = normalizeTeam(team);
+  const { data, error } = await supabase.from("team_members")
+    .select("id,name,team,active,linear_user_id")
+    .eq("active", true)
+    .eq("team", normalizedTeam);
+  if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
+  return ((data || []) as JsonMap[])
+    .filter(member =>
+      normalizeTeam(member.team) === normalizedTeam
+      && clean(member.id)
+      && clean(member.linear_user_id)
+    )
+    .map(member => ({
+      id: clean(member.id),
+      name: clean(member.name) || "Unnamed team member",
+    }))
+    .sort((left, right) =>
+      clean(left.name).localeCompare(clean(right.name))
+      || clean(left.id).localeCompare(clean(right.id))
+    );
+}
+
 async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Promise<string> {
   const normalizedTeam = normalizeTeam(team);
   const { data, error } = await supabase.from("team_members")
@@ -2044,12 +2070,16 @@ async function handleCreateOptions(
     throw new GatewayError(400, "invalid_surface_operation");
   }
   const scope = await productionCreateScope(supabase, req, body);
-  const catalog = await linearLabelCatalog(scope.teamId, scope.team);
+  const [catalog, assignees] = await Promise.all([
+    linearLabelCatalog(scope.teamId, scope.team),
+    mappedCreateAssignees(supabase, scope.team),
+  ]);
   return json({
     ok: true,
     complete: true,
     authority: scope.authority,
     catalog,
+    assignees,
   });
 }
 

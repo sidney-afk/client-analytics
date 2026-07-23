@@ -179,6 +179,8 @@ const ensureOverlays = extract('_prodEnsureOverlays');
 const createOptions = extract('_prodLoadCreateOptions');
 const createSubmit = extract('_prodSubmitCreate');
 const createForm = extract('_prodCreateFormHTML');
+const createAssigneeField = extract('_prodCreateAssigneeFieldHTML');
+const createAssigneeNormalize = extract('_prodNormalizeCreateAssignees');
 const createOpen = extract('_prodOpenCreate');
 const createParentChange = extract('_prodCreateParentChange');
 const createSavedDraft = extract('_prodCreateSavedDraft');
@@ -201,11 +203,23 @@ ok(/action: 'create_options'[\s\S]{0,160}surface: 'production'[\s\S]{0,120}clien
   && /headers: _syncviewEfHeaders\(\{[\s\S]{0,320}\}, PROD_WRITE_EF_URL\)/.test(createOptions)
   && /json\.complete !== true/.test(createOptions)
   && /_prodNormalizeLabelList\(json\.catalog\)/.test(createOptions)
+  && /_prodNormalizeCreateAssignees\(json\.assignees\)/.test(createOptions)
   && /class="prod-create-label-search"/.test(createForm)
   && /type="checkbox"/.test(createForm + extract('_prodCreateCatalogHTML'))
   && /_prodLabelColorStyle\(label\)/.test(extract('_prodCreateCatalogHTML'))
   && /label\.description \|\| label\.name/.test(extract('_prodCreateCatalogHTML')),
 'creation loads a protected complete label catalog and exposes search, colors, checkboxes, selected state, and descriptions');
+ok(/if \(!Array\.isArray\(values\)\) return null/.test(createAssigneeNormalize)
+  && /!id \|\| !name \|\| seen\.has\(id\)/.test(createAssigneeNormalize)
+  && /_prodState\.createAssignees \|\| \[\]/.test(extract('_prodCreateAssignees'))
+  && /allowedAssignees = new Set\(assignees\.map\(member => member\.id\)\)/.test(createOptions)
+  && /draft\.assigneeId && !allowedAssignees\.has\(draft\.assigneeId\)/.test(createOptions)
+  && /draft\.assigneeId && !assigneeIds\.has\(draft\.assigneeId\)/.test(createSubmit)
+  && /data-prod-create-assignee-field/.test(createForm)
+  && /_prodCreateAssigneeFieldHTML\(_prodState\.createDraft\)/.test(extract('_prodRenderCreateAssignees'))
+  && /_prodRestRows\('team_members', 'id,name,email,role,team,avatar_color,active'/.test(extract('_prodLoadData'))
+  && !/_prodRestRows\('team_members', '[^']*linear_user_id/.test(extract('_prodLoadData')),
+'the create assignee picker consumes only protected server-approved IDs/names and never exposes Linear identity mappings in the public Production read');
 ok(/operation: 'create'[\s\S]{0,100}surface: 'production'/.test(createPayload)
   && /client_slug: draft\.clientSlug/.test(createPayload)
   && /team: draft\.team/.test(createPayload)
@@ -220,12 +234,12 @@ ok(/operation: 'create'[\s\S]{0,100}surface: 'production'/.test(createPayload)
   && /source_edited_at: draft\.sourceEditedAt/.test(createPayload)
   && /_prodCreateValidDate\(draft\.dueDate\)/.test(createSubmit),
 'parent and sub-issue creation send the complete guarded payload with exact Markdown, full-year due date, labels, and one intent identity');
-ok((createForm.match(/_svSelectHtml\('prodCreate/g) || []).length === 6
+ok(((createForm + createAssigneeField).match(/_svSelectHtml\('prodCreate/g) || []).length === 6
   && /_svDateHtml\('prodCreateDue', draft\.dueDate, \{[\s\S]{0,220}today: wlWorkloadTodayISO\(\)[\s\S]{0,220}onchange:/.test(createForm)
   && !/<select\b/.test(createForm)
   && !/<input[^>]*type="date"/.test(createForm)
   && ['Mode', 'Client', 'Team', 'Parent', 'Status', 'Due', 'Assignee'].every(id =>
-    new RegExp(`label for="prodCreate${id}Btn"`).test(createForm))
+    new RegExp(`label for="prodCreate${id}Btn"`).test(createForm + createAssigneeField))
   && /e\.defaultPrevented \|\| document\.getElementById\('svDatePickerPopup'\)/.test(ensureOverlays),
 'the creation modal uses SyncView select/date controls with the ratified day source and no exposed native picker');
 ok(/sessionStorage\.getItem\(PROD_CREATE_DRAFT_KEY\)/.test(createSavedDraft)
@@ -243,7 +257,9 @@ ok(/sessionStorage\.getItem\(PROD_CREATE_DRAFT_KEY\)/.test(createSavedDraft)
 'reload, catching-up polls, and terminal conflicts retain one exact intent; a committed conflict opens the saved native issue instead of minting a duplicate');
 ok(/identity_repair_state:linear_raw->identity_repair->>state/.test(source)
   && /identity_repair_reason:linear_raw->identity_repair->>reason/.test(source)
+  && /identity_repair_resolved_linear_issue_id:linear_raw->identity_repair->>resolved_linear_issue_id/.test(source)
   && /identityRepair: _prodRawIdentityRepair\(d\)/.test(extract('_prodAdapter'))
+  && /_prodHasOwn\(row, 'identity_repair_resolved_linear_issue_id'\)/.test(extract('_prodRawIdentityRepair'))
   && /state === 'resolved'[\s\S]{0,160}resolvedLinearIssueId === currentLinearIssueId/.test(extract('_prodRawIdentityRepair'))
   && /_prodIdentityRepairGateText\(issue\)/.test(extract('_prodCanWrite'))
   && /_prodIdentityRepairGateText\(parent\)/.test(createGate)
@@ -259,7 +275,7 @@ ok(/const lockedScope = draft\.mode === 'subissue' && !!parent/.test(createForm)
   && /_svSelectHtml\('prodCreateParent'[\s\S]{0,260}disabled: parentFixed \|\| recoveryLocked/.test(createForm)
   && /_svSelectHtml\('prodCreateStatus'[\s\S]{0,260}disabled: recoveryLocked/.test(createForm)
   && /_svDateHtml\('prodCreateDue'[\s\S]{0,260}disabled: recoveryLocked/.test(createForm)
-  && /_svSelectHtml\('prodCreateAssignee'[\s\S]{0,260}disabled: recoveryLocked/.test(createForm)
+  && /_svSelectHtml\('prodCreateAssignee'[\s\S]{0,260}disabled: draft\.ambiguous === true/.test(createAssigneeField)
   && /if \(!parent \|\| parent\.parent \|\| !_prodAttributionResolved\(parent\)\)/.test(createParentChange)
   && /draft\.clientSlug = parent\.project/.test(createParentChange)
   && /draft\.team = _prodWriteTeam\(parent\.team\)/.test(createParentChange)
@@ -283,6 +299,7 @@ ok(!/\btest_override\b|\blegacy_parity\b|\bcard_id\b|\borigin\b|\bcalendar\b|\bs
 'Production creation cannot self-enter service-only TEST/parity lanes or create, choose, or link Calendar/Samples state');
 ok(/_prodState\.createCatalogToken\+\+/.test(staffPurge)
   && /_prodState\.createCatalog = \[\]/.test(staffPurge)
+  && /_prodState\.createAssignees = \[\]/.test(staffPurge)
   && /_prodState\.createDraft = null/.test(staffPurge)
   && /sessionStorage\.removeItem\(PROD_CREATE_DRAFT_KEY\)/.test(staffPurge)
   && /_prodClearLayer\(\)/.test(staffPurge)

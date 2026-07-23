@@ -1,8 +1,8 @@
 # Linear — current truth
 
-> Last verified: 2026-07-23 @ b1a942d + source-only F200/F202 candidates
+> Last verified: 2026-07-23 @ b1a942d + source-only F200/F202/F203 candidates
 > (F145 parent-link projection merged; plan-date release live; F200 attribution repair and F201/F202
-> gateway/outbound/inbound additions are not live until their owner-approved post-merge
+> gateway/outbound/inbound plus F203 create additions are not live until their owner-approved post-merge
 > repair/migration/function/drill gates)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
@@ -63,6 +63,14 @@
   deliverables. Creation batch, team, client, and title are not parent-election boundaries;
   unresolved or malformed links remain visible roots. Parent-only webhook changes remain
   refresh-eventual through the existing B1/reconcile path rather than becoming a new n8n dependency.
+- **Production native creation (F203):** candidate source sends parent and sub-issue create intents
+  through `production-write` and the existing outbound drainer. It validates the exact roster
+  project/team/state/assignee/full-label scope, supplies one deterministic Linear UUID, and compares
+  every original create field before accepting an already-existing Linear issue. A root owns one
+  structural native batch; a child reuses its validated root batch and depends on the root create
+  receipt when it is still pending. Acknowledgement patches only Linear ID/identifier/URL so later
+  native field edits survive. No Calendar/Samples/card/link input or writer participates. This
+  migration/function/UI source is not live and requires the separate owner-approved TEST release.
 - **Client-attribution correction (F200):** candidate source makes the active SyncView roster the
   sole client catalog. It resolves direct mapped project → nearest mapped ancestor → owner-approved
   explicit roster/internal/TEST classification, records a mapping revision, and exposes unresolved,
@@ -102,7 +110,9 @@ system-wide view: `docs/independence/SYSTEM_MAP.md`. The visible **Linear** tab 
 `production`, route `#production`, alias `?prod=1`) is the native mirror surface. #812 ships
 authority-gated status/comment/due/assignee controls; F201 candidate source adds protected label
 catalog reads and Admin/SMM full-selected-set label writes, and F202 candidate source adds
-Admin/SMM exact-Markdown description writes for root and child deliverables. Real teams remain read-only while
+Admin/SMM exact-Markdown description writes for root and child deliverables. F203 candidate source
+adds Admin/SMM Production-only parent/sub-issue creation with deterministic replay and zero implicit
+Calendar/Samples linkage. Real teams remain read-only while
 authority is Linear; the bounded active-TEST drill stays service-only and is the sole path allowed
 to seed a missing pre-F201 native selection from a complete Linear snapshot. The visible **Submit** tab retains internal key
 `linear` and route `#linear`; its native reroute landed through PR #850 / `9968bd9` and is

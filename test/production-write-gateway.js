@@ -12,10 +12,12 @@ const lowLevel = read('supabase/functions/_shared/b4-write.ts');
 const dataModel = read('migrations/2026-07-06-b1-linear-data-model.sql');
 const migration = read('migrations/2026-07-12-write-ui-outbox-parity.sql');
 const descriptionMigration = read('migrations/2026-07-23-f202-production-descriptions.sql');
+const createMigration = read('migrations/2026-07-23-f203-production-issue-create.sql');
 const fixPackFlags = read('migrations/2026-07-13-write-ui-fix-pack-flags.sql');
 const inbound = read('supabase/functions/linear-inbound/index.ts');
 const inboundEchoProof = read('supabase/functions/linear-inbound/f27-echo.mjs');
 const selectedLabelPagesSource = read('supabase/functions/production-write/selected-label-pages.mjs');
+const linearOutbound = read('supabase/functions/linear-outbound/index.ts');
 const config = read('supabase/config.toml');
 let failures = 0;
 
@@ -61,6 +63,13 @@ function extractFunction(name) {
     'production-write',
     'selected-label-pages.mjs',
   )).href);
+  const linearCreateIds = await import(pathToFileURL(path.join(
+    ROOT,
+    'supabase',
+    'functions',
+    '_shared',
+    'linear-create-id.mjs',
+  )).href);
 
   ok(policy.normalizeOperation('status') === 'status'
     && policy.normalizeOperation('comment') === 'comment'
@@ -68,9 +77,10 @@ function extractFunction(name) {
     && policy.normalizeOperation('assignee') === 'assignee'
     && policy.normalizeOperation('labels') === 'labels'
     && policy.normalizeOperation('description') === 'description'
+    && policy.normalizeOperation('create') === 'create'
     && policy.normalizeOperation('intake_create') === 'intake_create'
     && policy.normalizeOperation('archive') === '',
-  'gateway exposes the existing operations plus the F201 labels and F202 description operations');
+  'gateway exposes the existing operations plus F201 labels, F202 descriptions, and F203 create');
 
   ok(policy.roleCompatible('admin', 'admin')
     && policy.roleCompatible('smm', 'smm')
@@ -85,8 +95,9 @@ function extractFunction(name) {
     && !policy.staffOperationAllowed('creative', 'assignee', 'video', 'video')
     && !policy.staffOperationAllowed('creative', 'labels', 'video', 'video')
     && !policy.staffOperationAllowed('creative', 'description', 'video', 'video')
+    && !policy.staffOperationAllowed('creative', 'create', 'video', 'video')
     && !policy.staffOperationAllowed('creative', 'comment', 'video', 'graphics'),
-  'creative writes are limited to own-team work/status/comment and cannot change labels or descriptions');
+  'creative writes are limited to own-team work/status/comment and cannot change labels, descriptions, or create issues');
 
   ok(policy.clientOperationAllowed('comment', 'client_approval', '')
     && policy.clientOperationAllowed('status', 'client_approval', 'approved')
@@ -94,8 +105,9 @@ function extractFunction(name) {
     && !policy.clientOperationAllowed('status', 'smm_approval', 'approved')
     && !policy.clientOperationAllowed('labels', 'client_approval', '')
     && !policy.clientOperationAllowed('description', 'client_approval', '')
+    && !policy.clientOperationAllowed('create', 'client_approval', '')
     && !policy.clientOperationAllowed('due', 'client_approval', ''),
-  'client token permits only own-thread comments and client-legal transitions, never labels or descriptions');
+  'client token permits only own-thread comments and client-legal transitions, never labels, descriptions, or create');
 
   ok(policy.legacyParityAllowed('calendar', 'status')
     && policy.legacyParityAllowed('calendar', 'comment')
@@ -129,6 +141,13 @@ function extractFunction(name) {
   const id3 = await policy.deterministicNativeId('del', 'request-123', 'video:1');
   ok(id1 === id2 && id1 !== id3 && /^del_[0-9a-f-]{36}$/.test(id1),
     'native ids are deterministic per request/item without minting a human identifier');
+  const linearCreateId1 = await linearCreateIds.deterministicLinearCreateId('write-ui:create:fixture');
+  const linearCreateId2 = await linearCreateIds.deterministicLinearCreateId('write-ui:create:fixture');
+  ok(linearCreateId1 === linearCreateId2
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(linearCreateId1)
+    && /deterministicLinearCreateId/.test(edge)
+    && /deterministicLinearCreateId/.test(linearOutbound),
+  'gateway and outbound share one deterministic Linear create UUID implementation');
 
   ok(policy.validRequestId('epoch-write-0001') === 'epoch-write-0001'
     && policy.validRequestId('short') === ''
@@ -483,7 +502,7 @@ function extractFunction(name) {
   'the existing native deliverable RPC stores non-empty Markdown without trimming and treats only the exact empty string as clear');
   ok(/entity === "batch" && operation !== "comment"[\s\S]{0,100}unsupported_batch_operation/.test(edge)
     && /surface === "production" && operation !== "comment"[\s\S]{0,140}expected_updated_at/.test(edge)
-    && /action: operation === "intake_create" \? "create" : `\$\{operation\}_change`/.test(edge)
+    && /action: operation === "create" \|\| operation === "intake_create" \? "create" : `\$\{operation\}_change`/.test(edge)
     && /function publicDescriptionRow[\s\S]{0,180}brief: typeof row\.brief === "string" \? row\.brief : null/.test(edge),
   'description stays deliverable-only, requires Production CAS, emits description_change audit, and has an exact brief response shape');
   ok(/create policy "protect production description event bodies"[\s\S]*as restrictive[\s\S]*for select[\s\S]*to anon, authenticated[\s\S]*using \(action is distinct from 'description_change'\)/.test(descriptionMigration)
@@ -491,11 +510,207 @@ function extractFunction(name) {
     && /exact outbox payload remain unchanged/.test(descriptionMigration),
   'description_change audit rows retain the exact service-side handoff but are excluded from anon/authenticated reads');
 
+  const createPrincipalScope = extractFunction('productionCreatePrincipalScope');
+  const createScope = extractFunction('productionCreateScope');
+  const createOptions = extractFunction('handleCreateOptions');
+  const createAssignees = extractFunction('mappedCreateAssignees');
+  const createParentRoute = extractFunction('productionCreateParentRoute');
+  const createHandler = extractFunction('handleProductionCreate');
+  const createReplayStart = edge.indexOf('async function productionCreateReplay(');
+  const createReplayEnd = edge.indexOf('\nasync function handleCreateOptions(', createReplayStart);
+  const createReplay = edge.slice(createReplayStart, createReplayEnd);
+  const createFieldsStart = edge.indexOf('const PRODUCTION_CREATE_FIELDS = new Set([');
+  const createFieldsEnd = edge.indexOf(']);', createFieldsStart);
+  const createFields = edge.slice(createFieldsStart, createFieldsEnd);
+
+  ok(/lower\(body\.action\) === "create_options"[\s\S]{0,100}handleCreateOptions/.test(edge)
+    && /surfaceFor\(body\) !== "production"/.test(createOptions)
+    && /productionCreateScope\(supabase, req, body\)/.test(createOptions)
+    && /ok: true,[\s\S]{0,80}complete: true,[\s\S]{0,80}authority: scope\.authority,[\s\S]{0,80}catalog/.test(createOptions)
+    && /staffOperationAllowed\(principal\.keyRole, "create", principal\.memberTeam, team\)/.test(createPrincipalScope)
+    && /client\.active !== true/.test(createPrincipalScope)
+    && /lower\(client\.kind\) === "test" && !principal\.testOnly/.test(createPrincipalScope)
+    && /test_scope_service_only/.test(createPrincipalScope),
+  'create_options is a protected Production-only complete catalog for an active Admin/SMM or exact service TEST scope');
+  ok(/from\("team_members"\)/.test(createAssignees)
+    && /\.select\("id,name,team,active,linear_user_id"\)/.test(createAssignees)
+    && /\.eq\("active", true\)/.test(createAssignees)
+    && /\.eq\("team", normalizedTeam\)/.test(createAssignees)
+    && /clean\(member\.linear_user_id\)/.test(createAssignees)
+    && /\.map\(member => \(\{[\s\S]{0,100}id: clean\(member\.id\),[\s\S]{0,100}name: clean\(member\.name\)/.test(createAssignees)
+    && /Promise\.all\(\[[\s\S]{0,100}linearLabelCatalog[\s\S]{0,100}mappedCreateAssignees\(supabase, scope\.team\)/.test(createOptions)
+    && /catalog,[\s\S]{0,40}assignees/.test(createOptions),
+  'create_options returns only active same-team Linear-mapped assignee IDs and names without exposing Linear identity mappings');
+
+  const principalPosition = createHandler.indexOf('productionCreatePrincipalScope(');
+  const replayPosition = createHandler.indexOf('productionCreateReplay(');
+  const readinessPosition = createHandler.indexOf('productionCreateScope(');
+  const foreignPosition = createHandler.indexOf('linearStateIdForCreate(');
+  const writePosition = createHandler.indexOf('rpc(supabase, "production_issue_create"');
+  ok(principalPosition >= 0
+    && replayPosition > principalPosition
+    && readinessPosition > replayPosition
+    && foreignPosition > readinessPosition
+    && writePosition > foreignPosition
+    && !/\b(linearRead|linearLabelsRequest|linearLabelCatalog|linearStateIdForCreate|authorityFor|authorityLane|f27WriteAuthorizationGeneration|targetedDrain|scheduleSyncviewLiveDrains|outboundLiveForDrain|fetch)\b/.test(createReplay)
+    && !/\.(?:insert|update|upsert|delete)\(|\brpc\(/.test(createReplay),
+  'an authenticated exact create replay returns before foreign/readiness checks and performs native reads only, with no drain or write');
+
+  ok(/payload\.description !== intent\.description/.test(createReplay)
+    && /JSON\.stringify\(payload\.label_ids\) !== JSON\.stringify\(intent\.labelIds\)/.test(createReplay)
+    && /receiptPayload\.parent_deliverable_id/.test(createReplay)
+    && /sameInstant\(outbox\.source_edited_at, intent\.sourceEditedAt\)/.test(createReplay)
+    && /eventPayload\.actor_key\) === scope\.principal\.actorKey/.test(createReplay)
+    && /redacted\.intent_fingerprint\) === fingerprint/.test(createReplay)
+    && !/\brow\.(?:title|brief|status|status_at|assignee_id|due_date|updated_at)\b/.test(createReplay)
+    && /row\.batch_id/.test(createReplay)
+    && /row\.created_by/.test(createReplay)
+    && /row\.linear_issue_uuid/.test(createReplay),
+  'lost-response replay rejects body/receipt drift but permits later title, description, status, assignee, due-date, and updated-at edits');
+
+  ok(/parentIdsForTeam\(batch\.linear_parent_ids, scope\.team\)/.test(createReplay)
+    && /production_issue_container_create/.test(createReplay)
+    && /eventPayload\.structural_only === true/.test(createReplay)
+    && /currentLinearParentIssueId\(row\)/.test(createReplay)
+    && /parentLinearIssueId\(parent\)/.test(createReplay)
+    && /currentLinearParentIssueId\(parent\)/.test(createReplay)
+    && /rowParentLinearId !== parentLinearId/.test(createReplay)
+    && /outbox\.depends_on_id/.test(createReplay)
+    && /mirror_pending: !acknowledged/.test(createReplay)
+    && /attempted: false/.test(createReplay),
+  'early replay proves root or child native structure and reports the durable mirror receipt without re-draining');
+  ok(/targetStatus === "skipped" && lower\(conflict\.decision\) === "idempotency_conflict"/.test(createReplay)
+    && /new GatewayError\(409, "idempotency_conflict"/.test(createReplay)
+    && /native_committed: true/.test(createReplay)
+    && /terminal_conflict: true/.test(createReplay),
+  'exact create polling exposes a terminal deterministic Linear conflict with the already-committed native receipt');
+
+  ok(/Object\.keys\(body\)\.some\(key => !PRODUCTION_CREATE_FIELDS\.has\(key\)\)/.test(createHandler)
+    && !/"(?:origin|card_id|calendar|sample|batch_id|kind)"/.test(createFields)
+    && /canonicalDescription\(body\.description\)/.test(createHandler)
+    && /canonicalLabelIds\(body\.label_ids\)/.test(createHandler)
+    && /validDateOrNull\(dueDate\)/.test(createHandler)
+    && /linearStateIdForCreate\(scope\.teamId, scope\.team, status\)/.test(createHandler)
+    && /linearLabelCatalog\(scope\.teamId, scope\.team\)/.test(createHandler)
+    && /validateCreateAssignee\(supabase, assigneeId, scope\.team\)/.test(createHandler),
+  'first-time create accepts only the ratified issue fields and validates the exact status, date, full labels, and mapped same-team assignee before commit');
+
+  ok(/attribution:[\s\S]*state: "resolved"/.test(createHandler)
+    && /kind: "other"/.test(createHandler)
+    && /origin: "manual"/.test(createHandler)
+    && /card_id: null/.test(createHandler)
+    && /linear_parent_ids:[\s\S]{0,180}uuid: plannedLinearIssueId/.test(createHandler)
+    && /parent_deliverable_id: parentId \|\| null/.test(createHandler)
+    && /depends_on_id: parentRoute\.dependsOnId/.test(createHandler)
+    && /productionCreateParentRoute\(supabase, parentId, scope\)/.test(createHandler)
+    && /production_create_parent_nested/.test(createParentRoute)
+    && /batchParentIds\.length !== 1/.test(createParentRoute)
+    && (createParentRoute.match(/validateLinearBatchParent\(linearIssueId, scope\.team, scope\.projectId, true\)/g) || []).length === 2,
+  'parent create gets one structural batch, child create reuses one current Linear-validated root/dependency, and neither path can imply Calendar or Samples linkage');
+
+  ok(/payload: f27FencedPayload\(\{[\s\S]*team_id: scope\.teamId[\s\S]*project_id: scope\.projectId[\s\S]*title,[\s\S]*description,[\s\S]*status,[\s\S]*state_id: stateId[\s\S]*due_date: dueDate[\s\S]*linear_user_id:[\s\S]*parent_linear_issue_id:[\s\S]*label_ids: labelIds[\s\S]*planned_linear_issue_id: plannedLinearIssueId/.test(createHandler)
+    && /rpc\(supabase, "production_issue_create", \{[\s\S]{0,140}p_batch: batchRow \|\| \{\},[\s\S]{0,80}p_row: row,[\s\S]{0,80}p_event: event/.test(createHandler)
+    && /native_committed: true/.test(createHandler)
+    && /publicDescriptionRow\(currentRow\)/.test(createHandler)
+    && /selectedLabelReceipt\(currentRow\)/.test(createHandler),
+  'the guarded create RPC receives one complete canonical Linear intent and returns refreshed Markdown plus complete selected-label state');
+  ok(/terminalConflict = mirror\.some/.test(createHandler)
+    && /item\.terminal_conflict === true/.test(createHandler)
+    && /new GatewayError\(409, "idempotency_conflict"/.test(createHandler),
+  'a synchronous targeted create drain returns the same terminal conflict contract instead of a catching-up success');
+
+  const migrationReplayStart = createMigration.indexOf('if v_replay then');
+  const migrationReplayEnd = createMigration.indexOf(
+    '\n\n  perform public.production_assert_authority(',
+    migrationReplayStart,
+  );
+  const migrationReplay = createMigration.slice(migrationReplayStart, migrationReplayEnd);
+  ok(/production_outbox_replay\(/.test(createMigration)
+    && /o\.payload->>'_intent_fingerprint' = v_fingerprint/.test(migrationReplay)
+    && /o\.source_edited_at is not distinct from nullif\(v_event->>'ts', ''\)::timestamptz/.test(migrationReplay)
+    && /e\.payload->'outbound_redacted'->>'intent_fingerprint' = v_fingerprint/.test(migrationReplay)
+    && /e\.payload->>'actor_key' = v_event->>'actor_key'/.test(migrationReplay)
+    && /e\.payload->>'auth_kind' = v_event->>'auth_kind'/.test(migrationReplay)
+    && /production_batch_parent_ids_for_team/.test(migrationReplay)
+    && /production_issue_container_create/.test(migrationReplay)
+    && /v_result\.linear_raw->'issue'->'parent'->>'id'/.test(migrationReplay)
+    && /v_result\.linear_raw->'issue'->>'parentId'/.test(migrationReplay)
+    && /v_parent\.linear_raw->'issue'->'parent'->>'id'/.test(migrationReplay)
+    && !/v_result\.(?:title|brief|status|status_at|assignee_id|due_date|updated_at)/.test(migrationReplay),
+  'database replay proves the original outbox/event fingerprint and immutable structure while allowing later mutable row edits');
+  [
+    ['title', /v_result\.title/],
+    ['description', /v_result\.brief/],
+    ['status', /v_result\.(?:status|status_at)/],
+    ['due date', /v_result\.due_date/],
+    ['assignee', /v_result\.assignee_id/],
+    ['labels', /v_result\.linear_raw->'issue'->'(?:labelIds|labels)'/],
+  ].forEach(([field, pattern]) => ok(!pattern.test(migrationReplay),
+    `database exact replay remains valid after a later ${field} edit`));
+
+  const createLockPosition = createMigration.indexOf("pg_advisory_xact_lock(hashtextextended('production-deliverable:'");
+  const createBatchLockPosition = createMigration.indexOf("pg_advisory_xact_lock(hashtextextended('production-batch:'");
+  const createReplayLookupPosition = createMigration.indexOf('v_replay := public.production_outbox_replay(');
+  const createAuthorityPosition = createMigration.indexOf('perform public.production_assert_authority(');
+  ok(/begin;/.test(createMigration)
+    && /create or replace function public\.production_issue_create/.test(createMigration)
+    && /grant execute on function public\.production_issue_create\(jsonb, jsonb, jsonb\)[\s\S]{0,40}to service_role/.test(createMigration)
+    && !/\balter table\b|\bdrop constraint\b|\bcreate trigger\b/i.test(createMigration)
+    && /v_result := public\.production_deliverable_write\(v_row, v_event\)/.test(createMigration)
+    && /v_count <> 1 or v_outbox_id is null/.test(createMigration)
+    && /production_create_batch_outbox_forbidden/.test(createMigration)
+    && createMigration.indexOf('production_deliverable_write(v_row, v_event)') < createMigration.indexOf('update public.deliverable_events e')
+    && /update public\.deliverable_events e[\s\S]{0,140}'outbound_redacted'/.test(createMigration)
+    && /jsonb_typeof\(v_issue->'labels'->'nodes'\) is distinct from 'array'/.test(createMigration)
+    && /select distinct node->>'id' as label[\s\S]{0,180}is distinct from v_payload->'label_ids'/.test(createMigration)
+    && createLockPosition > 0
+    && createBatchLockPosition > createLockPosition
+    && createReplayLookupPosition > createBatchLockPosition
+    && createAuthorityPosition > migrationReplayEnd
+    && /not \(e\.payload \? 'outbound'\)/.test(migrationReplay),
+  'F203 migration serializes exact retries, replays before authority, requires exact label nodes, enqueues one deliverable create only, and redacts public audit after enqueue');
+
   const reconcile = extractFunction('reconcileEntityOperation');
   const receiptReader = extractFunction('readOutboxReceipt');
   const entityHandlerStart = edge.indexOf('async function handleEntityOperation(');
   const entityHandlerEnd = edge.indexOf('\nasync function ensureBatch(', entityHandlerStart);
   const entityHandler = edge.slice(entityHandlerStart, entityHandlerEnd);
+  const identityGuard = extractFunction('assertDeliverableIdentityWritable');
+  const identityGuardPosition = entityHandler.indexOf('assertDeliverableIdentityWritable(supabase, existing)');
+  const entityOperationBranchPosition = entityHandler.indexOf('if (operation === "comment")');
+  ok(/identity_repair/.test(identityGuard)
+    && /repairState === "resolved"/.test(identityGuard)
+    && /resolved_linear_issue_id/.test(identityGuard)
+    && /\.eq\("operation", "create"\)/.test(identityGuard)
+    && /lower\(conflict\.decision\) === "idempotency_conflict"/.test(identityGuard)
+    && /new GatewayError\(409, "identity_repair_required"/.test(identityGuard)
+    && /read_only: true/.test(identityGuard)
+    && identityGuardPosition > entityHandler.indexOf('authenticate(supabase, req, body, targetClientSlug)')
+    && identityGuardPosition < entityOperationBranchPosition
+    && identityGuardPosition < entityHandler.indexOf('f27WriteAuthorizationGeneration(')
+    && /await assertDeliverableIdentityWritable\(supabase, parent\)/.test(createParentRoute),
+  'one authenticated fail-closed identity guard blocks every deliverable operation and child route before enqueue or foreign Linear work');
+  ok(/sync_state: clean\(row\.sync_state\)/.test(extractFunction('publicRow'))
+    && /identity_repair_state: clean\(repair\.state\)/.test(extractFunction('publicRow'))
+    && /identity_repair_reason: clean\(repair\.reason\)/.test(extractFunction('publicRow')),
+  'gateway receipts expose only the public read-only repair state needed to quarantine the saved row');
+
+  const quarantineStart = createMigration.indexOf(
+    'create or replace function public.production_issue_create_quarantine(',
+  );
+  const quarantineEnd = createMigration.indexOf('\ncommit;', quarantineStart);
+  const quarantineMigration = createMigration.slice(quarantineStart, quarantineEnd);
+  ok(quarantineStart > 0
+    && /pg_advisory_xact_lock\(hashtextextended\('production-deliverable:'/.test(quarantineMigration)
+    && /v_outbox\.operation is distinct from 'create'/.test(quarantineMigration)
+    && /v_outbox\.linear_result->'conflict'->>'decision'[\s\S]{0,80}'idempotency_conflict'/.test(quarantineMigration)
+    && /'syncview_create_identity_repair_v1'/.test(quarantineMigration)
+    && /set sync_state = 'error'/.test(quarantineMigration)
+    && /jsonb_set\(v_raw, '\{identity_repair\}', v_marker, true\)/.test(quarantineMigration)
+    && /production_create_identity_quarantined/.test(quarantineMigration)
+    && /grant execute on function public\.production_issue_create_quarantine\(text, bigint\)[\s\S]{0,40}to service_role/.test(quarantineMigration)
+    && !/set[\s\S]{0,120}linear_issue_uuid\s*=|set[\s\S]{0,120}linear_identifier\s*=|set[\s\S]{0,120}linear_issue_url\s*=/.test(quarantineMigration),
+  'the additive F203 quarantine locks and marks only the one conflicted native identity, audits it, and cannot relink or erase the saved row');
   ok(/body\.reconcile_only === true/.test(entityHandler)
     && entityHandler.indexOf('reconcileEntityOperation(') < entityHandler.indexOf('const authority = principal.testOnly')
     && /historicalLegacyParity = body\.legacy_parity === true/.test(reconcile)
@@ -521,6 +736,9 @@ function extractFunction(name) {
     && /operation === "description"[\s\S]{0,700}patch: \{ brief: description \}[\s\S]{0,160}expectedOperationPayload = \{ description \}/.test(reconcile)
     && /operation === "description"[\s\S]{0,400}payload\.description === expectedPayload\.description/.test(receiptReader),
   'read-only reconciliation reconstructs the exact description fingerprint and compares the persisted Markdown payload without normalization');
+  let executableIdentityRepair = extractFunction('identityRepair')
+    .replace('value: unknown', 'value')
+    .replace(': JsonMap', '');
   let executablePublicRow = extractFunction('publicRow')
     .replace('value: unknown', 'value')
     .replace(': JsonMap', '');
@@ -533,6 +751,7 @@ function extractFunction(name) {
     normalizeTeam: value => ({ video: 'video', graphics: 'graphics' })[String(value || '').toLowerCase()] || '',
   };
   vm.createContext(publicRowContext);
+  vm.runInContext(executableIdentityRepair, publicRowContext);
   vm.runInContext(executablePublicRow, publicRowContext);
   vm.runInContext(executablePublicDescriptionRow, publicRowContext);
   const ordinaryPublicRow = publicRowContext.publicRow({

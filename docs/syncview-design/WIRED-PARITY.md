@@ -33,7 +33,8 @@ The dated sections below remain historical evidence: their “current,” “now
 | Linear-authoritative, missing/malformed authority, unsigned, incompatible-role, and unsupported states | 🔒 guarded | Controls stay read-only and fail closed. Current authority must be read back before any operational decision; the dated Linear/Linear state in `docs/truth/APP.md`/`ROLLBACK.md` is not a permanent guarantee. |
 | Locked-state browser proof | ✅ F105 candidate green | `prod-readonly-smoke.js`, structure, interaction, behavior, and pixel coverage preserve zero live mutations and current fail-closed controls. F105 pins row-control checks to an exact non-TEST row, selects an exact child for the owner-ratified inline project-parent breadcrumb, permits empty-fixture fallback only after loaded state plus an independent zero owner-active row count, and requires exact eligible recovered-read correlation while persistent/pending/unmatched errors stay red. |
 | Writable-state browser proof | ✅ ported | `prod-write-gateway-browser.js` uses a fully intercepted local mock to prove mixed authority, four supported operations, CAS, verified-role attribution, TEST override, and stale-tab rejection without reaching a live backend. `test/production-write-ui-source.js` pins the source contract. |
-| Project moves, deletes/undo, new issues/sub-issues, favorites, comment edit/delete, and other unimplemented mutations | 🔒 unsupported/guarded | Historical prototype controls do not create runtime authority. Keep them guarded or absent until a separately designed, server-authorized, tested, and owner-approved milestone. |
+| Parent/sub-issue creation | 🔐 F203 source-only candidate | Admin/SMM may create one Production-only root or validated child through `production-write`. The request carries roster client, team, title, exact Markdown description, status, full-year due date, same-team assignee, and complete real labels; deterministic receipts recover response loss. No Calendar/Samples card is created, chosen, or linked. The migration/function/UI source is not live. |
+| Project moves, deletes/undo, favorites, comment edit/delete, and other unimplemented mutations | 🔒 unsupported/guarded | Historical prototype controls do not create runtime authority. Keep them guarded or absent until a separately designed, server-authorized, tested, and owner-approved milestone. |
 
 ## 2026-07-23 owner-ratified full-day parity target
 
@@ -53,12 +54,15 @@ The complete ranked audit is
 | Saved views and ordering | Current personal Show sub-issues/group/Due-Updated-Created settings remain valid, but shared named views, favorites, board moves, and manual order need an owner scope decision before implementation. | F204 |
 | Project property truth | A project card, its detail page, and status/lead/target pickers read one canonical object and cannot substitute defaults for loaded non-default values. | F205 |
 
-F200/F202 are now source-only implementation candidates, not live claims. F200 uses the active
+F200/F202/F203 are now source-only implementation candidates, not live claims. F200 uses the active
 roster/project-ID map, renders provisional/repair/conflict attribution explicitly, removes B1
 client insertion, rechecks inbound/reconcile state, and gates the audited 72-row repair behind an
 exact private owner manifest. F202 adds Admin/SMM exact-Markdown source/preview editing only for
 root and child deliverables, with CAS/idempotency, audit/outbox mirror, authoritative refresh, and
-conflict draft recovery. Their live repair/migration/function/TEST-drill gates remain closed.
+conflict draft recovery. F203 adds Admin/SMM parent/sub-issue creation, deterministic native/Linear
+IDs, exact ambiguous-response recovery, validated child dependency/batch reuse, and a closed
+Production-only schema that cannot couple creation to Calendar/Samples linkage. Their live
+repair/migration/function/TEST-drill gates remain closed.
 
 ## 2026-07-09 Foundation Hardening Audit
 

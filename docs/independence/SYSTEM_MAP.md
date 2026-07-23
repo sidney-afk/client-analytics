@@ -549,7 +549,10 @@ n8n in the metric read path.*
   but browser staff credentials cannot enter TEST scope and the gateway rejects that override.
   A committing pre-flip TEST drill remains service-role-only. The browser never requests legacy
   parity, changes flags, calls an n8n mutation, or writes Linear directly. Project moves, creates,
-  deletes, and the remaining artifact affordances stay read-only.
+  deletes, and the remaining artifact affordances stay read-only except for F203's source-only
+  Production parent/sub-issue create candidate. That candidate accepts only the issue fields,
+  persists one manual native hierarchy plus one private create intent atomically, and contains no
+  Calendar/Samples/card/link input or writer.
 - **Current hard gaps (F50/F53/F54/F94/F136–F138/F200–F205).** A successful deliverable status write does **not** project to
   the linked Calendar/Samples card, whose component status remains a separate downstream truth.
   Graphics has no canonical protected file/delivery-link operation; a manual card-side organizer
@@ -580,7 +583,10 @@ n8n in the metric read path.*
   exact-72 guarded repair path; it performs no live classification here. F201 label display/write and
   native Workload metadata plus F202 root/child description editing/mirroring are source-only
   candidates; their repair/migration, function deploy, real service-only TEST drill, review, and
-  merge remain gated. Production still has no native parent/sub-issue create operation (F203);
+  merge remain gated. F203 candidate source adds guarded parent/sub-issue creation, deterministic
+  IDs, exact replay receipts, validated parent dependency/batch reuse, and zero implicit
+  Calendar/Samples linkage; its additive RPC/function deployment, TEST drill, review, and merge
+  likewise remain gated.
   shared views/manual board ordering await owner scope (F204);
   and project detail/pickers can replace the card's real status/lead/target with defaults because
   they read a slimmer project object (F205). See
@@ -1327,6 +1333,15 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   migration, `production-write` deployment/readback, and real service-only TEST labels drill are a
   separate owner-approved post-merge window. No migration, deployment, authority/flag change, or
   live drill is implied by this source candidate; F27 remains parked and uninstalled.
+- **F203 source-only creation candidate:** `production-write` permits `operation=create` only on
+  Production for Admin/SMM or the bounded service-only TEST principal. It validates active roster
+  client, exact authority/project/team/state/assignee/full-label scope, then atomically writes either
+  one structural root batch plus one manual deliverable or one validated child reusing the root
+  batch. A deterministic Linear UUID, redacted public audit, private exact outbox envelope, and
+  immutable replay receipt recover response loss. Post-ack linkage row-locks and patches only
+  Linear ID/identifier/URL, preserving later native edits and later pending intent state. No
+  Calendar/Samples/card/link field is accepted or written. The additive RPCs, function source, and
+  real TEST drill remain a separate owner-approved post-merge release window.
 - **B5 (after clean batch cycles per team).** Linear frozen → archived; the `linear-*` n8n family and
   legacy card-write webhooks retired; Workload reconciler + `workload_issues` retired; SyncView is
   the whole production system.

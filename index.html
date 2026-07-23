@@ -8285,7 +8285,7 @@
     const ANALYTICS_RECEIPT_STATES=new Set(['success','genuinely_empty','provider_failed','not_configured']);
     const ANALYTICS_RECEIPT_PLATFORMS=['instagram','tiktok','youtube'];
     const ANALYTICS_RECEIPT_ERROR_CLASSES={
-        instagram:new Set(['apify_no_items','apify_request_blocked','apify_http_error','apify_schema_invalid','apify_provider_error','receipt_missing']),
+        instagram:new Set(['apify_no_items','apify_request_blocked','apify_http_error','apify_schema_invalid','apify_provider_error','stale_post_metrics','receipt_missing']),
         tiktok:new Set(['apify_no_items','apify_request_blocked','apify_http_error','apify_provider_error','receipt_missing']),
         youtube:new Set(['youtube_provider_error','receipt_missing'])
     };
@@ -8378,7 +8378,10 @@
     function _analyticsStateBadge(row,platform){
         const receipt=_analyticsPlatformReceipt(row,platform);
         if(receipt?.state!=='provider_failed')return'';
-        const label=receipt.used_last_good===true?'Degraded · last-known':'Degraded · no fresh data';
+        const isStale=receipt.error_class==='stale_post_metrics';
+        const label=isStale
+            ? (receipt.used_last_good===true?'Delayed · last-known':'Delayed · no fresh data')
+            : (receipt.used_last_good===true?'Degraded · last-known':'Degraded · no fresh data');
         return`<span class="analytics-state-badge">${label}</span>`;
     }
     function fmtIsoDate(iso){if(!iso)return'';try{const m=iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);if(m){const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${parseInt(m[3])} ${months[parseInt(m[2])-1]} ${m[1]}, ${m[4]}:${m[5]}`;}return iso;}catch{return iso;}}
@@ -8741,7 +8744,15 @@
         });
         return out;
     }
-    function latestPerClient(){const h=_buildHistories();return Object.values(h).map(rows=>rows[rows.length-1]);}
+    function latestPerClient(){
+        const h=_buildHistories();
+        // Metrics retains historical rows after a client is offboarded. The
+        // overview is a current-client surface, so its membership must follow
+        // the live Clients Info roster rather than every name ever scraped.
+        return Object.entries(h)
+            .filter(([name])=>Object.prototype.hasOwnProperty.call(clientMap,name))
+            .map(([,rows])=>rows[rows.length-1]);
+    }
     function prevPerClient(){const h=_buildHistories();const prev={};Object.entries(h).forEach(([name,rows])=>{if(rows.length>=2)prev[name]=rows[rows.length-2];});return prev;}
     function _findRowDaysAgo(history, daysAgo){
         if(history.length < 2) return null;

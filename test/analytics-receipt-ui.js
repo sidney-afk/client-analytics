@@ -211,6 +211,11 @@ ok(api._analyticsStateBadge(failedWithLastGood, 'instagram').includes('Degraded 
   'provider failure with fallback is explicitly labeled last-known');
 ok(api._analyticsStateBadge(failedWithoutLastGood, 'instagram').includes('Degraded · no fresh data'),
   'provider failure without fallback does not pretend zero is last-known');
+const staleReceipt = JSON.parse(failedWithLastGood.analytics_receipt);
+staleReceipt.platforms.instagram.error_class = 'stale_post_metrics';
+const staleInstagram = { ...failedWithLastGood, analytics_receipt: JSON.stringify(staleReceipt) };
+ok(api._analyticsStateBadge(staleInstagram, 'instagram').includes('Delayed · last-known'),
+  'a detected stale Instagram post feed is visibly labeled as delayed rather than reported as fresh');
 ok(api._analyticsMetricFmt(failedWithoutLastGood, 'instagram', 'ig_followers') === null,
   'untrusted numeric zero is not displayed as provider data');
 ok(api._analyticsMetricFmt(successfulZero, 'instagram', 'ig_followers') === '0'

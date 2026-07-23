@@ -24,8 +24,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   active-link confirmation wait is required, and an old link is expected to reach the existing
   fresh-link-required screen after the browser merge. F176/F179 overnight-runner containment was
   split intact into parked, unmerged draft #908 for later review. It remains recorded but is not a
-  #891 merge blocker; do not expand or reopen that scope here. The client-entry product branch
-  still requires final exact-head cloud review and owner merge.
+  #891 merge blocker; do not expand or reopen that scope here. Final exact-head cloud review of
+  `babbb2d` completed with no new findings; only the owner merge remains for the product branch.
 - **Deferred final-review portability finding (F185).** Exact-head cloud review at `f91aba17`
   found that the client-entry visible-boot workflow installs Chromium system dependencies only on a
   browser-cache miss. The hosted 23/23 lane passed, but a fresh cache-hit runner may lack those Linux
@@ -78,7 +78,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   the staff issuer to the final operative Node process, never the legacy token or a timeout/wrapper
   argv/log/output. Neither source pass used a credential, data, browser, backend or write. The later
   owner split moved the F176/F179 containment work intact to parked #908 and made it non-blocking for
-  #891. Product-owned rows stay OPEN pending final exact-head cloud review and owner merge.
+  #891. Product-owned rows stay OPEN only through owner merge; final exact-head cloud review completed
+  at `babbb2d`, with F185 separately deferred.
 - F183 is the client Brief async-lifetime boundary found by the same post-F182 cloud source review
   at `59022d` and reconfirmed at then-current `93fc297`. `_syncviewPurgeClientEntrySurface` zeroed
   `briefPollingState` and `tabSummaryCache` without first clearing retained polling intervals or
@@ -87,8 +88,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   locally generation-owns and cancels polling, delayed/active summaries and both Brief-sheet reads
   before state reset. Actual visible boot passed 23/23; the real pagehide /
   `pageshow.persisted` held-response guard proved zero late global/cache/localStorage/render mutation
-  and one fresh generation. That is synthetic local evidence, not cloud review. F183 remains OPEN
-  through final #891 exact-head cloud review and owner merge; parked #908 is not its blocker. No
+  and one fresh generation. That is synthetic local evidence, not cloud review. Final #891
+  exact-head cloud review completed at `babbb2d`; F183 remains OPEN only through owner merge, and
+  parked #908 is not its blocker. No
   browser, backend, token, live data or write was used for the original finding.
 - F184 is an additional P1 from exact-head cloud source review at `adb1bca`, reconfirmed unchanged
   at then-current `13c042b`. `_writeUiResumeLegacyQueues('startup')` and its focus/pageshow/online/
@@ -101,8 +103,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   every staff-only job/repair/intake queue untouched. Staff-wide recovery requires a currently
   verified identity/session. Pre-split candidate `c9a79ef` locally implemented that exact owner,
   source-gate-principal, in-lock finalizer and scheduled-retry cancellation boundary and passes the
-  actual visible lifecycle guard 23/23. F184 stays OPEN pending final #891 exact-head cloud review
-  and owner merge; the owner-parked #908 containment does not block it. The finding is source-only; no browser,
+  actual visible lifecycle guard 23/23. Final #891 exact-head cloud review completed at `babbb2d`;
+  F184 stays OPEN only through owner merge, and the owner-parked #908 containment does not block it. The finding is source-only; no browser,
   backend, token, live data or write was used.
 
 ## Calendar
@@ -133,8 +135,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   continued review found F175/F176 and F178–F184. Pre-split candidate `c9a79ef` passed local
   `npm test` 150/150 and actual visible boot 23/23 with the earlier F179/F184 blockers locally
   remediated, while its cloud review found the additional `qa/overnight_runner.sh` F176 occurrence.
-  The owner later parked that containment in #908 as non-blocking. Both Calendar rows remain OPEN
-  pending final #891 exact-head cloud review and owner merge.
+  The owner later parked that containment in #908 as non-blocking. Final #891 exact-head cloud review
+  completed at `babbb2d`; both Calendar rows remain OPEN only through owner merge.
 - Cards with a single Drive-file thumbnail group their IDs into authenticated, bounded (maximum 50)
   availability calls to `thumbnail-revision-read`. That projection returns only the IDs with a real
   Previous/Current pair, so the **Compare** icon stays absent otherwise; it returns no signed URLs or

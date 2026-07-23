@@ -208,8 +208,8 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   used no browser, backend, credential value, live data or write. On 2026-07-22 the owner split the
   completed F176/F179 overnight-runner containment into parked, unmerged draft #908 for later review.
   It remains recorded and OPEN/parked, is not a #891 blocker, and must not be expanded or reopened in
-  this integration. Product-owned rows remain OPEN until final #891 exact-head cloud review and owner
-  merge.
+  this integration. Final #891 exact-head cloud review completed at `babbb2d` with no new findings;
+  product-owned rows remain OPEN only until owner merge, while F185 stays separately deferred.
   Every remediation must satisfy F162 with a browser guard that observes the
   actual visible sequence from document start through visible failure, keyboard/touch Retry, and
   recovery. Calendar guards must also hold and release real primary/ancillary/realtime work across

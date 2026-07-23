@@ -1,13 +1,15 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-22 @ 0b8a2a2 (`#910` merged) + source-only F27 operator-toolkit
-> candidate (PR #901 stop evidence still governs live state; corrective source is not live) +
-> Phase-3 reconciliation and the public-safe boot/refresh/history audit through F185. The owner
-> split F176/F179 overnight-runner containment into parked draft #908 for later review; it is not a
-> blocker for the client-entry product fix and must not be expanded or reopened here. The client
-> verifier is live at v28; the matching browser remains draft/unserved. Workload background refresh
-> is now on `main`, while its deliberate-manual function boundaries remain unchanged. Coverage state
-> lives in `docs/testing/ASSURANCE_LEDGER.md`.
+> Last verified: 2026-07-22 @ a479cd0 (`#910`, the vault companion, and client-entry PR #891
+> merged/live) + source-only F27 operator-toolkit candidate (PR #901 stop evidence still governs
+> live state; corrective source is not live) + Phase-3 reconciliation and the public-safe
+> boot/refresh/history audits through F199. The owner split F176/F179 overnight-runner containment
+> into parked draft #908 for later review; it is not a blocker, must not be expanded or reopened,
+> and was outside the staff audit. Client-token verifier v28 and the matching #891 browser are live.
+> Round 2 is audit-only: F186–F199 are an unremediated staff punch list, with one BLOCKER at F186;
+> no product code, test, harness, deployment, flag, migration, workflow, backend, writer, or live
+> data changed. Workload background refresh is on `main`, while its deliberate-manual function
+> boundaries remain unchanged. Coverage state lives in `docs/testing/ASSURANCE_LEDGER.md`.
 
 You are working on **SyncView**, the internal production app for a social-media agency
 (Synchro Social). Read this once and you can skip an hour of re-discovery.
@@ -207,9 +209,10 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   The cloud review returned no separate F179/F184 thread. Those F176/F179/F183/F184 source reviews
   used no browser, backend, credential value, live data or write. On 2026-07-22 the owner split the
   completed F176/F179 overnight-runner containment into parked, unmerged draft #908 for later review.
-  It remains recorded and OPEN/parked, is not a #891 blocker, and must not be expanded or reopened in
-  this integration. Final #891 exact-head cloud review completed at `babbb2d` with no new findings;
-  product-owned rows remain OPEN only until owner merge, while F185 stays separately deferred.
+  It remains recorded and OPEN/parked, did not block #891, and must not be expanded or reopened.
+  Final #891 exact-head cloud review completed at `babbb2d` with no new findings, and the owner
+  subsequently merged #891; its browser and verifier boundary are live. F185 stays separately
+  deferred.
   Every remediation must satisfy F162 with a browser guard that observes the
   actual visible sequence from document start through visible failure, keyboard/touch Retry, and
   recovery. Calendar guards must also hold and release real primary/ancillary/realtime work across
@@ -220,8 +223,8 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   work retained only in parked #908. They are not rerun or extended as part of #891. Preserve the
   product branch's F184 matching-A/foreign-B/unknown/staff-only
   synthetic debt, real lifecycle triggers, held-lock, timeout/pagehide cancellation, byte-identity
-  and fresh-owner assertions. These local guards do not close their rows before owner merge. The
-  verifier is already live at v28 and must not be redeployed; the owner-selected hard cutover does
+  and fresh-owner assertions. The verifier is live at v28 and must not be redeployed; the
+  owner-selected hard cutover does
   not wait for link confirmations, and old links intentionally use the existing updated-link screen.
   An earlier exact-head cloud review at `f91aba17` (review `4759712636`, comment `3634666109`)
   registered deferred F185: the visible-boot workflow restores cached Chromium binaries without
@@ -231,6 +234,17 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   here or reopen F176/F179.
   A settled-page assertion or
   source check does not close a boot finding.
+- The public-safe staff-facing Round 2 audit at `a479cd0` registers F186–F199. F186 is the only
+  BLOCKER: protected weekly-report state is outside the shared identity-loss/BFCache purge owner.
+  Production route replacement and async ownership are F187/F188; Workload reload/BFCache
+  freshness is F189/F190; weekly filter request ownership is F191; uploader read truth/readiness/
+  selection ownership is F192–F194; caption prompt readiness and Submit/intake draft isolation are
+  F195/F196; admin More notifications and BFCache freshness are F197/F198; Hook Library receipt
+  truth is F199. A controlled fictional browser observation expanded existing F155 for the
+  password-to-deep-link wrong-shell handoff; all new numbered rows are source-only and make no
+  production-frequency claim. This audit changed documentation only and built no fix or harness.
+  The owner questions in `docs/audits/2026-07-22-staff-boot-refresh-history-audit.md` are the
+  remediation boundary.
 - F140 is owner-ratified and fixed on the review branch: Samples matches Calendar, so Kasper may
   stack change requests and then Finish hands the card to the SMM. The strict Finish gate remains;
   the fix prevents a fresh status companion from being mistaken for recovery debt before its first

@@ -47,6 +47,7 @@ vm.runInContext([
   extract('_prodWriteTeam'),
   extract('_prodAttributionResolved'),
   extract('_prodAttributionGateText'),
+  extract('_prodIdentityRepairGateText'),
   extract('_prodTestWriteOverride'),
   extract('_prodRoleCanWrite'),
   extract('_prodCanWrite'),
@@ -240,6 +241,17 @@ ok(/sessionStorage\.getItem\(PROD_CREATE_DRAFT_KEY\)/.test(createSavedDraft)
   && /code === 'idempotency_conflict'[\s\S]{0,500}error\.nativeCommitted && error\.row && error\.row\.id[\s\S]{0,360}_prodOpenDeliverable\(createdId\)/.test(createSubmit)
   && !/code === 'idempotency_conflict'[\s\S]{0,500}_prodRenewCreateIntent\(\)/.test(createSubmit),
 'reload, catching-up polls, and terminal conflicts retain one exact intent; a committed conflict opens the saved native issue instead of minting a duplicate');
+ok(/identity_repair_state:linear_raw->identity_repair->>state/.test(source)
+  && /identity_repair_reason:linear_raw->identity_repair->>reason/.test(source)
+  && /identityRepair: _prodRawIdentityRepair\(d\)/.test(extract('_prodAdapter'))
+  && /state === 'resolved'[\s\S]{0,160}resolvedLinearIssueId === currentLinearIssueId/.test(extract('_prodRawIdentityRepair'))
+  && /_prodIdentityRepairGateText\(issue\)/.test(extract('_prodCanWrite'))
+  && /_prodIdentityRepairGateText\(parent\)/.test(createGate)
+  && /data-prod-identity-repair-notice="required"/.test(extract('_prodAttributionNoticeHTML'))
+  && /status, description, label, due date, assignee, comment, or sub-issue write/.test(extract('_prodAttributionNoticeHTML'))
+  && /'sync_state'/.test(extract('_prodApplyGatewayRow'))
+  && /'identity_repair_state'/.test(extract('_prodApplyGatewayRow')),
+'a deterministic create-id conflict survives refresh as a visible read-only quarantine for every mutable issue and child-create path');
 ok(/const lockedScope = draft\.mode === 'subissue' && !!parent/.test(createForm)
   && /_svSelectHtml\('prodCreateMode'[\s\S]{0,220}disabled: parentFixed \|\| recoveryLocked/.test(createForm)
   && /_svSelectHtml\('prodCreateClient'[\s\S]{0,260}disabled: lockedScope \|\| recoveryLocked/.test(createForm)
@@ -315,7 +327,8 @@ ok(/_prodGatewayWrite\(issue, 'description', \{ description \}, state\.requestId
   && /if \(!state\.requestId\) state\.requestId = _prodWriteRequestId\('description'\)/.test(extract('_prodSaveDescription'))
   && /_prodNextDescriptionRequestToken\(id\)/.test(extract('_prodSaveDescription'))
   && /description\.includes\('\\0'\)/.test(extract('_prodSaveDescription'))
-  && /\['status', 'status_at', 'due_date', 'assignee_id', 'brief', 'updated_at', 'linear_raw'\]/.test(extract('_prodApplyGatewayRow')),
+  && /'brief', 'sync_state', 'updated_at'/.test(extract('_prodApplyGatewayRow'))
+  && /'linear_raw', 'identity_repair_state', 'identity_repair_reason'/.test(extract('_prodApplyGatewayRow')),
 'description edits preserve exact Markdown, reject NUL, invalidate stale reads, and adopt the guarded gateway brief');
 ok(/state\.draft = value/.test(extract('_prodDescriptionDraftInput'))
   && /state\.error = state\.remoteChanged/.test(extract('_prodDescriptionDraftInput'))

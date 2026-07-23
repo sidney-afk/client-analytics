@@ -761,8 +761,13 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
   return data;
 }
 
+function identityRepair(value: unknown): JsonMap {
+  return parseJson(parseJson(parseJson(value).linear_raw).identity_repair);
+}
+
 function publicRow(value: unknown): JsonMap {
   const row = parseJson(value);
+  const repair = identityRepair(row);
   return {
     id: clean(row.id),
     identifier: clean(row.identifier) || null,
@@ -777,10 +782,58 @@ function publicRow(value: unknown): JsonMap {
     assignee_id: clean(row.assignee_id) || null,
     origin: clean(row.origin) || null,
     card_id: clean(row.card_id) || null,
+    sync_state: clean(row.sync_state) || null,
+    identity_repair_state: clean(repair.state) || null,
+    identity_repair_reason: clean(repair.reason) || null,
     linear_identifier: clean(row.linear_identifier) || null,
     linear_issue_url: clean(row.linear_issue_url) || null,
     updated_at: clean(row.updated_at) || null,
   };
+}
+
+async function assertDeliverableIdentityWritable(
+  supabase: SupabaseClient,
+  row: JsonMap,
+): Promise<void> {
+  const repair = identityRepair(row);
+  const repairState = lower(repair.state);
+  const currentLinearIssueId = clean(
+    row.linear_issue_uuid || parseJson(parseJson(row.linear_raw).issue).id,
+  );
+  if (repairState === "resolved"
+      && clean(repair.resolved_linear_issue_id)
+      && clean(repair.resolved_linear_issue_id) === currentLinearIssueId) {
+    return;
+  }
+  const blocked = (): never => {
+    throw new GatewayError(409, "identity_repair_required", {
+      read_only: true,
+      row: {
+        ...publicRow(row),
+        sync_state: "error",
+        identity_repair_state: "required",
+        identity_repair_reason: "linear_create_idempotency_conflict",
+      },
+    });
+  };
+  if (repairState) blocked();
+
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("id,status,entity,entity_id,operation,client_slug,team,payload,linear_result")
+    .eq("entity", "deliverable")
+    .eq("entity_id", clean(row.id))
+    .eq("operation", "create");
+  if (error) throw new GatewayError(503, "identity_guard_unavailable");
+  const conflicts = ((data || []) as JsonMap[]).filter(candidate => {
+    const payload = parseJson(candidate.payload);
+    const conflict = parseJson(parseJson(candidate.linear_result).conflict);
+    return clean(candidate.client_slug) === clean(row.client_slug)
+      && normalizeTeam(candidate.team) === normalizeTeam(row.team)
+      && clean(payload.planned_linear_issue_id)
+      && clean(payload.planned_linear_issue_id) === currentLinearIssueId
+      && lower(conflict.decision) === "idempotency_conflict";
+  });
+  if (conflicts.length) blocked();
 }
 
 function publicDescriptionRow(value: unknown): JsonMap {
@@ -2022,6 +2075,7 @@ async function productionCreateParentRoute(
   if (parentError) throw new GatewayError(503, "create_parent_lookup_unavailable");
   if (!parentData) throw new GatewayError(404, "create_parent_not_found");
   const parent = parentData as JsonMap;
+  await assertDeliverableIdentityWritable(supabase, parent);
   const raw = parseJson(parent.linear_raw);
   const issue = parseJson(raw.issue);
   const attribution = parseJson(raw.attribution);
@@ -2503,6 +2557,12 @@ async function handleEntityOperation(
   if (!targetClientSlug || !team) throw new GatewayError(409, "entity_scope_unavailable");
 
   const principal = await authenticate(supabase, req, body, targetClientSlug);
+  if (entity === "deliverable") {
+    // This single guard covers status, description, labels, due, assignee,
+    // comments, and any future entity mutation before it can enqueue an
+    // outbound write against a quarantined deterministic create UUID.
+    await assertDeliverableIdentityWritable(supabase, existing);
+  }
   const nextStatus = lower(body.status || parseJson(body.patch).status);
   if (surface === "production" && operation !== "comment") {
     if (!clean(body.expected_updated_at)

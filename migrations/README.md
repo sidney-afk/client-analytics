@@ -119,7 +119,9 @@ executes these files (see `README.md` › Repository layout).
   RPC for a Production root issue (one structural native batch plus one
   deliverable) or sub-issue (the validated root batch plus one deliverable),
   plus one service-role-only post-ack linkage RPC that row-locks and patches
-  only Linear identity fields without overwriting a newer native edit. Both
+  only Linear identity fields without overwriting a newer native edit, and one
+  service-role-only quarantine RPC that marks a deterministic Linear identity
+  conflict read-only without erasing the saved native issue. Both
   creation paths enqueue exactly one existing `create` operation for the
   deliverable, never a batch create, and require `origin=manual` with no
   Calendar/Samples card identity.

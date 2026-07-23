@@ -40915,6 +40915,33 @@
                 explicit_manifest_sha256: String(read('raw_attribution_explicit_manifest_sha256', 'explicit_manifest_sha256') || '').trim().toLowerCase()
             };
         }
+        function _prodRawIdentityRepair(row) {
+            const raw = _prodLinearRaw(row && row.linear_raw);
+            const nested = raw && raw.identity_repair && typeof raw.identity_repair === 'object'
+                ? raw.identity_repair
+                : {};
+            const state = String(
+                (_prodHasOwn(row, 'identity_repair_state')
+                    ? row.identity_repair_state
+                    : '') || nested.state || ''
+            ).trim().toLowerCase();
+            const reason = String(
+                (_prodHasOwn(row, 'identity_repair_reason')
+                    ? row.identity_repair_reason
+                    : '') || nested.reason || ''
+            ).trim();
+            const resolvedLinearIssueId = String(nested.resolved_linear_issue_id || '').trim();
+            const currentLinearIssueId = String(
+                row && row.linear_issue_uuid || raw && raw.issue && raw.issue.id || ''
+            ).trim();
+            return {
+                state,
+                reason,
+                required: !!state && !(state === 'resolved'
+                    && resolvedLinearIssueId
+                    && resolvedLinearIssueId === currentLinearIssueId)
+            };
+        }
         function _prodResolveAttributions(rows, clients, parentLinks) {
             const activeBySlug = new Map();
             const projectOwners = new Map();
@@ -41210,6 +41237,7 @@
                     project,
                     authorityProject: attribution.state === 'resolved' ? attribution.clientSlug : '',
                     attribution,
+                    identityRepair: _prodRawIdentityRepair(d),
                     storedClientSlug: d.client_slug || '',
                     title: d.title || '',
                     parent: parentLinks.get(String(d.id || '')) || null,
@@ -41302,6 +41330,11 @@
             if (attribution.state === 'conflict') return 'Client attribution conflicts across this issue family. Repair it before writing.';
             if (attribution.state === 'provisional_child_family') return 'Client attribution is provisional from child issues. Repair it before writing.';
             return 'Client attribution needs repair before writing.';
+        }
+        function _prodIdentityRepairGateText(issue) {
+            return issue && issue.identityRepair && issue.identityRepair.required
+                ? 'Linear identity repair is required. This saved issue stays read-only so no change can reach the conflicting Linear issue.'
+                : '';
         }
         function _prodStatusLabel(status) { return PROD_STATUS[_prodArtifactStatus(status)] || status || 'Unknown'; }
         function _prodBoardLabel(status) { return PROD_BOARD_STATUS[_prodBoardStatus(status)] || status || 'Unknown'; }
@@ -42202,13 +42235,16 @@
                 && (operation === 'status' || operation === 'comment');
         }
         function _prodCanWrite(issue, operation) {
-            if (!issue || !_prodAttributionResolved(issue) || !_prodRoleCanWrite(issue, operation)) return false;
+            if (!issue || _prodIdentityRepairGateText(issue)
+                || !_prodAttributionResolved(issue) || !_prodRoleCanWrite(issue, operation)) return false;
             if (_prodTestWriteOverride(issue)) return true;
             const team = _prodWriteTeam(issue.team);
             return !!(team && _prodState.authority && _prodState.authority[team] === 'syncview');
         }
         function _prodWriteGateText(issue, operation) {
             if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with your staff account to write.';
+            const identityGate = _prodIdentityRepairGateText(issue);
+            if (identityGate) return identityGate;
             const attributionGate = _prodAttributionGateText(issue);
             if (attributionGate) return attributionGate;
             if (!_prodRoleCanWrite(issue, operation)) return 'Your staff role cannot perform this action.';
@@ -42246,6 +42282,8 @@
         function _prodCreateGateText(clientSlug, team, parent) {
             if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with an Admin or SMM staff account to create issues.';
             if (!_prodCreateRoleAllowed()) return 'Only Admin and SMM staff can create Production issues.';
+            const identityGate = _prodIdentityRepairGateText(parent);
+            if (identityGate) return identityGate;
             if (parent && (!_prodAttributionResolved(parent) || parent.parent)) {
                 return parent.parent
                     ? 'Create the sub-issue from a top-level parent issue.'
@@ -42696,6 +42734,7 @@
             if (code === 'create_mirror_pending') return 'The issue is saved in Production. Its exact fields stay locked while Linear catches up; Retry checks the same attempt and cannot create a duplicate.';
             if (code === 'idempotency_conflict' && error && error.nativeCommitted) return 'The issue is saved in Production, but its Linear create ID conflicts with another issue. The saved issue will open for explicit repair; no second issue was created.';
             if (code === 'idempotency_conflict') return 'This request conflicts with durable create state. Its exact fields stay locked to prevent a duplicate; retry only checks the same attempt.';
+            if (code === 'identity_repair_required') return 'This saved issue needs Linear identity repair and stays read-only. No second issue was created.';
             if (code === 'team_is_linear_authoritative') return 'This team is read-only while Linear is authoritative.';
             if (code === 'test_scope_service_only' || code === 'invalid_test_override') return 'TEST creation is reserved for the service-authenticated write drill.';
             if (code === 'project_mapping_missing' || code === 'project_mapping_ambiguous') return 'This roster client needs an exact team project mapping before creation.';
@@ -42844,7 +42883,8 @@
             if (!row || !row.id) return;
             const target = (_prodState.deliverables || []).find(item => String(item && item.id || '') === String(row.id));
             if (!target) return;
-            ['status', 'status_at', 'due_date', 'assignee_id', 'brief', 'updated_at', 'linear_raw'].forEach(field => {
+            ['status', 'status_at', 'due_date', 'assignee_id', 'brief', 'sync_state', 'updated_at',
+                'linear_raw', 'identity_repair_state', 'identity_repair_reason'].forEach(field => {
                 if (Object.prototype.hasOwnProperty.call(row, field)) target[field] = row[field];
             });
             _prodState.adapter = null;
@@ -42852,6 +42892,10 @@
         function _prodWriteErrorText(error, issue, operation) {
             const code = String(error && error.code || '');
             if (code === 'write_conflict') return 'This issue changed elsewhere. Current values were reloaded; try again.';
+            if (code === 'identity_repair_required') {
+                return _prodIdentityRepairGateText(issue)
+                    || 'Linear identity repair is required. This saved issue stays read-only.';
+            }
             if (code === 'team_is_linear_authoritative' || code === 'legacy_parity_not_allowed') return _prodWriteGateText(issue, operation) || 'This team is read-only right now.';
             if (code === 'operation_forbidden' || code === 'assignee_out_of_scope') return 'Your staff role cannot perform this action.';
             if (error && (error.status === 401 || code === 'credentials_required')) return 'Your staff sign-in expired. Sign in again to write.';
@@ -44819,7 +44863,7 @@
                     _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10),
                     _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
                     _prodRestRows('batches', 'id,client_slug,team,name,description,filming_doc_url,footage_folder_url,delivery_folder_url,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids', 'order=created_at.desc', 1000, 25),
-                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,raw_issue_parent_id:linear_raw->issue->parent->>id,raw_project_id:linear_raw->issue->project->>id,raw_attribution_schema:linear_raw->attribution->>schema,raw_attribution_state:linear_raw->attribution->>state,raw_attribution_client_slug:linear_raw->attribution->>client_slug,raw_attribution_owner_kind:linear_raw->attribution->>owner_kind,raw_attribution_source:linear_raw->attribution->>source,raw_attribution_provisional_client_slug:linear_raw->attribution->>provisional_client_slug,raw_attribution_mapping_revision:linear_raw->attribution->>mapping_revision,raw_attribution_repair_required:linear_raw->attribution->>repair_required,raw_attribution_reason:linear_raw->attribution->>reason,raw_attribution_explicit_owner_approved:linear_raw->attribution->>explicit_owner_approved,raw_attribution_explicit_decision_ref:linear_raw->attribution->>explicit_decision_ref,raw_attribution_explicit_manifest_sha256:linear_raw->attribution->>explicit_manifest_sha256,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived', 'order=team.asc,status.asc,due_date.asc', 1000, 50),
+                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state:linear_raw->identity_repair->>state,identity_repair_reason:linear_raw->identity_repair->>reason,raw_issue_parent_id:linear_raw->issue->parent->>id,raw_project_id:linear_raw->issue->project->>id,raw_attribution_schema:linear_raw->attribution->>schema,raw_attribution_state:linear_raw->attribution->>state,raw_attribution_client_slug:linear_raw->attribution->>client_slug,raw_attribution_owner_kind:linear_raw->attribution->>owner_kind,raw_attribution_source:linear_raw->attribution->>source,raw_attribution_provisional_client_slug:linear_raw->attribution->>provisional_client_slug,raw_attribution_mapping_revision:linear_raw->attribution->>mapping_revision,raw_attribution_repair_required:linear_raw->attribution->>repair_required,raw_attribution_reason:linear_raw->attribution->>reason,raw_attribution_explicit_owner_approved:linear_raw->attribution->>explicit_owner_approved,raw_attribution_explicit_decision_ref:linear_raw->attribution->>explicit_decision_ref,raw_attribution_explicit_manifest_sha256:linear_raw->attribution->>explicit_manifest_sha256,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived', 'order=team.asc,status.asc,due_date.asc', 1000, 50),
                     _prodFetchAuthority()
                 ]);
                 const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
@@ -44900,6 +44944,9 @@
                         row.raw_attribution_explicit_owner_approved = attribution.explicit_owner_approved === true;
                         row.raw_attribution_explicit_decision_ref = attribution.explicit_decision_ref || null;
                         row.raw_attribution_explicit_manifest_sha256 = attribution.explicit_manifest_sha256 || null;
+                        const identityRepair = raw && raw.identity_repair || {};
+                        row.identity_repair_state = identityRepair.state || null;
+                        row.identity_repair_reason = identityRepair.reason || null;
                     }
                     _prodState.adapter = null;
                     if (_prodState.openId === id) _prodRender();
@@ -45665,6 +45712,9 @@
             return _prodIssueProjectChipHTML(issue);
         }
         function _prodAttributionNoticeHTML(issue) {
+            if (issue && issue.identityRepair && issue.identityRepair.required) {
+                return '<div class="prod-attribution-notice is-conflict" data-prod-identity-repair-notice="required"><b>Linear identity repair required.</b> This saved issue is read-only so no status, description, label, due date, assignee, comment, or sub-issue write can reach the conflicting Linear issue. No second issue was created.</div>';
+            }
             const attribution = issue && issue.attribution;
             if (!attribution || (attribution.state === 'resolved' && !attribution.repairRequired)) return '';
             const reason = String(attribution.reason || '').replace(/_/g, ' ');

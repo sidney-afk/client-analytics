@@ -590,6 +590,49 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && /status: "skipped"[\s\S]{0,320}last_error: f27Replay \? "F27 replay declined: idempotency_conflict" : "idempotency_conflict"[\s\S]{0,120}next_retry_at: f27Replay \?/.test(ef)
     && /createVerification\?\.decision === "idempotency_conflict"[\s\S]{0,520}status: "skipped"/.test(ef),
   'deterministic create intent conflicts become structured terminal receipts before or after the mutation response and never enter generic retry exhaustion');
+  const identityStateStart = ef.indexOf('async function createIdentityState(');
+  const identityStateEnd = ef.indexOf('\nasync function quarantineCreateIdentity(', identityStateStart);
+  const identityState = ef.slice(identityStateStart, identityStateEnd);
+  const rowLoopStart = ef.indexOf('for (const candidate of rows)');
+  const identityLoopGuard = ef.indexOf('const identityState = await createIdentityState(supabase, row, entity)', rowLoopStart);
+  const dependencyRead = ef.indexOf('dependencyResult(supabase, row)', rowLoopStart);
+  const linearRead = ef.indexOf('readIssue(issueId', rowLoopStart);
+  const mutationBuild = ef.indexOf('buildMutation(row, context)', rowLoopStart);
+  const identityLoopBlock = ef.slice(identityLoopGuard, dependencyRead);
+  ok(/row\.entity === "comment"[\s\S]{0,80}row\.deliverable_id/.test(identityState)
+    && /clean\(entity\.id\) !== deliverableId/.test(identityState)
+    && /\.eq\("entity", "deliverable"\)/.test(identityState)
+    && /\.eq\("operation", "create"\)/.test(identityState)
+    && /lower\(conflict\.decision\) === "idempotency_conflict"/.test(identityState)
+    && /lower\(create\.status\) === "written"/.test(identityState)
+    && identityLoopGuard > rowLoopStart
+    && identityLoopGuard < dependencyRead
+    && identityLoopGuard < linearRead
+    && identityLoopGuard < mutationBuild
+    && identityLoopBlock.indexOf('identityState === "pending"')
+      < identityLoopBlock.indexOf('unlockPending(supabase, row, 15)')
+    && identityLoopBlock.indexOf('identityState === "conflict"')
+      < identityLoopBlock.indexOf('decision: "identity_repair_required"')
+    && identityLoopBlock.indexOf('status: "skipped"')
+      > identityLoopBlock.indexOf('identityState === "conflict"'),
+  'all later deliverable and deliverable-comment intents wait for a written F203 create or terminal-skip before any foreign issue read or mutation');
+  const preConflictStart = ef.indexOf('if (conflict.decision === "idempotency_conflict" && row.operation === "create")');
+  const preConflictEnd = ef.indexOf('if (conflict.decision === "failed")', preConflictStart);
+  const preConflictBlock = ef.slice(preConflictStart, preConflictEnd);
+  const postConflictStart = ef.indexOf('const createVerification = row.operation === "create"');
+  const postConflictEnd = ef.indexOf('if (createVerification && createVerification.decision !== "already_exists")', postConflictStart);
+  const postConflictBlock = ef.slice(postConflictStart, postConflictEnd);
+  ok((ef.match(/await quarantineCreateIdentity\(supabase, row\)/g) || []).length === 2
+    && preConflictBlock.indexOf('checkpointLinearResult(supabase, row, linearResult)')
+      < preConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
+    && preConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
+      < preConflictBlock.indexOf('status: "skipped"')
+    && postConflictBlock.indexOf('checkpointLinearResult(supabase, row, linearResult)')
+      < postConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
+    && postConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
+      < postConflictBlock.indexOf('status: "skipped"')
+    && /rpc\("production_issue_create_quarantine"/.test(ef),
+  'both pre-mutation and post-response create conflicts checkpoint then persist the native read-only quarantine before terminal release');
   const linkageStart = ef.indexOf('async function applyCreateLinkage(');
   const linkageEnd = ef.indexOf('\nasync function latestOutboundSummaryTs(', linkageStart);
   const linkage = ef.slice(linkageStart, linkageEnd);

@@ -75,7 +75,7 @@ check('preview reads only the authority flag needed to fail closed',
   && /PROD_AUTHORITY_FLAG_KEY = 'prod_authority'/.test(prodBlock)
   && !/syncview_runtime_flags[\s\S]{0,180}(POST|PATCH|PUT|DELETE)/.test(prodBlock));
 check('preview fetches projected archive/delete markers instead of full linear_raw at boot',
-  /_prodRestRows\('deliverables'[\s\S]{0,1200}raw_issue_archived_at:linear_raw->issue->>archivedAt/.test(prodBlock)
+  /_prodRestRows\('deliverables'[\s\S]{0,1800}raw_issue_archived_at:linear_raw->issue->>archivedAt/.test(prodBlock)
   && /linear_issue_uuid/.test(prodBlock)
   && /raw_issue_parent_id:linear_raw->issue->parent->>id/.test(prodBlock)
   && /raw_issue_canceled_at:linear_raw->issue->>canceledAt/.test(prodBlock)

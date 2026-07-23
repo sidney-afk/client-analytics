@@ -650,6 +650,78 @@ async function applyCreateLinkage(
   if (error) throw new Error("deliverable create linkage failed");
 }
 
+type CreateIdentityState = "not_f203" | "pending" | "ready" | "conflict";
+
+function createIdentityRepair(value: JsonMap): JsonMap {
+  return parseJson(parseJson(value.linear_raw).identity_repair);
+}
+
+async function createIdentityState(
+  supabase: SupabaseClient,
+  row: OutboxRow,
+  entity: JsonMap,
+): Promise<CreateIdentityState> {
+  if (row.entity !== "deliverable" && row.entity !== "comment") return "not_f203";
+  const deliverableId = row.entity === "comment"
+    ? clean(row.deliverable_id)
+    : clean(row.entity_id);
+  if (!deliverableId) return "not_f203";
+  if (clean(entity.id) !== deliverableId) {
+    throw new Error("create identity guard target mismatch");
+  }
+  const repair = createIdentityRepair(entity);
+  const repairState = lower(repair.state);
+  const currentLinearIssueId = clean(entity.linear_issue_uuid || parseJson(parseJson(entity.linear_raw).issue).id);
+  if (repairState === "required") return "conflict";
+  if (repairState === "resolved"
+      && clean(repair.resolved_linear_issue_id)
+      && clean(repair.resolved_linear_issue_id) === currentLinearIssueId) {
+    return "ready";
+  }
+  if (repairState) return "conflict";
+
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("id,status,entity,entity_id,operation,client_slug,team,payload,linear_result")
+    .eq("entity", "deliverable")
+    .eq("entity_id", deliverableId)
+    .eq("operation", "create");
+  if (error) throw new Error("create identity guard unavailable");
+  const candidates = ((data || []) as JsonMap[]).filter(candidate => {
+    const payload = parseJson(candidate.payload);
+    return clean(candidate.client_slug) === clean(row.client_slug)
+      && lower(candidate.team) === lower(row.team)
+      && clean(payload.planned_linear_issue_id)
+      && clean(payload.planned_linear_issue_id) === currentLinearIssueId;
+  });
+  if (!candidates.length) return "not_f203";
+  if (candidates.length !== 1) return "conflict";
+  const create = candidates[0];
+  const conflict = parseJson(parseJson(create.linear_result).conflict);
+  if (lower(conflict.decision) === "idempotency_conflict") return "conflict";
+  if (lower(create.status) === "written") return "ready";
+  if (["pending", "failed", "shadow_ok"].includes(lower(create.status))) return "pending";
+  return "conflict";
+}
+
+async function quarantineCreateIdentity(
+  supabase: SupabaseClient,
+  row: OutboxRow,
+): Promise<void> {
+  const plannedLinearIssueId = clean(parseJson(row.payload).planned_linear_issue_id);
+  const outboxId = Number(row.id);
+  if (row.entity !== "deliverable" || !plannedLinearIssueId) return;
+  if (!Number.isSafeInteger(outboxId) || outboxId < 1) {
+    throw new Error("create identity quarantine receipt invalid");
+  }
+  const { data, error } = await supabase.rpc("production_issue_create_quarantine", {
+    p_deliverable_id: clean(row.entity_id),
+    p_outbox_id: outboxId,
+  });
+  if (error || clean(parseJson(data).id) !== clean(row.entity_id)) {
+    throw new Error("create identity quarantine failed");
+  }
+}
+
 async function latestOutboundSummaryTs(supabase: SupabaseClient): Promise<string> {
   const { data } = await supabase.from("deliverable_events")
     .select("ts")
@@ -1079,6 +1151,35 @@ Deno.serve(async (req: Request) => {
       }
 
       const entity = await entityRow(supabase, row);
+      if (row.operation !== "create") {
+        const identityState = await createIdentityState(supabase, row, entity);
+        if (identityState === "pending") {
+          // A later native edit may commit while its deterministic create is
+          // still catching up, but it cannot address that planned UUID until
+          // the create receipt has linked it successfully.
+          await unlockPending(supabase, row, 15);
+          continue;
+        }
+        if (identityState === "conflict") {
+          counts.failed++;
+          counts.skipped++;
+          await releaseRow(supabase, row, {
+            status: "skipped",
+            processed_at: f27Replay ? null : new Date().toISOString(),
+            linear_result: bindF27LinearResult({
+              conflict: {
+                decision: "identity_repair_required",
+                reason: "linear_create_idempotency_conflict",
+              },
+            }, f27Replay, row),
+            last_error: f27Replay
+              ? "F27 replay declined: identity_repair_required"
+              : "identity_repair_required",
+            next_retry_at: f27Replay ? new Date(Date.now() + 30_000).toISOString() : null,
+          });
+          continue;
+        }
+      }
       let dependency = await dependencyResult(supabase, row);
       if (dependency.waiting === true) {
         await unlockPending(supabase, row, 15);
@@ -1156,15 +1257,20 @@ Deno.serve(async (req: Request) => {
         // never succeed by retrying. Quarantine it in the existing terminal
         // status and retain the structured receipt so production-write can
         // expose a conflict instead of reporting indefinite mirror lag.
+        const linearResult = bindF27LinearResult({
+          conflict,
+          issue: compactIssue(issue),
+        }, f27Replay, row);
+        // The checkpoint makes the conflict discoverable by concurrent
+        // mutable-row guards before the native quarantine is persisted.
+        await checkpointLinearResult(supabase, row, linearResult);
+        await quarantineCreateIdentity(supabase, row);
         counts.failed++;
         counts.skipped++;
         await releaseRow(supabase, row, {
           status: "skipped",
           processed_at: f27Replay ? null : new Date().toISOString(),
-          linear_result: bindF27LinearResult({
-            conflict,
-            issue: compactIssue(issue),
-          }, f27Replay, row),
+          linear_result: linearResult,
           last_error: f27Replay ? "F27 replay declined: idempotency_conflict" : "idempotency_conflict",
           next_retry_at: f27Replay ? new Date(Date.now() + 30_000).toISOString() : null,
         });
@@ -1236,6 +1342,7 @@ Deno.serve(async (req: Request) => {
       // even while this row is still locked/finalizing.
       await checkpointLinearResult(supabase, row, linearResult);
       if (createVerification?.decision === "idempotency_conflict") {
+        await quarantineCreateIdentity(supabase, row);
         counts.failed++;
         counts.skipped++;
         await releaseRow(supabase, row, {

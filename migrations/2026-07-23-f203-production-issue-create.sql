@@ -1,8 +1,9 @@
 -- F203: atomic Production-only parent/sub-issue creation.
 --
--- Additive and source-only. This adds two service-role-only RPCs (atomic native
--- create and atomic post-ack linkage); it does not alter the mirror_outbox
--- operation CHECK because `create` is already allowed.
+-- Additive and source-only. This adds three service-role-only RPCs (atomic
+-- native create, atomic post-ack linkage, and a fail-closed identity-conflict
+-- quarantine); it does not alter the mirror_outbox operation CHECK because
+-- `create` is already allowed.
 -- A root issue receives one structural native batch plus one deliverable, while
 -- a sub-issue reuses its validated root parent's batch. Only the deliverable
 -- emits a Linear create intent. Neither path accepts or writes a Calendar or
@@ -613,6 +614,114 @@ $fn$;
 revoke all on function public.production_issue_create_linkage(text, bigint, jsonb, jsonb)
   from public, anon, authenticated;
 grant execute on function public.production_issue_create_linkage(text, bigint, jsonb, jsonb)
+  to service_role;
+
+-- A deterministic Linear create-id collision means the planned UUID belongs
+-- to another issue. Persist a narrow, auditable quarantine without erasing the
+-- one committed native issue or its immutable create receipt. Mutable native
+-- fields remain intact, but sync_state plus the private identity marker make
+-- the row read-only until an explicit identity-repair process replaces the
+-- linkage and records a resolved marker.
+create or replace function public.production_issue_create_quarantine(
+  p_deliverable_id text,
+  p_outbox_id bigint
+) returns public.deliverables
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+declare
+  v_id text := nullif(btrim(coalesce(p_deliverable_id, '')), '');
+  v_outbox public.mirror_outbox%rowtype;
+  v_result public.deliverables%rowtype;
+  v_raw jsonb;
+  v_marker jsonb;
+begin
+  if v_id is null or p_outbox_id is null or p_outbox_id < 1 then
+    raise exception 'invalid_production_create_quarantine';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended('production-deliverable:' || v_id, 0));
+  select d.* into v_result
+  from public.deliverables d
+  where d.id = v_id
+  for update;
+  select o.* into v_outbox
+  from public.mirror_outbox o
+  where o.id = p_outbox_id
+  for share;
+
+  if v_result.id is null
+     or v_outbox.id is null
+     or v_outbox.entity is distinct from 'deliverable'
+     or v_outbox.entity_id is distinct from v_id
+     or v_outbox.operation is distinct from 'create'
+     or v_outbox.client_slug is distinct from v_result.client_slug
+     or v_outbox.team is distinct from v_result.team
+     or nullif(btrim(v_outbox.payload->>'planned_linear_issue_id'), '') is null
+     or v_outbox.payload->>'planned_linear_issue_id'
+          is distinct from v_result.linear_issue_uuid
+     or v_outbox.linear_result->'conflict'->>'decision'
+          is distinct from 'idempotency_conflict'
+     or jsonb_typeof(v_result.linear_raw) is distinct from 'object' then
+    raise exception 'production_create_quarantine_conflict';
+  end if;
+
+  v_raw := v_result.linear_raw;
+  if v_raw->'identity_repair'->>'state' = 'required'
+     and (v_raw->'identity_repair'->>'outbox_id')::bigint = p_outbox_id then
+    return v_result;
+  end if;
+  if v_raw ? 'identity_repair' then
+    raise exception 'production_create_quarantine_conflict';
+  end if;
+
+  v_marker := jsonb_build_object(
+    'schema', 'syncview_create_identity_repair_v1',
+    'state', 'required',
+    'reason', 'linear_create_idempotency_conflict',
+    'outbox_id', p_outbox_id,
+    'planned_linear_issue_id', v_result.linear_issue_uuid,
+    'detected_at', now()
+  );
+
+  -- This RPC emits its own exact audit row below.
+  perform set_config('app.event_written', '1', true);
+  update public.deliverables d
+  set sync_state = 'error',
+      linear_raw = jsonb_set(v_raw, '{identity_repair}', v_marker, true),
+      updated_at = now()
+  where d.id = v_id
+  returning d.* into v_result;
+
+  insert into public.deliverable_events(
+    deliverable_id, batch_id, client_slug, ts, actor, role, action,
+    from_status, to_status, source, payload
+  ) values (
+    v_result.id,
+    v_result.batch_id,
+    v_result.client_slug,
+    now(),
+    'SyncView Mirror',
+    'system',
+    'production_create_identity_quarantined',
+    v_result.status,
+    v_result.status,
+    'outbound',
+    jsonb_build_object(
+      'outbox_id', p_outbox_id,
+      'state', 'required',
+      'reason', 'linear_create_idempotency_conflict',
+      'read_only', true
+    )
+  );
+  return v_result;
+end;
+$fn$;
+
+revoke all on function public.production_issue_create_quarantine(text, bigint)
+  from public, anon, authenticated;
+grant execute on function public.production_issue_create_quarantine(text, bigint)
   to service_role;
 
 commit;

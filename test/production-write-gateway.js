@@ -661,6 +661,42 @@ function extractFunction(name) {
   const entityHandlerStart = edge.indexOf('async function handleEntityOperation(');
   const entityHandlerEnd = edge.indexOf('\nasync function ensureBatch(', entityHandlerStart);
   const entityHandler = edge.slice(entityHandlerStart, entityHandlerEnd);
+  const identityGuard = extractFunction('assertDeliverableIdentityWritable');
+  const identityGuardPosition = entityHandler.indexOf('assertDeliverableIdentityWritable(supabase, existing)');
+  const entityOperationBranchPosition = entityHandler.indexOf('if (operation === "comment")');
+  ok(/identity_repair/.test(identityGuard)
+    && /repairState === "resolved"/.test(identityGuard)
+    && /resolved_linear_issue_id/.test(identityGuard)
+    && /\.eq\("operation", "create"\)/.test(identityGuard)
+    && /lower\(conflict\.decision\) === "idempotency_conflict"/.test(identityGuard)
+    && /new GatewayError\(409, "identity_repair_required"/.test(identityGuard)
+    && /read_only: true/.test(identityGuard)
+    && identityGuardPosition > entityHandler.indexOf('authenticate(supabase, req, body, targetClientSlug)')
+    && identityGuardPosition < entityOperationBranchPosition
+    && identityGuardPosition < entityHandler.indexOf('f27WriteAuthorizationGeneration(')
+    && /await assertDeliverableIdentityWritable\(supabase, parent\)/.test(createParentRoute),
+  'one authenticated fail-closed identity guard blocks every deliverable operation and child route before enqueue or foreign Linear work');
+  ok(/sync_state: clean\(row\.sync_state\)/.test(extractFunction('publicRow'))
+    && /identity_repair_state: clean\(repair\.state\)/.test(extractFunction('publicRow'))
+    && /identity_repair_reason: clean\(repair\.reason\)/.test(extractFunction('publicRow')),
+  'gateway receipts expose only the public read-only repair state needed to quarantine the saved row');
+
+  const quarantineStart = createMigration.indexOf(
+    'create or replace function public.production_issue_create_quarantine(',
+  );
+  const quarantineEnd = createMigration.indexOf('\ncommit;', quarantineStart);
+  const quarantineMigration = createMigration.slice(quarantineStart, quarantineEnd);
+  ok(quarantineStart > 0
+    && /pg_advisory_xact_lock\(hashtextextended\('production-deliverable:'/.test(quarantineMigration)
+    && /v_outbox\.operation is distinct from 'create'/.test(quarantineMigration)
+    && /v_outbox\.linear_result->'conflict'->>'decision'[\s\S]{0,80}'idempotency_conflict'/.test(quarantineMigration)
+    && /'syncview_create_identity_repair_v1'/.test(quarantineMigration)
+    && /set sync_state = 'error'/.test(quarantineMigration)
+    && /jsonb_set\(v_raw, '\{identity_repair\}', v_marker, true\)/.test(quarantineMigration)
+    && /production_create_identity_quarantined/.test(quarantineMigration)
+    && /grant execute on function public\.production_issue_create_quarantine\(text, bigint\)[\s\S]{0,40}to service_role/.test(quarantineMigration)
+    && !/set[\s\S]{0,120}linear_issue_uuid\s*=|set[\s\S]{0,120}linear_identifier\s*=|set[\s\S]{0,120}linear_issue_url\s*=/.test(quarantineMigration),
+  'the additive F203 quarantine locks and marks only the one conflicted native identity, audits it, and cannot relink or erase the saved row');
   ok(/body\.reconcile_only === true/.test(entityHandler)
     && entityHandler.indexOf('reconcileEntityOperation(') < entityHandler.indexOf('const authority = principal.testOnly')
     && /historicalLegacyParity = body\.legacy_parity === true/.test(reconcile)
@@ -686,6 +722,9 @@ function extractFunction(name) {
     && /operation === "description"[\s\S]{0,700}patch: \{ brief: description \}[\s\S]{0,160}expectedOperationPayload = \{ description \}/.test(reconcile)
     && /operation === "description"[\s\S]{0,400}payload\.description === expectedPayload\.description/.test(receiptReader),
   'read-only reconciliation reconstructs the exact description fingerprint and compares the persisted Markdown payload without normalization');
+  let executableIdentityRepair = extractFunction('identityRepair')
+    .replace('value: unknown', 'value')
+    .replace(': JsonMap', '');
   let executablePublicRow = extractFunction('publicRow')
     .replace('value: unknown', 'value')
     .replace(': JsonMap', '');
@@ -698,6 +737,7 @@ function extractFunction(name) {
     normalizeTeam: value => ({ video: 'video', graphics: 'graphics' })[String(value || '').toLowerCase()] || '',
   };
   vm.createContext(publicRowContext);
+  vm.runInContext(executableIdentityRepair, publicRowContext);
   vm.runInContext(executablePublicRow, publicRowContext);
   vm.runInContext(executablePublicDescriptionRow, publicRowContext);
   const ordinaryPublicRow = publicRowContext.publicRow({

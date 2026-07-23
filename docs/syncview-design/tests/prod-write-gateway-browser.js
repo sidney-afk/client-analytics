@@ -272,6 +272,21 @@ function expect(value, message) { if (!value) throw new Error(message); }
       const existingCreate = productionCreateReceipts.get(String(body.request_id || ''));
       if (existingCreate) {
         if (existingCreate.terminalConflict) {
+          const marker = {
+            schema: 'syncview_create_identity_repair_v1',
+            state: 'required',
+            reason: 'linear_create_idempotency_conflict',
+          };
+          const stored = deliverables.find(row => row.id === existingCreate.row.id);
+          [existingCreate.row, stored].filter(Boolean).forEach(row => Object.assign(row, {
+            sync_state: 'error',
+            identity_repair_state: marker.state,
+            identity_repair_reason: marker.reason,
+            linear_raw: {
+              ...(row.linear_raw || {}),
+              identity_repair: { ...marker },
+            },
+          }));
           write.response = {
             ok: false,
             error: 'idempotency_conflict',
@@ -370,6 +385,16 @@ function expect(value, message) { if (!value) throw new Error(message); }
     const allowed = row && serverAuthority[row.team] === 'syncview';
     if (!allowed) {
       write.response = { ok: false, error: 'team_is_linear_authoritative' };
+      await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
+      return;
+    }
+    if (row.identity_repair_state === 'required') {
+      write.response = {
+        ok: false,
+        error: 'identity_repair_required',
+        read_only: true,
+        row: { ...row },
+      };
       await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
       return;
     }
@@ -850,6 +875,50 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && conflictWrites[1].response.native_committed === true
       && conflictWrites[1].response.error === 'idempotency_conflict',
     'terminal create polling minted a fresh request or created a second native issue instead of opening the saved repair row');
+    const writesBeforeQuarantineAttempts = writes.length;
+    const optionsBeforeQuarantineChild = createOptionReads.length;
+    const quarantineProof = await page.evaluate(async () => {
+      const issue = _prodIssue(_prodState.openId);
+      const attempts = [
+        ['status', { status: 'done' }],
+        ['description', { description: 'must not reach foreign issue' }],
+        ['labels', { label_ids: ['workload-3'] }],
+        ['due', { due_date: '2033-02-14' }],
+        ['assignee', { assignee_id: 'designer' }],
+        ['comment', { comment: { body: 'must not reach foreign issue' } }],
+      ];
+      const results = [];
+      for (const [operation, fields] of attempts) {
+        try {
+          await _prodGatewayWrite(issue, operation, fields);
+          results.push({ operation, code: 'unexpected_success' });
+        } catch (error) {
+          results.push({ operation, code: String(error && error.code || '') });
+        }
+      }
+      _prodOpenCreate(issue.id);
+      return {
+        id: issue && issue.id,
+        required: issue && issue.identityRepair && issue.identityRepair.required,
+        results,
+        canWrite: attempts.map(([operation]) => [operation, _prodCanWrite(issue, operation)]),
+        gate: _prodWriteGateText(issue, 'status'),
+        childGate: _prodCreateGateText(issue.project, issue.team, issue),
+        notice: document.querySelector('[data-prod-identity-repair-notice="required"]')?.textContent || '',
+        childModal: !!document.querySelector('[data-prod-create-modal]'),
+      };
+    });
+    expect(quarantineProof.required === true
+      && quarantineProof.results.length === 6
+      && quarantineProof.results.every(result => result.code === 'write_gate_closed')
+      && quarantineProof.canWrite.every(([, allowed]) => allowed === false)
+      && /identity repair/i.test(quarantineProof.gate)
+      && /identity repair/i.test(quarantineProof.childGate)
+      && /read-only/i.test(quarantineProof.notice)
+      && !quarantineProof.childModal
+      && writes.length === writesBeforeQuarantineAttempts
+      && createOptionReads.length === optionsBeforeQuarantineChild,
+    'a quarantined create could still mutate the foreign Linear issue or route a sub-issue through it');
 
     let startHeldCreateOptions;
     let releaseHeldCreateOptions;

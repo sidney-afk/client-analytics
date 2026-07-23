@@ -60,6 +60,7 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     WL_LINEAR_WRITE_TIMEOUT_MS: 12000,
     WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY: 'syncview_workload_native_due_receipt_v1',
     WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA: 'syncview.workload.native-due-receipt.v1',
+    WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS: [],
     _wlPlanLoadGeneration: 0,
     _wlPlanSessionGeneration: 0,
     _wlPlanWriteInFlight: new Map(),
@@ -68,6 +69,8 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     _wlPendingNativeDueReceiptByTarget: new Map(),
     _wlNativeDueReceiptRetryPromise: null,
     _wlNativeDueReceiptGeneration: 0,
+    _wlNativeDueReceiptRetryTimer: null,
+    _wlNativeDueReceiptRetryAttempt: 0,
     wlState: {
       allActiveSubs: [issue],
       issueSnapshot: [issue],
@@ -122,7 +125,7 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
       setItem: (key, value) => dueReceiptSignals.push({ operation: 'set', key, value }),
       removeItem: key => dueReceiptSignals.push({ operation: 'remove', key }),
     },
-    document: { querySelector: () => ({}) },
+    document: { querySelector: () => ({}), getElementById: () => null },
     AbortController,
     setTimeout,
     clearTimeout,
@@ -151,6 +154,8 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     'wlParseNativeDueReceipt',
     'wlNativeDueReceiptDisposition',
     'wlRetryPendingNativeDueReceipts',
+    'wlCancelNativeDueReceiptRetryTimer',
+    'wlScheduleNativeDueReceiptRetryLater',
     'wlScheduleNativeDueReceiptRetry',
     '_wlOnNativeDueReceiptStorage',
     '_wlDueWriteRequest',
@@ -252,8 +257,11 @@ function backgroundHarness(options = {}) {
     _wlPendingNativeDueReceiptByTarget: new Map(),
     _wlNativeDueReceiptRetryPromise: null,
     _wlNativeDueReceiptGeneration: 0,
+    _wlNativeDueReceiptRetryTimer: null,
+    _wlNativeDueReceiptRetryAttempt: 0,
     WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY: 'syncview_workload_native_due_receipt_v1',
     WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA: 'syncview.workload.native-due-receipt.v1',
+    WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS: options.retryDelays || [],
     wlState: {
       sourceSyncedAt: '2026-07-22T12:00:00.000Z',
       issueSnapshot: initialIssues,
@@ -365,6 +373,7 @@ function backgroundHarness(options = {}) {
     wlWireClientSearch: () => {},
     _wlV2EnsureSubscribed: () => {},
     _wlV2EnsureWatermarkPoll: () => {},
+    setTimeout, clearTimeout,
     Date, JSON, String, Number, Boolean, Error, Promise, Map, Array,
     console: { log: console.log, error: console.error, warn: () => {} },
   };
@@ -388,6 +397,8 @@ function backgroundHarness(options = {}) {
     'wlParseNativeDueReceipt',
     'wlNativeDueReceiptDisposition',
     'wlRetryPendingNativeDueReceipts',
+    'wlCancelNativeDueReceiptRetryTimer',
+    'wlScheduleNativeDueReceiptRetryLater',
     'wlScheduleNativeDueReceiptRetry',
     '_wlOnNativeDueReceiptStorage',
     '_wlV2CheckWatermark',
@@ -912,6 +923,41 @@ async function run() {
     updated_at: '2026-07-22T12:00:00Z',
   }, 'the cross-tab signal is tied to the exact acknowledged native row');
 
+  const statusBump = harness({ body: {
+    ok: true,
+    native_committed: true,
+    authority: 'syncview',
+    row: {
+      id: 'native-deliverable-1',
+      client_slug: 'synthetic-client',
+      team: 'video',
+      status: 'in_progress',
+      due_date: '2026-08-11',
+      updated_at: '2026-07-22T12:30:00Z',
+    },
+  } }, 'admin', null, 'syncview');
+  statusBump.context._prodState = { writes: new Map() };
+  statusBump.context._prodCanWrite = () => true;
+  statusBump.context._prodRender = () => {};
+  statusBump.context._prodWriteRequestId = () => 'prod:status:synthetic-bump';
+  statusBump.context._prodTestWriteOverride = () => false;
+  vm.runInContext(extract('_prodGatewayWrite'), statusBump.context);
+  await statusBump.context._prodGatewayWrite({
+    id: 'native-deliverable-1',
+    dueRaw: '2026-08-10',
+    updatedRaw: '2026-07-22T12:00:00Z',
+    sourceStatus: 'todo',
+  }, 'status', { status: 'in_progress' }, 'prod:status:synthetic-bump');
+  const statusReceiptSet = statusBump.dueReceiptSignals.find(entry => entry.operation === 'set');
+  assert(statusReceiptSet, 'a status write that commits an overdue due bump emits a sibling Workload invalidation');
+  assert.deepStrictEqual(JSON.parse(statusReceiptSet.value).row, {
+    id: 'native-deliverable-1',
+    client_slug: 'synthetic-client',
+    team: 'video',
+    due_date: '2026-08-11',
+    updated_at: '2026-07-22T12:30:00Z',
+  }, 'status-driven convergence publishes the exact committed due value and CAS cursor');
+
   const sibling = harness({ body: {} }, 'admin', null, 'syncview');
   assert.strictEqual(await sibling.context._wlOnNativeDueReceiptStorage({
     key: nativeReceiptSet.key,
@@ -1100,6 +1146,7 @@ async function run() {
   {
     const failedPlanRead = backgroundHarness({
       initialMetadata: [],
+      retryDelays: [0],
       fetchPlans: call => {
         if (call === 1) throw new Error('synthetic plan reader unavailable');
         return { rows: [{ issue_id: 'issue-a', plan_date: '2026-08-07' }], readGeneration: 0 };
@@ -1125,11 +1172,19 @@ async function run() {
     assert.strictEqual(failedPlanRead.context._wlPendingNativeDueReceiptByTarget.size, 1,
       'an unrelated plan-reader failure cannot consume the native due invalidation');
     assert.strictEqual(failedPlanRead.context.wlState.issueSnapshot[0].dueDate, '2026-08-10');
-    assert.strictEqual(await failedPlanRead.context.wlRefetchSilent({ sensitiveOnly: true }), true,
-      'a later sensitive refresh can recover after the unrelated reader failure');
+    for (let turn = 0; turn < 20
+      && failedPlanRead.context.wlState.issueSnapshot[0].dueDate !== '2027-02-02'; turn++) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const retry = failedPlanRead.context._wlNativeDueReceiptRetryPromise;
+      if (retry) await retry;
+    }
+    assert.strictEqual(failedPlanRead.counters.plans, 2,
+      'a retained receipt schedules one bounded sensitive retry after the transient reader failure');
     assert.strictEqual(failedPlanRead.context.wlState.issueSnapshot[0].dueDate, '2027-02-02');
     assert.strictEqual(failedPlanRead.context._wlPendingNativeDueReceiptByTarget.size, 0,
-      'the later successful sensitive read consumes the retained invalidation');
+      'the scheduled successful sensitive read consumes the retained invalidation');
+    assert.strictEqual(failedPlanRead.context._wlNativeDueReceiptRetryTimer, null,
+      'successful convergence clears the bounded retry timer');
   }
 
   native.context._prodState = {

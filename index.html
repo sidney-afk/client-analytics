@@ -13347,6 +13347,7 @@
     const WL_LINEAR_WRITE_TIMEOUT_MS = 12000;
     const WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY = 'syncview_workload_native_due_receipt_v1';
     const WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA = 'syncview.workload.native-due-receipt.v1';
+    const WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS = Object.freeze([250, 1000, 5000]);
     const _wlPlanWriteInFlight = new Map();
     const _wlDueWriteInFlight = new Map();
     const _wlPlanLastWriteGeneration = new Map();
@@ -13358,6 +13359,8 @@
     const _wlPendingNativeDueReceiptByTarget = new Map();
     let _wlNativeDueReceiptRetryPromise = null;
     let _wlNativeDueReceiptGeneration = 0;
+    let _wlNativeDueReceiptRetryTimer = null;
+    let _wlNativeDueReceiptRetryAttempt = 0;
 
     function wlPlanEditingEnabled() {
         return wlState.planStatus === 'ready' && _syncviewStaffCan('workload-plan');
@@ -13879,6 +13882,9 @@
         _wlPendingNativeDueReceiptByTarget.clear();
         _wlNativeDueReceiptRetryPromise = null;
         _wlNativeDueReceiptGeneration = 0;
+        if (_wlNativeDueReceiptRetryTimer !== null) clearTimeout(_wlNativeDueReceiptRetryTimer);
+        _wlNativeDueReceiptRetryTimer = null;
+        _wlNativeDueReceiptRetryAttempt = 0;
         wlState.planByIssueId.clear();
         wlState.planHasSnapshot = false;
         wlState.planStatus = 'unknown';
@@ -15277,6 +15283,7 @@
     async function wlRetryPendingNativeDueReceipts() {
         if (_wlNativeDueReceiptRetryPromise) return _wlNativeDueReceiptRetryPromise;
         const retryGeneration = _wlNativeDueReceiptGeneration;
+        let attemptedRefresh = false;
         const run = async () => {
             if (!_wlPendingNativeDueReceiptByTarget.size
                 || !document.querySelector('.workload-view')
@@ -15302,6 +15309,7 @@
             }
             if (!needsRefresh || wlState.fetchedAt == null) return false;
             const sessionGeneration = _wlPlanSessionGeneration;
+            attemptedRefresh = true;
             const refreshed = await wlRefetchSilent({ sensitiveOnly: true });
             if (refreshed !== true || sessionGeneration !== _wlPlanSessionGeneration) return false;
             for (const [key, receipt] of _wlPendingNativeDueReceiptByTarget) {
@@ -15325,14 +15333,41 @@
                 if (_wlPendingNativeDueReceiptByTarget.size
                     && _wlNativeDueReceiptGeneration !== retryGeneration) {
                     wlScheduleNativeDueReceiptRetry();
+                } else if (_wlPendingNativeDueReceiptByTarget.size && attemptedRefresh) {
+                    wlScheduleNativeDueReceiptRetryLater();
+                } else if (!_wlPendingNativeDueReceiptByTarget.size) {
+                    wlCancelNativeDueReceiptRetryTimer(true);
                 }
             }
         }
     }
 
+    function wlCancelNativeDueReceiptRetryTimer(resetAttempt) {
+        if (_wlNativeDueReceiptRetryTimer !== null) clearTimeout(_wlNativeDueReceiptRetryTimer);
+        _wlNativeDueReceiptRetryTimer = null;
+        if (resetAttempt) _wlNativeDueReceiptRetryAttempt = 0;
+    }
+
+    function wlScheduleNativeDueReceiptRetryLater() {
+        if (!_wlPendingNativeDueReceiptByTarget.size || _wlNativeDueReceiptRetryTimer !== null
+            || _wlNativeDueReceiptRetryAttempt >= WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS.length) return false;
+        const sessionGeneration = _wlPlanSessionGeneration;
+        const receiptGeneration = _wlNativeDueReceiptGeneration;
+        const delay = WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS[_wlNativeDueReceiptRetryAttempt++];
+        _wlNativeDueReceiptRetryTimer = setTimeout(() => {
+            _wlNativeDueReceiptRetryTimer = null;
+            if (sessionGeneration !== _wlPlanSessionGeneration
+                || receiptGeneration !== _wlNativeDueReceiptGeneration
+                || !_wlPendingNativeDueReceiptByTarget.size) return;
+            wlScheduleNativeDueReceiptRetry();
+        }, delay);
+        return true;
+    }
+
     function wlScheduleNativeDueReceiptRetry() {
         if (!_wlPendingNativeDueReceiptByTarget.size) return false;
         try {
+            wlCancelNativeDueReceiptRetryTimer(false);
             const pending = wlRetryPendingNativeDueReceipts();
             if (pending && typeof pending.catch === 'function') pending.catch(() => {});
             return true;
@@ -15355,6 +15390,9 @@
             if (!current || Date.parse(current.row.updated_at) < Date.parse(row.updated_at)) {
                 _wlPendingNativeDueReceiptByTarget.set(key, receipt);
                 _wlNativeDueReceiptGeneration++;
+                wlCancelNativeDueReceiptRetryTimer(true);
+            } else {
+                wlCancelNativeDueReceiptRetryTimer(false);
             }
             // Native writes do not advance workload_issues.synced_at. Keep the
             // exact receipt in memory until a guarded sensitive read observes its
@@ -42697,6 +42735,7 @@
                 if (operation === 'status') payload.expected_status = issue.sourceStatus;
             }
             if (_prodTestWriteOverride(issue)) payload.test_override = true;
+            const previousDueDate = issue.dueRaw ? String(issue.dueRaw).slice(0, 10) : null;
             _prodState.writes.set(pendingKey, payload.request_id);
             _prodRender();
             try {
@@ -42723,7 +42762,13 @@
                     }
                     throw error;
                 }
-                if (operation === 'due' && json.row && typeof wlPublishNativeDueReceipt === 'function') {
+                const rowHasDueDate = !!json.row
+                    && Object.prototype.hasOwnProperty.call(json.row, 'due_date');
+                const committedDueDate = rowHasDueDate && json.row.due_date
+                    ? String(json.row.due_date).slice(0, 10)
+                    : null;
+                if (rowHasDueDate && (operation === 'due' || committedDueDate !== previousDueDate)
+                    && typeof wlPublishNativeDueReceipt === 'function') {
                     wlPublishNativeDueReceipt(json.row);
                 }
                 return json;

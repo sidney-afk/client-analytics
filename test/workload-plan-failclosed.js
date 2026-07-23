@@ -237,6 +237,8 @@ function makeIdentityPurgeContext() {
     _wlPendingNativeDueReceiptByTarget: new Map([['synthetic-receipt', {}]]),
     _wlNativeDueReceiptRetryPromise: null,
     _wlNativeDueReceiptGeneration: 1,
+    _wlNativeDueReceiptRetryTimer: null,
+    _wlNativeDueReceiptRetryAttempt: 2,
     wlState: {
       planByIssueId: new Map([['warm-issue', '2026-07-29']]),
       planHasSnapshot: true,
@@ -872,6 +874,8 @@ function ok(condition, message) {
         && h.context._wlDueWriteInFlight.size === 0
         && h.context._wlPendingNativeDueReceiptByTarget.size === 0
         && h.context._wlNativeDueReceiptGeneration === 0
+        && h.context._wlNativeDueReceiptRetryTimer === null
+        && h.context._wlNativeDueReceiptRetryAttempt === 0
         && h.context._wlPlanSessionGeneration === 3
         && h.context._wlPlanLoadGeneration === 7
         && h.context._syncviewStaffIdentityMem === null

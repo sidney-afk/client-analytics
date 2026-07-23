@@ -71,6 +71,49 @@ function issueLabelIds(issue) {
   return canonicalIds(nodes.map(label => label && label.id));
 }
 
+export function exactCreateIssueLabelIds(row, value) {
+  const payload = parseObject(row && row.payload);
+  if (!Object.prototype.hasOwnProperty.call(payload, "label_ids")) return value;
+  const expectedIds = canonicalIds(payload.label_ids);
+  if (JSON.stringify(issueLabelIds(value)) !== JSON.stringify(expectedIds)) {
+    throw new Error("outbound create labels mismatch");
+  }
+  return { ...parseObject(value), labelIds: expectedIds };
+}
+
+export function completeCreateIssueLabels(row, entity, value) {
+  const payload = parseObject(row && row.payload);
+  if (!Object.prototype.hasOwnProperty.call(payload, "label_ids")) return value;
+  const expectedIds = canonicalIds(payload.label_ids);
+  const issue = exactCreateIssueLabelIds(row, value);
+  const resultConnection = parseObject(issue.labels);
+  const resultNodes = Array.isArray(resultConnection.nodes) ? resultConnection.nodes : [];
+  const resultNodeIds = canonicalIds(resultNodes.map(label => parseObject(label).id));
+  if (parseObject(resultConnection.pageInfo).hasNextPage === false
+      && resultNodes.length === expectedIds.length
+      && JSON.stringify(resultNodeIds) === JSON.stringify(expectedIds)) {
+    return { ...issue, labelIds: expectedIds };
+  }
+
+  // Linear's create response caps the labels connection at 100 while labelIds
+  // remains complete. Preserve the gateway-validated native selection instead
+  // of downgrading the mirror to a partial or mismatched relation snapshot.
+  const nativeIssue = parseObject(parseObject(entity && entity.linear_raw).issue);
+  const nativeConnection = parseObject(nativeIssue.labels);
+  const nativeNodes = Array.isArray(nativeConnection.nodes) ? nativeConnection.nodes : [];
+  const nativeIds = canonicalIds(nativeNodes.map(label => parseObject(label).id));
+  if (parseObject(nativeConnection.pageInfo).hasNextPage !== false
+      || nativeNodes.length !== expectedIds.length
+      || JSON.stringify(nativeIds) !== JSON.stringify(expectedIds)) {
+    throw new Error("outbound create labels incomplete");
+  }
+  return {
+    ...issue,
+    labelIds: expectedIds,
+    labels: nativeConnection,
+  };
+}
+
 function parseObject(value) {
   if (value && typeof value === "object" && !Array.isArray(value)) return value;
   try {
@@ -79,6 +122,14 @@ function parseObject(value) {
   } catch (_e) {
     return {};
   }
+}
+
+export function terminalCreateDependencyConflict(value) {
+  const row = parseObject(value);
+  const conflict = parseObject(parseObject(row.linear_result).conflict);
+  return lower(row.operation) === "create"
+    && lower(row.status) === "skipped"
+    && lower(conflict.decision) === "idempotency_conflict";
 }
 
 function dateMs(value) {
@@ -246,14 +297,83 @@ export function intendedValueForOperation(operation, payload = {}, context = {})
   return null;
 }
 
+function createIntentMismatches(issue, payload, context) {
+  const mismatches = [];
+  const actualTeamId = clean(issue && issue.team && issue.team.id);
+  const actualProjectId = clean(issue && issue.project && issue.project.id);
+  const expectedTeamId = clean(payload.team_id || context.team_id);
+  const expectedProjectId = clean(payload.project_id || context.project_id);
+  if (!expectedTeamId || actualTeamId !== expectedTeamId) mismatches.push("team");
+  if (!expectedProjectId || actualProjectId !== expectedProjectId) mismatches.push("project");
+  if (clean(issue && issue.title) !== clean(payload.title)) mismatches.push("title");
+
+  if (Object.prototype.hasOwnProperty.call(payload, "description")) {
+    const expectedDescription = canonicalDescription(payload.description);
+    const actualDescription = issue && issue.description == null
+      ? ""
+      : typeof issue.description === "string"
+        ? issue.description
+        : null;
+    if (expectedDescription == null || actualDescription !== expectedDescription) {
+      mismatches.push("description");
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "status")
+      || Object.prototype.hasOwnProperty.call(payload, "state_id")) {
+    if (!clean(context.state_id)
+        || clean(issue && issue.state && issue.state.id) !== clean(context.state_id)) {
+      mismatches.push("status");
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "due_date")) {
+    if ((clean(issue && issue.dueDate) || null) !== (clean(payload.due_date) || null)) {
+      mismatches.push("due_date");
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "assignee_id")
+      || Object.prototype.hasOwnProperty.call(payload, "linear_user_id")) {
+    if ((clean(issue && issue.assignee && issue.assignee.id) || null)
+        !== (clean(payload.linear_user_id || context.linear_user_id) || null)) {
+      mismatches.push("assignee");
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "priority")) {
+    const expectedPriority = payload.priority == null || payload.priority === ""
+      ? 0
+      : Number(payload.priority);
+    const actualPriority = issue && issue.priority == null ? 0 : Number(issue.priority);
+    if (!Number.isFinite(expectedPriority) || actualPriority !== expectedPriority) {
+      mismatches.push("priority");
+    }
+  }
+  const actualParentId = clean(issue && issue.parent && issue.parent.id) || null;
+  const expectedParentId = clean(
+    payload.parent_linear_issue_id || context.parent_linear_issue_id,
+  ) || null;
+  if (actualParentId !== expectedParentId) mismatches.push("parent");
+  if (Object.prototype.hasOwnProperty.call(payload, "label_ids")) {
+    if (JSON.stringify(issueLabelIds(issue)) !== JSON.stringify(canonicalIds(payload.label_ids))) {
+      mismatches.push("labels");
+    }
+  }
+  return mismatches;
+}
+
 export function decideConflict(row, issue, context = {}) {
   const operation = lower(row && row.operation);
   const historical = historicalWriteDisposition(row, context.entity);
   if (historical) return historical;
   if (operation === "create") {
-    return issue
-      ? { decision: "already_exists", reason: "linear_issue_already_exists" }
-      : { decision: "apply" };
+    if (!issue) return { decision: "apply" };
+    const payload = row && row.payload && typeof row.payload === "object" ? row.payload : {};
+    const mismatched_fields = createIntentMismatches(issue, payload, context);
+    return mismatched_fields.length
+      ? {
+        decision: "idempotency_conflict",
+        reason: "linear_create_intent_mismatch",
+        mismatched_fields,
+      }
+      : { decision: "already_exists", reason: "linear_issue_already_exists_exact" };
   }
   if (!issue) return { decision: "failed", reason: "linear_issue_missing" };
 
@@ -316,6 +436,10 @@ export function buildMutation(row, context = {}) {
   if (!OUTBOUND_OPERATIONS.includes(operation)) throw new Error("unsupported outbound operation");
 
   if (operation === "create") {
+    const description = Object.prototype.hasOwnProperty.call(payload, "description")
+      ? canonicalDescription(payload.description)
+      : undefined;
+    if (description === null) throw new Error("valid description required");
     const input = {
       id: clean(context.create_id),
       teamId: clean(payload.team_id || context.team_id),
@@ -323,12 +447,15 @@ export function buildMutation(row, context = {}) {
       title: clean(payload.title),
     };
     const optional = {
-      description: payload.description == null ? undefined : String(payload.description),
+      description: description === "" ? undefined : description,
       stateId: clean(payload.state_id || context.state_id) || undefined,
       assigneeId: clean(payload.linear_user_id || context.linear_user_id) || undefined,
       dueDate: clean(payload.due_date) || undefined,
       priority: payload.priority == null || payload.priority === "" ? undefined : Number(payload.priority),
       parentId: clean(payload.parent_linear_issue_id || context.parent_linear_issue_id) || undefined,
+      labelIds: Object.prototype.hasOwnProperty.call(payload, "label_ids")
+        ? canonicalIds(payload.label_ids)
+        : undefined,
     };
     for (const [key, value] of Object.entries(optional)) if (value !== undefined) input[key] = value;
     if (!input.id || !input.teamId || !input.projectId || !input.title) throw new Error("incomplete create mutation");

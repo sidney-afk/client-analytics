@@ -609,15 +609,26 @@ async function assertNoWriteRequests(requests) {
     }
     const parentWithChild = await page.evaluate(() => {
       const rows = _prodIssues();
-      const parent = rows.find(d => rows.some(k => k.parent === d.id));
+      const parent = rows.find(d => !d.parent && rows.some(k => k.parent === d.id));
       return parent ? parent.id : '';
     });
     if (parentWithChild) {
       await page.evaluate(id => window._prodOpenDeliverable(id), parentWithChild);
       await page.waitForSelector('[data-prod-section="subissues"] .prod-subrow', { timeout: 10000 });
-      await expectCount(page, '[data-prod-disabled="add-subissue"][title="Preview - read-only"]', 1, 'guarded add sub-issue affordance');
-      if (!(await text(page, '[data-prod-section="subissues"] [data-prod-disabled="add-subissue"]')).includes('Add sub-issues')) {
-        throw new Error('Parent sub-issue affordance should use visible Add sub-issues text');
+      const parentAddSubGate = await page.evaluate(id => {
+        const issue = _prodIssue(id);
+        return _prodCreateGateText(issue.project, issue.team, issue);
+      }, parentWithChild);
+      const parentAddSub = page.locator('[data-prod-section="subissues"] [data-prod-add-subissue]');
+      await expectExactCount(page, '[data-prod-section="subissues"] [data-prod-add-subissue]', 1, 'guarded add sub-issue affordance');
+      if (!parentAddSubGate
+        || (await parentAddSub.getAttribute('data-prod-add-subissue')) !== parentWithChild
+        || !(await parentAddSub.isDisabled())
+        || (await parentAddSub.getAttribute('title')) !== parentAddSubGate
+        || (await parentAddSub.getAttribute('data-prod-tip')) !== parentAddSubGate
+        || (await parentAddSub.getAttribute('onclick')) !== null
+        || (await parentAddSub.textContent()).trim() !== 'Add sub-issue') {
+        throw new Error('Parent sub-issue affordance did not expose the exact creation guard');
       }
       const parentSubIssueShape = await page.evaluate(() => {
         const row = document.querySelector('[data-prod-section="subissues"] .prod-subrow');
@@ -635,14 +646,31 @@ async function assertNoWriteRequests(requests) {
     }
     await page.evaluate(() => window._prodSetView('list'));
     await page.waitForSelector('.prod-row, .prod-empty', { timeout: 10000 });
-    const zeroChildRow = page.locator('.prod-row[data-prod-child-count="0"]').first();
-    if (await zeroChildRow.count()) {
-      await zeroChildRow.click();
+    const zeroChildRoot = await page.evaluate(() => {
+      const rows = _prodIssues();
+      const issue = rows.find(row => !row.parent && !rows.some(child => child.parent === row.id));
+      return issue ? {
+        id: issue.id,
+        gate: _prodCreateGateText(issue.project, issue.team, issue),
+      } : null;
+    });
+    if (zeroChildRoot) {
+      await page.evaluate(id => window._prodOpenDeliverable(id), zeroChildRoot.id);
       await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
       if (await page.locator('[data-prod-section="subissues"]').count()) {
         throw new Error('Empty Sub-issues section should be hidden');
       }
-      await expectCount(page, '[data-prod-section="subissues-empty"] [data-prod-disabled="add-subissue"]', 1, 'leaf issue guarded Add sub-issues affordance');
+      const emptyAddSub = page.locator('[data-prod-section="subissues-empty"] [data-prod-add-subissue]');
+      await expectExactCount(page, '[data-prod-section="subissues-empty"] [data-prod-add-subissue]', 1, 'root issue guarded Add sub-issue affordance');
+      if (!zeroChildRoot.gate
+        || (await emptyAddSub.getAttribute('data-prod-add-subissue')) !== zeroChildRoot.id
+        || !(await emptyAddSub.isDisabled())
+        || (await emptyAddSub.getAttribute('title')) !== zeroChildRoot.gate
+        || (await emptyAddSub.getAttribute('data-prod-tip')) !== zeroChildRoot.gate
+        || (await emptyAddSub.getAttribute('onclick')) !== null
+        || (await emptyAddSub.textContent()).trim() !== 'Add sub-issue') {
+        throw new Error('Empty root sub-issue affordance did not expose the exact creation guard');
+      }
     }
     await page.evaluate(() => window._prodSetView('list'));
     await page.waitForSelector('.prod-row, .prod-empty', { timeout: 10000 });

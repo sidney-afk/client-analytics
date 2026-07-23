@@ -14,6 +14,7 @@ function ok(value, message) {
 const root = path.join(__dirname, '..');
 const sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-20-f27-team-rollback.sql'), 'utf8');
 const f202Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-f202-production-descriptions.sql'), 'utf8');
+const f203Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-f203-production-issue-create.sql'), 'utf8');
 const migrationsReadme = fs.readFileSync(path.join(root, 'migrations', 'README.md'), 'utf8');
 const proof = fs.readFileSync(path.join(root, 'scripts', 'f27-team-rollback-proof.sql'), 'utf8');
 const snapshotTool = fs.readFileSync(path.join(root, 'scripts', 'f27-mirror-outbox-snapshot.js'), 'utf8');
@@ -123,6 +124,21 @@ ok(/2026-07-23-f202-production-descriptions\.sql/.test(migrationsReadme)
   && /restrictive `deliverable_events` SELECT policy[\s\S]*`description_change` row from anon\/authenticated/.test(migrationsReadme)
   && /real TEST description[\s\S]*separate post-merge owner-approved window/.test(migrationsReadme),
   'migration registry records the source-only F202 strict-superset exception and later live gate');
+const f203DeliverableLock = f203Sql.indexOf("pg_advisory_xact_lock(hashtextextended('production-deliverable:'");
+const f203BatchLock = f203Sql.indexOf("pg_advisory_xact_lock(hashtextextended('production-batch:'");
+const f203ReplayLookup = f203Sql.indexOf('v_replay := public.production_outbox_replay(');
+const f203ReplayBranch = f203Sql.indexOf('if v_replay then');
+const f203Authority = f203Sql.indexOf('perform public.production_assert_authority(');
+ok(f203DeliverableLock > 0
+  && f203BatchLock > f203DeliverableLock
+  && f203ReplayLookup > f203BatchLock
+  && f203ReplayBranch > f203ReplayLookup
+  && f203Authority > f203ReplayBranch,
+'F203 serializes deterministic native identity before replay and enforces authority only on a genuinely new create');
+ok(/jsonb_typeof\(v_issue->'labels'->'nodes'\) is distinct from 'array'/.test(f203Sql)
+  && /jsonb_array_length\(v_issue->'labels'->'nodes'\)[\s\S]{0,100}jsonb_array_length\(v_payload->'label_ids'\)/.test(f203Sql)
+  && /select distinct node->>'id' as label[\s\S]{0,180}is distinct from v_payload->'label_ids'/.test(f203Sql),
+'F203 atomic RPC requires exact complete native label-node IDs before insert');
 ok(/'priority', 'parent', 'archive', 'restore', 'labels', 'description'/.test(sql)
   && /F201\/F202 source compatibility/.test(installRunbook)
   && /allowlist now includes `labels` and[\s\S]*`description`/.test(installRunbook)
@@ -142,6 +158,22 @@ ok(/2026-07-23-f202-production-descriptions\.sql/.test(proof)
   && /to_jsonb\(o\)::text/.test(proof)
   && /f202_existing_rows_not_preserved/.test(proof),
   'disposable proof executes F202, accepts exactly twelve operations, rejects an unrelated direct insert, and preserves every fixture row byte-for-byte');
+ok(/2026-07-23-f203-production-issue-create\.sql/.test(proof)
+  && /f203_mutated_authority_flipped_replay_failed/.test(proof)
+  && /f203_child_create_route_not_exact/.test(proof)
+  && /f203_child_authority_flipped_replay_failed/.test(proof)
+  && /f203_root_reparent_replay_unexpectedly_accepted/.test(proof)
+  && /f203_child_reparent_replay_unexpectedly_accepted/.test(proof)
+  && /F203 later title/.test(proof)
+  && /Later Markdown/.test(proof)
+  && /member-later/.test(proof)
+  && /label-later/.test(proof)
+  && /production_issue_create_linkage/.test(proof)
+  && /f203_post_read_edit_linkage_overwrite/.test(proof)
+  && /'f203:later-due'/.test(proof)
+  && /f203_wrong_label_relation_unexpectedly_accepted/.test(proof)
+  && /f203_disposable_proof_residue/.test(proof),
+'existing disposable PostgreSQL proof executes F203 root and child routes, preserves later edits, rejects structural replay drift, and rolls back cleanly');
 ok(/CREATE ROLE service_role NOLOGIN BYPASSRLS/.test(proof)
   && /SET LOCAL ROLE service_role/.test(proof)
   && /f202_service_description_audit_or_outbox_not_exact/.test(proof)
@@ -205,6 +237,8 @@ ok(/ALTER TABLE public\.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard/.te
 ok(/postgres:16/.test(workflow) && /f27-proof/.test(workflow), 'cloud proof uses an isolated PostgreSQL service');
 ok(/migrations\/2026-07-23-f202-production-descriptions\.sql/.test(workflow),
   'F202 migration changes trigger the existing disposable-PostgreSQL proof workflow');
+ok(/migrations\/2026-07-23-f203-production-issue-create\.sql/.test(workflow),
+  'F203 migration changes trigger the existing disposable-PostgreSQL proof workflow');
 ok(/createdb f27_contract/.test(workflow)
   && /PGDATABASE=f27_contract[\s\S]*f27-team-rollback-proof\.sql/.test(workflow)
   && /createdb f27_operator_toolkit/.test(workflow)

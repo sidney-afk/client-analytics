@@ -47,6 +47,7 @@ vm.runInContext([
   extract('_prodWriteTeam'),
   extract('_prodAttributionResolved'),
   extract('_prodAttributionGateText'),
+  extract('_prodIdentityRepairGateText'),
   extract('_prodTestWriteOverride'),
   extract('_prodRoleCanWrite'),
   extract('_prodCanWrite'),
@@ -110,6 +111,8 @@ const productionWriteCallers = [
   ['_writeUiGatewayPost', 'WRITE_UI_PRODUCTION_WRITE_URL'],
   ['_writeUiReadRepairReceipt', 'WRITE_UI_PRODUCTION_WRITE_URL'],
   ['_runNativeIntakeJob', 'PROD_WRITE_EF_URL'],
+  ['_prodLoadCreateOptions', 'PROD_WRITE_EF_URL'],
+  ['_prodPostCreatePayload', 'PROD_WRITE_EF_URL'],
   ['_prodGatewayWrite', 'PROD_WRITE_EF_URL'],
 ];
 let parsedProductionWriteCallers = 0;
@@ -170,6 +173,146 @@ ok(/data-prod-label-search-input/.test(source)
   && /label\.description \|\| label\.name/.test(source)
   && /layer\.innerHTML && !layer\.contains\(el\)/.test(source),
 'label picker exposes search, colors, checkbox selection, and description tooltips inside the active layer');
+const createRole = extract('_prodCreateRoleAllowed');
+const createGate = extract('_prodCreateGateText');
+const ensureOverlays = extract('_prodEnsureOverlays');
+const createOptions = extract('_prodLoadCreateOptions');
+const createSubmit = extract('_prodSubmitCreate');
+const createForm = extract('_prodCreateFormHTML');
+const createAssigneeField = extract('_prodCreateAssigneeFieldHTML');
+const createAssigneeNormalize = extract('_prodNormalizeCreateAssignees');
+const createOpen = extract('_prodOpenCreate');
+const createParentChange = extract('_prodCreateParentChange');
+const createSavedDraft = extract('_prodCreateSavedDraft');
+const createPersistDraft = extract('_prodPersistCreateDraft');
+const createRenewIntent = extract('_prodRenewCreateIntent');
+const createRecoveryGate = extract('_prodCreateRecoveryGateText');
+const createErrorText = extract('_prodCreateErrorText');
+const createPayload = extract('_prodCreatePayload');
+const createPost = extract('_prodPostCreatePayload');
+const createPoll = extract('_prodPollCreatePayload');
+const staffPurge = extract('_syncviewStaffPurgeSensitiveState');
+ok(/role === 'admin' \|\| role === 'smm'/.test(createRole)
+  && /Choose an active roster client/.test(createGate)
+  && /client\.raw && client\.raw\.kind[\s\S]{0,100}=== 'test'/.test(createGate)
+  && /service-authenticated write drill/.test(createGate + createRecoveryGate)
+  && /_prodState\.authority\[team\] !== 'syncview'/.test(createGate)
+  && /parent && \(!_prodAttributionResolved\(parent\) \|\| parent\.parent\)/.test(createGate),
+'Production creation is Admin/SMM-only, active-roster scoped, authority-gated, and refuses unresolved or nested parents');
+ok(/action: 'create_options'[\s\S]{0,160}surface: 'production'[\s\S]{0,120}client_slug: draft\.clientSlug[\s\S]{0,80}team: draft\.team/.test(createOptions)
+  && /headers: _syncviewEfHeaders\(\{[\s\S]{0,320}\}, PROD_WRITE_EF_URL\)/.test(createOptions)
+  && /json\.complete !== true/.test(createOptions)
+  && /_prodNormalizeLabelList\(json\.catalog\)/.test(createOptions)
+  && /_prodNormalizeCreateAssignees\(json\.assignees\)/.test(createOptions)
+  && /class="prod-create-label-search"/.test(createForm)
+  && /type="checkbox"/.test(createForm + extract('_prodCreateCatalogHTML'))
+  && /_prodLabelColorStyle\(label\)/.test(extract('_prodCreateCatalogHTML'))
+  && /label\.description \|\| label\.name/.test(extract('_prodCreateCatalogHTML')),
+'creation loads a protected complete label catalog and exposes search, colors, checkboxes, selected state, and descriptions');
+ok(/if \(!Array\.isArray\(values\)\) return null/.test(createAssigneeNormalize)
+  && /!id \|\| !name \|\| seen\.has\(id\)/.test(createAssigneeNormalize)
+  && /_prodState\.createAssignees \|\| \[\]/.test(extract('_prodCreateAssignees'))
+  && /allowedAssignees = new Set\(assignees\.map\(member => member\.id\)\)/.test(createOptions)
+  && /draft\.assigneeId && !allowedAssignees\.has\(draft\.assigneeId\)/.test(createOptions)
+  && /draft\.assigneeId && !assigneeIds\.has\(draft\.assigneeId\)/.test(createSubmit)
+  && /data-prod-create-assignee-field/.test(createForm)
+  && /_prodCreateAssigneeFieldHTML\(_prodState\.createDraft\)/.test(extract('_prodRenderCreateAssignees'))
+  && /_prodRestRows\('team_members', 'id,name,email,role,team,avatar_color,active'/.test(extract('_prodLoadData'))
+  && !/_prodRestRows\('team_members', '[^']*linear_user_id/.test(extract('_prodLoadData')),
+'the create assignee picker consumes only protected server-approved IDs/names and never exposes Linear identity mappings in the public Production read');
+ok(/operation: 'create'[\s\S]{0,100}surface: 'production'/.test(createPayload)
+  && /client_slug: draft\.clientSlug/.test(createPayload)
+  && /team: draft\.team/.test(createPayload)
+  && /parent_id: draft\.mode === 'subissue' \? draft\.parentId : null/.test(createPayload)
+  && /title: String\(draft\.title\)\.trim\(\)/.test(createPayload)
+  && /description: String\(draft\.description \|\| ''\)/.test(createPayload)
+  && /status: draft\.status/.test(createPayload)
+  && /due_date: draft\.dueDate \|\| null/.test(createPayload)
+  && /assignee_id: draft\.assigneeId \|\| null/.test(createPayload)
+  && /label_ids: \[\.\.\.\(draft\.labelIds \|\| \[\]\)\]/.test(createPayload)
+  && /request_id: draft\.requestId/.test(createPayload)
+  && /source_edited_at: draft\.sourceEditedAt/.test(createPayload)
+  && /_prodCreateValidDate\(draft\.dueDate\)/.test(createSubmit),
+'parent and sub-issue creation send the complete guarded payload with exact Markdown, full-year due date, labels, and one intent identity');
+ok(((createForm + createAssigneeField).match(/_svSelectHtml\('prodCreate/g) || []).length === 6
+  && /_svDateHtml\('prodCreateDue', draft\.dueDate, \{[\s\S]{0,220}today: wlWorkloadTodayISO\(\)[\s\S]{0,220}onchange:/.test(createForm)
+  && !/<select\b/.test(createForm)
+  && !/<input[^>]*type="date"/.test(createForm)
+  && ['Mode', 'Client', 'Team', 'Parent', 'Status', 'Due', 'Assignee'].every(id =>
+    new RegExp(`label for="prodCreate${id}Btn"`).test(createForm + createAssigneeField))
+  && /e\.defaultPrevented \|\| document\.getElementById\('svDatePickerPopup'\)/.test(ensureOverlays),
+'the creation modal uses SyncView select/date controls with the ratified day source and no exposed native picker');
+ok(/sessionStorage\.getItem\(PROD_CREATE_DRAFT_KEY\)/.test(createSavedDraft)
+  && /requestId:[\s\S]{0,180}_prodWriteRequestId\('create'\)/.test(createSavedDraft)
+  && /sourceEditedAt: Number\.isFinite\(Date\.parse/.test(createSavedDraft)
+  && /sessionStorage\.setItem\(PROD_CREATE_DRAFT_KEY/.test(createPersistDraft)
+  && /draft\.requestId = _prodWriteRequestId\('create'\)/.test(createRenewIntent)
+  && /draft\.sourceEditedAt = new Date\(\)\.toISOString\(\)/.test(createRenewIntent)
+  && /Number\(error\.status\) >= 500[\s\S]{0,100}draft\.ambiguous = true/.test(createSubmit)
+  && /_prodPollCreatePayload\(payload, firstResult\)/.test(createSubmit)
+  && /for \(const delay of \[250, 500, 1000\]\)[\s\S]{0,180}_prodPostCreatePayload\(payload\)/.test(createPoll)
+  && /json\.mirror_pending[\s\S]{0,120}draft\.ambiguous = true/.test(createSubmit)
+  && /code === 'idempotency_conflict'[\s\S]{0,500}error\.nativeCommitted && error\.row && error\.row\.id[\s\S]{0,360}_prodOpenDeliverable\(createdId\)/.test(createSubmit)
+  && !/code === 'idempotency_conflict'[\s\S]{0,500}_prodRenewCreateIntent\(\)/.test(createSubmit),
+'reload, catching-up polls, and terminal conflicts retain one exact intent; a committed conflict opens the saved native issue instead of minting a duplicate');
+ok(/identity_repair_state:linear_raw->identity_repair->>state/.test(source)
+  && /identity_repair_reason:linear_raw->identity_repair->>reason/.test(source)
+  && /identity_repair_resolved_linear_issue_id:linear_raw->identity_repair->>resolved_linear_issue_id/.test(source)
+  && /identityRepair: _prodRawIdentityRepair\(d\)/.test(extract('_prodAdapter'))
+  && /_prodHasOwn\(row, 'identity_repair_resolved_linear_issue_id'\)/.test(extract('_prodRawIdentityRepair'))
+  && /state === 'resolved'[\s\S]{0,160}resolvedLinearIssueId === currentLinearIssueId/.test(extract('_prodRawIdentityRepair'))
+  && /_prodIdentityRepairGateText\(issue\)/.test(extract('_prodCanWrite'))
+  && /_prodIdentityRepairGateText\(parent\)/.test(createGate)
+  && /data-prod-identity-repair-notice="required"/.test(extract('_prodAttributionNoticeHTML'))
+  && /status, description, label, due date, assignee, comment, or sub-issue write/.test(extract('_prodAttributionNoticeHTML'))
+  && /'sync_state'/.test(extract('_prodApplyGatewayRow'))
+  && /'identity_repair_state'/.test(extract('_prodApplyGatewayRow')),
+'a deterministic create-id conflict survives refresh as a visible read-only quarantine for every mutable issue and child-create path');
+ok(/const lockedScope = draft\.mode === 'subissue' && !!parent/.test(createForm)
+  && /_svSelectHtml\('prodCreateMode'[\s\S]{0,220}disabled: parentFixed \|\| recoveryLocked/.test(createForm)
+  && /_svSelectHtml\('prodCreateClient'[\s\S]{0,260}disabled: lockedScope \|\| recoveryLocked/.test(createForm)
+  && /_svSelectHtml\('prodCreateTeam'[\s\S]{0,260}disabled: lockedScope \|\| recoveryLocked/.test(createForm)
+  && /_svSelectHtml\('prodCreateParent'[\s\S]{0,260}disabled: parentFixed \|\| recoveryLocked/.test(createForm)
+  && /_svSelectHtml\('prodCreateStatus'[\s\S]{0,260}disabled: recoveryLocked/.test(createForm)
+  && /_svDateHtml\('prodCreateDue'[\s\S]{0,260}disabled: recoveryLocked/.test(createForm)
+  && /_svSelectHtml\('prodCreateAssignee'[\s\S]{0,260}disabled: draft\.ambiguous === true/.test(createAssigneeField)
+  && /if \(!parent \|\| parent\.parent \|\| !_prodAttributionResolved\(parent\)\)/.test(createParentChange)
+  && /draft\.clientSlug = parent\.project/.test(createParentChange)
+  && /draft\.team = _prodWriteTeam\(parent\.team\)/.test(createParentChange)
+  && /parentId && \(!parent \|\| parent\.parent/.test(createOpen)
+  && /if \(!parent \|\| parent\.parent\) return ''/.test(extract('_prodAddSubIssueButtonHTML')),
+'Add Sub locks the parent/client/team scope and nested sub-issue creation stays unavailable');
+ok(/const recovering = !!\(saved && saved\.ambiguous\)/.test(createOpen)
+  && /_prodState\.createDraft = recovering[\s\S]{0,80}\? saved/.test(createOpen)
+  && /if \(parent && !recovering\)/.test(createOpen)
+  && /_prodState\.createDraft\.ambiguous[\s\S]{0,100}_prodCreateRecoveryGateText/.test(createOpen),
+'Add Sub cannot retarget an ambiguous saved request and instead reopens its exact recovery intent');
+ok(/json\.native_committed !== true[\s\S]{0,100}!json\.row \|\| !json\.row\.id/.test(createPost)
+  && /await _prodLoadData\(\{ silent: true \}\)/.test(createSubmit)
+  && /if \(_prodIssue\(createdId\)\) _prodOpenDeliverable\(createdId\)/.test(createSubmit),
+'creation accepts only a native commit receipt, refreshes Production, and opens the returned row');
+ok(!/\btest_override\b|\blegacy_parity\b|\bcard_id\b|\borigin\b|\bcalendar\b|\bsample\b|calendar-upsert|sample-review-upsert/i.test(createSubmit)
+  && !/_prodTestWriteOverride/.test(createGate + createOpen + createSubmit)
+  && /client\.raw\.kind[\s\S]{0,100}!== 'test'/.test(createForm)
+  && /test_scope_service_only/.test(createErrorText)
+  && (createPost.match(/fetch\(PROD_WRITE_EF_URL/g) || []).length === 1,
+'Production creation cannot self-enter service-only TEST/parity lanes or create, choose, or link Calendar/Samples state');
+ok(/_prodState\.createCatalogToken\+\+/.test(staffPurge)
+  && /_prodState\.createCatalog = \[\]/.test(staffPurge)
+  && /_prodState\.createAssignees = \[\]/.test(staffPurge)
+  && /_prodState\.createDraft = null/.test(staffPurge)
+  && /sessionStorage\.removeItem\(PROD_CREATE_DRAFT_KEY\)/.test(staffPurge)
+  && /_prodClearLayer\(\)/.test(staffPurge)
+  && /token !== _prodState\.createCatalogToken \|\| !_prodState\.createDraft/.test(createOptions),
+'sign-out purges the create draft/catalog/modal and invalidates delayed create-options responses');
+ok(/label_selection_out_of_catalog/.test(createErrorText)
+  && /assignee_mapping_unavailable/.test(createErrorText)
+  && /create_parent_not_found/.test(createErrorText)
+  && /production_create_parent_scope/.test(createErrorText)
+  && /production_create_parent_nested/.test(createErrorText)
+  && /production_create_batch_scope/.test(createErrorText)
+  && /production_create_parent_route/.test(createErrorText),
+'Production creation maps the gateway’s exact catalog, assignee, and parent-scope failures to actionable recovery copy');
 ok(/_prodState\.labels = new Map\(\[\.\.\._prodState\.labels\]\.filter/.test(extract('_prodRefresh'))
   && /_prodEnsureLabels\(_prodState\.openId, false\)/.test(extract('_prodRender')),
 'refresh discards non-pending label state and reopens from the protected source');
@@ -201,7 +344,8 @@ ok(/_prodGatewayWrite\(issue, 'description', \{ description \}, state\.requestId
   && /if \(!state\.requestId\) state\.requestId = _prodWriteRequestId\('description'\)/.test(extract('_prodSaveDescription'))
   && /_prodNextDescriptionRequestToken\(id\)/.test(extract('_prodSaveDescription'))
   && /description\.includes\('\\0'\)/.test(extract('_prodSaveDescription'))
-  && /\['status', 'status_at', 'due_date', 'assignee_id', 'brief', 'updated_at', 'linear_raw'\]/.test(extract('_prodApplyGatewayRow')),
+  && /'brief', 'sync_state', 'updated_at'/.test(extract('_prodApplyGatewayRow'))
+  && /'linear_raw', 'identity_repair_state', 'identity_repair_reason'/.test(extract('_prodApplyGatewayRow')),
 'description edits preserve exact Markdown, reject NUL, invalidate stale reads, and adopt the guarded gateway brief');
 ok(/state\.draft = value/.test(extract('_prodDescriptionDraftInput'))
   && /state\.error = state\.remoteChanged/.test(extract('_prodDescriptionDraftInput'))

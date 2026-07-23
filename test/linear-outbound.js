@@ -209,21 +209,185 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && mapping.markerFromBody(comment.variables.input.body) === 'fixture:comment:1',
   'comment mapping carries the visible convention and hidden dedup marker');
 
-  const create = mapping.buildMutation({
+  const createPayload = {
+    team_id: 'team_fixture',
+    project_id: 'project_fixture',
+    title: 'Fixture create',
+    description: '## Exact Markdown\n\nCreate body  \n',
+    status: 'todo',
+    state_id: 'state_todo',
+    due_date: '2026-08-19',
+    assignee_id: 'native-member',
+    linear_user_id: 'linear-user',
+    parent_linear_issue_id: 'parent-linear',
+    label_ids: ['label-a', 'label-z'],
+  };
+  const createRow = {
     ...baseRow,
     operation: 'create',
-    payload: {
-      team_id: 'team_fixture',
-      project_id: 'project_fixture',
-      title: 'Fixture create',
-      status: 'todo',
-    },
-  }, { state_id: 'state_todo', create_id: '00000000-0000-5000-8000-000000000001' });
+    payload: createPayload,
+  };
+  const createContext = {
+    state_id: 'state_todo',
+    create_id: '00000000-0000-5000-8000-000000000001',
+    parent_linear_issue_id: 'parent-linear',
+  };
+  const create = mapping.buildMutation(createRow, createContext);
   ok(create.kind === 'issueCreate'
     && create.variables.input.id === '00000000-0000-5000-8000-000000000001'
     && create.variables.input.teamId === 'team_fixture'
-    && create.variables.input.projectId === 'project_fixture',
-  'native create maps to issueCreate with team and project');
+    && create.variables.input.projectId === 'project_fixture'
+    && create.variables.input.title === 'Fixture create'
+    && create.variables.input.description === createPayload.description
+    && create.variables.input.stateId === 'state_todo'
+    && create.variables.input.dueDate === '2026-08-19'
+    && create.variables.input.assigneeId === 'linear-user'
+    && create.variables.input.parentId === 'parent-linear'
+    && JSON.stringify(create.variables.input.labelIds) === JSON.stringify(['label-a', 'label-z']),
+  'native create maps the complete canonical Production intent to one issueCreate');
+
+  const exactCreateIssue = {
+    id: createContext.create_id,
+    title: createPayload.title,
+    description: createPayload.description,
+    dueDate: createPayload.due_date,
+    priority: 0,
+    team: { id: createPayload.team_id },
+    project: { id: createPayload.project_id },
+    state: { id: createPayload.state_id },
+    assignee: { id: createPayload.linear_user_id },
+    parent: { id: createPayload.parent_linear_issue_id },
+    labelIds: [...createPayload.label_ids],
+    labels: {
+      nodes: [
+        { id: 'label-a', name: 'Alpha', color: '#111111' },
+        { id: 'label-z', name: 'Zulu', color: '#999999' },
+      ],
+      pageInfo: { hasNextPage: false },
+    },
+  };
+  ok(mapping.decideConflict(createRow, exactCreateIssue, createContext).decision === 'already_exists',
+    'deterministic create recovery accepts only an issue whose full intent already matches');
+  const createMismatchCases = [
+    ['team', { ...exactCreateIssue, team: { id: 'wrong-team' } }],
+    ['project', { ...exactCreateIssue, project: { id: 'wrong-project' } }],
+    ['title', { ...exactCreateIssue, title: 'Wrong title' }],
+    ['description', { ...exactCreateIssue, description: createPayload.description.trim() }],
+    ['status', { ...exactCreateIssue, state: { id: 'wrong-state' } }],
+    ['due_date', { ...exactCreateIssue, dueDate: '2027-08-19' }],
+    ['assignee', { ...exactCreateIssue, assignee: { id: 'wrong-user' } }],
+    ['parent', { ...exactCreateIssue, parent: { id: 'wrong-parent' } }],
+    ['labels', { ...exactCreateIssue, labelIds: ['label-a'] }],
+  ];
+  for (const [field, mismatchedIssue] of createMismatchCases) {
+    const conflict = mapping.decideConflict(createRow, mismatchedIssue, createContext);
+    ok(conflict.decision === 'idempotency_conflict'
+      && conflict.reason === 'linear_create_intent_mismatch'
+      && conflict.mismatched_fields.includes(field),
+    `deterministic create recovery terminalizes ${field} drift as an idempotency conflict`);
+  }
+  ok(mapping.terminalCreateDependencyConflict({
+    operation: 'create',
+    status: 'skipped',
+    linear_result: { conflict: { decision: 'idempotency_conflict' } },
+  }) === true
+    && mapping.terminalCreateDependencyConflict({
+      operation: 'create',
+      status: 'failed',
+      linear_result: { conflict: { decision: 'idempotency_conflict' } },
+    }) === false
+    && mapping.terminalCreateDependencyConflict({
+      operation: 'create',
+      status: 'skipped',
+      linear_result: { conflict: { decision: 'identity_repair_required' } },
+    }) === false,
+  'only a terminal skipped create with an exact idempotency-conflict receipt terminalizes its dependency');
+
+  const nativeCreateEntity = {
+    linear_raw: {
+      issue: {
+        labels: {
+          nodes: exactCreateIssue.labels.nodes.map(label => ({ ...label, color: '#abcdef' })),
+          pageInfo: { hasNextPage: false },
+        },
+      },
+    },
+  };
+  const wrongRelationResult = {
+    ...exactCreateIssue,
+    labels: {
+      nodes: [
+        { id: 'label-a', name: 'Alpha', color: '#111111' },
+        { id: 'wrong-label', name: 'Wrong', color: '#222222' },
+      ],
+      pageInfo: { hasNextPage: false },
+    },
+  };
+  const completedCreateLabels = mapping.completeCreateIssueLabels(
+    createRow,
+    nativeCreateEntity,
+    wrongRelationResult,
+  );
+  ok(completedCreateLabels.labels.nodes.every(label => label.color === '#abcdef')
+    && JSON.stringify(completedCreateLabels.labelIds) === JSON.stringify(createPayload.label_ids),
+  'create linkage rejects a mismatched returned label relation and preserves only the validated complete native snapshot');
+  let incompleteCreateLabelsRejected = false;
+  try {
+    mapping.completeCreateIssueLabels(
+      createRow,
+      { linear_raw: { issue: { labels: { nodes: [], pageInfo: { hasNextPage: false } } } } },
+      wrongRelationResult,
+    );
+  } catch (error) {
+    incompleteCreateLabelsRejected = /outbound create labels incomplete/.test(String(error && error.message));
+  }
+  ok(incompleteCreateLabelsRejected,
+    'create linkage fails when neither Linear nodes nor the native snapshot exactly covers the selected label IDs');
+  const manyCreateLabelIds = Array.from({ length: 101 }, (_, index) =>
+    `label-${String(index + 1).padStart(3, '0')}`);
+  const manyCreateRow = {
+    ...createRow,
+    payload: {
+      ...createRow.payload,
+      label_ids: manyCreateLabelIds,
+      planned_linear_issue_id: createContext.create_id,
+    },
+  };
+  const partialManyLabelIssue = {
+    ...exactCreateIssue,
+    labelIds: manyCreateLabelIds,
+    labels: {
+      nodes: manyCreateLabelIds.slice(0, 100).map(id => ({ id })),
+      pageInfo: { hasNextPage: true },
+    },
+  };
+  const laterNativeLabelEdit = {
+    linear_raw: {
+      issue: {
+        labels: {
+          nodes: [{ id: 'later-native-label' }],
+          pageInfo: { hasNextPage: false },
+        },
+      },
+    },
+  };
+  const identityOnlyLabels = mapping.exactCreateIssueLabelIds(
+    manyCreateRow,
+    partialManyLabelIssue,
+  );
+  let legacyManyLabelLinkageRejected = false;
+  try {
+    mapping.completeCreateIssueLabels(
+      manyCreateRow,
+      laterNativeLabelEdit,
+      partialManyLabelIssue,
+    );
+  } catch (error) {
+    legacyManyLabelLinkageRejected = /outbound create labels incomplete/.test(String(error && error.message));
+  }
+  ok(JSON.stringify(identityOnlyLabels.labelIds) === JSON.stringify(manyCreateLabelIds)
+    && legacyManyLabelLinkageRejected,
+  'F203 identity-only linkage accepts exact complete labelIds above Linear’s 100-node cap without overwriting a later native label edit');
 
   ok(mapping.decideConflict(baseRow, issue, { state_id: 'state_approved' }).decision === 'apply',
     'an older Linear value allows the SyncView intent');
@@ -410,6 +574,7 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 
   const ef = read('supabase/functions/linear-outbound/index.ts');
   const mappingSource = read('supabase/functions/linear-outbound/mapping.mjs');
+  const createMigration = read('migrations/2026-07-23-f203-production-issue-create.sql');
   ok(!/production-write\/policy\.mjs/.test(mappingSource)
     && /const MAX_DESCRIPTION_LENGTH = 100_000/.test(mappingSource)
     && /!value\.includes\("\\0"\)/.test(mappingSource),
@@ -424,10 +589,103 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     'production pause keeps backoff while the service-only TEST drill can resume immediately');
   ok(/serviceRoleRequest/.test(ef) && /kind !== "test"/.test(ef) && /row\.test_only/.test(ef),
     'TEST override is service-only and fail-closed to test rows');
-  ok(/deterministicCreateId/.test(ef)
+  ok(/deterministicLinearCreateId/.test(ef)
+    && /_shared\/linear-create-id\.mjs/.test(ef)
     && /checkpointLinearResult/.test(ef)
     && /recovered_idempotently/.test(ef),
-  'native create uses a deterministic Linear id and checkpoints before local linkage');
+  'native create shares one deterministic Linear id and checkpoints before local linkage');
+  ok(/const createVerification = row\.operation === "create"/.test(ef)
+    && /create_verification: createVerification/.test(ef)
+    && /createVerification\.decision !== "already_exists"/.test(ef)
+    && /applyCreateLinkage\(supabase, row, entity, resultIssue\)/.test(ef)
+    && /exactCreateIssueLabelIds\(row, issue\)/.test(ef)
+    && /completeCreateIssueLabels\(row, entity, issue\)/.test(ef)
+    && /JSON\.stringify\(resultNodeIds\) === JSON\.stringify\(expectedIds\)/.test(mappingSource),
+  'create is checkpointed, full-intent verified, and label-relation verified before native linkage');
+  ok(/conflict\.decision === "idempotency_conflict" && row\.operation === "create"/.test(ef)
+    && /status: "skipped"[\s\S]{0,320}last_error: f27Replay \? "F27 replay declined: idempotency_conflict" : "idempotency_conflict"[\s\S]{0,120}next_retry_at: f27Replay \?/.test(ef)
+    && /createVerification\?\.decision === "idempotency_conflict"[\s\S]{0,520}status: "skipped"/.test(ef),
+  'deterministic create intent conflicts become structured terminal receipts before or after the mutation response and never enter generic retry exhaustion');
+  const identityStateStart = ef.indexOf('async function createIdentityState(');
+  const identityStateEnd = ef.indexOf('\nasync function quarantineCreateIdentity(', identityStateStart);
+  const identityState = ef.slice(identityStateStart, identityStateEnd);
+  const rowLoopStart = ef.indexOf('for (const candidate of rows)');
+  const identityLoopGuard = ef.indexOf('const identityState = await createIdentityState(supabase, row, entity)', rowLoopStart);
+  const dependencyRead = ef.indexOf('dependencyResult(supabase, row)', rowLoopStart);
+  const dependencyConflictGuard = ef.indexOf('dependency.terminal_create_conflict === true', dependencyRead);
+  const linearRead = ef.indexOf('readIssue(issueId', rowLoopStart);
+  const mutationBuild = ef.indexOf('buildMutation(row, context)', rowLoopStart);
+  const identityLoopBlock = ef.slice(identityLoopGuard, dependencyRead);
+  ok(/row\.entity === "comment"[\s\S]{0,80}row\.deliverable_id/.test(identityState)
+    && /clean\(entity\.id\) !== deliverableId/.test(identityState)
+    && /\.eq\("entity", "deliverable"\)/.test(identityState)
+    && /\.eq\("operation", "create"\)/.test(identityState)
+    && /lower\(conflict\.decision\) === "idempotency_conflict"/.test(identityState)
+    && /lower\(create\.status\) === "written"/.test(identityState)
+    && identityLoopGuard > rowLoopStart
+    && identityLoopGuard < dependencyRead
+    && identityLoopGuard < linearRead
+    && identityLoopGuard < mutationBuild
+    && identityLoopBlock.indexOf('identityState === "pending"')
+      < identityLoopBlock.indexOf('unlockPending(supabase, row, 15)')
+    && identityLoopBlock.indexOf('identityState === "conflict"')
+      < identityLoopBlock.indexOf('decision: "identity_repair_required"')
+    && identityLoopBlock.indexOf('status: "skipped"')
+      > identityLoopBlock.indexOf('identityState === "conflict"'),
+  'all later deliverable and deliverable-comment intents wait for a written F203 create or terminal-skip before any foreign issue read or mutation');
+  const dependencyConflictEnd = ef.indexOf('if (dependency.waiting === true)', dependencyConflictGuard);
+  const dependencyConflictBlock = ef.slice(dependencyConflictGuard, dependencyConflictEnd);
+  ok(/terminalCreateDependencyConflict\(data\)/.test(ef)
+    && /\.select\("id,status,operation,entity,entity_id,linear_result"\)/.test(ef)
+    && dependencyConflictGuard > dependencyRead
+    && dependencyConflictGuard < linearRead
+    && /row\.operation === "create"/.test(dependencyConflictBlock)
+    && /row\.entity === "deliverable"/.test(dependencyConflictBlock)
+    && /reason: "parent_linear_create_idempotency_conflict"/.test(dependencyConflictBlock)
+    && dependencyConflictBlock.indexOf('checkpointLinearResult(supabase, row, linearResult)')
+      < dependencyConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
+    && dependencyConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
+      < dependencyConflictBlock.indexOf('status: "skipped"')
+    && /last_error: f27Replay[\s\S]{0,140}"parent_create_idempotency_conflict"/.test(dependencyConflictBlock),
+  'a child create inherits a terminal parent conflict, persists its own read-only quarantine, and skips before any Linear read');
+  const preConflictStart = ef.indexOf('if (conflict.decision === "idempotency_conflict" && row.operation === "create")');
+  const preConflictEnd = ef.indexOf('if (conflict.decision === "failed")', preConflictStart);
+  const preConflictBlock = ef.slice(preConflictStart, preConflictEnd);
+  const postConflictStart = ef.indexOf('const createVerification = row.operation === "create"');
+  const postConflictEnd = ef.indexOf('if (createVerification && createVerification.decision !== "already_exists")', postConflictStart);
+  const postConflictBlock = ef.slice(postConflictStart, postConflictEnd);
+  ok((ef.match(/await quarantineCreateIdentity\(supabase, row\)/g) || []).length === 3
+    && preConflictBlock.indexOf('checkpointLinearResult(supabase, row, linearResult)')
+      < preConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
+    && preConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
+      < preConflictBlock.indexOf('status: "skipped"')
+    && postConflictBlock.indexOf('checkpointLinearResult(supabase, row, linearResult)')
+      < postConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
+    && postConflictBlock.indexOf('quarantineCreateIdentity(supabase, row)')
+      < postConflictBlock.indexOf('status: "skipped"')
+    && /rpc\("production_issue_create_quarantine"/.test(ef),
+  'both pre-mutation and post-response create conflicts checkpoint then persist the native read-only quarantine before terminal release');
+  const linkageStart = ef.indexOf('async function applyCreateLinkage(');
+  const linkageEnd = ef.indexOf('\nasync function latestOutboundSummaryTs(', linkageStart);
+  const linkage = ef.slice(linkageStart, linkageEnd);
+  const f203BranchStart = linkage.indexOf('if (plannedLinearIssueId) {');
+  const f203BranchEnd = linkage.indexOf('\n  const raw = parseJson(entity.linear_raw);', f203BranchStart);
+  const f203Linkage = linkage.slice(f203BranchStart, f203BranchEnd);
+  ok(/plannedLinearIssueId[\s\S]{0,160}\? exactCreateIssueLabelIds\(row, issue\)[\s\S]{0,100}: completeCreateIssueLabels\(row, entity, issue\)/.test(linkage)
+    && /from\("deliverables"\)[\s\S]{0,120}\.select\("\*"\)[\s\S]{0,120}\.eq\("id", clean\(row\.entity_id\)\)/.test(f203Linkage)
+    && /sameCreateIdentity\(row, entity, current, plannedLinearIssueId\)/.test(f203Linkage)
+    && /rpc\("production_issue_create_linkage"/.test(f203Linkage)
+    && !/\.\.\.entity|sync_state: "clean"|deliverable_write/.test(f203Linkage),
+  'F203 re-reads after Linear acknowledgement and delegates a linkage-only atomic patch instead of spreading the stale entity snapshot');
+  ok(/create or replace function public\.production_issue_create_linkage/.test(createMigration)
+    && /from public\.deliverables d[\s\S]{0,80}for update/.test(createMigration)
+    && /v_outbox\.payload->>'_intent_fingerprint'[\s\S]{0,100}v_expected->>'intent_fingerprint'/.test(createMigration)
+    && /v_patched_issue := jsonb_set\([\s\S]*'\{id\}'[\s\S]*'\{identifier\}'[\s\S]*'\{url\}'/.test(createMigration)
+    && /o\.id > p_outbox_id[\s\S]{0,100}o\.status in \('pending', 'failed', 'shadow_ok'\)/.test(createMigration)
+    && /set_config\('app\.event_written', '1', true\)[\s\S]{0,220}update public\.deliverables d/.test(createMigration)
+    && /sync_state = case when v_has_later_pending then 'pending' else 'clean' end/.test(createMigration)
+    && !/production_issue_create_linkage[\s\S]*mirror_outbox_enqueue/.test(createMigration),
+  'atomic F203 linkage preserves current native semantics and labels, while later nonterminal intents keep sync pending');
   ok(/row\.entity === "comment" && row\.batch_id/.test(ef) && /batchParentId/.test(ef),
     'batch comments resolve their batch parent issue rather than a deliverable row');
   const ownIssueResolver = ef.match(/function linearIssueId\([^]*?\n\}/);

@@ -77,8 +77,8 @@ async function collectParentDetailEvidence(page) {
     return {
       detailId: detail ? detail.getAttribute('data-prod-detail') || '' : '',
       subIssueRows: document.querySelectorAll('.prod-subissue-row').length,
-      hasGuardedAddSubIssue: !!document.querySelector('[data-prod-disabled="add-subissue"]'),
-      addSubIssueText: (document.querySelector('[data-prod-section="subissues"] [data-prod-disabled="add-subissue"]')?.textContent || '').replace(/\s+/g, ' ').trim(),
+      hasGuardedAddSubIssue: !!document.querySelector('[data-prod-add-subissue][disabled]'),
+      addSubIssueText: (document.querySelector('[data-prod-section="subissues"] [data-prod-add-subissue]')?.textContent || '').replace(/\s+/g, ' ').trim(),
       hasActivity: !!activity,
       subIssueSectionVisible: visible(subSection),
       activityVisible: visible(activity),

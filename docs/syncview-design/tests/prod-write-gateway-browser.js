@@ -33,14 +33,17 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const members = [
     { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics', active: true },
     { id: 'designer', name: 'Browser Designer', role: 'designer', team: 'graphics', active: true },
+    { id: 'unmapped-designer', name: 'Browser Unmapped', role: 'designer', team: 'graphics', active: true },
     { id: 'editor', name: 'Browser Editor', role: 'editor', team: 'video', active: true },
   ];
+  const mappedCreateAssigneeIds = new Set(['designer', 'editor']);
   const deliverables = [
     { id: 'gra-fixture', identifier: 'GRA-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Graphics fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'vid-fixture', identifier: 'VID-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'video', title: 'Video fixture', status: 'in_progress', status_at: now, assignee_id: 'editor', due_date: null, created_at: now, updated_at: now },
     { id: 'test-fixture-row', identifier: 'GRA-TEST-OVERRIDE', raw_project_id: 'linear-project-test', client_slug: 'test-fixture', team: 'graphics', title: 'TEST override fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-description-parent', identifier: 'GRA-DESC-P', linear_issue_uuid: 'linear-description-parent', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Description parent fixture', brief: '# Parent brief\n\n- First item\n\n**Owner:** Browser Admin', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-description-child', identifier: 'GRA-DESC-C', linear_issue_uuid: 'linear-description-child', raw_issue_parent_id: 'linear-description-parent', client_slug: 'normal-fixture', team: 'graphics', title: 'Description sub-issue fixture', brief: '## Child brief\n\n`source` text', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
+    { id: 'gra-repaired-identity', identifier: 'GRA-REPAIRED', linear_issue_uuid: 'linear-repaired-identity', raw_project_id: 'linear-project-normal', identity_repair_state: 'resolved', identity_repair_reason: 'owner_repaired', identity_repair_resolved_linear_issue_id: 'linear-repaired-identity', client_slug: 'normal-fixture', team: 'graphics', title: 'Resolved identity repair fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
   ];
   const batches = [
     { id: 'batch-latest', client_slug: 'calendarfixture', team: null, name: 'Current fixture batch', status: 'active', created_at: '2026-07-13T10:00:00.000Z', updated_at: '2026-07-13T11:00:00.000Z' },
@@ -49,6 +52,9 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const writeUiRerouteClients = { clients: ['normal-fixture', 'calendarfixture'] };
   const writes = [];
   const labelReads = [];
+  const createOptionReads = [];
+  const createdProductionIssues = [];
+  const productionCreateReceipts = new Map();
   const labelCatalog = [
     { id: 'ordinary', name: 'Ordinary label', color: '#5E6AD2', description: 'An arbitrary label that must survive every write.' },
     { id: 'workload-2', name: '2× Workload', color: '#F59E0B', description: 'Counts as two video workload units.' },
@@ -57,6 +63,9 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const selectedLabelIds = new Map(deliverables.map(row => [row.id, ['ordinary']]));
   let heldLabelRead = null;
   let heldLabelWrite = null;
+  let heldCreateOptions = null;
+  let failedProductionCreates = 0;
+  let conflictingProductionCreates = 0;
   const descriptionReads = [];
   let heldDescriptionRead = null;
   let heldBriefsRead = null;
@@ -68,6 +77,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const legacyProjectReads = [];
   const restHits = [];
   const networkOrder = [];
+  const implicitCardWrites = [];
   let calendarIntakeCount = 0;
   let revision = 0;
   const server = await serve();
@@ -77,6 +87,10 @@ function expect(value, message) { if (!value) throw new Error(message); }
   page.on('pageerror', error => pageErrors.push(error.stack || error.message));
   page.on('request', request => {
     if (/\/webhook\/(video-form|graphic-form)(?:\?|$)/.test(request.url())) legacyCreateHits.push(request.url());
+    if (request.method() !== 'GET'
+        && /(?:calendar-upsert|sample-review-upsert|samples-upsert)/i.test(request.url())) {
+      implicitCardWrites.push({ method: request.method(), url: request.url() });
+    }
   });
   await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
 
@@ -189,6 +203,47 @@ function expect(value, message) { if (!value) throw new Error(message); }
       });
       return;
     }
+    if (body.action === 'create_options') {
+      const read = { body, headers: request.headers(), response: null };
+      createOptionReads.push(read);
+      const held = heldCreateOptions;
+      if (held) {
+        heldCreateOptions = null;
+        held.started();
+        await held.release;
+      }
+      const client = clients.find(item => item.slug === body.client_slug && item.active === true);
+      const authorized = read.headers['x-syncview-key'] === 'browser-role-key'
+        && read.headers['x-syncview-actor'] === 'Browser Admin';
+      if (!authorized) {
+        read.response = { ok: false, error: 'credentials_required' };
+        await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify(read.response) });
+        return;
+      }
+      if (!client) {
+        read.response = { ok: false, error: 'client_not_found' };
+        await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify(read.response) });
+        return;
+      }
+      if (serverAuthority[body.team] !== 'syncview') {
+        read.response = { ok: false, error: 'team_is_linear_authoritative' };
+        await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(read.response) });
+        return;
+      }
+      read.response = {
+        ok: true,
+        complete: true,
+        authority: 'syncview',
+        catalog: labelCatalog,
+        assignees: members
+          .filter(member => member.active === true
+            && member.team === body.team
+            && mappedCreateAssigneeIds.has(member.id))
+          .map(member => ({ id: member.id, name: member.name })),
+      };
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(read.response) });
+      return;
+    }
     const write = { body, headers: request.headers(), response: null };
     writes.push(write);
     if (body.operation === 'intake_create') {
@@ -210,6 +265,125 @@ function expect(value, message) { if (!value) throw new Error(message); }
       await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(write.response) });
       return;
     }
+    if (body.operation === 'create') {
+      if (write.headers['x-syncview-key'] !== 'browser-role-key'
+          || write.headers['x-syncview-actor'] !== 'Browser Admin') {
+        write.response = { ok: false, error: 'credentials_required' };
+        await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify(write.response) });
+        return;
+      }
+      if (body.test_override === true) {
+        write.response = { ok: false, error: 'invalid_test_override' };
+        await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify(write.response) });
+        return;
+      }
+      const existingCreate = productionCreateReceipts.get(String(body.request_id || ''));
+      if (existingCreate) {
+        if (existingCreate.terminalConflict) {
+          const marker = {
+            schema: 'syncview_create_identity_repair_v1',
+            state: 'required',
+            reason: 'linear_create_idempotency_conflict',
+          };
+          const stored = deliverables.find(row => row.id === existingCreate.row.id);
+          [existingCreate.row, stored].filter(Boolean).forEach(row => Object.assign(row, {
+            sync_state: 'error',
+            identity_repair_state: marker.state,
+            identity_repair_reason: marker.reason,
+            linear_raw: {
+              ...(row.linear_raw || {}),
+              identity_repair: { ...marker },
+            },
+          }));
+          write.response = {
+            ok: false,
+            error: 'idempotency_conflict',
+            native_committed: true,
+            mirror_pending: false,
+            row: { ...existingCreate.row },
+            batch: { ...existingCreate.batch },
+            mirror: [{ target_status: 'skipped', terminal_conflict: true }],
+          };
+          await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
+          return;
+        }
+        write.response = {
+          ok: true,
+          native_committed: true,
+          authority: 'syncview',
+          mirror_pending: false,
+          mirror: [{ target_status: 'written', acknowledged: true }],
+          batch: { ...existingCreate.batch },
+          row: { ...existingCreate.row },
+        };
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(write.response) });
+        return;
+      }
+      if (failedProductionCreates > 0) {
+        failedProductionCreates--;
+        write.response = { ok: false, error: 'synthetic_create_failure' };
+        await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify(write.response) });
+        return;
+      }
+      const client = clients.find(item => item.slug === body.client_slug && item.active === true);
+      const parent = body.parent_id
+        ? deliverables.find(item => item.id === body.parent_id)
+        : null;
+      const parentIsValid = !body.parent_id || (parent
+        && !parent.raw_issue_parent_id
+        && parent.client_slug === body.client_slug
+        && parent.team === body.team);
+      const allowed = client && serverAuthority[body.team] === 'syncview' && parentIsValid;
+      if (!allowed) {
+        write.response = {
+          ok: false,
+          error: !parentIsValid ? 'parent_scope_mismatch' : 'team_is_linear_authoritative',
+        };
+        await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
+        return;
+      }
+      const sequence = createdProductionIssues.length + 1;
+      const projectId = ((client.linear_project_ids || [])[0] || {}).id || null;
+      const row = {
+        id: `production-created-${sequence}`,
+        identifier: `${body.team === 'graphics' ? 'GRA' : 'VID'}-CREATE-${sequence}`,
+        linear_issue_uuid: `linear-production-created-${sequence}`,
+        raw_project_id: projectId,
+        raw_issue_parent_id: parent ? parent.linear_issue_uuid : null,
+        client_slug: body.client_slug,
+        team: body.team,
+        title: body.title,
+        brief: body.description,
+        status: body.status,
+        status_at: now,
+        assignee_id: body.assignee_id,
+        due_date: body.due_date,
+        created_at: now,
+        updated_at: `2026-07-12T12:01:${String(sequence).padStart(2, '0')}.000Z`,
+      };
+      deliverables.push(row);
+      selectedLabelIds.set(row.id, Array.isArray(body.label_ids) ? [...body.label_ids] : []);
+      createdProductionIssues.push(row);
+      const terminalConflict = conflictingProductionCreates > 0;
+      if (terminalConflict) conflictingProductionCreates--;
+      const batch = { id: `production-batch-${sequence}` };
+      productionCreateReceipts.set(String(body.request_id || ''), {
+        row: { ...row },
+        batch,
+        terminalConflict,
+      });
+      write.response = {
+        ok: true,
+        native_committed: true,
+        authority: 'syncview',
+        mirror_pending: true,
+        mirror: [],
+        batch,
+        row: { ...row },
+      };
+      await route.fulfill({ status: terminalConflict ? 202 : 201, contentType: 'application/json', body: JSON.stringify(write.response) });
+      return;
+    }
     const row = deliverables.find(item => item.id === body.id);
     if (body.test_override === true) {
       write.response = { ok: false, error: 'invalid_test_override' };
@@ -219,6 +393,16 @@ function expect(value, message) { if (!value) throw new Error(message); }
     const allowed = row && serverAuthority[row.team] === 'syncview';
     if (!allowed) {
       write.response = { ok: false, error: 'team_is_linear_authoritative' };
+      await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
+      return;
+    }
+    if (row.identity_repair_state === 'required') {
+      write.response = {
+        ok: false,
+        error: 'identity_repair_required',
+        read_only: true,
+        row: { ...row },
+      };
       await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
       return;
     }
@@ -302,9 +486,534 @@ function expect(value, message) { if (!value) throw new Error(message); }
       gate: _prodWriteGateText(_prodIssue('gra-fixture'), 'comment'),
     }));
     expect(initialGate.canWrite, 'graphics write gate did not open: ' + JSON.stringify({ initialGate, restHits }));
+    const repairedProjection = await page.evaluate(() => {
+      const issue = _prodIssue('gra-repaired-identity');
+      return {
+        required: issue?.identityRepair?.required,
+        canWrite: _prodCanWrite(issue, 'status'),
+        detailRawLoaded: _prodState.linearRaw.has('gra-repaired-identity'),
+      };
+    });
+    expect(repairedProjection.required === false
+      && repairedProjection.canWrite === true
+      && repairedProjection.detailRawLoaded === false,
+    'a resolved identity repair stayed read-only until the detail-only raw load');
     await page.waitForSelector('[data-prod-comment-form="gra-fixture"]');
     expect((await page.locator('.prod-preview-chip').textContent()).includes('Graphics writable'), 'mixed-team authority was not visible in the mirror chrome');
     expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'false', 'SyncView-authoritative graphics controls were not enabled');
+
+    const implicitWritesBeforeProductionCreate = implicitCardWrites.length;
+    const calendarWritesBeforeProductionCreate = calendarWrites.length;
+    const legacyCreatesBeforeProductionCreate = legacyCreateHits.length;
+    failedProductionCreates = 1;
+    await page.evaluate(() => {
+      _prodState.openId = '';
+      _prodState.openProjectId = 'normal-fixture';
+      _prodState.team = 'graphics';
+      _prodOpenCreate();
+    });
+    await page.waitForSelector('[data-prod-create-modal]');
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    const brandedCreateControls = await page.evaluate(() => {
+      const trigger = document.getElementById('prodCreateClientBtn');
+      const light = trigger ? {
+        color: getComputedStyle(trigger).color,
+        background: getComputedStyle(trigger).backgroundImage,
+      } : null;
+      document.documentElement.setAttribute('data-theme', 'dark');
+      const dark = trigger ? {
+        color: getComputedStyle(trigger).color,
+        background: getComputedStyle(trigger).backgroundImage,
+      } : null;
+      document.documentElement.removeAttribute('data-theme');
+      return {
+        selects: document.querySelectorAll('[data-prod-create-modal] [data-sv-select]').length,
+        dates: document.querySelectorAll('[data-prod-create-modal] [data-sv-date-picker]').length,
+        nativeSelects: document.querySelectorAll('[data-prod-create-modal] select').length,
+        exposedNativeDates: document.querySelectorAll('[data-prod-create-modal] input[type="date"]:not(.sv-date-value)').length,
+        light,
+        dark,
+      };
+    });
+    expect(brandedCreateControls.selects === 5
+      && brandedCreateControls.dates === 1
+      && brandedCreateControls.nativeSelects === 0
+      && brandedCreateControls.exposedNativeDates === 0,
+    'parent creation exposed a native select/date control instead of the SyncView primitives');
+    expect(brandedCreateControls.light && brandedCreateControls.dark
+      && brandedCreateControls.light.color !== brandedCreateControls.dark.color
+      && brandedCreateControls.light.background !== brandedCreateControls.dark.background,
+    'creation controls did not inherit the active SyncView theme');
+    await page.setViewportSize({ width: 360, height: 760 });
+    const mobileCreateLayout = await page.evaluate(() => {
+      const modal = document.querySelector('[data-prod-create-modal]');
+      const body = modal && modal.querySelector('.prod-create-body');
+      const rect = modal && modal.getBoundingClientRect();
+      return {
+        oneColumn: !!body && getComputedStyle(body).gridTemplateColumns.split(/\s+/).length === 1,
+        insideViewport: !!rect && rect.left >= 0 && rect.right <= innerWidth,
+        noModalOverflow: !!modal && !!body
+          && modal.scrollWidth <= modal.clientWidth + 1
+          && body.scrollWidth <= body.clientWidth + 1,
+      };
+    });
+    expect(mobileCreateLayout.oneColumn && mobileCreateLayout.insideViewport && mobileCreateLayout.noModalOverflow,
+      'creation controls did not stay within the one-column mobile modal: ' + JSON.stringify(mobileCreateLayout));
+    await page.locator('#prodCreateClientBtn').click();
+    const mobileClientMenu = await page.locator('#prodCreateClientMenu').boundingBox();
+    expect(mobileClientMenu && mobileClientMenu.x >= 0 && mobileClientMenu.x + mobileClientMenu.width <= 360,
+      'creation select menu escaped the mobile viewport');
+    await page.locator('#prodCreateClientBtn').focus();
+    await page.keyboard.press('Escape');
+    expect(await page.evaluate(() => document.activeElement?.id === 'prodCreateClientBtn'
+      && document.getElementById('prodCreateClientBtn')?.getAttribute('aria-expanded') === 'false'),
+    'creation select Escape did not close and return focus to its trigger');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.locator('#prodCreateModeBtn').click();
+    await page.locator('#prodCreateModeMenu [data-value="subissue"]').click();
+    expect(await page.evaluate(() => document.getElementById('prodCreateMode')?.value === 'subissue'
+      && !!document.getElementById('prodCreateParentBtn')
+      && document.activeElement?.id === 'prodCreateModeBtn'),
+    'issue-type selection did not rerender the branded parent control or return focus');
+    await page.locator('#prodCreateParentBtn').click();
+    await page.locator('#prodCreateParentMenu [data-value="gra-description-parent"]').click();
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    expect(await page.evaluate(() => document.getElementById('prodCreateParent')?.value === 'gra-description-parent'
+      && document.getElementById('prodCreateClient')?.value === 'normal-fixture'
+      && document.getElementById('prodCreateTeam')?.value === 'graphics'
+      && document.getElementById('prodCreateClientBtn')?.disabled
+      && document.getElementById('prodCreateTeamBtn')?.disabled
+      && document.activeElement?.id === 'prodCreateParentBtn'),
+    'parent selection did not lock and preserve the branded scope controls');
+    await page.locator('#prodCreateModeBtn').click();
+    await page.locator('#prodCreateModeMenu [data-value="parent"]').click();
+    await page.locator('#prodCreateClientBtn').click();
+    await page.locator('#prodCreateClientMenu [data-value="calendarfixture"]').click();
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready'
+      && _prodState.createDraft?.clientSlug === 'calendarfixture');
+    await page.locator('#prodCreateClientBtn').click();
+    await page.locator('#prodCreateClientMenu [data-value="normal-fixture"]').click();
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready'
+      && _prodState.createDraft?.clientSlug === 'normal-fixture');
+    await page.locator('#prodCreateTeamBtn').click();
+    await page.locator('#prodCreateTeamMenu [data-value="video"]').click();
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'error'
+      && _prodState.createDraft?.team === 'video');
+    await page.locator('#prodCreateTeamBtn').click();
+    await page.locator('#prodCreateTeamMenu [data-value="graphics"]').click();
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready'
+      && _prodState.createDraft?.team === 'graphics');
+    expect(await page.evaluate(() => document.activeElement?.id === 'prodCreateTeamBtn'
+      && document.getElementById('prodCreateMode')?.value === 'parent'
+      && !document.getElementById('prodCreateClientBtn')?.disabled
+      && !document.getElementById('prodCreateTeamBtn')?.disabled),
+    'client/team selections did not rerender the branded controls with their editable parent scope');
+    const createOptionsRead = createOptionReads[createOptionReads.length - 1];
+    expect(createOptionsRead
+      && createOptionsRead.body.action === 'create_options'
+      && createOptionsRead.body.surface === 'production'
+      && createOptionsRead.body.client_slug === 'normal-fixture'
+      && createOptionsRead.body.team === 'graphics'
+      && createOptionsRead.headers['x-syncview-key'] === 'browser-role-key'
+      && createOptionsRead.headers['x-syncview-actor'] === 'Browser Admin'
+      && createOptionsRead.response.complete === true
+      && JSON.stringify(createOptionsRead.response.assignees) === JSON.stringify([
+        { id: 'designer', name: 'Browser Designer' },
+      ])
+      && !Object.prototype.hasOwnProperty.call(createOptionsRead.response.assignees[0], 'linear_user_id')
+      && await page.locator('#prodCreateAssigneeMenu [data-value="unmapped-designer"]').count() === 0
+      && await page.locator('#prodCreateAssigneeMenu [data-value="designer"]').count() === 1,
+    'creation did not read a protected complete label catalog plus public-safe mapped assignee options');
+    const createWorkloadOption = page.locator('[data-prod-create-label-option="workload-3"]');
+    expect(await createWorkloadOption.locator('input[type="checkbox"]').isChecked() === false,
+      'creation label catalog did not start with an explicit unchecked state');
+    expect(await createWorkloadOption.locator('.prod-label-dot').evaluate(element =>
+      getComputedStyle(element).getPropertyValue('--prod-label-color').trim().toUpperCase()) === '#EF4444',
+    'creation label color did not reach the rendered option');
+    expect((await createWorkloadOption.getAttribute('title')).includes('three video workload units')
+      && (await createWorkloadOption.locator('small').textContent()).includes('three video workload units'),
+    'creation label description was not exposed as visible help and a tooltip');
+    await page.locator('.prod-create-label-search').fill('three video workload');
+    expect(await page.locator('[data-prod-create-label-option]:visible').count() === 1,
+      'creation label search did not narrow the complete catalog');
+    await createWorkloadOption.locator('input[type="checkbox"]').check();
+    expect(await createWorkloadOption.locator('input[type="checkbox"]').isChecked(),
+      'creation label checkbox did not preserve selected state');
+    await page.locator('.prod-create-label-search').fill('');
+    await page.locator('[data-prod-create-label-option="ordinary"] input[type="checkbox"]').check();
+
+    const parentTitle = 'TEST Production parent creation';
+    const parentMarkdown = '# Parent creation\n\n- Preserve this Markdown  \n\n**Owner:** Browser Admin\n';
+    await page.locator('#prodCreateTitle').fill(parentTitle);
+    await page.locator('#prodCreateDescription').fill(parentMarkdown);
+    await page.locator('#prodCreateStatusBtn').focus();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.getElementById('prodCreateStatus')?.value === 'smm_approval'
+      && document.activeElement?.id === 'prodCreateStatusBtn'),
+    'creation status keyboard selection did not commit or return focus');
+    await page.locator('#prodCreateDueBtn').click();
+    await page.waitForSelector('#svDatePickerPopup');
+    const ratifiedToday = await page.evaluate(() => wlWorkloadTodayISO());
+    await page.locator('#svDatePickerPopup [data-dp-act="today"]').click();
+    expect(await page.evaluate(today => document.getElementById('prodCreateDue')?.value === today
+      && document.activeElement?.id === 'prodCreateDueBtn', ratifiedToday),
+    'creation calendar Today did not use the ratified day contract or return focus');
+    await page.evaluate(value => {
+      const input = document.getElementById('prodCreateDue');
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      _svSyncDateControl('prodCreateDue');
+    }, '2031-02-17');
+    await page.locator('#prodCreateDueBtn').click();
+    await page.waitForSelector('#svDatePickerPopup');
+    expect((await page.locator('#svDatePickerPopup .dp-head-label').textContent()).includes('2031'),
+      'creation calendar dropped the selected due-date year');
+    await page.keyboard.press('Escape');
+    expect(await page.evaluate(() => document.activeElement?.id === 'prodCreateDueBtn'),
+      'creation calendar Escape did not return focus to its trigger');
+    await page.locator('#prodCreateAssigneeBtn').click();
+    await page.locator('#prodCreateAssigneeMenu [data-value="designer"]').click();
+    expect(await page.evaluate(() => document.getElementById('prodCreateAssignee')?.value === 'designer'
+      && document.activeElement?.id === 'prodCreateAssigneeBtn'),
+    'creation assignee selection did not commit or return focus');
+    const parentIntent = await page.evaluate(() => ({
+      requestId: _prodState.createDraft.requestId,
+      sourceEditedAt: _prodState.createDraft.sourceEditedAt,
+      draft: JSON.parse(JSON.stringify(_prodState.createDraft)),
+    }));
+    const failedParentResponse = page.waitForResponse(response => {
+      if (!response.url().includes('/functions/v1/production-write')) return false;
+      try {
+        const body = JSON.parse(response.request().postData() || '{}');
+        return body.operation === 'create' && body.title === parentTitle;
+      } catch (_error) { return false; }
+    });
+    await page.locator('.prod-create-submit').click();
+    expect((await failedParentResponse).status() === 503, 'parent creation retry fixture did not fail ambiguously');
+    await page.waitForFunction(() => document.querySelector('[data-prod-create-error]')?.textContent.includes('draft is still here'));
+    const firstParentWrite = writes.filter(write => write.body.operation === 'create' && write.body.title === parentTitle)[0];
+    expect(firstParentWrite
+      && firstParentWrite.body.request_id === parentIntent.requestId
+      && firstParentWrite.body.source_edited_at === parentIntent.sourceEditedAt,
+    'first parent creation attempt did not use the saved intent identity');
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => typeof _prodState !== 'undefined'
+      && !_prodState.loading && !!_prodIssue('gra-fixture'), null, { timeout: 15000 });
+    await page.evaluate(() => {
+      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
+      _syncviewStaffIdentityVerified = true;
+      _prodState.openId = '';
+      _prodState.openProjectId = 'normal-fixture';
+      _prodState.team = 'graphics';
+      _prodRender();
+      // Add Sub from another root must recover the ambiguous request exactly;
+      // it cannot retarget a request that may already have committed.
+      _prodOpenCreate('gra-description-parent');
+    });
+    await page.waitForSelector('[data-prod-create-modal]');
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    const recoveredParentDraft = await page.evaluate(() => JSON.parse(JSON.stringify(_prodState.createDraft)));
+    expect(recoveredParentDraft.requestId === parentIntent.requestId
+      && recoveredParentDraft.sourceEditedAt === parentIntent.sourceEditedAt
+      && recoveredParentDraft.clientSlug === 'normal-fixture'
+      && recoveredParentDraft.team === 'graphics'
+      && recoveredParentDraft.mode === 'parent'
+      && recoveredParentDraft.parentId === ''
+      && recoveredParentDraft.title === parentTitle
+      && recoveredParentDraft.description === parentMarkdown
+      && recoveredParentDraft.status === 'smm_approval'
+      && recoveredParentDraft.dueDate === '2031-02-17'
+      && recoveredParentDraft.assigneeId === 'designer'
+      && JSON.stringify(recoveredParentDraft.labelIds) === JSON.stringify(['ordinary', 'workload-3']),
+    'page refresh did not recover the exact parent fields, Markdown, labels, or intent identity');
+    expect(await page.evaluate(() => [
+      'prodCreateModeBtn', 'prodCreateClientBtn', 'prodCreateTeamBtn',
+      'prodCreateStatusBtn', 'prodCreateDueBtn', 'prodCreateAssigneeBtn',
+    ].every(id => document.getElementById(id)?.disabled)),
+    'ambiguous recovery did not lock every branded create control');
+    const successfulParentResponse = page.waitForResponse(response => {
+      if (!response.url().includes('/functions/v1/production-write')) return false;
+      try {
+        const body = JSON.parse(response.request().postData() || '{}');
+        return body.operation === 'create' && body.title === parentTitle;
+      } catch (_error) { return false; }
+    });
+    await page.locator('.prod-create-submit').click();
+    const parentHttpResponse = await successfulParentResponse;
+    expect(parentHttpResponse.status() === 201, 'parent creation retry did not commit');
+    const parentReceipt = await parentHttpResponse.json();
+    const parentId = parentReceipt.row && parentReceipt.row.id;
+    await page.waitForFunction(id => _prodState.openId === id && _prodIssue(id), parentId);
+    const parentWrites = writes.filter(write => write.body.operation === 'create' && write.body.title === parentTitle);
+    const parentPayload = parentWrites[1] && parentWrites[1].body;
+    const expectedCreateKeys = [
+      'assignee_id', 'client_slug', 'description', 'due_date', 'label_ids', 'operation',
+      'parent_id', 'request_id', 'source_edited_at', 'status', 'surface', 'team', 'title',
+    ].sort();
+    expect(parentWrites.length === 3
+      && parentPayload.request_id === firstParentWrite.body.request_id
+      && parentPayload.source_edited_at === firstParentWrite.body.source_edited_at
+      && parentPayload.client_slug === 'normal-fixture'
+      && parentPayload.team === 'graphics'
+      && parentPayload.parent_id === null
+      && parentPayload.title === parentTitle
+      && parentPayload.description === parentMarkdown
+      && parentPayload.status === 'smm_approval'
+      && parentPayload.due_date === '2031-02-17'
+      && parentPayload.assignee_id === 'designer'
+      && JSON.stringify(parentPayload.label_ids) === JSON.stringify(['ordinary', 'workload-3'])
+      && JSON.stringify(Object.keys(parentPayload).sort()) === JSON.stringify(expectedCreateKeys)
+      && parentWrites.every(write => write.body.request_id === parentIntent.requestId
+        && write.body.source_edited_at === parentIntent.sourceEditedAt
+        && !Object.prototype.hasOwnProperty.call(write.body, 'test_override')),
+    'guarded parent recovery or mirror poll changed its identity or omitted/added creation payload fields');
+    expect(await page.evaluate(id => _prodState.view === 'detail' && _prodIssue(id)?.title === 'TEST Production parent creation', parentId),
+      'native parent receipt did not refresh Production and open the returned row');
+
+    await page.locator(`[data-prod-add-subissue="${parentId}"]`).click();
+    await page.waitForSelector('[data-prod-create-modal]');
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    const lockedSubissueScope = await page.evaluate(() => ({
+      mode: document.getElementById('prodCreateMode')?.value,
+      modeLocked: document.getElementById('prodCreateModeBtn')?.disabled,
+      client: document.getElementById('prodCreateClient')?.value,
+      clientLocked: document.getElementById('prodCreateClientBtn')?.disabled,
+      team: document.getElementById('prodCreateTeam')?.value,
+      teamLocked: document.getElementById('prodCreateTeamBtn')?.disabled,
+      parent: document.getElementById('prodCreateParent')?.value,
+      parentLocked: document.getElementById('prodCreateParentBtn')?.disabled,
+    }));
+    expect(lockedSubissueScope.mode === 'subissue' && lockedSubissueScope.modeLocked
+      && lockedSubissueScope.client === 'normal-fixture' && lockedSubissueScope.clientLocked
+      && lockedSubissueScope.team === 'graphics' && lockedSubissueScope.teamLocked
+      && lockedSubissueScope.parent === parentId && lockedSubissueScope.parentLocked,
+    'Add Sub did not lock the selected root parent, roster client, team, and issue type');
+    const childTitle = 'TEST Production sub-issue creation';
+    const childMarkdown = '## Child creation\n\n`exact markdown`  \n';
+    await page.locator('#prodCreateTitle').fill(childTitle);
+    await page.locator('#prodCreateDescription').fill(childMarkdown);
+    await page.locator('#prodCreateStatusBtn').click();
+    await page.locator('#prodCreateStatusMenu [data-value="todo"]').click();
+    await page.evaluate(value => {
+      const input = document.getElementById('prodCreateDue');
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      _svSyncDateControl('prodCreateDue');
+    }, '2032-11-09');
+    await page.locator('#prodCreateAssigneeBtn').click();
+    await page.locator('#prodCreateAssigneeMenu [data-value="designer"]').click();
+    await page.locator('[data-prod-create-label-option="workload-2"] input[type="checkbox"]').check();
+    const childResponse = page.waitForResponse(response => {
+      if (!response.url().includes('/functions/v1/production-write')) return false;
+      try {
+        const body = JSON.parse(response.request().postData() || '{}');
+        return body.operation === 'create' && body.title === childTitle;
+      } catch (_error) { return false; }
+    });
+    await page.locator('.prod-create-submit').click();
+    const childHttpResponse = await childResponse;
+    expect(childHttpResponse.status() === 201, 'sub-issue creation did not commit');
+    const childReceipt = await childHttpResponse.json();
+    const childId = childReceipt.row && childReceipt.row.id;
+    await page.waitForFunction(id => _prodState.openId === id && _prodIssue(id), childId);
+    const childWrite = writes.find(write => write.body.operation === 'create' && write.body.title === childTitle);
+    expect(childWrite
+      && childWrite.body.client_slug === 'normal-fixture'
+      && childWrite.body.team === 'graphics'
+      && childWrite.body.parent_id === parentId
+      && childWrite.body.title === childTitle
+      && childWrite.body.description === childMarkdown
+      && childWrite.body.status === 'todo'
+      && childWrite.body.due_date === '2032-11-09'
+      && childWrite.body.assignee_id === 'designer'
+      && JSON.stringify(childWrite.body.label_ids) === JSON.stringify(['workload-2'])
+      && childWrite.body.request_id
+      && Number.isFinite(Date.parse(childWrite.body.source_edited_at))
+      && JSON.stringify(Object.keys(childWrite.body).sort()) === JSON.stringify(expectedCreateKeys)
+      && !Object.prototype.hasOwnProperty.call(childWrite.body, 'test_override'),
+    'guarded sub-issue creation omitted its locked hierarchy or complete payload');
+    expect(await page.evaluate(({ id, rootId }) => {
+      const issue = _prodIssue(id);
+      return _prodState.view === 'detail'
+        && issue?.parent === rootId
+        && document.querySelectorAll('[data-prod-add-subissue]').length === 0;
+    }, { id: childId, rootId: parentId }),
+    'native child receipt did not open the nested row or nested creation remained available');
+    const optionsBeforeNestedAttempt = createOptionReads.length;
+    const nestedAttempt = await page.evaluate(id => {
+      _prodOpenCreate(id);
+      return {
+        hasDraft: !!_prodState.createDraft,
+        hasModal: !!document.querySelector('[data-prod-create-modal]'),
+      };
+    }, childId);
+    expect(!nestedAttempt.hasDraft && !nestedAttempt.hasModal
+      && createOptionReads.length === optionsBeforeNestedAttempt,
+    'a sub-issue could start another nested creation or label-catalog request');
+    expect(implicitCardWrites.length === implicitWritesBeforeProductionCreate
+      && calendarWrites.length === calendarWritesBeforeProductionCreate
+      && legacyCreateHits.length === legacyCreatesBeforeProductionCreate
+      && [parentPayload, childWrite.body].every(payload =>
+        !Object.keys(payload).some(key => /card_id|origin|link|calendar|sample/i.test(key))),
+    'Production creation created, chose, linked, or wrote Calendar/Samples state');
+
+    await page.evaluate(() => {
+      _prodState.openId = '';
+      _prodState.openProjectId = 'normal-fixture';
+      _prodState.team = 'graphics';
+      _prodOpenCreate();
+    });
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    await page.locator('#prodCreateTitle').fill('TEST conflicting create intent');
+    const conflictingIntent = await page.evaluate(() => ({
+      requestId: _prodState.createDraft.requestId,
+      sourceEditedAt: _prodState.createDraft.sourceEditedAt,
+    }));
+    const createdBeforeConflict = createdProductionIssues.length;
+    conflictingProductionCreates = 1;
+    const conflictResponse = page.waitForResponse(response => {
+      if (!response.url().includes('/functions/v1/production-write')) return false;
+      try {
+        const body = JSON.parse(response.request().postData() || '{}');
+        return response.status() === 409
+          && body.operation === 'create'
+          && body.title === 'TEST conflicting create intent';
+      } catch (_error) { return false; }
+    });
+    await page.locator('.prod-create-submit').click();
+    expect((await conflictResponse).status() === 409, 'idempotency-conflict fixture did not return a terminal conflict');
+    await page.waitForFunction(() => _prodState.createDraft === null
+      && _prodState.view === 'detail'
+      && _prodIssue(_prodState.openId)?.title === 'TEST conflicting create intent');
+    const conflictWrites = writes.filter(write =>
+      write.body.operation === 'create' && write.body.title === 'TEST conflicting create intent');
+    expect(createdProductionIssues.length === createdBeforeConflict + 1
+      && conflictWrites.length === 2
+      && conflictWrites.every(write =>
+        write.body.request_id === conflictingIntent.requestId
+        && write.body.source_edited_at === conflictingIntent.sourceEditedAt)
+      && conflictWrites[0].response.native_committed === true
+      && conflictWrites[1].response.native_committed === true
+      && conflictWrites[1].response.error === 'idempotency_conflict',
+    'terminal create polling minted a fresh request or created a second native issue instead of opening the saved repair row');
+    const writesBeforeQuarantineAttempts = writes.length;
+    const optionsBeforeQuarantineChild = createOptionReads.length;
+    const quarantineProof = await page.evaluate(async () => {
+      const issue = _prodIssue(_prodState.openId);
+      const attempts = [
+        ['status', { status: 'done' }],
+        ['description', { description: 'must not reach foreign issue' }],
+        ['labels', { label_ids: ['workload-3'] }],
+        ['due', { due_date: '2033-02-14' }],
+        ['assignee', { assignee_id: 'designer' }],
+        ['comment', { comment: { body: 'must not reach foreign issue' } }],
+      ];
+      const results = [];
+      for (const [operation, fields] of attempts) {
+        try {
+          await _prodGatewayWrite(issue, operation, fields);
+          results.push({ operation, code: 'unexpected_success' });
+        } catch (error) {
+          results.push({ operation, code: String(error && error.code || '') });
+        }
+      }
+      _prodOpenCreate(issue.id);
+      return {
+        id: issue && issue.id,
+        required: issue && issue.identityRepair && issue.identityRepair.required,
+        results,
+        canWrite: attempts.map(([operation]) => [operation, _prodCanWrite(issue, operation)]),
+        gate: _prodWriteGateText(issue, 'status'),
+        childGate: _prodCreateGateText(issue.project, issue.team, issue),
+        notice: document.querySelector('[data-prod-identity-repair-notice="required"]')?.textContent || '',
+        childModal: !!document.querySelector('[data-prod-create-modal]'),
+      };
+    });
+    expect(quarantineProof.required === true
+      && quarantineProof.results.length === 6
+      && quarantineProof.results.every(result => result.code === 'write_gate_closed')
+      && quarantineProof.canWrite.every(([, allowed]) => allowed === false)
+      && /identity repair/i.test(quarantineProof.gate)
+      && /identity repair/i.test(quarantineProof.childGate)
+      && /read-only/i.test(quarantineProof.notice)
+      && !quarantineProof.childModal
+      && writes.length === writesBeforeQuarantineAttempts
+      && createOptionReads.length === optionsBeforeQuarantineChild,
+    'a quarantined create could still mutate the foreign Linear issue or route a sub-issue through it');
+
+    let startHeldCreateOptions;
+    let releaseHeldCreateOptions;
+    const heldCreateOptionsStarted = new Promise(resolve => { startHeldCreateOptions = resolve; });
+    const heldCreateOptionsRelease = new Promise(resolve => { releaseHeldCreateOptions = resolve; });
+    heldCreateOptions = { started: startHeldCreateOptions, release: heldCreateOptionsRelease };
+    const delayedCreateOptionsResponse = page.waitForResponse(response => {
+      if (!response.url().includes('/functions/v1/production-write')) return false;
+      try { return JSON.parse(response.request().postData() || '{}').action === 'create_options'; }
+      catch (_error) { return false; }
+    });
+    await page.evaluate(() => {
+      _prodState.openId = '';
+      _prodState.openProjectId = 'normal-fixture';
+      _prodState.team = 'graphics';
+      _prodOpenCreate();
+    });
+    await heldCreateOptionsStarted;
+    await page.evaluate(() => _syncviewStaffIdentityClear());
+    releaseHeldCreateOptions();
+    await delayedCreateOptionsResponse;
+    const purgedCreateState = await page.evaluate(() => ({
+      draft: _prodState.createDraft,
+      catalog: _prodState.createCatalog,
+      status: _prodState.createCatalogStatus,
+      modal: !!document.querySelector('[data-prod-create-modal]'),
+      savedDraft: sessionStorage.getItem(PROD_CREATE_DRAFT_KEY),
+      gate: _prodCreateGateText('normal-fixture', 'graphics'),
+    }));
+    expect(purgedCreateState.draft === null
+      && Array.isArray(purgedCreateState.catalog) && purgedCreateState.catalog.length === 0
+      && purgedCreateState.status === 'idle'
+      && !purgedCreateState.modal
+      && purgedCreateState.savedDraft === null
+      && purgedCreateState.gate.includes('Sign in'),
+    'a delayed create_options response restored protected creation state after sign-out');
+
+    await page.evaluate(() => {
+      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
+      _syncviewStaffIdentityVerified = true;
+      _syncviewStaffRefreshChrome();
+    });
+    serverAuthority.graphics = 'syncview';
+    await page.evaluate(() => _prodRefreshAuthority({ silent: true }));
+    const writesBeforeTestCreate = writes.length;
+    const optionsBeforeTestCreate = createOptionReads.length;
+    const blockedTestCreate = await page.evaluate(() => {
+      _prodState.openId = '';
+      _prodState.openProjectId = 'test-fixture';
+      _prodState.team = 'graphics';
+      const gate = _prodCreateGateText('test-fixture', 'graphics');
+      _prodOpenCreate();
+      return {
+        gate,
+        hasDraft: !!_prodState.createDraft,
+        hasModal: !!document.querySelector('[data-prod-create-modal]'),
+      };
+    });
+    expect(blockedTestCreate.gate.includes('service-authenticated')
+      && !blockedTestCreate.hasDraft
+      && !blockedTestCreate.hasModal
+      && writes.length === writesBeforeTestCreate
+      && createOptionReads.length === optionsBeforeTestCreate,
+    'browser creation self-entered service-only TEST scope after authority flipped');
+    await page.evaluate(async () => {
+      await _prodRefreshAuthority({ silent: true });
+      _prodOpenDeliverable('gra-fixture');
+    });
+    await page.waitForSelector('[data-prod-comment-form="gra-fixture"]');
 
     await page.locator('[data-prod-prop="status"]').click();
     await page.locator('[data-prod-pick]', { hasText: 'Tweak Needed' }).click();

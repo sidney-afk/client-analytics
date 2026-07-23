@@ -302,7 +302,7 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   non-sensitive issue calendar. A newly verified identity rehydrates those sensitive maps in the
   background against the retained issue snapshot, without a mirror or n8n read. The only Workload
   browser persistence remains the existing issue cache, expanded/collapsed section preference, and
-  display-only **Plan only** / **Plan + deadlines** preference.
+  display-only **Plan only** / **Plan + Due Date** preference.
 - The live editable-plan path adds a separate
   internal work day. A saved `plan_date` is keyed by the sub-issue's stable id in the service-role
   `workload_plan` sidecar and overrides the automatic day. Dragging an individual issue or using the
@@ -319,23 +319,29 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   expanded sub-issue owns its exact tone. A collapsed client group inherits a tone only when every
   represented item has a deadline in the same band; that single dot leads the client name and no
   proximity-colored edge is repeated on the chip. Mixed or missing deadlines show no group-level
-  marker. Expanded due/buffer copy is plain text with the same dot rather than a bordered pill or
-  colored row edge.
+  marker. All three tones use Workload-local, matched, vivid eight-pixel circles so their
+  red/orange/green meaning stays stable and distinct in either theme, independent of the selectable
+  app status-palette preference. Expanded due/buffer copy is plain text with the same dot rather than a
+  bordered pill or colored row edge. Opening a client group reveals its sub-issues on a quiet
+  threaded branch; the thread is decorative and does not change click, focus, or drag behavior.
   Native Linear Priority is not shown or used by Workload. Exact `2× Workload` / `3× Workload`
   labels appear as compact badges on the affected videos. A collapsed group shows one stacked
   some/all extra-work icon instead of repeated weight counts; its branded tooltip carries the exact
   `2×` / `3×` composition and capacity meaning.
-- The persistent **Plan only** / **Plan + deadlines** segmented control sits beside the client
-  filter and defaults to **Plan only**. Deadline mode is Week-only: enabling **Plan + deadlines**
+- The persistent **Plan only** / **Plan + Due Date** segmented control sits beside the client
+  filter and defaults to **Plan only**. Due-date mode is Week-only: enabling **Plan + Due Date**
   switches to Week and disables Month until **Plan only** is restored. Week is always the
   Monday-anchored five-column Monday-Friday range. Manual plan days and deadlines on Saturday or
   Sunday are never moved or hidden from truth: a compact weekend notice beside the calendar opens a
-  tray with the affected items and dates. A full-width, team-accented editor banner owns each set of
-  five daily capacity totals and its relationship rows. Each editor/client plan group stays in one
-  aligned row,
-  with straight lines to outlined due-date endpoints. Different deadlines split into separate
-  endpoints; work due on its planned day stays on the solid plan chip with a same-day marker rather
-  than a duplicate. Due endpoints are display-only references and never add to capacity.
+  tray with the affected items and dates. A compact, team-accented editor rail stays at the left of
+  each subtle editor swimlane while its five daily capacity totals and relationship rows remain
+  aligned to the calendar. Today is marked in the weekday header and by a faint column wash, with no
+  large selection outline and no wash behind the editor rail. Each editor/client plan group stays in
+  one aligned row, with a continuous visible connector and arrowhead ending in the gap immediately
+  before its outlined due-date endpoint instead of disappearing beneath that card. Different
+  deadlines split into separate endpoints; work due on its planned day stays on the solid plan chip
+  with a same-day **Due here** marker and the same proximity dot rather than a duplicate. Due
+  endpoints are display-only references and never add to capacity.
 - Shared issue popovers link to **Open Linear**, keep deadline proximity beside the sub-issue title,
   and place the branded Linear due-date picker plus optional automatic-plan reset on one compact
   row. Tweaks popovers retain their existing

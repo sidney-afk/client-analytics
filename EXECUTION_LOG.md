@@ -2,6 +2,31 @@
 
 All times are UTC unless noted.
 
+## 2026-07-23 — Workload proximity and expanded hierarchy polish; client only
+
+- Replaced the muted Workload proximity circles with matched eight-pixel,
+  Workload-local red, orange, and green signals so their meaning remains clearly
+  distinct in light and dark themes regardless of the selectable app status
+  palette. The buffer thresholds and all placement logic are unchanged;
+  same-day **Due here** keeps the same proximity dot.
+- Added a quiet, pointer-safe threaded branch behind sub-issues only while a
+  client group is expanded. The treatment covers both Plan-only and due-date
+  relationship groups without changing collapse, click, focus, or dedicated
+  drag-handle behavior.
+- Renamed the visible **Plan + deadlines** control and its accessibility copy to
+  **Plan + Due Date**. Internal preference keys and relationship-mode state are
+  unchanged. The owner-selected relationship layout adds a compact sticky editor
+  rail, subtle editor swimlanes, a weekday-header plus faint-wash Today cue with
+  no large outline, and continuous visible connector arrows that end before the
+  due cards. No live-looking mockup asset was added to this public repository.
+- This is client-side presentation only. No Edge Function, schema, migration,
+  runtime flag, n8n workflow, Linear writer, or frozen client writer changed.
+  The focused Workload exclusivity and visual-contract guard passed, `npm test`
+  passed all 155 unit suites, `npm run test:prod-polish` passed all 10 browser
+  suites, `truth-sync` passed 400/400, `repo-map-sync` passed 148/148, and
+  `git diff --check` passed. Independent narrow-browser review also verified the
+  sticky-rail focus/drop boundary, cross-theme contrast, and connector rendering.
+
 ## 2026-07-22 — Workload compact signals and branded icon help; client only
 
 - Removed the duplicate plan-to-deadline proximity treatment from Workload

@@ -1098,36 +1098,16 @@ check(workloadShellSource.includes('id="wlWeekendNotice"')
     && /renderWorkloadWeekendNotice\(\)/.test(workloadRenderSource),
   'the calendar exposes one compact weekend notice with exact planned/due counts and a deduplicated detail panel');
 
-const sectionStorage = new Map();
-const sectionLocalStorage = {
-  getItem: key => sectionStorage.has(key) ? sectionStorage.get(key) : null,
-  setItem: (key, value) => sectionStorage.set(key, value),
-};
-const sectionPrefKey = 'syncview_workloadSections_v1';
-const wlReadSectionPrefs = compile('wlReadSectionPrefs', {
-  localStorage: sectionLocalStorage,
-  WL_SECTION_PREF_KEY: sectionPrefKey,
-});
-const defaultSectionPrefs = wlReadSectionPrefs();
-sectionStorage.set(sectionPrefKey, JSON.stringify({ overdue: true, inprogress: false, tweaks: true, ignored: true }));
-const savedSectionPrefs = wlReadSectionPrefs();
 const toolbarSource = grabFunc('wlWireToolbar');
 const overviewSource = grabFunc('renderWorkloadOverviewMatrix');
-check(defaultSectionPrefs.overdue === false
-    && defaultSectionPrefs.inprogress === false
-    && defaultSectionPrefs.tweaks === false
-    && savedSectionPrefs.overdue === true
-    && savedSectionPrefs.inprogress === false
-    && savedSectionPrefs.tweaks === true
-    && !Object.prototype.hasOwnProperty.call(savedSectionPrefs, 'ignored')
-    && (workloadShellSource.match(/data-wl-section-toggle=/g) || []).length === 3
+check(!(workloadShellSource.includes('data-wl-section-toggle=') || overviewSource.includes('data-wl-section-panel'))
     && workloadShellSource.includes('class="workload-overview-matrix empty"')
     && ['overdue', 'inprogress', 'tweaks'].every(key => overviewSource.includes(`key: '${key}'`))
-    && overviewSource.includes('data-wl-section-panel="${spec.key}"')
-    && /localStorage\.setItem\(WL_SECTION_PREF_KEY,\s*JSON\.stringify\(wlState\.sectionExpanded\)\)/.test(toolbarSource)
-    && /matrix\.querySelectorAll\(`\[data-wl-section-panel="\$\{section\}"\]`\)/.test(toolbarSource)
-    && /panel\.hidden = !expanded/.test(toolbarSource),
-  'overdue, in-progress, and tweaks stay compact in the editor matrix and persist each browser expansion');
+    && !toolbarSource.includes('sectionToggle')
+    && !toolbarSource.includes('WL_SECTION_PREF_KEY')
+    && !overviewSource.includes("' hidden'")
+    && /workload-overview-status-clients[^>]*>\$\{chips\}/.test(overviewSource),
+  'overdue, in-progress, and tweaks stay visible in the editor matrix without collapse controls');
 
 const deadlineStorage = new Map();
 const deadlineLocalStorage = {

@@ -1407,7 +1407,8 @@ data.
 **Current authorization/history correction (F136/F138, 2026-07-14):** the gateway authorizes a
 creative's next status without receiving current status or assignee, so reviewer/terminal regressions,
 cancel/duplicate and peer-work mutations are not state-machine-enforced. The gateway writes native
-events, but the SPA never calls its event loader/renderer and detail shows Comments only. A server
+events. Current source calls the event loader only for a failure-collapsed Properties status-history
+hover; the Activity renderer still has no runtime caller and detail shows Comments only. A server
 role/current/next/team/assignee policy is a first-flip gate. The owner must explicitly choose whether
 the protected paginated Activity timeline is also a first-flip gate or a later gate; it is required
 no later than Linear history/Inbox retirement.

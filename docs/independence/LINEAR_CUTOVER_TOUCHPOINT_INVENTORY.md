@@ -213,7 +213,7 @@ request id, and source timestamp.
 | Real bridge write | At 2026-07-12 20:18:29 UTC, the production `linear-add-comment` path posted marker `cutover-visibility-20260712201826`; n8n execution `256233` succeeded. Linear created exactly one comment at 20:18:30 under the house actor. |
 | Realtime lane | After both Comment webhooks had time to settle, the deliverable thread stayed at 0, `linear_raw` stayed at 0, `updated_at` did not move, and there was no new `mirror_in_comment_add` event. |
 | 30-minute refresh lane | Manually dispatched incremental run `29208341729` used the scheduled job's code path and covered the marker (`changed_since=2026-07-12T20:10:49.528Z`). It found two changed issues and one operational issue and completed successfully with zero deliverable writes. The native thread and `linear_raw` stayed at 0, no event appeared, and `updated_at` remained unchanged. |
-| UI lane | Production defines event-loader/Activity helpers but never calls them; issue detail renders normalized Comments only and never maps `linear_raw.issue.comments` into a feed (F138; source/browser call census 2026-07-14). |
+| UI lane | At the 2026-07-14 census Production defined event-loader/Activity helpers but called neither. Current source calls the loader only for a failure-collapsed Properties status-history hover; issue detail still renders normalized Comments only, never invokes the Activity renderer, and never maps `linear_raw.issue.comments` into a feed (F138; current source-only correction at `07d123d`). |
 | Cleanup | Deleted probe comment `6596d87d-ab5a-4b1c-a43a-e3d9188b1ece`. Linear then had zero marker matches; after settlement, the native thread and `linear_raw` remained at 0, with no event and no `updated_at` change. |
 
 ### Definitive verdict
@@ -225,8 +225,9 @@ request id, and source timestamp.
 - The recurring B1 incremental query does not request comments, and comment-only issue updates do
   not enter its compared deliverable field set (`b1-linear-backfill.js:427-450`, `832-836`,
   `1040-1077`).
-- The detail UI renders normalized Comments only; it invokes neither the native event loader/Activity
-  renderer nor any `linear_raw` comment-body projection (F138).
+- The detail UI renders normalized Comments only. Its native event loader now feeds only a
+  failure-collapsed status-history hover; it invokes neither the Activity renderer nor any
+  `linear_raw` comment-body projection (F138).
 
 After the write-UI epoch, the same human message can be visible because the native comment is
 written locally first. That is the authoritative local copy, not an imported bridge comment.
@@ -320,9 +321,10 @@ population only with an explicit mapped-deliverable scope.
 
 ### Display gap and epoch deliverable
 
-Production has dormant `_prodLoadEventsFor()` and `_prodActivity()` helpers, but runtime calls neither;
-issue detail renders normalized Comments only (F138). The Activity helper's presentational shape is not
-live evidence and `linear_raw` is incomplete. The epoch must:
+Production calls `_prodLoadEventsFor()` only for a failure-collapsed status-history hover while
+`_prodActivity()` remains dormant; issue detail renders normalized Comments only (F138). The
+Activity helper's presentational shape is not live evidence and `linear_raw` is incomplete. The
+epoch must:
 
 1. make each durable comment event self-contained with body, stable author identity, timestamp,
    Linear/native comment ID, parent/thread metadata, role/audience, and edit/delete state;
@@ -368,7 +370,7 @@ UI epoch so native behavior is not left dependent on Linear linkage.
 | VERIFIED | **Inactive-client queue and mutation boundary (F54)** | Browser queue eligibility does not require `client.active`; staff-authenticated `production-write` mutations also do not reject an inactive client for status/comment/due/assignee paths. Inactive rows can therefore remain visible, assigned, and writable. | **filter and reject before Graphics authority.** Add shared active-client queue predicates, server-side authorization for every mutation, and an explicit offboarding disposition for existing work. | `index.html` Production queue/write eligibility; `supabase/functions/production-write/index.ts`; live read-only population audit 2026-07-13. |
 | VERIFIED | **Creative transition/ownership policy (F37/F136)** | Production permits same-team creative status/comment actions. Status authorization receives next state but not current state or assignee, so reviewer/terminal regressions, cancel/duplicate, and peer-work actions can pass after flip. | **implement before either creative flip.** Ratify one server role×current×next×team×assignee state machine shared with the picker; TEST all 13×13 and peer/unassigned/direct-link paths. | `index.html`; `production-write/policy.mjs`; offline policy matrix 2026-07-14. |
 | VERIFIED | **Video asset preservation (F137)** | `file_url`, delivery folder, footage folder, and filming plan collapse to one priority-selected Production link labelled Delivered file; batch detail shows none. | **build before Video authority.** Preserve/render all four typed resources with accurate labels and failure/permission states; never substitute one identity for another. | `index.html` Production adapter/detail; fictional three-batch-field fixture + four-field source census 2026-07-14. |
-| VERIFIED | **Native Activity/history replacement (F138)** | `deliverable_events` are written, but SPA loader/renderer helpers have no runtime call and detail renders Comments only. | **Owner decision: first-flip gate or later; wire no later than history/Inbox retirement.** Protected scoped paginated reader, redacted Activity states and exact event/paging/device proof. | `production-write`; `index.html` event helpers/detail; source/browser census 2026-07-14. |
+| VERIFIED | **Native Activity/history replacement (F138)** | `deliverable_events` are written and issue detail requests them only for a status-history hover; the read collapses failure to empty, the Activity renderer has no runtime call, and detail renders Comments only. | **Owner decision: first-flip gate or later; wire no later than history/Inbox retirement.** Protected scoped paginated reader, redacted loading/empty/failure/Retry states and exact event/paging/device proof. | `production-write`; `index.html` event helpers/detail; source/browser census 2026-07-14 + current source-only correction at `07d123d`. |
 | VERIFIED | **Calendar/Samples reorder accessibility (F135)** | Card ordering is mouse HTML5 drag/drop only; no touch/pointer/keyboard/move control exists. | **build/prove before persona sign-off.** Accessible move/position and optional touch drag use the same CAS reorder; physical mobile/keyboard tests required. | `index.html` Calendar/Samples drag wiring; fictional touch test 2026-07-14. |
 | VERIFIED | **Archive anti-resurrection identity — omitted** | Calendar recognizes historical Linear-URL archive aliases; SXR writes both VID/GRA URLs into its local archive ledger and uses them to hide or restore cards. | New archive identity: **neutralize** URL keying at epoch and use native card/deliverable IDs. Historical URL aliases: **keep-until-B5** so old cards do not resurrect. | `index.html:19492-19566`, `34807-34853`, `35675-35689`, `35727-35752`. |
 | VERIFIED | **Duplicate-link collision and move semantics — omitted** | Calendar/SXR duplicate detection, warning banners, conflict confirmation, and “move it here” clear the prior owner by comparing VID/GRA URLs. | **neutralize** URL uniqueness at epoch and enforce native deliverable/card linkage instead. | `index.html:19586-19634`, `24491-24542`, `35267-35323`, `35325-35347`. |

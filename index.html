@@ -2928,11 +2928,11 @@
         .prod-create-field { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
         .prod-create-field.wide { grid-column: 1 / -1; }
         .prod-create-field > label, .prod-create-label-head > span { color: var(--prod-muted); font-size: 11.5px; font-weight: 600; }
-        .prod-create-input, .prod-create-select, .prod-create-textarea, .prod-create-label-search { width: 100%; box-sizing: border-box; border: 1px solid var(--prod-border); border-radius: 8px; background: var(--prod-surface); color: var(--prod-strong); font: inherit; font-size: 13px; outline: none; }
-        .prod-create-input, .prod-create-select, .prod-create-label-search { min-height: 36px; padding: 0 10px; }
+        .prod-create-input, .prod-create-textarea, .prod-create-label-search { width: 100%; box-sizing: border-box; border: 1px solid var(--prod-border); border-radius: 8px; background: var(--prod-surface); color: var(--prod-strong); font: inherit; font-size: 13px; outline: none; }
+        .prod-create-input, .prod-create-label-search { min-height: 36px; padding: 0 10px; }
         .prod-create-textarea { min-height: 126px; resize: vertical; padding: 9px 10px; line-height: 19px; tab-size: 2; }
-        .prod-create-input:focus, .prod-create-select:focus, .prod-create-textarea:focus, .prod-create-label-search:focus { border-color: var(--prod-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--prod-accent) 16%, transparent); }
-        .prod-create-select[disabled], .prod-create-input[disabled] { background: var(--prod-hover); color: var(--prod-muted); }
+        .prod-create-input:focus, .prod-create-textarea:focus, .prod-create-label-search:focus { border-color: var(--prod-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--prod-accent) 16%, transparent); }
+        .prod-create-input[disabled] { background: var(--prod-hover); color: var(--prod-muted); }
         .prod-create-label-box { border: 1px solid var(--prod-border); border-radius: 9px; overflow: hidden; }
         .prod-create-label-head { min-height: 38px; padding: 7px 9px; display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--prod-divider); }
         .prod-create-label-head > span { white-space: nowrap; }
@@ -41944,6 +41944,11 @@
                         return;
                     }
                     if (e.key === 'Escape' && document.getElementById('prodLayer') && document.getElementById('prodLayer').innerHTML) {
+                        // Branded selects consume Escape at their control before
+                        // this document handler; the portaled date picker handles
+                        // it in its own document listener. Keep the create modal
+                        // mounted so each primitive can return focus correctly.
+                        if (e.defaultPrevented || document.getElementById('svDatePickerPopup')) return;
                         e.preventDefault();
                         _prodClearLayer();
                         return;
@@ -42443,26 +42448,43 @@
                 .sort((a, b) => String(a.name).localeCompare(String(b.name)));
             const parents = _prodCreateParents(draft);
             const assignees = _prodCreateAssignees(draft);
-            const clientOptions = clients.map(client => '<option value="' + _calEscAttr(client.id) + '"' + (client.id === draft.clientSlug ? ' selected' : '') + '>' + _calEsc(client.name || client.id) + '</option>').join('');
-            const parentOptions = '<option value="">Choose parent issue</option>' + parents.map(issue => '<option value="' + _calEscAttr(issue.id) + '"' + (issue.id === draft.parentId ? ' selected' : '') + '>' + _calEsc(_prodIssueLabel(issue) + ' Â· ' + (issue.title || 'Untitled issue')) + '</option>').join('');
-            const assigneeOptions = '<option value="">Unassigned</option>' + assignees.map(member => '<option value="' + _calEscAttr(member.id) + '"' + (member.id === draft.assigneeId ? ' selected' : '') + '>' + _calEsc(member.name) + '</option>').join('');
-            const statusOptions = PROD_STATUS_ORDER.map(status => {
+            const modeItems = [
+                { value: 'parent', label: 'Parent issue' },
+                { value: 'subissue', label: 'Sub-issue' }
+            ];
+            const clientItems = clients.map(client => ({
+                value: client.id,
+                label: client.name || client.id
+            }));
+            const teamItems = [
+                { value: 'video', label: 'Video' },
+                { value: 'graphics', label: 'Graphics' }
+            ];
+            const parentItems = [{ value: '', label: 'Choose parent issue' }].concat(parents.map(issue => ({
+                value: issue.id,
+                label: _prodIssueLabel(issue) + ' Â· ' + (issue.title || 'Untitled issue')
+            })));
+            const assigneeItems = [{ value: '', label: 'Unassigned' }].concat(assignees.map(member => ({
+                value: member.id,
+                label: member.name
+            })));
+            const statusItems = PROD_STATUS_ORDER.map(status => {
                 const value = PROD_STATUS_FROM_ARTIFACT[status] || status;
-                return '<option value="' + _calEscAttr(value) + '"' + (value === draft.status ? ' selected' : '') + '>' + _calEsc(_prodStatusLabel(status)) + '</option>';
-            }).join('');
+                return { value, label: _prodStatusLabel(status) };
+            });
             const lockedScope = draft.mode === 'subissue' && !!parent;
             return '<form class="prod-create-modal" data-prod-create-modal="1" onsubmit="return _prodSubmitCreate(event)">'
                 + '<div class="prod-create-head"><div><h2>' + (draft.mode === 'subissue' ? 'Create sub-issue' : 'Create parent issue') + '</h2><p>Production-side only Â· no Calendar or Samples card will be created or linked</p></div><span class="prod-spacer"></span><button class="prod-create-close" type="button" onclick="_prodCloseCreate()" aria-label="Close">&times;</button></div>'
                 + '<div class="prod-create-body">'
-                + '<div class="prod-create-field"><label for="prodCreateMode">Issue type</label><select class="prod-create-select" id="prodCreateMode" onchange="_prodCreateModeChange(this.value)"' + (parentFixed || recoveryLocked ? ' disabled' : '') + '><option value="parent"' + (draft.mode === 'parent' ? ' selected' : '') + '>Parent issue</option><option value="subissue"' + (draft.mode === 'subissue' ? ' selected' : '') + '>Sub-issue</option></select></div>'
-                + '<div class="prod-create-field"><label for="prodCreateClient">Roster client</label><select class="prod-create-select" id="prodCreateClient" onchange="_prodCreateScopeChange(' + _jsAttrArg('clientSlug') + ',this.value)"' + (lockedScope || recoveryLocked ? ' disabled' : '') + '>' + clientOptions + '</select></div>'
-                + '<div class="prod-create-field"><label for="prodCreateTeam">Team</label><select class="prod-create-select" id="prodCreateTeam" onchange="_prodCreateScopeChange(' + _jsAttrArg('team') + ',this.value)"' + (lockedScope || recoveryLocked ? ' disabled' : '') + '><option value="video"' + (draft.team === 'video' ? ' selected' : '') + '>Video</option><option value="graphics"' + (draft.team === 'graphics' ? ' selected' : '') + '>Graphics</option></select></div>'
-                + (draft.mode === 'subissue' ? '<div class="prod-create-field"><label for="prodCreateParent">Parent issue</label><select class="prod-create-select" id="prodCreateParent" onchange="_prodCreateParentChange(this.value)"' + (parentFixed || recoveryLocked ? ' disabled' : '') + '>' + parentOptions + '</select></div>' : '<div class="prod-create-field"><label>Hierarchy</label><input class="prod-create-input" value="Top-level parent issue" disabled></div>')
+                + '<div class="prod-create-field"><label for="prodCreateModeBtn">Issue type</label>' + _svSelectHtml('prodCreateMode', modeItems, draft.mode, 'Choose issue type', { disabled: parentFixed || recoveryLocked, onchange: '_prodCreateModeChange(this.value)' }) + '</div>'
+                + '<div class="prod-create-field"><label for="prodCreateClientBtn">Roster client</label>' + _svSelectHtml('prodCreateClient', clientItems, draft.clientSlug, 'Choose roster client', { disabled: lockedScope || recoveryLocked, onchange: '_prodCreateScopeChange("clientSlug",this.value)' }) + '</div>'
+                + '<div class="prod-create-field"><label for="prodCreateTeamBtn">Team</label>' + _svSelectHtml('prodCreateTeam', teamItems, draft.team, 'Choose team', { disabled: lockedScope || recoveryLocked, onchange: '_prodCreateScopeChange("team",this.value)' }) + '</div>'
+                + (draft.mode === 'subissue' ? '<div class="prod-create-field"><label for="prodCreateParentBtn">Parent issue</label>' + _svSelectHtml('prodCreateParent', parentItems, draft.parentId, 'Choose parent issue', { disabled: parentFixed || recoveryLocked, onchange: '_prodCreateParentChange(this.value)' }) + '</div>' : '<div class="prod-create-field"><label for="prodCreateHierarchy">Hierarchy</label><input class="prod-create-input" id="prodCreateHierarchy" value="Top-level parent issue" disabled></div>')
                 + '<div class="prod-create-field wide"><label for="prodCreateTitle">Title</label><input class="prod-create-input" id="prodCreateTitle" maxlength="500" required value="' + _calEscAttr(draft.title) + '" oninput="_prodCreateField(' + _jsAttrArg('title') + ',this.value)" placeholder="Issue title"' + recoveryLockAttr + '></div>'
                 + '<div class="prod-create-field wide"><label for="prodCreateDescription">Description (Markdown)</label><textarea class="prod-create-textarea" id="prodCreateDescription" maxlength="100000" oninput="_prodCreateField(' + _jsAttrArg('description') + ',this.value)" placeholder="Add context, acceptance criteria, and linksâ€¦"' + recoveryLockAttr + '>' + _calEsc(draft.description) + '</textarea></div>'
-                + '<div class="prod-create-field"><label for="prodCreateStatus">Status</label><select class="prod-create-select" id="prodCreateStatus" onchange="_prodCreateField(' + _jsAttrArg('status') + ',this.value)"' + recoveryLockAttr + '>' + statusOptions + '</select></div>'
-                + '<div class="prod-create-field"><label for="prodCreateDue">Due date</label><input class="prod-create-input" id="prodCreateDue" type="date" value="' + _calEscAttr(draft.dueDate) + '" onchange="_prodCreateField(' + _jsAttrArg('dueDate') + ',this.value)"' + recoveryLockAttr + '></div>'
-                + '<div class="prod-create-field"><label for="prodCreateAssignee">Assignee</label><select class="prod-create-select" id="prodCreateAssignee" onchange="_prodCreateField(' + _jsAttrArg('assigneeId') + ',this.value)"' + recoveryLockAttr + '>' + assigneeOptions + '</select></div>'
+                + '<div class="prod-create-field"><label for="prodCreateStatusBtn">Status</label>' + _svSelectHtml('prodCreateStatus', statusItems, draft.status, 'Choose status', { disabled: recoveryLocked, onchange: '_prodCreateField("status",this.value)' }) + '</div>'
+                + '<div class="prod-create-field"><label for="prodCreateDueBtn">Due date</label>' + _svDateHtml('prodCreateDue', draft.dueDate, { disabled: recoveryLocked, today: wlWorkloadTodayISO(), placeholder: 'Choose due date', onchange: '_prodCreateField("dueDate",this.value)' }) + '</div>'
+                + '<div class="prod-create-field"><label for="prodCreateAssigneeBtn">Assignee</label>' + _svSelectHtml('prodCreateAssignee', assigneeItems, draft.assigneeId, 'Unassigned', { disabled: recoveryLocked, onchange: '_prodCreateField("assigneeId",this.value)' }) + '</div>'
                 + '<div class="prod-create-field"><label>Selected labels</label><input class="prod-create-input" value="' + _calEscAttr(String((draft.labelIds || []).length) + ' selected') + '" disabled></div>'
                 + '<div class="prod-create-field wide"><label>Labels</label><div class="prod-create-label-box"><div class="prod-create-label-head"><span>Catalog</span><input class="prod-create-label-search" type="search" placeholder="Search labels" oninput="_prodFilterCreateLabels(this.value)" aria-label="Search labels"' + recoveryLockAttr + '></div><div class="prod-create-label-list" data-prod-create-label-list="1">' + _prodCreateCatalogHTML() + '</div></div></div>'
                 + '<div class="prod-create-note">Creation writes only the Production issue hierarchy. It does not create, choose, or link a Calendar/Samples card.</div>'
@@ -42671,7 +42693,9 @@
         function _prodCreateErrorText(error) {
             const code = String(error && error.code || '');
             if (code === 'write_conflict' || code === 'parent_changed') return 'The parent changed elsewhere. Refresh and try again.';
-            if (code === 'idempotency_conflict') return 'This saved request conflicts with a different durable attempt. Review these fields; the next submit uses a fresh request.';
+            if (code === 'create_mirror_pending') return 'The issue is saved in Production. Its exact fields stay locked while Linear catches up; Retry checks the same attempt and cannot create a duplicate.';
+            if (code === 'idempotency_conflict' && error && error.nativeCommitted) return 'The issue is saved in Production, but its Linear create ID conflicts with another issue. The saved issue will open for explicit repair; no second issue was created.';
+            if (code === 'idempotency_conflict') return 'This request conflicts with durable create state. Its exact fields stay locked to prevent a duplicate; retry only checks the same attempt.';
             if (code === 'team_is_linear_authoritative') return 'This team is read-only while Linear is authoritative.';
             if (code === 'test_scope_service_only' || code === 'invalid_test_override') return 'TEST creation is reserved for the service-authenticated write drill.';
             if (code === 'project_mapping_missing' || code === 'project_mapping_ambiguous') return 'This roster client needs an exact team project mapping before creation.';
@@ -42686,6 +42710,56 @@
             if (code === 'operation_forbidden') return 'Only Admin and SMM staff can create Production issues.';
             if (error && error.status === 401) return 'Staff sign-in expired. Sign in again to create.';
             return 'The issue was not created. Your draft is still here; retry when the connection is ready.';
+        }
+        function _prodCreatePayload(draft) {
+            return {
+                operation: 'create',
+                surface: 'production',
+                client_slug: draft.clientSlug,
+                team: draft.team,
+                parent_id: draft.mode === 'subissue' ? draft.parentId : null,
+                title: String(draft.title).trim(),
+                description: String(draft.description || ''),
+                status: draft.status,
+                due_date: draft.dueDate || null,
+                assignee_id: draft.assigneeId || null,
+                label_ids: [...(draft.labelIds || [])],
+                request_id: draft.requestId,
+                source_edited_at: draft.sourceEditedAt
+            };
+        }
+        async function _prodPostCreatePayload(payload) {
+            const response = await fetch(PROD_WRITE_EF_URL, {
+                method: 'POST',
+                cache: 'no-store',
+                headers: _syncviewEfHeaders({
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json'
+                }, PROD_WRITE_EF_URL),
+                body: JSON.stringify(payload)
+            });
+            const json = await response.json().catch(() => ({}));
+            if (!response.ok || !json || json.ok !== true || json.native_committed !== true
+                || !json.row || !json.row.id) {
+                const error = new Error(String(json && json.error || 'create_failed'));
+                error.code = String(json && json.error || 'create_failed');
+                error.status = response.status;
+                error.nativeCommitted = !!(json && json.native_committed === true);
+                error.row = json && json.row && json.row.id ? json.row : null;
+                throw error;
+            }
+            return json;
+        }
+        async function _prodPollCreatePayload(payload, firstResult) {
+            let result = firstResult;
+            for (const delay of [250, 500, 1000]) {
+                if (!result.mirror_pending) break;
+                await new Promise(resolve => setTimeout(resolve, delay));
+                result = await _prodPostCreatePayload(payload);
+            }
+            return result;
         }
         async function _prodSubmitCreate(event) {
             if (event) event.preventDefault();
@@ -42715,38 +42789,16 @@
             _prodState.createError = '';
             _prodRenderCreateModal();
             try {
-                const response = await fetch(PROD_WRITE_EF_URL, {
-                    method: 'POST',
-                    cache: 'no-store',
-                    headers: _syncviewEfHeaders({
-                        apikey: CAL_SUPABASE_ANON_KEY,
-                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
-                        Accept: 'application/json',
-                        'Content-Type': 'application/json'
-                    }, PROD_WRITE_EF_URL),
-                    body: JSON.stringify({
-                        operation: 'create',
-                        surface: 'production',
-                        client_slug: draft.clientSlug,
-                        team: draft.team,
-                        parent_id: draft.mode === 'subissue' ? draft.parentId : null,
-                        title: String(draft.title).trim(),
-                        description: String(draft.description || ''),
-                        status: draft.status,
-                        due_date: draft.dueDate || null,
-                        assignee_id: draft.assigneeId || null,
-                        label_ids: [...(draft.labelIds || [])],
-                        request_id: draft.requestId,
-                        source_edited_at: draft.sourceEditedAt
-                    })
-                });
-                const json = await response.json().catch(() => ({}));
-                if (!response.ok || !json || json.ok !== true || json.native_committed !== true
-                    || !json.row || !json.row.id) {
-                    const error = new Error(String(json && json.error || 'create_failed'));
-                    error.code = String(json && json.error || 'create_failed');
-                    error.status = response.status;
-                    throw error;
+                const payload = _prodCreatePayload(draft);
+                const firstResult = await _prodPostCreatePayload(payload);
+                const json = await _prodPollCreatePayload(payload, firstResult);
+                if (json.mirror_pending) {
+                    draft.ambiguous = true;
+                    _prodState.createError = _prodCreateErrorText({ code: 'create_mirror_pending' });
+                    _prodState.createSubmitting = false;
+                    _prodPersistCreateDraft();
+                    _prodRenderCreateModal();
+                    return false;
                 }
                 const createdId = String(json.row.id);
                 _prodState.createDraft = null;
@@ -42761,11 +42813,22 @@
                 if (!error || !Number(error.status) || Number(error.status) >= 500) {
                     draft.ambiguous = true;
                 } else if (code === 'idempotency_conflict') {
-                    // The server proved this request id already owns a
-                    // different durable intent. Preserve the fields, release
-                    // recovery lock, and mint a fresh id before another submit.
-                    draft.ambiguous = false;
-                    _prodRenewCreateIntent();
+                    // A deterministic Linear conflict can arrive only after
+                    // the native row exists. Never mint a second create from
+                    // that receipt: open the exact saved row for explicit
+                    // repair. An unclassified conflict remains exact-retry
+                    // locked until the gateway can prove its native receipt.
+                    draft.ambiguous = true;
+                    if (error.nativeCommitted && error.row && error.row.id) {
+                        const createdId = String(error.row.id);
+                        _prodState.createDraft = null;
+                        _prodPersistCreateDraft();
+                        _prodClearLayer();
+                        await _prodLoadData({ silent: true });
+                        if (_prodIssue(createdId)) _prodOpenDeliverable(createdId);
+                        _prodToast('Issue saved in Production Â· Linear ID conflict opened for repair');
+                        return false;
+                    }
                 }
                 _prodState.createError = _prodCreateErrorText(error);
                 _prodState.createSubmitting = false;

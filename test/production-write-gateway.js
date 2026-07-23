@@ -565,6 +565,11 @@ function extractFunction(name) {
     && /mirror_pending: !acknowledged/.test(createReplay)
     && /attempted: false/.test(createReplay),
   'early replay proves root or child native structure and reports the durable mirror receipt without re-draining');
+  ok(/targetStatus === "skipped" && lower\(conflict\.decision\) === "idempotency_conflict"/.test(createReplay)
+    && /new GatewayError\(409, "idempotency_conflict"/.test(createReplay)
+    && /native_committed: true/.test(createReplay)
+    && /terminal_conflict: true/.test(createReplay),
+  'exact create polling exposes a terminal deterministic Linear conflict with the already-committed native receipt');
 
   ok(/Object\.keys\(body\)\.some\(key => !PRODUCTION_CREATE_FIELDS\.has\(key\)\)/.test(createHandler)
     && !/"(?:origin|card_id|calendar|sample|batch_id|kind)"/.test(createFields)
@@ -595,6 +600,10 @@ function extractFunction(name) {
     && /publicDescriptionRow\(currentRow\)/.test(createHandler)
     && /selectedLabelReceipt\(currentRow\)/.test(createHandler),
   'the guarded create RPC receives one complete canonical Linear intent and returns refreshed Markdown plus complete selected-label state');
+  ok(/terminalConflict = mirror\.some/.test(createHandler)
+    && /item\.terminal_conflict === true/.test(createHandler)
+    && /new GatewayError\(409, "idempotency_conflict"/.test(createHandler),
+  'a synchronous targeted create drain returns the same terminal conflict contract instead of a catching-up success');
 
   const migrationReplayStart = createMigration.indexOf('if v_replay then');
   const migrationReplayEnd = createMigration.indexOf(

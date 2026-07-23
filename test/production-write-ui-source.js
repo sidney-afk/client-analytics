@@ -111,7 +111,7 @@ const productionWriteCallers = [
   ['_writeUiReadRepairReceipt', 'WRITE_UI_PRODUCTION_WRITE_URL'],
   ['_runNativeIntakeJob', 'PROD_WRITE_EF_URL'],
   ['_prodLoadCreateOptions', 'PROD_WRITE_EF_URL'],
-  ['_prodSubmitCreate', 'PROD_WRITE_EF_URL'],
+  ['_prodPostCreatePayload', 'PROD_WRITE_EF_URL'],
   ['_prodGatewayWrite', 'PROD_WRITE_EF_URL'],
 ];
 let parsedProductionWriteCallers = 0;
@@ -174,6 +174,7 @@ ok(/data-prod-label-search-input/.test(source)
 'label picker exposes search, colors, checkbox selection, and description tooltips inside the active layer');
 const createRole = extract('_prodCreateRoleAllowed');
 const createGate = extract('_prodCreateGateText');
+const ensureOverlays = extract('_prodEnsureOverlays');
 const createOptions = extract('_prodLoadCreateOptions');
 const createSubmit = extract('_prodSubmitCreate');
 const createForm = extract('_prodCreateFormHTML');
@@ -184,6 +185,9 @@ const createPersistDraft = extract('_prodPersistCreateDraft');
 const createRenewIntent = extract('_prodRenewCreateIntent');
 const createRecoveryGate = extract('_prodCreateRecoveryGateText');
 const createErrorText = extract('_prodCreateErrorText');
+const createPayload = extract('_prodCreatePayload');
+const createPost = extract('_prodPostCreatePayload');
+const createPoll = extract('_prodPollCreatePayload');
 const staffPurge = extract('_syncviewStaffPurgeSensitiveState');
 ok(/role === 'admin' \|\| role === 'smm'/.test(createRole)
   && /Choose an active roster client/.test(createGate)
@@ -201,20 +205,28 @@ ok(/action: 'create_options'[\s\S]{0,160}surface: 'production'[\s\S]{0,120}clien
   && /_prodLabelColorStyle\(label\)/.test(extract('_prodCreateCatalogHTML'))
   && /label\.description \|\| label\.name/.test(extract('_prodCreateCatalogHTML')),
 'creation loads a protected complete label catalog and exposes search, colors, checkboxes, selected state, and descriptions');
-ok(/operation: 'create'[\s\S]{0,100}surface: 'production'/.test(createSubmit)
-  && /client_slug: draft\.clientSlug/.test(createSubmit)
-  && /team: draft\.team/.test(createSubmit)
-  && /parent_id: draft\.mode === 'subissue' \? draft\.parentId : null/.test(createSubmit)
-  && /title: String\(draft\.title\)\.trim\(\)/.test(createSubmit)
-  && /description: String\(draft\.description \|\| ''\)/.test(createSubmit)
-  && /status: draft\.status/.test(createSubmit)
-  && /due_date: draft\.dueDate \|\| null/.test(createSubmit)
-  && /assignee_id: draft\.assigneeId \|\| null/.test(createSubmit)
-  && /label_ids: \[\.\.\.\(draft\.labelIds \|\| \[\]\)\]/.test(createSubmit)
-  && /request_id: draft\.requestId/.test(createSubmit)
-  && /source_edited_at: draft\.sourceEditedAt/.test(createSubmit)
+ok(/operation: 'create'[\s\S]{0,100}surface: 'production'/.test(createPayload)
+  && /client_slug: draft\.clientSlug/.test(createPayload)
+  && /team: draft\.team/.test(createPayload)
+  && /parent_id: draft\.mode === 'subissue' \? draft\.parentId : null/.test(createPayload)
+  && /title: String\(draft\.title\)\.trim\(\)/.test(createPayload)
+  && /description: String\(draft\.description \|\| ''\)/.test(createPayload)
+  && /status: draft\.status/.test(createPayload)
+  && /due_date: draft\.dueDate \|\| null/.test(createPayload)
+  && /assignee_id: draft\.assigneeId \|\| null/.test(createPayload)
+  && /label_ids: \[\.\.\.\(draft\.labelIds \|\| \[\]\)\]/.test(createPayload)
+  && /request_id: draft\.requestId/.test(createPayload)
+  && /source_edited_at: draft\.sourceEditedAt/.test(createPayload)
   && /_prodCreateValidDate\(draft\.dueDate\)/.test(createSubmit),
 'parent and sub-issue creation send the complete guarded payload with exact Markdown, full-year due date, labels, and one intent identity');
+ok((createForm.match(/_svSelectHtml\('prodCreate/g) || []).length === 6
+  && /_svDateHtml\('prodCreateDue', draft\.dueDate, \{[\s\S]{0,220}today: wlWorkloadTodayISO\(\)[\s\S]{0,220}onchange:/.test(createForm)
+  && !/<select\b/.test(createForm)
+  && !/<input[^>]*type="date"/.test(createForm)
+  && ['Mode', 'Client', 'Team', 'Parent', 'Status', 'Due', 'Assignee'].every(id =>
+    new RegExp(`label for="prodCreate${id}Btn"`).test(createForm))
+  && /e\.defaultPrevented \|\| document\.getElementById\('svDatePickerPopup'\)/.test(ensureOverlays),
+'the creation modal uses SyncView select/date controls with the ratified day source and no exposed native picker');
 ok(/sessionStorage\.getItem\(PROD_CREATE_DRAFT_KEY\)/.test(createSavedDraft)
   && /requestId:[\s\S]{0,180}_prodWriteRequestId\('create'\)/.test(createSavedDraft)
   && /sourceEditedAt: Number\.isFinite\(Date\.parse/.test(createSavedDraft)
@@ -222,12 +234,20 @@ ok(/sessionStorage\.getItem\(PROD_CREATE_DRAFT_KEY\)/.test(createSavedDraft)
   && /draft\.requestId = _prodWriteRequestId\('create'\)/.test(createRenewIntent)
   && /draft\.sourceEditedAt = new Date\(\)\.toISOString\(\)/.test(createRenewIntent)
   && /Number\(error\.status\) >= 500[\s\S]{0,100}draft\.ambiguous = true/.test(createSubmit)
-  && /code === 'idempotency_conflict'[\s\S]{0,500}draft\.ambiguous = false[\s\S]{0,100}_prodRenewCreateIntent\(\)/.test(createSubmit),
-'reload and ambiguous retry retain the exact intent, while a proven idempotency conflict unlocks the fields under a fresh request id');
+  && /_prodPollCreatePayload\(payload, firstResult\)/.test(createSubmit)
+  && /for \(const delay of \[250, 500, 1000\]\)[\s\S]{0,180}_prodPostCreatePayload\(payload\)/.test(createPoll)
+  && /json\.mirror_pending[\s\S]{0,120}draft\.ambiguous = true/.test(createSubmit)
+  && /code === 'idempotency_conflict'[\s\S]{0,500}error\.nativeCommitted && error\.row && error\.row\.id[\s\S]{0,360}_prodOpenDeliverable\(createdId\)/.test(createSubmit)
+  && !/code === 'idempotency_conflict'[\s\S]{0,500}_prodRenewCreateIntent\(\)/.test(createSubmit),
+'reload, catching-up polls, and terminal conflicts retain one exact intent; a committed conflict opens the saved native issue instead of minting a duplicate');
 ok(/const lockedScope = draft\.mode === 'subissue' && !!parent/.test(createForm)
-  && /id="prodCreateClient"[\s\S]{0,220}lockedScope \|\| recoveryLocked \? ' disabled'/.test(createForm)
-  && /id="prodCreateTeam"[\s\S]{0,220}lockedScope \|\| recoveryLocked \? ' disabled'/.test(createForm)
-  && /id="prodCreateParent"[\s\S]{0,220}parentFixed \|\| recoveryLocked \? ' disabled'/.test(createForm)
+  && /_svSelectHtml\('prodCreateMode'[\s\S]{0,220}disabled: parentFixed \|\| recoveryLocked/.test(createForm)
+  && /_svSelectHtml\('prodCreateClient'[\s\S]{0,260}disabled: lockedScope \|\| recoveryLocked/.test(createForm)
+  && /_svSelectHtml\('prodCreateTeam'[\s\S]{0,260}disabled: lockedScope \|\| recoveryLocked/.test(createForm)
+  && /_svSelectHtml\('prodCreateParent'[\s\S]{0,260}disabled: parentFixed \|\| recoveryLocked/.test(createForm)
+  && /_svSelectHtml\('prodCreateStatus'[\s\S]{0,260}disabled: recoveryLocked/.test(createForm)
+  && /_svDateHtml\('prodCreateDue'[\s\S]{0,260}disabled: recoveryLocked/.test(createForm)
+  && /_svSelectHtml\('prodCreateAssignee'[\s\S]{0,260}disabled: recoveryLocked/.test(createForm)
   && /if \(!parent \|\| parent\.parent \|\| !_prodAttributionResolved\(parent\)\)/.test(createParentChange)
   && /draft\.clientSlug = parent\.project/.test(createParentChange)
   && /draft\.team = _prodWriteTeam\(parent\.team\)/.test(createParentChange)
@@ -239,7 +259,7 @@ ok(/const recovering = !!\(saved && saved\.ambiguous\)/.test(createOpen)
   && /if \(parent && !recovering\)/.test(createOpen)
   && /_prodState\.createDraft\.ambiguous[\s\S]{0,100}_prodCreateRecoveryGateText/.test(createOpen),
 'Add Sub cannot retarget an ambiguous saved request and instead reopens its exact recovery intent');
-ok(/json\.native_committed !== true[\s\S]{0,100}!json\.row \|\| !json\.row\.id/.test(createSubmit)
+ok(/json\.native_committed !== true[\s\S]{0,100}!json\.row \|\| !json\.row\.id/.test(createPost)
   && /await _prodLoadData\(\{ silent: true \}\)/.test(createSubmit)
   && /if \(_prodIssue\(createdId\)\) _prodOpenDeliverable\(createdId\)/.test(createSubmit),
 'creation accepts only a native commit receipt, refreshes Production, and opens the returned row');
@@ -247,7 +267,7 @@ ok(!/\btest_override\b|\blegacy_parity\b|\bcard_id\b|\borigin\b|\bcalendar\b|\bs
   && !/_prodTestWriteOverride/.test(createGate + createOpen + createSubmit)
   && /client\.raw\.kind[\s\S]{0,100}!== 'test'/.test(createForm)
   && /test_scope_service_only/.test(createErrorText)
-  && (createSubmit.match(/fetch\(PROD_WRITE_EF_URL/g) || []).length === 1,
+  && (createPost.match(/fetch\(PROD_WRITE_EF_URL/g) || []).length === 1,
 'Production creation cannot self-enter service-only TEST/parity lanes or create, choose, or link Calendar/Samples state');
 ok(/_prodState\.createCatalogToken\+\+/.test(staffPurge)
   && /_prodState\.createCatalog = \[\]/.test(staffPurge)

@@ -133,7 +133,8 @@ check('preview block limits POSTs to protected reads, guarded creation, and auth
   && /deliverable_id: id, limit: PROD_COMMENTS_PAGE_SIZE, before: cursor \|\| null/.test(prodBlock)
   && /fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,500}action: 'labels_read', surface: 'production', id/.test(prodBlock)
   && /async function _prodLoadCreateOptions\(force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'create_options',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
-  && /async function _prodSubmitCreate\(event\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}operation: 'create',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
+  && /function _prodCreatePayload\(draft\)[\s\S]{0,160}operation: 'create',[\s\S]{0,100}surface: 'production'/.test(prodBlock)
+  && /async function _prodPostCreatePayload\(payload\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'/.test(prodBlock)
   && /async function _prodGatewayWrite\(issue, operation[\s\S]*?_prodCanWrite\(issue, operation\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock));
 check('preview block has no Supabase write helpers', !/\.(insert|update|upsert|rpc)\s*\(/.test(prodBlock));
 check('topbar exposes guarded New issue without Refresh chrome',

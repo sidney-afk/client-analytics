@@ -320,7 +320,7 @@ async function runTheme(port, browser, theme) {
     await artifact.evaluate(() => clearLayer());
     await wired.evaluate(() => _prodClearLayer());
     const wiredTopbar = (await wired.locator('.prod-topbar').first().innerText()).replace(/\s+/g, ' ');
-    if (/\b(New issue|Refresh)\b/.test(wiredTopbar)) gaps.push({ rank: 1, state: 'topbar', message: 'wired topbar contains non-artifact New issue/Refresh chrome' });
+    if (/\bRefresh\b/.test(wiredTopbar)) gaps.push({ rank: 1, state: 'topbar', message: 'wired topbar contains non-artifact Refresh chrome' });
     const previewChips = await wired.locator('.prod-preview-chip').count();
     if (previewChips !== 1) gaps.push({ rank: 2, state: 'topbar', message: `Preview chip count expected 1, saw ${previewChips}` });
     const themePalettes = {

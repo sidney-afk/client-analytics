@@ -361,7 +361,7 @@ export function decideConflict(row, issue, context = {}) {
     const mismatched_fields = createIntentMismatches(issue, payload, context);
     return mismatched_fields.length
       ? {
-        decision: "failed",
+        decision: "idempotency_conflict",
         reason: "linear_create_intent_mismatch",
         mismatched_fields,
       }

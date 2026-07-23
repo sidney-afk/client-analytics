@@ -858,6 +858,9 @@ async function targetedDrain(
     const target = parseJson(result.target);
     const targetStatus = lower(target.status);
     const conflict = parseJson(parseJson(target.linear_result).conflict);
+    const terminalConflict = targetStatus === "skipped"
+      && clean(target.operation) === "create"
+      && lower(conflict.decision) === "idempotency_conflict";
     const terminal = targetStatus === "written"
       || (targetStatus === "skipped" && ["already_applied", "already_exists"].includes(lower(conflict.decision)));
     return {
@@ -865,6 +868,8 @@ async function targetedDrain(
       acknowledged: response.ok && result.ok === true && terminal,
       status: response.status,
       target_status: targetStatus || null,
+      terminal_conflict: terminalConflict,
+      ...(terminalConflict ? { error: "idempotency_conflict" } : {}),
     };
   } catch (_error) {
     return { attempted: true, acknowledged: false, error: "drainer_unavailable" };
@@ -1935,6 +1940,25 @@ async function productionCreateReplay(
 
   const targetStatus = lower(outbox.status);
   const conflict = parseJson(parseJson(outbox.linear_result).conflict);
+  if (targetStatus === "skipped" && lower(conflict.decision) === "idempotency_conflict") {
+    throw new GatewayError(409, "idempotency_conflict", {
+      native_committed: true,
+      row: {
+        ...publicDescriptionRow(row),
+        ...selectedLabelReceipt(row),
+      },
+      batch: publicRow(batch),
+      mirror_pending: false,
+      mirror: [{
+        dedup_key: intent.dedup,
+        attempted: false,
+        acknowledged: false,
+        replay: true,
+        terminal_conflict: true,
+        target_status: targetStatus,
+      }],
+    });
+  }
   const acknowledged = targetStatus === "written"
     || (targetStatus === "skipped"
       && ["already_applied", "already_exists"].includes(lower(conflict.decision)));
@@ -2044,6 +2068,14 @@ async function productionCreateParentRoute(
     ["pending", "failed", "shadow_ok", "written"].includes(lower(row.status))
       && clean(parseJson(row.payload).project_id) === scope.projectId
   );
+  if (((dependencyRows || []) as JsonMap[]).some(row => {
+    const conflict = parseJson(parseJson(row.linear_result).conflict);
+    return lower(row.status) === "skipped"
+      && clean(parseJson(row.payload).project_id) === scope.projectId
+      && lower(conflict.decision) === "idempotency_conflict";
+  })) {
+    throw new GatewayError(409, "production_create_parent_route");
+  }
   if (candidates.length > 1) throw new GatewayError(409, "production_create_parent_route");
   if (candidates.length === 1) {
     const dependency = candidates[0];
@@ -2338,6 +2370,21 @@ async function handleProductionCreate(
     throw new GatewayError(500, "native_response_refresh_failed");
   }
   const currentRow = currentRowResult.data as JsonMap;
+  const terminalConflict = mirror.some(item =>
+    item.terminal_conflict === true && clean(item.error) === "idempotency_conflict"
+  );
+  if (terminalConflict) {
+    throw new GatewayError(409, "idempotency_conflict", {
+      native_committed: true,
+      row: {
+        ...publicDescriptionRow(currentRow),
+        ...selectedLabelReceipt(currentRow),
+      },
+      batch: publicRow(currentBatchResult.data),
+      mirror_pending: false,
+      mirror,
+    });
+  }
   return json({
     ok: true,
     native_committed: true,

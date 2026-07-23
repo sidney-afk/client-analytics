@@ -1151,6 +1151,25 @@ Deno.serve(async (req: Request) => {
         });
         continue;
       }
+      if (conflict.decision === "idempotency_conflict" && row.operation === "create") {
+        // A deterministic create UUID that belongs to a different intent can
+        // never succeed by retrying. Quarantine it in the existing terminal
+        // status and retain the structured receipt so production-write can
+        // expose a conflict instead of reporting indefinite mirror lag.
+        counts.failed++;
+        counts.skipped++;
+        await releaseRow(supabase, row, {
+          status: "skipped",
+          processed_at: f27Replay ? null : new Date().toISOString(),
+          linear_result: bindF27LinearResult({
+            conflict,
+            issue: compactIssue(issue),
+          }, f27Replay, row),
+          last_error: f27Replay ? "F27 replay declined: idempotency_conflict" : "idempotency_conflict",
+          next_retry_at: f27Replay ? new Date(Date.now() + 30_000).toISOString() : null,
+        });
+        continue;
+      }
       if (conflict.decision === "failed") throw new Error(clean(conflict.reason));
 
       const mutation = buildMutation(row, context);
@@ -1208,11 +1227,26 @@ Deno.serve(async (req: Request) => {
         mirror_actor_name: clean(mirrorActor.name),
         expected: mutation.variables,
         ...(createVerification ? { create_verification: createVerification } : {}),
+        ...(createVerification?.decision === "idempotency_conflict"
+          ? { conflict: createVerification }
+          : {}),
       }, f27Replay, row);
       // Persist the acknowledged mutation before any follow-up work. Linear can
       // deliver its webhook immediately, and inbound must see the exact intent
       // even while this row is still locked/finalizing.
       await checkpointLinearResult(supabase, row, linearResult);
+      if (createVerification?.decision === "idempotency_conflict") {
+        counts.failed++;
+        counts.skipped++;
+        await releaseRow(supabase, row, {
+          status: "skipped",
+          processed_at: f27Replay ? null : new Date().toISOString(),
+          linear_result: linearResult,
+          last_error: f27Replay ? "F27 replay declined: idempotency_conflict" : "idempotency_conflict",
+          next_retry_at: f27Replay ? new Date(Date.now() + 30_000).toISOString() : null,
+        });
+        continue;
+      }
       if (createVerification && createVerification.decision !== "already_exists") {
         throw new Error(clean(createVerification.reason) || "linear_create_intent_mismatch");
       }

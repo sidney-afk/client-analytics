@@ -281,10 +281,10 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   ];
   for (const [field, mismatchedIssue] of createMismatchCases) {
     const conflict = mapping.decideConflict(createRow, mismatchedIssue, createContext);
-    ok(conflict.decision === 'failed'
+    ok(conflict.decision === 'idempotency_conflict'
       && conflict.reason === 'linear_create_intent_mismatch'
       && conflict.mismatched_fields.includes(field),
-    `deterministic create recovery fails closed on ${field} drift`);
+    `deterministic create recovery terminalizes ${field} drift as an idempotency conflict`);
   }
 
   const nativeCreateEntity = {
@@ -586,6 +586,10 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && /completeCreateIssueLabels\(row, entity, issue\)/.test(ef)
     && /JSON\.stringify\(resultNodeIds\) === JSON\.stringify\(expectedIds\)/.test(mappingSource),
   'create is checkpointed, full-intent verified, and label-relation verified before native linkage');
+  ok(/conflict\.decision === "idempotency_conflict" && row\.operation === "create"/.test(ef)
+    && /status: "skipped"[\s\S]{0,320}last_error: f27Replay \? "F27 replay declined: idempotency_conflict" : "idempotency_conflict"[\s\S]{0,120}next_retry_at: f27Replay \?/.test(ef)
+    && /createVerification\?\.decision === "idempotency_conflict"[\s\S]{0,520}status: "skipped"/.test(ef),
+  'deterministic create intent conflicts become structured terminal receipts before or after the mutation response and never enter generic retry exhaustion');
   const linkageStart = ef.indexOf('async function applyCreateLinkage(');
   const linkageEnd = ef.indexOf('\nasync function latestOutboundSummaryTs(', linkageStart);
   const linkage = ef.slice(linkageStart, linkageEnd);

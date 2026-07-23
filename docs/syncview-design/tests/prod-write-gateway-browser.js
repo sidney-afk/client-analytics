@@ -51,6 +51,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const labelReads = [];
   const createOptionReads = [];
   const createdProductionIssues = [];
+  const productionCreateReceipts = new Map();
   const labelCatalog = [
     { id: 'ordinary', name: 'Ordinary label', color: '#5E6AD2', description: 'An arbitrary label that must survive every write.' },
     { id: 'workload-2', name: '2× Workload', color: '#F59E0B', description: 'Counts as two video workload units.' },
@@ -268,16 +269,37 @@ function expect(value, message) { if (!value) throw new Error(message); }
         await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify(write.response) });
         return;
       }
+      const existingCreate = productionCreateReceipts.get(String(body.request_id || ''));
+      if (existingCreate) {
+        if (existingCreate.terminalConflict) {
+          write.response = {
+            ok: false,
+            error: 'idempotency_conflict',
+            native_committed: true,
+            mirror_pending: false,
+            row: { ...existingCreate.row },
+            batch: { ...existingCreate.batch },
+            mirror: [{ target_status: 'skipped', terminal_conflict: true }],
+          };
+          await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
+          return;
+        }
+        write.response = {
+          ok: true,
+          native_committed: true,
+          authority: 'syncview',
+          mirror_pending: false,
+          mirror: [{ target_status: 'written', acknowledged: true }],
+          batch: { ...existingCreate.batch },
+          row: { ...existingCreate.row },
+        };
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(write.response) });
+        return;
+      }
       if (failedProductionCreates > 0) {
         failedProductionCreates--;
         write.response = { ok: false, error: 'synthetic_create_failure' };
         await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify(write.response) });
-        return;
-      }
-      if (conflictingProductionCreates > 0) {
-        conflictingProductionCreates--;
-        write.response = { ok: false, error: 'idempotency_conflict' };
-        await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
         return;
       }
       const client = clients.find(item => item.slug === body.client_slug && item.active === true);
@@ -319,16 +341,24 @@ function expect(value, message) { if (!value) throw new Error(message); }
       deliverables.push(row);
       selectedLabelIds.set(row.id, Array.isArray(body.label_ids) ? [...body.label_ids] : []);
       createdProductionIssues.push(row);
+      const terminalConflict = conflictingProductionCreates > 0;
+      if (terminalConflict) conflictingProductionCreates--;
+      const batch = { id: `production-batch-${sequence}` };
+      productionCreateReceipts.set(String(body.request_id || ''), {
+        row: { ...row },
+        batch,
+        terminalConflict,
+      });
       write.response = {
         ok: true,
         native_committed: true,
         authority: 'syncview',
         mirror_pending: true,
         mirror: [],
-        batch: { id: `production-batch-${sequence}` },
+        batch,
         row: { ...row },
       };
-      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(write.response) });
+      await route.fulfill({ status: terminalConflict ? 202 : 201, contentType: 'application/json', body: JSON.stringify(write.response) });
       return;
     }
     const row = deliverables.find(item => item.id === body.id);
@@ -439,6 +469,100 @@ function expect(value, message) { if (!value) throw new Error(message); }
     });
     await page.waitForSelector('[data-prod-create-modal]');
     await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    const brandedCreateControls = await page.evaluate(() => {
+      const trigger = document.getElementById('prodCreateClientBtn');
+      const light = trigger ? {
+        color: getComputedStyle(trigger).color,
+        background: getComputedStyle(trigger).backgroundImage,
+      } : null;
+      document.documentElement.setAttribute('data-theme', 'dark');
+      const dark = trigger ? {
+        color: getComputedStyle(trigger).color,
+        background: getComputedStyle(trigger).backgroundImage,
+      } : null;
+      document.documentElement.removeAttribute('data-theme');
+      return {
+        selects: document.querySelectorAll('[data-prod-create-modal] [data-sv-select]').length,
+        dates: document.querySelectorAll('[data-prod-create-modal] [data-sv-date-picker]').length,
+        nativeSelects: document.querySelectorAll('[data-prod-create-modal] select').length,
+        exposedNativeDates: document.querySelectorAll('[data-prod-create-modal] input[type="date"]:not(.sv-date-value)').length,
+        light,
+        dark,
+      };
+    });
+    expect(brandedCreateControls.selects === 5
+      && brandedCreateControls.dates === 1
+      && brandedCreateControls.nativeSelects === 0
+      && brandedCreateControls.exposedNativeDates === 0,
+    'parent creation exposed a native select/date control instead of the SyncView primitives');
+    expect(brandedCreateControls.light && brandedCreateControls.dark
+      && brandedCreateControls.light.color !== brandedCreateControls.dark.color
+      && brandedCreateControls.light.background !== brandedCreateControls.dark.background,
+    'creation controls did not inherit the active SyncView theme');
+    await page.setViewportSize({ width: 360, height: 760 });
+    const mobileCreateLayout = await page.evaluate(() => {
+      const modal = document.querySelector('[data-prod-create-modal]');
+      const body = modal && modal.querySelector('.prod-create-body');
+      const rect = modal && modal.getBoundingClientRect();
+      return {
+        oneColumn: !!body && getComputedStyle(body).gridTemplateColumns.split(/\s+/).length === 1,
+        insideViewport: !!rect && rect.left >= 0 && rect.right <= innerWidth,
+        noModalOverflow: !!modal && !!body
+          && modal.scrollWidth <= modal.clientWidth + 1
+          && body.scrollWidth <= body.clientWidth + 1,
+      };
+    });
+    expect(mobileCreateLayout.oneColumn && mobileCreateLayout.insideViewport && mobileCreateLayout.noModalOverflow,
+      'creation controls did not stay within the one-column mobile modal: ' + JSON.stringify(mobileCreateLayout));
+    await page.locator('#prodCreateClientBtn').click();
+    const mobileClientMenu = await page.locator('#prodCreateClientMenu').boundingBox();
+    expect(mobileClientMenu && mobileClientMenu.x >= 0 && mobileClientMenu.x + mobileClientMenu.width <= 360,
+      'creation select menu escaped the mobile viewport');
+    await page.locator('#prodCreateClientBtn').focus();
+    await page.keyboard.press('Escape');
+    expect(await page.evaluate(() => document.activeElement?.id === 'prodCreateClientBtn'
+      && document.getElementById('prodCreateClientBtn')?.getAttribute('aria-expanded') === 'false'),
+    'creation select Escape did not close and return focus to its trigger');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.locator('#prodCreateModeBtn').click();
+    await page.locator('#prodCreateModeMenu [data-value="subissue"]').click();
+    expect(await page.evaluate(() => document.getElementById('prodCreateMode')?.value === 'subissue'
+      && !!document.getElementById('prodCreateParentBtn')
+      && document.activeElement?.id === 'prodCreateModeBtn'),
+    'issue-type selection did not rerender the branded parent control or return focus');
+    await page.locator('#prodCreateParentBtn').click();
+    await page.locator('#prodCreateParentMenu [data-value="gra-description-parent"]').click();
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    expect(await page.evaluate(() => document.getElementById('prodCreateParent')?.value === 'gra-description-parent'
+      && document.getElementById('prodCreateClient')?.value === 'normal-fixture'
+      && document.getElementById('prodCreateTeam')?.value === 'graphics'
+      && document.getElementById('prodCreateClientBtn')?.disabled
+      && document.getElementById('prodCreateTeamBtn')?.disabled
+      && document.activeElement?.id === 'prodCreateParentBtn'),
+    'parent selection did not lock and preserve the branded scope controls');
+    await page.locator('#prodCreateModeBtn').click();
+    await page.locator('#prodCreateModeMenu [data-value="parent"]').click();
+    await page.locator('#prodCreateClientBtn').click();
+    await page.locator('#prodCreateClientMenu [data-value="calendarfixture"]').click();
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready'
+      && _prodState.createDraft?.clientSlug === 'calendarfixture');
+    await page.locator('#prodCreateClientBtn').click();
+    await page.locator('#prodCreateClientMenu [data-value="normal-fixture"]').click();
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready'
+      && _prodState.createDraft?.clientSlug === 'normal-fixture');
+    await page.locator('#prodCreateTeamBtn').click();
+    await page.locator('#prodCreateTeamMenu [data-value="video"]').click();
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'error'
+      && _prodState.createDraft?.team === 'video');
+    await page.locator('#prodCreateTeamBtn').click();
+    await page.locator('#prodCreateTeamMenu [data-value="graphics"]').click();
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready'
+      && _prodState.createDraft?.team === 'graphics');
+    expect(await page.evaluate(() => document.activeElement?.id === 'prodCreateTeamBtn'
+      && document.getElementById('prodCreateMode')?.value === 'parent'
+      && !document.getElementById('prodCreateClientBtn')?.disabled
+      && !document.getElementById('prodCreateTeamBtn')?.disabled),
+    'client/team selections did not rerender the branded controls with their editable parent scope');
     const createOptionsRead = createOptionReads[createOptionReads.length - 1];
     expect(createOptionsRead
       && createOptionsRead.body.action === 'create_options'
@@ -471,10 +595,39 @@ function expect(value, message) { if (!value) throw new Error(message); }
     const parentMarkdown = '# Parent creation\n\n- Preserve this Markdown  \n\n**Owner:** Browser Admin\n';
     await page.locator('#prodCreateTitle').fill(parentTitle);
     await page.locator('#prodCreateDescription').fill(parentMarkdown);
-    await page.locator('#prodCreateStatus').selectOption('smm_approval');
-    await page.locator('#prodCreateDue').fill('2031-02-17');
-    await page.locator('#prodCreateDue').dispatchEvent('change');
-    await page.locator('#prodCreateAssignee').selectOption('designer');
+    await page.locator('#prodCreateStatusBtn').focus();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.getElementById('prodCreateStatus')?.value === 'smm_approval'
+      && document.activeElement?.id === 'prodCreateStatusBtn'),
+    'creation status keyboard selection did not commit or return focus');
+    await page.locator('#prodCreateDueBtn').click();
+    await page.waitForSelector('#svDatePickerPopup');
+    const ratifiedToday = await page.evaluate(() => wlWorkloadTodayISO());
+    await page.locator('#svDatePickerPopup [data-dp-act="today"]').click();
+    expect(await page.evaluate(today => document.getElementById('prodCreateDue')?.value === today
+      && document.activeElement?.id === 'prodCreateDueBtn', ratifiedToday),
+    'creation calendar Today did not use the ratified day contract or return focus');
+    await page.evaluate(value => {
+      const input = document.getElementById('prodCreateDue');
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      _svSyncDateControl('prodCreateDue');
+    }, '2031-02-17');
+    await page.locator('#prodCreateDueBtn').click();
+    await page.waitForSelector('#svDatePickerPopup');
+    expect((await page.locator('#svDatePickerPopup .dp-head-label').textContent()).includes('2031'),
+      'creation calendar dropped the selected due-date year');
+    await page.keyboard.press('Escape');
+    expect(await page.evaluate(() => document.activeElement?.id === 'prodCreateDueBtn'),
+      'creation calendar Escape did not return focus to its trigger');
+    await page.locator('#prodCreateAssigneeBtn').click();
+    await page.locator('#prodCreateAssigneeMenu [data-value="designer"]').click();
+    expect(await page.evaluate(() => document.getElementById('prodCreateAssignee')?.value === 'designer'
+      && document.activeElement?.id === 'prodCreateAssigneeBtn'),
+    'creation assignee selection did not commit or return focus');
     const parentIntent = await page.evaluate(() => ({
       requestId: _prodState.createDraft.requestId,
       sourceEditedAt: _prodState.createDraft.sourceEditedAt,
@@ -526,6 +679,11 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && recoveredParentDraft.assigneeId === 'designer'
       && JSON.stringify(recoveredParentDraft.labelIds) === JSON.stringify(['ordinary', 'workload-3']),
     'page refresh did not recover the exact parent fields, Markdown, labels, or intent identity');
+    expect(await page.evaluate(() => [
+      'prodCreateModeBtn', 'prodCreateClientBtn', 'prodCreateTeamBtn',
+      'prodCreateStatusBtn', 'prodCreateDueBtn', 'prodCreateAssigneeBtn',
+    ].every(id => document.getElementById(id)?.disabled)),
+    'ambiguous recovery did not lock every branded create control');
     const successfulParentResponse = page.waitForResponse(response => {
       if (!response.url().includes('/functions/v1/production-write')) return false;
       try {
@@ -545,7 +703,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
       'assignee_id', 'client_slug', 'description', 'due_date', 'label_ids', 'operation',
       'parent_id', 'request_id', 'source_edited_at', 'status', 'surface', 'team', 'title',
     ].sort();
-    expect(parentWrites.length === 2
+    expect(parentWrites.length === 3
       && parentPayload.request_id === firstParentWrite.body.request_id
       && parentPayload.source_edited_at === firstParentWrite.body.source_edited_at
       && parentPayload.client_slug === 'normal-fixture'
@@ -558,8 +716,10 @@ function expect(value, message) { if (!value) throw new Error(message); }
       && parentPayload.assignee_id === 'designer'
       && JSON.stringify(parentPayload.label_ids) === JSON.stringify(['ordinary', 'workload-3'])
       && JSON.stringify(Object.keys(parentPayload).sort()) === JSON.stringify(expectedCreateKeys)
-      && parentWrites.every(write => !Object.prototype.hasOwnProperty.call(write.body, 'test_override')),
-    'guarded parent retry changed its identity or omitted/added creation payload fields');
+      && parentWrites.every(write => write.body.request_id === parentIntent.requestId
+        && write.body.source_edited_at === parentIntent.sourceEditedAt
+        && !Object.prototype.hasOwnProperty.call(write.body, 'test_override')),
+    'guarded parent recovery or mirror poll changed its identity or omitted/added creation payload fields');
     expect(await page.evaluate(id => _prodState.view === 'detail' && _prodIssue(id)?.title === 'TEST Production parent creation', parentId),
       'native parent receipt did not refresh Production and open the returned row');
 
@@ -568,13 +728,13 @@ function expect(value, message) { if (!value) throw new Error(message); }
     await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
     const lockedSubissueScope = await page.evaluate(() => ({
       mode: document.getElementById('prodCreateMode')?.value,
-      modeLocked: document.getElementById('prodCreateMode')?.disabled,
+      modeLocked: document.getElementById('prodCreateModeBtn')?.disabled,
       client: document.getElementById('prodCreateClient')?.value,
-      clientLocked: document.getElementById('prodCreateClient')?.disabled,
+      clientLocked: document.getElementById('prodCreateClientBtn')?.disabled,
       team: document.getElementById('prodCreateTeam')?.value,
-      teamLocked: document.getElementById('prodCreateTeam')?.disabled,
+      teamLocked: document.getElementById('prodCreateTeamBtn')?.disabled,
       parent: document.getElementById('prodCreateParent')?.value,
-      parentLocked: document.getElementById('prodCreateParent')?.disabled,
+      parentLocked: document.getElementById('prodCreateParentBtn')?.disabled,
     }));
     expect(lockedSubissueScope.mode === 'subissue' && lockedSubissueScope.modeLocked
       && lockedSubissueScope.client === 'normal-fixture' && lockedSubissueScope.clientLocked
@@ -585,10 +745,17 @@ function expect(value, message) { if (!value) throw new Error(message); }
     const childMarkdown = '## Child creation\n\n`exact markdown`  \n';
     await page.locator('#prodCreateTitle').fill(childTitle);
     await page.locator('#prodCreateDescription').fill(childMarkdown);
-    await page.locator('#prodCreateStatus').selectOption('todo');
-    await page.locator('#prodCreateDue').fill('2032-11-09');
-    await page.locator('#prodCreateDue').dispatchEvent('change');
-    await page.locator('#prodCreateAssignee').selectOption('designer');
+    await page.locator('#prodCreateStatusBtn').click();
+    await page.locator('#prodCreateStatusMenu [data-value="todo"]').click();
+    await page.evaluate(value => {
+      const input = document.getElementById('prodCreateDue');
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      _svSyncDateControl('prodCreateDue');
+    }, '2032-11-09');
+    await page.locator('#prodCreateAssigneeBtn').click();
+    await page.locator('#prodCreateAssigneeMenu [data-value="designer"]').click();
     await page.locator('[data-prod-create-label-option="workload-2"] input[type="checkbox"]').check();
     const childResponse = page.waitForResponse(response => {
       if (!response.url().includes('/functions/v1/production-write')) return false;
@@ -656,37 +823,33 @@ function expect(value, message) { if (!value) throw new Error(message); }
       requestId: _prodState.createDraft.requestId,
       sourceEditedAt: _prodState.createDraft.sourceEditedAt,
     }));
+    const createdBeforeConflict = createdProductionIssues.length;
     conflictingProductionCreates = 1;
     const conflictResponse = page.waitForResponse(response => {
       if (!response.url().includes('/functions/v1/production-write')) return false;
       try {
         const body = JSON.parse(response.request().postData() || '{}');
-        return body.operation === 'create' && body.title === 'TEST conflicting create intent';
+        return response.status() === 409
+          && body.operation === 'create'
+          && body.title === 'TEST conflicting create intent';
       } catch (_error) { return false; }
     });
     await page.locator('.prod-create-submit').click();
     expect((await conflictResponse).status() === 409, 'idempotency-conflict fixture did not return a terminal conflict');
-    await page.waitForFunction(() => document.querySelector('[data-prod-create-error]')?.textContent.includes('fresh request'));
-    const unlockedConflict = await page.evaluate(() => ({
-      ambiguous: _prodState.createDraft?.ambiguous,
-      requestId: _prodState.createDraft?.requestId,
-      sourceEditedAt: _prodState.createDraft?.sourceEditedAt,
-      title: document.getElementById('prodCreateTitle')?.value,
-      titleLocked: document.getElementById('prodCreateTitle')?.disabled,
-      clientLocked: document.getElementById('prodCreateClient')?.disabled,
-    }));
-    expect(unlockedConflict.ambiguous === false
-      && unlockedConflict.requestId !== conflictingIntent.requestId
-      && unlockedConflict.sourceEditedAt !== conflictingIntent.sourceEditedAt
-      && unlockedConflict.title === 'TEST conflicting create intent'
-      && unlockedConflict.titleLocked === false
-      && unlockedConflict.clientLocked === false,
-    'an authoritative idempotency conflict trapped creation in an uneditable retry loop');
-    await page.evaluate(() => {
-      _prodState.createDraft = null;
-      _prodPersistCreateDraft();
-      _prodClearLayer();
-    });
+    await page.waitForFunction(() => _prodState.createDraft === null
+      && _prodState.view === 'detail'
+      && _prodIssue(_prodState.openId)?.title === 'TEST conflicting create intent');
+    const conflictWrites = writes.filter(write =>
+      write.body.operation === 'create' && write.body.title === 'TEST conflicting create intent');
+    expect(createdProductionIssues.length === createdBeforeConflict + 1
+      && conflictWrites.length === 2
+      && conflictWrites.every(write =>
+        write.body.request_id === conflictingIntent.requestId
+        && write.body.source_edited_at === conflictingIntent.sourceEditedAt)
+      && conflictWrites[0].response.native_committed === true
+      && conflictWrites[1].response.native_committed === true
+      && conflictWrites[1].response.error === 'idempotency_conflict',
+    'terminal create polling minted a fresh request or created a second native issue instead of opening the saved repair row');
 
     let startHeldCreateOptions;
     let releaseHeldCreateOptions;

@@ -13355,6 +13355,9 @@
     let _wlPlanLoadGeneration = 0;
     let _wlBackgroundRefreshPromise = null;
     let _wlBackgroundRefreshMode = null;
+    const _wlPendingNativeDueReceiptByTarget = new Map();
+    let _wlNativeDueReceiptRetryPromise = null;
+    let _wlNativeDueReceiptGeneration = 0;
 
     function wlPlanEditingEnabled() {
         return wlState.planStatus === 'ready' && _syncviewStaffCan('workload-plan');
@@ -13873,6 +13876,9 @@
         _wlPlanWriteGeneration = 0;
         _wlBackgroundRefreshPromise = null;
         _wlBackgroundRefreshMode = null;
+        _wlPendingNativeDueReceiptByTarget.clear();
+        _wlNativeDueReceiptRetryPromise = null;
+        _wlNativeDueReceiptGeneration = 0;
         wlState.planByIssueId.clear();
         wlState.planHasSnapshot = false;
         wlState.planStatus = 'unknown';
@@ -14605,6 +14611,7 @@
             wlState.loading = false;
             wlState.refreshing = false;
             renderWorkloadAll();
+            wlScheduleNativeDueReceiptRetry();
             wlWireToolbar();
             wlWireClientSearch();
             _wlV2EnsureSubscribed();
@@ -14649,6 +14656,7 @@
             if (!cache) wlState.error = e.message || 'Failed to load issues from Linear.';
         } finally {
             wlState.loading = false;
+            wlScheduleNativeDueReceiptRetry();
             renderWorkloadAll({ deferWhilePopoverOpen: true });
             // If the user already opened the client-search dropdown while we
             // were fetching, drop the "Loading workload…" row now that data
@@ -14783,6 +14791,7 @@
             if (_wlBackgroundRefreshPromise === pending) {
                 _wlBackgroundRefreshPromise = null;
                 _wlBackgroundRefreshMode = null;
+                if (!_wlNativeDueReceiptRetryPromise) wlScheduleNativeDueReceiptRetry();
             }
         }
     }
@@ -14832,6 +14841,7 @@
             wlState.error = err.message || 'Refresh failed.';
         } finally {
             wlState.refreshing = false;
+            wlScheduleNativeDueReceiptRetry();
             wlSpinnerOff();
             renderWorkloadAll();
         }
@@ -15211,11 +15221,9 @@
         }
     }
 
-    async function _wlOnNativeDueReceiptStorage(event) {
+    function wlParseNativeDueReceipt(value) {
         try {
-            if (!event || event.key !== WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY || !event.newValue) return false;
-            if (event.storageArea && event.storageArea !== localStorage) return false;
-            const receipt = JSON.parse(event.newValue);
+            const receipt = JSON.parse(value);
             const row = receipt && receipt.row;
             const nativeId = String(row && row.id || '').trim();
             const clientSlug = String(row && row.client_slug || '').trim();
@@ -15225,21 +15233,134 @@
                 || receipt.native_committed !== true || receipt.authority !== 'syncview'
                 || !String(receipt.nonce || '').trim() || !nativeId || !clientSlug || !team
                 || !wlValidRfc3339Timestamp(updatedAt)
-                || !Object.prototype.hasOwnProperty.call(row || {}, 'due_date')) return false;
+                || !Object.prototype.hasOwnProperty.call(row || {}, 'due_date')) return null;
             const dueDate = wlNativeDueDate(row.due_date);
-            if (dueDate !== row.due_date) return false;
-            const targetEntry = [...(wlState.nativeDueTargetByIssueId || new Map()).entries()]
-                .find(([, target]) => target && String(target.id || '') === nativeId
-                    && String(target.clientSlug || '') === clientSlug && target.team === team);
-            if (!targetEntry) return false;
-            const [issueId, target] = targetEntry;
-            const authority = wlState.dueAuthorityByIssueId && wlState.dueAuthorityByIssueId.get(issueId);
-            if (!authority || authority.authority !== 'syncview' || authority.team !== team
-                || String(target.updatedAt || '') === updatedAt) return false;
-            // Native writes do not advance workload_issues.synced_at. Re-read the
-            // guarded authority/native projection directly instead of consulting
-            // the inactive fast bridge or consuming the feeder watermark.
-            return await wlRefetchSilent({ sensitiveOnly: true });
+            if (dueDate !== row.due_date) return null;
+            return {
+                sessionGeneration: _wlPlanSessionGeneration,
+                nonce: String(receipt.nonce),
+                row: {
+                    id: nativeId,
+                    client_slug: clientSlug,
+                    team,
+                    due_date: dueDate,
+                    updated_at: updatedAt
+                }
+            };
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function wlNativeDueReceiptDisposition(receipt) {
+        const row = receipt && receipt.row;
+        const targetEntry = [...(wlState.nativeDueTargetByIssueId || new Map()).entries()]
+            .find(([, target]) => target && String(target.id || '') === row.id
+                && String(target.clientSlug || '') === row.client_slug && target.team === row.team);
+        if (!targetEntry) return wlState.linearMetadataStatus === 'ready' ? 'discard' : 'wait';
+        const [issueId, target] = targetEntry;
+        const authority = wlState.dueAuthorityByIssueId && wlState.dueAuthorityByIssueId.get(issueId);
+        if (!authority) return wlState.linearMetadataStatus === 'ready' ? 'discard' : 'wait';
+        if (authority.authority !== 'syncview' || authority.team !== row.team) return 'discard';
+        const targetUpdatedAt = String(target.updatedAt || '');
+        if (!wlValidRfc3339Timestamp(targetUpdatedAt)) {
+            return wlState.linearMetadataStatus === 'ready' ? 'discard' : 'wait';
+        }
+        const issue = (wlState.issueSnapshot || [])
+            .find(value => String(value && value.id || '') === String(issueId));
+        const currentDue = issue && issue.dueDate ? String(issue.dueDate).slice(0, 10) : null;
+        if (targetUpdatedAt === row.updated_at && currentDue === row.due_date) return 'consumed';
+        if (Date.parse(targetUpdatedAt) > Date.parse(row.updated_at)) return 'consumed';
+        return 'refresh';
+    }
+
+    async function wlRetryPendingNativeDueReceipts() {
+        if (_wlNativeDueReceiptRetryPromise) return _wlNativeDueReceiptRetryPromise;
+        const retryGeneration = _wlNativeDueReceiptGeneration;
+        const run = async () => {
+            if (!_wlPendingNativeDueReceiptByTarget.size
+                || !document.querySelector('.workload-view')
+                || !_syncviewStaffIdentityForHeaders()) return false;
+            if (wlState.loading || wlState.refreshing
+                || wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing'
+                || wlState.linearMetadataStatus === 'loading' || wlState.linearMetadataStatus === 'refreshing'
+                || _wlPlanWriteInFlight.size || _wlDueWriteInFlight.size || _wlBackgroundRefreshPromise) {
+                return false;
+            }
+            let needsRefresh = false;
+            for (const [key, receipt] of _wlPendingNativeDueReceiptByTarget) {
+                if (!receipt || receipt.sessionGeneration !== _wlPlanSessionGeneration) {
+                    _wlPendingNativeDueReceiptByTarget.delete(key);
+                    continue;
+                }
+                const disposition = wlNativeDueReceiptDisposition(receipt);
+                if (disposition === 'consumed' || disposition === 'discard') {
+                    _wlPendingNativeDueReceiptByTarget.delete(key);
+                } else {
+                    needsRefresh = true;
+                }
+            }
+            if (!needsRefresh || wlState.fetchedAt == null) return false;
+            const sessionGeneration = _wlPlanSessionGeneration;
+            const refreshed = await wlRefetchSilent({ sensitiveOnly: true });
+            if (refreshed !== true || sessionGeneration !== _wlPlanSessionGeneration) return false;
+            for (const [key, receipt] of _wlPendingNativeDueReceiptByTarget) {
+                if (!receipt || receipt.sessionGeneration !== _wlPlanSessionGeneration) {
+                    _wlPendingNativeDueReceiptByTarget.delete(key);
+                    continue;
+                }
+                const disposition = wlNativeDueReceiptDisposition(receipt);
+                if (disposition === 'consumed' || disposition === 'discard') {
+                    _wlPendingNativeDueReceiptByTarget.delete(key);
+                }
+            }
+            return true;
+        };
+        const pending = run();
+        _wlNativeDueReceiptRetryPromise = pending;
+        try { return await pending; }
+        finally {
+            if (_wlNativeDueReceiptRetryPromise === pending) {
+                _wlNativeDueReceiptRetryPromise = null;
+                if (_wlPendingNativeDueReceiptByTarget.size
+                    && _wlNativeDueReceiptGeneration !== retryGeneration) {
+                    wlScheduleNativeDueReceiptRetry();
+                }
+            }
+        }
+    }
+
+    function wlScheduleNativeDueReceiptRetry() {
+        if (!_wlPendingNativeDueReceiptByTarget.size) return false;
+        try {
+            const pending = wlRetryPendingNativeDueReceipts();
+            if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async function _wlOnNativeDueReceiptStorage(event) {
+        try {
+            if (!event || event.key !== WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY || !event.newValue) return false;
+            if (event.storageArea && event.storageArea !== localStorage) return false;
+            if (!_syncviewStaffIdentityForHeaders()) return false;
+            const receipt = wlParseNativeDueReceipt(event.newValue);
+            if (!receipt) return false;
+            const row = receipt.row;
+            const key = [row.id, row.client_slug, row.team].join('\u0000');
+            const current = _wlPendingNativeDueReceiptByTarget.get(key);
+            if (!current && _wlPendingNativeDueReceiptByTarget.size >= 100) return false;
+            if (!current || Date.parse(current.row.updated_at) < Date.parse(row.updated_at)) {
+                _wlPendingNativeDueReceiptByTarget.set(key, receipt);
+                _wlNativeDueReceiptGeneration++;
+            }
+            // Native writes do not advance workload_issues.synced_at. Keep the
+            // exact receipt in memory until a guarded sensitive read observes its
+            // due value/CAS cursor (or a newer cursor), including across a cold
+            // hydrate, an older refresh, or an in-flight plan/due save.
+            return await wlRetryPendingNativeDueReceipts();
         } catch (error) {
             return false;
         }
@@ -15418,6 +15539,7 @@
             return false;
         } finally {
             if (_wlDueWriteInFlight.get(key) === token) _wlDueWriteInFlight.delete(key);
+            wlScheduleNativeDueReceiptRetry();
             if (document.querySelector('.workload-view')) renderWorkloadAll();
         }
     }
@@ -15502,6 +15624,7 @@
         if (sessionGeneration !== _wlPlanSessionGeneration) return false;
         _wlPlanLastWriteGeneration.set(key, ++_wlPlanWriteGeneration);
         if (_wlPlanWriteInFlight.get(key) === token) _wlPlanWriteInFlight.delete(key);
+        wlScheduleNativeDueReceiptRetry();
         renderWorkloadAll();
         wlFocusPlanItem(key);
         return saved;
@@ -15565,6 +15688,7 @@
                     _wlPlanWriteInFlight.delete(move.key);
                 }
             }
+            wlScheduleNativeDueReceiptRetry();
             renderWorkloadAll();
         }
         if (moved !== moves.length && typeof showNotify === 'function') {

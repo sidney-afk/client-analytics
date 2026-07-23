@@ -1058,7 +1058,12 @@ check(/!_wlV2Ready\(\) \|\| _wlV2WatermarkTimer/.test(watermarkPollSource)
 
 const nativeDuePublishSource = grabFunc('wlPublishNativeDueReceipt');
 const nativeDueStorageSource = grabFunc('_wlOnNativeDueReceiptStorage');
+const nativeDueParseSource = grabFunc('wlParseNativeDueReceipt');
+const nativeDueDispositionSource = grabFunc('wlNativeDueReceiptDisposition');
+const nativeDueRetrySource = grabFunc('wlRetryPendingNativeDueReceipts');
 const dueWriteSource = grabFunc('wlSetDueDate');
+const planWriteSource = grabFunc('wlSetPlanDate');
+const planGroupWriteSource = grabFunc('wlMovePlanGroup');
 check(/schema:\s*WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA/.test(nativeDuePublishSource)
     && /native_committed:\s*true/.test(nativeDuePublishSource)
     && /localStorage\.setItem\(WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY,\s*payload\)/.test(nativeDuePublishSource)
@@ -1066,14 +1071,26 @@ check(/schema:\s*WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA/.test(nativeDuePublishSourc
     && /if \(exactNativeAck\)[\s\S]*wlAdoptNativeDueGatewayRow\(row\)[\s\S]*wlPublishNativeDueReceipt\(row\)/.test(dueWriteSource),
   'only an exact adopted native gateway row emits the ephemeral sibling-tab due receipt');
 check(/event\.key !== WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY/.test(nativeDueStorageSource)
-    && /receipt\.schema !== WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA/.test(nativeDueStorageSource)
-    && /receipt\.native_committed !== true \|\| receipt\.authority !== 'syncview'/.test(nativeDueStorageSource)
-    && /nativeDueTargetByIssueId/.test(nativeDueStorageSource)
-    && /dueAuthorityByIssueId/.test(nativeDueStorageSource)
-    && /wlRefetchSilent\(\{\s*sensitiveOnly:\s*true\s*\}\)/.test(nativeDueStorageSource)
-    && !/_wlV2CheckWatermark|_wlV2FetchLatestWatermark|_wlV2FetchIssues|loadLinearIssues|LINEAR_ISSUES_WEBHOOK/.test(nativeDueStorageSource)
+    && /wlParseNativeDueReceipt\(event\.newValue\)/.test(nativeDueStorageSource)
+    && /_wlPendingNativeDueReceiptByTarget\.set\(key,\s*receipt\)/.test(nativeDueStorageSource)
+    && /wlRetryPendingNativeDueReceipts\(\)/.test(nativeDueStorageSource)
+    && /receipt\.schema !== WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA/.test(nativeDueParseSource)
+    && /receipt\.native_committed !== true \|\| receipt\.authority !== 'syncview'/.test(nativeDueParseSource)
+    && /nativeDueTargetByIssueId/.test(nativeDueDispositionSource)
+    && /dueAuthorityByIssueId/.test(nativeDueDispositionSource)
+    && /targetUpdatedAt === row\.updated_at && currentDue === row\.due_date/.test(nativeDueDispositionSource)
+    && /Date\.parse\(targetUpdatedAt\) > Date\.parse\(row\.updated_at\)/.test(nativeDueDispositionSource)
+    && /_wlPlanWriteInFlight\.size \|\| _wlDueWriteInFlight\.size \|\| _wlBackgroundRefreshPromise/.test(nativeDueRetrySource)
+    && /wlRefetchSilent\(\{\s*sensitiveOnly:\s*true\s*\}\)/.test(nativeDueRetrySource)
+    && /disposition === 'consumed' \|\| disposition === 'discard'/.test(nativeDueRetrySource)
+    && /_wlBackgroundRefreshPromise = null;[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(workloadBackgroundSource)
+    && /_wlDueWriteInFlight\.delete\(key\);[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(dueWriteSource)
+    && /_wlPlanWriteInFlight\.delete\(key\);[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(planWriteSource)
+    && /_wlPlanWriteInFlight\.delete\(move\.key\);[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(planGroupWriteSource)
+    && !/_wlV2CheckWatermark|_wlV2FetchLatestWatermark|_wlV2FetchIssues|loadLinearIssues|LINEAR_ISSUES_WEBHOOK/.test(
+      nativeDueStorageSource + nativeDueRetrySource)
     && /window\.addEventListener\('storage',\s*_wlOnNativeDueReceiptStorage\)/.test(INDEX),
-  'a bound sibling receipt re-reads guarded native metadata without the feeder watermark or inactive bridge');
+  'a bound sibling receipt stays pending across in-flight work and re-reads guarded native metadata without the feeder watermark or inactive bridge');
 
 const workloadShellSource = grabFunc('renderWorkloadShell');
 const overviewIndex = workloadShellSource.indexOf('id="wlOverview"');

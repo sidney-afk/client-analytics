@@ -62,11 +62,19 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA: 'syncview.workload.native-due-receipt.v1',
     _wlPlanLoadGeneration: 0,
     _wlPlanSessionGeneration: 0,
+    _wlPlanWriteInFlight: new Map(),
     _wlDueWriteInFlight: new Map(),
+    _wlBackgroundRefreshPromise: null,
+    _wlPendingNativeDueReceiptByTarget: new Map(),
+    _wlNativeDueReceiptRetryPromise: null,
+    _wlNativeDueReceiptGeneration: 0,
     wlState: {
       allActiveSubs: [issue],
       issueSnapshot: [issue],
       fetchedAt: 1,
+      loading: false,
+      refreshing: false,
+      planStatus: 'ready',
       linearMetadataStatus: 'ready',
       planByIssueId: new Map(manualPlanDate ? [[issue.id, manualPlanDate]] : []),
       dueAuthorityByIssueId: new Map([[issue.id, {
@@ -140,6 +148,10 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     'wlDueWriteRequestId',
     'wlAdoptNativeDueGatewayRow',
     'wlPublishNativeDueReceipt',
+    'wlParseNativeDueReceipt',
+    'wlNativeDueReceiptDisposition',
+    'wlRetryPendingNativeDueReceipts',
+    'wlScheduleNativeDueReceiptRetry',
     '_wlOnNativeDueReceiptStorage',
     '_wlDueWriteRequest',
     'wlSetDueDate',
@@ -237,6 +249,11 @@ function backgroundHarness(options = {}) {
     _wlPlanWriteGeneration: 0,
     _wlPlanWriteInFlight: new Map(),
     _wlDueWriteInFlight: new Map(),
+    _wlPendingNativeDueReceiptByTarget: new Map(),
+    _wlNativeDueReceiptRetryPromise: null,
+    _wlNativeDueReceiptGeneration: 0,
+    WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY: 'syncview_workload_native_due_receipt_v1',
+    WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA: 'syncview.workload.native-due-receipt.v1',
     wlState: {
       sourceSyncedAt: '2026-07-22T12:00:00.000Z',
       issueSnapshot: initialIssues,
@@ -362,11 +379,17 @@ function backgroundHarness(options = {}) {
     'wlMarkBackgroundRefreshFailure',
     'wlClearBackgroundRefreshFailure',
     'wlMetadataTeamBucket',
+    'wlNativeDueDate',
     'wlValidRfc3339Timestamp',
     'wlAdoptLinearMetadata',
     'wlPurgePlanSensitiveState',
     'wlRefetchSilent',
     'wlRefreshSensitiveStateSilent',
+    'wlParseNativeDueReceipt',
+    'wlNativeDueReceiptDisposition',
+    'wlRetryPendingNativeDueReceipts',
+    'wlScheduleNativeDueReceiptRetry',
+    '_wlOnNativeDueReceiptStorage',
     '_wlV2CheckWatermark',
     '_wlOnVisibilityChange',
     '_syncviewStaffIdentitySave',
@@ -897,8 +920,11 @@ async function run() {
   }), true);
   assert.strictEqual(sibling.sensitiveRefreshes, 1,
     'a sibling Workload tab bypasses the unchanged feeder watermark and refetches native metadata');
+  assert.strictEqual(sibling.context._wlPendingNativeDueReceiptByTarget.size, 1,
+    'the exact receipt remains pending until native metadata exposes its due value and CAS cursor');
   sibling.context.wlState.nativeDueTargetByIssueId.get('synthetic-issue-1').updatedAt =
     nativeReceipt.row.updated_at;
+  sibling.issue.dueDate = nativeReceipt.row.due_date;
   assert.strictEqual(await sibling.context._wlOnNativeDueReceiptStorage({
     key: nativeReceiptSet.key,
     newValue: nativeReceiptSet.value,
@@ -906,6 +932,8 @@ async function run() {
   }), false);
   assert.strictEqual(sibling.sensitiveRefreshes, 1,
     'a sibling that already consumed the exact native cursor does not refetch again');
+  assert.strictEqual(sibling.context._wlPendingNativeDueReceiptByTarget.size, 0,
+    'an exact due/cursor observation consumes the pending invalidation');
 
   const linearSibling = harness({ body: {} });
   assert.strictEqual(await linearSibling.context._wlOnNativeDueReceiptStorage({
@@ -915,6 +943,194 @@ async function run() {
   }), false);
   assert.strictEqual(linearSibling.sensitiveRefreshes, 0,
     'a receipt for an unbound native target cannot invalidate a Linear-authoritative route');
+
+  const coldSibling = harness({ body: {} }, 'admin', null, 'syncview');
+  coldSibling.context.wlState.nativeDueTargetByIssueId.clear();
+  coldSibling.context.wlState.dueAuthorityByIssueId.clear();
+  coldSibling.context.wlState.linearMetadataStatus = 'loading';
+  assert.strictEqual(await coldSibling.context._wlOnNativeDueReceiptStorage({
+    key: nativeReceiptSet.key,
+    newValue: nativeReceiptSet.value,
+    storageArea: coldSibling.context.localStorage,
+  }), false);
+  assert.strictEqual(coldSibling.context._wlPendingNativeDueReceiptByTarget.size, 1,
+    'cold metadata hydration retains a structurally valid receipt before its exact native target exists');
+  assert.strictEqual(coldSibling.sensitiveRefreshes, 0,
+    'the receipt does not race an in-progress metadata hydration');
+  coldSibling.context.wlState.dueAuthorityByIssueId.set('synthetic-issue-1', {
+    authority: 'syncview',
+    team: 'video',
+    fingerprint: 'video:syncview|graphics:linear',
+  });
+  coldSibling.context.wlState.nativeDueTargetByIssueId.set('synthetic-issue-1', {
+    id: nativeReceipt.row.id,
+    clientSlug: nativeReceipt.row.client_slug,
+    team: nativeReceipt.row.team,
+    updatedAt: nativeReceipt.row.updated_at,
+  });
+  coldSibling.issue.dueDate = nativeReceipt.row.due_date;
+  coldSibling.context.wlState.linearMetadataStatus = 'ready';
+  assert.strictEqual(await coldSibling.context.wlRetryPendingNativeDueReceipts(), false);
+  assert.strictEqual(coldSibling.context._wlPendingNativeDueReceiptByTarget.size, 0,
+    'successful hydration consumes the pending receipt only after its exact due value and cursor appear');
+
+  const partialSibling = harness({ body: {} }, 'admin', null, 'syncview');
+  partialSibling.context.wlState.dueAuthorityByIssueId.clear();
+  partialSibling.context.wlState.linearMetadataStatus = 'stale';
+  assert.strictEqual(await partialSibling.context._wlOnNativeDueReceiptStorage({
+    key: nativeReceiptSet.key,
+    newValue: nativeReceiptSet.value,
+    storageArea: partialSibling.context.localStorage,
+  }), true);
+  assert.strictEqual(partialSibling.context._wlPendingNativeDueReceiptByTarget.size, 1,
+    'a partially hydrated native target cannot discard its receipt while authority metadata is absent');
+  partialSibling.context.wlState.dueAuthorityByIssueId.set('synthetic-issue-1', {
+    authority: 'syncview',
+    team: 'video',
+    fingerprint: 'video:syncview|graphics:linear',
+  });
+  partialSibling.context.wlState.nativeDueTargetByIssueId.get('synthetic-issue-1').updatedAt =
+    nativeReceipt.row.updated_at;
+  partialSibling.issue.dueDate = nativeReceipt.row.due_date;
+  partialSibling.context.wlState.linearMetadataStatus = 'ready';
+  assert.strictEqual(await partialSibling.context.wlRetryPendingNativeDueReceipts(), false);
+  assert.strictEqual(partialSibling.context._wlPendingNativeDueReceiptByTarget.size, 0);
+
+  const savingSibling = harness({ body: {} }, 'admin', null, 'syncview');
+  savingSibling.context._wlPlanWriteInFlight.set('synthetic-plan-save', {});
+  assert.strictEqual(await savingSibling.context._wlOnNativeDueReceiptStorage({
+    key: nativeReceiptSet.key,
+    newValue: nativeReceiptSet.value,
+    storageArea: savingSibling.context.localStorage,
+  }), false);
+  assert.strictEqual(savingSibling.context._wlPendingNativeDueReceiptByTarget.size, 1,
+    'an in-flight plan save retains the native invalidation instead of racing its optimistic state');
+  assert.strictEqual(savingSibling.sensitiveRefreshes, 0);
+  savingSibling.context._wlPlanWriteInFlight.delete('synthetic-plan-save');
+  assert.strictEqual(savingSibling.context.wlScheduleNativeDueReceiptRetry(), true);
+  const saveRetry = savingSibling.context._wlNativeDueReceiptRetryPromise;
+  assert.ok(saveRetry, 'settling a write schedules the retained sensitive retry');
+  await saveRetry;
+  assert.strictEqual(savingSibling.sensitiveRefreshes, 1,
+    'the retained invalidation re-enters the guarded sensitive lane after the save settles');
+  assert.strictEqual(savingSibling.context._wlPendingNativeDueReceiptByTarget.size, 1,
+    'a successful request alone cannot consume the receipt without its exact metadata state');
+  savingSibling.context.wlState.nativeDueTargetByIssueId.get('synthetic-issue-1').updatedAt =
+    nativeReceipt.row.updated_at;
+  savingSibling.issue.dueDate = nativeReceipt.row.due_date;
+  assert.strictEqual(await savingSibling.context.wlRetryPendingNativeDueReceipts(), false);
+  assert.strictEqual(savingSibling.context._wlPendingNativeDueReceiptByTarget.size, 0);
+
+  const nativeMetadataRow = (dueDate, updatedAt) => ({
+    issue_id: 'issue-a',
+    due_date: dueDate,
+    due_authority: 'syncview',
+    due_authority_team: 'video',
+    due_authority_fingerprint: 'video:syncview|graphics:linear',
+    workload: null,
+    native_target: {
+      id: 'native-deliverable-a',
+      client_slug: 'synthetic-client',
+      team: 'video',
+      updated_at: updatedAt,
+    },
+  });
+  const backgroundReceipt = JSON.stringify({
+    schema: 'syncview.workload.native-due-receipt.v1',
+    native_committed: true,
+    authority: 'syncview',
+    nonce: 'synthetic-background-receipt',
+    row: {
+      id: 'native-deliverable-a',
+      client_slug: 'synthetic-client',
+      team: 'video',
+      due_date: '2027-02-02',
+      updated_at: '2026-07-22T13:00:00Z',
+    },
+  });
+
+  {
+    const firstPlans = deferred();
+    const racedRefresh = backgroundHarness({
+      initialMetadata: [],
+      fetchPlans: call => (call === 1
+        ? firstPlans.promise
+        : Promise.resolve({ rows: [{ issue_id: 'issue-a', plan_date: '2026-08-07' }], readGeneration: 0 })),
+      fetchMetadata: call => [call === 1
+        ? nativeMetadataRow('2026-08-10', '2026-07-22T11:00:00Z')
+        : nativeMetadataRow('2027-02-02', '2026-07-22T13:00:00Z')],
+    });
+    racedRefresh.context.wlState.dueAuthorityByIssueId.set('issue-a', {
+      authority: 'syncview',
+      team: 'video',
+      fingerprint: 'video:syncview|graphics:linear',
+    });
+    racedRefresh.context.wlState.nativeDueTargetByIssueId.set('issue-a', {
+      id: 'native-deliverable-a',
+      clientSlug: 'synthetic-client',
+      team: 'video',
+      updatedAt: '2026-07-22T11:00:00Z',
+    });
+    const olderRefresh = racedRefresh.context.wlRefetchSilent({ sensitiveOnly: true });
+    assert.strictEqual(racedRefresh.counters.metadata, 1, 'the older metadata read is already in flight');
+    assert.strictEqual(await racedRefresh.context._wlOnNativeDueReceiptStorage({
+      key: 'syncview_workload_native_due_receipt_v1',
+      newValue: backgroundReceipt,
+      storageArea: racedRefresh.context.localStorage,
+    }), false);
+    assert.strictEqual(racedRefresh.context._wlPendingNativeDueReceiptByTarget.size, 1,
+      'a receipt arriving behind an older refresh stays pending');
+    firstPlans.resolve({
+      rows: [{ issue_id: 'issue-a', plan_date: '2026-08-07' }],
+      readGeneration: 0,
+    });
+    assert.strictEqual(await olderRefresh, true);
+    for (let turn = 0; turn < 10 && racedRefresh.counters.metadata < 2; turn++) await Promise.resolve();
+    const postFlightRetry = racedRefresh.context._wlNativeDueReceiptRetryPromise;
+    if (postFlightRetry) await postFlightRetry;
+    assert.strictEqual(racedRefresh.counters.metadata, 2,
+      'settling the older refresh launches one post-receipt sensitive read');
+    assert.strictEqual(racedRefresh.context.wlState.issueSnapshot[0].dueDate, '2027-02-02');
+    assert.strictEqual(racedRefresh.context.wlState.nativeDueTargetByIssueId.get('issue-a').updatedAt,
+      '2026-07-22T13:00:00Z');
+    assert.strictEqual(racedRefresh.context._wlPendingNativeDueReceiptByTarget.size, 0,
+      'the post-flight read consumes the exact due/cursor invalidation');
+  }
+
+  {
+    const failedPlanRead = backgroundHarness({
+      initialMetadata: [],
+      fetchPlans: call => {
+        if (call === 1) throw new Error('synthetic plan reader unavailable');
+        return { rows: [{ issue_id: 'issue-a', plan_date: '2026-08-07' }], readGeneration: 0 };
+      },
+      fetchMetadata: () => [nativeMetadataRow('2027-02-02', '2026-07-22T13:00:00Z')],
+    });
+    failedPlanRead.context.wlState.dueAuthorityByIssueId.set('issue-a', {
+      authority: 'syncview',
+      team: 'video',
+      fingerprint: 'video:syncview|graphics:linear',
+    });
+    failedPlanRead.context.wlState.nativeDueTargetByIssueId.set('issue-a', {
+      id: 'native-deliverable-a',
+      clientSlug: 'synthetic-client',
+      team: 'video',
+      updatedAt: '2026-07-22T11:00:00Z',
+    });
+    assert.strictEqual(await failedPlanRead.context._wlOnNativeDueReceiptStorage({
+      key: 'syncview_workload_native_due_receipt_v1',
+      newValue: backgroundReceipt,
+      storageArea: failedPlanRead.context.localStorage,
+    }), false);
+    assert.strictEqual(failedPlanRead.context._wlPendingNativeDueReceiptByTarget.size, 1,
+      'an unrelated plan-reader failure cannot consume the native due invalidation');
+    assert.strictEqual(failedPlanRead.context.wlState.issueSnapshot[0].dueDate, '2026-08-10');
+    assert.strictEqual(await failedPlanRead.context.wlRefetchSilent({ sensitiveOnly: true }), true,
+      'a later sensitive refresh can recover after the unrelated reader failure');
+    assert.strictEqual(failedPlanRead.context.wlState.issueSnapshot[0].dueDate, '2027-02-02');
+    assert.strictEqual(failedPlanRead.context._wlPendingNativeDueReceiptByTarget.size, 0,
+      'the later successful sensitive read consumes the retained invalidation');
+  }
 
   native.context._prodState = {
     deliverables: [{
@@ -1130,6 +1346,7 @@ async function run() {
       wlWireClientSearch: () => {},
       _wlV2EnsureSubscribed: () => {},
       _wlV2EnsureWatermarkPoll: () => {},
+      wlScheduleNativeDueReceiptRetry: () => false,
       _wlV2CheckWatermark: () => { watermarkChecks++; },
       wlLoadSnapshot: () => { foregroundLoads++; throw new Error('warm entry loaded'); },
       Array, Date, console,
@@ -1690,6 +1907,7 @@ async function run() {
         duringLoad.push(manualContext.wlState.refreshing);
         return { usedFallback: false };
       },
+      wlScheduleNativeDueReceiptRetry: () => false,
       renderWorkloadAll: () => {},
       console,
     };
@@ -1737,6 +1955,7 @@ async function run() {
       wlSpinnerOn: () => {},
       wlSpinnerOff: () => {},
       wlLoadSnapshot: async () => ({ usedFallback: false }),
+      wlScheduleNativeDueReceiptRetry: () => false,
       renderWorkloadAll: () => {},
       console: { warn: () => {}, error: console.error, log: console.log },
       Date, Promise, Error,

@@ -222,8 +222,8 @@ Everything below is shared by every surface; per-surface sections only note devi
   its real pagehide / `pageshow.persisted` guard held polling, summary and Brief-sheet
   reads, denied late global/cache/localStorage/render mutation, and settled one fresh generation.
   No browser, backend, token, live data or write was used for the original finding, and the
-  synthetic local proof is not cloud review; keep F183 OPEN through final #891 exact-head cloud
-  review and owner merge. Parked #908 is not its blocker.
+  synthetic local proof preceded the final cloud review. Final #891 exact-head review completed at
+  `babbb2d`; keep F183 OPEN only through owner merge. Parked #908 is not its blocker.
 - **Pre-verification legacy-queue replay boundary (F184; exact-head cloud source review at PR #891
   `adb1bca`, reconfirmed unchanged at then-current `13c042b`).** Every document installs startup,
   focus, pageshow, online, visible and timer calls into `_writeUiResumeLegacyQueues()`. On a client

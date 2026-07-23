@@ -429,8 +429,8 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       backend/token/live-data/write evidence was used for the finding. Pre-split candidate `c9a79ef`
       passes the expanded actual visible boot lane 23/23, including the real pagehide /
       `pageshow.persisted` sequence that proves old work retired and exactly one fresh generation;
-      this is synthetic local evidence, not cloud review. Keep OPEN until final integrated-head
-      cloud review and owner merge; parked #908 is not a blocker.
+      that synthetic local evidence preceded the final cloud review. Final integrated-head review
+      completed at `babbb2d`; keep F183 OPEN only through owner merge. Parked #908 is not a blocker.
 - [ ] **Client links never resume staff/legacy persisted debt before verification** (F184/F162):
       gate startup plus focus/pageshow/online/visible/timer queue recovery behind an exact current
       principal generation. Before strict client verification, inspect no persisted queue. After a

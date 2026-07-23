@@ -396,9 +396,9 @@ substitution with no payload execution for F179. It used no real token or staff
 key, external network, backend/API, live data, flag or writer and read no
 protected credential/header value or real request/response body. The exact-head
 F176/F179/F183/F184 reviews used no browser, backend, credential value, live data
-or write. F176/F179 are OPEN/parked under #908; the product-owned rows remain open
-until final exact-head review and owner merge. F177 is resolved by the living-doc
-corrections in this change. The public-safe evidence is
+or write. F176/F179 are OPEN/parked under #908. Final #891 exact-head review completed
+at `babbb2d`; the product-owned rows remain open only until owner merge. F177 is
+resolved by the living-doc corrections in this change. The public-safe evidence is
 `docs/audits/2026-07-19-boot-refresh-history-audit.md`. F102/F117 remain the
 existing client-entry P0 owners; F29/F45/F121/F127/F130/F138 were also retained
 rather than renumbered.

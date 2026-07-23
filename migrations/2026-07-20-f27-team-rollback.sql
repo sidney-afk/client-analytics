@@ -146,7 +146,7 @@ begin
   end if;
   if coalesce(p_operation, '') not in (
     'create', 'status', 'comment', 'due', 'assignee', 'title',
-    'priority', 'parent', 'archive', 'restore'
+    'priority', 'parent', 'archive', 'restore', 'labels'
   ) then
     raise exception 'invalid outbound operation';
   end if;

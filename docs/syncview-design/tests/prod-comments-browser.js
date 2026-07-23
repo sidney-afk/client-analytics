@@ -46,6 +46,12 @@ function expect(condition, message) {
   page.on('request', request => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(request.method())) return;
     if (request.method() === 'POST' && new URL(request.url()).pathname === '/functions/v1/production-comments') return;
+    if (request.method() === 'POST' && new URL(request.url()).pathname === '/functions/v1/production-write') {
+      let body = null;
+      try { body = JSON.parse(request.postData() || 'null'); } catch (e) {}
+      if (body && Object.keys(body).sort().join(',') === 'action,id,surface'
+        && body.action === 'labels_read' && body.surface === 'production' && typeof body.id === 'string') return;
+    }
     unexpectedWrites.push(`${request.method()} ${request.url()}`);
   });
   await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
@@ -118,6 +124,18 @@ function expect(condition, message) {
       }),
     });
   });
+  await page.route('**/functions/v1/production-write', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      complete: true,
+      authority: 'linear',
+      catalog: [],
+      selected_label_ids: [],
+      selected_labels: [],
+    }),
+  }));
 
   try {
     await page.goto(`http://127.0.0.1:${server.address().port}/?prod=1`, { waitUntil: 'domcontentloaded' });

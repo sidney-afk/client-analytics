@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { spawnSync } = require('child_process');
+const { pathToFileURL } = require('url');
 
 const ROOT = path.join(__dirname, '..');
 const FN = fs.readFileSync(path.join(ROOT, 'supabase/functions/linear-inbound/index.ts'), 'utf8');
@@ -44,6 +46,83 @@ const dummyIssuePayload = JSON.stringify({
 const sig = hmac('dummy-secret', dummyIssuePayload);
 ok(sig.length === 64 && /^[0-9a-f]+$/.test(sig), 'test HMAC fixture sanity');
 ok(fresh(JSON.parse(dummyIssuePayload).webhookTimestamp, now), 'test replay fixture sanity');
+
+const labelNormalizeUrl = pathToFileURL(path.join(
+  ROOT,
+  'supabase/functions/linear-inbound/label-normalize.mjs',
+)).href;
+const labelRunner = `
+  const { normalizeIssueLabelRelation } = await import(${JSON.stringify(labelNormalizeUrl)});
+  const label = (id, name = id) => ({ id, name, color: '#123456', description: null });
+  const previous = { labels: { nodes: [label('a', 'Known A')], pageInfo: { hasNextPage: false } } };
+  const previousWithTwo = {
+    labels: {
+      nodes: [label('a', 'Known A'), label('b', 'Stale B')],
+      pageInfo: { hasNextPage: false },
+    },
+  };
+  console.log(JSON.stringify({
+    exact: normalizeIssueLabelRelation({
+      labelIds: ['b', 'a'],
+      labels: [label('a', 'A'), label('b', 'B')],
+    }),
+    priorFill: normalizeIssueLabelRelation({ labelIds: ['a'] }, previous),
+    unknownMissing: normalizeIssueLabelRelation({
+      labelIds: ['a', 'b'],
+      labels: [label('a', 'A')],
+    }, previous),
+    staleFillBlocked: normalizeIssueLabelRelation({
+      labelIds: ['a', 'b'],
+      labels: [label('a', 'A')],
+    }, previousWithTwo),
+    mismatched: normalizeIssueLabelRelation({
+      labelIds: ['a'],
+      labels: [label('b', 'B')],
+    }, previous),
+    duplicateIds: normalizeIssueLabelRelation({
+      labelIds: ['a', 'a'],
+      labels: [label('a', 'A')],
+    }, previous),
+    emptyName: normalizeIssueLabelRelation({
+      labelIds: ['a'],
+      labels: [{ id: 'a', name: '', color: '#123456' }],
+    }, previous),
+    malformedNode: normalizeIssueLabelRelation({
+      labelIds: ['a'],
+      labels: [null],
+    }, previous),
+    completeConnection: normalizeIssueLabelRelation({
+      labels: { nodes: [label('a', 'A')], pageInfo: { hasNextPage: false } },
+    }),
+    partialConnection: normalizeIssueLabelRelation({
+      labels: { nodes: [label('a', 'A')], pageInfo: { hasNextPage: true } },
+    }),
+  }));
+`;
+const labelChild = spawnSync(process.execPath, ['--input-type=module', '--eval', labelRunner], {
+  encoding: 'utf8',
+});
+ok(labelChild.status === 0, `label normalization helper executes offline (${(labelChild.stderr || '').trim()})`);
+if (labelChild.status === 0) {
+  const result = JSON.parse(labelChild.stdout.trim());
+  ok(result.exact.complete === true
+    && result.exact.ids.join(',') === 'a,b'
+    && result.exact.nodes.map(node => node.id).join(',') === 'a,b',
+  'exact labelIds/node-set equality is complete and canonical');
+  ok(result.priorFill.complete === true
+    && result.priorFill.nodes[0].name === 'Known A',
+  'sound previous metadata may fill a still-selected known ID');
+  ok(result.unknownMissing.complete === false
+    && result.staleFillBlocked.complete === false
+    && result.mismatched.complete === false
+    && result.duplicateIds.complete === false
+    && result.emptyName.complete === false
+    && result.malformedNode.complete === false,
+  'missing, stale-filled, mismatched, duplicate, empty-name, and malformed label metadata all fail closed');
+  ok(result.completeConnection.complete === true
+    && result.partialConnection.complete === false,
+  'node-only relations require an explicit complete page');
+}
 
 ok(/\[functions\.linear-inbound\]\s*\nverify_jwt = false/.test(CFG),
   'linear-inbound must be configured verify_jwt=false because it verifies Linear HMAC itself');
@@ -108,6 +187,7 @@ ok(/postAnomalyAlert\("unknown_assignee", issue\)/.test(FN),
   'clamped_state',
   'team_move',
   'parent_change',
+  'labels_change',
   'webhook_delete',
   'archived',
   'restored',
@@ -115,6 +195,15 @@ ok(/postAnomalyAlert\("unknown_assignee", issue\)/.test(FN),
 ].forEach(token => ok(FN.includes(token), 'issue mapping token missing: ' + token));
 ok(/const previousIssue = raw\.issue && typeof raw\.issue === "object" \? raw\.issue as JsonMap : \{\};[\s\S]*raw\.issue = \{ \.\.\.issue \};[\s\S]*if \(!has\(issue, "parent"\) && previousIssue\.parent !== undefined\) \{[\s\S]*\(raw\.issue as JsonMap\)\.parent = previousIssue\.parent;[\s\S]*\}/.test(FN),
   'mergeLinearRaw must preserve the stored parent when an Issue webhook omits parent');
+ok(/mark\("labels", \["labels", "labelIds", "addedLabelIds", "removedLabelIds"\]\)/.test(FN)
+  && /payloadChangesLabels\(payload\)[\s\S]{0,180}eventAction = "labels_change"/.test(FN),
+  'inbound label changes advance the dedicated field clock and durable event action');
+ok(/import \{[\s\S]{0,100}normalizeIssueLabelRelation,[\s\S]{0,80}\} from "\.\/label-normalize\.mjs"/.test(FN)
+  && /if \(has\(issue, "labels"\) \|\| has\(issue, "labelIds"\)\)[\s\S]{0,180}const relation = normalizeIssueLabelRelation\(issue, previousIssue\)[\s\S]{0,160}labelIds = relation\.ids[\s\S]{0,120}nodes: relation\.nodes[\s\S]{0,100}hasNextPage: relation\.complete !== true/.test(FN)
+  && /else if \(previousIssue\.labels !== undefined\)/.test(FN),
+  'inbound stores only a proven exact label relation, marks all malformed/partial relations incomplete, and preserves labels when unrelated webhooks omit them');
+ok(/operation === "labels"[\s\S]{0,280}JSON\.stringify\(actual\) === JSON\.stringify\(intended\)/.test(FN),
+  'inbound label echo suppression requires the exact canonical selected-ID set');
 ok(/import \{ clearArchiveMarkers \} from "\.\/restore-markers\.mjs"/.test(FN)
   && /action === "restore"[\s\S]*clearArchiveMarkers\(linearRawWithFlag\(existing, issue, payload, "restored", true\)\)/.test(FN),
   'restore must clear stale archive/delete markers before writing the deliverable');

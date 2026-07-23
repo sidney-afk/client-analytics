@@ -56,9 +56,10 @@ function extractFunction(name) {
     && policy.normalizeOperation('comment') === 'comment'
     && policy.normalizeOperation('due') === 'due'
     && policy.normalizeOperation('assignee') === 'assignee'
+    && policy.normalizeOperation('labels') === 'labels'
     && policy.normalizeOperation('intake_create') === 'intake_create'
     && policy.normalizeOperation('archive') === '',
-  'gateway exposes only the five epoch operations');
+  'gateway exposes the existing operations plus the F201 labels operation');
 
   ok(policy.roleCompatible('admin', 'admin')
     && policy.roleCompatible('smm', 'smm')
@@ -71,15 +72,17 @@ function extractFunction(name) {
     && policy.staffOperationAllowed('creative', 'status', 'video', 'VID', 'smm_approval')
     && !policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'client_approval')
     && !policy.staffOperationAllowed('creative', 'assignee', 'video', 'video')
+    && !policy.staffOperationAllowed('creative', 'labels', 'video', 'video')
     && !policy.staffOperationAllowed('creative', 'comment', 'video', 'graphics'),
-  'creative writes are limited to own-team work/status/comment');
+  'creative writes are limited to own-team work/status/comment and cannot change labels');
 
   ok(policy.clientOperationAllowed('comment', 'client_approval', '')
     && policy.clientOperationAllowed('status', 'client_approval', 'approved')
     && policy.clientOperationAllowed('status', 'tweak', 'tweak')
     && !policy.clientOperationAllowed('status', 'smm_approval', 'approved')
+    && !policy.clientOperationAllowed('labels', 'client_approval', '')
     && !policy.clientOperationAllowed('due', 'client_approval', ''),
-  'client token permits only own-thread comments and client-legal transitions');
+  'client token permits only own-thread comments and client-legal transitions, never labels');
 
   ok(policy.legacyParityAllowed('calendar', 'status')
     && policy.legacyParityAllowed('calendar', 'comment')
@@ -123,6 +126,13 @@ function extractFunction(name) {
     && !policy.validDateOrNull('2026-02-29')
     && !policy.validDateOrNull('2026-02-31'),
   'due dates must be real UTC calendar dates');
+  ok(JSON.stringify(policy.canonicalLabelIds(['label-z', 'label-a', 'label-z']))
+      === JSON.stringify(['label-a', 'label-z'])
+    && JSON.stringify(policy.canonicalLabelIds([])) === JSON.stringify([])
+    && policy.canonicalLabelIds('label-a') === null
+    && policy.canonicalLabelIds(['../unsafe']) === null
+    && policy.canonicalLabelIds(['label-a', 7]) === null,
+  'label replacement accepts only one canonical, sorted, complete Linear-ID set');
   const legacyNow = Date.UTC(2026, 6, 13, 23, 59, 59);
   ok(policy.overdueStatusBumpDate('2026-07-01', legacyNow) === '2026-07-15'
     && policy.overdueStatusBumpDate('2026-07-13', legacyNow) === ''
@@ -275,6 +285,42 @@ function extractFunction(name) {
   'targeted drain acknowledges only a proven terminal target');
   ok(/mirror_pending: mirrorPending/.test(edge) && /native_committed: true/.test(edge),
     'a committed native write reports mirror-pending state explicitly');
+  ok(/lower\(body\.action\) === "labels_read"[\s\S]{0,100}handleLabelsRead/.test(edge)
+    && /issueLabels\(first: \$\{LABEL_PAGE_SIZE\}, after: \$after\)/.test(edge)
+    && /nodes \{ id name color description archivedAt isGroup team \{ id \} \}/.test(edge)
+    && /pageInfo\.hasNextPage === false/.test(edge)
+    && /pageInfo\.hasNextPage !== true[\s\S]{0,100}label_catalog_incomplete/.test(edge)
+    && /selectedPageInfo\.hasNextPage !== false/.test(edge)
+    && /complete: true/.test(edge),
+  'protected labels_read fetches real colors/descriptions and fails closed unless both catalog and selection prove completeness');
+  ok(/principal\.kind === "client"[\s\S]{0,80}operation_forbidden/.test(extractFunction('handleLabelsRead'))
+    && /authority === "syncview"[\s\S]{0,100}nativeLabelSnapshot\(existing\) \|\| \(principal\.testOnly \? linearSelected : null\)/.test(extractFunction('handleLabelsRead'))
+    && /native_label_state_incomplete/.test(extractFunction('handleLabelsRead'))
+    && /mergeLabelCatalog\(snapshot\.catalog, selected\.labels\)/.test(extractFunction('handleLabelsRead')),
+  'label reads deny clients and require native selected state after authority flips, with only service TEST allowed to bootstrap from complete Linear selection');
+  const nativeLabelsStart = edge.indexOf('function nativeLabelSnapshot(');
+  const nativeLabelsEnd = edge.indexOf('\nfunction mergeLabelCatalog(', nativeLabelsStart);
+  const nativeLabels = edge.slice(nativeLabelsStart, nativeLabelsEnd);
+  ok(/labels\.length !== nodes\.length/.test(nativeLabels)
+    && /hasOwnProperty\.call\(issue, "labelIds"\)/.test(nativeLabels)
+    && /issueIds\.length !== rawIds\.length/.test(nativeLabels)
+    && /clean\(value\) !== value/.test(nativeLabels)
+    && /JSON\.stringify\(issueIds\) !== JSON\.stringify\(nodeIds\)/.test(nativeLabels),
+  'native label state is complete only for unique valid nodes and an exact canonical labelIds/node-ID relation');
+  ok(/operation === "labels"[\s\S]{0,220}canonicalLabelIds\(body\.label_ids\)/.test(edge)
+    && /label_ids: labelIds, _intent_fingerprint: fingerprint/.test(edge)
+    && /raw\.issue = \{[\s\S]{0,240}labelIds,[\s\S]{0,120}labels: \{[\s\S]{0,80}nodes: selectedLabels/.test(edge)
+    && /event\.expected_updated_at = clean\(body\.expected_updated_at\)/.test(edge)
+    && /labelsReceipt = selectedLabelReceipt/.test(edge),
+  'guarded labels write fingerprints one full set, commits canonical native nodes with CAS, and returns that selected set');
+  const labelsWriteStart = edge.indexOf('} else if (operation === "labels") {');
+  const labelsWriteEnd = edge.indexOf('\n  } else {', labelsWriteStart);
+  const labelsWrite = edge.slice(labelsWriteStart, labelsWriteEnd);
+  ok(/const native = nativeLabelSnapshot\(existing\) \|\| \(principal\.testOnly \? \{[\s\S]{0,120}labels: snapshot\.selectedLabels,[\s\S]{0,80}ids: snapshot\.selectedLabelIds,[\s\S]{0,40}\} : null\)/.test(labelsWrite)
+    && /if \(!native\)[\s\S]{0,100}native_label_state_incomplete/.test(labelsWrite)
+    && /\[\.\.\.native\.labels, \.\.\.snapshot\.catalog\]/.test(labelsWrite)
+    && /browserCredentialTestOverride\(body\.test_override, key, token\)[\s\S]{0,100}invalid_test_override/.test(extractFunction('authenticate')),
+  'normal label replacement fails closed on incomplete native state while only service TEST may preserve arbitrary selected Linear labels during bootstrap');
 
   const reconcile = extractFunction('reconcileEntityOperation');
   const receiptReader = extractFunction('readOutboxReceipt');

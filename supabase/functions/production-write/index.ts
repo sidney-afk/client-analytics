@@ -14,6 +14,7 @@ import {
 import {
   DELIVERABLE_STATUSES,
   browserCredentialTestOverride,
+  canonicalLabelIds,
   clean,
   clientOperationAllowed,
   clientScopeAllowed,
@@ -90,6 +91,9 @@ const MAX_COMMENT_BODY = 20_000;
 const MAX_INTAKE_ITEMS = 100;
 const OUTBOUND_FLAG = "linear_outbound_enabled";
 const OVERDUE_STATUS_BUMP_FLAG = "write_ui_overdue_due_bump";
+const LINEAR_URL = "https://api.linear.app/graphql";
+const LABEL_PAGE_SIZE = 100;
+const MAX_LABEL_PAGES = 50;
 
 class GatewayError extends Error {
   status: number;
@@ -132,6 +136,197 @@ function parseJson(value: unknown): JsonMap {
   } catch (_error) {
     return {};
   }
+}
+
+function labelNodes(value: unknown): JsonMap[] {
+  if (Array.isArray(value)) {
+    return value.filter(item => item && typeof item === "object" && !Array.isArray(item)) as JsonMap[];
+  }
+  const connection = parseJson(value);
+  return Array.isArray(connection.nodes)
+    ? connection.nodes.filter(item => item && typeof item === "object" && !Array.isArray(item)) as JsonMap[]
+    : [];
+}
+
+function sanitizedLabel(value: unknown, strictLinear = false): JsonMap | null {
+  const row = parseJson(value);
+  const id = clean(row.id);
+  const name = clean(row.name);
+  if (!canonicalLabelIds([id]) || !name) return null;
+  const rawColor = clean(row.color);
+  if (strictLinear && !/^#[0-9a-f]{6}$/i.test(rawColor)) return null;
+  return {
+    id,
+    name,
+    color: /^#[0-9a-f]{6}$/i.test(rawColor) ? rawColor : "#5e6ad2",
+    description: clean(row.description) || null,
+  };
+}
+
+function sortedLabels(value: unknown): JsonMap[] {
+  const byId = new Map<string, JsonMap>();
+  for (const node of labelNodes(value)) {
+    const label = sanitizedLabel(node);
+    if (label) byId.set(clean(label.id), label);
+  }
+  return [...byId.values()].sort((a, b) => clean(a.id).localeCompare(clean(b.id)));
+}
+
+function nativeLabelSnapshot(row: JsonMap): { labels: JsonMap[]; ids: string[] } | null {
+  const raw = parseJson(row.linear_raw);
+  const issue = parseJson(raw.issue);
+  const connection = parseJson(issue.labels);
+  const nodes = Array.isArray(connection.nodes) ? connection.nodes : null;
+  const pageInfo = parseJson(connection.pageInfo);
+  if (!nodes || pageInfo.hasNextPage !== false) return null;
+  const labels = sortedLabels(connection);
+  if (labels.length !== nodes.length) return null;
+  const nodeIds = labels.map(label => clean(label.id));
+  if (Object.prototype.hasOwnProperty.call(issue, "labelIds")) {
+    const rawIds = issue.labelIds;
+    const issueIds = canonicalLabelIds(rawIds);
+    if (!Array.isArray(rawIds)
+        || !issueIds
+        || issueIds.length !== rawIds.length
+        || rawIds.some(value => typeof value !== "string" || clean(value) !== value)
+        || JSON.stringify(issueIds) !== JSON.stringify(nodeIds)) {
+      return null;
+    }
+  }
+  return { labels, ids: nodeIds };
+}
+
+function mergeLabelCatalog(catalog: JsonMap[], selected: JsonMap[]): JsonMap[] {
+  const byId = new Map<string, JsonMap>();
+  // Current active-catalog metadata wins for labels that remain selectable;
+  // selected-only archived/arbitrary labels are retained as additional rows.
+  for (const label of [...selected, ...catalog]) byId.set(clean(label.id), label);
+  return [...byId.values()].sort((a, b) => {
+    const byName = lower(a.name).localeCompare(lower(b.name));
+    return byName || clean(a.id).localeCompare(clean(b.id));
+  });
+}
+
+function selectedLabelReceipt(row: JsonMap): JsonMap {
+  const snapshot = nativeLabelSnapshot(row);
+  if (!snapshot) throw new GatewayError(500, "idempotent_result_missing");
+  return {
+    selected_label_ids: snapshot.ids,
+    selected_labels: snapshot.labels,
+  };
+}
+
+async function linearLabelsRequest(query: string, variables: JsonMap): Promise<JsonMap> {
+  const key = clean(Deno.env.get("LINEAR_MIRROR_API_KEY"));
+  if (!key) throw new GatewayError(503, "label_catalog_unavailable");
+  let response: Response;
+  try {
+    response = await fetch(LINEAR_URL, {
+      method: "POST",
+      headers: { authorization: key, "content-type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+    });
+  } catch (_error) {
+    throw new GatewayError(503, "label_catalog_unavailable");
+  }
+  const body = await response.json().catch(() => null) as JsonMap | null;
+  if (!response.ok || !body || (Array.isArray(body.errors) && body.errors.length)) {
+    throw new GatewayError(503, "label_catalog_unavailable");
+  }
+  return parseJson(body.data);
+}
+
+type LabelSnapshot = {
+  catalog: JsonMap[];
+  selectedLabels: JsonMap[];
+  selectedLabelIds: string[];
+};
+
+async function linearLabelSnapshot(issueId: string): Promise<LabelSnapshot> {
+  const query = `query SyncViewProductionLabels($id: String!, $after: String) {
+    issue(id: $id) {
+      id
+      team { id }
+      labels(first: ${LABEL_PAGE_SIZE}, includeArchived: true) {
+        nodes { id name color description archivedAt isGroup team { id } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+    issueLabels(first: ${LABEL_PAGE_SIZE}, after: $after) {
+      nodes { id name color description archivedAt isGroup team { id } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }`;
+  let after: string | null = null;
+  let issue: JsonMap | null = null;
+  const catalogById = new Map<string, JsonMap>();
+
+  for (let page = 0; page < MAX_LABEL_PAGES; page++) {
+    const data = await linearLabelsRequest(query, { id: issueId, after });
+    const currentIssue = parseJson(data.issue);
+    if (!clean(currentIssue.id) || clean(currentIssue.id) !== issueId) {
+      throw new GatewayError(409, "linear_issue_unavailable");
+    }
+    if (!issue) issue = currentIssue;
+
+    const issueTeamId = clean(parseJson(currentIssue.team).id);
+    if (!issueTeamId) throw new GatewayError(409, "linear_issue_team_unavailable");
+    const catalogConnection = parseJson(data.issueLabels);
+    for (const node of labelNodes(catalogConnection)) {
+      if (!Object.prototype.hasOwnProperty.call(node, "team")
+          || typeof node.isGroup !== "boolean"
+          || !Object.prototype.hasOwnProperty.call(node, "archivedAt")) {
+        throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
+      }
+      const labelTeamId = clean(parseJson(node.team).id);
+      if (node.isGroup === true || clean(node.archivedAt)
+          || (labelTeamId && labelTeamId !== issueTeamId)) continue;
+      const label = sanitizedLabel(node, true);
+      if (!label) throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
+      catalogById.set(clean(label.id), label);
+    }
+
+    const pageInfo = parseJson(catalogConnection.pageInfo);
+    if (pageInfo.hasNextPage === false) break;
+    if (pageInfo.hasNextPage !== true) {
+      throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
+    }
+    after = clean(pageInfo.endCursor);
+    if (!after || page === MAX_LABEL_PAGES - 1) {
+      throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
+    }
+  }
+
+  const selectedConnection = parseJson((issue as JsonMap).labels);
+  const selectedPageInfo = parseJson(selectedConnection.pageInfo);
+  if (selectedPageInfo.hasNextPage !== false) {
+    throw new GatewayError(502, "label_selection_incomplete", { complete: false });
+  }
+  const issueTeamId = clean(parseJson((issue as JsonMap).team).id);
+  const selectedById = new Map<string, JsonMap>();
+  for (const node of labelNodes(selectedConnection)) {
+    if (!Object.prototype.hasOwnProperty.call(node, "team") || typeof node.isGroup !== "boolean") {
+      throw new GatewayError(502, "label_selection_invalid");
+    }
+    const labelTeamId = clean(parseJson(node.team).id);
+    if (node.isGroup === true || (labelTeamId && labelTeamId !== issueTeamId)) {
+      throw new GatewayError(409, "label_selection_invalid");
+    }
+    const label = sanitizedLabel(node, true);
+    if (!label) throw new GatewayError(502, "label_selection_invalid");
+    selectedById.set(clean(label.id), label);
+  }
+  const selectedLabels = [...selectedById.values()];
+  selectedLabels.sort((a, b) => clean(a.id).localeCompare(clean(b.id)));
+  const catalog = [...catalogById.values()].sort((a, b) => {
+    const byName = lower(a.name).localeCompare(lower(b.name));
+    return byName || clean(a.id).localeCompare(clean(b.id));
+  });
+  return {
+    catalog,
+    selectedLabels,
+    selectedLabelIds: selectedLabels.map(label => clean(label.id)),
+  };
 }
 
 function bearer(req: Request): string {
@@ -1328,6 +1523,54 @@ async function graphicDescriptions(
   return fallback;
 }
 
+function linearIssueIdForLabels(row: JsonMap): string {
+  const raw = parseJson(row.linear_raw);
+  return clean(row.linear_issue_uuid || parseJson(raw.issue).id);
+}
+
+async function handleLabelsRead(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+): Promise<Response> {
+  if (surfaceFor(body) !== "production") {
+    throw new GatewayError(400, "invalid_surface_operation");
+  }
+  const id = clean(body.id);
+  if (!id) throw new GatewayError(400, "entity_id_required");
+  const { data, error } = await supabase.from("deliverables").select("*").eq("id", id).maybeSingle();
+  if (error) throw new GatewayError(503, "entity_lookup_unavailable");
+  if (!data) throw new GatewayError(404, "entity_not_found");
+  const existing = data as JsonMap;
+  const targetClientSlug = clean(existing.client_slug);
+  const team = normalizeTeam(existing.team);
+  if (!targetClientSlug || !team) throw new GatewayError(409, "entity_scope_unavailable");
+  const principal = await authenticate(supabase, req, body, targetClientSlug);
+  if (principal.kind === "client") throw new GatewayError(403, "operation_forbidden");
+  const issueId = linearIssueIdForLabels(existing);
+  if (!issueId) throw new GatewayError(409, "linear_issue_unavailable");
+  const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
+  const snapshot = await linearLabelSnapshot(issueId);
+  const linearSelected = {
+    labels: snapshot.selectedLabels,
+    ids: snapshot.selectedLabelIds,
+  };
+  const selected = authority === "syncview"
+    ? (nativeLabelSnapshot(existing) || (principal.testOnly ? linearSelected : null))
+    : linearSelected;
+  if (!selected) {
+    throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
+  }
+  return json({
+    ok: true,
+    complete: true,
+    authority,
+    catalog: mergeLabelCatalog(snapshot.catalog, selected.labels),
+    selected_label_ids: selected.ids,
+    selected_labels: selected.labels,
+  });
+}
+
 async function handleEntityOperation(
   supabase: SupabaseClient,
   req: Request,
@@ -1395,6 +1638,9 @@ async function handleEntityOperation(
       && !staffOperationAllowed(principal.keyRole, operation, principal.memberTeam, team, nextStatus)) {
     throw new GatewayError(403, "operation_forbidden");
   }
+  if (operation === "labels" && principal.kind === "client") {
+    throw new GatewayError(403, "operation_forbidden");
+  }
   if (body.reconcile_only === true) {
     return await reconcileEntityOperation(
       supabase,
@@ -1433,6 +1679,7 @@ async function handleEntityOperation(
   };
 
   let result: unknown;
+  let labelsReceipt: JsonMap | null = null;
   if (operation === "comment") {
     const commentInput = parseJson(body.comment);
     const commentBody = String(commentInput.body == null ? body.body || "" : commentInput.body).trim();
@@ -1559,6 +1806,88 @@ async function handleEntityOperation(
       assertCas(body, existing);
       result = await rpc(supabase, "production_comment_write", { p_comment: comment, p_event: event });
     }
+  } else if (operation === "labels") {
+    const labelIds = canonicalLabelIds(body.label_ids);
+    if (!labelIds) throw new GatewayError(400, "invalid_label_ids");
+    const fingerprint = await intentFingerprint({
+      operation, entity, id, requestId, surface, legacyParity,
+      actorKey: principal.actorKey,
+      patch: { label_ids: labelIds },
+    });
+    const outbound = {
+      ...outboundBase,
+      payload: f27FencedPayload(
+        { label_ids: labelIds, _intent_fingerprint: fingerprint },
+        authorityGeneration,
+        legacyParity,
+      ),
+    };
+    const replay = await assertDedupIntent(
+      supabase,
+      dedup,
+      dedupExpectation(principal, team, sourceEditedAt, outbound, fingerprint),
+    );
+    if (replay) {
+      result = existing;
+    } else {
+      assertCas(body, existing);
+      const issueId = linearIssueIdForLabels(existing);
+      if (!issueId) throw new GatewayError(409, "linear_issue_unavailable");
+      const snapshot = await linearLabelSnapshot(issueId);
+      // The service-only TEST lane may bootstrap pre-F201 rows from this
+      // already-proven complete Linear selection. Normal SyncView authority
+      // remains strictly native and cannot foreign-round-trip label state.
+      const native = nativeLabelSnapshot(existing) || (principal.testOnly ? {
+        labels: snapshot.selectedLabels,
+        ids: snapshot.selectedLabelIds,
+      } : null);
+      if (!native) {
+        throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
+      }
+      const applicable = new Map(
+        [...native.labels, ...snapshot.catalog]
+          .map(label => [clean(label.id), label]),
+      );
+      const selectedLabels = labelIds.map(labelId => applicable.get(labelId));
+      if (selectedLabels.some(label => !label)) {
+        throw new GatewayError(400, "label_not_applicable");
+      }
+      const raw = parseJson(existing.linear_raw);
+      const rawIssue = parseJson(raw.issue);
+      raw.issue = {
+        ...rawIssue,
+        id: clean(rawIssue.id) || issueId,
+        labelIds,
+        labels: {
+          nodes: selectedLabels,
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      };
+      const row: JsonMap = { ...existing, linear_raw: raw };
+      const event = eventFor(
+        operation,
+        principal,
+        sourceEditedAt,
+        surface,
+        outbound,
+        existing,
+        clean(row.status),
+      );
+      event.expected_updated_at = clean(body.expected_updated_at);
+      try {
+        result = await rpc(supabase, "production_deliverable_write", { p_row: row, p_event: event });
+      } catch (error) {
+        if (error instanceof GatewayError && error.code === "write_conflict") {
+          const { data: current } = await supabase.from("deliverables").select("*").eq("id", id).maybeSingle();
+          throw new GatewayError(409, "write_conflict", {
+            conflict: true,
+            row: current ? publicRow(current as JsonMap) : publicRow(existing),
+          });
+        }
+        throw error;
+      }
+    }
+    labelsReceipt = selectedLabelReceipt(parseJson(result));
   } else {
     let patch: JsonMap;
     let payload: JsonMap;
@@ -1657,6 +1986,7 @@ async function handleEntityOperation(
     // cannot replace the caller's deliverable/CAS cursor with a comment id.
     row: operation === "comment" ? publicRow(existing) : publicRow(result),
     ...(operation === "comment" ? { comment: parseJson(result) } : {}),
+    ...(labelsReceipt || {}),
   }, mirrorPending && awaitedDrain ? 202 : 200);
 }
 
@@ -2329,6 +2659,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const body = await req.json().catch(() => null) as JsonMap | null;
     if (!body || Array.isArray(body)) throw new GatewayError(400, "invalid_json");
+    if (lower(body.action) === "labels_read") {
+      return await handleLabelsRead(supabase, req, body);
+    }
+    if (body.action !== undefined) throw new GatewayError(400, "unsupported_action");
     const operation = normalizeOperation(body.operation);
     if (!operation) throw new GatewayError(400, "unsupported_operation");
     const surface = surfaceFor(body);

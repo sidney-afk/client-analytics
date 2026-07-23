@@ -60,7 +60,9 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     comments: { nodes: [] },
   };
 
-  ok(mapping.OUTBOUND_OPERATIONS.length === 10, 'all ten outbound operations are enumerated');
+  ok(mapping.OUTBOUND_OPERATIONS.length === 11
+    && mapping.OUTBOUND_OPERATIONS.includes('labels'),
+  'the strict outbound operation catalog adds labels without dropping an existing operation');
   ok(mapping.D27_LIVE_ERA_START === D27_LIVE_ERA_START,
     'reconciler and Edge Function share the exact D-27 live-era boundary');
   const status = mapping.buildMutation(baseRow, { state_id: 'state_approved', linear_issue_id: 'issue_fixture' });
@@ -116,6 +118,33 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   ok(priority.variables.input.priority === 4, 'priority maps to issueUpdate.priority');
   const parent = mapping.buildMutation({ ...baseRow, operation: 'parent', payload: { linear_issue_id: 'issue_fixture', parent_linear_issue_id: null } });
   ok(parent.variables.input.parentId === null, 'parent clear maps to explicit null');
+  const labels = mapping.buildMutation({
+    ...baseRow,
+    operation: 'labels',
+    payload: { linear_issue_id: 'issue_fixture', label_ids: ['label-z', 'label-a', 'label-z'] },
+  });
+  ok(labels.kind === 'issueUpdate'
+    && JSON.stringify(labels.variables.input.labelIds) === JSON.stringify(['label-a', 'label-z']),
+  'labels maps one canonical complete selected-ID set to issueUpdate.labelIds');
+  ok(mapping.decideConflict(
+    { ...baseRow, operation: 'labels', payload: { label_ids: ['label-z', 'label-a'] } },
+    { ...issue, labelIds: ['label-a', 'label-z'] },
+  ).decision === 'already_applied'
+    && mapping.decideConflict(
+      { ...baseRow, operation: 'labels', payload: { label_ids: ['label-z', 'label-a'] } },
+      { ...issue, labelIds: ['label-a'] },
+    ).decision === 'apply',
+  'label conflict checks compare exact canonical full sets, independent of order');
+  ok(mapping.decideConflict(
+    {
+      ...baseRow,
+      operation: 'labels',
+      source_edited_at: '2026-07-11T11:58:00Z',
+      payload: { label_ids: ['label-a'] },
+    },
+    { ...issue, updatedAt: '2026-07-11T12:05:00Z', labelIds: ['label-z'] },
+    { field_updated_at: '2026-07-11T12:04:00Z' },
+  ).decision === 'stale', 'newer Linear label clocks prevent an outbound overwrite');
   const archive = mapping.buildMutation({ ...baseRow, operation: 'archive', payload: { linear_issue_id: 'issue_fixture' } });
   const restore = mapping.buildMutation({ ...baseRow, operation: 'restore', payload: { linear_issue_id: 'issue_fixture' } });
   ok(archive.kind === 'issueArchive' && restore.kind === 'issueUnarchive',
@@ -193,7 +222,7 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && historicalWriteDisposition('parent', oldActiveEntity) === null
     && historicalWriteDisposition('restore', completedHistoricalEntity).decision === 'tolerated_historical',
   'D-27 uses the live-era boundary plus explicit backfill or completed-work evidence');
-  ok(['create', 'status', 'comment', 'due', 'assignee', 'title', 'priority', 'archive']
+  ok(['create', 'status', 'comment', 'due', 'assignee', 'title', 'priority', 'labels', 'archive']
     .every(operation => historicalWriteDisposition(operation, historicalEntity) === null),
   'all non-parent/non-restore operations on historical work remain writable');
   ok(mapping.decideConflict(
@@ -392,6 +421,9 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
       payloadAction: payload => String(payload && payload.action || '').toLowerCase(),
       outboundExpected: row => row.linear_result.expected.input,
       outboundMarker: () => '',
+      canonicalIssueLabelIds: issueRow => [...new Set(
+        (Array.isArray(issueRow.labelIds) ? issueRow.labelIds : []).map(String).filter(Boolean),
+      )].sort(),
     };
     vm.createContext(echoContext);
     vm.runInContext(outboundMatcherSource[0].replace(
@@ -412,6 +444,17 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
       && echoContext.outboundValueMatches(fullReceipt, { action: 'update' }, laterExternalState, {}) === false
       && echoContext.outboundValueMatches(fullReceipt, { action: 'update' }, exactIssue, {}) === true,
     'due-only receipts and different-state/same-due webhooks never echo-drop; exact state + due does');
+    const labelReceipt = {
+      operation: 'labels', status: 'written',
+      linear_result: { expected: { input: { labelIds: ['label-a', 'label-z'] } } },
+    };
+    ok(echoContext.outboundValueMatches(labelReceipt, { action: 'update' }, {
+      labelIds: ['label-z', 'label-a'],
+    }, {}) === true
+      && echoContext.outboundValueMatches(labelReceipt, { action: 'update' }, {
+        labelIds: ['label-a'],
+      }, {}) === false,
+    'label echoes drop only for the exact canonical full selected-ID receipt');
   }
 
   const sharedWrite = read('supabase/functions/_shared/b4-write.ts');

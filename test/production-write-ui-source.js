@@ -70,8 +70,9 @@ context._prodState.authority.video = 'syncview';
 ok(context._prodCanWrite(video, 'status') === true
   && context._prodCanWrite(video, 'comment') === true
   && context._prodCanWrite(video, 'due') === false
+  && context._prodCanWrite(video, 'labels') === false
   && context._prodCanWrite(graphics, 'comment') === false,
-'creative access is own-team status/comment only; due, assignee, and cross-team remain closed');
+'creative access is own-team status/comment only; labels, due, assignee, and cross-team remain closed');
 context.identity = null;
 ok(context._prodCanWrite(video, 'status') === false, 'missing verified staff identity fails closed');
 const deniedAttrs = context._prodWriteGateAttrs(video, 'due', { tip: 'Set due date' });
@@ -135,6 +136,36 @@ ok(/kind === 'assign' \? 'assignee' : kind/.test(source)
   && /PROD_STATUS_FROM_ARTIFACT\[value\]/.test(source)
   && /_prodDueIso\(value\)/.test(source),
 'status, assignee, and ISO due-date pickers route through gateway operations');
+ok(/action: 'labels_read', surface: 'production', id/.test(source)
+  && /json\.complete !== true/.test(extract('_prodEnsureLabels'))
+  && /selected_label_ids/.test(extract('_prodAdoptLabelPayload'))
+  && /selected_labels/.test(extract('_prodAdoptLabelPayload')),
+'labels use a protected complete catalog/selection read and reject partial state');
+ok(/const verificationEpoch = _syncviewStaffVerificationEpoch/.test(extract('_prodEnsureLabels'))
+  && /const requestToken = _prodNextLabelRequestToken\(id\)/.test(extract('_prodEnsureLabels'))
+  && (extract('_prodEnsureLabels').match(/if \(!requestStillCurrent\(\)\) return null;/g) || []).length === 2,
+'label reads discard stale responses and errors after sign-out or a newer same-issue read');
+ok(/const verificationEpoch = _syncviewStaffVerificationEpoch/.test(extract('_prodRunLabelsWrite'))
+  && /const requestToken = _prodNextLabelRequestToken\(id\)/.test(extract('_prodRunLabelsWrite'))
+  && /if \(!json\) \{[\s\S]*current\.saving = false;[\s\S]*_prodEnsureLabels\(id, true\)/.test(extract('_prodRunLabelsWrite'))
+  && /if \(!requestStillCurrent\(\)\) \{[\s\S]*if \(identityStillCurrent\(\)\) _prodEnsureLabels\(id, true\)/.test(extract('_prodRunLabelsWrite')),
+'label write acknowledgements cannot repopulate state after identity or request generation changes');
+ok(/_prodState\.writes\.has\(id \+ ':labels'\)/.test(extract('_prodEnsureLabels'))
+  && /_prodState\.labels = new Map\(\[\.\.\._prodState\.labels\]\.filter/.test(extract('_prodRefresh')),
+'Production refreshes preserve a pending label write and do not race it with an older protected read');
+ok(/_prodGatewayWrite\(issue, 'labels', \{ label_ids: labelIds \}\)/.test(source)
+  && /payload\.expected_updated_at = issue\.updatedRaw/.test(source)
+  && /_prodWriteRequestId\(operation\)/.test(extract('_prodGatewayWrite')),
+'label toggles send one full selected-id set through the existing CAS/idempotency envelope');
+ok(/data-prod-label-search-input/.test(source)
+  && /role="checkbox"/.test(source)
+  && /_prodLabelColorStyle\(label\)/.test(source)
+  && /label\.description \|\| label\.name/.test(source)
+  && /layer\.innerHTML && !layer\.contains\(el\)/.test(source),
+'label picker exposes search, colors, checkbox selection, and description tooltips inside the active layer');
+ok(/_prodState\.labels = new Map\(\[\.\.\._prodState\.labels\]\.filter/.test(extract('_prodRefresh'))
+  && /_prodEnsureLabels\(_prodState\.openId, false\)/.test(extract('_prodRender')),
+'refresh discards non-pending label state and reopens from the protected source');
 ok(/editors\[k\]\.active !== false[\s\S]{0,120}editors\[k\]\.raw\.team/.test(source), 'assignee choices are active and scoped to the deliverable team');
 ok(/data-prod-comment-form/.test(source)
   && /audience: draft\.audience/.test(source)

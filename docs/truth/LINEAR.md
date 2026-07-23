@@ -1,9 +1,9 @@
 # Linear — current truth
 
-> Last verified: 2026-07-23 @ f781add (docs-only audit rebase; product source unchanged from
-> Production/Graphics audit base `1e7c0fd` + Phase-3 Order-1 reconciliation)
-> (F145 parent-link projection merged; plan-date release live; isolated Workload Linear metadata/due
-> gateway remains source-only until exact-SHA manual deployment)
+> Last verified: 2026-07-23 @ ca548ae + source-only F201 candidate
+> (F145 parent-link projection merged; plan-date release live; F201 label catalog/write/outbound/
+> inbound and mixed-authority Workload metadata are not live until the owner-approved post-merge
+> migration/function/drill gate)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -26,9 +26,10 @@
   `createdAt`/`completedAt`.
 - **Priority IS used again** on current batches (Urgent/High/Medium), but Workload no longer reads or
   displays it. SMMs may apply the exact `2× Workload` / `3× Workload` labels to difficult videos;
-  candidate Workload metadata treats those as two or three video-capacity units. The owner ratified
-  real label display/set in Production on 2026-07-23; the current Production fetch, adapter, picker,
-  and gateway still have no label contract (F201).
+  they remain two or three video-capacity units, while Graphics remains 15 unweighted items.
+  Source-only F201 now adds the real Linear catalog, complete native selected-label relation,
+  searchable color/checkbox/description picker, guarded full-set write, and exact native Workload
+  metadata path. It is not live until the separate owner-approved release gate.
 - Batch mirroring is NOT universal: true GRA+VID mirrored pairs, VID-only, GRA-only, single
   parents with mixed-team children, and bidirectional cross-team parenting all exist.
   Archived history contains legacy states ("Tweak Applied"), ghost authors, and hard-deleted
@@ -52,8 +53,10 @@
 - **Native deliverable mirror:** the two active HMAC Edge Function webhooks subscribe to Issue +
   Comment. `linear-inbound` mirrors state, title, due date, assignee, priority, parent,
   archive/restore/delete/team linkage into native deliverables and normalizes comment lifecycle into
-  `production_comments`. That does **not** make the legacy card arrays, client links, or Workload
-  feed canonical. For F145, the visible Production tree projects the persisted
+  `production_comments`. F201 candidate source also normalizes the complete selected label IDs/nodes,
+  advances a dedicated label field clock, and echo-drops only an exact full-set receipt. That does
+  **not** make the legacy card arrays, client links, or base Workload issue feed canonical. For F145,
+  the visible Production tree projects the persisted
   `linear_raw.issue.parent.id` and resolves it through `linear_issue_uuid` across all live
   deliverables. Creation batch, team, client, and title are not parent-election boundaries;
   unresolved or malformed links remain visible roots. Parent-only webhook changes remain
@@ -65,12 +68,12 @@
   client catalog: each Linear project must map to one roster client or explicit internal/TEST
   classification. All current rows must be classified; future unknowns become visible repair state.
   The scheduled B1 refresh must not insert clients derived from Linear names.
-- **Current live Workload deadlines remain one-way from Linear.** Candidate source adds an isolated
-  Admin/SMM-only `workload-linear` due-date writer using `LINEAR_MIRROR_API_KEY`; Creative receives
-  the same metadata but remains read-only. The function validates the exact active mirrored
-  sub-issue/client, requires an exact Linear issue/date acknowledgement, and then best-effort updates
-  the existing mirror row so the UI converges quickly. It does not add a mirrored-table column,
-  schema migration, n8n bridge, runtime flag, or frozen-writer dependency.
+- **Current live Workload deadlines remain one-way from Linear.** Candidate source retains the
+  isolated Admin/SMM-only `workload-linear` due-date writer for Linear-authoritative teams; Creative
+  receives the same metadata but remains read-only. F201/F40 candidate source partitions metadata by
+  `prod_authority`: Linear IDs use that protected reader, while SyncView IDs read native
+  `deliverables.due_date` plus the complete `linear_raw.issue.labels` relation and never fall back to
+  Linear. It does not change the still-foreign base issue feed, realtime, links, n8n, or frozen writers.
 - Internal scheduling remains separate in the live `workload_plan.plan_date` sidecar keyed by the
   stable sub-issue id; clearing that value restores the item-local automatic day derived from the
   Linear deadline. No workload weight or deadline override is stored in that sidecar.
@@ -95,8 +98,10 @@
 Track B (in-app Linear replacement) spec: `docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md`;
 system-wide view: `docs/independence/SYSTEM_MAP.md`. The visible **Linear** tab (internal
 `production`, route `#production`, alias `?prod=1`) is the native mirror surface. #812 ships
-authority-gated status/comment/due/assignee controls: real teams remain read-only while authority is
-Linear; the bounded active-TEST lane can write. The visible **Submit** tab retains internal key
+authority-gated status/comment/due/assignee controls; F201 candidate source adds protected label
+catalog reads and Admin/SMM full-selected-set label writes. Real teams remain read-only while
+authority is Linear; the bounded active-TEST drill stays service-only and is the sole path allowed
+to seed a missing pre-F201 native selection from a complete Linear snapshot. The visible **Submit** tab retains internal key
 `linear` and route `#linear`; its native reroute landed through PR #850 / `9968bd9` and is
 dark-gated behind `write_ui_reroute_clients` (last verified TEST-only allowlist; a missing/unreadable flag
 deliberately fails to the LEGACY lane), while the serving legacy intake for non-enrolled clients

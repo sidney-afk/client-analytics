@@ -520,6 +520,11 @@ async function unlockPending(supabase: SupabaseClient, row: OutboxRow, delaySeco
 
 function compactIssue(issue: JsonMap | null): JsonMap {
   if (!issue) return {};
+  const labels = issue.labels && typeof issue.labels === "object" ? issue.labels as JsonMap : {};
+  const labelNodes = Array.isArray(labels) ? labels : Array.isArray(labels.nodes) ? labels.nodes : [];
+  const labelIds = Array.isArray(issue.labelIds)
+    ? issue.labelIds
+    : labelNodes.map(label => label && typeof label === "object" ? (label as JsonMap).id : "");
   return {
     id: clean(issue.id),
     identifier: clean(issue.identifier),
@@ -528,6 +533,7 @@ function compactIssue(issue: JsonMap | null): JsonMap {
     due_date: clean(issue.dueDate) || null,
     assignee_id: clean(issue.assignee && (issue.assignee as JsonMap).id) || null,
     parent_id: clean(issue.parent && (issue.parent as JsonMap).id) || null,
+    label_ids: [...new Set(labelIds.map(clean).filter(Boolean))].sort(),
     archived: !!issue.archivedAt,
   };
 }

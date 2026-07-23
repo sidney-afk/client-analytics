@@ -86,6 +86,18 @@ executes these files (see `README.md` › Repository layout).
   function, touch n8n, or operate on a real client/team. It remains **not
   live-applied** until a separate owner-approved window follows
   `docs/ops/F27_INSTALL_RUNBOOK.md` from an exact owner-merged SHA.
+- **`2026-07-23-f201-production-labels.sql`** is the source-only F201 outbox
+  delta. It widens the existing operation CHECK and installed pre-F27 enqueue
+  allowlist by adding only `labels`; all ten existing operations remain
+  accepted. This is a deliberate, owner-approved exception to the
+  additive-only rule because PostgreSQL has no in-place CHECK-expression
+  alteration: the named CHECK is dropped and re-added as a strict superset in
+  one transaction. The replacement validates existing rows and is data-safe:
+  it drops no data/table/column, renames nothing, changes no type, and performs
+  no backfill. The parked F27 enqueue source carries the same additive
+  allowlist, but F27 remains uninstalled. Neither migration is live-applied by
+  this source change; the F201 constraint apply, production-write deploy, and
+  real TEST labels drill require a separate post-merge owner-approved window.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

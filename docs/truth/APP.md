@@ -1,8 +1,7 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-23 @ f781add (docs-only audit rebase; product source unchanged from
-> Production/Graphics audit base `1e7c0fd`) + integrated boot-audit vault through F199 +
-> Production/Graphics audit through F205. The F176/F179 overnight-runner containment is isolated in parked draft
+> Last verified: 2026-07-23 @ ca548ae + source-only F201 candidate, integrated boot-audit vault
+> through F199, and Production/Graphics audit through F205. The F176/F179 overnight-runner containment is isolated in parked draft
 > #908 by owner decision and does not block the client-entry product fix; do not expand or reopen
 > that containment scope here. The client verifier v28 and matching #891 browser are live. The
 > Workload Creative/list-write candidates and F27 operator
@@ -243,18 +242,21 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Workload
 
-- Workload reads the Linear-backed `workload_issues` mirror. Candidate source adds one isolated
-  `workload-linear` boundary: every staff role may read exact deadline/weight metadata, while only
-  Admin/SMM may update a sub-issue's Linear due date. The candidate is not live until both the
-  Creative-readable `workload-plan` source and new `workload-linear` source are manually deployed
-  and read back from the exact merge SHA.
+- Workload still reads its base issue set from the Linear-backed `workload_issues` mirror. F201/F40
+  candidate source partitions deadline/label metadata by the exact `prod_authority` team value:
+  Linear-authoritative IDs use the isolated `workload-linear` reader, while SyncView-authoritative
+  IDs read `deliverables.due_date` and the complete native selected-label relation. Missing,
+  ambiguous, or incomplete native metadata fails closed and never falls back to Linear; affected
+  retained deadline/weight values are cleared rather than carrying foreign metadata across the
+  authority change. The broader F40 issue adapter, native links, realtime/catch-up, and top-level
+  policy remain open.
 - Dated work without a saved manual override gets one deterministic, item-local automatic work day:
   one working day before its Linear deadline, floored to today. A saved manual `plan_date` wins.
   There is no queue-wide ASAP packing, capacity spill, or hidden overflow row. Because each automatic
   day depends only on that issue's deadline and today, newly urgent work never repacks existing
   automatic placements; any resulting overload remains visible for a person to resolve.
 - Capacity is 4 video workload units / 15 graphics items per editor per day as a warning only.
-  An exact Linear `2× Workload` or `3× Workload` label makes that video consume two or three
+  An exact authoritative `2× Workload` or `3× Workload` label makes that video consume two or three
   units; an unlabeled video consumes one. If both exact labels exist, three wins. Label weights
   affect capacity/overload and workload ranking, never silently repack an automatic plan. Each editor block
   owns the only red over-capacity signal. The date keeps its normal background, border, number
@@ -385,14 +387,23 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   2.5-second best-effort mirror update. A pre-commit failure reverts and notifies; once Linear has
   confirmed the commit, a zero-row/timed-out mirror update stays successful with
   `mirror_pending=true`, keeps the new date in the browser, and warns that Workload is catching up.
+- F201's metadata adapter leaves that Linear boundary intact only for Linear-authoritative issue
+  IDs. SyncView-authoritative IDs use the native due/label relation directly; an exact `2× Workload`
+  or `3× Workload` label written through Production therefore reaches Video capacity math without
+  waiting for outbound Linear reflection. Graphics may display the same labels but remains 15
+  unweighted items.
 - **Deployment boundary:** effective live table/grant readback matches the locked 2026-07-19
   sidecar contract, and `workload-plan` v2 remains a deliberate-manual deployment. This candidate
-  adds one new deliberate-manual `workload-linear` function and browser caller; it changes no
-  schema, migration, table grant, runtime flag, n8n workflow, frozen writer, or real data. Nothing
-  is live until the reviewed merge and an exact-SHA manual function deployment/readback/TEST drill.
+  retains the deliberate-manual `workload-linear` function/browser caller and adds F201's one
+  source-only CHECK-superset migration plus label gateway/mirror/native-consumer source. It changes
+  no table/column data shape, table grant, runtime flag, n8n workflow, frozen writer, or real data.
+  Nothing is live until the reviewed merge and an exact-SHA manual migration/function
+  deployment/readback/TEST drill.
   A Pages-only revert removes the caller and restores the prior Workload display without changing
   saved plan data or Linear. If the function was deployed, retiring it is a separate captured
-  operation. F147 keeps the exact plan-sidecar revoke-correction artifact provenance open, and
+  operation. F201 additionally requires its owner-approved post-merge CHECK migration,
+  `production-write` deployment/readback, and real service-only TEST labels drill; none occurs in
+  this source session. F147 keeps the exact plan-sidecar revoke-correction artifact provenance open, and
   #884's server-atomic batch contract remains open.
 
 ## Linear sync surface
@@ -405,9 +416,13 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 ## Linear mirror tab (internal `production`; `#production`; `?prod=1`)
 
 - Visible top-nav label is **Linear**; the internal module/key remains `production`. #812's
-  status/comment/due/assignee controls are deployed through `production-write`, but authority
-  remains Linear/Linear, so real-team rows render read-only while the bounded private TEST override
-  can write. Human cutover is blocked by the audit register; this is not a future unwired preview.
+  status/comment/due/assignee controls are deployed through `production-write`. F201 candidate source
+  adds a lazy protected real Linear label catalog, selected color chips, searchable checkbox picker,
+  description tooltips, and an Admin/SMM guarded full-selected-set label operation with CAS and
+  idempotency. Real-team writes remain authority-gated; the pre-flip TEST drill remains service-only.
+  Only that service-authenticated TEST drill may bootstrap an older TEST row's missing native
+  selection from the same complete Linear snapshot; normal SyncView rows remain strictly native.
+  The migration/function/UI candidate is not live in this session.
 - A protected-write 401 becomes toast copy only: Production does not clear/reverify the staff session,
   open sign-in, preserve/replay the action after fresh authorization, or otherwise recover (F10).
 - F94: manual assignment is not eligibility-safe yet. The picker/server accept any active same-team
@@ -431,10 +446,11 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   can regress reviewer/terminal work or mutate peer work after a flip (F37/F136).
 - Video delivery/source data is collapsed from four typed fields to one priority winner labelled
   “Delivered file”; filming plan/raw footage can be hidden or mislabeled (F137).
-- The 2026-07-23 full-day audit is findings-only and changes no runtime. Ratified target scope now
-  includes real label display/set with exact Workload labels (F201), parent/sub-issue description
-  writes (F202), and native parent/sub-issue creation with zero implicit Calendar linkage (F203).
-  Production currently implements none of those write contracts.
+- The 2026-07-23 full-day audit remains immutable findings evidence. F201 is now source-only
+  `IN-PROGRESS`: label read/display/set plus the exact native Workload metadata seam are implemented
+  in the candidate, with migration/deployment/drill/review/merge still gated. Parent/sub-issue
+  description writes (F202) and native parent/sub-issue creation with zero implicit Calendar linkage
+  (F203) remain unimplemented and were not started.
 - F200 is distinct from F145: the real parent link resolves correctly, but each row independently
   renders its persisted `client_slug`. Read-only aggregate proof found 72 of 4,600 render-eligible
   mirror rows `unattributed` (70 missing-project ambiguous; two hierarchy-attribution failures;

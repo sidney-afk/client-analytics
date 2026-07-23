@@ -320,6 +320,281 @@ function backgroundHarness(options = {}) {
 }
 
 async function run() {
+  // F201/F40: metadata follows the per-team authority split. A SyncView-
+  // authoritative video reads its native due date and canonical labels from
+  // deliverables; only the still-Linear graphics id reaches workload-linear.
+  {
+    const calls = [];
+    const mixed = {
+      CAL_SUPABASE_URL: 'https://example.invalid',
+      CAL_SUPABASE_ANON_KEY: 'anon',
+      WORKLOAD_LINEAR_URL: 'https://example.invalid/functions/v1/workload-linear',
+      WL_LINEAR_READ_TIMEOUT_MS: 20000,
+      _wlPlanSessionGeneration: 0,
+      wlState: { workloadByIssueId: new Map(), linearMetadataStatus: 'loading', linearMetadataError: null },
+      _syncviewRequireStaffIdentity: async () => ({ role: 'admin' }),
+      _syncviewEfHeaders: headers => headers,
+      wlIsActiveStatus: () => true,
+      wlIsAllowedClient: () => true,
+      wlWriteCache: () => {},
+      fetch: async (url, options = {}) => {
+        calls.push({ url: String(url), body: options.body ? JSON.parse(options.body) : null });
+        if (String(url).includes('syncview_runtime_flags')) {
+          return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'linear' } }] };
+        }
+        if (String(url).includes('/rest/v1/deliverables')) {
+          return { ok: true, status: 200, json: async () => [{
+            linear_issue_uuid: 'native-video',
+            due_date: '2026-08-14',
+            linear_raw: { issue: { labels: {
+              nodes: [
+                { id: 'ordinary', name: 'Keep me', color: '#112233', description: 'Arbitrary label survives' },
+                { id: 'three', name: '3× Workload', color: '#00aa44', description: 'Three units' },
+              ],
+              pageInfo: { hasNextPage: false },
+            } } },
+          }] };
+        }
+        if (String(url).includes('/functions/v1/workload-linear')) {
+          return { ok: true, status: 200, json: async () => ({
+            ok: true,
+            complete: true,
+            rows: [{ issue_id: 'linear-graphics', due_date: '2026-08-15', workload: {
+              label: '3× Workload', weight: 3, color: '#FF0000',
+            } }],
+          }) };
+        }
+        throw new Error('unexpected fetch ' + url);
+      },
+      AbortController, setTimeout, clearTimeout, encodeURIComponent,
+      JSON, String, Number, Error, Promise, Map, Set, Array, console,
+    };
+    mixed.globalThis = mixed;
+    vm.createContext(mixed);
+    for (const name of [
+      'wlProductionAuthorityValue',
+      'wlFetchProductionAuthority',
+      'wlFetchForeignLinearMetadata',
+      'wlNativeWorkloadLabel',
+      'wlNativeDueDate',
+      'wlFetchNativeMetadata',
+      'wlMetadataFailure',
+      'wlTeamBucket',
+      'wlEditorCapacity',
+      'wlFetchLinearMetadata',
+      'wlAdoptLinearMetadata',
+      'wlWorkloadMeta',
+      'wlWorkloadWeight',
+    ]) vm.runInContext(extract(name), mixed);
+    const issues = [
+      backgroundIssue({ id: 'native-video', teamKey: 'VID', teamName: 'Video' }),
+      backgroundIssue({ id: 'linear-graphics', teamKey: 'GRA', teamName: 'Graphics' }),
+    ];
+    const rows = await mixed.wlFetchLinearMetadata(issues);
+    assert.deepStrictEqual(Array.from(rows, row => row.issue_id).sort(), ['linear-graphics', 'native-video']);
+    assert.deepStrictEqual(
+      calls.find(call => call.url.includes('/functions/v1/workload-linear')).body.issue_ids,
+      ['linear-graphics'],
+      'only Linear-authoritative ids cross the workload-linear boundary');
+    assert(calls.find(call => call.url.includes('/rest/v1/deliverables')).url.includes('native-video'),
+      'SyncView-authoritative ids use native deliverables metadata');
+    mixed.wlAdoptLinearMetadata(rows, issues, 1);
+    assert.strictEqual(issues[0].dueDate, '2026-08-14', 'native due date reaches the current metadata shape');
+    assert.strictEqual(mixed.wlState.workloadByIssueId.get('native-video').label, '3× Workload',
+      'exact native Workload label reaches the shared metadata map');
+    assert.strictEqual(mixed.wlWorkloadWeight(issues[0]), 3, 'native exact label reaches video capacity math');
+    assert.strictEqual(mixed.wlWorkloadWeight(issues[1]), 1, 'Graphics remains 15 unweighted items');
+    assert.strictEqual(mixed.wlEditorCapacity('GRA', 'Graphics'), 15, 'Graphics capacity remains exactly 15 items');
+    assert.throws(() => mixed.wlNativeDueDate('2026-02-30'), /malformed/,
+      'native due dates are exact calendar dates, not sliced arbitrary strings');
+
+    const originalFetch = mixed.fetch;
+    mixed.fetch = async url => {
+      if (String(url).includes('syncview_runtime_flags')) {
+        return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
+      }
+      if (String(url).includes('/rest/v1/deliverables')) {
+        return { ok: true, status: 200, json: async () => [{
+          linear_issue_uuid: 'native-empty',
+          due_date: null,
+          linear_raw: { issue: { labels: { nodes: [], pageInfo: { hasNextPage: false } } } },
+        }] };
+      }
+      throw new Error('empty native state fell through to Linear');
+    };
+    const emptyRows = await mixed.wlFetchLinearMetadata([backgroundIssue({ id: 'native-empty' })]);
+    assert.strictEqual(emptyRows[0].workload, null, 'an explicit complete empty native label relation remains valid');
+
+    mixed.fetch = async url => {
+      if (String(url).includes('syncview_runtime_flags')) {
+        return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
+      }
+      if (String(url).includes('/rest/v1/deliverables')) {
+        return { ok: true, status: 200, json: async () => [{
+          linear_issue_uuid: 'native-incomplete',
+          due_date: null,
+          linear_raw: { issue: { labels: { nodes: [], pageInfo: { hasNextPage: true } } } },
+        }] };
+      }
+      throw new Error('incomplete native state fell through to Linear');
+    };
+    await assert.rejects(
+      mixed.wlFetchLinearMetadata([backgroundIssue({ id: 'native-incomplete' })]),
+      /label state is incomplete/,
+      'a paginated native label relation fails closed instead of silently weighting one');
+
+    mixed.fetch = async url => {
+      if (String(url).includes('syncview_runtime_flags')) {
+        return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
+      }
+      if (String(url).includes('/rest/v1/deliverables')) {
+        return { ok: true, status: 200, json: async () => [{
+          linear_issue_uuid: 'native-missing-page-info',
+          due_date: null,
+          linear_raw: { issue: { labels: { nodes: [] } } },
+        }] };
+      }
+      throw new Error('unproven native state fell through to Linear');
+    };
+    await assert.rejects(
+      mixed.wlFetchLinearMetadata([backgroundIssue({ id: 'native-missing-page-info' })]),
+      /label state is incomplete/,
+      'a nodes-only native label relation cannot claim complete empty state');
+
+    for (const malformedRelation of [
+      {
+        id: 'native-duplicate-node',
+        issue: {
+          labelIds: ['duplicate'],
+          labels: {
+            nodes: [{ id: 'duplicate', name: 'One' }, { id: 'duplicate', name: 'Two' }],
+            pageInfo: { hasNextPage: false },
+          },
+        },
+        message: 'duplicate native label nodes fail closed',
+      },
+      {
+        id: 'native-malformed-node',
+        issue: {
+          labelIds: ['missing-name'],
+          labels: {
+            nodes: [{ id: 'missing-name', name: '' }],
+            pageInfo: { hasNextPage: false },
+          },
+        },
+        message: 'native label nodes require a nonempty id and name',
+      },
+      {
+        id: 'native-duplicate-label-ids',
+        issue: {
+          labelIds: ['one', 'one'],
+          labels: {
+            nodes: [{ id: 'one', name: 'One' }],
+            pageInfo: { hasNextPage: false },
+          },
+        },
+        message: 'duplicate native labelIds fail closed',
+      },
+      {
+        id: 'native-label-id-mismatch',
+        issue: {
+          labelIds: ['other'],
+          labels: {
+            nodes: [{ id: 'one', name: 'One' }],
+            pageInfo: { hasNextPage: false },
+          },
+        },
+        message: 'native labelIds must exactly match the relation nodes',
+      },
+    ]) {
+      mixed.fetch = async url => {
+        if (String(url).includes('syncview_runtime_flags')) {
+          return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
+        }
+        if (String(url).includes('/rest/v1/deliverables')) {
+          return { ok: true, status: 200, json: async () => [{
+            linear_issue_uuid: malformedRelation.id,
+            due_date: null,
+            linear_raw: { issue: malformedRelation.issue },
+          }] };
+        }
+        throw new Error('invalid native state fell through to Linear');
+      };
+      await assert.rejects(
+        mixed.wlFetchLinearMetadata([backgroundIssue({ id: malformedRelation.id })]),
+        /label state is incomplete/,
+        malformedRelation.message);
+    }
+    mixed.fetch = originalFetch;
+
+    const failCalls = [];
+    const nativeIssue = backgroundIssue({ id: 'native-only', dueDate: '2026-09-01' });
+    const nativeFailure = {
+      ...mixed,
+      wlState: {
+        issueSnapshot: [nativeIssue],
+        allActiveSubs: [nativeIssue],
+        workloadByIssueId: new Map([['native-only', {
+          label: '3\u00d7 Workload',
+          weight: 3,
+          color: '#EF4444',
+        }]]),
+        linearMetadataStatus: 'loading',
+        linearMetadataError: null,
+      },
+      fetch: async (url, options = {}) => {
+        failCalls.push({ url: String(url), body: options.body ? JSON.parse(options.body) : null });
+        if (String(url).includes('syncview_runtime_flags')) {
+          return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
+        }
+        if (String(url).includes('/rest/v1/deliverables')) {
+          return { ok: false, status: 503, json: async () => ({}) };
+        }
+        throw new Error('native issue fell through to foreign metadata');
+      },
+    };
+    nativeFailure.globalThis = nativeFailure;
+    vm.createContext(nativeFailure);
+    for (const name of [
+      'wlProductionAuthorityValue',
+      'wlFetchProductionAuthority',
+      'wlFetchForeignLinearMetadata',
+      'wlNativeWorkloadLabel',
+      'wlNativeDueDate',
+      'wlFetchNativeMetadata',
+      'wlMetadataFailure',
+      'wlTeamBucket',
+      'wlFetchLinearMetadata',
+      'wlSanitizeFailedNativeMetadata',
+      'wlMarkLinearMetadataFailure',
+      'wlWorkloadMeta',
+      'wlWorkloadWeight',
+    ]) vm.runInContext(extract(name), nativeFailure);
+    assert.strictEqual(nativeFailure.wlWorkloadWeight(nativeIssue), 3,
+      'fixture begins with a retained foreign 3x weight');
+    let nativeMetadataError = null;
+    await assert.rejects(async () => {
+      try {
+        await nativeFailure.wlFetchLinearMetadata([nativeIssue]);
+      } catch (error) {
+        nativeMetadataError = error;
+        throw error;
+      }
+    }, /Native Workload metadata HTTP 503/);
+    assert.strictEqual(nativeFailure.wlMarkLinearMetadataFailure(nativeMetadataError, [nativeIssue]), true,
+      'authority-flip native failure sanitizes retained feeder metadata');
+    assert.strictEqual(nativeIssue.dueDate, null,
+      'foreign workload_issues due date is cleared after the issue becomes SyncView-authoritative');
+    assert.strictEqual(nativeFailure.wlState.issueSnapshot[0].dueDate, null,
+      'the currently published Workload snapshot cannot retain the foreign due date');
+    assert.strictEqual(nativeFailure.wlState.workloadByIssueId.has('native-only'), false,
+      'the prior foreign 3x label weight is removed');
+    assert.strictEqual(nativeFailure.wlWorkloadWeight(nativeIssue), 1,
+      'failed native metadata falls closed to one capacity unit');
+    assert.strictEqual(failCalls.some(call => call.url.includes('/functions/v1/workload-linear')), false,
+      'native metadata failure never falls back to Linear');
+  }
+
   const happy = harness({ body: {
     ok: true,
     linear_committed: true,
@@ -993,6 +1268,7 @@ async function run() {
         wlAdoptLinearMetadata: () => { counts.metadataAdopt++; },
         wlMarkPlanReadFailure: () => {},
         wlMarkLinearMetadataFailure: () => {},
+        wlSanitizeFailedNativeMetadata: () => false,
         wlApplyData: (issues, fetchedAt) => {
           counts.issueApply++;
           foreground.wlState.issueSnapshot = issues;

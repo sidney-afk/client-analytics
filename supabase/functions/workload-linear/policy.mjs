@@ -28,6 +28,41 @@ export function workloadTeamBucket(teamKey, teamName) {
   return keyBucket || nameBucket;
 }
 
+export function linearIssueTeamDecision(value, expectedIssueId, mirroredTeam) {
+  const issueId = clean(expectedIssueId);
+  const expectedTeam = clean(mirroredTeam).toLowerCase();
+  if (!isPlainObject(value)
+      || value.id !== issueId
+      || !isPlainObject(value.team)
+      || !["video", "graphics"].includes(expectedTeam)) {
+    return {
+      ok: false,
+      status: 503,
+      error: "linear_team_unavailable",
+      team: "",
+    };
+  }
+
+  const currentTeam = workloadTeamBucket(value.team.key, value.team.name);
+  if (currentTeam !== "video" && currentTeam !== "graphics") {
+    return {
+      ok: false,
+      status: 409,
+      error: "issue_team_unavailable",
+      team: "",
+    };
+  }
+  if (currentTeam !== expectedTeam) {
+    return {
+      ok: false,
+      status: 409,
+      error: "issue_team_changed",
+      team: currentTeam,
+    };
+  }
+  return { ok: true, status: 200, error: "", team: currentTeam };
+}
+
 export function productionAuthorityValue(value) {
   let parsed = value;
   if (typeof parsed === "string") {

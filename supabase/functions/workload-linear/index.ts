@@ -26,6 +26,7 @@ import {
   exactDueDateAcknowledgement,
   graphqlResponseHasErrors,
   linearAuthorityDecision,
+  linearIssueTeamDecision,
   linearMetadataRow,
   metadataSuccessReceipt,
   normalizeMetadataIssueIds,
@@ -235,6 +236,26 @@ async function requireLinearAuthority(
   if (!decision.ok) throw new WorkloadLinearError(decision.status, decision.error);
 }
 
+async function requireCurrentLinearTeam(
+  issueId: string,
+  mirroredTeam: "video" | "graphics",
+): Promise<"video" | "graphics"> {
+  const query = "query WorkloadLinearIssueTeam($id: String!) { issue(id: $id) { id team { key name } } }";
+  const result = await linearRequest(query, { id: issueId });
+  if (result.hasErrors) {
+    throw new WorkloadLinearError(503, "linear_team_unavailable");
+  }
+  const decision = linearIssueTeamDecision(
+    result.data.issue,
+    issueId,
+    mirroredTeam,
+  );
+  if (!decision.ok || (decision.team !== "video" && decision.team !== "graphics")) {
+    throw new WorkloadLinearError(decision.status, decision.error);
+  }
+  return decision.team;
+}
+
 function metadataQuery(issueIds: string[]): { query: string; variables: JsonMap } {
   const declarations: string[] = [];
   const selections: string[] = [];
@@ -418,10 +439,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const target = await requireWritableSubIssue(db, issueId, client);
-    // Re-read the owning team's exact authority immediately before the external
-    // mutation. A tab that loaded while Linear-owned cannot keep writing Linear
-    // after the team flips to SyncView.
-    await requireLinearAuthority(db, target.team);
+    // Resolve the issue's current Linear team rather than trusting the mirror's
+    // potentially stale team. A move fails closed until the mirror reconciles;
+    // only then do we choose and re-read that exact team's current authority.
+    const currentTeam = await requireCurrentLinearTeam(issueId, target.team);
+    await requireLinearAuthority(db, currentTeam);
     const committed = await setLinearDueDate(issueId, dueDate);
     linearCommitted = true;
 

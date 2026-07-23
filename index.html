@@ -13345,6 +13345,8 @@
     const WL_PLAN_WRITE_TIMEOUT_MS = 10000;
     const WL_LINEAR_READ_TIMEOUT_MS = 20000;
     const WL_LINEAR_WRITE_TIMEOUT_MS = 12000;
+    const WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY = 'syncview_workload_native_due_receipt_v1';
+    const WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA = 'syncview.workload.native-due-receipt.v1';
     const _wlPlanWriteInFlight = new Map();
     const _wlDueWriteInFlight = new Map();
     const _wlPlanLastWriteGeneration = new Map();
@@ -14844,6 +14846,10 @@
         window.__wlVisibilityWired = true;
         document.addEventListener('visibilitychange', _wlOnVisibilityChange);
     }
+    if (typeof window !== 'undefined' && !window.__wlNativeDueReceiptWired) {
+        window.__wlNativeDueReceiptWired = true;
+        window.addEventListener('storage', _wlOnNativeDueReceiptStorage);
+    }
 
     // Debug helper — run  wlDebug()  in the browser console while on the Workload tab.
     window.wlDebug = function(needle) {
@@ -15170,6 +15176,75 @@
         return false;
     }
 
+    function wlPublishNativeDueReceipt(row) {
+        const nativeId = String(row && row.id || '').trim();
+        const clientSlug = String(row && row.client_slug || '').trim();
+        const team = wlMetadataTeamBucket('', row && row.team);
+        const updatedAt = String(row && row.updated_at || '').trim();
+        if (!nativeId || !clientSlug || !team || !wlValidRfc3339Timestamp(updatedAt)
+            || !Object.prototype.hasOwnProperty.call(row || {}, 'due_date')) return false;
+        let dueDate = null;
+        try { dueDate = wlNativeDueDate(row.due_date); }
+        catch (error) { return false; }
+        const payload = JSON.stringify({
+            schema: WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA,
+            native_committed: true,
+            authority: 'syncview',
+            nonce: wlDueWriteRequestId(nativeId),
+            row: {
+                id: nativeId,
+                client_slug: clientSlug,
+                team,
+                due_date: dueDate,
+                updated_at: updatedAt
+            }
+        });
+        try {
+            // `storage` reaches sibling documents but not this writer. Remove the
+            // checkpoint immediately: the exact gateway row is a refetch signal,
+            // not a second browser-owned source of due truth.
+            localStorage.setItem(WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY, payload);
+            localStorage.removeItem(WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY);
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async function _wlOnNativeDueReceiptStorage(event) {
+        try {
+            if (!event || event.key !== WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY || !event.newValue) return false;
+            if (event.storageArea && event.storageArea !== localStorage) return false;
+            const receipt = JSON.parse(event.newValue);
+            const row = receipt && receipt.row;
+            const nativeId = String(row && row.id || '').trim();
+            const clientSlug = String(row && row.client_slug || '').trim();
+            const team = wlMetadataTeamBucket('', row && row.team);
+            const updatedAt = String(row && row.updated_at || '').trim();
+            if (!receipt || receipt.schema !== WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA
+                || receipt.native_committed !== true || receipt.authority !== 'syncview'
+                || !String(receipt.nonce || '').trim() || !nativeId || !clientSlug || !team
+                || !wlValidRfc3339Timestamp(updatedAt)
+                || !Object.prototype.hasOwnProperty.call(row || {}, 'due_date')) return false;
+            const dueDate = wlNativeDueDate(row.due_date);
+            if (dueDate !== row.due_date) return false;
+            const targetEntry = [...(wlState.nativeDueTargetByIssueId || new Map()).entries()]
+                .find(([, target]) => target && String(target.id || '') === nativeId
+                    && String(target.clientSlug || '') === clientSlug && target.team === team);
+            if (!targetEntry) return false;
+            const [issueId, target] = targetEntry;
+            const authority = wlState.dueAuthorityByIssueId && wlState.dueAuthorityByIssueId.get(issueId);
+            if (!authority || authority.authority !== 'syncview' || authority.team !== team
+                || String(target.updatedAt || '') === updatedAt) return false;
+            // Native writes do not advance workload_issues.synced_at. Re-read the
+            // guarded authority/native projection directly instead of consulting
+            // the inactive fast bridge or consuming the feeder watermark.
+            return await wlRefetchSilent({ sensitiveOnly: true });
+        } catch (error) {
+            return false;
+        }
+    }
+
     async function _wlDueWriteRequest(issue, dueDate, route) {
         await _syncviewRequireStaffIdentity('workload-linear');
         const controller = new AbortController();
@@ -15269,6 +15344,7 @@
                     && wlValidRfc3339Timestamp(row.updated_at);
                 if (exactNativeAck) {
                     if (!wlAdoptNativeDueGatewayRow(row)) throw new Error('native_due_receipt_mismatch');
+                    wlPublishNativeDueReceipt(row);
                     if (typeof _prodApplyGatewayRow === 'function') _prodApplyGatewayRow(row);
                     return true;
                 }
@@ -15276,6 +15352,7 @@
                     && row && String(row.id || '') === String(route.nativeId)
                     && wlAdoptNativeDueGatewayRow(row);
                 if (adoptedConflict) {
+                    wlPublishNativeDueReceipt(row);
                     if (typeof _prodApplyGatewayRow === 'function') _prodApplyGatewayRow(row);
                     if (typeof showNotify === 'function') {
                         showNotify('Due date changed elsewhere', 'The current native due date was reloaded. Review it and try again.');

@@ -48,6 +48,7 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
   let optimisticPlacementAtRequest = null;
   let lastRequest = null;
   const gatewayRows = [];
+  const dueReceiptSignals = [];
   let sensitiveRefreshes = 0;
   const authorityFingerprint = authority === 'syncview'
     ? 'video:syncview|graphics:linear'
@@ -57,6 +58,8 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     PROD_WRITE_EF_URL: 'https://example.invalid/functions/v1/production-write',
     CAL_SUPABASE_ANON_KEY: 'anon',
     WL_LINEAR_WRITE_TIMEOUT_MS: 12000,
+    WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY: 'syncview_workload_native_due_receipt_v1',
+    WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA: 'syncview.workload.native-due-receipt.v1',
     _wlPlanLoadGeneration: 0,
     _wlPlanSessionGeneration: 0,
     _wlDueWriteInFlight: new Map(),
@@ -107,6 +110,10 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
       };
     },
     _prodApplyGatewayRow: row => gatewayRows.push(row),
+    localStorage: {
+      setItem: (key, value) => dueReceiptSignals.push({ operation: 'set', key, value }),
+      removeItem: key => dueReceiptSignals.push({ operation: 'remove', key }),
+    },
     document: { querySelector: () => ({}) },
     AbortController,
     setTimeout,
@@ -132,6 +139,8 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     'wlDueWriteRoute',
     'wlDueWriteRequestId',
     'wlAdoptNativeDueGatewayRow',
+    'wlPublishNativeDueReceipt',
+    '_wlOnNativeDueReceiptStorage',
     '_wlDueWriteRequest',
     'wlSetDueDate',
   ]) vm.runInContext(extract(name), context);
@@ -145,6 +154,7 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     get optimisticPlacementAtRequest() { return optimisticPlacementAtRequest; },
     get lastRequest() { return lastRequest; },
     gatewayRows,
+    dueReceiptSignals,
     get sensitiveRefreshes() { return sensitiveRefreshes; },
   };
 }
@@ -865,6 +875,46 @@ async function run() {
     'native success does not forge the workload_issues feeder watermark');
   assert.strictEqual(native.gatewayRows.length, 1,
     'native success is offered to the in-memory Production projection without a bridge round-trip');
+  const nativeReceiptSet = native.dueReceiptSignals.find(entry => entry.operation === 'set');
+  assert(nativeReceiptSet, 'an exact native gateway receipt emits one sibling-tab invalidation signal');
+  assert(native.dueReceiptSignals.some(entry => entry.operation === 'remove'
+    && entry.key === nativeReceiptSet.key),
+  'the receipt signal is removed immediately instead of becoming browser-owned due truth');
+  const nativeReceipt = JSON.parse(nativeReceiptSet.value);
+  assert.deepStrictEqual(nativeReceipt.row, {
+    id: 'native-deliverable-1',
+    client_slug: 'synthetic-client',
+    team: 'video',
+    due_date: '2027-01-05',
+    updated_at: '2026-07-22T12:00:00Z',
+  }, 'the cross-tab signal is tied to the exact acknowledged native row');
+
+  const sibling = harness({ body: {} }, 'admin', null, 'syncview');
+  assert.strictEqual(await sibling.context._wlOnNativeDueReceiptStorage({
+    key: nativeReceiptSet.key,
+    newValue: nativeReceiptSet.value,
+    storageArea: sibling.context.localStorage,
+  }), true);
+  assert.strictEqual(sibling.sensitiveRefreshes, 1,
+    'a sibling Workload tab bypasses the unchanged feeder watermark and refetches native metadata');
+  sibling.context.wlState.nativeDueTargetByIssueId.get('synthetic-issue-1').updatedAt =
+    nativeReceipt.row.updated_at;
+  assert.strictEqual(await sibling.context._wlOnNativeDueReceiptStorage({
+    key: nativeReceiptSet.key,
+    newValue: nativeReceiptSet.value,
+    storageArea: sibling.context.localStorage,
+  }), false);
+  assert.strictEqual(sibling.sensitiveRefreshes, 1,
+    'a sibling that already consumed the exact native cursor does not refetch again');
+
+  const linearSibling = harness({ body: {} });
+  assert.strictEqual(await linearSibling.context._wlOnNativeDueReceiptStorage({
+    key: nativeReceiptSet.key,
+    newValue: nativeReceiptSet.value,
+    storageArea: linearSibling.context.localStorage,
+  }), false);
+  assert.strictEqual(linearSibling.sensitiveRefreshes, 0,
+    'a receipt for an unbound native target cannot invalidate a Linear-authoritative route');
 
   native.context._prodState = {
     deliverables: [{

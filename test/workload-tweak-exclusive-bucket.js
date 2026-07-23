@@ -1056,6 +1056,25 @@ check(/!_wlV2Ready\(\) \|\| _wlV2WatermarkTimer/.test(watermarkPollSource)
     && /_wlV2WatermarkBusy = false/.test(workloadTeardownSource),
   'one 60-second watermark poll starts with Workload and teardown always clears its timer and busy state');
 
+const nativeDuePublishSource = grabFunc('wlPublishNativeDueReceipt');
+const nativeDueStorageSource = grabFunc('_wlOnNativeDueReceiptStorage');
+const dueWriteSource = grabFunc('wlSetDueDate');
+check(/schema:\s*WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA/.test(nativeDuePublishSource)
+    && /native_committed:\s*true/.test(nativeDuePublishSource)
+    && /localStorage\.setItem\(WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY,\s*payload\)/.test(nativeDuePublishSource)
+    && /localStorage\.removeItem\(WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY\)/.test(nativeDuePublishSource)
+    && /if \(exactNativeAck\)[\s\S]*wlAdoptNativeDueGatewayRow\(row\)[\s\S]*wlPublishNativeDueReceipt\(row\)/.test(dueWriteSource),
+  'only an exact adopted native gateway row emits the ephemeral sibling-tab due receipt');
+check(/event\.key !== WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY/.test(nativeDueStorageSource)
+    && /receipt\.schema !== WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA/.test(nativeDueStorageSource)
+    && /receipt\.native_committed !== true \|\| receipt\.authority !== 'syncview'/.test(nativeDueStorageSource)
+    && /nativeDueTargetByIssueId/.test(nativeDueStorageSource)
+    && /dueAuthorityByIssueId/.test(nativeDueStorageSource)
+    && /wlRefetchSilent\(\{\s*sensitiveOnly:\s*true\s*\}\)/.test(nativeDueStorageSource)
+    && !/_wlV2CheckWatermark|_wlV2FetchLatestWatermark|_wlV2FetchIssues|loadLinearIssues|LINEAR_ISSUES_WEBHOOK/.test(nativeDueStorageSource)
+    && /window\.addEventListener\('storage',\s*_wlOnNativeDueReceiptStorage\)/.test(INDEX),
+  'a bound sibling receipt re-reads guarded native metadata without the feeder watermark or inactive bridge');
+
 const workloadShellSource = grabFunc('renderWorkloadShell');
 const overviewIndex = workloadShellSource.indexOf('id="wlOverview"');
 const calendarModuleIndex = workloadShellSource.indexOf('class="workload-calendar-module"');

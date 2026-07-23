@@ -49,6 +49,8 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const writeUiRerouteClients = { clients: ['normal-fixture', 'calendarfixture'] };
   const writes = [];
   const labelReads = [];
+  const createOptionReads = [];
+  const createdProductionIssues = [];
   const labelCatalog = [
     { id: 'ordinary', name: 'Ordinary label', color: '#5E6AD2', description: 'An arbitrary label that must survive every write.' },
     { id: 'workload-2', name: '2× Workload', color: '#F59E0B', description: 'Counts as two video workload units.' },
@@ -57,6 +59,9 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const selectedLabelIds = new Map(deliverables.map(row => [row.id, ['ordinary']]));
   let heldLabelRead = null;
   let heldLabelWrite = null;
+  let heldCreateOptions = null;
+  let failedProductionCreates = 0;
+  let conflictingProductionCreates = 0;
   const descriptionReads = [];
   let heldDescriptionRead = null;
   let heldBriefsRead = null;
@@ -68,6 +73,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const legacyProjectReads = [];
   const restHits = [];
   const networkOrder = [];
+  const implicitCardWrites = [];
   let calendarIntakeCount = 0;
   let revision = 0;
   const server = await serve();
@@ -77,6 +83,10 @@ function expect(value, message) { if (!value) throw new Error(message); }
   page.on('pageerror', error => pageErrors.push(error.stack || error.message));
   page.on('request', request => {
     if (/\/webhook\/(video-form|graphic-form)(?:\?|$)/.test(request.url())) legacyCreateHits.push(request.url());
+    if (request.method() !== 'GET'
+        && /(?:calendar-upsert|sample-review-upsert|samples-upsert)/i.test(request.url())) {
+      implicitCardWrites.push({ method: request.method(), url: request.url() });
+    }
   });
   await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
 
@@ -189,6 +199,42 @@ function expect(value, message) { if (!value) throw new Error(message); }
       });
       return;
     }
+    if (body.action === 'create_options') {
+      const read = { body, headers: request.headers(), response: null };
+      createOptionReads.push(read);
+      const held = heldCreateOptions;
+      if (held) {
+        heldCreateOptions = null;
+        held.started();
+        await held.release;
+      }
+      const client = clients.find(item => item.slug === body.client_slug && item.active === true);
+      const authorized = read.headers['x-syncview-key'] === 'browser-role-key'
+        && read.headers['x-syncview-actor'] === 'Browser Admin';
+      if (!authorized) {
+        read.response = { ok: false, error: 'credentials_required' };
+        await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify(read.response) });
+        return;
+      }
+      if (!client) {
+        read.response = { ok: false, error: 'client_not_found' };
+        await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify(read.response) });
+        return;
+      }
+      if (serverAuthority[body.team] !== 'syncview') {
+        read.response = { ok: false, error: 'team_is_linear_authoritative' };
+        await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(read.response) });
+        return;
+      }
+      read.response = {
+        ok: true,
+        complete: true,
+        authority: 'syncview',
+        catalog: labelCatalog,
+      };
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(read.response) });
+      return;
+    }
     const write = { body, headers: request.headers(), response: null };
     writes.push(write);
     if (body.operation === 'intake_create') {
@@ -207,6 +253,81 @@ function expect(value, message) { if (!value) throw new Error(message); }
         batch: { id: body.batch_id || (calendarSequence ? `native-calendar-batch-${calendarSequence}` : 'native-batch') }, items,
       };
       if (calendarSequence) networkOrder.push(`gateway-response:${body.request_id}`);
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(write.response) });
+      return;
+    }
+    if (body.operation === 'create') {
+      if (write.headers['x-syncview-key'] !== 'browser-role-key'
+          || write.headers['x-syncview-actor'] !== 'Browser Admin') {
+        write.response = { ok: false, error: 'credentials_required' };
+        await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify(write.response) });
+        return;
+      }
+      if (body.test_override === true) {
+        write.response = { ok: false, error: 'invalid_test_override' };
+        await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify(write.response) });
+        return;
+      }
+      if (failedProductionCreates > 0) {
+        failedProductionCreates--;
+        write.response = { ok: false, error: 'synthetic_create_failure' };
+        await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify(write.response) });
+        return;
+      }
+      if (conflictingProductionCreates > 0) {
+        conflictingProductionCreates--;
+        write.response = { ok: false, error: 'idempotency_conflict' };
+        await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
+        return;
+      }
+      const client = clients.find(item => item.slug === body.client_slug && item.active === true);
+      const parent = body.parent_id
+        ? deliverables.find(item => item.id === body.parent_id)
+        : null;
+      const parentIsValid = !body.parent_id || (parent
+        && !parent.raw_issue_parent_id
+        && parent.client_slug === body.client_slug
+        && parent.team === body.team);
+      const allowed = client && serverAuthority[body.team] === 'syncview' && parentIsValid;
+      if (!allowed) {
+        write.response = {
+          ok: false,
+          error: !parentIsValid ? 'parent_scope_mismatch' : 'team_is_linear_authoritative',
+        };
+        await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
+        return;
+      }
+      const sequence = createdProductionIssues.length + 1;
+      const projectId = ((client.linear_project_ids || [])[0] || {}).id || null;
+      const row = {
+        id: `production-created-${sequence}`,
+        identifier: `${body.team === 'graphics' ? 'GRA' : 'VID'}-CREATE-${sequence}`,
+        linear_issue_uuid: `linear-production-created-${sequence}`,
+        raw_project_id: projectId,
+        raw_issue_parent_id: parent ? parent.linear_issue_uuid : null,
+        client_slug: body.client_slug,
+        team: body.team,
+        title: body.title,
+        brief: body.description,
+        status: body.status,
+        status_at: now,
+        assignee_id: body.assignee_id,
+        due_date: body.due_date,
+        created_at: now,
+        updated_at: `2026-07-12T12:01:${String(sequence).padStart(2, '0')}.000Z`,
+      };
+      deliverables.push(row);
+      selectedLabelIds.set(row.id, Array.isArray(body.label_ids) ? [...body.label_ids] : []);
+      createdProductionIssues.push(row);
+      write.response = {
+        ok: true,
+        native_committed: true,
+        authority: 'syncview',
+        mirror_pending: true,
+        mirror: [],
+        batch: { id: `production-batch-${sequence}` },
+        row: { ...row },
+      };
       await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(write.response) });
       return;
     }
@@ -305,6 +426,336 @@ function expect(value, message) { if (!value) throw new Error(message); }
     await page.waitForSelector('[data-prod-comment-form="gra-fixture"]');
     expect((await page.locator('.prod-preview-chip').textContent()).includes('Graphics writable'), 'mixed-team authority was not visible in the mirror chrome');
     expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'false', 'SyncView-authoritative graphics controls were not enabled');
+
+    const implicitWritesBeforeProductionCreate = implicitCardWrites.length;
+    const calendarWritesBeforeProductionCreate = calendarWrites.length;
+    const legacyCreatesBeforeProductionCreate = legacyCreateHits.length;
+    failedProductionCreates = 1;
+    await page.evaluate(() => {
+      _prodState.openId = '';
+      _prodState.openProjectId = 'normal-fixture';
+      _prodState.team = 'graphics';
+      _prodOpenCreate();
+    });
+    await page.waitForSelector('[data-prod-create-modal]');
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    const createOptionsRead = createOptionReads[createOptionReads.length - 1];
+    expect(createOptionsRead
+      && createOptionsRead.body.action === 'create_options'
+      && createOptionsRead.body.surface === 'production'
+      && createOptionsRead.body.client_slug === 'normal-fixture'
+      && createOptionsRead.body.team === 'graphics'
+      && createOptionsRead.headers['x-syncview-key'] === 'browser-role-key'
+      && createOptionsRead.headers['x-syncview-actor'] === 'Browser Admin'
+      && createOptionsRead.response.complete === true,
+    'creation did not read a protected complete team label catalog');
+    const createWorkloadOption = page.locator('[data-prod-create-label-option="workload-3"]');
+    expect(await createWorkloadOption.locator('input[type="checkbox"]').isChecked() === false,
+      'creation label catalog did not start with an explicit unchecked state');
+    expect(await createWorkloadOption.locator('.prod-label-dot').evaluate(element =>
+      getComputedStyle(element).getPropertyValue('--prod-label-color').trim().toUpperCase()) === '#EF4444',
+    'creation label color did not reach the rendered option');
+    expect((await createWorkloadOption.getAttribute('title')).includes('three video workload units')
+      && (await createWorkloadOption.locator('small').textContent()).includes('three video workload units'),
+    'creation label description was not exposed as visible help and a tooltip');
+    await page.locator('.prod-create-label-search').fill('three video workload');
+    expect(await page.locator('[data-prod-create-label-option]:visible').count() === 1,
+      'creation label search did not narrow the complete catalog');
+    await createWorkloadOption.locator('input[type="checkbox"]').check();
+    expect(await createWorkloadOption.locator('input[type="checkbox"]').isChecked(),
+      'creation label checkbox did not preserve selected state');
+    await page.locator('.prod-create-label-search').fill('');
+    await page.locator('[data-prod-create-label-option="ordinary"] input[type="checkbox"]').check();
+
+    const parentTitle = 'TEST Production parent creation';
+    const parentMarkdown = '# Parent creation\n\n- Preserve this Markdown  \n\n**Owner:** Browser Admin\n';
+    await page.locator('#prodCreateTitle').fill(parentTitle);
+    await page.locator('#prodCreateDescription').fill(parentMarkdown);
+    await page.locator('#prodCreateStatus').selectOption('smm_approval');
+    await page.locator('#prodCreateDue').fill('2031-02-17');
+    await page.locator('#prodCreateDue').dispatchEvent('change');
+    await page.locator('#prodCreateAssignee').selectOption('designer');
+    const parentIntent = await page.evaluate(() => ({
+      requestId: _prodState.createDraft.requestId,
+      sourceEditedAt: _prodState.createDraft.sourceEditedAt,
+      draft: JSON.parse(JSON.stringify(_prodState.createDraft)),
+    }));
+    const failedParentResponse = page.waitForResponse(response => {
+      if (!response.url().includes('/functions/v1/production-write')) return false;
+      try {
+        const body = JSON.parse(response.request().postData() || '{}');
+        return body.operation === 'create' && body.title === parentTitle;
+      } catch (_error) { return false; }
+    });
+    await page.locator('.prod-create-submit').click();
+    expect((await failedParentResponse).status() === 503, 'parent creation retry fixture did not fail ambiguously');
+    await page.waitForFunction(() => document.querySelector('[data-prod-create-error]')?.textContent.includes('draft is still here'));
+    const firstParentWrite = writes.filter(write => write.body.operation === 'create' && write.body.title === parentTitle)[0];
+    expect(firstParentWrite
+      && firstParentWrite.body.request_id === parentIntent.requestId
+      && firstParentWrite.body.source_edited_at === parentIntent.sourceEditedAt,
+    'first parent creation attempt did not use the saved intent identity');
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => typeof _prodState !== 'undefined'
+      && !_prodState.loading && !!_prodIssue('gra-fixture'), null, { timeout: 15000 });
+    await page.evaluate(() => {
+      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
+      _syncviewStaffIdentityVerified = true;
+      _prodState.openId = '';
+      _prodState.openProjectId = 'normal-fixture';
+      _prodState.team = 'graphics';
+      _prodRender();
+      // Add Sub from another root must recover the ambiguous request exactly;
+      // it cannot retarget a request that may already have committed.
+      _prodOpenCreate('gra-description-parent');
+    });
+    await page.waitForSelector('[data-prod-create-modal]');
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    const recoveredParentDraft = await page.evaluate(() => JSON.parse(JSON.stringify(_prodState.createDraft)));
+    expect(recoveredParentDraft.requestId === parentIntent.requestId
+      && recoveredParentDraft.sourceEditedAt === parentIntent.sourceEditedAt
+      && recoveredParentDraft.clientSlug === 'normal-fixture'
+      && recoveredParentDraft.team === 'graphics'
+      && recoveredParentDraft.mode === 'parent'
+      && recoveredParentDraft.parentId === ''
+      && recoveredParentDraft.title === parentTitle
+      && recoveredParentDraft.description === parentMarkdown
+      && recoveredParentDraft.status === 'smm_approval'
+      && recoveredParentDraft.dueDate === '2031-02-17'
+      && recoveredParentDraft.assigneeId === 'designer'
+      && JSON.stringify(recoveredParentDraft.labelIds) === JSON.stringify(['ordinary', 'workload-3']),
+    'page refresh did not recover the exact parent fields, Markdown, labels, or intent identity');
+    const successfulParentResponse = page.waitForResponse(response => {
+      if (!response.url().includes('/functions/v1/production-write')) return false;
+      try {
+        const body = JSON.parse(response.request().postData() || '{}');
+        return body.operation === 'create' && body.title === parentTitle;
+      } catch (_error) { return false; }
+    });
+    await page.locator('.prod-create-submit').click();
+    const parentHttpResponse = await successfulParentResponse;
+    expect(parentHttpResponse.status() === 201, 'parent creation retry did not commit');
+    const parentReceipt = await parentHttpResponse.json();
+    const parentId = parentReceipt.row && parentReceipt.row.id;
+    await page.waitForFunction(id => _prodState.openId === id && _prodIssue(id), parentId);
+    const parentWrites = writes.filter(write => write.body.operation === 'create' && write.body.title === parentTitle);
+    const parentPayload = parentWrites[1] && parentWrites[1].body;
+    const expectedCreateKeys = [
+      'assignee_id', 'client_slug', 'description', 'due_date', 'label_ids', 'operation',
+      'parent_id', 'request_id', 'source_edited_at', 'status', 'surface', 'team', 'title',
+    ].sort();
+    expect(parentWrites.length === 2
+      && parentPayload.request_id === firstParentWrite.body.request_id
+      && parentPayload.source_edited_at === firstParentWrite.body.source_edited_at
+      && parentPayload.client_slug === 'normal-fixture'
+      && parentPayload.team === 'graphics'
+      && parentPayload.parent_id === null
+      && parentPayload.title === parentTitle
+      && parentPayload.description === parentMarkdown
+      && parentPayload.status === 'smm_approval'
+      && parentPayload.due_date === '2031-02-17'
+      && parentPayload.assignee_id === 'designer'
+      && JSON.stringify(parentPayload.label_ids) === JSON.stringify(['ordinary', 'workload-3'])
+      && JSON.stringify(Object.keys(parentPayload).sort()) === JSON.stringify(expectedCreateKeys)
+      && parentWrites.every(write => !Object.prototype.hasOwnProperty.call(write.body, 'test_override')),
+    'guarded parent retry changed its identity or omitted/added creation payload fields');
+    expect(await page.evaluate(id => _prodState.view === 'detail' && _prodIssue(id)?.title === 'TEST Production parent creation', parentId),
+      'native parent receipt did not refresh Production and open the returned row');
+
+    await page.locator(`[data-prod-add-subissue="${parentId}"]`).click();
+    await page.waitForSelector('[data-prod-create-modal]');
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    const lockedSubissueScope = await page.evaluate(() => ({
+      mode: document.getElementById('prodCreateMode')?.value,
+      modeLocked: document.getElementById('prodCreateMode')?.disabled,
+      client: document.getElementById('prodCreateClient')?.value,
+      clientLocked: document.getElementById('prodCreateClient')?.disabled,
+      team: document.getElementById('prodCreateTeam')?.value,
+      teamLocked: document.getElementById('prodCreateTeam')?.disabled,
+      parent: document.getElementById('prodCreateParent')?.value,
+      parentLocked: document.getElementById('prodCreateParent')?.disabled,
+    }));
+    expect(lockedSubissueScope.mode === 'subissue' && lockedSubissueScope.modeLocked
+      && lockedSubissueScope.client === 'normal-fixture' && lockedSubissueScope.clientLocked
+      && lockedSubissueScope.team === 'graphics' && lockedSubissueScope.teamLocked
+      && lockedSubissueScope.parent === parentId && lockedSubissueScope.parentLocked,
+    'Add Sub did not lock the selected root parent, roster client, team, and issue type');
+    const childTitle = 'TEST Production sub-issue creation';
+    const childMarkdown = '## Child creation\n\n`exact markdown`  \n';
+    await page.locator('#prodCreateTitle').fill(childTitle);
+    await page.locator('#prodCreateDescription').fill(childMarkdown);
+    await page.locator('#prodCreateStatus').selectOption('todo');
+    await page.locator('#prodCreateDue').fill('2032-11-09');
+    await page.locator('#prodCreateDue').dispatchEvent('change');
+    await page.locator('#prodCreateAssignee').selectOption('designer');
+    await page.locator('[data-prod-create-label-option="workload-2"] input[type="checkbox"]').check();
+    const childResponse = page.waitForResponse(response => {
+      if (!response.url().includes('/functions/v1/production-write')) return false;
+      try {
+        const body = JSON.parse(response.request().postData() || '{}');
+        return body.operation === 'create' && body.title === childTitle;
+      } catch (_error) { return false; }
+    });
+    await page.locator('.prod-create-submit').click();
+    const childHttpResponse = await childResponse;
+    expect(childHttpResponse.status() === 201, 'sub-issue creation did not commit');
+    const childReceipt = await childHttpResponse.json();
+    const childId = childReceipt.row && childReceipt.row.id;
+    await page.waitForFunction(id => _prodState.openId === id && _prodIssue(id), childId);
+    const childWrite = writes.find(write => write.body.operation === 'create' && write.body.title === childTitle);
+    expect(childWrite
+      && childWrite.body.client_slug === 'normal-fixture'
+      && childWrite.body.team === 'graphics'
+      && childWrite.body.parent_id === parentId
+      && childWrite.body.title === childTitle
+      && childWrite.body.description === childMarkdown
+      && childWrite.body.status === 'todo'
+      && childWrite.body.due_date === '2032-11-09'
+      && childWrite.body.assignee_id === 'designer'
+      && JSON.stringify(childWrite.body.label_ids) === JSON.stringify(['workload-2'])
+      && childWrite.body.request_id
+      && Number.isFinite(Date.parse(childWrite.body.source_edited_at))
+      && JSON.stringify(Object.keys(childWrite.body).sort()) === JSON.stringify(expectedCreateKeys)
+      && !Object.prototype.hasOwnProperty.call(childWrite.body, 'test_override'),
+    'guarded sub-issue creation omitted its locked hierarchy or complete payload');
+    expect(await page.evaluate(({ id, rootId }) => {
+      const issue = _prodIssue(id);
+      return _prodState.view === 'detail'
+        && issue?.parent === rootId
+        && document.querySelectorAll('[data-prod-add-subissue]').length === 0;
+    }, { id: childId, rootId: parentId }),
+    'native child receipt did not open the nested row or nested creation remained available');
+    const optionsBeforeNestedAttempt = createOptionReads.length;
+    const nestedAttempt = await page.evaluate(id => {
+      _prodOpenCreate(id);
+      return {
+        hasDraft: !!_prodState.createDraft,
+        hasModal: !!document.querySelector('[data-prod-create-modal]'),
+      };
+    }, childId);
+    expect(!nestedAttempt.hasDraft && !nestedAttempt.hasModal
+      && createOptionReads.length === optionsBeforeNestedAttempt,
+    'a sub-issue could start another nested creation or label-catalog request');
+    expect(implicitCardWrites.length === implicitWritesBeforeProductionCreate
+      && calendarWrites.length === calendarWritesBeforeProductionCreate
+      && legacyCreateHits.length === legacyCreatesBeforeProductionCreate
+      && [parentPayload, childWrite.body].every(payload =>
+        !Object.keys(payload).some(key => /card_id|origin|link|calendar|sample/i.test(key))),
+    'Production creation created, chose, linked, or wrote Calendar/Samples state');
+
+    await page.evaluate(() => {
+      _prodState.openId = '';
+      _prodState.openProjectId = 'normal-fixture';
+      _prodState.team = 'graphics';
+      _prodOpenCreate();
+    });
+    await page.waitForFunction(() => _prodState.createCatalogStatus === 'ready');
+    await page.locator('#prodCreateTitle').fill('TEST conflicting create intent');
+    const conflictingIntent = await page.evaluate(() => ({
+      requestId: _prodState.createDraft.requestId,
+      sourceEditedAt: _prodState.createDraft.sourceEditedAt,
+    }));
+    conflictingProductionCreates = 1;
+    const conflictResponse = page.waitForResponse(response => {
+      if (!response.url().includes('/functions/v1/production-write')) return false;
+      try {
+        const body = JSON.parse(response.request().postData() || '{}');
+        return body.operation === 'create' && body.title === 'TEST conflicting create intent';
+      } catch (_error) { return false; }
+    });
+    await page.locator('.prod-create-submit').click();
+    expect((await conflictResponse).status() === 409, 'idempotency-conflict fixture did not return a terminal conflict');
+    await page.waitForFunction(() => document.querySelector('[data-prod-create-error]')?.textContent.includes('fresh request'));
+    const unlockedConflict = await page.evaluate(() => ({
+      ambiguous: _prodState.createDraft?.ambiguous,
+      requestId: _prodState.createDraft?.requestId,
+      sourceEditedAt: _prodState.createDraft?.sourceEditedAt,
+      title: document.getElementById('prodCreateTitle')?.value,
+      titleLocked: document.getElementById('prodCreateTitle')?.disabled,
+      clientLocked: document.getElementById('prodCreateClient')?.disabled,
+    }));
+    expect(unlockedConflict.ambiguous === false
+      && unlockedConflict.requestId !== conflictingIntent.requestId
+      && unlockedConflict.sourceEditedAt !== conflictingIntent.sourceEditedAt
+      && unlockedConflict.title === 'TEST conflicting create intent'
+      && unlockedConflict.titleLocked === false
+      && unlockedConflict.clientLocked === false,
+    'an authoritative idempotency conflict trapped creation in an uneditable retry loop');
+    await page.evaluate(() => {
+      _prodState.createDraft = null;
+      _prodPersistCreateDraft();
+      _prodClearLayer();
+    });
+
+    let startHeldCreateOptions;
+    let releaseHeldCreateOptions;
+    const heldCreateOptionsStarted = new Promise(resolve => { startHeldCreateOptions = resolve; });
+    const heldCreateOptionsRelease = new Promise(resolve => { releaseHeldCreateOptions = resolve; });
+    heldCreateOptions = { started: startHeldCreateOptions, release: heldCreateOptionsRelease };
+    const delayedCreateOptionsResponse = page.waitForResponse(response => {
+      if (!response.url().includes('/functions/v1/production-write')) return false;
+      try { return JSON.parse(response.request().postData() || '{}').action === 'create_options'; }
+      catch (_error) { return false; }
+    });
+    await page.evaluate(() => {
+      _prodState.openId = '';
+      _prodState.openProjectId = 'normal-fixture';
+      _prodState.team = 'graphics';
+      _prodOpenCreate();
+    });
+    await heldCreateOptionsStarted;
+    await page.evaluate(() => _syncviewStaffIdentityClear());
+    releaseHeldCreateOptions();
+    await delayedCreateOptionsResponse;
+    const purgedCreateState = await page.evaluate(() => ({
+      draft: _prodState.createDraft,
+      catalog: _prodState.createCatalog,
+      status: _prodState.createCatalogStatus,
+      modal: !!document.querySelector('[data-prod-create-modal]'),
+      savedDraft: sessionStorage.getItem(PROD_CREATE_DRAFT_KEY),
+      gate: _prodCreateGateText('normal-fixture', 'graphics'),
+    }));
+    expect(purgedCreateState.draft === null
+      && Array.isArray(purgedCreateState.catalog) && purgedCreateState.catalog.length === 0
+      && purgedCreateState.status === 'idle'
+      && !purgedCreateState.modal
+      && purgedCreateState.savedDraft === null
+      && purgedCreateState.gate.includes('Sign in'),
+    'a delayed create_options response restored protected creation state after sign-out');
+
+    await page.evaluate(() => {
+      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
+      _syncviewStaffIdentityVerified = true;
+      _syncviewStaffRefreshChrome();
+    });
+    serverAuthority.graphics = 'syncview';
+    await page.evaluate(() => _prodRefreshAuthority({ silent: true }));
+    const writesBeforeTestCreate = writes.length;
+    const optionsBeforeTestCreate = createOptionReads.length;
+    const blockedTestCreate = await page.evaluate(() => {
+      _prodState.openId = '';
+      _prodState.openProjectId = 'test-fixture';
+      _prodState.team = 'graphics';
+      const gate = _prodCreateGateText('test-fixture', 'graphics');
+      _prodOpenCreate();
+      return {
+        gate,
+        hasDraft: !!_prodState.createDraft,
+        hasModal: !!document.querySelector('[data-prod-create-modal]'),
+      };
+    });
+    expect(blockedTestCreate.gate.includes('service-authenticated')
+      && !blockedTestCreate.hasDraft
+      && !blockedTestCreate.hasModal
+      && writes.length === writesBeforeTestCreate
+      && createOptionReads.length === optionsBeforeTestCreate,
+    'browser creation self-entered service-only TEST scope after authority flipped');
+    await page.evaluate(async () => {
+      await _prodRefreshAuthority({ silent: true });
+      _prodOpenDeliverable('gra-fixture');
+    });
+    await page.waitForSelector('[data-prod-comment-form="gra-fixture"]');
 
     await page.locator('[data-prod-prop="status"]').click();
     await page.locator('[data-prod-pick]', { hasText: 'Tweak Needed' }).click();

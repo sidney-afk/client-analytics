@@ -2,12 +2,14 @@
 /*
  * Track B B2 source guard.
  *
- * The promoted mirror is still a read-only, query-backed surface. This test pins
- * the safety invariants and the deliberate visible-label/internal-route split
+ * The promoted mirror is query-backed, with only explicitly guarded gateway
+ * writes. This test pins the safety invariants and the deliberate
+ * visible-label/internal-route split
  * that are easy to regress in a single-file app:
  *   - the visible Linear mirror precedes Submit and stays mounted in staff nav
  *   - navTo cannot enter the tab without _prodAccessAllowed()
- *   - the preview block has only read paths and no runtime-flag/n8n/Linear writes
+ *   - the preview block has only protected reads and guarded gateway writes,
+ *     with no runtime-flag/n8n/direct Linear writes
  */
 const fs = require('fs');
 const path = require('path');
@@ -125,17 +127,23 @@ check('preview read helper takes explicit page size and max page cap', /async fu
 check('preview read helper strips duplicate limit and offset params', prodBlock.includes('!/^limit=|^offset=/.test(p)'));
 check('preview callers pass page sizes explicitly', /_prodRestRows\('deliverables'[\s\S]{0,1200}, 1000, 50\)/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));
 const explicitMutationMethods = [...prodBlock.matchAll(/['"`](POST|PUT|PATCH|DELETE)['"`]/g)].map(match => match[1]);
-check('preview block limits POSTs to protected comment/label reads and authority-gated native writes', explicitMutationMethods.length === 3
+check('preview block limits POSTs to protected reads, guarded creation, and authority-gated native writes', explicitMutationMethods.length === 5
   && explicitMutationMethods.every(method => method === 'POST')
   && /fetch\(PROD_COMMENTS_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock)
   && /deliverable_id: id, limit: PROD_COMMENTS_PAGE_SIZE, before: cursor \|\| null/.test(prodBlock)
   && /fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,500}action: 'labels_read', surface: 'production', id/.test(prodBlock)
+  && /async function _prodLoadCreateOptions\(force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'create_options',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
+  && /async function _prodSubmitCreate\(event\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}operation: 'create',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
   && /async function _prodGatewayWrite\(issue, operation[\s\S]*?_prodCanWrite\(issue, operation\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock));
 check('preview block has no Supabase write helpers', !/\.(insert|update|upsert|rpc)\s*\(/.test(prodBlock));
-check('topbar excludes non-artifact New issue and Refresh chrome', !/New issue/.test(prodBlock) && !/<button class="prod-tab" type="button" onclick="_prodRefresh\(\)">Refresh<\/button>/.test(prodBlock));
-check('visible write affordances are guarded without scaffold pills',
+check('topbar exposes guarded New issue without Refresh chrome',
+  /function _prodCreateTopbarButton\(clientSlug, team\)[\s\S]*?data-prod-create-trigger="1"[\s\S]*?New issue/.test(prodBlock)
+  && /_prodCreateGateText\(clientSlug, team\)/.test(prodBlock)
+  && !/<button class="prod-tab" type="button" onclick="_prodRefresh\(\)">Refresh<\/button>/.test(prodBlock));
+check('visible write and creation affordances are guarded without scaffold pills',
   /data-prod-disabled="composer"/.test(prodBlock)
-  && /data-prod-disabled="add-subissue"/.test(prodBlock)
+  && /function _prodAddSubIssueButtonHTML\(compact\)[\s\S]*?_prodCreateGateText\(parent\.project, parent\.team, parent\)[\s\S]*?data-prod-add-subissue=/.test(prodBlock)
+  && /function _prodCreateTopbarButton\(clientSlug, team\)[\s\S]*?gate[\s\S]*?disabled title=/.test(prodBlock)
   && !/data-prod-disabled="detail-controls"/.test(prodBlock)
   && !/data-prod-disabled="project-controls"/.test(prodBlock)
   && !/Controls disabled|prod-disabled-pill/.test(prodBlock));

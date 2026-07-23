@@ -114,6 +114,21 @@ executes these files (see `README.md` › Repository layout).
   meaningful service-side audit event. The
   F202 constraint apply, production-write deploy, and real TEST description
   drill require a separate post-merge owner-approved window.
+- **`2026-07-23-f203-production-issue-create.sql`** is the additive,
+  source-only F203 creation delta. It adds one service-role-only atomic create
+  RPC for a Production root issue (one structural native batch plus one
+  deliverable) or sub-issue (the validated root batch plus one deliverable),
+  plus one service-role-only post-ack linkage RPC that row-locks and patches
+  only Linear identity fields without overwriting a newer native edit. Both
+  creation paths enqueue exactly one existing `create` operation for the
+  deliverable, never a batch create, and require `origin=manual` with no
+  Calendar/Samples card identity.
+  The create audit remains meaningful but its exact description/labels outbound
+  envelope is consumed into the private outbox and redacted from the public
+  event in the same transaction. It changes no operation CHECK, F27 allowlist,
+  runtime flag, authority, or live data. Migration apply, function deploy, and
+  the real TEST creation drill require a separate post-merge owner-approved
+  window.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

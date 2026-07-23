@@ -426,6 +426,15 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   deliverables through the same gateway, with CAS/idempotency, audit/outbox mirror intent,
   authoritative refresh, read-failure recovery, and dirty-draft conflict preservation. Neither
   candidate migration/function/UI path is live in this session.
+- F203 candidate source adds Admin/SMM parent and sub-issue creation through `production-write`.
+  The form uses active roster clients, the selected Video/Graphics team, exact Markdown, native
+  full-year dates, active same-team assignees, and the complete real label catalog. Deterministic
+  native/Linear IDs plus an exact session draft and durable redacted-audit/private-outbox receipt
+  recover an ambiguous response without duplicating work. Root creation commits one structural
+  batch and one deliverable; child creation validates a current top-level same-client/team/project
+  parent, reuses its batch, and waits on its create intent when needed. The closed request schema
+  accepts no Calendar/Samples/card/link field, and created rows are manual `kind=other` work with
+  `card_id=null`. The additive service-only RPC source, gateway, mirror, and UI are not live here.
 - A protected-write 401 becomes toast copy only: Production does not clear/reverify the staff session,
   open sign-in, preserve/replay the action after fresh authorization, or otherwise recover (F10).
 - F94: manual assignment is not eligibility-safe yet. The picker/server accept any active same-team
@@ -449,10 +458,10 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   can regress reviewer/terminal work or mutate peer work after a flip (F37/F136).
 - Video delivery/source data is collapsed from four typed fields to one priority winner labelled
   “Delivered file”; filming plan/raw footage can be hidden or mislabeled (F137).
-- The 2026-07-23 full-day audit remains immutable findings evidence. F200/F201/F202 are source-only
-  `IN-PROGRESS`; their live repair/migration/deployment/TEST-drill/review/merge gates remain closed.
-  F203 native parent/sub-issue creation with zero implicit Calendar linkage remains unimplemented and
-  was not started.
+- The 2026-07-23 full-day audit remains immutable findings evidence. F200/F201/F202/F203 are
+  source-only `IN-PROGRESS`; their live repair/migration/deployment/TEST-drill/review/merge gates
+  remain closed. F203 creation performs no implicit Calendar/Samples create, choose, or link action;
+  explicit linkage remains later work under F112.
 - F200 is distinct from F145: the native parent link remains the hierarchy owner, while candidate
   attribution now derives client identity only from active-roster project IDs or an owner-approved
   explicit roster/internal/TEST classification. B1 never inserts Linear-derived clients. Production

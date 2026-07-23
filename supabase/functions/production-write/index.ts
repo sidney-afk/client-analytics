@@ -44,6 +44,9 @@ import {
   collectCompleteSelectedLabels,
   SelectedLabelPageError,
 } from "./selected-label-pages.mjs";
+import {
+  deterministicLinearCreateId,
+} from "../_shared/linear-create-id.mjs";
 
 type JsonMap = Record<string, unknown>;
 type Entity = "deliverable" | "batch";
@@ -99,6 +102,39 @@ const OVERDUE_STATUS_BUMP_FLAG = "write_ui_overdue_due_bump";
 const LINEAR_URL = "https://api.linear.app/graphql";
 const LABEL_PAGE_SIZE = 100;
 const MAX_LABEL_PAGES = 50;
+const PRODUCTION_CREATE_FIELDS = new Set([
+  "operation",
+  "surface",
+  "client_slug",
+  "team",
+  "parent_id",
+  "title",
+  "description",
+  "status",
+  "due_date",
+  "assignee_id",
+  "label_ids",
+  "request_id",
+  "idempotency_key",
+  "source_edited_at",
+  "test_override",
+  "confirm",
+]);
+const LINEAR_STATUS_NAMES: Record<string, string> = {
+  triage: "Triage",
+  backlog: "Backlog",
+  todo: "Todo",
+  in_progress: "In Progress",
+  smm_approval: "For SMM approval",
+  kasper_approval: "For Kasper approval",
+  client_approval: "For Client approval",
+  tweak: "Tweak Needed",
+  approved: "Approved",
+  scheduled: "Scheduled",
+  posted: "Posted",
+  canceled: "Canceled",
+  duplicate: "Duplicate",
+};
 
 class GatewayError extends Error {
   status: number;
@@ -247,33 +283,25 @@ type LabelSnapshot = {
   selectedLabelIds: string[];
 };
 
-async function linearLabelSnapshot(issueId: string): Promise<LabelSnapshot> {
-  const catalogQuery = `query SyncViewProductionLabelCatalog($id: String!, $after: String) {
-    issue(id: $id) {
-      id
-      team { id }
-    }
+async function linearLabelCatalog(teamId: string, expectedTeam = ""): Promise<JsonMap[]> {
+  const catalogQuery = `query SyncViewProductionLabelCatalog($teamId: String!, $after: String) {
+    team(id: $teamId) { id key }
     issueLabels(first: ${LABEL_PAGE_SIZE}, after: $after) {
       nodes { id name color description archivedAt isGroup team { id } }
       pageInfo { hasNextPage endCursor }
     }
   }`;
   let after: string | null = null;
-  let issueTeamId = "";
   const catalogCursors = new Set<string>();
   const catalogById = new Map<string, JsonMap>();
 
   for (let page = 0; page < MAX_LABEL_PAGES; page++) {
-    const data = await linearLabelsRequest(catalogQuery, { id: issueId, after });
-    const currentIssue = parseJson(data.issue);
-    if (!clean(currentIssue.id) || clean(currentIssue.id) !== issueId) {
-      throw new GatewayError(409, "linear_issue_unavailable");
+    const data = await linearLabelsRequest(catalogQuery, { teamId, after });
+    const currentTeam = parseJson(data.team);
+    if (clean(currentTeam.id) !== teamId
+        || (expectedTeam && normalizeTeam(currentTeam.key) !== normalizeTeam(expectedTeam))) {
+      throw new GatewayError(409, "linear_team_mapping_unavailable");
     }
-    const currentTeamId = clean(parseJson(currentIssue.team).id);
-    if (!currentTeamId || (issueTeamId && currentTeamId !== issueTeamId)) {
-      throw new GatewayError(409, "linear_issue_team_unavailable");
-    }
-    issueTeamId = currentTeamId;
     const catalogConnection = parseJson(data.issueLabels);
     const rawCatalogNodes = catalogConnection.nodes;
     const catalogNodes = labelNodes(catalogConnection);
@@ -288,7 +316,7 @@ async function linearLabelSnapshot(issueId: string): Promise<LabelSnapshot> {
       }
       const labelTeamId = clean(parseJson(node.team).id);
       if (node.isGroup === true || clean(node.archivedAt)
-          || (labelTeamId && labelTeamId !== issueTeamId)) continue;
+          || (labelTeamId && labelTeamId !== teamId)) continue;
       const label = sanitizedLabel(node, true);
       if (!label) throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
       if (catalogById.has(clean(label.id))) {
@@ -308,7 +336,24 @@ async function linearLabelSnapshot(issueId: string): Promise<LabelSnapshot> {
     }
     catalogCursors.add(after);
   }
+  return [...catalogById.values()].sort((a, b) => {
+    const byName = lower(a.name).localeCompare(lower(b.name));
+    return byName || clean(a.id).localeCompare(clean(b.id));
+  });
+}
 
+async function linearLabelSnapshot(issueId: string): Promise<LabelSnapshot> {
+  const identity = await linearLabelsRequest(
+    "query SyncViewProductionLabelIssue($id: String!) { issue(id: $id) { id team { id } } }",
+    { id: issueId },
+  );
+  const currentIssue = parseJson(identity.issue);
+  if (clean(currentIssue.id) !== issueId) {
+    throw new GatewayError(409, "linear_issue_unavailable");
+  }
+  const issueTeamId = clean(parseJson(currentIssue.team).id);
+  if (!issueTeamId) throw new GatewayError(409, "linear_issue_team_unavailable");
+  const catalog = await linearLabelCatalog(issueTeamId);
   const selectedQuery = `query SyncViewProductionSelectedLabels($id: String!, $selectedAfter: String) {
     issue(id: $id) {
       id
@@ -338,10 +383,6 @@ async function linearLabelSnapshot(issueId: string): Promise<LabelSnapshot> {
     }
     throw new GatewayError(502, "label_selection_incomplete", { complete: false });
   }
-  const catalog = [...catalogById.values()].sort((a, b) => {
-    const byName = lower(a.name).localeCompare(lower(b.name));
-    return byName || clean(a.id).localeCompare(clean(b.id));
-  });
   return {
     catalog,
     selectedLabels: selected.labels,
@@ -585,6 +626,10 @@ function surfaceFor(body: JsonMap): string {
 }
 
 function assertSurfaceOperation(surface: string, operation: string): void {
+  if (operation === "create") {
+    if (surface !== "production") throw new GatewayError(400, "invalid_surface_operation");
+    return;
+  }
   if (operation === "intake_create") {
     if (surface !== "submission" && surface !== "calendar") {
       throw new GatewayError(400, "invalid_surface_operation");
@@ -655,7 +700,7 @@ function eventFor(
 ): JsonMap {
   return {
     source: "ui",
-    action: operation === "intake_create" ? "create" : `${operation}_change`,
+    action: operation === "create" || operation === "intake_create" ? "create" : `${operation}_change`,
     actor: principal.actorName,
     actor_key: principal.actorKey,
     role: principal.actorRole,
@@ -700,6 +745,15 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
     if (/invalid_intake_append_(payload|pair|order|route)/i.test(clean(error.message))) {
       throw new GatewayError(400, clean(error.message).match(/invalid_intake_append_(payload|pair|order|route)/i)?.[0].toLowerCase()
         || "invalid_intake_append_payload");
+    }
+    if (/invalid_production_create_payload/i.test(clean(error.message))) {
+      throw new GatewayError(400, "invalid_production_create_payload");
+    }
+    if (/production_create_(id_conflict|parent_scope|parent_nested|parent_route|batch_scope)/i.test(clean(error.message))) {
+      const code = clean(error.message)
+        .match(/production_create_(id_conflict|parent_scope|parent_nested|parent_route|batch_scope)/i)?.[0]
+        .toLowerCase() || "production_create_id_conflict";
+      throw new GatewayError(409, code);
     }
     console.error("production-write RPC failed", name, error.code || "unknown");
     throw new GatewayError(500, "native_write_failed");
@@ -1276,16 +1330,18 @@ async function validateLinearBatchParent(
   parentId: string,
   team: string,
   projectId: string,
+  requireRoot = false,
 ): Promise<void> {
   const data = await linearRead(
-    "query ProductionWriteBatchParentScope($id: String!) { issue(id: $id) { id team { key } project { id } } }",
+    "query ProductionWriteBatchParentScope($id: String!) { issue(id: $id) { id team { key } project { id } parent { id } } }",
     { id: parentId },
     "batch_parent_validation_unavailable",
   );
   const issue = parseJson(data.issue);
   if (clean(issue.id) !== parentId
       || normalizeTeam(parseJson(issue.team).key) !== normalizeTeam(team)
-      || clean(parseJson(issue.project).id) !== projectId) {
+      || clean(parseJson(issue.project).id) !== projectId
+      || (requireRoot && !!clean(parseJson(issue.parent).id))) {
     throw new GatewayError(409, "batch_parent_mapping_missing");
   }
 }
@@ -1391,6 +1447,29 @@ function teamIdFor(team: string): string {
     : "LINEAR_VIDEO_TEAM_ID"));
 }
 
+async function linearStateIdForCreate(teamId: string, team: string, status: string): Promise<string> {
+  if (!teamId) throw new GatewayError(503, "linear_team_mapping_unavailable");
+  const data = await linearRead(
+    "query ProductionCreateTeam($id: String!) { team(id: $id) { id key states { nodes { id name } } } }",
+    { id: teamId },
+    "linear_team_mapping_unavailable",
+  );
+  const linearTeam = parseJson(data.team);
+  if (clean(linearTeam.id) !== teamId
+      || normalizeTeam(linearTeam.key) !== normalizeTeam(team)) {
+    throw new GatewayError(409, "linear_team_mapping_unavailable");
+  }
+  const states = parseJson(linearTeam.states).nodes;
+  const expectedName = lower(LINEAR_STATUS_NAMES[status]).replace(/\s+/g, " ");
+  const matching = Array.isArray(states)
+    ? states.filter(value => lower(parseJson(value).name).replace(/\s+/g, " ") === expectedName)
+    : [];
+  if (matching.length !== 1 || !clean(parseJson(matching[0]).id)) {
+    throw new GatewayError(409, "status_mapping_unavailable");
+  }
+  return clean(parseJson(matching[0]).id);
+}
+
 async function validateAssignee(
   supabase: SupabaseClient,
   assigneeId: string,
@@ -1406,6 +1485,26 @@ async function validateAssignee(
   if (!data || normalizeTeam((data as JsonMap).team) !== normalizeTeam(team)) {
     throw new GatewayError(403, "assignee_out_of_scope");
   }
+}
+
+async function validateCreateAssignee(
+  supabase: SupabaseClient,
+  assigneeId: string,
+  team: string,
+): Promise<{ id: string; linearUserId: string } | null> {
+  if (!assigneeId) return null;
+  const { data, error } = await supabase.from("team_members")
+    .select("id,team,active,linear_user_id")
+    .eq("id", assigneeId)
+    .eq("active", true)
+    .maybeSingle();
+  if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
+  if (!data || normalizeTeam((data as JsonMap).team) !== normalizeTeam(team)) {
+    throw new GatewayError(403, "assignee_out_of_scope");
+  }
+  const linearUserId = clean((data as JsonMap).linear_user_id);
+  if (!linearUserId) throw new GatewayError(409, "assignee_mapping_unavailable");
+  return { id: clean((data as JsonMap).id), linearUserId };
 }
 
 async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Promise<string> {
@@ -1568,6 +1667,689 @@ async function graphicDescriptions(
     if (firstByNumber.has(number)) fallback.set(index, firstByNumber.get(number)!);
   }
   return fallback;
+}
+
+type ProductionCreateScope = {
+  principal: Principal;
+  client: ClientRow;
+  clientSlug: string;
+  team: string;
+  projectId: string;
+  teamId: string;
+  authority: "linear" | "syncview";
+};
+
+type ProductionCreatePrincipalScope = {
+  principal: Principal;
+  client: ClientRow;
+  clientSlug: string;
+  team: string;
+};
+
+type ProductionCreateParentRoute = {
+  parent: JsonMap;
+  batch: JsonMap;
+  parentLinearIssueId: string;
+  dependsOnId: number | null;
+  dependencyDedupKey: string | null;
+};
+
+async function productionCreatePrincipalScope(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+): Promise<ProductionCreatePrincipalScope> {
+  const clientSlug = clean(body.client_slug);
+  const team = normalizeTeam(body.team);
+  if (!clientSlug || !team) throw new GatewayError(400, "invalid_production_create_scope");
+  const principal = await authenticate(supabase, req, body, clientSlug);
+  if (principal.kind === "client"
+      || (principal.kind === "staff"
+        && !staffOperationAllowed(principal.keyRole, "create", principal.memberTeam, team))) {
+    throw new GatewayError(403, "operation_forbidden");
+  }
+  const client = principal.client || await clientBySlug(supabase, clientSlug);
+  if (!client || client.active !== true) throw new GatewayError(403, "client_inactive");
+  if (lower(client.kind) === "test" && !principal.testOnly) {
+    throw new GatewayError(403, "test_scope_service_only");
+  }
+  return { principal, client, clientSlug, team };
+}
+
+async function productionCreateScope(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+  authenticated: ProductionCreatePrincipalScope | null = null,
+): Promise<ProductionCreateScope> {
+  const base = authenticated || await productionCreatePrincipalScope(supabase, req, body);
+  const { principal, client, clientSlug, team } = base;
+  const projectId = await projectForIntake(client, team, principal);
+  const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
+  authorityLane(authority, principal, "production", "create", false);
+  const teamId = teamIdFor(team);
+  if (!teamId) throw new GatewayError(503, "linear_team_mapping_unavailable");
+  return { principal, client, clientSlug, team, projectId, teamId, authority };
+}
+
+function sameInstant(left: unknown, right: unknown): boolean {
+  const leftMs = Date.parse(clean(left));
+  const rightMs = Date.parse(clean(right));
+  return Number.isFinite(leftMs) && Number.isFinite(rightMs) && leftMs === rightMs;
+}
+
+async function productionCreateReplay(
+  supabase: SupabaseClient,
+  scope: ProductionCreatePrincipalScope,
+  intent: {
+    deliverableId: string;
+    rootBatchId: string;
+    dedup: string;
+    plannedLinearIssueId: string;
+    parentId: string;
+    title: string;
+    description: string;
+    status: string;
+    dueDate: string | null;
+    assigneeId: string;
+    labelIds: string[];
+    sourceEditedAt: string;
+  },
+): Promise<Response | null> {
+  const { data: outboxData, error: outboxError } = await supabase.from("mirror_outbox")
+    .select("*")
+    .eq("dedup_key", intent.dedup)
+    .maybeSingle();
+  if (outboxError) throw new GatewayError(503, "create_replay_lookup_unavailable");
+  if (!outboxData) return null;
+
+  const outbox = outboxData as JsonMap;
+  const payload = parseJson(outbox.payload);
+  const fingerprint = clean(payload._intent_fingerprint);
+  const payloadLabelIds = canonicalLabelIds(payload.label_ids);
+  const expectedAssigneeId = intent.assigneeId || "";
+  const expectedDueDate = intent.dueDate || "";
+  if (clean(outbox.entity) !== "deliverable"
+      || clean(outbox.entity_id) !== intent.deliverableId
+      || clean(outbox.operation) !== "create"
+      || clean(outbox.client_slug) !== scope.clientSlug
+      || normalizeTeam(outbox.team) !== scope.team
+      || clean(outbox.role) !== scope.principal.actorRole
+      || outbox.test_only !== scope.principal.testOnly
+      || outbox.legacy_parity !== false
+      || !sameInstant(outbox.source_edited_at, intent.sourceEditedAt)
+      || !fingerprint
+      || clean(payload.planned_linear_issue_id) !== intent.plannedLinearIssueId
+      || clean(payload.title) !== intent.title
+      || typeof payload.description !== "string"
+      || payload.description !== intent.description
+      || clean(payload.status) !== intent.status
+      || (clean(payload.due_date) || "") !== expectedDueDate
+      || (clean(payload.assignee_id) || "") !== expectedAssigneeId
+      || (expectedAssigneeId ? !clean(payload.linear_user_id) : !!clean(payload.linear_user_id))
+      || !payloadLabelIds
+      || JSON.stringify(payloadLabelIds) !== JSON.stringify(intent.labelIds)
+      || JSON.stringify(payload.label_ids) !== JSON.stringify(intent.labelIds)
+      || !clean(payload.project_id)
+      || !clean(payload.team_id)
+      || !clean(payload.state_id)
+      || !Number.isSafeInteger(Number(payload._f27_authority_generation))
+      || payload._f27_legacy_parity !== false) {
+    throw new GatewayError(409, "idempotency_conflict");
+  }
+
+  const { data: rowData, error: rowError } = await supabase.from("deliverables")
+    .select("*")
+    .eq("id", intent.deliverableId)
+    .maybeSingle();
+  if (rowError) throw new GatewayError(503, "create_replay_lookup_unavailable");
+  if (!rowData) throw new GatewayError(500, "idempotent_result_missing");
+  const row = rowData as JsonMap;
+  const batchId = clean(row.batch_id);
+  if (!batchId
+      || clean(row.id) !== intent.deliverableId
+      || clean(row.client_slug) !== scope.clientSlug
+      || normalizeTeam(row.team) !== scope.team
+      || clean(row.kind) !== "other"
+      || clean(row.origin) !== "manual"
+      || clean(row.card_id)
+      || clean(row.created_by) !== scope.principal.actorKey
+      || !sameInstant(row.created_at, intent.sourceEditedAt)
+      || clean(row.linear_issue_uuid) !== intent.plannedLinearIssueId
+      || (!intent.parentId && batchId !== intent.rootBatchId)) {
+    throw new GatewayError(500, "idempotent_result_missing");
+  }
+
+  const [batchResult, eventResult] = await Promise.all([
+    supabase.from("batches").select("*").eq("id", batchId).maybeSingle(),
+    supabase.from("deliverable_events").select("*")
+      .eq("deliverable_id", intent.deliverableId)
+      .eq("action", "create")
+      .eq("source", "ui"),
+  ]);
+  if (batchResult.error || eventResult.error) {
+    throw new GatewayError(503, "create_replay_lookup_unavailable");
+  }
+  if (!batchResult.data) throw new GatewayError(500, "idempotent_result_missing");
+  const batch = batchResult.data as JsonMap;
+  const events = (eventResult.data || []) as JsonMap[];
+  const receiptEvents = events.filter(event => {
+    const eventPayload = parseJson(event.payload);
+    const redacted = parseJson(eventPayload.outbound_redacted);
+    return clean(event.batch_id) === batchId
+      && clean(event.client_slug) === scope.clientSlug
+      && clean(event.actor) === clean(outbox.actor)
+      && clean(event.role) === scope.principal.actorRole
+      && clean(event.to_status) === intent.status
+      && sameInstant(event.ts, intent.sourceEditedAt)
+      && eventPayload.surface === "production"
+      && clean(eventPayload.actor_key) === scope.principal.actorKey
+      && clean(eventPayload.auth_kind) === scope.principal.kind
+      && !Object.prototype.hasOwnProperty.call(eventPayload, "outbound")
+      && clean(redacted.operation) === "create"
+      && clean(redacted.dedup_key) === intent.dedup
+      && clean(redacted.intent_fingerprint) === fingerprint;
+  });
+  if (receiptEvents.length !== 1
+      || clean(batch.id) !== batchId
+      || clean(batch.client_slug) !== scope.clientSlug
+      || (normalizeTeam(batch.team) && normalizeTeam(batch.team) !== scope.team)) {
+    throw new GatewayError(500, "idempotent_result_missing");
+  }
+  const receiptPayload = parseJson(receiptEvents[0].payload);
+  if ((clean(receiptPayload.parent_deliverable_id) || "") !== (intent.parentId || "")) {
+    throw new GatewayError(409, "idempotency_conflict");
+  }
+
+  const batchParentIds = parentIdsForTeam(batch.linear_parent_ids, scope.team);
+  if (!intent.parentId) {
+    if (currentLinearParentIssueId(row)
+        || clean(payload.parent_linear_issue_id)
+        || (Number.isSafeInteger(Number(outbox.depends_on_id))
+          && Number(outbox.depends_on_id) > 0)) {
+      throw new GatewayError(500, "idempotent_result_missing");
+    }
+    const { data: structuralEvents, error: structuralError } = await supabase
+      .from("deliverable_events")
+      .select("*")
+      .eq("batch_id", batchId)
+      .eq("action", "production_issue_container_create")
+      .eq("source", "system");
+    if (structuralError) throw new GatewayError(503, "create_replay_lookup_unavailable");
+    const exactStructuralEvents = ((structuralEvents || []) as JsonMap[]).filter(event => {
+      const eventPayload = parseJson(event.payload);
+      return !clean(event.deliverable_id)
+        && clean(event.client_slug) === scope.clientSlug
+        && clean(event.actor) === clean(outbox.actor)
+        && clean(event.role) === scope.principal.actorRole
+        && sameInstant(event.ts, intent.sourceEditedAt)
+        && eventPayload.surface === "production"
+        && clean(eventPayload.deliverable_id) === intent.deliverableId
+        && eventPayload.structural_only === true;
+    });
+    if (batchParentIds.length !== 1
+        || batchParentIds[0] !== intent.plannedLinearIssueId
+        || exactStructuralEvents.length !== 1) {
+      throw new GatewayError(500, "idempotent_result_missing");
+    }
+  } else {
+    const { data: parentData, error: parentError } = await supabase.from("deliverables")
+      .select("*")
+      .eq("id", intent.parentId)
+      .maybeSingle();
+    if (parentError) throw new GatewayError(503, "create_replay_lookup_unavailable");
+    if (!parentData) throw new GatewayError(500, "idempotent_result_missing");
+    const parent = parentData as JsonMap;
+    const parentLinearId = parentLinearIssueId(parent);
+    const rowParentLinearId = currentLinearParentIssueId(row);
+    const directParentId = clean(payload.parent_linear_issue_id);
+    const dependencyId = Number(outbox.depends_on_id || 0);
+    if (clean(parent.batch_id) !== batchId
+        || clean(parent.client_slug) !== scope.clientSlug
+        || normalizeTeam(parent.team) !== scope.team
+        || !parentLinearId
+        || currentLinearParentIssueId(parent)
+        || rowParentLinearId !== parentLinearId
+        || batchParentIds.length !== 1
+        || batchParentIds[0] !== parentLinearId
+        || (!!directParentId === (Number.isSafeInteger(dependencyId) && dependencyId > 0))
+        || (directParentId && directParentId !== parentLinearId)) {
+      throw new GatewayError(500, "idempotent_result_missing");
+    }
+    if (Number.isSafeInteger(dependencyId) && dependencyId > 0) {
+      const { data: dependency, error: dependencyError } = await supabase.from("mirror_outbox")
+        .select("id,entity,entity_id,operation,client_slug,team")
+        .eq("id", dependencyId)
+        .maybeSingle();
+      if (dependencyError) throw new GatewayError(503, "create_replay_lookup_unavailable");
+      if (!dependency
+          || clean(dependency.entity) !== "deliverable"
+          || clean(dependency.entity_id) !== intent.parentId
+          || clean(dependency.operation) !== "create"
+          || clean(dependency.client_slug) !== scope.clientSlug
+          || normalizeTeam(dependency.team) !== scope.team) {
+        throw new GatewayError(500, "idempotent_result_missing");
+      }
+    }
+  }
+
+  const targetStatus = lower(outbox.status);
+  const conflict = parseJson(parseJson(outbox.linear_result).conflict);
+  const acknowledged = targetStatus === "written"
+    || (targetStatus === "skipped"
+      && ["already_applied", "already_exists"].includes(lower(conflict.decision)));
+  return json({
+    ok: true,
+    native_committed: true,
+    authority: "syncview",
+    row: {
+      ...publicDescriptionRow(row),
+      ...selectedLabelReceipt(row),
+    },
+    batch: publicRow(batch),
+    mirror_pending: !acknowledged,
+    mirror: [{
+      dedup_key: intent.dedup,
+      attempted: false,
+      acknowledged,
+      replay: true,
+      target_status: targetStatus || null,
+    }],
+  }, 200);
+}
+
+async function handleCreateOptions(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+): Promise<Response> {
+  if (surfaceFor(body) !== "production") {
+    throw new GatewayError(400, "invalid_surface_operation");
+  }
+  const scope = await productionCreateScope(supabase, req, body);
+  const catalog = await linearLabelCatalog(scope.teamId, scope.team);
+  return json({
+    ok: true,
+    complete: true,
+    authority: scope.authority,
+    catalog,
+  });
+}
+
+function parentLinearIssueId(value: JsonMap): string {
+  return clean(value.linear_issue_uuid || parseJson(parseJson(value.linear_raw).issue).id);
+}
+
+function currentLinearParentIssueId(value: JsonMap): string {
+  const issue = parseJson(parseJson(value.linear_raw).issue);
+  return clean(parseJson(issue.parent).id || issue.parentId);
+}
+
+async function productionCreateParentRoute(
+  supabase: SupabaseClient,
+  parentId: string,
+  scope: ProductionCreateScope,
+): Promise<ProductionCreateParentRoute | null> {
+  if (!parentId) return null;
+  const { data: parentData, error: parentError } = await supabase.from("deliverables")
+    .select("*")
+    .eq("id", parentId)
+    .maybeSingle();
+  if (parentError) throw new GatewayError(503, "create_parent_lookup_unavailable");
+  if (!parentData) throw new GatewayError(404, "create_parent_not_found");
+  const parent = parentData as JsonMap;
+  const raw = parseJson(parent.linear_raw);
+  const issue = parseJson(raw.issue);
+  const attribution = parseJson(raw.attribution);
+  const parentProjectId = clean(parseJson(issue.project).id);
+  const linearIssueId = parentLinearIssueId(parent);
+  if (clean(parent.client_slug) !== scope.clientSlug
+      || normalizeTeam(parent.team) !== scope.team
+      || attribution.state !== "resolved"
+      || clean(attribution.client_slug) !== scope.clientSlug
+      || parentProjectId !== scope.projectId
+      || !linearIssueId) {
+    throw new GatewayError(409, "production_create_parent_scope");
+  }
+  if (clean(parseJson(issue.parent).id || issue.parentId)) {
+    throw new GatewayError(409, "production_create_parent_nested");
+  }
+
+  const { data: batchData, error: batchError } = await supabase.from("batches")
+    .select("*")
+    .eq("id", clean(parent.batch_id))
+    .maybeSingle();
+  if (batchError) throw new GatewayError(503, "batch_lookup_unavailable");
+  if (!batchData
+      || clean(batchData.client_slug) !== scope.clientSlug
+      || (normalizeTeam(batchData.team) && normalizeTeam(batchData.team) !== scope.team)
+      || lower(batchData.status) !== "active") {
+    throw new GatewayError(409, "production_create_batch_scope");
+  }
+  const batch = batchData as JsonMap;
+  const batchParentIds = parentIdsForTeam(batch.linear_parent_ids, scope.team);
+  if (batchParentIds.length !== 1 || batchParentIds[0] !== linearIssueId) {
+    throw new GatewayError(409, "production_create_parent_route");
+  }
+
+  const { data: dependencyRows, error: dependencyError } = await supabase.from("mirror_outbox")
+    .select("id,dedup_key,status,entity,entity_id,operation,client_slug,team,payload,linear_result,test_only,legacy_parity")
+    .eq("entity", "deliverable")
+    .eq("entity_id", parentId)
+    .eq("operation", "create")
+    .eq("client_slug", scope.clientSlug)
+    .eq("team", scope.team);
+  if (dependencyError) throw new GatewayError(503, "create_parent_lookup_unavailable");
+  const candidates = ((dependencyRows || []) as JsonMap[]).filter(row =>
+    ["pending", "failed", "shadow_ok", "written"].includes(lower(row.status))
+      && clean(parseJson(row.payload).project_id) === scope.projectId
+  );
+  if (candidates.length > 1) throw new GatewayError(409, "production_create_parent_route");
+  if (candidates.length === 1) {
+    const dependency = candidates[0];
+    const dependencyId = Number(dependency.id);
+    const dependencyDedupKey = clean(dependency.dedup_key);
+    if (!Number.isSafeInteger(dependencyId) || dependencyId < 1 || !dependencyDedupKey) {
+      throw new GatewayError(409, "production_create_parent_route");
+    }
+    if (lower(dependency.status) === "written") {
+      const result = parseJson(dependency.linear_result);
+      const resultId = clean(result.issue_id || result.linear_issue_id || parseJson(result.issue).id);
+      if (resultId !== linearIssueId) {
+        throw new GatewayError(409, "production_create_parent_route");
+      }
+      await validateLinearBatchParent(linearIssueId, scope.team, scope.projectId, true);
+    } else if (dependency.test_only !== scope.principal.testOnly
+        || dependency.legacy_parity === true) {
+      throw new GatewayError(409, "production_create_parent_route");
+    }
+    return {
+      parent,
+      batch,
+      parentLinearIssueId: linearIssueId,
+      dependsOnId: dependencyId,
+      dependencyDedupKey,
+    };
+  }
+  await validateLinearBatchParent(linearIssueId, scope.team, scope.projectId, true);
+  return {
+    parent,
+    batch,
+    parentLinearIssueId: linearIssueId,
+    dependsOnId: null,
+    dependencyDedupKey: null,
+  };
+}
+
+async function handleProductionCreate(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+  surface: string,
+  requestId: string,
+  sourceEditedAt: string,
+): Promise<Response> {
+  if (surface !== "production"
+      || Object.keys(body).some(key => !PRODUCTION_CREATE_FIELDS.has(key))) {
+    throw new GatewayError(400, "unsupported_create_field");
+  }
+  const title = typeof body.title === "string" ? clean(body.title) : "";
+  const description = canonicalDescription(body.description);
+  const status = lower(body.status);
+  const dueDate = body.due_date == null || body.due_date === "" ? null : clean(body.due_date);
+  const assigneeId = body.assignee_id == null || body.assignee_id === ""
+    ? ""
+    : typeof body.assignee_id === "string"
+      ? clean(body.assignee_id)
+      : "";
+  const labelIds = canonicalLabelIds(body.label_ids);
+  const parentId = body.parent_id == null || body.parent_id === ""
+    ? ""
+    : typeof body.parent_id === "string"
+      ? clean(body.parent_id)
+      : "";
+  if (!title || title.length > 500
+      || description == null
+      || !DELIVERABLE_STATUSES.includes(status)
+      || !validDateOrNull(dueDate)
+      || !Array.isArray(body.label_ids)
+      || !labelIds
+      || (body.assignee_id != null && body.assignee_id !== "" && !assigneeId)
+      || (body.parent_id != null && body.parent_id !== "" && !parentId)) {
+    throw new GatewayError(400, "invalid_production_create_payload");
+  }
+
+  const principalScope = await productionCreatePrincipalScope(supabase, req, body);
+  const deliverableId = await deterministicNativeId("del", requestId, "production-issue");
+  const rootBatchId = await deterministicNativeId("bat", requestId, "production-root");
+  const dedup = dedupKey("create", "deliverable", deliverableId, requestId);
+  const plannedLinearIssueId = await deterministicLinearCreateId(dedup);
+  const replay = await productionCreateReplay(supabase, principalScope, {
+    deliverableId,
+    rootBatchId,
+    dedup,
+    plannedLinearIssueId,
+    parentId,
+    title,
+    description,
+    status,
+    dueDate,
+    assigneeId,
+    labelIds,
+    sourceEditedAt,
+  });
+  if (replay) return replay;
+
+  const scope = await productionCreateScope(supabase, req, body, principalScope);
+  const [authorityGeneration, stateId, catalog, assignee, parentRoute] = await Promise.all([
+    f27WriteAuthorizationGeneration(supabase, scope.team),
+    linearStateIdForCreate(scope.teamId, scope.team, status),
+    linearLabelCatalog(scope.teamId, scope.team),
+    validateCreateAssignee(supabase, assigneeId, scope.team),
+    productionCreateParentRoute(supabase, parentId, scope),
+  ]);
+  const catalogById = new Map(catalog.map(label => [clean(label.id), label]));
+  if (labelIds.some(id => !catalogById.has(id))) {
+    throw new GatewayError(400, "label_selection_out_of_catalog", { complete: true });
+  }
+  const selectedLabels = labelIds.map(id => catalogById.get(id) as JsonMap);
+  const batchId = parentRoute
+    ? clean(parentRoute.batch.id)
+    : rootBatchId;
+  const parentLinearId = parentRoute ? parentRoute.parentLinearIssueId : "";
+  const teamKey = scope.team === "graphics" ? "GRA" : "VID";
+  const attribution: JsonMap = {
+    schema: "syncview_attribution_v1",
+    state: "resolved",
+    client_slug: scope.clientSlug,
+    owner_kind: lower(scope.client.kind || "client"),
+    source: "direct_project",
+    project_id: scope.projectId,
+    direct_project_id: scope.projectId,
+    mapping_revision: "",
+    repair_required: false,
+    reason: "direct_project_mapped",
+  };
+  const linearIssue: JsonMap = {
+    id: plannedLinearIssueId,
+    identifier: null,
+    title,
+    description,
+    createdAt: sourceEditedAt,
+    updatedAt: sourceEditedAt,
+    dueDate,
+    state: { id: stateId, name: LINEAR_STATUS_NAMES[status] },
+    team: { id: scope.teamId, key: teamKey },
+    project: { id: scope.projectId },
+    assignee: assignee ? { id: assignee.linearUserId } : null,
+    parent: parentRoute
+      ? {
+        id: parentLinearId,
+        identifier: clean(parentRoute.parent.linear_identifier) || null,
+        title: clean(parentRoute.parent.title),
+      }
+      : null,
+    labelIds,
+    labels: {
+      nodes: selectedLabels,
+      pageInfo: { hasNextPage: false, endCursor: null },
+    },
+  };
+  const row: JsonMap = {
+    id: deliverableId,
+    identifier: null,
+    batch_id: batchId,
+    client_slug: scope.clientSlug,
+    team: scope.team,
+    kind: "other",
+    title,
+    brief: description,
+    status,
+    status_at: sourceEditedAt,
+    assignee_id: assignee ? assignee.id : null,
+    due_date: dueDate,
+    priority: null,
+    origin: "manual",
+    card_id: null,
+    sync_state: "pending",
+    created_by: scope.principal.actorKey,
+    created_at: sourceEditedAt,
+    linear_issue_uuid: plannedLinearIssueId,
+    linear_raw: { issue: linearIssue, attribution },
+  };
+  const batchRow: JsonMap | null = parentRoute ? null : {
+    id: batchId,
+    client_slug: scope.clientSlug,
+    team: scope.team,
+    name: title,
+    description: null,
+    status: "active",
+    created_by: scope.principal.actorKey,
+    created_at: sourceEditedAt,
+    linear_parent_ids: {
+      [scope.team]: {
+        uuid: plannedLinearIssueId,
+        identifier: "",
+        url: "",
+      },
+    },
+  };
+  const routeFingerprint = {
+    parent_id: parentId || null,
+    parent_linear_issue_id: parentLinearId || null,
+    depends_on_id: parentRoute?.dependsOnId || null,
+    dependency_dedup_key: parentRoute?.dependencyDedupKey || null,
+  };
+  const fingerprint = await intentFingerprint({
+    operation: "create",
+    requestId,
+    sourceEditedAt,
+    surface,
+    actorKey: scope.principal.actorKey,
+    clientSlug: scope.clientSlug,
+    team: scope.team,
+    projectId: scope.projectId,
+    teamId: scope.teamId,
+    route: routeFingerprint,
+    row: {
+      id: deliverableId,
+      batch_id: batchId,
+      title,
+      description,
+      status,
+      due_date: dueDate,
+      assignee_id: assignee ? assignee.id : null,
+      linear_user_id: assignee ? assignee.linearUserId : null,
+      label_ids: labelIds,
+      planned_linear_issue_id: plannedLinearIssueId,
+    },
+  });
+  const outbound: JsonMap = {
+    entity: "deliverable",
+    entity_id: deliverableId,
+    team: scope.team,
+    operation: "create",
+    dedup_key: dedup,
+    source_edited_at: sourceEditedAt,
+    test_only: scope.principal.testOnly,
+    legacy_parity: false,
+    ...(parentRoute?.dependsOnId ? { depends_on_id: parentRoute.dependsOnId } : {}),
+    payload: f27FencedPayload({
+      team_id: scope.teamId,
+      project_id: scope.projectId,
+      title,
+      description,
+      status,
+      state_id: stateId,
+      due_date: dueDate,
+      assignee_id: assignee ? assignee.id : null,
+      linear_user_id: assignee ? assignee.linearUserId : null,
+      parent_linear_issue_id: parentRoute?.dependsOnId ? null : parentLinearId || null,
+      label_ids: labelIds,
+      planned_linear_issue_id: plannedLinearIssueId,
+      _intent_fingerprint: fingerprint,
+    }, authorityGeneration, false),
+  };
+  const event: JsonMap = {
+    ...eventFor("create", scope.principal, sourceEditedAt, surface, outbound, null, status),
+    parent_deliverable_id: parentId || null,
+  };
+  const preexisting = await assertDedupIntent(
+    supabase,
+    dedup,
+    dedupExpectation(scope.principal, scope.team, sourceEditedAt, outbound, fingerprint),
+  );
+  const result = parseJson(await rpc(supabase, "production_issue_create", {
+    p_batch: batchRow || {},
+    p_row: row,
+    p_event: event,
+  }));
+  const resultRow = parseJson(result.row);
+  const resultBatch = parseJson(result.batch);
+  if (!clean(resultRow.id) || !clean(resultBatch.id)) {
+    throw new GatewayError(500, "native_response_refresh_failed");
+  }
+
+  const drainPlans = [
+    ...(parentRoute?.dependencyDedupKey
+      ? [{ dedup_key: parentRoute.dependencyDedupKey }]
+      : []),
+    { dedup_key: dedup },
+  ];
+  const mirror: JsonMap[] = [];
+  if (scope.principal.testOnly) {
+    for (const plan of drainPlans) {
+      mirror.push({
+        dedup_key: plan.dedup_key,
+        ...await targetedDrain(clean(plan.dedup_key), scope.principal),
+      });
+    }
+  } else if (await outboundLiveForDrain(supabase)) {
+    scheduleSyncviewLiveDrains(drainPlans.map(plan => clean(plan.dedup_key)), scope.principal);
+  }
+  const targetedFailure = mirror.some(item => item.acknowledged !== true);
+  const mirrorPending = scope.principal.testOnly ? targetedFailure : true;
+  const [currentRowResult, currentBatchResult] = await Promise.all([
+    supabase.from("deliverables").select("*").eq("id", deliverableId).maybeSingle(),
+    supabase.from("batches").select("*").eq("id", batchId).maybeSingle(),
+  ]);
+  if (currentRowResult.error || currentBatchResult.error
+      || !currentRowResult.data || !currentBatchResult.data) {
+    throw new GatewayError(500, "native_response_refresh_failed");
+  }
+  const currentRow = currentRowResult.data as JsonMap;
+  return json({
+    ok: true,
+    native_committed: true,
+    authority: scope.authority,
+    row: {
+      ...publicDescriptionRow(currentRow),
+      ...selectedLabelReceipt(currentRow),
+    },
+    batch: publicRow(currentBatchResult.data),
+    mirror_pending: mirrorPending,
+    mirror,
+  }, targetedFailure ? 202 : (preexisting || result.replay === true ? 200 : 201));
 }
 
 function linearIssueIdForLabels(row: JsonMap): string {
@@ -2724,6 +3506,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (lower(body.action) === "labels_read") {
       return await handleLabelsRead(supabase, req, body);
     }
+    if (lower(body.action) === "create_options") {
+      return await handleCreateOptions(supabase, req, body);
+    }
     if (body.action !== undefined) throw new GatewayError(400, "unsupported_action");
     const operation = normalizeOperation(body.operation);
     if (!operation) throw new GatewayError(400, "unsupported_operation");
@@ -2735,6 +3520,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       sourceEditedAt = sourceTimestamp(body.source_edited_at);
     } catch (_error) {
       throw new GatewayError(400, "invalid_source_edited_at");
+    }
+    if (operation === "create") {
+      return await handleProductionCreate(
+        supabase, req, body, surface, requestId, sourceEditedAt,
+      );
     }
     return operation === "intake_create"
       ? await handleIntakeCreate(supabase, req, body, surface, requestId, sourceEditedAt)

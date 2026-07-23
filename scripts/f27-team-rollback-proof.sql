@@ -28,11 +28,14 @@ CREATE TABLE public.syncview_runtime_flags (
 CREATE TABLE public.deliverable_events (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   deliverable_id text,
+  batch_id text,
   client_slug text NOT NULL,
   ts timestamptz NOT NULL DEFAULT now(),
   actor text,
   role text,
   action text NOT NULL,
+  from_status text,
+  to_status text,
   source text NOT NULL DEFAULT 'ui',
   payload jsonb
 );
@@ -45,6 +48,47 @@ CREATE POLICY "anon read deliverable_events"
   USING (true);
 GRANT SELECT ON public.deliverable_events TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.deliverable_events TO service_role;
+
+-- Minimal native Production tables used by the focused F203 atomic-create
+-- proof later in this same disposable database. They preserve the real column
+-- types and mutability boundary exercised by production_issue_create.
+CREATE TABLE public.batches (
+  id text PRIMARY KEY,
+  client_slug text NOT NULL,
+  team text,
+  name text,
+  description text,
+  status text NOT NULL,
+  created_by text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  linear_parent_ids jsonb
+);
+CREATE TABLE public.deliverables (
+  id text PRIMARY KEY,
+  batch_id text NOT NULL,
+  client_slug text NOT NULL,
+  team text NOT NULL,
+  kind text NOT NULL,
+  title text,
+  brief text,
+  status text NOT NULL,
+  status_at timestamptz,
+  assignee_id text,
+  due_date date,
+  origin text,
+  card_id text,
+  sync_state text,
+  created_by text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  linear_issue_uuid text UNIQUE,
+  linear_identifier text,
+  linear_issue_url text,
+  linear_raw jsonb
+);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.batches TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.deliverables TO service_role;
 
 CREATE TABLE public.flag_flips (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -439,6 +483,679 @@ BEGIN
     RAISE EXCEPTION 'f27_migration_probe_not_rolled_back';
   END IF;
 END $$;
+
+-- Reuse this existing disposable PostgreSQL lane for the F203 RPC itself.
+-- These small baseline functions model the already-installed native write
+-- primitives; the candidate migration below remains the exact production
+-- source under test.
+CREATE OR REPLACE FUNCTION public.production_batch_parent_ids_for_team(
+  p_value jsonb,
+  p_team text
+) RETURNS text[]
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = public
+AS $fn$
+DECLARE
+  v_team text := CASE lower(btrim(coalesce(p_team, '')))
+    WHEN 'vid' THEN 'video'
+    WHEN 'video' THEN 'video'
+    WHEN 'gra' THEN 'graphics'
+    WHEN 'graphic' THEN 'graphics'
+    WHEN 'graphics' THEN 'graphics'
+    ELSE null
+  END;
+  v_entry jsonb;
+  v_ids text[];
+BEGIN
+  IF v_team IS NULL OR jsonb_typeof(p_value) IS DISTINCT FROM 'object' THEN
+    RETURN array[]::text[];
+  END IF;
+  v_entry := p_value->v_team;
+  SELECT coalesce(array_agg(id ORDER BY id), array[]::text[])
+    INTO v_ids
+  FROM (
+    SELECT DISTINCT nullif(btrim(value), '') AS id
+    FROM (VALUES
+      (v_entry->>'id'),
+      (v_entry->>'uuid'),
+      (v_entry->>'linear_issue_id')
+    ) values_to_check(value)
+  ) ids
+  WHERE id IS NOT NULL;
+  RETURN v_ids;
+END;
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.production_outbox_replay(
+  p_entity text,
+  p_entity_id text,
+  p_operation text,
+  p_client_slug text,
+  p_team text,
+  p_actor text,
+  p_role text,
+  p_test_only boolean,
+  p_legacy_parity boolean,
+  p_intent_fingerprint text,
+  p_dedup_key text
+) RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $fn$
+DECLARE
+  v_existing public.mirror_outbox%rowtype;
+BEGIN
+  IF nullif(btrim(coalesce(p_dedup_key, '')), '') IS NULL
+     OR nullif(btrim(coalesce(p_intent_fingerprint, '')), '') IS NULL THEN
+    RAISE EXCEPTION 'production write dedup and intent fingerprint required';
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_dedup_key, 0));
+  SELECT o.* INTO v_existing
+  FROM public.mirror_outbox o
+  WHERE o.dedup_key = p_dedup_key
+  FOR UPDATE;
+  IF NOT FOUND THEN RETURN false; END IF;
+  IF v_existing.entity IS DISTINCT FROM p_entity
+     OR v_existing.entity_id IS DISTINCT FROM p_entity_id
+     OR v_existing.operation IS DISTINCT FROM p_operation
+     OR v_existing.client_slug IS DISTINCT FROM p_client_slug
+     OR v_existing.team IS DISTINCT FROM p_team
+     OR v_existing.actor IS DISTINCT FROM p_actor
+     OR v_existing.role IS DISTINCT FROM p_role
+     OR v_existing.test_only IS DISTINCT FROM coalesce(p_test_only, false)
+     OR v_existing.legacy_parity IS DISTINCT FROM coalesce(p_legacy_parity, false)
+     OR nullif(v_existing.payload->>'_intent_fingerprint', '')
+          IS DISTINCT FROM p_intent_fingerprint THEN
+    RAISE EXCEPTION 'idempotency_conflict';
+  END IF;
+  RETURN true;
+END;
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.batch_write(
+  p_row jsonb,
+  p_event jsonb DEFAULT '{}'::jsonb
+) RETURNS public.batches
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $fn$
+DECLARE
+  v_result public.batches%rowtype;
+BEGIN
+  INSERT INTO public.batches(
+    id, client_slug, team, name, description, status, created_by, created_at,
+    updated_at, linear_parent_ids
+  ) VALUES (
+    p_row->>'id',
+    p_row->>'client_slug',
+    p_row->>'team',
+    p_row->>'name',
+    nullif(p_row->>'description', ''),
+    p_row->>'status',
+    p_row->>'created_by',
+    (p_row->>'created_at')::timestamptz,
+    now(),
+    p_row->'linear_parent_ids'
+  )
+  RETURNING * INTO v_result;
+  INSERT INTO public.deliverable_events(
+    deliverable_id, batch_id, client_slug, ts, actor, role, action,
+    from_status, to_status, source, payload
+  ) VALUES (
+    null, v_result.id, v_result.client_slug, (p_event->>'ts')::timestamptz,
+    p_event->>'actor', p_event->>'role', p_event->>'action', null, null,
+    p_event->>'source', p_event
+  );
+  RETURN v_result;
+END;
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.production_deliverable_write(
+  p_row jsonb,
+  p_event jsonb DEFAULT '{}'::jsonb
+) RETURNS public.deliverables
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $fn$
+DECLARE
+  v_result public.deliverables%rowtype;
+  v_outbound jsonb := p_event->'outbound';
+BEGIN
+  INSERT INTO public.deliverables(
+    id, batch_id, client_slug, team, kind, title, brief, status, status_at,
+    assignee_id, due_date, origin, card_id, sync_state, created_by, created_at,
+    updated_at, linear_issue_uuid, linear_raw
+  ) VALUES (
+    p_row->>'id', p_row->>'batch_id', p_row->>'client_slug', p_row->>'team',
+    p_row->>'kind', p_row->>'title', nullif(p_row->>'brief', ''),
+    p_row->>'status', (p_row->>'status_at')::timestamptz,
+    nullif(p_row->>'assignee_id', ''), nullif(p_row->>'due_date', '')::date,
+    p_row->>'origin', nullif(p_row->>'card_id', ''), p_row->>'sync_state',
+    p_row->>'created_by', (p_row->>'created_at')::timestamptz, now(),
+    p_row->>'linear_issue_uuid', p_row->'linear_raw'
+  )
+  RETURNING * INTO v_result;
+  INSERT INTO public.deliverable_events(
+    deliverable_id, batch_id, client_slug, ts, actor, role, action,
+    from_status, to_status, source, payload
+  ) VALUES (
+    v_result.id, v_result.batch_id, v_result.client_slug,
+    (p_event->>'ts')::timestamptz, p_event->>'actor', p_event->>'role',
+    p_event->>'action', nullif(p_event->>'from_status', ''),
+    nullif(p_event->>'to_status', ''), p_event->>'source', p_event
+  );
+  PERFORM public.mirror_outbox_enqueue(
+    v_outbound->>'entity', v_outbound->>'entity_id',
+    v_outbound->>'operation', v_outbound->'payload',
+    v_outbound->>'dedup_key', (v_outbound->>'source_edited_at')::timestamptz,
+    v_result.client_slug, v_outbound->>'team', p_event->>'actor',
+    p_event->>'role', v_result.id, v_result.batch_id, null,
+    nullif(v_outbound->>'depends_on_id', '')::bigint,
+    coalesce((v_outbound->>'test_only')::boolean, false)
+  );
+  RETURN v_result;
+END;
+$fn$;
+
+\ir ../migrations/2026-07-23-f203-production-issue-create.sql
+
+-- Commit one valid root issue, edit every mutable field (including the complete
+-- label relation), flip authority back to Linear, and replay the original
+-- request. Exact receipt recovery must return the advanced row without a
+-- second outbox/native write or a new authority dependency.
+BEGIN;
+UPDATE public.syncview_runtime_flags
+SET value = '{"video":"syncview","graphics":"linear"}'::jsonb,
+    updated_by = 'f203-disposable-proof'
+WHERE key = 'prod_authority';
+
+CREATE TEMP TABLE f203_request(batch jsonb, row_data jsonb, event jsonb);
+INSERT INTO f203_request(batch, row_data, event)
+SELECT
+  jsonb_build_object(
+    'id', 'f203-root-batch',
+    'client_slug', 'test-client',
+    'team', 'video',
+    'name', 'F203 original title',
+    'description', null,
+    'status', 'active',
+    'created_by', 'member:f203-proof',
+    'created_at', '2026-07-23T12:00:00.000Z',
+    'linear_parent_ids', jsonb_build_object(
+      'video', jsonb_build_object(
+        'uuid', '00000000-0000-4203-8203-000000000203',
+        'identifier', '',
+        'url', ''
+      )
+    )
+  ),
+  jsonb_build_object(
+    'id', 'f203-root-deliverable',
+    'batch_id', 'f203-root-batch',
+    'client_slug', 'test-client',
+    'team', 'video',
+    'kind', 'other',
+    'title', 'F203 original title',
+    'brief', E'## Original Markdown\n\n- exact  \n',
+    'status', 'todo',
+    'status_at', '2026-07-23T12:00:00.000Z',
+    'assignee_id', 'member-original',
+    'due_date', '2026-08-19',
+    'origin', 'manual',
+    'card_id', null,
+    'sync_state', 'pending',
+    'created_by', 'member:f203-proof',
+    'created_at', '2026-07-23T12:00:00.000Z',
+    'linear_issue_uuid', '00000000-0000-4203-8203-000000000203',
+    'linear_raw', jsonb_build_object(
+      'issue', jsonb_build_object(
+        'id', '00000000-0000-4203-8203-000000000203',
+        'title', 'F203 original title',
+        'description', E'## Original Markdown\n\n- exact  \n',
+        'dueDate', '2026-08-19',
+        'team', jsonb_build_object('id', 'team-video'),
+        'project', jsonb_build_object('id', 'project-test-video'),
+        'state', jsonb_build_object('id', 'state-todo'),
+        'assignee', jsonb_build_object('id', 'linear-original'),
+        'parent', null,
+        'labelIds', jsonb_build_array('label-a', 'label-z'),
+        'labels', jsonb_build_object(
+          'nodes', jsonb_build_array(
+            jsonb_build_object('id', 'label-a', 'name', 'Alpha', 'color', '#111111'),
+            jsonb_build_object('id', 'label-z', 'name', 'Zulu', 'color', '#999999')
+          ),
+          'pageInfo', jsonb_build_object('hasNextPage', false, 'endCursor', null)
+        )
+      ),
+      'attribution', jsonb_build_object(
+        'schema', 'syncview_attribution_v1',
+        'state', 'resolved',
+        'client_slug', 'test-client',
+        'project_id', 'project-test-video',
+        'repair_required', false
+      )
+    )
+  ),
+  jsonb_build_object(
+    'source', 'ui',
+    'action', 'create',
+    'surface', 'production',
+    'actor', 'F203 Proof Admin',
+    'actor_key', 'member:f203-proof',
+    'auth_kind', 'staff',
+    'role', 'admin',
+    'ts', '2026-07-23T12:00:00.000Z',
+    'from_status', null,
+    'to_status', 'todo',
+    'parent_deliverable_id', null,
+    'outbound', jsonb_build_object(
+      'entity', 'deliverable',
+      'entity_id', 'f203-root-deliverable',
+      'team', 'video',
+      'operation', 'create',
+      'dedup_key', 'write-ui:create:deliverable:f203-root-deliverable:f203-proof-request',
+      'source_edited_at', '2026-07-23T12:00:00.000Z',
+      'test_only', false,
+      'legacy_parity', false,
+      'payload', jsonb_build_object(
+        'team_id', 'team-video',
+        'project_id', 'project-test-video',
+        'title', 'F203 original title',
+        'description', E'## Original Markdown\n\n- exact  \n',
+        'status', 'todo',
+        'state_id', 'state-todo',
+        'due_date', '2026-08-19',
+        'assignee_id', 'member-original',
+        'linear_user_id', 'linear-original',
+        'parent_linear_issue_id', null,
+        'label_ids', jsonb_build_array('label-a', 'label-z'),
+        'planned_linear_issue_id', '00000000-0000-4203-8203-000000000203',
+        '_intent_fingerprint', 'f203-exact-intent-fingerprint',
+        '_f27_authority_generation', (
+          SELECT generation
+          FROM public.track_b_f27_team_fences
+          WHERE team = 'video'
+        ),
+        '_f27_legacy_parity', false
+      )
+    )
+  );
+
+DO $proof$
+DECLARE
+  v_result jsonb;
+  v_bad_row jsonb;
+  v_child_row jsonb;
+  v_child_event jsonb;
+  v_create_outbox_id bigint;
+BEGIN
+  SELECT public.production_issue_create(r.batch, r.row_data, r.event)
+    INTO v_result
+  FROM f203_request r;
+  IF coalesce((v_result->>'replay')::boolean, true)
+     OR v_result->'row'->>'id' IS DISTINCT FROM 'f203-root-deliverable'
+     OR (SELECT count(*) FROM public.mirror_outbox
+         WHERE dedup_key = 'write-ui:create:deliverable:f203-root-deliverable:f203-proof-request') <> 1
+     OR EXISTS (
+       SELECT 1 FROM public.mirror_outbox
+       WHERE entity = 'batch' AND entity_id = 'f203-root-batch' AND operation = 'create'
+     )
+     OR EXISTS (
+       SELECT 1 FROM public.deliverable_events
+       WHERE deliverable_id = 'f203-root-deliverable' AND payload ? 'outbound'
+     ) THEN
+    RAISE EXCEPTION 'f203_first_create_not_atomic';
+  END IF;
+  v_create_outbox_id := (v_result->>'outbox_id')::bigint;
+
+  -- Exercise the real child branch in the same disposable database: it must
+  -- reuse the root batch, depend on the root's one create intent, and create
+  -- no structural batch or batch-level Linear intent.
+  v_child_row := jsonb_build_object(
+    'id', 'f203-child-deliverable',
+    'batch_id', 'f203-root-batch',
+    'client_slug', 'test-client',
+    'team', 'video',
+    'kind', 'other',
+    'title', 'F203 child title',
+    'brief', E'## Child Markdown\n',
+    'status', 'in_progress',
+    'status_at', '2026-07-23T12:01:00.000Z',
+    'assignee_id', null,
+    'due_date', '2026-08-20',
+    'origin', 'manual',
+    'card_id', null,
+    'sync_state', 'pending',
+    'created_by', 'member:f203-proof',
+    'created_at', '2026-07-23T12:01:00.000Z',
+    'linear_issue_uuid', '00000000-0000-4203-8203-000000000204',
+    'linear_raw', jsonb_build_object(
+      'issue', jsonb_build_object(
+        'id', '00000000-0000-4203-8203-000000000204',
+        'title', 'F203 child title',
+        'description', E'## Child Markdown\n',
+        'dueDate', '2026-08-20',
+        'team', jsonb_build_object('id', 'team-video'),
+        'project', jsonb_build_object('id', 'project-test-video'),
+        'state', jsonb_build_object('id', 'state-in-progress'),
+        'assignee', null,
+        'parent', jsonb_build_object(
+          'id', '00000000-0000-4203-8203-000000000203',
+          'identifier', null,
+          'title', 'F203 original title'
+        ),
+        'labelIds', jsonb_build_array('label-a'),
+        'labels', jsonb_build_object(
+          'nodes', jsonb_build_array(
+            jsonb_build_object('id', 'label-a', 'name', 'Alpha', 'color', '#111111')
+          ),
+          'pageInfo', jsonb_build_object('hasNextPage', false, 'endCursor', null)
+        )
+      ),
+      'attribution', jsonb_build_object(
+        'schema', 'syncview_attribution_v1',
+        'state', 'resolved',
+        'client_slug', 'test-client',
+        'project_id', 'project-test-video',
+        'repair_required', false
+      )
+    )
+  );
+  v_child_event := jsonb_build_object(
+    'source', 'ui',
+    'action', 'create',
+    'surface', 'production',
+    'actor', 'F203 Proof Admin',
+    'actor_key', 'member:f203-proof',
+    'auth_kind', 'staff',
+    'role', 'admin',
+    'ts', '2026-07-23T12:01:00.000Z',
+    'from_status', null,
+    'to_status', 'in_progress',
+    'parent_deliverable_id', 'f203-root-deliverable',
+    'outbound', jsonb_build_object(
+      'entity', 'deliverable',
+      'entity_id', 'f203-child-deliverable',
+      'team', 'video',
+      'operation', 'create',
+      'dedup_key', 'write-ui:create:deliverable:f203-child-deliverable:f203-child-request',
+      'source_edited_at', '2026-07-23T12:01:00.000Z',
+      'test_only', false,
+      'legacy_parity', false,
+      'depends_on_id', v_create_outbox_id,
+      'payload', jsonb_build_object(
+        'team_id', 'team-video',
+        'project_id', 'project-test-video',
+        'title', 'F203 child title',
+        'description', E'## Child Markdown\n',
+        'status', 'in_progress',
+        'state_id', 'state-in-progress',
+        'due_date', '2026-08-20',
+        'assignee_id', null,
+        'linear_user_id', null,
+        'parent_linear_issue_id', null,
+        'label_ids', jsonb_build_array('label-a'),
+        'planned_linear_issue_id', '00000000-0000-4203-8203-000000000204',
+        '_intent_fingerprint', 'f203-child-exact-intent-fingerprint',
+        '_f27_authority_generation', (
+          SELECT generation
+          FROM public.track_b_f27_team_fences
+          WHERE team = 'video'
+        ),
+        '_f27_legacy_parity', false
+      )
+    )
+  );
+  SELECT public.production_issue_create('{}'::jsonb, v_child_row, v_child_event)
+    INTO v_result;
+  IF coalesce((v_result->>'replay')::boolean, true)
+     OR v_result->'row'->>'id' IS DISTINCT FROM 'f203-child-deliverable'
+     OR v_result->'row'->>'batch_id' IS DISTINCT FROM 'f203-root-batch'
+     OR v_result->'batch'->>'id' IS DISTINCT FROM 'f203-root-batch'
+     OR (SELECT count(*) FROM public.batches
+         WHERE id IN ('f203-root-batch', 'f203-child-batch')) <> 1
+     OR (SELECT count(*) FROM public.mirror_outbox
+         WHERE dedup_key =
+           'write-ui:create:deliverable:f203-child-deliverable:f203-child-request'
+           AND entity = 'deliverable'
+           AND entity_id = 'f203-child-deliverable'
+           AND operation = 'create'
+           AND depends_on_id = v_create_outbox_id) <> 1
+     OR EXISTS (
+       SELECT 1 FROM public.mirror_outbox
+       WHERE entity = 'batch' AND entity_id = 'f203-root-batch' AND operation = 'create'
+     )
+     OR (SELECT count(*) FROM public.deliverable_events
+         WHERE deliverable_id = 'f203-child-deliverable'
+           AND action = 'create'
+           AND payload->>'parent_deliverable_id' = 'f203-root-deliverable') <> 1 THEN
+    RAISE EXCEPTION 'f203_child_create_route_not_exact';
+  END IF;
+
+  UPDATE public.deliverables
+  SET title = 'F203 later title',
+      brief = E'## Later Markdown\n',
+      status = 'approved',
+      status_at = '2026-07-24T12:00:00.000Z',
+      due_date = '2027-09-20',
+      assignee_id = 'member-later',
+      updated_at = '2026-07-24T12:00:00.000Z',
+      linear_raw = jsonb_set(
+        linear_raw,
+        '{issue}',
+        (linear_raw->'issue') || jsonb_build_object(
+          'title', 'F203 later title',
+          'description', E'## Later Markdown\n',
+          'dueDate', '2027-09-20',
+          'state', jsonb_build_object('id', 'state-approved'),
+          'assignee', jsonb_build_object('id', 'linear-later'),
+          'labelIds', jsonb_build_array('label-later'),
+          'labels', jsonb_build_object(
+            'nodes', jsonb_build_array(
+              jsonb_build_object(
+                'id', 'label-later',
+                'name', 'Later',
+                'color', '#abcdef'
+              )
+            ),
+            'pageInfo', jsonb_build_object('hasNextPage', false, 'endCursor', null)
+          )
+        ),
+        true
+      )
+  WHERE id = 'f203-root-deliverable';
+
+  PERFORM public.mirror_outbox_enqueue(
+    'deliverable',
+    'f203-root-deliverable',
+    'due',
+    jsonb_build_object(
+      'due_date', '2027-09-20',
+      '_f27_authority_generation', (
+        SELECT generation
+        FROM public.track_b_f27_team_fences
+        WHERE team = 'video'
+      ),
+      '_f27_legacy_parity', false
+    ),
+    'f203:later-due',
+    '2026-07-24T12:00:00.000Z',
+    'test-client',
+    'video',
+    'F203 Proof Admin',
+    'admin',
+    'f203-root-deliverable',
+    'f203-root-batch',
+    null,
+    null,
+    false
+  );
+  SELECT to_jsonb(public.production_issue_create_linkage(
+    'f203-root-deliverable',
+    v_create_outbox_id,
+    jsonb_build_object(
+      'id', 'f203-root-deliverable',
+      'batch_id', 'f203-root-batch',
+      'client_slug', 'test-client',
+      'team', 'video',
+      'kind', 'other',
+      'origin', 'manual',
+      'card_id', null,
+      'created_by', 'member:f203-proof',
+      'created_at', '2026-07-23T12:00:00.000Z',
+      'planned_linear_issue_id', '00000000-0000-4203-8203-000000000203',
+      'intent_fingerprint', 'f203-exact-intent-fingerprint'
+    ),
+    jsonb_build_object(
+      'id', '00000000-0000-4203-8203-000000000203',
+      'identifier', 'VID-203',
+      'url', 'https://linear.example.invalid/VID-203'
+    )
+  )) INTO v_result;
+  IF v_result->>'title' IS DISTINCT FROM 'F203 later title'
+     OR v_result->>'brief' IS DISTINCT FROM E'## Later Markdown\n'
+     OR v_result->>'due_date' IS DISTINCT FROM '2027-09-20'
+     OR v_result->>'assignee_id' IS DISTINCT FROM 'member-later'
+     OR v_result->>'sync_state' IS DISTINCT FROM 'pending'
+     OR v_result->>'linear_identifier' IS DISTINCT FROM 'VID-203'
+     OR v_result->>'linear_issue_url'
+          IS DISTINCT FROM 'https://linear.example.invalid/VID-203'
+     OR v_result->'linear_raw'->'issue'->>'title'
+          IS DISTINCT FROM 'F203 later title'
+     OR v_result->'linear_raw'->'issue'->>'description'
+          IS DISTINCT FROM E'## Later Markdown\n'
+     OR v_result->'linear_raw'->'issue'->'labelIds'
+          IS DISTINCT FROM '["label-later"]'::jsonb
+     OR v_result->'linear_raw'->'issue'->>'identifier' IS DISTINCT FROM 'VID-203'
+     OR v_result->'linear_raw'->'issue'->>'url'
+          IS DISTINCT FROM 'https://linear.example.invalid/VID-203' THEN
+    RAISE EXCEPTION 'f203_post_read_edit_linkage_overwrite';
+  END IF;
+
+  UPDATE public.syncview_runtime_flags
+  SET value = '{"video":"linear","graphics":"linear"}'::jsonb,
+      updated_by = 'f203-authority-flip'
+  WHERE key = 'prod_authority';
+
+  SELECT public.production_issue_create(r.batch, r.row_data, r.event)
+    INTO v_result
+  FROM f203_request r;
+  IF coalesce((v_result->>'replay')::boolean, false) IS DISTINCT FROM true
+     OR v_result->'row'->>'title' IS DISTINCT FROM 'F203 later title'
+     OR v_result->'row'->>'brief' IS DISTINCT FROM E'## Later Markdown\n'
+     OR v_result->'row'->>'status' IS DISTINCT FROM 'approved'
+     OR (v_result->'row'->>'status_at')::timestamptz
+          IS DISTINCT FROM '2026-07-24T12:00:00.000Z'::timestamptz
+     OR v_result->'row'->>'due_date' IS DISTINCT FROM '2027-09-20'
+     OR v_result->'row'->>'assignee_id' IS DISTINCT FROM 'member-later'
+     OR v_result->'row'->'linear_raw'->'issue'->'labelIds'
+          IS DISTINCT FROM '["label-later"]'::jsonb
+     OR (SELECT count(*) FROM public.mirror_outbox
+         WHERE dedup_key = 'write-ui:create:deliverable:f203-root-deliverable:f203-proof-request') <> 1
+     OR (SELECT count(*) FROM public.deliverable_events
+         WHERE deliverable_id = 'f203-root-deliverable' AND action = 'create') <> 1 THEN
+    RAISE EXCEPTION 'f203_mutated_authority_flipped_replay_failed';
+  END IF;
+
+  SELECT public.production_issue_create('{}'::jsonb, v_child_row, v_child_event)
+    INTO v_result;
+  IF coalesce((v_result->>'replay')::boolean, false) IS DISTINCT FROM true
+     OR v_result->'row'->>'id' IS DISTINCT FROM 'f203-child-deliverable'
+     OR v_result->'row'->>'batch_id' IS DISTINCT FROM 'f203-root-batch'
+     OR (SELECT count(*) FROM public.mirror_outbox
+         WHERE dedup_key =
+           'write-ui:create:deliverable:f203-child-deliverable:f203-child-request'
+           AND depends_on_id = v_create_outbox_id) <> 1 THEN
+    RAISE EXCEPTION 'f203_child_authority_flipped_replay_failed';
+  END IF;
+
+  -- Parent shape is structural, not one of the mutable fields an exact retry
+  -- may ignore. A root that gained a parent and a child moved elsewhere must
+  -- both reject the original create replay, even after authority flips.
+  UPDATE public.deliverables
+  SET linear_raw = jsonb_set(
+    linear_raw,
+    '{issue,parent}',
+    '{"id":"00000000-0000-4203-8203-000000009999"}'::jsonb,
+    true
+  )
+  WHERE id = 'f203-root-deliverable';
+  BEGIN
+    PERFORM public.production_issue_create(r.batch, r.row_data, r.event)
+    FROM f203_request r;
+    RAISE EXCEPTION 'f203_root_reparent_replay_unexpectedly_accepted';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'production_create_id_conflict' THEN RAISE; END IF;
+  END;
+  UPDATE public.deliverables
+  SET linear_raw = jsonb_set(linear_raw, '{issue,parent}', 'null'::jsonb, true)
+  WHERE id = 'f203-root-deliverable';
+
+  UPDATE public.deliverables
+  SET linear_raw = jsonb_set(
+    linear_raw,
+    '{issue,parent}',
+    '{"id":"00000000-0000-4203-8203-000000009998"}'::jsonb,
+    true
+  )
+  WHERE id = 'f203-child-deliverable';
+  BEGIN
+    PERFORM public.production_issue_create('{}'::jsonb, v_child_row, v_child_event);
+    RAISE EXCEPTION 'f203_child_reparent_replay_unexpectedly_accepted';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'production_create_id_conflict' THEN RAISE; END IF;
+  END;
+  UPDATE public.deliverables
+  SET linear_raw = jsonb_set(
+    linear_raw,
+    '{issue,parent}',
+    '{"id":"00000000-0000-4203-8203-000000000203","identifier":null,"title":"F203 later title"}'::jsonb,
+    true
+  )
+  WHERE id = 'f203-child-deliverable';
+
+  SELECT jsonb_set(
+    r.row_data,
+    '{linear_raw,issue,labels,nodes}',
+    '[{"id":"label-a","name":"Alpha","color":"#111111"},{"id":"wrong-label","name":"Wrong","color":"#222222"}]'::jsonb
+  ) INTO v_bad_row
+  FROM f203_request r;
+  BEGIN
+    PERFORM public.production_issue_create(r.batch, v_bad_row, r.event)
+    FROM f203_request r;
+    RAISE EXCEPTION 'f203_wrong_label_relation_unexpectedly_accepted';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'invalid_production_create_payload' THEN RAISE; END IF;
+  END;
+END;
+$proof$;
+
+SELECT 'f203_mutable_authority_replay_exact' AS f203_disposable_proof;
+ROLLBACK;
+
+DO $proof$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.deliverables
+    WHERE id IN ('f203-root-deliverable', 'f203-child-deliverable')
+  ) OR EXISTS (
+    SELECT 1 FROM public.batches WHERE id = 'f203-root-batch'
+  ) OR EXISTS (
+    SELECT 1 FROM public.mirror_outbox
+    WHERE dedup_key IN (
+      'write-ui:create:deliverable:f203-root-deliverable:f203-proof-request',
+      'write-ui:create:deliverable:f203-child-deliverable:f203-child-request',
+      'f203:later-due'
+    )
+  ) THEN
+    RAISE EXCEPTION 'f203_disposable_proof_residue';
+  END IF;
+END;
+$proof$;
 
 -- A future F27 install must preserve F201 and F202. Exercise labels and an
 -- exact Markdown description through the generation-fenced enqueue body, then

@@ -2914,6 +2914,43 @@
         .prod-label-state.is-error { color: var(--prod-danger); }
         .prod-label-retry { min-height: 26px; margin-top: 8px; border: 1px solid var(--prod-border-soft); border-radius: 6px; background: var(--prod-surface); color: var(--prod-strong); padding: 0 9px; font: inherit; font-size: 11.5px; cursor: pointer; }
         .prod-label-lock { padding: 7px 10px; border-top: 1px solid var(--prod-divider); color: var(--prod-faint); font-size: 10.5px; line-height: 15px; }
+        .prod-create-trigger { min-height: 28px; border: 0; border-radius: 7px; padding: 0 11px; background: var(--prod-accent); color: #fff; display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .prod-create-trigger:hover { filter: brightness(.97); }
+        .prod-create-trigger[disabled] { background: var(--prod-hover); color: var(--prod-faint); cursor: not-allowed; filter: none; }
+        .prod-create-bd { position: fixed; inset: 0; padding: 32px 18px; box-sizing: border-box; display: flex; justify-content: center; align-items: flex-start; overflow: auto; background: rgba(18,18,20,.34); pointer-events: auto; }
+        .prod-create-modal { width: min(720px, calc(100vw - 36px)); max-height: calc(100vh - 64px); display: flex; flex-direction: column; border: 1px solid var(--prod-border); border-radius: 14px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 24px 70px rgba(0,0,0,.24); overflow: hidden; }
+        .prod-create-head { min-height: 54px; padding: 0 16px; border-bottom: 1px solid var(--prod-divider); display: flex; align-items: center; gap: 10px; }
+        .prod-create-head h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -.01em; }
+        .prod-create-head p { margin: 2px 0 0; color: var(--prod-muted); font-size: 11.5px; }
+        .prod-create-close { width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--prod-muted); display: grid; place-items: center; cursor: pointer; }
+        .prod-create-close:hover { background: var(--prod-hover); color: var(--prod-strong); }
+        .prod-create-body { padding: 16px; overflow: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+        .prod-create-field { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+        .prod-create-field.wide { grid-column: 1 / -1; }
+        .prod-create-field > label, .prod-create-label-head > span { color: var(--prod-muted); font-size: 11.5px; font-weight: 600; }
+        .prod-create-input, .prod-create-select, .prod-create-textarea, .prod-create-label-search { width: 100%; box-sizing: border-box; border: 1px solid var(--prod-border); border-radius: 8px; background: var(--prod-surface); color: var(--prod-strong); font: inherit; font-size: 13px; outline: none; }
+        .prod-create-input, .prod-create-select, .prod-create-label-search { min-height: 36px; padding: 0 10px; }
+        .prod-create-textarea { min-height: 126px; resize: vertical; padding: 9px 10px; line-height: 19px; tab-size: 2; }
+        .prod-create-input:focus, .prod-create-select:focus, .prod-create-textarea:focus, .prod-create-label-search:focus { border-color: var(--prod-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--prod-accent) 16%, transparent); }
+        .prod-create-select[disabled], .prod-create-input[disabled] { background: var(--prod-hover); color: var(--prod-muted); }
+        .prod-create-label-box { border: 1px solid var(--prod-border); border-radius: 9px; overflow: hidden; }
+        .prod-create-label-head { min-height: 38px; padding: 7px 9px; display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--prod-divider); }
+        .prod-create-label-head > span { white-space: nowrap; }
+        .prod-create-label-search { min-height: 30px; border: 0; padding: 0 4px; }
+        .prod-create-label-list { max-height: 196px; overflow: auto; padding: 5px; }
+        .prod-create-label-option { min-height: 34px; border-radius: 6px; padding: 5px 7px; display: grid; grid-template-columns: 16px 10px minmax(0,1fr); align-items: center; gap: 8px; cursor: pointer; font-size: 12.5px; }
+        .prod-create-label-option:hover { background: var(--prod-hover); }
+        .prod-create-label-option input { margin: 0; accent-color: var(--prod-accent); }
+        .prod-create-label-copy { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+        .prod-create-label-copy small { color: var(--prod-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .prod-create-label-empty { padding: 16px 10px; color: var(--prod-muted); font-size: 12px; text-align: center; }
+        .prod-create-note { grid-column: 1 / -1; padding: 8px 10px; border-radius: 8px; background: var(--prod-hover); color: var(--prod-muted); font-size: 11.5px; line-height: 17px; }
+        .prod-create-error { grid-column: 1 / -1; min-height: 18px; color: var(--prod-danger); font-size: 12px; line-height: 18px; }
+        .prod-create-foot { min-height: 56px; padding: 9px 14px; border-top: 1px solid var(--prod-divider); display: flex; align-items: center; gap: 8px; }
+        .prod-create-secondary, .prod-create-submit { min-height: 32px; border: 0; border-radius: 8px; padding: 0 13px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+        .prod-create-secondary { background: var(--prod-hover); color: var(--prod-strong); }
+        .prod-create-submit { background: var(--prod-accent); color: #fff; }
+        .prod-create-submit[disabled] { opacity: .56; cursor: wait; }
         .prod-empty, .prod-error, .prod-loading { margin: auto; max-width: 420px; text-align: center; color: var(--prod-muted); font-size: 13px; line-height: 1.5; padding: 40px; }
         .prod-error { color: var(--prod-danger); }
         /* Production preview artifact-structure layer, sourced from docs/syncview-design/SyncView.html. */
@@ -3159,7 +3196,7 @@
         .prod-inline-empty-title { display: block; color: var(--prod-strong); font-weight: 600; margin-bottom: 2px; }
         .prod-inline-empty-action { margin-top: 10px; height: 28px; padding: 0 12px; border: 0; border-radius: 7px; background: var(--prod-hover); color: var(--prod-strong); font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; }
         .prod-inline-empty-action:hover { background: var(--prod-menu-hover); }
-        @media (max-width: 900px) { .prod-view { margin-left: -16px; margin-right: -16px; } .prod-side { display: none; } .prod-right { display: none; } .prod-detail-inner { padding-left: 20px; padding-right: 20px; } .prod-chip.optional { display: none; } .prod-row .prod-created, .prod-subrow .prod-created { display: none; } }
+        @media (max-width: 900px) { .prod-view { margin-left: -16px; margin-right: -16px; } .prod-side { display: none; } .prod-right { display: none; } .prod-detail-inner { padding-left: 20px; padding-right: 20px; } .prod-chip.optional { display: none; } .prod-row .prod-created, .prod-subrow .prod-created { display: none; } .prod-create-body { grid-template-columns: 1fr; } .prod-create-field.wide, .prod-create-note, .prod-create-error { grid-column: 1; } }
 
         /* Workload calendar */
         .workload-view { max-width: 1440px; margin: 0 auto; animation: fadeIn 0.15s ease; }
@@ -19951,6 +19988,19 @@
                 _prodState.commentDrafts.clear();
                 _prodState.writes.clear();
                 _prodState.labels.clear();
+                _prodState.createCatalogToken++;
+                _prodState.createCatalog = [];
+                _prodState.createCatalogStatus = 'idle';
+                _prodState.createCatalogError = '';
+                _prodState.createDraft = null;
+                _prodState.createSubmitting = false;
+                _prodState.createError = '';
+                try { sessionStorage.removeItem(PROD_CREATE_DRAFT_KEY); } catch (e) {}
+                try {
+                    if (document.querySelector('[data-prod-create-modal]') && typeof _prodClearLayer === 'function') {
+                        _prodClearLayer();
+                    }
+                } catch (e) {}
             }
         } catch (e) {}
         try {
@@ -40329,6 +40379,7 @@
         const PROD_BOARD_STATUS_TO_ARTIFACT = { in_progress: 'prog', prog: 'prog', backlog: 'backlog', planned: 'planned', paused: 'paused', completed: 'completed', canceled: 'canceled' };
         const PROD_EDITOR_COLORS = ['#e2a03f', '#4cb782', '#e56cd6', '#5e6ad2', '#6c6f7d'];
         const PROD_DISPLAY_PREFS_KEY = 'syncview_prod_display_v1';
+        const PROD_CREATE_DRAFT_KEY = 'syncview_prod_create_draft_v1';
         const PROD_COMMENTS_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
         const PROD_WRITE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-write';
         const PROD_AUTHORITY_FLAG_KEY = 'prod_authority';
@@ -40377,6 +40428,13 @@
             labelRequestTokens: new Map(),
             descriptions: new Map(),
             descriptionRequestTokens: new Map(),
+            createDraft: null,
+            createCatalog: [],
+            createCatalogStatus: 'idle',
+            createCatalogError: '',
+            createCatalogToken: 0,
+            createSubmitting: false,
+            createError: '',
             projectionGeneration: 0,
             authority: null,
             authorityLoaded: false,
@@ -42174,6 +42232,547 @@
             try { entropy = crypto.randomUUID(); }
             catch (e) { entropy = Math.random().toString(36).slice(2) + Date.now().toString(36); }
             return 'prod:' + String(operation || 'write') + ':' + entropy;
+        }
+        function _prodCreateRoleAllowed() {
+            const identity = _syncviewStaffIdentityForHeaders();
+            const role = String(identity && identity.role || '').trim().toLowerCase();
+            return role === 'admin' || role === 'smm';
+        }
+        function _prodCreateGateText(clientSlug, team, parent) {
+            if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with an Admin or SMM staff account to create issues.';
+            if (!_prodCreateRoleAllowed()) return 'Only Admin and SMM staff can create Production issues.';
+            if (parent && (!_prodAttributionResolved(parent) || parent.parent)) {
+                return parent.parent
+                    ? 'Create the sub-issue from a top-level parent issue.'
+                    : _prodAttributionGateText(parent);
+            }
+            const client = _prodClient(clientSlug);
+            if (clientSlug && (!client || !client.raw || client.raw.active !== true)) return 'Choose an active roster client.';
+            if (client && String(client.raw && client.raw.kind || '').trim().toLowerCase() === 'test') {
+                return 'TEST creation is reserved for the service-authenticated write drill.';
+            }
+            team = _prodWriteTeam(team);
+            if (team) {
+                if (!_prodState.authorityLoaded || !_prodState.authority) return 'Creation is unavailable while authority is being checked.';
+                if (_prodState.authority[team] !== 'syncview') return _prodTeamLabel(team) + ' stays read-only while Linear is authoritative.';
+            }
+            return '';
+        }
+        function _prodCreateRecoveryGateText(draft) {
+            if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with the same Admin or SMM staff account to recover this issue.';
+            if (!_prodCreateRoleAllowed()) return 'Only Admin and SMM staff can recover a Production creation attempt.';
+            const client = _prodClient(draft && draft.clientSlug);
+            if (!client || !client.raw || client.raw.active !== true) return 'The saved roster client is no longer active.';
+            if (String(client.raw.kind || '').trim().toLowerCase() === 'test') {
+                return 'TEST creation is reserved for the service-authenticated write drill.';
+            }
+            return '';
+        }
+        function _prodCreateTopbarButton(clientSlug, team) {
+            const saved = _prodCreateSavedDraft();
+            const recovering = !!(saved && saved.ambiguous);
+            const scoped = !!(clientSlug && _prodWriteTeam(team));
+            const gate = recovering
+                ? _prodCreateRecoveryGateText(saved)
+                : scoped
+                ? _prodCreateGateText(clientSlug, team)
+                : (!_syncviewStaffIdentityForHeaders()
+                    ? 'Sign in with an Admin or SMM staff account to create issues.'
+                    : !_prodCreateRoleAllowed()
+                        ? 'Only Admin and SMM staff can create Production issues.'
+                        : !_prodState.authorityLoaded || !_prodState.authority
+                            ? 'Creation is unavailable while authority is being checked.'
+                            : !['video', 'graphics'].some(value => _prodState.authority[value] === 'syncview')
+                                ? 'Production creation stays read-only while Linear is authoritative.'
+                                : '');
+            return '<button class="prod-create-trigger" type="button" data-prod-create-trigger="1"'
+                + (gate
+                    ? ' disabled title="' + _calEscAttr(gate) + '" data-prod-tip="' + _calEscAttr(gate) + '"'
+                    : ' onclick="return _prodOpenCreate()" title="' + (recovering ? 'Recover saved Production issue' : 'Create Production issue') + '" data-prod-tip="' + (recovering ? 'Recover saved issue' : 'Create issue') + '"')
+                + '>' + _prodIcon('plus') + '<span>' + (recovering ? 'Recover issue' : 'New issue') + '</span></button>';
+        }
+        function _prodCreateValidDate(value) {
+            if (!value) return true;
+            const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value));
+            if (!match) return false;
+            const date = new Date(Date.UTC(+match[1], +match[2] - 1, +match[3]));
+            return date.getUTCFullYear() === +match[1]
+                && date.getUTCMonth() === +match[2] - 1
+                && date.getUTCDate() === +match[3];
+        }
+        function _prodCreateSavedDraft() {
+            try {
+                const saved = JSON.parse(sessionStorage.getItem(PROD_CREATE_DRAFT_KEY) || 'null');
+                if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return null;
+                if (Date.now() - Number(saved.savedAt || 0) > 7 * 864e5) return null;
+                if (!['parent', 'subissue'].includes(saved.mode)) return null;
+                if (!Array.isArray(saved.labelIds)) return null;
+                const status = String(saved.status || '');
+                const allowedStatuses = new Set(Object.values(PROD_STATUS_FROM_ARTIFACT));
+                return {
+                    mode: saved.mode,
+                    parentId: String(saved.parentId || ''),
+                    parentLocked: saved.parentLocked === true,
+                    ambiguous: saved.ambiguous === true,
+                    clientSlug: String(saved.clientSlug || ''),
+                    team: _prodWriteTeam(saved.team) || 'video',
+                    title: String(saved.title || '').slice(0, 500),
+                    description: String(saved.description || '').slice(0, 100000),
+                    status: allowedStatuses.has(status) ? status : 'in_progress',
+                    dueDate: _prodCreateValidDate(saved.dueDate) ? String(saved.dueDate || '') : '',
+                    assigneeId: String(saved.assigneeId || ''),
+                    labelIds: [...new Set(saved.labelIds.map(value => String(value || '').trim()).filter(Boolean))],
+                    requestId: /^[a-zA-Z0-9][a-zA-Z0-9:_-]{7,199}$/.test(String(saved.requestId || ''))
+                        ? String(saved.requestId)
+                        : _prodWriteRequestId('create'),
+                    sourceEditedAt: Number.isFinite(Date.parse(String(saved.sourceEditedAt || '')))
+                        ? String(saved.sourceEditedAt)
+                        : new Date().toISOString(),
+                    savedAt: Number(saved.savedAt || Date.now())
+                };
+            } catch (e) {
+                return null;
+            }
+        }
+        function _prodPersistCreateDraft() {
+            const draft = _prodState.createDraft;
+            try {
+                if (!draft) sessionStorage.removeItem(PROD_CREATE_DRAFT_KEY);
+                else {
+                    draft.savedAt = Date.now();
+                    sessionStorage.setItem(PROD_CREATE_DRAFT_KEY, JSON.stringify(draft));
+                }
+            } catch (e) {}
+        }
+        function _prodRenewCreateIntent() {
+            const draft = _prodState.createDraft;
+            if (!draft) return;
+            draft.requestId = _prodWriteRequestId('create');
+            draft.sourceEditedAt = new Date().toISOString();
+            _prodState.createError = '';
+            _prodPersistCreateDraft();
+        }
+        function _prodCreateDefaults(parentId) {
+            const parent = parentId ? _prodIssue(parentId) : null;
+            const openIssue = _prodState.openId ? _prodIssue(_prodState.openId) : null;
+            let clientSlug = parent && parent.project
+                || (_prodState.openProjectId && _prodClient(_prodState.openProjectId) ? _prodState.openProjectId : '')
+                || (_prodState.clientSlug && _prodClient(_prodState.clientSlug) ? _prodState.clientSlug : '')
+                || (openIssue && _prodAttributionResolved(openIssue) ? openIssue.project : '');
+            if (!clientSlug) {
+                const firstClient = Object.values(_prodProjects())
+                    .filter(client => client && client.raw && client.raw.active === true
+                        && String(client.raw.kind || '').trim().toLowerCase() !== 'test')
+                    .sort((a, b) => String(a.name).localeCompare(String(b.name)))[0];
+                clientSlug = firstClient ? firstClient.id : '';
+            }
+            const client = _prodClient(clientSlug);
+            const scopedTeam = _prodState.team === 'video' || _prodState.team === 'graphics' ? _prodState.team : '';
+            let team = _prodWriteTeam(parent && parent.team)
+                || scopedTeam
+                || _prodWriteTeam(client && client.team)
+                || 'video';
+            if (!parent && _prodState.authority && _prodState.authority[team] !== 'syncview') {
+                const writableTeam = ['video', 'graphics'].find(value => _prodState.authority[value] === 'syncview');
+                if (writableTeam) team = writableTeam;
+            }
+            return {
+                mode: parent ? 'subissue' : 'parent',
+                parentId: parent ? parent.id : '',
+                parentLocked: !!parent,
+                ambiguous: false,
+                clientSlug,
+                team,
+                title: '',
+                description: '',
+                status: 'in_progress',
+                dueDate: '',
+                assigneeId: '',
+                labelIds: [],
+                requestId: _prodWriteRequestId('create'),
+                sourceEditedAt: new Date().toISOString(),
+                savedAt: Date.now()
+            };
+        }
+        function _prodCreateParents(draft) {
+            return _prodIssues().filter(issue =>
+                issue && !issue.parent && _prodAttributionResolved(issue)
+                && issue.project === draft.clientSlug
+                && _prodWriteTeam(issue.team) === _prodWriteTeam(draft.team)
+                && String(issue.raw && issue.raw.linear_issue_uuid || '').trim()
+            ).sort((a, b) => String(a.title || _prodIssueLabel(a)).localeCompare(String(b.title || _prodIssueLabel(b))));
+        }
+        function _prodCreateAssignees(draft) {
+            return Object.values(_prodEditors()).filter(member =>
+                member && member.active !== false
+                && _prodWriteTeam(member.raw && member.raw.team) === _prodWriteTeam(draft.team)
+            ).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        }
+        function _prodCreateCatalogHTML() {
+            const draft = _prodState.createDraft;
+            if (!draft) return '';
+            if (_prodState.createCatalogStatus === 'loading') {
+                return '<div class="prod-create-label-empty" data-prod-create-label-state="loading">Loading the Linear label catalogâ€¦</div>';
+            }
+            if (_prodState.createCatalogStatus === 'error') {
+                return '<div class="prod-create-label-empty" data-prod-create-label-state="error">' + _calEsc(_prodState.createCatalogError || 'Labels unavailable.') + ' <button class="prod-label-retry" type="button" onclick="_prodLoadCreateOptions(true)">Retry</button></div>';
+            }
+            const selected = new Set(draft.labelIds || []);
+            const locked = draft.ambiguous === true;
+            if (!_prodState.createCatalog.length) {
+                return '<div class="prod-create-label-empty" data-prod-create-label-state="empty">No labels are available for this team.</div>';
+            }
+            return _prodState.createCatalog.map(label => {
+                const tip = label.description || label.name;
+                return '<label class="prod-create-label-option" data-prod-create-label-option="' + _calEscAttr(label.id) + '" data-prod-create-label-search="' + _calEscAttr((label.name + ' ' + label.description).toLowerCase()) + '" title="' + _calEscAttr(tip) + '">'
+                    + '<input type="checkbox" value="' + _calEscAttr(label.id) + '"' + (selected.has(label.id) ? ' checked' : '') + (locked ? ' disabled' : '') + ' onchange="_prodToggleCreateLabel(this.value,this.checked)">'
+                    + '<span class="prod-label-dot"' + _prodLabelColorStyle(label) + '></span>'
+                    + '<span class="prod-create-label-copy"><span>' + _calEsc(label.name) + '</span>' + (label.description ? '<small>' + _calEsc(label.description) + '</small>' : '') + '</span></label>';
+            }).join('');
+        }
+        function _prodCreateFormHTML() {
+            const draft = _prodState.createDraft;
+            if (!draft) return '';
+            const parentFixed = draft.parentLocked === true;
+            const recoveryLocked = draft.ambiguous === true;
+            const recoveryLockAttr = recoveryLocked ? ' disabled' : '';
+            const parent = draft.parentId ? _prodIssue(draft.parentId) : null;
+            const clients = Object.values(_prodProjects())
+                .filter(client => client && client.raw && client.raw.active === true
+                    && String(client.raw.kind || '').trim().toLowerCase() !== 'test')
+                .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            const parents = _prodCreateParents(draft);
+            const assignees = _prodCreateAssignees(draft);
+            const clientOptions = clients.map(client => '<option value="' + _calEscAttr(client.id) + '"' + (client.id === draft.clientSlug ? ' selected' : '') + '>' + _calEsc(client.name || client.id) + '</option>').join('');
+            const parentOptions = '<option value="">Choose parent issue</option>' + parents.map(issue => '<option value="' + _calEscAttr(issue.id) + '"' + (issue.id === draft.parentId ? ' selected' : '') + '>' + _calEsc(_prodIssueLabel(issue) + ' Â· ' + (issue.title || 'Untitled issue')) + '</option>').join('');
+            const assigneeOptions = '<option value="">Unassigned</option>' + assignees.map(member => '<option value="' + _calEscAttr(member.id) + '"' + (member.id === draft.assigneeId ? ' selected' : '') + '>' + _calEsc(member.name) + '</option>').join('');
+            const statusOptions = PROD_STATUS_ORDER.map(status => {
+                const value = PROD_STATUS_FROM_ARTIFACT[status] || status;
+                return '<option value="' + _calEscAttr(value) + '"' + (value === draft.status ? ' selected' : '') + '>' + _calEsc(_prodStatusLabel(status)) + '</option>';
+            }).join('');
+            const lockedScope = draft.mode === 'subissue' && !!parent;
+            return '<form class="prod-create-modal" data-prod-create-modal="1" onsubmit="return _prodSubmitCreate(event)">'
+                + '<div class="prod-create-head"><div><h2>' + (draft.mode === 'subissue' ? 'Create sub-issue' : 'Create parent issue') + '</h2><p>Production-side only Â· no Calendar or Samples card will be created or linked</p></div><span class="prod-spacer"></span><button class="prod-create-close" type="button" onclick="_prodCloseCreate()" aria-label="Close">&times;</button></div>'
+                + '<div class="prod-create-body">'
+                + '<div class="prod-create-field"><label for="prodCreateMode">Issue type</label><select class="prod-create-select" id="prodCreateMode" onchange="_prodCreateModeChange(this.value)"' + (parentFixed || recoveryLocked ? ' disabled' : '') + '><option value="parent"' + (draft.mode === 'parent' ? ' selected' : '') + '>Parent issue</option><option value="subissue"' + (draft.mode === 'subissue' ? ' selected' : '') + '>Sub-issue</option></select></div>'
+                + '<div class="prod-create-field"><label for="prodCreateClient">Roster client</label><select class="prod-create-select" id="prodCreateClient" onchange="_prodCreateScopeChange(' + _jsAttrArg('clientSlug') + ',this.value)"' + (lockedScope || recoveryLocked ? ' disabled' : '') + '>' + clientOptions + '</select></div>'
+                + '<div class="prod-create-field"><label for="prodCreateTeam">Team</label><select class="prod-create-select" id="prodCreateTeam" onchange="_prodCreateScopeChange(' + _jsAttrArg('team') + ',this.value)"' + (lockedScope || recoveryLocked ? ' disabled' : '') + '><option value="video"' + (draft.team === 'video' ? ' selected' : '') + '>Video</option><option value="graphics"' + (draft.team === 'graphics' ? ' selected' : '') + '>Graphics</option></select></div>'
+                + (draft.mode === 'subissue' ? '<div class="prod-create-field"><label for="prodCreateParent">Parent issue</label><select class="prod-create-select" id="prodCreateParent" onchange="_prodCreateParentChange(this.value)"' + (parentFixed || recoveryLocked ? ' disabled' : '') + '>' + parentOptions + '</select></div>' : '<div class="prod-create-field"><label>Hierarchy</label><input class="prod-create-input" value="Top-level parent issue" disabled></div>')
+                + '<div class="prod-create-field wide"><label for="prodCreateTitle">Title</label><input class="prod-create-input" id="prodCreateTitle" maxlength="500" required value="' + _calEscAttr(draft.title) + '" oninput="_prodCreateField(' + _jsAttrArg('title') + ',this.value)" placeholder="Issue title"' + recoveryLockAttr + '></div>'
+                + '<div class="prod-create-field wide"><label for="prodCreateDescription">Description (Markdown)</label><textarea class="prod-create-textarea" id="prodCreateDescription" maxlength="100000" oninput="_prodCreateField(' + _jsAttrArg('description') + ',this.value)" placeholder="Add context, acceptance criteria, and linksâ€¦"' + recoveryLockAttr + '>' + _calEsc(draft.description) + '</textarea></div>'
+                + '<div class="prod-create-field"><label for="prodCreateStatus">Status</label><select class="prod-create-select" id="prodCreateStatus" onchange="_prodCreateField(' + _jsAttrArg('status') + ',this.value)"' + recoveryLockAttr + '>' + statusOptions + '</select></div>'
+                + '<div class="prod-create-field"><label for="prodCreateDue">Due date</label><input class="prod-create-input" id="prodCreateDue" type="date" value="' + _calEscAttr(draft.dueDate) + '" onchange="_prodCreateField(' + _jsAttrArg('dueDate') + ',this.value)"' + recoveryLockAttr + '></div>'
+                + '<div class="prod-create-field"><label for="prodCreateAssignee">Assignee</label><select class="prod-create-select" id="prodCreateAssignee" onchange="_prodCreateField(' + _jsAttrArg('assigneeId') + ',this.value)"' + recoveryLockAttr + '>' + assigneeOptions + '</select></div>'
+                + '<div class="prod-create-field"><label>Selected labels</label><input class="prod-create-input" value="' + _calEscAttr(String((draft.labelIds || []).length) + ' selected') + '" disabled></div>'
+                + '<div class="prod-create-field wide"><label>Labels</label><div class="prod-create-label-box"><div class="prod-create-label-head"><span>Catalog</span><input class="prod-create-label-search" type="search" placeholder="Search labels" oninput="_prodFilterCreateLabels(this.value)" aria-label="Search labels"' + recoveryLockAttr + '></div><div class="prod-create-label-list" data-prod-create-label-list="1">' + _prodCreateCatalogHTML() + '</div></div></div>'
+                + '<div class="prod-create-note">Creation writes only the Production issue hierarchy. It does not create, choose, or link a Calendar/Samples card.</div>'
+                + (recoveryLocked ? '<div class="prod-create-note" data-prod-create-recovery-note="1">This request may already have committed. Its exact fields are locked; retrying recovers the same native issue and never creates a second one.</div>' : '')
+                + '<div class="prod-create-error" role="alert" data-prod-create-error="1">' + _calEsc(_prodState.createError || '') + '</div>'
+                + '</div><div class="prod-create-foot"><span class="prod-spacer"></span><button class="prod-create-secondary" type="button" onclick="_prodCloseCreate()">Cancel</button><button class="prod-create-submit" type="submit"' + (_prodState.createSubmitting ? ' disabled' : '') + '>' + (_prodState.createSubmitting ? 'Creatingâ€¦' : recoveryLocked ? 'Retry saved attempt' : (draft.mode === 'subissue' ? 'Create sub-issue' : 'Create parent issue')) + '</button></div></form>';
+        }
+        function _prodRenderCreateModal() {
+            const layer = document.getElementById('prodLayer');
+            if (!layer || !_prodState.createDraft) return;
+            layer.innerHTML = '<div class="prod-create-bd" data-prod-create-backdrop="1">' + _prodCreateFormHTML() + '</div>';
+            layer.style.pointerEvents = 'auto';
+            const backdrop = layer.querySelector('[data-prod-create-backdrop]');
+            if (backdrop) backdrop.addEventListener('click', event => {
+                if (event.target === backdrop) _prodCloseCreate();
+            });
+        }
+        function _prodRenderCreateCatalog() {
+            const host = document.querySelector('[data-prod-create-label-list]');
+            if (host) host.innerHTML = _prodCreateCatalogHTML();
+        }
+        function _prodOpenCreate(parentId) {
+            const parent = parentId ? _prodIssue(parentId) : null;
+            if (parentId && (!parent || parent.parent || !_prodAttributionResolved(parent))) {
+                _prodToast(parent && parent.parent ? 'Create sub-issues from a top-level parent.' : _prodAttributionGateText(parent));
+                return false;
+            }
+            const saved = _prodCreateSavedDraft();
+            const recovering = !!(saved && saved.ambiguous);
+            _prodState.createDraft = recovering
+                ? saved
+                : saved && (!parent || saved.parentId === parent.id)
+                    ? saved
+                    : _prodCreateDefaults(parentId);
+            // A response-loss retry owns one exact semantic intent. Opening
+            // Add Sub from another row must never retarget or replace it.
+            if (parent && !recovering) {
+                _prodState.createDraft.mode = 'subissue';
+                _prodState.createDraft.parentId = parent.id;
+                _prodState.createDraft.parentLocked = true;
+                _prodState.createDraft.clientSlug = parent.project;
+                _prodState.createDraft.team = _prodWriteTeam(parent.team);
+            }
+            const draftParent = _prodState.createDraft.mode === 'subissue'
+                ? _prodIssue(_prodState.createDraft.parentId)
+                : null;
+            const gate = _prodState.createDraft.ambiguous
+                ? _prodCreateRecoveryGateText(_prodState.createDraft)
+                : _prodCreateGateText(_prodState.createDraft.clientSlug, _prodState.createDraft.team, draftParent);
+            if (gate) {
+                _prodState.createDraft = null;
+                _prodToast(gate);
+                return false;
+            }
+            _prodState.createCatalog = [];
+            _prodState.createCatalogStatus = 'loading';
+            _prodState.createCatalogError = '';
+            _prodState.createError = '';
+            _prodState.createSubmitting = false;
+            _prodPersistCreateDraft();
+            _prodEnsureOverlays();
+            _prodRenderCreateModal();
+            _prodLoadCreateOptions(false);
+            setTimeout(() => document.getElementById('prodCreateTitle')?.focus(), 0);
+            return false;
+        }
+        function _prodCloseCreate() {
+            _prodState.createSubmitting = false;
+            _prodClearLayer();
+            return false;
+        }
+        function _prodCreateField(field, value) {
+            const draft = _prodState.createDraft;
+            if (!draft || draft.ambiguous || !['title', 'description', 'status', 'dueDate', 'assigneeId'].includes(field)) return;
+            value = String(value == null ? '' : value);
+            if (draft[field] === value) return;
+            draft[field] = value;
+            _prodRenewCreateIntent();
+        }
+        function _prodCreateScopeChange(field, value) {
+            const draft = _prodState.createDraft;
+            if (!draft || draft.ambiguous || !['clientSlug', 'team'].includes(field)) return;
+            if (draft.mode === 'subissue' && draft.parentId) return;
+            value = field === 'team' ? _prodWriteTeam(value) : String(value || '');
+            if (!value || draft[field] === value) return;
+            draft[field] = value;
+            draft.parentId = '';
+            draft.assigneeId = '';
+            draft.labelIds = [];
+            _prodRenewCreateIntent();
+            _prodState.createCatalog = [];
+            _prodState.createCatalogStatus = 'loading';
+            _prodRenderCreateModal();
+            _prodLoadCreateOptions(false);
+        }
+        function _prodCreateModeChange(value) {
+            const draft = _prodState.createDraft;
+            if (!draft || draft.ambiguous || !['parent', 'subissue'].includes(value) || draft.mode === value) return;
+            draft.mode = value;
+            draft.parentId = '';
+            draft.parentLocked = false;
+            _prodRenewCreateIntent();
+            _prodRenderCreateModal();
+        }
+        function _prodCreateParentChange(value) {
+            const draft = _prodState.createDraft;
+            const parent = _prodIssue(value);
+            if (!draft || draft.ambiguous || draft.mode !== 'subissue') return;
+            if (!value) {
+                draft.parentId = '';
+                _prodRenewCreateIntent();
+                _prodRenderCreateModal();
+                return;
+            }
+            if (!parent || parent.parent || !_prodAttributionResolved(parent)) {
+                _prodState.createError = 'Choose a resolved top-level parent issue.';
+                _prodRenderCreateModal();
+                return;
+            }
+            draft.parentId = parent.id;
+            draft.clientSlug = parent.project;
+            draft.team = _prodWriteTeam(parent.team);
+            draft.assigneeId = '';
+            draft.labelIds = [];
+            _prodRenewCreateIntent();
+            _prodState.createCatalog = [];
+            _prodState.createCatalogStatus = 'loading';
+            _prodRenderCreateModal();
+            _prodLoadCreateOptions(false);
+        }
+        function _prodToggleCreateLabel(labelId, checked) {
+            const draft = _prodState.createDraft;
+            labelId = String(labelId || '').trim();
+            if (!draft || draft.ambiguous || !labelId) return;
+            const next = new Set(draft.labelIds || []);
+            if (checked) next.add(labelId);
+            else next.delete(labelId);
+            draft.labelIds = [...next].sort();
+            _prodRenewCreateIntent();
+            const count = document.querySelector('[data-prod-create-modal] .prod-create-field input[disabled][value$=" selected"]');
+            if (count) count.value = String(draft.labelIds.length) + ' selected';
+        }
+        function _prodFilterCreateLabels(value) {
+            const query = String(value || '').trim().toLowerCase();
+            document.querySelectorAll('[data-prod-create-label-option]').forEach(row => {
+                row.style.display = !query || String(row.getAttribute('data-prod-create-label-search') || '').includes(query) ? '' : 'none';
+            });
+        }
+        async function _prodLoadCreateOptions(force) {
+            const draft = _prodState.createDraft;
+            if (!draft || _prodState.createSubmitting) return;
+            const token = ++_prodState.createCatalogToken;
+            _prodState.createCatalogStatus = 'loading';
+            _prodState.createCatalogError = '';
+            if (force) _prodRenderCreateCatalog();
+            try {
+                const response = await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify({
+                        action: 'create_options',
+                        surface: 'production',
+                        client_slug: draft.clientSlug,
+                        team: draft.team
+                    })
+                });
+                const json = await response.json().catch(() => ({}));
+                if (!response.ok || !json || json.ok !== true || json.complete !== true) {
+                    const error = new Error(String(json && json.error || 'create_options_failed'));
+                    error.code = String(json && json.error || 'create_options_failed');
+                    error.status = response.status;
+                    throw error;
+                }
+                const catalog = _prodNormalizeLabelList(json.catalog);
+                if (!catalog) throw new Error('label_catalog_incomplete');
+                if (token !== _prodState.createCatalogToken || !_prodState.createDraft
+                    || draft.clientSlug !== _prodState.createDraft.clientSlug
+                    || draft.team !== _prodState.createDraft.team) return;
+                const allowed = new Set(catalog.map(label => label.id));
+                if (!draft.ambiguous) {
+                    draft.labelIds = (draft.labelIds || []).filter(labelId => allowed.has(labelId));
+                }
+                _prodState.createCatalog = catalog;
+                _prodState.createCatalogStatus = 'ready';
+                _prodPersistCreateDraft();
+            } catch (error) {
+                if (token !== _prodState.createCatalogToken) return;
+                const code = String(error && (error.code || error.message) || '');
+                _prodState.createCatalogStatus = 'error';
+                _prodState.createCatalogError = code === 'team_is_linear_authoritative'
+                    ? _prodTeamLabel(draft.team) + ' stays read-only while Linear is authoritative.'
+                    : code === 'project_mapping_missing' || code === 'project_mapping_ambiguous'
+                        ? 'This roster client needs an exact team project mapping before creation.'
+                        : error && error.status === 401
+                            ? 'Staff sign-in expired. Sign in again to create.'
+                            : 'The complete Linear label catalog could not be loaded.';
+            }
+            _prodRenderCreateCatalog();
+        }
+        function _prodCreateErrorText(error) {
+            const code = String(error && error.code || '');
+            if (code === 'write_conflict' || code === 'parent_changed') return 'The parent changed elsewhere. Refresh and try again.';
+            if (code === 'idempotency_conflict') return 'This saved request conflicts with a different durable attempt. Review these fields; the next submit uses a fresh request.';
+            if (code === 'team_is_linear_authoritative') return 'This team is read-only while Linear is authoritative.';
+            if (code === 'test_scope_service_only' || code === 'invalid_test_override') return 'TEST creation is reserved for the service-authenticated write drill.';
+            if (code === 'project_mapping_missing' || code === 'project_mapping_ambiguous') return 'This roster client needs an exact team project mapping before creation.';
+            if (code === 'label_selection_out_of_catalog' || code === 'label_catalog_incomplete' || code === 'label_not_applicable') return 'The complete label catalog changed. Reload labels and try again.';
+            if (code === 'assignee_out_of_scope' || code === 'assignee_mapping_unavailable' || code === 'assignee_mapping_missing') return 'Choose an active, Linear-mapped assignee from this team.';
+            if (code === 'create_parent_not_found' || code === 'production_create_parent_scope'
+                || code === 'production_create_parent_nested' || code === 'production_create_batch_scope'
+                || code === 'production_create_parent_route' || code === 'parent_not_root'
+                || code === 'parent_scope_mismatch' || code === 'parent_linear_issue_unavailable') {
+                return 'Choose a current top-level parent from the same client and team.';
+            }
+            if (code === 'operation_forbidden') return 'Only Admin and SMM staff can create Production issues.';
+            if (error && error.status === 401) return 'Staff sign-in expired. Sign in again to create.';
+            return 'The issue was not created. Your draft is still here; retry when the connection is ready.';
+        }
+        async function _prodSubmitCreate(event) {
+            if (event) event.preventDefault();
+            const draft = _prodState.createDraft;
+            if (!draft || _prodState.createSubmitting) return false;
+            const parent = draft.mode === 'subissue' ? _prodIssue(draft.parentId) : null;
+            const gate = draft.ambiguous
+                ? _prodCreateRecoveryGateText(draft)
+                : _prodCreateGateText(draft.clientSlug, draft.team, parent);
+            let errorText = gate;
+            if (!String(draft.title || '').trim()) errorText = 'Add an issue title.';
+            else if (String(draft.title).trim().length > 500) errorText = 'Keep the issue title at 500 characters or fewer.';
+            else if (String(draft.description || '').length > 100000 || String(draft.description || '').includes('\0')) errorText = 'The Markdown description is too long or contains an unsupported character.';
+            else if (!_prodCreateValidDate(draft.dueDate)) errorText = 'Choose a valid due date with its full year.';
+            else if (!draft.ambiguous && draft.mode === 'subissue' && (!parent || parent.parent)) errorText = 'Choose a current top-level parent issue.';
+            else if (!draft.ambiguous && _prodState.createCatalogStatus !== 'ready') errorText = 'Wait for the complete label catalog before creating.';
+            const catalogIds = new Set((_prodState.createCatalog || []).map(label => label.id));
+            if (!errorText && !draft.ambiguous && (draft.labelIds || []).some(labelId => !catalogIds.has(labelId))) {
+                errorText = 'Reload the label catalog before creating.';
+            }
+            if (errorText) {
+                _prodState.createError = errorText;
+                _prodRenderCreateModal();
+                return false;
+            }
+            _prodState.createSubmitting = true;
+            _prodState.createError = '';
+            _prodRenderCreateModal();
+            try {
+                const response = await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify({
+                        operation: 'create',
+                        surface: 'production',
+                        client_slug: draft.clientSlug,
+                        team: draft.team,
+                        parent_id: draft.mode === 'subissue' ? draft.parentId : null,
+                        title: String(draft.title).trim(),
+                        description: String(draft.description || ''),
+                        status: draft.status,
+                        due_date: draft.dueDate || null,
+                        assignee_id: draft.assigneeId || null,
+                        label_ids: [...(draft.labelIds || [])],
+                        request_id: draft.requestId,
+                        source_edited_at: draft.sourceEditedAt
+                    })
+                });
+                const json = await response.json().catch(() => ({}));
+                if (!response.ok || !json || json.ok !== true || json.native_committed !== true
+                    || !json.row || !json.row.id) {
+                    const error = new Error(String(json && json.error || 'create_failed'));
+                    error.code = String(json && json.error || 'create_failed');
+                    error.status = response.status;
+                    throw error;
+                }
+                const createdId = String(json.row.id);
+                _prodState.createDraft = null;
+                _prodPersistCreateDraft();
+                _prodClearLayer();
+                _prodToast(json.mirror_pending ? 'Issue created Â· Linear is catching up' : 'Issue created');
+                await _prodLoadData({ silent: true });
+                if (_prodIssue(createdId)) _prodOpenDeliverable(createdId);
+                return false;
+            } catch (error) {
+                const code = String(error && error.code || '');
+                if (!error || !Number(error.status) || Number(error.status) >= 500) {
+                    draft.ambiguous = true;
+                } else if (code === 'idempotency_conflict') {
+                    // The server proved this request id already owns a
+                    // different durable intent. Preserve the fields, release
+                    // recovery lock, and mint a fresh id before another submit.
+                    draft.ambiguous = false;
+                    _prodRenewCreateIntent();
+                }
+                _prodState.createError = _prodCreateErrorText(error);
+                _prodState.createSubmitting = false;
+                _prodPersistCreateDraft();
+                _prodRenderCreateModal();
+                return false;
+            }
         }
         function _prodWritePending(id, operation) {
             return _prodState.writes.has(String(id || '') + ':' + String(operation || ''));
@@ -44706,7 +45305,9 @@
                 + (clientFilter ? '<button class="prod-filter-pill prod-scope-pill" type="button" data-prod-scope-project="' + _calEscAttr(_prodState.clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(_prodState.clientSlug) + ')" data-prod-tip="Open project">' + _prodIcon('project') + '<span>' + _calEsc(clientFilter) + '</span></button>' : '')
                 + _prodPillsHTML();
             const subbar = '<div class="prod-subbar">' + tabs + '<div class="prod-filter-pills">' + filterPills + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" aria-label="Filter" data-prod-tip="Filter">' + _prodIcon('filter') + '</button><button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" aria-label="Display options" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
-            return '<div class="prod-topbar">' + crumb + '<div class="prod-spacer"></div></div>' + subbar;
+            const createClient = _prodState.clientSlug && _prodClient(_prodState.clientSlug) ? _prodState.clientSlug : '';
+            const createTeam = _prodState.team === 'video' || _prodState.team === 'graphics' ? _prodState.team : '';
+            return '<div class="prod-topbar">' + crumb + '<div class="prod-spacer"></div>' + _prodCreateTopbarButton(createClient, createTeam) + '</div>' + subbar;
         }
         function _prodProjectTopbar() {
             const c = _prodClient(_prodState.openProjectId);
@@ -44714,7 +45315,7 @@
             const team = _prodProjectScopeTeam(c);
             const detailBtn = '<button class="prod-icon-btn' + (_prodState.projectDetailsOpen === false ? '' : ' active') + '" type="button" data-prod-project-details-toggle="1" onclick="_prodToggleProjectDetails()" title="Project details" data-prod-tip="Project details">' + _prodIcon('project') + '</button>';
             const subbar = '<div class="prod-subbar" data-prod-project-subbar="1"><div class="prod-filter-pills">' + _prodPillsHTML() + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" aria-label="Filter" data-prod-tip="Filter">' + _prodIcon('filter') + '</button>' + detailBtn + '<button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" aria-label="Display options" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
-            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><button class="prod-crumb-link" type="button" data-prod-crumb-root="1" onclick="_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Production">Production</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-team="' + _calEscAttr(team || 'all') + '" onclick="_prodOpenTeamView(' + _jsAttrArg(team || 'all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Open team projects">' + _calEsc(_prodTeamLabel(team)) + '</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>Project</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c ? c.id : '') + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>' + subbar;
+            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><button class="prod-crumb-link" type="button" data-prod-crumb-root="1" onclick="_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Production">Production</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-team="' + _calEscAttr(team || 'all') + '" onclick="_prodOpenTeamView(' + _jsAttrArg(team || 'all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Open team projects">' + _calEsc(_prodTeamLabel(team)) + '</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>Project</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div>' + _prodCreateTopbarButton(c ? c.id : '', team) + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c ? c.id : '') + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>' + subbar;
         }
         function _prodDetailTopbar() {
             const d = _prodState.openId ? _prodIssue(_prodState.openId) : null;
@@ -45025,9 +45626,15 @@
             return '<span class="prod-prop-btn" data-prod-prop="project" data-prod-attribution-project="' + _calEscAttr(attribution.state) + '" aria-disabled="true"><span class="prod-card-ico">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(_prodDisplayClient(project)) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
         }
         function _prodAddSubIssueButtonHTML(compact) {
-            return compact
-                ? '<button class="prod-sub-add-btn" type="button" data-prod-disabled="add-subissue" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('plus') + '<span>Add sub-issues</span></button>'
-                : '<button class="prod-add-sub-inline" type="button" data-prod-disabled="add-subissue" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('plus') + '<span>Add sub-issues</span></button>';
+            const parent = _prodIssue(_prodState.openId);
+            if (!parent || parent.parent) return '';
+            const gate = _prodCreateGateText(parent.project, parent.team, parent);
+            const cls = compact ? 'prod-sub-add-btn' : 'prod-add-sub-inline';
+            return '<button class="' + cls + '" type="button" data-prod-add-subissue="' + _calEscAttr(parent.id) + '"'
+                + (gate
+                    ? ' disabled title="' + _calEscAttr(gate) + '" data-prod-tip="' + _calEscAttr(gate) + '"'
+                    : ' onclick="return _prodOpenCreate(' + _jsAttrArg(parent.id) + ')" title="Create sub-issue" data-prod-tip="Create sub-issue"')
+                + '>' + _prodIcon('plus') + '<span>Add sub-issue</span></button>';
         }
         function _prodSubIssueContextHTML(d, parent) {
             if (!parent) return '';
@@ -45107,7 +45714,7 @@
             const parent = d.parent ? _prodIssue(d.parent) : null;
             const isHierarchyParent = !!d.isHierarchyParent;
             const file = d.file || '';
-            const subSection = _prodSubIssuesSectionHTML(kids);
+            const subSection = d.parent ? '' : _prodSubIssuesSectionHTML(kids);
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div>'
                 + _prodSubIssueContextHTML(d, parent)

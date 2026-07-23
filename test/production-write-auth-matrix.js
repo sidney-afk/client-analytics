@@ -24,7 +24,7 @@ function matrixEqual(actual, expected, message) {
 
 (async () => {
   const policy = await import(pathToFileURL(POLICY_PATH).href + '?auth-matrix');
-  const operations = ['status', 'comment', 'due', 'assignee', 'labels', 'description', 'intake_create'];
+  const operations = ['status', 'comment', 'due', 'assignee', 'labels', 'description', 'create', 'intake_create'];
 
   for (const role of ['admin', 'smm']) {
     const allowed = Object.fromEntries(operations.map(operation => [
@@ -38,8 +38,9 @@ function matrixEqual(actual, expected, message) {
       assignee: true,
       labels: true,
       description: true,
+      create: true,
       intake_create: true,
-    }, `${role} may perform all seven gateway operations`);
+    }, `${role} may perform all eight gateway operations`);
   }
 
   const creativeOwnTeam = Object.fromEntries(operations.map(operation => [
@@ -53,8 +54,9 @@ function matrixEqual(actual, expected, message) {
     assignee: false,
     labels: false,
     description: false,
+    create: false,
     intake_create: false,
-  }, 'creative may change an own-team legal status or comment, but not due, assignee, labels, description, or intake');
+  }, 'creative may change an own-team legal status or comment, but not due, assignee, labels, description, Production create, or intake');
 
   const creativeStatuses = Object.fromEntries(policy.DELIVERABLE_STATUSES.map(status => [
     status,
@@ -91,8 +93,9 @@ function matrixEqual(actual, expected, message) {
     assignee: false,
     labels: false,
     description: false,
+    create: false,
     intake_create: false,
-  }, 'client token may approve or comment but cannot set due, assignee, labels, description, or create intake');
+  }, 'client token may approve or comment but cannot set due, assignee, labels, description, or create Production/intake work');
   ok(policy.clientOperationAllowed('status', 'client_approval', 'tweak')
     && policy.clientOperationAllowed('status', 'tweak', 'approved')
     && policy.clientOperationAllowed('status', 'tweak', 'tweak'),
@@ -177,6 +180,19 @@ function matrixEqual(actual, expected, message) {
   ok(/GatewayError\(403, "roster_actor_required"\)/.test(edge)
     && /GatewayError\(403, "roster_actor_not_unique"\)/.test(edge),
   'valid staff secrets still require one exact compatible active roster actor (403 otherwise)');
+  const createPrincipalStart = edge.indexOf('async function productionCreatePrincipalScope(');
+  const createPrincipalEnd = edge.indexOf('\nasync function productionCreateScope(', createPrincipalStart);
+  const createPrincipal = edge.slice(createPrincipalStart, createPrincipalEnd);
+  const createHandlerStart = edge.indexOf('async function handleProductionCreate(');
+  const createHandlerEnd = edge.indexOf('\nfunction linearIssueIdForLabels(', createHandlerStart);
+  const createHandler = edge.slice(createHandlerStart, createHandlerEnd);
+  ok(/const principal = await authenticate\(/.test(createPrincipal)
+    && /principal\.kind === "client"/.test(createPrincipal)
+    && /staffOperationAllowed\(principal\.keyRole, "create", principal\.memberTeam, team\)/.test(createPrincipal)
+    && /client\.active !== true/.test(createPrincipal)
+    && createHandler.indexOf('productionCreatePrincipalScope(') < createHandler.indexOf('productionCreateReplay(')
+    && createHandler.indexOf('productionCreateReplay(') < createHandler.indexOf('productionCreateScope('),
+  'Production create and early replay require active roster authentication and Admin/SMM or service TEST authorization first');
   ok(!/req\.headers\.get\(["']x-syncview-role["']\)/i.test(edge),
     'caller role headers cannot elevate the gateway principal');
 

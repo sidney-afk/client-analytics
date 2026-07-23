@@ -167,6 +167,9 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   (F203). F204 owns saved/shared views and manual board ordering; F205 records project board/detail
   status/lead/target disagreement. Existing bridge, comments, assets, freshness, mobile, due,
   Activity, and navigation defects retain their prior F owners.
+  F203 candidate source now implements the guarded Production-only creation contract with
+  deterministic replay receipts and validated parent reuse; its additive RPC/function/UI release,
+  service-only TEST drill, review, and merge remain gated and nothing is live from that candidate.
 - The public-safe boot/refresh/history/read-truth audit owns F149–F185. Client entry remains first:
   F102/F117 plus the Calendar/Brief wrong-shell refresh in F149. Browser-proven silent read failures
   and indefinite boot states are F151/F152/F158; staff data, Back/Forward and deep-link continuity

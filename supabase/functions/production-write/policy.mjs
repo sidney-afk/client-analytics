@@ -3,6 +3,7 @@
 // them without an Edge runtime or live credentials.
 
 export const OPERATIONS = Object.freeze([
+  "create",
   "status",
   "comment",
   "due",

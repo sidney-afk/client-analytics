@@ -33,12 +33,12 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `key-verify` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `legacy-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `linear-inbound` | NONE | **NO CI DEPLOY PATH.** | - | `linear-inbound/comment-normalize.mjs`<br>`linear-inbound/f27-echo.mjs`<br>`linear-inbound/label-normalize.mjs`<br>`linear-inbound/restore-markers.mjs` |
-| `linear-outbound` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | - | `linear-outbound/f27-replay.mjs`<br>`linear-outbound/mapping.mjs`<br>`linear-outbound/monitoring.mjs` |
+| `linear-outbound` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs` | `linear-outbound/f27-replay.mjs`<br>`linear-outbound/mapping.mjs`<br>`linear-outbound/monitoring.mjs` |
 | `onboarding-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `onboarding-full` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `production-comments` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |
-| `production-write` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |
+| `production-write` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs`<br>`_shared/staff-role-auth.ts` | `production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |
 | `pto` | [deploy-pto](../../.github/workflows/deploy-pto-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | `pto/policy.js` |
 | `sample-review-reorder` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `sample-review-upsert` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |

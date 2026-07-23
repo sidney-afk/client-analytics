@@ -8,7 +8,9 @@
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import {
   buildMutation,
+  completeCreateIssueLabels,
   decideConflict,
+  exactCreateIssueLabelIds,
   extractMutationResult,
   issueFields,
   mergeBatchParentIds,
@@ -26,6 +28,9 @@ import {
   isExactF27DrillAuthority,
   isExactF27DrillReceipt,
 } from "./f27-replay.mjs";
+import {
+  deterministicLinearCreateId,
+} from "../_shared/linear-create-id.mjs";
 
 type JsonMap = Record<string, unknown>;
 type OutboxRow = JsonMap & {
@@ -63,7 +68,6 @@ const LOCK_TIMEOUT_MS = 10 * 60 * 1_000;
 const BACKLOG_ALERT_THRESHOLD = 100;
 const VOLUME_ALERT_THRESHOLD = 50;
 const DEFAULT_PENDING_AGE_ALERT_MINUTES = 30;
-const CREATE_UUID_NAMESPACE = "8ec6f2de-20f4-4dc3-8f21-8b3298e780db";
 
 function clean(value: unknown): string {
   return String(value == null ? "" : value).trim();
@@ -106,23 +110,6 @@ function json(body: JsonMap, status = 200): Response {
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function deterministicCreateId(dedupKey: string): Promise<string> {
-  const namespace = CREATE_UUID_NAMESPACE.replace(/-/g, "").match(/.{2}/g) || [];
-  const namespaceBytes = Uint8Array.from(namespace.map(part => parseInt(part, 16)));
-  const keyBytes = new TextEncoder().encode(dedupKey);
-  const input = new Uint8Array(namespaceBytes.length + keyBytes.length);
-  input.set(namespaceBytes);
-  input.set(keyBytes, namespaceBytes.length);
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-1", input));
-  const bytes = digest.slice(0, 16);
-  // Linear currently validates caller-supplied IssueCreateInput.id as UUIDv4.
-  // The remaining bytes are deterministic, so retries retain one stable id.
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = [...bytes].map(value => value.toString(16).padStart(2, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function safeError(error: unknown): string {
@@ -418,7 +405,7 @@ async function resolveContext(
   };
 
   if (row.operation === "create") {
-    context.create_id = await deterministicCreateId(row.dedup_key);
+    context.create_id = await deterministicLinearCreateId(row.dedup_key);
   }
 
   const raw = parseJson(entity.linear_raw);
@@ -539,6 +526,33 @@ function compactIssue(issue: JsonMap | null): JsonMap {
   };
 }
 
+function sameCreateIdentity(
+  row: OutboxRow,
+  initial: JsonMap,
+  current: JsonMap,
+  plannedLinearIssueId: string,
+): boolean {
+  const sameInstant = (left: unknown, right: unknown): boolean => {
+    const leftMs = Date.parse(clean(left));
+    const rightMs = Date.parse(clean(right));
+    return Number.isFinite(leftMs) && Number.isFinite(rightMs) && leftMs === rightMs;
+  };
+  return clean(current.id) === clean(row.entity_id)
+    && clean(initial.id) === clean(current.id)
+    && clean(current.batch_id) === clean(initial.batch_id)
+    && clean(current.client_slug) === clean(row.client_slug)
+    && clean(current.client_slug) === clean(initial.client_slug)
+    && lower(current.team) === lower(row.team)
+    && lower(current.team) === lower(initial.team)
+    && clean(current.kind) === clean(initial.kind)
+    && clean(current.origin) === clean(initial.origin)
+    && (clean(current.card_id) || "") === (clean(initial.card_id) || "")
+    && clean(current.created_by) === clean(initial.created_by)
+    && sameInstant(current.created_at, initial.created_at)
+    && clean(initial.linear_issue_uuid) === plannedLinearIssueId
+    && clean(current.linear_issue_uuid) === plannedLinearIssueId;
+}
+
 async function applyCreateLinkage(
   supabase: SupabaseClient,
   row: OutboxRow,
@@ -561,14 +575,68 @@ async function applyCreateLinkage(
     return;
   }
 
+  const payload = parseJson(row.payload);
+  const plannedLinearIssueId = clean(payload.planned_linear_issue_id);
+  // F203 linkage patches identity only. Exact Linear `labelIds` already proves
+  // the create intent even when Linear's labels connection is capped at 100;
+  // a later native labels edit must not wedge that identity acknowledgement.
+  const completeIssue = plannedLinearIssueId
+    ? exactCreateIssueLabelIds(row, issue)
+    : completeCreateIssueLabels(row, entity, issue);
+  if (plannedLinearIssueId) {
+    const linearIssueId = clean(completeIssue.id);
+    const outboxId = Number(row.id);
+    if (linearIssueId !== plannedLinearIssueId
+        || !Number.isSafeInteger(outboxId)
+        || outboxId < 1) {
+      throw new Error("deliverable create linkage identity mismatch");
+    }
+    const { data: currentData, error: currentError } = await supabase.from("deliverables")
+      .select("*")
+      .eq("id", clean(row.entity_id))
+      .maybeSingle();
+    if (currentError || !currentData) throw new Error("deliverable create linkage refresh failed");
+    const current = currentData as JsonMap;
+    if (!sameCreateIdentity(row, entity, current, plannedLinearIssueId)) {
+      throw new Error("deliverable create linkage identity mismatch");
+    }
+    const { data, error } = await supabase.rpc("production_issue_create_linkage", {
+      p_deliverable_id: clean(row.entity_id),
+      p_outbox_id: outboxId,
+      p_expected: {
+        id: clean(current.id),
+        batch_id: clean(current.batch_id),
+        client_slug: clean(current.client_slug),
+        team: lower(current.team),
+        kind: clean(current.kind),
+        origin: clean(current.origin),
+        card_id: clean(current.card_id) || null,
+        created_by: clean(current.created_by),
+        created_at: clean(current.created_at),
+        planned_linear_issue_id: plannedLinearIssueId,
+        intent_fingerprint: clean(payload._intent_fingerprint),
+      },
+      p_issue: {
+        id: linearIssueId,
+        identifier: clean(completeIssue.identifier) || null,
+        url: clean(completeIssue.url) || null,
+      },
+    });
+    const linked = parseJson(data);
+    if (error || clean(linked.id) !== clean(row.entity_id)) {
+      throw new Error("deliverable create linkage failed");
+    }
+    return;
+  }
+
   const raw = parseJson(entity.linear_raw);
   const { error } = await supabase.rpc("deliverable_write", {
     p_row: {
       ...entity,
-      linear_issue_uuid: clean(issue.id),
-      linear_identifier: clean(issue.identifier),
-      linear_issue_url: clean(issue.url),
-      linear_raw: { ...raw, issue },
+      linear_issue_uuid: clean(completeIssue.id),
+      linear_identifier: clean(completeIssue.identifier),
+      linear_issue_url: clean(completeIssue.url),
+      linear_raw: { ...raw, issue: completeIssue },
       sync_state: "clean",
     },
     p_event: {
@@ -1017,7 +1085,7 @@ Deno.serve(async (req: Request) => {
         continue;
       }
       const issueId = linearIssueId(row, entity, dependency)
-        || (row.operation === "create" ? await deterministicCreateId(row.dedup_key) : "");
+        || (row.operation === "create" ? await deterministicLinearCreateId(row.dedup_key) : "");
       const issue = issueId ? await readIssue(issueId, row.operation === "create") : null;
       if (testClient || row.test_only === true) {
         await testScope(supabase, row, issue);
@@ -1127,6 +1195,9 @@ Deno.serve(async (req: Request) => {
       const resultIssue = mutation.kind === "commentCreate"
         ? parseJson(resultMap.issue)
         : resultMap;
+      const createVerification = row.operation === "create"
+        ? decideConflict(row, resultIssue, context)
+        : null;
       const linearResult: JsonMap = bindF27LinearResult({
         mutation: mutation.kind,
         issue_id: clean(resultIssue.id) || issueId,
@@ -1136,11 +1207,15 @@ Deno.serve(async (req: Request) => {
         mirror_actor_id: clean(mirrorActor.id),
         mirror_actor_name: clean(mirrorActor.name),
         expected: mutation.variables,
+        ...(createVerification ? { create_verification: createVerification } : {}),
       }, f27Replay, row);
       // Persist the acknowledged mutation before any follow-up work. Linear can
       // deliver its webhook immediately, and inbound must see the exact intent
       // even while this row is still locked/finalizing.
       await checkpointLinearResult(supabase, row, linearResult);
+      if (createVerification && createVerification.decision !== "already_exists") {
+        throw new Error(clean(createVerification.reason) || "linear_create_intent_mismatch");
+      }
       if (row.operation === "create" && result && typeof result === "object") {
         await applyCreateLinkage(supabase, row, entity, resultIssue);
       }

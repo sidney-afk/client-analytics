@@ -110,6 +110,8 @@ const productionWriteCallers = [
   ['_writeUiGatewayPost', 'WRITE_UI_PRODUCTION_WRITE_URL'],
   ['_writeUiReadRepairReceipt', 'WRITE_UI_PRODUCTION_WRITE_URL'],
   ['_runNativeIntakeJob', 'PROD_WRITE_EF_URL'],
+  ['_prodLoadCreateOptions', 'PROD_WRITE_EF_URL'],
+  ['_prodSubmitCreate', 'PROD_WRITE_EF_URL'],
   ['_prodGatewayWrite', 'PROD_WRITE_EF_URL'],
 ];
 let parsedProductionWriteCallers = 0;
@@ -170,6 +172,98 @@ ok(/data-prod-label-search-input/.test(source)
   && /label\.description \|\| label\.name/.test(source)
   && /layer\.innerHTML && !layer\.contains\(el\)/.test(source),
 'label picker exposes search, colors, checkbox selection, and description tooltips inside the active layer');
+const createRole = extract('_prodCreateRoleAllowed');
+const createGate = extract('_prodCreateGateText');
+const createOptions = extract('_prodLoadCreateOptions');
+const createSubmit = extract('_prodSubmitCreate');
+const createForm = extract('_prodCreateFormHTML');
+const createOpen = extract('_prodOpenCreate');
+const createParentChange = extract('_prodCreateParentChange');
+const createSavedDraft = extract('_prodCreateSavedDraft');
+const createPersistDraft = extract('_prodPersistCreateDraft');
+const createRenewIntent = extract('_prodRenewCreateIntent');
+const createRecoveryGate = extract('_prodCreateRecoveryGateText');
+const createErrorText = extract('_prodCreateErrorText');
+const staffPurge = extract('_syncviewStaffPurgeSensitiveState');
+ok(/role === 'admin' \|\| role === 'smm'/.test(createRole)
+  && /Choose an active roster client/.test(createGate)
+  && /client\.raw && client\.raw\.kind[\s\S]{0,100}=== 'test'/.test(createGate)
+  && /service-authenticated write drill/.test(createGate + createRecoveryGate)
+  && /_prodState\.authority\[team\] !== 'syncview'/.test(createGate)
+  && /parent && \(!_prodAttributionResolved\(parent\) \|\| parent\.parent\)/.test(createGate),
+'Production creation is Admin/SMM-only, active-roster scoped, authority-gated, and refuses unresolved or nested parents');
+ok(/action: 'create_options'[\s\S]{0,160}surface: 'production'[\s\S]{0,120}client_slug: draft\.clientSlug[\s\S]{0,80}team: draft\.team/.test(createOptions)
+  && /headers: _syncviewEfHeaders\(\{[\s\S]{0,320}\}, PROD_WRITE_EF_URL\)/.test(createOptions)
+  && /json\.complete !== true/.test(createOptions)
+  && /_prodNormalizeLabelList\(json\.catalog\)/.test(createOptions)
+  && /class="prod-create-label-search"/.test(createForm)
+  && /type="checkbox"/.test(createForm + extract('_prodCreateCatalogHTML'))
+  && /_prodLabelColorStyle\(label\)/.test(extract('_prodCreateCatalogHTML'))
+  && /label\.description \|\| label\.name/.test(extract('_prodCreateCatalogHTML')),
+'creation loads a protected complete label catalog and exposes search, colors, checkboxes, selected state, and descriptions');
+ok(/operation: 'create'[\s\S]{0,100}surface: 'production'/.test(createSubmit)
+  && /client_slug: draft\.clientSlug/.test(createSubmit)
+  && /team: draft\.team/.test(createSubmit)
+  && /parent_id: draft\.mode === 'subissue' \? draft\.parentId : null/.test(createSubmit)
+  && /title: String\(draft\.title\)\.trim\(\)/.test(createSubmit)
+  && /description: String\(draft\.description \|\| ''\)/.test(createSubmit)
+  && /status: draft\.status/.test(createSubmit)
+  && /due_date: draft\.dueDate \|\| null/.test(createSubmit)
+  && /assignee_id: draft\.assigneeId \|\| null/.test(createSubmit)
+  && /label_ids: \[\.\.\.\(draft\.labelIds \|\| \[\]\)\]/.test(createSubmit)
+  && /request_id: draft\.requestId/.test(createSubmit)
+  && /source_edited_at: draft\.sourceEditedAt/.test(createSubmit)
+  && /_prodCreateValidDate\(draft\.dueDate\)/.test(createSubmit),
+'parent and sub-issue creation send the complete guarded payload with exact Markdown, full-year due date, labels, and one intent identity');
+ok(/sessionStorage\.getItem\(PROD_CREATE_DRAFT_KEY\)/.test(createSavedDraft)
+  && /requestId:[\s\S]{0,180}_prodWriteRequestId\('create'\)/.test(createSavedDraft)
+  && /sourceEditedAt: Number\.isFinite\(Date\.parse/.test(createSavedDraft)
+  && /sessionStorage\.setItem\(PROD_CREATE_DRAFT_KEY/.test(createPersistDraft)
+  && /draft\.requestId = _prodWriteRequestId\('create'\)/.test(createRenewIntent)
+  && /draft\.sourceEditedAt = new Date\(\)\.toISOString\(\)/.test(createRenewIntent)
+  && /Number\(error\.status\) >= 500[\s\S]{0,100}draft\.ambiguous = true/.test(createSubmit)
+  && /code === 'idempotency_conflict'[\s\S]{0,500}draft\.ambiguous = false[\s\S]{0,100}_prodRenewCreateIntent\(\)/.test(createSubmit),
+'reload and ambiguous retry retain the exact intent, while a proven idempotency conflict unlocks the fields under a fresh request id');
+ok(/const lockedScope = draft\.mode === 'subissue' && !!parent/.test(createForm)
+  && /id="prodCreateClient"[\s\S]{0,220}lockedScope \|\| recoveryLocked \? ' disabled'/.test(createForm)
+  && /id="prodCreateTeam"[\s\S]{0,220}lockedScope \|\| recoveryLocked \? ' disabled'/.test(createForm)
+  && /id="prodCreateParent"[\s\S]{0,220}parentFixed \|\| recoveryLocked \? ' disabled'/.test(createForm)
+  && /if \(!parent \|\| parent\.parent \|\| !_prodAttributionResolved\(parent\)\)/.test(createParentChange)
+  && /draft\.clientSlug = parent\.project/.test(createParentChange)
+  && /draft\.team = _prodWriteTeam\(parent\.team\)/.test(createParentChange)
+  && /parentId && \(!parent \|\| parent\.parent/.test(createOpen)
+  && /if \(!parent \|\| parent\.parent\) return ''/.test(extract('_prodAddSubIssueButtonHTML')),
+'Add Sub locks the parent/client/team scope and nested sub-issue creation stays unavailable');
+ok(/const recovering = !!\(saved && saved\.ambiguous\)/.test(createOpen)
+  && /_prodState\.createDraft = recovering[\s\S]{0,80}\? saved/.test(createOpen)
+  && /if \(parent && !recovering\)/.test(createOpen)
+  && /_prodState\.createDraft\.ambiguous[\s\S]{0,100}_prodCreateRecoveryGateText/.test(createOpen),
+'Add Sub cannot retarget an ambiguous saved request and instead reopens its exact recovery intent');
+ok(/json\.native_committed !== true[\s\S]{0,100}!json\.row \|\| !json\.row\.id/.test(createSubmit)
+  && /await _prodLoadData\(\{ silent: true \}\)/.test(createSubmit)
+  && /if \(_prodIssue\(createdId\)\) _prodOpenDeliverable\(createdId\)/.test(createSubmit),
+'creation accepts only a native commit receipt, refreshes Production, and opens the returned row');
+ok(!/\btest_override\b|\blegacy_parity\b|\bcard_id\b|\borigin\b|\bcalendar\b|\bsample\b|calendar-upsert|sample-review-upsert/i.test(createSubmit)
+  && !/_prodTestWriteOverride/.test(createGate + createOpen + createSubmit)
+  && /client\.raw\.kind[\s\S]{0,100}!== 'test'/.test(createForm)
+  && /test_scope_service_only/.test(createErrorText)
+  && (createSubmit.match(/fetch\(PROD_WRITE_EF_URL/g) || []).length === 1,
+'Production creation cannot self-enter service-only TEST/parity lanes or create, choose, or link Calendar/Samples state');
+ok(/_prodState\.createCatalogToken\+\+/.test(staffPurge)
+  && /_prodState\.createCatalog = \[\]/.test(staffPurge)
+  && /_prodState\.createDraft = null/.test(staffPurge)
+  && /sessionStorage\.removeItem\(PROD_CREATE_DRAFT_KEY\)/.test(staffPurge)
+  && /_prodClearLayer\(\)/.test(staffPurge)
+  && /token !== _prodState\.createCatalogToken \|\| !_prodState\.createDraft/.test(createOptions),
+'sign-out purges the create draft/catalog/modal and invalidates delayed create-options responses');
+ok(/label_selection_out_of_catalog/.test(createErrorText)
+  && /assignee_mapping_unavailable/.test(createErrorText)
+  && /create_parent_not_found/.test(createErrorText)
+  && /production_create_parent_scope/.test(createErrorText)
+  && /production_create_parent_nested/.test(createErrorText)
+  && /production_create_batch_scope/.test(createErrorText)
+  && /production_create_parent_route/.test(createErrorText),
+'Production creation maps the gateway’s exact catalog, assignee, and parent-scope failures to actionable recovery copy');
 ok(/_prodState\.labels = new Map\(\[\.\.\._prodState\.labels\]\.filter/.test(extract('_prodRefresh'))
   && /_prodEnsureLabels\(_prodState\.openId, false\)/.test(extract('_prodRender')),
 'refresh discards non-pending label state and reopens from the protected source');

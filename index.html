@@ -3423,7 +3423,7 @@
         .workload-timeline-relationship { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; min-height: var(--wl-track-height); border-bottom: 1px solid var(--border-light); }
         .workload-timeline-relationship:last-child { border-bottom: 0; }
         .workload-timeline-lines { position: absolute; inset: 0 0 auto; z-index: 1; width: 100%; height: var(--wl-track-height); overflow: visible; pointer-events: none; color: var(--text-muted); opacity: 1; }
-        .workload-timeline-lines line, .workload-timeline-lines path { vector-effect: non-scaling-stroke; }
+        .workload-timeline-lines line { vector-effect: non-scaling-stroke; }
         .workload-timeline-connector.is-red { color: var(--wl-proximity-red); }
         .workload-timeline-connector.is-orange { color: var(--wl-proximity-orange); }
         .workload-timeline-connector.is-green { color: var(--wl-proximity-green); }
@@ -15977,8 +15977,6 @@
         const canDragGroup = wlPlanEditingEnabled() && !!track.clientName && track.subs.length
             && track.subs.every(sub => String(sub.id || '') && !_wlPlanWriteInFlight.has(String(sub.id || '')));
         const clientName = track.clientName || '—';
-        const markerId = `wl-timeline-arrow-${trackNumber}`;
-        const markerParts = [];
         const lineParts = [];
         const endpointParts = [];
         for (let index = 0; index < track.endpoints.length; index++) {
@@ -15993,10 +15991,7 @@
             const targetY = endpoint.targetIndex === track.planIndex ? Math.max(sourceY + 6, y - 20) : y;
             const ids = endpoint.subs.map(sub => String(sub.id || '')).filter(Boolean).join('|');
             if (sourceX !== targetX || sourceY !== targetY) {
-                const endpointMarkerId = `${markerId}-${index}`;
-                const markerColor = endpoint.tone ? `var(--wl-proximity-${endpoint.tone})` : 'var(--text-muted)';
-                markerParts.push(`<marker id="${endpointMarkerId}" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" markerUnits="userSpaceOnUse" orient="auto" overflow="visible" style="color:${markerColor}"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker>`);
-                lineParts.push(`<line class="workload-timeline-connector${endpoint.tone ? ' is-' + endpoint.tone : ''}" x1="${sourceX}" y1="${sourceY}" x2="${targetX}" y2="${targetY}" data-wl-deadline-ids="${wlEscape(ids)}" data-wl-tone="${wlEscape(endpoint.tone || '')}" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" marker-end="url(#${endpointMarkerId})"/>`);
+                lineParts.push(`<line class="workload-timeline-connector${endpoint.tone ? ' is-' + endpoint.tone : ''}" x1="${sourceX}" y1="${sourceY}" x2="${targetX}" y2="${targetY}" data-wl-deadline-ids="${wlEscape(ids)}" data-wl-tone="${wlEscape(endpoint.tone || '')}" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>`);
             }
             const boundaryLabel = endpoint.boundary === 'before'
                 ? `← Due ${wlFormatShort(endpoint.dueDate)}`
@@ -16012,7 +16007,7 @@
             </span>`);
         }
         return `<div class="workload-timeline-relationship" data-wl-track="${trackNumber}" style="--wl-track-height:${height}px;">
-            <svg class="workload-timeline-lines" viewBox="0 0 500 ${height}" preserveAspectRatio="none" aria-hidden="true"><defs>${markerParts.join('')}</defs>${lineParts.join('')}</svg>
+            <svg class="workload-timeline-lines" viewBox="0 0 500 ${height}" preserveAspectRatio="none" aria-hidden="true">${lineParts.join('')}</svg>
             <details class="workload-timeline-source" style="grid-column:${track.planIndex + 1};--wl-source-top:${sourceY - 17}px;">
                 <summary class="workload-timeline-plan-chip" data-wl-date="${wlEscape(track.planDate)}" data-wl-assignee-id="${wlEscape(editor.assigneeId || '')}" data-wl-client="${wlEscape(track.clientName || '')}">
                     <span class="workload-day-card-chip-main">

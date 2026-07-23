@@ -17,7 +17,7 @@ All times are UTC unless noted.
   **Plan + Due Date**. Internal preference keys and relationship-mode state are
   unchanged. The owner-selected relationship layout adds a compact sticky editor
   rail, subtle editor swimlanes, a weekday-header plus faint-wash Today cue with
-  no large outline, and continuous visible connector arrows that end before the
+  no large outline, and continuous visible connector lines that end before the
   due cards. No live-looking mockup asset was added to this public repository.
 - This is client-side presentation only. No Edge Function, schema, migration,
   runtime flag, n8n workflow, Linear writer, or frozen client writer changed.

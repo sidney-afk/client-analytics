@@ -38,7 +38,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `onboarding-full` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `production-comments` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |
-| `production-write` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `production-write/policy.mjs` |
+| `production-write` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |
 | `pto` | [deploy-pto](../../.github/workflows/deploy-pto-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | `pto/policy.js` |
 | `sample-review-reorder` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `sample-review-upsert` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |

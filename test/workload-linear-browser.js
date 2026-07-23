@@ -379,6 +379,7 @@ async function run() {
       'wlNativeDueDate',
       'wlFetchNativeMetadata',
       'wlMetadataFailure',
+      'wlMetadataTeamBucket',
       'wlTeamBucket',
       'wlEditorCapacity',
       'wlFetchLinearMetadata',
@@ -409,6 +410,30 @@ async function run() {
       'native due dates are exact calendar dates, not sliced arbitrary strings');
 
     const originalFetch = mixed.fetch;
+    const unknownTeamCalls = [];
+    mixed.fetch = async url => {
+      unknownTeamCalls.push(String(url));
+      if (String(url).includes('syncview_runtime_flags')) {
+        return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'linear' } }] };
+      }
+      throw new Error('unknown team reached a metadata source');
+    };
+    await assert.rejects(
+      mixed.wlFetchLinearMetadata([backgroundIssue({
+        id: 'unknown-team',
+        teamKey: 'CON',
+        teamName: 'Content',
+      })]),
+      error => error
+        && error.workloadMetadataFailure === true
+        && Array.from(error.workloadMetadataIssueIds || []).join(',') === 'unknown-team'
+        && /team authority is unavailable/.test(error.message),
+      'an unrecognized active team fails closed for the complete active-id set');
+    assert.strictEqual(unknownTeamCalls.some(url => url.includes('/rest/v1/deliverables')), false,
+      'an unrecognized team never reaches native deliverables metadata');
+    assert.strictEqual(unknownTeamCalls.some(url => url.includes('/functions/v1/workload-linear')), false,
+      'an unrecognized team never reaches foreign Workload metadata');
+
     mixed.fetch = async url => {
       if (String(url).includes('syncview_runtime_flags')) {
         return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
@@ -563,6 +588,7 @@ async function run() {
       'wlNativeDueDate',
       'wlFetchNativeMetadata',
       'wlMetadataFailure',
+      'wlMetadataTeamBucket',
       'wlTeamBucket',
       'wlFetchLinearMetadata',
       'wlSanitizeFailedNativeMetadata',

@@ -39,6 +39,10 @@ import {
   validDateOrNull,
   validRequestId,
 } from "./policy.mjs";
+import {
+  collectCompleteSelectedLabels,
+  SelectedLabelPageError,
+} from "./selected-label-pages.mjs";
 
 type JsonMap = Record<string, unknown>;
 type Entity = "deliverable" | "batch";
@@ -243,14 +247,10 @@ type LabelSnapshot = {
 };
 
 async function linearLabelSnapshot(issueId: string): Promise<LabelSnapshot> {
-  const query = `query SyncViewProductionLabels($id: String!, $after: String) {
+  const catalogQuery = `query SyncViewProductionLabelCatalog($id: String!, $after: String) {
     issue(id: $id) {
       id
       team { id }
-      labels(first: ${LABEL_PAGE_SIZE}, includeArchived: true) {
-        nodes { id name color description archivedAt isGroup team { id } }
-        pageInfo { hasNextPage endCursor }
-      }
     }
     issueLabels(first: ${LABEL_PAGE_SIZE}, after: $after) {
       nodes { id name color description archivedAt isGroup team { id } }
@@ -258,21 +258,28 @@ async function linearLabelSnapshot(issueId: string): Promise<LabelSnapshot> {
     }
   }`;
   let after: string | null = null;
-  let issue: JsonMap | null = null;
+  let issueTeamId = "";
+  const catalogCursors = new Set<string>();
   const catalogById = new Map<string, JsonMap>();
 
   for (let page = 0; page < MAX_LABEL_PAGES; page++) {
-    const data = await linearLabelsRequest(query, { id: issueId, after });
+    const data = await linearLabelsRequest(catalogQuery, { id: issueId, after });
     const currentIssue = parseJson(data.issue);
     if (!clean(currentIssue.id) || clean(currentIssue.id) !== issueId) {
       throw new GatewayError(409, "linear_issue_unavailable");
     }
-    if (!issue) issue = currentIssue;
-
-    const issueTeamId = clean(parseJson(currentIssue.team).id);
-    if (!issueTeamId) throw new GatewayError(409, "linear_issue_team_unavailable");
+    const currentTeamId = clean(parseJson(currentIssue.team).id);
+    if (!currentTeamId || (issueTeamId && currentTeamId !== issueTeamId)) {
+      throw new GatewayError(409, "linear_issue_team_unavailable");
+    }
+    issueTeamId = currentTeamId;
     const catalogConnection = parseJson(data.issueLabels);
-    for (const node of labelNodes(catalogConnection)) {
+    const rawCatalogNodes = catalogConnection.nodes;
+    const catalogNodes = labelNodes(catalogConnection);
+    if (!Array.isArray(rawCatalogNodes) || catalogNodes.length !== rawCatalogNodes.length) {
+      throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
+    }
+    for (const node of catalogNodes) {
       if (!Object.prototype.hasOwnProperty.call(node, "team")
           || typeof node.isGroup !== "boolean"
           || !Object.prototype.hasOwnProperty.call(node, "archivedAt")) {
@@ -283,6 +290,9 @@ async function linearLabelSnapshot(issueId: string): Promise<LabelSnapshot> {
           || (labelTeamId && labelTeamId !== issueTeamId)) continue;
       const label = sanitizedLabel(node, true);
       if (!label) throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
+      if (catalogById.has(clean(label.id))) {
+        throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
+      }
       catalogById.set(clean(label.id), label);
     }
 
@@ -292,40 +302,49 @@ async function linearLabelSnapshot(issueId: string): Promise<LabelSnapshot> {
       throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
     }
     after = clean(pageInfo.endCursor);
-    if (!after || page === MAX_LABEL_PAGES - 1) {
+    if (!after || catalogCursors.has(after) || page === MAX_LABEL_PAGES - 1) {
       throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
     }
+    catalogCursors.add(after);
   }
 
-  const selectedConnection = parseJson((issue as JsonMap).labels);
-  const selectedPageInfo = parseJson(selectedConnection.pageInfo);
-  if (selectedPageInfo.hasNextPage !== false) {
-    throw new GatewayError(502, "label_selection_incomplete", { complete: false });
-  }
-  const issueTeamId = clean(parseJson((issue as JsonMap).team).id);
-  const selectedById = new Map<string, JsonMap>();
-  for (const node of labelNodes(selectedConnection)) {
-    if (!Object.prototype.hasOwnProperty.call(node, "team") || typeof node.isGroup !== "boolean") {
-      throw new GatewayError(502, "label_selection_invalid");
+  const selectedQuery = `query SyncViewProductionSelectedLabels($id: String!, $selectedAfter: String) {
+    issue(id: $id) {
+      id
+      team { id }
+      labels(first: ${LABEL_PAGE_SIZE}, after: $selectedAfter, includeArchived: true) {
+        nodes { id name color description archivedAt isGroup team { id } }
+        pageInfo { hasNextPage endCursor }
+      }
     }
-    const labelTeamId = clean(parseJson(node.team).id);
-    if (node.isGroup === true || (labelTeamId && labelTeamId !== issueTeamId)) {
+  }`;
+  let selected: { labels: JsonMap[]; ids: string[] };
+  try {
+    selected = await collectCompleteSelectedLabels({
+      issueId,
+      expectedTeamId: issueTeamId,
+      maxPages: MAX_LABEL_PAGES,
+      fetchPage: (selectedAfter: string | null) =>
+        linearLabelsRequest(selectedQuery, { id: issueId, selectedAfter }),
+    }) as { labels: JsonMap[]; ids: string[] };
+  } catch (error) {
+    if (error instanceof GatewayError) throw error;
+    if (error instanceof SelectedLabelPageError && error.kind === "identity") {
       throw new GatewayError(409, "label_selection_invalid");
     }
-    const label = sanitizedLabel(node, true);
-    if (!label) throw new GatewayError(502, "label_selection_invalid");
-    selectedById.set(clean(label.id), label);
+    if (error instanceof SelectedLabelPageError && error.kind === "invalid") {
+      throw new GatewayError(502, "label_selection_invalid");
+    }
+    throw new GatewayError(502, "label_selection_incomplete", { complete: false });
   }
-  const selectedLabels = [...selectedById.values()];
-  selectedLabels.sort((a, b) => clean(a.id).localeCompare(clean(b.id)));
   const catalog = [...catalogById.values()].sort((a, b) => {
     const byName = lower(a.name).localeCompare(lower(b.name));
     return byName || clean(a.id).localeCompare(clean(b.id));
   });
   return {
     catalog,
-    selectedLabels,
-    selectedLabelIds: selectedLabels.map(label => clean(label.id)),
+    selectedLabels: selected.labels,
+    selectedLabelIds: selected.ids,
   };
 }
 

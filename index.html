@@ -13536,6 +13536,15 @@
         return failure;
     }
 
+    function wlMetadataTeamBucket(teamKey, teamName) {
+        const key = String(teamKey || '').trim().toUpperCase();
+        const name = String(teamName || '').trim().toLowerCase();
+        const keyBucket = key === 'VID' ? 'video' : key === 'GRA' ? 'graphics' : null;
+        const nameBucket = name === 'video' ? 'video' : name === 'graphics' ? 'graphics' : null;
+        if (keyBucket && nameBucket && keyBucket !== nameBucket) return null;
+        return keyBucket || nameBucket || null;
+    }
+
     async function wlFetchLinearMetadata(issues) {
         const activeIssues = (issues || [])
             .filter(issue => issue && issue.isSubIssue && wlIsActiveStatus(issue) && wlIsAllowedClient(issue.clientName));
@@ -13564,7 +13573,8 @@
                 const issueId = String(issue.id || '').trim();
                 if (!issueId || seen.has(issueId)) continue;
                 seen.add(issueId);
-                const team = wlTeamBucket(issue.teamKey, issue.teamName);
+                const team = wlMetadataTeamBucket(issue.teamKey, issue.teamName);
+                if (!team) throw new Error('Workload issue team authority is unavailable.');
                 if (authority[team] === 'syncview') nativeIds.push(issueId);
                 else if (authority[team] === 'linear') linearIds.push(issueId);
                 else throw new Error('Workload issue team authority is unavailable.');

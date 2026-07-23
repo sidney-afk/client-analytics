@@ -536,9 +536,11 @@ n8n in the metric read path.*
   row's missing native selection from that same complete Linear snapshot; browser/staff rows cannot.
   Also fires the shared Sheets essentials in the background for app chrome. The tab reads the
   single `prod_authority` runtime-flag row to gate controls.
-- **Writes.** Status, comment, due date, assignee, and F201 candidate labels use the authenticated `production-write` Edge
-  Function. The browser supplies the native deliverable ID, a bounded idempotency key, and CAS for
-  scalar changes; label changes submit the complete selected label-ID set. Verified staff headers
+- **Writes.** Status, comment, due date, assignee, F201 candidate labels, and F202 candidate
+  descriptions use the authenticated `production-write` Edge Function. The browser supplies the
+  native deliverable ID, a bounded idempotency key, and CAS for scalar changes; label changes submit
+  the complete selected label-ID set, while descriptions preserve the exact Markdown source string.
+  Verified staff headers
   come from the shared role-key identity path. Browser controls are normally enabled only when the
   target team's authority is `syncview`; the active TEST fixture still exposes the pre-flip boundary,
   but browser staff credentials cannot enter TEST scope and the gateway rejects that override.
@@ -565,10 +567,13 @@ n8n in the metric read path.*
   correct picker month/selection (F100).
   The 2026-07-23 read-only full-day audit adds the remaining current gaps without changing runtime:
   72 of 4,600 mirror rows require complete roster-owned attribution or explicit internal/TEST
-  classification (F200). F201 label display/write and the narrow native Workload metadata seam are
-  now source-only candidates; their migration, function deploy, real service-only TEST drill,
-  review, and merge remain gated. Production still has no description edit or native parent/sub-
-  issue create operation (F202–F203); shared views/manual board ordering await owner scope (F204);
+  classification (F200). F200 candidate source now removes Linear-derived client insertion, exposes
+  repair/provisional/conflict states, rechecks hierarchy/revision, and supplies a private-manifest,
+  exact-72 guarded repair path; it performs no live classification here. F201 label display/write and
+  native Workload metadata plus F202 root/child description editing/mirroring are source-only
+  candidates; their repair/migration, function deploy, real service-only TEST drill, review, and
+  merge remain gated. Production still has no native parent/sub-issue create operation (F203);
+  shared views/manual board ordering await owner scope (F204);
   and project detail/pickers can replace the card's real status/lead/target with defaults because
   they read a slimmer project object (F205). See
   `docs/audits/2026-07-23-production-tab-graphics-gap-audit.md`.
@@ -614,8 +619,8 @@ n8n in the metric read path.*
   service-only; this deliberately avoids extending the existing anon-readable mirror policy to
   internal comment text. Deleted/archived issues are filtered client-side from tombstone JSON, not
   server-side.
-- **Track B.** The mirror has the Part 2 status/comment/due/assignee caller and the source-only F201
-  label caller, but both production
+- **Track B.** The mirror has the Part 2 status/comment/due/assignee caller and source-only F201 label
+  plus F202 description callers, but both production
   teams remain read-only while their authority is `linear`; no deploy or flag flip is implied. D-28
   can enable Graphics first, then Video, by owner-controlled flag changes with no code change. B5:
   the only production surface.

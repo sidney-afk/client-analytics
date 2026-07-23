@@ -3019,6 +3019,43 @@
         .prod-detail-crumb .prod-crumb-title { flex: 1 1 auto; }
         .prod-detail-crumb .prod-crumb-kind { flex: none; color: var(--prod-muted); font-size: 11px; font-weight: 600; }
         .prod-desc { margin-bottom: 16px; }
+        .prod-description { margin-bottom: 16px; }
+        .prod-description-head { min-height: 30px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; color: var(--prod-muted); }
+        .prod-description-title { color: var(--prod-strong); font-size: 12px; font-weight: 600; }
+        .prod-description-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
+        .prod-description-action { min-height: 28px; border: 0; border-radius: 6px; padding: 0 8px; background: transparent; color: var(--prod-muted); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
+        .prod-description-action:hover, .prod-description-action.is-active { background: var(--prod-hover); color: var(--prod-strong); }
+        .prod-description-action[disabled] { opacity: .55; cursor: wait; }
+        .prod-description-action[data-prod-write="off"] { cursor: not-allowed; }
+        .prod-description-body { min-height: 24px; }
+        .prod-description .prod-desc { margin: 0; }
+        .prod-description-state { margin-top: 8px; border-radius: 7px; padding: 8px 10px; background: var(--prod-hover); color: var(--prod-muted); font-size: 12px; line-height: 18px; }
+        .prod-description-state.is-error { color: var(--prod-overdue, #eb5757); }
+        .prod-description-state button { min-height: 26px; margin-left: 6px; border: 0; border-radius: 6px; padding: 0 8px; background: var(--prod-surface); color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+        .prod-description-editor { border: 1px solid var(--prod-border); border-radius: 9px; overflow: hidden; background: var(--prod-surface); }
+        .prod-description-textarea { display: block; width: 100%; min-height: 190px; max-height: 520px; resize: vertical; border: 0; padding: 12px 13px; box-sizing: border-box; outline: none; background: transparent; color: var(--prod-text); font: inherit; font-size: 14px; line-height: 22px; tab-size: 2; }
+        .prod-description-textarea:focus { box-shadow: inset 0 0 0 2px var(--prod-accent); }
+        .prod-description-preview { min-height: 190px; padding: 12px 13px; box-sizing: border-box; }
+        .prod-description-footer { min-height: 42px; border-top: 1px solid var(--prod-divider); padding: 6px 7px 6px 11px; display: flex; align-items: center; gap: 6px; box-sizing: border-box; }
+        .prod-description-count { color: var(--prod-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+        .prod-description-count.is-invalid { color: var(--prod-overdue, #eb5757); font-weight: 600; }
+        .prod-description-save { background: var(--prod-accent); color: #fff; }
+        .prod-description-save:hover { background: var(--prod-accent); color: #fff; filter: brightness(.96); }
+        .prod-attribution-chip { border-style: solid; font-weight: 600; cursor: default; }
+        .prod-attribution-chip.is-provisional { color: #9a6700; border-color: rgba(214, 155, 21, .35); background: rgba(214, 155, 21, .10); }
+        .prod-attribution-chip.is-needs { color: #9a6700; border-color: rgba(214, 155, 21, .35); background: rgba(214, 155, 21, .10); }
+        .prod-attribution-chip.is-conflict { color: var(--prod-overdue, #eb5757); border-color: rgba(235, 87, 87, .35); background: rgba(235, 87, 87, .10); }
+        .prod-attribution-notice { margin: -4px 0 14px; border-radius: 8px; padding: 9px 11px; background: var(--prod-hover); color: var(--prod-muted); font-size: 12px; line-height: 18px; }
+        .prod-attribution-notice b { color: var(--prod-strong); }
+        .prod-attribution-notice.is-conflict { color: var(--prod-overdue, #eb5757); }
+        @media (max-width: 600px) {
+            .prod-description-head { align-items: flex-start; flex-wrap: wrap; }
+            .prod-description-actions { width: 100%; margin-left: 0; }
+            .prod-description-action { min-height: 36px; padding: 0 11px; }
+            .prod-description-actions .prod-spacer { display: block; }
+            .prod-description-textarea, .prod-description-preview { min-height: 220px; }
+            .prod-description-footer { flex-wrap: wrap; }
+        }
         .prod-file-line { margin: 14px 0 0; color: var(--prod-strong); font-size: 13px; }
         .prod-file-line b { font-weight: 600; }
         .prod-file-line .prod-link { margin-left: 4px; }
@@ -40298,6 +40335,8 @@
         const PROD_COMMENTS_PAGE_SIZE = 50;
         const PROD_GROUP_KEYS = new Set(['status', 'client', 'assignee']);
         const PROD_ORDER_KEYS = new Set(['due', 'updated', 'created']);
+        const PROD_ATTRIBUTION_NEEDS = '__needs_attribution__';
+        const PROD_ATTRIBUTION_CONFLICT = '__attribution_conflict__';
         const _prodState = {
             loaded: false,
             loading: false,
@@ -40336,6 +40375,9 @@
             linearRaw: new Map(),
             labels: new Map(),
             labelRequestTokens: new Map(),
+            descriptions: new Map(),
+            descriptionRequestTokens: new Map(),
+            projectionGeneration: 0,
             authority: null,
             authorityLoaded: false,
             authorityReadAt: 0,
@@ -40758,9 +40800,296 @@
             });
             return resolved;
         }
+        function _prodConfiguredProjectIds(value) {
+            if (typeof value === 'string') {
+                const text = value.trim();
+                if (!text) return [];
+                try { return _prodConfiguredProjectIds(JSON.parse(text)); }
+                catch (e) { return [text]; }
+            }
+            if (!value || typeof value !== 'object') return [];
+            const found = new Set();
+            const add = entry => {
+                if (typeof entry === 'string') {
+                    if (entry.trim()) found.add(entry.trim());
+                    return;
+                }
+                if (!entry || typeof entry !== 'object') return;
+                ['id', 'project_id', 'linear_project_id'].forEach(key => {
+                    const id = String(entry[key] || '').trim();
+                    if (id) found.add(id);
+                });
+            };
+            if (Array.isArray(value)) value.forEach(add);
+            else {
+                add(value);
+                Object.entries(value).forEach(([key, entry]) => {
+                    if (['video', 'vid', 'graphics', 'graphic', 'gra', 'thumbnail'].includes(String(key).toLowerCase())) add(entry);
+                });
+                if (Array.isArray(value.projects)) value.projects.forEach(add);
+            }
+            return [...found];
+        }
+        function _prodRawProjectId(row) {
+            const projected = String(row && row.raw_project_id || '').trim();
+            if (projected) return projected;
+            const raw = _prodLinearRaw(row && row.linear_raw);
+            return String(raw && raw.issue && raw.issue.project && raw.issue.project.id || '').trim();
+        }
+        function _prodRawAttribution(row) {
+            const raw = _prodLinearRaw(row && row.linear_raw);
+            const nested = raw && raw.attribution && typeof raw.attribution === 'object' ? raw.attribution : {};
+            const read = (alias, key) => _prodHasOwn(row, alias) ? row[alias] : nested[key];
+            const repairRaw = read('raw_attribution_repair_required', 'repair_required');
+            return {
+                schema: String(read('raw_attribution_schema', 'schema') || '').trim(),
+                state: String(read('raw_attribution_state', 'state') || '').trim(),
+                client_slug: String(read('raw_attribution_client_slug', 'client_slug') || '').trim(),
+                owner_kind: String(read('raw_attribution_owner_kind', 'owner_kind') || '').trim(),
+                source: String(read('raw_attribution_source', 'source') || '').trim(),
+                provisional_client_slug: String(read('raw_attribution_provisional_client_slug', 'provisional_client_slug') || '').trim(),
+                mapping_revision: String(read('raw_attribution_mapping_revision', 'mapping_revision') || '').trim(),
+                repair_required: repairRaw === true || String(repairRaw || '').toLowerCase() === 'true',
+                reason: String(read('raw_attribution_reason', 'reason') || '').trim(),
+                explicit_owner_approved: read('raw_attribution_explicit_owner_approved', 'explicit_owner_approved') === true
+                    || String(read('raw_attribution_explicit_owner_approved', 'explicit_owner_approved') || '').toLowerCase() === 'true',
+                explicit_decision_ref: String(read('raw_attribution_explicit_decision_ref', 'explicit_decision_ref') || '').trim(),
+                explicit_manifest_sha256: String(read('raw_attribution_explicit_manifest_sha256', 'explicit_manifest_sha256') || '').trim().toLowerCase()
+            };
+        }
+        function _prodResolveAttributions(rows, clients, parentLinks) {
+            const activeBySlug = new Map();
+            const projectOwners = new Map();
+            (clients || []).forEach(client => {
+                const slug = String(client && client.slug || '').trim();
+                if (!slug || client.active !== true) return;
+                activeBySlug.set(slug, client);
+                _prodConfiguredProjectIds(client.linear_project_ids).forEach(projectId => {
+                    const prior = projectOwners.get(projectId);
+                    if (prior && prior.slug !== slug) projectOwners.set(projectId, { conflict: true });
+                    else if (!prior) projectOwners.set(projectId, { slug, kind: String(client.kind || 'client') });
+                });
+            });
+            const rowById = new Map((rows || []).map(row => [String(row && row.id || ''), row]).filter(([id]) => id));
+            const result = new Map();
+            const resolved = (slug, source, details) => Object.assign({
+                state: 'resolved',
+                clientSlug: slug,
+                provisionalClientSlug: '',
+                ownerKind: String(activeBySlug.get(slug) && activeBySlug.get(slug).kind || 'client'),
+                source,
+                mappingRevision: '',
+                repairRequired: false,
+                reason: source
+            }, details || {});
+            const needs = details => Object.assign({
+                state: 'needs_attribution',
+                clientSlug: '',
+                provisionalClientSlug: '',
+                ownerKind: '',
+                source: 'none',
+                mappingRevision: '',
+                repairRequired: true,
+                reason: 'no_mapped_project_or_explicit_classification'
+            }, details || {});
+            const conflict = details => Object.assign(needs(), {
+                state: 'conflict',
+                source: 'conflict',
+                reason: 'attribution_conflict'
+            }, details || {});
+            (rows || []).forEach(row => {
+                const id = String(row && row.id || '');
+                if (!id) return;
+                const persisted = _prodRawAttribution(row);
+                const directProjectId = _prodRawProjectId(row);
+                let candidate = null;
+                let mappedProjectId = '';
+                let directUnmapped = false;
+                if (directProjectId) {
+                    const owner = projectOwners.get(directProjectId);
+                    if (owner && owner.conflict) candidate = conflict({ reason: 'project_mapping_conflict' });
+                    else if (owner && owner.slug) {
+                        mappedProjectId = directProjectId;
+                        candidate = resolved(owner.slug, 'direct_project');
+                    } else {
+                        directUnmapped = true;
+                    }
+                }
+                let cursor = parentLinks.get(id) || '';
+                const seen = new Set([id]);
+                let distance = 0;
+                while (!candidate && cursor && !seen.has(cursor)) {
+                    seen.add(cursor);
+                    distance++;
+                    const ancestor = rowById.get(cursor);
+                    const projectId = _prodRawProjectId(ancestor);
+                    const owner = projectId && projectOwners.get(projectId);
+                    if (owner && owner.conflict) {
+                        candidate = conflict({ reason: 'ancestor_project_mapping_conflict' });
+                        break;
+                    }
+                    if (owner && owner.slug) {
+                        mappedProjectId = projectId;
+                        candidate = resolved(owner.slug, 'nearest_mapped_ancestor', {
+                            repairRequired: directUnmapped,
+                            reason: directUnmapped ? 'ancestor_mapped_direct_project_needs_mapping' : 'nearest_ancestor_project_mapped',
+                            ancestorDistance: distance
+                        });
+                        break;
+                    }
+                    cursor = parentLinks.get(cursor) || '';
+                }
+                let attribution = candidate || needs({
+                    reason: directProjectId ? 'direct_project_unmapped' : 'no_mapped_project_or_explicit_classification'
+                });
+                if (persisted.state === 'conflict') {
+                    attribution = conflict({
+                        mappingRevision: persisted.mapping_revision,
+                        reason: persisted.reason || 'persisted_attribution_conflict'
+                    });
+                } else if (persisted.state === 'needs_attribution') {
+                    attribution = candidate && candidate.state === 'resolved'
+                        ? conflict({
+                            mappingRevision: persisted.mapping_revision,
+                            reason: 'persisted_attribution_disagrees_with_current_mapping'
+                        })
+                        : needs({
+                            mappingRevision: persisted.mapping_revision,
+                            reason: persisted.reason || attribution.reason
+                        });
+                } else if (persisted.state === 'resolved') {
+                    const persistedActive = activeBySlug.has(persisted.client_slug);
+                    const explicit = /^explicit_/.test(persisted.source);
+                    if (candidate && candidate.state === 'resolved') {
+                        attribution = persistedActive && candidate.clientSlug === persisted.client_slug
+                            ? Object.assign({}, candidate, {
+                                ownerKind: persisted.owner_kind || candidate.ownerKind,
+                                source: persisted.source || candidate.source,
+                                mappingRevision: persisted.mapping_revision,
+                                repairRequired: persisted.repair_required || candidate.repairRequired,
+                                reason: persisted.reason || candidate.reason
+                            })
+                            : conflict({
+                                mappingRevision: persisted.mapping_revision,
+                                reason: 'persisted_resolved_client_disagrees_with_current_mapping'
+                            });
+                    } else if (explicit && persistedActive) {
+                        const owner = activeBySlug.get(persisted.client_slug);
+                        const ownerKind = String(owner && owner.kind || 'client').trim().toLowerCase();
+                        const expectedSource = ownerKind === 'client'
+                            ? 'explicit_roster_classification'
+                            : 'explicit_internal_test_classification';
+                        const proofValid = persisted.schema === 'syncview_attribution_v1'
+                            && persisted.owner_kind === ownerKind
+                            && persisted.source === expectedSource
+                            && persisted.explicit_owner_approved === true
+                            && !!persisted.explicit_decision_ref
+                            && /^[a-f0-9]{64}$/.test(persisted.explicit_manifest_sha256)
+                            && String(row.client_slug || '').trim() === persisted.client_slug;
+                        if (!proofValid) {
+                            attribution = needs({
+                                mappingRevision: persisted.mapping_revision,
+                                reason: 'persisted_explicit_owner_proof_invalid'
+                            });
+                        } else {
+                        attribution = resolved(persisted.client_slug, persisted.source, {
+                            ownerKind,
+                            mappingRevision: persisted.mapping_revision,
+                            repairRequired: persisted.repair_required,
+                            reason: persisted.reason || persisted.source
+                        });
+                        }
+                    } else {
+                        attribution = needs({
+                            mappingRevision: persisted.mapping_revision,
+                            reason: 'persisted_resolution_is_not_currently_verifiable'
+                        });
+                    }
+                } else if (persisted.state === 'provisional_child_family') {
+                    attribution = needs({
+                        mappingRevision: persisted.mapping_revision,
+                        reason: persisted.reason || 'awaiting_child_family_validation',
+                        expectedProvisionalClientSlug: persisted.provisional_client_slug
+                    });
+                }
+                attribution.directProjectId = directProjectId;
+                attribution.mappedProjectId = mappedProjectId;
+                attribution.persistedState = persisted.state;
+                result.set(id, attribution);
+            });
+            const childrenByParent = new Map();
+            parentLinks.forEach((parentId, childId) => {
+                if (!childrenByParent.has(parentId)) childrenByParent.set(parentId, []);
+                childrenByParent.get(parentId).push(childId);
+            });
+            let changed = true;
+            let passes = 0;
+            while (changed && passes++ <= result.size) {
+                changed = false;
+                childrenByParent.forEach((childIds, parentId) => {
+                    const parent = result.get(parentId);
+                    if (!parent || parent.state !== 'needs_attribution') return;
+                    const children = childIds.map(id => result.get(id)).filter(Boolean);
+                    if (children.length !== childIds.length || children.some(item => item.state === 'needs_attribution')) return;
+                    if (children.some(item => item.state === 'conflict')) {
+                        result.set(parentId, conflict({ reason: 'child_family_conflict' }));
+                        changed = true;
+                        return;
+                    }
+                    const slugs = [...new Set(children.map(item => item.state === 'resolved' ? item.clientSlug : item.provisionalClientSlug).filter(Boolean))];
+                    if (slugs.length === 1) {
+                        if (parent.expectedProvisionalClientSlug && parent.expectedProvisionalClientSlug !== slugs[0]) {
+                            result.set(parentId, conflict({ reason: 'persisted_provisional_client_disagrees_with_child_family' }));
+                        } else {
+                            result.set(parentId, Object.assign({}, parent, {
+                                state: 'provisional_child_family',
+                                provisionalClientSlug: slugs[0],
+                                source: 'unanimous_child_family',
+                                repairRequired: true,
+                                reason: 'projectless_parent_unanimous_child_family'
+                            }));
+                        }
+                        changed = true;
+                    } else if (slugs.length > 1) {
+                        result.set(parentId, conflict({ reason: 'child_family_conflict' }));
+                        changed = true;
+                    }
+                });
+            }
+            changed = true;
+            passes = 0;
+            while (changed && passes++ <= result.size * 2) {
+                changed = false;
+                parentLinks.forEach((parentId, childId) => {
+                    const parent = result.get(parentId);
+                    const child = result.get(childId);
+                    if (!parent || !child) return;
+                    if (parent.state === 'conflict' || child.state === 'conflict') {
+                        if (parent.state !== 'conflict') {
+                            result.set(parentId, conflict({ reason: 'hierarchy_conflict_propagated' }));
+                            changed = true;
+                        }
+                        if (child.state !== 'conflict') {
+                            result.set(childId, conflict({ reason: 'hierarchy_conflict_propagated' }));
+                            changed = true;
+                        }
+                        return;
+                    }
+                    const parentSlug = parent.state === 'resolved' ? parent.clientSlug : parent.provisionalClientSlug;
+                    const childSlug = child.state === 'resolved' ? child.clientSlug : child.provisionalClientSlug;
+                    if (parentSlug && childSlug && parentSlug !== childSlug) {
+                        result.set(parentId, conflict({ reason: 'parent_child_client_conflict' }));
+                        result.set(childId, conflict({ reason: 'parent_child_client_conflict' }));
+                        changed = true;
+                    }
+                });
+            }
+            return result;
+        }
         function _prodAdapter(input) {
             const raw = input || _prodState;
             const clients = raw.clients || [];
+            const activeClients = clients.filter(client => client && client.slug && client.active === true);
             const members = raw.members || [];
             const batches = raw.batches || [];
             const deliverables = (raw.deliverables || []).filter(_prodDeliverableLive);
@@ -40779,7 +41108,7 @@
                 EDITORS[String(m.id)] = { id: String(m.id), name, init: _prodInitials(name), color, active: m.active !== false, raw: m };
             });
             const PROJECTS = {};
-            clients.forEach(c => {
+            activeClients.forEach(c => {
                 if (!c || !c.slug) return;
                 const slug = String(c.slug);
                 const descField = _prodHasOwn(c, 'board_desc') ? 'board_desc' : _prodHasOwn(c, 'desc') ? 'desc' : '';
@@ -40795,17 +41124,35 @@
                 };
             });
             const parentLinks = _prodResolveParentLinks(deliverables);
+            const attributions = _prodResolveAttributions(deliverables, activeClients, parentLinks);
             const ISSUES = deliverables.map(d => {
                 const descField = _prodHasOwn(d, 'brief') ? 'brief' : _prodHasOwn(d, 'desc') ? 'desc' : '';
                 const batchId = String(d && d.batch_id || '');
                 const batch = BATCHES[batchId] || null;
                 const file = d.file_url || (batch && (batch.delivery_folder_url || batch.footage_folder_url || batch.filming_doc_url)) || '';
+                const attribution = attributions.get(String(d.id || '')) || {
+                    state: 'needs_attribution',
+                    clientSlug: '',
+                    provisionalClientSlug: '',
+                    repairRequired: true,
+                    reason: 'attribution_missing'
+                };
+                const project = attribution.state === 'resolved'
+                    ? attribution.clientSlug
+                    : attribution.state === 'provisional_child_family'
+                        ? attribution.provisionalClientSlug
+                        : attribution.state === 'conflict'
+                            ? PROD_ATTRIBUTION_CONFLICT
+                            : PROD_ATTRIBUTION_NEEDS;
                 const issue = {
                     id: String(d.id || ''),
                     displayId: d.identifier || d.linear_identifier || d.id || '',
                     rawId: String(d.id || ''),
                     team: d.team || (batch && batch.team) || '',
-                    project: d.client_slug || (batch && batch.client_slug) || '',
+                    project,
+                    authorityProject: attribution.state === 'resolved' ? attribution.clientSlug : '',
+                    attribution,
+                    storedClientSlug: d.client_slug || '',
                     title: d.title || '',
                     parent: parentLinks.get(String(d.id || '')) || null,
                     status: _prodArtifactStatus(d.status),
@@ -40842,7 +41189,7 @@
                 if (!i.parent) acc[i.project] = (acc[i.project] || 0) + 1;
                 return acc;
             }, {});
-            const CLIENTS = clients.map(c => {
+            const CLIENTS = activeClients.map(c => {
                 const slug = String(c && c.slug || '');
                 if (!slug) return null;
                 return {
@@ -40883,8 +41230,20 @@
             return _prodEditors()[String(id || '')] || null;
         }
         function _prodDisplayClient(slug) {
+            if (slug === PROD_ATTRIBUTION_NEEDS) return 'Needs attribution';
+            if (slug === PROD_ATTRIBUTION_CONFLICT) return 'Attribution conflict';
             const c = _prodClient(slug);
-            return c ? (c.name || c.id) : (slug || 'Unknown client');
+            return c ? (c.name || c.id) : 'Needs attribution';
+        }
+        function _prodAttributionResolved(issue) {
+            return !!(issue && issue.attribution && issue.attribution.state === 'resolved');
+        }
+        function _prodAttributionGateText(issue) {
+            const attribution = issue && issue.attribution;
+            if (!attribution || attribution.state === 'resolved') return '';
+            if (attribution.state === 'conflict') return 'Client attribution conflicts across this issue family. Repair it before writing.';
+            if (attribution.state === 'provisional_child_family') return 'Client attribution is provisional from child issues. Repair it before writing.';
+            return 'Client attribution needs repair before writing.';
         }
         function _prodStatusLabel(status) { return PROD_STATUS[_prodArtifactStatus(status)] || status || 'Unknown'; }
         function _prodBoardLabel(status) { return PROD_BOARD_STATUS[_prodBoardStatus(status)] || status || 'Unknown'; }
@@ -41764,7 +42123,8 @@
             return value === 'video' || value === 'graphics' ? value : '';
         }
         function _prodTestWriteOverride(issue) {
-            const client = issue && _prodClient(issue.project);
+            if (!_prodAttributionResolved(issue)) return false;
+            const client = issue && _prodClient(issue.authorityProject || issue.project);
             const raw = client && client.raw;
             return !!(raw && raw.active !== false && String(raw.kind || '').trim().toLowerCase() === 'test');
         }
@@ -41779,13 +42139,15 @@
                 && (operation === 'status' || operation === 'comment');
         }
         function _prodCanWrite(issue, operation) {
-            if (!issue || !_prodRoleCanWrite(issue, operation)) return false;
+            if (!issue || !_prodAttributionResolved(issue) || !_prodRoleCanWrite(issue, operation)) return false;
             if (_prodTestWriteOverride(issue)) return true;
             const team = _prodWriteTeam(issue.team);
             return !!(team && _prodState.authority && _prodState.authority[team] === 'syncview');
         }
         function _prodWriteGateText(issue, operation) {
             if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with your staff account to write.';
+            const attributionGate = _prodAttributionGateText(issue);
+            if (attributionGate) return attributionGate;
             if (!_prodRoleCanWrite(issue, operation)) return 'Your staff role cannot perform this action.';
             if (_prodTestWriteOverride(issue)) return '';
             const team = _prodWriteTeam(issue && issue.team);
@@ -41820,7 +42182,7 @@
             if (!row || !row.id) return;
             const target = (_prodState.deliverables || []).find(item => String(item && item.id || '') === String(row.id));
             if (!target) return;
-            ['status', 'status_at', 'due_date', 'assignee_id', 'updated_at', 'linear_raw'].forEach(field => {
+            ['status', 'status_at', 'due_date', 'assignee_id', 'brief', 'updated_at', 'linear_raw'].forEach(field => {
                 if (Object.prototype.hasOwnProperty.call(row, field)) target[field] = row[field];
             });
             _prodState.adapter = null;
@@ -42517,6 +42879,418 @@
             if (value) return rich ? _prodLinkify(value) : _calEsc(value);
             if (!loaded) return '<span class="prod-skeleton prod-desc-loading" data-prod-desc-loading="1" role="status" aria-label="Loading description"></span>';
             return '<span class="prod-desc-empty">' + _calEsc(emptyText) + '</span>';
+        }
+        function _prodDescriptionText(value) {
+            return value == null ? '' : String(value);
+        }
+        function _prodDescriptionState(id) {
+            id = String(id || '');
+            if (!id) return null;
+            let state = _prodState.descriptions.get(id);
+            if (state) return state;
+            const issue = _prodIssue(id);
+            const hasValue = !!(issue && issue.descLoaded);
+            const value = hasValue ? _prodDescriptionText(issue.desc) : '';
+            state = {
+                status: hasValue ? (_prodState.briefsLoaded ? 'ready' : 'stale') : 'idle',
+                hasValue,
+                value,
+                baseline: value,
+                draft: value,
+                editing: false,
+                preview: false,
+                saving: false,
+                refreshing: false,
+                refreshError: '',
+                error: '',
+                remoteChanged: false,
+                requestId: '',
+                selectionStart: value.length,
+                selectionEnd: value.length,
+                sourceUpdatedAt: issue ? issue.updatedRaw : ''
+            };
+            _prodState.descriptions.set(id, state);
+            return state;
+        }
+        function _prodNextDescriptionRequestToken(id) {
+            id = String(id || '');
+            const token = Number(_prodState.descriptionRequestTokens.get(id) || 0) + 1;
+            _prodState.descriptionRequestTokens.set(id, token);
+            return token;
+        }
+        function _prodMarkDescriptionsStale() {
+            _prodState.descriptions.forEach((state, id) => {
+                if (!state || state.saving) return;
+                _prodState.descriptionRequestTokens.set(id, Number(_prodState.descriptionRequestTokens.get(id) || 0) + 1);
+                state.refreshing = false;
+                state.refreshError = '';
+                state.status = state.hasValue ? 'stale' : 'idle';
+            });
+        }
+        function _prodSyncDescriptionRow(id, value, updatedAt) {
+            const row = (_prodState.deliverables || []).find(item => String(item && item.id || '') === String(id || ''));
+            if (!row) return;
+            row.brief = value;
+            if (updatedAt) row.updated_at = updatedAt;
+            _prodState.adapter = null;
+        }
+        function _prodAdoptDescriptionValue(id, value, updatedAt) {
+            const state = _prodDescriptionState(id);
+            if (!state) return null;
+            const next = _prodDescriptionText(value);
+            const previousBaseline = state.baseline;
+            const cleanDraft = state.editing && state.draft === previousBaseline;
+            state.value = next;
+            state.baseline = next;
+            state.hasValue = true;
+            state.status = 'ready';
+            state.refreshing = false;
+            state.refreshError = '';
+            state.sourceUpdatedAt = updatedAt || state.sourceUpdatedAt || '';
+            if (state.editing) {
+                if (cleanDraft) {
+                    state.draft = next;
+                    state.selectionStart = Math.min(state.selectionStart, next.length);
+                    state.selectionEnd = Math.min(state.selectionEnd, next.length);
+                    state.remoteChanged = false;
+                    state.error = '';
+                } else if (previousBaseline !== next) {
+                    state.remoteChanged = true;
+                    state.error = 'Description changed elsewhere. Your draft is preserved; review it against the refreshed version and save again.';
+                    state.requestId = '';
+                }
+            } else {
+                state.draft = next;
+                state.remoteChanged = false;
+                state.error = '';
+            }
+            return state;
+        }
+        function _prodCaptureDescriptionFocus(root) {
+            const id = String(_prodState.openId || '');
+            const state = id && _prodState.descriptions.get(id);
+            if (!root || !state || !state.editing) return null;
+            const panel = root.querySelector('[data-prod-description="' + CSS.escape(id) + '"]');
+            const active = document.activeElement;
+            if (!panel || !active || !panel.contains(active)) return null;
+            const control = active.getAttribute && active.getAttribute('data-prod-description-control') || '';
+            if (control === 'source') {
+                state.selectionStart = Number.isFinite(active.selectionStart) ? active.selectionStart : state.selectionStart;
+                state.selectionEnd = Number.isFinite(active.selectionEnd) ? active.selectionEnd : state.selectionEnd;
+            }
+            return { id, control };
+        }
+        function _prodRestoreDescriptionFocus(snapshot) {
+            if (!snapshot || !snapshot.id || !snapshot.control) return;
+            const panel = document.querySelector('[data-prod-description="' + CSS.escape(snapshot.id) + '"]');
+            const target = panel && panel.querySelector('[data-prod-description-control="' + CSS.escape(snapshot.control) + '"]');
+            if (!target) return;
+            try {
+                target.focus({ preventScroll: true });
+                if (snapshot.control === 'source' && target.setSelectionRange) {
+                    const state = _prodState.descriptions.get(snapshot.id);
+                    const start = Math.min(Number(state && state.selectionStart || 0), target.value.length);
+                    const end = Math.min(Number(state && state.selectionEnd || start), target.value.length);
+                    target.setSelectionRange(start, end);
+                }
+            } catch (e) {}
+        }
+        function _prodFocusDescriptionControl(id, control) {
+            setTimeout(() => {
+                const panel = document.querySelector('[data-prod-description="' + CSS.escape(String(id || '')) + '"]');
+                const target = panel && panel.querySelector('[data-prod-description-control="' + CSS.escape(String(control || '')) + '"]');
+                if (!target) return;
+                try {
+                    target.focus({ preventScroll: true });
+                    if (control === 'source' && target.setSelectionRange) {
+                        const state = _prodDescriptionState(id);
+                        const start = Math.min(Number(state && state.selectionStart || 0), target.value.length);
+                        const end = Math.min(Number(state && state.selectionEnd || start), target.value.length);
+                        target.setSelectionRange(start, end);
+                    }
+                } catch (e) {}
+            }, 0);
+        }
+        async function _prodEnsureDescription(id, force) {
+            id = String(id || '');
+            const issue = _prodIssue(id);
+            const state = issue && _prodDescriptionState(id);
+            if (!issue || !state || state.saving) return state || null;
+            if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error' || state.refreshError)) return state;
+            const requestToken = _prodNextDescriptionRequestToken(id);
+            state.refreshing = true;
+            state.refreshError = '';
+            if (state.hasValue) state.status = 'stale';
+            else state.status = 'loading';
+            if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+            try {
+                const rows = await _prodRestRows('deliverables', 'id,brief,updated_at', 'id=eq.' + encodeURIComponent(id), 2, 1);
+                if (requestToken !== _prodState.descriptionRequestTokens.get(id)) return null;
+                const row = rows && rows[0];
+                if (!row || String(row.id || '') !== id) throw new Error('description_not_found');
+                _prodSyncDescriptionRow(id, row.brief, row.updated_at);
+                _prodAdoptDescriptionValue(id, row.brief, row.updated_at);
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                return state;
+            } catch (error) {
+                if (requestToken !== _prodState.descriptionRequestTokens.get(id)) return null;
+                state.refreshing = false;
+                if (state.hasValue) {
+                    state.status = 'stale';
+                    state.refreshError = 'Description could not refresh. The text shown may be outdated.';
+                } else {
+                    state.status = 'error';
+                    state.error = 'Description could not load.';
+                }
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                return null;
+            }
+        }
+        function _prodDescriptionRememberSelection(id, input) {
+            const state = _prodDescriptionState(id);
+            if (!state || !input) return;
+            state.selectionStart = Number.isFinite(input.selectionStart) ? input.selectionStart : state.selectionStart;
+            state.selectionEnd = Number.isFinite(input.selectionEnd) ? input.selectionEnd : state.selectionEnd;
+        }
+        function _prodDescriptionDraftInput(id, value, input) {
+            const state = _prodDescriptionState(id);
+            if (!state || state.saving) return;
+            value = String(value == null ? '' : value);
+            if (state.draft !== value) state.requestId = '';
+            state.draft = value;
+            state.error = state.remoteChanged
+                ? 'Description changed elsewhere. Your draft is preserved; review it against the refreshed version and save again.'
+                : '';
+            _prodDescriptionRememberSelection(id, input);
+            const panel = input && input.closest('[data-prod-description]');
+            const counter = panel && panel.querySelector('[data-prod-description-count]');
+            const save = panel && panel.querySelector('[data-prod-description-control="save"]');
+            if (counter) {
+                counter.textContent = value.length.toLocaleString() + ' / 100,000';
+                counter.classList.toggle('is-invalid', value.length > 100000);
+            }
+            if (save) save.disabled = value.length > 100000;
+            const error = panel && panel.querySelector('[data-prod-description-write-error]');
+            if (error && !state.remoteChanged) error.remove();
+        }
+        function _prodBeginDescriptionEdit(id) {
+            const issue = _prodIssue(id);
+            const state = issue && _prodDescriptionState(id);
+            if (!issue || !state) return false;
+            if (!_prodCanWrite(issue, 'description')) {
+                _prodToast(_prodWriteGateText(issue, 'description'));
+                return false;
+            }
+            if (state.status !== 'ready' || state.refreshing) {
+                _prodToast('Refresh the current description before editing.');
+                _prodEnsureDescription(id, true);
+                return false;
+            }
+            state.editing = true;
+            state.preview = false;
+            state.saving = false;
+            state.draft = state.value;
+            state.baseline = state.value;
+            state.error = '';
+            state.refreshError = '';
+            state.remoteChanged = false;
+            state.requestId = '';
+            state.selectionStart = state.draft.length;
+            state.selectionEnd = state.draft.length;
+            _prodRender();
+            _prodFocusDescriptionControl(id, 'source');
+            return false;
+        }
+        function _prodSetDescriptionMode(id, mode) {
+            const state = _prodDescriptionState(id);
+            if (!state || !state.editing || state.saving) return false;
+            state.preview = mode === 'preview';
+            _prodRender();
+            _prodFocusDescriptionControl(id, state.preview ? 'preview' : 'source');
+            return false;
+        }
+        function _prodCancelDescriptionEdit(id) {
+            const state = _prodDescriptionState(id);
+            if (!state || state.saving) return false;
+            state.editing = false;
+            state.preview = false;
+            state.draft = state.value;
+            state.error = '';
+            state.remoteChanged = false;
+            state.requestId = '';
+            _prodRender();
+            _prodFocusDescriptionControl(id, 'edit');
+            return false;
+        }
+        function _prodDescriptionEditorKeydown(event, id) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                _prodCancelDescriptionEdit(id);
+                return false;
+            }
+            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                _prodSaveDescription(event, id);
+                return false;
+            }
+            return true;
+        }
+        async function _prodSaveDescription(event, id) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            const issue = _prodIssue(id);
+            const state = issue && _prodDescriptionState(id);
+            if (!issue || !state || !state.editing || state.saving) return false;
+            if (!_prodCanWrite(issue, 'description')) {
+                _prodToast(_prodWriteGateText(issue, 'description'));
+                return false;
+            }
+            const description = String(state.draft == null ? '' : state.draft);
+            if (description.includes('\0')) {
+                state.error = 'Descriptions cannot contain NUL characters.';
+                _prodRender();
+                _prodFocusDescriptionControl(id, 'source');
+                return false;
+            }
+            if (description.length > 100000) {
+                state.error = 'Descriptions can contain at most 100,000 characters.';
+                _prodRender();
+                _prodFocusDescriptionControl(id, 'source');
+                return false;
+            }
+            if (!state.requestId) state.requestId = _prodWriteRequestId('description');
+            const previous = {
+                value: state.value,
+                baseline: state.baseline,
+                hasValue: state.hasValue,
+                status: state.status,
+                updatedAt: state.sourceUpdatedAt
+            };
+            _prodNextDescriptionRequestToken(id);
+            state.refreshing = false;
+            state.saving = true;
+            state.preview = false;
+            state.value = description;
+            state.hasValue = true;
+            state.status = 'ready';
+            state.error = '';
+            state.refreshError = '';
+            state.remoteChanged = false;
+            _prodSyncDescriptionRow(id, description, '');
+            _prodRender();
+            try {
+                const json = await _prodGatewayWrite(issue, 'description', { description }, state.requestId);
+                if (!json || !json.row) throw new Error('write_failed');
+                const committed = _prodDescriptionText(json.row.brief);
+                state.value = committed;
+                state.baseline = committed;
+                state.draft = committed;
+                state.hasValue = true;
+                state.status = 'ready';
+                state.saving = false;
+                state.editing = false;
+                state.preview = false;
+                state.error = '';
+                state.remoteChanged = false;
+                state.requestId = '';
+                state.sourceUpdatedAt = json.row.updated_at || state.sourceUpdatedAt;
+                _prodSyncDescriptionRow(id, json.row.brief, json.row.updated_at);
+                _prodToast('Description updated');
+                _prodRender();
+                _prodFocusDescriptionControl(id, 'edit');
+            } catch (error) {
+                const serverRow = error && error.row && Object.prototype.hasOwnProperty.call(error.row, 'brief') ? error.row : null;
+                if (serverRow) {
+                    state.value = _prodDescriptionText(serverRow.brief);
+                    state.baseline = state.value;
+                    state.hasValue = true;
+                    state.status = 'ready';
+                    state.sourceUpdatedAt = serverRow.updated_at || state.sourceUpdatedAt;
+                    _prodSyncDescriptionRow(id, serverRow.brief, serverRow.updated_at);
+                } else {
+                    state.value = previous.value;
+                    state.baseline = previous.baseline;
+                    state.hasValue = previous.hasValue;
+                    state.status = previous.status;
+                    state.sourceUpdatedAt = previous.updatedAt;
+                    _prodSyncDescriptionRow(id, previous.value, previous.updatedAt);
+                }
+                state.saving = false;
+                state.editing = true;
+                state.preview = false;
+                state.error = _prodWriteErrorText(error, issue, 'description');
+                state.remoteChanged = !!serverRow;
+                if (String(error && error.code || '') === 'write_conflict') state.requestId = '';
+                _prodToast(state.error);
+                _prodRender();
+                _prodFocusDescriptionControl(id, 'source');
+            }
+            return false;
+        }
+        function _prodRefreshDescription(id) {
+            _prodEnsureDescription(id, true);
+            return false;
+        }
+        function _prodDescriptionPanelHTML(issue) {
+            const state = _prodDescriptionState(issue && issue.id);
+            if (!issue || !state) return '';
+            const id = String(issue.id || '');
+            const status = state.refreshing ? 'refreshing' : state.status;
+            const count = String(state.draft || '').length;
+            const gateAttrs = _prodWriteGateAttrs(issue, 'description', { title: 'Edit description', tip: 'Edit Markdown description' });
+            if (state.editing) {
+                const source = !state.preview;
+                const editor = source
+                    ? '<textarea class="prod-description-textarea" data-prod-description-control="source" aria-label="Description Markdown source" maxlength="100000"'
+                        + ' oninput="_prodDescriptionDraftInput(' + _jsAttrArg(id) + ',this.value,this)"'
+                        + ' onselect="_prodDescriptionRememberSelection(' + _jsAttrArg(id) + ',this)"'
+                        + ' onkeyup="_prodDescriptionRememberSelection(' + _jsAttrArg(id) + ',this)"'
+                        + ' onclick="_prodDescriptionRememberSelection(' + _jsAttrArg(id) + ',this)"'
+                        + ' onkeydown="return _prodDescriptionEditorKeydown(event,' + _jsAttrArg(id) + ')"'
+                        + (state.saving ? ' disabled' : '') + '>' + _calEsc(state.draft) + '</textarea>'
+                    : '<div class="prod-description-preview prod-desc" data-prod-description-control="preview" tabindex="0" role="region" aria-label="Description Markdown preview">'
+                        + _prodDescriptionHTML(state.draft, true, 'No description.', true) + '</div>';
+                const editorState = state.error
+                    ? '<div class="prod-description-state is-error" data-prod-description-write-error>' + _calEsc(state.error) + '</div>'
+                    : state.refreshing
+                        ? '<div class="prod-description-state" data-prod-description-refreshing>Refreshing the server description. Your draft and cursor are preserved.</div>'
+                        : state.saving
+                            ? '<div class="prod-description-state" data-prod-description-saving>Saving descriptionâ€¦</div>'
+                            : '';
+                return '<section class="prod-description" data-prod-description="' + _calEscAttr(id) + '" data-prod-description-state="' + _calEscAttr(status) + '" aria-labelledby="prod-description-title-' + _calEscAttr(id) + '">'
+                    + '<div class="prod-description-head"><span class="prod-description-title" id="prod-description-title-' + _calEscAttr(id) + '">Description</span>'
+                    + '<div class="prod-description-actions">'
+                    + '<button class="prod-description-action' + (source ? ' is-active' : '') + '" type="button" data-prod-description-control="source-tab" aria-pressed="' + (source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg('source') + ')"' + (state.saving ? ' disabled' : '') + '>Source</button>'
+                    + '<button class="prod-description-action' + (!source ? ' is-active' : '') + '" type="button" data-prod-description-control="preview-tab" aria-pressed="' + (!source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg('preview') + ')"' + (state.saving ? ' disabled' : '') + '>Preview</button>'
+                    + '<button class="prod-description-action" type="button" data-prod-description-control="refresh" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')"' + (state.saving ? ' disabled' : '') + '>Refresh</button>'
+                    + '</div></div><div class="prod-description-editor">' + editor
+                    + '<div class="prod-description-footer"><span class="prod-description-count' + (count > 100000 ? ' is-invalid' : '') + '" data-prod-description-count>' + count.toLocaleString() + ' / 100,000</span>'
+                    + '<span class="prod-spacer"></span>'
+                    + '<button class="prod-description-action" type="button" data-prod-description-control="cancel" onclick="return _prodCancelDescriptionEdit(' + _jsAttrArg(id) + ')"' + (state.saving ? ' disabled' : '') + '>Cancel</button>'
+                    + '<button class="prod-description-action prod-description-save" type="button" data-prod-description-control="save" onclick="return _prodSaveDescription(event,' + _jsAttrArg(id) + ')"' + (state.saving || count > 100000 ? ' disabled' : '') + '>' + (state.saving ? 'Savingâ€¦' : 'Save') + '</button>'
+                    + '</div></div>' + editorState + '</section>';
+            }
+            const body = state.status === 'error'
+                ? ''
+                : '<div class="prod-description-body prod-desc">' + _prodDescriptionHTML(state.value, state.hasValue, 'No description.', true) + '</div>';
+            const readState = state.status === 'error'
+                ? '<div class="prod-description-state is-error" data-prod-description-error>' + _calEsc(state.error || 'Description could not load.')
+                    + '<button type="button" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')">Retry</button></div>'
+                : state.refreshError
+                    ? '<div class="prod-description-state is-error" data-prod-description-refresh-error>' + _calEsc(state.refreshError)
+                        + '<button type="button" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')">Retry</button></div>'
+                    : state.status === 'stale' || state.refreshing
+                        ? '<div class="prod-description-state" data-prod-description-refreshing>Refreshing descriptionâ€¦ The text shown may be outdated.</div>'
+                        : '';
+            return '<section class="prod-description" data-prod-description="' + _calEscAttr(id) + '" data-prod-description-state="' + _calEscAttr(status) + '" aria-labelledby="prod-description-title-' + _calEscAttr(id) + '">'
+                + '<div class="prod-description-head"><span class="prod-description-title" id="prod-description-title-' + _calEscAttr(id) + '">Description</span>'
+                + '<div class="prod-description-actions"><button class="prod-description-action" type="button" data-prod-description-control="refresh" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')"' + (state.refreshing ? ' disabled' : '') + '>Refresh</button>'
+                + '<button class="prod-description-action" type="button" data-prod-description-control="edit" data-prod-description-edit="1" data-prod-description-ready="' + (state.status === 'ready' && !state.refreshing ? '1' : '0') + '" onclick="return _prodBeginDescriptionEdit(' + _jsAttrArg(id) + ')"' + gateAttrs + '>Edit</button>'
+                + '</div></div>' + body + readState + '</section>';
         }
         function _prodFileLinkLabel(file) {
             const raw = String(file || '').trim();
@@ -43231,7 +44005,7 @@
                 }).map(key => ({ key, title: key === '_' ? 'No assignee' : editors[key] ? editors[key].name : key, icon: key === '_' ? _prodIcon('assign') : _prodAvatar(editors[key], 16), items: grouped.get(key) || [] }));
             }
             if (groupBy === 'client') {
-                return [...grouped.keys()].sort((a, b) => _prodDisplayClient(a).localeCompare(_prodDisplayClient(b))).map(key => ({ key, title: projects[key] ? projects[key].name : key, icon: _prodProjectGlyph(projects[key] || key), items: grouped.get(key) || [] }));
+                return [...grouped.keys()].sort((a, b) => _prodDisplayClient(a).localeCompare(_prodDisplayClient(b))).map(key => ({ key, title: _prodDisplayClient(key), icon: _prodProjectGlyph(projects[key] || key), items: grouped.get(key) || [] }));
             }
             const keys = PROD_STATUS_ORDER.filter(k => grouped.has(k)).concat([...grouped.keys()].filter(k => !PROD_STATUS_ORDER.includes(k)));
             return keys.map(key => ({ key, title: _prodStatusLabel(key), icon: _prodStatusSVG(key), items: grouped.get(key) || [] }));
@@ -43380,15 +44154,16 @@
             if (!silent) _prodRender();
             try {
                 const [clients, members, batches, deliverables, authority] = await Promise.all([
-                    _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,updated_at', 'order=display_name.asc', 1000, 10),
+                    _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10),
                     _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
                     _prodRestRows('batches', 'id,client_slug,team,name,description,filming_doc_url,footage_folder_url,delivery_folder_url,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids', 'order=created_at.desc', 1000, 25),
-                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,raw_issue_parent_id:linear_raw->issue->parent->>id,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived', 'order=team.asc,status.asc,due_date.asc', 1000, 50),
+                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,raw_issue_parent_id:linear_raw->issue->parent->>id,raw_project_id:linear_raw->issue->project->>id,raw_attribution_schema:linear_raw->attribution->>schema,raw_attribution_state:linear_raw->attribution->>state,raw_attribution_client_slug:linear_raw->attribution->>client_slug,raw_attribution_owner_kind:linear_raw->attribution->>owner_kind,raw_attribution_source:linear_raw->attribution->>source,raw_attribution_provisional_client_slug:linear_raw->attribution->>provisional_client_slug,raw_attribution_mapping_revision:linear_raw->attribution->>mapping_revision,raw_attribution_repair_required:linear_raw->attribution->>repair_required,raw_attribution_reason:linear_raw->attribution->>reason,raw_attribution_explicit_owner_approved:linear_raw->attribution->>explicit_owner_approved,raw_attribution_explicit_decision_ref:linear_raw->attribution->>explicit_decision_ref,raw_attribution_explicit_manifest_sha256:linear_raw->attribution->>explicit_manifest_sha256,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived', 'order=team.asc,status.asc,due_date.asc', 1000, 50),
                     _prodFetchAuthority()
                 ]);
                 const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
                 const mergedBatches = _prodPreserveProjectedFields(batches, _prodState.batches, 'id', ['description', 'desc']);
                 const mergedDeliverables = _prodPreserveProjectedFields(deliverables, _prodState.deliverables, 'id', ['brief', 'linear_raw', 'desc']);
+                _prodState.projectionGeneration++;
                 _prodState.clients = mergedClients;
                 _prodState.members = members;
                 _prodState.batches = mergedBatches;
@@ -43437,15 +44212,33 @@
         }
         async function _prodLoadLinearRawFor(id) {
             if (!id || _prodState.linearRaw.has(id)) return;
+            const projectionGeneration = _prodState.projectionGeneration;
             _prodState.linearRaw.set(id, null);
             try {
-                const rows = await _prodRestRows('deliverables', 'id,brief,linear_raw', 'id=eq.' + encodeURIComponent(id), 1, 1);
+                const rows = await _prodRestRows('deliverables', 'id,linear_raw', 'id=eq.' + encodeURIComponent(id), 2, 1);
                 const raw = rows && rows[0] ? _prodLinearRaw(rows[0].linear_raw) : {};
                 _prodState.linearRaw.set(id, raw);
                 const row = (_prodState.deliverables || []).find(d => String(d && d.id || '') === String(id));
                 if (row) {
                     row.linear_raw = raw;
-                    if (rows[0] && Object.prototype.hasOwnProperty.call(rows[0], 'brief')) row.brief = rows[0].brief || '';
+                    if (projectionGeneration === _prodState.projectionGeneration) {
+                        const issue = raw && raw.issue || {};
+                        const attribution = raw && raw.attribution || {};
+                        row.raw_issue_parent_id = issue && issue.parent && issue.parent.id || null;
+                        row.raw_project_id = issue && issue.project && issue.project.id || null;
+                        row.raw_attribution_schema = attribution.schema || null;
+                        row.raw_attribution_state = attribution.state || null;
+                        row.raw_attribution_client_slug = attribution.client_slug || null;
+                        row.raw_attribution_owner_kind = attribution.owner_kind || null;
+                        row.raw_attribution_source = attribution.source || null;
+                        row.raw_attribution_provisional_client_slug = attribution.provisional_client_slug || null;
+                        row.raw_attribution_mapping_revision = attribution.mapping_revision || null;
+                        row.raw_attribution_repair_required = attribution.repair_required === true;
+                        row.raw_attribution_reason = attribution.reason || null;
+                        row.raw_attribution_explicit_owner_approved = attribution.explicit_owner_approved === true;
+                        row.raw_attribution_explicit_decision_ref = attribution.explicit_decision_ref || null;
+                        row.raw_attribution_explicit_manifest_sha256 = attribution.explicit_manifest_sha256 || null;
+                    }
                     _prodState.adapter = null;
                     if (_prodState.openId === id) _prodRender();
                 }
@@ -43457,12 +44250,19 @@
         async function _prodLoadBriefs(opts) {
             if (_prodState.briefsLoaded || _prodState.briefsLoading || !_prodState.loaded) return;
             _prodState.briefsLoading = true;
+            const descriptionTokens = new Map(_prodState.descriptionRequestTokens);
             try {
                 const rows = await _prodRestRows('deliverables', 'id,brief', 'order=id.asc', 1000, 50);
                 const byId = new Map(rows.map(r => [String(r && r.id || ''), r && r.brief || '']).filter(([id]) => id));
                 (_prodState.deliverables || []).forEach(row => {
                     const id = String(row && row.id || '');
-                    if (byId.has(id)) row.brief = byId.get(id);
+                    if (!byId.has(id)) return;
+                    const state = _prodState.descriptions.get(id);
+                    const startedToken = Number(descriptionTokens.get(id) || 0);
+                    const currentToken = Number(_prodState.descriptionRequestTokens.get(id) || 0);
+                    if (state && (state.saving || state.editing || startedToken !== currentToken)) return;
+                    row.brief = byId.get(id);
+                    if (state) _prodAdoptDescriptionValue(id, byId.get(id), '');
                 });
                 _prodState.briefsLoaded = true;
                 _prodState.adapter = null;
@@ -43769,6 +44569,10 @@
         }
         function _prodOpenProject(slug) {
             const id = String(slug || '');
+            if (id === PROD_ATTRIBUTION_NEEDS || id === PROD_ATTRIBUTION_CONFLICT) {
+                _prodToast('This is an attribution repair group, not a client project.');
+                return false;
+            }
             if (!_prodClient(id)) return _prodOpenClient(id);
             _prodCaptureListScroll();
             _prodState.openProjectId = id;
@@ -43813,6 +44617,7 @@
             if (!silent) _prodState.loaded = false;
             _prodState.adapter = null;
             _prodState.events = new Map();
+            _prodMarkDescriptionsStale();
             _prodState.labels = new Map([..._prodState.labels].filter(([id]) =>
                 _prodState.writes.has(String(id || '') + ':labels')));
             if (_prodState.view === 'detail' && _prodState.openId) _prodComments.refresh(_prodState.openId);
@@ -43842,6 +44647,7 @@
         function _prodRender() {
             const root = document.getElementById('prodRoot');
             if (!root) return;
+            const descriptionFocus = _prodCaptureDescriptionFocus(root);
             _prodEnsureOverlays();
             _prodHideTip();
             _prodCaptureListScroll(root);
@@ -43852,7 +44658,9 @@
                 _prodComments.ensure(_prodState.openId);
                 _prodLoadLinearRawFor(_prodState.openId);
                 _prodEnsureLabels(_prodState.openId, false);
+                _prodEnsureDescription(_prodState.openId, false);
             }
+            _prodRestoreDescriptionFocus(descriptionFocus);
         }
         function _prodNavItem(icon, label, active, onClick, cls, tip) {
             return '<button class="prod-nav-btn' + (cls ? ' ' + cls : '') + (active ? ' active' : '') + '" type="button" data-prod-tip="' + _calEscAttr(tip || label) + '" onclick="' + onClick + '"><span class="prod-nav-ico">' + icon + '</span><span>' + _calEsc(label) + '</span></button>';
@@ -44075,7 +44883,10 @@
                 const collapsed = _prodState.collapsed.has(group.key);
                 const selectedCount = items.filter(i => selected.has(i.id)).length;
                 const checkClass = selectedCount === items.length && items.length ? ' on' : selectedCount ? ' partial' : '';
-                const projectNav = (_prodState.groupBy || 'status') === 'client' && group.key && group.key !== '_';
+                const projectNav = (_prodState.groupBy || 'status') === 'client'
+                    && group.key && group.key !== '_'
+                    && group.key !== PROD_ATTRIBUTION_NEEDS
+                    && group.key !== PROD_ATTRIBUTION_CONFLICT;
                 const title = projectNav
                     ? '<span class="prod-group-title navp" data-prod-project="' + _calEscAttr(group.key) + '" data-prod-tip="Open project" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(group.key) + ')">' + _calEsc(group.title) + '</span>'
                     : '<span class="prod-group-title">' + _calEsc(group.title) + '</span>';
@@ -44088,7 +44899,6 @@
             const assignee = _prodMember(d.assignee);
             const parent = d.parent ? _prodIssue(d.parent) : null;
             const sub = _prodSubProgress(d);
-            const clientName = _prodDisplayClient(d.project);
             const isHierarchyParent = !!d.isHierarchyParent;
             const childCount = sub ? sub.total : 0;
             const selected = _prodState.selected && _prodState.selected.has(d.id);
@@ -44098,13 +44908,13 @@
                 ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status), tip: 'Change due date · ⇧D' }
                 : { tip: 'Set due date|⇧D' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { title: assignee ? assignee.name : 'Unassigned', info: assigneeTip, tip: 'Assign · A' });
-            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + (selected ? ' selected' : '') + (focused ? ' kfocus' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" onmousemove="_prodSetFocusRow(' + _jsAttrArg(d.id) + ',false)" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
+            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + (selected ? ' selected' : '') + (focused ? ' kfocus' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" onmousemove="_prodSetFocusRow(' + _jsAttrArg(d.id) + ',false)" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
                 + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ')" aria-hidden="true"></span>'
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(parent ? (d.title || 'Untitled deliverable') + ' › ' + (parent.title || '') : (d.title || 'Untitled deliverable')) + '><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
                 + (sub ? '<span class="prod-subchip" data-prod-tip="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>' : '')
-                + '<span class="prod-spacer"></span><span class="prod-chip optional prod-chip-client" data-prod-crumbclient="' + _calEscAttr(d.project || '') + '" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(d.project || '') + ')" data-prod-tip="Client: ' + _calEscAttr(clientName) + '"><span class="prod-client-dot">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(clientName) + '</span></span>'
+                + '<span class="prod-spacer"></span>' + _prodIssueProjectChipHTML(d)
                 + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '</span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '</span>'
                 + (d.created ? '<span class="prod-created" data-prod-tip="Created ' + _calEscAttr(_prodFmtDateFull(d.createdRaw)) + '">' + _calEsc(d.created) + '</span>' : '<span class="prod-created"></span>')
@@ -44157,9 +44967,62 @@
             return '<article class="prod-card pcard' + (focused ? ' pcard-kfocus' : '') + (selected ? ' pcard-sel' : '') + '" draggable="true" data-prod-client-card="' + _calEscAttr(id) + '" data-project="' + _calEscAttr(id) + '" onclick="return _prodCardClick(event,' + _jsAttrArg(id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')"><div class="prod-card-head"><span class="prod-card-check pcard-check' + (selected ? ' on' : '') + '" data-prod-cardcheck="' + _calEscAttr(id) + '" data-cardcheck="' + _calEscAttr(id) + '" onclick="event.stopPropagation(); _prodToggleCardSelection(' + _jsAttrArg(id) + ',false)" aria-hidden="true"></span><span class="prod-card-ico pcard-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title pcard-nm" data-prod-card-title="' + _calEscAttr(id) + '"' + titleAttrs + '>' + _calEsc(title) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
                 + '<div class="prod-card-meta"><span data-prod-card-count="' + _calEscAttr(id) + '">' + _calEsc(countLabel) + '</span><span class="prod-spacer"></span>' + targetHtml + '</div></article>';
         }
-        function _prodProjectChipHTML(project) {
+        function _prodAttributionChipOnlyHTML(issue) {
+            const attribution = issue && issue.attribution;
+            if (!attribution) return '';
+            if (attribution.state === 'resolved' && attribution.repairRequired) {
+                return '<span class="prod-chip optional prod-attribution-chip is-needs" data-prod-attribution-chip="repair" data-prod-tip="The client is resolved, but its project mapping still needs repair">Mapping repair</span>';
+            }
+            if (attribution.state === 'provisional_child_family') {
+                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from one unanimous child family; repair is required">Provisional Â· repair</span>';
+            }
+            if (attribution.state === 'conflict') {
+                return '<span class="prod-chip optional prod-attribution-chip is-conflict" data-prod-attribution-chip="conflict" data-prod-tip="Client attribution conflicts across this issue family">Attribution conflict</span>';
+            }
+            if (attribution.state === 'needs_attribution') {
+                return '<span class="prod-chip optional prod-attribution-chip is-needs" data-prod-attribution-chip="needs" data-prod-tip="No active-roster client mapping could be verified">Needs attribution</span>';
+            }
+            return '';
+        }
+        function _prodIssueProjectChipHTML(issue) {
+            const attribution = issue && issue.attribution;
+            const project = issue && issue.project || '';
             const label = _prodDisplayClient(project);
-            return '<span class="prod-chip optional prod-chip-client" data-prod-crumbclient="' + _calEscAttr(project || '') + '" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(project || '') + ')" data-prod-tip="Project: ' + _calEscAttr(label) + '"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + '</span></span>';
+            if (!attribution || attribution.state === 'resolved') {
+                return '<span class="prod-chip optional prod-chip-client" data-prod-crumbclient="' + _calEscAttr(project) + '" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(project) + ')" data-prod-tip="Project: ' + _calEscAttr(label) + '"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + '</span></span>'
+                    + _prodAttributionChipOnlyHTML(issue);
+            }
+            if (attribution.state === 'provisional_child_family') {
+                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from child issues; this does not open a writable project"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + ' Â· provisional</span></span>';
+            }
+            return _prodAttributionChipOnlyHTML(issue);
+        }
+        function _prodProjectChipHTML(issue) {
+            return _prodIssueProjectChipHTML(issue);
+        }
+        function _prodAttributionNoticeHTML(issue) {
+            const attribution = issue && issue.attribution;
+            if (!attribution || (attribution.state === 'resolved' && !attribution.repairRequired)) return '';
+            const reason = String(attribution.reason || '').replace(/_/g, ' ');
+            if (attribution.state === 'provisional_child_family') {
+                return '<div class="prod-attribution-notice" data-prod-attribution-notice="provisional"><b>Provisional client attribution.</b> The active-roster client shown here is inferred from one unanimous child family. This issue is read-only until the mapping is repaired.</div>';
+            }
+            if (attribution.state === 'conflict') {
+                return '<div class="prod-attribution-notice is-conflict" data-prod-attribution-notice="conflict"><b>Client attribution conflict.</b> This issue family is read-only and queued for repair' + (reason ? ' (' + _calEsc(reason) + ')' : '') + '.</div>';
+            }
+            if (attribution.state === 'needs_attribution') {
+                return '<div class="prod-attribution-notice" data-prod-attribution-notice="needs"><b>Client attribution needs repair.</b> No active-roster mapping was verified; the stored client value is not being used.</div>';
+            }
+            return '<div class="prod-attribution-notice" data-prod-attribution-notice="repair"><b>Project mapping needs repair.</b> Client attribution is resolved, but its mapping metadata still requires review.</div>';
+        }
+        function _prodAttributionProjectControlHTML(issue) {
+            const attribution = issue && issue.attribution;
+            const project = issue && issue.project || '';
+            const client = _prodClient(project);
+            if (!attribution || attribution.state === 'resolved') {
+                return '<button type="button" class="prod-prop-btn" data-prod-prop="project" onclick="return _prodOpenProjectMenu(event,' + _jsAttrArg(issue && issue.id || '') + ')"><span class="prod-card-ico">' + _prodProjectGlyph(client) + '</span><span>' + _calEsc(_prodDisplayClient(project)) + '</span></button>' + _prodAttributionChipOnlyHTML(issue);
+            }
+            return '<span class="prod-prop-btn" data-prod-prop="project" data-prod-attribution-project="' + _calEscAttr(attribution.state) + '" aria-disabled="true"><span class="prod-card-ico">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(_prodDisplayClient(project)) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
         }
         function _prodAddSubIssueButtonHTML(compact) {
             return compact
@@ -44171,10 +45034,13 @@
             const progress = _prodSubProgress(parent);
             const projectLabel = _prodDisplayClient(d.project);
             const parentTitle = (parent.title || _prodIssueLabel(parent));
+            const projectContext = _prodAttributionResolved(d)
+                ? '<button class="prod-context-project" type="button" onclick="_prodOpenProject(' + _jsAttrArg(d.project || '') + ')" data-prod-tip="Open project"><span class="prod-card-ico">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(projectLabel) + '</span></button>' + _prodAttributionChipOnlyHTML(d)
+                : _prodIssueProjectChipHTML(d);
             return '<div class="prod-detail-context" data-prod-subissue-of="' + _calEscAttr(parent.id) + '"><span>Sub-issue of</span>'
                 + '<button class="prod-detail-context-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<b>' + _calEsc(_prodIssueLabel(parent)) + ' ' + _calEsc(parentTitle) + '</b></button>'
                 + (progress ? '<span class="prod-subchip" data-prod-tip="' + progress.done + ' of ' + progress.total + ' sub-issues done">' + _prodStatusSVG(progress.done === progress.total && progress.total > 0 ? 'approved' : 'todo') + progress.done + '/' + progress.total + '</span>' : '')
-                + '<span class="prod-spacer"></span><button class="prod-context-project" type="button" onclick="_prodOpenProject(' + _jsAttrArg(d.project || '') + ')" data-prod-tip="Open project"><span class="prod-card-ico">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(projectLabel) + '</span></button></div>';
+                + '<span class="prod-spacer"></span>' + projectContext + '</div>';
         }
         function _prodSubIssueRowHTML(k) {
             const ka = _prodMember(k.assignee);
@@ -44184,11 +45050,11 @@
                 ? { info: 'Due ' + _prodFmtDateFull(k.dueRaw) + _prodOverdueText(k.dueRaw, k.status) }
                 : { tip: 'Set due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { info: assigneeTip });
-            return '<div class="prod-subrow prod-subissue-row" data-prod-subrow="' + _calEscAttr(k.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
+            return '<div class="prod-subrow prod-subissue-row" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
                 + _prodStatusIcon(k.status, k.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b></span>'
                 + '<span class="prod-spacer"></span>'
-                + _prodProjectChipHTML(k.project)
+                + _prodProjectChipHTML(k)
                 + (k.due ? '<span class="prod-due' + (_prodOverdue(k.dueRaw, k.status) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodIcon('cal') + _calEsc(k.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodIcon('cal') + '</span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(k.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodAvatar(ka, 18) + '</span></div>';
         }
@@ -44207,11 +45073,11 @@
                 ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status) }
                 : { tip: 'Add due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { info: assigneeTip });
-            return '<div class="prod-subrow prod-project-issue-row" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
+            return '<div class="prod-subrow prod-project-issue-row" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + '<span class="prod-title prod-project-issue-title"' + _prodTitleAttrs(parent ? title + ' › ' + (parent.title || '') : title) + '><b>' + _calEsc(title) + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
-                + '<span class="prod-spacer"></span>'
+                + _prodAttributionChipOnlyHTML(d) + '<span class="prod-spacer"></span>'
                 + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" data-prod-empty-due="label"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>Add date</span></span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '</span>'
                 + (d.created ? '<span class="prod-created optional" data-prod-tip="Created ' + _calEscAttr(_prodFmtDateFull(d.createdRaw)) + '">' + _calEsc(d.created) + '</span>' : '<span class="prod-created optional"></span>') + '</div>';
@@ -44242,12 +45108,12 @@
             const isHierarchyParent = !!d.isHierarchyParent;
             const file = d.file || '';
             const subSection = _prodSubIssuesSectionHTML(kids);
-            const descLoaded = !!d.descLoaded || (_prodState.linearRaw.has(d.id) && _prodState.linearRaw.get(d.id) !== null);
-            return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
+            return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div>'
                 + _prodSubIssueContextHTML(d, parent)
                 + '<h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
-                + '<div class="prod-desc">' + _prodDescriptionHTML(d.desc, descLoaded, 'No description.', true) + '</div>'
+                + _prodAttributionNoticeHTML(d)
+                + _prodDescriptionPanelHTML(d)
                 + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" data-prod-file-link="1" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener" title="' + _calEscAttr(file) + '">' + _calEsc(_prodFileLinkLabel(file)) + '</a></p>' : '')
                 + subSection
                 + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
@@ -44293,7 +45159,6 @@
                 + '</div></aside></div>';
         }
         function _prodProps(d, parent, assignee, file) {
-            const client = _prodClient(d.project);
             const statusHistory = _prodStatusBreakdown((_prodState.events && _prodState.events.get ? _prodState.events.get(d.id) : null) || [], d.createdRaw);
             const sideRow = (value, cls) => '<div class="prod-side-row' + (cls ? ' ' + cls : '') + '">' + value + '</div>';
             const muted = text => '<span class="muted">' + _calEsc(text) + '</span>';
@@ -44305,7 +45170,7 @@
                 + sideRow(_prodLabelsButtonHTML(d))
                 + '</div>'
                 + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</span></button></div></div>' : '')
-                + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-prop="project" onclick="return _prodOpenProjectMenu(event,' + _jsAttrArg(d.id) + ')"><span class="prod-card-ico">' + _prodProjectGlyph(client) + '</span><span>' + _calEsc(_prodDisplayClient(d.project)) + '</span></button></div></div>'
+                + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row">' + _prodAttributionProjectControlHTML(d) + '</div></div>'
                 + '</div>';
         }
         function _prodActivity(events) {

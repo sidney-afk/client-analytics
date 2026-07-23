@@ -1,5 +1,12 @@
 'use strict';
 
+const {
+  clean: cleanAttribution,
+  stableJson,
+  storageClientSlug,
+  withAttribution,
+} = require('./f200-attribution');
+
 const STATUS_SLUGS = new Set([
   'triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval',
   'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate',
@@ -202,6 +209,60 @@ function addTolerated(out, field, expected, actual, reason, details) {
   out.tolerated.push(Object.assign({ field, expected, actual, reason }, details || {}));
 }
 
+function compareAttribution(out, input, rawValue) {
+  const attribution = input && input.attribution;
+  if (!attribution || typeof attribution !== 'object') return parseJson(rawValue);
+  const raw = parseJson(rawValue);
+  const current = raw.attribution && typeof raw.attribution === 'object'
+    ? raw.attribution
+    : {};
+  const unresolvedClientSlug = cleanAttribution(input.unresolvedClientSlug);
+  const targetClientSlug = storageClientSlug(attribution, unresolvedClientSlug);
+
+  if (targetClientSlug && targetClientSlug !== clean(out.row && out.row.client_slug)) {
+    addReal(
+      out,
+      'client_slug',
+      targetClientSlug,
+      clean(out.row && out.row.client_slug) || null,
+      attribution.state === 'resolved'
+        ? 'attribution_client_mismatch'
+        : 'attribution_repair_sentinel_mismatch',
+    );
+    out.patch.client_slug = targetClientSlug;
+  } else if (!targetClientSlug && attribution.state !== 'resolved') {
+    out.repairs.push({
+      field: 'client_slug',
+      reason: 'attribution_storage_sentinel_missing',
+      attribution_state: attribution.state,
+      mapping_revision: cleanAttribution(attribution.mapping_revision),
+    });
+  }
+
+  if (attribution.state !== 'resolved' || attribution.repair_required === true) {
+    out.repairs.push({
+      field: 'client_attribution',
+      reason: attribution.reason || attribution.state,
+      attribution_state: attribution.state,
+      attribution_source: attribution.source,
+      provisional_client_slug: attribution.provisional_client_slug || null,
+      mapping_revision: cleanAttribution(attribution.mapping_revision),
+    });
+  }
+
+  if (stableJson(current) !== stableJson(attribution)) {
+    addReal(
+      out,
+      'client_attribution',
+      attribution,
+      Object.keys(current).length ? current : null,
+      'attribution_state_or_revision_mismatch',
+    );
+    return withAttribution(raw, attribution);
+  }
+  return raw;
+}
+
 function classifyDeliverable(input) {
   const deliverable = input.deliverable || {};
   const issue = input.linearIssue || null;
@@ -313,7 +374,8 @@ function classifyDeliverable(input) {
     }
   }
 
-  out.patch.linear_raw = Object.assign({}, raw, { issue });
+  const refreshedRaw = Object.assign({}, raw, { issue });
+  out.patch.linear_raw = compareAttribution(out, input, refreshedRaw);
   return out;
 }
 
@@ -444,6 +506,8 @@ function classifyOutboundDeliverable(input) {
       }
     }
   }
+  const raw = parseJson(deliverable.linear_raw);
+  out.patch.linear_raw = compareAttribution(out, input, raw);
   return out;
 }
 
@@ -611,6 +675,7 @@ module.exports = {
   parseJson,
   isHistoricalEntity,
   historicalWriteDisposition,
+  compareAttribution,
   statusFromName,
   mapLinearState,
   deliverableArchivedOrDeleted,

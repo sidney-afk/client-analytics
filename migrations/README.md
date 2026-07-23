@@ -98,6 +98,22 @@ executes these files (see `README.md` › Repository layout).
   allowlist, but F27 remains uninstalled. Neither migration is live-applied by
   this source change; the F201 constraint apply, production-write deploy, and
   real TEST labels drill require a separate post-merge owner-approved window.
+- **`2026-07-23-f202-production-descriptions.sql`** is the source-only F202
+  outbox delta. It widens the F201 operation CHECK and installed pre-F27
+  enqueue allowlist by adding only `description`; all eleven accepted
+  operations, including `labels`, remain accepted. This is the same deliberate,
+  owner-approved exception to the additive-only rule: PostgreSQL has no
+  in-place CHECK-expression alteration, so the named CHECK is dropped and
+  re-added as a strict superset in one transaction. The replacement validates
+  existing rows and is data-safe: it drops no data/table/column, renames
+  nothing, changes no type, and performs no backfill. The parked F27 enqueue
+  source carries `labels` and `description`, but F27 remains uninstalled. The
+  exact description Markdown remains in the service-role-only outbox and
+  ledger handoff; a restrictive `deliverable_events` SELECT policy hides every
+  `description_change` row from anon/authenticated readers while preserving the
+  meaningful service-side audit event. The
+  F202 constraint apply, production-write deploy, and real TEST description
+  drill require a separate post-merge owner-approved window.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

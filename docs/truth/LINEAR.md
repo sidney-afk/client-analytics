@@ -1,9 +1,9 @@
 # Linear — current truth
 
-> Last verified: 2026-07-23 @ ca548ae + source-only F201 candidate
-> (F145 parent-link projection merged; plan-date release live; F201 label catalog/write/outbound/
-> inbound and mixed-authority Workload metadata are not live until the owner-approved post-merge
-> migration/function/drill gate)
+> Last verified: 2026-07-23 @ b1a942d + source-only F200/F202 candidates
+> (F145 parent-link projection merged; plan-date release live; F200 attribution repair and F201/F202
+> gateway/outbound/inbound additions are not live until their owner-approved post-merge
+> repair/migration/function/drill gates)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -54,20 +54,22 @@
   Comment. `linear-inbound` mirrors state, title, due date, assignee, priority, parent,
   archive/restore/delete/team linkage into native deliverables and normalizes comment lifecycle into
   `production_comments`. F201 candidate source also normalizes the complete selected label IDs/nodes,
-  advances a dedicated label field clock, and echo-drops only an exact full-set receipt. That does
+  advances a dedicated label field clock, and echo-drops only an exact full-set receipt. F202
+  candidate source preserves description strings exactly, advances a description field clock, and
+  echo-drops only the exact intended description. That does
   **not** make the legacy card arrays, client links, or base Workload issue feed canonical. For F145,
   the visible Production tree projects the persisted
   `linear_raw.issue.parent.id` and resolves it through `linear_issue_uuid` across all live
   deliverables. Creation batch, team, client, and title are not parent-election boundaries;
   unresolved or malformed links remain visible roots. Parent-only webhook changes remain
   refresh-eventual through the existing B1/reconcile path rather than becoming a new n8n dependency.
-- **Client-attribution correction (F200):** parent-link resolution does not resolve client identity.
-  Backfill derives a slug from the issue project or its parent's project and otherwise falls to
-  `unattributed`; inbound/reconciliation do not remap project/client changes. A project-bearing child
-  therefore cannot repair its projectless parent. The active SyncView roster is now the ratified sole
-  client catalog: each Linear project must map to one roster client or explicit internal/TEST
-  classification. All current rows must be classified; future unknowns become visible repair state.
-  The scheduled B1 refresh must not insert clients derived from Linear names.
+- **Client-attribution correction (F200):** candidate source makes the active SyncView roster the
+  sole client catalog. It resolves direct mapped project → nearest mapped ancestor → owner-approved
+  explicit roster/internal/TEST classification, records a mapping revision, and exposes unresolved,
+  unanimous-child provisional, and conflicting families as repair states. B1 has no client-insert
+  path and uses no Linear name/title identity inference; webhook project/hierarchy changes invalidate
+  stale attribution and scheduled reconciliation compares project, client, hierarchy, and revision.
+  A private exact-72 owner manifest and live repair are later gated work, not evidence produced here.
 - **Current live Workload deadlines remain one-way from Linear.** Candidate source retains the
   isolated Admin/SMM-only `workload-linear` due-date writer for Linear-authoritative teams; Creative
   receives the same metadata but remains read-only. F201/F40 candidate source partitions metadata by
@@ -99,7 +101,8 @@ Track B (in-app Linear replacement) spec: `docs/independence/TRACK_B_LINEAR_REPL
 system-wide view: `docs/independence/SYSTEM_MAP.md`. The visible **Linear** tab (internal
 `production`, route `#production`, alias `?prod=1`) is the native mirror surface. #812 ships
 authority-gated status/comment/due/assignee controls; F201 candidate source adds protected label
-catalog reads and Admin/SMM full-selected-set label writes. Real teams remain read-only while
+catalog reads and Admin/SMM full-selected-set label writes, and F202 candidate source adds
+Admin/SMM exact-Markdown description writes for root and child deliverables. Real teams remain read-only while
 authority is Linear; the bounded active-TEST drill stays service-only and is the sole path allowed
 to seed a missing pre-F201 native selection from a complete Linear snapshot. The visible **Submit** tab retains internal key
 `linear` and route `#linear`; its native reroute landed through PR #850 / `9968bd9` and is

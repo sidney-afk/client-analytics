@@ -528,6 +528,7 @@ function compactIssue(issue: JsonMap | null): JsonMap {
   return {
     id: clean(issue.id),
     identifier: clean(issue.identifier),
+    description: typeof issue.description === "string" ? issue.description : null,
     updated_at: clean(issue.updatedAt),
     state_id: clean(issue.state && (issue.state as JsonMap).id),
     due_date: clean(issue.dueDate) || null,

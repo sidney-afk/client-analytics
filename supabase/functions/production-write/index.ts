@@ -14,6 +14,7 @@ import {
 import {
   DELIVERABLE_STATUSES,
   browserCredentialTestOverride,
+  canonicalDescription,
   canonicalLabelIds,
   clean,
   clientOperationAllowed,
@@ -728,6 +729,14 @@ function publicRow(value: unknown): JsonMap {
   };
 }
 
+function publicDescriptionRow(value: unknown): JsonMap {
+  const row = parseJson(value);
+  return {
+    ...publicRow(row),
+    brief: typeof row.brief === "string" ? row.brief : null,
+  };
+}
+
 function publicComment(value: unknown): JsonMap {
   const row = parseJson(value);
   const fields = [
@@ -744,14 +753,15 @@ function publicComment(value: unknown): JsonMap {
   return Object.fromEntries(fields.map(field => [field, row[field] ?? null]));
 }
 
-function assertCas(body: JsonMap, existing: JsonMap): void {
+function assertCas(body: JsonMap, existing: JsonMap, includeDescription = false): void {
+  const row = includeDescription ? publicDescriptionRow(existing) : publicRow(existing);
   if (body.expected_status !== undefined
       && clean(existing.status) !== clean(body.expected_status)) {
-    throw new GatewayError(409, "write_conflict", { conflict: true, row: publicRow(existing) });
+    throw new GatewayError(409, "write_conflict", { conflict: true, row });
   }
   if (body.expected_updated_at !== undefined
       && clean(existing.updated_at) !== clean(body.expected_updated_at)) {
-    throw new GatewayError(409, "write_conflict", { conflict: true, row: publicRow(existing) });
+    throw new GatewayError(409, "write_conflict", { conflict: true, row });
   }
 }
 
@@ -902,11 +912,15 @@ async function readOutboxReceipt(
   const operation = clean(expected.operation);
   const operationPayloadMatches = operation === "status"
     ? clean(expectedPayload.status) !== "" && lower(payload.status) === lower(expectedPayload.status)
-    : operation === "comment"
-      ? typeof payload.body === "string"
-        && typeof expectedPayload.body === "string"
-        && payload.body === expectedPayload.body
-      : false;
+    : operation === "description"
+      ? typeof payload.description === "string"
+        && typeof expectedPayload.description === "string"
+        && payload.description === expectedPayload.description
+      : operation === "comment"
+        ? typeof payload.body === "string"
+          && typeof expectedPayload.body === "string"
+          && payload.body === expectedPayload.body
+        : false;
   const storedSourceAt = Date.parse(clean(row.source_edited_at));
   const expectedSourceAt = Date.parse(clean(expected.source_edited_at));
   const sourceClockMatches = Number.isFinite(storedSourceAt)
@@ -991,7 +1005,7 @@ async function reconcileEntityOperation(
   team: string,
   principal: Principal,
 ): Promise<Response> {
-  if (operation !== "status" && operation !== "comment") {
+  if (operation !== "status" && operation !== "description" && operation !== "comment") {
     throw new GatewayError(400, "reconcile_operation_unsupported");
   }
   const historicalLegacyParity = body.legacy_parity === true;
@@ -1019,6 +1033,20 @@ async function reconcileEntityOperation(
       patch: { status: nextStatus, status_at: sourceEditedAt },
     });
     expectedOperationPayload = { status: nextStatus };
+  } else if (operation === "description") {
+    if (entity !== "deliverable") throw new GatewayError(400, "unsupported_batch_operation");
+    if (principal.kind === "client") throw new GatewayError(403, "operation_forbidden");
+    const descriptionValue = body.description !== undefined
+      ? body.description
+      : parseJson(body.patch).description;
+    const description = canonicalDescription(descriptionValue);
+    if (description == null) throw new GatewayError(400, "invalid_description");
+    fingerprint = await intentFingerprint({
+      operation, entity, id, requestId, surface, legacyParity: historicalLegacyParity,
+      actorKey: principal.actorKey,
+      patch: { brief: description },
+    });
+    expectedOperationPayload = { description };
   } else {
     const commentInput = parseJson(body.comment);
     const commentBody = String(commentInput.body == null ? body.body || "" : commentInput.body).trim();
@@ -1144,7 +1172,7 @@ async function reconcileEntityOperation(
     authority,
     authority_read_at: authorityReadAt,
     historical_legacy_parity: historicalLegacyParity,
-    row: publicRow(current),
+    row: operation === "description" ? publicDescriptionRow(current) : publicRow(current),
     receipt: receiptPublic,
     comment: receipt.outcome === "committed_exact" && canonicalComment
       ? publicComment(canonicalComment)
@@ -1657,7 +1685,7 @@ async function handleEntityOperation(
       && !staffOperationAllowed(principal.keyRole, operation, principal.memberTeam, team, nextStatus)) {
     throw new GatewayError(403, "operation_forbidden");
   }
-  if (operation === "labels" && principal.kind === "client") {
+  if ((operation === "labels" || operation === "description") && principal.kind === "client") {
     throw new GatewayError(403, "operation_forbidden");
   }
   if (body.reconcile_only === true) {
@@ -1900,7 +1928,7 @@ async function handleEntityOperation(
           const { data: current } = await supabase.from("deliverables").select("*").eq("id", id).maybeSingle();
           throw new GatewayError(409, "write_conflict", {
             conflict: true,
-            row: current ? publicRow(current as JsonMap) : publicRow(existing),
+            row: publicRow(current || existing),
           });
         }
         throw error;
@@ -1929,6 +1957,15 @@ async function handleEntityOperation(
       if (!validDateOrNull(dueDate)) throw new GatewayError(400, "invalid_due_date");
       patch = { due_date: clean(dueDate) || null };
       payload = { due_date: clean(dueDate) || null };
+      fingerprintPatch = patch;
+    } else if (operation === "description") {
+      const descriptionValue = body.description !== undefined
+        ? body.description
+        : parseJson(body.patch).description;
+      const description = canonicalDescription(descriptionValue);
+      if (description == null) throw new GatewayError(400, "invalid_description");
+      patch = { brief: description };
+      payload = { description };
       fingerprintPatch = patch;
     } else {
       const assigneeId = clean(body.assignee_id == null ? parseJson(body.patch).assignee_id : body.assignee_id);
@@ -1961,7 +1998,7 @@ async function handleEntityOperation(
           && !clientOperationAllowed(operation, existing.status, nextStatus)) {
         throw new GatewayError(403, "operation_forbidden");
       }
-      assertCas(body, existing);
+      assertCas(body, existing, operation === "description");
     }
     if (replay) {
       result = existing;
@@ -1973,7 +2010,9 @@ async function handleEntityOperation(
           const { data: current } = await supabase.from("deliverables").select("*").eq("id", id).maybeSingle();
           throw new GatewayError(409, "write_conflict", {
             conflict: true,
-            row: current ? publicRow(current as JsonMap) : publicRow(existing),
+            row: operation === "description"
+              ? publicDescriptionRow(current || existing)
+              : publicRow(current || existing),
           });
         }
         throw error;
@@ -2003,7 +2042,11 @@ async function handleEntityOperation(
     mirror,
     // Keep `row` entity-shaped for every operation so a composer success
     // cannot replace the caller's deliverable/CAS cursor with a comment id.
-    row: operation === "comment" ? publicRow(existing) : publicRow(result),
+    row: operation === "description"
+      ? publicDescriptionRow(result)
+      : operation === "comment"
+        ? publicRow(existing)
+        : publicRow(result),
     ...(operation === "comment" ? { comment: parseJson(result) } : {}),
     ...(labelsReceipt || {}),
   }, mirrorPending && awaitedDrain ? 202 : 200);

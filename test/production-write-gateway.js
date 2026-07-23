@@ -9,7 +9,9 @@ const ROOT = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 const edge = read('supabase/functions/production-write/index.ts');
 const lowLevel = read('supabase/functions/_shared/b4-write.ts');
+const dataModel = read('migrations/2026-07-06-b1-linear-data-model.sql');
 const migration = read('migrations/2026-07-12-write-ui-outbox-parity.sql');
+const descriptionMigration = read('migrations/2026-07-23-f202-production-descriptions.sql');
 const fixPackFlags = read('migrations/2026-07-13-write-ui-fix-pack-flags.sql');
 const inbound = read('supabase/functions/linear-inbound/index.ts');
 const inboundEchoProof = read('supabase/functions/linear-inbound/f27-echo.mjs');
@@ -65,9 +67,10 @@ function extractFunction(name) {
     && policy.normalizeOperation('due') === 'due'
     && policy.normalizeOperation('assignee') === 'assignee'
     && policy.normalizeOperation('labels') === 'labels'
+    && policy.normalizeOperation('description') === 'description'
     && policy.normalizeOperation('intake_create') === 'intake_create'
     && policy.normalizeOperation('archive') === '',
-  'gateway exposes the existing operations plus the F201 labels operation');
+  'gateway exposes the existing operations plus the F201 labels and F202 description operations');
 
   ok(policy.roleCompatible('admin', 'admin')
     && policy.roleCompatible('smm', 'smm')
@@ -81,16 +84,18 @@ function extractFunction(name) {
     && !policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'client_approval')
     && !policy.staffOperationAllowed('creative', 'assignee', 'video', 'video')
     && !policy.staffOperationAllowed('creative', 'labels', 'video', 'video')
+    && !policy.staffOperationAllowed('creative', 'description', 'video', 'video')
     && !policy.staffOperationAllowed('creative', 'comment', 'video', 'graphics'),
-  'creative writes are limited to own-team work/status/comment and cannot change labels');
+  'creative writes are limited to own-team work/status/comment and cannot change labels or descriptions');
 
   ok(policy.clientOperationAllowed('comment', 'client_approval', '')
     && policy.clientOperationAllowed('status', 'client_approval', 'approved')
     && policy.clientOperationAllowed('status', 'tweak', 'tweak')
     && !policy.clientOperationAllowed('status', 'smm_approval', 'approved')
     && !policy.clientOperationAllowed('labels', 'client_approval', '')
+    && !policy.clientOperationAllowed('description', 'client_approval', '')
     && !policy.clientOperationAllowed('due', 'client_approval', ''),
-  'client token permits only own-thread comments and client-legal transitions, never labels');
+  'client token permits only own-thread comments and client-legal transitions, never labels or descriptions');
 
   ok(policy.legacyParityAllowed('calendar', 'status')
     && policy.legacyParityAllowed('calendar', 'comment')
@@ -141,6 +146,14 @@ function extractFunction(name) {
     && policy.canonicalLabelIds(['../unsafe']) === null
     && policy.canonicalLabelIds(['label-a', 7]) === null,
   'label replacement accepts only one canonical, sorted, complete Linear-ID set');
+  const markdownDescription = '  # Heading\n\n- exact whitespace  \n';
+  ok(policy.canonicalDescription(markdownDescription) === markdownDescription
+    && policy.canonicalDescription('') === ''
+    && policy.canonicalDescription(7) === null
+    && policy.canonicalDescription(null) === null
+    && policy.canonicalDescription('before\0after') === null
+    && policy.canonicalDescription('x'.repeat(policy.MAX_DESCRIPTION_LENGTH + 1)) === null,
+  'description validation preserves exact Markdown and accepts only bounded PostgreSQL-safe strings, including an empty clear');
 
   const selectedLabel = (id, name = id, teamId = 'team-video') => ({
     id,
@@ -449,6 +462,31 @@ function extractFunction(name) {
     && /browserCredentialTestOverride\(body\.test_override, key, token\)[\s\S]{0,100}invalid_test_override/.test(extractFunction('authenticate')),
   'normal label replacement fails closed on incomplete native state while only service TEST may preserve arbitrary selected Linear labels during bootstrap');
 
+  const descriptionWriteStart = edge.lastIndexOf('} else if (operation === "description") {');
+  const descriptionWriteEnd = edge.indexOf('\n    } else {', descriptionWriteStart);
+  const descriptionWrite = edge.slice(descriptionWriteStart, descriptionWriteEnd);
+  ok(descriptionWriteStart > 0
+    && /body\.description !== undefined[\s\S]{0,120}parseJson\(body\.patch\)\.description/.test(descriptionWrite)
+    && /canonicalDescription\(descriptionValue\)/.test(descriptionWrite)
+    && /patch = \{ brief: description \}/.test(descriptionWrite)
+    && /payload = \{ description \}/.test(descriptionWrite)
+    && /fingerprintPatch = patch/.test(descriptionWrite)
+    && !/\bclean\(|\.trim\(/.test(descriptionWrite),
+  'guarded description writes preserve the exact Markdown string in native patch, outbox payload, and fingerprint');
+  ok(/nullif\(v_row->>'brief', ''\)/.test(dataModel)
+    && /brief = case when v_row \? 'brief' then excluded\.brief else d\.brief end/.test(dataModel)
+    && !/btrim\(v_row->>'brief'\)/.test(dataModel),
+  'the existing native deliverable RPC stores non-empty Markdown without trimming and treats only the exact empty string as clear');
+  ok(/entity === "batch" && operation !== "comment"[\s\S]{0,100}unsupported_batch_operation/.test(edge)
+    && /surface === "production" && operation !== "comment"[\s\S]{0,140}expected_updated_at/.test(edge)
+    && /action: operation === "intake_create" \? "create" : `\$\{operation\}_change`/.test(edge)
+    && /function publicDescriptionRow[\s\S]{0,180}brief: typeof row\.brief === "string" \? row\.brief : null/.test(edge),
+  'description stays deliverable-only, requires Production CAS, emits description_change audit, and has an exact brief response shape');
+  ok(/create policy "protect production description event bodies"[\s\S]*as restrictive[\s\S]*for select[\s\S]*to anon, authenticated[\s\S]*using \(action is distinct from 'description_change'\)/.test(descriptionMigration)
+    && /service-role-only mirror_outbox payload/.test(descriptionMigration)
+    && /exact outbox payload remain unchanged/.test(descriptionMigration),
+  'description_change audit rows retain the exact service-side handoff but are excluded from anon/authenticated reads');
+
   const reconcile = extractFunction('reconcileEntityOperation');
   const receiptReader = extractFunction('readOutboxReceipt');
   const entityHandlerStart = edge.indexOf('async function handleEntityOperation(');
@@ -475,6 +513,91 @@ function extractFunction(name) {
     && !/row\.actor|row\.role/.test(receiptReader)
     && /operationPayloadMatches/.test(receiptReader),
   'receipt exactness binds the stable actor fingerprint and persisted operation payload, not mutable actor labels');
+  ok(/operation !== "status" && operation !== "description" && operation !== "comment"/.test(reconcile)
+    && /operation === "description"[\s\S]{0,700}patch: \{ brief: description \}[\s\S]{0,160}expectedOperationPayload = \{ description \}/.test(reconcile)
+    && /operation === "description"[\s\S]{0,400}payload\.description === expectedPayload\.description/.test(receiptReader),
+  'read-only reconciliation reconstructs the exact description fingerprint and compares the persisted Markdown payload without normalization');
+  let executablePublicRow = extractFunction('publicRow')
+    .replace('value: unknown', 'value')
+    .replace(': JsonMap', '');
+  let executablePublicDescriptionRow = extractFunction('publicDescriptionRow')
+    .replace('value: unknown', 'value')
+    .replace(': JsonMap', '');
+  const publicRowContext = {
+    parseJson: value => value && typeof value === 'object' ? value : {},
+    clean: value => String(value == null ? '' : value).trim(),
+    normalizeTeam: value => ({ video: 'video', graphics: 'graphics' })[String(value || '').toLowerCase()] || '',
+  };
+  vm.createContext(publicRowContext);
+  vm.runInContext(executablePublicRow, publicRowContext);
+  vm.runInContext(executablePublicDescriptionRow, publicRowContext);
+  const ordinaryPublicRow = publicRowContext.publicRow({
+    id: 'deliverable-root',
+    client_slug: 'test-client',
+    team: 'video',
+    title: 'Root',
+    brief: markdownDescription,
+  });
+  ok(!Object.prototype.hasOwnProperty.call(ordinaryPublicRow, 'brief')
+    && publicRowContext.publicDescriptionRow({
+      id: 'deliverable-root',
+      client_slug: 'test-client',
+      team: 'video',
+      title: 'Root',
+      brief: markdownDescription,
+    }).brief === markdownDescription
+    && publicRowContext.publicDescriptionRow({
+      id: 'deliverable-child',
+      client_slug: 'test-client',
+      team: 'graphics',
+      title: 'Child',
+      brief: null,
+    }).brief === null,
+  'ordinary status/comment/client rows do not expose brief while F202 rows preserve exact root/child Markdown and null clears');
+  publicRowContext.GatewayError = class GatewayError extends Error {
+    constructor(status, code, details) {
+      super(code);
+      this.status = status;
+      this.code = code;
+      this.details = details;
+    }
+  };
+  const executableAssertCas = extractFunction('assertCas')
+    .replace('body: JsonMap', 'body')
+    .replace('existing: JsonMap', 'existing')
+    .replace(': void', '');
+  vm.runInContext(executableAssertCas, publicRowContext);
+  const casConflict = includeDescription => {
+    try {
+      publicRowContext.assertCas(
+        { expected_updated_at: 'old' },
+        {
+          id: 'deliverable-cas',
+          client_slug: 'test-client',
+          team: 'video',
+          title: 'CAS',
+          brief: markdownDescription,
+          updated_at: 'new',
+        },
+        includeDescription,
+      );
+      return null;
+    } catch (error) {
+      return error.details;
+    }
+  };
+  const ordinaryCas = casConflict(false);
+  const descriptionCas = casConflict(true);
+  ok(ordinaryCas && !Object.prototype.hasOwnProperty.call(ordinaryCas.row, 'brief')
+    && descriptionCas && descriptionCas.row.brief === markdownDescription,
+  'pre-CAS conflicts expose brief only for the authenticated F202 operation');
+  ok(/assertCas\(body, existing, operation === "description"\)/.test(entityHandler)
+    && /row: operation === "description"[\s\S]{0,80}publicDescriptionRow\(result\)[\s\S]{0,100}operation === "comment"[\s\S]{0,80}publicRow\(existing\)/.test(entityHandler)
+    && /row: operation === "description"[\s\S]{0,100}publicDescriptionRow\(current \|\| existing\)[\s\S]{0,100}publicRow\(current \|\| existing\)/.test(entityHandler)
+    && /row: operation === "description" \? publicDescriptionRow\(current\) : publicRow\(current\)/.test(reconcile)
+    && /\(operation === "labels" \|\| operation === "description"\) && principal\.kind === "client"/.test(entityHandler)
+    && !/\bbrief\b/.test(extractFunction('publicRow')),
+  'brief is gated to authenticated description success, DB-race conflict, and reconcile envelopes and cannot leak through client or ordinary public rows');
   const publicComment = extractFunction('publicComment');
   ok(publicComment.includes('"native_comment_id"')
     && publicComment.includes('"author_key"')
@@ -541,14 +664,56 @@ function extractFunction(name) {
     ...commentReceiptRow,
     payload: { body: 'Corrupted original body', _intent_fingerprint: 'fingerprint-comment-1' },
   }), 'dedup-comment-1', commentReceiptExpected);
+  const descriptionReceiptExpected = {
+    ...receiptExpected,
+    operation: 'description',
+    intent_fingerprint: 'fingerprint-description-1',
+    payload: { description: markdownDescription },
+  };
+  const descriptionReceiptRow = {
+    ...descriptionReceiptExpected,
+    payload: {
+      description: markdownDescription,
+      _intent_fingerprint: 'fingerprint-description-1',
+    },
+  };
+  const exactDescriptionReceipt = await receiptContext.readOutboxReceipt(
+    receiptSupabase(descriptionReceiptRow), 'dedup-description-1', descriptionReceiptExpected,
+  );
+  const whitespaceChangedDescriptionReceipt = await receiptContext.readOutboxReceipt(
+    receiptSupabase({
+      ...descriptionReceiptRow,
+      payload: {
+        description: markdownDescription.trim(),
+        _intent_fingerprint: 'fingerprint-description-1',
+      },
+    }),
+    'dedup-description-1',
+    descriptionReceiptExpected,
+  );
+  const clearDescriptionReceipt = await receiptContext.readOutboxReceipt(
+    receiptSupabase({
+      ...descriptionReceiptRow,
+      payload: { description: '', _intent_fingerprint: 'fingerprint-description-clear' },
+    }),
+    'dedup-description-clear',
+    {
+      ...descriptionReceiptExpected,
+      intent_fingerprint: 'fingerprint-description-clear',
+      payload: { description: '' },
+    },
+  );
   ok(exactReceipt.outcome === 'committed_exact'
     && absentReceipt.outcome === 'absent'
     && conflictReceipt.outcome === 'conflict'
     && corruptPayloadReceipt.outcome === 'conflict'
     && differentActorReceipt.outcome === 'conflict'
     && exactCommentPayloadReceipt.outcome === 'committed_exact'
-    && corruptCommentPayloadReceipt.outcome === 'conflict',
-  'receipt classifier keeps harmless actor-label changes exact but rejects status or original-comment outbox payload corruption');
+    && corruptCommentPayloadReceipt.outcome === 'conflict'
+    && exactDescriptionReceipt.outcome === 'committed_exact'
+    && whitespaceChangedDescriptionReceipt.outcome === 'conflict'
+    && clearDescriptionReceipt.outcome === 'committed_exact',
+  'receipt classifier keeps exact description/clear payloads and rejects Markdown whitespace drift alongside status/comment corruption');
 
   let executableCanonicalComment = extractFunction('canonicalCommentMatchesReceipt')
     .replace(/function canonicalCommentMatchesReceipt\([\s\S]*?\): boolean \{/, 'function canonicalCommentMatchesReceipt(value, expected, outboxCommentId) {');
@@ -632,7 +797,7 @@ function extractFunction(name) {
     && /currentItemsById/.test(edge)
     && /items: currentResponseItems/.test(edge),
   'intake returns post-linkage updated_at values for the caller first CAS');
-  ok(/row: operation === "comment" \? publicRow\(existing\) : publicRow\(result\)/.test(edge)
+  ok(/row: operation === "description"[\s\S]{0,80}publicDescriptionRow\(result\)[\s\S]{0,100}operation === "comment"[\s\S]{0,80}publicRow\(existing\)[\s\S]{0,80}publicRow\(result\)/.test(edge)
     && /operation === "comment" \? \{ comment: parseJson\(result\) \}/.test(edge),
   'comment success preserves the target entity CAS row and returns the durable comment separately');
   ok(/terminalValueProof/.test(inboundEchoProof)
@@ -673,7 +838,7 @@ function extractFunction(name) {
     && /production_deliverable_write/.test(migration)
     && /production_batch_write/.test(migration),
   'semantic idempotency is locked and enforced inside the row/event/outbox transaction');
-  ok(/if \(!replay\)[\s\S]{0,300}assertCas\(body, existing\)/.test(edge),
+  ok(/if \(!replay\)[\s\S]{0,300}assertCas\(body, existing, operation === "description"\)/.test(edge),
     'an exact retry is recognized before stale CAS values can reject it');
   ok(/cas_required/.test(edge)
     && /expected_status/.test(migration)
@@ -706,9 +871,10 @@ function extractFunction(name) {
     && /deterministicNativeId\("pc", `\$\{entity\}:\$\{id\}`, suppliedNativeId\)/.test(edge)
     && /v_existing_native_dedup is distinct from v_dedup_key/.test(migration),
   'a stable Calendar/SXR native comment id owns exactly one semantic outbox intent across request-id retries');
-  ok(/conflict: true, row: publicRow\(existing\)/.test(edge)
+  ok(/const row = includeDescription \? publicDescriptionRow\(existing\) : publicRow\(existing\)/.test(edge)
+    && /conflict: true, row \}/.test(edge)
     && /error\.code === "write_conflict"/.test(edge)
-    && /row: current \? publicRow/.test(edge),
+    && /row: operation === "description"[\s\S]{0,100}publicDescriptionRow\(current \|\| existing\)[\s\S]{0,100}publicRow\(current \|\| existing\)/.test(edge),
   'CAS precheck and database-race conflicts return the current-row conflict envelope');
   ok(/echo && existingComment/.test(inbound)
     && /"author_key", "author_member_id", "author_name", "role", "audience"/.test(inbound)

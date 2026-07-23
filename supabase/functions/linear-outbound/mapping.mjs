@@ -10,6 +10,7 @@ export const OUTBOUND_OPERATIONS = Object.freeze([
   "archive",
   "restore",
   "labels",
+  "description",
 ]);
 
 const STATUS_NAMES = Object.freeze({
@@ -30,9 +31,21 @@ const STATUS_NAMES = Object.freeze({
 
 export const D27_LIVE_ERA_START = "2026-07-12T04:48:56.000Z";
 const D27_BACKFILL_CREATORS = new Set(["linear-backfill", "history-backfill-2026-07-10"]);
+const MAX_DESCRIPTION_LENGTH = 100_000;
 
 function clean(value) {
   return String(value == null ? "" : value).trim();
+}
+
+// Keep the linear-outbound deployment closure self-contained. This is the same
+// exact-string bound used by production-write, including PostgreSQL's NUL
+// exclusion, without importing another Edge Function's private module.
+function canonicalDescription(value) {
+  return typeof value === "string"
+      && value.length <= MAX_DESCRIPTION_LENGTH
+      && !value.includes("\0")
+    ? value
+    : null;
 }
 
 function lower(value) {
@@ -191,6 +204,13 @@ export function actualValueForOperation(operation, issue, payload = {}) {
   if (op === "due") return clean(row.dueDate) || null;
   if (op === "assignee") return clean(row.assignee && row.assignee.id) || null;
   if (op === "title") return clean(row.title);
+  if (op === "description") {
+    return row.description == null
+      ? ""
+      : typeof row.description === "string"
+        ? row.description
+        : null;
+  }
   if (op === "priority") return row.priority == null ? 0 : Number(row.priority);
   if (op === "parent") return clean(row.parent && row.parent.id) || null;
   if (op === "labels") return JSON.stringify(issueLabelIds(row));
@@ -214,6 +234,9 @@ export function intendedValueForOperation(operation, payload = {}, context = {})
   if (op === "due") return clean(payload.due_date) || null;
   if (op === "assignee") return clean(payload.linear_user_id || context.linear_user_id) || null;
   if (op === "title") return clean(payload.title);
+  if (op === "description") {
+    return typeof payload.description === "string" ? payload.description : null;
+  }
   if (op === "priority") return payload.priority == null || payload.priority === "" ? 0 : Number(payload.priority);
   if (op === "parent") return clean(payload.parent_linear_issue_id || context.parent_linear_issue_id) || null;
   if (op === "labels") return JSON.stringify(canonicalIds(payload.label_ids));
@@ -237,7 +260,10 @@ export function decideConflict(row, issue, context = {}) {
   const payload = row && row.payload && typeof row.payload === "object" ? row.payload : {};
   const actual = actualValueForOperation(operation, issue, { ...payload, dedup_key: row.dedup_key });
   const intended = intendedValueForOperation(operation, payload, context);
-  if (sameValue(actual, intended)) return { decision: "already_applied", actual, intended };
+  const alreadyApplied = operation === "description"
+    ? actual === intended
+    : sameValue(actual, intended);
+  if (alreadyApplied) return { decision: "already_applied", actual, intended };
 
   // Comments are additive. A later, unrelated Linear edit must not discard a
   // queued comment; the hidden marker above provides field-level idempotency.
@@ -360,6 +386,10 @@ export function buildMutation(row, context = {}) {
     input.assigneeId = clean(payload.linear_user_id || context.linear_user_id) || null;
   } else if (operation === "title") {
     input.title = clean(payload.title);
+  } else if (operation === "description") {
+    const description = canonicalDescription(payload.description);
+    if (description == null) throw new Error("valid description required");
+    input.description = description || null;
   } else if (operation === "priority") {
     input.priority = payload.priority == null || payload.priority === "" ? 0 : Number(payload.priority);
   } else if (operation === "parent") {

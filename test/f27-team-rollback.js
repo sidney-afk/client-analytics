@@ -13,6 +13,8 @@ function ok(value, message) {
 
 const root = path.join(__dirname, '..');
 const sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-20-f27-team-rollback.sql'), 'utf8');
+const f202Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-f202-production-descriptions.sql'), 'utf8');
+const migrationsReadme = fs.readFileSync(path.join(root, 'migrations', 'README.md'), 'utf8');
 const proof = fs.readFileSync(path.join(root, 'scripts', 'f27-team-rollback-proof.sql'), 'utf8');
 const snapshotTool = fs.readFileSync(path.join(root, 'scripts', 'f27-mirror-outbox-snapshot.js'), 'utf8');
 const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'f27-team-rollback-proof.yml'), 'utf8');
@@ -105,11 +107,56 @@ ok(/savepoint f27_enqueue_probe/.test(sql)
   'exact migration transaction accepts and rolls back a synthetic TEST enqueue before commit');
 ok(!/calendar-upsert|sample-review-upsert/i.test(sql), 'frozen writers are untouched');
 ok(!/n8n-backups|webhook|workflow_id/i.test(sql), 'migration has no n8n mutation surface');
+ok(/DELIBERATE ADDITIVE-ONLY EXCEPTION \(owner-approved\)/.test(f202Sql)
+  && /drop constraint if exists mirror_outbox_operation_b4_check/.test(f202Sql)
+  && /begin;[\s\S]*drop constraint if exists mirror_outbox_operation_b4_check[\s\S]*add constraint mirror_outbox_operation_b4_check[\s\S]*commit;/i.test(f202Sql)
+  && /'create', 'status', 'comment', 'due', 'assignee', 'title',[\s\S]*'priority', 'parent', 'archive', 'restore', 'labels', 'description'/.test(f202Sql)
+  && /no data drop, table\/column drop, rename, type[\s\S]*change, or backfill/.test(f202Sql),
+  'F202 widens the operation CHECK transactionally to the exact strict superset and documents the data-safe exception');
+ok(/create policy "protect production description event bodies"[\s\S]*as restrictive[\s\S]*for select[\s\S]*to anon, authenticated[\s\S]*using \(action is distinct from 'description_change'\)/.test(f202Sql)
+  && !/drop policy/i.test(f202Sql)
+  && /service-role-only mirror_outbox payload/.test(f202Sql)
+  && /exact outbox payload remain unchanged/.test(f202Sql),
+  'F202 keeps the description ledger/outbox handoff private behind the established restrictive-reader boundary');
+ok(/2026-07-23-f202-production-descriptions\.sql/.test(migrationsReadme)
+  && /all eleven accepted[\s\S]*including `labels`[\s\S]*strict superset in one transaction/.test(migrationsReadme)
+  && /restrictive `deliverable_events` SELECT policy[\s\S]*`description_change` row from anon\/authenticated/.test(migrationsReadme)
+  && /real TEST description[\s\S]*separate post-merge owner-approved window/.test(migrationsReadme),
+  'migration registry records the source-only F202 strict-superset exception and later live gate');
+ok(/'priority', 'parent', 'archive', 'restore', 'labels', 'description'/.test(sql)
+  && /F201\/F202 source compatibility/.test(installRunbook)
+  && /allowlist now includes `labels` and[\s\S]*`description`/.test(installRunbook)
+  && /F27 remains parked and uninstalled/.test(installRunbook),
+  'parked F27 source carries labels and description without authorizing an install');
 
 ok(/CREATE SCHEMA f27_test/.test(proof), 'proof uses an isolated TEST schema');
 ok(/f27_migration_probe_not_rolled_back/.test(proof)
   && /dedup_key LIKE 'f27-migration-test:%'/.test(proof),
   'proof confirms the migration TEST enqueue leaves the live-queue fixture row count unchanged');
+ok(/2026-07-23-f202-production-descriptions\.sql/.test(proof)
+  && /f202_operation_superset_not_exact/.test(proof)
+  && /\) <> 12/.test(proof)
+  && /f202_check_unexpectedly_accepted_unrelated_operation/.test(proof)
+  && /EXCEPTION WHEN check_violation/.test(proof)
+  && /CREATE TEMP TABLE f202_prior_rows/.test(proof)
+  && /to_jsonb\(o\)::text/.test(proof)
+  && /f202_existing_rows_not_preserved/.test(proof),
+  'disposable proof executes F202, accepts exactly twelve operations, rejects an unrelated direct insert, and preserves every fixture row byte-for-byte');
+ok(/CREATE ROLE service_role NOLOGIN BYPASSRLS/.test(proof)
+  && /SET LOCAL ROLE service_role/.test(proof)
+  && /f202_service_description_audit_or_outbox_not_exact/.test(proof)
+  && /dedup_key = 'f202:description'/.test(proof)
+  && /SET LOCAL ROLE anon/.test(proof)
+  && /f202_anon_description_policy_not_exact/.test(proof)
+  && /SET LOCAL ROLE authenticated/.test(proof)
+  && /f202_authenticated_description_policy_not_exact/.test(proof)
+  && /f202-public-control/.test(proof),
+  'disposable proof retains exact service-side audit/outbox Markdown while hiding only description_change rows from both public reader roles');
+ok(/f202:f27:description/.test(proof)
+  && /f202_f27_description_enqueue_not_exact/.test(proof)
+  && /E'  # F202\\n\\n- exact Markdown  \\n'/.test(proof)
+  && /'f202_f27_description_enqueue_exact'/.test(proof),
+  'disposable proof preserves the exact Markdown description through the parked F27 enqueue');
 ok(/ROLLBACK TO SAVEPOINT blocked_before_classification/.test(proof), 'premature rollback refusal is exercised transactionally');
 ok(/other_team_unchanged/.test(proof), 'proof asserts team isolation');
 ok(/exact_prior_flags_restored/.test(proof), 'proof asserts exact pre-cycle flag restoration');
@@ -156,6 +203,8 @@ ok(/ALTER TABLE public\.mirror_outbox DISABLE TRIGGER track_b_f27_hold_guard/.te
   && !/DROP TRIGGER track_b_f27_hold_guard/.test(installRunbook),
   'operational rollback disables only the new guard while retaining additive schema and audit');
 ok(/postgres:16/.test(workflow) && /f27-proof/.test(workflow), 'cloud proof uses an isolated PostgreSQL service');
+ok(/migrations\/2026-07-23-f202-production-descriptions\.sql/.test(workflow),
+  'F202 migration changes trigger the existing disposable-PostgreSQL proof workflow');
 ok(/createdb f27_contract/.test(workflow)
   && /PGDATABASE=f27_contract[\s\S]*f27-team-rollback-proof\.sql/.test(workflow)
   && /createdb f27_operator_toolkit/.test(workflow)

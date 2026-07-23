@@ -26,6 +26,24 @@ const {
   planLinkageBackfill,
   summarizePlan: summarizeLinkageBackfillPlan,
 } = require('./b3-linkage-backfill');
+const {
+  authorityForTeam,
+  validateAuthority,
+} = require('./prod-authority-guard');
+const {
+  ATTRIBUTION_SCHEMA,
+  buildProjectIndex,
+  parseJson: parseAttributionJson,
+  persistedExplicitClassifications,
+  resolveAttributionGraph,
+  sha256,
+  stableJson: stableAttributionJson,
+  withAttribution,
+} = require('./f200-attribution');
+const {
+  PLAN_SCHEMA: F200_REPAIR_PLAN_SCHEMA,
+  DEFAULT_EXPECTED_COUNT: F200_EXPECTED_COUNT,
+} = require('./f200-attribution-plan');
 
 const args = new Map(process.argv.slice(2).map(a => {
   const m = String(a).match(/^--([^=]+)(?:=(.*))?$/);
@@ -45,6 +63,7 @@ const CLIENT_FILTER = clean(args.get('client')).toLowerCase();
 const TEST_AUTHORITY_CLIENT = clean(args.get('test-authority-client') || process.env.B4_TEST_AUTHORITY_CLIENT).toLowerCase();
 const PAGE_DELAY_MS = Math.max(0, Number(args.get('page-delay-ms') || process.env.PAGE_DELAY_MS || 120));
 const DETAILS_JSON = args.get('details-json') || '';
+const F200_REPAIR_PLAN_FILE = args.get('f200-repair-plan') || '';
 
 if (TEST_AUTHORITY_CLIENT) {
   if (TEST_AUTHORITY_CLIENT !== 'sidneylaruel'
@@ -174,8 +193,13 @@ function issueFields() {
   return `id identifier title description url priority dueDate archivedAt canceledAt completedAt updatedAt
     state { id name type }
     team { id key name }
+    project { id }
     assignee { id name email }
-    parent { id identifier title }
+    parent {
+      id identifier title
+      project { id }
+      parent { id identifier title project { id } }
+    }
     comments(first: 50) { nodes { id body createdAt user { id name email } } pageInfo { hasNextPage } }`;
 }
 
@@ -319,6 +343,7 @@ async function loadLiveData() {
     linearArchive,
     batches,
     outboxRows,
+    clients,
     prodAuthority,
   ] = await Promise.all([
     supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,priority,origin,card_id,created_by,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw', 'order=team.asc,identifier.asc'),
@@ -329,6 +354,7 @@ async function loadLiveData() {
     supabaseRows('linear_archive', 'linear_uuid,identifier,state'),
     supabaseRows('batches', 'id,client_slug,team,name,description,status,comments,created_by,created_at,updated_at,linear_parent_ids'),
     supabaseRows('mirror_outbox', 'id,deliverable_id,batch_id,entity_id,operation,status,payload,source_edited_at,linear_result'),
+    supabaseRows('clients', 'slug,kind,active,linear_project_ids'),
     loadRuntimeFlag('prod_authority'),
   ]);
   const active = deliverables
@@ -347,13 +373,35 @@ async function loadLiveData() {
     loadLinearIssuesById(issueIds),
     loadLinearWebhooks(),
   ]);
-  return { deliverables: active, allDeliverables: deliverables, members, events, calendarPosts, sampleReviews, linearArchive, batches: activeBatches, allBatches: batches, outboxRows, prodAuthority, linearIssues, webhooks };
+  const attributionIssueIds = [...new Set(active.map(row => clean(row.linear_issue_uuid)).filter(Boolean))];
+  const attributionFamilyComplete = !TEAM_FILTER && !CLIENT_FILTER && !IDENTIFIER_FILTER
+    && attributionIssueIds.every(id => linearIssues.has(id));
+  return {
+    deliverables: active,
+    allDeliverables: deliverables,
+    members,
+    events,
+    calendarPosts,
+    sampleReviews,
+    linearArchive,
+    batches: activeBatches,
+    allBatches: batches,
+    outboxRows,
+    clients,
+    attributionFamilyComplete,
+    attributionExpectedIssueCount: attributionIssueIds.length,
+    attributionLoadedIssueCount: attributionIssueIds.filter(id => linearIssues.has(id)).length,
+    prodAuthority,
+    linearIssues,
+    webhooks,
+  };
 }
 
 function loadFixtureData(file) {
   const data = JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'));
   return {
     deliverables: data.deliverables || [],
+    allDeliverables: data.deliverables || [],
     members: data.members || [],
     events: data.events || [],
     calendarPosts: data.calendarPosts || [],
@@ -362,6 +410,10 @@ function loadFixtureData(file) {
     batches: data.batches || [],
     allBatches: data.batches || [],
     outboxRows: data.outboxRows || [],
+    clients: data.clients || [],
+    attributionFamilyComplete: data.attributionFamilyComplete === true,
+    attributionExpectedIssueCount: Number(data.attributionExpectedIssueCount || (data.linearIssues || []).length),
+    attributionLoadedIssueCount: Number(data.attributionLoadedIssueCount || (data.linearIssues || []).length),
     prodAuthority: data.prodAuthority || { video: 'linear', graphics: 'linear' },
     linearIssues: new Map((data.linearIssues || []).map(i => [clean(i.id), i])),
     webhooks: data.webhooks || [],
@@ -375,6 +427,21 @@ function buildPlan(data) {
   const batchById = new Map((data.allBatches || data.batches || []).map(row => [clean(row.id), row]).filter(([id]) => id));
   const commentsByEntity = writtenComments(data.outboxRows || []);
   const liveBatchIds = new Set((data.deliverables || []).map(row => clean(row.batch_id)).filter(Boolean));
+  const attributionIssueIds = new Set([...data.linearIssues.keys()].map(clean).filter(Boolean));
+  const explicitClassifications = persistedExplicitClassifications(
+    (data.allDeliverables || data.deliverables || [])
+      .filter(row => attributionIssueIds.has(clean(row.linear_issue_uuid))),
+    data.clients || [],
+  );
+  const attributionGraph = (data.clients || []).length
+    ? resolveAttributionGraph([...data.linearIssues.values()], data.clients, {
+      explicitClassifications,
+      familyComplete: data.attributionFamilyComplete === true,
+    })
+    : null;
+  const unresolvedClientSlug = (data.clients || []).some(row => clean(row && row.slug) === 'unattributed')
+    ? 'unattributed'
+    : '';
   const results = [];
   for (const deliverable of data.deliverables || []) {
     const issue = data.linearIssues.get(clean(deliverable.linear_issue_uuid)) || null;
@@ -388,6 +455,8 @@ function buildPlan(data) {
       memberByLinearId,
       stateUuidMap: STATE_UUID_MAP,
       authority,
+      attribution: attributionGraph && attributionGraph.byIssueId.get(clean(issue && issue.id)),
+      unresolvedClientSlug,
     };
     results.push(authority === 'syncview'
       ? classifyOutboundDeliverable(Object.assign({}, shared, {
@@ -425,7 +494,280 @@ function buildPlan(data) {
   }));
   summary.linkage_actionable = Number(summary.linkage_residue.planned_writes || 0);
   summary.webhooks = summarizeWebhooks(data.webhooks || []);
+  summary.attribution = attributionGraph ? attributionGraph.summary : null;
+  if (summary.attribution) {
+    summary.attribution.family_complete = data.attributionFamilyComplete === true;
+    summary.attribution.expected_issue_count = Number(data.attributionExpectedIssueCount || 0);
+    summary.attribution.loaded_issue_count = Number(data.attributionLoadedIssueCount || 0);
+  }
+  summary.attribution_storage_sentinel_present = !!unresolvedClientSlug;
   return { results, linkageRows, summary };
+}
+
+function exactObjectKeys(value, expected, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (JSON.stringify(actual) !== JSON.stringify(wanted)) {
+    throw new Error(`${label} has unexpected keys`);
+  }
+}
+
+function mergedCurrentLinearIssue(deliverable, linearIssue) {
+  const raw = parseAttributionJson(deliverable && deliverable.linear_raw);
+  const stored = raw.issue && typeof raw.issue === 'object' ? raw.issue : {};
+  const live = linearIssue && typeof linearIssue === 'object' ? linearIssue : {};
+  return Object.assign({}, stored, live, {
+    id: clean(linearIssue && linearIssue.id || deliverable && deliverable.linear_issue_uuid),
+  });
+}
+
+function f200RepairRowState(current, liveIssue, payload) {
+  const targetPatch = payload && payload.patch || {};
+  const precondition = payload && payload.precondition || {};
+  const id = clean(payload && payload.target_id);
+  const linearIssueId = clean(precondition.linear_issue_uuid);
+  const targetSlug = clean(targetPatch.client_slug);
+  const targetAttribution = parseAttributionJson(targetPatch.linear_raw).attribution;
+  const currentRaw = parseAttributionJson(current && current.linear_raw);
+  const currentAttribution = currentRaw.attribution;
+
+  if (!current || !liveIssue || !id || clean(current.id) !== id
+      || !linearIssueId || clean(current.linear_issue_uuid) !== linearIssueId
+      || clean(liveIssue.id) !== linearIssueId || !targetSlug || !targetAttribution) {
+    throw new Error(`F200 repair live row identity is invalid for ${id || 'unknown'}`);
+  }
+  if (sha256(mergedCurrentLinearIssue(current, liveIssue))
+      !== clean(precondition.linear_issue_sha256)) {
+    throw new Error(`F200 repair Linear issue drifted for deliverable ${id}`);
+  }
+  if (clean(current.client_slug) === targetSlug
+      && stableAttributionJson(currentAttribution || {})
+        === stableAttributionJson(targetAttribution)) {
+    return {
+      state: 'already_applied',
+      id,
+      linearIssueId,
+      targetSlug,
+      targetAttribution,
+      patch: null,
+    };
+  }
+  if (clean(precondition.client_slug) !== 'unattributed'
+      || clean(current.client_slug) !== 'unattributed'
+      || clean(current.updated_at) !== clean(precondition.updated_at)
+      || sha256(currentRaw) !== clean(precondition.linear_raw_sha256)) {
+    throw new Error(`F200 repair precondition drifted for deliverable ${id}`);
+  }
+
+  return {
+    state: 'pending',
+    id,
+    linearIssueId,
+    targetSlug,
+    targetAttribution,
+    patch: {
+      client_slug: targetSlug,
+      linear_raw: withAttribution(currentRaw, targetAttribution),
+    },
+  };
+}
+
+function buildF200RepairExecutionPlan(data, privatePlan, options = {}) {
+  const expectedCount = Number(options.expectedCount == null ? F200_EXPECTED_COUNT : options.expectedCount);
+  let exactAuthority;
+  try {
+    exactAuthority = validateAuthority(data && data.prodAuthority);
+  } catch (error) {
+    throw new Error(`F200 repair requires validated live prod_authority: ${error.message}`);
+  }
+  if (clean(privatePlan && privatePlan.schema) !== F200_REPAIR_PLAN_SCHEMA
+      || clean(privatePlan && privatePlan.finding) !== 'F200') {
+    throw new Error('F200 repair plan schema/finding is invalid');
+  }
+  if (privatePlan.source_only !== true || Number(privatePlan.writes_executed) !== 0) {
+    throw new Error('F200 repair plan must be an unused source-only artifact');
+  }
+  if (Number(privatePlan.expected_count) !== expectedCount
+      || !privatePlan.proof
+      || privatePlan.proof.complete !== true
+      || Number(privatePlan.proof.resolved_count) !== expectedCount
+      || Number(privatePlan.proof.distinct_deliverable_ids) !== expectedCount
+      || Number(privatePlan.proof.distinct_linear_issue_ids) !== expectedCount
+      || privatePlan.proof.exact_payload_count !== true
+      || privatePlan.proof.all_payloads_are_cas_patch !== true
+      || privatePlan.proof.source_cohort_is_unattributed_repair !== true
+      || privatePlan.proof.no_client_inserts !== true
+      || privatePlan.proof.no_name_or_title_inference !== true) {
+    throw new Error(`F200 repair proof must bind exactly ${expectedCount} fully resolved rows`);
+  }
+  if (!privatePlan.before
+      || Number(privatePlan.before.total) !== expectedCount
+      || stableAttributionJson(privatePlan.before.by_client_slug || {})
+        !== stableAttributionJson({ unattributed: expectedCount })) {
+    throw new Error(`F200 repair source must be exactly ${expectedCount} unattributed rows`);
+  }
+  if (!privatePlan.owner_manifest || privatePlan.owner_manifest.owner_approved !== true
+      || Number(privatePlan.owner_manifest.expected_count) !== expectedCount
+      || clean(privatePlan.owner_manifest.snapshot_sha256) !== clean(privatePlan.snapshot_sha256)) {
+    throw new Error('F200 repair plan lacks its exact owner-approved manifest proof');
+  }
+  const hashInput = Object.assign({}, privatePlan);
+  delete hashInput.plan_sha256;
+  if (clean(privatePlan.plan_sha256) !== sha256(hashInput)) {
+    throw new Error('F200 repair plan hash does not match its payloads');
+  }
+
+  const payloads = privatePlan.payloads;
+  if (!Array.isArray(payloads) || payloads.length !== expectedCount) {
+    throw new Error(`F200 repair plan must contain exactly ${expectedCount} payloads`);
+  }
+  const currentById = new Map((data.allDeliverables || data.deliverables || [])
+    .map(row => [clean(row.id), row]).filter(([id]) => id));
+  const projectIndex = buildProjectIndex(data.clients || []);
+  if (clean(privatePlan.mapping_revision) !== projectIndex.mapping_revision) {
+    throw new Error('F200 repair mapping revision is stale');
+  }
+  const mappedGraph = resolveAttributionGraph([...data.linearIssues.values()], data.clients || [], {
+    projectIndex,
+    familyComplete: false,
+  });
+  const seenDeliverables = new Set();
+  const seenIssues = new Set();
+  const results = [];
+
+  for (const payload of payloads) {
+    if (clean(payload && payload.mutation) !== 'deliverables_cas_patch'
+        || clean(payload && payload.table) !== 'deliverables') {
+      throw new Error('F200 repair payload must use the deliverables CAS patch');
+    }
+    exactObjectKeys(payload, [
+      'descriptor_sha256',
+      'mutation',
+      'patch',
+      'precondition',
+      'repair_evidence',
+      'table',
+      'target_id',
+    ], 'F200 repair descriptor');
+    exactObjectKeys(payload.patch, ['client_slug', 'linear_raw'], 'F200 repair patch');
+    const id = clean(payload.target_id);
+    const precondition = payload.precondition || {};
+    const linearIssueId = clean(precondition.linear_issue_uuid);
+    if (!id || id !== clean(precondition.deliverable_id)
+        || seenDeliverables.has(id) || !linearIssueId || seenIssues.has(linearIssueId)) {
+      throw new Error('F200 repair payload scope is duplicate or inconsistent');
+    }
+    seenDeliverables.add(id);
+    seenIssues.add(linearIssueId);
+
+    const current = currentById.get(id);
+    if (!current) throw new Error(`F200 repair precondition row is missing: ${id}`);
+    const liveIssue = data.linearIssues.get(linearIssueId);
+    if (!liveIssue) throw new Error(`F200 repair Linear issue is missing: ${linearIssueId}`);
+    if (clean(precondition.client_slug) !== 'unattributed') {
+      throw new Error(`F200 repair source client must be unattributed for ${id}`);
+    }
+    const repairState = f200RepairRowState(current, liveIssue, payload);
+    const descriptorInput = Object.assign({}, payload);
+    delete descriptorInput.descriptor_sha256;
+    if (clean(payload.descriptor_sha256) !== sha256(descriptorInput)) {
+      throw new Error(`F200 repair payload hash drifted for deliverable ${id}`);
+    }
+
+    const targetSlug = clean(payload.patch.client_slug);
+    const targetOwner = projectIndex.clientBySlug.get(targetSlug);
+    const targetRaw = parseAttributionJson(payload.patch.linear_raw);
+    const attribution = targetRaw.attribution;
+    if (!targetOwner || !attribution || attribution.schema !== ATTRIBUTION_SCHEMA
+        || attribution.state !== 'resolved'
+        || clean(attribution.client_slug) !== targetSlug
+        || clean(attribution.mapping_revision) !== projectIndex.mapping_revision) {
+      throw new Error(`F200 repair target is not a resolved active-roster owner for ${id}`);
+    }
+    if (repairState.state === 'pending'
+        && stableAttributionJson(targetRaw)
+          !== stableAttributionJson(withAttribution(current.linear_raw, attribution))) {
+      throw new Error(`F200 repair payload changes fields outside attribution for ${id}`);
+    }
+    if (attribution.source === 'explicit_internal_test_classification') {
+      if (!['internal', 'test'].includes(targetOwner.kind)) {
+        throw new Error(`F200 explicit internal/test target kind is invalid for ${id}`);
+      }
+    } else if (attribution.source === 'explicit_roster_classification') {
+      if (targetOwner.kind !== 'client') {
+        throw new Error(`F200 explicit roster target kind is invalid for ${id}`);
+      }
+    } else {
+      const mapped = mappedGraph.byIssueId.get(linearIssueId);
+      if (!mapped || mapped.state !== 'resolved' || clean(mapped.client_slug) !== targetSlug) {
+        throw new Error(`F200 mapped repair target no longer resolves for ${id}`);
+      }
+    }
+    if (['explicit_internal_test_classification', 'explicit_roster_classification']
+      .includes(attribution.source)
+      && (attribution.explicit_owner_approved !== true
+        || !clean(attribution.explicit_decision_ref)
+        || clean(attribution.explicit_manifest_sha256)
+          !== clean(privatePlan.owner_manifest.manifest_sha256))) {
+      throw new Error(`F200 explicit repair target lacks durable owner proof for ${id}`);
+    }
+    if (authorityForTeam(exactAuthority, clean(current.team)) !== 'linear') {
+      throw new Error(`F200 repair requires current Linear authority for ${id}`);
+    }
+    const evidence = payload.repair_evidence || {};
+    if (clean(evidence.source) !== 'reconcile'
+        || clean(evidence.action) !== 'f200_attribution_repair'
+        || clean(evidence.payload && evidence.payload.finding) !== 'F200'
+        || clean(evidence.payload && evidence.payload.snapshot_sha256) !== clean(privatePlan.snapshot_sha256)) {
+      throw new Error(`F200 repair evidence is invalid for ${id}`);
+    }
+
+    results.push({
+      id,
+      entity: 'deliverable',
+      team: clean(current.team),
+      identifier: clean(current.identifier || current.linear_identifier),
+      authority: 'linear',
+      direction: 'inbound',
+      row: current,
+      diffs: [{
+        field: 'client_attribution',
+        expected: attribution,
+        actual: parseAttributionJson(current.linear_raw).attribution || null,
+        reason: 'owner_approved_f200_repair',
+      }],
+      tolerated: [],
+      repairs: [],
+      patch: {
+        client_slug: targetSlug,
+        linear_raw: targetRaw,
+      },
+      outbound_intents: [],
+      repair_payload: payload,
+      repair_state: repairState.state,
+    });
+  }
+
+  if (seenDeliverables.size !== expectedCount || seenIssues.size !== expectedCount) {
+    throw new Error(`F200 repair execution scope must remain exactly ${expectedCount}`);
+  }
+  results.sort((a, b) => a.id.localeCompare(b.id));
+  const summary = summarize(results, []);
+  summary.f200_attribution_repair = {
+    expected_count: expectedCount,
+    validated_count: results.length,
+    snapshot_sha256: clean(privatePlan.snapshot_sha256),
+    mapping_revision: projectIndex.mapping_revision,
+    plan_sha256: clean(privatePlan.plan_sha256),
+    preconditions_passed: true,
+  };
+  summary.linkage_residue = summarizeLinkageBackfillPlan({ planned: [], skipped: [] });
+  summary.linkage_actionable = 0;
+  summary.webhooks = summarizeWebhooks(data.webhooks || []);
+  return { results, linkageRows: [], summary, f200Repair: true };
 }
 
 function summaryMarkdown(plan, startedAt, finishedAt) {
@@ -450,6 +792,10 @@ function summaryMarkdown(plan, startedAt, finishedAt) {
     `| Tolerated divergences | ${s.tolerated_count} |`,
     `| Historical structure tolerances | ${s.tolerated_historical || 0} |`,
     `| Unknown-assignee repair rows | ${s.repair_list_size} |`,
+    `| Needs-attribution rows | ${s.attribution && s.attribution.by_state.needs_attribution || 0} |`,
+    `| Provisional child-family rows | ${s.attribution && s.attribution.by_state.provisional_child_family || 0} |`,
+    `| Attribution conflicts | ${s.attribution && s.attribution.by_state.conflict || 0} |`,
+    `| Attribution family snapshot complete | ${s.attribution && s.attribution.family_complete ? 'yes' : 'no'} |`,
     `| Card linkage gaps | ${s.linkage_count} |`,
     `| Card linkage actionable | ${s.linkage_actionable || 0} |`,
     `| Card linkage resolvable writes | ${lr.planned_writes || 0} |`,
@@ -467,6 +813,43 @@ function summaryMarkdown(plan, startedAt, finishedAt) {
   return lines.join('\n');
 }
 
+function buildSummaryEventPayload(plan, startedAt, finishedAt) {
+  const privateRepair = plan.f200Repair === true;
+  const results = plan.results || [];
+  return {
+    ok: true,
+    dry_run: !APPLY,
+    apply: APPLY,
+    cap: SAFETY_CAP,
+    identifier_filter: privateRepair ? null : IDENTIFIER_FILTER || null,
+    client_filter: privateRepair ? null : CLIENT_FILTER || null,
+    test_authority_client: privateRepair ? null : TEST_AUTHORITY_CLIENT || null,
+    run_class: clean(process.env.RECONCILE_RUN_CLASS || 'manual'),
+    github_event_name: clean(process.env.GITHUB_EVENT_NAME) || null,
+    github_run_id: clean(process.env.GITHUB_RUN_ID) || null,
+    github_run_attempt: clean(process.env.GITHUB_RUN_ATTEMPT) || null,
+    started_at: startedAt,
+    finished_at: finishedAt,
+    summary: plan.summary,
+    // The F200 repair plan is a private artifact. Its generic system event is
+    // aggregate-only and never persists identifiers or row-level samples.
+    inbound_identifier_sample: privateRepair
+      ? []
+      : results
+        .filter(row => row.authority === 'linear' && row.diffs.length)
+        .map(row => ({ identifier: clean(row.identifier), team: clean(row.team) }))
+        .filter(row => row.identifier)
+        .slice(0, 20),
+    linkage_sample: privateRepair ? [] : (plan.linkageRows || []).slice(0, 20),
+    tolerated_sample: privateRepair
+      ? []
+      : results.flatMap(r => r.tolerated.map(t => ({ id: r.id, team: r.team, ...t }))).slice(0, 20),
+    repair_sample: privateRepair
+      ? []
+      : results.flatMap(r => r.repairs.map(p => ({ id: r.id, team: r.team, ...p }))).slice(0, 20),
+  };
+}
+
 async function writeSummaryEvent(plan, startedAt, finishedAt) {
   if (FIXTURES) return [];
   return supabaseInsert('deliverable_events', [{
@@ -474,31 +857,116 @@ async function writeSummaryEvent(plan, startedAt, finishedAt) {
     action: 'linear_deliverables_reconcile_v2',
     source: 'reconcile',
     actor: 'codex-b3-reconciler-v2',
-    payload: {
-      ok: true,
-      dry_run: !APPLY,
-      apply: APPLY,
-      cap: SAFETY_CAP,
-      identifier_filter: IDENTIFIER_FILTER || null,
-      client_filter: CLIENT_FILTER || null,
-      test_authority_client: TEST_AUTHORITY_CLIENT || null,
-      run_class: clean(process.env.RECONCILE_RUN_CLASS || 'manual'),
-      github_event_name: clean(process.env.GITHUB_EVENT_NAME) || null,
-      github_run_id: clean(process.env.GITHUB_RUN_ID) || null,
-      github_run_attempt: clean(process.env.GITHUB_RUN_ATTEMPT) || null,
-      started_at: startedAt,
-      finished_at: finishedAt,
-      summary: plan.summary,
-      inbound_identifier_sample: plan.results
-        .filter(row => row.authority === 'linear' && row.diffs.length)
-        .map(row => ({ identifier: clean(row.identifier), team: clean(row.team) }))
-        .filter(row => row.identifier)
-        .slice(0, 20),
-      linkage_sample: plan.linkageRows.slice(0, 20),
-      tolerated_sample: plan.results.flatMap(r => r.tolerated.map(t => ({ id: r.id, team: r.team, ...t }))).slice(0, 20),
-      repair_sample: plan.results.flatMap(r => r.repairs.map(p => ({ id: r.id, team: r.team, ...p }))).slice(0, 20),
-    },
+    payload: buildSummaryEventPayload(plan, startedAt, finishedAt),
   }]);
+}
+
+async function loadF200RepairLiveStates(results) {
+  const ids = results.map(row => clean(row.id));
+  if (ids.some(id => !/^[A-Za-z0-9_-]+$/.test(id))) {
+    throw new Error('F200 repair contains an unsafe deliverable id');
+  }
+  const rows = [];
+  for (let i = 0; i < ids.length; i += 40) {
+    const chunk = ids.slice(i, i + 40);
+    rows.push(...await supabaseRows(
+      'deliverables',
+      'id,client_slug,team,updated_at,linear_issue_uuid,linear_raw',
+      `id=in.(${chunk.map(encodeURIComponent).join(',')})`,
+    ));
+  }
+  const currentById = new Map(rows.map(row => [clean(row.id), row]).filter(([id]) => id));
+  if (currentById.size !== ids.length) {
+    throw new Error('F200 repair preflight did not read the exact deliverable cohort');
+  }
+  const issueIds = results.map(row => clean(
+    row.repair_payload && row.repair_payload.precondition
+      && row.repair_payload.precondition.linear_issue_uuid,
+  ));
+  const linearIssues = await loadLinearIssuesById(issueIds);
+  if (linearIssues.size !== new Set(issueIds).size) {
+    throw new Error('F200 repair preflight did not read the exact Linear issue cohort');
+  }
+
+  return new Map(results.map(row => {
+    const payload = row.repair_payload;
+    const current = currentById.get(clean(row.id));
+    const issueIdValue = clean(payload.precondition.linear_issue_uuid);
+    const liveIssue = linearIssues.get(issueIdValue);
+    return [clean(row.id), {
+      current,
+      liveIssue,
+      repairState: f200RepairRowState(current, liveIssue, payload),
+    }];
+  }));
+}
+
+async function preflightF200Repair(plan) {
+  const authority = validateAuthority(await loadRuntimeFlag('prod_authority'));
+  const clients = await supabaseRows('clients', 'slug,kind,active,linear_project_ids');
+  const projectIndex = buildProjectIndex(clients);
+  if (projectIndex.mapping_revision !== clean(
+    plan.summary && plan.summary.f200_attribution_repair
+      && plan.summary.f200_attribution_repair.mapping_revision,
+  )) {
+    throw new Error('F200 repair mapping revision changed after plan validation');
+  }
+  const liveStates = await loadF200RepairLiveStates(plan.results);
+  for (const { current } of liveStates.values()) {
+    if (authorityForTeam(authority, current.team) !== 'linear') {
+      throw new Error(`F200 repair authority changed for deliverable ${clean(current.id)}`);
+    }
+  }
+  return liveStates;
+}
+
+function buildF200CasPatchRequest(current, repairState, options = {}) {
+  if (!current || !repairState || repairState.state !== 'pending'
+      || clean(current.id) !== clean(repairState.id)
+      || clean(current.client_slug) !== 'unattributed'
+      || !clean(current.updated_at)) {
+    throw new Error('F200 CAS patch requires an exact pending unattributed row');
+  }
+  exactObjectKeys(repairState.patch, ['client_slug', 'linear_raw'], 'F200 CAS patch body');
+  const baseUrl = String(options.baseUrl || SUPA_URL).replace(/\/$/, '');
+  const key = String(options.key == null ? SUPA_KEY : options.key);
+  const filters = [
+    `id=eq.${encodeURIComponent(clean(current.id))}`,
+    `updated_at=eq.${encodeURIComponent(clean(current.updated_at))}`,
+    'client_slug=eq.unattributed',
+    'select=id,client_slug,updated_at,linear_issue_uuid,linear_raw',
+  ].join('&');
+  return {
+    url: `${baseUrl}/rest/v1/deliverables?${filters}`,
+    init: {
+      method: 'PATCH',
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify(repairState.patch),
+    },
+  };
+}
+
+function requireSingleF200CasPatchRow(rows, expectedId) {
+  if (!Array.isArray(rows) || rows.length !== 1
+      || clean(rows[0] && rows[0].id) !== clean(expectedId)) {
+    throw new Error(`F200 CAS patch matched ${Array.isArray(rows) ? rows.length : 0} rows; expected exactly 1`);
+  }
+  return rows[0];
+}
+
+async function executeF200CasPatch(current, repairState) {
+  const request = buildF200CasPatchRequest(current, repairState);
+  const response = await fetch(request.url, request.init);
+  if (!response.ok) {
+    throw new Error(`F200 CAS patch HTTP ${response.status}: ${(await response.text()).slice(0, 500)}`);
+  }
+  return requireSingleF200CasPatchRow(await response.json(), repairState.id);
 }
 
 async function applyHealing(plan) {
@@ -507,27 +975,62 @@ async function applyHealing(plan) {
     .filter(r => r.diffs.length && r.authority === 'syncview')
     .flatMap(row => (row.outbound_intents || []).map(intent => ({ row, intent })));
   if (!APPLY) return { attempted: 0, outbound_enqueued: 0, skipped: inboundRows.length + outboundIntents.length };
+  if (plan.f200Repair === true
+      && (inboundRows.length !== F200_EXPECTED_COUNT || SAFETY_CAP !== F200_EXPECTED_COUNT)) {
+    throw new Error(`F200 repair apply requires exactly ${F200_EXPECTED_COUNT} validated rows and CAP=${F200_EXPECTED_COUNT}`);
+  }
+  if (plan.f200Repair === true && outboundIntents.length) {
+    throw new Error('F200 repair cannot contain outbound intents');
+  }
   if (inboundRows.length + outboundIntents.length > SAFETY_CAP) {
     throw new Error('Refusing to apply ' + (inboundRows.length + outboundIntents.length)
       + ' correction(s); cap is ' + SAFETY_CAP);
   }
   let attempted = 0;
   let outboundEnqueued = 0;
+  let alreadyApplied = 0;
+  if (plan.f200Repair === true) {
+    // Abort before the first mutation if any of the 72 rows, Linear issues,
+    // roster mapping, or authority flag drifted after the private plan check.
+    await preflightF200Repair(plan);
+  }
   for (const r of inboundRows) {
     const patchKeys = Object.keys(r.patch || {}).filter(k => r.patch[k] !== undefined);
     if (!patchKeys.length) continue;
-    await supabaseRpc('deliverable_write', {
-      p_row: Object.assign({}, r.row || {}, { id: r.id }, r.patch),
-      p_event: {
-        source: 'reconcile',
-        action: 'linear_deliverables_reconcile_heal',
-        actor: 'codex-b3-reconciler-v2',
-        payload: {
-          diff_fields: r.diffs.map(d => d.field),
-          dry_run: false,
+    if (plan.f200Repair === true) {
+      const live = await loadF200RepairLiveStates([r]);
+      const liveRow = live.get(clean(r.id));
+      const repairState = liveRow.repairState;
+      if (repairState.state === 'already_applied') {
+        alreadyApplied++;
+        continue;
+      }
+      const currentAuthority = validateAuthority(await loadRuntimeFlag('prod_authority'));
+      if (authorityForTeam(currentAuthority, liveRow.current.team) !== 'linear') {
+        throw new Error(`F200 repair authority changed for deliverable ${clean(r.id)}`);
+      }
+      // The id + updated_at + sentinel predicates are checked by PostgreSQL in
+      // the same statement as the attribution-only mutation. A zero-row
+      // representation is drift and aborts the run.
+      await executeF200CasPatch(liveRow.current, repairState);
+      const readback = await loadF200RepairLiveStates([r]);
+      if (readback.get(clean(r.id)).repairState.state !== 'already_applied') {
+        throw new Error(`F200 repair readback failed for deliverable ${clean(r.id)}`);
+      }
+    } else {
+      await supabaseRpc('deliverable_write', {
+        p_row: Object.assign({}, r.row || {}, { id: r.id }, r.patch),
+        p_event: {
+          source: 'reconcile',
+          action: 'linear_deliverables_reconcile_heal',
+          actor: 'codex-b3-reconciler-v2',
+          payload: {
+            diff_fields: r.diffs.map(d => d.field),
+            dry_run: false,
+          },
         },
-      },
-    });
+      });
+    }
     attempted++;
   }
   for (const item of outboundIntents) {
@@ -572,7 +1075,11 @@ async function applyHealing(plan) {
     });
     outboundEnqueued++;
   }
-  return { attempted, outbound_enqueued: outboundEnqueued, skipped: 0 };
+  return {
+    attempted,
+    outbound_enqueued: outboundEnqueued,
+    skipped: alreadyApplied,
+  };
 }
 
 function writeDetails(file, plan, healing) {
@@ -610,7 +1117,16 @@ function writeDetails(file, plan, healing) {
 async function main() {
   const startedAt = nowIso();
   const data = FIXTURES ? loadFixtureData(FIXTURES) : await loadLiveData();
-  const plan = buildPlan(data);
+  if (F200_REPAIR_PLAN_FILE && (TEAM_FILTER || IDENTIFIER_FILTER || CLIENT_FILTER || TEST_AUTHORITY_CLIENT)) {
+    throw new Error('F200 repair plan owns an exact 72-row scope and cannot be combined with other filters or overrides');
+  }
+  const plan = F200_REPAIR_PLAN_FILE
+    ? buildF200RepairExecutionPlan(
+      data,
+      JSON.parse(fs.readFileSync(path.resolve(F200_REPAIR_PLAN_FILE), 'utf8')),
+      { expectedCount: F200_EXPECTED_COUNT },
+    )
+    : buildPlan(data);
   const healing = await applyHealing(plan);
   const finishedAt = nowIso();
   const events = await writeSummaryEvent(plan, startedAt, finishedAt);
@@ -636,6 +1152,12 @@ module.exports = {
   batchParentId,
   expectedParentIdForDeliverable,
   buildPlan,
+  buildSummaryEventPayload,
+  buildF200RepairExecutionPlan,
+  buildF200CasPatchRequest,
+  f200RepairRowState,
+  mergedCurrentLinearIssue,
+  requireSingleF200CasPatchRow,
   loadLiveData,
   summaryMarkdown,
 };

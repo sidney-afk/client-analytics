@@ -26,9 +26,9 @@ function expect(value, message) { if (!value) throw new Error(message); }
 (async () => {
   const now = '2026-07-12T12:00:00.000Z';
   const clients = [
-    { slug: 'normal-fixture', display_name: 'Normal Fixture', active: true, kind: 'video' },
-    { slug: 'calendarfixture', display_name: 'Calendar Fixture', active: true, kind: 'video' },
-    { slug: 'test-fixture', display_name: 'TEST Fixture', active: true, kind: 'test' },
+    { slug: 'normal-fixture', display_name: 'Normal Fixture', active: true, kind: 'video', linear_project_ids: [{ id: 'linear-project-normal' }] },
+    { slug: 'calendarfixture', display_name: 'Calendar Fixture', active: true, kind: 'video', linear_project_ids: [{ id: 'linear-project-calendar' }] },
+    { slug: 'test-fixture', display_name: 'TEST Fixture', active: true, kind: 'test', linear_project_ids: [{ id: 'linear-project-test' }] },
   ];
   const members = [
     { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics', active: true },
@@ -36,9 +36,11 @@ function expect(value, message) { if (!value) throw new Error(message); }
     { id: 'editor', name: 'Browser Editor', role: 'editor', team: 'video', active: true },
   ];
   const deliverables = [
-    { id: 'gra-fixture', identifier: 'GRA-TEST', client_slug: 'normal-fixture', team: 'graphics', title: 'Graphics fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
-    { id: 'vid-fixture', identifier: 'VID-TEST', client_slug: 'normal-fixture', team: 'video', title: 'Video fixture', status: 'in_progress', status_at: now, assignee_id: 'editor', due_date: null, created_at: now, updated_at: now },
-    { id: 'test-fixture-row', identifier: 'GRA-TEST-OVERRIDE', client_slug: 'test-fixture', team: 'graphics', title: 'TEST override fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
+    { id: 'gra-fixture', identifier: 'GRA-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Graphics fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
+    { id: 'vid-fixture', identifier: 'VID-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'video', title: 'Video fixture', status: 'in_progress', status_at: now, assignee_id: 'editor', due_date: null, created_at: now, updated_at: now },
+    { id: 'test-fixture-row', identifier: 'GRA-TEST-OVERRIDE', raw_project_id: 'linear-project-test', client_slug: 'test-fixture', team: 'graphics', title: 'TEST override fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
+    { id: 'gra-description-parent', identifier: 'GRA-DESC-P', linear_issue_uuid: 'linear-description-parent', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Description parent fixture', brief: '# Parent brief\n\n- First item\n\n**Owner:** Browser Admin', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
+    { id: 'gra-description-child', identifier: 'GRA-DESC-C', linear_issue_uuid: 'linear-description-child', raw_issue_parent_id: 'linear-description-parent', client_slug: 'normal-fixture', team: 'graphics', title: 'Description sub-issue fixture', brief: '## Child brief\n\n`source` text', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
   ];
   const batches = [
     { id: 'batch-latest', client_slug: 'calendarfixture', team: null, name: 'Current fixture batch', status: 'active', created_at: '2026-07-13T10:00:00.000Z', updated_at: '2026-07-13T11:00:00.000Z' },
@@ -55,6 +57,10 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const selectedLabelIds = new Map(deliverables.map(row => [row.id, ['ordinary']]));
   let heldLabelRead = null;
   let heldLabelWrite = null;
+  const descriptionReads = [];
+  let heldDescriptionRead = null;
+  let heldBriefsRead = null;
+  let failedDescriptionReads = 0;
   const calendarWrites = [];
   const calendarWriteRequests = [];
   const submissionLogs = [];
@@ -115,6 +121,40 @@ function expect(value, message) { if (!value) throw new Error(message); }
     else if (table === 'deliverables') {
       const idFilter = String(url.searchParams.get('id') || '').replace(/^eq\./, '');
       rows = idFilter ? deliverables.filter(row => row.id === idFilter) : deliverables;
+      const select = String(url.searchParams.get('select') || '');
+      if (!idFilter && select === 'id,brief') {
+        rows = rows.map(row => ({ id: row.id, brief: row.brief == null ? null : row.brief }));
+        const held = heldBriefsRead;
+        if (held) {
+          heldBriefsRead = null;
+          held.started();
+          await held.release;
+        }
+      } else if (idFilter && select === 'id,linear_raw') {
+        rows = rows.map(row => ({
+          id: row.id,
+          linear_raw: row.linear_raw || {
+            issue: {
+              project: row.raw_project_id ? { id: row.raw_project_id } : null,
+              parent: row.raw_issue_parent_id ? { id: row.raw_issue_parent_id } : null,
+            },
+          },
+        }));
+      } else if (idFilter && select === 'id,brief,updated_at') {
+        rows = rows.map(row => ({ id: row.id, brief: row.brief == null ? null : row.brief, updated_at: row.updated_at }));
+        descriptionReads.push({ id: idFilter, select });
+        const held = heldDescriptionRead;
+        if (held) {
+          heldDescriptionRead = null;
+          held.started();
+          await held.release;
+        }
+        if (failedDescriptionReads > 0) {
+          failedDescriptionReads--;
+          await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'synthetic_description_read_failure' }) });
+          return;
+        }
+      }
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) });
   });
@@ -182,9 +222,15 @@ function expect(value, message) { if (!value) throw new Error(message); }
       await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
       return;
     }
+    if (body.operation === 'description' && body.expected_updated_at !== row.updated_at) {
+      write.response = { ok: false, error: 'write_conflict', row: { ...row } };
+      await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify(write.response) });
+      return;
+    }
     if (body.operation === 'status') row.status = body.status;
     if (body.operation === 'due') row.due_date = body.due_date || null;
     if (body.operation === 'assignee') row.assignee_id = body.assignee_id || null;
+    if (body.operation === 'description') row.brief = body.description;
     if (body.operation === 'labels') {
       const ids = Array.isArray(body.label_ids) ? [...body.label_ids] : [];
       selectedLabelIds.set(row.id, ids);
@@ -281,6 +327,206 @@ function expect(value, message) { if (!value) throw new Error(message); }
     await assigneeResponse;
     expect(writes.some(write => write.body.operation === 'assignee' && write.body.assignee_id === 'designer'), 'assignee did not route through the gateway');
 
+    await page.evaluate(() => _prodOpenDeliverable('gra-description-parent'));
+    await page.waitForFunction(() => _prodDescriptionState('gra-description-parent')?.status === 'ready');
+    expect(descriptionReads.some(read => read.id === 'gra-description-parent' && read.select === 'id,brief,updated_at'),
+      'parent description did not use the focused authoritative brief read');
+    expect((await page.locator('[data-prod-description="gra-description-parent"] .prod-desc').textContent()).includes('Parent brief')
+      && await page.locator('[data-prod-description="gra-description-parent"] .prod-md-heading').count() === 1
+      && await page.locator('[data-prod-description="gra-description-parent"] .prod-md-bullet').count() === 1,
+    'parent Markdown was not rendered through the Production description surface');
+
+    await page.locator('[data-prod-description-edit]').click();
+    const parentDraft = '# Updated parent\n\n- Keep whitespace\n\n**Owner:** Browser SMM\n\n';
+    const parentSource = page.locator('[data-prod-description-control="source"]');
+    await parentSource.fill(parentDraft);
+    await parentSource.evaluate(element => {
+      element.focus();
+      element.setSelectionRange(11, 11);
+      element.dispatchEvent(new Event('select', { bubbles: true }));
+    });
+    let startOlderDescriptionRead;
+    let releaseOlderDescriptionRead;
+    const olderDescriptionReadStarted = new Promise(resolve => { startOlderDescriptionRead = resolve; });
+    const olderDescriptionReadRelease = new Promise(resolve => { releaseOlderDescriptionRead = resolve; });
+    heldDescriptionRead = { started: startOlderDescriptionRead, release: olderDescriptionReadRelease };
+    await page.evaluate(() => {
+      window.__prodOlderDescriptionRead = _prodEnsureDescription('gra-description-parent', true);
+    });
+    await olderDescriptionReadStarted;
+    expect(await parentSource.inputValue() === parentDraft
+      && await parentSource.evaluate(element => element.selectionStart) === 11,
+    'background description refresh lost the Markdown draft or caret');
+
+    const parentRow = deliverables.find(row => row.id === 'gra-description-parent');
+    parentRow.brief = '## Newer server baseline\n\nRemote text';
+    parentRow.updated_at = '2026-07-12T12:10:00.000Z';
+    await page.evaluate(() => _prodEnsureDescription('gra-description-parent', true));
+    await page.waitForFunction(() => _prodDescriptionState('gra-description-parent')?.remoteChanged === true);
+    releaseOlderDescriptionRead();
+    expect(await page.evaluate(() => window.__prodOlderDescriptionRead) === null,
+      'an older description read was not invalidated by the newer same-issue read');
+    expect(await parentSource.inputValue() === parentDraft
+      && await parentSource.evaluate(element => element.selectionStart) === 11
+      && (await page.locator('[data-prod-description-write-error]').textContent()).includes('draft is preserved'),
+    'newer server description did not preserve the active parent draft/caret with visible conflict context');
+
+    const parentDescriptionResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
+      && JSON.parse(response.request().postData() || '{}').operation === 'description'
+      && JSON.parse(response.request().postData() || '{}').id === 'gra-description-parent');
+    await page.locator('[data-prod-description-control="save"]').click();
+    await parentDescriptionResponse;
+    await page.waitForFunction(() => _prodDescriptionState('gra-description-parent')?.editing === false);
+    const parentDescriptionWrite = writes.find(write => write.body.operation === 'description' && write.body.id === 'gra-description-parent');
+    expect(parentDescriptionWrite
+      && parentDescriptionWrite.body.description === parentDraft
+      && parentDescriptionWrite.body.expected_updated_at === '2026-07-12T12:10:00.000Z'
+      && parentDescriptionWrite.body.request_id,
+    'parent description did not preserve exact Markdown and refreshed CAS/idempotency through the gateway');
+    expect((await page.locator('[data-prod-description="gra-description-parent"] .prod-desc').textContent()).includes('Updated parent')
+      && await page.locator('[data-prod-description-edit]').evaluate(element => document.activeElement === element),
+    'saved parent Markdown did not render or restore focus to Edit');
+
+    await page.locator('[data-prod-description-edit]').click();
+    const writesBeforeNul = writes.filter(write => write.body.operation === 'description').length;
+    await page.locator('[data-prod-description-control="source"]').evaluate(element => {
+      element.value = 'Invalid\u0000description';
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.locator('[data-prod-description-control="save"]').click();
+    expect((await page.locator('[data-prod-description-write-error]').textContent()).includes('NUL')
+      && writes.filter(write => write.body.operation === 'description').length === writesBeforeNul,
+    'NUL description was not rejected visibly before the gateway');
+
+    const saveWinsDraft = '# Save wins\n\nExact text after held reads.\n';
+    await page.locator('[data-prod-description-control="source"]').fill(saveWinsDraft);
+    let startPreSaveDescriptionRead;
+    let releasePreSaveDescriptionRead;
+    let startPreSaveBriefsRead;
+    let releasePreSaveBriefsRead;
+    const preSaveDescriptionReadStarted = new Promise(resolve => { startPreSaveDescriptionRead = resolve; });
+    const preSaveDescriptionReadRelease = new Promise(resolve => { releasePreSaveDescriptionRead = resolve; });
+    const preSaveBriefsReadStarted = new Promise(resolve => { startPreSaveBriefsRead = resolve; });
+    const preSaveBriefsReadRelease = new Promise(resolve => { releasePreSaveBriefsRead = resolve; });
+    heldDescriptionRead = { started: startPreSaveDescriptionRead, release: preSaveDescriptionReadRelease };
+    heldBriefsRead = { started: startPreSaveBriefsRead, release: preSaveBriefsReadRelease };
+    await page.evaluate(() => {
+      _prodState.briefsLoaded = false;
+      window.__prodPreSaveDescriptionRead = _prodEnsureDescription('gra-description-parent', true);
+      window.__prodPreSaveBriefsRead = _prodLoadBriefs({ silent: true });
+    });
+    await Promise.all([preSaveDescriptionReadStarted, preSaveBriefsReadStarted]);
+    const saveWinsResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
+      && JSON.parse(response.request().postData() || '{}').operation === 'description'
+      && JSON.parse(response.request().postData() || '{}').id === 'gra-description-parent');
+    await page.locator('[data-prod-description-control="save"]').click();
+    await saveWinsResponse;
+    await page.waitForFunction(() => _prodDescriptionState('gra-description-parent')?.editing === false);
+    releasePreSaveDescriptionRead();
+    releasePreSaveBriefsRead();
+    const staleAfterSave = await page.evaluate(async () => ({
+      focused: await window.__prodPreSaveDescriptionRead,
+      bulk: await window.__prodPreSaveBriefsRead,
+      state: _prodDescriptionState('gra-description-parent').value,
+      row: _prodState.deliverables.find(item => item.id === 'gra-description-parent').brief,
+    }));
+    expect(staleAfterSave.focused === null
+      && staleAfterSave.state === saveWinsDraft
+      && staleAfterSave.row === saveWinsDraft,
+    'a held focused or bulk brief read overwrote the successful description save');
+
+    await page.evaluate(() => _prodOpenDeliverable('gra-description-child'));
+    await page.waitForFunction(() => _prodDescriptionState('gra-description-child')?.status === 'ready');
+    expect(await page.locator('[data-prod-detail="gra-description-child"]').getAttribute('data-prod-hierarchy-parent') === '0'
+      && await page.locator('[data-prod-subissue-of="gra-description-parent"]').count() === 1,
+    'description sub-issue fixture did not retain its parent context');
+    failedDescriptionReads = 3;
+    await page.evaluate(() => _prodRefresh());
+    await page.waitForSelector('[data-prod-description-refresh-error]', { timeout: 15000 });
+    expect((await page.locator('[data-prod-description="gra-description-child"] .prod-desc').textContent()).includes('Child brief')
+      && await page.locator('[data-prod-description="gra-description-child"]').getAttribute('data-prod-description-state') === 'stale',
+    'failed post-refresh description read hid the retained text or falsely marked it current');
+
+    const childRow = deliverables.find(row => row.id === 'gra-description-child');
+    childRow.brief = '## Child from second device\n\nFresh server text';
+    childRow.updated_at = '2026-07-12T12:20:00.000Z';
+    await page.locator('[data-prod-description-refresh-error] button', { hasText: 'Retry' }).click();
+    await page.waitForFunction(() => _prodDescriptionState('gra-description-child')?.status === 'ready'
+      && _prodDescriptionState('gra-description-child')?.value.includes('second device'));
+    expect((await page.locator('[data-prod-description="gra-description-child"] .prod-desc').textContent()).includes('Child from second device'),
+      'description Retry did not adopt the fresh second-device value');
+
+    await page.locator('[data-prod-description-edit]').click();
+    const childDraft = '## Child local draft\n\nPreserve this on conflict.  \n';
+    await page.locator('[data-prod-description-control="source"]').fill(childDraft);
+    childRow.brief = '## Child server conflict\n\nCurrent server value';
+    childRow.updated_at = '2026-07-12T12:30:00.000Z';
+    const childConflictResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
+      && JSON.parse(response.request().postData() || '{}').operation === 'description'
+      && JSON.parse(response.request().postData() || '{}').id === 'gra-description-child');
+    await page.locator('[data-prod-description-control="save"]').click();
+    expect((await childConflictResponse).status() === 409, 'description conflict fixture did not reject stale CAS');
+    await page.waitForSelector('[data-prod-description-write-error]');
+    expect(await page.locator('[data-prod-description-control="source"]').inputValue() === childDraft
+      && await page.evaluate(() => _prodDescriptionState('gra-description-child').baseline.includes('server conflict')
+        && _prodIssue('gra-description-child').updatedRaw === '2026-07-12T12:30:00.000Z'),
+    '409 did not retain the child draft while adopting the current server row and CAS cursor');
+    await page.locator('[data-prod-description-control="source"]').fill(childDraft);
+    expect((await page.locator('[data-prod-description-write-error]').textContent()).includes('changed elsewhere'),
+      'editing the retained draft silently cleared the description conflict acknowledgement');
+
+    const childRetryResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
+      && JSON.parse(response.request().postData() || '{}').operation === 'description'
+      && JSON.parse(response.request().postData() || '{}').id === 'gra-description-child');
+    await page.locator('[data-prod-description-control="save"]').click();
+    expect((await childRetryResponse).status() === 200, 'description conflict retry did not commit');
+    await page.waitForFunction(() => _prodDescriptionState('gra-description-child')?.editing === false);
+    const childDescriptionWrites = writes.filter(write => write.body.operation === 'description' && write.body.id === 'gra-description-child');
+    expect(childDescriptionWrites.length === 2
+      && childDescriptionWrites[0].body.expected_updated_at === '2026-07-12T12:20:00.000Z'
+      && childDescriptionWrites[1].body.expected_updated_at === '2026-07-12T12:30:00.000Z'
+      && childDescriptionWrites[0].body.request_id !== childDescriptionWrites[1].body.request_id
+      && childDescriptionWrites[1].body.description === childDraft,
+    'description conflict retry did not use the refreshed cursor, new idempotency key, and exact retained draft');
+
+    await page.locator('[data-prod-description-edit]').click();
+    await page.locator('[data-prod-description-control="source"]').press('Escape');
+    await page.waitForFunction(() => document.activeElement?.matches('[data-prod-description-edit]'));
+
+    await page.setViewportSize({ width: 360, height: 760 });
+    await page.evaluate(() => {
+      localStorage.setItem('syncview_theme', 'dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
+      _prodBeginDescriptionEdit('gra-description-child');
+    });
+    const compactDescription = await page.locator('[data-prod-description="gra-description-child"]').evaluate(panel => {
+      const editor = panel.querySelector('.prod-description-editor');
+      const source = panel.querySelector('[data-prod-description-control="source"]');
+      const action = panel.querySelector('.prod-description-action');
+      const editorRect = editor.getBoundingClientRect();
+      return {
+        withinViewport: editorRect.left >= 0 && editorRect.right <= innerWidth + 1,
+        sourceWidth: source.getBoundingClientRect().width,
+        editorWidth: editorRect.width,
+        actionHeight: action.getBoundingClientRect().height,
+        editorBackground: getComputedStyle(editor).backgroundColor,
+        sourceColor: getComputedStyle(source).color,
+      };
+    });
+    expect(compactDescription.withinViewport
+      && Math.abs(compactDescription.sourceWidth - compactDescription.editorWidth) <= 2
+      && compactDescription.actionHeight >= 36
+      && compactDescription.editorBackground !== 'rgba(0, 0, 0, 0)'
+      && compactDescription.sourceColor !== 'rgba(0, 0, 0, 0)',
+    'description editor was not mobile-width and dark-theme safe: ' + JSON.stringify(compactDescription));
+    await page.locator('[data-prod-description-control="source"]').press('Escape');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.evaluate(() => {
+      localStorage.removeItem('syncview_theme');
+      document.documentElement.removeAttribute('data-theme');
+    });
+
+    await page.evaluate(() => _prodOpenDeliverable('gra-fixture'));
     await page.waitForFunction(() => _prodLabelState('gra-fixture')?.status === 'ready');
     expect(labelReads.some(read => read.body.action === 'labels_read'
       && read.body.surface === 'production'

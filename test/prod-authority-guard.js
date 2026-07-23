@@ -74,7 +74,9 @@ async function run() {
   ok(b1.includes('authorityState.write_safe === true') && b1.includes('state.write_safe !== true'), 'B1 requires a live authority read for incremental and full APPLY');
   ok(b1.includes("full B1 apply is frozen unless a live flag read confirms both production teams are Linear-authoritative"), 'full B1 rerun fails closed after a team flip or flag outage');
   ok(b1.includes('linear_archive: archive.filter'), 'B1 retains archive-only refresh while live writes are gated');
-  ok((b1.match(/await assertFreshLinearAuthority\(/g) || []).length >= 5, 'B1 rechecks authority before every incremental/full authoritative write family');
+  ok((b1.match(/await assertFreshLinearAuthority\(/g) || []).length >= 4
+    && !/supabaseInsert\('clients'/.test(b1),
+  'B1 rechecks every remaining batch/deliverable write family and has no client insert family');
   ok(b1.indexOf('await assertFreshLinearAuthority(batch.team') < b1.indexOf("await supabaseRpc('batch_write'"), 'B1 rechecks batch authority immediately before its RPC');
   ok(b1.indexOf('await assertFreshLinearAuthority(deliverable.team)') < b1.indexOf("await supabaseRpc('deliverable_write'"), 'B1 rechecks deliverable authority immediately before its RPC');
 

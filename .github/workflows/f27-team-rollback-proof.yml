@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - "migrations/2026-07-20-f27-team-rollback.sql"
+      - "migrations/2026-07-23-f202-production-descriptions.sql"
       - "scripts/f27-team-rollback-proof.sql"
       - "scripts/f27-drill-runner.js"
       - "scripts/f27-drill-runner-fixture.sql"

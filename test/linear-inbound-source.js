@@ -188,13 +188,16 @@ ok(/postAnomalyAlert\("unknown_assignee", issue\)/.test(FN),
   'team_move',
   'parent_change',
   'labels_change',
+  'description_change',
   'webhook_delete',
   'archived',
   'restored',
   'priority',
 ].forEach(token => ok(FN.includes(token), 'issue mapping token missing: ' + token));
-ok(/const previousIssue = raw\.issue && typeof raw\.issue === "object" \? raw\.issue as JsonMap : \{\};[\s\S]*raw\.issue = \{ \.\.\.issue \};[\s\S]*if \(!has\(issue, "parent"\) && previousIssue\.parent !== undefined\) \{[\s\S]*\(raw\.issue as JsonMap\)\.parent = previousIssue\.parent;[\s\S]*\}/.test(FN),
-  'mergeLinearRaw must preserve the stored parent when an Issue webhook omits parent');
+ok(/const previousIssue = raw\.issue && typeof raw\.issue === "object" \? raw\.issue as JsonMap : \{\};[\s\S]*raw\.issue = \{ \.\.\.issue \};[\s\S]*if \(!has\(issue, "parent"\) && !has\(issue, "parentId"\) && !parentChanged && previousIssue\.parent !== undefined\) \{[\s\S]*\(raw\.issue as JsonMap\)\.parent = previousIssue\.parent;[\s\S]*\}/.test(FN),
+  'mergeLinearRaw preserves stored parent only when the webhook did not change hierarchy');
+ok(/if \(!has\(issue, "description"\) && previousIssue\.description !== undefined\) \{[\s\S]{0,120}\(raw\.issue as JsonMap\)\.description = previousIssue\.description/.test(FN),
+  'mergeLinearRaw preserves exact stored Markdown when an unrelated webhook omits description');
 ok(/mark\("labels", \["labels", "labelIds", "addedLabelIds", "removedLabelIds"\]\)/.test(FN)
   && /payloadChangesLabels\(payload\)[\s\S]{0,180}eventAction = "labels_change"/.test(FN),
   'inbound label changes advance the dedicated field clock and durable event action');
@@ -204,6 +207,14 @@ ok(/import \{[\s\S]{0,100}normalizeIssueLabelRelation,[\s\S]{0,80}\} from "\.\/l
   'inbound stores only a proven exact label relation, marks all malformed/partial relations incomplete, and preserves labels when unrelated webhooks omit them');
 ok(/operation === "labels"[\s\S]{0,280}JSON\.stringify\(actual\) === JSON\.stringify\(intended\)/.test(FN),
   'inbound label echo suppression requires the exact canonical selected-ID set');
+ok(/mark\("description", \["description"\]\)/.test(FN)
+  && /payloadChangesDescription\(payload\)[\s\S]{0,180}description_changed = true[\s\S]{0,100}eventAction = "description_change"/.test(FN)
+  && /row\.brief = typeof issue\.description === "string" \? issue\.description : null/.test(FN)
+  && !/row\.brief = clean\(issue\.description\)/.test(FN),
+  'inbound description changes preserve exact Markdown, advance their field clock, and emit a durable audit action');
+ok(/operation === "description"[\s\S]{0,520}actual === intended/.test(FN)
+  && /hasOwnProperty\.call\(expected, "description"\)/.test(FN),
+  'inbound description echo suppression requires an explicit exact-value receipt');
 ok(/import \{ clearArchiveMarkers \} from "\.\/restore-markers\.mjs"/.test(FN)
   && /action === "restore"[\s\S]*clearArchiveMarkers\(linearRawWithFlag\(existing, issue, payload, "restored", true\)\)/.test(FN),
   'restore must clear stale archive/delete markers before writing the deliverable');

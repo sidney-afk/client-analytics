@@ -370,7 +370,8 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       (F102/F117/F149): unknown or conflicting client routes never fall through to staff content,
       legacy Samples links retain the verified client principal, and Calendar/Brief reloads never
       expose Analytics chrome or data. Prove the visible sequence from document start through
-      settlement on synthetic fixtures, including hard reload and second reload.
+      settlement on synthetic fixtures, including hard reload and second reload. Final #891
+      product-head cloud review completed at `babbb2d`; keep these rows OPEN only through owner merge.
 - [ ] **Client-entry product QA preserves every protected credential, payload and strict route contract**
       (F173/F174/F175/F178/F180/F181/F182): all product-owned QA HTTP paths use one fixed-argv,
       fileless, in-memory transport.
@@ -403,10 +404,12 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       non-blocking for #891, and must not be expanded or reopened in this integration. The client
       verifier is already live at v28 and must not be redeployed. The hard cutover does not wait for
       link confirmations; old links intentionally reach the existing updated-link screen.
-      **DEFERRED / NON-BLOCKING FOR #891 (F185):** final integrated-head cloud review found that the
-      visible-boot workflow's Chromium cache-hit path does not reinstall Linux system dependencies.
-      The exact hosted lane passed 23/23, but a fresh cached runner can be non-portable. Keep #891
-      frozen; correct and source-guard both cache paths in a separate follow-up PR. This deferred
+      Final #891 product-head cloud review completed at `babbb2d` with no new findings; keep the
+      product-owned rows OPEN only through owner merge. **DEFERRED / NON-BLOCKING FOR #891 (F185):**
+      the earlier `f91aba17` exact-head cloud review found that the visible-boot workflow's Chromium
+      cache-hit path does not reinstall Linux system dependencies. The exact hosted lane passed
+      23/23, but a fresh cached runner can be non-portable. It remained deferred and non-blocking
+      through `babbb2d`; correct and source-guard both cache paths in a separate follow-up PR. This
       runner item does not reopen F176/F179 or change the owner merge order.
 - [ ] **Calendar lifetime and ancillary work have one exact-client owner** (F170/F171/F162):
       one generation owns the primary read, Linear reconcile/meta continuations, realtime

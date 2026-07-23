@@ -223,7 +223,7 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   and fresh-owner assertions. These local guards do not close their rows before owner merge. The
   verifier is already live at v28 and must not be redeployed; the owner-selected hard cutover does
   not wait for link confirmations, and old links intentionally use the existing updated-link screen.
-  Final integrated-head cloud review at `f91aba17` (review `4759712636`, comment `3634666109`)
+  An earlier exact-head cloud review at `f91aba17` (review `4759712636`, comment `3634666109`)
   registered deferred F185: the visible-boot workflow restores cached Chromium binaries without
   reinstalling Linux system dependencies on the cache-hit path. The exact hosted lane still passed
   23/23, so this is a runner-portability risk, not a reproduced product boot failure. By the owner's

@@ -528,13 +528,21 @@ n8n in the metric read path.*
   actor/action activity summaries. Issue detail calls `_prodLoadEventsFor` to derive its Properties
   status-history hover, but the reader pre-seeds/catches to empty and `_prodActivity` still has no
   render caller, so persisted native Activity is not shown and read failure is not distinguishable
-  from no events (F138). Also fires the shared Sheets essentials in the background for app chrome.
-  The tab also reads the single `prod_authority` runtime-flag row to gate controls.
-- **Writes.** Status, comment, due date, and assignee use the authenticated `production-write` Edge
+  from no events (F138). F201 candidate source lazily calls the authenticated `production-write`
+  `labels_read` action when issue labels are opened. It returns the real complete Linear label
+  catalog plus the issue's complete selected set; for SyncView-authoritative rows, selected state
+  comes from the native `linear_raw.issue.labels` relation rather than a foreign Linear round trip.
+  The sole exception is the service-authenticated TEST drill, which may bootstrap an older TEST
+  row's missing native selection from that same complete Linear snapshot; browser/staff rows cannot.
+  Also fires the shared Sheets essentials in the background for app chrome. The tab reads the
+  single `prod_authority` runtime-flag row to gate controls.
+- **Writes.** Status, comment, due date, assignee, and F201 candidate labels use the authenticated `production-write` Edge
   Function. The browser supplies the native deliverable ID, a bounded idempotency key, and CAS for
-  scalar changes; verified staff headers come from the shared role-key identity path. Controls are
-  enabled only when the target team's authority is `syncview`, except an active `kind=test` client
-  can send the gateway's bounded TEST override before a flip. The browser never requests legacy
+  scalar changes; label changes submit the complete selected label-ID set. Verified staff headers
+  come from the shared role-key identity path. Browser controls are normally enabled only when the
+  target team's authority is `syncview`; the active TEST fixture still exposes the pre-flip boundary,
+  but browser staff credentials cannot enter TEST scope and the gateway rejects that override.
+  A committing pre-flip TEST drill remains service-role-only. The browser never requests legacy
   parity, changes flags, calls an n8n mutation, or writes Linear directly. Project moves, creates,
   deletes, and the remaining artifact affordances stay read-only.
 - **Current hard gaps (F50/F53/F54/F94/F136–F138/F200–F205).** A successful deliverable status write does **not** project to
@@ -557,16 +565,19 @@ n8n in the metric read path.*
   correct picker month/selection (F100).
   The 2026-07-23 read-only full-day audit adds the remaining current gaps without changing runtime:
   72 of 4,600 mirror rows require complete roster-owned attribution or explicit internal/TEST
-  classification (F200); Production has no label model/write, description edit, or native
-  parent/sub-issue create operation (F201–F203); shared views/manual board ordering await owner scope
-  (F204); and project detail/pickers can replace the card's real status/lead/target with defaults
-  because they read a slimmer project object (F205). See
+  classification (F200). F201 label display/write and the narrow native Workload metadata seam are
+  now source-only candidates; their migration, function deploy, real service-only TEST drill,
+  review, and merge remain gated. Production still has no description edit or native parent/sub-
+  issue create operation (F202–F203); shared views/manual board ordering await owner scope (F204);
+  and project detail/pickers can replace the card's real status/lead/target with defaults because
+  they read a slimmer project object (F205). See
   `docs/audits/2026-07-23-production-tab-graphics-gap-audit.md`.
   These are pre-flip build/authorization gates, not polish.
 - **State.** `syncview_prod_display_v1` (groupBy/orderBy/showSubIssues), shared `syncview_nav` /
   `syncview_auth_v1`. Deep-link params: `group`, `order`, `subs`, `team`, `view`, `issues`,
   `pdetails`, `client`, `d`, `batch` (`ptab` is dead). In-memory `_prodState` (rows + adapter, events
-  Map, linearRaw Map) plus a memory-only paged comment cache. Reopening an issue and the normal
+  Map, linearRaw Map, and F201 per-issue complete label state) plus a memory-only paged comment cache.
+  Reopening an issue and the normal
   Production refresh both revalidate the newest comment page; stable-ID merge keeps already-loaded
   older pages and request tokens drop stale pagination races. Comment drafts, per-operation pending
   state, and retry idempotency keys are memory-only; comment bodies never enter localStorage.
@@ -575,8 +586,9 @@ n8n in the metric read path.*
   re-check the role key plus one active role-compatible roster identity server-side; direct
   `?prod=1` diagnostics without that identity show a comment sign-in state. The
   unchanged route guard accepts a valid staff identity or direct `?prod=1` diagnostics. Admin/SMM
-  may use all four operations. Creative **writes** are limited to same-team status/comment, not
-  own-assignment, and status policy does not validate current state (F37/F136). The
+  may use all five operations, including full-set labels. Creative **writes** are limited to
+  same-team status/comment, not labels or own-assignment, and status policy does not validate
+  current state (F37/F136). The
   protected comment **reader does not fetch the target or enforce member-team scope** (F39), so a
   creative key can currently read another team's full protected thread by deliverable ID. Direct
   diagnostics without a verified identity remain read-only. "My issues" is a hardcoded heuristic
@@ -590,17 +602,20 @@ n8n in the metric read path.*
   silent refresh on visibility/focus/pageshow, throttled 30 s; the repeating foreground timer reads
   authority, not operational data, and the normal UI has no manual Refresh (F95). A stale-tab server authority rejection
   refreshes the stance immediately; a CAS conflict applies the returned current row and asks the
-  user to retry. UI state changes only after `native_committed=true`. A protected-write 401 is only
+  user to retry. Label catalog/selected-state incompleteness fails closed without changing labels;
+  a failed label write refreshes the authoritative selected set. UI state changes only after
+  `native_committed=true`. A protected-write 401 is only
   converted to toast copy; it does not clear/reverify the session, open sign-in, preserve intent, or
   retry after fresh authorization (F10).
 - **Notable.** `?c=…&prod=1` reaches the current read-only client mirror without the password (see §3);
-  signed-in staff on the private active TEST fixture can use #812's bounded write lane. This is the
+  the private active TEST fixture can use #812's bounded service-only write lane. This is the
   **only** user of the dynamic REST call site; its five tables are absent from the literal-table
   inventory by design. The underlying comment store and body-bearing ledger snapshots are
   service-only; this deliberately avoids extending the existing anon-readable mirror policy to
   internal comment text. Deleted/archived issues are filtered client-side from tombstone JSON, not
   server-side.
-- **Track B.** The mirror has the Part 2 status/comment/due/assignee caller, but both production
+- **Track B.** The mirror has the Part 2 status/comment/due/assignee caller and the source-only F201
+  label caller, but both production
   teams remain read-only while their authority is `linear`; no deploy or flag flip is implied. D-28
   can enable Graphics first, then Video, by owner-controlled flag changes with no code change. B5:
   the only production surface.
@@ -785,9 +800,12 @@ n8n in the metric read path.*
   metrics are computed client-side. The editable path additionally reads internal plan dates
   through staff-authenticated EF `workload-plan`; candidate source allows Admin/SMM/Creative to list
   the same global projection and never reads the sidecar through PostgREST.
-  Candidate `workload-linear` reads exact current due-date and `2× Workload` / `3× Workload`
-  label metadata from Linear for bounded active issue-id batches. It is staff-authenticated and
-  source-only until an exact-SHA manual deploy; Workload no longer reads `deliverables.priority`.
+  Candidate metadata source first reads exact per-team `prod_authority`. Bounded active issue-ID
+  batches stay on `workload-linear` for Linear-authoritative teams; SyncView-authoritative IDs read
+  `deliverables.due_date` plus the complete native `linear_raw.issue.labels` relation directly.
+  Missing, ambiguous, malformed, or incompletely paged native metadata fails closed and never falls
+  back to Linear. This F201/F40 seam is staff-authenticated and source-only; Workload no longer
+  reads `deliverables.priority`.
 - **Writes.** Workload no longer exposes or calls the former n8n `content-ready` client-email
   action; the button, modal, constant, and browser sender are absent. The app writes or clears one
   internal `plan_date` through `workload-plan`, keyed by the exact sub-issue id. It never writes Linear
@@ -802,9 +820,10 @@ n8n in the metric read path.*
   `syncview_workloadDeadlineOverlay_v1` (non-sensitive, display-only **Plan only** / **Plan + Due
   Date** preference; absent defaults to **Plan only**, while **Plan + Due Date** forces Week),
   `syncview_kasper_editors_v2` (week-rollover-invalidated). Kill switches: `?wl2=0`, the compile-time
-  `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch exists for either Workload or the
-  plan-date path; plan and exact workload-label state are held as issue-id maps in the running page
-  and are not browser-cached. A first private plan/metadata read and every manual, visibility, or watermark
+  `WL_V2_REALTIME=false`. The plan-date path has no runtime switch; F201 metadata reads the existing
+  `prod_authority` flag only to select its owning truth per team. Plan and exact workload-label
+  state are held as issue-id maps in the running page and are not browser-cached. A first private
+  plan/metadata read and every manual, visibility, or watermark
   refresh holds the calendar on the shared animated day/editor/client-chip skeleton.
 - **Roles.** Candidate plan projection/list access is Admin/SMM/Creative after verified role-key
   authentication; per-issue plan-date writes remain Admin/SMM-only. The browser gives Creative the
@@ -817,9 +836,11 @@ n8n in the metric read path.*
   Both fail + cache → stale board (error only set when no cache); no cache → red error card.
   Plan-list failure retains last-good overrides when available; without one, the UI
   explicitly labels a deadline-fallback degraded view, does not call the placement automatic, and
-  disables plan edits. Metadata failure retains the last exact weights when available, otherwise
-  warns that capacity may be understated and pauses due-date editing. Incomplete metadata never
-  claims success. A plan write succeeds
+  disables plan edits. Metadata failure may retain the last exact weight only for an issue that is
+  still Linear-authoritative. An authority-read failure clears affected active deadlines/weights;
+  a SyncView-native read failure clears that native partition, warns that capacity may be
+  understated, and pauses due-date editing. Native metadata never falls through to the foreign
+  reader; incomplete metadata never claims success. A plan write succeeds
   only when the function reports exactly one row actually written; any short count/error reverts
   the optimistic move and notifies instead of leaving a false local date.
   A due write similarly requires an exact Linear issue/date acknowledgement; a pre-commit failure
@@ -897,10 +918,11 @@ n8n in the metric read path.*
   runtime flag, n8n path, shared writer, or frozen-writer mutation. #884's
   server-atomic batch contract remains open, and F147 retains the exact migration-correction
   provenance gap.
-- **Track B.** Required but **not implemented** (F40): the re-point to native rows must happen per
-  team at each B4 flip, but current `main` / #850 still unconditionally use `workload_issues`/n8n with
-  realtime off and Linear links. The adapter needs `deliverables + batches + clients +
-  team_members`, mixed-authority composition, and an explicit sub-issue/top-level policy. B5 may
+- **Track B.** F40 is partially addressed only by F201's source-only due/label metadata seam:
+  flipped-team metadata reads native `deliverables` without a foreign round trip. The base issue set
+  still unconditionally comes from `workload_issues`/n8n with realtime off and Linear links. The
+  broader adapter still needs `deliverables + batches + clients + team_members`, mixed-authority set
+  composition, native links/realtime/catch-up, and an explicit sub-issue/top-level policy. B5 may
   retire the Workload reconciler/feed only after this native path and the `editors-week` query pass
   parity gates.
 
@@ -1272,6 +1294,12 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   completed 18 operations, observed zero unexpected echoes, reconciled `0/0/0`, cleaned up, and
   proved the pre-existing runtime flags unchanged; it did not exercise the now-required F27
   generation or reserved-drill contracts and is not install authorization.
+- **F201 source-only label candidate:** the same gateway adds a protected complete catalog/selected
+  read and Admin/SMM full-set label write, while inbound/outbound preserve exact label sets and
+  native Workload metadata consumes flipped-team labels directly. Its strict-superset outbox CHECK
+  migration, `production-write` deployment/readback, and real service-only TEST labels drill are a
+  separate owner-approved post-merge window. No migration, deployment, authority/flag change, or
+  live drill is implied by this source candidate; F27 remains parked and uninstalled.
 - **B5 (after clean batch cycles per team).** Linear frozen → archived; the `linear-*` n8n family and
   legacy card-write webhooks retired; Workload reconciler + `workload_issues` retired; SyncView is
   the whole production system.

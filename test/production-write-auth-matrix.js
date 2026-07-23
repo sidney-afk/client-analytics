@@ -24,7 +24,7 @@ function matrixEqual(actual, expected, message) {
 
 (async () => {
   const policy = await import(pathToFileURL(POLICY_PATH).href + '?auth-matrix');
-  const operations = ['status', 'comment', 'due', 'assignee', 'intake_create'];
+  const operations = ['status', 'comment', 'due', 'assignee', 'labels', 'intake_create'];
 
   for (const role of ['admin', 'smm']) {
     const allowed = Object.fromEntries(operations.map(operation => [
@@ -36,8 +36,9 @@ function matrixEqual(actual, expected, message) {
       comment: true,
       due: true,
       assignee: true,
+      labels: true,
       intake_create: true,
-    }, `${role} may perform all five gateway operations`);
+    }, `${role} may perform all six gateway operations`);
   }
 
   const creativeOwnTeam = Object.fromEntries(operations.map(operation => [
@@ -49,8 +50,9 @@ function matrixEqual(actual, expected, message) {
     comment: true,
     due: false,
     assignee: false,
+    labels: false,
     intake_create: false,
-  }, 'creative may change an own-team legal status or comment, but not due, assignee, or intake');
+  }, 'creative may change an own-team legal status or comment, but not due, assignee, labels, or intake');
 
   const creativeStatuses = Object.fromEntries(policy.DELIVERABLE_STATUSES.map(status => [
     status,
@@ -85,8 +87,9 @@ function matrixEqual(actual, expected, message) {
     comment: true,
     due: false,
     assignee: false,
+    labels: false,
     intake_create: false,
-  }, 'client token may approve or comment but cannot set due, assignee, or create intake');
+  }, 'client token may approve or comment but cannot set due, assignee, labels, or create intake');
   ok(policy.clientOperationAllowed('status', 'client_approval', 'tweak')
     && policy.clientOperationAllowed('status', 'tweak', 'approved')
     && policy.clientOperationAllowed('status', 'tweak', 'tweak'),

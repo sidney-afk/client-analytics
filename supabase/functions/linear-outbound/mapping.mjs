@@ -9,6 +9,7 @@ export const OUTBOUND_OPERATIONS = Object.freeze([
   "parent",
   "archive",
   "restore",
+  "labels",
 ]);
 
 const STATUS_NAMES = Object.freeze({
@@ -42,6 +43,19 @@ function sameValue(a, b) {
   if (a == null && b == null) return true;
   if (typeof a === "number" || typeof b === "number") return Number(a) === Number(b);
   return clean(a) === clean(b);
+}
+
+function canonicalIds(value) {
+  const rows = Array.isArray(value) ? value : [];
+  return [...new Set(rows.map(clean).filter(Boolean))].sort();
+}
+
+function issueLabelIds(issue) {
+  const row = issue && typeof issue === "object" ? issue : {};
+  if (Array.isArray(row.labelIds)) return canonicalIds(row.labelIds);
+  const connection = row.labels && typeof row.labels === "object" ? row.labels : {};
+  const nodes = Array.isArray(connection) ? connection : Array.isArray(connection.nodes) ? connection.nodes : [];
+  return canonicalIds(nodes.map(label => label && label.id));
 }
 
 function parseObject(value) {
@@ -179,6 +193,7 @@ export function actualValueForOperation(operation, issue, payload = {}) {
   if (op === "title") return clean(row.title);
   if (op === "priority") return row.priority == null ? 0 : Number(row.priority);
   if (op === "parent") return clean(row.parent && row.parent.id) || null;
+  if (op === "labels") return JSON.stringify(issueLabelIds(row));
   if (op === "archive" || op === "restore") return !!row.archivedAt;
   if (op === "comment") {
     const comments = row.comments && Array.isArray(row.comments.nodes) ? row.comments.nodes : [];
@@ -201,6 +216,7 @@ export function intendedValueForOperation(operation, payload = {}, context = {})
   if (op === "title") return clean(payload.title);
   if (op === "priority") return payload.priority == null || payload.priority === "" ? 0 : Number(payload.priority);
   if (op === "parent") return clean(payload.parent_linear_issue_id || context.parent_linear_issue_id) || null;
+  if (op === "labels") return JSON.stringify(canonicalIds(payload.label_ids));
   if (op === "archive") return true;
   if (op === "restore") return false;
   if (op === "comment") return true;
@@ -259,6 +275,8 @@ const ISSUE_FIELDS = [
   "project { id name }",
   "assignee { id name email }",
   "parent { id identifier title }",
+  "labelIds",
+  "labels(first: 100, includeArchived: true) { nodes { id name color description } pageInfo { hasNextPage } }",
   "comments(first: 100) { nodes { id body createdAt user { id name email } } }",
 ].join("\n");
 
@@ -346,6 +364,9 @@ export function buildMutation(row, context = {}) {
     input.priority = payload.priority == null || payload.priority === "" ? 0 : Number(payload.priority);
   } else if (operation === "parent") {
     input.parentId = clean(payload.parent_linear_issue_id || context.parent_linear_issue_id) || null;
+  } else if (operation === "labels") {
+    if (!Array.isArray(payload.label_ids)) throw new Error("label ids required");
+    input.labelIds = canonicalIds(payload.label_ids);
   }
 
   return {

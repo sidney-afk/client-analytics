@@ -77,6 +77,12 @@ CREATE TABLE public.mirror_outbox (
   test_only boolean NOT NULL DEFAULT false,
   last_error text,
   legacy_parity boolean NOT NULL DEFAULT false,
+  CONSTRAINT mirror_outbox_operation_b4_check CHECK (
+    operation IN (
+      'create', 'status', 'comment', 'due', 'assignee', 'title',
+      'priority', 'parent', 'archive', 'restore'
+    )
+  ),
   CONSTRAINT mirror_outbox_status_b4_check CHECK (
     status IN ('pending', 'shadow_ok', 'written', 'failed', 'skipped', 'stale')
   )
@@ -132,6 +138,85 @@ CREATE TEMP TABLE f27_prior_payloads AS
 SELECT id, encode(extensions.digest(convert_to(payload::text, 'UTF8'), 'sha256'), 'hex') AS payload_hash
 FROM public.mirror_outbox ORDER BY id;
 
+\ir ../migrations/2026-07-23-f201-production-labels.sql
+
+-- The owner-approved F201 CHECK replacement is a strict superset. Prove all
+-- ten prior operations plus labels through the installed pre-F27 enqueue, and
+-- prove that an unrelated operation remains rejected. The transaction leaves
+-- the five pre-existing fixture rows byte-identical.
+BEGIN;
+DO $$
+DECLARE
+  v_operation text;
+BEGIN
+  FOREACH v_operation IN ARRAY ARRAY[
+    'create', 'status', 'comment', 'due', 'assignee', 'title',
+    'priority', 'parent', 'archive', 'restore', 'labels'
+  ] LOOP
+    PERFORM public.mirror_outbox_enqueue(
+      'deliverable',
+      'f201-' || v_operation,
+      v_operation,
+      jsonb_build_object('operation', v_operation),
+      'f201:' || v_operation,
+      now(),
+      'test-client',
+      'video',
+      'f201-disposable-proof',
+      'system',
+      null,
+      null,
+      null,
+      null,
+      true
+    );
+  END LOOP;
+
+  IF (
+    SELECT count(*) FROM public.mirror_outbox
+    WHERE dedup_key LIKE 'f201:%'
+      AND operation IN (
+        'create', 'status', 'comment', 'due', 'assignee', 'title',
+        'priority', 'parent', 'archive', 'restore', 'labels'
+      )
+  ) <> 11 OR NOT EXISTS (
+    SELECT 1 FROM public.mirror_outbox
+    WHERE dedup_key = 'f201:labels'
+      AND operation = 'labels'
+      AND op = 'update_fields'
+  ) THEN
+    RAISE EXCEPTION 'f201_operation_superset_not_exact';
+  END IF;
+
+  BEGIN
+    PERFORM public.mirror_outbox_enqueue(
+      'deliverable', 'f201-invalid', 'unexpected',
+      '{}'::jsonb, 'f201:invalid', now(), 'test-client', 'video',
+      'f201-disposable-proof', 'system', null, null, null, null, true
+    );
+    RAISE EXCEPTION 'f201_invalid_operation_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'invalid outbound operation' THEN RAISE; END IF;
+  END;
+END $$;
+ROLLBACK;
+
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.mirror_outbox) <> 5
+     OR EXISTS (
+       SELECT 1
+       FROM public.mirror_outbox o
+       JOIN f27_prior_payloads p USING (id)
+       WHERE encode(
+         extensions.digest(convert_to(o.payload::text, 'UTF8'), 'sha256'),
+         'hex'
+       ) <> p.payload_hash
+     ) THEN
+    RAISE EXCEPTION 'f201_existing_rows_not_preserved';
+  END IF;
+END $$;
+
 \ir ../migrations/2026-07-20-f27-team-rollback.sql
 
 DO $$
@@ -145,6 +230,46 @@ BEGIN
     RAISE EXCEPTION 'f27_migration_probe_not_rolled_back';
   END IF;
 END $$;
+
+-- A future F27 install must preserve F201. Exercise labels through the
+-- generation-fenced enqueue body, then discard the disposable TEST row.
+BEGIN;
+SELECT public.mirror_outbox_enqueue(
+  'deliverable',
+  'f201-f27-labels',
+  'labels',
+  jsonb_build_object(
+    'label_ids', jsonb_build_array('f201-label'),
+    '_f27_authority_generation', (
+      select generation from public.track_b_f27_team_fences where team = 'video'
+    ),
+    '_f27_legacy_parity', false
+  ),
+  'f201:f27:labels',
+  now(),
+  'test-client',
+  'video',
+  'f201-disposable-proof',
+  'system',
+  null,
+  null,
+  null,
+  null,
+  true
+);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.mirror_outbox
+    WHERE dedup_key = 'f201:f27:labels'
+      AND operation = 'labels'
+      AND op = 'update_fields'
+      AND payload = '{"label_ids":["f201-label"]}'::jsonb
+  ) THEN
+    RAISE EXCEPTION 'f201_f27_labels_enqueue_not_exact';
+  END IF;
+END $$;
+ROLLBACK;
 
 -- UPDATE OF must cover every lane/fence field used by the guard. A direct
 -- service-role change to an active row's generation is revalidated even when
@@ -838,6 +963,9 @@ SELECT jsonb_build_object(
   'drill_rollback_id', :'drill_rollback_id',
   'drill_receipt', current_setting('f27.drill_terminal_receipt')::jsonb,
   'assertions', jsonb_build_array(
+    'f201_operation_superset_exact',
+    'f201_existing_rows_preserved',
+    'f201_f27_labels_enqueue_exact',
     'exact_prior_flags_restored',
     'other_team_unchanged',
     'zero_payload_loss',

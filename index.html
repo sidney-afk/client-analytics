@@ -2894,6 +2894,26 @@
         .prod-composer-submit:disabled, .prod-composer-input:disabled, .prod-composer-audience:disabled { cursor: default; opacity: .58; }
         .prod-write-state { color: var(--prod-faint); font-size: 11.5px; }
         .prod-prop-btn[aria-disabled="true"], .prod-status[data-prod-write="off"], .prod-due[data-prod-write="off"], .prod-assign-hot[data-prod-write="off"] { cursor: default; opacity: .68; }
+        .prod-labels-btn { flex-wrap: wrap; align-items: center; gap: 5px; padding-top: 3px; padding-bottom: 3px; }
+        .prod-label-chip { --prod-label-color: var(--prod-faint); display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; min-height: 20px; padding: 0 7px; border: 1px solid color-mix(in srgb, var(--prod-label-color) 42%, var(--prod-border-soft)); border-radius: 999px; background: color-mix(in srgb, var(--prod-label-color) 12%, var(--prod-surface)); color: var(--prod-strong); font-size: 11.5px; line-height: 18px; }
+        .prod-label-chip > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .prod-label-dot { --prod-label-color: var(--prod-faint); width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--prod-label-color); }
+        .prod-label-muted { color: var(--prod-faint); }
+        .prod-label-pop { width: min(330px, calc(100vw - 20px)); max-height: min(460px, calc(100vh - 24px)); overflow: hidden; }
+        .prod-label-pop .prod-pop-list { max-height: 350px; overflow: auto; }
+        .prod-label-option { width: 100%; min-height: 36px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-strong); display: grid; grid-template-columns: 16px 10px minmax(0, 1fr); align-items: center; gap: 8px; padding: 6px 8px; font: inherit; text-align: left; cursor: pointer; }
+        .prod-label-option:hover, .prod-label-option:focus-visible { background: var(--prod-menu-hover); outline: 0; }
+        .prod-label-option[aria-disabled="true"] { cursor: default; }
+        .prod-label-check { width: 14px; height: 14px; border: 1.5px solid var(--prod-faint); border-radius: 4px; background: var(--prod-surface); box-sizing: border-box; display: grid; place-items: center; }
+        .prod-label-check[aria-checked="true"] { border-color: var(--prod-accent); background: var(--prod-accent); }
+        .prod-label-check[aria-checked="true"]::after { content: ""; width: 3.2px; height: 6.5px; border: solid #fff; border-width: 0 1.5px 1.5px 0; transform: rotate(42deg) translateY(-1px); }
+        .prod-label-option-copy { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+        .prod-label-option-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+        .prod-label-option-desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--prod-faint); font-size: 10.5px; }
+        .prod-label-state { padding: 15px 12px; color: var(--prod-muted); font-size: 12px; line-height: 18px; }
+        .prod-label-state.is-error { color: var(--prod-danger); }
+        .prod-label-retry { min-height: 26px; margin-top: 8px; border: 1px solid var(--prod-border-soft); border-radius: 6px; background: var(--prod-surface); color: var(--prod-strong); padding: 0 9px; font: inherit; font-size: 11.5px; cursor: pointer; }
+        .prod-label-lock { padding: 7px 10px; border-top: 1px solid var(--prod-divider); color: var(--prod-faint); font-size: 10.5px; line-height: 15px; }
         .prod-empty, .prod-error, .prod-loading { margin: auto; max-width: 420px; text-align: center; color: var(--prod-muted); font-size: 13px; line-height: 1.5; padding: 40px; }
         .prod-error { color: var(--prod-danger); }
         /* Production preview artifact-structure layer, sourced from docs/syncview-design/SyncView.html. */
@@ -13330,13 +13350,37 @@
         }
     }
 
-    async function wlFetchLinearMetadata(issues) {
-        await _syncviewRequireStaffIdentity('workload-linear-read');
-        const sessionGeneration = _wlPlanSessionGeneration;
-        const issueIds = [...new Set((issues || [])
-            .filter(issue => issue && issue.isSubIssue && wlIsActiveStatus(issue) && wlIsAllowedClient(issue.clientName))
-            .map(issue => String(issue.id || '').trim())
-            .filter(Boolean))];
+    function wlProductionAuthorityValue(value) {
+        if (typeof value === 'string') {
+            try { value = JSON.parse(value); } catch (error) { return null; }
+        }
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+        const video = String(value.video || '').trim().toLowerCase();
+        const graphics = String(value.graphics || '').trim().toLowerCase();
+        if (!['linear', 'syncview'].includes(video) || !['linear', 'syncview'].includes(graphics)) return null;
+        return { video, graphics };
+    }
+
+    async function wlFetchProductionAuthority() {
+        const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.prod_authority&limit=2';
+        const response = await fetch(url, {
+            cache: 'no-store',
+            headers: {
+                apikey: CAL_SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json'
+            }
+        });
+        if (!response.ok) throw new Error('Production authority HTTP ' + response.status);
+        const rows = await response.json();
+        const authority = Array.isArray(rows) && rows.length === 1
+            ? wlProductionAuthorityValue(rows[0] && rows[0].value)
+            : null;
+        if (!authority) throw new Error('Production authority is unavailable.');
+        return authority;
+    }
+
+    async function wlFetchForeignLinearMetadata(issueIds) {
         if (!issueIds.length) return [];
         const chunks = [];
         for (let index = 0; index < issueIds.length; index += 100) chunks.push(issueIds.slice(index, index + 100));
@@ -13369,8 +13413,192 @@
             }
         };
         await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, worker));
-        if (sessionGeneration !== _wlPlanSessionGeneration) throw new Error('staff_session_changed');
         return rows;
+    }
+
+    function wlNativeWorkloadLabel(labels) {
+        let chosen = null;
+        for (const value of Array.isArray(labels) ? labels : []) {
+            const name = String(value && value.name || '');
+            const weight = name === '2× Workload' ? 2 : name === '3× Workload' ? 3 : 0;
+            if (!weight || (chosen && chosen.weight >= weight)) continue;
+            const rawColor = String(value && value.color || '');
+            chosen = {
+                label: name,
+                weight,
+                color: /^#[0-9a-f]{6}$/i.test(rawColor) ? rawColor.toUpperCase() : ''
+            };
+        }
+        return chosen;
+    }
+
+    function wlNativeDueDate(value) {
+        if (value == null) return null;
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value));
+        if (!match) throw new Error('Native Workload due date is malformed.');
+        const year = Number(match[1]);
+        const month = Number(match[2]);
+        const day = Number(match[3]);
+        const date = new Date(Date.UTC(year, month - 1, day));
+        if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+            throw new Error('Native Workload due date is malformed.');
+        }
+        return String(value);
+    }
+
+    async function wlFetchNativeMetadata(issueIds) {
+        if (!issueIds.length) return [];
+        const rows = [];
+        for (let index = 0; index < issueIds.length; index += 100) {
+            const chunk = issueIds.slice(index, index + 100);
+            const inFilter = '(' + chunk.map(issueId => JSON.stringify(issueId)).join(',') + ')';
+            const url = CAL_SUPABASE_URL + '/rest/v1/deliverables?select=linear_issue_uuid,due_date,linear_raw'
+                + '&linear_issue_uuid=in.' + encodeURIComponent(inFilter)
+                + '&limit=' + String(chunk.length + 1);
+            const response = await fetch(url, {
+                cache: 'no-store',
+                headers: {
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json'
+                }
+            });
+            if (!response.ok) throw new Error('Native Workload metadata HTTP ' + response.status);
+            const page = await response.json();
+            if (!Array.isArray(page)) throw new Error('Native Workload metadata is malformed.');
+            rows.push(...page);
+        }
+        const byIssueId = new Map();
+        for (const row of rows) {
+            const issueId = String(row && row.linear_issue_uuid || '').trim();
+            if (!issueId || byIssueId.has(issueId)) throw new Error('Native Workload metadata is ambiguous.');
+            byIssueId.set(issueId, row);
+        }
+        if (issueIds.some(issueId => !byIssueId.has(issueId))) {
+            throw new Error('Native Workload metadata is incomplete.');
+        }
+        return issueIds.map(issueId => {
+            const row = byIssueId.get(issueId);
+            let raw = row && row.linear_raw;
+            if (typeof raw === 'string') {
+                try { raw = JSON.parse(raw); } catch (error) { raw = null; }
+            }
+            const relation = raw && typeof raw === 'object'
+                && raw.issue && typeof raw.issue === 'object'
+                && raw.issue.labels && typeof raw.issue.labels === 'object'
+                ? raw.issue.labels
+                : null;
+            if (!relation || !Array.isArray(relation.nodes)
+                || !relation.pageInfo || typeof relation.pageInfo !== 'object'
+                || relation.pageInfo.hasNextPage !== false) {
+                throw new Error('Native Workload label state is incomplete.');
+            }
+            const nodeIds = new Set();
+            for (const node of relation.nodes) {
+                const nodeId = String(node && node.id || '').trim();
+                const nodeName = String(node && node.name || '').trim();
+                if (!nodeId || !nodeName || nodeIds.has(nodeId)) {
+                    throw new Error('Native Workload label state is incomplete.');
+                }
+                nodeIds.add(nodeId);
+            }
+            if (Object.prototype.hasOwnProperty.call(raw.issue, 'labelIds')) {
+                const labelIds = raw.issue.labelIds;
+                const selectedIds = new Set();
+                if (!Array.isArray(labelIds)) throw new Error('Native Workload label state is incomplete.');
+                for (const value of labelIds) {
+                    const labelId = String(value || '').trim();
+                    if (!labelId || selectedIds.has(labelId)) {
+                        throw new Error('Native Workload label state is incomplete.');
+                    }
+                    selectedIds.add(labelId);
+                }
+                if (selectedIds.size !== nodeIds.size || [...selectedIds].some(labelId => !nodeIds.has(labelId))) {
+                    throw new Error('Native Workload label state is incomplete.');
+                }
+            }
+            return {
+                issue_id: issueId,
+                due_date: wlNativeDueDate(row && row.due_date),
+                workload: wlNativeWorkloadLabel(relation.nodes)
+            };
+        });
+    }
+
+    function wlMetadataFailure(error, issueIds) {
+        const failure = error instanceof Error
+            ? error
+            : new Error(String(error || 'Workload metadata could not be loaded.'));
+        failure.workloadMetadataFailure = true;
+        failure.workloadMetadataIssueIds = [...new Set((issueIds || [])
+            .map(issueId => String(issueId || '').trim())
+            .filter(Boolean))];
+        return failure;
+    }
+
+    function wlMetadataTeamBucket(teamKey, teamName) {
+        const key = String(teamKey || '').trim().toUpperCase();
+        const name = String(teamName || '').trim().toLowerCase();
+        const keyBucket = key === 'VID' ? 'video' : key === 'GRA' ? 'graphics' : null;
+        const nameBucket = name === 'video' ? 'video' : name === 'graphics' ? 'graphics' : null;
+        if (keyBucket && nameBucket && keyBucket !== nameBucket) return null;
+        return keyBucket || nameBucket || null;
+    }
+
+    async function wlFetchLinearMetadata(issues) {
+        const activeIssues = (issues || [])
+            .filter(issue => issue && issue.isSubIssue && wlIsActiveStatus(issue) && wlIsAllowedClient(issue.clientName));
+        const activeIds = [...new Set(activeIssues
+            .map(issue => String(issue && issue.id || '').trim())
+            .filter(Boolean))];
+        try {
+            await _syncviewRequireStaffIdentity('workload-linear-read');
+        } catch (error) {
+            throw wlMetadataFailure(error, activeIds);
+        }
+        const sessionGeneration = _wlPlanSessionGeneration;
+        let authority = null;
+        try {
+            authority = await wlFetchProductionAuthority();
+        } catch (error) {
+            // Without a current authority read, no retained feeder metadata has
+            // proven ownership. Fail closed for every active issue.
+            throw wlMetadataFailure(error, activeIds);
+        }
+        const linearIds = [];
+        const nativeIds = [];
+        const seen = new Set();
+        try {
+            for (const issue of activeIssues) {
+                const issueId = String(issue.id || '').trim();
+                if (!issueId || seen.has(issueId)) continue;
+                seen.add(issueId);
+                const team = wlMetadataTeamBucket(issue.teamKey, issue.teamName);
+                if (!team) throw new Error('Workload issue team authority is unavailable.');
+                if (authority[team] === 'syncview') nativeIds.push(issueId);
+                else if (authority[team] === 'linear') linearIds.push(issueId);
+                else throw new Error('Workload issue team authority is unavailable.');
+            }
+        } catch (error) {
+            throw wlMetadataFailure(error, activeIds);
+        }
+        let linearRows = [];
+        let nativeRows = [];
+        try {
+            [linearRows, nativeRows] = await Promise.all([
+                wlFetchForeignLinearMetadata(linearIds),
+                wlFetchNativeMetadata(nativeIds)
+            ]);
+        } catch (error) {
+            // There is no per-row provenance record for a retained weight or
+            // due date. If the now-native partition cannot complete, clear it
+            // rather than carrying forward a value learned from the feeder.
+            throw wlMetadataFailure(error, nativeIds);
+        }
+        if (sessionGeneration !== _wlPlanSessionGeneration) {
+            throw wlMetadataFailure(new Error('staff_session_changed'), nativeIds);
+        }
+        return linearRows.concat(nativeRows);
     }
 
     function wlAdoptLinearMetadata(rows, issues, fetchedAt, options) {
@@ -13399,12 +13627,37 @@
         }
     }
 
-    function wlMarkLinearMetadataFailure(error) {
+    function wlSanitizeFailedNativeMetadata(error, issues) {
+        if (!error || error.workloadMetadataFailure !== true) return false;
+        const issueIds = new Set((error.workloadMetadataIssueIds || [])
+            .map(issueId => String(issueId || '').trim())
+            .filter(Boolean));
+        if (!issueIds.size) return false;
+        let changed = false;
+        for (const issueId of issueIds) {
+            if (wlState.workloadByIssueId.delete(issueId)) changed = true;
+        }
+        const seenRows = new Set();
+        for (const rows of [issues, wlState.issueSnapshot, wlState.allActiveSubs]) {
+            if (!Array.isArray(rows) || seenRows.has(rows)) continue;
+            seenRows.add(rows);
+            for (const issue of rows) {
+                if (!issue || !issueIds.has(String(issue.id || '').trim()) || issue.dueDate == null) continue;
+                issue.dueDate = null;
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    function wlMarkLinearMetadataFailure(error, issues) {
+        const sanitized = wlSanitizeFailedNativeMetadata(error, issues);
         const status = Number(error && error.status) || 0;
         if (status === 401) _syncviewStaffIdentityClear();
         if (status === 403) wlState.workloadByIssueId.clear();
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'stale' : 'unknown';
         wlState.linearMetadataError = (error && error.message) || 'Workload labels could not be loaded.';
+        return sanitized;
     }
 
     function wlAdoptPlanRows(snapshot) {
@@ -13520,6 +13773,9 @@
             || foregroundFailures.find(error => Number(error && error.status) === 403)
             || null;
         if (foregroundAuthFailure) {
+            if (metadataResult.status === 'rejected') {
+                wlSanitizeFailedNativeMetadata(metadataResult.reason, payload.issues);
+            }
             if (Number(foregroundAuthFailure.status) === 401) _syncviewStaffIdentityClear();
             else wlPurgePlanSensitiveState();
             // Issue rows are not role-sensitive. Keep the usable calendar,
@@ -13531,7 +13787,7 @@
         else wlMarkPlanReadFailure(plansResult.reason);
         if (metadataResult.status === 'fulfilled') wlAdoptLinearMetadata(metadataResult.value, payload.issues, payload.fetchedAt);
         else {
-            wlMarkLinearMetadataFailure(metadataResult.reason);
+            wlMarkLinearMetadataFailure(metadataResult.reason, payload.issues);
             console.warn('[workload] Workload label metadata unavailable; using one unit per item', metadataResult.reason);
         }
         wlApplyData(payload.issues, payload.fetchedAt);
@@ -14311,6 +14567,14 @@
                 const failures = [plansResult, metadataResult]
                     .filter(result => result.status === 'rejected')
                     .map(result => result.reason);
+                if (metadataResult.status === 'rejected'
+                    && metadataResult.reason
+                    && metadataResult.reason.workloadMetadataFailure === true) {
+                    const sanitized = wlMarkLinearMetadataFailure(metadataResult.reason, freshIssues);
+                    if (sanitized && document.querySelector('.workload-view')) {
+                        renderWorkloadAll({ deferWhilePopoverOpen: true });
+                    }
+                }
                 // An auth denial from either staff projection must not be
                 // masked by an unrelated network error from the other one.
                 const failed = failures.find(error => Number(error && error.status) === 401)
@@ -19649,6 +19913,7 @@
             if (typeof _prodState !== 'undefined' && _prodState) {
                 _prodState.commentDrafts.clear();
                 _prodState.writes.clear();
+                _prodState.labels.clear();
             }
         } catch (e) {}
         try {
@@ -40069,6 +40334,8 @@
             adapter: null,
             events: new Map(),
             linearRaw: new Map(),
+            labels: new Map(),
+            labelRequestTokens: new Map(),
             authority: null,
             authorityLoaded: false,
             authorityReadAt: 0,
@@ -40251,6 +40518,173 @@
                 return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
             } catch (e) {
                 return {};
+            }
+        }
+        function _prodNormalizeLabel(value) {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+            const id = String(value.id || '').trim();
+            const name = String(value.name || '').trim();
+            if (!id || !name) return null;
+            const rawColor = String(value.color || '').trim();
+            return {
+                id,
+                name,
+                color: /^#[0-9a-f]{6}$/i.test(rawColor) ? rawColor.toUpperCase() : '',
+                description: String(value.description || '').trim()
+            };
+        }
+        function _prodNormalizeLabelList(values) {
+            if (!Array.isArray(values)) return null;
+            const seen = new Set();
+            const normalized = [];
+            for (const value of values) {
+                const label = _prodNormalizeLabel(value);
+                if (!label || seen.has(label.id)) return null;
+                seen.add(label.id);
+                normalized.push(label);
+            }
+            return normalized;
+        }
+        function _prodLabelState(id) {
+            return _prodState.labels.get(String(id || '')) || null;
+        }
+        function _prodNextLabelRequestToken(id) {
+            id = String(id || '');
+            const token = Number(_prodState.labelRequestTokens.get(id) || 0) + 1;
+            _prodState.labelRequestTokens.set(id, token);
+            return token;
+        }
+        function _prodAdoptLabelPayload(id, payload, fallbackCatalog) {
+            id = String(id || '');
+            const catalog = _prodNormalizeLabelList(
+                Array.isArray(payload && payload.catalog) ? payload.catalog : fallbackCatalog
+            );
+            const selectedLabels = _prodNormalizeLabelList(payload && payload.selected_labels);
+            if (!catalog || !selectedLabels || !Array.isArray(payload && payload.selected_label_ids)) {
+                throw new Error('incomplete_label_state');
+            }
+            const selectedIds = [];
+            const selectedSet = new Set();
+            for (const value of payload.selected_label_ids) {
+                const labelId = String(value || '').trim();
+                if (!labelId || selectedSet.has(labelId)) throw new Error('incomplete_label_state');
+                selectedSet.add(labelId);
+                selectedIds.push(labelId);
+            }
+            const allById = new Map(catalog.map(label => [label.id, label]));
+            selectedLabels.forEach(label => {
+                if (!allById.has(label.id)) allById.set(label.id, label);
+            });
+            if (selectedIds.some(labelId => !allById.has(labelId))) throw new Error('incomplete_label_state');
+            const selected = selectedIds.map(labelId => allById.get(labelId));
+            _prodState.labels.set(id, {
+                status: 'ready',
+                complete: true,
+                authority: payload && payload.authority || '',
+                catalog: [...allById.values()],
+                selectedIds,
+                selected,
+                saving: false,
+                error: '',
+                writeError: ''
+            });
+            return _prodState.labels.get(id);
+        }
+        function _prodLabelErrorText(error) {
+            const code = String(error && (error.code || error.message) || '');
+            if (error && error.status === 401) return 'Staff sign-in expired. Sign in again to load labels.';
+            if (error && error.status === 403) return 'This staff account cannot read labels for this issue.';
+            if (code === 'incomplete_label_state' || code === 'labels_incomplete') return 'Linear returned an incomplete label catalog. Nothing was changed.';
+            return 'Labels could not be loaded. Retry to check the current Linear state.';
+        }
+        function _prodRefreshLabelSurfaces(id) {
+            if (document.getElementById('prodRoot')) _prodRender();
+            const pop = document.querySelector('[data-prod-label-pop="' + CSS.escape(String(id || '')) + '"]');
+            if (pop) {
+                pop.innerHTML = _prodLabelsPopHTML(id);
+                _prodWireLabelsPop(pop, id);
+            }
+        }
+        async function _prodEnsureLabels(id, force) {
+            id = String(id || '');
+            const issue = _prodIssue(id);
+            if (!issue) return null;
+            const current = _prodLabelState(id);
+            if (_prodState.writes.has(id + ':labels')) return current;
+            if (!force && current) return current;
+            const staffIdentity = _syncviewStaffIdentityForHeaders();
+            if (!staffIdentity) {
+                const state = {
+                    status: 'error',
+                    complete: false,
+                    authority: '',
+                    catalog: current && current.catalog || [],
+                    selectedIds: current && current.selectedIds || [],
+                    selected: current && current.selected || [],
+                    saving: false,
+                    error: 'Staff sign-in is required to load labels.',
+                    writeError: ''
+                };
+                _prodState.labels.set(id, state);
+                _prodRefreshLabelSurfaces(id);
+                return state;
+            }
+            const verificationEpoch = _syncviewStaffVerificationEpoch;
+            const identitySignature = _syncviewStaffIdentitySignature(staffIdentity);
+            const requestToken = _prodNextLabelRequestToken(id);
+            const requestStillCurrent = () => verificationEpoch === _syncviewStaffVerificationEpoch
+                && identitySignature === _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders())
+                && requestToken === _prodState.labelRequestTokens.get(id);
+            _prodState.labels.set(id, {
+                status: 'loading',
+                complete: false,
+                authority: current && current.authority || '',
+                catalog: current && current.catalog || [],
+                selectedIds: current && current.selectedIds || [],
+                selected: current && current.selected || [],
+                saving: false,
+                error: '',
+                writeError: ''
+            });
+            _prodRefreshLabelSurfaces(id);
+            try {
+                const response = await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify({ action: 'labels_read', surface: 'production', id })
+                });
+                const json = await response.json().catch(() => ({}));
+                if (!requestStillCurrent()) return null;
+                if (!response.ok || !json || json.ok !== true || json.complete !== true) {
+                    const error = new Error(String(json && json.error || 'labels_read_failed'));
+                    error.status = response.status;
+                    error.code = String(json && json.error || 'labels_read_failed');
+                    throw error;
+                }
+                const state = _prodAdoptLabelPayload(id, json, json.catalog);
+                _prodRefreshLabelSurfaces(id);
+                return state;
+            } catch (error) {
+                if (!requestStillCurrent()) return null;
+                _prodState.labels.set(id, {
+                    status: 'error',
+                    complete: false,
+                    authority: current && current.authority || '',
+                    catalog: current && current.catalog || [],
+                    selectedIds: current && current.selectedIds || [],
+                    selected: current && current.selected || [],
+                    saving: false,
+                    error: _prodLabelErrorText(error),
+                    writeError: ''
+                });
+                _prodRefreshLabelSurfaces(id);
+                return _prodLabelState(id);
             }
         }
         function _prodRawHasAny(raw, keys) {
@@ -41216,7 +41650,8 @@
                 document.addEventListener('mouseover', e => {
                     const el = e.target && e.target.closest ? e.target.closest('[data-prod-tip]') : null;
                     if (!el || !document.getElementById('prodRoot')) return;
-                    if (document.getElementById('prodLayer') && document.getElementById('prodLayer').innerHTML) return;
+                    const layer = document.getElementById('prodLayer');
+                    if (layer && layer.innerHTML && !layer.contains(el)) return;
                     clearTimeout(_prodState.tipTimer);
                     _prodState.tipEl = el;
                     _prodState.tipTimer = setTimeout(() => {
@@ -41385,7 +41820,7 @@
             if (!row || !row.id) return;
             const target = (_prodState.deliverables || []).find(item => String(item && item.id || '') === String(row.id));
             if (!target) return;
-            ['status', 'status_at', 'due_date', 'assignee_id', 'updated_at'].forEach(field => {
+            ['status', 'status_at', 'due_date', 'assignee_id', 'updated_at', 'linear_raw'].forEach(field => {
                 if (Object.prototype.hasOwnProperty.call(row, field)) target[field] = row[field];
             });
             _prodState.adapter = null;
@@ -41481,6 +41916,196 @@
                 const current = issues[Math.min(completed, issues.length - 1)];
                 _prodToast(_prodWriteErrorText(error, current, operation));
             }
+        }
+        function _prodLabelColorStyle(label) {
+            return label && /^#[0-9a-f]{6}$/i.test(String(label.color || ''))
+                ? ' style="--prod-label-color:' + _calEscAttr(label.color) + '"'
+                : '';
+        }
+        function _prodLabelChipHTML(label) {
+            if (!label) return '';
+            const tip = label.description || label.name;
+            return '<span class="prod-label-chip"' + _prodLabelColorStyle(label)
+                + ' title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">'
+                + '<span class="prod-label-dot"></span><span>' + _calEsc(label.name) + '</span></span>';
+        }
+        function _prodLabelsButtonHTML(issue) {
+            const state = _prodLabelState(issue && issue.id);
+            let content = '<span class="prod-label-muted">Loading labels…</span>';
+            let info = 'Loading labels';
+            if (state && state.status === 'error') {
+                content = '<span class="prod-label-muted">Labels unavailable</span>';
+                info = state.error || 'Labels unavailable';
+            } else if (state && state.status === 'ready') {
+                content = state.selected.length
+                    ? state.selected.map(_prodLabelChipHTML).join('')
+                    : '<span class="prod-label-muted">Add labels</span>';
+                info = state.selected.length ? 'Labels: ' + state.selected.map(label => label.name).join(', ') : 'No labels selected';
+            }
+            if (state && state.saving) {
+                content += '<span class="prod-write-state">Saving…</span>';
+                info += '|Saving labels';
+            } else if (state && state.writeError) {
+                info += '|' + state.writeError;
+            } else if (!_prodCanWrite(issue, 'labels')) {
+                const gate = _prodWriteGateText(issue, 'labels');
+                if (gate) info += '|' + gate;
+            } else {
+                info += '|Change labels';
+            }
+            return '<button type="button" class="prod-prop-btn prod-labels-btn" data-prod-prop="labels" data-prod-labels="'
+                + _calEscAttr(issue && issue.id || '') + '" data-prod-write="' + (_prodCanWrite(issue, 'labels') ? 'on' : 'off')
+                + '" aria-label="Labels" title="' + _calEscAttr(info.replace('|', ' · ')) + '" data-prod-tip="' + _calEscAttr(info)
+                + '" onclick="return _prodOpenLabels(event,' + _jsAttrArg(issue && issue.id || '') + ')">' + content + '</button>';
+        }
+        function _prodLabelsPopHTML(id) {
+            const issue = _prodIssue(id);
+            const state = _prodLabelState(id);
+            if (!state || state.status === 'loading') {
+                return '<div class="prod-label-state" data-prod-label-state="loading">Loading the Linear label catalog…</div>';
+            }
+            if (state.status === 'error') {
+                return '<div class="prod-label-state is-error" data-prod-label-state="error">' + _calEsc(state.error)
+                    + '<br><button class="prod-label-retry" type="button" data-prod-label-retry>Retry</button></div>';
+            }
+            const writable = !!(issue && _prodCanWrite(issue, 'labels'));
+            const selected = new Set(state.selectedIds || []);
+            const rows = (state.catalog || []).map((label, index) => {
+                const checked = selected.has(label.id);
+                const tip = label.description || label.name;
+                return '<button type="button" class="prod-label-option" data-prod-label-option="' + index + '" data-prod-label-search="'
+                    + _calEscAttr((label.name + ' ' + label.description).toLowerCase()) + '" aria-disabled="' + (writable && !state.saving ? 'false' : 'true')
+                    + '" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">'
+                    + '<span class="prod-label-check" role="checkbox" aria-checked="' + (checked ? 'true' : 'false') + '"></span>'
+                    + '<span class="prod-label-dot"' + _prodLabelColorStyle(label) + '></span>'
+                    + '<span class="prod-label-option-copy"><span class="prod-label-option-name">' + _calEsc(label.name) + '</span>'
+                    + (label.description ? '<span class="prod-label-option-desc">' + _calEsc(label.description) + '</span>' : '')
+                    + '</span></button>';
+            }).join('');
+            const empty = '<div class="prod-label-state" data-prod-label-state="empty">No labels are available in the Linear catalog.</div>';
+            const gate = writable ? '' : _prodWriteGateText(issue, 'labels');
+            return '<div class="prod-pop-search"><input data-prod-label-search-input placeholder="Search labels…" aria-label="Search labels"></div>'
+                + '<div class="prod-pop-list" data-prod-label-list>' + (rows || empty) + '</div>'
+                + (state.saving ? '<div class="prod-label-lock">Saving the complete selected label set…</div>'
+                    : gate ? '<div class="prod-label-lock">' + _calEsc(gate) + '</div>' : '');
+        }
+        function _prodWireLabelsPop(pop, id) {
+            if (!pop) return;
+            const retry = pop.querySelector('[data-prod-label-retry]');
+            if (retry) retry.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                _prodEnsureLabels(id, true);
+            });
+            const input = pop.querySelector('[data-prod-label-search-input]');
+            if (input) {
+                input.addEventListener('input', () => {
+                    const query = String(input.value || '').trim().toLowerCase();
+                    let shown = 0;
+                    pop.querySelectorAll('[data-prod-label-option]').forEach(row => {
+                        const match = !query || String(row.getAttribute('data-prod-label-search') || '').includes(query);
+                        row.style.display = match ? '' : 'none';
+                        if (match) shown++;
+                    });
+                    _prodPickerEmptyState(pop, shown);
+                });
+                input.addEventListener('keydown', event => {
+                    event.stopPropagation();
+                    if (event.key === 'Escape') {
+                        event.preventDefault();
+                        _prodClearLayer();
+                    }
+                });
+                setTimeout(() => { try { input.focus(); } catch (e) {} }, 0);
+            }
+            pop.querySelectorAll('[data-prod-label-option]').forEach(row => row.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                const state = _prodLabelState(id);
+                const issue = _prodIssue(id);
+                if (!state || state.status !== 'ready' || state.saving || !issue || !_prodCanWrite(issue, 'labels')) {
+                    if (issue && !_prodCanWrite(issue, 'labels')) _prodToast(_prodWriteGateText(issue, 'labels'));
+                    return;
+                }
+                const label = state.catalog[Number(row.getAttribute('data-prod-label-option'))];
+                if (!label) return;
+                const next = new Set(state.selectedIds || []);
+                if (next.has(label.id)) next.delete(label.id);
+                else next.add(label.id);
+                _prodRunLabelsWrite(id, [...next]);
+            }));
+        }
+        async function _prodRunLabelsWrite(id, labelIds) {
+            const issue = _prodIssue(id);
+            const state = _prodLabelState(id);
+            if (!issue || !state || state.status !== 'ready' || state.saving) return;
+            if (_prodState.writes.has(String(id || '') + ':labels')) return;
+            if (!_prodCanWrite(issue, 'labels')) {
+                _prodToast(_prodWriteGateText(issue, 'labels'));
+                return;
+            }
+            const staffIdentity = _syncviewStaffIdentityForHeaders();
+            if (!staffIdentity) return;
+            const verificationEpoch = _syncviewStaffVerificationEpoch;
+            const identitySignature = _syncviewStaffIdentitySignature(staffIdentity);
+            const requestToken = _prodNextLabelRequestToken(id);
+            const identityStillCurrent = () => verificationEpoch === _syncviewStaffVerificationEpoch
+                && identitySignature === _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders());
+            const requestStillCurrent = () => identityStillCurrent()
+                && requestToken === _prodState.labelRequestTokens.get(String(id || ''));
+            state.saving = true;
+            state.writeError = '';
+            _prodRefreshLabelSurfaces(id);
+            try {
+                const json = await _prodGatewayWrite(issue, 'labels', { label_ids: labelIds });
+                if (!json) {
+                    if (!identityStillCurrent()) return;
+                    const current = _prodLabelState(id) || state;
+                    current.saving = false;
+                    _prodState.labels.set(String(id), current);
+                    _prodRefreshLabelSurfaces(id);
+                    _prodEnsureLabels(id, true);
+                    return;
+                }
+                if (!requestStillCurrent()) {
+                    // A newer read may have observed the pre-commit selection.
+                    // Re-read only after this guarded write has completed so
+                    // the latest request converges on the committed labels.
+                    if (identityStillCurrent()) _prodEnsureLabels(id, true);
+                    return;
+                }
+                _prodAdoptLabelPayload(id, json, state.catalog);
+                _prodToast('Labels updated');
+                _prodRefreshLabelSurfaces(id);
+            } catch (error) {
+                if (!requestStillCurrent()) {
+                    if (identityStillCurrent()) _prodEnsureLabels(id, true);
+                    return;
+                }
+                const current = _prodLabelState(id) || state;
+                current.saving = false;
+                current.writeError = _prodWriteErrorText(error, issue, 'labels');
+                _prodState.labels.set(String(id), current);
+                _prodToast(current.writeError);
+                _prodRefreshLabelSurfaces(id);
+                _prodEnsureLabels(id, true);
+            }
+        }
+        function _prodOpenLabels(event, id) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            const x = event ? event.clientX : innerWidth / 2;
+            const y = event ? event.clientY : 160;
+            const pop = _prodLayerPop('', x, y);
+            pop.classList.add('prod-label-pop');
+            pop.setAttribute('data-prod-label-pop', String(id || ''));
+            pop.innerHTML = _prodLabelsPopHTML(id);
+            _prodPlacePop(pop, x, y);
+            _prodWireLabelsPop(pop, id);
+            _prodEnsureLabels(id, false);
+            return false;
         }
         function _prodDueIso(value) {
             if (!value) return '';
@@ -43188,6 +43813,8 @@
             if (!silent) _prodState.loaded = false;
             _prodState.adapter = null;
             _prodState.events = new Map();
+            _prodState.labels = new Map([..._prodState.labels].filter(([id]) =>
+                _prodState.writes.has(String(id || '') + ':labels')));
             if (_prodState.view === 'detail' && _prodState.openId) _prodComments.refresh(_prodState.openId);
             _prodRefreshAuthority({ silent: true });
             _prodLoadData({ silent });
@@ -43224,6 +43851,7 @@
             if (_prodState.view === 'detail' && _prodState.openId) {
                 _prodComments.ensure(_prodState.openId);
                 _prodLoadLinearRawFor(_prodState.openId);
+                _prodEnsureLabels(_prodState.openId, false);
             }
         }
         function _prodNavItem(icon, label, active, onClick, cls, tip) {
@@ -43674,6 +44302,7 @@
                 + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="status"' + _prodWriteGateAttrs(d, 'status', { info: (statusHistory ? statusHistory : 'Status: ' + _prodStatusLabel(d.status) + (_prodStatusAge(d) ? ' ' + _prodStatusAge(d) : '')) }) + ' onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span></button>')
                 + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="assignee"' + _prodWriteGateAttrs(d, 'assignee', { info: assignee ? ('Assignee: ' + assignee.name) : 'Unassigned' }) + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span></button>')
                 + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + _prodWriteGateAttrs(d, 'due', d.due ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodOverdueText(d.dueRaw, d.status) } : { tip: 'Set due date' }) + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>', d.due && _prodOverdue(d.dueRaw, d.status) ? 'dueover' : '')
+                + sideRow(_prodLabelsButtonHTML(d))
                 + '</div>'
                 + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</span></button></div></div>' : '')
                 + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-prop="project" onclick="return _prodOpenProjectMenu(event,' + _jsAttrArg(d.id) + ')"><span class="prod-card-ico">' + _prodProjectGlyph(client) + '</span><span>' + _calEsc(_prodDisplayClient(d.project)) + '</span></button></div></div>'

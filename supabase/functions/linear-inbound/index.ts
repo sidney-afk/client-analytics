@@ -8,6 +8,10 @@ import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { clearArchiveMarkers } from "./restore-markers.mjs";
 import { normalizeLinearComment, parseSyncViewBridgeBody } from "./comment-normalize.mjs";
 import { f27PreflightIdentity, outboundEchoIdentityProof } from "./f27-echo.mjs";
+import {
+  canonicalIssueLabelIds,
+  normalizeIssueLabelRelation,
+} from "./label-normalize.mjs";
 
 type JsonMap = Record<string, unknown>;
 type ExistingRow = Record<string, unknown>;
@@ -297,6 +301,13 @@ function baseDeliverableRow(existing: ExistingRow): JsonMap {
   };
 }
 
+function payloadChangesLabels(payload: JsonMap): boolean {
+  const data = objectAt(payload.data);
+  const updatedFrom = objectAt(payload.updatedFrom || data.updatedFrom);
+  return ["labels", "labelIds", "addedLabelIds", "removedLabelIds"]
+    .some(key => Object.prototype.hasOwnProperty.call(updatedFrom, key));
+}
+
 function updateLinearFieldClocks(raw: JsonMap, payload: JsonMap, issue: JsonMap): void {
   const data = objectAt(payload.data);
   const updatedFrom = objectAt(payload.updatedFrom || data.updatedFrom);
@@ -318,11 +329,12 @@ function updateLinearFieldClocks(raw: JsonMap, payload: JsonMap, issue: JsonMap)
   mark("title", ["title"]);
   mark("priority", ["priority"]);
   mark("parent", ["parent", "parentId"]);
+  mark("labels", ["labels", "labelIds", "addedLabelIds", "removedLabelIds"]);
   if (["archive", "restore", "remove", "delete"].includes(action) || changed.has("archivedAt")) {
     clocks[action === "restore" ? "restore" : "archive"] = timestamp;
   }
   if (action === "create") {
-    for (const [field, key] of [["status", "state"], ["due", "dueDate"], ["assignee", "assignee"], ["title", "title"], ["priority", "priority"], ["parent", "parent"]]) {
+    for (const [field, key] of [["status", "state"], ["due", "dueDate"], ["assignee", "assignee"], ["title", "title"], ["priority", "priority"], ["parent", "parent"], ["labels", "labels"]]) {
       if (has(issue, key)) clocks[field] = timestamp;
     }
   }
@@ -335,6 +347,19 @@ function mergeLinearRaw(existing: ExistingRow, issue: JsonMap, payload: JsonMap)
   raw.issue = { ...issue };
   if (!has(issue, "parent") && previousIssue.parent !== undefined) {
     (raw.issue as JsonMap).parent = previousIssue.parent;
+  }
+  if (has(issue, "labels") || has(issue, "labelIds")) {
+    const relation = normalizeIssueLabelRelation(issue, previousIssue);
+    (raw.issue as JsonMap).labelIds = relation.ids;
+    (raw.issue as JsonMap).labels = {
+      nodes: relation.nodes,
+      pageInfo: { hasNextPage: relation.complete !== true, endCursor: null },
+    };
+  } else if (previousIssue.labels !== undefined) {
+    (raw.issue as JsonMap).labels = previousIssue.labels;
+    if (previousIssue.labelIds !== undefined) {
+      (raw.issue as JsonMap).labelIds = previousIssue.labelIds;
+    }
   }
   raw.inbound = {
     webhook_action: payloadAction(payload),
@@ -573,6 +598,10 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
     if (has(issue, "description")) row.brief = clean(issue.description);
     if (has(issue, "dueDate")) row.due_date = clean(issue.dueDate);
     if (has(issue, "priority")) row.priority = issue.priority == null ? "" : String(issue.priority);
+    if (payloadChangesLabels(payload)) {
+      eventPayload.label_ids = canonicalIssueLabelIds(issue);
+      eventAction = "labels_change";
+    }
 
     const team = teamFromIssue(issue);
     if (team && team !== clean(existing.team)) {
@@ -692,6 +721,13 @@ function outboundValueMatches(row: JsonMap, payload: JsonMap, issue: JsonMap, co
   if (operation === "title") return clean(issue.title) === clean(expected.title);
   if (operation === "priority") return Number(issue.priority || 0) === Number(expected.priority || 0);
   if (operation === "parent") return clean(objectAt(issue.parent).id) === clean(expected.parentId);
+  if (operation === "labels") {
+    const actual = canonicalIssueLabelIds(issue);
+    const intended = Array.isArray(expected.labelIds)
+      ? [...new Set(expected.labelIds.map(clean).filter(Boolean))].sort()
+      : [];
+    return JSON.stringify(actual) === JSON.stringify(intended);
+  }
   if (operation === "archive") return action === "archive" || !!issue.archivedAt;
   if (operation === "restore") return action === "restore" && !issue.archivedAt;
   return false;

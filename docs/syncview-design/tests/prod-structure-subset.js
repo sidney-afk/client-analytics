@@ -79,7 +79,24 @@ async function assertNoWriteRequests(requests) {
       && (body.before === null || (body.before && typeof body.before === 'object'
         && typeof body.before.created_at === 'string' && typeof body.before.id === 'string'));
   };
-  const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method) && !isCommentRead(r));
+  const isLabelsRead = r => {
+    if (r.method !== 'POST') return false;
+    let pathname = '';
+    try { pathname = new URL(r.url).pathname; } catch (e) {}
+    if (pathname !== '/functions/v1/production-write') return false;
+    let body = null;
+    try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+    const keys = Object.keys(body).sort();
+    return keys.join(',') === 'action,id,surface'
+      && body.action === 'labels_read'
+      && body.surface === 'production'
+      && typeof body.id === 'string'
+      && body.id.length > 0;
+  };
+  const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)
+    && !isCommentRead(r)
+    && !isLabelsRead(r));
   if (writes.length) {
     throw new Error('Production structure subset made write-like browser requests: '
       + writes.slice(0, 5).map(r => `${r.method} ${r.url}`).join(' | '));
@@ -117,6 +134,30 @@ async function assertNoWriteRequests(requests) {
     contentType: 'application/json',
     body: JSON.stringify({ comments: [], next_cursor: null, has_more: false }),
   }));
+  await page.route('**/functions/v1/production-write', async route => {
+    let body = null;
+    try { body = JSON.parse(route.request().postData() || 'null'); } catch (e) {}
+    if (body && body.action === 'labels_read' && body.surface === 'production' && typeof body.id === 'string') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          complete: true,
+          authority: 'linear',
+          catalog: [],
+          selected_label_ids: [],
+          selected_labels: [],
+        }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 400,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: false, error: 'unexpected_production_write_request' }),
+    });
+  });
 
   try {
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });

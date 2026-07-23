@@ -46,6 +46,15 @@ function expect(value, message) { if (!value) throw new Error(message); }
   const serverAuthority = { video: 'linear', graphics: 'syncview' };
   const writeUiRerouteClients = { clients: ['normal-fixture', 'calendarfixture'] };
   const writes = [];
+  const labelReads = [];
+  const labelCatalog = [
+    { id: 'ordinary', name: 'Ordinary label', color: '#5E6AD2', description: 'An arbitrary label that must survive every write.' },
+    { id: 'workload-2', name: '2× Workload', color: '#F59E0B', description: 'Counts as two video workload units.' },
+    { id: 'workload-3', name: '3× Workload', color: '#EF4444', description: 'Counts as three video workload units.' },
+  ];
+  const selectedLabelIds = new Map(deliverables.map(row => [row.id, ['ordinary']]));
+  let heldLabelRead = null;
+  let heldLabelWrite = null;
   const calendarWrites = [];
   const calendarWriteRequests = [];
   const submissionLogs = [];
@@ -117,6 +126,29 @@ function expect(value, message) { if (!value) throw new Error(message); }
   await page.route('**/functions/v1/production-write', async route => {
     const request = route.request();
     const body = JSON.parse(request.postData() || '{}');
+    if (body.action === 'labels_read') {
+      labelReads.push({ body, headers: request.headers() });
+      const ids = selectedLabelIds.get(body.id) || [];
+      const held = heldLabelRead;
+      if (held) {
+        heldLabelRead = null;
+        held.started();
+        await held.release;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          complete: true,
+          authority: serverAuthority[(deliverables.find(row => row.id === body.id) || {}).team] || 'linear',
+          catalog: labelCatalog,
+          selected_label_ids: ids,
+          selected_labels: ids.map(id => labelCatalog.find(label => label.id === id)).filter(Boolean),
+        }),
+      });
+      return;
+    }
     const write = { body, headers: request.headers(), response: null };
     writes.push(write);
     if (body.operation === 'intake_create') {
@@ -153,6 +185,17 @@ function expect(value, message) { if (!value) throw new Error(message); }
     if (body.operation === 'status') row.status = body.status;
     if (body.operation === 'due') row.due_date = body.due_date || null;
     if (body.operation === 'assignee') row.assignee_id = body.assignee_id || null;
+    if (body.operation === 'labels') {
+      const ids = Array.isArray(body.label_ids) ? [...body.label_ids] : [];
+      selectedLabelIds.set(row.id, ids);
+      row.linear_raw = {
+        issue: {
+          labels: {
+            nodes: ids.map(id => labelCatalog.find(label => label.id === id)).filter(Boolean),
+          },
+        },
+      };
+    }
     row.updated_at = `2026-07-12T12:00:${String(++revision).padStart(2, '0')}.000Z`;
     const comment = body.operation === 'comment'
       ? { id: `comment-${revision}`, deliverable_id: row.id, body: body.comment.body, audience: body.comment.audience }
@@ -163,7 +206,17 @@ function expect(value, message) { if (!value) throw new Error(message); }
       mirror_pending: true,
       row: { ...row },
       ...(comment ? { comment } : {}),
+      ...(body.operation === 'labels' ? {
+        selected_label_ids: selectedLabelIds.get(row.id),
+        selected_labels: selectedLabelIds.get(row.id).map(id => labelCatalog.find(label => label.id === id)).filter(Boolean),
+      } : {}),
     };
+    if (body.operation === 'labels' && heldLabelWrite) {
+      const held = heldLabelWrite;
+      heldLabelWrite = null;
+      held.started();
+      await held.release;
+    }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(write.response) });
   });
   await page.route('**/webhook/calendar-upsert-post', async route => {
@@ -228,6 +281,148 @@ function expect(value, message) { if (!value) throw new Error(message); }
     await assigneeResponse;
     expect(writes.some(write => write.body.operation === 'assignee' && write.body.assignee_id === 'designer'), 'assignee did not route through the gateway');
 
+    await page.waitForFunction(() => _prodLabelState('gra-fixture')?.status === 'ready');
+    expect(labelReads.some(read => read.body.action === 'labels_read'
+      && read.body.surface === 'production'
+      && read.body.id === 'gra-fixture'
+      && read.headers['x-syncview-key'] === 'browser-role-key'),
+    'label catalog did not use the protected lazy Production read contract');
+    const labelCas = await page.evaluate(() => _prodIssue('gra-fixture').updatedRaw);
+    await page.locator('[data-prod-prop="labels"]').click();
+    const ordinaryOption = page.locator('[data-prod-label-option]', { hasText: 'Ordinary label' });
+    expect(await ordinaryOption.locator('[role="checkbox"]').getAttribute('aria-checked') === 'true',
+      'current arbitrary label was not rendered as selected');
+    expect(await ordinaryOption.locator('.prod-label-dot').evaluate(element =>
+      getComputedStyle(element).getPropertyValue('--prod-label-color').trim().toUpperCase()) === '#5E6AD2',
+    'Linear label color did not reach the rendered option dot');
+    expect((await ordinaryOption.getAttribute('title')).includes('must survive every write'),
+      'label description was not exposed as the option tooltip');
+    await ordinaryOption.hover();
+    await page.waitForFunction(() => document.getElementById('prodTip')?.classList.contains('show')
+      && document.getElementById('prodTip')?.textContent.includes('must survive every write'));
+    await page.locator('[data-prod-label-search-input]').fill('3× Workload');
+    expect(await page.locator('[data-prod-label-option]:visible').count() === 1,
+      'label search did not narrow the real catalog');
+    const labelsResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
+      && JSON.parse(response.request().postData() || '{}').operation === 'labels');
+    await page.locator('[data-prod-label-option]', { hasText: '3× Workload' }).click();
+    await labelsResponse;
+    const labelsWrite = writes.find(write => write.body.operation === 'labels');
+    expect(labelsWrite
+      && labelsWrite.body.expected_updated_at === labelCas
+      && labelsWrite.body.request_id
+      && labelsWrite.body.label_ids.join(',') === 'ordinary,workload-3',
+    'labels write omitted CAS/idempotency or failed to preserve the complete arbitrary selected set');
+    await page.waitForFunction(() => _prodLabelState('gra-fixture')?.saving === false
+      && _prodLabelState('gra-fixture')?.selectedIds.includes('workload-3'));
+    expect(await page.locator('[data-prod-label-option]', { hasText: '3× Workload' }).locator('[role="checkbox"]').getAttribute('aria-checked') === 'true',
+      'gateway acknowledgement did not replace the picker with the full selected state');
+    await page.evaluate(() => _prodClearLayer());
+    const refreshedLabels = page.waitForResponse(response => {
+      if (!response.url().includes('/functions/v1/production-write')) return false;
+      const body = JSON.parse(response.request().postData() || '{}');
+      return body.action === 'labels_read' && body.id === 'gra-fixture';
+    });
+    await page.evaluate(() => _prodRefresh());
+    await refreshedLabels;
+    await page.waitForFunction(() => _prodLabelState('gra-fixture')?.status === 'ready'
+      && _prodLabelState('gra-fixture')?.selectedIds.includes('workload-3'));
+    expect((await page.locator('[data-prod-prop="labels"]').textContent()).includes('3× Workload'),
+      'saved label selection did not survive a fresh protected read');
+
+    let startOlderLabelRead;
+    let releaseOlderLabelRead;
+    const olderLabelReadStarted = new Promise(resolve => { startOlderLabelRead = resolve; });
+    const olderLabelReadRelease = new Promise(resolve => { releaseOlderLabelRead = resolve; });
+    selectedLabelIds.set('gra-fixture', ['ordinary']);
+    heldLabelRead = { started: startOlderLabelRead, release: olderLabelReadRelease };
+    await page.evaluate(() => {
+      window.__prodOlderLabelRead = _prodEnsureLabels('gra-fixture', true);
+    });
+    await olderLabelReadStarted;
+    selectedLabelIds.set('gra-fixture', ['ordinary', 'workload-3']);
+    await page.evaluate(() => _prodEnsureLabels('gra-fixture', true));
+    releaseOlderLabelRead();
+    const olderReadResult = await page.evaluate(() => window.__prodOlderLabelRead);
+    expect(olderReadResult === null, 'an older same-identity label read was not discarded');
+    expect(await page.evaluate(() => _prodLabelState('gra-fixture')?.selectedIds.includes('workload-3')),
+      'an older delayed label read overwrote the newer complete selection');
+
+    let startSignedOutLabelRead;
+    let releaseSignedOutLabelRead;
+    const signedOutLabelReadStarted = new Promise(resolve => { startSignedOutLabelRead = resolve; });
+    const signedOutLabelReadRelease = new Promise(resolve => { releaseSignedOutLabelRead = resolve; });
+    heldLabelRead = { started: startSignedOutLabelRead, release: signedOutLabelReadRelease };
+    await page.evaluate(() => {
+      window.__prodSignedOutLabelRead = _prodEnsureLabels('gra-fixture', true);
+    });
+    await signedOutLabelReadStarted;
+    await page.evaluate(() => _syncviewStaffIdentityClear());
+    releaseSignedOutLabelRead();
+    const signedOutReadResult = await page.evaluate(() => window.__prodSignedOutLabelRead);
+    expect(signedOutReadResult === null, 'a label read completed into a signed-out verification epoch');
+    expect(await page.evaluate(() => {
+      const state = _prodLabelState('gra-fixture');
+      return !state || (!state.selectedIds.length && !state.catalog.length);
+    }), 'the delayed label read resurrected protected catalog or selection state after sign-out');
+
+    await page.evaluate(async () => {
+      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
+      _syncviewAcceptStaffVerification();
+      _syncviewStaffRefreshChrome();
+      _prodRender();
+      await _prodEnsureLabels('gra-fixture', true);
+    });
+    await page.waitForFunction(() => _prodLabelState('gra-fixture')?.status === 'ready');
+
+    let startOverlappingLabelWrite;
+    let releaseOverlappingLabelWrite;
+    const overlappingLabelWriteStarted = new Promise(resolve => { startOverlappingLabelWrite = resolve; });
+    const overlappingLabelWriteRelease = new Promise(resolve => { releaseOverlappingLabelWrite = resolve; });
+    heldLabelWrite = { started: startOverlappingLabelWrite, release: overlappingLabelWriteRelease };
+    await page.evaluate(() => {
+      window.__prodOverlappingLabelWrite = _prodRunLabelsWrite('gra-fixture', ['ordinary', 'workload-2']);
+    });
+    await overlappingLabelWriteStarted;
+    const readsBeforeWriteRefresh = labelReads.length;
+    await page.evaluate(() => _prodRefresh());
+    await page.waitForFunction(() => _prodState.loaded
+      && _prodLabelState('gra-fixture')?.saving === true);
+    expect(labelReads.length === readsBeforeWriteRefresh,
+      'Production refresh raced a pending label write with a stale protected read');
+    releaseOverlappingLabelWrite();
+    await page.evaluate(() => window.__prodOverlappingLabelWrite);
+    await page.waitForFunction(() => _prodLabelState('gra-fixture')?.status === 'ready'
+      && _prodLabelState('gra-fixture')?.selectedIds.includes('workload-2'));
+    expect(await page.evaluate(() => !_prodLabelState('gra-fixture')?.selectedIds.includes('workload-3')),
+      'the pending-write refresh left the UI on its pre-write label selection');
+
+    let startSignedOutLabelWrite;
+    let releaseSignedOutLabelWrite;
+    const signedOutLabelWriteStarted = new Promise(resolve => { startSignedOutLabelWrite = resolve; });
+    const signedOutLabelWriteRelease = new Promise(resolve => { releaseSignedOutLabelWrite = resolve; });
+    heldLabelWrite = { started: startSignedOutLabelWrite, release: signedOutLabelWriteRelease };
+    await page.evaluate(() => {
+      window.__prodSignedOutLabelWrite = _prodRunLabelsWrite('gra-fixture', ['ordinary']);
+    });
+    await signedOutLabelWriteStarted;
+    await page.evaluate(() => _syncviewStaffIdentityClear());
+    releaseSignedOutLabelWrite();
+    await page.evaluate(() => window.__prodSignedOutLabelWrite);
+    expect(await page.evaluate(() => {
+      const state = _prodLabelState('gra-fixture');
+      return !state || !state.selectedIds.length;
+    }), 'a delayed label-write acknowledgement resurrected selected labels after sign-out');
+
+    await page.evaluate(async () => {
+      _syncviewStaffIdentitySave({ key: 'browser-role-key', role: 'admin', member: { id: 'admin', name: 'Browser Admin', role: 'admin', team: 'graphics' } });
+      _syncviewAcceptStaffVerification();
+      _syncviewStaffRefreshChrome();
+      _prodRender();
+      await _prodEnsureLabels('gra-fixture', true);
+    });
+    await page.waitForFunction(() => _prodLabelState('gra-fixture')?.status === 'ready');
+
     await page.locator('[data-prod-comment-input]').fill('Browser gateway comment');
     await page.locator('.prod-composer-audience').selectOption('client');
     const commentResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
@@ -243,6 +438,14 @@ function expect(value, message) { if (!value) throw new Error(message); }
     expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'true', 'Linear-authoritative video controls were enabled');
     await page.locator('[data-prod-prop="status"]').dispatchEvent('click');
     expect(writes.length === beforeVideo, 'Linear-authoritative control reached the gateway');
+    await page.waitForFunction(() => _prodLabelState('vid-fixture')?.status === 'ready');
+    await page.locator('[data-prod-prop="labels"]').click();
+    const labelWritesBeforeLockedClick = writes.filter(write => write.body.operation === 'labels').length;
+    await page.locator('[data-prod-label-search-input]').fill('2× Workload');
+    await page.locator('[data-prod-label-option]', { hasText: '2× Workload' }).dispatchEvent('click');
+    expect(writes.filter(write => write.body.operation === 'labels').length === labelWritesBeforeLockedClick,
+      'Linear-authoritative label control reached the guarded write endpoint');
+    await page.evaluate(() => _prodClearLayer());
 
     serverAuthority.graphics = 'linear';
     await page.evaluate(() => _prodOpenDeliverable('test-fixture-row'));

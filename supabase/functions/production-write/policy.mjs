@@ -7,6 +7,7 @@ export const OPERATIONS = Object.freeze([
   "comment",
   "due",
   "assignee",
+  "labels",
   "intake_create",
 ]);
 
@@ -165,6 +166,23 @@ export function validDateOrNull(value) {
   return date.getUTCFullYear() === year
     && date.getUTCMonth() === month - 1
     && date.getUTCDate() === day;
+}
+
+const SAFE_LINEAR_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/;
+
+// Label changes replace Linear's complete selected-ID set atomically. Reject
+// partial/malformed inputs and sort the de-duplicated IDs so the same intent
+// has one stable fingerprint, outbox payload, and conflict value.
+export function canonicalLabelIds(value) {
+  if (!Array.isArray(value) || value.length > 250) return null;
+  const ids = [];
+  for (const raw of value) {
+    if (typeof raw !== "string") return null;
+    const id = clean(raw);
+    if (!SAFE_LINEAR_ID.test(id)) return null;
+    ids.push(id);
+  }
+  return [...new Set(ids)].sort();
 }
 
 // Match the legacy linear-set-status bridge exactly: an overdue YYYY-MM-DD

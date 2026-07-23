@@ -26,6 +26,10 @@ const clientRead = INDEX.slice(
   INDEX.indexOf('async function wlFetchPlanRows('),
   INDEX.indexOf('async function wlFetchLinearMetadata('),
 );
+const clientForeignMetadataRead = INDEX.slice(
+  INDEX.indexOf('async function wlFetchForeignLinearMetadata('),
+  INDEX.indexOf('function wlNativeWorkloadLabel('),
+);
 const clientMetadataRead = INDEX.slice(
   INDEX.indexOf('async function wlFetchLinearMetadata('),
   INDEX.indexOf('function wlAdoptLinearMetadata('),
@@ -315,10 +319,10 @@ ok(/if \(capability === 'workload-plan-read'\) return role === 'admin' \|\| role
 'browser exposes authoritative plan reads to staff while keeping editing Admin/SMM-only');
 ok(/const WORKLOAD_LINEAR_URL\s*=\s*CAL_SUPABASE_URL \+ '\/functions\/v1\/workload-linear'/.test(INDEX)
   && /_syncviewRequireStaffIdentity\('workload-linear-read'\)/.test(clientMetadataRead)
-  && /action: 'metadata', issue_ids: chunk/.test(clientMetadataRead)
-  && /index \+= 100/.test(clientMetadataRead)
-  && /Math\.min\(3, chunks\.length\)/.test(clientMetadataRead)
-  && /json\.complete !== true/.test(clientMetadataRead)
+  && /action: 'metadata', issue_ids: chunk/.test(clientForeignMetadataRead)
+  && /index \+= 100/.test(clientForeignMetadataRead)
+  && /Math\.min\(3, chunks\.length\)/.test(clientForeignMetadataRead)
+  && /json\.complete !== true/.test(clientForeignMetadataRead)
   && /if \(capability === 'workload-linear-read'\) return role === 'admin' \|\| role === 'smm' \|\| role === 'creative';/.test(INDEX)
   && /if \(capability === 'workload-linear'\) return role === 'admin' \|\| role === 'smm';/.test(INDEX),
 'Workload metadata is bounded and readable by all staff while Linear due writes remain Admin/SMM-only');
@@ -358,6 +362,13 @@ ok(/workload\.label === '2× Workload' \|\| workload\.label === '3× Workload'/.
     && /wlTeamBucket\(sub && sub\.teamKey, sub && sub\.teamName\) !== 'video'/.test(INDEX)
     && !/function wlPriorityValue\(|function wlPriorityIconHtml\(|priorityByIssueId/.test(INDEX),
 'exact Workload labels replace native Linear priority and only weight video capacity');
+ok(/function wlMetadataTeamBucket\(teamKey, teamName\)/.test(INDEX)
+    && /key === 'VID' \? 'video' : key === 'GRA' \? 'graphics' : null/.test(INDEX)
+    && /name === 'video' \? 'video' : name === 'graphics' \? 'graphics' : null/.test(INDEX)
+    && /const team = wlMetadataTeamBucket\(issue\.teamKey, issue\.teamName\)/.test(clientMetadataRead)
+    && /if \(!team\) throw new Error\('Workload issue team authority is unavailable\.'\)/.test(clientMetadataRead)
+    && !/wlTeamBucket\(issue\.teamKey, issue\.teamName\)/.test(clientMetadataRead),
+'Workload authority partition accepts only exact Video or Graphics metadata and fails unknown teams closed');
 ok(/_syncviewRequireStaffIdentity\('workload-linear'\)/.test(clientDueWrite)
     && /action: 'set_due_date'/.test(clientDueWrite)
     && /issue_id: String\(issue\.id/.test(clientDueWrite)

@@ -1,6 +1,6 @@
 'use strict';
 
-// Hermetic browser contract for Workload's Linear due-date editor. The UI is
+// Hermetic browser contract for Workload's authority-routed due-date editor. The UI is
 // optimistic, but any non-exact acknowledgement must restore the previous
 // deadline. A confirmed Linear commit with a lagging mirror is the one case
 // that stays visible and warns instead of pretending the write failed.
@@ -33,10 +33,12 @@ function extract(name) {
   throw new Error('unclosed ' + name);
 }
 
-function harness(reply, role = 'admin', manualPlanDate = null) {
+function harness(reply, role = 'admin', manualPlanDate = null, authority = 'linear') {
   const issue = {
     id: 'synthetic-issue-1',
     clientName: 'Synthetic Client',
+    teamKey: 'VID',
+    teamName: 'Video',
     dueDate: '2026-08-10',
   };
   const notifies = [];
@@ -44,8 +46,16 @@ function harness(reply, role = 'admin', manualPlanDate = null) {
   let fetches = 0;
   let optimisticAtRequest = null;
   let optimisticPlacementAtRequest = null;
+  let lastRequest = null;
+  const gatewayRows = [];
+  let sensitiveRefreshes = 0;
+  const authorityFingerprint = authority === 'syncview'
+    ? 'video:syncview|graphics:linear'
+    : 'video:linear|graphics:linear';
   const context = {
     WORKLOAD_LINEAR_URL: 'https://example.invalid/functions/v1/workload-linear',
+    PROD_WRITE_EF_URL: 'https://example.invalid/functions/v1/production-write',
+    CAL_SUPABASE_ANON_KEY: 'anon',
     WL_LINEAR_WRITE_TIMEOUT_MS: 12000,
     _wlPlanLoadGeneration: 0,
     _wlPlanSessionGeneration: 0,
@@ -56,6 +66,17 @@ function harness(reply, role = 'admin', manualPlanDate = null) {
       fetchedAt: 1,
       linearMetadataStatus: 'ready',
       planByIssueId: new Map(manualPlanDate ? [[issue.id, manualPlanDate]] : []),
+      dueAuthorityByIssueId: new Map([[issue.id, {
+        authority,
+        team: 'video',
+        fingerprint: authorityFingerprint,
+      }]]),
+      nativeDueTargetByIssueId: new Map(authority === 'syncview' ? [[issue.id, {
+        id: 'native-deliverable-1',
+        clientSlug: 'synthetic-client',
+        team: 'video',
+        updatedAt: '2026-07-22T11:00:00Z',
+      }]] : []),
       planHasSnapshot: true,
     },
     _syncviewStaffIdentityForHeaders: () => role ? { role } : null,
@@ -64,13 +85,18 @@ function harness(reply, role = 'admin', manualPlanDate = null) {
     _syncviewEfHeaders: headers => headers,
     _syncviewStaffIdentityClear: () => {},
     wlPurgePlanSensitiveState: () => {},
+    wlRefetchSilent: async () => { sensitiveRefreshes++; return true; },
     wlIsTweaksNeeded: () => false,
     wlWorkloadTodayISO: () => '2026-07-22',
     wlApplyData: () => paints.push(issue.dueDate),
     renderWorkloadAll: () => paints.push(issue.dueDate),
     showNotify: (title, body) => notifies.push([title, body]),
-    fetch: async () => {
+    fetch: async (url, options = {}) => {
       fetches++;
+      lastRequest = {
+        url: String(url),
+        body: options.body ? JSON.parse(options.body) : null,
+      };
       optimisticAtRequest = issue.dueDate;
       optimisticPlacementAtRequest = context.wlDisplayDate(issue);
       if (reply instanceof Error) throw reply;
@@ -80,6 +106,7 @@ function harness(reply, role = 'admin', manualPlanDate = null) {
         json: async () => reply.body,
       };
     },
+    _prodApplyGatewayRow: row => gatewayRows.push(row),
     document: { querySelector: () => ({}) },
     AbortController,
     setTimeout,
@@ -99,6 +126,12 @@ function harness(reply, role = 'admin', manualPlanDate = null) {
     'wlLinearEditingEnabled',
     'wlApplyDueLocal',
     'wlValidRfc3339Timestamp',
+    'wlMetadataTeamBucket',
+    'wlNormalizeClient',
+    'wlNativeDueDate',
+    'wlDueWriteRoute',
+    'wlDueWriteRequestId',
+    'wlAdoptNativeDueGatewayRow',
     '_wlDueWriteRequest',
     'wlSetDueDate',
   ]) vm.runInContext(extract(name), context);
@@ -110,6 +143,9 @@ function harness(reply, role = 'admin', manualPlanDate = null) {
     get fetches() { return fetches; },
     get optimisticAtRequest() { return optimisticAtRequest; },
     get optimisticPlacementAtRequest() { return optimisticPlacementAtRequest; },
+    get lastRequest() { return lastRequest; },
+    gatewayRows,
+    get sensitiveRefreshes() { return sensitiveRefreshes; },
   };
 }
 
@@ -156,6 +192,9 @@ function backgroundHarness(options = {}) {
   const metadataRows = options.metadataRows || [{
     issue_id: 'issue-a',
     due_date: '2026-08-10',
+    due_authority: 'linear',
+    due_authority_team: 'video',
+    due_authority_fingerprint: 'video:linear|graphics:linear',
     workload: { label: '2× Workload', weight: 2, color: '#ff0000' },
   }];
   const counters = {
@@ -193,6 +232,8 @@ function backgroundHarness(options = {}) {
       issueSnapshot: initialIssues,
       planByIssueId: new Map(initialPlans),
       workloadByIssueId: new Map(initialMetadata),
+      dueAuthorityByIssueId: new Map(),
+      nativeDueTargetByIssueId: new Map(),
       fetchedAt: 1,
       loading: false,
       refreshing: false,
@@ -248,6 +289,9 @@ function backgroundHarness(options = {}) {
       if (options.fetchMetadata) return options.fetchMetadata(counters.metadata, issues);
       return metadataRows.map(row => ({
         ...row,
+        due_authority: row.due_authority || 'linear',
+        due_authority_team: row.due_authority_team || 'video',
+        due_authority_fingerprint: row.due_authority_fingerprint || 'video:linear|graphics:linear',
         workload: row.workload ? { ...row.workload } : null,
       }));
     },
@@ -307,6 +351,8 @@ function backgroundHarness(options = {}) {
     'wlBackgroundBusinessFingerprint',
     'wlMarkBackgroundRefreshFailure',
     'wlClearBackgroundRefreshFailure',
+    'wlMetadataTeamBucket',
+    'wlValidRfc3339Timestamp',
     'wlAdoptLinearMetadata',
     'wlPurgePlanSensitiveState',
     'wlRefetchSilent',
@@ -320,6 +366,84 @@ function backgroundHarness(options = {}) {
 }
 
 async function run() {
+  // F99/F100: Production uses the same on-demand Guatemala policy day as
+  // Workload, and every converter returns a canonical date with its year.
+  {
+    const dates = {
+      WL_WORKLOAD_TIME_ZONE: 'America/Guatemala',
+      _prodIsDone: () => false,
+      Intl, Date, Math, Number, String, RegExp,
+    };
+    dates.globalThis = dates;
+    vm.createContext(dates);
+    for (const name of [
+      'wlWorkloadTodayISO',
+      '_prodIsoParts',
+      '_prodIsoDayNumber',
+      '_prodIsoFromParts',
+      '_prodIsoFromDate',
+      '_prodDateFromIso',
+      '_prodPolicyTodayISO',
+      '_prodToday',
+      '_prodAddDays',
+      '_prodParseDue',
+      '_prodDueIso',
+      '_prodOverdue',
+      '_prodOverdueDays',
+      '_prodMsUntilPolicyDayChange',
+    ]) vm.runInContext(extract(name), dates);
+    const beforeMidnight = new Date('2027-01-01T05:59:59.500Z');
+    const atMidnight = new Date('2027-01-01T06:00:00.000Z');
+    assert.strictEqual(dates._prodPolicyTodayISO(beforeMidnight), '2026-12-31');
+    assert.strictEqual(dates._prodPolicyTodayISO(atMidnight), '2027-01-01',
+      'Production advances at the ratified America/Guatemala midnight');
+    assert.strictEqual(dates._prodOverdue('2026-12-31', 'todo', beforeMidnight), false,
+      'UTC rollover cannot mark the Guatemala policy day overdue early');
+    assert.strictEqual(dates._prodOverdue('2026-12-31', 'todo', atMidnight), true);
+    assert.strictEqual(dates._prodOverdueDays('2026-12-31', 'todo', atMidnight), 1);
+    assert.strictEqual(dates._prodParseDue('7 days', new Date('2026-12-29T12:00:00Z')), '2027-01-05',
+      'relative quick input preserves the next calendar year');
+    assert.strictEqual(dates._prodParseDue('2028-02-29', atMidnight), '2028-02-29');
+    assert.strictEqual(dates._prodParseDue('Feb 29 2028', atMidnight), '2028-02-29');
+    assert.strictEqual(dates._prodParseDue('02/29/2028', atMidnight), '2028-02-29');
+    assert.strictEqual(dates._prodParseDue('Feb 29 2027', atMidnight), '',
+      'explicit-year input cannot silently roll an invalid day');
+    assert.strictEqual(dates._prodDueIso(new Date(2027, 6, 20)), '2027-07-20',
+      'keyboard calendar Dates keep their visible year');
+    const nextDayDelay = dates._prodMsUntilPolicyDayChange(beforeMidnight);
+    assert(nextDayDelay >= 400 && nextDayDelay <= 1000,
+      'the policy-day clock schedules the next Guatemala midnight rather than freezing at load');
+
+    const dueBuilder = extract('_prodBuildDue');
+    const pickerSpec = extract('_prodPickerSpec');
+    assert(!source.includes('const PROD_TODAY'), 'Production no longer captures a frozen browser-local today');
+    assert(/data-prod-day="' \+ _calEscAttr\(_prodIsoFromDate\(o\[1\]\)\)/.test(dueBuilder)
+      && /data-prod-day="' \+ _calEscAttr\(dayIso\)/.test(dueBuilder)
+      && /const selected = selectedIso === dayIso/.test(dueBuilder),
+    'quick choices, mouse cells, and selection state all carry canonical ISO years');
+    assert(/const selected = view === 'calendar' \? focusDay : _prodParseDue\(inp\.value\)/.test(dueBuilder)
+      && /_prodRunPickerWrite\('due', ids, _prodDueIso\(value\)\)/.test(dueBuilder),
+    'keyboard, mouse, and bulk selections converge through the same canonical converter');
+    assert(/\['Today', _prodPolicyTodayISO\(\)\]/.test(pickerSpec)
+      && /\['Tomorrow', _prodIsoFromDate/.test(pickerSpec),
+    'the secondary due picker contract also retains canonical ISO years');
+    assert(/todayPolicy: 'workload'/.test(source)
+      && /data-sv-today-policy/.test(extract('_svDateHtml')),
+    'the Workload due control binds the shared picker to its policy-day owner');
+    const policyDays = ['2026-12-31', '2027-01-01'];
+    const pickerToday = {
+      dpInput: { dataset: { svTodayPolicy: 'workload' } },
+      wlWorkloadTodayISO: () => policyDays.shift(),
+      String, Date,
+    };
+    pickerToday.globalThis = pickerToday;
+    vm.createContext(pickerToday);
+    vm.runInContext(extract('todayISO'), pickerToday);
+    assert.strictEqual(pickerToday.todayISO(), '2026-12-31');
+    assert.strictEqual(pickerToday.todayISO(), '2027-01-01',
+      'Today/highlight/initial-month reads the Guatemala policy day on demand across its midnight');
+  }
+
   // F201/F40: metadata follows the per-team authority split. A SyncView-
   // authoritative video reads its native due date and canonical labels from
   // deliverables; only the still-Linear graphics id reaches workload-linear.
@@ -331,7 +455,13 @@ async function run() {
       WORKLOAD_LINEAR_URL: 'https://example.invalid/functions/v1/workload-linear',
       WL_LINEAR_READ_TIMEOUT_MS: 20000,
       _wlPlanSessionGeneration: 0,
-      wlState: { workloadByIssueId: new Map(), linearMetadataStatus: 'loading', linearMetadataError: null },
+      wlState: {
+        workloadByIssueId: new Map(),
+        dueAuthorityByIssueId: new Map(),
+        nativeDueTargetByIssueId: new Map(),
+        linearMetadataStatus: 'loading',
+        linearMetadataError: null,
+      },
       _syncviewRequireStaffIdentity: async () => ({ role: 'admin' }),
       _syncviewEfHeaders: headers => headers,
       wlIsActiveStatus: () => true,
@@ -344,8 +474,12 @@ async function run() {
         }
         if (String(url).includes('/rest/v1/deliverables')) {
           return { ok: true, status: 200, json: async () => [{
+            id: 'native-deliverable-video',
+            client_slug: 'synthetic-client',
+            team: 'video',
             linear_issue_uuid: 'native-video',
             due_date: '2026-08-14',
+            updated_at: '2026-07-22T12:30:00Z',
             linear_raw: { issue: { labels: {
               nodes: [
                 { id: 'ordinary', name: 'Keep me', color: '#112233', description: 'Arbitrary label survives' },
@@ -373,10 +507,12 @@ async function run() {
     vm.createContext(mixed);
     for (const name of [
       'wlProductionAuthorityValue',
+      'wlProductionAuthorityFingerprint',
       'wlFetchProductionAuthority',
       'wlFetchForeignLinearMetadata',
       'wlNativeWorkloadLabel',
       'wlNativeDueDate',
+      'wlValidRfc3339Timestamp',
       'wlFetchNativeMetadata',
       'wlMetadataFailure',
       'wlMetadataTeamBucket',
@@ -401,6 +537,19 @@ async function run() {
       'SyncView-authoritative ids use native deliverables metadata');
     mixed.wlAdoptLinearMetadata(rows, issues, 1);
     assert.strictEqual(issues[0].dueDate, '2026-08-14', 'native due date reaches the current metadata shape');
+    assert.strictEqual(mixed.wlState.dueAuthorityByIssueId.get('native-video').authority, 'syncview',
+      'native due authority is retained independently from the feeder snapshot');
+    assert.deepStrictEqual(
+      { ...mixed.wlState.nativeDueTargetByIssueId.get('native-video') },
+      {
+        id: 'native-deliverable-video',
+        clientSlug: 'synthetic-client',
+        team: 'video',
+        updatedAt: '2026-07-22T12:30:00Z',
+      },
+      'native deliverable identity and CAS cursor are retained without replacing workload_issues.synced_at');
+    assert.strictEqual(mixed.wlState.dueAuthorityByIssueId.get('linear-graphics').authority, 'linear',
+      'Linear-authoritative issues retain the foreign writer route');
     assert.strictEqual(mixed.wlState.workloadByIssueId.get('native-video').label, '3× Workload',
       'exact native Workload label reaches the shared metadata map');
     assert.strictEqual(mixed.wlWorkloadWeight(issues[0]), 3, 'native exact label reaches video capacity math');
@@ -410,6 +559,29 @@ async function run() {
       'native due dates are exact calendar dates, not sliced arbitrary strings');
 
     const originalFetch = mixed.fetch;
+    mixed.fetch = async (url, options = {}) => {
+      if (String(url).includes('/functions/v1/workload-linear')) {
+        return { ok: false, status: 503, json: async () => ({ error: 'foreign_unavailable' }) };
+      }
+      return originalFetch(url, options);
+    };
+    const nativeSurvivesForeignFailure = [
+      backgroundIssue({ id: 'native-video', teamKey: 'VID', teamName: 'Video', dueDate: '2025-01-01' }),
+      backgroundIssue({ id: 'linear-graphics', teamKey: 'GRA', teamName: 'Graphics' }),
+    ];
+    const partialRows = await mixed.wlFetchLinearMetadata(nativeSurvivesForeignFailure);
+    assert.deepStrictEqual(Array.from(partialRows, row => row.issue_id), ['native-video'],
+      'a foreign partition outage cannot discard a proven native partition');
+    assert.deepStrictEqual(Array.from(partialRows.partialFailure.issueIds), ['linear-graphics']);
+    mixed.wlAdoptLinearMetadata(partialRows, nativeSurvivesForeignFailure, 2);
+    assert.strictEqual(nativeSurvivesForeignFailure[0].dueDate, '2026-08-14');
+    assert.strictEqual(mixed.wlState.dueAuthorityByIssueId.get('native-video').authority, 'syncview',
+      'native due remains authoritative and writable without a foreign round-trip');
+    assert.strictEqual(mixed.wlState.dueAuthorityByIssueId.has('linear-graphics'), false,
+      'the unproven foreign route stays fail-closed');
+    assert.strictEqual(mixed.wlState.linearMetadataStatus, 'stale',
+      'the surviving partition is published with a visible partial-health state');
+
     const unknownTeamCalls = [];
     mixed.fetch = async url => {
       unknownTeamCalls.push(String(url));
@@ -440,8 +612,12 @@ async function run() {
       }
       if (String(url).includes('/rest/v1/deliverables')) {
         return { ok: true, status: 200, json: async () => [{
+          id: 'deliverable-native-empty',
+          client_slug: 'synthetic-client',
+          team: 'video',
           linear_issue_uuid: 'native-empty',
           due_date: null,
+          updated_at: '2026-07-22T12:30:00Z',
           linear_raw: { issue: { labels: { nodes: [], pageInfo: { hasNextPage: false } } } },
         }] };
       }
@@ -456,8 +632,12 @@ async function run() {
       }
       if (String(url).includes('/rest/v1/deliverables')) {
         return { ok: true, status: 200, json: async () => [{
+          id: 'deliverable-native-incomplete',
+          client_slug: 'synthetic-client',
+          team: 'video',
           linear_issue_uuid: 'native-incomplete',
           due_date: null,
+          updated_at: '2026-07-22T12:30:00Z',
           linear_raw: { issue: { labels: { nodes: [], pageInfo: { hasNextPage: true } } } },
         }] };
       }
@@ -474,8 +654,12 @@ async function run() {
       }
       if (String(url).includes('/rest/v1/deliverables')) {
         return { ok: true, status: 200, json: async () => [{
+          id: 'deliverable-native-missing-page-info',
+          client_slug: 'synthetic-client',
+          team: 'video',
           linear_issue_uuid: 'native-missing-page-info',
           due_date: null,
+          updated_at: '2026-07-22T12:30:00Z',
           linear_raw: { issue: { labels: { nodes: [] } } },
         }] };
       }
@@ -538,8 +722,12 @@ async function run() {
         }
         if (String(url).includes('/rest/v1/deliverables')) {
           return { ok: true, status: 200, json: async () => [{
+            id: 'deliverable-' + malformedRelation.id,
+            client_slug: 'synthetic-client',
+            team: 'video',
             linear_issue_uuid: malformedRelation.id,
             due_date: null,
+            updated_at: '2026-07-22T12:30:00Z',
             linear_raw: { issue: malformedRelation.issue },
           }] };
         }
@@ -582,6 +770,7 @@ async function run() {
     vm.createContext(nativeFailure);
     for (const name of [
       'wlProductionAuthorityValue',
+      'wlProductionAuthorityFingerprint',
       'wlFetchProductionAuthority',
       'wlFetchForeignLinearMetadata',
       'wlNativeWorkloadLabel',
@@ -637,6 +826,106 @@ async function run() {
   assert.strictEqual(happy.issue.dueDate, '2026-08-12');
   assert.strictEqual(happy.context.wlDisplayDate(happy.issue), '2026-08-11', 'automatic placement follows the confirmed deadline');
   assert.deepStrictEqual(happy.notifies, []);
+  assert.strictEqual(happy.lastRequest.url, 'https://example.invalid/functions/v1/workload-linear');
+  assert.deepStrictEqual(happy.lastRequest.body, {
+    action: 'set_due_date',
+    issue_id: 'synthetic-issue-1',
+    client: 'Synthetic Client',
+    due_date: '2026-08-12',
+  }, 'Linear-authoritative due writes retain the isolated workload-linear contract');
+
+  // A SyncView-authoritative issue uses the guarded native gateway with its
+  // deliverable cursor. The workload mirror cursor remains an independent
+  // feeder watermark, and a later Production receipt converges locally.
+  const native = harness({ body: {
+    ok: true,
+    native_committed: true,
+    authority: 'syncview',
+    mirror_pending: true,
+    row: {
+      id: 'native-deliverable-1',
+      client_slug: 'synthetic-client',
+      team: 'video',
+      due_date: '2027-01-05',
+      updated_at: '2026-07-22T12:00:00Z',
+    },
+  } }, 'admin', null, 'syncview');
+  native.issue.syncedAt = '2026-07-22T10:00:00Z';
+  assert.strictEqual(await native.context.wlSetDueDate('synthetic-issue-1', '2027-01-05'), true);
+  assert.strictEqual(native.lastRequest.url, 'https://example.invalid/functions/v1/production-write');
+  assert.strictEqual(native.lastRequest.body.operation, 'due');
+  assert.strictEqual(native.lastRequest.body.surface, 'workload');
+  assert.strictEqual(native.lastRequest.body.entity, 'deliverable');
+  assert.strictEqual(native.lastRequest.body.id, 'native-deliverable-1');
+  assert.strictEqual(native.lastRequest.body.expected_updated_at, '2026-07-22T11:00:00Z');
+  assert.strictEqual(native.lastRequest.body.due_date, '2027-01-05');
+  assert.strictEqual(native.context.wlState.nativeDueTargetByIssueId.get('synthetic-issue-1').updatedAt,
+    '2026-07-22T12:00:00Z', 'native success advances only the deliverable CAS cursor');
+  assert.strictEqual(native.issue.syncedAt, '2026-07-22T10:00:00Z',
+    'native success does not forge the workload_issues feeder watermark');
+  assert.strictEqual(native.gatewayRows.length, 1,
+    'native success is offered to the in-memory Production projection without a bridge round-trip');
+
+  native.context._prodState = {
+    deliverables: [{
+      id: 'native-deliverable-1',
+      due_date: '2027-01-05',
+      updated_at: '2026-07-22T12:00:00Z',
+    }],
+    adapter: {},
+  };
+  vm.runInContext(extract('_prodApplyGatewayRow'), native.context);
+  native.context._prodApplyGatewayRow({
+    id: 'native-deliverable-1',
+    client_slug: 'synthetic-client',
+    team: 'video',
+    due_date: '2027-02-14',
+    updated_at: '2026-07-22T13:00:00Z',
+  });
+  assert.strictEqual(native.issue.dueDate, '2027-02-14',
+    'a Production gateway receipt converges the current Workload issue locally');
+  assert.strictEqual(native.context._prodState.deliverables[0].due_date, '2027-02-14',
+    'the same receipt converges the Production projection');
+  assert.strictEqual(native.context.wlState.nativeDueTargetByIssueId.get('synthetic-issue-1').updatedAt,
+    '2026-07-22T13:00:00Z', 'cross-tab convergence advances the independent native CAS cursor');
+
+  const nativeConflict = harness({
+    httpOk: false,
+    status: 409,
+    body: {
+      ok: false,
+      error: 'write_conflict',
+      row: {
+        id: 'native-deliverable-1',
+        client_slug: 'synthetic-client',
+        team: 'video',
+        due_date: '2027-03-01',
+        updated_at: '2026-07-22T14:00:00Z',
+      },
+    },
+  }, 'admin', null, 'syncview');
+  assert.strictEqual(await nativeConflict.context.wlSetDueDate('synthetic-issue-1', '2027-01-05'), false);
+  assert.strictEqual(nativeConflict.issue.dueDate, '2027-03-01',
+    'native CAS conflict adopts the current authoritative row instead of restoring stale feeder data');
+  assert.match(nativeConflict.notifies[0][0], /changed elsewhere/i);
+
+  const staleLinearRoute = harness({
+    httpOk: false,
+    status: 409,
+    body: {
+      ok: false,
+      error: 'team_is_syncview_authoritative',
+    },
+  });
+  assert.strictEqual(await staleLinearRoute.context.wlSetDueDate('synthetic-issue-1', '2027-01-05'), false);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.strictEqual(staleLinearRoute.issue.dueDate, '2026-08-10',
+    'a server-proven authority flip restores the previous due date');
+  assert.strictEqual(staleLinearRoute.context.wlState.linearMetadataStatus, 'stale',
+    'a stale pre-flip browser route is invalidated before another edit');
+  assert.strictEqual(staleLinearRoute.sensitiveRefreshes, 1,
+    'the browser immediately refreshes exact authority metadata after a stale-route rejection');
+  assert.match(staleLinearRoute.notifies[0][0], /authority changed/i);
 
   const pinned = harness({ body: {
     ok: true,

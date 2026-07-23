@@ -29,6 +29,31 @@ function ok(condition, message) {
     && policy.LINEAR_ALIAS_BATCH_SIZE === 20,
   'metadata requests are bounded at 100 and split into 20-issue Linear alias batches');
 
+  ok(policy.workloadTeamBucket('VID', 'Video') === 'video'
+    && policy.workloadTeamBucket('GRA', 'Graphics') === 'graphics'
+    && policy.workloadTeamBucket('VID', 'Graphics') === ''
+    && policy.workloadTeamBucket('CON', 'Content') === '',
+  'writer team scope accepts only consistent Video or Graphics mirror metadata');
+  const stillLinear = policy.linearAuthorityDecision(
+    { video: 'linear', graphics: 'syncview' },
+    'video',
+  );
+  const staleAfterFlip = policy.linearAuthorityDecision(
+    { video: 'syncview', graphics: 'linear' },
+    'video',
+  );
+  const unreadableAuthority = policy.linearAuthorityDecision(
+    { video: 'linear', graphics: 'unknown' },
+    'video',
+  );
+  ok(stillLinear.ok === true
+    && staleAfterFlip.ok === false
+    && staleAfterFlip.status === 409
+    && staleAfterFlip.error === 'team_is_syncview_authoritative'
+    && unreadableAuthority.ok === false
+    && unreadableAuthority.status === 503,
+  'a stale Linear browser route is denied after the current team flips to SyncView, and malformed authority fails closed');
+
   const exactIds = Array.from({ length: 100 }, (_, index) => `issue-${index + 1}`);
   const accepted = policy.normalizeMetadataIssueIds(exactIds);
   ok(accepted.ok && accepted.issueIds.length === 100,

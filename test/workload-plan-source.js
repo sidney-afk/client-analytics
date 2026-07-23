@@ -40,7 +40,7 @@ const clientMetadataAdopt = INDEX.slice(
 );
 const clientWrite = INDEX.slice(
   INDEX.indexOf('async function _wlPlanWriteRequest('),
-  INDEX.indexOf('async function _wlDueWriteRequest('),
+  INDEX.indexOf('function wlDueWriteRoute('),
 );
 const clientPersist = INDEX.slice(
   INDEX.indexOf('async function _wlPersistPlanDate('),
@@ -52,6 +52,10 @@ const clientSet = INDEX.slice(
 );
 const clientDueWrite = INDEX.slice(
   INDEX.indexOf('async function _wlDueWriteRequest('),
+  INDEX.indexOf('async function wlSetDueDate('),
+);
+const clientDueRouting = INDEX.slice(
+  INDEX.indexOf('function wlDueWriteRoute('),
   INDEX.indexOf('async function wlSetDueDate('),
 );
 const clientDueSet = INDEX.slice(
@@ -374,8 +378,13 @@ ok(/_syncviewRequireStaffIdentity\('workload-linear'\)/.test(clientDueWrite)
     && /issue_id: String\(issue\.id/.test(clientDueWrite)
     && /client: String\(issue\.clientName/.test(clientDueWrite)
     && /due_date: dueDate/.test(clientDueWrite)
+    && /surface: 'workload'/.test(clientDueWrite)
+    && /id: route\.nativeId/.test(clientDueWrite)
+    && /expected_updated_at: route\.nativeUpdatedAt/.test(clientDueWrite)
+    && /wlState\.dueAuthorityByIssueId/.test(clientDueRouting)
+    && /wlState\.nativeDueTargetByIssueId/.test(clientDueRouting)
     && !/WORKLOAD_PLAN_URL|calendar-upsert|sample-review-upsert|webhook|syncview_runtime_flags/.test(clientDueWrite),
-'Linear due-date writes use only the isolated Workload endpoint with stable issue and client scope');
+  'due-date writes route by retained authority: Linear stays isolated while native uses guarded deliverable CAS');
 ok(/const exactAck = resp\.ok/.test(clientDueSet)
     && /json\.linear_committed === true/.test(clientDueSet)
     && /hasOwnProperty\.call\(json, 'due_date'\)/.test(clientDueSet)
@@ -388,8 +397,11 @@ ok(/const exactAck = resp\.ok/.test(clientDueSet)
     && /wlApplyDueLocal\(key, previousDate\)/.test(clientDueSet)
     && /Couldn't update the Linear due date/.test(clientDueSet)
     && /json\.mirror_pending/.test(clientDueSet)
-    && /Workload is catching up/.test(clientDueSet),
-'browser accepts only an exact Linear acknowledgement, reverts every failure, and keeps a committed mirror-pending date');
+    && /Workload is catching up/.test(clientDueSet)
+    && /json\.native_committed === true/.test(clientDueSet)
+    && /json\.authority === 'syncview'/.test(clientDueSet)
+    && /wlAdoptNativeDueGatewayRow\(row\)/.test(clientDueSet),
+  'browser accepts exact authority-specific acknowledgements, reverts failures, and advances native state locally');
 ok(/json\.updated !== 1/.test(clientPersist)
   && /String\(saved\.issue_id/.test(clientPersist)
   && /saved\.plan_date/.test(clientPersist)
@@ -411,7 +423,7 @@ ok(/data-wl-drag-handle="issue"/.test(issueDragHandle)
   && !/data-wl-plan-clear/.test(dayRollups)
   && /data-wl-due-issue/.test(rollupPopover)
   && /_svDateHtml\(dateId, s\.dueDate \|\| ''/.test(rollupPopover)
-  && /Linear due date/.test(rollupPopover)
+  && />Due date</.test(rollupPopover)
   && /explicitPlan \?/.test(rollupPopover)
   && /data-wl-plan-clear/.test(rollupPopover)
   && /Use automatic plan/.test(rollupPopover)

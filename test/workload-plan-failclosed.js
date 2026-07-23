@@ -664,7 +664,7 @@ function ok(condition, message) {
     const dueWriteSource = extract('wlSetDueDate');
     const invalidateAt = dueWriteSource.indexOf('_wlPlanLoadGeneration++');
     const applyAt = dueWriteSource.indexOf('wlApplyDueLocal(key, dueDate)');
-    const requestAt = dueWriteSource.indexOf('await _wlDueWriteRequest(issue, dueDate)');
+    const requestAt = dueWriteSource.indexOf('await _wlDueWriteRequest(issue, dueDate, route)');
     ok(invalidateAt >= 0 && invalidateAt < applyAt && applyAt < requestAt,
       'due-date writes invalidate older snapshot generations before optimistic state or network I/O');
 
@@ -681,6 +681,8 @@ function ok(condition, message) {
       isSubIssue: true,
       title: 'Current issue title',
       clientName: 'Synthetic Client',
+      teamKey: 'VID',
+      teamName: 'Video',
       dueDate: '2026-07-25',
     };
     const staleIssues = [{
@@ -706,6 +708,12 @@ function ok(condition, message) {
         fetchedAt: 1,
         planByIssueId: new Map([[issue.id, '2026-07-30']]),
         workloadByIssueId: new Map([[issue.id, { label: '3× Workload', weight: 3, color: '#FF0000' }]]),
+        dueAuthorityByIssueId: new Map([[issue.id, {
+          authority: 'linear',
+          team: 'video',
+          fingerprint: 'video:linear|graphics:linear',
+        }]]),
+        nativeDueTargetByIssueId: new Map(),
         planStatus: 'ready',
         linearMetadataStatus: 'ready',
         error: null,
@@ -744,6 +752,12 @@ function ok(condition, message) {
       wlPurgePlanSensitiveState: () => {},
       _syncviewStaffIdentityClear: () => {},
       wlIsTweaksNeeded: () => false,
+      wlNativeDueDate: value => value,
+      wlDueWriteRoute: () => ({
+        authority: 'linear',
+        team: 'video',
+        authorityFingerprint: 'video:linear|graphics:linear',
+      }),
       _wlDueWriteRequest: () => {
         dueRequestStarted = true;
         return dueResponse.promise;
@@ -1062,7 +1076,7 @@ function ok(condition, message) {
     };
     rootHandlers.change({ target: dateInput });
     ok(dueCalls.some(call => call[0] === 'synthetic-issue-1' && call[1] === '2026-07-31'),
-      'delegated branded-date change writes the stable issue id and selected Linear due date');
+      'delegated branded-date change writes the stable issue id and selected authoritative due date');
 
     const clear = {
       closest: selector => selector === '[data-wl-plan-clear]' ? clear : null,

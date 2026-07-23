@@ -1,7 +1,7 @@
 'use strict';
 
 // Source guard for the isolated Workload Linear metadata/deadline gateway.
-// This pins the role split, Linear-only authority, completeness receipts, and
+// This pins the role split, current Linear authority, completeness receipts, and
 // post-commit mirror semantics before any deliberate manual deployment.
 
 const fs = require('fs');
@@ -116,10 +116,11 @@ ok(/\.from\("workload_issues"\)[\s\S]{0,180}\.select\("id,client_name,is_sub_iss
   && /row\.active !== true \|\| row\.is_sub_issue !== true/.test(EDGE)
   && /issue_not_readable/.test(EDGE),
 'metadata validates the complete request as active mirrored sub-issues before contacting Linear');
-ok(/\.from\("workload_issues"\)[\s\S]{0,180}\.select\("id,client_name,is_sub_issue,active"\)[\s\S]{0,120}\.eq\("id", issueId\)/.test(EDGE)
+ok(/\.from\("workload_issues"\)[\s\S]{0,180}\.select\("id,client_name,team_key,team_name,is_sub_issue,active"\)[\s\S]{0,120}\.eq\("id", issueId\)/.test(EDGE)
   && /normalizeBrowserWriteClient\(row\.client_name\) !== client/.test(EDGE)
+  && /workloadTeamBucket\(row\.team_key, row\.team_name\)/.test(EDGE)
   && /issue_not_writable/.test(EDGE),
-'writer validates exact normalized client scope and active sub-issue state');
+'writer validates exact normalized client/team scope and active sub-issue state');
 
 ok(/Deno\.env\.get\("LINEAR_MIRROR_API_KEY"\)/.test(EDGE)
   && !/Deno\.env\.get\("LINEAR_(?:READ_)?API_KEY"\)/.test(EDGE)
@@ -143,6 +144,8 @@ ok(/metadataSuccessReceipt\([\s\S]{0,180}metadata\.missingIssueIds,[\s\S]{0,80}m
 'GraphQL errors, missing aliases, and truncated label connections cannot claim a complete metadata read');
 
 const mutationAt = EDGE.indexOf('mutation WorkloadLinearSetDueDate');
+const authorityCallAt = EDGE.indexOf('await requireLinearAuthority(db, target.team)');
+const mutationCallAt = EDGE.indexOf('const committed = await setLinearDueDate(issueId, dueDate)');
 const commitAt = EDGE.indexOf('linearCommitted = true');
 const mirrorCallAt = EDGE.indexOf('mirrorUpdated = await updateMirrorAfterCommit');
 ok(mutationAt >= 0
@@ -154,6 +157,12 @@ ok(mutationAt >= 0
   && /validRfc3339Timestamp\(issue\.updatedAt\)/.test(POLICY)
   && /linear_commit_unconfirmed/.test(EDGE),
 'set_due_date requires an exact Linear issue/date acknowledgement before declaring commit');
+ok(authorityCallAt >= 0
+  && mutationCallAt > authorityCallAt
+  && /\.from\("syncview_runtime_flags"\)[\s\S]{0,120}\.select\("value"\)[\s\S]{0,80}\.eq\("key", "prod_authority"\)[\s\S]{0,80}\.maybeSingle\(\)/.test(EDGE)
+  && /linearAuthorityDecision\([\s\S]{0,100}team/.test(EDGE)
+  && /team_is_syncview_authoritative/.test(POLICY),
+'set_due_date rechecks exact current team authority immediately before Linear mutation and rejects a stale post-flip route');
 ok(commitAt > mutationAt && mirrorCallAt > commitAt
   && /async function updateMirrorAfterCommit[\s\S]*?catch \(_error\) \{[\s\S]*?return 0;/.test(EDGE)
   && /return json\(dueDateSuccessReceipt\(/.test(EDGE),
@@ -179,9 +188,11 @@ ok(mirrorChain.test(mirrorSegment)
   && /return data\.length/.test(mirrorSegment),
 'mirror count comes from select on a time-bounded update chain and requires exactly one actual row');
 
-ok(!/calendar-upsert|sample-review-upsert|syncview_runtime_flags|webhook|n8n/i.test(EDGE)
+ok(!/calendar-upsert|sample-review-upsert|webhook|n8n/i.test(EDGE)
+  && (EDGE.match(/\.from\("syncview_runtime_flags"\)/g) || []).length === 1
+  && !/\.from\("syncview_runtime_flags"\)[\s\S]{0,200}\.(?:insert|update|upsert|delete|rpc)\(/.test(EDGE)
   && !/\.from\("workload_plan"\)/.test(EDGE),
-'the isolated gateway has no frozen-writer, n8n, flag, schema, or plan-sidecar fallback');
+'the isolated gateway only reads authority and has no frozen-writer, n8n, flag mutation, schema, or plan-sidecar fallback');
 ok(/fn: "workload-linear"/.test(EDGE)
   && /requested: requestedCount/.test(EDGE)
   && /returned: returnedCount/.test(EDGE)

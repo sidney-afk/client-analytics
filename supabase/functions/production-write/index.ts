@@ -91,7 +91,7 @@ const CORS: Record<string, string> = {
   ].join(", "),
   "Cache-Control": "no-store",
 };
-const SURFACES = new Set(["production", "calendar", "sxr", "submission"]);
+const SURFACES = new Set(["production", "workload", "calendar", "sxr", "submission"]);
 const MAX_COMMENT_BODY = 20_000;
 const MAX_INTAKE_ITEMS = 100;
 const OUTBOUND_FLAG = "linear_outbound_enabled";
@@ -589,6 +589,10 @@ function assertSurfaceOperation(surface: string, operation: string): void {
     if (surface !== "submission" && surface !== "calendar") {
       throw new GatewayError(400, "invalid_surface_operation");
     }
+    return;
+  }
+  if (surface === "workload") {
+    if (operation !== "due") throw new GatewayError(400, "invalid_surface_operation");
     return;
   }
   if (surface === "submission") throw new GatewayError(400, "invalid_surface_operation");
@@ -1680,6 +1684,9 @@ async function handleEntityOperation(
         || (operation === "status" && !clean(body.expected_status))) {
       throw new GatewayError(400, "cas_required");
     }
+  }
+  if (surface === "workload" && operation === "due" && !clean(body.expected_updated_at)) {
+    throw new GatewayError(400, "cas_required");
   }
   if (principal.kind === "staff"
       && !staffOperationAllowed(principal.keyRole, operation, principal.memberTeam, team, nextStatus)) {

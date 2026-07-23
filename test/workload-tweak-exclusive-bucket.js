@@ -1146,12 +1146,12 @@ check(popoverSource.includes('Open Linear →')
     && !popoverSource.includes('workload-popover-plan-due')
     && !popoverSource.includes('workload-popover-plan-meta')
     && !popoverSource.includes('Uses deadline')
-    && /workload-popover-plan-line[\s\S]*?Linear due date[\s\S]*?_svDateHtml\(dateId, s\.dueDate \|\| ''[\s\S]*?disabled: !canEditDue[\s\S]*?explicitPlan[\s\S]*?Use automatic plan/.test(popoverSource)
+    && /workload-popover-plan-line[\s\S]*?>Due date<[\s\S]*?_svDateHtml\(dateId, s\.dueDate \|\| ''[\s\S]*?disabled: !canEditDue[\s\S]*?explicitPlan[\s\S]*?Use automatic plan/.test(popoverSource)
     && popoverSource.includes('wlWorkloadBadgeHtml(s, false)')
     && popoverSource.includes('wlDeadlineTagHtml(s.dueDate, workDate)')
     && /const planControl = wlIsTweaksNeeded\(s\) \? ''/.test(popoverSource)
     && popoverSource.includes('wl-tweak-comments'),
-  'direct pinned-item popovers show workload weight, one editable Linear due date, and the manual-plan reset');
+  'direct pinned-item popovers show workload weight, one authority-routed due date, and the manual-plan reset');
 
 const staffCanSource = grabFunc('_syncviewStaffCan');
 check(/capability === 'workload-linear-read'[\s\S]*role === 'admin' \|\| role === 'smm' \|\| role === 'creative'/.test(staffCanSource)

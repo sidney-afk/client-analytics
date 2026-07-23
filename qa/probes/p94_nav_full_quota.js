@@ -10,12 +10,21 @@
 // exact console error) then asserts: the app still renders content on boot AND
 // clicking the top nav tabs actually navigates.
 const lib = require('../sxr_courier_lib.js');
-const { execSync } = require('child_process');
-const fs = require('fs');
 
 const EXT = /(supabase\.co|synchrosocial\.app\.n8n\.cloud|cdn\.jsdelivr\.net|docs\.google\.com|drive\.google\.com|googleusercontent\.com|ytimg\.com)/;
 
-(async () => {
+function forwardExternal(method, url, headers, postData) {
+  try {
+    const response = lib.filelessHttpRequest(method, url, headers, postData);
+    // Preserve this probe's historical routing contract: any upstream HTTP
+    // response is fulfilled as 200; only courier failures surface as 502.
+    return { status: 200, ctype: response.ctype, body: response.body };
+  } catch {
+    return { status: 502, ctype: 'text/plain', body: Buffer.from('x') };
+  }
+}
+
+async function run() {
   let pass = 0, fail = 0;
   const ok = (c, m) => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m); } };
   const browser = await lib.launch();
@@ -24,17 +33,13 @@ const EXT = /(supabase\.co|synchrosocial\.app\.n8n\.cloud|cdn\.jsdelivr\.net|doc
   await ctx.route('**/*', async (route) => {
     const req = route.request(); const url = req.url();
     if (!EXT.test(url)) return route.continue();
-    try {
-      const hdrs = req.headers();
-      const hArgs = Object.entries(hdrs).filter(([k]) => !/^(host|content-length|accept-encoding)$/i.test(k)).map(([k, v]) => `-H ${JSON.stringify(k + ': ' + v)}`).join(' ');
-      let dataArg = ''; const pd = req.postData();
-      if (pd) { fs.mkdirSync('/tmp/qa', { recursive: true }); const f = `/tmp/qa/_p94_${Math.random().toString(36).slice(2)}.txt`; fs.writeFileSync(f, pd); dataArg = `--data-binary @${f}`; }
-      fs.mkdirSync('/tmp/qa', { recursive: true });
-      const out = execSync(`curl -s -D /tmp/qa/_p94h.txt -X ${req.method()} ${JSON.stringify(url)} ${hArgs} ${dataArg}`, { encoding: 'buffer', timeout: 45000, maxBuffer: 64 * 1024 * 1024 });
-      const rawH = fs.readFileSync('/tmp/qa/_p94h.txt', 'utf8');
-      const ct = (rawH.match(/content-type:\s*([^\r\n]+)/i) || [])[1] || 'application/octet-stream';
-      return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' }, contentType: ct.trim(), body: out });
-    } catch (e) { return route.fulfill({ status: 502, contentType: 'text/plain', body: 'x' }); }
+    const response = forwardExternal(req.method(), url, req.headers(), req.postData());
+    return route.fulfill({
+      status: response.status,
+      headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' },
+      contentType: response.ctype,
+      body: response.body,
+    });
   });
   // Deterministically reproduce the user's exact console error: a FULL quota
   // where writing NAV_KEY ('syncview_nav') throws QuotaExceededError. Headless
@@ -80,4 +85,10 @@ const EXT = /(supabase\.co|synchrosocial\.app\.n8n\.cloud|cdn\.jsdelivr\.net|doc
   await browser.close();
   console.log(`\nP94 nav-on-full-quota: pass=${pass} fail=${fail}`);
   process.exit(fail ? 1 : 0);
-})().catch(e => { console.error('P94 FAILED', e); process.exit(1); });
+}
+
+if (require.main === module) {
+  run().catch(e => { console.error('P94 FAILED', e); process.exit(1); });
+}
+
+module.exports = { forwardExternal, run };

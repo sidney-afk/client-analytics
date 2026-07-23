@@ -37,20 +37,22 @@ jobs:
       - name: Master lanes — unit, parity, realtime, scenarios, tree
         env:
           SXR_COURIER: '0'   # open egress on CI runners — no curl courier needed
-        run: node qa/master.js --lane=unit,parity,realtime,scenarios,tree ${{ github.event.inputs.scn && format('--scn={0}', github.event.inputs.scn) || '' }}
+          # Client openers resolve in-process and pass the token explicitly.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          SYNCVIEW_NIGHTLY_SCN: ${{ github.event.inputs.scn || '' }}
+        run: node qa/master.js --lane=unit,parity,realtime,scenarios,tree
       - name: Samples probes (regression guards + races + linear + realtime)
         env:
           SXR_COURIER: '0'
-        run: |
-          python3 -m http.server 8000 & SRV=$!
-          sleep 2
-          EC=0
-          for p in sxr_bug_repros sxr_concurrency sxr_gating_flags sxr_cold_open sxr_kasper_audit_holes sxr_linear_deep sxr_realtime_twin sxr_client_persist_guard cal_realtime_twin cal_linear_deep; do
-            echo "=== $p ==="
-            node "qa/probes/$p.js" || EC=1
-          done
-          kill $SRV || true
-          exit $EC
+          PROBE_ATTEMPTS: '1'
+          # The shared runner owns a silent static server, rejects pre-existing
+          # port occupants, and gives this issuer key only to probe processes.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          SYNCVIEW_NIGHTLY_PROBES: >-
+            sxr_bug_repros sxr_concurrency sxr_gating_flags sxr_cold_open
+            sxr_kasper_audit_holes sxr_linear_deep sxr_realtime_twin
+            sxr_client_persist_guard cal_realtime_twin cal_linear_deep
+        run: node qa/run-probes.js
       # A red nightly must PAGE, not just email (owner directive 2026-07-17 —
       # this workflow sat red four nights with nobody consuming the signal).
       # Posts through the same SyncView Bot webhook the reconcile pager uses;

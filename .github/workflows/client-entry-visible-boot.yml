@@ -1,0 +1,56 @@
+name: Client entry visible boot
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'package.json'
+      - 'qa/boot/**'
+      - 'supabase/functions/client-token-verify/index.ts'
+      - 'test/client-entry-preflight.js'
+      - '.github/workflows/client-entry-visible-boot.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'package.json'
+      - 'qa/boot/**'
+      - 'supabase/functions/client-token-verify/index.ts'
+      - 'test/client-entry-preflight.js'
+      - '.github/workflows/client-entry-visible-boot.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: client-entry-visible-boot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visible-boot:
+    name: Streamed visible boot (one attempt)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: node -e "require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./package.json').devDependencies.playwright + '\n')"
+      - name: Install browser test dependencies
+        run: npm install --no-package-lock
+      - name: Cache Playwright Chromium
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright-version.outputs.version }}
+      - name: Install Chromium and system dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Verify cached Chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install chromium
+      - name: Drive streamed first paint, reload, and BFCache once
+        run: npm run test:boot

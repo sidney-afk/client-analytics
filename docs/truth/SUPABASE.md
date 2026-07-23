@@ -162,6 +162,18 @@ uniform denials, bounded event retention, and explicit audit-outage behavior. F8
 `client_access_events.ok` means access-allowed rather than credential-valid; the current seven-day
 window has zero valid-token events and cannot satisfy the spec's active-client validation gate.
 
+The client-entry review candidate narrows the browser boundary without changing
+`auth_enforcement`: requests carrying `strict: true` require a current token and an active client
+regardless of permissive mode. `client-token-verify` resolves `client_access` plus its referenced
+`clients` row in one joined PostgREST statement, so token/current-active proof is not split across
+two snapshots. A successful strict response carries the explicit
+`syncview-client-entry-v1` protocol, `strict: true`, `active: true`, exact view/slug, and canonical
+display name; strict denials remain non-enumerating. Non-strict callers retain the existing
+permissive-window behavior, so this does not claim F87/F89 or global token enforcement closed.
+The function has no CI deploy path: deploy/read back the exact reviewed source and pass the
+synthetic/TEST strict-protocol matrix before the matching Pages caller is served. The browser rejects
+the old response shape, making an inverted rollout fail closed but visibly unavailable.
+
 PR #850 superseded closed-unmerged #813 without broadening the workflow's push paths:
 `linear-outbound` and `production-write` remain absent from the merge/push trigger and deploy only
 from a manual `workflow_dispatch` pinned to one exact 40-character SHA already on `main`. Pinned run

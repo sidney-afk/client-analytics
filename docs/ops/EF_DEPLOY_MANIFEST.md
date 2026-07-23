@@ -14,7 +14,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | Main-push plus manual-dispatch paths | 11 |
 | Manual-dispatch-only paths | 2 |
 | No CI deploy path | 16 |
-| Deliberate-manual subset of no-CI paths | 3 |
+| Deliberate-manual subset of no-CI paths | 4 |
 
 ## Per-function ownership and dependencies
 
@@ -27,7 +27,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `caption-prompts-save` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `client-credentials` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `client-review-link` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Live v2 deployed by operator on 2026-07-15. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
-| `client-token-verify` | NONE | **NO CI DEPLOY PATH.** | - | - |
+| `client-token-verify` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release. | - | - |
 | `deliverable-write` | NONE | **NO CI DEPLOY PATH.** | `_shared/b4-write.ts` | - |
 | `filming-plans` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `key-verify` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |

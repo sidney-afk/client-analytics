@@ -26,7 +26,7 @@ function check(name, ok) {
 }
 
 const prodStart = index.indexOf('PRODUCTION PREVIEW (Track B B2)');
-const prodEnd = index.indexOf('async function init()', prodStart);
+const prodEnd = index.indexOf('async function init(', prodStart);
 const prodBlock = prodStart >= 0 && prodEnd > prodStart ? index.slice(prodStart, prodEnd) : '';
 const navMarkup = id => {
   const match = index.match(new RegExp(`<a[^>]+id="${id}"[\\s\\S]*?<\\/a>`));
@@ -61,9 +61,9 @@ check('navTo hard-falls back without direct preview or verified staff access', /
 check('Production staff access is direct preview OR verified identity', /function _prodAccessAllowed\(\) \{\s*return _prodEnabled\(\) \|\| _syncviewStaffIdentityValid\(\);\s*\}/.test(index));
 check('submission-only linear key wiring remains unchanged', /if \(currentNav === 'linear'\) updateLinearFilmingPlan\(\);/.test(index));
 check('production navigation still sets only the prod alias', /if \(page === 'production'\) query\.set\('prod', '1'\);\s*else query\.delete\('prod'\);/.test(index));
-check('init fast-mounts Production only when _prodEnabled()', /else if \(_prodEnabled\(\)\) _setBootLoadingText\('Loading Production preview\.\.\.'\);[\s\S]{0,220}if \(_prodEnabled\(\)\) \{[\s\S]{0,220}navTo\('production', false\)/.test(index));
-check('Production preview suppresses queued calendar-card writers', /setTimeout\(\(\) => \{\s*if \(_prodEnabled\(\)\) return;[\s\S]{0,120}_resumePendingCalCardJobs\(\)/.test(index));
-check('Production preview starts essentials for clean nav-out', /if \(_prodEnabled\(\)\) \{[\s\S]{0,260}fetchEssentials\(\)\.then/.test(index));
+check('init fast-mounts Production only for a clean non-client ?prod=1 entry', /else if \(_prodEnabled\(\)\) _setBootLoadingText\('Loading Production preview\.\.\.'\);[\s\S]{0,260}if \(!_isClientLink && _prodEnabled\(\)\) \{[\s\S]{0,220}navTo\('production', false\)/.test(index));
+check('client entries and Production preview both suppress queued calendar-card writers', /setTimeout\(\(\) => \{\s*if \(_isClientLink \|\| _prodEnabled\(\)\) return;[\s\S]{0,120}_resumePendingCalCardJobs\(\)/.test(index));
+check('clean non-client Production preview starts essentials for nav-out', /if \(!_isClientLink && _prodEnabled\(\)\) \{[\s\S]{0,260}fetchEssentials\(\)\.then/.test(index));
 check('FAST_TABS does not include production', /const FAST_TABS = \[[^\]]+\]/.test(index) && !/const FAST_TABS = \[[^\]]*production/.test(index));
 
 check('preview reads B1 dormant tables', /_prodRestRows\('clients'/.test(prodBlock) && /_prodRestRows\('batches'/.test(prodBlock) && /_prodRestRows\('deliverables'/.test(prodBlock));

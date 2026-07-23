@@ -107,6 +107,58 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   F184 stays OPEN only through owner merge, and the owner-parked #908 containment does not block it. The finding is source-only; no browser,
   backend, token, live data or write was used.
 
+## Client-entry boot boundary (review candidate)
+
+- A query containing the `c` key is client-owned from the head prepaint onward. Before staff auth,
+  cache hydration, data loading, or routing, the browser accepts only the exact `c`/`t`/supported
+  `v` envelope and requires the strict `syncview-client-entry-v1` verifier response for one active
+  client, its current token, exact view, exact slug, and a canonical display name that normalizes
+  back to that slug. An older/permissive verifier response fails closed.
+- Missing, malformed, duplicated, unknown, inactive, or mismatched credentials; unsupported views;
+  mixed staff history/hash/Production state; and canonical-name mismatch all end on one client-safe
+  invalid-link surface with no client-data request or staff fallback. Network, timeout, rate-limit,
+  and verifier 5xx failures show a distinct retry surface and never fake an empty dataset.
+- Calendar, Brief, and Analytics serialize their client tab in the query/history envelope rather
+  than a staff hash. A verified client can always open the supported Brief tab while slower extras
+  stream: the requested route owns a loader until required responses succeed, a failed required response
+  shows a keyboard-operable retry instead of fake-empty data, and an explicit retry fetches only
+  extras before repainting the still-active route. Genuine absence uses the existing visible
+  no-brief copy. Legacy `v=samples` is verified
+  first, then replaced in place with `v=sample-reviews&sxr=1` and mounted directly for the exact
+  verified client. Staff Samples preferences, pins, and sticky opt-out neither rebind nor mutate.
+- Verification grants only an in-memory capability. Every client analytics continuation is leased
+  to its generation, canonical URL, slug, capability, and abort signal; client Calendar and Samples
+  keep their active transport controller under the same lifecycle boundary. Calendar additionally
+  leases realtime creation/callbacks to an epoch, connected surface, exact slug, and client-entry
+  run, so a teardown during lazy client creation cannot reopen a channel. Its v1 Linear reconcile
+  and metadata continuations retain the same exact controller/surface owner through every await and
+  may not join a user-owned save bucket. Replacement loads, profile exits, invalidation, teardown,
+  and `pagehide` revoke and abort reads before clearing the capability. Staff Calendar `pagehide`
+  flushes writers first, retires read/realtime ownership and visible pending state, and a persisted
+  `pageshow` starts exactly one fresh owned read despite ordinary return throttles. Even a
+  synthetic transport that ignores abort cannot apply rows, recreate cache, repaint, or restart a
+  staff-only caption job after revocation. Client documents also skip staff-only template, pending
+  brief, PTO-flag, caption-prompt, and residual caption-job startup work.
+- `qa/boot/client-entry-sequence.js` guards the actual visible sequence by streaming the document,
+  painting the static frame, and recording animation-frame states through verify, route loader,
+  settle, reload, Back/Forward, and real `pageshow.persisted` BFCache returns. Its 23 groups include
+  verifier 408 and 500 responses that visibly offer keyboard-operable retry and recover without a document reload,
+  rotated-token denial, deliberately late analytics, Calendar, and Samples responses after capability revocation,
+  Calendar → Brief/Analytics retirement, a held Calendar-to-Brief extras loader → visible retry →
+  loader → mounted Brief sequence, A → B visible-loader ownership, stale realtime-factory denial,
+  held v1 reconcile/metadata denial after client replacement, pending/settled staff BFCache recovery,
+  the exact-client legacy queue resume lease,
+  and legacy Samples exact-client migration/traversal with generic/wrong-client frames forbidden. It
+  is fully synthetic/intercepted, makes one attempt per navigation, and is registered as the `boot`
+  QA lane plus the dedicated client-entry pull-request check.
+- This section describes reviewed candidate behavior, not a live-deployment claim. Because
+  `client-token-verify` has no CI deploy path, release must deploy and read back the exact reviewed
+  verifier source and pass a TEST-client strict-protocol drill before serving the matching browser
+  caller. Reversing the order remains confidentiality-safe because the browser fails closed, but
+  would make valid links visibly unavailable. Rollback is the inverse: restore and read back the
+  prior browser first (the v1 verifier remains backward-compatible with non-strict callers), then
+  roll back the verifier only if still required. No runtime flag changes in this release.
+
 ## Calendar
 
 - End-to-end logic map: `docs/audits/2026-07-05-logic-calendar.md` (evidence);

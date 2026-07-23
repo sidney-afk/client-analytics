@@ -15,6 +15,12 @@
 // Playwright: use the locally-installed module in CI; fall back to the
 // container's global path for ad-hoc local runs.
 const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
+const {
+  TEST_CLIENT,
+  clientEntrySafeChildEnv,
+  currentTestClientToken,
+  gotoTestClientEntry,
+} = require('./test-client-entry.js');
 const ORIGIN = 'http://localhost:8000';
 const UPSERT = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
 const SUPA   = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/calendar_posts';
@@ -30,7 +36,13 @@ const pollRow = async (pid, pred, ms = 18000) => { const t = Date.now(); let r;
   while (Date.now() - t < ms) { r = await row(pid); if (pred(r)) return r; await new Promise(x => setTimeout(x, 700)); } return r; };
 
 // ---- browser / surfaces ----
-async function launch() { return await PW.chromium.launch({ headless: true, args: ['--ignore-certificate-errors'] }); }
+async function launch() {
+  return await PW.chromium.launch({
+    headless: true,
+    args: ['--ignore-certificate-errors'],
+    env: clientEntrySafeChildEnv(),
+  });
+}
 function capture(page) {
   page._errs = [];
   page.on('console', m => { if (m.type() === 'error') { const t = m.text();
@@ -57,7 +69,26 @@ async function _ctx(browser) {
 }
 async function _open(browser, url) { const c = await _ctx(browser); const p = await c.newPage(); capture(p);
   await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); await p.waitForTimeout(700); return p; }
-async function clientPage(browser) { const p = await _open(browser, `${ORIGIN}/index.html?c=Sidney%20Laruel&v=calendar&v2debug=1`); await p.waitForTimeout(5000); return p; }
+async function _openClient(browser, view, name, token) {
+  const c = await _ctx(browser);
+  const p = await c.newPage();
+  capture(p);
+  await gotoTestClientEntry(p, {
+    origin: ORIGIN,
+    view,
+    name,
+    token,
+    gotoOptions: { waitUntil: 'domcontentloaded', timeout: 45000 },
+  });
+  await p.waitForTimeout(700);
+  return p;
+}
+async function clientPage(browser) {
+  const token = await currentTestClientToken();
+  const p = await _openClient(browser, 'calendar', TEST_CLIENT.name, token);
+  await p.waitForTimeout(5000);
+  return p;
+}
 async function kasperPage(browser) { const p = await _open(browser, `${ORIGIN}/index.html?Kasper=1&v2debug=1`); await p.waitForTimeout(8000); return p; }
 
 // ---- seeds / SMM moves (upsert = the SMM status control's write) ----
@@ -152,4 +183,5 @@ module.exports = {
   kasperLoadHas, kasperApprove, kasperRequest, kasperApproveAfterTweaks,
   kasperUndoViaToast, kasperGoneFromQueue,
   clientHasCaption, clientApproveCaption, clientRequestCaption, makeOk,
+  TEST_CLIENT, currentTestClientToken, gotoTestClientEntry,
 };

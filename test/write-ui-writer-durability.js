@@ -494,9 +494,14 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   assert(legacyOutboxLock.includes('navigator.locks.request')
     && legacyFinalize.startsWith('async function ')
     && legacyFinalize.includes('_writeUiLegacyOutboxWithLock(surface')
-    && extract('_linearOutboxFlushRun').includes('await _writeUiLegacyFinalizeFlush')
-    && extract('_sxrLinearOutboxFlushRun').includes('await _writeUiLegacyFinalizeFlush'),
-  'deferred staging and both finalizers serialize through the same required Web Lock');
+    && legacyFinalize.includes("typeof finalizeGuard === 'function'")
+    && legacyFinalize.indexOf("typeof finalizeGuard === 'function'")
+      < legacyFinalize.indexOf('_writeUiLegacyOutboxItems(surface)')
+    && extract('_linearOutboxFlushRun').includes('() => deliveryStarted || _writeUiLegacyResumeOwnerCurrent(owner)')
+    && extract('_linearOutboxFlushRun').includes('if (finalized && finalized.deferred === true)')
+    && extract('_sxrLinearOutboxFlushRun').includes('() => deliveryStarted || _writeUiLegacyResumeOwnerCurrent(owner)')
+    && extract('_sxrLinearOutboxFlushRun').includes('if (finalized && finalized.deferred === true)'),
+  'deferred staging and both finalizers serialize through the same required Web Lock and recheck ownership inside it');
   assert(legacyTargetLock.includes("'syncview-legacy-tweak-target:'")
     && legacyTargetLock.includes('[surface, slug, pid, comp]')
     && legacyTargetLock.includes('encodeURIComponent')
@@ -523,10 +528,12 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   const sxrDrainLockAt = sxrLegacyOutbox.indexOf("_writeUiLegacyDrainWithLock('sxr'");
   assert(legacyDrainLock.includes('navigator.locks.request')
     && calDrainLockAt >= 0
-    && calDrainLockAt < calLegacyOutbox.indexOf('await _writeUiPrimeRerouteFlag()')
+    && calLegacyOutbox.indexOf('await _writeUiPrimeRerouteFlag()') < calDrainLockAt
+    && calDrainLockAt < calLegacyOutbox.indexOf('const snapshot = _linearOutboxRead()')
     && sxrDrainLockAt >= 0
-    && sxrDrainLockAt < sxrLegacyOutbox.indexOf('await _writeUiPrimeRerouteFlag()'),
-  'both complete drains acquire the surface drain lock before source reads or team deliveries');
+    && sxrLegacyOutbox.indexOf('await _writeUiPrimeRerouteFlag()') < sxrDrainLockAt
+    && sxrDrainLockAt < sxrLegacyOutbox.indexOf('const snapshot = _sxrLinearOutboxRead()'),
+  'both complete drains resolve routing without holding the drain lock, then lock before queue reads or team deliveries');
   assert(calLegacyOutbox.indexOf("_writeUiLegacyRememberCommittedTweak('calendar', it)")
       > calLegacyOutbox.indexOf("if (gateState !== 'committed')")
     && calLegacyOutbox.indexOf("_writeUiLegacyRememberCommittedTweak('calendar', it)")
@@ -3178,11 +3185,13 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     && /draft is preserved/.test(deferredUnconfirmedError.message),
   'disappearance without exact outcome proof surfaces retryable delivery uncertainty');
 
+  const drainOwner = Object.freeze({ kind: 'staff', principal: 'staff:fixture' });
   let missingDrainCallbackEntries = 0;
   let missingDrainDeliveries = 0;
   const missingDrainContext = {
     navigator: {},
     _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+    _writeUiLegacyResumeOwnerCurrent: owner => owner === drainOwner,
     _writeUiPrimeRerouteFlag: async () => { missingDrainCallbackEntries++; },
     fetch: async () => {
       missingDrainDeliveries++;
@@ -3199,16 +3208,16 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   const missingDrainErrors = [];
   for (const name of ['_linearOutboxFlushRun', '_sxrLinearOutboxFlushRun']) {
     try {
-      await missingDrainContext[name]();
+      await missingDrainContext[name](drainOwner);
     } catch (error) {
       missingDrainErrors.push(error);
     }
   }
   assert(missingDrainErrors.length === 2
     && missingDrainErrors.every(error => error.code === 'legacy_outbox_lock_unavailable')
-    && missingDrainCallbackEntries === 0
+    && missingDrainCallbackEntries === 2
     && missingDrainDeliveries === 0,
-  'without Web Locks neither full drain enters its callback nor attempts a team delivery');
+  'without Web Locks a valid lease may resolve read-only routing, but no drain callback or team delivery begins');
 
   for (const fixture of [
     {
@@ -3241,6 +3250,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     const drainContext = {
       navigator: { locks: drainLocks.locks },
       _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+      _writeUiLegacyResumeOwnerCurrent: owner => owner === drainOwner,
       _writeUiPrimeRerouteFlag: async () => { drainEntries++; },
       _linearOutboxRead: () => JSON.parse(JSON.stringify(sharedDebt)),
       _sxrLinearOutboxRead: () => JSON.parse(JSON.stringify(sharedDebt)),
@@ -3276,8 +3286,8 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       ].join('\n'),
       drainContext
     );
-    const firstDrain = drainContext[fixture.functionName]();
-    const secondDrain = drainContext[fixture.functionName]();
+    const firstDrain = drainContext[fixture.functionName](drainOwner);
+    const secondDrain = drainContext[fixture.functionName](drainOwner);
     for (let tick = 0; tick < 10 && drainLocks.names.length < 2; tick++) await Promise.resolve();
     assert.strictEqual(drainLocks.names.length, 2,
       fixture.surface + ' simultaneous full drains both contend on the drain lock');
@@ -3326,6 +3336,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
         }
       },
       _writeUiGatewayError: (status, code) => Object.assign(new Error(code), { status, code }),
+      _writeUiLegacyResumeOwnerCurrent: owner => owner === drainOwner,
       _writeUiPrimeRerouteFlag: async () => {},
       _writeUiLegacySourceGateState: async () => {
         sourceChecks++;
@@ -3436,7 +3447,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       source_gate: sourceOnlyGate
     };
     guardedDebt = [JSON.parse(JSON.stringify(sourceOnlyItem))];
-    await guardedDrainContext[fixture.functionName]();
+    await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 1
       && remembers === 1
       && reconciles === 1
@@ -3453,7 +3464,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     diagnostics.length = 0;
     authoritativeState = 'unknown';
     guardedDebt = [JSON.parse(JSON.stringify(sourceOnlyItem))];
-    await guardedDrainContext[fixture.functionName]();
+    await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 1
       && remembers === 0
       && reconciles === 0
@@ -3470,7 +3481,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     diagnostics.length = 0;
     authoritativeState = 'conflict';
     guardedDebt = [JSON.parse(JSON.stringify(sourceOnlyItem))];
-    await guardedDrainContext[fixture.functionName]();
+    await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 1
       && remembers === 0
       && reconciles === 0
@@ -3487,7 +3498,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     diagnostics.length = 0;
     authoritativeState = 'superseded';
     guardedDebt = [JSON.parse(JSON.stringify(sourceOnlyItem))];
-    await guardedDrainContext[fixture.functionName]();
+    await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 1
       && remembers === 1
       && rememberedItems.length === 1
@@ -3536,7 +3547,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       client_slug: 'fixture',
       source_gate: linkedGate
     }];
-    await guardedDrainContext[fixture.functionName]();
+    await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 1
       && remembers === 1
       && rememberedItems.length === 1
@@ -3579,7 +3590,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       client_slug: 'fixture',
       source_gate: linkedGate
     }];
-    const terminalRetry = await guardedDrainContext[fixture.functionName]();
+    const terminalRetry = await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 0
       && remembers === 0
       && reconciles === 0
@@ -3625,7 +3636,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
       client_slug: 'fixture',
       source_gate: linkedGate
     }];
-    await guardedDrainContext[fixture.functionName]();
+    await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 1
       && remembers === 1
       && reconciles === 0
@@ -3687,7 +3698,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
         rearmed_team_delivery: true
       }
     ];
-    const gapPending = await guardedDrainContext[fixture.functionName]();
+    const gapPending = await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 1
       && remembers === 0
       && reconciles === 0
@@ -3698,7 +3709,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
 
     sourceChecks = 0;
     authoritativeState = 'committed';
-    const gapCommitted = await guardedDrainContext[fixture.functionName]();
+    const gapCommitted = await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 1
       && remembers === 3
       && reconciles === 2
@@ -3745,7 +3756,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     guardedFinalizeFails = true;
     let forcedFinalizeError = null;
     try {
-      await guardedDrainContext[fixture.functionName]();
+      await guardedDrainContext[fixture.functionName](drainOwner);
     } catch (error) {
       forcedFinalizeError = error;
     }
@@ -3761,7 +3772,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     reconciles = 0;
     teamDeliveries = 0;
     guardedFinalizeFails = false;
-    const finalizeRetry = await guardedDrainContext[fixture.functionName]();
+    const finalizeRetry = await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 1
       && teamDeliveries === 0
       && guardedDebt.length === 0
@@ -3795,7 +3806,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     reconciles = 0;
     teamDeliveries = 0;
     rememberResults = [true, false];
-    const failedReceiptPersist = await guardedDrainContext[fixture.functionName]();
+    const failedReceiptPersist = await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 1
       && remembers === 2
       && reconciles === 1
@@ -3810,7 +3821,7 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     reconciles = 0;
     teamDeliveries = 0;
     rememberResults = [true];
-    const receiptPersistRetry = await guardedDrainContext[fixture.functionName]();
+    const receiptPersistRetry = await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 1
       && remembers === 1
       && reconciles === 1
@@ -4074,8 +4085,14 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   let resumeAuthority = null;
   let resumeHydrationCalls = 0;
   const resumeTrace = [];
+  const resumeOwner = Object.freeze({ kind: 'staff', principal: 'staff:fixture' });
   const resumeContext = {
     _writeUiLegacyResumePromise: null,
+    _writeUiLegacyResumeActiveOwnerKey: '',
+    _writeUiLegacyResumeOwner: () => resumeOwner,
+    _writeUiLegacyResumeOwnerCurrent: owner => owner === resumeOwner,
+    _writeUiLegacyResumeOwnerKey: () => 'staff|staff:fixture',
+    _writeUiLegacyItemOwnedBy: () => true,
     _writeUiExpireV1Caches: () => {},
     _writeUiPrimeRerouteFlag: async () => {},
     _linearIntakeRead: () => null,

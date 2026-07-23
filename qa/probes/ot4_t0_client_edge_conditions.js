@@ -664,7 +664,7 @@ async function exerciseCommittedLostAck(opts) {
 
     // ---- P1: token link ----------------------------------------------------
     {
-      const p = await client(browser, undefined, 'ot4-qa-token-' + TS);
+      const p = await client(browser);
       const a = await H.clientAct(p, NAMES.tok, 'video', 'approve');
       t(a === 'ok', 'P1: token link loads; approve clickable', a);
       const r = await H.pollRow(() => H.rowSxr(IDS.tok, 'video_status'), x => x.video_status === 'Approved', POLL);

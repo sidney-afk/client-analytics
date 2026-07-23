@@ -9,6 +9,7 @@
  *
  * LANES (each is one of our existing testers, now a lane of the master):
  *   unit      — node test/run-all.js                  fast pure-logic, no browser
+ *   boot      — streamed-document first-paint guard   synthetic Chromium, no live backend
  *   parity    — _cal vs _sxr clone-parity probes       logic + DOM + render CSS
  *   probes    — calendar headless probes               (qa/probes/nightly-manifest.txt)
  *   scenarios — Samples multi-actor REAL-interaction    branching scenario tree, flattened
@@ -31,7 +32,7 @@
  *   node qa/master.js --profile=full
  *   node qa/master.js --lane=unit,visual           # explicit lanes
  *   node qa/master.js --lane=visual --scn=clean_both,notes_audiences
- *   node qa/master.js --no-server                  # reuse an already-running :8000
+ *   node qa/master.js --no-server                  # explicitly trust a silent, already-running :8000
  *
  * VISION: the visual lane CAPTURES; it does not auto-judge unless a vision
  * backend is wired up. After a run it prints "VISION REVIEW PENDING: N shots"
@@ -47,6 +48,14 @@ const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const VIS = require('./visual.js');
 const VJUDGE = require('./vision_judge.js');
+const {
+  STAFF_KEY_ENV,
+  clientEntrySafeChildEnv,
+} = require('./test-client-entry.js');
+const {
+  NIGHTLY_SCENARIO_ENV,
+  parseScenarioFilter,
+} = require('./nightly-input.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const QA = __dirname;
@@ -60,13 +69,13 @@ const PROBE_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS || 240000);
 const SCN_TIMEOUT_MS = Number(process.env.SCN_TIMEOUT_MS || 1800000); // suites loop in one process
 
 // ---------------------------------------------------------------- arg parsing
-function parseArgs(argv) {
+function parseArgs(argv, envSource = process.env) {
   const a = { profile: 'fast', lanes: null, scn: null, server: true, repeat: 1, untilMs: 0, untilFail: false };
   for (const tok of argv) {
     if (tok === '--no-server') a.server = false;
     else if (tok.startsWith('--profile=')) a.profile = tok.slice(10);
     else if (tok.startsWith('--lane=')) a.lanes = tok.slice(7).split(',').map(s => s.trim()).filter(Boolean);
-    else if (tok.startsWith('--scn=')) a.scn = tok.slice(6);
+    else if (tok.startsWith('--scn=')) a.scn = parseScenarioFilter(tok.slice(6));
     else if (tok.startsWith('--repeat=')) a.repeat = Math.max(1, Number(tok.slice(9)) || 1);
     else if (tok.startsWith('--until=')) {
       // --until=fail  → loop until a lane fails
@@ -76,6 +85,7 @@ function parseArgs(argv) {
       else { const m = v.match(/^(\d+)([smh])$/); if (m) { a.untilMs = Number(m[1]) * (m[2] === 's' ? 1e3 : m[2] === 'm' ? 6e4 : 36e5); a.repeat = Infinity; } }
     }
   }
+  if (a.scn == null) a.scn = parseScenarioFilter(envSource[NIGHTLY_SCENARIO_ENV]);
   return a;
 }
 
@@ -85,6 +95,7 @@ function profilePlan(profile) {
   if (profile === 'full') {
     return {
       unit: {},
+      boot: {},
       parity: { files: ['parity_logic.js', 'parity_check.js', 'render_parity.js', 'verify_chooser.js'] },
       realtime: {},   // Layer A (static parity) + Layer B (handler-injection probe)
       probes: { fromManifest: true },
@@ -101,6 +112,7 @@ function profilePlan(profile) {
   // checks every selected scenario's DOM/local-state/DB agreement.
   return {
     unit: {},
+    boot: {},
     parity: { files: ['parity_logic.js', 'realtime_parity.js'] },
     probes: { files: ['p89_cal_create_via_ui.js', 'p91_ui_realtime_multitab.js'] },
     scenarios: { filter: 'create_via_ui,create_then_archive_race,create_rename_rename_race,create_drag_reorder_persist,create_during_remote_merge,create_survives_reload,create_many_via_ui,create_via_ui_workflow_video,clean_both,smm_request_video,client_approve_video' },
@@ -108,7 +120,7 @@ function profilePlan(profile) {
   };
 }
 
-const LANE_ORDER = ['unit', 'parity', 'realtime', 'probes', 'temporal', 'scenarios', 'tree', 'visual'];
+const LANE_ORDER = ['unit', 'boot', 'parity', 'realtime', 'probes', 'temporal', 'scenarios', 'tree', 'visual'];
 
 // ---------------------------------------------------------------- server mgmt
 async function serverUp(ms = 2000) {
@@ -118,9 +130,16 @@ async function serverUp(ms = 2000) {
   catch { return false; }
   finally { clearTimeout(t); }
 }
-async function waitForServer(ms = 30000) {
+async function waitForOwnedServer(child, failed, ms = 30000) {
   const t = Date.now();
-  while (Date.now() - t < ms) { if (await serverUp()) return true; await new Promise(x => setTimeout(x, 500)); }
+  while (Date.now() - t < ms) {
+    if (!child || child.exitCode !== null || failed()) return false;
+    if (await serverUp()) {
+      await new Promise(resolve => setImmediate(resolve));
+      return child.exitCode === null && !failed();
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
   return false;
 }
 
@@ -128,12 +147,24 @@ async function waitForServer(ms = 30000) {
 // Run one node file (a probe / suite) with retry, parse its "pass=N fail=N"
 // summary line. ok is driven by exit code (0 == pass).
 function runNode(file, opts = {}) {
-  const { cwd = PROBES, args = [], attempts = 1, timeout = PROBE_TIMEOUT_MS, env = {} } = opts;
+  const {
+    cwd = PROBES,
+    args = [],
+    attempts = 1,
+    timeout = PROBE_TIMEOUT_MS,
+    env = {},
+    needsClientEntry = false,
+  } = opts;
   let ok = false, lastOut = '', errNote = '', t0 = Date.now();
   for (let attempt = 1; attempt <= attempts && !ok; attempt++) {
+    const mergedEnv = { ...process.env, ...env };
+    const childEnv = clientEntrySafeChildEnv(mergedEnv);
+    if (needsClientEntry && mergedEnv[STAFF_KEY_ENV]) {
+      childEnv[STAFF_KEY_ENV] = mergedEnv[STAFF_KEY_ENV];
+    }
     const r = spawnSync(process.execPath, [file, ...args], {
       cwd, encoding: 'utf8', timeout,
-      env: { ...process.env, ...env },
+      env: childEnv,
       maxBuffer: 64 * 1024 * 1024,
     });
     lastOut = (r.stdout || '') + (r.stderr || '');
@@ -160,6 +191,17 @@ function laneUnit() {
   const r = runNode(path.join(TEST, 'run-all.js'), { cwd: ROOT, attempts: 1, timeout: 300000 });
   const m = r.out.match(/All (\d+) unit suites passed/);
   return { ok: r.ok, summary: r.ok ? `all ${m ? m[1] : '?'} unit suites passed` : withErr('unit suites FAILED', r.errNote), ms: r.ms, tail: r.ok ? '' : tail(r.out) };
+}
+
+function laneBoot() {
+  const r = runNode(path.join(QA, 'boot', 'client-entry-sequence.js'), { cwd: ROOT, attempts: 1, timeout: 120000 });
+  const groups = (r.out.match(/^PASS (?!visible boot sequence lane)/gm) || []).length;
+  return {
+    ok: r.ok,
+    summary: r.ok ? `${groups || 'all'} streamed visible-boot groups passed` : withErr('visible boot sequence FAILED', r.errNote),
+    ms: r.ms,
+    tail: r.ok ? '' : tail(r.out, 30),
+  };
 }
 
 function laneParity(cfg) {
@@ -210,7 +252,11 @@ function laneProbes(cfg = {}) {
   if (!probes.length) return { ok: true, summary: 'no probes', ms: 0, tail: '', skipped: true };
   const failed = []; let ms = 0;
   for (const f of probes) {
-    const r = runNode(path.join(PROBES, f), { cwd: PROBES, attempts: PROBE_ATTEMPTS });
+    const r = runNode(path.join(PROBES, f), {
+      cwd: PROBES,
+      attempts: PROBE_ATTEMPTS,
+      needsClientEntry: true,
+    });
     ms += r.ms; if (!r.ok) failed.push(f + (r.errNote ? ' [' + r.errNote + ']' : ''));
   }
   return {
@@ -225,7 +271,11 @@ function laneTemporal(cfg) {
   if (!files.length) return { ok: true, summary: 'no temporal probes', ms: 0, tail: '', skipped: true };
   const failed = []; let ms = 0;
   for (const f of files) {
-    const r = runNode(path.join(PROBES, f), { cwd: PROBES, attempts: 2 });
+    const r = runNode(path.join(PROBES, f), {
+      cwd: PROBES,
+      attempts: 2,
+      needsClientEntry: true,
+    });
     ms += r.ms; if (!r.ok) failed.push(f + (r.errNote ? ' [' + r.errNote + ']' : ''));
   }
   return { ok: failed.length === 0, ms, summary: failed.length ? `${failed.length}/${files.length} FAILED: ${failed.join(', ')}` : `all ${files.length} temporal probes passed`, tail: '' };
@@ -233,7 +283,13 @@ function laneTemporal(cfg) {
 
 function laneScenarios(cfg) {
   const args = []; if (cfg.filter) args.push(cfg.filter);
-  const r = runNode(path.join(PROBES, 'run_scenarios.js'), { cwd: ROOT, args, attempts: 1, timeout: SCN_TIMEOUT_MS });
+  const r = runNode(path.join(PROBES, 'run_scenarios.js'), {
+    cwd: ROOT,
+    args,
+    attempts: 1,
+    timeout: SCN_TIMEOUT_MS,
+    needsClientEntry: true,
+  });
   const scn = (r.out.match(/scenarios:\s*([^\n]+)/) || [])[1] || '';
   const asr = (r.out.match(/assertions:\s*([^\n]+)/) || [])[1] || '';
   const base = [scn && 'scenarios ' + scn.trim(), asr && 'assertions ' + asr.trim()].filter(Boolean).join(' · ') || (r.ok ? 'passed' : 'FAILED');
@@ -244,7 +300,13 @@ function laneScenarios(cfg) {
 // (qa/scenario_tree.js, compiled to flat paths) via run_scenarios.js --tree.
 function laneTree(cfg) {
   const args = []; if (cfg.filter) args.push(cfg.filter); args.push('--tree');
-  const r = runNode(path.join(PROBES, 'run_scenarios.js'), { cwd: ROOT, args, attempts: 1, timeout: SCN_TIMEOUT_MS });
+  const r = runNode(path.join(PROBES, 'run_scenarios.js'), {
+    cwd: ROOT,
+    args,
+    attempts: 1,
+    timeout: SCN_TIMEOUT_MS,
+    needsClientEntry: true,
+  });
   const scn = (r.out.match(/scenarios:\s*([^\n]+)/) || [])[1] || '';
   const asr = (r.out.match(/assertions:\s*([^\n]+)/) || [])[1] || '';
   const base = [scn && 'tree paths ' + scn.trim(), asr && 'assertions ' + asr.trim()].filter(Boolean).join(' · ') || (r.ok ? 'passed' : 'FAILED');
@@ -258,7 +320,13 @@ function laneTree(cfg) {
 function laneVisual(cfg) {
   try { fs.rmSync(SHOT_DIR, { recursive: true, force: true }); } catch {}
   const args = [cfg.filter || '', '--shots'].filter(Boolean);
-  const r = runNode(path.join(PROBES, 'run_scenarios.js'), { cwd: ROOT, args, attempts: 1, timeout: SCN_TIMEOUT_MS });
+  const r = runNode(path.join(PROBES, 'run_scenarios.js'), {
+    cwd: ROOT,
+    args,
+    attempts: 1,
+    timeout: SCN_TIMEOUT_MS,
+    needsClientEntry: true,
+  });
   const manifest = VIS.writeArtifacts(SHOT_DIR, VISUAL_DIR, process.env.MASTER_CHANGE_NOTE || '');
   const nShots = VIS.countShots(manifest);
   const scn = (r.out.match(/scenarios:\s*([^\n]+)/) || [])[1] || '';
@@ -311,22 +379,37 @@ function laneVisual(cfg) {
   if (unknown.length) console.error(`Unknown lane(s): ${unknown.join(', ')} — known: ${LANE_ORDER.join(', ')}`);
   if (!lanes.length) { console.error('No known lanes selected — exiting.'); process.exit(2); }
 
-  const needsBrowser = lanes.some(l => l !== 'unit');
+  // Boot owns an ephemeral streaming server; the other browser lanes share
+  // the static :8000 server managed below.
+  const needsBrowser = lanes.some(l => l !== 'unit' && l !== 'boot');
   console.log(`\n🧪 MASTER TESTER — profile=${args.profile}  lanes=[${lanes.join(', ')}]\n`);
 
   let srv = null, killServer = () => {};
   if (needsBrowser && args.server) {
-    if (await serverUp()) { console.log('Static server already up on :' + PORT + '.'); }
-    else {
-      console.log('Starting static server on :' + PORT + ' …');
-      const py = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-      // Keep the child attached to the master process. Some Windows/sandbox job
-      // managers terminate detached children after a few seconds, while an
-      // in-process server cannot answer during the synchronous lane runners.
-      srv = spawn(py, ['-m', 'http.server', String(PORT)], { cwd: ROOT, stdio: 'ignore', detached: false });
-      killServer = () => { try { srv.kill('SIGTERM'); } catch {} };
-      process.on('exit', killServer);
-      if (!(await waitForServer())) { console.error('Server never came up on :' + PORT); killServer(); process.exit(2); }
+    if (await serverUp()) {
+      console.error('Port :' + PORT + ' is already occupied; refusing to send protected client URLs to an unowned server. Use --no-server only with a trusted silent server.');
+      process.exit(2);
+    }
+    console.log('Starting static server on :' + PORT + ' …');
+    const py = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
+    // Keep the child attached to the master process. Some Windows/sandbox job
+    // managers terminate detached children after a few seconds, while an
+    // in-process server cannot answer during the synchronous lane runners.
+    let serverFailed = false;
+    srv = spawn(py, ['-m', 'http.server', String(PORT)], {
+      cwd: ROOT,
+      stdio: 'ignore',
+      detached: false,
+      env: clientEntrySafeChildEnv(),
+    });
+    srv.once('error', () => { serverFailed = true; });
+    srv.once('exit', () => { serverFailed = true; });
+    killServer = () => { try { srv.kill('SIGTERM'); } catch {} };
+    process.on('exit', killServer);
+    if (!(await waitForOwnedServer(srv, () => serverFailed))) {
+      console.error('Owned static server never came up on :' + PORT);
+      killServer();
+      process.exit(2);
     }
   }
 
@@ -337,6 +420,7 @@ function laneVisual(cfg) {
       let res;
       try {
         if (lane === 'unit') res = laneUnit();
+        else if (lane === 'boot') res = laneBoot();
         else if (lane === 'parity') res = laneParity(plan.parity || { files: [] });
         else if (lane === 'realtime') res = laneRealtime();
         else if (lane === 'probes') res = laneProbes(plan.probes || {});

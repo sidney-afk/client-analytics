@@ -33,17 +33,15 @@ The whole product is one static file: `index.html` (one large inline
 
 ### Serve the app
 ```bash
-# from the repo root (the dir containing index.html)
-python3 -m http.server 8000 >/tmp/qa/server.log 2>&1 &
-# verify it's actually up before launching a browser:
-curl -s -o /dev/null -w "server=%{http_code}\n" http://localhost:8000/index.html   # expect 200
+# from the repo root; the runner owns and silences its server
+PROBE_ATTEMPTS=1 node qa/run-probes.js <probe-name>
 ```
-The server occasionally dies (container worker restarts). If a probe fails with
-`net::ERR_CONNECTION_REFUSED`, restart it with the line above and re-run. A tiny
-guard at the top of every run handles this:
-```bash
-(pgrep -f "http.server 8000" >/dev/null || (python3 -m http.server 8000 >/tmp/qa/server.log 2>&1 &)); sleep 1.5
-```
+Protected client URLs contain a credential. Do not start or reuse an ad-hoc
+logging server for those routes. `qa/run-probes.js`, `qa/master.js`, and
+`qa/overnight_runner.sh` silence the server, strip client-entry credentials from
+its environment, and fail closed if the port belongs to another process.
+`qa/master.js --no-server` is an explicit opt-in reserved for a server you
+started, trust, and already confirmed is silent.
 
 ### Playwright
 Playwright is installed system-wide; requiring it by **absolute path** works in
@@ -60,13 +58,19 @@ const browser = await PW.chromium.launch({ headless: true, args: ['--ignore-cert
 | Surface | URL | Notes |
 |---|---|---|
 | **SMM** (manager) | `…/index.html?v2debug=1#calendar/<slug>` | `_isClientLink = false` — full edit rights |
-| **Client** (read-mostly) | `…/index.html?c=<Client%20Name>&v=calendar&v2debug=1` | `_isClientLink = true` — guards apply |
+| **Client** (read-mostly) | `…/index.html?c=<TEST%20Client>&t=<current-protected-token>&v=calendar` | `_isClientLink = true`; strict verification runs before route data |
 | **Kasper** (reviewer) | `…/index.html?Kasper=1&v2debug=1` | cross-client review/inbox |
 
-- `?v2debug=1` turns on verbose `[calV2…]` console logs — useful for spotting
-  merge/reconcile anomalies.
+- `?v2debug=1` turns on verbose `[calV2…]` console logs on staff/Kasper routes. It is
+  deliberately forbidden on strict client-entry URLs; use the shared builder instead.
 - The **test client** is **Sidney Laruel**, slug **`sidneylaruel`**. Use only
   this one (see §5).
+- Live client routes require a current protected token. Each operative harness obtains it
+  from the staff-only `client-review-link` issuer, keeps it only in local process memory,
+  and passes it explicitly to `gotoTestClientEntry`, whose replacement errors omit the URL.
+  Never export it through `GITHUB_ENV`
+  or `process.env`; browser and unrelated child environments must strip client-entry
+  credentials. Never commit, paste into examples, or print the token.
 
 ### The password gate
 The app shows a password overlay (`#passwordOverlay`). Don't type the password in
@@ -109,10 +113,20 @@ standalone probe outside `qa/`.
 ```js
 // qalib.js — shared headless harness
 const PW = require('/opt/node22/lib/node_modules/playwright');
+const {
+  TEST_CLIENT,
+  clientEntrySafeChildEnv,
+  currentTestClientToken,
+  gotoTestClientEntry,
+} = require('./qa/test-client-entry.js');
 const ORIGIN = 'http://localhost:8000';
 
 async function launch() {
-  return await PW.chromium.launch({ headless: true, args: ['--ignore-certificate-errors'] });
+  return await PW.chromium.launch({
+    headless: true,
+    args: ['--ignore-certificate-errors'],
+    env: clientEntrySafeChildEnv(),
+  });
 }
 
 // Attach error capture to a page. page._errs collects everything worth failing on.
@@ -150,7 +164,17 @@ async function smm(browser, slug = 'sidneylaruel', opts) {
   return p;
 }
 async function client(browser, name = 'Sidney Laruel', opts) {
-  const p = await open(browser, `${ORIGIN}/index.html?c=${encodeURIComponent(name)}&v=calendar&v2debug=1`, opts);
+  const token = await currentTestClientToken();
+  const c = await ctx(browser, opts);
+  const p = await c.newPage();
+  capture(p);
+  await gotoTestClientEntry(p, {
+    origin: ORIGIN,
+    view: 'calendar',
+    name: TEST_CLIENT.name,
+    token,
+    gotoOptions: { waitUntil: 'domcontentloaded', timeout: 45000 },
+  });
   await p.waitForTimeout(5000);
   return p;
 }

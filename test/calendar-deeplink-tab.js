@@ -60,11 +60,12 @@ let currentNav = 'calendar';
 let calState = { client: null, embedded: false, posts: [] };
 let _calPendingDeepLink = null;
 let _calFocusRequest = null;
-const calls = { loadCalendarPosts: 0, renderBody: 0, renderTabs: 0, renderShell: 0 };
+const calls = { loadCalendarPosts: 0, renderBody: 0, renderTabs: 0, renderShell: 0, teardown: 0 };
 // DOM-coupled deps → no-ops / counters.
 function _calRenderTabs(){ calls.renderTabs++; }
 function _calRenderShell(){ calls.renderShell++; }
 function _calFlushAllPending(){}
+function _calV2Teardown(){ calls.teardown++; }
 function _calResetSelection(){}
 function _calLoadClientFilters(){}
 function _calSavePrefs(){}
@@ -105,6 +106,7 @@ function reset() {
   m.calls.renderBody = 0;
   m.calls.renderTabs = 0;
   m.calls.renderShell = 0;
+  m.calls.teardown = 0;
 }
 
 console.log('— _calOpenClientTab pins AND switches to the client —');
@@ -113,15 +115,18 @@ m._calOpenClientTab('Jenna Phillips Ballard');
 ok(m._calGetPins()[0] === 'Jenna Phillips Ballard', 'client is added to the open-tabs list (a tab appears)');
 ok(m.calState.client === 'Jenna Phillips Ballard', 'client becomes the active client');
 ok(m.calls.renderShell === 1, 'cold activation rebuilds client-dependent toolbar chrome');
+ok(m.calls.teardown === 1, 'client identity switch retires the prior Calendar transport');
 ok(m.calls.loadCalendarPosts === 1, 'its calendar is loaded');
 
 console.log('\n— Opening the already-active client is a no-op reload (no dup tab) —');
 reset();
 m._calOpenClientTab('Baya Voce');           // open + load
 const loadsAfterFirst = m.calls.loadCalendarPosts;
+const teardownsAfterFirst = m.calls.teardown;
 m._calOpenClientTab('Baya Voce');           // again
 ok(m._calGetPins().filter(n => n === 'Baya Voce').length === 1, 'no duplicate tab');
 ok(m.calls.loadCalendarPosts === loadsAfterFirst, 'does not reload the same client');
+ok(m.calls.teardown === teardownsAfterFirst, 'does not retire ownership for the same-client no-op');
 
 console.log('\n— Existing tabs are preserved; the new one goes to the front —');
 reset();

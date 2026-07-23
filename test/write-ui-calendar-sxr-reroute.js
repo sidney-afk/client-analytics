@@ -15,8 +15,16 @@ function between(start, end) {
 const shared = between('const WRITE_UI_PRODUCTION_WRITE_URL', 'function _calUpsertFetch');
 assert(shared.includes("'/functions/v1/production-write'"));
 assert(shared.includes('const authority = await _writeUiRefreshAuthority()'), 'every gateway intent must live-read authority before its first attempt');
+assert(shared.includes("throw _writeUiGatewayError(409, 'legacy_resume_lease_revoked')")
+  && shared.indexOf('requireResumeOwner();', shared.indexOf('const authority = await _writeUiRefreshAuthority()'))
+    < shared.indexOf('const resp = await fetch(WRITE_UI_PRODUCTION_WRITE_URL')
+  && shared.includes('onLegacyResumeTransportStart'),
+'legacy queue gateway retries must recheck the exact owner after internal awaits and at the real POST boundary');
 assert(shared.includes("throw _writeUiGatewayError(503, 'authority_unavailable')"), 'authority lookup must fail closed');
 assert(shared.includes('_syncviewEfHeaders('), 'gateway must reuse staff/client authentication headers');
+assert(source.includes('const run = _syncviewClientEntryDataRun')
+  && source.includes('_syncviewClientEntryRunCurrent(run) ? _syncviewClientWriteToken()'),
+'client credentials must not attach before the exact strict-verification run is current');
 assert(shared.includes('payload.legacy_parity = true'), 'Linear-authority parity must be explicit');
 assert(shared.includes("intent.legacyOnly && authority[intent.team] !== 'linear'"), 'a stale legacy queue row must be rejected before transport after a team flip');
 assert(shared.includes('payload.id = intent.nativeId'), 'native linkage must be preferred');
@@ -65,7 +73,51 @@ for (const [name, drain] of [['Calendar', calDrain], ['SXR', sxrDrain]]) {
   assert(drain.includes("it.kind === 'comment' || it.kind === 'status'"), `${name} historical statuses and comments must both leave the active queue`);
   assert(drain.includes('native_comment_id'), `${name} queue must persist a stable comment id`);
   assert(drain.includes('legacy_actor_unverifiable'), `${name} must quarantine unverifiable historical attribution without replay`);
+  assert(drain.includes("owner.kind === 'client'")
+    && drain.includes('snapshot.filter(item => _writeUiLegacyItemOwnedBy(item, owner))'),
+  `${name} client drain must select only debt owned by the verified client`);
+  assert(drain.indexOf('await _writeUiPrimeRerouteFlag()') > drain.indexOf('_writeUiLegacyResumeOwnerCurrent(owner)')
+    && drain.indexOf('_writeUiLegacyResumeOwnerCurrent(owner)', drain.indexOf('await _writeUiPrimeRerouteFlag()'))
+      < drain.indexOf("_writeUiLegacyDrainWithLock('"),
+  `${name} drain must recheck its exact lease after the routing read and before taking the delivery lock`);
+  const legacyPostAt = drain.indexOf('const resp = await fetch(endpoint');
+  const gatewayPostAt = drain.indexOf('await _writeUiGatewayPost({');
+  assert(drain.lastIndexOf('_writeUiLegacyResumeOwnerCurrent(owner)', legacyPostAt) < legacyPostAt
+    && drain.lastIndexOf('_writeUiLegacyResumeOwnerCurrent(owner)', legacyPostAt) > drain.lastIndexOf('try {', legacyPostAt)
+    && drain.lastIndexOf('_writeUiLegacyResumeOwnerCurrent(owner)', gatewayPostAt) < gatewayPostAt,
+  `${name} drain must recheck the exact lease immediately before either POST transport`);
+  const finalizeAt = drain.indexOf('await _writeUiLegacyFinalizeFlush(');
+  assert(finalizeAt >= 0
+    && drain.includes('() => deliveryStarted || _writeUiLegacyResumeOwnerCurrent(owner)')
+    && drain.indexOf('if (finalized && finalized.deferred === true)', finalizeAt) > finalizeAt,
+  `${name} finalizer must retain a no-transport row when its owner expires while waiting for the surface lock`);
 }
+
+const legacyFinalize = between('async function _writeUiLegacyFinalizeFlush', 'function _writeUiLegacyQuarantine');
+assert(legacyFinalize.indexOf("typeof finalizeGuard === 'function'") >= 0
+  && legacyFinalize.indexOf("typeof finalizeGuard === 'function'")
+    < legacyFinalize.indexOf('_writeUiLegacyOutboxItems(surface)'),
+'the optional lease guard must run inside the acquired finalizer lock before any queue read or write');
+
+const legacyOwner = between('const _writeUiLegacyClientRunIds', 'function _writeUiGatewayError');
+assert(legacyOwner.includes('new WeakMap()')
+  && legacyOwner.includes('runId = ++_writeUiLegacyClientRunIdSeq')
+  && legacyOwner.includes("['client', owner.runId, owner.generation, owner.slug]"),
+'client queue coalescing keys must bind captured run identity and generation, not mutable href');
+assert(legacyOwner.includes('verificationEpoch: _syncviewStaffVerificationEpoch')
+  && legacyOwner.includes("['staff', owner.principal, owner.verificationEpoch]")
+  && legacyOwner.includes('Number(owner.verificationEpoch) === _syncviewStaffVerificationEpoch'),
+'staff queue owners must bind the exact successful verification epoch as well as the principal');
+const staffIdentity = between('let _syncviewStaffIdentityVerified', 'function _syncviewStaffEsc');
+assert(staffIdentity.includes('let _syncviewStaffVerificationEpoch = 0'));
+assert(source.includes('function _syncviewInvalidateStaffVerification()')
+  && source.includes('function _syncviewAcceptStaffVerification()')
+  && source.includes('_syncviewAcceptStaffVerification();'),
+'staff verification success and invalidation must advance a monotonic session epoch');
+assert(legacyOwner.includes("String(item && item.client_slug || '')")
+  && legacyOwner.includes('if (!slug || slug !== owner.slug) return false')
+  && legacyOwner.includes('if (!gateSlug || gateSlug !== owner.slug) return false'),
+'client queue ownership must fail closed for foreign, empty, or inconsistent client slugs');
 
 const lifecycle = between('function _writeUiResumeLegacyQueues', '/* Point-adoption:');
 for (const event of ["'focus'", "'pageshow'", "'pagehide'", "'online'", "'visibilitychange'", "'startup'"]) {
@@ -73,10 +125,36 @@ for (const event of ["'focus'", "'pageshow'", "'pagehide'", "'online'", "'visibi
 }
 assert(lifecycle.includes('_writeUiRefreshAuthority()'));
 assert(lifecycle.includes('_writeUiExpireV1Caches()'));
+assert(lifecycle.indexOf('const owner = _writeUiLegacyResumeOwner(clientEntryRun)')
+  < lifecycle.indexOf('await _writeUiPrimeRerouteFlag()'),
+'every lifecycle resume must acquire a verified owner before any queue work');
 assert(lifecycle.indexOf('await _writeUiPrimeRerouteFlag()') < lifecycle.indexOf('const linearQueueResume'), 'retry classification must await the per-client allowlist');
 assert(lifecycle.indexOf('const linearQueueResume') < lifecycle.indexOf('const authority = await _writeUiRefreshAuthority()'), 'identified legacy n8n retries must not depend on prod_authority availability');
 assert(lifecycle.includes('_resumePendingCalCardJobs(authority)'), 'post-submit v1 jobs must share the authority-gated lifecycle');
 assert(lifecycle.includes("_writeUiResumeLegacyQueues('timer')"), 'legacy queues need a bounded timer drain path');
+const pagehideAt = lifecycle.indexOf("window.addEventListener('pagehide'");
+const pagehideOwnerAt = lifecycle.indexOf('const owner = _writeUiLegacyResumeOwner()', pagehideAt);
+const pagehideReadAt = lifecycle.indexOf('const calendarCount = _linearOutboxRead()', pagehideAt);
+assert(pagehideOwnerAt > pagehideAt
+  && lifecycle.indexOf('if (!_writeUiLegacyResumeOwnerCurrent(owner)) return', pagehideOwnerAt) < pagehideReadAt,
+'pagehide diagnostics must not inspect queue storage before client or staff verification');
+const clientResumeAt = lifecycle.indexOf("if (owner.kind === 'client')");
+const staffResumeAt = lifecycle.indexOf('_writeUiExpireV1Caches()', clientResumeAt);
+const clientResume = lifecycle.slice(clientResumeAt, staffResumeAt);
+assert(clientResumeAt >= 0 && staffResumeAt > clientResumeAt
+  && clientResume.includes('_linearOutboxFlush(owner)')
+  && clientResume.includes('_sxrLinearOutboxFlush(owner)')
+  && !clientResume.includes('_linearIntakeRead')
+  && !clientResume.includes('_calCardJobsRead')
+  && !clientResume.includes('_writeUiRefreshAuthority')
+  && !clientResume.includes('_writeUiResumeSourceRepairs')
+  && !clientResume.includes('_kasperResumeSourceRepairs')
+  && !clientResume.includes('_writeUiLegacyHydrateConfirmedCacheAfterAuthority'),
+'verified client resume is limited to matching Calendar/SXR retry debt and excludes staff/global repair lanes');
+const clientEntry = between('function _syncviewPurgeClientEntrySurface', 'function _syncviewSuspendClientEntry');
+assert(clientEntry.includes('_writeUiCancelClientLegacyRetryTimers()')
+  && clientEntry.includes("_writeUiResumeLegacyQueues('client-verified', dataRun).catch"),
+'client teardown clears retry timers and strict success explicitly resumes debt without awaiting it');
 assert(source.includes('window.peekSxrLinearOutbox'));
 assert(lifecycle.includes('window.peekWriteUiLegacyQueueState'));
 for (const field of ['calendar_linear', 'sxr_linear', 'submission_cards', 'native_intake', 'source_repairs', 'legacy_quarantine']) assert(lifecycle.includes(field));

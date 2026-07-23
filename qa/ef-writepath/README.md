@@ -31,7 +31,10 @@ Individual scripts: `00-smoke`, `10-status-linear` (Phase 1c/2), `11-calendar-wr
 - Linear mutations are limited to the test client's own allow-listed issues and reverted; any
   push to a non-allow-listed issue is blocked. The flagged-client roster is read from the live
   runtime flag at run time — no client identifiers are committed.
-- No secrets: the only key used is the browser-safe publishable anon key already in `index.html`.
+- No credential is committed: write-path calls still use the browser-safe publishable key already
+  in `index.html`; the two read-only client-surface checks resolve a current token inside the
+  harness through the protected issuer. It stays in local process memory and is passed explicitly
+  through the redacted client-entry navigation helper.
 - Screenshots (if taken) stay local and are not committed.
 
 ## Sandbox note

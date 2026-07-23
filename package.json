@@ -15,6 +15,7 @@
     "test:pto-ui": "node docs/syncview-design/tests/pto-ui-polish.js",
     "test:pto-lifecycle": "node qa/pto-lifecycle/run.js",
     "test:pto-live-drill": "node qa/pto-lifecycle/live-drill.js",
+    "test:boot": "node qa/boot/client-entry-sequence.js",
     "test:prod-layout": "node docs/syncview-design/tests/prod-layout-polish.js",
     "test:prod-review": "node docs/syncview-design/tests/prod-review-packet.js",
     "test:prod-review:validate": "node docs/syncview-design/tests/prod-review-packet-validate.js",

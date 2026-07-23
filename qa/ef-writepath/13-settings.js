@@ -10,9 +10,21 @@ const L = require('./lib.js');
 const OUT = '/tmp/qa-efwp/results-settings.json';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const SLUG = 'sidneylaruel';
+const PROMPT_RESTORE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
 const readPrompt = () => { const r = L.supaGet('caption_prompts', `client_slug=eq.${SLUG}&select=prompt`); return (Array.isArray(r) && r[0]) ? r[0].prompt : null; };
 
-(async () => {
+function restorePrompt(prompt) {
+  const response = L.filelessHttpRequest(
+    'POST',
+    PROMPT_RESTORE_URL,
+    { 'Content-Type': 'application/json' },
+    JSON.stringify({ client: SLUG, prompt: prompt || '' }),
+  );
+  const out = response.body.toString('utf8');
+  try { return JSON.parse(out); } catch { return { _raw: out }; }
+}
+
+async function run() {
   const { server } = await L.startServer();
   const browser = await L.launch();
   const s = L.makeOk('settings');
@@ -66,10 +78,7 @@ const readPrompt = () => { const r = L.supaGet('caption_prompts', `client_slug=e
     try {
       const now = readPrompt();
       if ((now || '') !== (orig || '')) {
-        const cp = require('child_process');
-        const f = '/tmp/qa-efwp/_restore_prompt.json';
-        fs.writeFileSync(f, JSON.stringify({ client: SLUG, prompt: orig || '' }));
-        cp.execSync(`curl -s -X POST 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save' -H 'Content-Type: application/json' -d @${f}`, { encoding: 'utf8', timeout: 30000 });
+        restorePrompt(orig || '');
         console.log('safety-restored original caption prompt');
       }
     } catch (e) { console.log('safety-restore failed:', e && e.message); }
@@ -79,4 +88,13 @@ const readPrompt = () => { const r = L.supaGet('caption_prompts', `client_slug=e
     console.log(`\nSETTINGS: ${s.pass} pass / ${s.fail} fail  → ${OUT}`);
     process.exit(s.fail ? 1 : 0);
   }
-})();
+}
+
+if (require.main === module) {
+  run().catch(error => {
+    console.error('SETTINGS FAILED:', error && error.stack || error);
+    process.exit(1);
+  });
+}
+
+module.exports = { restorePrompt, run };

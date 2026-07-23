@@ -11,6 +11,7 @@
 //
 // Run: node qa/probes/parity_logic.js
 const http = require('http'), fs = require('fs'), path = require('path');
+const { TEST_CLIENT, gotoTestClientEntry } = require('../test-client-entry.js');
 let PW; try { PW = require('playwright'); } catch { PW = require('/opt/node22/lib/node_modules/playwright'); }
 const ROOT = path.resolve(__dirname, '..', '..');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
@@ -27,6 +28,39 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   const browser = await PW.chromium.launch({ headless: true, args: ['--no-sandbox'] });
   const ctx = await browser.newContext();
   await ctx.route('**/*', r => (r.request().url().includes('localhost:8012') ? r.continue() : r.abort()));
+  const parityToken = 'synthetic-parity-client-token';
+  await ctx.route('**/functions/v1/client-token-verify', async route => {
+    const request = route.request();
+    if (request.method() === 'OPTIONS') {
+      return route.fulfill({
+        status: 204,
+        headers: {
+          'access-control-allow-origin': '*',
+          'access-control-allow-headers': '*',
+          'access-control-allow-methods': 'POST,OPTIONS',
+        },
+        body: '',
+      });
+    }
+    const body = request.postDataJSON();
+    const valid = body && body.strict === true && body.slug === TEST_CLIENT.slug
+      && body.token === parityToken && body.view === 'sample-reviews';
+    return route.fulfill({
+      status: valid ? 200 : 410,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' },
+      body: JSON.stringify(valid ? {
+        ok: true,
+        valid: true,
+        active: true,
+        strict: true,
+        protocol: 'syncview-client-entry-v1',
+        slug: TEST_CLIENT.slug,
+        view: 'sample-reviews',
+        display_name: TEST_CLIENT.name,
+      } : { ok: false, valid: false, reason: 'invalid_link' }),
+    });
+  });
   const page = await ctx.newPage();
   const errs = []; page.on('pageerror', e => errs.push(e.message));
   await page.goto('http://localhost:8012/index.html?sxr=1', { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -289,7 +323,13 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   // ── Client-context page (_isClientLink === true) → exercise the visibility filter
   //    that hides internal/Kasper threads from the client. ──
   const cpage = await ctx.newPage();
-  await cpage.goto('http://localhost:8012/index.html?sxr=1&c=acme', { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await gotoTestClientEntry(cpage, {
+    origin: 'http://localhost:8012',
+    view: 'sample-reviews',
+    name: TEST_CLIENT.name,
+    token: parityToken,
+    gotoOptions: { waitUntil: 'domcontentloaded', timeout: 45000 },
+  });
   await cpage.waitForFunction(() => typeof _calCommentsForView === 'function' && typeof _sxrCommentsForView === 'function', { timeout: 15000 }).catch(() => {});
   const cout = await cpage.evaluate(() => {
     const diffs = []; let cmp = 0; const now = () => new Date().toISOString(); let _s = 0; const uid = () => 'cc_' + (++_s);

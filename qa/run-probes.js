@@ -19,6 +19,14 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
+const {
+  STAFF_KEY_ENV,
+  clientEntrySafeChildEnv,
+} = require('./test-client-entry.js');
+const {
+  NIGHTLY_PROBES_ENV,
+  parseProbeSelection,
+} = require('./nightly-input.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const PROBES = path.join(__dirname, 'probes');
@@ -28,7 +36,9 @@ const PORT = 8000;
 
 function resolveProbeList() {
   const cliNames = process.argv.slice(2).filter(Boolean);
-  if (cliNames.length) return cliNames.map(n => (n.endsWith('.js') ? n : n + '.js'));
+  if (cliNames.length) return parseProbeSelection(cliNames.join(' '));
+  const dispatchNames = parseProbeSelection(process.env[NIGHTLY_PROBES_ENV]);
+  if (dispatchNames.length) return dispatchNames;
   const manifest = path.join(PROBES, 'nightly-manifest.txt');
   if (fs.existsSync(manifest)) {
     return fs.readFileSync(manifest, 'utf8').split('\n')
@@ -38,32 +48,72 @@ function resolveProbeList() {
   return fs.readdirSync(PROBES).filter(f => /^p.*\.js$/.test(f) && f !== 'lib.js').sort();
 }
 
-async function waitForServer(ms = 30000) {
+async function serverUp() {
+  try {
+    const response = await fetch('http://localhost:' + PORT + '/index.html');
+    return response.ok;
+  } catch (_) {
+    return false;
+  }
+}
+async function waitForOwnedServer(child, failed, ms = 30000) {
   const t = Date.now();
   while (Date.now() - t < ms) {
-    try { const r = await fetch('http://localhost:' + PORT + '/index.html'); if (r.ok) return true; } catch (e) {}
-    await new Promise(x => setTimeout(x, 500));
+    if (!child || child.exitCode !== null || failed()) return false;
+    if (await serverUp()) {
+      await new Promise(resolve => setImmediate(resolve));
+      return child.exitCode === null && !failed();
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
   }
   return false;
 }
 
 (async () => {
-  const probes = resolveProbeList().filter(f => fs.existsSync(path.join(PROBES, f)));
+  const probes = resolveProbeList();
   if (!probes.length) { console.error('No probes to run.'); process.exit(2); }
+  const missing = probes.filter(f => !fs.existsSync(path.join(PROBES, f)));
+  if (missing.length) {
+    console.error('Unknown probe selection: ' + missing.join(', '));
+    process.exit(2);
+  }
+  if (await serverUp()) {
+    console.error('Port :' + PORT + ' is already occupied; refusing to send protected client URLs to an unowned server.');
+    process.exit(2);
+  }
 
   console.log('Starting static server on :' + PORT + ' …');
-  const srv = spawn('python3', ['-m', 'http.server', String(PORT)], { cwd: ROOT, stdio: 'ignore', detached: true });
+  let serverFailed = false;
+  const srv = spawn('python3', ['-m', 'http.server', String(PORT)], {
+    cwd: ROOT,
+    stdio: 'ignore',
+    detached: true,
+    env: clientEntrySafeChildEnv(),
+  });
+  srv.once('error', () => { serverFailed = true; });
+  srv.once('exit', () => { serverFailed = true; });
   const killServer = () => { try { process.kill(-srv.pid); } catch (e) { try { srv.kill('SIGKILL'); } catch (_) {} } };
   process.on('exit', killServer);
 
-  if (!(await waitForServer())) { console.error('Server never came up on :' + PORT); killServer(); process.exit(2); }
+  if (!(await waitForOwnedServer(srv, () => serverFailed))) {
+    console.error('Owned static server never came up on :' + PORT);
+    killServer();
+    process.exit(2);
+  }
   console.log('Server up. Running ' + probes.length + ' probe(s), up to ' + MAX_ATTEMPTS + ' attempt(s) each.\n');
 
   const failed = [];
   for (const f of probes) {
     let ok = false, lastOut = '';
     for (let attempt = 1; attempt <= MAX_ATTEMPTS && !ok; attempt++) {
-      const r = spawnSync(process.execPath, [path.join(PROBES, f)], { cwd: PROBES, encoding: 'utf8', timeout: PROBE_TIMEOUT_MS });
+      const probeEnv = clientEntrySafeChildEnv();
+      if (process.env[STAFF_KEY_ENV]) probeEnv[STAFF_KEY_ENV] = process.env[STAFF_KEY_ENV];
+      const r = spawnSync(process.execPath, [path.join(PROBES, f)], {
+        cwd: PROBES,
+        encoding: 'utf8',
+        timeout: PROBE_TIMEOUT_MS,
+        env: probeEnv,
+      });
       lastOut = (r.stdout || '') + (r.stderr || '');
       ok = r.status === 0;
       if (!ok && attempt < MAX_ATTEMPTS) console.log('  · ' + f + ' attempt ' + attempt + ' failed — retrying');
@@ -78,4 +128,7 @@ async function waitForServer(ms = 30000) {
     ? failed.length + ' of ' + probes.length + ' probe(s) FAILED after ' + MAX_ATTEMPTS + ' attempts ❌: ' + failed.join(', ')
     : 'All ' + probes.length + ' probes passed ✅'));
   process.exit(failed.length ? 1 : 0);
-})();
+})().catch(() => {
+  console.error('Probe runner failed before execution');
+  process.exit(2);
+});

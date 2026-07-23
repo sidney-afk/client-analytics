@@ -44,7 +44,14 @@ const hasStatus = (st) => (c) => String(c.issue || '').includes('FS-' + TS) && c
     await smm.waitForTimeout(2500);
     await kas.goto('http://localhost:8000/index.html?Kasper=1&v2debug=1', { waitUntil: 'domcontentloaded', timeout: 45000 });
     await kas.waitForTimeout(8000);
-    await cli.goto('http://localhost:8000/index.html?c=Sidney%20Laruel&v=calendar&v2debug=1', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    const clientToken = await Q.currentTestClientToken();
+    await Q.gotoTestClientEntry(cli, {
+      origin: Q.ORIGIN,
+      view: 'calendar',
+      name: Q.TEST_CLIENT.name,
+      token: clientToken,
+      gotoOptions: { waitUntil: 'domcontentloaded', timeout: 45000 },
+    });
     await cli.waitForTimeout(5000);
 
     // STEP 1 — initial: in Kasper queue, client does NOT see video (internal KA)

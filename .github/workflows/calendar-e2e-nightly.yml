@@ -33,7 +33,11 @@ jobs:
       - name: Run headless probes (serves app, scoped to sidneylaruel)
         env:
           PROBE_ATTEMPTS: '3'
-        run: node qa/run-probes.js ${{ github.event.inputs.probes }}
+          # Each probe resolves the current TEST token in its own Node process,
+          # keeps it local, and strips this issuer credential from Chromium.
+          SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          SYNCVIEW_NIGHTLY_PROBES: ${{ github.event.inputs.probes || '' }}
+        run: node qa/run-probes.js
       # A red nightly must PAGE, not just email (owner directive 2026-07-17 —
       # the samples nightly sat red four nights with nobody consuming the
       # signal). Posts through the same SyncView Bot webhook the reconcile

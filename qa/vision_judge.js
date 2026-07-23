@@ -27,13 +27,13 @@
 // ============================================================================
 const fs = require('fs');
 const path = require('path');
-const { execSync, spawnSync } = require('child_process');
+const crypto = require('crypto');
+const { spawnSync } = require('child_process');
+const { clientEntrySafeChildEnv } = require('./test-client-entry.js');
 
 const ANTHROPIC_VERSION = '2023-06-01';
 const MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
 const DEFAULT_MODEL = process.env.MASTER_VISION_MODEL || 'claude-opus-4-8';
-const TMP = process.env.SXR_TMP || '/tmp/qa';
-try { fs.mkdirSync(TMP, { recursive: true }); } catch {}
 
 // The verdict every backend returns. Kept flat + simple so the json_schema
 // output config is happy (no unsupported constraints).
@@ -62,10 +62,18 @@ function selectBackend() {
 }
 
 function hasClaudeCli() {
-  try { execSync('command -v claude', { stdio: 'ignore' }); return true; } catch { return false; }
+  try {
+    const result = spawnSync('claude', ['--version'], {
+      stdio: 'ignore',
+      timeout: 15000,
+      windowsHide: true,
+      env: _visionSafeChildEnv(),
+    });
+    return !result.error && result.status === 0;
+  } catch {
+    return false;
+  }
 }
-
-function _q(a) { return `'${String(a).replace(/'/g, "'\\''")}'`; }
 
 function buildPrompt(shot, changeNote) {
   return [
@@ -81,7 +89,80 @@ function buildPrompt(shot, changeNote) {
   ].join('\n');
 }
 
-// ---- API backend (curl → Anthropic Messages API) --------------------------
+const _CURL = process.platform === 'win32' ? 'curl.exe' : 'curl';
+const _VISION_CURL_OPTIONS = Object.freeze({
+  timeout: 120000,
+  maxBuffer: 16 * 1024 * 1024,
+  windowsHide: true,
+});
+function _visionSafeChildEnv() {
+  const env = clientEntrySafeChildEnv();
+  delete env.ANTHROPIC_API_KEY;
+  return env;
+}
+
+function _curlConfigValue(value) {
+  const text = String(value == null ? '' : value);
+  if (/[\u0000-\u0008\u000c\u000e-\u001f\u007f]/.test(text)) {
+    throw new Error('unsupported control byte in vision request');
+  }
+  return '"' + text
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\t/g, '\\t')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\v/g, '\\v') + '"';
+}
+function _visionMarker() {
+  return `__SYNCVIEW_VISION_META_${crypto.randomBytes(18).toString('hex')}__`;
+}
+function _visionCurlConfig(url, headers, body, marker) {
+  const lines = [
+    'silent',
+    'show-error',
+    `max-time = ${_curlConfigValue(String(_VISION_CURL_OPTIONS.timeout / 1000))}`,
+    `request = ${_curlConfigValue('POST')}`,
+    `url = ${_curlConfigValue(url)}`,
+  ];
+  for (const [name, value] of Object.entries(headers || {})) {
+    if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name) || /[\u0000\r\n]/.test(String(value))) {
+      throw new Error('invalid vision request header');
+    }
+    lines.push(`header = ${_curlConfigValue(`${name}: ${value}`)}`);
+  }
+  lines.push(`data-raw = ${_curlConfigValue(body)}`);
+  lines.push(`write-out = ${_curlConfigValue(`${marker}%{http_code}\t%{content_type}${marker}`)}`);
+  return lines.join('\n') + '\n';
+}
+function _visionCurlResult(output, marker) {
+  const bytes = Buffer.isBuffer(output) ? output : Buffer.from(output || '');
+  const markerBytes = Buffer.from(marker, 'utf8');
+  const close = bytes.lastIndexOf(markerBytes);
+  const open = close < 0 ? -1 : bytes.lastIndexOf(markerBytes, close - 1);
+  if (open < 0 || close + markerBytes.length !== bytes.length) throw new Error('vision response metadata missing');
+  const metadata = bytes.subarray(open + markerBytes.length, close).toString('utf8');
+  const separator = metadata.indexOf('\t');
+  const statusText = separator < 0 ? '' : metadata.slice(0, separator);
+  if (!/^\d{3}$/.test(statusText)) throw new Error('vision response status missing');
+  return { status: Number(statusText), body: Buffer.from(bytes.subarray(0, open)) };
+}
+function _visionApiRequest(url, headers, body) {
+  try {
+    const marker = _visionMarker();
+    const config = _visionCurlConfig(url, headers, body, marker);
+    const result = spawnSync(_CURL, ['--config', '-'], Object.assign({}, _VISION_CURL_OPTIONS, {
+      input: config,
+      env: _visionSafeChildEnv(),
+    }));
+    if (result.error || result.status !== 0) throw new Error('vision api request failed');
+    return _visionCurlResult(result.stdout, marker);
+  } catch {
+    throw new Error('vision api request failed');
+  }
+}
+
+// ---- API backend (fileless curl → Anthropic Messages API) -----------------
 function judgeViaApi(shot, changeNote, model) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return { verdict: 'warn', looks_right: false, does_right_thing: false, issues: ['ANTHROPIC_API_KEY not set'], summary: 'api backend selected but no key' };
@@ -100,24 +181,23 @@ function judgeViaApi(shot, changeNote, model) {
       ],
     }],
   };
-  const reqFile = `${TMP}/_vision_req_${process.pid}_${shot.step}_${Math.abs(hash(shot.path))}.json`;
-  fs.writeFileSync(reqFile, JSON.stringify(body));
   let out = '';
   try {
-    out = execSync(
-      `curl -s -X POST ${_q(MESSAGES_URL)} ` +
-      `-H ${_q('content-type: application/json')} ` +
-      `-H ${_q('x-api-key: ' + key)} ` +
-      `-H ${_q('anthropic-version: ' + ANTHROPIC_VERSION)} ` +
-      `-d @${reqFile}`,
-      { encoding: 'utf8', timeout: 120000, maxBuffer: 16 * 1024 * 1024 }
-    );
-  } catch (e) {
-    return { verdict: 'warn', looks_right: false, does_right_thing: false, issues: ['curl failed: ' + (e.message || '')], summary: 'api call failed' };
-  } finally { try { fs.unlinkSync(reqFile); } catch {} }
+    out = _visionApiRequest(
+      MESSAGES_URL,
+      {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': ANTHROPIC_VERSION,
+      },
+      JSON.stringify(body),
+    ).body.toString('utf8');
+  } catch {
+    return { verdict: 'warn', looks_right: false, does_right_thing: false, issues: ['vision api request failed'], summary: 'api call failed' };
+  }
   try {
     const resp = JSON.parse(out);
-    if (resp.type === 'error') return { verdict: 'warn', looks_right: false, does_right_thing: false, issues: ['api error: ' + (resp.error && resp.error.message)], summary: 'api error' };
+    if (resp.type === 'error') return { verdict: 'warn', looks_right: false, does_right_thing: false, issues: ['vision api returned an error'], summary: 'api error' };
     const text = (resp.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
     return coerceVerdict(JSON.parse(text));
   } catch (e) {
@@ -138,9 +218,15 @@ function judgeViaCli(shot, changeNote, model) {
     '--allowedTools', 'Read',
     '--permission-mode', 'acceptEdits',
     '--model', model,
-  ], { encoding: 'utf8', timeout: 180000, maxBuffer: 16 * 1024 * 1024 });
+  ], {
+    encoding: 'utf8',
+    timeout: 180000,
+    maxBuffer: 16 * 1024 * 1024,
+    windowsHide: true,
+    env: _visionSafeChildEnv(),
+  });
   if (r.status !== 0 && !r.stdout) {
-    return { verdict: 'warn', looks_right: false, does_right_thing: false, issues: ['claude -p failed: ' + (r.error ? r.error.message : 'exit ' + r.status)], summary: 'cli call failed' };
+    return { verdict: 'warn', looks_right: false, does_right_thing: false, issues: ['vision cli request failed'], summary: 'cli call failed' };
   }
   let resultText = r.stdout || '';
   try { const env = JSON.parse(r.stdout); if (env && typeof env.result === 'string') resultText = env.result; } catch {}
@@ -165,8 +251,6 @@ function coerceVerdict(o) {
     summary: typeof o.summary === 'string' ? o.summary : '',
   };
 }
-function hash(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) | 0; } return h; }
-
 // Judge one shot via the active backend.
 function judgeShot(shot, backend, changeNote, model) {
   if (backend === 'api') return judgeViaApi(shot, changeNote, model || DEFAULT_MODEL);
@@ -221,4 +305,7 @@ function judgeAndWrite(manifest, outDir, opts = {}) {
   return { ...result, broken, warn };
 }
 
-module.exports = { selectBackend, judgeShot, judgeManifest, judgeAndWrite, renderVerdictDoc, VERDICT_SCHEMA };
+module.exports = {
+  selectBackend, judgeShot, judgeManifest, judgeAndWrite, renderVerdictDoc, VERDICT_SCHEMA,
+  __test: Object.freeze({ visionApiRequest: _visionApiRequest }),
+};

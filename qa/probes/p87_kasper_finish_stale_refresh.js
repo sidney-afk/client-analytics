@@ -26,6 +26,7 @@
 //                    stamp (a genuine SMM hand-back) → card MUST return to
 //                    "Waiting". Proves the fix didn't just disable the feature.
 const Q = require('./lib.js');
+const { clientEntrySafeChildEnv } = require('../test-client-entry.js');
 const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
 
 const ORIGIN = Q.ORIGIN;
@@ -92,7 +93,11 @@ const refresh = (page) => page.evaluate(async () => { try { await _kasperLoadRev
 
 (async () => {
   const S = Q.makeOk('P87 kasper finish — stale auto-refresh holds');
-  const browser = await PW.chromium.launch({ headless: true, args: ['--ignore-certificate-errors', '--no-sandbox'] });
+  const browser = await PW.chromium.launch({
+    headless: true,
+    args: ['--ignore-certificate-errors', '--no-sandbox'],
+    env: clientEntrySafeChildEnv(),
+  });
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });

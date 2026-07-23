@@ -339,13 +339,14 @@ ok(/if \(_wlV2Ready\(\) && !force\)/.test(clientIssueRead)
   && /cache: 'no-store'/.test(clientIssueRead),
 'forced Workload refresh bypasses the scheduled mirror and reads Linear without browser cache');
 ok(/await wlLoadSnapshot\(true, null\)/.test(workloadManualRefresh)
+  && /wlState\.refreshing \|\| _wlDueWriteInFlight\.size/.test(workloadManualRefresh)
   && /_wlV2FetchIssues\(\)/.test(backgroundRefresh)
   && /wlFetchPlanRows\(\)/.test(backgroundRefresh)
   && /wlFetchLinearMetadata\(freshIssues\)/.test(backgroundRefresh)
   && !/loadLinearIssues|wlLoadSnapshot|LINEAR_ISSUES_WEBHOOK/.test(backgroundRefresh)
   && /_wlV2CheckWatermark\(\)/.test(workloadVisibility)
   && !/wlRefetchSilent|wlLoadSnapshot|loadLinearIssues/.test(workloadVisibility),
-'manual refresh alone keeps the forced Linear path while visibility background work stays Supabase/Edge-only');
+'manual refresh fences due saves while its idle path stays forced and visibility work remains Supabase/Edge-only');
 ok(/const priorWatermark = wlState\.sourceSyncedAt/.test(workloadManualRefresh)
   && /const shouldRebaseMirror = _wlV2Ready\(\)/.test(workloadManualRefresh)
   && workloadManualRefresh.indexOf('wlState.sourceSyncedAt = null') < workloadManualRefresh.indexOf('wlLoadSnapshot(true, null)')

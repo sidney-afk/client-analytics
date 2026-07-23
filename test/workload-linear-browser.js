@@ -1983,12 +1983,17 @@ async function run() {
     let cursorDuringLoad = 'not-called';
     let watermarkReads = 0, mirrorReads = 0;
     const duringLoad = [];
+    const nativeIssue = { id: 'issue-a', dueDate: '2026-08-05' };
+    const nativeTarget = { updatedAt: '2026-07-23T12:00:00.000Z' };
     const manualContext = {
+      _wlDueWriteInFlight: new Map([['issue-a', {}]]),
       wlState: {
         refreshing: false,
         error: null,
         backgroundError: 'old warning',
         sourceSyncedAt: '2026-07-22T12:00:00.000Z',
+        issueSnapshot: [nativeIssue],
+        nativeDueTargetByIssueId: new Map([['issue-a', nativeTarget]]),
       },
       document: { querySelector: () => ({}) },
       _wlV2Ready: () => true,
@@ -2006,6 +2011,10 @@ async function run() {
         forced = [force, fallback];
         cursorDuringLoad = manualContext.wlState.sourceSyncedAt;
         duringLoad.push(manualContext.wlState.refreshing);
+        if (manualContext._wlDueWriteInFlight.size) {
+          nativeIssue.dueDate = '2026-07-25';
+          nativeTarget.updatedAt = '2026-07-22T12:00:00.000Z';
+        }
         return { usedFallback: false };
       },
       wlScheduleNativeDueReceiptRetry: () => false,
@@ -2016,6 +2025,17 @@ async function run() {
     vm.createContext(manualContext);
     vm.runInContext(extract('wlRebaseMirrorWatermarkAfterDirectRefresh'), manualContext);
     vm.runInContext(extract('wlManualRefresh'), manualContext);
+    await manualContext.wlManualRefresh();
+    assert.strictEqual(forced, null, 'manual refresh does not start while a due save is active');
+    assert.strictEqual(manualContext.wlState.refreshing, false, 'the blocked refresh preserves the warm board');
+    assert.strictEqual(manualContext.wlState.sourceSyncedAt, '2026-07-22T12:00:00.000Z',
+      'the blocked refresh preserves the current mirror cursor');
+    assert.strictEqual(nativeIssue.dueDate, '2026-08-05',
+      'a pre-commit foreground snapshot cannot replace the acknowledged native due date');
+    assert.strictEqual(nativeTarget.updatedAt, '2026-07-23T12:00:00.000Z',
+      'a pre-commit foreground snapshot cannot replace the acknowledged native CAS cursor');
+
+    manualContext._wlDueWriteInFlight.clear();
     await manualContext.wlManualRefresh();
     assert.deepStrictEqual(forced, [true, null], 'manual refresh keeps the forced direct path');
     assert.deepStrictEqual(duringLoad, [true], 'manual refresh enters the skeleton-producing refreshing state');
@@ -2034,6 +2054,7 @@ async function run() {
     let watermarkReads = 0, mirrorReads = 0, fullRefreshes = 0;
     const failedBaseline = {
       _wlV2WatermarkBusy: false,
+      _wlDueWriteInFlight: new Map(),
       wlState: {
         refreshing: false,
         loading: false,

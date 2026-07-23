@@ -14835,7 +14835,7 @@
     // Manual refresh — toolbar ↻ button. This explicit action intentionally
     // keeps the direct no-cache Linear path and the calendar skeleton.
     async function wlManualRefresh() {
-        if (!document.querySelector('.workload-view') || wlState.refreshing) return;
+        if (!document.querySelector('.workload-view') || wlState.refreshing || _wlDueWriteInFlight.size) return;
         const priorWatermark = wlState.sourceSyncedAt;
         const shouldRebaseMirror = _wlV2Ready();
         if (shouldRebaseMirror) wlState.sourceSyncedAt = null;

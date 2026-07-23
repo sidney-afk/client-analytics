@@ -8,7 +8,7 @@ CREATE SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
-CREATE ROLE service_role NOLOGIN;
+CREATE ROLE service_role NOLOGIN BYPASSRLS;
 
 CREATE TABLE public.clients (
   slug text PRIMARY KEY,
@@ -24,6 +24,27 @@ CREATE TABLE public.syncview_runtime_flags (
   updated_at timestamptz NOT NULL DEFAULT now(),
   updated_by text
 );
+
+CREATE TABLE public.deliverable_events (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  deliverable_id text,
+  client_slug text NOT NULL,
+  ts timestamptz NOT NULL DEFAULT now(),
+  actor text,
+  role text,
+  action text NOT NULL,
+  source text NOT NULL DEFAULT 'ui',
+  payload jsonb
+);
+ALTER TABLE public.deliverable_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon read deliverable_events"
+  ON public.deliverable_events
+  AS PERMISSIVE
+  FOR SELECT
+  TO anon, authenticated
+  USING (true);
+GRANT SELECT ON public.deliverable_events TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.deliverable_events TO service_role;
 
 CREATE TABLE public.flag_flips (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -87,6 +108,7 @@ CREATE TABLE public.mirror_outbox (
     status IN ('pending', 'shadow_ok', 'written', 'failed', 'skipped', 'stale')
   )
 );
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.mirror_outbox TO service_role;
 
 -- Exact pre-F27 requeue helper from the B4 baseline. The corrective proof
 -- invokes it after the generation CAS to demonstrate that a stale historical
@@ -308,6 +330,82 @@ BEGIN
     null;
   END;
 END $$;
+
+INSERT INTO public.deliverable_events(
+  deliverable_id, client_slug, actor, role, action, source, payload
+) VALUES
+  (
+    'f202-private-event', 'test-client', 'f202-disposable-proof', 'system',
+    'description_change', 'ui',
+    jsonb_build_object(
+      'action', 'description_change',
+      'outbound', jsonb_build_object(
+        'operation', 'description',
+        'payload', jsonb_build_object(
+          'description',
+          E'  # F202\n\n- exact Markdown  \n'
+        )
+      )
+    )
+  ),
+  (
+    'f202-public-control', 'test-client', 'f202-disposable-proof', 'system',
+    'status_change', 'ui', '{"action":"status_change"}'::jsonb
+  );
+
+SET LOCAL ROLE service_role;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.deliverable_events
+    WHERE deliverable_id = 'f202-private-event'
+      AND payload->'outbound'->'payload'->>'description'
+        = E'  # F202\n\n- exact Markdown  \n'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM public.mirror_outbox
+    WHERE dedup_key = 'f202:description'
+      AND operation = 'description'
+      AND payload = jsonb_build_object(
+        'description',
+        E'  # F202\n\n- exact Markdown  \n'
+      )
+  ) THEN
+    RAISE EXCEPTION 'f202_service_description_audit_or_outbox_not_exact';
+  END IF;
+END $$;
+RESET ROLE;
+
+SET LOCAL ROLE anon;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f202-private-event'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f202-public-control'
+  ) THEN
+    RAISE EXCEPTION 'f202_anon_description_policy_not_exact';
+  END IF;
+END $$;
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f202-private-event'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f202-public-control'
+  ) THEN
+    RAISE EXCEPTION 'f202_authenticated_description_policy_not_exact';
+  END IF;
+END $$;
+RESET ROLE;
 ROLLBACK;
 
 DO $$

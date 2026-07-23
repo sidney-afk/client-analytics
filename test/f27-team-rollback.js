@@ -113,8 +113,14 @@ ok(/DELIBERATE ADDITIVE-ONLY EXCEPTION \(owner-approved\)/.test(f202Sql)
   && /'create', 'status', 'comment', 'due', 'assignee', 'title',[\s\S]*'priority', 'parent', 'archive', 'restore', 'labels', 'description'/.test(f202Sql)
   && /no data drop, table\/column drop, rename, type[\s\S]*change, or backfill/.test(f202Sql),
   'F202 widens the operation CHECK transactionally to the exact strict superset and documents the data-safe exception');
+ok(/create policy "protect production description event bodies"[\s\S]*as restrictive[\s\S]*for select[\s\S]*to anon, authenticated[\s\S]*using \(action is distinct from 'description_change'\)/.test(f202Sql)
+  && !/drop policy/i.test(f202Sql)
+  && /service-role-only mirror_outbox payload/.test(f202Sql)
+  && /exact outbox payload remain unchanged/.test(f202Sql),
+  'F202 keeps the description ledger/outbox handoff private behind the established restrictive-reader boundary');
 ok(/2026-07-23-f202-production-descriptions\.sql/.test(migrationsReadme)
   && /all eleven accepted[\s\S]*including `labels`[\s\S]*strict superset in one transaction/.test(migrationsReadme)
+  && /restrictive `deliverable_events` SELECT policy[\s\S]*`description_change` row from anon\/authenticated/.test(migrationsReadme)
   && /real TEST description[\s\S]*separate post-merge owner-approved window/.test(migrationsReadme),
   'migration registry records the source-only F202 strict-superset exception and later live gate');
 ok(/'priority', 'parent', 'archive', 'restore', 'labels', 'description'/.test(sql)
@@ -136,6 +142,16 @@ ok(/2026-07-23-f202-production-descriptions\.sql/.test(proof)
   && /to_jsonb\(o\)::text/.test(proof)
   && /f202_existing_rows_not_preserved/.test(proof),
   'disposable proof executes F202, accepts exactly twelve operations, rejects an unrelated direct insert, and preserves every fixture row byte-for-byte');
+ok(/CREATE ROLE service_role NOLOGIN BYPASSRLS/.test(proof)
+  && /SET LOCAL ROLE service_role/.test(proof)
+  && /f202_service_description_audit_or_outbox_not_exact/.test(proof)
+  && /dedup_key = 'f202:description'/.test(proof)
+  && /SET LOCAL ROLE anon/.test(proof)
+  && /f202_anon_description_policy_not_exact/.test(proof)
+  && /SET LOCAL ROLE authenticated/.test(proof)
+  && /f202_authenticated_description_policy_not_exact/.test(proof)
+  && /f202-public-control/.test(proof),
+  'disposable proof retains exact service-side audit/outbox Markdown while hiding only description_change rows from both public reader roles');
 ok(/f202:f27:description/.test(proof)
   && /f202_f27_description_enqueue_not_exact/.test(proof)
   && /E'  # F202\\n\\n- exact Markdown  \\n'/.test(proof)

@@ -1,5 +1,6 @@
 'use strict';
 
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const {
@@ -26,6 +27,7 @@ const {
   buildF200CasPatchRequest,
   buildF200RepairExecutionPlan,
   buildPlan: buildReconcilePlan,
+  buildSummaryEventPayload,
   f200RepairRowState,
   requireSingleF200CasPatchRow,
 } = require('../scripts/linear-deliverables-reconcile');
@@ -507,6 +509,11 @@ const firstRepairedRow = {
 };
 ok(f200RepairRowState(firstRepairedRow, firstIssue, firstPayload).state === 'already_applied',
 'exact repair recognizes an already-applied row so a partial run is resumable');
+throws(() => f200RepairRowState(firstRepairedRow, {
+  ...firstIssue,
+  project: { id: 'changed-project-after-private-plan' },
+}, firstPayload), /Linear issue drifted/,
+'already-applied repair rows still require the freshly read project hierarchy to match the private plan');
 throws(() => f200RepairRowState({
   ...firstSourceRow,
   linear_raw: { ...firstSourceRow.linear_raw, labels: ['concurrent-change'] },
@@ -600,6 +607,41 @@ ok(executionPlan.f200Repair === true
   && executionPlan.results.every(row => row.repair_payload
     && row.repair_payload.mutation === 'deliverables_cas_patch'),
 'existing reconciler consumes the exact 72 validated private CAS repair descriptors');
+const privateSummaryPayload = buildSummaryEventPayload(
+  executionPlan,
+  '2026-07-23T00:00:00.000Z',
+  '2026-07-23T00:00:01.000Z',
+);
+ok(privateSummaryPayload.inbound_identifier_sample.length === 0
+  && privateSummaryPayload.linkage_sample.length === 0
+  && privateSummaryPayload.tolerated_sample.length === 0
+  && privateSummaryPayload.repair_sample.length === 0
+  && privateSummaryPayload.identifier_filter === null
+  && privateSummaryPayload.client_filter === null
+  && privateSummaryPayload.test_authority_client === null
+  && !JSON.stringify(privateSummaryPayload).includes(firstIssue.identifier)
+  && !JSON.stringify(privateSummaryPayload).includes(firstIssue.id)
+  && !JSON.stringify(privateSummaryPayload).includes(firstSourceRow.id),
+'generic F200 summary events are aggregate-only and persist no private identifiers or row samples');
+const privateSummaryWithFilters = JSON.parse(execFileSync(process.execPath, [
+  '-e',
+  [
+    "process.env.B4_CONFIRM_TEST_MUTATIONS = '1';",
+    "process.argv.push('--identifier=VID-SECRET', '--client=private-client', '--test-authority-client=sidneylaruel');",
+    "const { buildSummaryEventPayload } = require('./scripts/linear-deliverables-reconcile');",
+    "process.stdout.write(JSON.stringify(buildSummaryEventPayload({ f200Repair: true, results: [], linkageRows: [], summary: {} }, 'start', 'finish')));",
+  ].join(' '),
+], {
+  cwd: path.resolve(__dirname, '..'),
+  encoding: 'utf8',
+}));
+ok(privateSummaryWithFilters.identifier_filter === null
+  && privateSummaryWithFilters.client_filter === null
+  && privateSummaryWithFilters.test_authority_client === null
+  && !JSON.stringify(privateSummaryWithFilters).includes('VID-SECRET')
+  && !JSON.stringify(privateSummaryWithFilters).includes('private-client')
+  && !JSON.stringify(privateSummaryWithFilters).includes('sidneylaruel'),
+'F200 aggregate-only summaries suppress populated invocation filters as well as row samples');
 const resumableExecutionPlan = buildF200RepairExecutionPlan({
   ...executionData,
   deliverables: executionData.deliverables.map(row => (

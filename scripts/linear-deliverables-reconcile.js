@@ -539,6 +539,10 @@ function f200RepairRowState(current, liveIssue, payload) {
       || clean(liveIssue.id) !== linearIssueId || !targetSlug || !targetAttribution) {
     throw new Error(`F200 repair live row identity is invalid for ${id || 'unknown'}`);
   }
+  if (sha256(mergedCurrentLinearIssue(current, liveIssue))
+      !== clean(precondition.linear_issue_sha256)) {
+    throw new Error(`F200 repair Linear issue drifted for deliverable ${id}`);
+  }
   if (clean(current.client_slug) === targetSlug
       && stableAttributionJson(currentAttribution || {})
         === stableAttributionJson(targetAttribution)) {
@@ -554,9 +558,7 @@ function f200RepairRowState(current, liveIssue, payload) {
   if (clean(precondition.client_slug) !== 'unattributed'
       || clean(current.client_slug) !== 'unattributed'
       || clean(current.updated_at) !== clean(precondition.updated_at)
-      || sha256(currentRaw) !== clean(precondition.linear_raw_sha256)
-      || sha256(mergedCurrentLinearIssue(current, liveIssue))
-        !== clean(precondition.linear_issue_sha256)) {
+      || sha256(currentRaw) !== clean(precondition.linear_raw_sha256)) {
     throw new Error(`F200 repair precondition drifted for deliverable ${id}`);
   }
 
@@ -811,6 +813,43 @@ function summaryMarkdown(plan, startedAt, finishedAt) {
   return lines.join('\n');
 }
 
+function buildSummaryEventPayload(plan, startedAt, finishedAt) {
+  const privateRepair = plan.f200Repair === true;
+  const results = plan.results || [];
+  return {
+    ok: true,
+    dry_run: !APPLY,
+    apply: APPLY,
+    cap: SAFETY_CAP,
+    identifier_filter: privateRepair ? null : IDENTIFIER_FILTER || null,
+    client_filter: privateRepair ? null : CLIENT_FILTER || null,
+    test_authority_client: privateRepair ? null : TEST_AUTHORITY_CLIENT || null,
+    run_class: clean(process.env.RECONCILE_RUN_CLASS || 'manual'),
+    github_event_name: clean(process.env.GITHUB_EVENT_NAME) || null,
+    github_run_id: clean(process.env.GITHUB_RUN_ID) || null,
+    github_run_attempt: clean(process.env.GITHUB_RUN_ATTEMPT) || null,
+    started_at: startedAt,
+    finished_at: finishedAt,
+    summary: plan.summary,
+    // The F200 repair plan is a private artifact. Its generic system event is
+    // aggregate-only and never persists identifiers or row-level samples.
+    inbound_identifier_sample: privateRepair
+      ? []
+      : results
+        .filter(row => row.authority === 'linear' && row.diffs.length)
+        .map(row => ({ identifier: clean(row.identifier), team: clean(row.team) }))
+        .filter(row => row.identifier)
+        .slice(0, 20),
+    linkage_sample: privateRepair ? [] : (plan.linkageRows || []).slice(0, 20),
+    tolerated_sample: privateRepair
+      ? []
+      : results.flatMap(r => r.tolerated.map(t => ({ id: r.id, team: r.team, ...t }))).slice(0, 20),
+    repair_sample: privateRepair
+      ? []
+      : results.flatMap(r => r.repairs.map(p => ({ id: r.id, team: r.team, ...p }))).slice(0, 20),
+  };
+}
+
 async function writeSummaryEvent(plan, startedAt, finishedAt) {
   if (FIXTURES) return [];
   return supabaseInsert('deliverable_events', [{
@@ -818,30 +857,7 @@ async function writeSummaryEvent(plan, startedAt, finishedAt) {
     action: 'linear_deliverables_reconcile_v2',
     source: 'reconcile',
     actor: 'codex-b3-reconciler-v2',
-    payload: {
-      ok: true,
-      dry_run: !APPLY,
-      apply: APPLY,
-      cap: SAFETY_CAP,
-      identifier_filter: IDENTIFIER_FILTER || null,
-      client_filter: CLIENT_FILTER || null,
-      test_authority_client: TEST_AUTHORITY_CLIENT || null,
-      run_class: clean(process.env.RECONCILE_RUN_CLASS || 'manual'),
-      github_event_name: clean(process.env.GITHUB_EVENT_NAME) || null,
-      github_run_id: clean(process.env.GITHUB_RUN_ID) || null,
-      github_run_attempt: clean(process.env.GITHUB_RUN_ATTEMPT) || null,
-      started_at: startedAt,
-      finished_at: finishedAt,
-      summary: plan.summary,
-      inbound_identifier_sample: plan.results
-        .filter(row => row.authority === 'linear' && row.diffs.length)
-        .map(row => ({ identifier: clean(row.identifier), team: clean(row.team) }))
-        .filter(row => row.identifier)
-        .slice(0, 20),
-      linkage_sample: plan.linkageRows.slice(0, 20),
-      tolerated_sample: plan.results.flatMap(r => r.tolerated.map(t => ({ id: r.id, team: r.team, ...t }))).slice(0, 20),
-      repair_sample: plan.results.flatMap(r => r.repairs.map(p => ({ id: r.id, team: r.team, ...p }))).slice(0, 20),
-    },
+    payload: buildSummaryEventPayload(plan, startedAt, finishedAt),
   }]);
 }
 
@@ -1136,6 +1152,7 @@ module.exports = {
   batchParentId,
   expectedParentIdForDeliverable,
   buildPlan,
+  buildSummaryEventPayload,
   buildF200RepairExecutionPlan,
   buildF200CasPatchRequest,
   f200RepairRowState,

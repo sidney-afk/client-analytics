@@ -108,6 +108,10 @@ executes these files (see `README.md` › Repository layout).
   existing rows and is data-safe: it drops no data/table/column, renames
   nothing, changes no type, and performs no backfill. The parked F27 enqueue
   source carries `labels` and `description`, but F27 remains uninstalled. The
+  exact description Markdown remains in the service-role-only outbox and
+  ledger handoff; a restrictive `deliverable_events` SELECT policy hides every
+  `description_change` row from anon/authenticated readers while preserving the
+  meaningful service-side audit event. The
   F202 constraint apply, production-write deploy, and real TEST description
   drill require a separate post-merge owner-approved window.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention

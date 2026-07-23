@@ -9,6 +9,14 @@
 -- existing row, and performs no data drop, table/column drop, rename, type
 -- change, or backfill.
 --
+-- PRIVACY BOUNDARY: description intents carry exact Markdown in the
+-- service-role-only mirror_outbox payload. The same outbound envelope is
+-- required transiently by the existing atomic deliverable event -> outbox
+-- trigger, so description_change ledger rows are protected with the same
+-- restrictive-reader pattern already used for body-bearing comment events.
+-- Anon/authenticated readers cannot select those rows; service-role processing
+-- and the exact outbox payload remain unchanged.
+--
 -- This file is source-only until a separate post-merge, owner-approved live
 -- window. It does not deploy production-write, run the real TEST description
 -- drill, change a runtime flag or authority, or touch n8n.
@@ -24,6 +32,16 @@ alter table public.mirror_outbox
     'create', 'status', 'comment', 'due', 'assignee', 'title',
     'priority', 'parent', 'archive', 'restore', 'labels', 'description'
   ));
+
+-- deliverable_events is otherwise anon-readable. Keep the meaningful
+-- description_change audit row and its exact service-side outbound envelope,
+-- but never expose that content through the public reader roles.
+create policy "protect production description event bodies"
+  on public.deliverable_events
+  as restrictive
+  for select
+  to anon, authenticated
+  using (action is distinct from 'description_change');
 
 -- Preserve the installed pre-F27 enqueue contract byte-for-byte in behavior;
 -- only the operation allowlist is widened by description.

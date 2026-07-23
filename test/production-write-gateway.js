@@ -11,6 +11,7 @@ const edge = read('supabase/functions/production-write/index.ts');
 const lowLevel = read('supabase/functions/_shared/b4-write.ts');
 const dataModel = read('migrations/2026-07-06-b1-linear-data-model.sql');
 const migration = read('migrations/2026-07-12-write-ui-outbox-parity.sql');
+const descriptionMigration = read('migrations/2026-07-23-f202-production-descriptions.sql');
 const fixPackFlags = read('migrations/2026-07-13-write-ui-fix-pack-flags.sql');
 const inbound = read('supabase/functions/linear-inbound/index.ts');
 const inboundEchoProof = read('supabase/functions/linear-inbound/f27-echo.mjs');
@@ -481,6 +482,10 @@ function extractFunction(name) {
     && /action: operation === "intake_create" \? "create" : `\$\{operation\}_change`/.test(edge)
     && /function publicDescriptionRow[\s\S]{0,180}brief: typeof row\.brief === "string" \? row\.brief : null/.test(edge),
   'description stays deliverable-only, requires Production CAS, emits description_change audit, and has an exact brief response shape');
+  ok(/create policy "protect production description event bodies"[\s\S]*as restrictive[\s\S]*for select[\s\S]*to anon, authenticated[\s\S]*using \(action is distinct from 'description_change'\)/.test(descriptionMigration)
+    && /service-role-only mirror_outbox payload/.test(descriptionMigration)
+    && /exact outbox payload remain unchanged/.test(descriptionMigration),
+  'description_change audit rows retain the exact service-side handoff but are excluded from anon/authenticated reads');
 
   const reconcile = extractFunction('reconcileEntityOperation');
   const receiptReader = extractFunction('readOutboxReceipt');

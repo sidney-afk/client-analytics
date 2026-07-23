@@ -473,6 +473,25 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       reproduced and repaired.
       Each remediation's browser lane must record actual early visible frames and transitions; a
       settled-page or source-only assertion cannot close the finding.
+- [ ] **Protected staff state follows the verified identity and document lifetime** (F186):
+      weekly-report data, options, filters, caches, requests, and rendered DOM are revoked on
+      identity loss/pagehide and reverified before persisted BFCache restore. Cross-tab sign-out
+      replaces protected output with the sign-in boundary; late work cannot restore it.
+- [ ] **Round 2 staff routes restore one exact descriptor and latest request**
+      (F187/F188/F189/F190/F191/F194/F197/F198):
+      Production replaces omitted query fields with canonical defaults and drops late reads;
+      Workload immediately revalidates a labelled cached reload and starts a fresh BFCache
+      generation; weekly filters and first-party uploader selection are latest-request-owned; admin
+      notifications distinguish unknown/error from zero; and each More surface has an explicit
+      return-refresh or labelled-last-good policy. Drive cold boot, reload, Back, Forward, held and
+      reversed responses, route exit, pagehide, and persisted pageshow through the visible surface.
+- [ ] **Round 2 staff unknown/failure state never becomes absence, empty, or another principal's
+      draft** (F192/F193/F195/F196):
+      both uploader queues fail visibly with Retry, Upload distinguishes mapping unknown from
+      confirmed missing, caption prompt reads terminate before editor/generation action, and staff
+      Submit/public intake drafts are isolated or explicitly principal-bound. F199 separately tracks
+      the lower-severity typed Hook Library receipt. Follow the owner questions in the dated audit;
+      this checklist records no silent policy choice.
 - [ ] **B1 has a success-only durable checkpoint and typed terminal heartbeat** (F131): per-row
       writes, successful summaries, and failed summaries use distinct event types; only a complete
       write/readback advances the stored high-water. Failure at every write stage retries from the

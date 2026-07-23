@@ -867,8 +867,8 @@ n8n in the metric read path.*
   Date** is Week-only and gives each subtle editor swimlane a compact sticky, team-accented rail at
   the left while the five day cells remain aligned beside it. Today uses a weekday-header marker and
   faint day-column wash instead of a large outline, and the wash never sits behind the editor rail.
-  Each planned editor/client group occupies one aligned row with a continuous visible connector and
-  arrowhead that ends immediately before its outlined due endpoint. Different deadlines split into
+  Each planned editor/client group occupies one aligned row with a continuous visible connector
+  line that ends immediately before its outlined due endpoint. Different deadlines split into
   separate endpoints; when plan and due share a day, the solid plan chip carries **Due here** and its
   proximity dot instead of rendering a duplicate endpoint. Due endpoints are display-only and
   excluded from capacity; the solid plan source is the only counted copy. Admin/SMM drag starts only from the dedicated six-dot handle

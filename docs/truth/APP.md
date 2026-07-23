@@ -337,8 +337,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   each subtle editor swimlane while its five daily capacity totals and relationship rows remain
   aligned to the calendar. Today is marked in the weekday header and by a faint column wash, with no
   large selection outline and no wash behind the editor rail. Each editor/client plan group stays in
-  one aligned row, with a continuous visible connector and arrowhead ending in the gap immediately
-  before its outlined due-date endpoint instead of disappearing beneath that card. Different
+  one aligned row, with a continuous visible connector line ending in the gap immediately before
+  its outlined due-date endpoint instead of disappearing beneath that card. Different
   deadlines split into separate endpoints; work due on its planned day stays on the solid plan chip
   with a same-day **Due here** marker and the same proximity dot rather than a duplicate. Due
   endpoints are display-only references and never add to capacity.

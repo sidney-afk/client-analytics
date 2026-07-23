@@ -651,7 +651,6 @@ check(trackEditors.length === 1
     && oneTrack.endpoints[1].subs.length === 1,
   'one planned client group splits truthfully into exact-date deadline subsets without inflating plan counts');
 const trackHtml = wlRenderTimelineTrack(oneTrack, trackEditors[0], 1);
-const secondTrackHtml = wlRenderTimelineTrack(oneTrack, trackEditors[0], 2);
 const readOnlyTrackHtml = wlRenderTimelineTrackReadOnly(oneTrack, trackEditors[0], 1);
 const renderWeekDeadlineTimelineFixture = compile('renderWeekDeadlineTimeline', {
   wlWorkloadTodayISO: () => '2026-07-22',
@@ -670,23 +669,16 @@ const renderWeekDeadlineTimelineFixture = compile('renderWeekDeadlineTimeline', 
 const weightedTimelineHtml = renderWeekDeadlineTimelineFixture();
 const dueButtons = trackHtml.match(/<button type="button" class="workload-timeline-due[\s\S]*?<\/button>/g) || [];
 const connectorLines = trackHtml.match(/<line\b[^>]*>/g) || [];
-const firstMarkerIds = [...trackHtml.matchAll(/<marker\b[^>]*\bid="([^"]+)"/g)].map(match => match[1]);
-const secondMarkerIds = [...secondTrackHtml.matchAll(/<marker\b[^>]*\bid="([^"]+)"/g)].map(match => match[1]);
+const connectorSvg = (trackHtml.match(/<svg class="workload-timeline-lines"[\s\S]*?<\/svg>/) || [''])[0];
 const sameDayHtml = wlTimelineSameDayHtml(oneTrack);
 check(connectorLines.length === oneTrack.endpoints.length
     && connectorLines.every(line => /class="workload-timeline-connector is-(?:red|orange|green)"/.test(line))
     && connectorLines.every(line => line.includes('stroke-width="1.5"'))
-    && connectorLines.every(line => firstMarkerIds.some(id => line.includes(`marker-end="url(#${id})"`)))
+    && connectorLines.every(line => !/\bmarker-(?:start|mid|end)=/.test(line))
     && connectorLines.some(line => line.includes('is-orange'))
     && connectorLines.some(line => line.includes('is-green'))
-    && firstMarkerIds.length === oneTrack.endpoints.length
-    && secondMarkerIds.length === oneTrack.endpoints.length
-    && new Set([...firstMarkerIds, ...secondMarkerIds]).size === firstMarkerIds.length + secondMarkerIds.length
-    && /style="color:var\(--wl-proximity-orange\)"/.test(trackHtml)
-    && /style="color:var\(--wl-proximity-green\)"/.test(trackHtml)
-    && /fill="currentColor"/.test(trackHtml)
-    && !/context-stroke/.test(trackHtml)
-    && !/<polyline\b/.test(trackHtml)
+    && connectorSvg
+    && !/<(?:defs|marker|path|polyline)\b/.test(connectorSvg)
     && [...trackHtml.matchAll(/<line [^>]*y1="([^"]+)"/g)].every(match => match[1] === '24')
     && dueButtons.length === 2
     && dueButtons.every(button => button.includes('wl-deadline-dot')
@@ -700,7 +692,7 @@ check(connectorLines.length === oneTrack.endpoints.length
     && !/<summary class="workload-timeline-plan-chip[^>]*(?:draggable=|data-wl-plan-group-drag)/.test(trackHtml)
     && /also due on the planned day/.test(trackHtml)
     && !/data-wl-deadline-open="track-same-day"/.test(trackHtml),
-  'toggle-on tracks use Safari-safe tone-aware 1.5px marker-ended connectors, unique endpoint markers, and read-only due copies');
+  'toggle-on tracks use tone-aware 1.5px plain connectors and read-only due copies');
 check(/class="workload-timeline-same-day is-red"/.test(sameDayHtml)
     && (sameDayHtml.match(/class="wl-deadline-dot"/g) || []).length === 1
     && /Due here/.test(sameDayHtml)
@@ -738,10 +730,11 @@ const boundaryHtml = wlRenderTimelineTrack(boundaryTrack, {
 check(boundaryTrack.planIndex === 0
     && boundaryTrack.endpoints[0].targetIndex === 0
     && boundaryTrack.endpoints[0].boundary === 'before'
-    && /<line [^>]*y1="24"[^>]*y2="48"[^>]*marker-end=/.test(boundaryHtml)
+    && /<line [^>]*y1="24"[^>]*y2="48"/.test(boundaryHtml)
+    && !/\bmarker-(?:start|mid|end)=/.test(boundaryHtml)
     && /--wl-source-top:7px/.test(boundaryHtml)
     && /--wl-endpoint-top:52px/.test(boundaryHtml),
-  'an out-of-week deadline at the plan edge stacks below the source and ends its arrow just before the endpoint');
+  'an out-of-week deadline at the plan edge stacks below the source and stays connected by a plain line ending before the endpoint');
 check(/workload-timeline-plan-chip"[^>]*>[\s\S]*?workload-day-card-chip-main">[\s\S]*?wl-deadline-summary is-red[\s\S]*?workload-day-card-chip-name/.test(boundaryHtml)
     && !/<summary class="workload-timeline-plan-chip is-deadline-/.test(boundaryHtml),
   'Plan + Due Date puts one proximity dot before the client name without a colored source edge');

@@ -42599,6 +42599,9 @@
                     }
                     throw error;
                 }
+                if (operation === 'due' && json.row && typeof wlPublishNativeDueReceipt === 'function') {
+                    wlPublishNativeDueReceipt(json.row);
+                }
                 return json;
             } finally {
                 _prodState.writes.delete(pendingKey);

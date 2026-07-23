@@ -174,6 +174,8 @@
             --cal-comp-video-dot: var(--sv-misc-06b6d4); --cal-comp-graphic-dot: var(--sv-misc-d946ef); --cal-comp-caption-dot: var(--sv-misc-f59e0b); --cal-comp-title-dot: var(--sv-misc-ef4444); --cal-comp-dot-ring: var(--sv-shadow-rgba-255-255-255-0_55);
             --cal-notes-accent: var(--sv-bg-ea580c); --cal-notes-accent-fg: var(--sv-fg-c2410c); --cal-notes-open-bg: var(--sv-bg-fff5e6); --cal-notes-count-fg: var(--sv-fg-fff); --cal-notes-dot-bg: var(--sv-bg-ea580c); --cal-notes-dot-ring: rgba(0,0,0,0); --cal-notes-dot-glow: rgba(234,88,12,0);
             --wl-status-fg: var(--sv-fg-fff); --wl-progress-section-bg: var(--sv-bg-fefce8); --wl-progress-border: var(--sv-border-fde047); --wl-progress-accent: var(--sv-bg-eab308); --wl-progress-accent-hover: var(--sv-bg-ca8a04); --wl-progress-label: var(--sv-fg-854d0e); --wl-progress-chip-bg: var(--sv-bg-fef9c3); --wl-progress-chip-hover: var(--sv-bg-fef08a); --wl-progress-chip-fg: var(--sv-fg-854d0e);
+            --wl-proximity-red: #e11d48; --wl-proximity-orange: #ea580c; --wl-proximity-green: #0f9f50;
+            --wl-timeline-today-bg: rgba(108,92,231,0.05); --wl-timeline-lane-alt-bg: rgba(17,17,16,0.025);
             --wl-overdue-section-bg: var(--sv-bg-fef2f2); --wl-overdue-border: var(--sv-border-fca5a5); --wl-overdue-accent: var(--sv-bg-dc2626); --wl-overdue-accent-hover: var(--sv-bg-b91c1c); --wl-overdue-label: var(--sv-fg-991b1b); --wl-overdue-chip-bg: var(--sv-bg-fee2e2); --wl-overdue-chip-hover: var(--sv-bg-fecaca); --wl-overdue-chip-fg: var(--sv-fg-991b1b);
             --wl-tweaks-section-bg: var(--sv-bg-fff7ed); --wl-tweaks-border: var(--sv-border-fdba74); --wl-tweaks-accent: var(--sv-bg-ea580c); --wl-tweaks-accent-hover: var(--sv-bg-c2410c); --wl-tweaks-label: var(--sv-fg-9a3412); --wl-tweaks-chip-bg: var(--sv-bg-ffedd5); --wl-tweaks-chip-hover: var(--sv-bg-fed7aa); --wl-tweaks-chip-fg: var(--sv-fg-9a3412);
             --upload-progress-track: var(--bg); --upload-progress-fill: var(--sv-bg-111110); --upload-progress-glow: rgba(0,0,0,0);
@@ -198,6 +200,7 @@
             --cal-comp-video-dot: #22d3ee; --cal-comp-graphic-dot: #e879f9; --cal-comp-caption-dot: #f59e0b; --cal-comp-title-dot: #f87171; --cal-comp-dot-ring: rgba(16,17,20,0.82);
             --cal-notes-accent: #fb923c; --cal-notes-accent-fg: #fdba74; --cal-notes-open-bg: rgba(251,146,60,0.14); --cal-notes-count-fg: #101114; --cal-notes-dot-bg: #fb923c; --cal-notes-dot-ring: #181a1f; --cal-notes-dot-glow: rgba(251,146,60,0.35);
             --wl-status-fg: #101114; --wl-progress-section-bg: #221f14; --wl-progress-border: #facc15; --wl-progress-accent: #facc15; --wl-progress-accent-hover: #eab308; --wl-progress-label: #facc15; --wl-progress-chip-bg: #fde047; --wl-progress-chip-hover: #facc15; --wl-progress-chip-fg: #101114;
+            --wl-timeline-today-bg: rgba(139,124,246,0.10); --wl-timeline-lane-alt-bg: rgba(255,255,255,0.025);
             --wl-overdue-section-bg: #2a191d; --wl-overdue-border: #f87171; --wl-overdue-accent: #f87171; --wl-overdue-accent-hover: #ef4444; --wl-overdue-label: #f87171; --wl-overdue-chip-bg: #fca5a5; --wl-overdue-chip-hover: #f87171; --wl-overdue-chip-fg: #101114;
             --wl-tweaks-section-bg: #2a1f16; --wl-tweaks-border: #fb923c; --wl-tweaks-accent: #fb923c; --wl-tweaks-accent-hover: #f97316; --wl-tweaks-label: #fb923c; --wl-tweaks-chip-bg: #fdba74; --wl-tweaks-chip-hover: #fb923c; --wl-tweaks-chip-fg: #101114;
             --upload-progress-track: #26303a; --upload-progress-fill: #67e8f9; --upload-progress-glow: rgba(103,232,249,0.45);
@@ -3142,15 +3145,15 @@
         .wl-workload-group:hover { background: var(--sv-bg-fff7ed); opacity: 1; }
         .wl-workload-group svg { width: 14px; height: 14px; display: block; }
         .wl-deadline-summary { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; color: var(--text-muted); flex-shrink: 0; }
-        .wl-deadline-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px var(--white); flex: 0 0 8px; }
-        .wl-deadline-summary.is-red { color: var(--sv-fg-dc2626); }
-        .wl-deadline-summary.is-orange { color: var(--sv-fg-ea580c); }
-        .wl-deadline-summary.is-green { color: var(--sv-fg-16a34a); }
+        .wl-deadline-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--wl-proximity-dot, currentColor); box-shadow: 0 0 0 2px var(--white); flex: 0 0 8px; }
+        .wl-deadline-summary.is-red { color: var(--sv-fg-dc2626); --wl-proximity-dot: var(--wl-proximity-red); }
+        .wl-deadline-summary.is-orange { color: var(--sv-fg-ea580c); --wl-proximity-dot: var(--wl-proximity-orange); }
+        .wl-deadline-summary.is-green { color: var(--sv-fg-16a34a); --wl-proximity-dot: var(--wl-proximity-green); }
         .wl-deadline-tag { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); font-size: 0.56rem; font-weight: 750; white-space: nowrap; }
-        .wl-deadline-tag::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: 0 0 7px; }
-        .wl-deadline-tag.is-red { color: var(--sv-fg-dc2626); }
-        .wl-deadline-tag.is-orange { color: var(--sv-fg-ea580c); }
-        .wl-deadline-tag.is-green { color: var(--sv-fg-16a34a); }
+        .wl-deadline-tag::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--wl-proximity-dot, currentColor); box-shadow: 0 0 0 2px var(--white); flex: 0 0 8px; }
+        .wl-deadline-tag.is-red { color: var(--sv-fg-dc2626); --wl-proximity-dot: var(--wl-proximity-red); }
+        .wl-deadline-tag.is-orange { color: var(--sv-fg-ea580c); --wl-proximity-dot: var(--wl-proximity-orange); }
+        .wl-deadline-tag.is-green { color: var(--sv-fg-16a34a); --wl-proximity-dot: var(--wl-proximity-green); }
         .wl-workload-badge { --wl-weight-color: var(--sv-fg-ea580c); display: inline-flex; align-items: center; min-height: 16px; padding: 1px 5px; border: 1px solid var(--wl-weight-color); border-radius: 999px; color: var(--wl-weight-color); font-size: 0.54rem; font-weight: 850; line-height: 1; white-space: nowrap; flex-shrink: 0; }
         .wl-plan-origin[data-tip], .wl-deadline-summary[data-tip], .wl-deadline-tag[data-tip], .wl-workload-badge[data-tip], .wl-workload-group[data-tip] { cursor: help; }
         .workload-plan-status { margin: -2px 0 10px; padding: 8px 11px; border-radius: 9px; font-size: 0.7rem; font-weight: 650; color: var(--text-secondary); background: var(--bg); border: 1px solid var(--border-light); }
@@ -3328,6 +3331,14 @@
         html[data-theme="dark"] .workload-day-card-chip-count { color: var(--sv-fg-fff); }
         .workload-day-card-chip.is-dragging { opacity: 0.45; }
         .workload-day-card-items { display: flex; flex-direction: column; gap: 4px; margin-top: 3px; }
+        .workload-day-client-group[open] > .workload-day-card-items,
+        .workload-timeline-source[open] > .workload-timeline-items { padding-left: 14px; }
+        .workload-day-client-group[open] > .workload-day-card-items .workload-plan-item-wrap,
+        .workload-timeline-source[open] > .workload-timeline-items .workload-plan-item-wrap { position: relative; }
+        .workload-day-client-group[open] > .workload-day-card-items .workload-plan-item-wrap::before,
+        .workload-timeline-source[open] > .workload-timeline-items .workload-plan-item-wrap::before { content: ''; position: absolute; left: -14px; top: -5px; width: 11px; height: calc(50% + 5px); border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); border-bottom-left-radius: 7px; pointer-events: none; }
+        .workload-day-client-group[open] > .workload-day-card-items .workload-plan-item-wrap:not(:last-child)::after,
+        .workload-timeline-source[open] > .workload-timeline-items .workload-plan-item-wrap:not(:last-child)::after { content: ''; position: absolute; left: -14px; top: 50%; bottom: -6px; border-left: 1px solid var(--border); pointer-events: none; }
         .workload-plan-item-wrap { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
         .workload-plan-item { width: 100%; display: flex; align-items: flex-start; gap: 7px; min-width: 0; padding: 4px 6px 4px 9px; border: 1px solid transparent; border-radius: 6px; background: var(--bg); color: var(--text-primary); font: inherit; font-size: 0.61rem; font-weight: 650; text-align: left; cursor: pointer; }
         .workload-grid.week .workload-plan-item { font-size: 0.68rem; padding: 5px 7px 5px 10px; }
@@ -3349,47 +3360,64 @@
            fixed row, so its deadline relationships stay straight at every
            width. Deadline endpoints are reference-only and never participate
            in workload counts or drag writes. */
-        .workload-timeline-stage { position: relative; min-height: 420px; overflow: hidden; border-radius: 8px; }
-        .workload-timeline-day-columns { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; pointer-events: none; }
-        .workload-timeline-day { min-width: 0; border-radius: 8px; background: var(--bg); pointer-events: auto; }
-        .workload-timeline-day.today { outline: 2px solid var(--text-primary); outline-offset: -2px; }
+        .workload-timeline-wrap { --wl-editor-rail: 130px; --wl-timeline-days-min: 800px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-padding-inline-start: calc(var(--wl-editor-rail) + 10px); }
+        .workload-timeline-header, .workload-timeline-stage { min-width: calc(var(--wl-editor-rail) + var(--wl-timeline-days-min)); }
+        .workload-timeline-header { display: grid; grid-template-columns: var(--wl-editor-rail) minmax(var(--wl-timeline-days-min), 1fr); gap: 0; margin-bottom: 6px; }
+        .workload-timeline-weekdays { min-width: 0; margin-bottom: 0; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
+        .workload-timeline-editor-rail { position: sticky; left: 0; z-index: 6; box-sizing: border-box; background: var(--surface-raised); }
+        .workload-timeline-editor-rail-head { z-index: 8; min-height: 32px; border-right: 1px solid var(--border); }
+        .workload-timeline-weekday.today { color: var(--focus-ring); background: var(--wl-timeline-today-bg); border-radius: 7px 7px 0 0; }
+        .workload-timeline-today-marker { color: inherit; font-weight: 850; letter-spacing: 0.1em; }
+        .workload-timeline-stage { position: relative; min-height: 420px; overflow: visible; border-radius: 8px; }
+        .workload-timeline-day-columns { position: absolute; top: 0; right: 0; bottom: 0; left: var(--wl-editor-rail); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; pointer-events: none; }
+        .workload-timeline-day { min-width: 0; background: var(--bg); border-left: 1px solid var(--border-light); pointer-events: auto; }
+        .workload-timeline-day:first-child { border-radius: 8px 0 0 8px; }
+        .workload-timeline-day:last-child { border-radius: 0 8px 8px 0; }
+        .workload-timeline-day.today { background: var(--wl-timeline-today-bg); }
         .workload-timeline-day.weekend { background: transparent; border: 1px dashed var(--border-light); }
         .workload-timeline-day.is-plan-drop-target { box-shadow: inset 0 0 0 2px var(--sv-border-6c5ce7); background: var(--sv-bg-ecedfb); }
         .workload-timeline-editors { position: relative; z-index: 2; }
-        .workload-timeline-editor { padding: 7px 0 10px; }
+        .workload-timeline-editor { position: relative; display: grid; grid-template-columns: var(--wl-editor-rail) minmax(0, 1fr); padding: 7px 0 10px; }
         .workload-timeline-editor + .workload-timeline-editor { border-top: 1px solid var(--border); padding-top: 11px; }
-        .workload-timeline-editor-head { position: relative; z-index: 4; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; align-items: center; margin-bottom: 6px; }
-        .workload-timeline-editor-banner { grid-column: 1 / -1; min-width: 0; min-height: 38px; display: flex; align-items: baseline; gap: 8px; padding: 7px 10px; box-sizing: border-box; border: 1px solid var(--border); border-left: 4px solid var(--sv-border-6c5ce7); border-radius: 8px; background: var(--white); box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_06); }
+        .workload-timeline-editor:nth-child(even) .workload-timeline-day-lane { background: var(--wl-timeline-lane-alt-bg); }
+        .workload-timeline-day-lane { grid-column: 2; min-width: 0; border-radius: 0 8px 8px 0; }
+        .workload-timeline-editor-head { position: relative; z-index: 4; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; align-items: center; margin-bottom: 6px; }
+        .workload-timeline-editor-banner { grid-column: 1; align-self: stretch; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; padding: 14px 10px; border: 1px solid var(--border); border-left: 4px solid var(--sv-border-6c5ce7); border-radius: 8px 0 0 8px; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_06); }
         .workload-timeline-editor.team-graphics .workload-timeline-editor-banner { border-left-color: var(--sv-border-d97706); }
         .workload-timeline-editor-day { min-width: 0; min-height: 24px; padding: 0 9px; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
         .workload-timeline-editor-kicker { color: var(--text-muted); font-size: 0.5rem; font-weight: 800; letter-spacing: 0.09em; line-height: 1; text-transform: uppercase; }
         .workload-timeline-editor-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-size: 0.76rem; font-weight: 850; }
         .workload-timeline-day-total { border: 0; border-radius: 999px; padding: 2px 6px; background: var(--white); box-shadow: 0 0 0 1px var(--border-light); color: var(--text-secondary); font: inherit; font-size: 0.56rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
         .workload-timeline-day-total.over-capacity { color: var(--wl-status-fg); background: var(--wl-overdue-accent); box-shadow: none; }
-        .workload-timeline-relationship { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; min-height: var(--wl-track-height); border-bottom: 1px solid var(--border-light); }
+        .workload-timeline-relationship { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; min-height: var(--wl-track-height); border-bottom: 1px solid var(--border-light); }
         .workload-timeline-relationship:last-child { border-bottom: 0; }
-        .workload-timeline-lines { position: absolute; inset: 0 0 auto; z-index: 1; width: 100%; height: var(--wl-track-height); overflow: visible; pointer-events: none; color: var(--text-muted); opacity: 0.68; }
+        .workload-timeline-lines { position: absolute; inset: 0 0 auto; z-index: 1; width: 100%; height: var(--wl-track-height); overflow: visible; pointer-events: none; color: var(--text-muted); opacity: 1; }
         .workload-timeline-lines line, .workload-timeline-lines path { vector-effect: non-scaling-stroke; }
+        .workload-timeline-connector.is-red { color: var(--wl-proximity-red); }
+        .workload-timeline-connector.is-orange { color: var(--wl-proximity-orange); }
+        .workload-timeline-connector.is-green { color: var(--wl-proximity-green); }
         .workload-timeline-source { position: relative; z-index: 3; grid-row: 1; min-width: 0; min-height: var(--wl-track-height); }
         .workload-timeline-plan-chip { position: absolute; left: 8px; right: 8px; top: var(--wl-source-top); min-height: 34px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 5px 8px; border: 1px solid var(--border); border-left: 3px solid var(--sv-border-6c5ce7); border-radius: 8px; background: var(--white); color: var(--text-primary); font-size: 0.61rem; font-weight: 700; list-style: none; cursor: pointer; box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_06); }
+        .workload-timeline-wrap .workload-timeline-plan-chip, .workload-timeline-wrap .workload-timeline-due, .workload-timeline-wrap .workload-timeline-day-total, .workload-timeline-wrap .workload-plan-item { scroll-margin-inline-start: calc(var(--wl-editor-rail) + 10px); }
         .workload-timeline-plan-chip::-webkit-details-marker { display: none; }
         .workload-timeline-plan-chip.is-dragging { opacity: 0.45; }
         .workload-timeline-source[open] .workload-timeline-plan-chip { background: var(--sv-bg-fff); }
         .workload-timeline-items { margin: var(--wl-track-height) 8px 8px; display: flex; flex-direction: column; gap: 4px; }
         .workload-timeline-endpoint-slot { position: relative; z-index: 3; grid-row: 1; min-width: 0; min-height: var(--wl-track-height); pointer-events: none; }
         .workload-timeline-due { position: absolute; left: 8px; right: 8px; top: var(--wl-endpoint-top); min-height: 32px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 4px 7px; border: 1px dashed currentColor; border-radius: 8px; background: var(--white); color: var(--text-muted); font: inherit; font-size: 0.59rem; font-weight: 750; cursor: pointer; pointer-events: auto; }
-        .workload-timeline-due.is-red { color: var(--sv-fg-991b1b); border-color: var(--sv-border-fecaca); }
-        .workload-timeline-due.is-orange { color: var(--sv-fg-9a3412); border-color: var(--sv-border-fed7aa); }
-        .workload-timeline-due.is-green { color: var(--sv-fg-166534); border-color: var(--sv-border-bbf7d0); }
+        .workload-timeline-due.is-red { color: var(--sv-fg-991b1b); border-color: var(--sv-border-fecaca); --wl-proximity-dot: var(--wl-proximity-red); }
+        .workload-timeline-due.is-orange { color: var(--sv-fg-9a3412); border-color: var(--sv-border-fed7aa); --wl-proximity-dot: var(--wl-proximity-orange); }
+        .workload-timeline-due.is-green { color: var(--sv-fg-166534); border-color: var(--sv-border-bbf7d0); --wl-proximity-dot: var(--wl-proximity-green); }
         .workload-timeline-due .wl-deadline-dot { box-shadow: none; }
         .workload-timeline-due-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .workload-timeline-due-count { opacity: 0.65; white-space: nowrap; }
         .workload-timeline-continuation { font-size: 0.54rem; }
-        .workload-timeline-empty { position: relative; z-index: 2; padding: 36px 16px; color: var(--text-muted); font-size: 0.75rem; text-align: center; }
-        .workload-timeline-same-day { display: inline-flex; align-items: center; color: var(--text-muted); font-size: 0.52rem; font-weight: 800; white-space: nowrap; flex-shrink: 0; }
-        .workload-timeline-same-day.is-red { color: var(--sv-fg-dc2626); }
-        .workload-timeline-same-day.is-orange { color: var(--sv-fg-ea580c); }
-        .workload-timeline-same-day.is-green { color: var(--sv-fg-16a34a); }
+        .workload-timeline-empty { position: relative; z-index: 2; margin-left: var(--wl-editor-rail); padding: 36px 16px; color: var(--text-muted); font-size: 0.75rem; text-align: center; }
+        .workload-timeline-same-day { display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); font-size: 0.52rem; font-weight: 800; white-space: nowrap; flex-shrink: 0; }
+        .workload-timeline-same-day.is-red { color: var(--sv-fg-dc2626); --wl-proximity-dot: var(--wl-proximity-red); }
+        .workload-timeline-same-day.is-orange { color: var(--sv-fg-ea580c); --wl-proximity-dot: var(--wl-proximity-orange); }
+        .workload-timeline-same-day.is-green { color: var(--sv-fg-16a34a); --wl-proximity-dot: var(--wl-proximity-green); }
+        .workload-timeline-same-day .wl-deadline-dot { box-shadow: none; }
         /* Spotlight: while a popover is open, dim everything that isn't part
            of the clicked rollup. The CSS does the dimming via one attribute on
            the grid wrapper; a per-element data-wl-match opts back in. */
@@ -3464,7 +3492,7 @@
         /* ── Templates view ── */
         @media (max-width: 768px) {
             .workload-grid-wrap { overflow-x: auto; overscroll-behavior-inline: contain; }
-            .workload-weekdays.week, .workload-grid.week, .workload-timeline-stage { min-width: 800px; }
+            .workload-weekdays.week, .workload-grid.week { min-width: 800px; }
             .workload-weekdays.month, .workload-grid.month { min-width: 840px; }
             .workload-popover { width: min(360px, calc(100vw - 20px)); min-width: 0; max-width: none; box-sizing: border-box; }
         }
@@ -13754,9 +13782,9 @@
                                 <button type="button" class="wl-client-search-clear" id="wlClientSearchClear" hidden aria-label="Clear"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                                 <div class="wl-client-search-results" id="wlClientSearchResults" hidden role="listbox"></div>
                             </div>
-                            <div class="workload-pills workload-deadline-mode" role="tablist" aria-label="Deadline display">
+                            <div class="workload-pills workload-deadline-mode" role="tablist" aria-label="Plan and due date display">
                                 <button type="button" role="tab" data-wl-deadline-mode="plan" aria-selected="${wlState.showDeadlines ? 'false' : 'true'}"${wlState.showDeadlines ? '' : ' class="active"'}>Plan only</button>
-                                <button type="button" role="tab" data-wl-deadline-mode="deadlines" aria-selected="${wlState.showDeadlines ? 'true' : 'false'}"${wlState.showDeadlines ? ' class="active"' : ''}>Plan + deadlines</button>
+                                <button type="button" role="tab" data-wl-deadline-mode="deadlines" aria-selected="${wlState.showDeadlines ? 'true' : 'false'}"${wlState.showDeadlines ? ' class="active"' : ''}>Plan + Due Date</button>
                             </div>
                         </div>
                     </div>
@@ -14733,14 +14761,18 @@
             root.querySelectorAll('.workload-day-card-chip.is-dragging, .workload-timeline-plan-chip.is-dragging').forEach(chip => chip.classList.remove('is-dragging'));
         };
         const resolveDropDay = (target, clientX) => {
+            if (target && target.closest && target.closest('.workload-timeline-editor-rail')) return null;
             const direct = target && target.closest && target.closest('[data-wl-day]');
             if (direct) return direct;
             const stage = target && target.closest && target.closest('[data-wl-timeline-stage]');
             if (!stage || !Number.isFinite(clientX)) return null;
-            const rect = stage.getBoundingClientRect();
+            const dayColumns = stage.querySelector('.workload-timeline-day-columns');
+            if (!dayColumns) return null;
+            const rect = dayColumns.getBoundingClientRect();
             if (!rect.width) return null;
+            if (clientX < rect.left || clientX > rect.right) return null;
             const index = Math.max(0, Math.min(4, Math.floor((clientX - rect.left) / (rect.width / 5))));
-            return stage.querySelector(`[data-wl-day-index="${index}"]`);
+            return dayColumns.querySelector(`[data-wl-day-index="${index}"]`);
         };
         const clearDragState = () => {
             delete root.dataset.wlDragIssue;
@@ -15173,7 +15205,7 @@
         const monthButton = document.querySelector('[data-wl-view="month"]');
         if (monthButton) {
             monthButton.disabled = wlState.showDeadlines === true;
-            monthButton.setAttribute('aria-label', wlState.showDeadlines ? 'Month unavailable while Plan plus deadlines is selected' : 'Month');
+            monthButton.setAttribute('aria-label', wlState.showDeadlines ? 'Month unavailable while Plan + Due Date is selected' : 'Month');
         }
         const calendarHint = document.getElementById('wlCalendarHint');
         if (calendarHint) {
@@ -15606,7 +15638,7 @@
         if (!count) return '';
         const tone = wlDeadlineMeta(track.planDate, track.planDate).tone;
         const label = `${count} also due on the planned day`;
-        return `<span class="workload-timeline-same-day${tone ? ' is-' + tone : ''}" role="img" aria-label="${wlEscape(label)}">Due here · ${count}</span>`;
+        return `<span class="workload-timeline-same-day${tone ? ' is-' + tone : ''}" role="img" aria-label="${wlEscape(label)}">${wlDeadlineDotHtml()}Due here · ${count}</span>`;
     }
 
     function wlRenderTimelineTrack(track, editor, trackNumber) {
@@ -15628,6 +15660,8 @@
         const canDragGroup = wlPlanEditingEnabled() && !!track.clientName && track.subs.length
             && track.subs.every(sub => String(sub.id || '') && !_wlPlanWriteInFlight.has(String(sub.id || '')));
         const clientName = track.clientName || '—';
+        const markerId = `wl-timeline-arrow-${trackNumber}`;
+        const markerParts = [];
         const lineParts = [];
         const endpointParts = [];
         for (let index = 0; index < track.endpoints.length; index++) {
@@ -15635,19 +15669,17 @@
             const y = endpointYs[index];
             const direction = endpoint.boundary === 'before' ? -1
                 : (endpoint.boundary === 'after' ? 1 : (endpoint.targetIndex >= track.planIndex ? 1 : -1));
-            const sourceX = (track.planIndex * 100) + 50 + (42 * direction);
+            const sourceX = (track.planIndex * 100) + 50 + (47 * direction);
             const targetX = endpoint.targetIndex === track.planIndex
                 ? sourceX
-                : (endpoint.targetIndex * 100) + 50 - (42 * direction);
+                : (endpoint.targetIndex * 100) + 50 - (47 * direction);
+            const targetY = endpoint.targetIndex === track.planIndex ? Math.max(sourceY + 6, y - 20) : y;
             const ids = endpoint.subs.map(sub => String(sub.id || '')).filter(Boolean).join('|');
-            if (sourceX !== targetX || sourceY !== y) {
-                lineParts.push(`<line x1="${sourceX}" y1="${sourceY}" x2="${targetX}" y2="${y}" data-wl-deadline-ids="${wlEscape(ids)}" stroke="currentColor" stroke-width="1" opacity="0.8"/>`);
-            }
-            if (endpoint.targetIndex !== track.planIndex) {
-                const arrow = direction > 0
-                    ? `${targetX - 5},${y - 3} ${targetX},${y} ${targetX - 5},${y + 3}`
-                    : `${targetX + 5},${y - 3} ${targetX},${y} ${targetX + 5},${y + 3}`;
-                lineParts.push(`<polyline points="${arrow}" data-wl-deadline-ids="${wlEscape(ids)}" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>`);
+            if (sourceX !== targetX || sourceY !== targetY) {
+                const endpointMarkerId = `${markerId}-${index}`;
+                const markerColor = endpoint.tone ? `var(--wl-proximity-${endpoint.tone})` : 'var(--text-muted)';
+                markerParts.push(`<marker id="${endpointMarkerId}" viewBox="0 0 6 6" refX="5.5" refY="3" markerWidth="6" markerHeight="6" markerUnits="userSpaceOnUse" orient="auto" overflow="visible" style="color:${markerColor}"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker>`);
+                lineParts.push(`<line class="workload-timeline-connector${endpoint.tone ? ' is-' + endpoint.tone : ''}" x1="${sourceX}" y1="${sourceY}" x2="${targetX}" y2="${targetY}" data-wl-deadline-ids="${wlEscape(ids)}" data-wl-tone="${wlEscape(endpoint.tone || '')}" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" marker-end="url(#${endpointMarkerId})"/>`);
             }
             const boundaryLabel = endpoint.boundary === 'before'
                 ? `← Due ${wlFormatShort(endpoint.dueDate)}`
@@ -15663,7 +15695,7 @@
             </span>`);
         }
         return `<div class="workload-timeline-relationship" data-wl-track="${trackNumber}" style="--wl-track-height:${height}px;">
-            <svg class="workload-timeline-lines" viewBox="0 0 500 ${height}" preserveAspectRatio="none" aria-hidden="true">${lineParts.join('')}</svg>
+            <svg class="workload-timeline-lines" viewBox="0 0 500 ${height}" preserveAspectRatio="none" aria-hidden="true"><defs>${markerParts.join('')}</defs>${lineParts.join('')}</svg>
             <details class="workload-timeline-source" style="grid-column:${track.planIndex + 1};--wl-source-top:${sourceY - 17}px;">
                 <summary class="workload-timeline-plan-chip" data-wl-date="${wlEscape(track.planDate)}" data-wl-assignee-id="${wlEscape(editor.assigneeId || '')}" data-wl-client="${wlEscape(track.clientName || '')}">
                     <span class="workload-day-card-chip-main">
@@ -15689,10 +15721,14 @@
         const start = wlState.weekStart;
         const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const dates = Array.from({ length: 5 }, (_, index) => wlAddDays(start, index));
-        const weekdayHtml = `<div class="workload-weekdays week">${dates.map(iso => {
+        const weekdayHtml = `<div class="workload-timeline-header">
+            <div class="workload-timeline-editor-rail workload-timeline-editor-rail-head" aria-hidden="true"></div>
+            <div class="workload-weekdays week workload-timeline-weekdays">${dates.map(iso => {
             const day = wlParseISO(iso);
-            return `<div class="workload-weekday">${dayLabels[day.getDay()]} · ${day.getDate()}</div>`;
-        }).join('')}</div>`;
+            const isToday = iso === todayISO;
+            return `<div class="workload-weekday workload-timeline-weekday${isToday ? ' today' : ''}"${isToday ? ' aria-current="date"' : ''}>${isToday ? '<span class="workload-timeline-today-marker">Today</span> · ' : ''}${dayLabels[day.getDay()]} · ${day.getDate()}</div>`;
+        }).join('')}</div>
+        </div>`;
         const dayColumns = dates.map((iso, index) => {
             const day = wlParseISO(iso);
             const classes = ['workload-timeline-day'];
@@ -15705,10 +15741,7 @@
             const team = wlTeamBucket(editor.teamKey, editor.teamName);
             const name = wlDisplayName(editor.assigneeName) || 'Unknown';
             const capacity = wlEditorCapacity(editor.teamKey, editor.teamName);
-            const head = `<div class="workload-timeline-editor-banner" role="heading" aria-level="3">
-                <span class="workload-timeline-editor-kicker">Editor</span>
-                <span class="workload-timeline-editor-name">${wlEscape(name)}</span>
-            </div>` + editor.dailySubs.map((subs, index) => {
+            const head = editor.dailySubs.map((subs, index) => {
                 const count = subs.length;
                 const units = wlWorkloadUnits(subs);
                 const overBy = Math.max(0, units - capacity);
@@ -15721,11 +15754,17 @@
             }).join('');
             const tracks = editor.tracks.map(track => wlRenderTimelineTrack(track, editor, ++trackNumber)).join('');
             return `<section class="workload-timeline-editor team-${team}" aria-label="${wlEscape(name)} editor">
-                <div class="workload-timeline-editor-head">${head}</div>
-                <div class="workload-timeline-tracks">${tracks}</div>
+                <div class="workload-timeline-editor-banner workload-timeline-editor-rail" role="heading" aria-level="3">
+                    <span class="workload-timeline-editor-kicker">Editor</span>
+                    <span class="workload-timeline-editor-name">${wlEscape(name)}</span>
+                </div>
+                <div class="workload-timeline-day-lane">
+                    <div class="workload-timeline-editor-head">${head}</div>
+                    <div class="workload-timeline-tracks">${tracks}</div>
+                </div>
             </section>`;
         }).join('');
-        return `<div class="workload-grid-wrap">
+        return `<div class="workload-grid-wrap workload-timeline-wrap">
             ${weekdayHtml}
             <div class="workload-timeline-stage" data-wl-timeline-stage="1">
                 <div class="workload-timeline-day-columns">${dayColumns}</div>

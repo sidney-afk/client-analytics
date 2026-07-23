@@ -595,6 +595,7 @@ const wlWeekDeadlineTracks = compile('wlWeekDeadlineTracks', {
 });
 const wlTimelineSameDayHtml = compile('wlTimelineSameDayHtml', {
   wlDeadlineMeta,
+  wlDeadlineDotHtml,
   wlEscape: value => String(value),
 });
 const wlRenderTimelineTrack = compile('wlRenderTimelineTrack', {
@@ -650,9 +651,10 @@ check(trackEditors.length === 1
     && oneTrack.endpoints[1].subs.length === 1,
   'one planned client group splits truthfully into exact-date deadline subsets without inflating plan counts');
 const trackHtml = wlRenderTimelineTrack(oneTrack, trackEditors[0], 1);
+const secondTrackHtml = wlRenderTimelineTrack(oneTrack, trackEditors[0], 2);
 const readOnlyTrackHtml = wlRenderTimelineTrackReadOnly(oneTrack, trackEditors[0], 1);
 const renderWeekDeadlineTimelineFixture = compile('renderWeekDeadlineTimeline', {
-  wlWorkloadTodayISO: () => '2026-07-19',
+  wlWorkloadTodayISO: () => '2026-07-22',
   wlState,
   wlAddDays,
   wlParseISO,
@@ -667,7 +669,24 @@ const renderWeekDeadlineTimelineFixture = compile('renderWeekDeadlineTimeline', 
 });
 const weightedTimelineHtml = renderWeekDeadlineTimelineFixture();
 const dueButtons = trackHtml.match(/<button type="button" class="workload-timeline-due[\s\S]*?<\/button>/g) || [];
-check((trackHtml.match(/<line /g) || []).length === 2
+const connectorLines = trackHtml.match(/<line\b[^>]*>/g) || [];
+const firstMarkerIds = [...trackHtml.matchAll(/<marker\b[^>]*\bid="([^"]+)"/g)].map(match => match[1]);
+const secondMarkerIds = [...secondTrackHtml.matchAll(/<marker\b[^>]*\bid="([^"]+)"/g)].map(match => match[1]);
+const sameDayHtml = wlTimelineSameDayHtml(oneTrack);
+check(connectorLines.length === oneTrack.endpoints.length
+    && connectorLines.every(line => /class="workload-timeline-connector is-(?:red|orange|green)"/.test(line))
+    && connectorLines.every(line => line.includes('stroke-width="1.5"'))
+    && connectorLines.every(line => firstMarkerIds.some(id => line.includes(`marker-end="url(#${id})"`)))
+    && connectorLines.some(line => line.includes('is-orange'))
+    && connectorLines.some(line => line.includes('is-green'))
+    && firstMarkerIds.length === oneTrack.endpoints.length
+    && secondMarkerIds.length === oneTrack.endpoints.length
+    && new Set([...firstMarkerIds, ...secondMarkerIds]).size === firstMarkerIds.length + secondMarkerIds.length
+    && /style="color:var\(--wl-proximity-orange\)"/.test(trackHtml)
+    && /style="color:var\(--wl-proximity-green\)"/.test(trackHtml)
+    && /fill="currentColor"/.test(trackHtml)
+    && !/context-stroke/.test(trackHtml)
+    && !/<polyline\b/.test(trackHtml)
     && [...trackHtml.matchAll(/<line [^>]*y1="([^"]+)"/g)].every(match => match[1] === '24')
     && dueButtons.length === 2
     && dueButtons.every(button => button.includes('wl-deadline-dot')
@@ -681,11 +700,25 @@ check((trackHtml.match(/<line /g) || []).length === 2
     && !/<summary class="workload-timeline-plan-chip[^>]*(?:draggable=|data-wl-plan-group-drag)/.test(trackHtml)
     && /also due on the planned day/.test(trackHtml)
     && !/data-wl-deadline-open="track-same-day"/.test(trackHtml),
-  'toggle-on tracks use straight connectors, keep due endpoints read-only, and collapse same-day due work into its source');
+  'toggle-on tracks use Safari-safe tone-aware 1.5px marker-ended connectors, unique endpoint markers, and read-only due copies');
+check(/class="workload-timeline-same-day is-red"/.test(sameDayHtml)
+    && (sameDayHtml.match(/class="wl-deadline-dot"/g) || []).length === 1
+    && /Due here/.test(sameDayHtml)
+    && !/<svg\b/.test(sameDayHtml),
+  'same-day due work stays on its source with the shared red proximity dot instead of a duplicate endpoint');
+check(weightedTimelineHtml.includes('class="workload-grid-wrap workload-timeline-wrap"')
+    && weightedTimelineHtml.includes('class="workload-timeline-header"')
+    && /<div class="workload-timeline-editor-rail workload-timeline-editor-rail-head" aria-hidden="true"><\/div>/.test(weightedTimelineHtml)
+    && weightedTimelineHtml.includes('class="workload-weekdays week workload-timeline-weekdays"')
+    && (weightedTimelineHtml.match(/class="workload-weekday workload-timeline-weekday/g) || []).length === 5
+    && /class="workload-weekday workload-timeline-weekday today"[^>]*aria-current="date"[\s\S]*?class="workload-timeline-today-marker"/.test(weightedTimelineHtml)
+    && /class="workload-timeline-editor-banner workload-timeline-editor-rail"/.test(weightedTimelineHtml)
+    && /<section class="workload-timeline-editor[^>]*>[\s\S]*?workload-timeline-editor-rail[\s\S]*?class="workload-timeline-day-lane"/.test(weightedTimelineHtml),
+  'Plan + Due Date owns a timeline header and a sticky editor rail beside one five-day lane');
 check(weightedTimelineHtml.includes('class="workload-timeline-day-total over-capacity"')
     && weightedTimelineHtml.includes('6/4 · 2 over')
     && trackRows.every(row => weightedTimelineHtml.includes(`data-wl-issue-id="${row.id}"`)),
-  'Plan plus deadlines uses weighted editor capacity and keeps every planned item visible');
+  'Plan + Due Date uses weighted editor capacity and keeps every planned item visible');
 check(/automatically planned/i.test(readOnlyTrackHtml)
     && readOnlyTrackHtml.includes('data-wl-date="2026-07-20"')
     && (readOnlyTrackHtml.match(/<line /g) || []).length === 2
@@ -705,13 +738,13 @@ const boundaryHtml = wlRenderTimelineTrack(boundaryTrack, {
 check(boundaryTrack.planIndex === 0
     && boundaryTrack.endpoints[0].targetIndex === 0
     && boundaryTrack.endpoints[0].boundary === 'before'
-    && /<line [^>]*y1="24"[^>]*y2="68"/.test(boundaryHtml)
+    && /<line [^>]*y1="24"[^>]*y2="48"[^>]*marker-end=/.test(boundaryHtml)
     && /--wl-source-top:7px/.test(boundaryHtml)
     && /--wl-endpoint-top:52px/.test(boundaryHtml),
-  'an out-of-week deadline at the plan edge stacks below the source and remains connected');
+  'an out-of-week deadline at the plan edge stacks below the source and ends its arrow just before the endpoint');
 check(/workload-timeline-plan-chip"[^>]*>[\s\S]*?workload-day-card-chip-main">[\s\S]*?wl-deadline-summary is-red[\s\S]*?workload-day-card-chip-name/.test(boundaryHtml)
     && !/<summary class="workload-timeline-plan-chip is-deadline-/.test(boundaryHtml),
-  'Plan plus deadlines puts one proximity dot before the client name without a colored source edge');
+  'Plan + Due Date puts one proximity dot before the client name without a colored source edge');
 wlState.planByIssueId.delete(boundaryRow.id);
 
 const crossTeamVideo = issue('To Do', 'track-cross-team-video', '2026-07-21');
@@ -1099,16 +1132,16 @@ check(wlReadDeadlinePref() === false
     && (deadlineStorage.set(deadlinePrefKey, 'invalid'), wlReadDeadlinePref() === false)
     && (deadlineStorage.set(deadlinePrefKey, '1'), wlReadDeadlinePref() === true)
     && (workloadShellSource.match(/data-wl-deadline-mode=/g) || []).length === 2
-    && /class="workload-pills workload-deadline-mode" role="tablist" aria-label="Deadline display"/.test(workloadShellSource)
+    && /class="workload-pills workload-deadline-mode" role="tablist" aria-label="Plan and due date display"/.test(workloadShellSource)
     && /data-wl-deadline-mode="plan"[^>]*>Plan only</.test(workloadShellSource)
-    && /data-wl-deadline-mode="deadlines"[^>]*>Plan \+ deadlines</.test(workloadShellSource)
+    && /data-wl-deadline-mode="deadlines"[^>]*>Plan \+ Due Date</.test(workloadShellSource)
     && !workloadShellSource.includes('data-wl-deadline-toggle')
     && !workloadShellSource.includes('tpl-toggle-mini workload-deadline-toggle')
     && /localStorage\.setItem\(WL_DEADLINE_PREF_KEY,\s*wlState\.showDeadlines \? '1' : '0'\)/.test(toolbarSource)
     && /mode === 'month' && wlState\.showDeadlines/.test(toolbarSource)
     && /wlState\.showDeadlines = deadlineMode\.getAttribute\('data-wl-deadline-mode'\) === 'deadlines'/.test(toolbarSource)
     && /wlState\.showDeadlines \? renderWeekDeadlineTimeline\(\) : renderWeekGrid\(\)/.test(workloadRenderSource),
-  'the Plan only / Plan + deadlines segmented control sits after All clients, persists, stays Week-only, and switches views');
+  'the Plan only / Plan + Due Date segmented control sits after All clients, persists, stays Week-only, and switches views');
 check(INDEX.includes("grid.querySelectorAll('.workload-timeline-due, .workload-timeline-lines [data-wl-deadline-ids]')")
     && INDEX.includes('.workload-timeline-due[data-wl-match="1"]')
     && INDEX.includes('[data-wl-deadline-ids][data-wl-match="1"]'),
@@ -1174,10 +1207,37 @@ check(INDEX.includes('.workload-drag-handle {')
   'grab and grabbing cursors belong only to the dedicated drag handle');
 const weekGridSource = grabFunc('renderWeekGrid');
 const deadlineTracksSource = grabFunc('wlWeekDeadlineTracks');
+const resolveDropDayStart = toolbarSource.indexOf('const resolveDropDay =');
+const resolveDropDayEnd = toolbarSource.indexOf('const clearDragState', resolveDropDayStart);
+const resolveDropDaySource = resolveDropDayStart >= 0 && resolveDropDayEnd > resolveDropDayStart
+  ? toolbarSource.slice(resolveDropDayStart, resolveDropDayEnd)
+  : '';
+function cssRuleBodies(selector) {
+  return [...INDEX.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(match => match[1].split(',').some(part => part.trim().endsWith(selector)))
+    .map(match => match[2])
+    .join(' ');
+}
+const timelineHeaderRule = cssRuleBodies('.workload-timeline-header');
+const timelineWrapRule = cssRuleBodies('.workload-timeline-wrap');
+const timelineEditorRule = cssRuleBodies('.workload-timeline-editor');
+const timelineRailRule = cssRuleBodies('.workload-timeline-editor-rail');
+const timelineWeekdaysRule = cssRuleBodies('.workload-timeline-weekdays');
+const timelineDayLaneRule = cssRuleBodies('.workload-timeline-day-lane');
+const timelineDayColumnsRule = cssRuleBodies('.workload-timeline-day-columns');
+const timelineEditorHeadRule = cssRuleBodies('.workload-timeline-editor-head');
+const timelineRelationshipRule = cssRuleBodies('.workload-timeline-relationship');
+const timelineTodayRule = cssRuleBodies('.workload-timeline-day.today');
+const timelineTodayMarkerRule = cssRuleBodies('.workload-timeline-today-marker');
+const fiveColumnZeroGap = rule => /grid-template-columns:\s*repeat\(5,\s*(?:minmax\(0,\s*1fr\)|1fr)\)/.test(rule)
+  && /(?:^|;)\s*gap:\s*0(?:px)?\s*(?:;|$)/.test(rule);
 check(INDEX.includes('.workload-skeleton-grid.week { grid-template-columns: repeat(5, minmax(0, 1fr)); }')
     && INDEX.includes('.workload-weekdays.week { grid-template-columns: repeat(5, 1fr); }')
     && INDEX.includes('.workload-grid.week  { grid-template-columns: repeat(5, 1fr);')
-    && INDEX.includes('.workload-timeline-day-columns { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));')
+    && fiveColumnZeroGap(timelineWeekdaysRule)
+    && fiveColumnZeroGap(timelineDayColumnsRule)
+    && fiveColumnZeroGap(timelineEditorHeadRule)
+    && fiveColumnZeroGap(timelineRelationshipRule)
     && (weekGridSource.match(/for \(let i = 0; i < 5; i\+\+\)/g) || []).length === 2
     && /dayIndex < 5/.test(deadlineTracksSource)
     && /Array\.from\(\{ length: 5 \}/.test(deadlineTracksSource)
@@ -1187,24 +1247,95 @@ check(INDEX.includes('.workload-skeleton-grid.week { grid-template-columns: repe
     && INDEX.includes('wlState.weekStart = wlAddDays(wlState.weekStart, delta * 7)')
     && INDEX.includes('.workload-weekdays.month { grid-template-columns: repeat(7, 1fr); }')
     && (INDEX.match(/overCapacity = wlDayOverCapacity\(subs\);/g) || []).length === 2,
-  'source guard pins Monday-Friday Week geometry, seven-day period shifts, seven-column Month, and visible-row overload calculations');
+  'source guard pins zero-gap Monday-Friday lane grids, seven-day period shifts, seven-column Month, and visible-row overload calculations');
+check(/--wl-editor-rail:\s*130px/.test(timelineWrapRule)
+    && /scroll-padding-inline-start:\s*calc\(var\(--wl-editor-rail\) \+ 10px\)/.test(timelineWrapRule)
+    && /display:\s*grid/.test(timelineHeaderRule)
+    && /grid-template-columns:\s*var\(--wl-editor-rail\)\s+minmax\(var\(--wl-timeline-days-min\),\s*1fr\)/.test(timelineHeaderRule)
+    && /display:\s*grid/.test(timelineEditorRule)
+    && /grid-template-columns:\s*var\(--wl-editor-rail\)\s+minmax\(0,\s*1fr\)/.test(timelineEditorRule)
+    && /position:\s*sticky/.test(timelineRailRule)
+    && /left:\s*0/.test(timelineRailRule)
+    && /min-width:\s*0/.test(timelineDayLaneRule)
+    && /left:\s*var\(--wl-editor-rail\)/.test(timelineDayColumnsRule)
+    && /workload-timeline-wrap \.workload-timeline-plan-chip[^}]*scroll-margin-inline-start:\s*calc\(var\(--wl-editor-rail\) \+ 10px\)/.test(INDEX),
+  'timeline header and every editor swimlane reserve a focus-safe sticky 130px rail beside the five-day lane');
+check(/background:/.test(timelineTodayRule)
+    && !/outline\s*:/.test(timelineTodayRule)
+    && /color:\s*inherit/.test(timelineTodayMarkerRule)
+    && /font-weight:\s*850/.test(timelineTodayMarkerRule)
+    && /letter-spacing:\s*0\.1em/.test(timelineTodayMarkerRule)
+    && !/background:/.test(timelineTodayMarkerRule)
+    && INDEX.includes('--wl-timeline-today-bg: rgba(108,92,231,0.05)')
+    && INDEX.includes('--wl-timeline-today-bg: rgba(139,124,246,0.10)'),
+  'today uses a compact header marker plus a faint timeline-only day wash without a large outline');
+check(/const dayColumns = stage\.querySelector\('\.workload-timeline-day-columns'\)/.test(resolveDropDaySource)
+    && /target\.closest\('\.workload-timeline-editor-rail'\)\) return null/.test(resolveDropDaySource)
+    && /if \(!dayColumns\) return null/.test(resolveDropDaySource)
+    && /const rect = dayColumns\.getBoundingClientRect\(\)/.test(resolveDropDaySource)
+    && /clientX < rect\.left \|\| clientX > rect\.right/.test(resolveDropDaySource)
+    && /rect\.width\s*\/\s*5/.test(resolveDropDaySource)
+    && /return dayColumns\.querySelector\(`\[data-wl-day-index="\$\{index\}"\]`\)/.test(resolveDropDaySource)
+    && !/stage\.getBoundingClientRect\(\)/.test(resolveDropDaySource),
+  'timeline drag hit-testing rejects the sticky rail and measures only the zero-gap five-day columns');
 
 const deadlineTagRule = (INDEX.match(/\.wl-deadline-tag \{([^}]*)\}/) || [])[1] || '';
 const deadlineTimelineSource = grabFunc('renderWeekDeadlineTimeline');
+const connectorRedRule = cssRuleBodies('.workload-timeline-connector.is-red');
+const connectorOrangeRule = cssRuleBodies('.workload-timeline-connector.is-orange');
+const connectorGreenRule = cssRuleBodies('.workload-timeline-connector.is-green');
+const proximityColors = ['#e11d48', '#ea580c', '#0f9f50'];
+const proximitySurfaces = ['#ffffff', '#f4f4f2', '#181a1f', '#101114'];
+const colorLuminance = hex => {
+  const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255)
+    .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return (0.2126 * channels[0]) + (0.7152 * channels[1]) + (0.0722 * channels[2]);
+};
+const colorContrast = (left, right) => {
+  const values = [colorLuminance(left), colorLuminance(right)].sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+};
 check(/\.workload-day-card-chip-count \{[^}]*color: var\(--text-primary\)[^}]*opacity: 1/.test(INDEX)
     && INDEX.includes('html[data-theme="dark"] .workload-day-card-chip-count { color: var(--sv-fg-fff); }')
     && deadlineTagRule
     && !/(?:border|background|border-radius|padding)\s*:/.test(deadlineTagRule)
-    && /\.wl-deadline-tag::before \{[^}]*width: 7px[^}]*height: 7px[^}]*border-radius: 50%[^}]*background: currentColor/.test(INDEX)
+    && INDEX.includes('--wl-proximity-red: #e11d48; --wl-proximity-orange: #ea580c; --wl-proximity-green: #0f9f50;')
+    && (INDEX.match(/--wl-proximity-red:/g) || []).length === 1
+    && (INDEX.match(/--wl-proximity-orange:/g) || []).length === 1
+    && (INDEX.match(/--wl-proximity-green:/g) || []).length === 1
+    && /\.wl-deadline-dot \{[^}]*width: 8px[^}]*height: 8px[^}]*background: var\(--wl-proximity-dot, currentColor\)/.test(INDEX)
+    && /\.wl-deadline-tag::before \{[^}]*width: 8px[^}]*height: 8px[^}]*background: var\(--wl-proximity-dot, currentColor\)/.test(INDEX)
+    && INDEX.includes('.wl-deadline-summary.is-red { color: var(--sv-fg-dc2626); --wl-proximity-dot: var(--wl-proximity-red); }')
+    && INDEX.includes('.wl-deadline-summary.is-orange { color: var(--sv-fg-ea580c); --wl-proximity-dot: var(--wl-proximity-orange); }')
+    && INDEX.includes('.wl-deadline-summary.is-green { color: var(--sv-fg-16a34a); --wl-proximity-dot: var(--wl-proximity-green); }')
+    && /--wl-proximity-dot:\s*var\(--wl-proximity-red\)/.test(cssRuleBodies('.workload-timeline-due.is-red'))
+    && /--wl-proximity-dot:\s*var\(--wl-proximity-orange\)/.test(cssRuleBodies('.workload-timeline-due.is-orange'))
+    && /--wl-proximity-dot:\s*var\(--wl-proximity-green\)/.test(cssRuleBodies('.workload-timeline-due.is-green'))
+    && /--wl-proximity-dot:\s*var\(--wl-proximity-red\)/.test(cssRuleBodies('.workload-timeline-same-day.is-red'))
+    && /--wl-proximity-dot:\s*var\(--wl-proximity-orange\)/.test(cssRuleBodies('.workload-timeline-same-day.is-orange'))
+    && /--wl-proximity-dot:\s*var\(--wl-proximity-green\)/.test(cssRuleBodies('.workload-timeline-same-day.is-green'))
+    && /var\(--wl-proximity-red\)/.test(connectorRedRule)
+    && /var\(--wl-proximity-orange\)/.test(connectorOrangeRule)
+    && /var\(--wl-proximity-green\)/.test(connectorGreenRule)
+    && proximityColors.every(color => proximitySurfaces.every(surface => colorContrast(color, surface) >= 3))
+    && /\.workload-timeline-lines \{[^}]*opacity: 1/.test(INDEX)
+    && !/workload-timeline-connector[^\n]*opacity="/.test(INDEX)
+    && !INDEX.includes('--wl-proximity-dot: var(--cal-status-')
     && !INDEX.includes('.workload-day-card-chip.is-deadline-')
     && !INDEX.includes('.workload-plan-item.is-deadline-')
     && !INDEX.includes('.workload-timeline-plan-chip.is-deadline-')
     && !INDEX.includes('function wlDeadlineFlagSvg('),
-  'group counts stay bright while one color dot replaces every proximity-colored chip edge');
-check(/\.workload-timeline-editor-banner \{[^}]*grid-column: 1 \/ -1[^}]*border-left: 4px solid/.test(INDEX)
-    && /workload-timeline-editor-banner[\s\S]*?workload-timeline-editor-kicker">Editor[\s\S]*?workload-timeline-editor-name[\s\S]*?editor\.dailySubs\.map/.test(deadlineTimelineSource)
+  'Workload-local colors keep every red, orange, and green dot/connector vivid, palette-independent, and at least 3:1 on both theme surfaces');
+check(INDEX.includes('.workload-day-client-group[open] > .workload-day-card-items,')
+    && INDEX.includes('.workload-timeline-source[open] > .workload-timeline-items { padding-left: 14px; }')
+    && /workload-plan-item-wrap::before \{[^}]*border-left: 1px solid var\(--border\)[^}]*border-bottom: 1px solid var\(--border\)[^}]*pointer-events: none/.test(INDEX)
+    && /workload-plan-item-wrap:not\(:last-child\)::after \{[^}]*border-left: 1px solid var\(--border\)[^}]*pointer-events: none/.test(INDEX),
+  'expanded Plan-only and due-date groups show a pointer-safe threaded branch while collapsed groups remain untouched');
+check(/\.workload-timeline-editor-banner \{[^}]*grid-column: 1[^}]*border-left: 4px solid/.test(INDEX)
+    && /const head = editor\.dailySubs\.map/.test(deadlineTimelineSource)
+    && /workload-timeline-editor-banner workload-timeline-editor-rail" role="heading" aria-level="3"[\s\S]*?workload-timeline-editor-kicker">Editor[\s\S]*?workload-timeline-editor-name/.test(deadlineTimelineSource)
     && /\.workload-timeline-editor\.team-graphics \.workload-timeline-editor-banner \{[^}]*border-left-color: var\(--sv-border-d97706\)/.test(INDEX),
-  'Plan plus deadlines gives every editor a prominent full-width, team-accented lane banner above daily totals');
+  'Plan + Due Date gives every editor a compact team-accented rail aligned with its five daily totals');
 
 const workloadRuntimeStart = INDEX.indexOf('const LINEAR_ISSUES_WEBHOOK');
 const workloadRuntimeEnd = INDEX.indexOf("let crSelectedClient = '';");
@@ -1229,7 +1360,7 @@ check(workloadRuntimeStart >= 0
     && /<button type="button" class="wl-now-card-total"[\s\S]*?aria-label="\$\{wlEscape\(totalLabel\)\}"/.test(workloadRuntime),
   'Workload keeps native title hovers out while meaning-bearing icons use the shared branded tooltip');
 check(/workload-timeline-editor team-\$\{team\}" aria-label="\$\{wlEscape\(name\)\} editor"/.test(deadlineTimelineSource)
-    && /workload-timeline-editor-banner" role="heading" aria-level="3"/.test(deadlineTimelineSource)
+    && /workload-timeline-editor-banner workload-timeline-editor-rail" role="heading" aria-level="3"/.test(deadlineTimelineSource)
     && /wl-tweak-comment-body\.is-clamped:focus-visible/.test(INDEX)
     && /setAttribute\('role', 'button'\)[\s\S]*?setAttribute\('tabindex', '0'\)[\s\S]*?setAttribute\('aria-expanded', 'false'\)/.test(workloadRuntime)
     && /wlOnTweakCommentKey[\s\S]*?e\.key !== 'Enter'[\s\S]*?e\.key !== ' '/.test(workloadRuntime),

@@ -696,8 +696,8 @@ n8n in the metric read path.*
 - **State.** `syncview_linearIssuesCache_v1` (5 min, both feeders), `syncview_workload_v2_off`
   (`syncview_workload_v2` is write-only / vestigial), `syncview_workloadView_v1`,
   `syncview_workloadSections_v1` (non-sensitive expanded/collapsed exception preferences),
-  `syncview_workloadDeadlineOverlay_v1` (non-sensitive, display-only **Plan only** / **Plan +
-  deadlines** preference; absent defaults to **Plan only**, while **Plan + deadlines** forces Week),
+  `syncview_workloadDeadlineOverlay_v1` (non-sensitive, display-only **Plan only** / **Plan + Due
+  Date** preference; absent defaults to **Plan only**, while **Plan + Due Date** forces Week),
   `syncview_kasper_editors_v2` (week-rollover-invalidated). Kill switches: `?wl2=0`, the compile-time
   `WL_V2_REALTIME=false`. No `syncview_runtime_flags` switch exists for either Workload or the
   plan-date path; plan and exact workload-label state are held as issue-id maps in the running page
@@ -758,18 +758,24 @@ n8n in the metric read path.*
   The tone belongs to
   each sub-issue and reaches a collapsed group only when every represented deadline shares one band;
   that single dot leads the client name without a proximity-colored chip edge. Mixed or missing
-  deadlines render no group-level marker. Expanded due/buffer copy is unboxed text with no colored
-  row edge. Workload emits no native `title` hovers; its compact placement, proximity, weight, and
-  drag cues use the shared branded `data-tip` tooltip.
-  The persistent **Plan only** / **Plan +
-  deadlines** segmented control sits beside the client filter. Week is a Monday-anchored five-column
+  deadlines render no group-level marker. The red, orange, and green signals use matched vivid
+  eight-pixel Workload-local circles in both themes, independent of the selectable app status-palette
+  preference. Expanded due/buffer copy is unboxed text with no
+  colored row edge, and an open client group uses a decorative pointer-safe thread to connect its
+  sub-issues without changing interaction. Workload emits no native `title` hovers; its compact
+  placement, proximity, weight, and drag cues use the shared branded `data-tip` tooltip.
+  The persistent **Plan only** / **Plan + Due
+  Date** segmented control sits beside the client filter. Week is a Monday-anchored five-column
   Monday-Friday range; manual plan days and deadlines on the weekend remain discoverable, with their
-  exact dates, through a compact calendar notice/tray and are never silently moved. **Plan +
-  deadlines** is Week-only and gives each editor a full-width, team-accented lane banner before
-  rendering one aligned row per planned editor/client group, with straight
-  plan-to-due lines, split due endpoints, and a same-day marker instead of a duplicate endpoint when
-  plan and due share a day. Due endpoints are display-only and excluded from capacity; the solid
-  plan source is the only counted copy. Admin/SMM drag starts only from the dedicated six-dot handle
+  exact dates, through a compact calendar notice/tray and are never silently moved. **Plan + Due
+  Date** is Week-only and gives each subtle editor swimlane a compact sticky, team-accented rail at
+  the left while the five day cells remain aligned beside it. Today uses a weekday-header marker and
+  faint day-column wash instead of a large outline, and the wash never sits behind the editor rail.
+  Each planned editor/client group occupies one aligned row with a continuous visible connector and
+  arrowhead that ends immediately before its outlined due endpoint. Different deadlines split into
+  separate endpoints; when plan and due share a day, the solid plan chip carries **Due here** and its
+  proximity dot instead of rendering a duplicate endpoint. Due endpoints are display-only and
+  excluded from capacity; the solid plan source is the only counted copy. Admin/SMM drag starts only from the dedicated six-dot handle
   on a plan group or expanded issue; the rest of the row remains clickable and non-draggable.
   Shared popovers link to Linear, keep title-row proximity, and use one compact branded Linear
   due-date row; any manual sub-issue exposes the automatic-plan reset. Tweaks retains its comment

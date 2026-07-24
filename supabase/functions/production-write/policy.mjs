@@ -201,17 +201,52 @@ export function canonicalDescription(value) {
     : null;
 }
 
-// Match the legacy linear-set-status bridge exactly: an overdue YYYY-MM-DD
-// due date is moved to the current UTC date plus two days. It is deliberately
-// not incremented from the stale due date.
+// Overdue rescue: an overdue YYYY-MM-DD due date (e.g. a card that accumulated
+// tweak rounds until its deadline fell into the past) is moved forward to the
+// next working day at or after tomorrow, computed on the America/Guatemala
+// policy day. Saturdays and Sundays are skipped, matching the Workload
+// wlNextWorkingDay rule (a Friday rescue lands on Monday). The target is
+// derived from today, never incremented from the stale due date. Retuned from
+// the legacy UTC today-plus-two bridge (owner decision) — same trigger (any
+// status write while overdue), same kill switch (overdueStatusBumpEnabled),
+// same outbox/echo lane.
+const OVERDUE_BUMP_TIME_ZONE = "America/Guatemala";
+function overdueBumpPolicyTodayISO(now) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: OVERDUE_BUMP_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(now));
+  const values = {};
+  for (const part of parts) {
+    if (part.type !== "literal") values[part.type] = part.value;
+  }
+  return `${values.year}-${values.month}-${values.day}`;
+}
+function overdueBumpAddDays(iso, n) {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + n)).toISOString().slice(0, 10);
+}
+function overdueBumpIsWeekend(iso) {
+  const [year, month, day] = iso.split("-").map(Number);
+  const dow = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return dow === 0 || dow === 6;
+}
+function overdueBumpNextWorkingDay(iso) {
+  let cursor = iso;
+  for (let guard = 0; guard < 7 && overdueBumpIsWeekend(cursor); guard++) {
+    cursor = overdueBumpAddDays(cursor, 1);
+  }
+  return cursor;
+}
 export function overdueStatusBumpDate(value, now = Date.now()) {
   if (!validDateOrNull(value) || !clean(value)) return "";
-  const [year, month, day] = clean(value).split("-").map(Number);
-  const dueMs = Date.UTC(year, month - 1, day);
-  const current = new Date(now);
-  const todayMs = Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), current.getUTCDate());
-  if (dueMs >= todayMs) return "";
-  return new Date(todayMs + 2 * 24 * 60 * 60 * 1_000).toISOString().slice(0, 10);
+  const due = clean(value);
+  const today = overdueBumpPolicyTodayISO(now);
+  // YYYY-MM-DD strings compare lexicographically in calendar order.
+  if (due >= today) return "";
+  return overdueBumpNextWorkingDay(overdueBumpAddDays(today, 1));
 }
 
 // D-30 preserves the legacy side effect by default. The runtime flag is a

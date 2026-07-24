@@ -14238,6 +14238,26 @@
             ? Math.round((to - from) / 86400000)
             : null;
     }
+    // Signed WORKING-day difference from `fromISO` to `toISO` (Saturdays and
+    // Sundays don't count), reusing the same weekend rule as wlAddWorkingDays /
+    // wlSubWorkingDays. This is the buffer/proximity metric: a Friday plan with
+    // a Monday due date is 1 working day of slack, not 3 calendar days. Grid
+    // column positioning still uses wlCalendarDayDiff.
+    function wlWorkingDayDiff(fromISO, toISO) {
+        const valid = (iso) => /^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''));
+        if (!valid(fromISO) || !valid(toISO)) return null;
+        if (fromISO === toISO) return 0;
+        const dir = toISO > fromISO ? 1 : -1;
+        const d = wlParseISO(fromISO);
+        let count = 0;
+        for (let guard = 0; guard < 4000; guard++) {
+            d.setDate(d.getDate() + dir);
+            const dow = d.getDay();
+            if (dow !== 0 && dow !== 6) count += dir;
+            if (wlISO(d.getFullYear(), d.getMonth(), d.getDate()) === toISO) break;
+        }
+        return count;
+    }
     function wlValidRfc3339Timestamp(value) {
         if (typeof value !== 'string' || value.trim() !== value) return false;
         const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.exec(value);
@@ -14303,7 +14323,7 @@
         if (!/^\d{4}-\d{2}-\d{2}$/.test(plan)) {
             return { tone: '', days: null, label: lead + ' ' + wlFormatShort(due) };
         }
-        const days = wlCalendarDayDiff(plan, due);
+        const days = wlWorkingDayDiff(plan, due);
         if (days === null) return { tone: '', days, label: lead + ' ' + wlFormatShort(due) };
         const tone = days <= 0 ? 'red' : (days <= 2 ? 'orange' : 'green');
         let label;
@@ -14407,7 +14427,7 @@
         for (const sub of subs || []) {
             const due = String(sub && sub.dueDate || '').slice(0, 10);
             const plan = String(planDate || wlDisplayDate(sub) || '').slice(0, 10);
-            const days = wlCalendarDayDiff(plan, due);
+            const days = wlWorkingDayDiff(plan, due);
             if (days !== null && days < closest) closest = days;
         }
         return closest;

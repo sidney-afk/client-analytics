@@ -290,12 +290,14 @@ function extractFunction(name) {
     && /byId\.has\(label\.id\)/.test(selectedLabelPagesSource),
   'selected-label collector is bounded and fails closed on every incomplete or duplicate page envelope');
 
-  const legacyNow = Date.UTC(2026, 6, 13, 23, 59, 59);
-  ok(policy.overdueStatusBumpDate('2026-07-01', legacyNow) === '2026-07-15'
+  const legacyNow = Date.UTC(2026, 6, 13, 23, 59, 59); // Mon 2026-07-13 in America/Guatemala
+  const fridayNow = Date.UTC(2026, 6, 17, 12, 0, 0);   // Fri 2026-07-17 in America/Guatemala
+  ok(policy.overdueStatusBumpDate('2026-07-01', legacyNow) === '2026-07-14'
+    && policy.overdueStatusBumpDate('2026-07-01', fridayNow) === '2026-07-20'
     && policy.overdueStatusBumpDate('2026-07-13', legacyNow) === ''
     && policy.overdueStatusBumpDate('2026-07-14', legacyNow) === ''
     && policy.overdueStatusBumpDate('invalid', legacyNow) === '',
-  'overdue bump matches the legacy UTC today-plus-two rule, not prior-due-plus-two');
+  'overdue bump moves a past due date to the next working day on the America/Guatemala policy day, skipping weekends (Fri rescue lands Monday)');
   ok(policy.overdueStatusBumpEnabled({ enabled: false }) === false
     && policy.overdueStatusBumpEnabled({ enabled: true }) === true
     && policy.overdueStatusBumpEnabled({}) === true

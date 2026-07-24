@@ -309,6 +309,14 @@ ok(/_prodState\.createCatalogToken\+\+/.test(staffPurge)
   && /_prodClearLayer\(\)/.test(staffPurge)
   && /token !== _prodState\.createCatalogToken \|\| !_prodState\.createDraft/.test(createOptions),
 'sign-out purges the create draft/catalog/modal and invalidates delayed create-options responses');
+ok(/_prodState\.archiveRepair\.listRequestToken = Number\(_prodState\.archiveRepair\.listRequestToken \|\| 0\) \+ 1/.test(staffPurge)
+  && /_prodState\.archiveRepair\.detailRequestToken = Number\(_prodState\.archiveRepair\.detailRequestToken \|\| 0\) \+ 1/.test(staffPurge)
+  && /_prodState\.archiveRepair = null/.test(staffPurge)
+  && /data-prod-archive-modal[\s\S]{0,120}_prodClearLayer\(\)/.test(staffPurge),
+'sign-out clears archive asset repair state, invalidates its in-flight request tokens, and removes its overlay');
+ok(/const verificationEpoch = _syncviewStaffVerificationEpoch;[\s\S]{0,900}verificationEpoch === _syncviewStaffVerificationEpoch/.test(extract('_prodArchiveLoadList'))
+  && /const verificationEpoch = _syncviewStaffVerificationEpoch;[\s\S]{0,900}verificationEpoch === _syncviewStaffVerificationEpoch/.test(extract('_prodArchiveOpenIssue')),
+'archive list and detail responses are bound to the staff verification epoch so a sign-out mid-flight cannot render rescued private links');
 ok(/label_selection_out_of_catalog/.test(createErrorText)
   && /assignee_mapping_unavailable/.test(createErrorText)
   && /create_parent_not_found/.test(createErrorText)

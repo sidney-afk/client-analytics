@@ -25,9 +25,13 @@
 -- permissive whole-table browser SELECT. This migration preserves existing
 -- scalar browser reads with explicit column grants, withholds batches'
 -- filming_doc_url/footage_folder_url/delivery_folder_url plus deliverables'
--- file_url/brief/linear_raw, and exposes only bounded derived Production and
--- Workload fields through a body-free browser projection. Service-role reads
--- remain unchanged.
+-- file_url/brief/linear_raw, and also withholds the legacy `comments` JSON on
+-- both tables: those bodies can carry private uploads.linear.app references and
+-- are the backfill source for the protected normalized comment table, so they
+-- are served only through the scoped production-comments reader, never a raw
+-- deliverables?select=comments / batches?select=comments browser read. Only
+-- bounded derived Production and Workload fields are exposed through a body-free
+-- browser projection. Service-role reads remain unchanged.
 --
 -- This file is source-only until a separate post-merge, owner-approved live
 -- window. It does not deploy an Edge Function, run a real TEST attachment
@@ -282,7 +286,6 @@ grant select (
   description,
   color,
   status,
-  comments,
   sort_key,
   created_by,
   created_at,
@@ -304,7 +307,6 @@ grant select (
   assignee_id,
   due_date,
   priority,
-  comments,
   origin,
   card_id,
   sort_key,

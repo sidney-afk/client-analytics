@@ -857,6 +857,10 @@ this.normalizeAssets = _prodAssetDefaultEvidence;`,
       && /production_workload_label_projection/.test(migration)
       && !/grant select \([\s\S]{0,900}\bbrief\b[\s\S]{0,200}\) on table public\.deliverables/.test(migration)
       && !/grant select \([\s\S]{0,900}\blinear_raw\b[\s\S]{0,200}\) on table public\.deliverables/.test(migration)
+      // Legacy comment bodies (private uploads.linear.app refs; backfill source)
+      // are withheld from both browser grants and served only via the scoped reader.
+      && !/grant select \([\s\S]{0,900}\bcomments\b[\s\S]{0,200}\) on table public\.deliverables/.test(migration)
+      && !/grant select \([\s\S]{0,900}\bcomments\b[\s\S]{0,200}\) on table public\.batches/.test(migration)
       && !/grant select \([\s\S]{0,500}filming_doc_url/.test(migration)
       && /f53_typed_asset_column_still_public/.test(proof)
       && /f53_non_asset_browser_read_not_preserved/.test(proof)

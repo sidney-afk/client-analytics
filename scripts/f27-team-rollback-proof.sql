@@ -652,8 +652,11 @@ BEGIN
       FROM information_schema.columns c
       WHERE c.table_schema = 'public'
         AND c.table_name = 'batches'
+        -- `comments` joins the deliberately-withheld browser columns: legacy
+        -- comment bodies can carry private uploads.linear.app refs and are
+        -- served only through the scoped reader (review finding #925).
         AND c.column_name NOT IN (
-          'filming_doc_url', 'footage_folder_url', 'delivery_folder_url'
+          'filming_doc_url', 'footage_folder_url', 'delivery_folder_url', 'comments'
         )
         AND NOT has_column_privilege(
           v_role,
@@ -666,7 +669,9 @@ BEGIN
       FROM information_schema.columns c
       WHERE c.table_schema = 'public'
         AND c.table_name = 'deliverables'
-        AND c.column_name NOT IN ('file_url', 'brief', 'linear_raw')
+        -- `comments` is withheld from browser reads alongside the typed assets
+        -- (review finding #925); it is served only through the scoped reader.
+        AND c.column_name NOT IN ('file_url', 'brief', 'linear_raw', 'comments')
         AND NOT has_column_privilege(
           v_role,
           format('%I.%I', c.table_schema, c.table_name),

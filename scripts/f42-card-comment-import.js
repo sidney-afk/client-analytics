@@ -73,6 +73,82 @@ function safeAttachments(value) {
   }).filter(Boolean);
 }
 
+// safeAttachments sanitizes silently (a non-array field or a non-object entry
+// both collapse to `[]`), which is correct for the read projection but wrong
+// for the import planner: an owner-approved plan must never permanently drop
+// attachment evidence. This surfaces the structural malformation the sanitizer
+// would otherwise swallow — a nonempty non-array/invalid-JSON field, or an array
+// entry that is not an object — as a blocking conflict. A well-formed object
+// whose URL is merely non-HTTPS stays a policy sanitization, not a malformation.
+function attachmentConflicts(value, scope = {}) {
+  const out = [];
+  const parsed = parsedArray(value);
+  if (parsed.malformed) {
+    out.push({
+      classification: 'malformed_attachment_field',
+      surface: clean(scope.surface) || null,
+      card_id: clean(scope.cardId) || null,
+      component: clean(scope.component) || null,
+      native_comment_id: clean(scope.nativeId) || null,
+      reason: 'nonempty_attachments_is_not_an_array',
+    });
+    return out;
+  }
+  parsed.values.forEach((item, sourceIndex) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      out.push({
+        classification: 'malformed_attachment_entry',
+        surface: clean(scope.surface) || null,
+        card_id: clean(scope.cardId) || null,
+        component: clean(scope.component) || null,
+        native_comment_id: clean(scope.nativeId) || null,
+        source_index: sourceIndex,
+        reason: 'attachment_entry_is_not_an_object',
+      });
+    }
+  });
+  return out;
+}
+
+// Every lifecycle field the planner copies is cast to timestamptz by the import
+// RPC. A nonempty malformed value would only fail mid-apply — after earlier
+// rows already imported — so validate them at plan time and block instead of
+// certifying an apply-unsafe plan.
+const LIFECYCLE_TIMESTAMP_FIELDS = Object.freeze([
+  'created_at', 'createdAt', 'ts',
+  'updated_at', 'updatedAt',
+  'edited_at', 'deleted_at', 'done_at', 'resolved_at',
+]);
+
+function isValidTimestampValue(value) {
+  if (value == null) return true;
+  if (typeof value !== 'string') return false;
+  const text = value.trim();
+  if (!text) return true;
+  return Number.isFinite(Date.parse(text));
+}
+
+function lifecycleTimestampConflicts(raw, scope = {}) {
+  const out = [];
+  const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  for (const field of LIFECYCLE_TIMESTAMP_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(source, field)) continue;
+    if (isValidTimestampValue(source[field])) continue;
+    out.push({
+      classification: 'malformed_lifecycle_timestamp',
+      surface: clean(scope.surface) || null,
+      card_id: clean(scope.cardId) || null,
+      component: clean(scope.component) || null,
+      native_comment_id: clean(scope.nativeId) || null,
+      source_field: field,
+      reason: typeof source[field] === 'string'
+        ? 'unparseable_timestamp'
+        : 'timestamp_is_not_a_string',
+    });
+  }
+  return out;
+}
+
 function commentsFor(row, component, conflicts = null, scope = {}) {
   const comments = [];
   for (const field of COMPONENT_FIELDS[component] || []) {
@@ -360,6 +436,17 @@ function planSurface(input, options = {}) {
           });
           return;
         }
+        // Block apply-unsafe rows before they can be certified: malformed
+        // lifecycle timestamps would fail the timestamptz cast mid-apply, and
+        // structurally malformed attachments would silently drop evidence.
+        const unsafe = [
+          ...lifecycleTimestampConflicts(raw, scope),
+          ...attachmentConflicts(raw.attachments, scope),
+        ];
+        if (unsafe.length) {
+          unsafe.forEach(conflict => conflicts.push(conflict));
+          return;
+        }
         // Run identity is operational provenance, not source content. Keeping
         // it out of the fingerprint makes an identical owner-approved rerun
         // idempotent instead of conflicting solely because the run id changed.
@@ -557,7 +644,10 @@ module.exports = {
   COMPONENT_FIELDS,
   SNAPSHOT_CONTRACT,
   SURFACES,
+  attachmentConflicts,
   commentsFor,
+  isValidTimestampValue,
+  lifecycleTimestampConflicts,
   manifestMismatches,
   normalizeComment,
   planCardCommentImport,

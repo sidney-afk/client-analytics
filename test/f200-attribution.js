@@ -2,6 +2,7 @@
 
 const { execFileSync } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const {
   OWNER_MANIFEST_SCHEMA,
@@ -31,6 +32,7 @@ const {
   f200RepairRowState,
   requireSingleF200CasPatchRow,
 } = require('../scripts/linear-deliverables-reconcile');
+const { assertPrivateOutputPath } = require('../scripts/f200-attribution-live-snapshot');
 
 function ok(condition, message) {
   if (!condition) {
@@ -696,6 +698,56 @@ ok(/resolveAttributionGraph\(\[\.\.\.data\.linearIssues\.values\(\)\], data\.cli
   && /executeF200CasPatch\(liveRow\.current, repairState\)/.test(reconcileSource)
   && /client_slug=eq\.unattributed/.test(reconcileSource),
 'scheduled reconciler preserves proven attribution and uses the exact-count atomic CAS repair lane');
+
+const liveSnapshotSource = fs.readFileSync(
+  path.join(__dirname, '..', 'scripts', 'f200-attribution-live-snapshot.js'),
+  'utf8',
+);
+ok(/family_complete:\s*false/.test(liveSnapshotSource)
+  && !/family_complete:\s*true/.test(liveSnapshotSource),
+'the private F200 sentinel snapshot fails closed rather than claiming a complete family graph');
+throws(
+  () => assertPrivateOutputPath(path.join(__dirname, '..', 'f200-live-snapshot.json')),
+  /outside every Git worktree/,
+  'the private F200 snapshot refuses a worktree output path',
+);
+const privateSnapshotTestRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'f200-private-snapshot-'));
+try {
+  const unrelatedWorktree = path.join(privateSnapshotTestRoot, 'unrelated-worktree');
+  fs.mkdirSync(path.join(unrelatedWorktree, '.git'), { recursive: true });
+  throws(
+    () => assertPrivateOutputPath(path.join(unrelatedWorktree, 'snapshot.json')),
+    /outside every Git worktree/,
+    'the private F200 snapshot refuses output paths inside unrelated Git worktrees',
+  );
+  if (process.platform === 'win32') {
+    throws(
+      () => assertPrivateOutputPath(path.join(privateSnapshotTestRoot, 'fresh-snapshot.json')),
+      /ACL verification is unavailable/,
+      'the private F200 snapshot fails closed where Windows ACL privacy cannot be verified',
+    );
+  } else {
+    fs.chmodSync(privateSnapshotTestRoot, 0o700);
+    const freshPrivateSnapshot = path.join(privateSnapshotTestRoot, 'fresh-snapshot.json');
+    ok(assertPrivateOutputPath(freshPrivateSnapshot) === freshPrivateSnapshot,
+      'the private F200 snapshot accepts a new absolute path outside Git worktrees');
+    const existingPrivateSnapshot = path.join(privateSnapshotTestRoot, 'snapshot.json');
+    fs.writeFileSync(existingPrivateSnapshot, '{}', 'utf8');
+    throws(
+      () => assertPrivateOutputPath(existingPrivateSnapshot),
+      /destination must not already exist/,
+      'the private F200 snapshot refuses to overwrite an existing file',
+    );
+  }
+} finally {
+  fs.rmSync(privateSnapshotTestRoot, { recursive: true, force: true });
+}
+ok(/assertNoLinkedComponents\(output\)/.test(liveSnapshotSource)
+  && /flag:\s*'wx'/.test(liveSnapshotSource)
+  && /chmodSync\(output, 0o600\)/.test(liveSnapshotSource)
+  && /assertPrivateParent\(parent\)/.test(liveSnapshotSource)
+  && /hasContainingGitMarker\(output\)/.test(liveSnapshotSource),
+'the private F200 snapshot rejects linked and every Git-worktree destination before creating a private-mode file');
 
 const inboundSource = fs.readFileSync(
   path.join(__dirname, '..', 'supabase', 'functions', 'linear-inbound', 'index.ts'),

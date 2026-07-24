@@ -1,9 +1,8 @@
 # Linear — current truth
 
-> Last verified: 2026-07-23 @ b1a942d + source-only F200/F202/F203 candidates
-> (F145 parent-link projection merged; plan-date release live; F200 attribution repair and F201/F202
-> gateway/outbound/inbound plus F203 create additions are not live until their owner-approved post-merge
-> repair/migration/function/drill gates)
+> Last verified: 2026-07-24 @ f9fe855 + F200 owner-approved live data repair + source-only F201/F202/F203 candidates
+> (F145 parent-link projection and the F200 roster/data correction are live; F201/F202 gateway/outbound/inbound
+> plus F203 create additions remain gated pending their owner-approved migration/function/drill releases)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -19,9 +18,9 @@
 - ~89 non-archived projects (~75 unique clients). Open issues at the 2026-07-05 count: 1,869
   (GRA 470 / VID 1,399), 841 of them backlog/triage outside cycles; ~44% of open issues are
   zombies older than 12 months (mostly 2023 VID backlog). That snapshot had 137 open issues with no
-  project. The separate 2026-07-23 native-mirror count is **72 of 4,600 render-eligible rows
-  `unattributed`**: 70 missing-project ambiguous and two hierarchy-attribution failures; zero could
-  be proved deliberately internal/TEST from current data (F200).
+  project. The 2026-07-23 native-mirror audit recorded **72 of 4,600 render-eligible rows
+  `unattributed`** before the owner-approved F200 remediation; it remains historical evidence, not a
+  current unresolved count.
 - `updatedAt` is unusable for cutoffs (bulk touches make ~95% look recent) — cut on
   `createdAt`/`completedAt`.
 - **Priority IS used again** on current batches (Urgent/High/Medium), but Workload no longer reads or
@@ -77,7 +76,12 @@
   unanimous-child provisional, and conflicting families as repair states. B1 has no client-insert
   path and uses no Linear name/title identity inference; webhook project/hierarchy changes invalidate
   stale attribution and scheduled reconciliation compares project, client, hierarchy, and revision.
-  A private exact-72 owner manifest and live repair are later gated work, not evidence produced here.
+  On 2026-07-24, an owner-approved private 87-row CAS plan applied three active-roster project-map
+  additions, one roster-kind correction, 11 direct-project resolutions, and 76 explicit roster
+  classifications. It made no schema, flag, n8n, Linear, or outbound changes. Two projectless TEST
+  parents remain intentionally unresolved pending owner choice; the exact private plan and row data
+  are not committed. The full post-apply reconciler measured 2 current `unattributed` rows, 25
+  needs-attribution states, and 2 provisional child-family states.
 - **Current live Workload deadlines remain one-way from Linear.** Candidate source retains the
   isolated Admin/SMM-only `workload-linear` due-date writer for Linear-authoritative teams; Creative
   receives the same metadata but remains read-only. F201/F40 candidate source partitions metadata by

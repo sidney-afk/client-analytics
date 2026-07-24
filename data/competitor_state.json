@@ -1,0 +1,7 @@
+{
+  "state_schema_version": 1,
+  "_note": "Runtime state for the Weekly Sandcastles Competitor Research routine (trigger trig_015xSamhJTSSF3Kx61htduXB). The routine reads and rewrites this file each run and commits it alongside data/top_videos.json on claude/data-competitors. It implements two cost knobs: (1) skip clients after 3 consecutive inactive/not-found weeks, re-probing them only on the first Monday of each month; (2) reuse each active client's cached competitor_channels on weekly runs, refreshing the set (full discover + niche-match) only on the first Monday of each month. Per-client entry shape: { last_status: active|client_inactive|not_in_sandcastles|no_handle, consecutive_inactive_weeks: int, competitor_channels: [{handle, platform, uuid?}], competitor_set_refreshed: 'YYYY-MM-DD' }. last_full_refresh_date is the date of the last first-Monday full refresh. Empty clients map = cold start; the routine bootstraps each active client's competitor set on first encounter. The verbatim pre-change routine prompt for one-paste rollback lives in data/ROUTINE_PROMPT_BACKUP.md (not managed by the routine).",
+  "last_run_date": null,
+  "last_full_refresh_date": null,
+  "clients": {}
+}

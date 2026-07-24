@@ -67,6 +67,27 @@ function assertNoLinkedComponents(absolutePath) {
   }
 }
 
+function assertPrivateParent(parent) {
+  const parentStat = fs.lstatSync(parent);
+  if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
+    throw new Error('--out parent directory must be a private directory');
+  }
+  try { fs.accessSync(parent, fs.constants.W_OK); } catch (_) {
+    throw new Error('--out parent directory must be writable');
+  }
+  // Node does not expose enough Windows ACL detail to verify that no other
+  // principal can replace the snapshot. Refuse rather than imply privacy.
+  if (process.platform === 'win32') {
+    throw new Error('Windows private-directory ACL verification is unavailable; snapshot write refused');
+  }
+  if (typeof process.getuid === 'function' && parentStat.uid !== process.getuid()) {
+    throw new Error('--out parent directory must be owned by the current user');
+  }
+  if ((parentStat.mode & 0o077) !== 0) {
+    throw new Error('--out parent directory permissions are too broad');
+  }
+}
+
 function assertPrivateOutputPath(value) {
   if (!clean(value) || !path.isAbsolute(value)) {
     throw new Error('--out must be an absolute private path outside every Git worktree');
@@ -77,13 +98,7 @@ function assertPrivateOutputPath(value) {
     throw new Error('--out must be outside every Git worktree');
   }
   const parent = path.dirname(output);
-  const parentStat = fs.lstatSync(parent);
-  if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
-    throw new Error('--out parent directory must be a private directory');
-  }
-  try { fs.accessSync(parent, fs.constants.W_OK); } catch (_) {
-    throw new Error('--out parent directory must be writable');
-  }
+  assertPrivateParent(parent);
   try {
     fs.lstatSync(output);
     throw new Error('--out destination must not already exist');
@@ -223,4 +238,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { assertNoLinkedComponents, assertPrivateOutputPath, registeredGitWorktrees };
+module.exports = { assertNoLinkedComponents, assertPrivateOutputPath, assertPrivateParent, registeredGitWorktrees };

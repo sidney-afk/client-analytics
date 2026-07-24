@@ -713,23 +713,33 @@ throws(
 );
 const privateSnapshotTestRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'f200-private-snapshot-'));
 try {
-  const freshPrivateSnapshot = path.join(privateSnapshotTestRoot, 'fresh-snapshot.json');
-  ok(assertPrivateOutputPath(freshPrivateSnapshot) === freshPrivateSnapshot,
-    'the private F200 snapshot accepts a new absolute path outside Git worktrees');
-  const existingPrivateSnapshot = path.join(privateSnapshotTestRoot, 'snapshot.json');
-  fs.writeFileSync(existingPrivateSnapshot, '{}', 'utf8');
-  throws(
-    () => assertPrivateOutputPath(existingPrivateSnapshot),
-    /destination must not already exist/,
-    'the private F200 snapshot refuses to overwrite an existing file',
-  );
+  if (process.platform === 'win32') {
+    throws(
+      () => assertPrivateOutputPath(path.join(privateSnapshotTestRoot, 'fresh-snapshot.json')),
+      /ACL verification is unavailable/,
+      'the private F200 snapshot fails closed where Windows ACL privacy cannot be verified',
+    );
+  } else {
+    fs.chmodSync(privateSnapshotTestRoot, 0o700);
+    const freshPrivateSnapshot = path.join(privateSnapshotTestRoot, 'fresh-snapshot.json');
+    ok(assertPrivateOutputPath(freshPrivateSnapshot) === freshPrivateSnapshot,
+      'the private F200 snapshot accepts a new absolute path outside Git worktrees');
+    const existingPrivateSnapshot = path.join(privateSnapshotTestRoot, 'snapshot.json');
+    fs.writeFileSync(existingPrivateSnapshot, '{}', 'utf8');
+    throws(
+      () => assertPrivateOutputPath(existingPrivateSnapshot),
+      /destination must not already exist/,
+      'the private F200 snapshot refuses to overwrite an existing file',
+    );
+  }
 } finally {
   fs.rmSync(privateSnapshotTestRoot, { recursive: true, force: true });
 }
 ok(/assertNoLinkedComponents\(output\)/.test(liveSnapshotSource)
   && /flag:\s*'wx'/.test(liveSnapshotSource)
-  && /chmodSync\(output, 0o600\)/.test(liveSnapshotSource),
-'the private F200 snapshot rejects linked destinations and creates a new private-mode file');
+  && /chmodSync\(output, 0o600\)/.test(liveSnapshotSource)
+  && /assertPrivateParent\(parent\)/.test(liveSnapshotSource),
+'the private F200 snapshot rejects linked destinations and creates a new private-mode file in a verified private parent');
 
 const inboundSource = fs.readFileSync(
   path.join(__dirname, '..', 'supabase', 'functions', 'linear-inbound', 'index.ts'),

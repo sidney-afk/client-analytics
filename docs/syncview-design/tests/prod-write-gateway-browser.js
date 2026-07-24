@@ -38,7 +38,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
   ];
   const mappedCreateAssigneeIds = new Set(['designer', 'editor']);
   const deliverables = [
-    { id: 'gra-fixture', identifier: 'GRA-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Graphics fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, origin: 'samples', card_id: 'samples-card-gra', created_at: now, updated_at: now },
+    { id: 'gra-fixture', identifier: 'GRA-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Graphics fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'vid-fixture', identifier: 'VID-TEST', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'video', title: 'Video fixture', status: 'in_progress', status_at: now, assignee_id: 'editor', due_date: null, created_at: now, updated_at: now },
     { id: 'test-fixture-row', identifier: 'GRA-TEST-OVERRIDE', raw_project_id: 'linear-project-test', client_slug: 'test-fixture', team: 'graphics', title: 'TEST override fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-description-parent', identifier: 'GRA-DESC-P', linear_issue_uuid: 'linear-description-parent', raw_project_id: 'linear-project-normal', client_slug: 'normal-fixture', team: 'graphics', title: 'Description parent fixture', brief: '# Parent brief\n\n- First item\n\n**Owner:** Browser Admin', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
@@ -175,12 +175,7 @@ function expect(value, message) { if (!value) throw new Error(message); }
   await page.route('**/functions/v1/production-comments', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify({
-      comments: [],
-      next_cursor: null,
-      has_more: false,
-      canonical_thread: true,
-    }),
+    body: JSON.stringify({ comments: [], next_cursor: null, has_more: false }),
   }));
   await page.route('**/functions/v1/production-write', async route => {
     const request = route.request();
@@ -204,23 +199,6 @@ function expect(value, message) { if (!value) throw new Error(message); }
           catalog: labelCatalog,
           selected_label_ids: ids,
           selected_labels: ids.map(id => labelCatalog.find(label => label.id === id)).filter(Boolean),
-        }),
-      });
-      return;
-    }
-    if (body.action === 'asset_access_read') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          ok: true,
-          complete: true,
-          assets: [
-            { slot: 'filming_plan', state: 'missing', url: null },
-            { slot: 'raw_footage', state: 'missing', url: null },
-            { slot: 'delivery_folder', state: 'missing', url: null },
-            { slot: 'deliverable_file', state: 'missing', url: null },
-          ],
         }),
       });
       return;
@@ -1421,12 +1399,8 @@ function expect(value, message) { if (!value) throw new Error(message); }
     });
     await page.waitForFunction(() => _prodLabelState('gra-fixture')?.status === 'ready');
 
-    await page.evaluate(() => _prodComments.retry('gra-fixture'));
-    await page.waitForFunction(() => document.querySelector('[data-prod-comment-form="gra-fixture"] .prod-comment-action'));
     await page.locator('[data-prod-comment-input]').fill('Browser gateway comment');
-    await page.locator('.prod-comment-action', { hasText: 'Internal' }).click();
-    await page.waitForFunction(() => document.querySelector('[data-prod-comment-form]')
-      && document.querySelector('[data-prod-comment-form]').textContent.includes('Client-visible'));
+    await page.locator('.prod-composer-audience').selectOption('client');
     const commentResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
       && JSON.parse(response.request().postData() || '{}').operation === 'comment');
     await page.locator('.prod-composer-submit').click();

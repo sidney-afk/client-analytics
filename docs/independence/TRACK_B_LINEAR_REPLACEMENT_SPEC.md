@@ -1310,25 +1310,6 @@ and refresh matrix. Canonical persistence must succeed before any Linear/mirror 
 retains the draft/queue with visible retry. Retry produces exactly one canonical mutation and, while
 mirroring is enabled, exactly one applicable mirror intent; retired mode produces zero mirror/outbox intents.
 
-**Source-only candidate state (2026-07-23; not live).** F39 candidate source resolves the exact
-target before body access, enforces exact creative-team or active exact-client scope, filters
-client-audience totals/pages, and adds bounded request controls plus durable non-secret read audit.
-F42's planner can certify completeness only from the
-`syncview-f42-card-comment-snapshot-v1` contract containing both Calendar and SXR arrays and an
-independently supplied per-surface card/component-count/stable-hash manifest; missing, malformed,
-duplicate, parent, or coverage conflicts block import. F43 candidate source gives Production,
-Calendar, and Samples one guarded add/reply/edit/delete/resolve/reopen lifecycle with safe
-attachments, CAS/idempotency, audit, refresh, and second-device draft rebase. A verified
-`sample-reviews` client link reads the same canonical thread with its client token plus exact
-SXR card/component/deliverable identity; the reader revalidates Samples origin, card, component
-team, and client before bodies, and the browser projects client-audience rows only. Staff
-Client-visible is available only for that durable exact Samples card linkage, never from an
-endpoint capability assertion. It reuses the existing `comment` operation. Applicable
-add/edit/delete intents are
-dependency-ordered and remain queued while F2 is `off` or the drainer is unavailable; this is a
-drain pause, not retirement. Live migration, exact private import, functions, and TEST drills remain
-separate owner-approved gates.
-
 **9.6 Assignment & due date:** single-row writes; the calendar card shows the editor chip via
 `*_deliverable_id → deliverables → team_members`.
 

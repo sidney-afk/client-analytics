@@ -11,7 +11,6 @@ export const OUTBOUND_OPERATIONS = Object.freeze([
   "restore",
   "labels",
   "description",
-  "attachment",
 ]);
 
 const STATUS_NAMES = Object.freeze({
@@ -33,16 +32,6 @@ const STATUS_NAMES = Object.freeze({
 export const D27_LIVE_ERA_START = "2026-07-12T04:48:56.000Z";
 const D27_BACKFILL_CREATORS = new Set(["linear-backfill", "history-backfill-2026-07-10"]);
 const MAX_DESCRIPTION_LENGTH = 100_000;
-const MAX_ATTACHMENT_URL_LENGTH = 2_048;
-const ATTACHMENT_HOSTS = new Set([
-  "drive.google.com",
-  "docs.google.com",
-  "frame.io",
-  "app.frame.io",
-  "f.io",
-  "dropbox.com",
-  "www.dropbox.com",
-]);
 
 function clean(value) {
   return String(value == null ? "" : value).trim();
@@ -61,31 +50,6 @@ function canonicalDescription(value) {
 
 function lower(value) {
   return clean(value).toLowerCase();
-}
-
-export function canonicalAttachmentUrl(value) {
-  const raw = clean(value);
-  if (!raw || raw.length > MAX_ATTACHMENT_URL_LENGTH || raw.includes("\0")) return "";
-  try {
-    const url = new URL(raw);
-    const host = lower(url.hostname).replace(/\.$/, "");
-    if (url.protocol !== "https:"
-        || url.username
-        || url.password
-        || !ATTACHMENT_HOSTS.has(host)
-        || !clean(url.pathname)
-        || url.pathname === "/") return "";
-    const allowedKeys = host === "drive.google.com" || host === "docs.google.com"
-      ? new Set(["resourcekey"])
-      : host === "dropbox.com" || host === "www.dropbox.com"
-        ? new Set(["rlkey"])
-        : new Set();
-    if ([...url.searchParams.keys()].some(key => !allowedKeys.has(lower(key)))) return "";
-    url.hash = "";
-    return url.toString();
-  } catch (_error) {
-    return "";
-  }
 }
 
 function sameValue(a, b) {
@@ -240,14 +204,6 @@ export function markerFromBody(body) {
   return match ? clean(match[1]) : "";
 }
 
-export function commentWithMarker(issue, dedupKey) {
-  const comments = issue && issue.comments && Array.isArray(issue.comments.nodes)
-    ? issue.comments.nodes
-    : [];
-  const wanted = clean(dedupKey);
-  return comments.find(comment => markerFromBody(comment && comment.body) === wanted) || null;
-}
-
 function parentTeamKey(value) {
   const key = lower(value);
   if (key === "gra" || key === "graphic" || key === "graphics") return "graphics";
@@ -287,36 +243,6 @@ export function mergeBatchParentIds(raw, team, issue = {}) {
   return parents;
 }
 
-function artifactRevision(value) {
-  const revision = Number(value);
-  return Number.isSafeInteger(revision) && revision > 0 ? revision : null;
-}
-
-function artifactRevisionSubtitle(value) {
-  const revision = artifactRevision(value);
-  return revision ? `SyncView canonical revision ${revision}` : "";
-}
-
-function issueHasArtifactRevision(issue, payload) {
-  const revision = artifactRevision(payload && payload.artifact_revision);
-  const url = canonicalAttachmentUrl(payload && payload.url);
-  if (!revision || !url) return false;
-  const attachments = issue && issue.attachments && typeof issue.attachments === "object"
-    ? issue.attachments
-    : {};
-  const nodes = Array.isArray(attachments)
-    ? attachments
-    : Array.isArray(attachments.nodes)
-      ? attachments.nodes
-      : [];
-  const subtitle = artifactRevisionSubtitle(revision);
-  return nodes.some(value => {
-    const attachment = value && typeof value === "object" ? value : {};
-    return canonicalAttachmentUrl(attachment.url) === url
-      && clean(attachment.subtitle) === subtitle;
-  });
-}
-
 export function actualValueForOperation(operation, issue, payload = {}) {
   const op = lower(operation);
   const row = issue && typeof issue === "object" ? issue : {};
@@ -345,7 +271,6 @@ export function actualValueForOperation(operation, issue, payload = {}) {
     const dedup = clean(payload.dedup_key);
     return comments.some(comment => markerFromBody(comment && comment.body) === dedup);
   }
-  if (op === "attachment") return issueHasArtifactRevision(row, payload);
   return null;
 }
 
@@ -369,7 +294,6 @@ export function intendedValueForOperation(operation, payload = {}, context = {})
   if (op === "archive") return true;
   if (op === "restore") return false;
   if (op === "comment") return true;
-  if (op === "attachment") return true;
   return null;
 }
 
@@ -454,65 +378,6 @@ export function decideConflict(row, issue, context = {}) {
   if (!issue) return { decision: "failed", reason: "linear_issue_missing" };
 
   const payload = row && row.payload && typeof row.payload === "object" ? row.payload : {};
-  if (operation === "attachment") {
-    const intendedUrl = canonicalAttachmentUrl(payload.url);
-    const intendedRevision = artifactRevision(payload.artifact_revision);
-    const native = context && context.entity && typeof context.entity === "object"
-      ? context.entity
-      : {};
-    const currentUrl = canonicalAttachmentUrl(native.file_url);
-    const currentRevision = artifactRevision(native.artifact_revision);
-    if (!intendedUrl || !intendedRevision) {
-      return { decision: "failed", reason: "invalid_attachment_intent" };
-    }
-    // The database advances the native revision and inserts this outbox row in
-    // one transaction. Revision, not URL, is therefore the ordering authority:
-    // replacing a file behind the same stable share URL still has a distinct
-    // intent, while an older A -> B -> A row can never revive revision A.
-    if (currentRevision && currentRevision > intendedRevision) {
-      return {
-        decision: "stale",
-        reason: "native_attachment_revision_superseded",
-        actual: currentRevision,
-        intended: intendedRevision,
-        source_edited_at: clean(row && row.source_edited_at) || null,
-        native_updated_at: clean(native.updated_at) || null,
-      };
-    }
-    if (currentRevision !== intendedRevision || currentUrl !== intendedUrl) {
-      return {
-        decision: "failed",
-        reason: "native_attachment_revision_mismatch",
-        actual: { revision: currentRevision, url: currentUrl || null },
-        intended: { revision: intendedRevision, url: intendedUrl },
-      };
-    }
-  }
-  if (operation === "comment") {
-    const action = lower(payload.action || "add");
-    const markerMatch = context.comment_marker_match
-      && typeof context.comment_marker_match === "object"
-      ? context.comment_marker_match
-      : null;
-    if ((action === "add" || action === "edit") && markerMatch) {
-      return {
-        decision: "already_applied",
-        reason: "comment_marker_receipt",
-        comment_id: clean(markerMatch.id),
-      };
-    }
-    const prior = parseObject(row && row.linear_result);
-    if (action === "delete"
-        && prior.delete_attempted === true
-        && context.comment_delete_checked === true
-        && !context.linear_comment) {
-      return {
-        decision: "already_applied",
-        reason: "comment_delete_attempt_receipt",
-        comment_id: clean(payload.linear_comment_id || context.linear_comment_id),
-      };
-    }
-  }
   const actual = actualValueForOperation(operation, issue, { ...payload, dedup_key: row.dedup_key });
   const intended = intendedValueForOperation(operation, payload, context);
   const alreadyApplied = operation === "description"
@@ -520,12 +385,9 @@ export function decideConflict(row, issue, context = {}) {
     : sameValue(actual, intended);
   if (alreadyApplied) return { decision: "already_applied", actual, intended };
 
-  // Comments and external attachments are additive. Attachment exact-retry
-  // idempotency uses the server-owned revision marker; Linear's issue+URL
-  // attachment upsert then lets a newer same-URL revision reach the issue.
-  if (operation === "comment" || operation === "attachment") {
-    return { decision: "apply", actual, intended };
-  }
+  // Comments are additive. A later, unrelated Linear edit must not discard a
+  // queued comment; the hidden marker above provides field-level idempotency.
+  if (operation === "comment") return { decision: "apply", actual, intended };
 
   const sourceMs = Date.parse(clean(row && row.source_edited_at));
   const fieldMs = Date.parse(clean(context.field_updated_at));
@@ -561,7 +423,6 @@ const ISSUE_FIELDS = [
   "parent { id identifier title }",
   "labelIds",
   "labels(first: 100, includeArchived: true) { nodes { id name color description } pageInfo { hasNextPage } }",
-  "attachments(first: 100) { nodes { id url title subtitle } pageInfo { hasNextPage } }",
   "comments(first: 100) { nodes { id body createdAt user { id name email } } }",
 ].join("\n");
 
@@ -608,36 +469,7 @@ export function buildMutation(row, context = {}) {
 
   if (operation === "comment") {
     const issueId = clean(payload.linear_issue_id || context.linear_issue_id);
-    const action = lower(payload.action || "add");
     const body = outboundCommentBody(row.actor, payload.body, row.dedup_key);
-    if (action === "edit") {
-      if (context.comment_shadow_materialize === true
-          || context.comment_import_materialize === true) {
-        if (!issueId || !clean(payload.body)) throw new Error("incomplete comment materialization");
-        return {
-          kind: "commentCreate",
-          query: "mutation SyncViewMirrorComment($input: CommentCreateInput!) { commentCreate(input: $input) { success comment { id body url createdAt user { id name email } issue { id identifier updatedAt } } } }",
-          variables: { input: { issueId, body } },
-        };
-      }
-      const commentId = clean(payload.linear_comment_id || context.linear_comment_id);
-      if (!commentId || !clean(payload.body)) throw new Error("incomplete comment edit mutation");
-      return {
-        kind: "commentUpdate",
-        query: "mutation SyncViewMirrorCommentEdit($id: String!, $input: CommentUpdateInput!) { commentUpdate(id: $id, input: $input) { success comment { id body url createdAt updatedAt user { id name email } issue { id identifier updatedAt } } } }",
-        variables: { id: commentId, input: { body } },
-      };
-    }
-    if (action === "delete") {
-      const commentId = clean(payload.linear_comment_id || context.linear_comment_id);
-      if (!commentId) throw new Error("incomplete comment delete mutation");
-      return {
-        kind: "commentDelete",
-        query: "mutation SyncViewMirrorCommentDelete($id: String!) { commentDelete(id: $id) { success } }",
-        variables: { id: commentId },
-      };
-    }
-    if (action !== "add") throw new Error("unsupported comment lifecycle mutation");
     if (!issueId || !clean(payload.body)) throw new Error("incomplete comment mutation");
     return {
       kind: "commentCreate",
@@ -648,37 +480,6 @@ export function buildMutation(row, context = {}) {
 
   const issueId = clean(payload.linear_issue_id || context.linear_issue_id);
   if (!issueId) throw new Error("linear issue id required");
-  if (operation === "attachment") {
-    const url = canonicalAttachmentUrl(payload.url);
-    const revision = artifactRevision(payload.artifact_revision);
-    if (!url || !revision) throw new Error("valid attachment intent required");
-    const metadata = payload.metadata && typeof payload.metadata === "object"
-      && !Array.isArray(payload.metadata)
-      ? Object.fromEntries(Object.entries(payload.metadata)
-        .filter(([key, value]) =>
-          !!clean(key)
-          && key.length <= 100
-          && (typeof value === "string"
-            || typeof value === "number"
-            || typeof value === "boolean")
-        ))
-      : undefined;
-    const input = {
-      issueId,
-      url,
-      title: clean(payload.title) || "SyncView canonical Graphics deliverable",
-      subtitle: artifactRevisionSubtitle(revision),
-      metadata: {
-        ...(metadata && Object.keys(metadata).length ? metadata : {}),
-        syncviewArtifactRevision: revision,
-      },
-    };
-    return {
-      kind: "attachmentCreate",
-      query: "mutation SyncViewMirrorAttachment($input: AttachmentCreateInput!) { attachmentCreate(input: $input) { success attachment { id url title subtitle } } }",
-      variables: { input },
-    };
-  }
   if (operation === "archive") {
     return {
       kind: "issueArchive",
@@ -737,7 +538,6 @@ export function extractMutationResult(kind, data) {
   const result = data && data[kind];
   if (!result || result.success !== true) throw new Error(kind + " was not acknowledged");
   if (kind === "issueCreate" || kind === "issueUpdate") return result.issue || null;
-  if (kind === "commentCreate" || kind === "commentUpdate") return result.comment || null;
-  if (kind === "attachmentCreate") return result.attachment || null;
+  if (kind === "commentCreate") return result.comment || null;
   return { success: true };
 }

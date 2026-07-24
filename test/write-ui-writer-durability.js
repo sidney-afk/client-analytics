@@ -42,7 +42,6 @@ function extract(name) {
 const calls = [];
 let canonicalTestTarget = false;
 const context = {
-  _isClientLink: false,
   _calLinearPushChain: Object.create(null),
   _sxrLinearPushChain: Object.create(null),
   _writeUiNativeId: (post, comp) => String(post && post[comp === 'graphic' ? 'graphic_deliverable_id' : 'video_deliverable_id'] || ''),

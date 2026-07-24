@@ -87,14 +87,12 @@ const manifestCheck = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'e
   encoding: 'utf8',
 });
 const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.test(line));
-ok(manifestCheck.status === 0 && slugRows.length === 30,
-`generated deploy manifest is current and contains all 30 slugs (${(manifestCheck.stderr || '').trim()})`);
+ok(manifestCheck.status === 0 && slugRows.length === 29,
+`generated deploy manifest is current and contains all 29 slugs (${(manifestCheck.stderr || '').trim()})`);
 ok(/\| `client-review-link` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Live v2 deployed by operator on 2026-07-15\./.test(manifest),
 'client-review-link is explicitly recorded as the operator-deployed v2 deliberate-manual exception');
 ok(/\| `client-token-verify` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release\./.test(manifest),
 'client-token-verify pins the fail-closed provider-before-browser manual release order');
-ok(/\| `production-archive` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Source-only F34 protected archive reader/.test(manifest),
-'production-archive is explicitly source-only and owner-gated for its first manual release');
 ok(/\| `workload-linear` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Source-only Workload Linear metadata\/deadline gateway/.test(manifest),
 'workload-linear is explicitly recorded as a source-only deliberate-manual exception');
 

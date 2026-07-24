@@ -31,6 +31,7 @@ const {
   f200RepairRowState,
   requireSingleF200CasPatchRow,
 } = require('../scripts/linear-deliverables-reconcile');
+const { assertPrivateOutputPath } = require('../scripts/f200-attribution-live-snapshot');
 
 function ok(condition, message) {
   if (!condition) {
@@ -704,6 +705,11 @@ const liveSnapshotSource = fs.readFileSync(
 ok(/family_complete:\s*false/.test(liveSnapshotSource)
   && !/family_complete:\s*true/.test(liveSnapshotSource),
 'the private F200 sentinel snapshot fails closed rather than claiming a complete family graph');
+throws(
+  () => assertPrivateOutputPath(path.join(__dirname, '..', 'f200-live-snapshot.json')),
+  /outside every Git worktree/,
+  'the private F200 snapshot refuses a worktree output path',
+);
 
 const inboundSource = fs.readFileSync(
   path.join(__dirname, '..', 'supabase', 'functions', 'linear-inbound', 'index.ts'),

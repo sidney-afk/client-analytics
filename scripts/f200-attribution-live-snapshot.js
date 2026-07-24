@@ -12,12 +12,52 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const SUPA_URL = String(process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co').replace(/\/$/, '');
 const SUPA_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 const LINEAR_KEY = String(process.env.LINEAR_API_KEY || process.env.LINEAR_API_TOKEN || '');
 
 function clean(value) { return String(value == null ? '' : value).trim(); }
+
+function comparisonPath(value) {
+  const normalized = path.normalize(path.resolve(value));
+  const root = path.parse(normalized).root;
+  const trimmed = normalized.length > root.length ? normalized.replace(/[\\/]+$/, '') : normalized;
+  return process.platform === 'win32' ? trimmed.toLowerCase() : trimmed;
+}
+
+function pathInside(candidate, root) {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+}
+
+function registeredGitWorktrees() {
+  const result = spawnSync('git', ['-C', path.resolve(__dirname, '..'), 'worktree', 'list', '--porcelain', '-z'], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 15_000,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  if (result.error || result.status !== 0) throw new Error('could not verify Git worktree registry');
+  const worktrees = [...new Set(String(result.stdout || '').split('\0')
+    .filter(field => field.startsWith('worktree '))
+    .map(field => comparisonPath(field.slice('worktree '.length)))
+    .filter(Boolean))];
+  if (!worktrees.length) throw new Error('could not verify Git worktree registry');
+  return worktrees;
+}
+
+function assertPrivateOutputPath(value) {
+  if (!clean(value) || !path.isAbsolute(value)) {
+    throw new Error('--out must be an absolute private path outside every Git worktree');
+  }
+  const output = path.resolve(value);
+  if (registeredGitWorktrees().some(worktree => pathInside(comparisonPath(output), worktree))) {
+    throw new Error('--out must be outside every Git worktree');
+  }
+  return output;
+}
 
 function arg(name) {
   const prefix = `--${name}=`;
@@ -93,8 +133,7 @@ function by(values, key) {
 }
 
 async function main() {
-  const output = path.resolve(arg('out'));
-  if (!output) throw new Error('--out is required');
+  const output = assertPrivateOutputPath(arg('out'));
   const [deliverables, clients, allBatches, kasperDeliverables, kasperBatches, kasperCalendar, kasperSamples] = await Promise.all([
     supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,updated_at,linear_issue_uuid,linear_raw', 'client_slug=eq.unattributed'),
     supabaseRows('clients', 'slug,display_name,kind,active,linear_project_ids'),
@@ -140,7 +179,11 @@ async function main() {
   }));
 }
 
-main().catch(error => {
-  console.error(error && error.message ? error.message : String(error));
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch(error => {
+    console.error(error && error.message ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { assertPrivateOutputPath, registeredGitWorktrees };

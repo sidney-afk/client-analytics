@@ -20813,6 +20813,10 @@
                         _prodClearLayer();
                     }
                 } catch (e) {}
+                // The Production first-paint snapshot is an authorized-session
+                // copy; drop it on sign-out so the next paint cannot seed from a
+                // prior identity's cached clients/deliverables/authority.
+                if (typeof _prodCachePurge === 'function') _prodCachePurge();
                 // Archive asset repair holds cached archive comments and rescued
                 // private links. Clear it, invalidate its in-flight request
                 // tokens, and remove its overlay so no signed-out session keeps
@@ -41656,6 +41660,15 @@
                 return false;
             }
         }
+        // Drop the first-paint snapshot. It caches clients/members/batches/
+        // deliverables/authority from an authorized session; once staff sign out,
+        // an identity is invalidated, or a live read is refused (403) — which now
+        // happens whenever the reland's narrowed grants no longer authorize the
+        // reader — the cached copy is stale and must not seed the next paint.
+        function _prodCachePurge() {
+            try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
+            try { if (typeof _prodState !== 'undefined' && _prodState) _prodState.fromCache = false; } catch {}
+        }
         function _prodHydrateFromCache() {
             const cached = _prodCacheRead();
             if (!cached) return false;
@@ -47538,6 +47551,11 @@
                 setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
             } catch (e) {
                 _prodState.loading = false;
+                // A refused live read means the current session is no longer
+                // authorized for this data; drop the stale first-paint snapshot
+                // so it cannot seed a subsequent paint.
+                const status = Number(e && e.status);
+                if (status === 401 || status === 403) _prodCachePurge();
                 if (silent) {
                     console.warn('[Production] background refresh failed', e);
                     return;

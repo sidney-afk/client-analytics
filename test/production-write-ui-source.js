@@ -317,6 +317,10 @@ ok(/_prodState\.archiveRepair\.listRequestToken = Number\(_prodState\.archiveRep
 ok(/const verificationEpoch = _syncviewStaffVerificationEpoch;[\s\S]{0,900}verificationEpoch === _syncviewStaffVerificationEpoch/.test(extract('_prodArchiveLoadList'))
   && /const verificationEpoch = _syncviewStaffVerificationEpoch;[\s\S]{0,900}verificationEpoch === _syncviewStaffVerificationEpoch/.test(extract('_prodArchiveOpenIssue')),
 'archive list and detail responses are bound to the staff verification epoch so a sign-out mid-flight cannot render rescued private links');
+ok(/localStorage\.removeItem\(PROD_CACHE_KEY\)/.test(extract('_prodCachePurge'))
+  && /_prodCachePurge\(\)/.test(staffPurge)
+  && /status === 401 \|\| status === 403\) _prodCachePurge\(\)/.test(extract('_prodLoadData')),
+'the production first-paint cache is purged on staff sign-out and on a 401/403 live read (stale after the reland narrows grants)');
 ok(/label_selection_out_of_catalog/.test(createErrorText)
   && /assignee_mapping_unavailable/.test(createErrorText)
   && /create_parent_not_found/.test(createErrorText)

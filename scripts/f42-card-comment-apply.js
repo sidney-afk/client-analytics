@@ -194,6 +194,155 @@ async function applyPlan(plan, deps = {}) {
   };
 }
 
+// ---- Public-safe blocked-plan summary ---------------------------------------
+//
+// A blocked plan's conflict rows carry per-row evidence — card ids, native
+// comment ids, client slugs, composite identities, source fingerprints — that
+// must never reach a public Actions log. But an operator who cannot see WHY a
+// plan is blocked cannot fix it, and the full result document is runner-local
+// by design.
+//
+// The projection below is an ALLOWLIST, not a redaction pass: it reads only the
+// planner's own fixed enums (`classification`, `surface`, `reason`, and the
+// coverage field names) and emits those plus counts. Every other property on a
+// conflict row is dropped here and is structurally unable to reach the render.
+
+const PUBLIC_SURFACES = Object.freeze(['calendar', 'sxr']);
+
+function publicSurface(value) {
+  const surface = clean(value).toLowerCase();
+  return PUBLIC_SURFACES.includes(surface) ? surface : 'unspecified';
+}
+
+// `reason` is a hardcoded planner slug (e.g. unparseable_timestamp,
+// internal_reply_under_client_visible_root). `coverage_mismatch` carries no
+// reason but does carry `fields`, whose entries are coverage field names
+// (cards, comments.video, source_sha256) — enums, not data.
+function publicReason(conflict) {
+  const row = conflict && typeof conflict === 'object' ? conflict : {};
+  const reason = clean(row.reason);
+  if (reason) return reason;
+  if (Array.isArray(row.fields) && row.fields.length) {
+    return `fields:${row.fields.map(clean).filter(Boolean).sort().join(',')}`;
+  }
+  return 'unspecified';
+}
+
+function conflictBreakdown(plan) {
+  const doc = plan && typeof plan === 'object' ? plan : {};
+  const conflicts = Array.isArray(doc.conflicts) ? doc.conflicts : [];
+  const imports = Array.isArray(doc.imports) ? doc.imports : [];
+
+  const tally = new Map();
+  for (const conflict of conflicts) {
+    const classification = clean(conflict && conflict.classification) || 'unclassified';
+    const surface = publicSurface(conflict && conflict.surface);
+    const reason = publicReason(conflict);
+    const key = [classification, surface, reason].join('|');
+    const existing = tally.get(key);
+    if (existing) existing.count += 1;
+    else tally.set(key, { classification, surface, reason, count: 1 });
+  }
+
+  const plannedBySurface = Object.fromEntries(PUBLIC_SURFACES.map(surface => [surface, 0]));
+  for (const item of imports) {
+    const surface = publicSurface(item && item.link && item.link.source_surface);
+    if (Object.prototype.hasOwnProperty.call(plannedBySurface, surface)) plannedBySurface[surface] += 1;
+  }
+
+  const surfaces = doc.coverage && doc.coverage.surfaces && typeof doc.coverage.surfaces === 'object'
+    ? doc.coverage.surfaces
+    : {};
+  let sourceRows = 0;
+  for (const surface of PUBLIC_SURFACES) {
+    const actual = surfaces[surface] && surfaces[surface].actual;
+    const comments = actual && actual.comments && typeof actual.comments === 'object'
+      ? actual.comments
+      : {};
+    for (const value of Object.values(comments)) {
+      const count = Number(value);
+      if (Number.isFinite(count)) sourceRows += count;
+    }
+  }
+
+  return {
+    total_conflicts: conflicts.length,
+    planned_imports: imports.length,
+    planned_by_surface: plannedBySurface,
+    source_comment_rows: sourceRows,
+    // Raw source rows minus planned canonical imports. This covers BOTH rows
+    // the planner blocked AND the exact-duplicate aliases (a card shape that
+    // lists the same comment under `comments` and `video_comments`) that
+    // legitimately collapse into one canonical import.
+    excluded_rows: Math.max(0, sourceRows - imports.length),
+    by_classification: [...tally.values()].sort((a, b) =>
+      b.count - a.count
+      || a.classification.localeCompare(b.classification)
+      || a.surface.localeCompare(b.surface)
+      || a.reason.localeCompare(b.reason)),
+  };
+}
+
+// Render the step-summary markdown for a plan or apply result document. Only
+// counts, status/gate slugs, the apply digest, and the allowlisted conflict
+// enums are emitted — never receipts, identities, bodies, or slugs of clients.
+function renderPlanSummaryMarkdown(result) {
+  const doc = result && typeof result === 'object' ? result : {};
+  const isApply = !!(doc.verification && typeof doc.verification === 'object');
+  const status = clean(doc.status) || 'UNKNOWN';
+  const lines = [`## F42 import — ${isApply ? 'APPLY' : 'PLAN'}`, '', `- status: ${status}`];
+
+  if (isApply) {
+    const checks = doc.verification.checks && typeof doc.verification.checks === 'object'
+      ? doc.verification.checks
+      : {};
+    const mismatches = Array.isArray(doc.verification.mismatches) ? doc.verification.mismatches : [];
+    lines.push(`- applied: ${Number(doc.applied_count || 0)}`);
+    lines.push(`- apply digest: \`${clean(doc.apply_digest)}\``);
+    lines.push(`- planned / applied / distinct: ${Number(checks.expected_imports || 0)} / ${Number(checks.applied_count || 0)} / ${Number(checks.unique_comment_count || 0)}`);
+    lines.push(`- readback links / comments: ${Number(checks.card_link_count || 0)} / ${Number(checks.comment_count || 0)}`);
+    if (mismatches.length) {
+      lines.push(`- verification mismatches: ${mismatches.map(clean).filter(Boolean).sort().join(', ')}`);
+    }
+    lines.push('', 'Per-row receipts stay in the runner-local result document and are never uploaded.');
+    return `${lines.join('\n')}\n`;
+  }
+
+  const breakdown = doc.conflict_breakdown && typeof doc.conflict_breakdown === 'object'
+    ? doc.conflict_breakdown
+    : conflictBreakdown({});
+  const planned = breakdown.planned_by_surface && typeof breakdown.planned_by_surface === 'object'
+    ? breakdown.planned_by_surface
+    : {};
+  const reasons = Array.isArray(doc.reasons) ? doc.reasons.map(clean).filter(Boolean) : [];
+
+  lines.push(`- eligible: ${doc.eligible === true}`);
+  if (reasons.length) lines.push(`- blocking gates: ${reasons.sort().join(', ')}`);
+  lines.push(`- planned imports: ${Number(breakdown.planned_imports || 0)} `
+    + `(calendar ${Number(planned.calendar || 0)}, sxr ${Number(planned.sxr || 0)})`);
+  lines.push(`- source comment rows: ${Number(breakdown.source_comment_rows || 0)}`);
+  lines.push(`- excluded rows: ${Number(breakdown.excluded_rows || 0)} `
+    + '(blocked rows plus collapsed exact-duplicate aliases)');
+  lines.push(`- conflicts: ${Number(breakdown.total_conflicts || 0)}`);
+  lines.push(`- apply digest: \`${clean(doc.apply_digest)}\``);
+
+  const rows = Array.isArray(breakdown.by_classification) ? breakdown.by_classification : [];
+  if (rows.length) {
+    lines.push('', '### Blocking reasons (classification enums and counts only)', '',
+      '| Classification | Surface | Reason | Count |', '|---|---|---|---:|');
+    for (const row of rows) {
+      lines.push(`| \`${clean(row.classification)}\` | ${clean(row.surface)} | \`${clean(row.reason)}\` | ${Number(row.count || 0)} |`);
+    }
+    lines.push('', 'Per-row evidence (card/comment identities, client slugs, bodies) stays in the '
+      + 'runner-local result document and is never uploaded.');
+  }
+  if (status === 'READY') {
+    lines.push('', 'Re-run this workflow with mode=apply, the same import_run_id, '
+      + 'expected_apply_digest set to the digest above, and confirm=IMPORT_CARD_COMMENTS.');
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 // ---- Supabase PostgREST database layer (production default) -----------------
 
 async function supabaseRpc(config, name, body, fetchImpl) {
@@ -298,6 +447,12 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
       reasons: verdict.reasons,
       planned_imports: Array.isArray(plan.imports) ? plan.imports.length : 0,
       conflicts: Array.isArray(plan.conflicts) ? plan.conflicts.length : 0,
+      // Public-safe aggregate: classification/surface/reason enums plus counts.
+      // This is what a BLOCKED dispatch renders to the run summary, so an
+      // operator can see why the plan is blocked without any identifier
+      // reaching the log. The full conflict rows stay in this runner-local
+      // document only.
+      conflict_breakdown: conflictBreakdown(plan),
       coverage: plan.coverage,
     };
   }
@@ -336,12 +491,15 @@ module.exports = {
   BACKFILL_TAG,
   CONFIRM_ENV,
   CONFIRM_TOKEN,
+  PUBLIC_SURFACES,
   applyEligibility,
   applyImports,
   applyPlan,
   assertApplyEligible,
+  conflictBreakdown,
   derivePlan,
   planApplyDigest,
+  renderPlanSummaryMarkdown,
   run,
   supabaseDeps,
   verifyCounts,

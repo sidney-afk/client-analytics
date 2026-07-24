@@ -540,6 +540,9 @@ n8n in the metric read path.*
   descriptions use the authenticated `production-write` Edge Function. The browser supplies the
   native deliverable ID, a bounded idempotency key, and CAS for scalar changes; label changes submit
   the complete selected label-ID set, while descriptions preserve the exact Markdown source string.
+  Slice 3 candidate source adds exactly one other browser surface to this gateway:
+  `surface=workload` is valid only for `operation=due`, requires the native deliverable
+  `expected_updated_at`, and retains every existing authority/role/audit/outbox guard.
   Verified staff headers
   come from the shared role-key identity path. Browser controls are normally enabled only when the
   target team's authority is `syncview`; the active TEST fixture still exposes the pre-flip boundary,
@@ -568,6 +571,11 @@ n8n in the metric read path.*
   UTC day; no Production timezone contract reconciles them (F99). Mouse due choices/cells also
   discard the selected year, while keyboard Enter preserves it, and stored `MM/DD` cannot seed the
   correct picker month/selection (F100).
+  Slice 3 candidate source remedies those two date defects without changing deployed state:
+  canonical `YYYY-MM-DD` owns every due value, and all current-day/overdue behavior uses the existing
+  `America/Guatemala` policy day on demand with policy-midnight and return invalidation. Workload's
+  shared calendar control is explicitly policy-bound, so Today, highlighting, and the initial month
+  use that same day rather than the viewer's local date.
   The 2026-07-23 read-only full-day audit adds the remaining current gaps without changing runtime:
   72 of 4,600 mirror rows require complete roster-owned attribution or explicit internal/TEST
   classification (F200). F200 candidate source now removes Linear-derived client insertion, exposes
@@ -813,16 +821,27 @@ n8n in the metric read path.*
   the same global projection and never reads the sidecar through PostgREST.
   Candidate metadata source first reads exact per-team `prod_authority`. Bounded active issue-ID
   batches stay on `workload-linear` for Linear-authoritative teams; SyncView-authoritative IDs read
-  `deliverables.due_date` plus the complete native `linear_raw.issue.labels` relation directly.
+  `deliverables.due_date`, deliverable ID/`updated_at`, plus the complete native
+  `linear_raw.issue.labels` relation directly. Authority fingerprint, native deliverable CAS cursor,
+  and the base mirror `synced_at` watermark remain separate state components. Mixed-authority
+  partitions settle independently: a failed Linear read disables only its unproven routes and
+  cannot discard a complete native due/label snapshot; a failed native partition clears its own
+  retained foreign values rather than falling back.
   Missing, ambiguous, malformed, or incompletely paged native metadata fails closed and never falls
   back to Linear. This F201/F40 seam is staff-authenticated and source-only; Workload no longer
   reads `deliverables.priority`.
 - **Writes.** Workload no longer exposes or calls the former n8n `content-ready` client-email
   action; the button, modal, constant, and browser sender are absent. The app writes or clears one
   internal `plan_date` through `workload-plan`, keyed by the exact sub-issue id. It never writes Linear
-  `due_date`, and there is no n8n fallback. Candidate Admin/SMM users may separately update the
-  Linear deadline through `workload-linear`; Creative remains read-only. A confirmed Linear commit
-  is followed by a bounded best-effort update of the existing mirror row. Collapsed client-group drag reuses that same action as
+  `due_date`, and there is no n8n fallback. Candidate Admin/SMM due edits follow current metadata
+  authority: Linear-owned issues use `workload-linear`; SyncView-owned issues use the closed
+  `production-write` Workload/due operation with native ID and CAS. Creative remains read-only.
+  Immediately before a Linear mutation, `workload-linear` validates the target issue's team and
+  re-reads that team's exact current `prod_authority`; a stale pre-flip browser route fails with
+  `409 team_is_syncview_authoritative` rather than writing Linear after SyncView owns the team.
+  A confirmed Linear commit is followed by a bounded best-effort update of the existing mirror row;
+  an exact native receipt advances only the native cursor and converges the in-memory Production and
+  Workload projections without the inactive fast bridge. Collapsed client-group drag reuses that same action as
   sequential one-row writes; there is no batch action or new server route. Successful items remain
   moved, each failed item restores its prior plan value, and the browser emits one aggregate result.
 - **State.** `syncview_linearIssuesCache_v1` (5 min, both feeders), `syncview_workload_v2_off`
@@ -854,8 +873,10 @@ n8n in the metric read path.*
   reader; incomplete metadata never claims success. A plan write succeeds
   only when the function reports exactly one row actually written; any short count/error reverts
   the optimistic move and notifies instead of leaving a false local date.
-  A due write similarly requires an exact Linear issue/date acknowledgement; a pre-commit failure
-  reverts and notifies. After a confirmed Linear commit, a missed mirror update returns
+  A Linear due write requires the immediate current-authority guard plus an exact issue/date
+  acknowledgement; a native due write requires an exact native commit/authority/row/date/`updated_at`
+  receipt. A pre-commit failure, including a stale-route `409`, reverts and notifies; a native CAS
+  conflict adopts the current authoritative row and cursor. After a confirmed Linear commit, a missed mirror update returns
   `mirror_pending`, keeps the new date, and warns instead of fabricating a rollback.
   `editors-week` fail → error card, older week cache still usable. **F48:** the endpoint is
   unauthenticated and exposes confidential people/client/work metadata. Its issue connection pages
@@ -914,8 +935,8 @@ n8n in the metric read path.*
   proximity dot instead of rendering a duplicate endpoint. Due endpoints are display-only and
   excluded from capacity; the solid plan source is the only counted copy. Admin/SMM drag starts only from the dedicated six-dot handle
   on a plan group or expanded issue; the rest of the row remains clickable and non-draggable.
-  Shared popovers link to Linear, keep title-row proximity, and use one compact branded Linear
-  due-date row; any manual sub-issue exposes the automatic-plan reset. Tweaks retains its comment
+  Shared popovers link to Linear, keep title-row proximity, and use one compact authority-routed
+  branded due-date row; any manual sub-issue exposes the automatic-plan reset. Tweaks retains its comment
   layout. The plan migration, EF, and original plan-date browser behavior are
   live; the historical private TEST release drill proved save/reload/clear, pre-write `409` rollback,
   Creative `403` list/set under the 2026-07-20 deployment, and exact
@@ -929,8 +950,9 @@ n8n in the metric read path.*
   runtime flag, n8n path, shared writer, or frozen-writer mutation. #884's
   server-atomic batch contract remains open, and F147 retains the exact migration-correction
   provenance gap.
-- **Track B.** F40 is partially addressed only by F201's source-only due/label metadata seam:
-  flipped-team metadata reads native `deliverables` without a foreign round trip. The base issue set
+- **Track B.** F40 remains partially addressed: F201's source-only due/label metadata seam reads
+  flipped-team `deliverables` without a foreign round trip, and Slice 3 adds authority-routed native
+  due writes/local convergence with an independent native cursor. The base issue set
   still unconditionally comes from `workload_issues`/n8n with realtime off and Linear links. The
   broader adapter still needs `deliverables + batches + clients + team_members`, mixed-authority set
   composition, native links/realtime/catch-up, and an explicit sub-issue/top-level policy. B5 may

@@ -13033,9 +13033,11 @@
         parentById: new Map(),                     // parent issue lookup for rollup link-outs
         calendarByDate: new Map(),                 // effective work day -> planned sub-issues[]
         allActiveSubs: [],                         // all non-completed sub-issues for filter options
-        issueSnapshot: [],                         // last Linear-derived issue snapshot; due writes go only through workload-linear
+        issueSnapshot: [],                         // last feeder snapshot; due writes follow the current per-team authority map
         planByIssueId: new Map(),                  // stable Linear issue id -> explicit internal plan_date
         workloadByIssueId: new Map(),              // stable Linear issue id -> exact 2× / 3× Workload label metadata
+        dueAuthorityByIssueId: new Map(),           // stable Linear issue id -> current prod_authority fingerprint + team lane
+        nativeDueTargetByIssueId: new Map(),        // stable Linear issue id -> native deliverable id + independent updated_at CAS cursor
         linearMetadataStatus: 'loading',            // 'loading' | 'refreshing' | 'ready' | 'stale' | 'unknown'
         linearMetadataError: null,
         planHasSnapshot: false,                    // true only after one authoritative workload-plan list response
@@ -13391,6 +13393,9 @@
     const WL_PLAN_WRITE_TIMEOUT_MS = 10000;
     const WL_LINEAR_READ_TIMEOUT_MS = 20000;
     const WL_LINEAR_WRITE_TIMEOUT_MS = 12000;
+    const WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY = 'syncview_workload_native_due_receipt_v1';
+    const WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA = 'syncview.workload.native-due-receipt.v1';
+    const WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS = Object.freeze([250, 1000, 5000]);
     const _wlPlanWriteInFlight = new Map();
     const _wlDueWriteInFlight = new Map();
     const _wlPlanLastWriteGeneration = new Map();
@@ -13399,12 +13404,21 @@
     let _wlPlanLoadGeneration = 0;
     let _wlBackgroundRefreshPromise = null;
     let _wlBackgroundRefreshMode = null;
+    const _wlPendingNativeDueReceiptByTarget = new Map();
+    let _wlNativeDueReceiptRetryPromise = null;
+    let _wlNativeDueReceiptGeneration = 0;
+    let _wlNativeDueReceiptRetryTimer = null;
+    let _wlNativeDueReceiptRetryAttempt = 0;
 
     function wlPlanEditingEnabled() {
         return wlState.planStatus === 'ready' && _syncviewStaffCan('workload-plan');
     }
-    function wlLinearEditingEnabled() {
-        return wlState.linearMetadataStatus === 'ready' && _syncviewStaffCan('workload-linear');
+    function wlLinearEditingEnabled(issue) {
+        if (!_syncviewStaffCan('workload-linear')) return false;
+        // A mixed-authority refresh can prove one partition while the other is
+        // temporarily unavailable. Keep only rows with an exact current route
+        // editable instead of making native due writes depend on Linear health.
+        return issue ? !!wlDueWriteRoute(issue) : wlState.linearMetadataStatus === 'ready';
     }
 
     async function wlFetchPlanRows() {
@@ -13444,6 +13458,11 @@
         const graphics = String(value.graphics || '').trim().toLowerCase();
         if (!['linear', 'syncview'].includes(video) || !['linear', 'syncview'].includes(graphics)) return null;
         return { video, graphics };
+    }
+
+    function wlProductionAuthorityFingerprint(authority) {
+        const value = wlProductionAuthorityValue(authority);
+        return value ? `video:${value.video}|graphics:${value.graphics}` : '';
     }
 
     async function wlFetchProductionAuthority() {
@@ -13537,7 +13556,7 @@
         for (let index = 0; index < issueIds.length; index += 100) {
             const chunk = issueIds.slice(index, index + 100);
             const inFilter = '(' + chunk.map(issueId => JSON.stringify(issueId)).join(',') + ')';
-            const url = CAL_SUPABASE_URL + '/rest/v1/deliverables?select=linear_issue_uuid,due_date,linear_raw'
+            const url = CAL_SUPABASE_URL + '/rest/v1/deliverables?select=id,client_slug,team,linear_issue_uuid,due_date,updated_at,linear_raw'
                 + '&linear_issue_uuid=in.' + encodeURIComponent(inFilter)
                 + '&limit=' + String(chunk.length + 1);
             const response = await fetch(url, {
@@ -13564,6 +13583,13 @@
         }
         return issueIds.map(issueId => {
             const row = byIssueId.get(issueId);
+            const nativeId = String(row && row.id || '').trim();
+            const clientSlug = String(row && row.client_slug || '').trim();
+            const team = wlMetadataTeamBucket('', row && row.team);
+            const updatedAt = String(row && row.updated_at || '').trim();
+            if (!nativeId || !clientSlug || !team || !wlValidRfc3339Timestamp(updatedAt)) {
+                throw new Error('Native Workload due target is incomplete.');
+            }
             let raw = row && row.linear_raw;
             if (typeof raw === 'string') {
                 try { raw = JSON.parse(raw); } catch (error) { raw = null; }
@@ -13605,7 +13631,13 @@
             return {
                 issue_id: issueId,
                 due_date: wlNativeDueDate(row && row.due_date),
-                workload: wlNativeWorkloadLabel(relation.nodes)
+                workload: wlNativeWorkloadLabel(relation.nodes),
+                native_target: {
+                    id: nativeId,
+                    client_slug: clientSlug,
+                    team,
+                    updated_at: updatedAt
+                }
             };
         });
     }
@@ -13652,6 +13684,7 @@
         }
         const linearIds = [];
         const nativeIds = [];
+        const teamByIssueId = new Map();
         const seen = new Set();
         try {
             for (const issue of activeIssues) {
@@ -13660,6 +13693,7 @@
                 seen.add(issueId);
                 const team = wlMetadataTeamBucket(issue.teamKey, issue.teamName);
                 if (!team) throw new Error('Workload issue team authority is unavailable.');
+                teamByIssueId.set(issueId, team);
                 if (authority[team] === 'syncview') nativeIds.push(issueId);
                 else if (authority[team] === 'linear') linearIds.push(issueId);
                 else throw new Error('Workload issue team authority is unavailable.');
@@ -13667,32 +13701,114 @@
         } catch (error) {
             throw wlMetadataFailure(error, activeIds);
         }
-        let linearRows = [];
-        let nativeRows = [];
-        try {
-            [linearRows, nativeRows] = await Promise.all([
-                wlFetchForeignLinearMetadata(linearIds),
-                wlFetchNativeMetadata(nativeIds)
-            ]);
-        } catch (error) {
-            // There is no per-row provenance record for a retained weight or
-            // due date. If the now-native partition cannot complete, clear it
-            // rather than carrying forward a value learned from the feeder.
-            throw wlMetadataFailure(error, nativeIds);
-        }
+        const [linearResult, nativeResult] = await Promise.allSettled([
+            wlFetchForeignLinearMetadata(linearIds),
+            wlFetchNativeMetadata(nativeIds)
+        ]);
         if (sessionGeneration !== _wlPlanSessionGeneration) {
-            throw wlMetadataFailure(new Error('staff_session_changed'), nativeIds);
+            throw wlMetadataFailure(new Error('staff_session_changed'), activeIds);
         }
-        return linearRows.concat(nativeRows);
+        const authorityFingerprint = wlProductionAuthorityFingerprint(authority);
+        const tag = (row, dueAuthority) => {
+            const issueId = String(row && row.issue_id || '').trim();
+            const team = teamByIssueId.get(issueId) || '';
+            if (!issueId || !team || authority[team] !== dueAuthority) {
+                throw new Error('Workload due authority metadata is inconsistent.');
+            }
+            return {
+                ...row,
+                due_authority: dueAuthority,
+                due_authority_team: team,
+                due_authority_fingerprint: authorityFingerprint
+            };
+        };
+        const partitions = [
+            { authority: 'linear', ids: linearIds, result: linearResult },
+            { authority: 'syncview', ids: nativeIds, result: nativeResult }
+        ];
+        const rows = [];
+        const failures = [];
+        for (const partition of partitions) {
+            if (!partition.ids.length) continue;
+            if (partition.result.status === 'rejected') {
+                failures.push({ ...partition, error: partition.result.reason });
+                continue;
+            }
+            try {
+                rows.push(...partition.result.value.map(row => tag(row, partition.authority)));
+            } catch (error) {
+                failures.push({ ...partition, error });
+            }
+        }
+        const authFailure = failures.find(failure =>
+            Number(failure.error && failure.error.status) === 401
+            || Number(failure.error && failure.error.status) === 403);
+        if (authFailure) throw wlMetadataFailure(authFailure.error, activeIds);
+        if (failures.length && !rows.length) {
+            throw wlMetadataFailure(failures[0].error, failures.flatMap(failure => failure.ids));
+        }
+        if (failures.length) {
+            Object.defineProperty(rows, 'partialFailure', {
+                configurable: true,
+                value: {
+                    message: 'Some Workload due metadata is temporarily unavailable.',
+                    issueIds: failures.flatMap(failure => failure.ids),
+                    nativeIssueIds: failures
+                        .filter(failure => failure.authority === 'syncview')
+                        .flatMap(failure => failure.ids)
+                }
+            });
+        }
+        return rows;
     }
 
     function wlAdoptLinearMetadata(rows, issues, fetchedAt, options) {
         const next = new Map();
+        const nextDueAuthority = new Map();
+        const nextNativeDueTarget = new Map();
         const issueById = new Map((issues || []).map(issue => [String(issue && issue.id || ''), issue]));
+        const partialFailure = rows && rows.partialFailure;
+        const failedNativeIds = new Set((partialFailure && partialFailure.nativeIssueIds || [])
+            .map(issueId => String(issueId || '').trim())
+            .filter(Boolean));
+        for (const issueId of failedNativeIds) {
+            const issue = issueById.get(issueId);
+            if (issue) issue.dueDate = null;
+        }
         for (const row of rows || []) {
             const issueId = String(row && row.issue_id || '').trim();
             if (!issueId) continue;
             const issue = issueById.get(issueId);
+            if (!issue) continue;
+            const team = wlMetadataTeamBucket(issue.teamKey, issue.teamName);
+            const dueAuthority = String(row && row.due_authority || '').trim().toLowerCase();
+            const authorityTeam = String(row && row.due_authority_team || '').trim().toLowerCase();
+            const authorityFingerprint = String(row && row.due_authority_fingerprint || '').trim();
+            if (!team || authorityTeam !== team || !['linear', 'syncview'].includes(dueAuthority)
+                || !authorityFingerprint) {
+                throw new Error('Workload due authority metadata is incomplete.');
+            }
+            nextDueAuthority.set(issueId, {
+                authority: dueAuthority,
+                team,
+                fingerprint: authorityFingerprint
+            });
+            if (dueAuthority === 'syncview') {
+                const target = row && row.native_target;
+                const nativeId = String(target && target.id || '').trim();
+                const clientSlug = String(target && target.client_slug || '').trim();
+                const nativeTeam = String(target && target.team || '').trim().toLowerCase();
+                const updatedAt = String(target && target.updated_at || '').trim();
+                if (!nativeId || !clientSlug || nativeTeam !== team || !wlValidRfc3339Timestamp(updatedAt)) {
+                    throw new Error('Native Workload due target is incomplete.');
+                }
+                nextNativeDueTarget.set(issueId, {
+                    id: nativeId,
+                    clientSlug,
+                    team,
+                    updatedAt
+                });
+            }
             if (issue) issue.dueDate = row.due_date ? String(row.due_date).slice(0, 10) : null;
             const workload = row && row.workload;
             const weight = Number(workload && workload.weight);
@@ -13705,8 +13821,10 @@
             }
         }
         wlState.workloadByIssueId = next;
-        wlState.linearMetadataStatus = 'ready';
-        wlState.linearMetadataError = null;
+        wlState.dueAuthorityByIssueId = nextDueAuthority;
+        wlState.nativeDueTargetByIssueId = nextNativeDueTarget;
+        wlState.linearMetadataStatus = partialFailure ? 'stale' : 'ready';
+        wlState.linearMetadataError = partialFailure ? partialFailure.message : null;
         if (Array.isArray(issues) && !(options && options.skipIssueCacheWrite)) {
             wlWriteCache({ issues, fetchedAt: fetchedAt || Date.now() });
         }
@@ -13721,6 +13839,8 @@
         let changed = false;
         for (const issueId of issueIds) {
             if (wlState.workloadByIssueId.delete(issueId)) changed = true;
+            if (wlState.dueAuthorityByIssueId && wlState.dueAuthorityByIssueId.delete(issueId)) changed = true;
+            if (wlState.nativeDueTargetByIssueId && wlState.nativeDueTargetByIssueId.delete(issueId)) changed = true;
         }
         const seenRows = new Set();
         for (const rows of [issues, wlState.issueSnapshot, wlState.allActiveSubs]) {
@@ -13739,7 +13859,11 @@
         const sanitized = wlSanitizeFailedNativeMetadata(error, issues);
         const status = Number(error && error.status) || 0;
         if (status === 401) _syncviewStaffIdentityClear();
-        if (status === 403) wlState.workloadByIssueId.clear();
+        if (status === 403) {
+            wlState.workloadByIssueId.clear();
+            if (wlState.dueAuthorityByIssueId) wlState.dueAuthorityByIssueId.clear();
+            if (wlState.nativeDueTargetByIssueId) wlState.nativeDueTargetByIssueId.clear();
+        }
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'stale' : 'unknown';
         wlState.linearMetadataError = (error && error.message) || 'Workload labels could not be loaded.';
         return sanitized;
@@ -13803,12 +13927,20 @@
         _wlPlanWriteGeneration = 0;
         _wlBackgroundRefreshPromise = null;
         _wlBackgroundRefreshMode = null;
+        _wlPendingNativeDueReceiptByTarget.clear();
+        _wlNativeDueReceiptRetryPromise = null;
+        _wlNativeDueReceiptGeneration = 0;
+        if (_wlNativeDueReceiptRetryTimer !== null) clearTimeout(_wlNativeDueReceiptRetryTimer);
+        _wlNativeDueReceiptRetryTimer = null;
+        _wlNativeDueReceiptRetryAttempt = 0;
         wlState.planByIssueId.clear();
         wlState.planHasSnapshot = false;
         wlState.planStatus = 'unknown';
         wlState.planError = 'Staff sign-in is required to load saved work days.';
         wlState.planFetchedAt = null;
         wlState.workloadByIssueId.clear();
+        if (wlState.dueAuthorityByIssueId) wlState.dueAuthorityByIssueId.clear();
+        if (wlState.nativeDueTargetByIssueId) wlState.nativeDueTargetByIssueId.clear();
         wlState.linearMetadataStatus = 'unknown';
         wlState.linearMetadataError = 'Staff sign-in is required to load Workload labels.';
         wlState.backgroundError = null;
@@ -13992,7 +14124,7 @@
             ? 'Manual plan: stays on this work day until someone changes or clears it.'
             : (mode === 'fallback'
                 ? 'Deadline fallback: no plan day is saved, so this uses the due date.'
-                : 'Automatic plan: follows the Linear due date and moves when that deadline changes.');
+                : 'Automatic plan: follows the authoritative due date and moves when that deadline changes.');
         return `<span class="wl-plan-origin is-${wlEscape(mode)}" role="img" aria-label="${wlEscape(accessible)}" data-tip="${wlEscape(tip)}">${icon}${amount}</span>`;
     }
     function wlGroupPlacementMode(subs) {
@@ -14533,6 +14665,7 @@
             wlState.loading = false;
             wlState.refreshing = false;
             renderWorkloadAll();
+            wlScheduleNativeDueReceiptRetry();
             wlWireToolbar();
             wlWireClientSearch();
             _wlV2EnsureSubscribed();
@@ -14577,6 +14710,7 @@
             if (!cache) wlState.error = e.message || 'Failed to load issues from Linear.';
         } finally {
             wlState.loading = false;
+            wlScheduleNativeDueReceiptRetry();
             renderWorkloadAll({ deferWhilePopoverOpen: true });
             // If the user already opened the client-search dropdown while we
             // were fetching, drop the "Loading workload…" row now that data
@@ -14711,8 +14845,18 @@
             if (_wlBackgroundRefreshPromise === pending) {
                 _wlBackgroundRefreshPromise = null;
                 _wlBackgroundRefreshMode = null;
+                if (!_wlNativeDueReceiptRetryPromise) wlScheduleNativeDueReceiptRetry();
             }
         }
+    }
+
+    async function wlQueueSensitiveAuthorityRefresh(expectedSessionGeneration) {
+        const incumbent = _wlBackgroundRefreshPromise;
+        if (incumbent) {
+            try { await incumbent; } catch (error) {}
+        }
+        if (expectedSessionGeneration !== _wlPlanSessionGeneration) return false;
+        return wlRefetchSilent({ sensitiveOnly: true });
     }
 
     async function wlRefreshSensitiveStateSilent() {
@@ -14739,7 +14883,7 @@
     // Manual refresh — toolbar ↻ button. This explicit action intentionally
     // keeps the direct no-cache Linear path and the calendar skeleton.
     async function wlManualRefresh() {
-        if (!document.querySelector('.workload-view') || wlState.refreshing) return;
+        if (!document.querySelector('.workload-view') || wlState.refreshing || _wlDueWriteInFlight.size) return;
         const priorWatermark = wlState.sourceSyncedAt;
         const shouldRebaseMirror = _wlV2Ready();
         if (shouldRebaseMirror) wlState.sourceSyncedAt = null;
@@ -14760,6 +14904,7 @@
             wlState.error = err.message || 'Refresh failed.';
         } finally {
             wlState.refreshing = false;
+            wlScheduleNativeDueReceiptRetry();
             wlSpinnerOff();
             renderWorkloadAll();
         }
@@ -14773,6 +14918,10 @@
     if (typeof document !== 'undefined' && !window.__wlVisibilityWired) {
         window.__wlVisibilityWired = true;
         document.addEventListener('visibilitychange', _wlOnVisibilityChange);
+    }
+    if (typeof window !== 'undefined' && !window.__wlNativeDueReceiptWired) {
+        window.__wlNativeDueReceiptWired = true;
+        window.addEventListener('storage', _wlOnNativeDueReceiptStorage);
     }
 
     // Debug helper — run  wlDebug()  in the browser console while on the Workload tab.
@@ -15028,11 +15177,318 @@
         }
     }
 
-    async function _wlDueWriteRequest(issue, dueDate) {
+    function wlDueWriteRoute(issue) {
+        const issueId = String(issue && issue.id || '').trim();
+        const team = wlMetadataTeamBucket(issue && issue.teamKey, issue && issue.teamName);
+        const authority = wlState.dueAuthorityByIssueId && wlState.dueAuthorityByIssueId.get(issueId);
+        if (!issueId || !team || !authority || authority.team !== team
+            || !authority.fingerprint || !['linear', 'syncview'].includes(authority.authority)) {
+            return null;
+        }
+        if (authority.authority === 'linear') {
+            return {
+                authority: 'linear',
+                team,
+                authorityFingerprint: authority.fingerprint
+            };
+        }
+        const target = wlState.nativeDueTargetByIssueId && wlState.nativeDueTargetByIssueId.get(issueId);
+        if (!target || !target.id || !target.clientSlug || target.team !== team || !target.updatedAt
+            || wlNormalizeClient(target.clientSlug) !== wlNormalizeClient(issue && issue.clientName)
+            || !wlValidRfc3339Timestamp(target.updatedAt)) {
+            return null;
+        }
+        return {
+            authority: 'syncview',
+            team,
+            authorityFingerprint: authority.fingerprint,
+            nativeId: target.id,
+            nativeClientSlug: target.clientSlug,
+            nativeUpdatedAt: target.updatedAt
+        };
+    }
+
+    function wlDueWriteRequestId(issueId) {
+        let entropy = '';
+        try {
+            entropy = globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+                ? globalThis.crypto.randomUUID()
+                : '';
+        } catch (error) {}
+        if (!entropy) entropy = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        return 'workload:due:' + String(issueId || 'issue') + ':' + entropy;
+    }
+
+    function wlAdoptNativeDueGatewayRow(row) {
+        const nativeId = String(row && row.id || '').trim();
+        const updatedAt = String(row && row.updated_at || '').trim();
+        if (!nativeId || !wlValidRfc3339Timestamp(updatedAt)
+            || !Object.prototype.hasOwnProperty.call(row || {}, 'due_date')) return false;
+        let dueDate = null;
+        try { dueDate = wlNativeDueDate(row.due_date); }
+        catch (error) { return false; }
+        const targets = wlState.nativeDueTargetByIssueId;
+        if (!targets || typeof targets.entries !== 'function') return false;
+        for (const [issueId, target] of targets.entries()) {
+            if (!target || String(target.id || '') !== nativeId) continue;
+            const authority = wlState.dueAuthorityByIssueId && wlState.dueAuthorityByIssueId.get(issueId);
+            const rowTeam = wlMetadataTeamBucket('', row && row.team);
+            const rowClient = String(row && row.client_slug || '').trim();
+            if (!authority || authority.authority !== 'syncview' || authority.team !== target.team
+                || (rowTeam && rowTeam !== target.team)
+                || (rowClient && target.clientSlug && rowClient !== target.clientSlug)) return false;
+            targets.set(issueId, { ...target, updatedAt });
+            const issue = (wlState.issueSnapshot || []).find(value => String(value && value.id || '') === String(issueId));
+            const currentDue = issue && issue.dueDate ? String(issue.dueDate).slice(0, 10) : null;
+            if (currentDue !== dueDate) {
+                wlApplyDueLocal(issueId, dueDate);
+                if (document.querySelector('.workload-view')) renderWorkloadAll();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    function wlPublishNativeDueReceipt(row) {
+        const nativeId = String(row && row.id || '').trim();
+        const clientSlug = String(row && row.client_slug || '').trim();
+        const team = wlMetadataTeamBucket('', row && row.team);
+        const updatedAt = String(row && row.updated_at || '').trim();
+        if (!nativeId || !clientSlug || !team || !wlValidRfc3339Timestamp(updatedAt)
+            || !Object.prototype.hasOwnProperty.call(row || {}, 'due_date')) return false;
+        let dueDate = null;
+        try { dueDate = wlNativeDueDate(row.due_date); }
+        catch (error) { return false; }
+        const payload = JSON.stringify({
+            schema: WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA,
+            native_committed: true,
+            authority: 'syncview',
+            nonce: wlDueWriteRequestId(nativeId),
+            row: {
+                id: nativeId,
+                client_slug: clientSlug,
+                team,
+                due_date: dueDate,
+                updated_at: updatedAt
+            }
+        });
+        try {
+            // `storage` reaches sibling documents but not this writer. Remove the
+            // checkpoint immediately: the exact gateway row is a refetch signal,
+            // not a second browser-owned source of due truth.
+            localStorage.setItem(WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY, payload);
+            localStorage.removeItem(WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY);
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function wlParseNativeDueReceipt(value) {
+        try {
+            const receipt = JSON.parse(value);
+            const row = receipt && receipt.row;
+            const nativeId = String(row && row.id || '').trim();
+            const clientSlug = String(row && row.client_slug || '').trim();
+            const team = wlMetadataTeamBucket('', row && row.team);
+            const updatedAt = String(row && row.updated_at || '').trim();
+            if (!receipt || receipt.schema !== WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA
+                || receipt.native_committed !== true || receipt.authority !== 'syncview'
+                || !String(receipt.nonce || '').trim() || !nativeId || !clientSlug || !team
+                || !wlValidRfc3339Timestamp(updatedAt)
+                || !Object.prototype.hasOwnProperty.call(row || {}, 'due_date')) return null;
+            const dueDate = wlNativeDueDate(row.due_date);
+            if (dueDate !== row.due_date) return null;
+            return {
+                sessionGeneration: _wlPlanSessionGeneration,
+                nonce: String(receipt.nonce),
+                row: {
+                    id: nativeId,
+                    client_slug: clientSlug,
+                    team,
+                    due_date: dueDate,
+                    updated_at: updatedAt
+                }
+            };
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function wlNativeDueReceiptDisposition(receipt) {
+        const row = receipt && receipt.row;
+        const targetEntry = [...(wlState.nativeDueTargetByIssueId || new Map()).entries()]
+            .find(([, target]) => target && String(target.id || '') === row.id
+                && String(target.clientSlug || '') === row.client_slug && target.team === row.team);
+        if (!targetEntry) return wlState.linearMetadataStatus === 'ready' ? 'discard' : 'wait';
+        const [issueId, target] = targetEntry;
+        const authority = wlState.dueAuthorityByIssueId && wlState.dueAuthorityByIssueId.get(issueId);
+        if (!authority) return wlState.linearMetadataStatus === 'ready' ? 'discard' : 'wait';
+        if (authority.authority !== 'syncview' || authority.team !== row.team) return 'discard';
+        const targetUpdatedAt = String(target.updatedAt || '');
+        if (!wlValidRfc3339Timestamp(targetUpdatedAt)) {
+            return wlState.linearMetadataStatus === 'ready' ? 'discard' : 'wait';
+        }
+        const issue = (wlState.issueSnapshot || [])
+            .find(value => String(value && value.id || '') === String(issueId));
+        const currentDue = issue && issue.dueDate ? String(issue.dueDate).slice(0, 10) : null;
+        if (targetUpdatedAt === row.updated_at && currentDue === row.due_date) return 'consumed';
+        if (Date.parse(targetUpdatedAt) > Date.parse(row.updated_at)) return 'consumed';
+        return 'refresh';
+    }
+
+    async function wlRetryPendingNativeDueReceipts() {
+        if (_wlNativeDueReceiptRetryPromise) return _wlNativeDueReceiptRetryPromise;
+        const retryGeneration = _wlNativeDueReceiptGeneration;
+        let attemptedRefresh = false;
+        const run = async () => {
+            if (!_wlPendingNativeDueReceiptByTarget.size
+                || !document.querySelector('.workload-view')
+                || !_syncviewStaffIdentityForHeaders()) return false;
+            if (wlState.loading || wlState.refreshing
+                || wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing'
+                || wlState.linearMetadataStatus === 'loading' || wlState.linearMetadataStatus === 'refreshing'
+                || _wlPlanWriteInFlight.size || _wlDueWriteInFlight.size || _wlBackgroundRefreshPromise) {
+                return false;
+            }
+            let needsRefresh = false;
+            for (const [key, receipt] of _wlPendingNativeDueReceiptByTarget) {
+                if (!receipt || receipt.sessionGeneration !== _wlPlanSessionGeneration) {
+                    _wlPendingNativeDueReceiptByTarget.delete(key);
+                    continue;
+                }
+                const disposition = wlNativeDueReceiptDisposition(receipt);
+                if (disposition === 'consumed' || disposition === 'discard') {
+                    _wlPendingNativeDueReceiptByTarget.delete(key);
+                } else {
+                    needsRefresh = true;
+                }
+            }
+            if (!needsRefresh || wlState.fetchedAt == null) return false;
+            const sessionGeneration = _wlPlanSessionGeneration;
+            attemptedRefresh = true;
+            const refreshed = await wlRefetchSilent({ sensitiveOnly: true });
+            if (refreshed !== true || sessionGeneration !== _wlPlanSessionGeneration) return false;
+            for (const [key, receipt] of _wlPendingNativeDueReceiptByTarget) {
+                if (!receipt || receipt.sessionGeneration !== _wlPlanSessionGeneration) {
+                    _wlPendingNativeDueReceiptByTarget.delete(key);
+                    continue;
+                }
+                const disposition = wlNativeDueReceiptDisposition(receipt);
+                if (disposition === 'consumed' || disposition === 'discard') {
+                    _wlPendingNativeDueReceiptByTarget.delete(key);
+                }
+            }
+            return true;
+        };
+        const pending = run();
+        _wlNativeDueReceiptRetryPromise = pending;
+        try { return await pending; }
+        finally {
+            if (_wlNativeDueReceiptRetryPromise === pending) {
+                _wlNativeDueReceiptRetryPromise = null;
+                if (_wlPendingNativeDueReceiptByTarget.size
+                    && _wlNativeDueReceiptGeneration !== retryGeneration) {
+                    wlScheduleNativeDueReceiptRetry();
+                } else if (_wlPendingNativeDueReceiptByTarget.size && attemptedRefresh) {
+                    wlScheduleNativeDueReceiptRetryLater();
+                } else if (!_wlPendingNativeDueReceiptByTarget.size) {
+                    wlCancelNativeDueReceiptRetryTimer(true);
+                }
+            }
+        }
+    }
+
+    function wlCancelNativeDueReceiptRetryTimer(resetAttempt) {
+        if (_wlNativeDueReceiptRetryTimer !== null) clearTimeout(_wlNativeDueReceiptRetryTimer);
+        _wlNativeDueReceiptRetryTimer = null;
+        if (resetAttempt) _wlNativeDueReceiptRetryAttempt = 0;
+    }
+
+    function wlScheduleNativeDueReceiptRetryLater() {
+        if (!_wlPendingNativeDueReceiptByTarget.size || _wlNativeDueReceiptRetryTimer !== null
+            || _wlNativeDueReceiptRetryAttempt >= WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS.length) return false;
+        const sessionGeneration = _wlPlanSessionGeneration;
+        const receiptGeneration = _wlNativeDueReceiptGeneration;
+        const delay = WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS[_wlNativeDueReceiptRetryAttempt++];
+        _wlNativeDueReceiptRetryTimer = setTimeout(() => {
+            _wlNativeDueReceiptRetryTimer = null;
+            if (sessionGeneration !== _wlPlanSessionGeneration
+                || receiptGeneration !== _wlNativeDueReceiptGeneration
+                || !_wlPendingNativeDueReceiptByTarget.size) return;
+            wlScheduleNativeDueReceiptRetry();
+        }, delay);
+        return true;
+    }
+
+    function wlScheduleNativeDueReceiptRetry() {
+        if (!_wlPendingNativeDueReceiptByTarget.size) return false;
+        try {
+            wlCancelNativeDueReceiptRetryTimer(false);
+            const pending = wlRetryPendingNativeDueReceipts();
+            if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async function _wlOnNativeDueReceiptStorage(event) {
+        try {
+            if (!event || event.key !== WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY || !event.newValue) return false;
+            if (event.storageArea && event.storageArea !== localStorage) return false;
+            if (!_syncviewStaffIdentityForHeaders()) return false;
+            const receipt = wlParseNativeDueReceipt(event.newValue);
+            if (!receipt) return false;
+            const row = receipt.row;
+            const key = [row.id, row.client_slug, row.team].join('\u0000');
+            const current = _wlPendingNativeDueReceiptByTarget.get(key);
+            if (!current && _wlPendingNativeDueReceiptByTarget.size >= 100) return false;
+            if (!current || Date.parse(current.row.updated_at) < Date.parse(row.updated_at)) {
+                _wlPendingNativeDueReceiptByTarget.set(key, receipt);
+                _wlNativeDueReceiptGeneration++;
+                wlCancelNativeDueReceiptRetryTimer(true);
+            } else {
+                wlCancelNativeDueReceiptRetryTimer(false);
+            }
+            // Native writes do not advance workload_issues.synced_at. Keep the
+            // exact receipt in memory until a guarded sensitive read observes its
+            // due value/CAS cursor (or a newer cursor), including across a cold
+            // hydrate, an older refresh, or an in-flight plan/due save.
+            return await wlRetryPendingNativeDueReceipts();
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async function _wlDueWriteRequest(issue, dueDate, route) {
         await _syncviewRequireStaffIdentity('workload-linear');
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), WL_LINEAR_WRITE_TIMEOUT_MS);
         try {
+            if (route && route.authority === 'syncview') {
+                return await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    signal: controller.signal,
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify({
+                        operation: 'due',
+                        surface: 'workload',
+                        entity: 'deliverable',
+                        id: route.nativeId,
+                        request_id: wlDueWriteRequestId(issue && issue.id),
+                        source_edited_at: new Date().toISOString(),
+                        expected_updated_at: route.nativeUpdatedAt,
+                        due_date: dueDate || ''
+                    })
+                });
+            }
             return await fetch(WORKLOAD_LINEAR_URL, {
                 method: 'POST',
                 cache: 'no-store',
@@ -15054,16 +15510,28 @@
         const key = String(issueId || '');
         const issue = (wlState.allActiveSubs || []).find(row => String(row.id || '') === key);
         if (!issue || wlIsTweaksNeeded(issue)) return false;
-        if (!wlLinearEditingEnabled()) {
+        if (!wlLinearEditingEnabled(issue)) {
             if (typeof showNotify === 'function') {
-                showNotify('Linear due-date editing unavailable', 'Workload labels are not current. Refresh and try again.');
+                showNotify('Due-date editing unavailable', 'Workload labels are not current. Refresh and try again.');
             }
             renderWorkloadAll();
             return false;
         }
         if (_wlDueWriteInFlight.has(key)) return false;
         const dueDate = value == null || value === '' ? null : String(value).slice(0, 10);
-        if (dueDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return false;
+        try {
+            if (dueDate !== null) wlNativeDueDate(dueDate);
+        } catch (error) {
+            return false;
+        }
+        const route = wlDueWriteRoute(issue);
+        if (!route) {
+            if (typeof showNotify === 'function') {
+                showNotify('Due-date editing unavailable', 'The current write authority could not be verified. Refresh and try again.');
+            }
+            renderWorkloadAll();
+            return false;
+        }
         const previousDate = String(issue.dueDate || '').slice(0, 10) || null;
         if (dueDate === previousDate) return true;
 
@@ -15077,10 +15545,41 @@
         wlApplyDueLocal(key, dueDate);
         renderWorkloadAll();
         try {
-            const resp = await _wlDueWriteRequest(issue, dueDate);
+            const resp = await _wlDueWriteRequest(issue, dueDate, route);
             if (sessionGeneration !== _wlPlanSessionGeneration) return false;
             let json = null;
             try { json = await resp.json(); } catch (error) {}
+            if (route.authority === 'syncview') {
+                const row = json && json.row;
+                const exactNativeAck = resp.ok && json && json.ok === true
+                    && json.native_committed === true
+                    && json.authority === 'syncview'
+                    && row && String(row.id || '') === String(route.nativeId)
+                    && Object.prototype.hasOwnProperty.call(row, 'due_date')
+                    && row.due_date === dueDate
+                    && wlValidRfc3339Timestamp(row.updated_at);
+                if (exactNativeAck) {
+                    if (!wlAdoptNativeDueGatewayRow(row)) throw new Error('native_due_receipt_mismatch');
+                    wlPublishNativeDueReceipt(row);
+                    if (typeof _prodApplyGatewayRow === 'function') _prodApplyGatewayRow(row);
+                    return true;
+                }
+                const adoptedConflict = resp.status === 409 && json && json.error === 'write_conflict'
+                    && row && String(row.id || '') === String(route.nativeId)
+                    && wlAdoptNativeDueGatewayRow(row);
+                if (adoptedConflict) {
+                    wlPublishNativeDueReceipt(row);
+                    if (typeof _prodApplyGatewayRow === 'function') _prodApplyGatewayRow(row);
+                    if (typeof showNotify === 'function') {
+                        showNotify('Due date changed elsewhere', 'The current native due date was reloaded. Review it and try again.');
+                    }
+                    return false;
+                }
+                const error = new Error((json && json.error) || ('HTTP ' + resp.status));
+                error.status = resp.status;
+                error.code = json && json.error;
+                throw error;
+            }
             const hasDueDateReceipt = !!json && Object.prototype.hasOwnProperty.call(json, 'due_date');
             const acknowledgedDate = hasDueDateReceipt && json.due_date === null ? null : json && json.due_date;
             const mirrorUpdated = json && json.mirror_updated;
@@ -15099,6 +15598,7 @@
             if (!exactAck) {
                 const error = new Error((json && json.error) || ('HTTP ' + resp.status));
                 error.status = resp.status;
+                error.code = json && json.error;
                 throw error;
             }
             wlApplyDueLocal(key, acknowledgedDate);
@@ -15109,14 +15609,36 @@
         } catch (error) {
             if (sessionGeneration !== _wlPlanSessionGeneration) return false;
             wlApplyDueLocal(key, previousDate);
+            const authorityErrorCode = String(error && error.code || '');
+            const authorityStale = authorityErrorCode === 'authority_unavailable'
+                || (route.authority === 'linear' && authorityErrorCode === 'team_is_syncview_authoritative')
+                || (route.authority === 'syncview' && authorityErrorCode === 'team_is_linear_authoritative');
+            if (authorityStale) {
+                if (wlState.dueAuthorityByIssueId) wlState.dueAuthorityByIssueId.delete(key);
+                if (wlState.nativeDueTargetByIssueId) wlState.nativeDueTargetByIssueId.delete(key);
+                wlState.linearMetadataStatus = 'stale';
+                wlState.linearMetadataError = 'Due-date authority changed. Workload is refreshing its write route.';
+                setTimeout(() => {
+                    try {
+                        const refresh = wlQueueSensitiveAuthorityRefresh(sessionGeneration);
+                        if (refresh && typeof refresh.catch === 'function') refresh.catch(() => {});
+                    } catch (refreshError) {}
+                }, 0);
+            }
             if (Number(error && error.status) === 401) _syncviewStaffIdentityClear();
             if (Number(error && error.status) === 403) wlPurgePlanSensitiveState();
             if (typeof showNotify === 'function') {
-                showNotify("Couldn't update the Linear due date", 'The previous due date was restored. Please try again.');
+                showNotify(authorityStale
+                    ? 'Due-date authority changed'
+                    : route.authority === 'linear' ? "Couldn't update the Linear due date" : "Couldn't update the due date",
+                    authorityStale
+                        ? 'The previous due date was restored while Workload refreshes the current owner.'
+                        : 'The previous due date was restored. Please try again.');
             }
             return false;
         } finally {
             if (_wlDueWriteInFlight.get(key) === token) _wlDueWriteInFlight.delete(key);
+            wlScheduleNativeDueReceiptRetry();
             if (document.querySelector('.workload-view')) renderWorkloadAll();
         }
     }
@@ -15201,6 +15723,7 @@
         if (sessionGeneration !== _wlPlanSessionGeneration) return false;
         _wlPlanLastWriteGeneration.set(key, ++_wlPlanWriteGeneration);
         if (_wlPlanWriteInFlight.get(key) === token) _wlPlanWriteInFlight.delete(key);
+        wlScheduleNativeDueReceiptRetry();
         renderWorkloadAll();
         wlFocusPlanItem(key);
         return saved;
@@ -15264,6 +15787,7 @@
                     _wlPlanWriteInFlight.delete(move.key);
                 }
             }
+            wlScheduleNativeDueReceiptRetry();
             renderWorkloadAll();
         }
         if (moved !== moves.length && typeof showNotify === 'function') {
@@ -15792,7 +16316,7 @@
         if (status === 'ready' && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
             el.hidden = false;
             el.className = 'workload-plan-status is-warning';
-            el.textContent = 'Workload labels could not be refreshed. Capacity may be understated; Linear due-date editing is paused.';
+            el.textContent = 'Workload labels could not be refreshed. Capacity may be understated; due-date editing is paused.';
             return;
         }
         if (status === 'ready' || status === 'loading' || status === 'refreshing') {
@@ -16957,12 +17481,12 @@
             const savingPlan = _wlPlanWriteInFlight.has(String(s.id || ''));
             const savingDue = _wlDueWriteInFlight.has(String(s.id || ''));
             const canEditPlan = !wlIsTweaksNeeded(s) && wlPlanEditingEnabled() && !savingPlan;
-            const canEditDue = !wlIsTweaksNeeded(s) && wlLinearEditingEnabled() && !savingDue;
+            const canEditDue = !wlIsTweaksNeeded(s) && wlLinearEditingEnabled(s) && !savingDue;
             const dateId = 'wlDueDate_' + String(s.id || '').replace(/[^A-Za-z0-9_-]/g, '_');
             const planControl = wlIsTweaksNeeded(s) ? '' : `<div class="workload-popover-plan" data-wl-due-issue="${wlEscape(s.id || '')}">
                 <div class="workload-popover-plan-line">
-                    <span class="workload-popover-plan-label">Linear due date</span>
-                    ${_svDateHtml(dateId, s.dueDate || '', { placeholder: 'Choose due date', disabled: !canEditDue })}
+                    <span class="workload-popover-plan-label">Due date</span>
+                    ${_svDateHtml(dateId, s.dueDate || '', { placeholder: 'Choose due date', disabled: !canEditDue, todayPolicy: 'workload' })}
                     ${savingDue ? '<span class="workload-popover-plan-saving" role="status">Saving…</span>' : ''}
                     ${explicitPlan ? `<button type="button" class="workload-plan-clear" data-wl-plan-clear="${wlEscape(s.id || '')}"${canEditPlan ? '' : ' disabled'}>${wlPlanOriginHtml(placementMode, false)} Use automatic plan</button>` : ''}
                 </div>
@@ -20589,7 +21113,7 @@
         const disabled = opts.disabled ? ' is-disabled' : '';
         const change = opts.onchange ? ' onchange="' + _ptoAttr(opts.onchange) + '"' : '';
         const requiredDescription = opts.required ? '<span class="sr-only" id="' + _ptoAttr(id) + 'Required">Required field.</span>' : '';
-        return '<div class="sv-date' + disabled + '" id="' + _ptoAttr(id) + 'Wrap" data-sv-date-picker><button class="sv-date-trigger" type="button" id="' + _ptoAttr(id) + 'Btn" data-sv-date-trigger data-placeholder="' + _ptoAttr(opts.placeholder || 'Choose date') + '" aria-haspopup="dialog" aria-controls="svDatePickerPopup" aria-expanded="false"' + (opts.required ? ' aria-describedby="' + _ptoAttr(id) + 'Required"' : '') + (opts.disabled ? ' disabled' : '') + '>' + SV_ICON_CALENDAR + '<span data-sv-date-label class="' + (value ? '' : 'sv-date-placeholder') + '">' + _ptoEsc(label) + '</span>' + SV_ICON_CHEV + '</button>' + requiredDescription + '<input class="sv-date-value" id="' + _ptoAttr(id) + '" type="date" tabindex="-1" aria-hidden="true" value="' + _ptoAttr(value || '') + '"' + (opts.min ? ' min="' + _ptoAttr(opts.min) + '"' : '') + (opts.max ? ' max="' + _ptoAttr(opts.max) + '"' : '') + (opts.today ? ' data-sv-today="' + _ptoAttr(opts.today) + '"' : '') + (opts.required ? ' data-required="true"' : '') + (opts.disabled ? ' disabled' : '') + change + '></div>';
+        return '<div class="sv-date' + disabled + '" id="' + _ptoAttr(id) + 'Wrap" data-sv-date-picker><button class="sv-date-trigger" type="button" id="' + _ptoAttr(id) + 'Btn" data-sv-date-trigger data-placeholder="' + _ptoAttr(opts.placeholder || 'Choose date') + '" aria-haspopup="dialog" aria-controls="svDatePickerPopup" aria-expanded="false"' + (opts.required ? ' aria-describedby="' + _ptoAttr(id) + 'Required"' : '') + (opts.disabled ? ' disabled' : '') + '>' + SV_ICON_CALENDAR + '<span data-sv-date-label class="' + (value ? '' : 'sv-date-placeholder') + '">' + _ptoEsc(label) + '</span>' + SV_ICON_CHEV + '</button>' + requiredDescription + '<input class="sv-date-value" id="' + _ptoAttr(id) + '" type="date" tabindex="-1" aria-hidden="true" value="' + _ptoAttr(value || '') + '"' + (opts.min ? ' min="' + _ptoAttr(opts.min) + '"' : '') + (opts.max ? ' max="' + _ptoAttr(opts.max) + '"' : '') + (opts.today ? ' data-sv-today="' + _ptoAttr(opts.today) + '"' : '') + (opts.todayPolicy ? ' data-sv-today-policy="' + _ptoAttr(opts.todayPolicy) + '"' : '') + (opts.required ? ' data-required="true"' : '') + (opts.disabled ? ' disabled' : '') + change + '></div>';
     }
     function _svSyncDateControl(id) {
         const input = document.getElementById(id);
@@ -41385,7 +41909,7 @@
             const p = s.split('-');
             if (p.length !== 3) return s;
             const label = PROD_MON[Math.min(11, Math.max(0, (+p[1] || 1) - 1))] + ' ' + (+p[2] || 1);
-            return +p[0] === PROD_TODAY.getFullYear() ? label : label + ', ' + p[0];
+            return p[0] === _prodPolicyTodayISO().slice(0, 4) ? label : label + ', ' + p[0];
         }
         function _prodStatusType(status) {
             const m = PROD_STATUS_META[_prodArtifactStatus(status)] || {};
@@ -41463,16 +41987,17 @@
             if (!rows.length) return null;
             return { done: rows.filter(x => _prodIsDone(x.status)).length, total: rows.length };
         }
-        function _prodOverdue(v, status) {
+        function _prodOverdue(v, status, now) {
             if (!v || _prodIsDone(status)) return false;
             const day = String(v).slice(0, 10);
-            return /^\d{4}-\d{2}-\d{2}$/.test(day) && day < new Date().toISOString().slice(0, 10);
+            return !!_prodIsoParts(day) && day < _prodPolicyTodayISO(now);
         }
-        // PORT-DELTA: artifact overdueDays/overdueText parse pretty strings against the frozen TODAY; live rows carry ISO dueRaw and stay status-aware via _prodOverdue.
-        function _prodOverdueDays(v, status) {
-            if (!_prodOverdue(v, status)) return 0;
+        // PORT-DELTA: live rows carry canonical ISO dueRaw and use the shared
+        // America/Guatemala policy day for both display and overdue math.
+        function _prodOverdueDays(v, status, now) {
+            if (!_prodOverdue(v, status, now)) return 0;
             const day = String(v).slice(0, 10);
-            const diff = Math.round((Date.parse(new Date().toISOString().slice(0, 10)) - Date.parse(day)) / 864e5);
+            const diff = _prodIsoDayNumber(_prodPolicyTodayISO(now)) - _prodIsoDayNumber(day);
             return Math.max(1, diff);
         }
         function _prodOverdueText(v, status) {
@@ -42945,12 +43470,18 @@
         function _prodApplyGatewayRow(row) {
             if (!row || !row.id) return;
             const target = (_prodState.deliverables || []).find(item => String(item && item.id || '') === String(row.id));
-            if (!target) return;
-            ['status', 'status_at', 'due_date', 'assignee_id', 'brief', 'sync_state', 'updated_at',
-                'linear_raw', 'identity_repair_state', 'identity_repair_reason'].forEach(field => {
-                if (Object.prototype.hasOwnProperty.call(row, field)) target[field] = row[field];
-            });
-            _prodState.adapter = null;
+            if (target) {
+                ['status', 'status_at', 'due_date', 'assignee_id', 'brief', 'sync_state', 'updated_at',
+                    'linear_raw', 'identity_repair_state', 'identity_repair_reason'].forEach(field => {
+                    if (Object.prototype.hasOwnProperty.call(row, field)) target[field] = row[field];
+                });
+                _prodState.adapter = null;
+            }
+            // A native gateway receipt is also the authoritative local Workload
+            // projection for any currently-visible issue. Its deliverable cursor
+            // stays separate from workload_issues.synced_at and the authority
+            // fingerprint, so no inactive fast bridge is required to converge.
+            if (typeof wlAdoptNativeDueGatewayRow === 'function') wlAdoptNativeDueGatewayRow(row);
         }
         function _prodWriteErrorText(error, issue, operation) {
             const code = String(error && error.code || '');
@@ -42986,6 +43517,7 @@
                 if (operation === 'status') payload.expected_status = issue.sourceStatus;
             }
             if (_prodTestWriteOverride(issue)) payload.test_override = true;
+            const previousDueDate = issue.dueRaw ? String(issue.dueRaw).slice(0, 10) : null;
             _prodState.writes.set(pendingKey, payload.request_id);
             _prodRender();
             try {
@@ -43011,6 +43543,15 @@
                         _prodRefreshAuthority({ silent: true });
                     }
                     throw error;
+                }
+                const rowHasDueDate = !!json.row
+                    && Object.prototype.hasOwnProperty.call(json.row, 'due_date');
+                const committedDueDate = rowHasDueDate && json.row.due_date
+                    ? String(json.row.due_date).slice(0, 10)
+                    : null;
+                if (rowHasDueDate && (operation === 'due' || committedDueDate !== previousDueDate)
+                    && typeof wlPublishNativeDueReceipt === 'function') {
+                    wlPublishNativeDueReceipt(json.row);
                 }
                 return json;
             } finally {
@@ -43240,10 +43781,8 @@
         }
         function _prodDueIso(value) {
             if (!value) return '';
-            if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
-            const date = value instanceof Date ? value : _prodParseDue(value);
-            if (!date || Number.isNaN(date.getTime())) return '';
-            return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+            if (value instanceof Date) return _prodIsoFromDate(value);
+            return _prodParseDue(value) || '';
         }
         function _prodCommentDraftFor(id) {
             id = String(id || '');
@@ -44240,12 +44779,12 @@
             }
             return {
                 hd: 'Set due date...',
-                ph: 'Type a date, e.g. Jul 20',
+                ph: 'Type a date, e.g. Jul 20 2027',
                 custom: true,
                 items: [
-                    ['Today', _prodFmtDue(new Date())],
-                    ['Tomorrow', _prodFmtDue(_prodAddDays(new Date(), 1))],
-                    ['Next week', _prodFmtDue(_prodAddDays(new Date(), 7))],
+                    ['Today', _prodPolicyTodayISO()],
+                    ['Tomorrow', _prodIsoFromDate(_prodAddDays(_prodToday(), 1))],
+                    ['Next week', _prodIsoFromDate(_prodAddDays(_prodToday(), 7))],
                     ['No due date', '']
                 ].map(o => ({ v: o[1], label: o[0], html: '<span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">' + _calEsc(o[0]) + '</span>' }))
             };
@@ -44512,8 +45051,38 @@
         const PROD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const PROD_MON_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
         const PROD_WK = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        const PROD_TODAY = (() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate()); })();
-        function _prodToday() { return new Date(PROD_TODAY); }
+        function _prodIsoParts(value) {
+            const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
+            if (!match) return null;
+            const year = Number(match[1]);
+            const month = Number(match[2]);
+            const day = Number(match[3]);
+            const date = new Date(Date.UTC(year, month - 1, day));
+            if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+            return { year, month, day, iso: match[0] };
+        }
+        function _prodIsoDayNumber(value) {
+            const parts = _prodIsoParts(value);
+            return parts ? Math.floor(Date.UTC(parts.year, parts.month - 1, parts.day) / 864e5) : NaN;
+        }
+        function _prodIsoFromParts(year, month, day) {
+            const iso = String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+            return _prodIsoParts(iso) ? iso : '';
+        }
+        function _prodIsoFromDate(date) {
+            if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+            return _prodIsoFromParts(date.getFullYear(), date.getMonth() + 1, date.getDate());
+        }
+        function _prodDateFromIso(value) {
+            const parts = _prodIsoParts(value);
+            return parts ? new Date(parts.year, parts.month - 1, parts.day) : null;
+        }
+        function _prodPolicyTodayISO(now) {
+            return wlWorkloadTodayISO(now || new Date());
+        }
+        function _prodToday(now) {
+            return _prodDateFromIso(_prodPolicyTodayISO(now));
+        }
         function _prodAddDays(d, n) {
             const x = new Date(d);
             x.setDate(x.getDate() + n);
@@ -44525,35 +45094,79 @@
         function _prodFmtWk(d) {
             return PROD_WK[d.getDay()] + ', ' + d.getDate() + ' ' + PROD_MON[d.getMonth()];
         }
-        function _prodParseDue(s) {
-            s = String(s || '').trim().toLowerCase();
-            if (!s) return null;
-            const today = _prodToday();
+        function _prodParseDue(s, now) {
+            const raw = String(s || '').trim();
+            s = raw.toLowerCase();
+            if (!s) return '';
+            const exact = _prodIsoParts(raw);
+            if (exact) return exact.iso;
+            const todayIso = _prodPolicyTodayISO(now);
+            const today = _prodDateFromIso(todayIso);
             const M = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
             let m;
-            if (s === 'today') return today;
-            if (s === 'tomorrow') return _prodAddDays(today, 1);
+            if (s === 'today') return todayIso;
+            if (s === 'tomorrow') return _prodIsoFromDate(_prodAddDays(today, 1));
             if (m = s.match(/^(\d+)\s*(d|day|days|h|hr|hrs|hour|hours)$/)) {
                 const n = +m[1];
-                return _prodAddDays(today, /^h/.test(m[2]) ? Math.max(1, Math.round(n / 24)) : n);
+                return _prodIsoFromDate(_prodAddDays(today, /^h/.test(m[2]) ? Math.max(1, Math.round(n / 24)) : n));
+            }
+            if (m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)) {
+                return _prodIsoFromParts(+m[3], +m[1], +m[2]);
+            }
+            if (m = s.match(/^([a-z]{3,})\.?\s+(\d{1,2})(?:,\s*|\s+)(\d{4})$/)) {
+                const mo = M[m[1].slice(0, 3)];
+                return mo == null ? '' : _prodIsoFromParts(+m[3], mo + 1, +m[2]);
+            }
+            if (m = s.match(/^(\d{1,2})\s+([a-z]{3,})\.?(?:,\s*|\s+)(\d{4})$/)) {
+                const mo = M[m[2].slice(0, 3)];
+                return mo == null ? '' : _prodIsoFromParts(+m[3], mo + 1, +m[1]);
             }
             if (m = s.match(/^([a-z]{3,})\.?\s+(\d{1,2})$/)) {
                 const mo = M[m[1].slice(0, 3)];
-                if (mo != null) return new Date(today.getFullYear(), mo, +m[2]);
+                if (mo != null) return _prodIsoFromParts(today.getFullYear(), mo + 1, +m[2]);
             }
             if (m = s.match(/^(\d{1,2})\s+([a-z]{3,})$/)) {
                 const mo = M[m[2].slice(0, 3)];
-                if (mo != null) return new Date(today.getFullYear(), mo, +m[1]);
+                if (mo != null) return _prodIsoFromParts(today.getFullYear(), mo + 1, +m[1]);
             }
-            if (m = s.match(/^(\d{1,2})$/)) return new Date(today.getFullYear(), today.getMonth(), +m[1]);
-            return null;
+            if (m = s.match(/^(\d{1,2})$/)) return _prodIsoFromParts(today.getFullYear(), today.getMonth() + 1, +m[1]);
+            return '';
+        }
+        let _prodPolicyDayTimer = 0;
+        let _prodPolicyDaySnapshot = '';
+        function _prodMsUntilPolicyDayChange(now) {
+            const start = now instanceof Date ? now.getTime() : Date.now();
+            const currentDay = _prodPolicyTodayISO(new Date(start));
+            let low = start;
+            let high = start + 36 * 60 * 60 * 1000;
+            if (_prodPolicyTodayISO(new Date(high)) === currentDay) return 60 * 60 * 1000;
+            while (high - low > 250) {
+                const middle = low + Math.floor((high - low) / 2);
+                if (_prodPolicyTodayISO(new Date(middle)) === currentDay) low = middle;
+                else high = middle;
+            }
+            return Math.max(250, high - start + 50);
+        }
+        function _prodRefreshPolicyDay() {
+            const nextDay = _prodPolicyTodayISO();
+            const changed = !!_prodPolicyDaySnapshot && _prodPolicyDaySnapshot !== nextDay;
+            _prodPolicyDaySnapshot = nextDay;
+            clearTimeout(_prodPolicyDayTimer);
+            _prodPolicyDayTimer = setTimeout(_prodRefreshPolicyDay, _prodMsUntilPolicyDayChange());
+            if (changed && document.getElementById('prodRoot')) _prodRender();
+            return changed;
+        }
+        function _prodStartPolicyDayClock() {
+            if (_prodPolicyDayTimer) return;
+            _prodRefreshPolicyDay();
         }
         // PORT-DELTA: due calendar structure is artifact-derived; native writes
         // still pass through the per-team authority gate and Production gateway.
         function _prodBuildDue(pop, cur, ids, anchor) {
             let view = 'quick';
-            const rawParts = cur && /^\d{4}-\d{2}-\d{2}/.test(String(cur.dueRaw || '')) ? String(cur.dueRaw).slice(0, 10).split('-') : null;
-            const parsed = rawParts ? new Date(+rawParts[0], +rawParts[1] - 1, +rawParts[2]) : (cur && cur.due ? _prodParseDue(cur.due) : null);
+            const selectedIso = _prodDueIso(cur && (cur.dueRaw || cur.due));
+            const parsed = _prodDateFromIso(selectedIso);
+            const todayIso = _prodPolicyTodayISO();
             const todayRef = _prodToday();
             let calM = new Date((parsed || todayRef).getFullYear(), (parsed || todayRef).getMonth(), 1);
             let focusDay = parsed || new Date(todayRef);
@@ -44562,11 +45175,11 @@
                 _prodRunPickerWrite('due', ids, _prodDueIso(value));
             };
             const quick = () => {
-                let h = '<div class="prod-pop-search"><input data-prod-search placeholder="Try: 24h, 7 days, Feb 9"></div><div class="prod-pop-list">';
+                let h = '<div class="prod-pop-search"><input data-prod-search placeholder="Try: 2027-02-09, Feb 9 2027"></div><div class="prod-pop-list">';
                 if (cur && cur.due) h += '<div class="prod-mi" data-prod-set="__remove__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Remove due date</span><span class="dres">' + _calEsc(cur.due) + '</span></div>';
                 h += '<div class="prod-mi" data-prod-set="__custom__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Custom…</span></div>';
                 [['Tomorrow', _prodAddDays(todayRef, 1)], ['End of this week', _prodAddDays(todayRef, (5 - todayRef.getDay() + 7) % 7 || 7)], ['In one week', _prodAddDays(todayRef, 7)]].forEach(o => {
-                    h += '<div class="prod-mi" data-prod-day="' + _calEscAttr(_prodFmtDue(o[1])) + '"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">' + _calEsc(o[0]) + '</span><span class="dres">' + _calEsc(_prodFmtWk(o[1])) + '</span></div>';
+                    h += '<div class="prod-mi" data-prod-day="' + _calEscAttr(_prodIsoFromDate(o[1])) + '"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">' + _calEsc(o[0]) + '</span><span class="dres">' + _calEsc(_prodFmtWk(o[1])) + '</span></div>';
                 });
                 return h + '</div>';
             };
@@ -44577,12 +45190,13 @@
                 for (let i = 0; i < start; i++) cells += '<div class="prod-cal-d empty"></div>';
                 for (let d = 1; d <= dim; d++) {
                     const dt = new Date(calM.getFullYear(), calM.getMonth(), d);
-                    const today = +dt === +PROD_TODAY;
-                    const selected = cur && cur.due === _prodFmtDue(dt);
+                    const dayIso = _prodIsoFromDate(dt);
+                    const today = dayIso === todayIso;
+                    const selected = selectedIso === dayIso;
                     const focused = focusDay && dt.toDateString() === focusDay.toDateString();
-                    cells += '<div class="prod-cal-d' + (today ? ' today' : '') + (selected ? ' sel' : '') + (focused ? ' focus' : '') + '" data-prod-day="' + _calEscAttr(_prodFmtDue(dt)) + '">' + d + '</div>';
+                    cells += '<div class="prod-cal-d' + (today ? ' today' : '') + (selected ? ' sel' : '') + (focused ? ' focus' : '') + '" data-prod-day="' + _calEscAttr(dayIso) + '">' + d + '</div>';
                 }
-                return '<div class="prod-pop-search"><input data-prod-search placeholder="Type a date, e.g. Jul 20"></div><div class="prod-cal"><div class="prod-cal-hd"><button class="prod-cal-nav" type="button" data-prod-cal="-1">&lsaquo;</button><span class="prod-cal-mo">' + PROD_MON_FULL[calM.getMonth()] + ' ' + calM.getFullYear() + '</span><button class="prod-cal-nav" type="button" data-prod-cal="1">&rsaquo;</button></div><div class="prod-cal-wk"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div><div class="prod-cal-grid">' + cells + '</div></div>';
+                return '<div class="prod-pop-search"><input data-prod-search placeholder="Type a date, e.g. Jul 20 2027"></div><div class="prod-cal"><div class="prod-cal-hd"><button class="prod-cal-nav" type="button" data-prod-cal="-1">&lsaquo;</button><span class="prod-cal-mo">' + PROD_MON_FULL[calM.getMonth()] + ' ' + calM.getFullYear() + '</span><button class="prod-cal-nav" type="button" data-prod-cal="1">&rsaquo;</button></div><div class="prod-cal-wk"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div><div class="prod-cal-grid">' + cells + '</div></div>';
             };
             const pos = () => {
                 const pr = pop.getBoundingClientRect();
@@ -44840,6 +45454,7 @@
         function mountProductionView() {
             _prodPrimeFromUrl();
             _prodStartAuthorityRefresh();
+            _prodStartPolicyDayClock();
             _prodRender();
             if (!_prodState.loaded && !_prodState.loading) _prodLoadData();
         }
@@ -45399,7 +46014,9 @@
         }
         let _prodLastAutoRefreshAt = 0;
         function _prodAutoRefreshOnReturn() {
-            if (!_prodEnabled() || document.hidden || !_prodState.loaded || _prodState.loading) return;
+            if (!_prodEnabled() || document.hidden) return;
+            _prodRefreshPolicyDay();
+            if (!_prodState.loaded || _prodState.loading) return;
             const now = Date.now();
             if (now - _prodLastAutoRefreshAt < 30000) return;
             _prodLastAutoRefreshAt = now;
@@ -59821,6 +60438,10 @@
 
         function pad(n) { return String(n).padStart(2, '0'); }
         function todayISO() {
+            const policy = dpInput && String(dpInput.dataset && dpInput.dataset.svTodayPolicy || '');
+            if (policy === 'workload' && typeof wlWorkloadTodayISO === 'function') {
+                return wlWorkloadTodayISO();
+            }
             const pinned = dpInput && String(dpInput.dataset && dpInput.dataset.svToday || '');
             if (/^\d{4}-\d{2}-\d{2}$/.test(pinned)) return pinned;
             const d = new Date();
@@ -60050,7 +60671,10 @@
             } else if (t.hasAttribute('data-dp-act')) {
                 const act = t.getAttribute('data-dp-act');
                 if (act === 'clear') { commit(''); close(true); }
-                else if (act === 'today' && inBounds(todayISO())) { commit(todayISO()); close(true); }
+                else if (act === 'today') {
+                    const today = todayISO();
+                    if (inBounds(today)) { commit(today); close(true); }
+                }
             }
         }
 

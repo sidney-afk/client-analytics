@@ -1056,6 +1056,42 @@ check(/!_wlV2Ready\(\) \|\| _wlV2WatermarkTimer/.test(watermarkPollSource)
     && /_wlV2WatermarkBusy = false/.test(workloadTeardownSource),
   'one 60-second watermark poll starts with Workload and teardown always clears its timer and busy state');
 
+const nativeDuePublishSource = grabFunc('wlPublishNativeDueReceipt');
+const nativeDueStorageSource = grabFunc('_wlOnNativeDueReceiptStorage');
+const nativeDueParseSource = grabFunc('wlParseNativeDueReceipt');
+const nativeDueDispositionSource = grabFunc('wlNativeDueReceiptDisposition');
+const nativeDueRetrySource = grabFunc('wlRetryPendingNativeDueReceipts');
+const dueWriteSource = grabFunc('wlSetDueDate');
+const planWriteSource = grabFunc('wlSetPlanDate');
+const planGroupWriteSource = grabFunc('wlMovePlanGroup');
+check(/schema:\s*WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA/.test(nativeDuePublishSource)
+    && /native_committed:\s*true/.test(nativeDuePublishSource)
+    && /localStorage\.setItem\(WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY,\s*payload\)/.test(nativeDuePublishSource)
+    && /localStorage\.removeItem\(WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY\)/.test(nativeDuePublishSource)
+    && /if \(exactNativeAck\)[\s\S]*wlAdoptNativeDueGatewayRow\(row\)[\s\S]*wlPublishNativeDueReceipt\(row\)/.test(dueWriteSource),
+  'only an exact adopted native gateway row emits the ephemeral sibling-tab due receipt');
+check(/event\.key !== WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY/.test(nativeDueStorageSource)
+    && /wlParseNativeDueReceipt\(event\.newValue\)/.test(nativeDueStorageSource)
+    && /_wlPendingNativeDueReceiptByTarget\.set\(key,\s*receipt\)/.test(nativeDueStorageSource)
+    && /wlRetryPendingNativeDueReceipts\(\)/.test(nativeDueStorageSource)
+    && /receipt\.schema !== WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA/.test(nativeDueParseSource)
+    && /receipt\.native_committed !== true \|\| receipt\.authority !== 'syncview'/.test(nativeDueParseSource)
+    && /nativeDueTargetByIssueId/.test(nativeDueDispositionSource)
+    && /dueAuthorityByIssueId/.test(nativeDueDispositionSource)
+    && /targetUpdatedAt === row\.updated_at && currentDue === row\.due_date/.test(nativeDueDispositionSource)
+    && /Date\.parse\(targetUpdatedAt\) > Date\.parse\(row\.updated_at\)/.test(nativeDueDispositionSource)
+    && /_wlPlanWriteInFlight\.size \|\| _wlDueWriteInFlight\.size \|\| _wlBackgroundRefreshPromise/.test(nativeDueRetrySource)
+    && /wlRefetchSilent\(\{\s*sensitiveOnly:\s*true\s*\}\)/.test(nativeDueRetrySource)
+    && /disposition === 'consumed' \|\| disposition === 'discard'/.test(nativeDueRetrySource)
+    && /_wlBackgroundRefreshPromise = null;[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(workloadBackgroundSource)
+    && /_wlDueWriteInFlight\.delete\(key\);[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(dueWriteSource)
+    && /_wlPlanWriteInFlight\.delete\(key\);[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(planWriteSource)
+    && /_wlPlanWriteInFlight\.delete\(move\.key\);[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(planGroupWriteSource)
+    && !/_wlV2CheckWatermark|_wlV2FetchLatestWatermark|_wlV2FetchIssues|loadLinearIssues|LINEAR_ISSUES_WEBHOOK/.test(
+      nativeDueStorageSource + nativeDueRetrySource)
+    && /window\.addEventListener\('storage',\s*_wlOnNativeDueReceiptStorage\)/.test(INDEX),
+  'a bound sibling receipt stays pending across in-flight work and re-reads guarded native metadata without the feeder watermark or inactive bridge');
+
 const workloadShellSource = grabFunc('renderWorkloadShell');
 const overviewIndex = workloadShellSource.indexOf('id="wlOverview"');
 const calendarModuleIndex = workloadShellSource.indexOf('class="workload-calendar-module"');
@@ -1146,12 +1182,12 @@ check(popoverSource.includes('Open Linear →')
     && !popoverSource.includes('workload-popover-plan-due')
     && !popoverSource.includes('workload-popover-plan-meta')
     && !popoverSource.includes('Uses deadline')
-    && /workload-popover-plan-line[\s\S]*?Linear due date[\s\S]*?_svDateHtml\(dateId, s\.dueDate \|\| ''[\s\S]*?disabled: !canEditDue[\s\S]*?explicitPlan[\s\S]*?Use automatic plan/.test(popoverSource)
+    && /workload-popover-plan-line[\s\S]*?>Due date<[\s\S]*?_svDateHtml\(dateId, s\.dueDate \|\| ''[\s\S]*?disabled: !canEditDue[\s\S]*?explicitPlan[\s\S]*?Use automatic plan/.test(popoverSource)
     && popoverSource.includes('wlWorkloadBadgeHtml(s, false)')
     && popoverSource.includes('wlDeadlineTagHtml(s.dueDate, workDate)')
     && /const planControl = wlIsTweaksNeeded\(s\) \? ''/.test(popoverSource)
     && popoverSource.includes('wl-tweak-comments'),
-  'direct pinned-item popovers show workload weight, one editable Linear due date, and the manual-plan reset');
+  'direct pinned-item popovers show workload weight, one authority-routed due date, and the manual-plan reset');
 
 const staffCanSource = grabFunc('_syncviewStaffCan');
 check(/capability === 'workload-linear-read'[\s\S]*role === 'admin' \|\| role === 'smm' \|\| role === 'creative'/.test(staffCanSource)

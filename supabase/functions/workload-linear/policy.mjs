@@ -19,6 +19,79 @@ export function clean(value) {
   return String(value == null ? "" : value).trim();
 }
 
+export function workloadTeamBucket(teamKey, teamName) {
+  const key = clean(teamKey).toUpperCase();
+  const name = clean(teamName).toLowerCase();
+  const keyBucket = key === "VID" ? "video" : key === "GRA" ? "graphics" : "";
+  const nameBucket = name === "video" ? "video" : name === "graphics" ? "graphics" : "";
+  if (keyBucket && nameBucket && keyBucket !== nameBucket) return "";
+  return keyBucket || nameBucket;
+}
+
+export function linearIssueTeamDecision(value, expectedIssueId, mirroredTeam) {
+  const issueId = clean(expectedIssueId);
+  const expectedTeam = clean(mirroredTeam).toLowerCase();
+  if (!isPlainObject(value)
+      || value.id !== issueId
+      || !isPlainObject(value.team)
+      || !["video", "graphics"].includes(expectedTeam)) {
+    return {
+      ok: false,
+      status: 503,
+      error: "linear_team_unavailable",
+      team: "",
+    };
+  }
+
+  const currentTeam = workloadTeamBucket(value.team.key, value.team.name);
+  if (currentTeam !== "video" && currentTeam !== "graphics") {
+    return {
+      ok: false,
+      status: 409,
+      error: "issue_team_unavailable",
+      team: "",
+    };
+  }
+  if (currentTeam !== expectedTeam) {
+    return {
+      ok: false,
+      status: 409,
+      error: "issue_team_changed",
+      team: currentTeam,
+    };
+  }
+  return { ok: true, status: 200, error: "", team: currentTeam };
+}
+
+export function productionAuthorityValue(value) {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch (_error) {
+      return null;
+    }
+  }
+  if (!isPlainObject(parsed)) return null;
+  const video = clean(parsed.video).toLowerCase();
+  const graphics = clean(parsed.graphics).toLowerCase();
+  if (!["linear", "syncview"].includes(video)
+      || !["linear", "syncview"].includes(graphics)) return null;
+  return { video, graphics };
+}
+
+export function linearAuthorityDecision(value, team) {
+  const authority = productionAuthorityValue(value);
+  const bucket = clean(team).toLowerCase();
+  if (!authority || !["video", "graphics"].includes(bucket)) {
+    return { ok: false, status: 503, error: "authority_unavailable" };
+  }
+  if (authority[bucket] !== "linear") {
+    return { ok: false, status: 409, error: "team_is_syncview_authoritative" };
+  }
+  return { ok: true, status: 200, error: "" };
+}
+
 function isPlainObject(value) {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }

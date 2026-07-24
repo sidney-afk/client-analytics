@@ -40,7 +40,7 @@ const clientMetadataAdopt = INDEX.slice(
 );
 const clientWrite = INDEX.slice(
   INDEX.indexOf('async function _wlPlanWriteRequest('),
-  INDEX.indexOf('async function _wlDueWriteRequest('),
+  INDEX.indexOf('function wlDueWriteRoute('),
 );
 const clientPersist = INDEX.slice(
   INDEX.indexOf('async function _wlPersistPlanDate('),
@@ -52,6 +52,10 @@ const clientSet = INDEX.slice(
 );
 const clientDueWrite = INDEX.slice(
   INDEX.indexOf('async function _wlDueWriteRequest('),
+  INDEX.indexOf('async function wlSetDueDate('),
+);
+const clientDueRouting = INDEX.slice(
+  INDEX.indexOf('function wlDueWriteRoute('),
   INDEX.indexOf('async function wlSetDueDate('),
 );
 const clientDueSet = INDEX.slice(
@@ -89,6 +93,10 @@ const watermarkSource = INDEX.slice(
 const backgroundRefresh = INDEX.slice(
   INDEX.indexOf('async function wlRefetchSilent('),
   INDEX.indexOf('// Manual refresh'),
+);
+const sensitiveAuthorityRefresh = INDEX.slice(
+  INDEX.indexOf('async function wlQueueSensitiveAuthorityRefresh('),
+  INDEX.indexOf('async function wlRefreshSensitiveStateSilent('),
 );
 const workloadInit = INDEX.slice(
   INDEX.indexOf('async function initWorkloadView('),
@@ -331,13 +339,14 @@ ok(/if \(_wlV2Ready\(\) && !force\)/.test(clientIssueRead)
   && /cache: 'no-store'/.test(clientIssueRead),
 'forced Workload refresh bypasses the scheduled mirror and reads Linear without browser cache');
 ok(/await wlLoadSnapshot\(true, null\)/.test(workloadManualRefresh)
+  && /wlState\.refreshing \|\| _wlDueWriteInFlight\.size/.test(workloadManualRefresh)
   && /_wlV2FetchIssues\(\)/.test(backgroundRefresh)
   && /wlFetchPlanRows\(\)/.test(backgroundRefresh)
   && /wlFetchLinearMetadata\(freshIssues\)/.test(backgroundRefresh)
   && !/loadLinearIssues|wlLoadSnapshot|LINEAR_ISSUES_WEBHOOK/.test(backgroundRefresh)
   && /_wlV2CheckWatermark\(\)/.test(workloadVisibility)
   && !/wlRefetchSilent|wlLoadSnapshot|loadLinearIssues/.test(workloadVisibility),
-'manual refresh alone keeps the forced Linear path while visibility background work stays Supabase/Edge-only');
+'manual refresh fences due saves while its idle path stays forced and visibility work remains Supabase/Edge-only');
 ok(/const priorWatermark = wlState\.sourceSyncedAt/.test(workloadManualRefresh)
   && /const shouldRebaseMirror = _wlV2Ready\(\)/.test(workloadManualRefresh)
   && workloadManualRefresh.indexOf('wlState.sourceSyncedAt = null') < workloadManualRefresh.indexOf('wlLoadSnapshot(true, null)')
@@ -374,8 +383,13 @@ ok(/_syncviewRequireStaffIdentity\('workload-linear'\)/.test(clientDueWrite)
     && /issue_id: String\(issue\.id/.test(clientDueWrite)
     && /client: String\(issue\.clientName/.test(clientDueWrite)
     && /due_date: dueDate/.test(clientDueWrite)
+    && /surface: 'workload'/.test(clientDueWrite)
+    && /id: route\.nativeId/.test(clientDueWrite)
+    && /expected_updated_at: route\.nativeUpdatedAt/.test(clientDueWrite)
+    && /wlState\.dueAuthorityByIssueId/.test(clientDueRouting)
+    && /wlState\.nativeDueTargetByIssueId/.test(clientDueRouting)
     && !/WORKLOAD_PLAN_URL|calendar-upsert|sample-review-upsert|webhook|syncview_runtime_flags/.test(clientDueWrite),
-'Linear due-date writes use only the isolated Workload endpoint with stable issue and client scope');
+  'due-date writes route by retained authority: Linear stays isolated while native uses guarded deliverable CAS');
 ok(/const exactAck = resp\.ok/.test(clientDueSet)
     && /json\.linear_committed === true/.test(clientDueSet)
     && /hasOwnProperty\.call\(json, 'due_date'\)/.test(clientDueSet)
@@ -388,8 +402,21 @@ ok(/const exactAck = resp\.ok/.test(clientDueSet)
     && /wlApplyDueLocal\(key, previousDate\)/.test(clientDueSet)
     && /Couldn't update the Linear due date/.test(clientDueSet)
     && /json\.mirror_pending/.test(clientDueSet)
-    && /Workload is catching up/.test(clientDueSet),
-'browser accepts only an exact Linear acknowledgement, reverts every failure, and keeps a committed mirror-pending date');
+    && /Workload is catching up/.test(clientDueSet)
+    && /json\.native_committed === true/.test(clientDueSet)
+    && /json\.authority === 'syncview'/.test(clientDueSet)
+    && /wlAdoptNativeDueGatewayRow\(row\)/.test(clientDueSet)
+    && /route\.authority === 'linear' && authorityErrorCode === 'team_is_syncview_authoritative'/.test(clientDueSet)
+    && /route\.authority === 'syncview' && authorityErrorCode === 'team_is_linear_authoritative'/.test(clientDueSet)
+    && /dueAuthorityByIssueId\.delete\(key\)/.test(clientDueSet)
+    && /nativeDueTargetByIssueId\.delete\(key\)/.test(clientDueSet)
+    && /wlQueueSensitiveAuthorityRefresh\(sessionGeneration\)/.test(clientDueSet),
+  'browser accepts exact acknowledgements, invalidates either stale authority route, and advances native state locally');
+ok(/const incumbent = _wlBackgroundRefreshPromise/.test(sensitiveAuthorityRefresh)
+    && /if \(incumbent\)[\s\S]*await incumbent/.test(sensitiveAuthorityRefresh)
+    && /expectedSessionGeneration !== _wlPlanSessionGeneration/.test(sensitiveAuthorityRefresh)
+    && /return wlRefetchSilent\(\{\s*sensitiveOnly:\s*true\s*\}\)/.test(sensitiveAuthorityRefresh),
+  'authority rejection queues a fresh sensitive read behind the invalidated incumbent refresh');
 ok(/json\.updated !== 1/.test(clientPersist)
   && /String\(saved\.issue_id/.test(clientPersist)
   && /saved\.plan_date/.test(clientPersist)
@@ -411,7 +438,7 @@ ok(/data-wl-drag-handle="issue"/.test(issueDragHandle)
   && !/data-wl-plan-clear/.test(dayRollups)
   && /data-wl-due-issue/.test(rollupPopover)
   && /_svDateHtml\(dateId, s\.dueDate \|\| ''/.test(rollupPopover)
-  && /Linear due date/.test(rollupPopover)
+  && />Due date</.test(rollupPopover)
   && /explicitPlan \?/.test(rollupPopover)
   && /data-wl-plan-clear/.test(rollupPopover)
   && /Use automatic plan/.test(rollupPopover)

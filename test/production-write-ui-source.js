@@ -138,6 +138,10 @@ ok(/if \(_prodTestWriteOverride\(issue\)\) payload\.test_override = true/.test(s
   && !/legacy_parity\s*=|legacy_parity:/.test(source.slice(source.indexOf('async function _prodGatewayWrite'), source.indexOf('async function _prodRunPickerWrite'))),
 'TEST override is derived from the target client and Production never requests legacy parity');
 ok(/json\.native_committed !== true/.test(source) && /_prodApplyGatewayRow\(json\.row\)/.test(source), 'UI accepts success only after the gateway proves a native commit');
+ok(/const previousDueDate = issue\.dueRaw/.test(extract('_prodGatewayWrite'))
+  && /rowHasDueDate && \(operation === 'due' \|\| committedDueDate !== previousDueDate\)/.test(extract('_prodGatewayWrite'))
+  && /typeof wlPublishNativeDueReceipt === 'function'[\s\S]{0,100}wlPublishNativeDueReceipt\(json\.row\)/.test(extract('_prodGatewayWrite')),
+'exact Production due writes and status-driven due changes broadcast through the native sibling-tab convergence signal');
 ok(/team_is_linear_authoritative[\s\S]{0,220}_prodRefreshAuthority/.test(source), 'a stale-tab authority rejection immediately refreshes the local stance');
 ok(/setInterval\([\s\S]{0,220}_prodRefreshAuthority\(\{ silent: true \}\)[\s\S]{0,80}30000/.test(source)
   && /_prodRefreshAuthority\(\{ silent: true \}\);\s*_prodLoadData/.test(source),

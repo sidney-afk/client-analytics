@@ -1023,11 +1023,32 @@ function expect(value, message) { if (!value) throw new Error(message); }
     expect(statusWrite.body.expected_status === 'in_progress' && statusWrite.body.expected_updated_at === now, 'status write omitted CAS');
     expect(statusWrite.headers['x-syncview-key'] === 'browser-role-key' && statusWrite.headers['x-syncview-actor'] === 'Browser Admin', 'verified staff attribution headers missing');
 
+    await page.evaluate(() => {
+      window.__prodNativeDueReceipts = [];
+      const publish = window.wlPublishNativeDueReceipt;
+      window.wlPublishNativeDueReceipt = row => {
+        window.__prodNativeDueReceipts.push(JSON.parse(JSON.stringify(row)));
+        return publish(row);
+      };
+    });
     await page.locator('[data-prod-prop="due"]').click();
     await page.locator('[data-prod-day]').first().click();
     await page.waitForFunction(() => window._prodIssue('gra-fixture').dueRaw);
     const dueWrite = writes.find(write => write.body.operation === 'due');
     expect(/^\d{4}-\d{2}-\d{2}$/.test(dueWrite.body.due_date), 'due picker did not send an ISO calendar date');
+    const productionDueReceiptState = await page.evaluate(() => ({
+      receipts: window.__prodNativeDueReceipts || [],
+      persisted: localStorage.getItem(WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY),
+    }));
+    const productionDueReceipts = productionDueReceiptState.receipts;
+    expect(productionDueReceipts.length === 1
+      && productionDueReceipts[0].id === 'gra-fixture'
+      && productionDueReceipts[0].client_slug === 'normal-fixture'
+      && productionDueReceipts[0].team === 'graphics'
+      && productionDueReceipts[0].due_date === dueWrite.body.due_date
+      && Number.isFinite(Date.parse(productionDueReceipts[0].updated_at))
+      && productionDueReceiptState.persisted === null,
+    'Production due success did not emit the exact ephemeral native receipt for sibling Workload tabs');
 
     await page.locator('[data-prod-prop="assignee"]').click();
     const assigneeResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')

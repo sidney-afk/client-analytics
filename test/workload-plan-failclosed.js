@@ -107,6 +107,7 @@ function makeSetContext(fetchImpl, fastTimeout, staffRole = 'admin', initialPlan
       renderDays.push([...context.wlState.calendarByDate.keys()][0] || null);
     },
     wlFocusPlanItem: () => {},
+    wlScheduleNativeDueReceiptRetry: () => false,
     showNotify: (title, body) => notifies.push([title, body]),
     AbortController,
     setTimeout: fastTimeout
@@ -165,6 +166,7 @@ function makeGroupContext() {
       else planByIssueId.delete(String(issueId));
     },
     renderWorkloadAll: () => renders.push(new Map(planByIssueId)),
+    wlScheduleNativeDueReceiptRetry: () => false,
     showNotify: (title, body) => notifies.push([title, body]),
     _wlPlanWriteRequest: async (issue, planDate) => {
       active++;
@@ -232,6 +234,11 @@ function makeIdentityPurgeContext() {
     _wlPlanWriteInFlight: new Map([['warm-issue', {}]]),
     _wlDueWriteInFlight: new Map([['warm-issue', {}]]),
     _wlPlanLastWriteGeneration: new Map([['warm-issue', 8]]),
+    _wlPendingNativeDueReceiptByTarget: new Map([['synthetic-receipt', {}]]),
+    _wlNativeDueReceiptRetryPromise: null,
+    _wlNativeDueReceiptGeneration: 1,
+    _wlNativeDueReceiptRetryTimer: null,
+    _wlNativeDueReceiptRetryAttempt: 2,
     wlState: {
       planByIssueId: new Map([['warm-issue', '2026-07-29']]),
       planHasSnapshot: true,
@@ -664,7 +671,7 @@ function ok(condition, message) {
     const dueWriteSource = extract('wlSetDueDate');
     const invalidateAt = dueWriteSource.indexOf('_wlPlanLoadGeneration++');
     const applyAt = dueWriteSource.indexOf('wlApplyDueLocal(key, dueDate)');
-    const requestAt = dueWriteSource.indexOf('await _wlDueWriteRequest(issue, dueDate)');
+    const requestAt = dueWriteSource.indexOf('await _wlDueWriteRequest(issue, dueDate, route)');
     ok(invalidateAt >= 0 && invalidateAt < applyAt && applyAt < requestAt,
       'due-date writes invalidate older snapshot generations before optimistic state or network I/O');
 
@@ -681,6 +688,8 @@ function ok(condition, message) {
       isSubIssue: true,
       title: 'Current issue title',
       clientName: 'Synthetic Client',
+      teamKey: 'VID',
+      teamName: 'Video',
       dueDate: '2026-07-25',
     };
     const staleIssues = [{
@@ -700,12 +709,19 @@ function ok(condition, message) {
       _wlPlanWriteInFlight: new Map(),
       _wlDueWriteInFlight: new Map(),
       _wlBackgroundRefreshPromise: null,
+      _wlNativeDueReceiptRetryPromise: null,
       wlState: {
         allActiveSubs: [issue],
         issueSnapshot: [issue],
         fetchedAt: 1,
         planByIssueId: new Map([[issue.id, '2026-07-30']]),
         workloadByIssueId: new Map([[issue.id, { label: '3× Workload', weight: 3, color: '#FF0000' }]]),
+        dueAuthorityByIssueId: new Map([[issue.id, {
+          authority: 'linear',
+          team: 'video',
+          fingerprint: 'video:linear|graphics:linear',
+        }]]),
+        nativeDueTargetByIssueId: new Map(),
         planStatus: 'ready',
         linearMetadataStatus: 'ready',
         error: null,
@@ -744,12 +760,19 @@ function ok(condition, message) {
       wlPurgePlanSensitiveState: () => {},
       _syncviewStaffIdentityClear: () => {},
       wlIsTweaksNeeded: () => false,
+      wlNativeDueDate: value => value,
+      wlDueWriteRoute: () => ({
+        authority: 'linear',
+        team: 'video',
+        authorityFingerprint: 'video:linear|graphics:linear',
+      }),
       _wlDueWriteRequest: () => {
         dueRequestStarted = true;
         return dueResponse.promise;
       },
       renderWorkloadAll: () => { renders++; },
       renderWorkloadPlanStatus: () => {},
+      wlScheduleNativeDueReceiptRetry: () => false,
       showNotify: () => {},
       document: { querySelector: selector => selector === '.workload-view' ? {} : null },
       JSON, String, Number, Object, Date, Map, Array, Error, Promise, console,
@@ -849,6 +872,10 @@ function ok(condition, message) {
         && h.context.wlState.planHasSnapshot === false
         && h.context._wlPlanWriteInFlight.size === 0
         && h.context._wlDueWriteInFlight.size === 0
+        && h.context._wlPendingNativeDueReceiptByTarget.size === 0
+        && h.context._wlNativeDueReceiptGeneration === 0
+        && h.context._wlNativeDueReceiptRetryTimer === null
+        && h.context._wlNativeDueReceiptRetryAttempt === 0
         && h.context._wlPlanSessionGeneration === 3
         && h.context._wlPlanLoadGeneration === 7
         && h.context._syncviewStaffIdentityMem === null
@@ -1062,7 +1089,7 @@ function ok(condition, message) {
     };
     rootHandlers.change({ target: dateInput });
     ok(dueCalls.some(call => call[0] === 'synthetic-issue-1' && call[1] === '2026-07-31'),
-      'delegated branded-date change writes the stable issue id and selected Linear due date');
+      'delegated branded-date change writes the stable issue id and selected authoritative due date');
 
     const clear = {
       closest: selector => selector === '[data-wl-plan-clear]' ? clear : null,

@@ -29,6 +29,58 @@ function ok(condition, message) {
     && policy.LINEAR_ALIAS_BATCH_SIZE === 20,
   'metadata requests are bounded at 100 and split into 20-issue Linear alias batches');
 
+  ok(policy.workloadTeamBucket('VID', 'Video') === 'video'
+    && policy.workloadTeamBucket('GRA', 'Graphics') === 'graphics'
+    && policy.workloadTeamBucket('VID', 'Graphics') === ''
+    && policy.workloadTeamBucket('CON', 'Content') === '',
+  'writer team scope accepts only consistent Video or Graphics mirror metadata');
+  const currentVideoTeam = policy.linearIssueTeamDecision({
+    id: 'issue-1',
+    team: { key: 'VID', name: 'Video' },
+  }, 'issue-1', 'video');
+  const movedToGraphics = policy.linearIssueTeamDecision({
+    id: 'issue-1',
+    team: { key: 'GRA', name: 'Graphics' },
+  }, 'issue-1', 'video');
+  const mismatchedLinearTeam = policy.linearIssueTeamDecision({
+    id: 'issue-1',
+    team: { key: 'VID', name: 'Graphics' },
+  }, 'issue-1', 'video');
+  const missingLinearTeam = policy.linearIssueTeamDecision({
+    id: 'issue-1',
+  }, 'issue-1', 'video');
+  ok(currentVideoTeam.ok === true
+    && currentVideoTeam.team === 'video'
+    && movedToGraphics.ok === false
+    && movedToGraphics.status === 409
+    && movedToGraphics.error === 'issue_team_changed'
+    && movedToGraphics.team === 'graphics'
+    && mismatchedLinearTeam.ok === false
+    && mismatchedLinearTeam.error === 'issue_team_unavailable'
+    && missingLinearTeam.ok === false
+    && missingLinearTeam.status === 503
+    && missingLinearTeam.error === 'linear_team_unavailable',
+  'current Linear team validation accepts an exact team and fails closed on moves, inconsistent metadata, or missing data');
+  const stillLinear = policy.linearAuthorityDecision(
+    { video: 'linear', graphics: 'syncview' },
+    'video',
+  );
+  const staleAfterFlip = policy.linearAuthorityDecision(
+    { video: 'syncview', graphics: 'linear' },
+    'video',
+  );
+  const unreadableAuthority = policy.linearAuthorityDecision(
+    { video: 'linear', graphics: 'unknown' },
+    'video',
+  );
+  ok(stillLinear.ok === true
+    && staleAfterFlip.ok === false
+    && staleAfterFlip.status === 409
+    && staleAfterFlip.error === 'team_is_syncview_authoritative'
+    && unreadableAuthority.ok === false
+    && unreadableAuthority.status === 503,
+  'a stale Linear browser route is denied after the current team flips to SyncView, and malformed authority fails closed');
+
   const exactIds = Array.from({ length: 100 }, (_, index) => `issue-${index + 1}`);
   const accepted = policy.normalizeMetadataIssueIds(exactIds);
   ok(accepted.ok && accepted.issueIds.length === 100,

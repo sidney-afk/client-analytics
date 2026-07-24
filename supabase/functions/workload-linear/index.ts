@@ -1,8 +1,9 @@
 // Supabase Edge Function: workload-linear
 //
 // Staff-readable Linear deadline/workload-label metadata plus an Admin/SMM-only
-// deadline writer for active Workload sub-issues. Linear is the authority; the
-// workload_issues update after a confirmed Linear mutation is best-effort only.
+// deadline writer for active Workload sub-issues. Linear is the authority only
+// while the owning team's exact current prod_authority value remains `linear`;
+// the workload_issues update after a confirmed Linear mutation is best-effort only.
 
 import {
   createClient,
@@ -24,11 +25,14 @@ import {
   dueDateSuccessReceipt,
   exactDueDateAcknowledgement,
   graphqlResponseHasErrors,
+  linearAuthorityDecision,
+  linearIssueTeamDecision,
   linearMetadataRow,
   metadataSuccessReceipt,
   normalizeMetadataIssueIds,
   splitAliasBatches,
   validIsoDateOrNull,
+  workloadTeamBucket,
 } from "./policy.mjs";
 
 const CORS: Record<string, string> = {
@@ -55,6 +59,9 @@ type JsonMap = Record<string, unknown>;
 type WorkloadIssue = {
   id: string;
   clientName: string;
+};
+type WritableWorkloadIssue = WorkloadIssue & {
+  team: "video" | "graphics";
 };
 type MetadataRow = {
   issue_id: string;
@@ -189,10 +196,10 @@ async function requireWritableSubIssue(
   db: SupabaseClient,
   issueId: string,
   client: string,
-): Promise<WorkloadIssue> {
+): Promise<WritableWorkloadIssue> {
   const { data, error } = await db
     .from("workload_issues")
-    .select("id,client_name,is_sub_issue,active")
+    .select("id,client_name,team_key,team_name,is_sub_issue,active")
     .eq("id", issueId)
     .maybeSingle();
   if (error) throw new WorkloadLinearError(500, "issue_lookup_failed");
@@ -206,7 +213,47 @@ async function requireWritableSubIssue(
   ) {
     throw new WorkloadLinearError(409, "issue_not_writable");
   }
-  return { id: issueId, clientName: clean(row.client_name) };
+  const team = workloadTeamBucket(row.team_key, row.team_name);
+  if (team !== "video" && team !== "graphics") {
+    throw new WorkloadLinearError(409, "issue_team_unavailable");
+  }
+  return { id: issueId, clientName: clean(row.client_name), team };
+}
+
+async function requireLinearAuthority(
+  db: SupabaseClient,
+  team: "video" | "graphics",
+): Promise<void> {
+  const { data, error } = await db
+    .from("syncview_runtime_flags")
+    .select("value")
+    .eq("key", "prod_authority")
+    .maybeSingle();
+  const decision = linearAuthorityDecision(
+    !error && data ? (data as JsonMap).value : null,
+    team,
+  );
+  if (!decision.ok) throw new WorkloadLinearError(decision.status, decision.error);
+}
+
+async function requireCurrentLinearTeam(
+  issueId: string,
+  mirroredTeam: "video" | "graphics",
+): Promise<"video" | "graphics"> {
+  const query = "query WorkloadLinearIssueTeam($id: String!) { issue(id: $id) { id team { key name } } }";
+  const result = await linearRequest(query, { id: issueId });
+  if (result.hasErrors) {
+    throw new WorkloadLinearError(503, "linear_team_unavailable");
+  }
+  const decision = linearIssueTeamDecision(
+    result.data.issue,
+    issueId,
+    mirroredTeam,
+  );
+  if (!decision.ok || (decision.team !== "video" && decision.team !== "graphics")) {
+    throw new WorkloadLinearError(decision.status, decision.error);
+  }
+  return decision.team;
 }
 
 function metadataQuery(issueIds: string[]): { query: string; variables: JsonMap } {
@@ -392,6 +439,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const target = await requireWritableSubIssue(db, issueId, client);
+    // Resolve the issue's current Linear team rather than trusting the mirror's
+    // potentially stale team. A move fails closed until the mirror reconciles;
+    // only then do we choose and re-read that exact team's current authority.
+    const currentTeam = await requireCurrentLinearTeam(issueId, target.team);
+    await requireLinearAuthority(db, currentTeam);
     const committed = await setLinearDueDate(issueId, dueDate);
     linearCommitted = true;
 

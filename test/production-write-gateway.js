@@ -380,6 +380,10 @@ function extractFunction(name) {
     && /authority_unavailable/.test(edge)
     && /surface === "production"[\s\S]{0,100}team_is_linear_authoritative/.test(edge),
   'server authority is mandatory and Production stays blocked under Linear authority');
+  ok(/const SURFACES = new Set\(\["production", "workload", "calendar", "sxr", "submission"\]\)/.test(edge)
+    && /surface === "workload"[\s\S]{0,120}operation !== "due"[\s\S]{0,80}invalid_surface_operation/.test(edge)
+    && /surface === "workload" && operation === "due" && !clean\(body\.expected_updated_at\)/.test(edge),
+  'Workload opens only the guarded native due operation and requires the independent deliverable CAS cursor');
   ok(/body\.legacy_parity === true/.test(edge)
     && /legacyParityAllowed\(surface, operation\)/.test(edge)
     && /legacy_parity: legacyParity/.test(edge),

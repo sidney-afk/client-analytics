@@ -245,11 +245,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - Workload still reads its base issue set from the Linear-backed `workload_issues` mirror. F201/F40
   candidate source partitions deadline/label metadata by the exact `prod_authority` team value:
   Linear-authoritative IDs use the isolated `workload-linear` reader, while SyncView-authoritative
-  IDs read `deliverables.due_date` and the complete native selected-label relation. Missing,
-  ambiguous, or incomplete native metadata fails closed and never falls back to Linear; affected
-  retained deadline/weight values are cleared rather than carrying foreign metadata across the
-  authority change. The broader F40 issue adapter, native links, realtime/catch-up, and top-level
-  policy remain open.
+  IDs read `deliverables.due_date`, native deliverable identity/`updated_at`, and the complete
+  native selected-label relation. The candidate retains the authority fingerprint and native CAS
+  cursor in dedicated issue-id maps; neither replaces the base mirror's `workload_issues.synced_at`.
+  The two authority partitions settle independently: a Linear outage cannot discard a proven native
+  due/label snapshot or its write route. Missing, ambiguous, or incomplete native metadata fails
+  closed for that native partition and never falls back to Linear; its retained deadline/weight
+  values are cleared rather than carrying foreign metadata across the authority change. The broader
+  F40 issue adapter, native links, realtime/catch-up, and top-level policy remain open.
 - Dated work without a saved manual override gets one deterministic, item-local automatic work day:
   one working day before its Linear deadline, floored to today. A saved manual `plan_date` wins.
   There is no queue-wide ASAP packing, capacity spill, or hidden overflow row. Because each automatic
@@ -314,9 +317,11 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `workload_plan` sidecar and overrides the automatic day. Dragging an individual issue or using the
   drag handle updates only that internal date. **Use automatic plan** appears for every manually
   planned sub-issue in its popover; it clears that override and reveals the deterministic automatic
-  day. The branded date control in that popover now edits the Linear due date through
-  `workload-linear`; changing that deadline rederives only an automatic work day, while an explicit
-  manual pin stays unchanged. Creative sees the same value in a disabled control.
+  day. The branded date control follows the current team authority: Linear-owned issues keep the
+  isolated `workload-linear` writer, while SyncView-owned issues use the guarded
+  `production-write` `surface=workload` due operation with the native deliverable ID and
+  `updated_at` CAS cursor. Changing that deadline rederives only an automatic work day, while an
+  explicit manual pin stays unchanged. Creative sees the same value in a disabled control.
 - Calendar chips and expanded issue rows use quiet sparkle/pin icons for automatic/manual placement;
   mixed groups show icon counts instead of text badges. Deadline proximity is a compact color dot,
   remains visible without opening a popover, and measures the buffer from that issue's displayed
@@ -349,7 +354,7 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   with a same-day **Due here** marker and the same proximity dot rather than a duplicate. Due
   endpoints are display-only references and never add to capacity.
 - Shared issue popovers link to **Open Linear**, keep deadline proximity beside the sub-issue title,
-  and place the branded Linear due-date picker plus optional automatic-plan reset on one compact
+  and place the authority-routed branded due-date picker plus optional automatic-plan reset on one compact
   row. Tweaks popovers retain their existing
   comment and Frame reminder layout.
 - Workload no longer renders or calls the former `content-ready` client-email action. Its button,
@@ -365,7 +370,7 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   for the sidecar. Candidate source separates that access: Admin/SMM/Creative may list the same
   global saved-plan snapshot, while Admin/SMM remain the only roles allowed to set or clear a plan
   date. Creative therefore receives the same calendar placement and automatic/manual indicators
-  after the exact function source is manually deployed. Its Linear due-date control remains visibly
+  after the exact function source is manually deployed. Its due-date control remains visibly
   read-only, drag handles are absent, and both servers still reject Creative mutations. Automatic
   placement uses the shared America/Guatemala policy day so the due-minus-one-working-day floor
   cannot vary with each viewer's browser time zone. A write is accepted
@@ -383,20 +388,28 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   fallback. Metadata requests contain at most 100 unique active sub-issue ids and use bounded
   20-alias Linear batches. Missing aliases, GraphQL errors, truncated/malformed label connections,
   or omitted deadline fields cannot claim a complete metadata result. Due writes validate the exact
-  active issue/client before Linear, require an exact issue/date acknowledgement, and then make a
-  2.5-second best-effort mirror update. A pre-commit failure reverts and notifies; once Linear has
-  confirmed the commit, a zero-row/timed-out mirror update stays successful with
+  active issue/client and validated Video/Graphics team, then re-read that team's exact current
+  `prod_authority` immediately before Linear mutation. A stale browser route therefore fails with
+  `409 team_is_syncview_authoritative` after a flip instead of writing the former owner. Permitted
+  writes require an exact issue/date acknowledgement and then make a 2.5-second best-effort mirror
+  update. A pre-commit failure reverts and notifies; once Linear has confirmed the commit, a
+  zero-row/timed-out mirror update stays successful with
   `mirror_pending=true`, keeps the new date in the browser, and warns that Workload is catching up.
 - F201's metadata adapter leaves that Linear boundary intact only for Linear-authoritative issue
   IDs. SyncView-authoritative IDs use the native due/label relation directly; an exact `2× Workload`
   or `3× Workload` label written through Production therefore reaches Video capacity math without
   waiting for outbound Linear reflection. Graphics may display the same labels but remains 15
-  unweighted items.
+  unweighted items. Slice 3 candidate source also routes native due edits through
+  `production-write` with CAS, advances only the independent native cursor, and applies an exact
+  gateway receipt to the in-memory Production and Workload projections. Linear-owned due edits
+  remain on `workload-linear`; the inactive fast bridge is not part of either decision.
 - **Deployment boundary:** effective live table/grant readback matches the locked 2026-07-19
   sidecar contract, and `workload-plan` v2 remains a deliberate-manual deployment. This candidate
   retains the deliberate-manual `workload-linear` function/browser caller and adds F201's one
   source-only CHECK-superset migration plus label gateway/mirror/native-consumer source. It changes
   no table/column data shape, table grant, runtime flag, n8n workflow, frozen writer, or real data.
+  Slice 3 adds only the closed Workload/due gateway surface and browser/date source; it needs no
+  migration and performs no live apply, deploy, flag, authority, n8n, or data action here.
   Nothing is live until the reviewed merge and an exact-SHA manual migration/function
   deployment/readback/TEST drill.
   A Pages-only revert removes the caller and restores the prior Workload display without changing
@@ -426,6 +439,13 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   deliverables through the same gateway, with CAS/idempotency, audit/outbox mirror intent,
   authoritative refresh, read-failure recovery, and dirty-draft conflict preservation. Neither
   candidate migration/function/UI path is live in this session.
+- Slice 3 candidate source makes every Production due choice/cell carry canonical `YYYY-MM-DD`,
+  seeds month and selection from `dueRaw`, and gives mouse, keyboard, typed, and multi-select paths
+  the same converter. Current day, relative input, highlighting, full-date display, and overdue
+  math all use the already-ratified America/Guatemala policy day on demand. Workload also binds the
+  shared calendar's Today action, highlight, and initial month to that on-demand policy day. A timer
+  targets the next policy midnight, and focus/visibility/pageshow return rechecks it. This source
+  and the closed `production-write` Workload-due surface are not deployed here.
 - F203 candidate source adds Admin/SMM parent and sub-issue creation through `production-write`.
   The form uses active roster clients, the selected Video/Graphics team, exact Markdown, native
   full-year dates, active same-team assignees, and the complete real label catalog. Deterministic

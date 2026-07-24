@@ -479,7 +479,7 @@ async function selectionChecks(page) {
         label: issue ? _prodIssueLabel(issue) : '',
         text: row ? row.textContent.replace(/\s+/g, ' ').trim() : '',
         hasProjectChip: !!(row && row.querySelector('.prod-chip-client')),
-        hasAddButton: !!document.querySelector('#prodRoot [data-prod-disabled="add-subissue"]'),
+        hasAddButton: !!document.querySelector('#prodRoot [data-prod-add-subissue]'),
       };
     });
     if (!parentSubrow.hasAddButton) failures.push('parent detail did not expose the guarded add-sub-issue affordance');

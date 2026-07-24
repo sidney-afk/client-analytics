@@ -140,6 +140,46 @@ export function clientOperationAllowed(operation, currentStatus, nextStatus) {
   return ["client_approval", "tweak"].includes(lower(currentStatus));
 }
 
+export function normalizeCommentAction(value) {
+  const action = lower(value || "add");
+  return ["add", "edit", "delete", "resolve", "unresolve"].includes(action) ? action : "";
+}
+
+// Comment lifecycle authority is narrower than the top-level `comment`
+// operation. Admin/SMM may moderate any authorized thread, creatives may edit
+// or delete only their own same-team comments, and a client may edit/delete
+// only its own client-visible comment. Resolving/reopening remains staff
+// moderation and is never available to a client principal.
+export function commentLifecycleAllowed(principal, actionValue, row) {
+  const action = normalizeCommentAction(actionValue);
+  if (!action || action === "add") return action === "add";
+  const actor = principal && typeof principal === "object" ? principal : {};
+  const comment = row && typeof row === "object" ? row : {};
+  const kind = lower(actor.kind);
+  const keyRole = lower(actor.keyRole);
+  if (kind === "staff" || kind === "test") {
+    if (keyRole === "admin" || keyRole === "smm" || keyRole === "test") return true;
+    if (action === "resolve" || action === "unresolve") return false;
+    return keyRole === "creative"
+      && !!clean(actor.memberId)
+      && clean(actor.memberId) === clean(comment.author_member_id);
+  }
+  if (kind !== "client" || (action !== "edit" && action !== "delete")) return false;
+  return lower(comment.audience) === "client"
+    && !!clean(actor.actorKey)
+    && clean(actor.actorKey) === clean(comment.author_key);
+}
+
+export function commentLifecycleCapabilities(principal, row) {
+  const comment = row && typeof row === "object" ? row : {};
+  return {
+    can_edit: commentLifecycleAllowed(principal, "edit", comment),
+    can_delete: commentLifecycleAllowed(principal, "delete", comment),
+    can_resolve: !clean(comment.parent_id)
+      && commentLifecycleAllowed(principal, "resolve", comment),
+  };
+}
+
 export function legacyParityAllowed(surface, operation) {
   const lane = lower(surface);
   const op = normalizeOperation(operation);

@@ -137,7 +137,7 @@ const explicitMutationMethods = [...prodBlock.matchAll(/['"`](POST|PUT|PATCH|DEL
 check('preview block limits POSTs to protected reads, guarded creation, and authority-gated native writes', explicitMutationMethods.length === 8
   && explicitMutationMethods.every(method => method === 'POST')
   && /fetch\(PROD_COMMENTS_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock)
-  && /deliverable_id: id, limit: PROD_COMMENTS_PAGE_SIZE, before: cursor \|\| null/.test(prodBlock)
+  && /const requestBody = \{[\s\S]{0,220}deliverable_id: id,[\s\S]{0,160}limit: PROD_COMMENTS_PAGE_SIZE,[\s\S]{0,160}before: cursor \|\| null[\s\S]{0,100}if \(clientSurface\) Object\.assign\(requestBody, clientSurface\)/.test(prodBlock)
   && /fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,500}action: 'labels_read', surface: 'production', id/.test(prodBlock)
   && /async function _prodEnsureDescription\(id, force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'description_read'/.test(prodBlock)
   && /async function _prodEnsureAssets\(id, force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'asset_access_read',[\s\S]{0,120}surface: 'production'/.test(prodBlock)

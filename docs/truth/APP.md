@@ -219,12 +219,17 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `docs/audits/2026-07-05-logic-reviews.md`.
 - Linear comments are written prefixed `**{Reviewer} (via SyncView):**`.
   That display name is cosmetic on the legacy bridge and does not establish the caller (F91).
-- Comment truth remains split across card JSON and normalized rows (F43). Canonical persistence must
-  succeed before any Linear/mirror side effect; a failure keeps the draft/queue with visible retry,
-  and retry must produce exactly one canonical mutation plus exactly one applicable mirror intent
-  while mirroring is enabled; retired mode produces zero mirror/outbox intents. Production's legacy lane
-  has no Reply action/`parent_id` send path (the Phase-2 gateway lane for enrolled clients does send
-  `parent_id` in comment payloads) and client links do not read Client-visible normalized rows.
+- Live comment truth remains split across card JSON and normalized rows (F43). The source-only
+  F39/F42/F43 candidate adds exact team/client-scoped canonical reads; a manifest-bound import of
+  both Calendar and Samples/SXR arrays; and one create/reply/edit/delete/resolve/reopen lifecycle
+  across Production, Calendar, and Samples. Candidate client links now read that same thread with
+  the verified token and exact SXR card/component/deliverable identity, project only client-audience
+  rows, and never use endpoint self-attestation to unlock staff Client-visible. Those controls stay
+  unavailable until the migration/functions and tokened TEST drill are separately approved live.
+  Canonical persistence precedes every
+  Linear/mirror side effect; F2 `off`/outage pauses applicable comment debt rather than retiring it,
+  and ordered dependencies preserve add/edit/delete handoff. This source has not been migrated,
+  deployed, imported, or drilled live.
 - Kasper keeps Review Session, Samples, Messages, and Filming Plans in a stable priority row. Editors
   and Time Off sit under **Team** in an accessible More menu; Sales Intake, Onboarding, and Client
   Credentials sit under **Pipeline & Admin**. The active More destination replaces the generic label,
@@ -478,7 +483,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   can regress reviewer/terminal work or mutate peer work after a flip (F37/F136).
 - Video delivery/source data is collapsed from four typed fields to one priority winner labelled
   “Delivered file”; filming plan/raw footage can be hidden or mislabeled (F137).
-- The 2026-07-23 full-day audit remains immutable findings evidence. F200/F201/F202/F203 are
+- The 2026-07-23 full-day audit remains immutable findings evidence. F39/F42/F43 and
+  F200/F201/F202/F203 are
   source-only `IN-PROGRESS`; their live repair/migration/deployment/TEST-drill/review/merge gates
   remain closed. F203 creation performs no implicit Calendar/Samples create, choose, or link action;
   explicit linkage remains later work under F112.

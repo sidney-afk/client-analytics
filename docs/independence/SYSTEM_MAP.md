@@ -525,7 +525,10 @@ n8n in the metric read path.*
   full `deliverables` row (brief + raw, on open), bulk brief hydration 6.5 s post-boot / on palette
   open. Issue-detail comments page through the protected `production-comments` Edge Function in
   50-row `{created_at,id}` cursor pages; it returns the normalized native thread, not the old
-  actor/action activity summaries. Issue detail calls `_prodLoadEventsFor` to derive its Properties
+  actor/action activity summaries. F39 candidate source authorizes the exact deliverable/team/client
+  before body access, applies principal/request budgets and durable non-secret read audit, and
+  filters client-audience totals/pages; this source is not deployed. Issue detail calls
+  `_prodLoadEventsFor` to derive its Properties
   status-history hover, but the reader pre-seeds/catches to empty and `_prodActivity` still has no
   render caller, so persisted native Activity is not shown and read failure is not distinguishable
   from no events (F138). F201 candidate source lazily calls the authenticated `production-write`
@@ -572,6 +575,11 @@ n8n in the metric read path.*
   a private, occurrence-complete, capability- and byte-readback-certified
   rescue sidecar; its migration, functions, inventory, and rescue remain
   source-only pending the dedicated owner window.
+  F43 candidate source adds canonical add/reply/edit/delete/resolve/reopen for Production,
+  Calendar, and Samples through the same gateway, with safe attachments, CAS/idempotency receipts,
+  audit, refresh, second-device draft rebase, and ordered existing-`comment` outbox dependencies.
+  F2 `off`/outage pauses applicable debt rather than retiring it. Its migration/functions/import/
+  TEST drill are not live.
 - **Current hard gaps (F50/F53/F54/F94/F136–F138/F200–F205).** A successful deliverable status write does **not** project to
   the linked Calendar/Samples card, whose component status remains a separate downstream truth.
   The new canonical Graphics artifact/archive-rescue source is not deployed or
@@ -619,7 +627,10 @@ n8n in the metric read path.*
   Reopening an issue and the normal
   Production refresh both revalidate the newest comment page; stable-ID merge keeps already-loaded
   older pages and request tokens drop stale pagination races. Comment drafts, per-operation pending
-  state, and retry idempotency keys are memory-only; comment bodies never enter localStorage.
+  state, retry idempotency keys, and second-device rebase cursors are memory-only; comment bodies
+  never enter localStorage. F42 candidate source adds durable composite card/comment links,
+  import-run provenance/conflicts, and lifecycle receipts only after an owner-approved migration
+  and complete two-surface manifest-bound import.
   Authority is fail-closed and re-read on normal refresh/focus plus a 30-second foreground timer.
 - **Roles.** Every verified staff role can use the mounted nav item. Comment reads additionally
   re-check the role key plus one active role-compatible roster identity server-side; direct
@@ -628,8 +639,10 @@ n8n in the metric read path.*
   may use all five operations, including full-set labels. Creative **writes** are limited to
   same-team status/comment, not labels or own-assignment, and status policy does not validate
   current state (F37/F136). The
-  protected comment **reader does not fetch the target or enforce member-team scope** (F39), so a
-  creative key can currently read another team's full protected thread by deliverable ID. Direct
+  deployed protected comment **reader does not fetch the target or enforce member-team scope**
+  (F39), so a creative key can currently read another team's full protected thread by deliverable
+  ID. Candidate source closes that scope with exact target/team/client checks, non-enumerating
+  denials, audit, and budgets, but is not live. Direct
   diagnostics without a verified identity remain read-only. "My issues" is a hardcoded heuristic
   (member matching a specific name, else first active assignee), not a real identity (F37). At
   ≤900px the sidebar containing My issues and the only visible palette trigger is hidden; the

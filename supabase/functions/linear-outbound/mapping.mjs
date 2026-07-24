@@ -240,6 +240,14 @@ export function markerFromBody(body) {
   return match ? clean(match[1]) : "";
 }
 
+export function commentWithMarker(issue, dedupKey) {
+  const comments = issue && issue.comments && Array.isArray(issue.comments.nodes)
+    ? issue.comments.nodes
+    : [];
+  const wanted = clean(dedupKey);
+  return comments.find(comment => markerFromBody(comment && comment.body) === wanted) || null;
+}
+
 function parentTeamKey(value) {
   const key = lower(value);
   if (key === "gra" || key === "graphic" || key === "graphics") return "graphics";
@@ -480,6 +488,31 @@ export function decideConflict(row, issue, context = {}) {
       };
     }
   }
+  if (operation === "comment") {
+    const action = lower(payload.action || "add");
+    const markerMatch = context.comment_marker_match
+      && typeof context.comment_marker_match === "object"
+      ? context.comment_marker_match
+      : null;
+    if ((action === "add" || action === "edit") && markerMatch) {
+      return {
+        decision: "already_applied",
+        reason: "comment_marker_receipt",
+        comment_id: clean(markerMatch.id),
+      };
+    }
+    const prior = parseObject(row && row.linear_result);
+    if (action === "delete"
+        && prior.delete_attempted === true
+        && context.comment_delete_checked === true
+        && !context.linear_comment) {
+      return {
+        decision: "already_applied",
+        reason: "comment_delete_attempt_receipt",
+        comment_id: clean(payload.linear_comment_id || context.linear_comment_id),
+      };
+    }
+  }
   const actual = actualValueForOperation(operation, issue, { ...payload, dedup_key: row.dedup_key });
   const intended = intendedValueForOperation(operation, payload, context);
   const alreadyApplied = operation === "description"
@@ -575,7 +608,36 @@ export function buildMutation(row, context = {}) {
 
   if (operation === "comment") {
     const issueId = clean(payload.linear_issue_id || context.linear_issue_id);
+    const action = lower(payload.action || "add");
     const body = outboundCommentBody(row.actor, payload.body, row.dedup_key);
+    if (action === "edit") {
+      if (context.comment_shadow_materialize === true
+          || context.comment_import_materialize === true) {
+        if (!issueId || !clean(payload.body)) throw new Error("incomplete comment materialization");
+        return {
+          kind: "commentCreate",
+          query: "mutation SyncViewMirrorComment($input: CommentCreateInput!) { commentCreate(input: $input) { success comment { id body url createdAt user { id name email } issue { id identifier updatedAt } } } }",
+          variables: { input: { issueId, body } },
+        };
+      }
+      const commentId = clean(payload.linear_comment_id || context.linear_comment_id);
+      if (!commentId || !clean(payload.body)) throw new Error("incomplete comment edit mutation");
+      return {
+        kind: "commentUpdate",
+        query: "mutation SyncViewMirrorCommentEdit($id: String!, $input: CommentUpdateInput!) { commentUpdate(id: $id, input: $input) { success comment { id body url createdAt updatedAt user { id name email } issue { id identifier updatedAt } } } }",
+        variables: { id: commentId, input: { body } },
+      };
+    }
+    if (action === "delete") {
+      const commentId = clean(payload.linear_comment_id || context.linear_comment_id);
+      if (!commentId) throw new Error("incomplete comment delete mutation");
+      return {
+        kind: "commentDelete",
+        query: "mutation SyncViewMirrorCommentDelete($id: String!) { commentDelete(id: $id) { success } }",
+        variables: { id: commentId },
+      };
+    }
+    if (action !== "add") throw new Error("unsupported comment lifecycle mutation");
     if (!issueId || !clean(payload.body)) throw new Error("incomplete comment mutation");
     return {
       kind: "commentCreate",
@@ -675,7 +737,7 @@ export function extractMutationResult(kind, data) {
   const result = data && data[kind];
   if (!result || result.success !== true) throw new Error(kind + " was not acknowledged");
   if (kind === "issueCreate" || kind === "issueUpdate") return result.issue || null;
-  if (kind === "commentCreate") return result.comment || null;
+  if (kind === "commentCreate" || kind === "commentUpdate") return result.comment || null;
   if (kind === "attachmentCreate") return result.attachment || null;
   return { success: true };
 }

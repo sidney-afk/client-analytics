@@ -426,7 +426,8 @@ function extractFunction(name) {
     && /authority === "syncview"[\s\S]{0,180}outboundLiveForDrain\(supabase\)/.test(edge)
     && /waitUntil\(\(async \(\) =>/.test(edge),
   'flipped live writes schedule the third exact-dedup drain shape in EdgeRuntime background work');
-  ok(/const shouldDrain = legacyParity \|\| principal\.testOnly \|\| syncviewLiveDrain/.test(edge)
+  ok(/const mutationHasMirror = operation !== "comment" \|\| commentMirrorApplicable/.test(edge)
+    && /const shouldDrain = mutationHasMirror && \(legacyParity \|\| principal\.testOnly \|\| syncviewLiveDrain\)/.test(edge)
     && /mirrorPending && awaitedDrain \? 202 : 200/.test(edge),
   'background drains extend shouldDrain without turning a durable native success into a pending HTTP response');
   ok(/overdueStatusBumpDate\(existing\.due_date\)/.test(edge)
@@ -822,12 +823,16 @@ function extractFunction(name) {
     && !/\bbrief\b/.test(extractFunction('publicRow')),
   'brief is gated to authenticated description success, DB-race conflict, and reconcile envelopes and cannot leak through client or ordinary public rows');
   const publicComment = extractFunction('publicComment');
-  ok(publicComment.includes('"native_comment_id"')
-    && publicComment.includes('"author_key"')
-    && publicComment.includes('"body"')
-    && publicComment.includes('"edited_at", "deleted_at"')
-    && publicComment.includes('"resolved_at"'),
-    'reconcile receipt exposes the canonical comment identity and edit/delete/resolve lifecycle fields');
+  ok(/id: clean\(row\.id\)/.test(publicComment)
+    && /native_comment_id: clean\(row\.native_comment_id\)\.slice\(0, 160\) \|\| null/.test(publicComment)
+    && /parent_id: clean\(row\.parent_id\)/.test(publicComment)
+    && /body: deleted \? "Comment deleted\."/.test(publicComment)
+    && /edited_at: clean\(row\.edited_at\)/.test(publicComment)
+    && /deleted_at: clean\(row\.deleted_at\)/.test(publicComment)
+    && /resolved_at: clean\(row\.resolved_at\)/.test(publicComment)
+    && /commentLifecycleCapabilities\(principal, row\)/.test(publicComment)
+    && !/linear_comment_id|author_key|client_slug|provenance/.test(publicComment),
+    'reconcile receipt exposes the bounded adoption id and safe canonical lifecycle fields without provider or internal identities');
 
   let executableReceipt = receiptReader
     .replace(/async function readOutboxReceipt\([\s\S]*?\): Promise<OutboxReceipt> \{/, 'async function readOutboxReceipt(supabase, dedup, expected) {')
@@ -1021,7 +1026,7 @@ function extractFunction(name) {
     && /items: currentResponseItems/.test(edge),
   'intake returns post-linkage updated_at values for the caller first CAS');
   ok(/row: operation === "description"[\s\S]{0,80}publicDescriptionRow\(result\)[\s\S]{0,100}operation === "comment"[\s\S]{0,80}publicRow\(existing\)[\s\S]{0,100}operation === "attachment"[\s\S]{0,80}publicArtifactRow\(result\)[\s\S]{0,80}publicRow\(result\)/.test(edge)
-    && /operation === "comment" \? \{ comment: parseJson\(result\) \}/.test(edge),
+    && /operation === "comment" \? \{ comment: publicComment\(result, principal\) \}/.test(edge),
   'comment success preserves the target entity CAS row and returns the durable comment separately');
   ok(/terminalValueProof/.test(inboundEchoProof)
     && /const isCommentEvent = resource\.includes\("comment"\)/.test(inbound)

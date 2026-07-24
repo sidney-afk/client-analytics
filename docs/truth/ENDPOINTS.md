@@ -121,10 +121,16 @@ Other:
   certified rescue links. It has not been deployed; migration/configuration, exact-SHA function
   deploy, full inventory reconciliation, and retrieval drills require a separate owner-approved
   window.
-- `functions/v1/production-comments` — bounded, no-store Production-thread reader; it verifies a
-  staff role key and active roster selection before service-role reads, but does not enforce the
-  requested deliverable's team against that member (F39). Comment bodies are not anon-readable;
-  creative cross-team scope remains an open gate.
+- `functions/v1/production-comments` — bounded, no-store canonical-thread reader. The deployed
+  version still has F39's target/team gap. Candidate source resolves exactly one active compatible
+  roster member or one active exact-client token, authorizes the exact target/team/client before
+  reading bodies, records durable non-secret allow/deny audit, applies principal/request budgets,
+  filters client pages/totals by audience, and uses non-enumerating denials. Client principals must
+  also send the verified Samples Review `sxr` card/component identity; candidate source revalidates
+  that identity against the exact Samples-origin deliverable and component team. The client UI
+  defensively projects client audience only and staff Client-visible depends on durable Samples-card
+  linkage, not an endpoint assertion. This candidate is not live; client-visible UI remains gated
+  on its separately approved migration/deploy/tokened TEST read drill.
 - `functions/v1/production-write` — authenticated native status/comment/due/assignee gateway for the
   Linear mirror; browser controls fail closed unless the target team is SyncView-authoritative or
   the active TEST client uses the bounded override. The backend has CAS-capable operations, but
@@ -152,6 +158,10 @@ Other:
   source fingerprints passing; #850's callers are live on Pages only for the allowlisted dark cohort
   (last verified private TEST fixture only). Any real-client enrollment remains owner-gated, and an
   ordinary merge/push still deploys neither write function.
+  F43 candidate source extends this same gateway with canonical add/reply/edit/delete/resolve/reopen,
+  safe attachments, CAS/idempotency receipts, audit, refresh, and ordered existing-`comment`
+  outbox debt. F2 `off` or drainer outage pauses applicable debt; it does not retire or discard it.
+  The migration, function deploy, F42 import, and TEST drill remain separately owner-gated.
 - `functions/v1/filming-plans` — filming plans backend. Source authenticates every GET before
   constructing the service-role client, accepts verified admin/SMM/creative staff role keys for
   reads, and keeps writes admin-only. The function is live and missing/wrong keys return `401`.

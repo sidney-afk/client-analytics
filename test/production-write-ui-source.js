@@ -380,6 +380,13 @@ ok(/if \(draft\.body !== body\) draft\.requestId = ''/.test(source)
 'an ambiguous comment retry keeps one request id until the semantic draft changes');
 ok(!/localStorage[\s\S]{0,100}commentDrafts|commentDrafts[\s\S]{0,100}localStorage/.test(source), 'comment drafts remain memory-only');
 ok(/code === 'write_conflict'/.test(source) && /Current values were reloaded/.test(source), 'conflicts surface the reloaded-current-row retry path');
+ok(/await _prodRebaseCommentEditDraft\(id, draft, error\)/.test(source)
+  && /draft\.expectedVersion = Number\(refreshed\.version\)/.test(extract('_prodRebaseCommentEditDraft'))
+  && /draft\.expectedUpdatedAt = String\(refreshed\.row_updated_at\)/.test(extract('_prodRebaseCommentEditDraft'))
+  && /draft\.currentBody = String\(refreshed\.body/.test(extract('_prodRebaseCommentEditDraft'))
+  && /draft\.requestId = ''/.test(extract('_prodRebaseCommentEditDraft'))
+  && /draft\.rebased = true/.test(extract('_prodRebaseCommentEditDraft')),
+'Production second-device edit conflicts preserve the draft, refresh the exact CAS cursor, and reset intent identity');
 const rowRenderers = ['_prodRow', '_prodSubIssueRowHTML', '_prodProjectIssueRowHTML'].map(extract);
 ok(rowRenderers.every(body => /_prodWriteGateAttrs\([^,]+, 'due'/.test(body)
   && /_prodWriteGateAttrs\([^,]+, 'assignee'/.test(body)),
@@ -388,8 +395,59 @@ ok(/_prodWriteGateAttrs\(issue, 'status'/.test(extract('_prodStatusIcon'))
   && ['status', 'assignee', 'due'].every(operation => extract('_prodProps').includes(`_prodWriteGateAttrs(d, '${operation}'`)),
 'status icons and detail properties reuse the shared write-gate attribute helper');
 
-if (failures) {
-  console.error(`\n${failures} Production write UI check(s) failed`);
+(async () => {
+  const draft = {
+    action: 'edit',
+    commentId: 'comment-fixture',
+    body: 'local draft survives',
+    expectedVersion: 2,
+    expectedUpdatedAt: '2026-07-23T10:00:00Z',
+    currentBody: 'old remote',
+    requestId: 'stale-intent',
+    lifecycleRequestId: 'stale-lifecycle',
+    error: '',
+    rebased: false,
+  };
+  const rebaseContext = {
+    result: null,
+    _prodState: { commentDrafts: new Map([['issue-fixture', draft]]) },
+    _prodComments: {
+      async readCanonical() { return true; },
+      find() {
+        return {
+          id: 'comment-fixture',
+          body: 'newer remote body',
+          version: 3,
+          row_updated_at: '2026-07-23T10:05:00Z',
+        };
+      },
+    },
+  };
+  vm.createContext(rebaseContext);
+  vm.runInContext(
+    extract('_prodRebaseCommentEditDraft').replace(
+      'function _prodRebaseCommentEditDraft',
+      'async function _prodRebaseCommentEditDraft',
+    )
+      + '\nresult = _prodRebaseCommentEditDraft("issue-fixture", _prodState.commentDrafts.get("issue-fixture"), {status:409});',
+    rebaseContext,
+  );
+  await rebaseContext.result;
+  ok(draft.body === 'local draft survives'
+    && draft.currentBody === 'newer remote body'
+    && draft.expectedVersion === 3
+    && draft.expectedUpdatedAt === '2026-07-23T10:05:00Z'
+    && draft.requestId === ''
+    && draft.lifecycleRequestId === ''
+    && draft.rebased === true,
+  'second-device conflict refresh retains local text and makes the next submit target the current server version');
+
+  if (failures) {
+    console.error(`\n${failures} Production write UI check(s) failed`);
+    process.exit(1);
+  }
+  console.log('\nProduction write UI checks passed');
+})().catch(error => {
+  console.error(error && error.stack ? error.stack : String(error));
   process.exit(1);
-}
-console.log('\nProduction write UI checks passed');
+});

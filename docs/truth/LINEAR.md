@@ -1,6 +1,6 @@
 # Linear — current truth
 
-> Last verified: 2026-07-23 @ b1a942d + source-only F200/F202/F203 candidates
+> Last verified: 2026-07-23 @ b1a942d + source-only F39/F42/F43 and F200/F202/F203 candidates
 > (F145 parent-link projection merged; plan-date release live; F200 attribution repair and F201/F202
 > gateway/outbound/inbound plus F203 create additions are not live until their owner-approved post-merge
 > repair/migration/function/drill gates)
@@ -45,6 +45,15 @@
 - **Legacy Calendar/Samples card comments:** app → Linear via `webhook/linear-add-comment`,
   prefixed `**{Reviewer} (via SyncView):**`. Those card-local arrays do not receive a complete
   inbound comment/lifecycle projection; see F42/F43.
+- **Canonical comment candidate (F39/F42/F43):** source-only code protects the exact canonical
+  thread by team/client, requires a two-surface Calendar+SXR snapshot with independently supplied
+  counts and stable hashes before import can certify complete, and routes add/reply/edit/delete/
+  resolve/reopen through `production-write`. Existing `comment` outbox rows carry ordered
+  dependencies so edit/delete cannot pass an unresolved add. F2 `off`/outage preserves applicable
+  debt for later drain; a first live edit after shadow-only history materializes the current
+  canonical body once, while deleting a never-materialized foreign comment is a terminal no-op.
+  No new outbox operation or CHECK widening is used. Nothing in this candidate is live-applied,
+  deployed, imported, or drilled.
 - **Current caller-auth defect (F91):** `linear-set-status`, `linear-add-comment`, `video-form`, and
   `graphic-form` authenticate no incoming principal. Their authority checks only choose whether a
   team may still write toward Linear; with both teams Linear-authoritative they permit the route.

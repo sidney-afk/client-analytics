@@ -592,7 +592,7 @@ const ISSUE_FIELDS = [
   "parent { id identifier title }",
   "labelIds",
   "labels(first: 100, includeArchived: true) { nodes { id name color description } pageInfo { hasNextPage } }",
-  "attachments(first: 100) { nodes { id url title subtitle } pageInfo { hasNextPage } }",
+  "attachments(first: 100) { nodes { id url title subtitle } pageInfo { hasNextPage endCursor } }",
   "comments(first: 100) { nodes { id body createdAt user { id name email } } }",
 ].join("\n");
 

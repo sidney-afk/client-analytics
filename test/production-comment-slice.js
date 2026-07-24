@@ -519,6 +519,48 @@ function snapshotFor(calendar, sxr, mutateManifest) {
   }];
   ok(!planCardCommentImport(snapshotFor(looseDateRows, [])).complete,
   'a non-ISO timestamp string Date.parse would normalize is rejected');
+  const postgresInvalidTimestampCases = [
+    '2026-01-01T00:00:00+16:00',
+    '2026-01-01T00:00:00+10:99',
+    '0000-01-01T00:00:00Z',
+  ];
+  postgresInvalidTimestampCases.forEach((createdAt, index) => {
+    const rows = [{
+      id: `card-pg-invalid-${index}`, client_slug: 'test-client',
+      video_deliverable_id: `deliverable-pg-invalid-${index}`,
+      comments: [{
+        id: `pg-invalid-${index}`, author: 'SMM', role: 'smm',
+        body: 'PostgreSQL-invalid timestamp', created_at: createdAt,
+      }],
+    }];
+    const invalidPlan = planCardCommentImport(snapshotFor(rows, []));
+    ok(!invalidPlan.complete
+      && invalidPlan.conflicts.some(row =>
+        row.classification === 'malformed_lifecycle_timestamp'
+        && row.native_comment_id === `pg-invalid-${index}`),
+    `PostgreSQL-invalid timestamp ${createdAt} is rejected before apply`);
+  });
+  const postgresValidTimestampCases = [
+    '2026-01-01T00:00:00Z',
+    '2026-01-01T00:00:00-05:00',
+    '2026-01-01T00:00:00+13:45',
+  ];
+  postgresValidTimestampCases.forEach((createdAt, index) => {
+    const rows = [{
+      id: `card-pg-valid-${index}`, client_slug: 'test-client',
+      video_deliverable_id: `deliverable-pg-valid-${index}`,
+      comments: [{
+        id: `pg-valid-${index}`, author: 'SMM', role: 'smm',
+        body: 'PostgreSQL-valid timestamp', created_at: createdAt,
+      }],
+    }];
+    const validPlan = planCardCommentImport(snapshotFor(rows, []));
+    ok(validPlan.complete
+      && validPlan.conflicts.length === 0
+      && validPlan.imports.some(row =>
+        row.identity === `calendar|card-pg-valid-${index}|video|pg-valid-${index}`),
+    `legitimate timestamp ${createdAt} remains eligible`);
+  });
   const badRoundRows = [{
     id: 'card-round', client_slug: 'test-client', video_deliverable_id: 'deliverable-round',
     comments: [{ id: 'rnd', author: 'SMM', role: 'smm', body: 'Round is zero',

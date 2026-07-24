@@ -28634,7 +28634,12 @@
     async function _writeUiCardCommentLifecycle(surface, post, component, comment, action, body, retryCursor) {
         const nativeId = _writeUiNativeId(post, component);
         const gate = _prodCanonicalCommentGate(post, component);
-        if (!nativeId || !gate.ready) throw _writeUiGatewayError(409, 'canonical_comment_read_required');
+        const clientSurface = _isClientLink
+            ? _prodVerifiedClientCommentMutationContext(surface, post, component, nativeId)
+            : null;
+        if (!nativeId || !gate.ready || (_isClientLink && (!gate.client || !clientSurface))) {
+            throw _writeUiGatewayError(409, 'canonical_comment_read_required');
+        }
         const rebased = retryCursor && retryCursor.rebased === true;
         const version = Number(rebased ? retryCursor.expectedVersion : comment && comment.version);
         const updatedAt = String(rebased
@@ -28647,7 +28652,8 @@
             action,
             id: String(comment.id || ''),
             expected_version: version,
-            expected_updated_at: updatedAt
+            expected_updated_at: updatedAt,
+            ...(clientSurface ? { card_id: clientSurface.card_id } : {})
         };
         if (action === 'edit') lifecycleComment.body = String(body == null ? comment.body || '' : body).trim();
         return _writeUiGatewayWithRepair({
@@ -45627,6 +45633,23 @@
                 component
             });
         }
+        function _prodVerifiedClientCommentMutationContext(surface, post, component, deliverableId) {
+            if (!_isClientLink) return null;
+            const expected = _prodVerifiedClientCommentSurfaceContext(
+                surface, post, component, deliverableId
+            );
+            const read = post
+                && post._canonicalCommentReads
+                && post._canonicalCommentReads[String(deliverableId || '')];
+            const verified = read && read.clientSurface;
+            return expected
+                && read.status === 'ready'
+                && read.client === true
+                && _prodClientCommentSurfaceKey(verified)
+                    === _prodClientCommentSurfaceKey(expected)
+                ? verified
+                : null;
+        }
         function _prodClientCommentSurfaceKey(value) {
             const source = value && typeof value === 'object' ? value : {};
             const sourceSurface = String(source.source_surface || '').trim().toLowerCase();
@@ -53761,9 +53784,12 @@
         const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
         const nativeId = _writeUiNativeId(meta && meta.post, component);
         const clientCanonicalWrite = !!_isClientLink;
+        const clientSurface = clientCanonicalWrite
+            ? _prodVerifiedClientCommentMutationContext('sxr', meta && meta.post, component, nativeId)
+            : null;
         if (clientCanonicalWrite) {
             const gate = _prodCanonicalCommentGate(meta && meta.post, component);
-            if (!gate.linked || !gate.ready || !gate.client || !nativeId) {
+            if (!gate.linked || !gate.ready || !gate.client || !nativeId || !clientSurface) {
                 throw _writeUiGatewayError(409, 'canonical_comment_read_required');
             }
         } else if (!(await _writeUiUseGatewayWhenReady('sxr', meta))) {
@@ -53796,7 +53822,7 @@
                     nativeId,
                     sourceEditedAt: comment && (comment.updated_at || comment.created_at),
                     requestId: _writeUiIntentId('sxr', 'comment', [nativeCommentId]),
-                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: meta && Number.isInteger(meta.round) ? meta.round : null }
+                    comment: { body: txt, native_comment_id: nativeCommentId, parent_id: String(meta && meta.parentId || ''), audience: meta && meta.audience === 'client' ? 'client' : 'internal', component, is_tweak: !!(meta && meta.isTweak), round: meta && Number.isInteger(meta.round) ? meta.round : null, ...(clientSurface ? { card_id: clientSurface.card_id } : {}) }
                 }, repair);
     }
     function _writeUiApplyJournalEdits(post, edits, surface) {

@@ -131,7 +131,7 @@ function isValidTimestampValue(value) {
   if (typeof value !== 'string') return false;
   const text = value.trim();
   if (!text) return true;
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.exec(text);
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(text);
   if (!match) return false;
   const year = Number(match[1]);
   const month = Number(match[2]);
@@ -139,11 +139,18 @@ function isValidTimestampValue(value) {
   const hour = Number(match[4]);
   const minute = Number(match[5]);
   const second = Number(match[6]);
+  const offsetHour = match[8] == null ? 0 : Number(match[8]);
+  const offsetMinute = match[9] == null ? 0 : Number(match[9]);
+  // PostgreSQL has no year zero and accepts numeric UTC displacements only
+  // through 15:59. Match those bounds before Date.parse can normalize a value
+  // that the import RPC's timestamptz cast would reject mid-cohort.
+  if (year < 1) return false;
   if (month < 1 || month > 12) return false;
   // Day 0 of the following month is the last calendar day of `month`.
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   if (day < 1 || day > daysInMonth) return false;
   if (hour > 23 || minute > 59 || second > 59) return false;
+  if (offsetHour > 15 || offsetMinute > 59) return false;
   return Number.isFinite(Date.parse(text));
 }
 

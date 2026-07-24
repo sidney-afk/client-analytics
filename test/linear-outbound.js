@@ -303,7 +303,7 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
         url: `https://drive.google.com/file/d/pageone${index}/view`,
         subtitle: 'SyncView canonical revision 1',
       })),
-      pageInfo: { hasNextPage: true },
+      pageInfo: { hasNextPage: true, endCursor: 'attachment-cursor-1' },
     },
   };
   ok(mapping.decideConflict(attachmentRow, incompleteAttachmentIssue, attachmentContext).decision === 'already_applied',
@@ -328,12 +328,71 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && mapping.attachmentRevisionMarker({ url: '', artifact_revision: 3 }) === null,
     'the attachment revision marker/predicate the drainer pages with matches on canonical url + revision subtitle');
   const outboundIndexSource = read('supabase/functions/linear-outbound/index.ts');
+  ok(/attachments\(first: 100\)[^{]*\{[\s\S]{0,180}pageInfo \{ hasNextPage endCursor \}/
+    .test(mapping.issueFields()),
+  'the initial issue attachment selection requests the cursor required to reach page two');
   ok(/async function readAttachmentRevisionPresent\(/.test(outboundIndexSource)
     && /SyncViewMirrorIssueAttachments/.test(outboundIndexSource)
     && /attachments\(first: 100, after: \$after\)/.test(outboundIndexSource)
     && /attachment revision pagination stalled/.test(outboundIndexSource)
     && /context\.attachment_revision_present = await readAttachmentRevisionPresent\(/.test(outboundIndexSource),
     'the drainer pages the attachments relation (bounded) and feeds the definitive presence into the conflict decision');
+  const attachmentPagerSource = outboundIndexSource.match(
+    /async function readAttachmentRevisionPresent\([^]*?\n\}/,
+  );
+  ok(!!attachmentPagerSource, 'the attachment revision pager is present for behavioral coverage');
+  if (attachmentPagerSource) {
+    const cursorCalls = [];
+    const attachmentPagerContext = {
+      attachmentRevisionMarker: mapping.attachmentRevisionMarker,
+      attachmentNodesHaveRevision: mapping.attachmentNodesHaveRevision,
+      clean: value => String(value == null ? '' : value).trim(),
+      parseArray: value => Array.isArray(value) ? value : [],
+      parseJson: value => value && typeof value === 'object' && !Array.isArray(value) ? value : {},
+      linearGraphql: async (_query, variables) => {
+        cursorCalls.push(variables.after);
+        if (variables.after === 'attachment-cursor-1') {
+          return {
+            issue: {
+              attachments: {
+                nodes: [{ id: 'page-2-other', url: 'https://example.invalid/other', subtitle: revisionSubtitle }],
+                pageInfo: { hasNextPage: true, endCursor: 'attachment-cursor-2' },
+              },
+            },
+          };
+        }
+        if (variables.after === 'attachment-cursor-2') {
+          return {
+            issue: {
+              attachments: {
+                nodes: [{ id: 'page-3-other', url: 'https://example.invalid/still-other', subtitle: revisionSubtitle }],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          };
+        }
+        throw new Error('unexpected attachment cursor ' + variables.after);
+      },
+    };
+    vm.createContext(attachmentPagerContext);
+    vm.runInContext(attachmentPagerSource[0]
+      .replace(
+        /async function readAttachmentRevisionPresent\([^]*?\): Promise<boolean> \{/,
+        'async function readAttachmentRevisionPresent(issueId, issue, payload) {',
+      )
+      .replace('let after: string | null', 'let after'), attachmentPagerContext);
+    const definitiveAbsent = await attachmentPagerContext.readAttachmentRevisionPresent(
+      'issue_fixture',
+      incompleteAttachmentIssue,
+      attachmentRow.payload,
+    );
+    ok(definitiveAbsent === false
+      && JSON.stringify(cursorCalls) === JSON.stringify([
+        'attachment-cursor-1',
+        'attachment-cursor-2',
+      ]),
+    'the attachment pager consumes the initial and subsequent endCursor values through definitive completion');
+  }
 
   const createPayload = {
     team_id: 'team_fixture',

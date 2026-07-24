@@ -659,10 +659,12 @@ begin
      or v_link_team is distinct from v_target_team
      or v_client_slug is distinct from v_target_client_slug
      or v_card_id is distinct from v_target_card_id
-     or v_target_origin is distinct from case
-       when v_surface = 'calendar' then 'calendar'
-       else 'samples'
-     end then
+     or v_target_origin is distinct from (
+       case
+         when v_surface = 'calendar' then 'calendar'
+         else 'samples'
+       end
+     ) then
     raise exception 'production comment card import crosswalk mismatch';
   end if;
 

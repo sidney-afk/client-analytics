@@ -1,0 +1,62 @@
+name: F42 apply rehearsal
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/f42-card-comment-import.js"
+      - "scripts/f42-card-comment-apply.js"
+      - "scripts/f42-apply-rehearsal.js"
+      - "migrations/2026-07-06-b1-linear-data-model.sql"
+      - "migrations/2026-07-11-b4-linear-outbound.sql"
+      - "migrations/2026-07-12-production-comments.sql"
+      - "migrations/2026-07-23-f201-production-labels.sql"
+      - "migrations/2026-07-23-f202-production-descriptions.sql"
+      - "migrations/2026-07-23-f203-production-issue-create.sql"
+      - "migrations/2026-07-23-production-comment-thread-lifecycle.sql"
+      - "migrations/2026-07-23-f34-f53-production-attachments.sql"
+      - "test/production-comment-slice.js"
+      - "test/f42-card-comment-apply.js"
+      - "docs/independence/F42_CARD_COMMENT_IMPORT_RUNBOOK.md"
+      - ".github/workflows/f42-apply-rehearsal.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  f42-rehearsal:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # External-server mode: the rehearsal creates and drops a uniquely-named
+      # throwaway database on this service; it never manages a daemon itself.
+      F42_REHEARSAL_PGHOST: localhost
+      F42_REHEARSAL_PGPORT: "5432"
+      F42_REHEARSAL_PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: F42 planner + apply unit suites
+        run: |
+          node test/production-comment-slice.js
+          node test/f42-card-comment-apply.js
+      - name: End-to-end apply rehearsal on disposable PostgreSQL
+        run: node scripts/f42-apply-rehearsal.js | tee "${{ runner.temp }}/f42-rehearsal.json"
+      - name: Gate on a clean rehearsal
+        run: grep -q '"status": "PASS"' "${{ runner.temp }}/f42-rehearsal.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f42-apply-rehearsal
+          path: ${{ runner.temp }}/f42-rehearsal.json
+          retention-days: 30

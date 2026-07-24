@@ -2281,7 +2281,11 @@ SELECT public.production_comment_lifecycle_write(
       'test_only', true,
       'legacy_parity', false,
       'payload', jsonb_build_object(
-        '_intent_fingerprint', 'f43-delete-fingerprint'
+        '_intent_fingerprint', 'f43-delete-fingerprint',
+        '_f27_authority_generation', (
+          SELECT generation FROM public.track_b_f27_team_fences WHERE team = 'video'
+        ),
+        '_f27_legacy_parity', false
       )
     )
   ),

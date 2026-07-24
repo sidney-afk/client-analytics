@@ -483,18 +483,19 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   can regress reviewer/terminal work or mutate peer work after a flip (F37/F136).
 - Video delivery/source data is collapsed from four typed fields to one priority winner labelled
   “Delivered file”; filming plan/raw footage can be hidden or mislabeled (F137).
-- The 2026-07-23 full-day audit remains immutable findings evidence. F39/F42/F43 and
-  F200/F201/F202/F203 are
-  source-only `IN-PROGRESS`; their live repair/migration/deployment/TEST-drill/review/merge gates
-  remain closed. F203 creation performs no implicit Calendar/Samples create, choose, or link action;
+- The 2026-07-23 full-day audit remains immutable findings evidence. F200's owner-approved roster/data
+  correction applied on 2026-07-24; F39/F42/F43 and F201/F202/F203 remain source-only `IN-PROGRESS`
+  with their live repair/migration/deployment/TEST-drill/review/merge gates closed. F203 creation
+  performs no implicit Calendar/Samples create, choose, or link action;
   explicit linkage remains later work under F112.
 - F200 is distinct from F145: the native parent link remains the hierarchy owner, while candidate
   attribution now derives client identity only from active-roster project IDs or an owner-approved
   explicit roster/internal/TEST classification. B1 never inserts Linear-derived clients. Production
   renders `needs_attribution`, provisional unanimous-child family, and conflict states visibly
   instead of trusting a stale `client_slug`; inbound and scheduled reconciliation invalidate or
-  compare project/client/hierarchy plus mapping revision. The exact 72-row repair remains a later
-  owner-approved private-manifest operation and ran zero writes here.
+  compare project/client/hierarchy plus mapping revision. The live F200 private-manifest operation
+  applied 87 attribution-only CAS patches after exact preflight/readback; two projectless TEST parents
+  remain visible repair work, pending an owner decision.
 - F204 owns the unresolved saved/shared-view and manual-board-order scope. F205 is a current
   wrong-data bug: board cards read client status/lead/target from `CLIENTS`, while project detail and
   its pickers read the slimmer `PROJECTS` object and can substitute In Progress/No lead/No target.

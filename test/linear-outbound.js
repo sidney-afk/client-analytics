@@ -60,10 +60,12 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     comments: { nodes: [] },
   };
 
-  ok(mapping.OUTBOUND_OPERATIONS.length === 12
-    && mapping.OUTBOUND_OPERATIONS.includes('labels')
-    && mapping.OUTBOUND_OPERATIONS.includes('description'),
-  'the strict outbound operation catalog adds description after labels without dropping an existing operation');
+  ok(JSON.stringify(mapping.OUTBOUND_OPERATIONS) === JSON.stringify([
+    'create', 'status', 'comment', 'due', 'assignee', 'title',
+    'priority', 'parent', 'archive', 'restore', 'labels', 'description',
+    'attachment',
+  ]),
+  'the strict outbound operation catalog keeps every prior operation and adds attachment only');
   ok(mapping.D27_LIVE_ERA_START === D27_LIVE_ERA_START,
     'reconciler and Edge Function share the exact D-27 live-era boundary');
   const status = mapping.buildMutation(baseRow, { state_id: 'state_approved', linear_issue_id: 'issue_fixture' });

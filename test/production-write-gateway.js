@@ -732,7 +732,7 @@ function extractFunction(name) {
     && !/row\.actor|row\.role/.test(receiptReader)
     && /operationPayloadMatches/.test(receiptReader),
   'receipt exactness binds the stable actor fingerprint and persisted operation payload, not mutable actor labels');
-  ok(/operation !== "status" && operation !== "description" && operation !== "comment"/.test(reconcile)
+  ok(/operation !== "status"[\s\S]{0,80}operation !== "description"[\s\S]{0,80}operation !== "comment"[\s\S]{0,80}operation !== "attachment"/.test(reconcile)
     && /operation === "description"[\s\S]{0,700}patch: \{ brief: description \}[\s\S]{0,160}expectedOperationPayload = \{ description \}/.test(reconcile)
     && /operation === "description"[\s\S]{0,400}payload\.description === expectedPayload\.description/.test(receiptReader),
   'read-only reconciliation reconstructs the exact description fingerprint and compares the persisted Markdown payload without normalization');
@@ -817,8 +817,8 @@ function extractFunction(name) {
   ok(/assertCas\(body, existing, operation === "description"\)/.test(entityHandler)
     && /row: operation === "description"[\s\S]{0,80}publicDescriptionRow\(result\)[\s\S]{0,100}operation === "comment"[\s\S]{0,80}publicRow\(existing\)/.test(entityHandler)
     && /row: operation === "description"[\s\S]{0,100}publicDescriptionRow\(current \|\| existing\)[\s\S]{0,100}publicRow\(current \|\| existing\)/.test(entityHandler)
-    && /row: operation === "description" \? publicDescriptionRow\(current\) : publicRow\(current\)/.test(reconcile)
-    && /\(operation === "labels" \|\| operation === "description"\) && principal\.kind === "client"/.test(entityHandler)
+    && /row: operation === "description"[\s\S]{0,80}publicDescriptionRow\(current\)[\s\S]{0,80}operation === "attachment"[\s\S]{0,80}publicArtifactRow\(current\)[\s\S]{0,80}publicRow\(current\)/.test(reconcile)
+    && /\(operation === "labels" \|\| operation === "description" \|\| operation === "attachment"\)[\s\S]{0,80}principal\.kind === "client"/.test(entityHandler)
     && !/\bbrief\b/.test(extractFunction('publicRow')),
   'brief is gated to authenticated description success, DB-race conflict, and reconcile envelopes and cannot leak through client or ordinary public rows');
   const publicComment = extractFunction('publicComment');
@@ -1020,7 +1020,7 @@ function extractFunction(name) {
     && /currentItemsById/.test(edge)
     && /items: currentResponseItems/.test(edge),
   'intake returns post-linkage updated_at values for the caller first CAS');
-  ok(/row: operation === "description"[\s\S]{0,80}publicDescriptionRow\(result\)[\s\S]{0,100}operation === "comment"[\s\S]{0,80}publicRow\(existing\)[\s\S]{0,80}publicRow\(result\)/.test(edge)
+  ok(/row: operation === "description"[\s\S]{0,80}publicDescriptionRow\(result\)[\s\S]{0,100}operation === "comment"[\s\S]{0,80}publicRow\(existing\)[\s\S]{0,100}operation === "attachment"[\s\S]{0,80}publicArtifactRow\(result\)[\s\S]{0,80}publicRow\(result\)/.test(edge)
     && /operation === "comment" \? \{ comment: parseJson\(result\) \}/.test(edge),
   'comment success preserves the target entity CAS row and returns the durable comment separately');
   ok(/terminalValueProof/.test(inboundEchoProof)

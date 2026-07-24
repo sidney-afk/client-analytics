@@ -13,7 +13,10 @@ import {
 } from "../_shared/staff-role-auth.ts";
 import {
   DELIVERABLE_STATUSES,
+  assetTypeAllowed,
+  assetUrlType,
   browserCredentialTestOverride,
+  canonicalArtifactUrl,
   canonicalDescription,
   canonicalLabelIds,
   clean,
@@ -35,7 +38,9 @@ import {
   roleCompatible,
   isCanonicalActiveTestClient,
   serviceTestOverrideAllowed,
+  signedAssetExpired,
   sourceTimestamp,
+  staffAssetReadAllowed,
   staffOperationAllowed,
   validDateOrNull,
   validRequestId,
@@ -102,6 +107,15 @@ const OVERDUE_STATUS_BUMP_FLAG = "write_ui_overdue_due_bump";
 const LINEAR_URL = "https://api.linear.app/graphql";
 const LABEL_PAGE_SIZE = 100;
 const MAX_LABEL_PAGES = 50;
+const ASSET_PROBE_TIMEOUT_MS = 8_000;
+const MAX_ASSET_REDIRECTS = 3;
+const ASSET_EVIDENCE_MAX_AGE_MS = 5 * 60 * 1_000;
+const ASSET_SLOTS = Object.freeze([
+  { key: "filming_plan", field: "filming_doc_url" },
+  { key: "raw_footage", field: "footage_folder_url" },
+  { key: "delivery_folder", field: "delivery_folder_url" },
+  { key: "deliverable_file", field: "file_url" },
+]);
 const PRODUCTION_CREATE_FIELDS = new Set([
   "operation",
   "surface",
@@ -177,6 +191,287 @@ function parseJson(value: unknown): JsonMap {
   } catch (_error) {
     return {};
   }
+}
+
+function signedLinearUpload(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return [...url.searchParams.keys()].some(key =>
+      /^(?:signature|sig|token|expires|x-goog-signature|x-goog-expires)$/i.test(key)
+    );
+  } catch (_error) {
+    return false;
+  }
+}
+
+function assetGuidance(state: string): string {
+  if (state === "missing") return "Attach a canonical Graphics deliverable before requesting SMM approval.";
+  if (state === "invalid") return "Use a supported HTTPS Drive, Frame.io, or Dropbox file/folder link.";
+  if (state === "expired") return "Replace the expired asset with a current canonical link.";
+  if (state === "permission_denied") return "Share the asset with the review team or replace it with an accessible link.";
+  return "The asset could not be verified. Retry the access check or attach a different link.";
+}
+
+async function boundedBodySample(response: Response, maxBytes = 8_192): Promise<string> {
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (size < maxBytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value || !value.length) continue;
+      const take = value.slice(0, Math.max(0, maxBytes - size));
+      chunks.push(take);
+      size += take.length;
+      if (take.length < value.length || size >= maxBytes) break;
+    }
+  } finally {
+    await reader.cancel().catch(() => null);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+function assetProbeUrl(rawUrl: string): string {
+  const url = new URL(rawUrl);
+  const host = lower(url.hostname).replace(/\.$/, "");
+  if (host === "drive.google.com") {
+    const fileId = url.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/i)?.[1]
+      || url.searchParams.get("id");
+    if (fileId) {
+      const probe = new URL("https://drive.google.com/uc");
+      probe.searchParams.set("export", "download");
+      probe.searchParams.set("id", fileId);
+      const resourceKey = url.searchParams.get("resourcekey");
+      if (resourceKey) probe.searchParams.set("resourcekey", resourceKey);
+      return probe.toString();
+    }
+  }
+  if (host === "docs.google.com") {
+    const document = url.pathname.match(/^\/document\/d\/([A-Za-z0-9_-]+)/i)?.[1];
+    if (document) {
+      const probe = new URL(`https://docs.google.com/document/d/${document}/export`);
+      probe.searchParams.set("format", "pdf");
+      const resourceKey = url.searchParams.get("resourcekey");
+      if (resourceKey) probe.searchParams.set("resourcekey", resourceKey);
+      return probe.toString();
+    }
+  }
+  if (host === "dropbox.com" || host === "www.dropbox.com") {
+    const probe = new URL(url.toString());
+    probe.searchParams.delete("dl");
+    probe.searchParams.set("raw", "1");
+    return probe.toString();
+  }
+  return url.toString();
+}
+
+function assetProbeRedirectAllowed(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch (_error) {
+    return false;
+  }
+  const host = lower(url.hostname).replace(/\.$/, "");
+  if (url.protocol !== "https:" || url.username || url.password) return false;
+  if (assetUrlType(value) !== "invalid") return true;
+  return host === "drive.usercontent.google.com"
+    || host === "dl.dropboxusercontent.com"
+    || host === "storage.googleapis.com"
+    || host.endsWith(".googleusercontent.com");
+}
+
+async function boundedAssetFetch(rawUrl: string): Promise<{ response: Response; sample: string }> {
+  if (assetUrlType(rawUrl) === "invalid") throw new Error("asset_redirect_invalid");
+  let current = assetProbeUrl(rawUrl);
+  for (let redirect = 0; redirect <= MAX_ASSET_REDIRECTS; redirect++) {
+    if (!assetProbeRedirectAllowed(current)) throw new Error("asset_redirect_invalid");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ASSET_PROBE_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(current, {
+        method: "GET",
+        redirect: "manual",
+        signal: controller.signal,
+        headers: { accept: "*/*", range: "bytes=0-8191" },
+      });
+      if (response.status < 300 || response.status >= 400) {
+        return {
+          response,
+          sample: response.ok ? await boundedBodySample(response) : "",
+        };
+      }
+      const location = clean(response.headers.get("location"));
+      await response.body?.cancel().catch(() => null);
+      if (!location || redirect === MAX_ASSET_REDIRECTS) {
+        throw new Error("asset_redirect_unverified");
+      }
+      const next = new URL(location, current).toString();
+      if (!assetProbeRedirectAllowed(next)) throw new Error("asset_redirect_unapproved");
+      current = next;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new Error("asset_redirect_unverified");
+}
+
+function providerEvidenceState(
+  rawUrl: string,
+  response: Response,
+  sample: string,
+): "available" | "permission_denied" | "unavailable" {
+  if (!response.ok) return "unavailable";
+  const disposition = lower(response.headers.get("content-disposition"));
+  const contentType = lower(response.headers.get("content-type")).split(";")[0];
+  if (disposition.includes("attachment")
+      || /^(?:image|video|audio)\//.test(contentType)
+      || /^(?:application\/(?:pdf|octet-stream|zip|vnd[.]))/.test(contentType)) {
+    return "available";
+  }
+  if (contentType !== "text/html" && contentType !== "application/xhtml+xml") {
+    return "unavailable";
+  }
+  const body = lower(sample);
+  if (!body) return "unavailable";
+  if (/accounts[.]google[.]com|servicelogin|request access|access denied|permission denied|not authorized|(?:sign|log)[ -]?in|type\s*=\s*["']password["']/i.test(body)) {
+    return "permission_denied";
+  }
+  // A branded landing page does not prove the requested resource exists or is
+  // reviewable. Only an unambiguous media/download response above may unlock
+  // SMM Approval; all other HTML fails closed.
+  return "unavailable";
+}
+
+async function probeAssetUrl(slot: string, value: unknown): Promise<JsonMap> {
+  const raw = clean(value);
+  const checkedAt = new Date().toISOString();
+  if (!raw) {
+    return { slot, state: "missing", url_type: null, checked_at: checkedAt, guidance: assetGuidance("missing") };
+  }
+  const urlType = assetUrlType(raw);
+  if (urlType === "invalid"
+      || (urlType !== "linear_upload" && !assetTypeAllowed(slot, raw))
+      || (urlType === "linear_upload" && slot !== "deliverable_file")) {
+    return { slot, state: "invalid", url_type: urlType, checked_at: checkedAt, guidance: assetGuidance("invalid") };
+  }
+  if (signedAssetExpired(raw)) {
+    return { slot, state: "expired", url_type: urlType, checked_at: checkedAt, guidance: assetGuidance("expired") };
+  }
+  // Unsigned Linear uploads are private and require a Linear bearer token.
+  // They remain historical rescue candidates, never browser-resolvable proof.
+  if (urlType === "linear_upload" && !signedLinearUpload(raw)) {
+    return {
+      slot,
+      state: "permission_denied",
+      url_type: urlType,
+      checked_at: checkedAt,
+      guidance: assetGuidance("permission_denied"),
+    };
+  }
+  try {
+    const { response, sample } = await boundedAssetFetch(raw);
+    const state = response.status === 401 || response.status === 403
+      ? "permission_denied"
+      : response.status === 404 || response.status === 410
+        ? "expired"
+        : providerEvidenceState(raw, response, sample);
+    return {
+      slot,
+      state,
+      url_type: urlType,
+      checked_at: checkedAt,
+      http_status: response.status,
+      guidance: state === "available" ? null : assetGuidance(state),
+    };
+  } catch (_error) {
+    return {
+      slot,
+      state: "unavailable",
+      url_type: urlType,
+      checked_at: checkedAt,
+      guidance: assetGuidance("unavailable"),
+    };
+  }
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)),
+  );
+  return [...digest].map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function recordAssetEvidence(
+  supabase: SupabaseClient,
+  deliverableId: string,
+  slot: string,
+  value: unknown,
+  evidence: JsonMap,
+): Promise<JsonMap> {
+  const checkedAt = clean(evidence.checked_at);
+  const state = clean(evidence.state);
+  const urlHash = await sha256Hex(clean(value));
+  const httpStatus = Number(evidence.http_status);
+  const row = {
+    deliverable_id: deliverableId,
+    slot,
+    url_sha256: urlHash,
+    state,
+    http_status: Number.isInteger(httpStatus) && httpStatus >= 100 && httpStatus <= 599
+      ? httpStatus
+      : null,
+    result_code: `asset_${state}`,
+    checked_at: checkedAt,
+    checker: "production-write",
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase.from("production_asset_access_checks")
+    .upsert(row, { onConflict: "deliverable_id,slot,url_sha256" })
+    .select("deliverable_id,slot,url_sha256,state,http_status,result_code,checked_at,checker")
+    .maybeSingle();
+  if (error || !data) throw new GatewayError(503, "asset_evidence_unavailable");
+  return data as JsonMap;
+}
+
+async function requireFreshAssetEvidence(
+  supabase: SupabaseClient,
+  deliverableId: string,
+  slot: string,
+  value: unknown,
+): Promise<JsonMap> {
+  const urlHash = await sha256Hex(clean(value));
+  const { data, error } = await supabase.from("production_asset_access_checks")
+    .select("deliverable_id,slot,url_sha256,state,http_status,result_code,checked_at,checker")
+    .eq("deliverable_id", deliverableId)
+    .eq("slot", slot)
+    .eq("url_sha256", urlHash)
+    .maybeSingle();
+  if (error || !data) throw new GatewayError(503, "asset_evidence_unavailable");
+  const row = data as JsonMap;
+  const checkedAt = Date.parse(clean(row.checked_at));
+  if (clean(row.state) !== "available"
+      || clean(row.checker) !== "production-write"
+      || clean(row.url_sha256) !== urlHash
+      || !Number.isFinite(checkedAt)
+      || Date.now() - checkedAt > ASSET_EVIDENCE_MAX_AGE_MS
+      || checkedAt > Date.now() + 30_000) {
+    throw new GatewayError(409, "artifact_not_resolvable", {
+      asset_state: clean(row.state) || "unavailable",
+      checked_at: clean(row.checked_at) || null,
+      guidance: assetGuidance(clean(row.state) || "unavailable"),
+    });
+  }
+  return row;
 }
 
 function labelNodes(value: unknown): JsonMap[] {
@@ -759,6 +1054,12 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
         .toLowerCase() || "production_create_id_conflict";
       throw new GatewayError(409, code);
     }
+    if (/artifact_card_projection_(scope_invalid|failed)/i.test(clean(error.message))) {
+      const code = clean(error.message)
+        .match(/artifact_card_projection_(scope_invalid|failed)/i)?.[0]
+        .toLowerCase() || "artifact_card_projection_failed";
+      throw new GatewayError(409, code);
+    }
     console.error("production-write RPC failed", name, error.code || "unknown");
     throw new GatewayError(500, "native_write_failed");
   }
@@ -792,6 +1093,15 @@ function publicRow(value: unknown): JsonMap {
     linear_identifier: clean(row.linear_identifier) || null,
     linear_issue_url: clean(row.linear_issue_url) || null,
     updated_at: clean(row.updated_at) || null,
+  };
+}
+
+function publicArtifactRow(value: unknown): JsonMap {
+  const row = parseJson(value);
+  return {
+    ...publicRow(row),
+    file_url: clean(row.file_url) || null,
+    artifact_revision: Number(row.artifact_revision || 0),
   };
 }
 
@@ -1036,6 +1346,10 @@ async function readOutboxReceipt(
         ? typeof payload.body === "string"
           && typeof expectedPayload.body === "string"
           && payload.body === expectedPayload.body
+        : operation === "attachment"
+          ? typeof payload.url === "string"
+            && typeof expectedPayload.url === "string"
+            && payload.url === expectedPayload.url
         : false;
   const storedSourceAt = Date.parse(clean(row.source_edited_at));
   const expectedSourceAt = Date.parse(clean(expected.source_edited_at));
@@ -1121,7 +1435,10 @@ async function reconcileEntityOperation(
   team: string,
   principal: Principal,
 ): Promise<Response> {
-  if (operation !== "status" && operation !== "description" && operation !== "comment") {
+  if (operation !== "status"
+      && operation !== "description"
+      && operation !== "comment"
+      && operation !== "attachment") {
     throw new GatewayError(400, "reconcile_operation_unsupported");
   }
   const historicalLegacyParity = body.legacy_parity === true;
@@ -1163,6 +1480,21 @@ async function reconcileEntityOperation(
       patch: { brief: description },
     });
     expectedOperationPayload = { description };
+  } else if (operation === "attachment") {
+    if (entity !== "deliverable") throw new GatewayError(400, "unsupported_batch_operation");
+    if (principal.kind === "client" || team !== "graphics") {
+      throw new GatewayError(403, "operation_forbidden");
+    }
+    const fileUrl = canonicalArtifactUrl(
+      body.file_url !== undefined ? body.file_url : parseJson(body.patch).file_url,
+    );
+    if (!fileUrl) throw new GatewayError(400, "invalid_artifact_url");
+    fingerprint = await intentFingerprint({
+      operation, entity, id, requestId, surface, legacyParity: historicalLegacyParity,
+      actorKey: principal.actorKey,
+      patch: { file_url: fileUrl },
+    });
+    expectedOperationPayload = { url: fileUrl };
   } else {
     const commentInput = parseJson(body.comment);
     const commentBody = String(commentInput.body == null ? body.body || "" : commentInput.body).trim();
@@ -1288,7 +1620,11 @@ async function reconcileEntityOperation(
     authority,
     authority_read_at: authorityReadAt,
     historical_legacy_parity: historicalLegacyParity,
-    row: operation === "description" ? publicDescriptionRow(current) : publicRow(current),
+    row: operation === "description"
+      ? publicDescriptionRow(current)
+      : operation === "attachment"
+        ? publicArtifactRow(current)
+        : publicRow(current),
     receipt: receiptPublic,
     comment: receipt.outcome === "committed_exact" && canonicalComment
       ? publicComment(canonicalComment)
@@ -2261,6 +2597,13 @@ async function handleProductionCreate(
   if (replay) return replay;
 
   const scope = await productionCreateScope(supabase, req, body, principalScope);
+  if (scope.team === "graphics" && status === "smm_approval") {
+    throw new GatewayError(409, "artifact_not_resolvable", {
+      asset_state: "missing",
+      checked_at: new Date().toISOString(),
+      guidance: assetGuidance("missing"),
+    });
+  }
   const [authorityGeneration, stateId, catalog, assignee, parentRoute] = await Promise.all([
     f27WriteAuthorizationGeneration(supabase, scope.team),
     linearStateIdForCreate(scope.teamId, scope.team, status),
@@ -2492,6 +2835,161 @@ function linearIssueIdForLabels(row: JsonMap): string {
   return clean(row.linear_issue_uuid || parseJson(raw.issue).id);
 }
 
+async function assetSnapshot(
+  supabase: SupabaseClient,
+  deliverable: JsonMap,
+): Promise<JsonMap> {
+  let batch: JsonMap = {};
+  const batchId = clean(deliverable.batch_id);
+  if (batchId) {
+    const { data, error } = await supabase.from("batches").select(
+      "id,client_slug,team,filming_doc_url,footage_folder_url,delivery_folder_url",
+    ).eq("id", batchId).maybeSingle();
+    if (error) throw new GatewayError(503, "asset_context_unavailable");
+    batch = parseJson(data);
+  }
+  const values: Record<string, unknown> = {
+    filming_plan: batch.filming_doc_url,
+    raw_footage: batch.footage_folder_url,
+    delivery_folder: batch.delivery_folder_url,
+    deliverable_file: deliverable.file_url,
+  };
+  const deliverableId = clean(deliverable.id);
+  const assets = await Promise.all(ASSET_SLOTS.map(async slot => {
+    const evidence = await probeAssetUrl(slot.key, values[slot.key]);
+    await recordAssetEvidence(supabase, deliverableId, slot.key, values[slot.key], evidence);
+    // Typed asset columns are not browser-readable. Return the exact value only
+    // inside this already-authorized, no-store response.
+    return { ...evidence, url: clean(values[slot.key]) || null };
+  }));
+  return {
+    checked_at: new Date().toISOString(),
+    assets,
+  };
+}
+
+async function assertGraphicsApprovalArtifact(
+  supabase: SupabaseClient,
+  deliverable: JsonMap,
+): Promise<void> {
+  if (normalizeTeam(deliverable.team) !== "graphics") return;
+  if (!canonicalArtifactUrl(deliverable.file_url)) {
+    throw new GatewayError(409, "artifact_not_resolvable", {
+      asset_state: clean(deliverable.file_url) ? "invalid" : "missing",
+      checked_at: new Date().toISOString(),
+      guidance: assetGuidance(clean(deliverable.file_url) ? "invalid" : "missing"),
+    });
+  }
+  const evidence = await probeAssetUrl("deliverable_file", deliverable.file_url);
+  await recordAssetEvidence(
+    supabase,
+    clean(deliverable.id),
+    "deliverable_file",
+    deliverable.file_url,
+    evidence,
+  );
+  if (clean(evidence.state) !== "available") {
+    throw new GatewayError(409, "artifact_not_resolvable", {
+      asset_state: clean(evidence.state) || "unavailable",
+      checked_at: clean(evidence.checked_at) || new Date().toISOString(),
+      guidance: clean(evidence.guidance) || assetGuidance("unavailable"),
+    });
+  }
+  await requireFreshAssetEvidence(
+    supabase,
+    clean(deliverable.id),
+    "deliverable_file",
+    deliverable.file_url,
+  );
+}
+
+async function handleAssetAccessRead(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+): Promise<Response> {
+  if (surfaceFor(body) !== "production") {
+    throw new GatewayError(400, "invalid_surface_operation");
+  }
+  const id = clean(body.id);
+  if (!id) throw new GatewayError(400, "entity_id_required");
+  const requestedClientSlug = clean(body.client_slug);
+  if (!requestedClientSlug) throw new GatewayError(400, "client_slug_required");
+  // Authenticate against the caller-declared scope before resolving the id.
+  // Missing, cross-client and cross-team targets all collapse to the same 403,
+  // so this protected read cannot be used to enumerate deliverable ids.
+  const principal = await authenticate(supabase, req, body, requestedClientSlug);
+  if (principal.kind === "client") throw new GatewayError(403, "asset_scope_forbidden");
+  const client = principal.client || await clientBySlug(supabase, requestedClientSlug);
+  if (!client || client.active !== true) throw new GatewayError(403, "asset_scope_forbidden");
+  const { data, error } = await supabase.from("deliverables")
+    .select("*")
+    .eq("id", id)
+    .eq("client_slug", requestedClientSlug)
+    .maybeSingle();
+  if (error) throw new GatewayError(503, "entity_lookup_unavailable");
+  if (!data) throw new GatewayError(403, "asset_scope_forbidden");
+  const existing = data as JsonMap;
+  const targetClientSlug = clean(existing.client_slug);
+  const team = normalizeTeam(existing.team);
+  if (!targetClientSlug || !team) throw new GatewayError(403, "asset_scope_forbidden");
+  if (principal.kind === "staff"
+      && !staffAssetReadAllowed(principal.keyRole, principal.memberTeam, team)) {
+    throw new GatewayError(403, "asset_scope_forbidden");
+  }
+  return json({
+    ok: true,
+    complete: true,
+    id,
+    client_slug: targetClientSlug,
+    team,
+    ...(await assetSnapshot(supabase, existing)),
+  });
+}
+
+async function handleDescriptionRead(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+): Promise<Response> {
+  if (surfaceFor(body) !== "production") {
+    throw new GatewayError(400, "invalid_surface_operation");
+  }
+  const id = clean(body.id);
+  if (!id) throw new GatewayError(400, "entity_id_required");
+  const requestedClientSlug = clean(body.client_slug);
+  if (!requestedClientSlug) throw new GatewayError(400, "client_slug_required");
+  // Resolve authentication against the declared roster scope before the id,
+  // matching the protected asset-reader anti-enumeration boundary.
+  const principal = await authenticate(supabase, req, body, requestedClientSlug);
+  if (principal.kind === "client") throw new GatewayError(403, "description_scope_forbidden");
+  const client = principal.client || await clientBySlug(supabase, requestedClientSlug);
+  if (!client || client.active !== true) {
+    throw new GatewayError(403, "description_scope_forbidden");
+  }
+  const { data, error } = await supabase.from("deliverables")
+    .select("*")
+    .eq("id", id)
+    .eq("client_slug", requestedClientSlug)
+    .maybeSingle();
+  if (error) throw new GatewayError(503, "entity_lookup_unavailable");
+  if (!data) throw new GatewayError(403, "description_scope_forbidden");
+  const existing = data as JsonMap;
+  const targetClientSlug = clean(existing.client_slug);
+  const team = normalizeTeam(existing.team);
+  if (!targetClientSlug
+      || !team
+      || (principal.kind === "staff"
+        && !staffAssetReadAllowed(principal.keyRole, principal.memberTeam, team))) {
+    throw new GatewayError(403, "description_scope_forbidden");
+  }
+  return json({
+    ok: true,
+    complete: true,
+    row: publicDescriptionRow(existing),
+  });
+}
+
 async function handleLabelsRead(
   supabase: SupabaseClient,
   req: Request,
@@ -2551,6 +3049,23 @@ async function handleEntityOperation(
   if (entity === "batch" && operation !== "comment") {
     throw new GatewayError(400, "unsupported_batch_operation");
   }
+  let preauthenticatedPrincipal: Principal | null = null;
+  let attachmentClientSlug = "";
+  if (operation === "attachment") {
+    attachmentClientSlug = clean(body.client_slug);
+    if (!attachmentClientSlug) throw new GatewayError(400, "client_slug_required");
+    preauthenticatedPrincipal = await authenticate(
+      supabase, req, body, attachmentClientSlug,
+    );
+    if (preauthenticatedPrincipal.kind === "client") {
+      throw new GatewayError(403, "asset_scope_forbidden");
+    }
+    const client = preauthenticatedPrincipal.client
+      || await clientBySlug(supabase, attachmentClientSlug);
+    if (!client || client.active !== true) {
+      throw new GatewayError(403, "asset_scope_forbidden");
+    }
+  }
   let id = clean(body.id);
   let resolvedData: JsonMap | null = null;
   if (!id
@@ -2581,16 +3096,33 @@ async function handleEntityOperation(
   const table = entity === "batch" ? "batches" : "deliverables";
   const lookup = resolvedData
     ? { data: resolvedData, error: null }
-    : await supabase.from(table).select("*").eq("id", id).maybeSingle();
+    : operation === "attachment"
+      ? await supabase.from(table).select("*")
+        .eq("id", id)
+        .eq("client_slug", attachmentClientSlug)
+        .maybeSingle()
+      : await supabase.from(table).select("*").eq("id", id).maybeSingle();
   const { data, error } = lookup;
   if (error) throw new GatewayError(503, "entity_lookup_unavailable");
-  if (!data) throw new GatewayError(404, "entity_not_found");
+  if (!data) {
+    throw operation === "attachment"
+      ? new GatewayError(403, "asset_scope_forbidden")
+      : new GatewayError(404, "entity_not_found");
+  }
   const existing = data as JsonMap;
   const targetClientSlug = clean(existing.client_slug);
   const team = normalizeTeam(existing.team);
   if (!targetClientSlug || !team) throw new GatewayError(409, "entity_scope_unavailable");
 
-  const principal = await authenticate(supabase, req, body, targetClientSlug);
+  const principal = preauthenticatedPrincipal
+    || await authenticate(supabase, req, body, targetClientSlug);
+  if (operation === "attachment"
+      && principal.kind === "staff"
+      && !staffAssetReadAllowed(principal.keyRole, principal.memberTeam, team)) {
+    // Missing, cross-client, and same-client cross-team ids share the exact
+    // pre-mutation denial so a Creative cannot enumerate another team's work.
+    throw new GatewayError(403, "asset_scope_forbidden");
+  }
   if (entity === "deliverable") {
     // This single guard covers status, description, labels, due, assignee,
     // comments, and any future entity mutation before it can enqueue an
@@ -2611,8 +3143,20 @@ async function handleEntityOperation(
       && !staffOperationAllowed(principal.keyRole, operation, principal.memberTeam, team, nextStatus)) {
     throw new GatewayError(403, "operation_forbidden");
   }
-  if ((operation === "labels" || operation === "description") && principal.kind === "client") {
+  if ((operation === "labels" || operation === "description" || operation === "attachment")
+      && principal.kind === "client") {
     throw new GatewayError(403, "operation_forbidden");
+  }
+  // Client transition policy is resolved before any provider probe. A
+  // forbidden status request must not gain an artifact-existence oracle, and
+  // reconcile-only requests use the same ordering.
+  if (operation === "status"
+      && principal.kind === "client"
+      && !clientOperationAllowed(operation, existing.status, nextStatus)) {
+    throw new GatewayError(403, "operation_forbidden");
+  }
+  if (operation === "status" && nextStatus === "smm_approval") {
+    await assertGraphicsApprovalArtifact(supabase, existing);
   }
   if (body.reconcile_only === true) {
     return await reconcileEntityOperation(
@@ -2653,6 +3197,7 @@ async function handleEntityOperation(
 
   let result: unknown;
   let labelsReceipt: JsonMap | null = null;
+  let projectionReceipt: JsonMap | null = null;
   if (operation === "comment") {
     const commentInput = parseJson(body.comment);
     const commentBody = String(commentInput.body == null ? body.body || "" : commentInput.body).trim();
@@ -2861,6 +3406,95 @@ async function handleEntityOperation(
       }
     }
     labelsReceipt = selectedLabelReceipt(parseJson(result));
+  } else if (operation === "attachment") {
+    if (team !== "graphics") throw new GatewayError(403, "operation_forbidden");
+    const fileUrl = canonicalArtifactUrl(
+      body.file_url !== undefined ? body.file_url : parseJson(body.patch).file_url,
+    );
+    if (!fileUrl) throw new GatewayError(400, "invalid_artifact_url");
+    const fingerprint = await intentFingerprint({
+      operation, entity, id, requestId, surface, legacyParity,
+      actorKey: principal.actorKey,
+      patch: { file_url: fileUrl },
+    });
+    const outbound = {
+      ...outboundBase,
+      payload: f27FencedPayload({
+        url: fileUrl,
+        title: "SyncView canonical Graphics deliverable",
+        subtitle: "Current canonical deliverable",
+        metadata: {
+          syncviewDeliverableId: id,
+          revisionAt: sourceEditedAt,
+        },
+        _intent_fingerprint: fingerprint,
+      }, authorityGeneration, legacyParity),
+    };
+    const row: JsonMap = { ...existing, file_url: fileUrl };
+    const event = eventFor(
+      operation,
+      principal,
+      sourceEditedAt,
+      surface,
+      outbound,
+      existing,
+      clean(existing.status),
+    );
+    event.expected_updated_at = clean(body.expected_updated_at);
+    event.from_file_url = clean(existing.file_url) || null;
+    event.to_file_url = fileUrl;
+    const replay = await assertDedupIntent(
+      supabase,
+      dedup,
+      dedupExpectation(principal, team, sourceEditedAt, outbound, fingerprint),
+    );
+    if (replay) {
+      // The initial entity lookup can precede a racing winner's commit while
+      // the dedup lookup observes its outbox row under READ COMMITTED. Re-read
+      // the exact scoped row after replay proof so the receipt never returns
+      // the stale pre-winner URL/revision snapshot.
+      const { data: replayCurrent, error: replayError } = await supabase
+        .from("deliverables")
+        .select("*")
+        .eq("id", id)
+        .eq("client_slug", attachmentClientSlug)
+        .maybeSingle();
+      if (replayError || !replayCurrent) {
+        throw new GatewayError(500, "idempotent_result_missing");
+      }
+      result = replayCurrent as JsonMap;
+    } else {
+      assertCas(body, existing);
+      const evidence = await probeAssetUrl("deliverable_file", fileUrl);
+      await recordAssetEvidence(supabase, id, "deliverable_file", fileUrl, evidence);
+      if (clean(evidence.state) !== "available") {
+        throw new GatewayError(409, "artifact_not_resolvable", {
+          asset_state: clean(evidence.state) || "unavailable",
+          checked_at: clean(evidence.checked_at) || new Date().toISOString(),
+          guidance: clean(evidence.guidance) || assetGuidance("unavailable"),
+        });
+      }
+      try {
+        const written = parseJson(await rpc(supabase, "production_artifact_write", {
+          p_row: row,
+          p_event: event,
+        }));
+        result = parseJson(written.row);
+        projectionReceipt = parseJson(written.projection);
+        if (!clean(parseJson(result).id)) {
+          throw new GatewayError(500, "native_response_refresh_failed");
+        }
+      } catch (error) {
+        if (error instanceof GatewayError && error.code === "write_conflict") {
+          const { data: current } = await supabase.from("deliverables").select("*").eq("id", id).maybeSingle();
+          throw new GatewayError(409, "write_conflict", {
+            conflict: true,
+            row: publicArtifactRow(current || existing),
+          });
+        }
+        throw error;
+      }
+    }
   } else {
     let patch: JsonMap;
     let payload: JsonMap;
@@ -2972,9 +3606,12 @@ async function handleEntityOperation(
       ? publicDescriptionRow(result)
       : operation === "comment"
         ? publicRow(existing)
-        : publicRow(result),
+        : operation === "attachment"
+          ? publicArtifactRow(result)
+          : publicRow(result),
     ...(operation === "comment" ? { comment: parseJson(result) } : {}),
     ...(labelsReceipt || {}),
+    ...(projectionReceipt ? { projection: projectionReceipt } : {}),
   }, mirrorPending && awaitedDrain ? 202 : 200);
 }
 
@@ -3239,6 +3876,25 @@ async function handleIntakeCreate(
       || Number(existing.priority == null ? 0 : existing.priority) !== Number(priority == null ? 0 : priority)
     )) throw new GatewayError(409, "intake_id_conflict", { item_index: index });
     plannedItems.push({ item_index: index, video_number: videoNumber, source_brief: sourceBrief, row });
+  }
+
+  // Intake has no canonical-artifact input. A new Graphics item therefore
+  // cannot begin at SMM Approval; an exact retry may do so only when its
+  // already-persisted canonical file independently passes the same fresh
+  // server evidence gate as an ordinary status transition. This runs before
+  // either the append or new-batch path performs its first native write.
+  for (const planned of plannedItems) {
+    const row = planned.row as JsonMap;
+    if (normalizeTeam(row.team) !== "graphics" || lower(row.status) !== "smm_approval") continue;
+    const existing = existingById.get(clean(row.id));
+    if (!existing) {
+      throw new GatewayError(409, "artifact_not_resolvable", {
+        asset_state: "missing",
+        checked_at: new Date().toISOString(),
+        guidance: assetGuidance("missing"),
+      });
+    }
+    await assertGraphicsApprovalArtifact(supabase, existing);
   }
 
   if (appendToBatch) {
@@ -3649,6 +4305,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (!body || Array.isArray(body)) throw new GatewayError(400, "invalid_json");
     if (lower(body.action) === "labels_read") {
       return await handleLabelsRead(supabase, req, body);
+    }
+    if (lower(body.action) === "asset_access_read") {
+      return await handleAssetAccessRead(supabase, req, body);
+    }
+    if (lower(body.action) === "description_read") {
+      return await handleDescriptionRead(supabase, req, body);
     }
     if (lower(body.action) === "create_options") {
       return await handleCreateOptions(supabase, req, body);

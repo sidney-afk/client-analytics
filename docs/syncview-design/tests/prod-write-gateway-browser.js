@@ -203,6 +203,23 @@ function expect(value, message) { if (!value) throw new Error(message); }
       });
       return;
     }
+    if (body.action === 'asset_access_read') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          complete: true,
+          assets: [
+            { slot: 'filming_plan', state: 'missing', url: null },
+            { slot: 'raw_footage', state: 'missing', url: null },
+            { slot: 'delivery_folder', state: 'missing', url: null },
+            { slot: 'deliverable_file', state: 'missing', url: null },
+          ],
+        }),
+      });
+      return;
+    }
     if (body.action === 'create_options') {
       const read = { body, headers: request.headers(), response: null };
       createOptionReads.push(read);

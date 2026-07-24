@@ -18,6 +18,22 @@ CREATE TABLE public.clients (
 INSERT INTO public.clients(slug, active, kind)
 VALUES ('test-client', true, 'test');
 
+CREATE TABLE public.team_members (
+  id uuid PRIMARY KEY,
+  name text NOT NULL,
+  role text NOT NULL,
+  team text,
+  active boolean NOT NULL
+);
+INSERT INTO public.team_members(id, name, role, team, active)
+VALUES (
+  '00000000-0000-4000-8000-000000000043',
+  'F43 Fixture SMM',
+  'smm',
+  'video',
+  true
+);
+
 CREATE TABLE public.syncview_runtime_flags (
   key text PRIMARY KEY,
   value jsonb NOT NULL,
@@ -58,7 +74,13 @@ CREATE TABLE public.batches (
   team text,
   name text,
   description text,
+  filming_doc_url text,
+  footage_folder_url text,
+  delivery_folder_url text,
+  color text,
   status text NOT NULL,
+  comments text,
+  sort_key numeric,
   created_by text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -66,6 +88,7 @@ CREATE TABLE public.batches (
 );
 CREATE TABLE public.deliverables (
   id text PRIMARY KEY,
+  identifier text,
   batch_id text NOT NULL,
   client_slug text NOT NULL,
   team text NOT NULL,
@@ -76,8 +99,12 @@ CREATE TABLE public.deliverables (
   status_at timestamptz,
   assignee_id text,
   due_date date,
+  priority integer,
+  file_url text,
+  comments text,
   origin text,
   card_id text,
+  sort_key numeric,
   sync_state text,
   created_by text,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -85,10 +112,128 @@ CREATE TABLE public.deliverables (
   linear_issue_uuid text UNIQUE,
   linear_identifier text,
   linear_issue_url text,
+  linear_aliases jsonb,
   linear_raw jsonb
 );
+-- Recreate the inherited permissive whole-table browser read that the F53
+-- migration narrows to non-asset columns.
+GRANT SELECT ON public.batches TO anon, authenticated;
+GRANT SELECT ON public.deliverables TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.batches TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.deliverables TO service_role;
+
+CREATE TABLE public.calendar_posts (
+  client text NOT NULL,
+  id text NOT NULL,
+  graphic_deliverable_id text,
+  thumbnail_url text,
+  thumb_rev text,
+  updated_at text,
+  PRIMARY KEY (client, id)
+);
+CREATE TABLE public.sample_reviews (
+  client text NOT NULL,
+  id text NOT NULL,
+  graphic_deliverable_id text,
+  thumbnail_url text,
+  thumb_rev text,
+  updated_at text,
+  PRIMARY KEY (client, id)
+);
+CREATE TABLE public.linear_archive (
+  linear_uuid text PRIMARY KEY,
+  client_slug text NOT NULL,
+  team text,
+  description text,
+  raw jsonb,
+  comments jsonb
+);
+-- Keep this fixture schema aligned with
+-- migrations/2026-07-12-production-comments.sql. That migration is replayed
+-- below with CREATE TABLE IF NOT EXISTS and therefore cannot repair drift.
+CREATE TABLE public.production_comments (
+  id text PRIMARY KEY,
+  idempotency_key text NOT NULL,
+  native_comment_id text,
+  deliverable_id text REFERENCES public.deliverables(id),
+  batch_id text REFERENCES public.batches(id),
+  client_slug text,
+  team text NOT NULL CHECK (team IN ('video', 'graphics')),
+  linear_issue_uuid text,
+  linear_identifier text,
+  linear_comment_id text,
+  parent_id text REFERENCES public.production_comments(id)
+    DEFERRABLE INITIALLY DEFERRED,
+  thread_root_id text REFERENCES public.production_comments(id)
+    DEFERRABLE INITIALLY DEFERRED,
+  linear_parent_comment_id text,
+  linear_thread_root_id text,
+  author_key text NOT NULL,
+  author_member_id uuid REFERENCES public.team_members(id),
+  linear_author_id text,
+  author_name text NOT NULL,
+  role text NOT NULL,
+  transport_actor text,
+  transport_role text,
+  transport_linear_user_id text,
+  body text NOT NULL DEFAULT '',
+  body_format text NOT NULL DEFAULT 'markdown'
+    CHECK (body_format IN ('markdown', 'plain')),
+  attachments jsonb NOT NULL DEFAULT '[]'::jsonb
+    CHECK (jsonb_typeof(attachments) = 'array'),
+  audience text NOT NULL DEFAULT 'internal'
+    CHECK (audience IN ('internal', 'client')),
+  component text,
+  is_tweak boolean NOT NULL DEFAULT false,
+  round integer CHECK (round IS NULL OR round > 0),
+  origin text NOT NULL DEFAULT 'native'
+    CHECK (origin IN ('native', 'linear', 'legacy', 'bridge')),
+  source text NOT NULL DEFAULT 'ui'
+    CHECK (source IN ('ui', 'mirror', 'backfill', 'system')),
+  source_created_at timestamptz,
+  source_updated_at timestamptz NOT NULL DEFAULT now(),
+  edited_at timestamptz,
+  deleted_at timestamptz,
+  deleted_by_key text,
+  deleted_by_name text,
+  resolved_at timestamptz,
+  resolved_by_key text,
+  resolved_by_name text,
+  version integer NOT NULL DEFAULT 1 CHECK (version > 0),
+  import_run_id text,
+  backfill_tag text,
+  provenance jsonb NOT NULL DEFAULT '{}'::jsonb
+    CHECK (jsonb_typeof(provenance) = 'object'),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  ingested_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT production_comments_target_check CHECK (
+    (deliverable_id IS NOT NULL AND batch_id IS NULL)
+    OR (deliverable_id IS NULL AND batch_id IS NOT NULL)
+    OR (
+      deliverable_id IS NULL
+      AND batch_id IS NULL
+      AND nullif(btrim(coalesce(linear_issue_uuid, '')), '') IS NOT NULL
+    )
+  ),
+  CONSTRAINT production_comments_id_shape_check CHECK (
+    id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$'
+  ),
+  CONSTRAINT production_comments_idempotency_key_check CHECK (
+    nullif(btrim(idempotency_key), '') IS NOT NULL
+    AND length(idempotency_key) <= 240
+  ),
+  CONSTRAINT production_comments_author_key_check CHECK (
+    nullif(btrim(author_key), '') IS NOT NULL
+  ),
+  CONSTRAINT production_comments_no_self_parent_check CHECK (
+    parent_id IS NULL OR parent_id <> id
+  )
+);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.calendar_posts TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.sample_reviews TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.linear_archive TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.production_comments TO service_role;
 
 CREATE TABLE public.flag_flips (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -470,6 +615,218 @@ BEGIN
   END IF;
 END $$;
 
+CREATE TEMP TABLE f53_prior_rows AS
+SELECT
+  id,
+  encode(
+    extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'),
+    'hex'
+  ) AS row_hash
+FROM public.mirror_outbox o
+ORDER BY id;
+
+\ir ../migrations/2026-07-23-f34-f53-production-attachments.sql
+
+-- Prove the owner-approved F53 CHECK replacement is the exact 12 -> 13
+-- superset, the installed enqueue accepts attachment, unrelated operations
+-- still fail, and the public event reader cannot see attachment URLs.
+DO $$
+DECLARE
+  v_role text;
+BEGIN
+  FOREACH v_role IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    IF has_table_privilege(v_role, 'public.batches', 'SELECT')
+       OR has_table_privilege(v_role, 'public.deliverables', 'SELECT') THEN
+      RAISE EXCEPTION 'f53_typed_asset_table_grant_not_revoked';
+    END IF;
+    IF has_column_privilege(v_role, 'public.batches', 'filming_doc_url', 'SELECT')
+       OR has_column_privilege(v_role, 'public.batches', 'footage_folder_url', 'SELECT')
+       OR has_column_privilege(v_role, 'public.batches', 'delivery_folder_url', 'SELECT')
+       OR has_column_privilege(v_role, 'public.deliverables', 'file_url', 'SELECT')
+       OR has_column_privilege(v_role, 'public.deliverables', 'brief', 'SELECT')
+       OR has_column_privilege(v_role, 'public.deliverables', 'linear_raw', 'SELECT') THEN
+      RAISE EXCEPTION 'f53_typed_asset_column_still_public';
+    END IF;
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns c
+      WHERE c.table_schema = 'public'
+        AND c.table_name = 'batches'
+        -- `comments` joins the deliberately-withheld browser columns: legacy
+        -- comment bodies can carry private uploads.linear.app refs and are
+        -- served only through the scoped reader (review finding #925).
+        AND c.column_name NOT IN (
+          'filming_doc_url', 'footage_folder_url', 'delivery_folder_url', 'comments'
+        )
+        AND NOT has_column_privilege(
+          v_role,
+          format('%I.%I', c.table_schema, c.table_name),
+          c.column_name,
+          'SELECT'
+        )
+    ) OR EXISTS (
+      SELECT 1
+      FROM information_schema.columns c
+      WHERE c.table_schema = 'public'
+        AND c.table_name = 'deliverables'
+        -- `comments` is withheld from browser reads alongside the typed assets
+        -- (review finding #925); it is served only through the scoped reader.
+        AND c.column_name NOT IN ('file_url', 'brief', 'linear_raw', 'comments')
+        AND NOT has_column_privilege(
+          v_role,
+          format('%I.%I', c.table_schema, c.table_name),
+          c.column_name,
+          'SELECT'
+        )
+    ) THEN
+      RAISE EXCEPTION 'f53_non_asset_browser_read_not_preserved';
+    END IF;
+  END LOOP;
+  IF NOT has_table_privilege('service_role', 'public.batches', 'SELECT')
+     OR NOT has_table_privilege('service_role', 'public.deliverables', 'SELECT') THEN
+    RAISE EXCEPTION 'f53_service_asset_read_not_preserved';
+  END IF;
+  IF NOT has_table_privilege(
+    'anon', 'public.production_deliverables_browser_v1', 'SELECT'
+  ) OR NOT has_table_privilege(
+    'authenticated', 'public.production_deliverables_browser_v1', 'SELECT'
+  ) THEN
+    RAISE EXCEPTION 'f53_safe_browser_projection_not_readable';
+  END IF;
+END $$;
+
+BEGIN;
+DO $$
+DECLARE
+  v_operation text;
+BEGIN
+  FOREACH v_operation IN ARRAY ARRAY[
+    'create', 'status', 'comment', 'due', 'assignee', 'title',
+    'priority', 'parent', 'archive', 'restore', 'labels', 'description',
+    'attachment'
+  ] LOOP
+    PERFORM public.mirror_outbox_enqueue(
+      'deliverable',
+      'f53-' || v_operation,
+      v_operation,
+      jsonb_build_object('operation', v_operation),
+      'f53:' || v_operation,
+      now(),
+      'test-client',
+      'graphics',
+      'f53-disposable-proof',
+      'system',
+      null,
+      null,
+      null,
+      null,
+      true
+    );
+  END LOOP;
+
+  IF (
+    SELECT count(*) FROM public.mirror_outbox
+    WHERE dedup_key LIKE 'f53:%'
+      AND operation IN (
+        'create', 'status', 'comment', 'due', 'assignee', 'title',
+        'priority', 'parent', 'archive', 'restore', 'labels', 'description',
+        'attachment'
+      )
+  ) <> 13 OR NOT EXISTS (
+    SELECT 1 FROM public.mirror_outbox
+    WHERE dedup_key = 'f53:attachment'
+      AND operation = 'attachment'
+      AND op = 'update_fields'
+  ) THEN
+    RAISE EXCEPTION 'f53_operation_superset_not_exact';
+  END IF;
+
+  BEGIN
+    PERFORM public.mirror_outbox_enqueue(
+      'deliverable', 'f53-invalid', 'unexpected',
+      '{}'::jsonb, 'f53:invalid', now(), 'test-client', 'graphics',
+      'f53-disposable-proof', 'system', null, null, null, null, true
+    );
+    RAISE EXCEPTION 'f53_invalid_operation_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'invalid outbound operation' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    INSERT INTO public.mirror_outbox(
+      payload, entity, entity_id, operation, client_slug, team, dedup_key,
+      source_edited_at, status, test_only
+    ) VALUES (
+      '{}'::jsonb, 'deliverable', 'f53-direct-invalid', 'unexpected',
+      'test-client', 'graphics', 'f53:direct-invalid', now(), 'pending', true
+    );
+    RAISE EXCEPTION 'f53_check_unexpectedly_accepted_unrelated_operation';
+  EXCEPTION WHEN check_violation THEN
+    null;
+  END;
+END $$;
+
+INSERT INTO public.deliverable_events(
+  deliverable_id, client_slug, actor, role, action, source, payload
+) VALUES
+  (
+    'f53-private-event', 'test-client', 'f53-disposable-proof', 'system',
+    'attachment_change', 'ui',
+    '{"to_file_url":"https://drive.google.com/file/d/TEST-ASSET/view"}'::jsonb
+  ),
+  (
+    'f53-public-control', 'test-client', 'f53-disposable-proof', 'system',
+    'status_change', 'ui', '{"action":"status_change"}'::jsonb
+  );
+
+SET LOCAL ROLE service_role;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f53-private-event'
+      AND payload->>'to_file_url' =
+        'https://drive.google.com/file/d/TEST-ASSET/view'
+  ) THEN
+    RAISE EXCEPTION 'f53_service_attachment_audit_not_exact';
+  END IF;
+END $$;
+RESET ROLE;
+
+SET LOCAL ROLE anon;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f53-private-event'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f53-public-control'
+  ) THEN
+    RAISE EXCEPTION 'f53_anon_attachment_policy_not_exact';
+  END IF;
+END $$;
+RESET ROLE;
+ROLLBACK;
+
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.mirror_outbox) <> 5
+     OR EXISTS (
+       SELECT 1
+       FROM public.mirror_outbox o
+       FULL OUTER JOIN f53_prior_rows p ON p.id = o.id
+       WHERE o.id IS NULL
+          OR p.id IS NULL
+          OR encode(
+            extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'),
+            'hex'
+          ) IS DISTINCT FROM p.row_hash
+     ) THEN
+    RAISE EXCEPTION 'f53_existing_rows_not_preserved';
+  END IF;
+END $$;
+
 \ir ../migrations/2026-07-20-f27-team-rollback.sql
 
 DO $$
@@ -627,17 +984,21 @@ DECLARE
 BEGIN
   INSERT INTO public.deliverables(
     id, batch_id, client_slug, team, kind, title, brief, status, status_at,
-    assignee_id, due_date, origin, card_id, sync_state, created_by, created_at,
+    assignee_id, due_date, priority, file_url, origin, card_id, sync_state, created_by, created_at,
     updated_at, linear_issue_uuid, linear_raw
   ) VALUES (
     p_row->>'id', p_row->>'batch_id', p_row->>'client_slug', p_row->>'team',
     p_row->>'kind', p_row->>'title', nullif(p_row->>'brief', ''),
     p_row->>'status', (p_row->>'status_at')::timestamptz,
     nullif(p_row->>'assignee_id', ''), nullif(p_row->>'due_date', '')::date,
+    nullif(p_row->>'priority', '')::integer, nullif(p_row->>'file_url', ''),
     p_row->>'origin', nullif(p_row->>'card_id', ''), p_row->>'sync_state',
     p_row->>'created_by', (p_row->>'created_at')::timestamptz, now(),
     p_row->>'linear_issue_uuid', p_row->'linear_raw'
   )
+  ON CONFLICT (id) DO UPDATE
+  SET file_url = excluded.file_url,
+      updated_at = now()
   RETURNING * INTO v_result;
   INSERT INTO public.deliverable_events(
     deliverable_id, batch_id, client_slug, ts, actor, role, action,
@@ -660,6 +1021,468 @@ BEGIN
   RETURN v_result;
 END;
 $fn$;
+
+-- Exercise the installed F34/F53/F137 RPCs on this same disposable database:
+-- strict active-client Graphics scope, atomic Calendar/Samples projection,
+-- no manual linkage, rollback on a mismatched projection, and capability-
+-- bound private rescue certification with a service-role direct-write denial.
+BEGIN;
+INSERT INTO public.clients(slug, active, kind)
+VALUES ('inactive-test-client', false, 'test');
+INSERT INTO public.batches(
+  id, client_slug, team, name, status, created_by
+) VALUES
+  ('f53-batch', 'test-client', 'graphics', 'F53 disposable batch', 'active', 'f53-proof'),
+  ('f53-inactive-batch', 'inactive-test-client', 'graphics', 'F53 inactive batch', 'active', 'f53-proof');
+INSERT INTO public.deliverables(
+  id, batch_id, client_slug, team, kind, title, brief, status, status_at,
+  origin, card_id, sync_state, created_by, linear_issue_uuid
+) VALUES
+  (
+    'f53-calendar', 'f53-batch', 'test-client', 'graphics', 'thumbnail',
+    'F53 calendar', 'Operational https://uploads.linear.app/f53-operational.png',
+    'in_progress', now(), 'calendar', 'f53-calendar-card', 'clean', 'f53-proof',
+    'f53-linear-calendar'
+  ),
+  (
+    'f53-samples', 'f53-batch', 'test-client', 'graphics', 'thumbnail',
+    'F53 samples', null, 'in_progress', now(), 'samples', 'f53-samples-card',
+    'clean', 'f53-proof', 'f53-linear-samples'
+  ),
+  (
+    'f53-manual', 'f53-batch', 'test-client', 'graphics', 'thumbnail',
+    'F53 manual', null, 'in_progress', now(), 'manual', null, 'clean',
+    'f53-proof', 'f53-linear-manual'
+  ),
+  (
+    'f53-mislinked', 'f53-batch', 'test-client', 'graphics', 'thumbnail',
+    'F53 mislinked', null, 'in_progress', now(), 'calendar', 'missing-card',
+    'clean', 'f53-proof', 'f53-linear-mislinked'
+  ),
+  (
+    'f53-inactive', 'f53-inactive-batch', 'inactive-test-client', 'graphics',
+    'thumbnail', 'F53 inactive', null, 'in_progress', now(), 'manual', null,
+    'clean', 'f53-proof', 'f53-linear-inactive'
+  );
+INSERT INTO public.calendar_posts(
+  client, id, graphic_deliverable_id, thumbnail_url, thumb_rev, updated_at
+) VALUES (
+  'test-client', 'f53-calendar-card', 'f53-calendar', null, null, null
+);
+INSERT INTO public.sample_reviews(
+  client, id, graphic_deliverable_id, thumbnail_url, thumb_rev, updated_at
+) VALUES (
+  'test-client', 'f53-samples-card', 'f53-samples', null, null, null
+);
+INSERT INTO public.linear_archive(
+  linear_uuid, client_slug, team, description, raw, comments
+) VALUES (
+  'f53-linear-calendar', 'test-client', 'graphics',
+  'Archive https://uploads.linear.app/f53-archive.png',
+  '{"description":"Archive https://uploads.linear.app/f53-archive.png"}'::jsonb,
+  '[]'::jsonb
+);
+INSERT INTO public.production_comments(
+  id, idempotency_key, linear_issue_uuid, client_slug, team,
+  author_key, author_name, role, audience, body, attachments
+) VALUES (
+  'f53-comment', 'f53:comment', 'f53-linear-calendar', 'test-client', 'graphics',
+  'fixture:f53', 'F53 Fixture', 'system', 'client',
+  'Comment https://uploads.linear.app/f53-comment.png', '[]'::jsonb
+);
+UPDATE public.deliverables
+SET linear_raw = jsonb_build_object(
+  'issue', jsonb_build_object(
+    'id', 'f53-linear-calendar',
+    'description', 'Legacy https://uploads.linear.app/f53-raw.png',
+    'project', jsonb_build_object('id', 'project-test'),
+    'parent', null,
+    'labelIds', jsonb_build_array('label-workload'),
+    'labels', jsonb_build_object(
+      'nodes', jsonb_build_array(jsonb_build_object(
+        'id', 'label-workload',
+        'name', U&'2\00D7 Workload',
+        'color', '#123ABC'
+      )),
+      'pageInfo', jsonb_build_object('hasNextPage', false)
+    )
+  ),
+  'attribution', jsonb_build_object(
+    'schema', 'syncview_attribution_v1',
+    'state', 'resolved',
+    'client_slug', 'test-client',
+    'owner_kind', 'test',
+    'source', 'project_roster'
+  )
+)
+WHERE id = 'f53-calendar';
+
+SET LOCAL ROLE anon;
+DO $browser_boundary$
+BEGIN
+  BEGIN
+    PERFORM brief FROM public.deliverables WHERE id = 'f53-calendar';
+    RAISE EXCEPTION 'f34_legacy_brief_direct_read_unexpectedly_succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    null;
+  END;
+  BEGIN
+    PERFORM linear_raw FROM public.deliverables WHERE id = 'f53-calendar';
+    RAISE EXCEPTION 'f34_legacy_raw_direct_read_unexpectedly_succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    null;
+  END;
+  IF EXISTS (
+    SELECT 1
+    FROM public.production_deliverables_browser_v1 v
+    WHERE v.id = 'f53-calendar'
+      AND to_jsonb(v)::text LIKE '%uploads.linear.app%'
+  ) THEN
+    RAISE EXCEPTION 'f34_safe_projection_leaked_legacy_url';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.production_deliverables_browser_v1 v
+    WHERE v.id = 'f53-calendar'
+      AND v.raw_attribution_client_slug = 'test-client'
+      AND v.workload_labels_complete is true
+      AND v.workload_labels = jsonb_build_array(jsonb_build_object(
+        'id', 'label-workload',
+        'name', U&'2\00D7 Workload',
+        'color', '#123ABC'
+      ))
+  ) THEN
+    RAISE EXCEPTION 'f34_safe_projection_derived_fields_not_exact';
+  END IF;
+END;
+$browser_boundary$;
+RESET ROLE;
+
+INSERT INTO public.linear_archive_asset_rescue_config(
+  config_key, destination_provider, approved_folder_id,
+  rescue_capability_sha256, active
+) VALUES (
+  'active', 'google_drive_private', 'TEST_PRIVATE_FOLDER_123',
+  encode(
+    extensions.digest(convert_to('f53-private-capability', 'UTF8'), 'sha256'),
+    'hex'
+  ),
+  true
+);
+
+DO $$
+DECLARE
+  v_generation bigint;
+  v_row public.deliverables%rowtype;
+  v_event jsonb;
+  v_same_event jsonb;
+  v_result jsonb;
+  v_url text;
+  v_before_revision bigint;
+BEGIN
+  SELECT generation INTO v_generation
+  FROM public.track_b_f27_team_fences WHERE team = 'graphics';
+
+  FOREACH v_url IN ARRAY ARRAY[
+    'https://drive.google.com/file/d/TEST_CALENDAR_ASSET/view',
+    'https://drive.google.com/file/d/TEST_SAMPLES_ASSET/view',
+    'https://drive.google.com/file/d/TEST_MANUAL_ASSET/view'
+  ] LOOP
+    SELECT d.* INTO v_row
+    FROM public.deliverables d
+    WHERE d.id = CASE v_url
+      WHEN 'https://drive.google.com/file/d/TEST_CALENDAR_ASSET/view' THEN 'f53-calendar'
+      WHEN 'https://drive.google.com/file/d/TEST_SAMPLES_ASSET/view' THEN 'f53-samples'
+      ELSE 'f53-manual'
+    END;
+    v_event := jsonb_build_object(
+      'ts', now(),
+      'actor', 'f53-disposable-proof',
+      'role', 'system',
+      'action', 'attachment_change',
+      'source', 'ui',
+      'outbound', jsonb_build_object(
+        'entity', 'deliverable',
+        'entity_id', v_row.id,
+        'operation', 'attachment',
+        'dedup_key', 'f53:artifact:' || v_row.id,
+        'source_edited_at', now(),
+        'team', 'graphics',
+        'test_only', true,
+        'legacy_parity', false,
+        'payload', jsonb_build_object(
+          'url', v_url,
+          '_intent_fingerprint', 'f53-proof-' || v_row.id,
+          '_f27_authority_generation', v_generation,
+          '_f27_legacy_parity', false
+        )
+      )
+    );
+    SELECT public.production_artifact_write(
+      to_jsonb(v_row) || jsonb_build_object('file_url', v_url),
+      v_event
+    ) INTO v_result;
+    IF v_result->'row'->>'file_url' IS DISTINCT FROM v_url THEN
+      RAISE EXCEPTION 'f53_artifact_native_write_not_exact';
+    END IF;
+  END LOOP;
+
+  -- A new intent behind the same stable share URL must advance the durable
+  -- artifact revision and card revision. Replaying that exact intent must do
+  -- neither, even when the wrapper is called directly.
+  SELECT d.* INTO v_row
+  FROM public.deliverables d
+  WHERE d.id = 'f53-calendar';
+  v_before_revision := v_row.artifact_revision;
+  v_same_event := jsonb_build_object(
+    'ts', now(),
+    'actor', 'f53-disposable-proof',
+    'role', 'system',
+    'action', 'attachment_change',
+    'source', 'ui',
+    'outbound', jsonb_build_object(
+      'entity', 'deliverable',
+      'entity_id', v_row.id,
+      'operation', 'attachment',
+      'dedup_key', 'f53:artifact:f53-calendar:same-url-2',
+      'source_edited_at', now(),
+      'team', 'graphics',
+      'test_only', true,
+      'legacy_parity', false,
+      'payload', jsonb_build_object(
+        'url', v_row.file_url,
+        '_intent_fingerprint', 'f53-proof-f53-calendar-same-url-2',
+        '_f27_authority_generation', v_generation,
+        '_f27_legacy_parity', false
+      )
+    )
+  );
+  SELECT public.production_artifact_write(to_jsonb(v_row), v_same_event)
+    INTO v_result;
+  IF (v_result->'row'->>'artifact_revision')::bigint
+       IS DISTINCT FROM v_before_revision + 1
+     OR v_result->'projection'->>'artifact_revision'
+       IS DISTINCT FROM (v_before_revision + 1)::text
+     OR (SELECT thumb_rev FROM public.calendar_posts
+         WHERE client = 'test-client' AND id = 'f53-calendar-card')
+       IS DISTINCT FROM 'artifact-' || (v_before_revision + 1)::text
+     OR (SELECT payload->>'artifact_revision' FROM public.mirror_outbox
+         WHERE dedup_key = 'f53:artifact:f53-calendar:same-url-2')
+       IS DISTINCT FROM (v_before_revision + 1)::text THEN
+    RAISE EXCEPTION 'f53_same_url_revision_not_projected';
+  END IF;
+  SELECT public.production_artifact_write(
+    (SELECT to_jsonb(d) FROM public.deliverables d WHERE d.id = 'f53-calendar'),
+    v_same_event
+  ) INTO v_result;
+  IF coalesce((v_result->'projection'->>'replay')::boolean, false) is not true
+     OR (SELECT artifact_revision FROM public.deliverables
+         WHERE id = 'f53-calendar') IS DISTINCT FROM v_before_revision + 1
+     OR (SELECT count(*) FROM public.mirror_outbox
+         WHERE dedup_key = 'f53:artifact:f53-calendar:same-url-2') <> 1 THEN
+    RAISE EXCEPTION 'f53_same_url_exact_replay_bumped_revision';
+  END IF;
+
+  IF (SELECT thumbnail_url FROM public.calendar_posts
+      WHERE client = 'test-client' AND id = 'f53-calendar-card')
+       IS DISTINCT FROM 'https://drive.google.com/file/d/TEST_CALENDAR_ASSET/view'
+     OR (SELECT thumbnail_url FROM public.sample_reviews
+      WHERE client = 'test-client' AND id = 'f53-samples-card')
+       IS DISTINCT FROM 'https://drive.google.com/file/d/TEST_SAMPLES_ASSET/view'
+     OR (SELECT file_url FROM public.deliverables WHERE id = 'f53-manual')
+       IS DISTINCT FROM 'https://drive.google.com/file/d/TEST_MANUAL_ASSET/view'
+     OR EXISTS (
+       SELECT 1 FROM public.calendar_posts WHERE graphic_deliverable_id = 'f53-manual'
+       UNION ALL
+       SELECT 1 FROM public.sample_reviews WHERE graphic_deliverable_id = 'f53-manual'
+     ) THEN
+    RAISE EXCEPTION 'f53_projection_or_manual_scope_not_exact';
+  END IF;
+
+  SELECT d.* INTO v_row FROM public.deliverables d WHERE d.id = 'f53-mislinked';
+  BEGIN
+    PERFORM public.production_artifact_write(
+      to_jsonb(v_row) || jsonb_build_object(
+        'file_url', 'https://drive.google.com/file/d/TEST_MISLINKED_ASSET/view'
+      ),
+      jsonb_build_object(
+        'ts', now(), 'actor', 'f53-proof', 'role', 'system',
+        'action', 'attachment_change', 'source', 'ui',
+        'outbound', jsonb_build_object(
+          'entity', 'deliverable', 'entity_id', v_row.id,
+          'operation', 'attachment', 'dedup_key', 'f53:artifact:mislinked',
+          'source_edited_at', now(), 'team', 'graphics', 'test_only', true,
+          'legacy_parity', false,
+          'payload', jsonb_build_object(
+            'url', 'https://drive.google.com/file/d/TEST_MISLINKED_ASSET/view',
+            '_intent_fingerprint', 'f53-proof-mislinked',
+            '_f27_authority_generation', v_generation,
+            '_f27_legacy_parity', false
+          )
+        )
+      )
+    );
+    RAISE EXCEPTION 'f53_mislinked_projection_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'artifact_card_projection_failed' THEN RAISE; END IF;
+  END;
+  IF (SELECT file_url FROM public.deliverables WHERE id = 'f53-mislinked') IS NOT NULL
+     OR EXISTS (
+       SELECT 1 FROM public.mirror_outbox WHERE dedup_key = 'f53:artifact:mislinked'
+     ) THEN
+    RAISE EXCEPTION 'f53_mislinked_projection_not_atomic';
+  END IF;
+
+  SELECT d.* INTO v_row FROM public.deliverables d WHERE d.id = 'f53-inactive';
+  BEGIN
+    PERFORM public.production_artifact_write(
+      to_jsonb(v_row) || jsonb_build_object(
+        'file_url', 'https://drive.google.com/file/d/TEST_INACTIVE_ASSET/view'
+      ),
+      jsonb_build_object(
+        'outbound', jsonb_build_object('operation', 'attachment')
+      )
+    );
+    RAISE EXCEPTION 'f53_inactive_client_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'production artifact active client required' THEN RAISE; END IF;
+  END;
+END $$;
+
+DO $$
+DECLARE
+  v_ref public.linear_archive_asset_refs%rowtype;
+  v_hash text;
+  v_verified text;
+  v_receipt text;
+BEGIN
+  v_hash := encode(
+    extensions.digest(
+      convert_to('https://uploads.linear.app/f53-operational.png', 'UTF8'),
+      'sha256'
+    ),
+    'hex'
+  );
+  SELECT * INTO v_ref
+  FROM public.linear_archive_asset_ref_write(
+    jsonb_build_object(
+      'ref_id', 'f34:operational-proof',
+      'linear_uuid', 'f53-linear-calendar',
+      'deliverable_id', 'f53-calendar',
+      'source_kind', 'operational_brief',
+      'location_key', 'deliverable.f53-calendar.brief.0',
+      'original_url', 'https://uploads.linear.app/f53-operational.png',
+      'original_url_sha256', repeat('0', 64),
+      'state', 'pending'
+    ),
+    null,
+    null
+  );
+  IF v_ref.original_url_sha256 IS DISTINCT FROM v_hash
+     OR v_ref.client_slug IS DISTINCT FROM 'test-client'
+     OR v_ref.team IS DISTINCT FROM 'graphics' THEN
+    RAISE EXCEPTION 'f34_pending_source_binding_not_exact';
+  END IF;
+
+  BEGIN
+    PERFORM public.linear_archive_asset_ref_write(
+      jsonb_build_object(
+        'ref_id', v_ref.ref_id,
+        'linear_uuid', v_ref.linear_uuid,
+        'deliverable_id', v_ref.deliverable_id,
+        'source_kind', v_ref.source_kind,
+        'location_key', v_ref.location_key,
+        'original_url', v_ref.original_url,
+        'state', 'rescued',
+        'rescued_url', 'https://drive.google.com/file/d/ARBITRARY_PUBLIC_FILE/view',
+        'reviewed_by', 'f34-proof',
+        'review_note', 'unverified'
+      ),
+      v_ref.updated_at,
+      null
+    );
+    RAISE EXCEPTION 'f34_uncertified_rescue_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM NOT IN (
+      'archive_asset_certification_invalid',
+      'archive_asset_certification_forbidden'
+    ) THEN RAISE; END IF;
+  END;
+
+  v_verified := to_char(
+    clock_timestamp() at time zone 'UTC',
+    'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+  );
+  v_receipt := encode(
+    extensions.hmac(
+      convert_to(
+        concat_ws(
+          chr(31),
+          v_ref.ref_id,
+          v_hash,
+          'TEST_PRIVATE_FOLDER_123',
+          'TEST_PRIVATE_FILE_123',
+          repeat('a', 64),
+          '1234',
+          v_verified
+        ),
+        'UTF8'
+      ),
+      convert_to('f53-private-capability', 'UTF8'),
+      'sha256'
+    ),
+    'hex'
+  );
+  SELECT * INTO v_ref
+  FROM public.linear_archive_asset_ref_write(
+    jsonb_build_object(
+      'ref_id', v_ref.ref_id,
+      'linear_uuid', v_ref.linear_uuid,
+      'deliverable_id', v_ref.deliverable_id,
+      'source_kind', v_ref.source_kind,
+      'location_key', v_ref.location_key,
+      'original_url', v_ref.original_url,
+      'state', 'rescued',
+      'destination_provider', 'google_drive_private',
+      'destination_folder_id', 'TEST_PRIVATE_FOLDER_123',
+      'destination_file_id', 'TEST_PRIVATE_FILE_123',
+      'content_sha256', repeat('a', 64),
+      'byte_length', 1234,
+      'verified_at', v_verified,
+      'verification_receipt_hmac', v_receipt,
+      'media_type', 'image/png',
+      'reviewed_by', 'f34-proof',
+      'review_note', 'sha256:' || repeat('a', 64)
+    ),
+    v_ref.updated_at,
+    'f53-private-capability'
+  );
+  IF v_ref.state IS DISTINCT FROM 'rescued'
+     OR v_ref.rescued_url IS DISTINCT FROM
+       'https://drive.google.com/file/d/TEST_PRIVATE_FILE_123/view'
+     OR v_ref.destination_folder_id IS DISTINCT FROM 'TEST_PRIVATE_FOLDER_123'
+     OR v_ref.content_sha256 IS DISTINCT FROM repeat('a', 64)
+     OR v_ref.byte_length IS DISTINCT FROM 1234 THEN
+    RAISE EXCEPTION 'f34_certified_rescue_not_exact';
+  END IF;
+END $$;
+
+SET LOCAL ROLE service_role;
+DO $$
+BEGIN
+  BEGIN
+    UPDATE public.linear_archive_asset_refs
+    SET state = 'owner_dispositioned'
+    WHERE ref_id = 'f34:operational-proof';
+    RAISE EXCEPTION 'f34_service_direct_update_unexpectedly_succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    null;
+  END;
+END $$;
+RESET ROLE;
+
+SELECT 'f34_f53_attachment_and_rescue_exact' AS f34_f53_disposable_proof;
+ROLLBACK;
 
 \ir ../migrations/2026-07-23-f203-production-issue-create.sql
 
@@ -1153,6 +1976,850 @@ BEGIN
     )
   ) THEN
     RAISE EXCEPTION 'f203_disposable_proof_residue';
+  END IF;
+END;
+$proof$;
+
+\ir ../migrations/2026-07-12-production-comments.sql
+\ir ../migrations/2026-07-23-production-comment-thread-lifecycle.sql
+
+-- Reuse the established PostgreSQL 16 lane for F39/F42/F43. F2 remains off:
+-- applicable add/edit/delete intents must still queue, while resolve/reopen are
+-- canonical-only lifecycle transitions. Every fixture below is rolled back.
+BEGIN;
+
+INSERT INTO public.batches(
+  id, client_slug, team, name, status, created_by, linear_parent_ids
+) VALUES (
+  'f43-comment-batch', 'test-client', 'video', 'F43 fixture', 'active',
+  'f43-disposable-proof',
+  '{"video":{"id":"linear-fixture-issue"}}'::jsonb
+);
+INSERT INTO public.deliverables(
+  id, batch_id, client_slug, team, kind, title, status, origin, card_id,
+  sync_state, created_by, linear_issue_uuid
+) VALUES
+  (
+    'f43-comment-deliverable', 'f43-comment-batch', 'test-client', 'video',
+    'video', 'F43 canonical thread', 'in_progress', 'calendar',
+    'f43-calendar-card', 'clean', 'f43-disposable-proof',
+    'linear-fixture-issue'
+  ),
+  (
+    'f42-card-deliverable', 'f43-comment-batch', 'test-client', 'video',
+    'video', 'F42 card thread', 'in_progress', 'calendar',
+    'f42-calendar-card', 'clean', 'f42-disposable-proof',
+    'linear-f42-issue'
+  );
+
+SET LOCAL ROLE service_role;
+INSERT INTO public.production_comment_read_audit(
+  actor_key, auth_kind, deliverable_id, decision, reason
+) VALUES (
+  'member:f43-direct', 'staff', 'f43-comment-deliverable',
+  'deny', 'fixture_denial'
+);
+RESET ROLE;
+
+DO $proof$
+DECLARE
+  v_result jsonb;
+  v_index integer;
+BEGIN
+  FOR v_index IN 1..120 LOOP
+    v_result := public.production_comment_read_budget_take('member:f43-budget');
+    IF v_result->'allowed' IS DISTINCT FROM 'true'::jsonb THEN
+      RAISE EXCEPTION 'f39_principal_budget_rejected_early';
+    END IF;
+  END LOOP;
+  v_result := public.production_comment_read_budget_take('member:f43-budget');
+  IF v_result->'allowed' IS DISTINCT FROM 'false'::jsonb
+     OR (v_result->>'remaining')::integer <> 0 THEN
+    RAISE EXCEPTION 'f39_principal_budget_not_bounded';
+  END IF;
+  v_result := public.production_comment_read_authorize(
+    'member:f43-reader', 'staff', 'f43-comment-deliverable'
+  );
+  IF v_result->'authorized' IS DISTINCT FROM 'true'::jsonb
+     OR NOT EXISTS (
+       SELECT 1 FROM public.production_comment_read_audit
+       WHERE actor_key = 'member:f43-reader'
+         AND deliverable_id = 'f43-comment-deliverable'
+         AND decision = 'allow'
+     )
+     OR NOT EXISTS (
+       SELECT 1 FROM public.production_comment_read_audit
+       WHERE actor_key = 'member:f43-direct'
+         AND decision = 'deny'
+     ) THEN
+    RAISE EXCEPTION 'f39_read_audit_not_exact';
+  END IF;
+END;
+$proof$;
+
+DO $proof$
+DECLARE
+  v_generation bigint;
+  v_row public.production_comments%rowtype;
+BEGIN
+  IF (SELECT value FROM public.syncview_runtime_flags
+      WHERE key = 'linear_outbound_enabled') IS DISTINCT FROM '{"mode":"off"}'::jsonb THEN
+    RAISE EXCEPTION 'f43_f2_not_off_for_pause_proof';
+  END IF;
+  SELECT generation INTO v_generation
+  FROM public.track_b_f27_team_fences WHERE team = 'video';
+
+  v_row := public.production_comment_write(
+    jsonb_build_object(
+      'id', 'f43-root-comment',
+      'idempotency_key', 'f43:comment:add',
+      'native_comment_id', 'f43-root-native',
+      'deliverable_id', 'f43-comment-deliverable',
+      'operation', 'add',
+      'author_key', 'member:f43-smm',
+      'author_member_id', '00000000-0000-4000-8000-000000000043',
+      'author_name', 'F43 Fixture SMM',
+      'role', 'smm',
+      'body', E'Root **Markdown**',
+      'audience', 'client',
+      'component', 'video',
+      'source', 'ui',
+      'source_created_at', '2026-07-23T14:00:00Z',
+      'source_updated_at', '2026-07-23T14:00:00Z'
+    ),
+    jsonb_build_object(
+      'source', 'ui',
+      'actor', 'F43 Fixture SMM',
+      'role', 'smm',
+      'outbound', jsonb_build_object(
+        'operation', 'comment',
+        'dedup_key', 'f43:comment:add',
+        'test_only', true,
+        'legacy_parity', false,
+        'payload', jsonb_build_object(
+          'body', E'Root **Markdown**',
+          '_intent_fingerprint', 'f43-add-fingerprint',
+          '_f27_authority_generation', v_generation,
+          '_f27_legacy_parity', false
+        )
+      )
+    )
+  );
+  IF v_row.id <> 'f43-root-comment' THEN
+    RAISE EXCEPTION 'f43_comment_add_not_exact';
+  END IF;
+
+  -- Response-loss replay is the same canonical row and one applicable intent.
+  v_row := public.production_comment_write(
+    jsonb_build_object(
+      'id', 'f43-root-comment',
+      'idempotency_key', 'f43:comment:add',
+      'native_comment_id', 'f43-root-native',
+      'deliverable_id', 'f43-comment-deliverable',
+      'operation', 'add',
+      'author_key', 'member:f43-smm',
+      'author_member_id', '00000000-0000-4000-8000-000000000043',
+      'author_name', 'F43 Fixture SMM',
+      'role', 'smm',
+      'body', E'Root **Markdown**',
+      'audience', 'client',
+      'component', 'video',
+      'source', 'ui',
+      'source_created_at', '2026-07-23T14:00:00Z',
+      'source_updated_at', '2026-07-23T14:00:00Z'
+    ),
+    jsonb_build_object(
+      'source', 'ui',
+      'actor', 'F43 Fixture SMM',
+      'role', 'smm',
+      'outbound', jsonb_build_object(
+        'operation', 'comment',
+        'dedup_key', 'f43:comment:add',
+        'test_only', true,
+        'legacy_parity', false,
+        'payload', jsonb_build_object(
+          'body', E'Root **Markdown**',
+          '_intent_fingerprint', 'f43-add-fingerprint',
+          '_f27_authority_generation', v_generation,
+          '_f27_legacy_parity', false
+        )
+      )
+    )
+  );
+
+  IF (SELECT count(*) FROM public.mirror_outbox
+      WHERE dedup_key = 'f43:comment:add') <> 1
+     OR NOT EXISTS (
+       SELECT 1 FROM public.mirror_outbox
+       WHERE dedup_key = 'f43:comment:add'
+         AND operation = 'comment'
+         AND comment_id = 'f43-root-comment'
+         AND payload->>'action' = 'add'
+         AND payload->>'comment_id' = 'f43-root-comment'
+     )
+     OR (SELECT count(*) FROM public.production_comment_mutation_receipts
+         WHERE dedup_key = 'f43:comment:add') <> 1 THEN
+    RAISE EXCEPTION 'f43_f2_off_comment_enqueue_not_exact';
+  END IF;
+END;
+$proof$;
+
+CREATE TEMP TABLE f43_after_add AS
+SELECT version, updated_at
+FROM public.production_comments
+WHERE id = 'f43-root-comment';
+
+SELECT public.production_comment_lifecycle_write(
+  jsonb_build_object(
+    'id', 'f43-root-comment',
+    'operation', 'edit',
+    'body', E'Edited **Markdown**',
+    'edited_at', '2026-07-23T14:05:00Z',
+    'source_updated_at', '2026-07-23T14:05:00Z'
+  ),
+  jsonb_build_object(
+    'source', 'ui',
+    'actor', 'F43 Fixture SMM',
+    'role', 'smm',
+    'outbound', jsonb_build_object(
+      'dedup_key', 'f43:comment:edit',
+      'test_only', true,
+      'legacy_parity', false,
+      'payload', jsonb_build_object(
+        '_intent_fingerprint', 'f43-edit-fingerprint',
+        '_f27_authority_generation', (
+          SELECT generation FROM public.track_b_f27_team_fences WHERE team = 'video'
+        ),
+        '_f27_legacy_parity', false
+      )
+    )
+  ),
+  (SELECT version FROM f43_after_add),
+  (SELECT updated_at FROM f43_after_add)
+);
+
+DO $proof$
+DECLARE
+  v_stale f43_after_add%rowtype;
+BEGIN
+  SELECT * INTO v_stale FROM f43_after_add;
+  BEGIN
+    PERFORM public.production_comment_lifecycle_write(
+      jsonb_build_object(
+        'id', 'f43-root-comment',
+        'operation', 'edit',
+        'body', 'stale overwrite',
+        'source_updated_at', '2026-07-23T14:06:00Z'
+      ),
+      jsonb_build_object(
+        'source', 'ui',
+        'actor', 'F43 Fixture SMM',
+        'role', 'smm',
+        'outbound', jsonb_build_object(
+          'dedup_key', 'f43:comment:stale-edit',
+          'test_only', true,
+          'legacy_parity', false,
+          'payload', jsonb_build_object(
+            '_intent_fingerprint', 'f43-stale-fingerprint'
+          )
+        )
+      ),
+      v_stale.version,
+      v_stale.updated_at
+    );
+    RAISE EXCEPTION 'f43_stale_comment_write_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'comment_write_conflict' THEN RAISE; END IF;
+  END;
+END;
+$proof$;
+
+CREATE TEMP TABLE f43_after_edit AS
+SELECT version, updated_at
+FROM public.production_comments
+WHERE id = 'f43-root-comment';
+
+SELECT public.production_comment_lifecycle_write(
+  jsonb_build_object(
+    'id', 'f43-root-comment',
+    'operation', 'resolve',
+    'resolved_by_key', 'member:f43-smm',
+    'resolved_by_name', 'F43 Fixture SMM',
+    'source_updated_at', '2026-07-23T14:07:00Z'
+  ),
+  jsonb_build_object(
+    'source', 'ui',
+    'actor', 'F43 Fixture SMM',
+    'role', 'smm',
+    'outbound', jsonb_build_object(
+      'dedup_key', 'f43:comment:resolve',
+      'test_only', true,
+      'legacy_parity', false,
+      'payload', jsonb_build_object(
+        '_intent_fingerprint', 'f43-resolve-fingerprint'
+      )
+    )
+  ),
+  (SELECT version FROM f43_after_edit),
+  (SELECT updated_at FROM f43_after_edit)
+);
+
+CREATE TEMP TABLE f43_after_resolve AS
+SELECT version, updated_at
+FROM public.production_comments
+WHERE id = 'f43-root-comment';
+
+SELECT public.production_comment_lifecycle_write(
+  jsonb_build_object(
+    'id', 'f43-root-comment',
+    'operation', 'delete',
+    'deleted_by_key', 'member:f43-smm',
+    'deleted_by_name', 'F43 Fixture SMM',
+    'source_updated_at', '2026-07-23T14:08:00Z'
+  ),
+  jsonb_build_object(
+    'source', 'ui',
+    'actor', 'F43 Fixture SMM',
+    'role', 'smm',
+    'outbound', jsonb_build_object(
+      'dedup_key', 'f43:comment:delete',
+      'test_only', true,
+      'legacy_parity', false,
+      'payload', jsonb_build_object(
+        '_intent_fingerprint', 'f43-delete-fingerprint',
+        '_f27_authority_generation', (
+          SELECT generation FROM public.track_b_f27_team_fences WHERE team = 'video'
+        ),
+        '_f27_legacy_parity', false
+      )
+    )
+  ),
+  (SELECT version FROM f43_after_resolve),
+  (SELECT updated_at FROM f43_after_resolve)
+);
+
+DO $proof$
+DECLARE
+  v_add_id bigint;
+  v_edit_id bigint;
+  v_delete_id bigint;
+  v_replay public.production_comments%rowtype;
+BEGIN
+  SELECT id INTO v_add_id
+  FROM public.mirror_outbox WHERE dedup_key = 'f43:comment:add';
+  SELECT id INTO v_edit_id
+  FROM public.mirror_outbox WHERE dedup_key = 'f43:comment:edit';
+  SELECT id INTO v_delete_id
+  FROM public.mirror_outbox WHERE dedup_key = 'f43:comment:delete';
+
+  IF (SELECT count(*) FROM public.mirror_outbox
+      WHERE dedup_key IN (
+        'f43:comment:add', 'f43:comment:edit', 'f43:comment:delete'
+      )) <> 3
+     OR EXISTS (
+       SELECT 1 FROM public.mirror_outbox
+       WHERE dedup_key IN (
+         'f43:comment:add', 'f43:comment:edit', 'f43:comment:delete'
+       )
+         AND status <> 'pending'
+     )
+     OR (SELECT depends_on_id FROM public.mirror_outbox
+         WHERE id = v_edit_id) IS DISTINCT FROM v_add_id
+     OR (SELECT depends_on_id FROM public.mirror_outbox
+         WHERE id = v_delete_id) IS DISTINCT FROM v_edit_id
+     OR EXISTS (
+       SELECT 1 FROM public.mirror_outbox
+       WHERE id IN (v_edit_id, v_delete_id)
+         AND payload->>'linear_comment_id' IS NOT NULL
+     )
+     OR NOT EXISTS (
+       SELECT 1 FROM public.production_comments
+       WHERE id = 'f43-root-comment'
+         AND linear_comment_id IS NULL
+         AND body = E'Edited **Markdown**'
+         AND resolved_at = '2026-07-23T14:07:00Z'::timestamptz
+         AND deleted_at = '2026-07-23T14:08:00Z'::timestamptz
+     ) THEN
+    RAISE EXCEPTION 'f43_f2_off_create_edit_delete_not_ordered';
+  END IF;
+
+  -- Simulate the resumed drainer without any live call: create acknowledgement
+  -- checkpoints and binds the provider id, edit consumes that dependency
+  -- receipt and hands the same id to delete, then each row terminalizes once.
+  UPDATE public.mirror_outbox
+  SET linear_result = jsonb_build_object(
+        'mutation', 'commentCreate',
+        'comment_id', 'linear-comment-f43',
+        'recovered_idempotently', false
+      ),
+      updated_at = now()
+  WHERE id = v_add_id;
+  PERFORM public.production_comment_bind_linear_id(
+    'f43-root-comment', 'linear-comment-f43', v_add_id
+  );
+  UPDATE public.mirror_outbox
+  SET status = 'written', processed_at = now(), updated_at = now()
+  WHERE id = v_add_id;
+
+  IF (SELECT linear_result->>'comment_id' FROM public.mirror_outbox
+      WHERE id = v_add_id) <> 'linear-comment-f43' THEN
+    RAISE EXCEPTION 'f43_add_provider_handoff_missing';
+  END IF;
+  UPDATE public.mirror_outbox
+  SET linear_result = jsonb_build_object(
+        'mutation', 'commentUpdate',
+        'comment_id', (
+          SELECT linear_result->>'comment_id'
+          FROM public.mirror_outbox WHERE id = v_add_id
+        )
+      ),
+      updated_at = now()
+  WHERE id = v_edit_id;
+  PERFORM public.production_comment_bind_linear_id(
+    'f43-root-comment',
+    (SELECT linear_result->>'comment_id'
+     FROM public.mirror_outbox WHERE id = v_edit_id),
+    v_edit_id
+  );
+  UPDATE public.mirror_outbox
+  SET status = 'written', processed_at = now(), updated_at = now()
+  WHERE id = v_edit_id;
+
+  UPDATE public.mirror_outbox
+  SET status = 'written',
+      processed_at = now(),
+      linear_result = jsonb_build_object(
+        'mutation', 'commentDelete',
+        'comment_id', (
+          SELECT linear_result->>'comment_id'
+          FROM public.mirror_outbox WHERE id = v_edit_id
+        ),
+        'delete_attempted', true,
+        'delete_applied', true
+      ),
+      updated_at = now()
+  WHERE id = v_delete_id;
+
+  -- Exact response-loss replays return their durable receipt before stale CAS
+  -- checks, produce no second intent, and retain the final canonical tombstone.
+  v_replay := public.production_comment_lifecycle_write(
+    jsonb_build_object(
+      'id', 'f43-root-comment',
+      'operation', 'edit',
+      'body', E'Edited **Markdown**',
+      'edited_at', '2026-07-23T14:05:00Z',
+      'source_updated_at', '2026-07-23T14:05:00Z'
+    ),
+    jsonb_build_object(
+      'source', 'ui',
+      'actor', 'F43 Fixture SMM',
+      'role', 'smm',
+      'outbound', jsonb_build_object(
+        'dedup_key', 'f43:comment:edit',
+        'test_only', true,
+        'legacy_parity', false,
+        'payload', jsonb_build_object(
+          '_intent_fingerprint', 'f43-edit-fingerprint'
+        )
+      )
+    ),
+    (SELECT version FROM f43_after_add),
+    (SELECT updated_at FROM f43_after_add)
+  );
+  IF v_replay.id <> 'f43-root-comment'
+     OR v_replay.linear_comment_id <> 'linear-comment-f43'
+     OR v_replay.deleted_at IS NULL THEN
+    RAISE EXCEPTION 'f43_edit_exact_replay_not_canonical';
+  END IF;
+
+  v_replay := public.production_comment_lifecycle_write(
+    jsonb_build_object(
+      'id', 'f43-root-comment',
+      'operation', 'delete',
+      'deleted_by_key', 'member:f43-smm',
+      'deleted_by_name', 'F43 Fixture SMM',
+      'source_updated_at', '2026-07-23T14:08:00Z'
+    ),
+    jsonb_build_object(
+      'source', 'ui',
+      'actor', 'F43 Fixture SMM',
+      'role', 'smm',
+      'outbound', jsonb_build_object(
+        'dedup_key', 'f43:comment:delete',
+        'test_only', true,
+        'legacy_parity', false,
+        'payload', jsonb_build_object(
+          '_intent_fingerprint', 'f43-delete-fingerprint'
+        )
+      )
+    ),
+    (SELECT version FROM f43_after_resolve),
+    (SELECT updated_at FROM f43_after_resolve)
+  );
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.production_comments
+    WHERE id = 'f43-root-comment'
+      AND body = E'Edited **Markdown**'
+      AND linear_comment_id = 'linear-comment-f43'
+      AND resolved_at = '2026-07-23T14:07:00Z'::timestamptz
+      AND deleted_at = '2026-07-23T14:08:00Z'::timestamptz
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.mirror_outbox
+    WHERE dedup_key = 'f43:comment:edit'
+      AND operation = 'comment'
+      AND payload->>'action' = 'edit'
+      AND depends_on_id = v_add_id
+      AND linear_result->>'comment_id' = 'linear-comment-f43'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.mirror_outbox
+    WHERE dedup_key = 'f43:comment:delete'
+      AND operation = 'comment'
+      AND payload->>'action' = 'delete'
+      AND depends_on_id = v_edit_id
+      AND linear_result->>'comment_id' = 'linear-comment-f43'
+      AND linear_result->>'delete_applied' = 'true'
+  ) OR EXISTS (
+    SELECT 1 FROM public.mirror_outbox
+    WHERE dedup_key = 'f43:comment:resolve'
+  ) OR EXISTS (
+    SELECT 1 FROM public.mirror_outbox
+    WHERE dedup_key = 'f43:comment:stale-edit'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f43-comment-deliverable'
+      AND action = 'comment_edit'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f43-comment-deliverable'
+      AND action = 'comment_resolve'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f43-comment-deliverable'
+      AND action = 'comment_delete'
+  ) OR EXISTS (
+    SELECT 1
+    FROM (
+      SELECT dedup_key, count(*) AS row_count
+      FROM public.mirror_outbox
+      WHERE dedup_key IN (
+        'f43:comment:add', 'f43:comment:edit', 'f43:comment:delete'
+      )
+      GROUP BY dedup_key
+    ) exact
+    WHERE exact.row_count <> 1
+  ) THEN
+    RAISE EXCEPTION 'f43_lifecycle_conflict_audit_or_mirror_not_exact';
+  END IF;
+END;
+$proof$;
+
+SELECT public.production_comment_card_import(
+  jsonb_build_object(
+    'source_surface', 'calendar',
+    'card_id', 'f42-calendar-card',
+    'component', 'video',
+    'native_comment_id', 'legacy-root',
+    'deliverable_id', 'f42-card-deliverable',
+    'client_slug', 'test-client',
+    'team', 'video',
+    'source_fingerprint', 'f42-source-fingerprint'
+  ),
+  jsonb_build_object(
+    'author_key', 'legacy:calendar:f42-calendar-card:fixture',
+    'author_name', 'F42 Fixture',
+    'role', 'smm',
+    'body', 'Imported card root',
+    'body_format', 'markdown',
+    'attachments', jsonb_build_array(
+      jsonb_build_object('url', 'https://example.invalid/f42.png', 'name', 'F42')
+    ),
+    'audience', 'client',
+    'component', 'video',
+    'is_tweak', true,
+    'round', 1,
+    'source_created_at', '2026-07-23T13:00:00Z',
+    'source_updated_at', '2026-07-23T13:00:00Z',
+    'import_run_id', 'f42-proof-run',
+    'backfill_tag', 'f42-card-thread'
+  ),
+  jsonb_build_object(
+    'source', 'backfill',
+    'actor', 'f42-card-comment-import',
+    'role', 'service'
+  )
+);
+SELECT public.production_comment_card_import(
+  jsonb_build_object(
+    'source_surface', 'calendar',
+    'card_id', 'f42-calendar-card',
+    'component', 'video',
+    'native_comment_id', 'legacy-root',
+    'deliverable_id', 'f42-card-deliverable',
+    'client_slug', 'test-client',
+    'team', 'video',
+    'source_fingerprint', 'f42-source-fingerprint'
+  ),
+  jsonb_build_object(
+    'author_key', 'legacy:calendar:f42-calendar-card:fixture',
+    'author_name', 'F42 Fixture',
+    'role', 'smm',
+    'body', 'Imported card root',
+    'audience', 'client',
+    'source_created_at', '2026-07-23T13:00:00Z',
+    'source_updated_at', '2026-07-23T13:00:00Z',
+    'import_run_id', 'f42-proof-rerun'
+  ),
+  jsonb_build_object('source', 'backfill')
+);
+SELECT public.production_comment_card_import(
+  jsonb_build_object(
+    'source_surface', 'calendar',
+    'card_id', 'f42-calendar-card',
+    'component', 'video',
+    'native_comment_id', 'legacy-delete-root',
+    'deliverable_id', 'f42-card-deliverable',
+    'client_slug', 'test-client',
+    'team', 'video',
+    'source_fingerprint', 'f42-delete-source-fingerprint'
+  ),
+  jsonb_build_object(
+    'author_key', 'legacy:calendar:f42-calendar-card:delete-fixture',
+    'author_name', 'F42 Delete Fixture',
+    'role', 'smm',
+    'body', 'Imported card root deleted before foreign materialization',
+    'body_format', 'markdown',
+    'audience', 'internal',
+    'component', 'video',
+    'source_created_at', '2026-07-23T13:01:00Z',
+    'source_updated_at', '2026-07-23T13:01:00Z',
+    'import_run_id', 'f42-proof-run',
+    'backfill_tag', 'f42-card-thread'
+  ),
+  jsonb_build_object(
+    'source', 'backfill',
+    'actor', 'f42-card-comment-import',
+    'role', 'service'
+  )
+);
+
+DO $proof$
+BEGIN
+  IF (SELECT count(*) FROM public.production_comment_card_links
+      WHERE source_surface = 'calendar'
+        AND card_id = 'f42-calendar-card'
+        AND component = 'video'
+        AND native_comment_id = 'legacy-root') <> 1
+     OR NOT EXISTS (
+       SELECT 1
+       FROM public.production_comment_card_links l
+       JOIN public.production_comments c
+         ON c.id = l.production_comment_id
+       WHERE l.native_comment_id = 'legacy-root'
+         AND c.native_comment_id = c.id
+         AND c.deliverable_id = 'f42-card-deliverable'
+         AND c.audience = 'client'
+         AND c.is_tweak = true
+         AND c.attachments->0->>'url' = 'https://example.invalid/f42.png'
+         AND c.provenance->>'native_comment_id' = 'legacy-root'
+     ) THEN
+    RAISE EXCEPTION 'f42_card_import_or_idempotent_rerun_not_exact';
+  END IF;
+
+  BEGIN
+    PERFORM public.production_comment_card_import(
+      jsonb_build_object(
+        'source_surface', 'calendar',
+        'card_id', 'f42-calendar-card',
+        'component', 'video',
+        'native_comment_id', 'legacy-root',
+        'deliverable_id', 'f42-card-deliverable',
+        'client_slug', 'other-client',
+        'team', 'video',
+        'source_fingerprint', 'f42-source-fingerprint'
+      ),
+      '{}'::jsonb,
+      '{}'::jsonb
+    );
+    RAISE EXCEPTION 'f42_cross_client_import_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'production comment card import crosswalk mismatch' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    PERFORM public.production_comment_card_import(
+      jsonb_build_object(
+        'source_surface', 'calendar',
+        'card_id', 'f42-calendar-card',
+        'component', 'video',
+        'native_comment_id', 'legacy-root',
+        'deliverable_id', 'f42-card-deliverable',
+        'client_slug', 'test-client',
+        'team', 'video',
+        'source_fingerprint', 'different-fingerprint'
+      ),
+      '{}'::jsonb,
+      '{}'::jsonb
+    );
+    RAISE EXCEPTION 'f42_different_source_rerun_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'production comment card import identity conflict' THEN RAISE; END IF;
+  END;
+END;
+$proof$;
+
+-- F42 import creates canonical history only. Prove that the first edit and
+-- first delete cannot become providerless foreign mutations: the edit receives
+-- the authoritative materialize marker and can bind one provider id, while a
+-- separate imported row's first delete receives the no-foreign-object marker
+-- with no predecessor/provider id for the drainer's terminal no-op branch.
+DO $proof$
+DECLARE
+  v_edit_comment public.production_comments%rowtype;
+  v_delete_comment public.production_comments%rowtype;
+  v_edit_result public.production_comments%rowtype;
+  v_delete_result public.production_comments%rowtype;
+  v_edit_outbox public.mirror_outbox%rowtype;
+  v_delete_outbox public.mirror_outbox%rowtype;
+  v_generation bigint;
+BEGIN
+  SELECT c.* INTO v_edit_comment
+  FROM public.production_comment_card_links l
+  JOIN public.production_comments c ON c.id = l.production_comment_id
+  WHERE l.source_surface = 'calendar'
+    AND l.card_id = 'f42-calendar-card'
+    AND l.component = 'video'
+    AND l.native_comment_id = 'legacy-root';
+  SELECT c.* INTO v_delete_comment
+  FROM public.production_comment_card_links l
+  JOIN public.production_comments c ON c.id = l.production_comment_id
+  WHERE l.source_surface = 'calendar'
+    AND l.card_id = 'f42-calendar-card'
+    AND l.component = 'video'
+    AND l.native_comment_id = 'legacy-delete-root';
+  SELECT generation INTO v_generation
+  FROM public.track_b_f27_team_fences
+  WHERE team = 'video';
+
+  IF v_edit_comment.id IS NULL OR v_delete_comment.id IS NULL
+     OR v_edit_comment.linear_comment_id IS NOT NULL
+     OR v_delete_comment.linear_comment_id IS NOT NULL
+     OR EXISTS (
+       SELECT 1 FROM public.mirror_outbox
+       WHERE comment_id IN (v_edit_comment.id, v_delete_comment.id)
+     ) THEN
+    RAISE EXCEPTION 'f42_import_without_foreign_precondition_failed';
+  END IF;
+
+  v_edit_result := public.production_comment_lifecycle_write(
+    jsonb_build_object(
+      'id', v_edit_comment.id,
+      'operation', 'edit',
+      'body', 'Current imported canonical body',
+      'edited_at', '2026-07-23T13:10:00Z',
+      'source_updated_at', '2026-07-23T13:10:00Z'
+    ),
+    jsonb_build_object(
+      'source', 'ui',
+      'actor', 'F42 Fixture SMM',
+      'role', 'smm',
+      'outbound', jsonb_build_object(
+        'dedup_key', 'f42:import:first-edit',
+        'test_only', true,
+        'legacy_parity', false,
+        'payload', jsonb_build_object(
+          '_intent_fingerprint', 'f42-import-edit-fingerprint',
+          '_f27_authority_generation', v_generation,
+          '_f27_legacy_parity', false
+        )
+      )
+    ),
+    v_edit_comment.version,
+    v_edit_comment.updated_at
+  );
+  SELECT * INTO v_edit_outbox
+  FROM public.mirror_outbox
+  WHERE dedup_key = 'f42:import:first-edit';
+
+  IF v_edit_result.body IS DISTINCT FROM 'Current imported canonical body'
+     OR v_edit_outbox.id IS NULL
+     OR v_edit_outbox.depends_on_id IS NOT NULL
+     OR v_edit_outbox.payload->>'action' IS DISTINCT FROM 'edit'
+     OR v_edit_outbox.payload->>'linear_comment_id' IS NOT NULL
+     OR v_edit_outbox.payload->>'card_import_without_foreign' IS DISTINCT FROM 'true'
+     OR v_edit_outbox.payload->>'body' IS DISTINCT FROM 'Current imported canonical body' THEN
+    RAISE EXCEPTION 'f42_import_first_edit_materialization_not_exact';
+  END IF;
+
+  v_edit_result := public.production_comment_bind_linear_id(
+    v_edit_comment.id,
+    'linear-comment-f42-import',
+    v_edit_outbox.id
+  );
+  IF v_edit_result.linear_comment_id IS DISTINCT FROM 'linear-comment-f42-import' THEN
+    RAISE EXCEPTION 'f42_import_first_edit_provider_bind_failed';
+  END IF;
+
+  v_delete_result := public.production_comment_lifecycle_write(
+    jsonb_build_object(
+      'id', v_delete_comment.id,
+      'operation', 'delete',
+      'deleted_by_key', 'member:f42-smm',
+      'deleted_by_name', 'F42 Fixture SMM',
+      'source_updated_at', '2026-07-23T13:11:00Z'
+    ),
+    jsonb_build_object(
+      'source', 'ui',
+      'actor', 'F42 Fixture SMM',
+      'role', 'smm',
+      'outbound', jsonb_build_object(
+        'dedup_key', 'f42:import:first-delete',
+        'test_only', true,
+        'legacy_parity', false,
+        'payload', jsonb_build_object(
+          '_intent_fingerprint', 'f42-import-delete-fingerprint',
+          '_f27_authority_generation', v_generation,
+          '_f27_legacy_parity', false
+        )
+      )
+    ),
+    v_delete_comment.version,
+    v_delete_comment.updated_at
+  );
+  SELECT * INTO v_delete_outbox
+  FROM public.mirror_outbox
+  WHERE dedup_key = 'f42:import:first-delete';
+
+  IF v_delete_result.deleted_at IS NULL
+     OR v_delete_outbox.id IS NULL
+     OR v_delete_outbox.depends_on_id IS NOT NULL
+     OR v_delete_outbox.payload->>'action' IS DISTINCT FROM 'delete'
+     OR v_delete_outbox.payload->>'linear_comment_id' IS NOT NULL
+     OR v_delete_outbox.payload->>'card_import_without_foreign' IS DISTINCT FROM 'true'
+     OR EXISTS (
+       SELECT 1 FROM public.mirror_outbox
+       WHERE comment_id = v_delete_comment.id
+         AND id <> v_delete_outbox.id
+     ) THEN
+    RAISE EXCEPTION 'f42_import_without_foreign_transition_not_exact';
+  END IF;
+END;
+$proof$;
+
+ROLLBACK;
+
+DO $proof$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.production_comments)
+     OR EXISTS (SELECT 1 FROM public.production_comment_card_links)
+     OR EXISTS (SELECT 1 FROM public.production_comment_mutation_receipts)
+     OR EXISTS (SELECT 1 FROM public.production_comment_read_audit)
+     OR EXISTS (SELECT 1 FROM public.production_comment_read_budget)
+     OR EXISTS (
+       SELECT 1 FROM public.mirror_outbox
+       WHERE dedup_key LIKE 'f43:%'
+     ) THEN
+    RAISE EXCEPTION 'f39_f42_f43_disposable_proof_residue';
   END IF;
 END;
 $proof$;

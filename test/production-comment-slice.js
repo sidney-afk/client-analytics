@@ -513,6 +513,30 @@ function snapshotFor(calendar, sxr, mutateManifest) {
     && /principal\.kind === "client"\s*\n\s*&& !clientCommentTargetAllowed\(surface, existing, lifecycleRow\.component\)/.test(writer),
   'the writer binds every client comment add and edit/delete to the exact SXR card/component crosswalk');
 
+  // Finding #924 r3646413661 — the lifecycle RPC clamps a server-owned monotonic
+  // source clock before the upsert so the stale-source guard cannot turn a
+  // CAS-validated write into a silent no-op that still receipts a false success.
+  const lifecycleFnStart = migration.indexOf('function public.production_comment_lifecycle_write');
+  const lifecycleFn = migration.slice(lifecycleFnStart, migration.indexOf('$fn$;', lifecycleFnStart));
+  const clampAt = lifecycleFn.indexOf("'{source_updated_at}'");
+  const upsertAt = lifecycleFn.indexOf('production_comment_upsert(v_comment');
+  ok(clampAt > 0 && upsertAt > 0 && clampAt < upsertAt
+    && /greatest\(\s*coalesce\(nullif\(btrim\(v_comment->>'source_updated_at'\), ''\)::timestamptz, now\(\)\),\s*v_existing\.source_updated_at\s*\)/.test(lifecycleFn),
+  'lifecycle_write clamps a monotonic server-owned source clock before the upsert (no stale-source false success)');
+
+  // Finding #924 r3642706329 — the writer replays the exact mutation receipt
+  // before the deferred CAS so a committed response-loss retry adopts the first
+  // result instead of 409-ing on the already-advanced row.
+  const dispatchAt = writer.indexOf('const currentRow = lifecycleRow as JsonMap;');
+  const dispatch = writer.slice(dispatchAt, dispatchAt + 1600);
+  ok(dispatchAt > 0
+    && /readLifecycleReceipt\(\s*supabase, dedup, productionCommentId, action, fingerprint/.test(dispatch)
+    && dispatch.indexOf('readLifecycleReceipt(') < dispatch.indexOf('write_conflict')
+    && dispatch.indexOf('write_conflict') < dispatch.indexOf('rpc(supabase, "production_comment_lifecycle_write"'),
+  'the lifecycle dispatch replays the exact receipt before the deferred CAS and the lifecycle RPC');
+  ok(/readLifecycleReceipt[\s\S]{0,400}from\("production_comment_mutation_receipts"\)[\s\S]{0,800}idempotency_conflict/.test(writer),
+  'the receipt replay reads the durable mutation-receipt table and conflicts only on a mismatched intent under the same dedup');
+
   if (failures) {
     console.error(`\n${failures} production comment slice check(s) failed`);
     process.exit(1);

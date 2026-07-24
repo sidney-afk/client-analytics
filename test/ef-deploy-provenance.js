@@ -75,12 +75,12 @@ ok(/- name: Attest pinned manual release[\s\S]*if: always\(\) && github\.event_n
   && workflow.includes('--format=markdown | tee -a "$GITHUB_STEP_SUMMARY"'),
 'manual dispatch appends a scoped public-safe fingerprint attestation and drill placeholder');
 
-const providerAt = workflow.indexOf('for fn in linear-outbound production-comments production-archive production-write');
+const providerAt = workflow.indexOf('for fn in linear-outbound production-write production-comments production-archive');
 const attestationAt = workflow.indexOf('- name: Attest pinned manual release');
 const attestorPreflightAt = workflow.indexOf('node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --expected-only');
 ok(attestorPreflightAt >= 0 && attestorPreflightAt < providerAt
   && providerAt >= 0 && attestationAt > providerAt,
-'attestor readiness fails before mutation and live fingerprints follow the provider-before-gateway deployment step');
+'attestor readiness fails before mutation and live fingerprints follow the gateway-before-readers deployment step');
 
 const manifestCheck = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'ef-deploy-manifest.js'), '--check'], {
   cwd: ROOT,
@@ -96,8 +96,8 @@ ok(/\| `client-token-verify` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUA
 ok(/\| `production-archive` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
   && /\| `production-comments` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
 'production-comments and production-archive deploy via the pinned-SHA dispatch-only lane, not local credentials');
-ok(/for fn in linear-outbound production-comments production-archive production-write/.test(workflow),
-'the Track-B deploy set deploys providers/readers before the write gateway from one pinned commit');
+ok(/for fn in linear-outbound production-write production-comments production-archive/.test(workflow),
+'the Track-B deploy set deploys the provider and write gateway before the comment/archive readers from one pinned commit');
 ok(/\| `workload-linear` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Source-only Workload Linear metadata\/deadline gateway/.test(manifest),
 'workload-linear is explicitly recorded as a source-only deliberate-manual exception');
 

@@ -2,10 +2,13 @@ name: Deploy staff-sensitive edge functions
 
 # Auto-deploys onboarding, credentials, filming-plan, and SMM-report functions
 # plus their shared role-key helper whenever they change on main, or on manual
-# dispatch. The Track-B write/read set — linear-outbound, production-comments,
-# production-archive, production-write — is manual-only: it must come from an
-# exact commit already on main, and within the set the provider/readers deploy
-# before the write gateway. A normal merge/push must never deploy that set.
+# dispatch. The Track-B write/read set — linear-outbound, production-write,
+# production-comments, production-archive — is manual-only: it must come from an
+# exact commit already on main, and within the set the provider and the write
+# gateway deploy BEFORE the comment/archive readers: the new reader emits
+# can_edit/can_delete and unlocks the lifecycle UI, so a new reader running
+# against the old production-write would let an edit be mis-handled as a create
+# (silent duplicate comment). A normal merge/push must never deploy that set.
 # Uses the existing SUPABASE_ACCESS_TOKEN Actions secret. Role keys and
 # transition-only legacy passphrases live as Supabase function secrets, never in
 # this repository.
@@ -85,11 +88,17 @@ jobs:
         id: track_b_deploy
         if: github.event_name == 'workflow_dispatch'
         run: |
-          # Provider and readers first, write gateway last. production-comments
-          # (scoped canonical comment reader) and production-archive (protected
-          # archive reader) join the set so the whole comment-import window
-          # deploys from one pinned commit, never local credentials.
-          for fn in linear-outbound production-comments production-archive production-write; do
+          # Provider and write gateway first, comment/archive readers last.
+          # production-comments (scoped canonical comment reader) and
+          # production-archive (protected archive reader) join the set so the
+          # whole comment-import window deploys from one pinned commit, never
+          # local credentials. The readers deploy AFTER production-write because
+          # the new reader emits can_edit/can_delete and unlocks the lifecycle
+          # UI: a new reader against the old write gateway would let an edit be
+          # mis-handled as a create (silent duplicate comment); the reverse
+          # (new writer, old reader) stays safe because the old reader never
+          # exposes those flags.
+          for fn in linear-outbound production-write production-comments production-archive; do
             echo "Deploying $fn…"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
           done

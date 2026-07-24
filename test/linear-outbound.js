@@ -974,9 +974,9 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   const pinnedStep = pinnedStepAt >= 0 ? deployWorkflow.slice(pinnedStepAt) : '';
   const pinnedLoop = (pinnedStep.match(/for fn in ([^;]+); do/) || [])[1] || '';
   ok(/if: github\.event_name == 'workflow_dispatch'/.test(pinnedStep)
-    && pinnedLoop === 'linear-outbound production-comments production-archive production-write'
-    && pinnedLoop.indexOf('linear-outbound') < pinnedLoop.indexOf('production-write'),
-  'manual deploy step is dispatch-only and deploys the provider/readers before its gateway caller');
+    && pinnedLoop === 'linear-outbound production-write production-comments production-archive'
+    && pinnedLoop.indexOf('production-write') < pinnedLoop.indexOf('production-comments'),
+  'manual deploy step is dispatch-only and deploys the provider and write gateway before the comment/archive readers');
 
   const ancestorGuard = 'git merge-base --is-ancestor "$DEPLOY_COMMIT" origin/main';
   const ancestorGuardAt = deployWorkflow.indexOf(ancestorGuard);

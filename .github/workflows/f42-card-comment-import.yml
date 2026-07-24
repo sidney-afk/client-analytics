@@ -1,0 +1,129 @@
+name: F42 card-comment import
+
+# The live F42 Calendar/Samples comment import as a guarded button-press, never
+# an improvised local run. Manual-only (workflow_dispatch), pinned to an exact
+# 40-character commit already on main, split into two dispatches:
+#
+#   mode: plan   — export a fresh two-surface snapshot from live source cards,
+#                  run the source-only planner, and print the eligibility,
+#                  per-surface counts, and the apply digest for owner review.
+#                  Never writes to the canonical comment tables.
+#   mode: apply  — re-export, re-derive, and only import when the operator typed
+#                  the exact confirm token AND the re-derived apply digest still
+#                  matches the reviewed plan's digest (live-data drift guard).
+#                  Applies through the service-only production_comment_card_import
+#                  RPC and verifies applied == planned against an independent
+#                  count readback.
+#
+# Uses the repo's existing SUPABASE_SERVICE_ROLE_KEY Actions secret. It never
+# uploads the snapshot or plan (they carry private comment bodies) — only the
+# body-free counts/digest summary reaches the run log.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact 40-character commit SHA from main to run the import from
+        required: true
+        type: string
+      mode:
+        description: plan (review) or apply (live import)
+        required: true
+        type: choice
+        options: [plan, apply]
+        default: plan
+      import_run_id:
+        description: Owner-approved import run id
+        required: true
+        type: string
+      expected_apply_digest:
+        description: apply — the apply digest from the reviewed plan run (drift guard)
+        required: false
+        type: string
+      confirm:
+        description: apply — type IMPORT_CARD_COMMENTS to authorize the live import
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  f42-import:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      RUN_COMMIT: ${{ inputs.commit_sha }}
+      RUN_MODE: ${{ inputs.mode }}
+      IMPORT_RUN_ID: ${{ inputs.import_run_id }}
+      EXPECTED_APPLY_DIGEST: ${{ inputs.expected_apply_digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+      - name: Verify pinned commit is exactly on main
+        shell: bash
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$RUN_COMMIT" ]; then
+            echo "::error::Checked out $actual instead of requested $RUN_COMMIT"
+            exit 1
+          fi
+          if ! [[ "$RUN_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::The import requires an exact 40-character commit SHA"
+            exit 1
+          fi
+          git fetch origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$RUN_COMMIT" origin/main; then
+            echo "::error::The import commit is not on origin/main"
+            exit 1
+          fi
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY secret is not set."
+            exit 1
+          fi
+      - name: Export the private two-surface snapshot from live source cards
+        shell: bash
+        run: |
+          node scripts/f42-card-comment-export.js --output snapshot.json
+          # Log only body-free shape; the snapshot file stays on the runner.
+          node -e "const s=require('./snapshot.json');console.log('exported',s.surfaces.calendar.length,'calendar +',s.surfaces.sxr.length,'sxr cards')"
+      - name: Plan (review only, no writes)
+        if: inputs.mode == 'plan'
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/f42-card-comment-apply.js \
+            --input snapshot.json --import-run-id "$IMPORT_RUN_ID" \
+            | tee plan-summary.json
+          node -e "const r=require('./plan-summary.json'); if(r.status!=='READY'){console.error('::error::plan not READY:',JSON.stringify(r.reasons));process.exit(2)}"
+          {
+            echo "## F42 import — PLAN"
+            echo
+            node -e "const r=require('./plan-summary.json');console.log('- status: '+r.status);console.log('- planned imports: '+r.planned_imports);console.log('- conflicts: '+r.conflicts);console.log('- apply digest: \`'+r.apply_digest+'\`');console.log('- import run id: \`'+r.import_run_id+'\`')"
+            echo
+            echo "Re-run this workflow with mode=apply, the same import_run_id, expected_apply_digest set to the digest above, and confirm=IMPORT_CARD_COMMENTS."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Apply (live import, owner-confirmed + digest-pinned)
+        if: inputs.mode == 'apply'
+        env:
+          F42_CONFIRM_CARD_COMMENT_IMPORT: ${{ inputs.confirm }}
+        shell: bash
+        run: |
+          set -o pipefail
+          if [ -z "$EXPECTED_APPLY_DIGEST" ]; then
+            echo "::error::apply requires expected_apply_digest from the reviewed plan run"
+            exit 1
+          fi
+          node scripts/f42-card-comment-apply.js \
+            --input snapshot.json --import-run-id "$IMPORT_RUN_ID" \
+            --expect-apply-digest "$EXPECTED_APPLY_DIGEST" --apply \
+            | tee apply-summary.json
+          node -e "const r=require('./apply-summary.json'); if(r.status!=='APPLIED'){console.error('::error::apply not APPLIED:',r.status);process.exit(2)}"
+          {
+            echo "## F42 import — APPLY"
+            echo
+            node -e "const r=require('./apply-summary.json');console.log('- status: '+r.status);console.log('- applied: '+r.applied_count);console.log('- apply digest: \`'+r.apply_digest+'\`');console.log('- readback links/comments: '+r.verification.checks.card_link_count+' / '+r.verification.checks.comment_count)"
+          } >> "$GITHUB_STEP_SUMMARY"

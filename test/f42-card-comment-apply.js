@@ -173,9 +173,47 @@ const calendarCards = [{
     } catch (error) { pinThrew = error && error.message; }
     ok(pinThrew === 'reviewed_plan_digest_mismatch',
       'a reviewed plan whose digest differs from the re-derived plan is refused');
+
+    // --expect-apply-digest drift guard (split plan/apply dispatches).
+    const expectedDigest = apply.planApplyDigest(apply.derivePlan(goodSnapshot, { importRunId: 'apply-fixture-run' }));
+    const matchedDigest = await apply.run(
+      ['--input', snapshotPath, '--import-run-id', 'apply-fixture-run', '--expect-apply-digest', expectedDigest], {});
+    ok(matchedDigest.status === 'READY',
+      'a matching --expect-apply-digest passes the drift guard');
+    let digestThrew = '';
+    try {
+      await apply.run(['--input', snapshotPath, '--import-run-id', 'apply-fixture-run',
+        '--expect-apply-digest', '0'.repeat(64), '--apply'],
+      { [apply.CONFIRM_ENV]: apply.CONFIRM_TOKEN },
+      { importOne: () => ({ id: 'x' }), readback: () => ({ card_link_count: 0, comment_count: 0 }) });
+    } catch (error) { digestThrew = error && error.message; }
+    ok(digestThrew === 'expected_apply_digest_mismatch',
+      'an apply whose re-derived digest drifts from the reviewed plan is refused before any write');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+
+  // The guarded workflow_dispatch import lane locks the same gates the runner
+  // enforces: an exact 40-char SHA that must be an ancestor of main, plan mode
+  // never applies, apply mode requires the confirm token + the apply-digest
+  // drift guard, and the private snapshot is never uploaded as an artifact.
+  const wf = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'f42-card-comment-import.yml'), 'utf8');
+  ok(/\^\[0-9a-f\]\{40\}\$/.test(wf)
+    && /git merge-base --is-ancestor "\$RUN_COMMIT" origin\/main/.test(wf),
+  'the import workflow pins an exact 40-character commit that must be an ancestor of main');
+  const planStepAt = wf.indexOf("Plan (review only");
+  const applyStepAt = wf.indexOf("Apply (live import");
+  ok(planStepAt > 0 && applyStepAt > 0
+    && !wf.slice(planStepAt, applyStepAt).includes('--apply')
+    && /if: inputs\.mode == 'plan'/.test(wf)
+    && /if: inputs\.mode == 'apply'/.test(wf),
+  'plan mode never applies; the two modes are separate dispatches');
+  ok(/F42_CONFIRM_CARD_COMMENT_IMPORT: \$\{\{ inputs\.confirm \}\}/.test(wf)
+    && /--expect-apply-digest "\$EXPECTED_APPLY_DIGEST" --apply/.test(wf)
+    && /expected_apply_digest from the reviewed plan run/.test(wf),
+  'apply requires the confirm token and pins the reviewed apply digest as a drift guard');
+  ok(!/upload-artifact/.test(wf) && /the snapshot file stays on the runner/.test(wf),
+  'the private snapshot/plan are never uploaded as artifacts');
 
   if (failures) {
     console.error(`\n${failures} F42 apply check(s) failed`);

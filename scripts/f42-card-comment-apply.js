@@ -264,6 +264,12 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
       throw new Error('reviewed_plan_digest_mismatch');
     }
   }
+  // Drift guard for the split plan/apply dispatches: the apply run re-exports and
+  // re-derives from live data, so if the source cards changed since the reviewed
+  // plan, the digests differ and the apply is refused before any write.
+  if (args['expect-apply-digest'] && clean(args['expect-apply-digest']) !== digest) {
+    throw new Error('expected_apply_digest_mismatch');
+  }
 
   if (!args.apply) {
     return {

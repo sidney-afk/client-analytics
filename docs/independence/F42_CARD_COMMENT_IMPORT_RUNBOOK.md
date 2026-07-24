@@ -97,6 +97,34 @@ planner and the apply runner against them, and asserts the exact counts and idem
 It requires local `initdb`/`pg_ctl` and leaves no residue. A green rehearsal on the exact merged
 SHA is a precondition of the coordinated apply; it is not itself authority to apply live.
 
+## GitHub Actions import lane (no local credentials)
+
+The live import runs entirely from Actions so it is a guarded button-press with logs, never an
+improvised local run. `scripts/f42-card-comment-export.js` reads the live Calendar and Samples
+source cards through the service-only PostgREST endpoint and projects each card down to only the
+F42 fields (identity, client slug, the deliverable crosswalk, and the per-component comment/tweak
+arrays — never briefs, `linear_raw`, or unrelated columns), emitting the exact two-surface
+snapshot the planner and apply runner consume.
+
+`.github/workflows/f42-card-comment-import.yml` (manual `workflow_dispatch` only, pinned to an
+exact 40-character commit already on `origin/main`, using the existing `SUPABASE_SERVICE_ROLE_KEY`
+secret) runs it as two separate dispatches:
+
+1. **`mode: plan`** — export a fresh snapshot, run the source-only planner, and print the
+   eligibility, per-surface counts, and the `apply_digest` to the run summary. It never writes to
+   the canonical tables and never uploads the snapshot/plan (they carry private comment bodies).
+2. **`mode: apply`** — re-export and re-derive, then import only when the operator typed the exact
+   `IMPORT_CARD_COMMENTS` confirm token **and** `expected_apply_digest` (the digest from the
+   reviewed plan run) still matches the freshly re-derived digest. That match is the live-data
+   drift guard: if the source cards changed between plan and apply, the digests differ and the
+   apply is refused before any write. The apply is `APPLIED` only when the receipts, distinct
+   canonical ids, and the independent `production_comment_card_import_counts` readback all equal
+   the planned count.
+
+The Actions lane still runs inside — not instead of — the owner-approved release window below: the
+migrations and Edge Functions must already be deployed (via the pinned-SHA deploy lane) and the
+rehearsal green on the same SHA before `mode: apply` is dispatched.
+
 ## Separate owner-approved release window
 
 Before any live action, the owner must approve the exact merged SHA and a private proof location,

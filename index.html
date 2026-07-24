@@ -41002,6 +41002,123 @@
             if (PROD_ORDER_KEYS.has(saved.orderBy)) _prodState.orderBy = saved.orderBy;
             if (typeof saved.showSubIssues === 'boolean') _prodState.showSubIssues = saved.showSubIssues;
         }
+
+        /* -----------------------------------------------------------------
+         * Production stale-while-revalidate cache (mirrors Workload's cache)
+         * -----------------------------------------------------------------
+         * The Linear tab re-reads its whole projection — clients, members,
+         * batches, and every browser-safe deliverable row (~thousands) — from
+         * Supabase on every page load, and shows the skeleton until all of it
+         * lands + is processed. `_prodState` is in-memory only, so a fresh page
+         * load never benefits from the previous one. This persists the exact
+         * adapter inputs to localStorage so a REVISIT paints instantly from the
+         * last snapshot, then revalidates in the background and re-renders only
+         * on a diff (the normal foreground read still runs on a cold cache).
+         *
+         * Best-effort: rows are cached VERBATIM (a JSON round-trip preserves
+         * null-valued keys, which _prodDeliverableLive / identity-repair reads
+         * probe with _prodHasOwn), and a QuotaExceededError just skips the write
+         * — behavior degrades to exactly today's every-visit reload, never
+         * worse. Default ON with a sticky kill switch (?prodcache=0), mirroring
+         * the ?wl2 / ?v2 convention. The DATA is the same anon-granted browser
+         * projection the calendar already caches per client.
+         * ----------------------------------------------------------------- */
+        const PROD_CACHE_KEY = 'syncview_production_cache_v1';
+        const PROD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+        const PROD_CACHE_KILL_KEY = 'syncview_production_cache_off';
+        let _prodCacheFlagCache = null;
+        function _prodCacheEnabled() {
+            if (_prodCacheFlagCache !== null) return _prodCacheFlagCache;
+            let on = true;
+            try {
+                const q = new URLSearchParams(location.search).get('prodcache');
+                if (q === '1' || q === 'true') { on = true; localStorage.removeItem(PROD_CACHE_KILL_KEY); }
+                else if (q === '0' || q === 'false') { on = false; localStorage.setItem(PROD_CACHE_KILL_KEY, '1'); }
+                else { on = (localStorage.getItem(PROD_CACHE_KILL_KEY) !== '1'); }
+            } catch { on = true; }
+            _prodCacheFlagCache = on;
+            return on;
+        }
+        function _prodCacheRead() {
+            if (!_prodCacheEnabled()) return null;
+            try {
+                const raw = localStorage.getItem(PROD_CACHE_KEY);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (!parsed || parsed.schema !== 1 || !parsed.savedAt) return null;
+                if (Date.now() - Number(parsed.savedAt) > PROD_CACHE_TTL_MS) return null;
+                if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.members)
+                    || !Array.isArray(parsed.batches) || !Array.isArray(parsed.deliverables)) return null;
+                return parsed;
+            } catch { return null; }
+        }
+        function _prodCacheWrite(data) {
+            if (!_prodCacheEnabled() || !data) return false;
+            let payload;
+            try {
+                payload = JSON.stringify({
+                    schema: 1,
+                    savedAt: Date.now(),
+                    clients: data.clients || [],
+                    members: data.members || [],
+                    batches: data.batches || [],
+                    deliverables: data.deliverables || [],
+                    authority: data.authority || null
+                });
+            } catch { return false; }
+            try { localStorage.setItem(PROD_CACHE_KEY, payload); return true; }
+            catch (e) {
+                // QuotaExceededError — evict oldest same-family snapshots
+                // (calendar / samples) and our own prior entry to make room,
+                // then retry. On final failure drop our key so a truncated or
+                // stale snapshot never seeds a wrong first paint (same
+                // drop-on-fail rule as _calCacheWrite). Cache-off then just
+                // means today's every-visit reload.
+                try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
+                try {
+                    const evictable = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const k = localStorage.key(i);
+                        if (!k) continue;
+                        if (k.startsWith(CAL_CACHE_KEY_PREFIX) || k.startsWith(SXR_CACHE_PREFIX)) {
+                            let savedAt = 0;
+                            try { savedAt = Number(JSON.parse(localStorage.getItem(k) || '{}').savedAt) || 0; } catch {}
+                            evictable.push({ k, savedAt });
+                        }
+                    }
+                    evictable.sort((a, b) => a.savedAt - b.savedAt);
+                    for (const { k } of evictable) {
+                        try { localStorage.removeItem(k); } catch {}
+                        try { localStorage.setItem(PROD_CACHE_KEY, payload); return true; } catch {}
+                    }
+                } catch {}
+                return false;
+            }
+        }
+        function _prodHydrateFromCache() {
+            const cached = _prodCacheRead();
+            if (!cached) return false;
+            const clients = cached.clients;
+            const members = cached.members;
+            const batches = cached.batches;
+            const deliverables = cached.deliverables;
+            _prodState.clients = clients;
+            _prodState.members = members;
+            _prodState.batches = batches;
+            _prodState.deliverables = deliverables;
+            _prodState.authority = cached.authority || null;
+            _prodState.authorityLoaded = !!cached.authority;
+            _prodState.authorityReadAt = Number(cached.savedAt) || 0;
+            _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables });
+            _prodState.loaded = true;
+            _prodState.fromCache = true;
+            // A deep-link target absent from the cached snapshot falls back to
+            // the list — the same guard _prodLoadData applies after a live read.
+            if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
+            if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
+            if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) { _prodState.openProjectId = ''; _prodState.view = 'list'; }
+            return true;
+        }
         function _prodLoadDisplayPrefs() {
             // PORT-DELTA: wired Production persists display-only state per user; the artifact keeps state in memory.
             try {
@@ -45455,8 +45572,14 @@
             _prodPrimeFromUrl();
             _prodStartAuthorityRefresh();
             _prodStartPolicyDayClock();
+            // Stale-while-revalidate: paint instantly from the last snapshot,
+            // then revalidate in the background. On a cold cache this is a no-op
+            // and the normal foreground load runs below.
+            let hydrated = false;
+            if (!_prodState.loaded && !_prodState.loading) hydrated = _prodHydrateFromCache();
             _prodRender();
-            if (!_prodState.loaded && !_prodState.loading) _prodLoadData();
+            if (hydrated) _prodLoadData({ silent: true });
+            else if (!_prodState.loaded && !_prodState.loading) _prodLoadData();
         }
         function _prodPrimeFromUrl() {
             try {
@@ -45558,6 +45681,9 @@
                 _prodState.adapter = _prodAdapter({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables });
                 _prodState.loaded = true;
                 _prodState.loading = false;
+                _prodState.fromCache = false;
+                // Persist this snapshot so the next visit paints instantly.
+                _prodCacheWrite({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables, authority });
                 if (_prodState.openId && !_prodIssue(_prodState.openId)) {
                     _prodState.openId = '';
                     _prodState.view = 'list';

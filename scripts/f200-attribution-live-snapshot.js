@@ -109,7 +109,10 @@ async function main() {
   const snapshot = {
     schema: 'syncview_f200_live_snapshot_v1',
     generated_at: new Date().toISOString(),
-    family_complete: true,
+    // The snapshot contains only the current sentinel cohort. It omits normal
+    // siblings, so family inference must fail closed rather than treating the
+    // observed set as a complete projectless family.
+    family_complete: false,
     deliverables,
     batches: allBatches.filter(row => cohortBatchIds.has(clean(row.id))),
     clients,

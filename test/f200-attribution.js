@@ -697,6 +697,14 @@ ok(/resolveAttributionGraph\(\[\.\.\.data\.linearIssues\.values\(\)\], data\.cli
   && /client_slug=eq\.unattributed/.test(reconcileSource),
 'scheduled reconciler preserves proven attribution and uses the exact-count atomic CAS repair lane');
 
+const liveSnapshotSource = fs.readFileSync(
+  path.join(__dirname, '..', 'scripts', 'f200-attribution-live-snapshot.js'),
+  'utf8',
+);
+ok(/family_complete:\s*false/.test(liveSnapshotSource)
+  && !/family_complete:\s*true/.test(liveSnapshotSource),
+'the private F200 sentinel snapshot fails closed rather than claiming a complete family graph');
+
 const inboundSource = fs.readFileSync(
   path.join(__dirname, '..', 'supabase', 'functions', 'linear-inbound', 'index.ts'),
   'utf8',

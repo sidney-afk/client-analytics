@@ -148,6 +148,96 @@ const calendarCards = [{
   ok(digestA === digestB && digestA !== digestOther,
     'the apply digest is deterministic per reviewed snapshot and changes with the applied set');
 
+  // ---- Public-safe blocked-plan breakdown -----------------------------------
+  // A blocked plan must explain ITSELF in the public run summary without any
+  // identifier escaping. Build a snapshot whose rows carry distinctive, easily
+  // greppable identifiers and several distinct blocking classifications.
+  const SECRETS = ['acme-holdings', 'card-secret-9911', 'cmt-secret-4242', 'deliverable-secret-77'];
+  const blockedSnapshot = snapshotFor([{
+    id: 'card-secret-9911',
+    client_slug: 'acme-holdings',
+    video_deliverable_id: 'deliverable-secret-77',
+    comments: [
+      { id: 'cmt-secret-4242', author: 'SMM', role: 'smm', body: 'Bad stamp',
+        created_at: '2026-07-23T10:00:00Z', edited_at: '2026-02-30T10:00:00Z' },
+      { id: 'cmt-secret-root', author: 'SMM', role: 'smm', audience: 'client', body: 'Client root',
+        created_at: '2026-07-23T10:00:00Z' },
+      { id: 'cmt-secret-reply', parent_id: 'cmt-secret-root', author: 'SMM', role: 'smm',
+        audience: 'internal', body: 'Internal reply', created_at: '2026-07-23T10:01:00Z' },
+      { id: 'cmt-secret-round', author: 'SMM', role: 'smm', body: 'Bad round',
+        created_at: '2026-07-23T10:02:00Z', round: 0 },
+    ],
+  }], []);
+  const blockedPlan = apply.derivePlan(blockedSnapshot, { importRunId: 'blocked-breakdown-run' });
+  const breakdown = apply.conflictBreakdown(blockedPlan);
+  ok(blockedPlan.complete === false
+    && breakdown.total_conflicts === blockedPlan.conflicts.length
+    && breakdown.total_conflicts >= 3
+    && breakdown.by_classification.length >= 3,
+  'the breakdown tallies every blocking conflict on a blocked plan');
+  const classifications = breakdown.by_classification.map(row => row.classification);
+  ok(classifications.includes('malformed_lifecycle_timestamp')
+    && classifications.includes('audience_quarantine')
+    && classifications.includes('invalid_round')
+    && breakdown.by_classification.every(row =>
+      Object.keys(row).sort().join(',') === 'classification,count,reason,surface')
+    && breakdown.by_classification.every(row => ['calendar', 'sxr', 'unspecified'].includes(row.surface)),
+  'each breakdown row carries only the classification/surface/reason enums and a count');
+
+  // The load-bearing guarantee: NOTHING identifying survives into the render.
+  const blockedRendered = apply.renderPlanSummaryMarkdown({
+    status: 'BLOCKED', eligible: false, reasons: ['plan_has_conflicts'],
+    apply_digest: 'a'.repeat(64), conflict_breakdown: breakdown, coverage: blockedPlan.coverage,
+  });
+  ok(SECRETS.every(secret => !blockedRendered.includes(secret))
+    && !/Bad stamp|Client root|Internal reply|Bad round/.test(blockedRendered),
+  'the rendered blocked summary leaks no card id, comment id, client slug, or body');
+  ok(/## F42 import — PLAN/.test(blockedRendered)
+    && /- status: BLOCKED/.test(blockedRendered)
+    && /- blocking gates: plan_has_conflicts/.test(blockedRendered)
+    && /### Blocking reasons \(classification enums and counts only\)/.test(blockedRendered)
+    && /\| `malformed_lifecycle_timestamp` \| calendar \| `unparseable_timestamp` \| 1 \|/.test(blockedRendered)
+    && /\| `audience_quarantine` \| calendar \| `internal_reply_under_client_visible_root` \| 1 \|/.test(blockedRendered),
+  'the rendered blocked summary names each blocking classification, its surface, and its count');
+  ok(/- planned imports: \d+ \(calendar \d+, sxr \d+\)/.test(blockedRendered)
+    && /- source comment rows: \d+/.test(blockedRendered)
+    && /- excluded rows: \d+ \(blocked rows plus collapsed exact-duplicate aliases\)/.test(blockedRendered),
+  'the rendered blocked summary reports planned-vs-excluded totals');
+
+  // A coverage_mismatch has no `reason`; its coverage field names are enums.
+  const coverageBlocked = apply.conflictBreakdown(apply.derivePlan(
+    snapshotFor(calendarCards, [], () => {}), { importRunId: 'x' },
+  ));
+  const mismatchSnapshot = JSON.parse(JSON.stringify(snapshotFor(calendarCards, [])));
+  mismatchSnapshot.manifest.surfaces.calendar.cards += 1;
+  const mismatchRows = apply.conflictBreakdown(
+    apply.derivePlan(mismatchSnapshot, { importRunId: 'x' }),
+  ).by_classification.filter(row => row.classification === 'coverage_mismatch');
+  ok(coverageBlocked.total_conflicts === 0
+    && mismatchRows.length === 1
+    && mismatchRows[0].reason === 'fields:cards'
+    && mismatchRows[0].surface === 'calendar',
+  'a coverage_mismatch reports its coverage field names (enums), never expected/actual hashes');
+
+  // A READY plan renders the next-dispatch instruction and no blocking table.
+  const readyRendered = apply.renderPlanSummaryMarkdown({
+    status: 'READY', eligible: true, reasons: [], apply_digest: 'b'.repeat(64),
+    conflict_breakdown: apply.conflictBreakdown(plan),
+  });
+  ok(/- status: READY/.test(readyRendered)
+    && !/### Blocking reasons/.test(readyRendered)
+    && /Re-run this workflow with mode=apply/.test(readyRendered),
+  'a READY plan renders the next-dispatch instruction and no blocking table');
+
+  // An apply document renders verification counts/mismatch enums, no receipts.
+  const gapsRendered = apply.renderPlanSummaryMarkdown(gapRun);
+  ok(/## F42 import — APPLY/.test(gapsRendered)
+    && /- status: GAPS/.test(gapsRendered)
+    && /- verification mismatches: card_link_count, comment_count/.test(gapsRendered)
+    && /- readback links \/ comments: 1 \/ 1/.test(gapsRendered)
+    && !gapRun.receipts.some(receipt => gapsRendered.includes(receipt.production_comment_id)),
+  'a GAPS apply renders its verification counts and mismatch enums, never its receipts');
+
   // CLI: source-only preview is READY and touches no database; --apply needs the
   // owner confirmation token and applies via injected deps.
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'f42-apply-'));
@@ -244,12 +334,27 @@ const calendarCards = [{
     && /--expect-apply-digest "\$EXPECTED_APPLY_DIGEST" --apply \\\n\s*> apply-summary\.json/.test(wf)
     && !/\| tee /.test(wf),
   'the plan/apply result JSON is redirected to a runner-local file, never teed to the public log');
-  // Inspect only what is echoed to the log (console.log statements), not the
+  // Inspect only what is echoed to the log (the inline node payloads), not the
   // explanatory comments that legitimately name the fields being withheld.
-  const echoedToLog = (wf.match(/console\.log\([^\n]*\)/g) || []).join('\n');
+  const echoedToLog = (wf.match(/node -e "[^"]*"/g) || []).join('\n');
   ok(echoedToLog.length > 0
-    && !/receipts|native_comment_id|deliverable_id|production_comment_id|\.identity/.test(echoedToLog),
+    && !/receipts|native_comment_id|deliverable_id|production_comment_id|card_id|client_slug|\.identity|\.body/.test(echoedToLog),
   'the public log echoes only aggregate counts + digest — never receipts or comment/deliverable identities');
+
+  // A blocked plan (and a GAPS apply) exits nonzero. The step must tolerate
+  // that exit code, render the public-safe breakdown, and only THEN fail —
+  // otherwise `-e` kills the step with no visible reason at all.
+  ok(/plan_exit=0\n\s*node scripts\/f42-card-comment-apply\.js/.test(wf)
+    && /> plan-summary\.json \|\| plan_exit=\$\?/.test(wf)
+    && /> apply-summary\.json \|\| apply_exit=\$\?/.test(wf)
+    && wf.indexOf('renderPlanSummaryMarkdown(require(\'./plan-summary.json\'))') < wf.indexOf('exit "$plan_exit"')
+    && /if \[ "\$plan_exit" -ne 0 \]/.test(wf)
+    && /if \[ "\$apply_exit" -ne 0 \]/.test(wf),
+  'a blocked plan / GAPS apply renders its public-safe breakdown before the step fails');
+  ok(/if \[ ! -s plan-summary\.json \]/.test(wf) && /if \[ ! -s apply-summary\.json \]/.test(wf),
+  'a run that produced no result document fails loudly instead of rendering an empty summary');
+  ok((echoedToLog.match(/renderPlanSummaryMarkdown/g) || []).length === 2,
+  'both dispatches render their result through the single tested allowlist projection');
 
   if (failures) {
     console.error(`\n${failures} F42 apply check(s) failed`);

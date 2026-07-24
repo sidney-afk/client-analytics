@@ -148,14 +148,87 @@ CREATE TABLE public.linear_archive (
   raw jsonb,
   comments jsonb
 );
+-- Keep this fixture schema aligned with
+-- migrations/2026-07-12-production-comments.sql. That migration is replayed
+-- below with CREATE TABLE IF NOT EXISTS and therefore cannot repair drift.
 CREATE TABLE public.production_comments (
   id text PRIMARY KEY,
-  linear_issue_uuid text NOT NULL,
-  client_slug text NOT NULL,
-  team text,
-  audience text NOT NULL,
-  body text,
-  attachments jsonb
+  idempotency_key text NOT NULL,
+  native_comment_id text,
+  deliverable_id text REFERENCES public.deliverables(id),
+  batch_id text REFERENCES public.batches(id),
+  client_slug text,
+  team text NOT NULL CHECK (team IN ('video', 'graphics')),
+  linear_issue_uuid text,
+  linear_identifier text,
+  linear_comment_id text,
+  parent_id text REFERENCES public.production_comments(id)
+    DEFERRABLE INITIALLY DEFERRED,
+  thread_root_id text REFERENCES public.production_comments(id)
+    DEFERRABLE INITIALLY DEFERRED,
+  linear_parent_comment_id text,
+  linear_thread_root_id text,
+  author_key text NOT NULL,
+  author_member_id uuid REFERENCES public.team_members(id),
+  linear_author_id text,
+  author_name text NOT NULL,
+  role text NOT NULL,
+  transport_actor text,
+  transport_role text,
+  transport_linear_user_id text,
+  body text NOT NULL DEFAULT '',
+  body_format text NOT NULL DEFAULT 'markdown'
+    CHECK (body_format IN ('markdown', 'plain')),
+  attachments jsonb NOT NULL DEFAULT '[]'::jsonb
+    CHECK (jsonb_typeof(attachments) = 'array'),
+  audience text NOT NULL DEFAULT 'internal'
+    CHECK (audience IN ('internal', 'client')),
+  component text,
+  is_tweak boolean NOT NULL DEFAULT false,
+  round integer CHECK (round IS NULL OR round > 0),
+  origin text NOT NULL DEFAULT 'native'
+    CHECK (origin IN ('native', 'linear', 'legacy', 'bridge')),
+  source text NOT NULL DEFAULT 'ui'
+    CHECK (source IN ('ui', 'mirror', 'backfill', 'system')),
+  source_created_at timestamptz,
+  source_updated_at timestamptz NOT NULL DEFAULT now(),
+  edited_at timestamptz,
+  deleted_at timestamptz,
+  deleted_by_key text,
+  deleted_by_name text,
+  resolved_at timestamptz,
+  resolved_by_key text,
+  resolved_by_name text,
+  version integer NOT NULL DEFAULT 1 CHECK (version > 0),
+  import_run_id text,
+  backfill_tag text,
+  provenance jsonb NOT NULL DEFAULT '{}'::jsonb
+    CHECK (jsonb_typeof(provenance) = 'object'),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  ingested_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT production_comments_target_check CHECK (
+    (deliverable_id IS NOT NULL AND batch_id IS NULL)
+    OR (deliverable_id IS NULL AND batch_id IS NOT NULL)
+    OR (
+      deliverable_id IS NULL
+      AND batch_id IS NULL
+      AND nullif(btrim(coalesce(linear_issue_uuid, '')), '') IS NOT NULL
+    )
+  ),
+  CONSTRAINT production_comments_id_shape_check CHECK (
+    id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$'
+  ),
+  CONSTRAINT production_comments_idempotency_key_check CHECK (
+    nullif(btrim(idempotency_key), '') IS NOT NULL
+    AND length(idempotency_key) <= 240
+  ),
+  CONSTRAINT production_comments_author_key_check CHECK (
+    nullif(btrim(author_key), '') IS NOT NULL
+  ),
+  CONSTRAINT production_comments_no_self_parent_check CHECK (
+    parent_id IS NULL OR parent_id <> id
+  )
 );
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.calendar_posts TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.sample_reviews TO service_role;
@@ -1005,9 +1078,11 @@ INSERT INTO public.linear_archive(
   '[]'::jsonb
 );
 INSERT INTO public.production_comments(
-  id, linear_issue_uuid, client_slug, team, audience, body, attachments
+  id, idempotency_key, linear_issue_uuid, client_slug, team,
+  author_key, author_name, role, audience, body, attachments
 ) VALUES (
-  'f53-comment', 'f53-linear-calendar', 'test-client', 'graphics', 'client',
+  'f53-comment', 'f53:comment', 'f53-linear-calendar', 'test-client', 'graphics',
+  'fixture:f53', 'F53 Fixture', 'system', 'client',
   'Comment https://uploads.linear.app/f53-comment.png', '[]'::jsonb
 );
 UPDATE public.deliverables
@@ -2206,7 +2281,11 @@ SELECT public.production_comment_lifecycle_write(
       'test_only', true,
       'legacy_parity', false,
       'payload', jsonb_build_object(
-        '_intent_fingerprint', 'f43-delete-fingerprint'
+        '_intent_fingerprint', 'f43-delete-fingerprint',
+        '_f27_authority_generation', (
+          SELECT generation FROM public.track_b_f27_team_fences WHERE team = 'video'
+        ),
+        '_f27_legacy_parity', false
       )
     )
   ),

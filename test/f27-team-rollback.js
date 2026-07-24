@@ -140,11 +140,11 @@ ok(/jsonb_typeof\(v_issue->'labels'->'nodes'\) is distinct from 'array'/.test(f2
   && /jsonb_array_length\(v_issue->'labels'->'nodes'\)[\s\S]{0,100}jsonb_array_length\(v_payload->'label_ids'\)/.test(f203Sql)
   && /select distinct node->>'id' as label[\s\S]{0,180}is distinct from v_payload->'label_ids'/.test(f203Sql),
 'F203 atomic RPC requires exact complete native label-node IDs before insert');
-ok(/'priority', 'parent', 'archive', 'restore', 'labels', 'description'/.test(sql)
-  && /F201\/F202 source compatibility/.test(installRunbook)
-  && /allowlist now includes `labels` and[\s\S]*`description`/.test(installRunbook)
+ok(/'priority', 'parent', 'archive', 'restore', 'labels', 'description',[\s\S]{0,80}'attachment'/.test(sql)
+  && /F201\/F202\/F53 source compatibility/.test(installRunbook)
+  && /allowlist now includes `labels` and[\s\S]*`description`, plus the Graphics `attachment` operation/.test(installRunbook)
   && /F27 remains parked and uninstalled/.test(installRunbook),
-  'parked F27 source carries labels and description without authorizing an install');
+  'parked F27 source carries labels, description, and attachment without authorizing an install');
 
 ok(/CREATE SCHEMA f27_test/.test(proof), 'proof uses an isolated TEST schema');
 ok(/f27_migration_probe_not_rolled_back/.test(proof)

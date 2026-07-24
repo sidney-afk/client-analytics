@@ -51,6 +51,11 @@ function expect(condition, message) {
       try { body = JSON.parse(request.postData() || 'null'); } catch (e) {}
       if (body && Object.keys(body).sort().join(',') === 'action,id,surface'
         && body.action === 'labels_read' && body.surface === 'production' && typeof body.id === 'string') return;
+      if (body && Object.keys(body).sort().join(',') === 'action,client_slug,id,surface'
+        && body.action === 'asset_access_read'
+        && body.surface === 'production'
+        && typeof body.id === 'string'
+        && typeof body.client_slug === 'string') return;
     }
     unexpectedWrites.push(`${request.method()} ${request.url()}`);
   });
@@ -124,18 +129,34 @@ function expect(condition, message) {
       }),
     });
   });
-  await page.route('**/functions/v1/production-write', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({
-      ok: true,
-      complete: true,
-      authority: 'linear',
-      catalog: [],
-      selected_label_ids: [],
-      selected_labels: [],
-    }),
-  }));
+  await page.route('**/functions/v1/production-write', async route => {
+    let body = null;
+    try { body = JSON.parse(route.request().postData() || 'null'); } catch (e) {}
+    const response = body && body.action === 'asset_access_read'
+      ? {
+          ok: true,
+          complete: true,
+          assets: [
+            { slot: 'filming_plan', state: 'missing', url: null },
+            { slot: 'raw_footage', state: 'missing', url: null },
+            { slot: 'delivery_folder', state: 'missing', url: null },
+            { slot: 'deliverable_file', state: 'missing', url: null },
+          ],
+        }
+      : {
+          ok: true,
+          complete: true,
+          authority: 'linear',
+          catalog: [],
+          selected_label_ids: [],
+          selected_labels: [],
+        };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(response),
+    });
+  });
 
   try {
     await page.goto(`http://127.0.0.1:${server.address().port}/?prod=1`, { waitUntil: 'domcontentloaded' });

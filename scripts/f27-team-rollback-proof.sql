@@ -74,7 +74,13 @@ CREATE TABLE public.batches (
   team text,
   name text,
   description text,
+  filming_doc_url text,
+  footage_folder_url text,
+  delivery_folder_url text,
+  color text,
   status text NOT NULL,
+  comments text,
+  sort_key numeric,
   created_by text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -82,6 +88,7 @@ CREATE TABLE public.batches (
 );
 CREATE TABLE public.deliverables (
   id text PRIMARY KEY,
+  identifier text,
   batch_id text NOT NULL,
   client_slug text NOT NULL,
   team text NOT NULL,
@@ -92,8 +99,12 @@ CREATE TABLE public.deliverables (
   status_at timestamptz,
   assignee_id text,
   due_date date,
+  priority integer,
+  file_url text,
+  comments text,
   origin text,
   card_id text,
+  sort_key numeric,
   sync_state text,
   created_by text,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -101,10 +112,55 @@ CREATE TABLE public.deliverables (
   linear_issue_uuid text UNIQUE,
   linear_identifier text,
   linear_issue_url text,
+  linear_aliases jsonb,
   linear_raw jsonb
 );
+-- Recreate the inherited permissive whole-table browser read that the F53
+-- migration narrows to non-asset columns.
+GRANT SELECT ON public.batches TO anon, authenticated;
+GRANT SELECT ON public.deliverables TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.batches TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.deliverables TO service_role;
+
+CREATE TABLE public.calendar_posts (
+  client text NOT NULL,
+  id text NOT NULL,
+  graphic_deliverable_id text,
+  thumbnail_url text,
+  thumb_rev text,
+  updated_at text,
+  PRIMARY KEY (client, id)
+);
+CREATE TABLE public.sample_reviews (
+  client text NOT NULL,
+  id text NOT NULL,
+  graphic_deliverable_id text,
+  thumbnail_url text,
+  thumb_rev text,
+  updated_at text,
+  PRIMARY KEY (client, id)
+);
+CREATE TABLE public.linear_archive (
+  linear_uuid text PRIMARY KEY,
+  client_slug text NOT NULL,
+  team text,
+  description text,
+  raw jsonb,
+  comments jsonb
+);
+CREATE TABLE public.production_comments (
+  id text PRIMARY KEY,
+  linear_issue_uuid text NOT NULL,
+  client_slug text NOT NULL,
+  team text,
+  audience text NOT NULL,
+  body text,
+  attachments jsonb
+);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.calendar_posts TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.sample_reviews TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.linear_archive TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.production_comments TO service_role;
 
 CREATE TABLE public.flag_flips (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -486,6 +542,213 @@ BEGIN
   END IF;
 END $$;
 
+CREATE TEMP TABLE f53_prior_rows AS
+SELECT
+  id,
+  encode(
+    extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'),
+    'hex'
+  ) AS row_hash
+FROM public.mirror_outbox o
+ORDER BY id;
+
+\ir ../migrations/2026-07-23-f34-f53-production-attachments.sql
+
+-- Prove the owner-approved F53 CHECK replacement is the exact 12 -> 13
+-- superset, the installed enqueue accepts attachment, unrelated operations
+-- still fail, and the public event reader cannot see attachment URLs.
+DO $$
+DECLARE
+  v_role text;
+BEGIN
+  FOREACH v_role IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    IF has_table_privilege(v_role, 'public.batches', 'SELECT')
+       OR has_table_privilege(v_role, 'public.deliverables', 'SELECT') THEN
+      RAISE EXCEPTION 'f53_typed_asset_table_grant_not_revoked';
+    END IF;
+    IF has_column_privilege(v_role, 'public.batches', 'filming_doc_url', 'SELECT')
+       OR has_column_privilege(v_role, 'public.batches', 'footage_folder_url', 'SELECT')
+       OR has_column_privilege(v_role, 'public.batches', 'delivery_folder_url', 'SELECT')
+       OR has_column_privilege(v_role, 'public.deliverables', 'file_url', 'SELECT')
+       OR has_column_privilege(v_role, 'public.deliverables', 'brief', 'SELECT')
+       OR has_column_privilege(v_role, 'public.deliverables', 'linear_raw', 'SELECT') THEN
+      RAISE EXCEPTION 'f53_typed_asset_column_still_public';
+    END IF;
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns c
+      WHERE c.table_schema = 'public'
+        AND c.table_name = 'batches'
+        AND c.column_name NOT IN (
+          'filming_doc_url', 'footage_folder_url', 'delivery_folder_url'
+        )
+        AND NOT has_column_privilege(
+          v_role,
+          format('%I.%I', c.table_schema, c.table_name),
+          c.column_name,
+          'SELECT'
+        )
+    ) OR EXISTS (
+      SELECT 1
+      FROM information_schema.columns c
+      WHERE c.table_schema = 'public'
+        AND c.table_name = 'deliverables'
+        AND c.column_name NOT IN ('file_url', 'brief', 'linear_raw')
+        AND NOT has_column_privilege(
+          v_role,
+          format('%I.%I', c.table_schema, c.table_name),
+          c.column_name,
+          'SELECT'
+        )
+    ) THEN
+      RAISE EXCEPTION 'f53_non_asset_browser_read_not_preserved';
+    END IF;
+  END LOOP;
+  IF NOT has_table_privilege('service_role', 'public.batches', 'SELECT')
+     OR NOT has_table_privilege('service_role', 'public.deliverables', 'SELECT') THEN
+    RAISE EXCEPTION 'f53_service_asset_read_not_preserved';
+  END IF;
+  IF NOT has_table_privilege(
+    'anon', 'public.production_deliverables_browser_v1', 'SELECT'
+  ) OR NOT has_table_privilege(
+    'authenticated', 'public.production_deliverables_browser_v1', 'SELECT'
+  ) THEN
+    RAISE EXCEPTION 'f53_safe_browser_projection_not_readable';
+  END IF;
+END $$;
+
+BEGIN;
+DO $$
+DECLARE
+  v_operation text;
+BEGIN
+  FOREACH v_operation IN ARRAY ARRAY[
+    'create', 'status', 'comment', 'due', 'assignee', 'title',
+    'priority', 'parent', 'archive', 'restore', 'labels', 'description',
+    'attachment'
+  ] LOOP
+    PERFORM public.mirror_outbox_enqueue(
+      'deliverable',
+      'f53-' || v_operation,
+      v_operation,
+      jsonb_build_object('operation', v_operation),
+      'f53:' || v_operation,
+      now(),
+      'test-client',
+      'graphics',
+      'f53-disposable-proof',
+      'system',
+      null,
+      null,
+      null,
+      null,
+      true
+    );
+  END LOOP;
+
+  IF (
+    SELECT count(*) FROM public.mirror_outbox
+    WHERE dedup_key LIKE 'f53:%'
+      AND operation IN (
+        'create', 'status', 'comment', 'due', 'assignee', 'title',
+        'priority', 'parent', 'archive', 'restore', 'labels', 'description',
+        'attachment'
+      )
+  ) <> 13 OR NOT EXISTS (
+    SELECT 1 FROM public.mirror_outbox
+    WHERE dedup_key = 'f53:attachment'
+      AND operation = 'attachment'
+      AND op = 'update_fields'
+  ) THEN
+    RAISE EXCEPTION 'f53_operation_superset_not_exact';
+  END IF;
+
+  BEGIN
+    PERFORM public.mirror_outbox_enqueue(
+      'deliverable', 'f53-invalid', 'unexpected',
+      '{}'::jsonb, 'f53:invalid', now(), 'test-client', 'graphics',
+      'f53-disposable-proof', 'system', null, null, null, null, true
+    );
+    RAISE EXCEPTION 'f53_invalid_operation_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'invalid outbound operation' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    INSERT INTO public.mirror_outbox(
+      payload, entity, entity_id, operation, client_slug, team, dedup_key,
+      source_edited_at, status, test_only
+    ) VALUES (
+      '{}'::jsonb, 'deliverable', 'f53-direct-invalid', 'unexpected',
+      'test-client', 'graphics', 'f53:direct-invalid', now(), 'pending', true
+    );
+    RAISE EXCEPTION 'f53_check_unexpectedly_accepted_unrelated_operation';
+  EXCEPTION WHEN check_violation THEN
+    null;
+  END;
+END $$;
+
+INSERT INTO public.deliverable_events(
+  deliverable_id, client_slug, actor, role, action, source, payload
+) VALUES
+  (
+    'f53-private-event', 'test-client', 'f53-disposable-proof', 'system',
+    'attachment_change', 'ui',
+    '{"to_file_url":"https://drive.google.com/file/d/TEST-ASSET/view"}'::jsonb
+  ),
+  (
+    'f53-public-control', 'test-client', 'f53-disposable-proof', 'system',
+    'status_change', 'ui', '{"action":"status_change"}'::jsonb
+  );
+
+SET LOCAL ROLE service_role;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f53-private-event'
+      AND payload->>'to_file_url' =
+        'https://drive.google.com/file/d/TEST-ASSET/view'
+  ) THEN
+    RAISE EXCEPTION 'f53_service_attachment_audit_not_exact';
+  END IF;
+END $$;
+RESET ROLE;
+
+SET LOCAL ROLE anon;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f53-private-event'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.deliverable_events
+    WHERE deliverable_id = 'f53-public-control'
+  ) THEN
+    RAISE EXCEPTION 'f53_anon_attachment_policy_not_exact';
+  END IF;
+END $$;
+RESET ROLE;
+ROLLBACK;
+
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.mirror_outbox) <> 5
+     OR EXISTS (
+       SELECT 1
+       FROM public.mirror_outbox o
+       FULL OUTER JOIN f53_prior_rows p ON p.id = o.id
+       WHERE o.id IS NULL
+          OR p.id IS NULL
+          OR encode(
+            extensions.digest(convert_to(to_jsonb(o)::text, 'UTF8'), 'sha256'),
+            'hex'
+          ) IS DISTINCT FROM p.row_hash
+     ) THEN
+    RAISE EXCEPTION 'f53_existing_rows_not_preserved';
+  END IF;
+END $$;
+
 \ir ../migrations/2026-07-20-f27-team-rollback.sql
 
 DO $$
@@ -643,17 +906,21 @@ DECLARE
 BEGIN
   INSERT INTO public.deliverables(
     id, batch_id, client_slug, team, kind, title, brief, status, status_at,
-    assignee_id, due_date, origin, card_id, sync_state, created_by, created_at,
+    assignee_id, due_date, priority, file_url, origin, card_id, sync_state, created_by, created_at,
     updated_at, linear_issue_uuid, linear_raw
   ) VALUES (
     p_row->>'id', p_row->>'batch_id', p_row->>'client_slug', p_row->>'team',
     p_row->>'kind', p_row->>'title', nullif(p_row->>'brief', ''),
     p_row->>'status', (p_row->>'status_at')::timestamptz,
     nullif(p_row->>'assignee_id', ''), nullif(p_row->>'due_date', '')::date,
+    nullif(p_row->>'priority', '')::integer, nullif(p_row->>'file_url', ''),
     p_row->>'origin', nullif(p_row->>'card_id', ''), p_row->>'sync_state',
     p_row->>'created_by', (p_row->>'created_at')::timestamptz, now(),
     p_row->>'linear_issue_uuid', p_row->'linear_raw'
   )
+  ON CONFLICT (id) DO UPDATE
+  SET file_url = excluded.file_url,
+      updated_at = now()
   RETURNING * INTO v_result;
   INSERT INTO public.deliverable_events(
     deliverable_id, batch_id, client_slug, ts, actor, role, action,
@@ -676,6 +943,466 @@ BEGIN
   RETURN v_result;
 END;
 $fn$;
+
+-- Exercise the installed F34/F53/F137 RPCs on this same disposable database:
+-- strict active-client Graphics scope, atomic Calendar/Samples projection,
+-- no manual linkage, rollback on a mismatched projection, and capability-
+-- bound private rescue certification with a service-role direct-write denial.
+BEGIN;
+INSERT INTO public.clients(slug, active, kind)
+VALUES ('inactive-test-client', false, 'test');
+INSERT INTO public.batches(
+  id, client_slug, team, name, status, created_by
+) VALUES
+  ('f53-batch', 'test-client', 'graphics', 'F53 disposable batch', 'active', 'f53-proof'),
+  ('f53-inactive-batch', 'inactive-test-client', 'graphics', 'F53 inactive batch', 'active', 'f53-proof');
+INSERT INTO public.deliverables(
+  id, batch_id, client_slug, team, kind, title, brief, status, status_at,
+  origin, card_id, sync_state, created_by, linear_issue_uuid
+) VALUES
+  (
+    'f53-calendar', 'f53-batch', 'test-client', 'graphics', 'thumbnail',
+    'F53 calendar', 'Operational https://uploads.linear.app/f53-operational.png',
+    'in_progress', now(), 'calendar', 'f53-calendar-card', 'clean', 'f53-proof',
+    'f53-linear-calendar'
+  ),
+  (
+    'f53-samples', 'f53-batch', 'test-client', 'graphics', 'thumbnail',
+    'F53 samples', null, 'in_progress', now(), 'samples', 'f53-samples-card',
+    'clean', 'f53-proof', 'f53-linear-samples'
+  ),
+  (
+    'f53-manual', 'f53-batch', 'test-client', 'graphics', 'thumbnail',
+    'F53 manual', null, 'in_progress', now(), 'manual', null, 'clean',
+    'f53-proof', 'f53-linear-manual'
+  ),
+  (
+    'f53-mislinked', 'f53-batch', 'test-client', 'graphics', 'thumbnail',
+    'F53 mislinked', null, 'in_progress', now(), 'calendar', 'missing-card',
+    'clean', 'f53-proof', 'f53-linear-mislinked'
+  ),
+  (
+    'f53-inactive', 'f53-inactive-batch', 'inactive-test-client', 'graphics',
+    'thumbnail', 'F53 inactive', null, 'in_progress', now(), 'manual', null,
+    'clean', 'f53-proof', 'f53-linear-inactive'
+  );
+INSERT INTO public.calendar_posts(
+  client, id, graphic_deliverable_id, thumbnail_url, thumb_rev, updated_at
+) VALUES (
+  'test-client', 'f53-calendar-card', 'f53-calendar', null, null, null
+);
+INSERT INTO public.sample_reviews(
+  client, id, graphic_deliverable_id, thumbnail_url, thumb_rev, updated_at
+) VALUES (
+  'test-client', 'f53-samples-card', 'f53-samples', null, null, null
+);
+INSERT INTO public.linear_archive(
+  linear_uuid, client_slug, team, description, raw, comments
+) VALUES (
+  'f53-linear-calendar', 'test-client', 'graphics',
+  'Archive https://uploads.linear.app/f53-archive.png',
+  '{"description":"Archive https://uploads.linear.app/f53-archive.png"}'::jsonb,
+  '[]'::jsonb
+);
+INSERT INTO public.production_comments(
+  id, linear_issue_uuid, client_slug, team, audience, body, attachments
+) VALUES (
+  'f53-comment', 'f53-linear-calendar', 'test-client', 'graphics', 'client',
+  'Comment https://uploads.linear.app/f53-comment.png', '[]'::jsonb
+);
+UPDATE public.deliverables
+SET linear_raw = jsonb_build_object(
+  'issue', jsonb_build_object(
+    'id', 'f53-linear-calendar',
+    'description', 'Legacy https://uploads.linear.app/f53-raw.png',
+    'project', jsonb_build_object('id', 'project-test'),
+    'parent', null,
+    'labelIds', jsonb_build_array('label-workload'),
+    'labels', jsonb_build_object(
+      'nodes', jsonb_build_array(jsonb_build_object(
+        'id', 'label-workload',
+        'name', U&'2\00D7 Workload',
+        'color', '#123ABC'
+      )),
+      'pageInfo', jsonb_build_object('hasNextPage', false)
+    )
+  ),
+  'attribution', jsonb_build_object(
+    'schema', 'syncview_attribution_v1',
+    'state', 'resolved',
+    'client_slug', 'test-client',
+    'owner_kind', 'test',
+    'source', 'project_roster'
+  )
+)
+WHERE id = 'f53-calendar';
+
+SET LOCAL ROLE anon;
+DO $browser_boundary$
+BEGIN
+  BEGIN
+    PERFORM brief FROM public.deliverables WHERE id = 'f53-calendar';
+    RAISE EXCEPTION 'f34_legacy_brief_direct_read_unexpectedly_succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    null;
+  END;
+  BEGIN
+    PERFORM linear_raw FROM public.deliverables WHERE id = 'f53-calendar';
+    RAISE EXCEPTION 'f34_legacy_raw_direct_read_unexpectedly_succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    null;
+  END;
+  IF EXISTS (
+    SELECT 1
+    FROM public.production_deliverables_browser_v1 v
+    WHERE v.id = 'f53-calendar'
+      AND to_jsonb(v)::text LIKE '%uploads.linear.app%'
+  ) THEN
+    RAISE EXCEPTION 'f34_safe_projection_leaked_legacy_url';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.production_deliverables_browser_v1 v
+    WHERE v.id = 'f53-calendar'
+      AND v.raw_attribution_client_slug = 'test-client'
+      AND v.workload_labels_complete is true
+      AND v.workload_labels = jsonb_build_array(jsonb_build_object(
+        'id', 'label-workload',
+        'name', U&'2\00D7 Workload',
+        'color', '#123ABC'
+      ))
+  ) THEN
+    RAISE EXCEPTION 'f34_safe_projection_derived_fields_not_exact';
+  END IF;
+END;
+$browser_boundary$;
+RESET ROLE;
+
+INSERT INTO public.linear_archive_asset_rescue_config(
+  config_key, destination_provider, approved_folder_id,
+  rescue_capability_sha256, active
+) VALUES (
+  'active', 'google_drive_private', 'TEST_PRIVATE_FOLDER_123',
+  encode(
+    extensions.digest(convert_to('f53-private-capability', 'UTF8'), 'sha256'),
+    'hex'
+  ),
+  true
+);
+
+DO $$
+DECLARE
+  v_generation bigint;
+  v_row public.deliverables%rowtype;
+  v_event jsonb;
+  v_same_event jsonb;
+  v_result jsonb;
+  v_url text;
+  v_before_revision bigint;
+BEGIN
+  SELECT generation INTO v_generation
+  FROM public.track_b_f27_team_fences WHERE team = 'graphics';
+
+  FOREACH v_url IN ARRAY ARRAY[
+    'https://drive.google.com/file/d/TEST_CALENDAR_ASSET/view',
+    'https://drive.google.com/file/d/TEST_SAMPLES_ASSET/view',
+    'https://drive.google.com/file/d/TEST_MANUAL_ASSET/view'
+  ] LOOP
+    SELECT d.* INTO v_row
+    FROM public.deliverables d
+    WHERE d.id = CASE v_url
+      WHEN 'https://drive.google.com/file/d/TEST_CALENDAR_ASSET/view' THEN 'f53-calendar'
+      WHEN 'https://drive.google.com/file/d/TEST_SAMPLES_ASSET/view' THEN 'f53-samples'
+      ELSE 'f53-manual'
+    END;
+    v_event := jsonb_build_object(
+      'ts', now(),
+      'actor', 'f53-disposable-proof',
+      'role', 'system',
+      'action', 'attachment_change',
+      'source', 'ui',
+      'outbound', jsonb_build_object(
+        'entity', 'deliverable',
+        'entity_id', v_row.id,
+        'operation', 'attachment',
+        'dedup_key', 'f53:artifact:' || v_row.id,
+        'source_edited_at', now(),
+        'team', 'graphics',
+        'test_only', true,
+        'legacy_parity', false,
+        'payload', jsonb_build_object(
+          'url', v_url,
+          '_intent_fingerprint', 'f53-proof-' || v_row.id,
+          '_f27_authority_generation', v_generation,
+          '_f27_legacy_parity', false
+        )
+      )
+    );
+    SELECT public.production_artifact_write(
+      to_jsonb(v_row) || jsonb_build_object('file_url', v_url),
+      v_event
+    ) INTO v_result;
+    IF v_result->'row'->>'file_url' IS DISTINCT FROM v_url THEN
+      RAISE EXCEPTION 'f53_artifact_native_write_not_exact';
+    END IF;
+  END LOOP;
+
+  -- A new intent behind the same stable share URL must advance the durable
+  -- artifact revision and card revision. Replaying that exact intent must do
+  -- neither, even when the wrapper is called directly.
+  SELECT d.* INTO v_row
+  FROM public.deliverables d
+  WHERE d.id = 'f53-calendar';
+  v_before_revision := v_row.artifact_revision;
+  v_same_event := jsonb_build_object(
+    'ts', now(),
+    'actor', 'f53-disposable-proof',
+    'role', 'system',
+    'action', 'attachment_change',
+    'source', 'ui',
+    'outbound', jsonb_build_object(
+      'entity', 'deliverable',
+      'entity_id', v_row.id,
+      'operation', 'attachment',
+      'dedup_key', 'f53:artifact:f53-calendar:same-url-2',
+      'source_edited_at', now(),
+      'team', 'graphics',
+      'test_only', true,
+      'legacy_parity', false,
+      'payload', jsonb_build_object(
+        'url', v_row.file_url,
+        '_intent_fingerprint', 'f53-proof-f53-calendar-same-url-2',
+        '_f27_authority_generation', v_generation,
+        '_f27_legacy_parity', false
+      )
+    )
+  );
+  SELECT public.production_artifact_write(to_jsonb(v_row), v_same_event)
+    INTO v_result;
+  IF (v_result->'row'->>'artifact_revision')::bigint
+       IS DISTINCT FROM v_before_revision + 1
+     OR v_result->'projection'->>'artifact_revision'
+       IS DISTINCT FROM (v_before_revision + 1)::text
+     OR (SELECT thumb_rev FROM public.calendar_posts
+         WHERE client = 'test-client' AND id = 'f53-calendar-card')
+       IS DISTINCT FROM 'artifact-' || (v_before_revision + 1)::text
+     OR (SELECT payload->>'artifact_revision' FROM public.mirror_outbox
+         WHERE dedup_key = 'f53:artifact:f53-calendar:same-url-2')
+       IS DISTINCT FROM (v_before_revision + 1)::text THEN
+    RAISE EXCEPTION 'f53_same_url_revision_not_projected';
+  END IF;
+  SELECT public.production_artifact_write(
+    (SELECT to_jsonb(d) FROM public.deliverables d WHERE d.id = 'f53-calendar'),
+    v_same_event
+  ) INTO v_result;
+  IF coalesce((v_result->'projection'->>'replay')::boolean, false) is not true
+     OR (SELECT artifact_revision FROM public.deliverables
+         WHERE id = 'f53-calendar') IS DISTINCT FROM v_before_revision + 1
+     OR (SELECT count(*) FROM public.mirror_outbox
+         WHERE dedup_key = 'f53:artifact:f53-calendar:same-url-2') <> 1 THEN
+    RAISE EXCEPTION 'f53_same_url_exact_replay_bumped_revision';
+  END IF;
+
+  IF (SELECT thumbnail_url FROM public.calendar_posts
+      WHERE client = 'test-client' AND id = 'f53-calendar-card')
+       IS DISTINCT FROM 'https://drive.google.com/file/d/TEST_CALENDAR_ASSET/view'
+     OR (SELECT thumbnail_url FROM public.sample_reviews
+      WHERE client = 'test-client' AND id = 'f53-samples-card')
+       IS DISTINCT FROM 'https://drive.google.com/file/d/TEST_SAMPLES_ASSET/view'
+     OR (SELECT file_url FROM public.deliverables WHERE id = 'f53-manual')
+       IS DISTINCT FROM 'https://drive.google.com/file/d/TEST_MANUAL_ASSET/view'
+     OR EXISTS (
+       SELECT 1 FROM public.calendar_posts WHERE graphic_deliverable_id = 'f53-manual'
+       UNION ALL
+       SELECT 1 FROM public.sample_reviews WHERE graphic_deliverable_id = 'f53-manual'
+     ) THEN
+    RAISE EXCEPTION 'f53_projection_or_manual_scope_not_exact';
+  END IF;
+
+  SELECT d.* INTO v_row FROM public.deliverables d WHERE d.id = 'f53-mislinked';
+  BEGIN
+    PERFORM public.production_artifact_write(
+      to_jsonb(v_row) || jsonb_build_object(
+        'file_url', 'https://drive.google.com/file/d/TEST_MISLINKED_ASSET/view'
+      ),
+      jsonb_build_object(
+        'ts', now(), 'actor', 'f53-proof', 'role', 'system',
+        'action', 'attachment_change', 'source', 'ui',
+        'outbound', jsonb_build_object(
+          'entity', 'deliverable', 'entity_id', v_row.id,
+          'operation', 'attachment', 'dedup_key', 'f53:artifact:mislinked',
+          'source_edited_at', now(), 'team', 'graphics', 'test_only', true,
+          'legacy_parity', false,
+          'payload', jsonb_build_object(
+            'url', 'https://drive.google.com/file/d/TEST_MISLINKED_ASSET/view',
+            '_intent_fingerprint', 'f53-proof-mislinked',
+            '_f27_authority_generation', v_generation,
+            '_f27_legacy_parity', false
+          )
+        )
+      )
+    );
+    RAISE EXCEPTION 'f53_mislinked_projection_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'artifact_card_projection_failed' THEN RAISE; END IF;
+  END;
+  IF (SELECT file_url FROM public.deliverables WHERE id = 'f53-mislinked') IS NOT NULL
+     OR EXISTS (
+       SELECT 1 FROM public.mirror_outbox WHERE dedup_key = 'f53:artifact:mislinked'
+     ) THEN
+    RAISE EXCEPTION 'f53_mislinked_projection_not_atomic';
+  END IF;
+
+  SELECT d.* INTO v_row FROM public.deliverables d WHERE d.id = 'f53-inactive';
+  BEGIN
+    PERFORM public.production_artifact_write(
+      to_jsonb(v_row) || jsonb_build_object(
+        'file_url', 'https://drive.google.com/file/d/TEST_INACTIVE_ASSET/view'
+      ),
+      jsonb_build_object(
+        'outbound', jsonb_build_object('operation', 'attachment')
+      )
+    );
+    RAISE EXCEPTION 'f53_inactive_client_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM <> 'production artifact active client required' THEN RAISE; END IF;
+  END;
+END $$;
+
+DO $$
+DECLARE
+  v_ref public.linear_archive_asset_refs%rowtype;
+  v_hash text;
+  v_verified text;
+  v_receipt text;
+BEGIN
+  v_hash := encode(
+    extensions.digest(
+      convert_to('https://uploads.linear.app/f53-operational.png', 'UTF8'),
+      'sha256'
+    ),
+    'hex'
+  );
+  SELECT * INTO v_ref
+  FROM public.linear_archive_asset_ref_write(
+    jsonb_build_object(
+      'ref_id', 'f34:operational-proof',
+      'linear_uuid', 'f53-linear-calendar',
+      'deliverable_id', 'f53-calendar',
+      'source_kind', 'operational_brief',
+      'location_key', 'deliverable.f53-calendar.brief.0',
+      'original_url', 'https://uploads.linear.app/f53-operational.png',
+      'original_url_sha256', repeat('0', 64),
+      'state', 'pending'
+    ),
+    null,
+    null
+  );
+  IF v_ref.original_url_sha256 IS DISTINCT FROM v_hash
+     OR v_ref.client_slug IS DISTINCT FROM 'test-client'
+     OR v_ref.team IS DISTINCT FROM 'graphics' THEN
+    RAISE EXCEPTION 'f34_pending_source_binding_not_exact';
+  END IF;
+
+  BEGIN
+    PERFORM public.linear_archive_asset_ref_write(
+      jsonb_build_object(
+        'ref_id', v_ref.ref_id,
+        'linear_uuid', v_ref.linear_uuid,
+        'deliverable_id', v_ref.deliverable_id,
+        'source_kind', v_ref.source_kind,
+        'location_key', v_ref.location_key,
+        'original_url', v_ref.original_url,
+        'state', 'rescued',
+        'rescued_url', 'https://drive.google.com/file/d/ARBITRARY_PUBLIC_FILE/view',
+        'reviewed_by', 'f34-proof',
+        'review_note', 'unverified'
+      ),
+      v_ref.updated_at,
+      null
+    );
+    RAISE EXCEPTION 'f34_uncertified_rescue_unexpectedly_succeeded';
+  EXCEPTION WHEN others THEN
+    IF SQLERRM NOT IN (
+      'archive_asset_certification_invalid',
+      'archive_asset_certification_forbidden'
+    ) THEN RAISE; END IF;
+  END;
+
+  v_verified := to_char(
+    clock_timestamp() at time zone 'UTC',
+    'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+  );
+  v_receipt := encode(
+    extensions.hmac(
+      convert_to(
+        concat_ws(
+          chr(31),
+          v_ref.ref_id,
+          v_hash,
+          'TEST_PRIVATE_FOLDER_123',
+          'TEST_PRIVATE_FILE_123',
+          repeat('a', 64),
+          '1234',
+          v_verified
+        ),
+        'UTF8'
+      ),
+      convert_to('f53-private-capability', 'UTF8'),
+      'sha256'
+    ),
+    'hex'
+  );
+  SELECT * INTO v_ref
+  FROM public.linear_archive_asset_ref_write(
+    jsonb_build_object(
+      'ref_id', v_ref.ref_id,
+      'linear_uuid', v_ref.linear_uuid,
+      'deliverable_id', v_ref.deliverable_id,
+      'source_kind', v_ref.source_kind,
+      'location_key', v_ref.location_key,
+      'original_url', v_ref.original_url,
+      'state', 'rescued',
+      'destination_provider', 'google_drive_private',
+      'destination_folder_id', 'TEST_PRIVATE_FOLDER_123',
+      'destination_file_id', 'TEST_PRIVATE_FILE_123',
+      'content_sha256', repeat('a', 64),
+      'byte_length', 1234,
+      'verified_at', v_verified,
+      'verification_receipt_hmac', v_receipt,
+      'media_type', 'image/png',
+      'reviewed_by', 'f34-proof',
+      'review_note', 'sha256:' || repeat('a', 64)
+    ),
+    v_ref.updated_at,
+    'f53-private-capability'
+  );
+  IF v_ref.state IS DISTINCT FROM 'rescued'
+     OR v_ref.rescued_url IS DISTINCT FROM
+       'https://drive.google.com/file/d/TEST_PRIVATE_FILE_123/view'
+     OR v_ref.destination_folder_id IS DISTINCT FROM 'TEST_PRIVATE_FOLDER_123'
+     OR v_ref.content_sha256 IS DISTINCT FROM repeat('a', 64)
+     OR v_ref.byte_length IS DISTINCT FROM 1234 THEN
+    RAISE EXCEPTION 'f34_certified_rescue_not_exact';
+  END IF;
+END $$;
+
+SET LOCAL ROLE service_role;
+DO $$
+BEGIN
+  BEGIN
+    UPDATE public.linear_archive_asset_refs
+    SET state = 'owner_dispositioned'
+    WHERE ref_id = 'f34:operational-proof';
+    RAISE EXCEPTION 'f34_service_direct_update_unexpectedly_succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    null;
+  END;
+END $$;
+RESET ROLE;
+
+SELECT 'f34_f53_attachment_and_rescue_exact' AS f34_f53_disposable_proof;
+ROLLBACK;
 
 \ir ../migrations/2026-07-23-f203-production-issue-create.sql
 

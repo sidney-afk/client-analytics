@@ -68,44 +68,51 @@ check('client entries and Production preview both suppress queued calendar-card 
 check('clean non-client Production preview starts essentials for nav-out', /if \(!_isClientLink && _prodEnabled\(\)\) \{[\s\S]{0,260}fetchEssentials\(\)\.then/.test(index));
 check('FAST_TABS does not include production', /const FAST_TABS = \[[^\]]+\]/.test(index) && !/const FAST_TABS = \[[^\]]*production/.test(index));
 
-check('preview reads B1 dormant tables', /_prodRestRows\('clients'/.test(prodBlock) && /_prodRestRows\('batches'/.test(prodBlock) && /_prodRestRows\('deliverables'/.test(prodBlock));
+check('preview reads B1 dormant tables through the safe deliverable projection',
+  /_prodRestRows\('clients'/.test(prodBlock)
+  && /_prodRestRows\('batches'/.test(prodBlock)
+  && /_prodRestRows\(\s*'production_deliverables_browser_v1'/.test(prodBlock));
 check('preview does not expose service-role-only archive table', !/linear_archive/.test(prodBlock));
 check('preview reads only the authority flag needed to fail closed',
   /_prodRestRows\('syncview_runtime_flags', 'value', 'key=eq\.'/.test(prodBlock)
   && /PROD_AUTHORITY_FLAG_KEY = 'prod_authority'/.test(prodBlock)
   && !/syncview_runtime_flags[\s\S]{0,180}(POST|PATCH|PUT|DELETE)/.test(prodBlock));
-check('preview fetches projected archive/delete markers instead of full linear_raw at boot',
-  /_prodRestRows\('deliverables'[\s\S]{0,1800}raw_issue_archived_at:linear_raw->issue->>archivedAt/.test(prodBlock)
+check('preview fetches bounded projected archive/delete markers instead of full linear_raw at boot',
+  /production_deliverables_browser_v1/.test(prodBlock)
+  && /raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete/.test(prodBlock)
   && /linear_issue_uuid/.test(prodBlock)
-  && /raw_issue_parent_id:linear_raw->issue->parent->>id/.test(prodBlock)
-  && /raw_issue_canceled_at:linear_raw->issue->>canceledAt/.test(prodBlock)
-  && /raw_webhook_delete:linear_raw->>webhook_delete/.test(prodBlock)
-  && !/linear_issue_url,linear_raw'/.test(prodBlock)
-  && !/title,brief,status/.test(prodBlock));
+  && /raw_issue_parent_id,raw_project_id/.test(prodBlock)
+  && /if \(!_prodBrowserProjectionMissing\(error\)\) throw error/.test(prodBlock)
+  && !/_prodLoadData[\s\S]{0,1800}linear_issue_url,linear_raw'/.test(prodBlock)
+  && !/_prodLoadData[\s\S]{0,1800}title,brief,status/.test(prodBlock));
 check('preview hierarchy follows only resolved Linear parent links',
   /function _prodResolveParentLinks\(rows\)/.test(prodBlock)
   && /const parentLinks = _prodResolveParentLinks\(deliverables\)/.test(prodBlock)
   && /parent: parentLinks\.get\(String\(d\.id \|\| ''\)\) \|\| null/.test(prodBlock)
   && !/batchParent|batchTeamKey|_prodSameTitle|_prodIsBatchParent/.test(prodBlock));
-check('preview lazy-loads full linear_raw for a single detail row',
+check('preview never lazy-loads full linear_raw for a detail row',
   /async function _prodLoadLinearRawFor\(id\)/.test(prodBlock)
-  && /_prodRestRows\('deliverables', 'id,linear_raw', 'id=eq\.'/.test(prodBlock)
+  && /_prodState\.linearRaw\.set\(id, \{\}\)/.test(prodBlock)
+  && !/async function _prodLoadLinearRawFor\(id\)[\s\S]{0,900}_prodRestRows/.test(prodBlock)
   && /_prodLoadLinearRawFor\(id\)/.test(prodBlock)
   && /function _prodRender\(\)[\s\S]{0,900}_prodLoadLinearRawFor\(_prodState\.openId\)/.test(prodBlock));
-check('preview background-loads brief text outside boot',
+check('preview disables legacy bulk brief hydration outside boot',
   /async function _prodLoadBriefs\(opts\)/.test(prodBlock)
-  && /_prodRestRows\('deliverables', 'id,brief', 'order=id\.asc', 1000, 50\)/.test(prodBlock)
+  && !/async function _prodLoadBriefs\(opts\)[\s\S]{0,700}_prodRestRows/.test(prodBlock)
+  && /Descriptions are hydrated only on demand through the guarded/.test(prodBlock)
   && /setTimeout\(\(\) => _prodLoadBriefs\(\{ silent: true \}\), 6500\)/.test(prodBlock));
-check('preview preserves hydrated descriptions across projected refresh rows',
+check('preview preserves safe project/batch descriptions while invalidating scoped deliverable bodies',
   /function _prodPreserveProjectedFields\(incoming, previous, key, fields\)/.test(prodBlock)
   && /mergedClients = _prodPreserveProjectedFields\(clients, _prodState\.clients, 'slug', \['board_desc', 'desc'\]\)/.test(prodBlock)
   && /mergedBatches = _prodPreserveProjectedFields\(batches, _prodState\.batches, 'id', \['description', 'desc'\]\)/.test(prodBlock)
-  && /mergedDeliverables = _prodPreserveProjectedFields\(deliverables, _prodState\.deliverables, 'id', \['brief', 'linear_raw', 'desc'\]\)/.test(prodBlock)
+  && /const mergedDeliverables = deliverables/.test(prodBlock)
+  && /_prodInvalidateScopedReads\(\)/.test(prodBlock)
   && /_prodState\.adapter = _prodAdapter\(\{ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables \}\)/.test(prodBlock));
 check('preview distinguishes pending descriptions from authoritative empty values',
   /function _prodDescriptionHTML\(value, loaded, emptyText, rich\)/.test(prodBlock)
   && /data-prod-desc-loading/.test(prodBlock)
-  && /_prodRestRows\('deliverables', 'id,brief,updated_at', 'id=eq\.'/.test(prodBlock)
+  && /action: 'description_read'/.test(prodBlock)
+  && /projectionGeneration === _prodState\.projectionGeneration/.test(prodBlock)
   && /state\.status = 'error'/.test(prodBlock)
   && /state\.status = 'stale'/.test(prodBlock)
   && /_prodDescriptionHTML\(state\.value, state\.hasValue, 'No description\.', true\)/.test(prodBlock));
@@ -125,13 +132,16 @@ check('preview filters Linear webhook delete/archive markers out of live issues 
 check('preview fetch helper uses default GET with retry', /async function _prodRestPage\(url, table, page\)/.test(prodBlock) && /fetch\(url, \{ headers: _prodHeaders\(\) \}\)/.test(prodBlock) && /resp\.status === 429 \|\| resp\.status >= 500/.test(prodBlock));
 check('preview read helper takes explicit page size and max page cap', /async function _prodRestRows\(table, select, params, pageSize, maxPages\)/.test(prodBlock) && /page < cap/.test(prodBlock) && /read exceeded pagination cap/.test(prodBlock));
 check('preview read helper strips duplicate limit and offset params', prodBlock.includes('!/^limit=|^offset=/.test(p)'));
-check('preview callers pass page sizes explicitly', /_prodRestRows\('deliverables'[\s\S]{0,1200}, 1000, 50\)/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));
+check('preview callers pass page sizes explicitly', /_prodRestRows\(\s*'production_deliverables_browser_v1'[\s\S]{0,1200}1000,\s*50/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));
 const explicitMutationMethods = [...prodBlock.matchAll(/['"`](POST|PUT|PATCH|DELETE)['"`]/g)].map(match => match[1]);
-check('preview block limits POSTs to protected reads, guarded creation, and authority-gated native writes', explicitMutationMethods.length === 5
+check('preview block limits POSTs to protected reads, guarded creation, and authority-gated native writes', explicitMutationMethods.length === 8
   && explicitMutationMethods.every(method => method === 'POST')
   && /fetch\(PROD_COMMENTS_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock)
   && /const requestBody = \{[\s\S]{0,220}deliverable_id: id,[\s\S]{0,160}limit: PROD_COMMENTS_PAGE_SIZE,[\s\S]{0,160}before: cursor \|\| null[\s\S]{0,100}if \(clientSurface\) Object\.assign\(requestBody, clientSurface\)/.test(prodBlock)
   && /fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,500}action: 'labels_read', surface: 'production', id/.test(prodBlock)
+  && /async function _prodEnsureDescription\(id, force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'description_read'/.test(prodBlock)
+  && /async function _prodEnsureAssets\(id, force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'asset_access_read',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
+  && /async function _prodArchiveRequest\(body\)[\s\S]*?fetch\(PROD_ARCHIVE_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock)
   && /async function _prodLoadCreateOptions\(force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'create_options',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
   && /function _prodCreatePayload\(draft\)[\s\S]{0,160}operation: 'create',[\s\S]{0,100}surface: 'production'/.test(prodBlock)
   && /async function _prodPostCreatePayload\(payload\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'/.test(prodBlock)

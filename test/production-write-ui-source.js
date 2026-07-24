@@ -339,16 +339,18 @@ ok(/!_prodAttributionResolved\(issue\)/.test(extract('_prodCanWrite'))
   && /data-prod-attribution-chip/.test(source)
   && /This is an attribution repair group, not a client project/.test(extract('_prodOpenProject')),
 'non-resolved attribution is visibly repair-only, non-navigable, and excluded from writes including TEST override');
-ok(/'id,brief,updated_at'/.test(extract('_prodEnsureDescription'))
-  && /requestToken !== _prodState\.descriptionRequestTokens\.get\(id\)/.test(extract('_prodEnsureDescription'))
+ok(/action: 'description_read'/.test(extract('_prodEnsureDescription'))
+  && /projectionGeneration === _prodState\.projectionGeneration/.test(extract('_prodEnsureDescription'))
+  && /liveClientSlug === clientSlug/.test(extract('_prodEnsureDescription'))
+  && /_prodWriteTeam\(liveIssue\.team\) === issueTeam/.test(extract('_prodEnsureDescription'))
   && /Description could not refresh\. The text shown may be outdated\./.test(extract('_prodEnsureDescription'))
-  && /_prodMarkDescriptionsStale\(\)/.test(extract('_prodRefresh')),
-'description reads expose stale/error truth and discard late completions after a light refresh');
+  && /_prodInvalidateScopedReads\(\)/.test(extract('_prodRefresh')),
+'description reads use the guarded scope and discard late identity/projection completions immediately on refresh');
 ok(/_prodGatewayWrite\(issue, 'description', \{ description \}, state\.requestId\)/.test(extract('_prodSaveDescription'))
   && /if \(!state\.requestId\) state\.requestId = _prodWriteRequestId\('description'\)/.test(extract('_prodSaveDescription'))
   && /_prodNextDescriptionRequestToken\(id\)/.test(extract('_prodSaveDescription'))
   && /description\.includes\('\\0'\)/.test(extract('_prodSaveDescription'))
-  && /'brief', 'sync_state', 'updated_at'/.test(extract('_prodApplyGatewayRow'))
+  && /'brief', 'file_url', 'sync_state', 'updated_at'/.test(extract('_prodApplyGatewayRow'))
   && /'linear_raw', 'identity_repair_state', 'identity_repair_reason'/.test(extract('_prodApplyGatewayRow')),
 'description edits preserve exact Markdown, reject NUL, invalidate stale reads, and adopt the guarded gateway brief');
 ok(/state\.draft = value/.test(extract('_prodDescriptionDraftInput'))
@@ -357,9 +359,10 @@ ok(/state\.draft = value/.test(extract('_prodDescriptionDraftInput'))
   && /state\.requestId = ''/.test(extract('_prodSaveDescription'))
   && /_prodFocusDescriptionControl\(id, 'source'\)/.test(extract('_prodSaveDescription')),
 'description write errors retain the draft while conflict rows replace the server baseline and CAS cursor');
-ok(/const descriptionTokens = new Map\(_prodState\.descriptionRequestTokens\)/.test(extract('_prodLoadBriefs'))
-  && /state\.saving \|\| state\.editing \|\| startedToken !== currentToken/.test(extract('_prodLoadBriefs')),
-'bulk brief hydration cannot overwrite an active draft, pending save, or newer per-issue description result');
+ok(!/_prodRestRows/.test(extract('_prodLoadBriefs'))
+  && /Descriptions are hydrated only on demand through the guarded/.test(extract('_prodLoadBriefs'))
+  && /_prodState\.briefsLoaded = true/.test(extract('_prodLoadBriefs')),
+'legacy bulk brief hydration is removed; descriptions load only through the protected per-issue reader');
 ok(/data-prod-description-control="source"/.test(source)
   && /data-prod-description-control="preview"/.test(source)
   && /maxlength="100000"/.test(source)

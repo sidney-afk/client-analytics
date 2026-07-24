@@ -10,11 +10,11 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 29 |
+| Deployable function slugs | 30 |
 | Main-push plus manual-dispatch paths | 11 |
 | Manual-dispatch-only paths | 2 |
-| No CI deploy path | 16 |
-| Deliberate-manual subset of no-CI paths | 4 |
+| No CI deploy path | 17 |
+| Deliberate-manual subset of no-CI paths | 5 |
 
 ## Per-function ownership and dependencies
 
@@ -37,6 +37,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `onboarding-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `onboarding-full` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
+| `production-archive` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Source-only F34 protected archive reader; first deploy requires the exact merged SHA, explicit owner approval, `--no-verify-jwt`, fingerprint readback, and a TEST-only role/team/audience retrieval drill. | `_shared/staff-role-auth.ts` | - |
 | `production-comments` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | `production-comments/policy.mjs` |
 | `production-write` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs`<br>`_shared/staff-role-auth.ts` | `production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |
 | `pto` | [deploy-pto](../../.github/workflows/deploy-pto-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | `pto/policy.js` |

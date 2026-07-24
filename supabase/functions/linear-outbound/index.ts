@@ -1545,7 +1545,21 @@ Deno.serve(async (req: Request) => {
       const resultMap = result && typeof result === "object" ? result as JsonMap : {};
       const resultIssue = mutation.kind === "commentCreate" || mutation.kind === "commentUpdate"
         ? parseJson(resultMap.issue)
+        : mutation.kind === "attachmentCreate"
+          ? parseJson(issue)
         : resultMap;
+      if (mutation.kind === "attachmentCreate") {
+        const expectedInput = parseJson(mutation.variables.input);
+        const expectedUrl = clean(expectedInput.url);
+        const expectedSubtitle = clean(expectedInput.subtitle);
+        if (!clean(resultMap.id)
+            || !expectedUrl
+            || clean(resultMap.url) !== expectedUrl
+            || !expectedSubtitle
+            || clean(resultMap.subtitle) !== expectedSubtitle) {
+          throw new Error("attachmentCreate receipt mismatch");
+        }
+      }
       const createVerification = row.operation === "create"
         ? decideConflict(row, resultIssue, context)
         : null;
@@ -1559,6 +1573,11 @@ Deno.serve(async (req: Request) => {
           : mutation.kind === "commentDelete"
             ? clean(context.linear_comment_id)
             : null,
+        attachment_id: mutation.kind === "attachmentCreate" ? clean(resultMap.id) : null,
+        attachment_url: mutation.kind === "attachmentCreate" ? clean(resultMap.url) : null,
+        attachment_revision: mutation.kind === "attachmentCreate"
+          ? Number(parseJson(parseJson(mutation.variables.input).metadata).syncviewArtifactRevision)
+          : null,
         mirror_actor_id: clean(mirrorActor.id),
         mirror_actor_name: clean(mirrorActor.name),
         expected: mutation.variables,

@@ -83,8 +83,9 @@ const wlPlanOriginHtml = compile('wlPlanOriginHtml', {
 });
 const wlGroupPlacementMode = compile('wlGroupPlacementMode', { wlPlacementMode });
 const wlGroupPlanOriginHtml = compile('wlGroupPlanOriginHtml', { wlPlacementMode, wlPlanOriginHtml });
+const wlWorkingDayDiff = compile('wlWorkingDayDiff', { wlParseISO, wlISO });
 const wlDeadlineMeta = compile('wlDeadlineMeta', {
-  wlCalendarDayDiff,
+  wlWorkingDayDiff,
   wlFormatShort,
 });
 const wlDeadlineTagHtml = compile('wlDeadlineTagHtml', {
@@ -110,7 +111,7 @@ const wlGroupWorkloadHtml = compile('wlGroupWorkloadHtml', {
   wlEscape: value => String(value),
 });
 const wlGroupProximityDays = compile('wlGroupProximityDays', {
-  wlCalendarDayDiff,
+  wlWorkingDayDiff,
   wlDisplayDate,
 });
 const wlCompareClientGroups = compile('wlCompareClientGroups', { wlGroupProximityDays });
@@ -337,7 +338,10 @@ check(steadyDate === '2026-07-23'
 
 console.log('\nWorkload placement, deadline, and weighted-capacity signals');
 const visualAuto = issue('To Do', 'visual-auto', '2026-07-15');
-const visualManual = issue('To Do', 'visual-manual', '2026-07-20');
+// Due 2026-07-22 (Wed) is 3 WORKING days after the 2026-07-17 (Fri) rollup day
+// — green — while visualAuto's past due date stays red, keeping this a mixed
+// red/green group under working-day buffers.
+const visualManual = issue('To Do', 'visual-manual', '2026-07-22');
 wlState.planByIssueId.set(visualManual.id, '2026-07-17');
 const manualOriginHtml = wlPlanOriginHtml('manual', false);
 const mixedOriginHtml = wlGroupPlanOriginHtml([visualAuto, visualManual]);
@@ -357,21 +361,26 @@ check(wlGroupPlacementMode([visualAuto]) === 'auto'
     && wlGroupPlacementMode([visualAuto, visualManual]) === 'mixed',
   'collapsed client groups still derive automatic, manual, or mixed placement truthfully');
 
-const planDay = '2026-07-23';
-const dueTomorrow = wlDeadlineMeta('2026-07-24', planDay, 'Due');
-const dueInTwo = wlDeadlineMeta('2026-07-25', planDay, 'Due');
-const dueInThree = wlDeadlineMeta('2026-07-26', planDay, 'Due');
-const dueLater = wlDeadlineMeta('2026-07-27', planDay, 'Due');
-const plannedLate = wlDeadlineMeta('2026-07-22', planDay, 'Due');
+// Buffers are WORKING days from plan to due (Saturdays/Sundays skipped).
+const planDay = '2026-07-13'; // Monday — Tue/Wed/Thu/Fri give 1/2/3/4 working days
+const dueTomorrow = wlDeadlineMeta('2026-07-14', planDay, 'Due'); // Tue: 1
+const dueInTwo = wlDeadlineMeta('2026-07-15', planDay, 'Due');    // Wed: 2
+const dueInThree = wlDeadlineMeta('2026-07-16', planDay, 'Due');  // Thu: 3
+const dueLater = wlDeadlineMeta('2026-07-17', planDay, 'Due');    // Fri: 4
+const plannedLate = wlDeadlineMeta('2026-07-10', planDay, 'Due'); // prev Fri: 1 working day late
 const sameDay = wlDeadlineMeta(planDay, planDay, 'Due');
+// The weekend-skip case: a Friday plan with a Monday due date is 1 working
+// day of buffer, not 3 calendar days.
+const acrossWeekend = wlDeadlineMeta('2026-07-20', '2026-07-17', 'Due'); // Fri→Mon: 1
 check(dueTomorrow.tone === 'orange' && dueTomorrow.days === 1 && /1d buffer/.test(dueTomorrow.label)
     && dueInTwo.tone === 'orange' && dueInTwo.days === 2 && /2d buffer/.test(dueInTwo.label)
     && dueInThree.tone === 'green' && dueInThree.days === 3 && /3d buffer/.test(dueInThree.label)
     && dueLater.tone === 'green' && dueLater.days === 4 && /4d buffer/.test(dueLater.label)
     && plannedLate.tone === 'red' && plannedLate.days === -1 && /plan 1d late/.test(plannedLate.label)
     && sameDay.tone === 'red' && sameDay.days === 0 && /same day/.test(sameDay.label)
+    && acrossWeekend.days === 1 && acrossWeekend.tone === 'orange' && /1d buffer/.test(acrossWeekend.label)
     && !/wlTodayISO\(/.test(grabFunc('wlDeadlineMeta')),
-  'deadline proximity is derived from plan day to due day, never from today');
+  'deadline proximity counts working days from plan to due (Fri→Mon is 1d, not 3), never from today');
 const redGroup = wlGroupDeadlineSummary([
   issue('To Do', 'red-a', '2026-07-15'),
   issue('To Do', 'red-b', '2026-07-14'),

@@ -395,6 +395,17 @@ function extractFunction(source, name) {
         && exportOnlyGap.missing_from_inventory === 0,
     'an independently exported occurrence that SyncView never discovered remains a visible gap');
 
+    ok(rescue.inventoryPermitsRescue(exactInventory) === true
+        && rescue.inventoryPermitsRescue(mismatch) === false
+        && rescue.inventoryPermitsRescue(exportOnlyGap) === false
+        && rescue.inventoryPermitsRescue(
+          rescue.reconcileFinalInventory(undefined, refs, {}),
+        ) === false
+        && rescue.inventoryPermitsRescue(null) === false,
+    'rescue apply is gated on an exactly-reconciled certified inventory: scan_complete and both mismatch counts zero');
+    ok(/inventoryPermitsRescue\(inventory\)[\s\S]{0,160}final_inventory_reconciliation_incomplete[\s\S]{0,200}driveAccessToken/.test(rescueSource),
+    'the --apply branch enforces reconciliation before obtaining the Drive token or entering the mutation loop');
+
     let unsignedRejected = false;
     try {
       rescue.reconcileFinalInventory(inventoryPath, refs, {

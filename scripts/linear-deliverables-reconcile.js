@@ -82,16 +82,21 @@ function fail(msg) {
 
 async function linear(query) {
   if (!LINEAR_API_KEY) fail('LINEAR_API_KEY is required unless --fixtures is supplied');
-  const resp = await fetch('https://api.linear.app/graphql', {
-    method: 'POST',
-    headers: { Authorization: LINEAR_API_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  });
-  const json = await resp.json().catch(() => null);
-  if (!resp.ok || !json || json.errors) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const resp = await fetch('https://api.linear.app/graphql', {
+      method: 'POST',
+      headers: { Authorization: LINEAR_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+    const json = await resp.json().catch(() => null);
+    if (resp.ok && json && !json.errors) return json.data;
+    if (attempt < 3 && (resp.status === 429 || resp.status >= 500)) {
+      await sleep(500 * (2 ** (attempt - 1)));
+      continue;
+    }
     throw new Error(`Linear GraphQL failed: HTTP ${resp.status} ${JSON.stringify(json && json.errors || json).slice(0, 500)}`);
   }
-  return json.data;
+  throw new Error('Linear GraphQL retry loop exhausted');
 }
 
 function isRetryableSupabaseRead(status) {
@@ -394,6 +399,61 @@ async function loadLiveData() {
     prodAuthority,
     linearIssues,
     webhooks,
+  };
+}
+
+/*
+ * An F200 repair is an exact private cohort, not a normal whole-mirror
+ * reconcile. Loading only that cohort avoids an unrelated large GraphQL read
+ * becoming a prerequisite for its per-row authority/CAS revalidation.
+ */
+async function loadLiveF200RepairData(privatePlan) {
+  const payloads = privatePlan && privatePlan.payloads;
+  if (!Array.isArray(payloads) || !payloads.length) {
+    throw new Error('F200 repair plan has no payload cohort');
+  }
+  const ids = payloads.map(payload => clean(payload && payload.target_id));
+  if (ids.some(id => !/^[A-Za-z0-9_-]+$/.test(id)) || new Set(ids).size !== ids.length) {
+    throw new Error('F200 repair plan has an unsafe or duplicate deliverable cohort');
+  }
+  const deliverables = [];
+  for (let start = 0; start < ids.length; start += 100) {
+    const chunk = ids.slice(start, start + 100);
+    deliverables.push(...await supabaseRows(
+      'deliverables',
+      'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,priority,origin,card_id,created_by,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw',
+      `id=in.(${chunk.map(encodeURIComponent).join(',')})`,
+    ));
+  }
+  if (deliverables.length !== ids.length) {
+    throw new Error('F200 repair cohort no longer resolves to its exact deliverables');
+  }
+  const [clients, prodAuthority] = await Promise.all([
+    supabaseRows('clients', 'slug,kind,active,linear_project_ids'),
+    loadRuntimeFlag('prod_authority'),
+  ]);
+  const linearIssues = await loadLinearIssuesById(deliverables.map(row => clean(row.linear_issue_uuid)));
+  if (linearIssues.size !== deliverables.length) {
+    throw new Error('F200 repair cohort no longer resolves to its exact Linear issues');
+  }
+  return {
+    deliverables,
+    allDeliverables: deliverables,
+    members: [],
+    events: [],
+    calendarPosts: [],
+    sampleReviews: [],
+    linearArchive: [],
+    batches: [],
+    allBatches: [],
+    outboxRows: [],
+    clients,
+    attributionFamilyComplete: false,
+    attributionExpectedIssueCount: deliverables.length,
+    attributionLoadedIssueCount: linearIssues.size,
+    prodAuthority,
+    linearIssues,
+    webhooks: [],
   };
 }
 
@@ -975,9 +1035,12 @@ async function applyHealing(plan) {
     .filter(r => r.diffs.length && r.authority === 'syncview')
     .flatMap(row => (row.outbound_intents || []).map(intent => ({ row, intent })));
   if (!APPLY) return { attempted: 0, outbound_enqueued: 0, skipped: inboundRows.length + outboundIntents.length };
+  const f200ExpectedCount = Number(plan.summary && plan.summary.f200_attribution_repair
+    && plan.summary.f200_attribution_repair.expected_count);
   if (plan.f200Repair === true
-      && (inboundRows.length !== F200_EXPECTED_COUNT || SAFETY_CAP !== F200_EXPECTED_COUNT)) {
-    throw new Error(`F200 repair apply requires exactly ${F200_EXPECTED_COUNT} validated rows and CAP=${F200_EXPECTED_COUNT}`);
+      && (!Number.isSafeInteger(f200ExpectedCount) || f200ExpectedCount <= 0
+        || inboundRows.length !== f200ExpectedCount || SAFETY_CAP !== f200ExpectedCount)) {
+    throw new Error(`F200 repair apply requires exactly its manifest-bound validated row count and matching CAP (got rows=${inboundRows.length}, cap=${SAFETY_CAP}, expected=${f200ExpectedCount})`);
   }
   if (plan.f200Repair === true && outboundIntents.length) {
     throw new Error('F200 repair cannot contain outbound intents');
@@ -1116,15 +1179,21 @@ function writeDetails(file, plan, healing) {
 
 async function main() {
   const startedAt = nowIso();
-  const data = FIXTURES ? loadFixtureData(FIXTURES) : await loadLiveData();
+  const privateF200Plan = F200_REPAIR_PLAN_FILE
+    ? JSON.parse(fs.readFileSync(path.resolve(F200_REPAIR_PLAN_FILE), 'utf8'))
+    : null;
+  const data = FIXTURES
+    ? loadFixtureData(FIXTURES)
+    : (privateF200Plan ? await loadLiveF200RepairData(privateF200Plan) : await loadLiveData());
   if (F200_REPAIR_PLAN_FILE && (TEAM_FILTER || IDENTIFIER_FILTER || CLIENT_FILTER || TEST_AUTHORITY_CLIENT)) {
-    throw new Error('F200 repair plan owns an exact 72-row scope and cannot be combined with other filters or overrides');
+    throw new Error('F200 repair plan owns an exact owner-approved scope and cannot be combined with other filters or overrides');
   }
-  const plan = F200_REPAIR_PLAN_FILE
+  const privateExpectedCount = Number(privateF200Plan && privateF200Plan.expected_count);
+  const plan = privateF200Plan
     ? buildF200RepairExecutionPlan(
       data,
-      JSON.parse(fs.readFileSync(path.resolve(F200_REPAIR_PLAN_FILE), 'utf8')),
-      { expectedCount: F200_EXPECTED_COUNT },
+      privateF200Plan,
+      { expectedCount: privateExpectedCount },
     )
     : buildPlan(data);
   const healing = await applyHealing(plan);

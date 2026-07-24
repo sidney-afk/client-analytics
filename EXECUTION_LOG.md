@@ -1269,3 +1269,21 @@ All times are UTC unless noted.
   weighted capacity, drag behavior, Creative read-only parity, overdue handling, and tweak
   exclusivity remain unchanged. No schema, migration, runtime flag, n8n workflow, Edge Function,
   frozen writer, deployment, or live data changed.
+
+## 2026-07-24 â€” F200 owner-approved attribution cleanup
+
+- **Roster correction.** Added the three owner-ratified Linear project mappings to active roster rows
+  and corrected one active personal-brand row from `internal` to `client`. Active-state behavior was
+  unchanged: the affected client already had 20 deliverables, 10 batches, and six Calendar posts.
+  No billing, runtime flag, n8n, schema, function, frozen-writer, or Linear mutation occurred.
+- **Bounded repair.** A fresh private snapshot found 89 `unattributed` deliverables (77 Graphics,
+  12 Video). The owner-approved, manifest-bound 87-row plan resolved 11 direct-project rows and 76
+  unambiguous roster-classified rows through attribution-only CAS patches. Every write revalidated
+  the live Linear issue, active roster mapping, Linear authority, row timestamp, sentinel client
+  value, and source hash, then read back the resolved state. No outbound intent was enqueued.
+- **Residual decision.** Two projectless TEST parents remain deliberately unresolved; their exact
+  private identifiers and decision material stay outside the repository.
+- **After proof.** Full reconciler v2 dry-run summary event `25013`: 4,525 deliverables checked;
+  `repair_list_size` fell from 153 to 27; needs-attribution fell from 155 to 25, with two provisional
+  child-family states and two current `unattributed` rows. The remaining 27 repairs are not all
+  F200 ownership work and were left untouched.

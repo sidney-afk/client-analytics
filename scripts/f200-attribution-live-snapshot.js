@@ -48,12 +48,17 @@ function graphqlText(value) {
 }
 
 function fields() {
-  return `id identifier title description url updatedAt archivedAt canceledAt completedAt
-    project { id name }
+  return `id identifier title description url priority dueDate archivedAt canceledAt completedAt updatedAt
+    state { id name type }
+    team { id key name }
+    project { id }
+    assignee { id name email }
     parent {
-      id identifier title description project { id name }
-      parent { id identifier title description project { id name } }
-    }`;
+      id identifier title
+      project { id }
+      parent { id identifier title project { id } }
+    }
+    comments(first: 50) { nodes { id body createdAt user { id name email } } pageInfo { hasNextPage } }`;
 }
 
 async function linearIssues(ids) {

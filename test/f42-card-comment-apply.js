@@ -201,8 +201,10 @@ const calendarCards = [{
   'the rendered blocked summary names each blocking classification, its surface, and its count');
   ok(/- planned imports: \d+ \(calendar \d+, sxr \d+\)/.test(blockedRendered)
     && /- source comment rows: \d+/.test(blockedRendered)
-    && /- excluded rows: \d+ \(blocked rows plus collapsed exact-duplicate aliases\)/.test(blockedRendered),
-  'the rendered blocked summary reports planned-vs-excluded totals');
+    && /- deferred rows \(out of scope, not imported\): \d+/.test(blockedRendered)
+    && /- excluded rows: \d+ \(deferred plus blocked rows plus collapsed exact-duplicate aliases\)/.test(blockedRendered)
+    && /- import scope: linked-cohort/.test(blockedRendered),
+  'the rendered blocked summary reports planned-vs-deferred-vs-excluded totals and the declared scope');
 
   // A coverage_mismatch has no `reason`; its coverage field names are enums.
   const coverageBlocked = apply.conflictBreakdown(apply.derivePlan(
@@ -218,6 +220,104 @@ const calendarCards = [{
     && mismatchRows[0].reason === 'fields:cards'
     && mismatchRows[0].surface === 'calendar',
   'a coverage_mismatch reports its coverage field names (enums), never expected/actual hashes');
+
+  // ---- Linked-cohort scope: unlinked cards DEFER, never block ---------------
+  // At the 2026-07-24 plan run 6,032 of 6,681 rows were missing_deliverable_id.
+  // Those rows have no native deliverable binding for the canonical crosswalk to
+  // address, so no owner action during the window makes them importable —
+  // blocking on them kept the 649 plannable rows permanently unimportable.
+  const mixedCohort = snapshotFor(calendarCards, [{
+    // Unlinked: no video_deliverable_id / graphic_deliverable_id.
+    id: 'sxr-unlinked', client_slug: 'test-client',
+    comments: [
+      { id: 'u-root', author: 'SMM', role: 'smm', body: 'Unlinked root', created_at: '2026-07-23T10:00:00Z' },
+      { id: 'u-reply', parent_id: 'u-root', author: 'Client', role: 'client', body: 'Unlinked reply', created_at: '2026-07-23T10:01:00Z' },
+    ],
+  }]);
+  const mixedPlan = apply.derivePlan(mixedCohort, { importRunId: 'mixed-cohort-run' });
+  ok(mixedPlan.complete === true
+    && mixedPlan.conflicts.length === 0
+    && mixedPlan.imports.length === 3
+    && mixedPlan.deferrals.length === 2
+    && mixedPlan.deferrals.every(row => row.classification === 'missing_deliverable_id'
+      && row.reason === 'card_has_no_native_deliverable_binding'),
+  'an unlinked card DEFERS: the linked cohort still certifies complete-for-scope');
+  ok(mixedPlan.scope
+    && mixedPlan.scope.policy === 'linked-cohort'
+    && mixedPlan.scope.planned_imports === 3
+    && mixedPlan.scope.deferred_rows === 2,
+  'the plan declares its import scope, planned count and deferred count in the artifact');
+  const mixedVerdict = apply.applyEligibility(mixedPlan);
+  ok(mixedVerdict.eligible === true && mixedVerdict.reasons.length === 0,
+    'a plan carrying deferred rows is apply-eligible');
+  ok(!mixedPlan.imports.some(item => item.link.card_id === 'sxr-unlinked'),
+    'no deferred row is ever planned for import');
+
+  // Every OTHER conflict class still blocks, including alongside deferrals.
+  const deferPlusBlockPlan = apply.derivePlan(snapshotFor([{
+    id: 'card-bad-round', client_slug: 'test-client', video_deliverable_id: 'd-round',
+    comments: [{ id: 'r', author: 'SMM', role: 'smm', body: 'Bad round', created_at: '2026-07-23T10:00:00Z', round: 0 }],
+  }], [{
+    id: 'sxr-unlinked-2', client_slug: 'test-client',
+    comments: [{ id: 'u2', author: 'SMM', role: 'smm', body: 'Unlinked', created_at: '2026-07-23T10:00:00Z' }],
+  }]), { importRunId: 'defer-plus-block' });
+  ok(deferPlusBlockPlan.complete === false
+    && deferPlusBlockPlan.deferrals.length === 1
+    && deferPlusBlockPlan.conflicts.some(row => row.classification === 'invalid_round')
+    && !deferPlusBlockPlan.conflicts.some(row => row.classification === 'missing_deliverable_id')
+    && apply.applyEligibility(deferPlusBlockPlan).reasons.includes('plan_has_conflicts'),
+  'deferral never masks a real blocking conflict on another card');
+
+  // The apply gate refuses a plan that does not declare the expected scope, so a
+  // differently-scoped or pre-policy plan can never be applied by this runner.
+  ok(apply.applyEligibility({ ...mixedPlan, scope: { policy: 'whole-source' } })
+    .reasons.includes('plan_scope_unrecognized')
+    && apply.applyEligibility({ ...mixedPlan, scope: null })
+      .reasons.includes('plan_scope_unrecognized')
+    && apply.applyEligibility({ ...mixedPlan, deferrals: undefined })
+      .reasons.includes('plan_deferrals_unreported'),
+  'the apply gate refuses a plan whose scope is unrecognized or whose deferrals are unreported');
+
+  // The drift guard must not be hostage to the deferred cohort: editing an
+  // unlinked card cannot change what is applied, so the digest must hold.
+  const mixedEditedDeferred = snapshotFor(calendarCards, [{
+    id: 'sxr-unlinked', client_slug: 'test-client',
+    comments: [
+      { id: 'u-root', author: 'SMM', role: 'smm', body: 'Unlinked root EDITED', created_at: '2026-07-23T10:00:00Z' },
+      { id: 'u-reply', parent_id: 'u-root', author: 'Client', role: 'client', body: 'Unlinked reply', created_at: '2026-07-23T10:01:00Z' },
+      { id: 'u-extra', author: 'SMM', role: 'smm', body: 'Another unlinked row', created_at: '2026-07-23T10:02:00Z' },
+    ],
+  }]);
+  const editedDeferredPlan = apply.derivePlan(mixedEditedDeferred, { importRunId: 'mixed-cohort-run' });
+  ok(apply.planApplyDigest(editedDeferredPlan) === apply.planApplyDigest(mixedPlan)
+    && editedDeferredPlan.deferrals.length === 3,
+  'editing or adding a DEFERRED row does not move the apply digest (the guard tracks the applied cohort)');
+  const mixedEditedLinked = snapshotFor(calendarCards.map(card => ({
+    ...card,
+    comments: card.comments.map(c => c.id === 'root' ? { ...c, body: 'Root note CHANGED' } : c),
+  })), mixedCohort.surfaces.sxr);
+  ok(apply.planApplyDigest(apply.derivePlan(mixedEditedLinked, { importRunId: 'mixed-cohort-run' }))
+    !== apply.planApplyDigest(mixedPlan),
+  'editing a LINKED row still moves the apply digest and refuses the apply');
+  // Manifest certification stays pinned in the digest.
+  const uncertifiedMixed = JSON.parse(JSON.stringify(mixedCohort));
+  uncertifiedMixed.manifest.surfaces.sxr.cards += 1;
+  ok(apply.applyCoverageScope(mixedPlan).sxr.matches_manifest === true
+    && apply.planApplyDigest(apply.derivePlan(uncertifiedMixed, { importRunId: 'mixed-cohort-run' }))
+      !== apply.planApplyDigest(mixedPlan),
+  'the per-surface manifest certification remains part of the apply digest');
+
+  // The deferred cohort is rendered publicly, with the same enum-only allowlist.
+  const mixedRendered = apply.renderPlanSummaryMarkdown({
+    status: 'READY', eligible: true, reasons: [], apply_digest: 'c'.repeat(64),
+    conflict_breakdown: apply.conflictBreakdown(mixedPlan),
+  });
+  ok(/### Deferred — out of scope, NOT imported and not blocking/.test(mixedRendered)
+    && /\| `missing_deliverable_id` \| sxr \| `card_has_no_native_deliverable_binding` \| 2 \|/.test(mixedRendered)
+    && !/### Blocking reasons/.test(mixedRendered)
+    && !mixedRendered.includes('sxr-unlinked')
+    && !/Unlinked root|Unlinked reply/.test(mixedRendered),
+  'the deferred cohort renders as counts by classification/surface/reason and leaks no identifier');
 
   // A READY plan renders the next-dispatch instruction and no blocking table.
   const readyRendered = apply.renderPlanSummaryMarkdown({

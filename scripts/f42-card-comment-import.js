@@ -12,6 +12,21 @@ const path = require('path');
 
 const SNAPSHOT_CONTRACT = 'syncview-f42-card-comment-snapshot-v1';
 const SURFACES = Object.freeze(['calendar', 'sxr']);
+
+// Import scope. A canonical comment is addressed by its card's native
+// deliverable id, so a card with no such binding has nothing for the crosswalk
+// to point at. Those rows are OUT OF SCOPE for an import run, not defective:
+// no owner action taken during the window makes them plannable, and treating
+// them as conflicts blocked the entire linked cohort indefinitely. They are
+// classified as DEFERRALS — reported with exact counts, never imported, and
+// picked up automatically by a later plan once the card gains a binding.
+//
+// This is the ONLY deferred class. Every other conflict classification stays
+// plan-blocking, so malformed timestamps, bad rounds, audience quarantines,
+// duplicate identities, parent cycles, coverage mismatches and missing client
+// slugs all still refuse the plan exactly as before.
+const IMPORT_SCOPE_POLICY = 'linked-cohort';
+const DEFERRED_CLASSIFICATIONS = Object.freeze(['missing_deliverable_id']);
 const COMPONENT_FIELDS = Object.freeze({
   video: ['comments', 'video_comments', 'video_tweaks'],
   graphic: ['graphic_comments', 'graphic_tweaks'],
@@ -446,6 +461,9 @@ function planSurface(input, options = {}) {
   const importRunId = clean(options.importRunId) || `f42-card-thread-${surface}-dry-run`;
   const candidates = [];
   const conflicts = [];
+  // Out-of-scope rows: reported with counts, never plan-blocking. See the
+  // missing_deliverable_id branch below for why this class is distinct.
+  const deferrals = [];
 
   rows.forEach((row, rowIndex) => {
     const cardId = clean(row && row.id);
@@ -471,10 +489,19 @@ function planSurface(input, options = {}) {
       }
       const targetId = deliverableId(row, component);
       if (!targetId) {
-        list.forEach(raw => conflicts.push({
+        // DEFERRED, not blocking. A card with no native deliverable binding has
+        // nothing for the canonical crosswalk to point at, so its comments are
+        // out of scope for this import rather than defective: there is no
+        // owner action that would make them plannable in this run, and holding
+        // the whole plan hostage to them blocks the linked cohort forever. They
+        // are reported with counts and stay unimported until the card is
+        // linked, at which point a later plan picks them up automatically.
+        // Every other conflict class remains plan-blocking.
+        list.forEach(raw => deferrals.push({
           classification: 'missing_deliverable_id',
           surface, card_id: cardId, component,
           native_comment_id: clean(raw.id || raw.comment_id || raw.native_comment_id) || null,
+          reason: 'card_has_no_native_deliverable_binding',
         }));
         continue;
       }
@@ -623,6 +650,9 @@ function planSurface(input, options = {}) {
     coverage: sourceCoverage(rows, surface),
     imports: orderedImports,
     conflicts,
+    deferrals,
+    // Complete FOR SCOPE: every in-scope (linked) row planned cleanly. Deferred
+    // out-of-scope rows are counted, never blocking.
     complete: conflicts.length === 0,
   };
 }
@@ -638,6 +668,11 @@ function planCardCommentImport(input, options = {}) {
     return {
       ...plan,
       contract: null,
+      scope: {
+        policy: IMPORT_SCOPE_POLICY,
+        planned_imports: Array.isArray(plan.imports) ? plan.imports.length : 0,
+        deferred_rows: Array.isArray(plan.deferrals) ? plan.deferrals.length : 0,
+      },
       complete: false,
     };
   }
@@ -660,6 +695,7 @@ function planCardCommentImport(input, options = {}) {
     : {};
   const importRunId = clean(options.importRunId) || 'f42-card-thread-snapshot-dry-run';
   const conflicts = [];
+  const deferrals = [];
   const imports = [];
   const coverageSurfaces = {};
   let inputRows = 0;
@@ -691,6 +727,7 @@ function planCardCommentImport(input, options = {}) {
     inputRows += rows.length;
     imports.push(...surfacePlan.imports);
     conflicts.push(...surfacePlan.conflicts);
+    deferrals.push(...surfacePlan.deferrals);
     const expected = manifestSurfaces[surface];
     const mismatches = manifestMismatches(expected, surfacePlan.coverage);
     coverageSurfaces[surface] = {
@@ -720,6 +757,16 @@ function planCardCommentImport(input, options = {}) {
     coverage: { surfaces: coverageSurfaces },
     imports,
     conflicts,
+    deferrals,
+    // The plan's scope is explicit in the artifact so an operator (and the apply
+    // runner) can never mistake a linked-cohort plan for a whole-source one.
+    scope: {
+      policy: IMPORT_SCOPE_POLICY,
+      planned_imports: imports.length,
+      deferred_rows: deferrals.length,
+    },
+    // Complete FOR SCOPE — see IMPORT_SCOPE_POLICY. Deferred rows are counted
+    // and reported but never block; every other conflict class still does.
     complete: clean(snapshot.contract) === SNAPSHOT_CONTRACT && conflicts.length === 0,
   };
 }
@@ -757,6 +804,8 @@ if (require.main === module) main();
 
 module.exports = {
   COMPONENT_FIELDS,
+  DEFERRED_CLASSIFICATIONS,
+  IMPORT_SCOPE_POLICY,
   SNAPSHOT_CONTRACT,
   SURFACES,
   attachmentConflicts,

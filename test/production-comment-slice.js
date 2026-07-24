@@ -362,6 +362,44 @@ function snapshotFor(calendar, sxr, mutateManifest) {
     && certifiedEmpty.coverage.surfaces.sxr.actual.comments.video === 0,
   'empty input certifies only when both surfaces explicitly declare exact zero-count manifests');
 
+  // Linked-cohort scope: a card with no native deliverable binding is OUT OF
+  // SCOPE (deferred with counts), not a defect. Every other class still blocks.
+  const unlinkedRows = [{
+    id: 'card-unlinked', client_slug: 'test-client',
+    comments: [
+      { id: 'unlinked-a', author: 'SMM', role: 'smm', body: 'No deliverable', created_at: '2026-07-23T10:00:00Z' },
+    ],
+    graphic_comments: [
+      { id: 'unlinked-b', author: 'Designer', role: 'designer', body: 'No graphic deliverable', created_at: '2026-07-23T10:01:00Z' },
+    ],
+  }];
+  const unlinkedPlan = planCardCommentImport(snapshotFor(unlinkedRows, []));
+  ok(unlinkedPlan.complete === true
+    && unlinkedPlan.conflicts.length === 0
+    && unlinkedPlan.imports.length === 0
+    && unlinkedPlan.deferrals.length === 2
+    && unlinkedPlan.deferrals.every(row =>
+      row.classification === 'missing_deliverable_id'
+      && row.surface === 'calendar'
+      && row.reason === 'card_has_no_native_deliverable_binding'),
+  'a card with no native deliverable binding defers with counts instead of blocking the plan');
+  ok(unlinkedPlan.scope.policy === 'linked-cohort'
+    && unlinkedPlan.scope.planned_imports === 0
+    && unlinkedPlan.scope.deferred_rows === 2
+    && unlinkedPlan.coverage.surfaces.calendar.actual.comments.video === 1
+    && unlinkedPlan.coverage.surfaces.calendar.matches_manifest === true,
+  'deferral leaves source coverage certification untouched — the manifest still has to match');
+  // A card missing its CLIENT SLUG is still a defect, not a deferral: unlike an
+  // absent deliverable binding, that is a broken export the owner must fix.
+  const noSlugPlan = planCardCommentImport(snapshotFor([{
+    id: 'card-no-slug', video_deliverable_id: 'd-no-slug',
+    comments: [{ id: 'ns', author: 'SMM', role: 'smm', body: 'No slug', created_at: '2026-07-23T10:00:00Z' }],
+  }], []));
+  ok(!noSlugPlan.complete
+    && noSlugPlan.conflicts.some(row => row.classification === 'missing_client_slug')
+    && noSlugPlan.deferrals.length === 0,
+  'missing_client_slug stays plan-blocking — only missing_deliverable_id defers');
+
   const partialSnapshot = {
     contract: SNAPSHOT_CONTRACT,
     surfaces: { calendar: fixture },

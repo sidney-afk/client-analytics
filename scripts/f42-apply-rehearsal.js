@@ -122,6 +122,12 @@ function calendarCards() {
   }];
 }
 
+// The live source is dominated by UNLINKED cards (no native deliverable
+// binding): 6,032 of 6,681 comment rows at the 2026-07-24 plan run. Those rows
+// are out of scope for an import, not defective, so the rehearsal carries one
+// alongside the linked cards and proves it DEFERS — counted, never imported,
+// and never blocking the linked cohort.
+const UNLINKED_SXR_COMMENTS = 2;
 function sxrCards() {
   return [{
     id: 'sxr-card-1', client_slug: 'test-client',
@@ -133,6 +139,16 @@ function sxrCards() {
     graphic_comments: [
       { id: 'sxr-graphic', author: 'Designer', role: 'designer', body: 'Samples graphic note',
         created_at: '2026-07-23T12:30:00Z' },
+    ],
+  }, {
+    // No video_deliverable_id / graphic_deliverable_id: nothing for the
+    // canonical crosswalk to address. Both comments must defer.
+    id: 'sxr-card-unlinked', client_slug: 'test-client',
+    comments: [
+      { id: 'unlinked-root', author: 'SMM', role: 'smm', body: 'Unlinked root note',
+        created_at: '2026-07-23T13:00:00Z', updated_at: '2026-07-23T13:00:00Z' },
+      { id: 'unlinked-reply', parent_id: 'unlinked-root', author: 'Client', role: 'client',
+        body: 'Unlinked reply', created_at: '2026-07-23T13:01:00Z' },
     ],
   }];
 }
@@ -339,11 +355,35 @@ async function rehearse() {
     // 3. Plan with the real planner; it must certify complete and conflict-free.
     const snapshot = fixtureSnapshot();
     const plan = applyRunner.derivePlan(snapshot, { importRunId: 'f42-apply-rehearsal' });
-    check('planner certifies a complete, conflict-free plan',
+    check('planner certifies a complete-for-scope, conflict-free plan',
       plan.complete === true && plan.conflicts.length === 0);
     const expected = plan.imports.length;
     // Calendar: 2 video (root+reply) + 1 graphic; Samples: 1 video + 1 graphic.
+    // The unlinked Samples card contributes NOTHING to this count.
     check('planner produced the expected canonical import count', expected === 5, { expected });
+
+    // Deferral policy: the unlinked card is counted and reported, never
+    // imported, and never blocking. This is the whole point of the linked-cohort
+    // scope — without it these rows would refuse the plan and the 649 linked
+    // comments could never land.
+    check('the plan declares the linked-cohort scope',
+      plan.scope && plan.scope.policy === 'linked-cohort', plan.scope);
+    check('unlinked-card rows DEFER instead of blocking',
+      Array.isArray(plan.deferrals)
+      && plan.deferrals.length === UNLINKED_SXR_COMMENTS
+      && plan.deferrals.every(row => row.classification === 'missing_deliverable_id'),
+      { deferred: Array.isArray(plan.deferrals) ? plan.deferrals.length : null });
+    check('no deferred row leaked into the blocking conflict set',
+      !plan.conflicts.some(row => row.classification === 'missing_deliverable_id'));
+    check('the deferred rows are reported in the public-safe breakdown',
+      applyRunner.conflictBreakdown(plan).total_deferred === UNLINKED_SXR_COMMENTS
+      && applyRunner.conflictBreakdown(plan).deferred_by_classification
+        .some(row => row.classification === 'missing_deliverable_id'
+          && row.surface === 'sxr'
+          && row.count === UNLINKED_SXR_COMMENTS));
+    check('a deferred-only plan is still apply-eligible',
+      applyRunner.applyEligibility(plan).eligible === true,
+      applyRunner.applyEligibility(plan).reasons);
 
     // 4. Apply with the real apply runner against the disposable database.
     const deps = psqlDeps(cluster);

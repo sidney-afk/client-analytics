@@ -41,6 +41,29 @@ explicit zero-count manifest with the matching stable source hash. Missing/parti
 malformed non-empty comment fields, count/hash mismatches, duplicate identities, missing parents,
 and parent cycles are blocking conflicts rather than silent skips.
 
+## Import scope: linked cohort (`missing_deliverable_id` defers)
+
+A canonical comment is addressed by its card's native deliverable id. A card with **no** such
+binding has nothing for the crosswalk to point at, so its comments are **out of scope** for an
+import run rather than defective — no owner action taken during the window makes them plannable.
+At the 2026-07-24 plan run this was 6,032 of 6,681 comment rows (only 3 of 1,722 Samples cards were
+linked), and treating them as conflicts blocked the 649 plannable rows indefinitely.
+
+`missing_deliverable_id` is therefore the single **deferred** classification: reported in
+`plan.deferrals` and in the run summary with exact counts by surface, never imported, and never
+plan-blocking. `plan.complete` means *complete for scope* — every in-scope (linked) row planned
+cleanly — and `plan.scope` records the policy plus the planned/deferred counts so a linked-cohort
+plan can never be mistaken for a whole-source one. The apply runner refuses any plan whose
+`scope.policy` it does not recognize.
+
+**Every other conflict class stays blocking**, including `missing_client_slug`, malformed
+lifecycle timestamps, invalid rounds, audience quarantines, duplicate identities, parent cycles and
+coverage mismatches. Source-coverage certification is unaffected: the exporter's independent
+manifest must still match what the planner read.
+
+Deferred rows are picked up automatically by a later plan once their card gains a deliverable
+binding — no replan flag or manual step is required.
+
 ## Offline plan
 
 From the exact merged source SHA, use only fictional/public-safe examples for rehearsal:

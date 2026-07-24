@@ -20,7 +20,11 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { planCardCommentImport, SNAPSHOT_CONTRACT } = require('./f42-card-comment-import');
+const {
+  IMPORT_SCOPE_POLICY,
+  SNAPSHOT_CONTRACT,
+  planCardCommentImport,
+} = require('./f42-card-comment-import');
 
 const CONFIRM_ENV = 'F42_CONFIRM_CARD_COMMENT_IMPORT';
 const CONFIRM_TOKEN = 'IMPORT_CARD_COMMENTS';
@@ -40,17 +44,41 @@ function sha256(value) {
   return crypto.createHash('sha256').update(JSON.stringify(stable(value))).digest('hex');
 }
 
+// Under the linked-cohort scope the raw coverage also counts DEFERRED
+// out-of-scope rows. Hashing it would make an edit to any unlinked card — of
+// which there are thousands, none of them importable — refuse an otherwise
+// identical apply, so the drift guard would never pass in production. Pin the
+// manifest-certification FACT per surface instead: that the exporter's
+// independently-produced manifest still matched what the planner read. Drift
+// inside the cohort that will actually be written is already covered exactly by
+// the per-import source fingerprints below, so nothing about the applied set
+// escapes the guard.
+function applyCoverageScope(plan) {
+  const surfaces = plan && plan.coverage && plan.coverage.surfaces;
+  if (!surfaces || typeof surfaces !== 'object' || Array.isArray(surfaces)) return null;
+  const out = {};
+  for (const surface of Object.keys(surfaces).sort()) {
+    const row = surfaces[surface];
+    out[surface] = {
+      matches_manifest: !!(row && row.matches_manifest === true),
+    };
+  }
+  return out;
+}
+
 // A deterministic fingerprint of exactly what would be applied: the ordered
-// canonical identities, their source fingerprints, crosswalk targets, and the
-// certified coverage. Two runs over the same reviewed snapshot produce the same
-// digest, so an operator can pin the reviewed plan and prove the applied set is
-// byte-for-byte the approved one.
+// canonical identities, their source fingerprints, crosswalk targets, the
+// declared import scope, and the per-surface manifest certification. Two runs
+// over the same reviewed snapshot produce the same digest, so an operator can
+// pin the reviewed plan and prove the applied set is byte-for-byte the approved
+// one.
 function planApplyDigest(plan) {
   return sha256({
     contract: plan && plan.contract || null,
     surface: plan && plan.surface || null,
     import_run_id: plan && plan.import_run_id || null,
-    coverage: plan && plan.coverage || null,
+    scope_policy: plan && plan.scope && plan.scope.policy || null,
+    coverage_scope: applyCoverageScope(plan),
     imports: ((plan && plan.imports) || []).map(item => ({
       identity: item.identity,
       source_fingerprint: item.link && item.link.source_fingerprint,
@@ -72,17 +100,27 @@ function derivePlan(snapshot, options = {}) {
 }
 
 // The apply gate. A plan may only reach the RPC when it is a certified
-// two-surface snapshot, complete, conflict-free, and carries at least one
-// canonical import. Anything else is returned as blocking reasons — never a
-// partial apply.
+// two-surface snapshot, complete FOR ITS DECLARED SCOPE, free of blocking
+// conflicts, and carrying at least one canonical import. Anything else is
+// returned as blocking reasons — never a partial apply.
+//
+// `plan.conflicts` is the BLOCKING set and must be empty. `plan.deferrals` —
+// out-of-scope rows whose card carries no native deliverable binding — is
+// counted and reported but deliberately does not gate: those rows can never be
+// imported by this run under any owner action, so blocking on them would only
+// keep the linked cohort permanently unimportable. The scope policy is asserted
+// explicitly so a plan produced under different (or unstated) scope semantics
+// can never be applied by this runner.
 function applyEligibility(plan) {
   const reasons = [];
   if (!plan || typeof plan !== 'object') {
     return { eligible: false, reasons: ['plan_missing'] };
   }
   if (plan.contract !== SNAPSHOT_CONTRACT) reasons.push('snapshot_contract_required');
+  if (!plan.scope || plan.scope.policy !== IMPORT_SCOPE_POLICY) reasons.push('plan_scope_unrecognized');
   if (plan.complete !== true) reasons.push('plan_not_complete');
   if (!Array.isArray(plan.conflicts) || plan.conflicts.length !== 0) reasons.push('plan_has_conflicts');
+  if (!Array.isArray(plan.deferrals)) reasons.push('plan_deferrals_unreported');
   if (!Array.isArray(plan.imports) || plan.imports.length === 0) reasons.push('plan_has_no_imports');
   return { eligible: reasons.length === 0, reasons };
 }
@@ -228,21 +266,31 @@ function publicReason(conflict) {
   return 'unspecified';
 }
 
-function conflictBreakdown(plan) {
-  const doc = plan && typeof plan === 'object' ? plan : {};
-  const conflicts = Array.isArray(doc.conflicts) ? doc.conflicts : [];
-  const imports = Array.isArray(doc.imports) ? doc.imports : [];
-
+// Tally an allowlisted conflict/deferral set into classification x surface x
+// reason rows. Identical projection for both sets — only enum fields and counts.
+function tallyRows(rows) {
   const tally = new Map();
-  for (const conflict of conflicts) {
-    const classification = clean(conflict && conflict.classification) || 'unclassified';
-    const surface = publicSurface(conflict && conflict.surface);
-    const reason = publicReason(conflict);
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const classification = clean(row && row.classification) || 'unclassified';
+    const surface = publicSurface(row && row.surface);
+    const reason = publicReason(row);
     const key = [classification, surface, reason].join('|');
     const existing = tally.get(key);
     if (existing) existing.count += 1;
     else tally.set(key, { classification, surface, reason, count: 1 });
   }
+  return [...tally.values()].sort((a, b) =>
+    b.count - a.count
+    || a.classification.localeCompare(b.classification)
+    || a.surface.localeCompare(b.surface)
+    || a.reason.localeCompare(b.reason));
+}
+
+function conflictBreakdown(plan) {
+  const doc = plan && typeof plan === 'object' ? plan : {};
+  const conflicts = Array.isArray(doc.conflicts) ? doc.conflicts : [];
+  const deferrals = Array.isArray(doc.deferrals) ? doc.deferrals : [];
+  const imports = Array.isArray(doc.imports) ? doc.imports : [];
 
   const plannedBySurface = Object.fromEntries(PUBLIC_SURFACES.map(surface => [surface, 0]));
   for (const item of imports) {
@@ -266,20 +314,20 @@ function conflictBreakdown(plan) {
   }
 
   return {
+    scope_policy: clean(doc.scope && doc.scope.policy) || 'unspecified',
     total_conflicts: conflicts.length,
+    total_deferred: deferrals.length,
     planned_imports: imports.length,
     planned_by_surface: plannedBySurface,
     source_comment_rows: sourceRows,
-    // Raw source rows minus planned canonical imports. This covers BOTH rows
-    // the planner blocked AND the exact-duplicate aliases (a card shape that
-    // lists the same comment under `comments` and `video_comments`) that
-    // legitimately collapse into one canonical import.
+    // Raw source rows minus planned canonical imports. This covers deferred
+    // out-of-scope rows, rows the planner blocked, AND the exact-duplicate
+    // aliases (a card shape that lists the same comment under `comments` and
+    // `video_comments`) that legitimately collapse into one canonical import.
     excluded_rows: Math.max(0, sourceRows - imports.length),
-    by_classification: [...tally.values()].sort((a, b) =>
-      b.count - a.count
-      || a.classification.localeCompare(b.classification)
-      || a.surface.localeCompare(b.surface)
-      || a.reason.localeCompare(b.reason)),
+    by_classification: tallyRows(conflicts),
+    // Out-of-scope, non-blocking. Same allowlisted projection as conflicts.
+    deferred_by_classification: tallyRows(deferrals),
   };
 }
 
@@ -317,22 +365,30 @@ function renderPlanSummaryMarkdown(result) {
   const reasons = Array.isArray(doc.reasons) ? doc.reasons.map(clean).filter(Boolean) : [];
 
   lines.push(`- eligible: ${doc.eligible === true}`);
+  lines.push(`- import scope: ${clean(breakdown.scope_policy) || 'unspecified'}`);
   if (reasons.length) lines.push(`- blocking gates: ${reasons.sort().join(', ')}`);
   lines.push(`- planned imports: ${Number(breakdown.planned_imports || 0)} `
     + `(calendar ${Number(planned.calendar || 0)}, sxr ${Number(planned.sxr || 0)})`);
+  lines.push(`- deferred rows (out of scope, not imported): ${Number(breakdown.total_deferred || 0)}`);
   lines.push(`- source comment rows: ${Number(breakdown.source_comment_rows || 0)}`);
   lines.push(`- excluded rows: ${Number(breakdown.excluded_rows || 0)} `
-    + '(blocked rows plus collapsed exact-duplicate aliases)');
-  lines.push(`- conflicts: ${Number(breakdown.total_conflicts || 0)}`);
+    + '(deferred plus blocked rows plus collapsed exact-duplicate aliases)');
+  lines.push(`- conflicts (blocking): ${Number(breakdown.total_conflicts || 0)}`);
   lines.push(`- apply digest: \`${clean(doc.apply_digest)}\``);
 
-  const rows = Array.isArray(breakdown.by_classification) ? breakdown.by_classification : [];
-  if (rows.length) {
-    lines.push('', '### Blocking reasons (classification enums and counts only)', '',
+  const renderTable = (heading, rows) => {
+    if (!Array.isArray(rows) || !rows.length) return;
+    lines.push('', heading, '',
       '| Classification | Surface | Reason | Count |', '|---|---|---|---:|');
     for (const row of rows) {
       lines.push(`| \`${clean(row.classification)}\` | ${clean(row.surface)} | \`${clean(row.reason)}\` | ${Number(row.count || 0)} |`);
     }
+  };
+  renderTable('### Blocking reasons (classification enums and counts only)', breakdown.by_classification);
+  renderTable('### Deferred — out of scope, NOT imported and not blocking',
+    breakdown.deferred_by_classification);
+  if ((Array.isArray(breakdown.by_classification) && breakdown.by_classification.length)
+    || (Array.isArray(breakdown.deferred_by_classification) && breakdown.deferred_by_classification.length)) {
     lines.push('', 'Per-row evidence (card/comment identities, client slugs, bodies) stays in the '
       + 'runner-local result document and is never uploaded.');
   }
@@ -447,6 +503,8 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
       reasons: verdict.reasons,
       planned_imports: Array.isArray(plan.imports) ? plan.imports.length : 0,
       conflicts: Array.isArray(plan.conflicts) ? plan.conflicts.length : 0,
+      deferred: Array.isArray(plan.deferrals) ? plan.deferrals.length : 0,
+      scope: plan.scope || null,
       // Public-safe aggregate: classification/surface/reason enums plus counts.
       // This is what a BLOCKED dispatch renders to the run summary, so an
       // operator can see why the plan is blocked without any identifier
@@ -491,7 +549,9 @@ module.exports = {
   BACKFILL_TAG,
   CONFIRM_ENV,
   CONFIRM_TOKEN,
+  IMPORT_SCOPE_POLICY,
   PUBLIC_SURFACES,
+  applyCoverageScope,
   applyEligibility,
   applyImports,
   applyPlan,

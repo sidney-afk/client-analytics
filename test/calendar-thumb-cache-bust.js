@@ -14,10 +14,18 @@
  * Fix: a per-card thumbnail rev (_calThumbRev), appended as _r and bumped when
  * a media link is written or a graphic leaves Tweaks Needed. _r is KEPT in the
  * harvest key, so:
- *   - unrelated save (caption/status/date): updated_at → new _cb, rev unchanged →
- *     SAME key → image reused → NO flicker.
+ *   - unrelated save (caption/status/date): rev unchanged → SAME key → image
+ *     reused → NO flicker.
  *   - link edit / graphic resolved: rev bumped -> new _r -> DIFFERENT key ->
  *     image reloaded -> auto-update.
+ *
+ * Content-versioned browser cache key (default ON, ?thumbcache=0 restores the
+ * legacy per-save _cb): a card that carries a thumb_rev uses _r=thumb_rev as
+ * the SOLE cache-buster (no per-save _cb), so its URL is stable and the browser
+ * HTTP cache serves an unchanged thumbnail instantly across page refreshes; a
+ * new thumbnail rotates thumb_rev → new URL → auto-bust. A rev-LESS legacy card
+ * keeps _cb=updated_at as its only freshness signal until the scanner assigns a
+ * rev. (_cb is stripped from the harvest key either way, so no-flicker holds.)
  *
  * It EXTRACTS the real functions from ../index.html (by name, brace-balanced) so
  * it tests the ACTUAL shipping code, not a paraphrase. The harvest's reuse
@@ -155,8 +163,9 @@ const YT = 'https://youtu.be/dQw4w9WgXcQ';
   const rev = mod._calThumbRev['p5'];
   const withCb = _calDeriveThumb({ id: 'p5', thumbnail_url: DIRECT, asset_url: '', updated_at: 'x0' });
   const noCb   = _calDeriveThumb({ id: 'p5', thumbnail_url: DIRECT, asset_url: '' }); // probe, no updated_at
-  check('direct url with _cb has _r=' + rev, withCb.includes('_cb=x0') && withCb.includes('_r=' + rev));
-  check('direct url _cb/no-_cb normalize to the SAME base key',
+  check('direct url with a rev uses _r as the SOLE buster (stable URL, no per-save _cb)',
+        withCb.includes('_r=' + rev) && !/[?&]_cb=/.test(withCb));
+  check('direct url with/without updated_at normalize to the SAME base key',
         _calThumbSrcBase(withCb) === _calThumbSrcBase(noCb));
   check('normalized base key is a valid single-? query',
         _calThumbSrcBase(withCb) === DIRECT + '?_r=' + rev);

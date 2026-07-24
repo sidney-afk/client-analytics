@@ -362,6 +362,19 @@ function reconcileFinalInventory(filePath, refs, options = {}) {
   };
 }
 
+// The runbook (docs/ops/F34_LINEAR_ASSET_RESCUE.md §Apply) requires a certified
+// final Linear export inventory that reconciles exactly before any rescue
+// mutates Drive or sidecar state: scan_complete true and both mismatch counts
+// zero. A stale, mismatching, or absent inventory must fail closed BEFORE the
+// Drive token is obtained and the mutation loop is entered — reporting GAPS
+// only after partial uploads is too late.
+function inventoryPermitsRescue(inventory) {
+  const summary = inventory && typeof inventory === 'object' ? inventory : {};
+  return summary.scan_complete === true
+    && Number(summary.missing_from_syncview || 0) === 0
+    && Number(summary.missing_from_inventory || 0) === 0;
+}
+
 async function responseJson(response, label) {
   const payload = await response.json().catch(() => null);
   if (!response.ok || payload == null) throw new Error(`${label}_${response.status}`);
@@ -943,6 +956,12 @@ async function run(argv = process.argv.slice(2), env = process.env) {
       || !config.rescueCapability) {
     throw new Error('private_rescue_configuration_required');
   }
+  // Gate the entire rescue on an exactly-reconciled certified inventory before
+  // touching Drive or the sidecar. A stale/mismatching/absent inventory fails
+  // closed here instead of after partial uploads.
+  if (!inventoryPermitsRescue(inventory)) {
+    throw new Error('final_inventory_reconciliation_incomplete');
+  }
   const driveToken = await driveAccessToken(config.driveCredentials, fetch);
   const before = await loadExistingRefs(config);
   const existingById = new Map(before.map(ref => [clean(ref.ref_id), ref]));
@@ -981,6 +1000,7 @@ module.exports = {
   discoverArchiveRefs,
   inventoryCertificationMaterial,
   inventoryOccurrence,
+  inventoryPermitsRescue,
   loadOwnerDispositionPlan,
   publicPlan,
   readBoundedBytes,

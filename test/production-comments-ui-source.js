@@ -97,9 +97,30 @@ ok(/cap\.verified/.test(verifiedClientContext)
   && /_writeUiNativeId\(post, component\)/.test(verifiedClientContext)
   && /source_surface: 'sxr'/.test(verifiedClientContext),
 'verified client SXR context binds capability, slug, card component and canonical deliverable');
+// Canonical-where-linked, legacy-where-not. On a LINKED card the verified
+// client link still never falls back; on an UNLINKED card (no native
+// deliverable binding, so no canonical thread can exist and F42 cannot import
+// one) the client view uses the pre-Slice-4 legacy card arrays.
 ok(/rawPage\.filter\(row => row[\s\S]*row\.audience[\s\S]*=== 'client'/.test(source)
-  && /!canonicalGate\.linked \|\| !canonicalGate\.ready \|\| !canonicalGate\.client/.test(sxrCommentsForView),
-'client UI drops internal rows and never falls back to linked legacy card arrays');
+  && /if \(!canonicalGate\.ready \|\| !canonicalGate\.client\) return \[\];/.test(sxrCommentsForView)
+  && /const list = _sxrCanonicalCommentsFor\(post, comp\)/.test(sxrCommentsForView),
+'client UI drops internal rows and a LINKED card never falls back to legacy card arrays');
+ok(/if \(!canonicalGate\.linked\) \{/.test(sxrCommentsForView)
+  && /const legacy = _sxrCommentsFor\(post, comp\)/.test(sxrCommentsForView)
+  && /rootAudience\(c\) === 'client'/.test(sxrCommentsForView)
+  && /c\.role === 'kasper'/.test(sxrCommentsForView),
+'an UNLINKED card falls back to the legacy card arrays with root-audience client filtering and Kasper hidden');
+const sxrCommentsForAction = extract('_sxrCommentsForAction');
+ok(/_isClientLink && _prodCanonicalCommentGate\(post, comp\)\.linked/.test(sxrCommentsForAction)
+  && /_sxrCanonicalCommentsFor\(post, comp\)/.test(sxrCommentsForAction)
+  && /_sxrCommentsFor\(post, comp\)/.test(sxrCommentsForAction),
+'client action reads follow the same split: canonical only where linked, legacy where not');
+const sxrPostLinearComment = extract('_sxrPostLinearComment');
+ok(/const clientCanonicalWrite = !!\(clientGate && clientGate\.linked\)/.test(sxrPostLinearComment)
+  && /if \(!clientGate\.ready \|\| !clientGate\.client \|\| !nativeId \|\| !clientSurface\)/.test(sxrPostLinearComment)
+  && /canonical_comment_read_required/.test(sxrPostLinearComment)
+  && /_sxrLegacyPostLinearComment\(issueUrl, body, author, meta\)/.test(sxrPostLinearComment),
+'client posting is canonical-and-fail-closed only when linked; unlinked takes the staff/legacy transport');
 ok(!/json\.client_surface_canonical/.test(source)
   && !/clientReaderVerified/.test(source),
 'endpoint self-attestation cannot unlock Client-visible');

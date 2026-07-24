@@ -269,6 +269,46 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && recoveredDelete.comment_id === 'linear-comment-recovered',
   'delete crash recovery retains the dependency-supplied provider receipt');
 
+  const attachmentUrl = 'https://drive.google.com/file/d/canonical123/view';
+  const attachmentRow = {
+    ...baseRow,
+    operation: 'attachment',
+    payload: { linear_issue_id: 'issue_fixture', url: attachmentUrl, artifact_revision: 3 },
+  };
+  const attachmentContext = { entity: { file_url: attachmentUrl, artifact_revision: 3 } };
+  const revisionSubtitle = 'SyncView canonical revision 3';
+  const foundAttachmentIssue = {
+    id: 'issue_fixture',
+    attachments: {
+      nodes: [{ id: 'att-found', url: attachmentUrl, subtitle: revisionSubtitle }],
+      pageInfo: { hasNextPage: false },
+    },
+  };
+  ok(mapping.decideConflict(attachmentRow, foundAttachmentIssue, attachmentContext).decision === 'already_applied',
+    'an attachment revision present on the fetched page is recognized as already applied');
+  const completeAbsentIssue = {
+    id: 'issue_fixture',
+    attachments: {
+      nodes: [{ id: 'att-other', url: 'https://drive.google.com/file/d/other456/view', subtitle: revisionSubtitle }],
+      pageInfo: { hasNextPage: false },
+    },
+  };
+  ok(mapping.decideConflict(attachmentRow, completeAbsentIssue, attachmentContext).decision === 'apply',
+    'a genuinely absent revision on a complete attachments relation still creates the canonical attachment');
+  const incompleteAttachmentIssue = {
+    id: 'issue_fixture',
+    attachments: {
+      nodes: Array.from({ length: 100 }, (_, index) => ({
+        id: `att-${index}`,
+        url: `https://drive.google.com/file/d/pageone${index}/view`,
+        subtitle: 'SyncView canonical revision 1',
+      })),
+      pageInfo: { hasNextPage: true },
+    },
+  };
+  ok(mapping.decideConflict(attachmentRow, incompleteAttachmentIssue, attachmentContext).decision === 'already_applied',
+    'an incomplete attachments relation fails closed so an exact retry never mints a duplicate attachment');
+
   const createPayload = {
     team_id: 'team_fixture',
     project_id: 'project_fixture',

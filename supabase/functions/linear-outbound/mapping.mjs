@@ -310,11 +310,23 @@ function issueHasArtifactRevision(issue, payload) {
       ? attachments.nodes
       : [];
   const subtitle = artifactRevisionSubtitle(revision);
-  return nodes.some(value => {
+  const found = nodes.some(value => {
     const attachment = value && typeof value === "object" ? value : {};
     return canonicalAttachmentUrl(attachment.url) === url
       && clean(attachment.subtitle) === subtitle;
   });
+  if (found) return true;
+  // The issue fetch caps `attachments(first: 100)`. When that relation is
+  // incomplete the canonical revision marker may live on an unfetched page, so
+  // "not found here" does not prove absence. Fail closed — report the revision
+  // as present so an exact retry does not fire a second attachmentCreate and
+  // mint a duplicate canonical attachment. Mirrors the incomplete-relation
+  // guard used for the create-label connection (completeCreateIssueLabels).
+  const pageInfo = !Array.isArray(attachments) && attachments.pageInfo
+    && typeof attachments.pageInfo === "object"
+    ? attachments.pageInfo
+    : null;
+  return !!(pageInfo && pageInfo.hasNextPage === true);
 }
 
 export function actualValueForOperation(operation, issue, payload = {}) {

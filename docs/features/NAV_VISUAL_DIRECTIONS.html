@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>SyncView navigation — visual directions</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #ececeb; --bg: #f4f4f2; --surface: #ffffff; --surface-2: #f8f8f6; --surface-3: #f0f0ed;
+    --border: #e4e4e0; --border-light: #ededea; --border-strong: #cfcfca;
+    --ink: #111110; --ink-2: #6b6b67; --muted: #b4b4ae; --inverse: #ffffff;
+    --violet: #6c5ce7; --violet-soft: #eeebff;
+    --green: #15803d; --green-soft: #eaf8ef;
+    --rose: #c2415b; --rose-soft: #fff0f3;
+    --amber: #a15c08; --amber-soft: #fff6df;
+    --blue: #2563eb; --blue-soft: #eef4ff;
+    --shadow-sm: 0 1px 3px rgba(17,17,16,.06);
+    --shadow-md: 0 12px 34px rgba(17,17,16,.11);
+    --pill-shadow: 0 1px 2px rgba(0,0,0,.06);
+    --font: "Plus Jakarta Sans", Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --ease: cubic-bezier(.22,.61,.36,1);
+  }
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0b0c0e; --bg: #101114; --surface: #181a1f; --surface-2: #20232a; --surface-3: #15171c;
+    --border: #343842; --border-light: #282c34; --border-strong: #454b57;
+    --ink: #f4f6f8; --ink-2: #c2c7cf; --muted: #aeb6c2; --inverse: #101114;
+    --violet: #8b7cf6; --violet-soft: #241f45;
+    --green: #4ade80; --green-soft: #14301f;
+    --rose: #fb7185; --rose-soft: #331a20;
+    --amber: #fbbf24; --amber-soft: #332612;
+    --blue: #60a5fa; --blue-soft: #16233b;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.4);
+    --shadow-md: 0 12px 34px rgba(0,0,0,.5);
+    --pill-shadow: 0 1px 2px rgba(0,0,0,.24);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 26px 22px 90px; }
+
+  .banner { border: 1px solid var(--border-strong); background: var(--amber-soft); border-radius: 12px; padding: 12px 16px; font-size: .82rem; font-weight: 800; color: var(--amber); display: flex; gap: 10px; align-items: flex-start; margin-bottom: 22px; }
+  .banner span { font-weight: 500; color: var(--ink-2); display: block; margin-top: 2px; }
+
+  h1 { font-size: 1.7rem; letter-spacing: -.03em; margin: 0 0 6px; }
+  .sub { color: var(--ink-2); font-size: .9rem; margin: 0 0 24px; }
+  h2 { font-size: 1.12rem; letter-spacing: -.02em; margin: 0 0 4px; }
+  h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+
+  .toolbar { position: sticky; top: 0; z-index: 40; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between; background: var(--page); padding: 10px 0 14px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .toolbar-group { display: flex; align-items: center; gap: 10px; }
+  .toolbar-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 800; }
+
+  /* ── TRUE sliding pill (what the owner thinks he already has) ── */
+  .seg { position: relative; display: inline-flex; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg-pill { position: absolute; top: 3px; bottom: 3px; left: 0; background: var(--surface); border-radius: 8px; box-shadow: var(--pill-shadow); transition: transform .34s var(--ease), width .34s var(--ease); pointer-events: none; will-change: transform, width; }
+  .seg.dark .seg-pill { background: var(--ink); }
+  .seg-btn { position: relative; z-index: 1; appearance: none; border: 0; background: transparent; font-family: inherit; font-size: .76rem; font-weight: 700; color: var(--muted); padding: 6px 13px; border-radius: 8px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; transition: color .2s var(--ease); letter-spacing: .01em; }
+  .seg-btn:hover { color: var(--ink); }
+  .seg-btn[aria-selected="true"] { color: var(--ink); }
+  .seg.dark .seg-btn[aria-selected="true"] { color: var(--inverse); }
+  .seg-btn svg { width: 14px; height: 14px; flex: 0 0 auto; }
+  .seg-btn .badge { font-size: .6rem; font-weight: 800; padding: 2px 6px; border-radius: 999px; background: var(--border); color: var(--ink-2); letter-spacing: .02em; }
+  .seg-btn[aria-selected="true"] .badge { background: var(--ink); color: var(--inverse); }
+  .seg.dark .seg-btn[aria-selected="true"] .badge { background: var(--inverse); color: var(--ink); }
+  @media (prefers-reduced-motion: reduce) { .seg-pill, .side-pill { transition: none !important; } }
+
+  /* ── The CURRENT control, faithfully reproduced (cross-fade, no motion) ── */
+  .wl-pills { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 2px; gap: 2px; }
+  .wl-pills button { border: 0; background: transparent; border-radius: 8px; padding: 5px 12px; font-family: inherit; font-size: .75rem; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .12s; letter-spacing: .01em; }
+  .wl-pills button:hover { color: var(--ink); }
+  .wl-pills button.active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 20px; box-shadow: var(--shadow-sm); }
+  .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tag { font-size: .64rem; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+  .tag.s { background: var(--green-soft); color: var(--green); }
+  .tag.m { background: var(--amber-soft); color: var(--amber); }
+  .tag.l { background: var(--rose-soft); color: var(--rose); }
+  .tag.i { background: var(--blue-soft); color: var(--blue); }
+
+  .chrome { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg); box-shadow: var(--shadow-md); }
+  .chrome-head { height: 60px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 18px; }
+  .chrome-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: .95rem; letter-spacing: -.01em; flex: 0 0 auto; }
+  .chrome-logo .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--ink); color: var(--inverse); display: grid; place-items: center; font-size: .6rem; font-weight: 800; }
+  .chrome-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-3); display: grid; place-items: center; font-size: .62rem; font-weight: 800; color: var(--ink-2); }
+  .chrome-body { padding: 20px; min-height: 180px; }
+  .stub-title { font-size: 1.15rem; font-weight: 800; letter-spacing: -.02em; margin: 0 0 3px; }
+  .stub-sub { font-size: .76rem; color: var(--ink-2); margin: 0 0 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .stub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .stub-box { height: 58px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); }
+  html[data-theme="dark"] .stub-box { background: var(--surface-2); }
+
+  .navbar { display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+  .navbar::-webkit-scrollbar { display: none; }
+  .nav-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); font-family: inherit; font-size: .78rem; font-weight: 600; color: var(--ink-2); cursor: pointer; white-space: nowrap; flex: 0 0 auto; transition: all .15s; }
+  .nav-btn:hover { border-color: var(--border-strong); color: var(--ink); background: var(--bg); }
+  .nav-btn.active { background: var(--ink); color: var(--inverse); border-color: var(--ink); }
+  .nav-btn svg { width: 14px; height: 14px; }
+
+  .subbar { display: flex; align-items: center; gap: 12px; padding: 9px 18px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  html[data-theme="dark"] .subbar { background: var(--surface-3); }
+  .crumb { font-size: .7rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+
+  .side-layout { display: grid; grid-template-columns: 216px 1fr; min-height: 300px; }
+  .side { background: var(--surface); border-right: 1px solid var(--border); padding: 12px 10px; display: flex; flex-direction: column; }
+  .side-group { font-size: .62rem; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); font-weight: 800; padding: 12px 10px 5px; }
+  .side-rail { position: relative; display: flex; flex-direction: column; gap: 2px; }
+  .side-pill { position: absolute; left: 0; right: 0; height: 34px; border-radius: 9px; background: var(--ink); box-shadow: var(--pill-shadow); transition: transform .34s var(--ease); pointer-events: none; will-change: transform; }
+  .side-btn { position: relative; z-index: 1; display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 10px; border: 0; background: transparent; border-radius: 9px; font-family: inherit; font-size: .78rem; font-weight: 600; color: var(--ink-2); cursor: pointer; text-align: left; width: 100%; transition: color .2s var(--ease); }
+  .side-btn:hover { color: var(--ink); }
+  .side-btn[aria-selected="true"] { color: var(--inverse); }
+  .side-btn svg { width: 15px; height: 15px; flex: 0 0 auto; }
+  .side-content { padding: 20px; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+  @media (max-width: 800px) { .cols { grid-template-columns: 1fr; } .side-layout { grid-template-columns: 1fr; } }
+  ul.tight { margin: 0; padding-left: 18px; }
+  ul.tight li { font-size: .84rem; margin-bottom: 7px; color: var(--ink-2); }
+  ul.tight li b { color: var(--ink); font-weight: 700; }
+  .pro li::marker { color: var(--green); }
+  .con li::marker { color: var(--rose); }
+
+  table { width: 100%; border-collapse: collapse; font-size: .8rem; margin-top: 6px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: .66rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 800; }
+  td.y { color: var(--green); font-weight: 800; }
+  td.n { color: var(--rose); font-weight: 700; }
+  td.dim { color: var(--muted); }
+  .scroll-x { overflow-x: auto; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78em; background: var(--surface-3); padding: 1px 5px; border-radius: 5px; }
+  .note { font-size: .8rem; color: var(--ink-2); background: var(--surface-2); border-left: 3px solid var(--violet); padding: 11px 13px; border-radius: 0 8px 8px 0; margin-top: 14px; }
+  .note.warn { border-left-color: var(--amber); }
+  html[data-theme="dark"] .note { background: var(--surface-3); }
+  .btn { appearance: none; border: 1px solid var(--border); background: var(--surface); color: var(--ink); font-family: inherit; font-size: .75rem; font-weight: 700; padding: 7px 13px; border-radius: 9px; cursor: pointer; }
+  .btn:hover { border-color: var(--border-strong); }
+  .flag { font-size: .58rem; font-weight: 800; padding: 1px 5px; border-radius: 4px; background: var(--violet-soft); color: var(--violet); letter-spacing: .03em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner">⚠️
+    <div>NON-OPERATIVE MOCKUP — nothing here is wired to the app.
+      <span>Synthetic comparison board for the navigation redesign. No live code, no routing, no data. The owner picks a direction before anything is built; building waits until parked PR #931 has merged.</span>
+    </div>
+  </div>
+
+  <h1>SyncView navigation — three directions</h1>
+  <p class="sub">Today: one top bar, 9 always-visible tabs plus 3 flag/unlock-gated ones. Use the controls to switch role, theme, and (for B/C) whether the nav should start respecting what a role can actually <em>do</em>.</p>
+
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <span class="toolbar-label">Role</span>
+      <div class="seg" id="roleSeg"><div class="seg-pill"></div>
+        <button class="seg-btn" data-role="admin" aria-selected="true">Admin</button>
+        <button class="seg-btn" data-role="smm" aria-selected="false">SMM</button>
+        <button class="seg-btn" data-role="creative" aria-selected="false">Creative</button>
+      </div>
+    </div>
+    <div class="toolbar-group">
+      <span class="toolbar-label">Nav model</span>
+      <div class="seg" id="modelSeg"><div class="seg-pill"></div>
+        <button class="seg-btn" data-model="today" aria-selected="true">Show all (today)</button>
+        <button class="seg-btn" data-model="capability" aria-selected="false">Respect capability</button>
+      </div>
+      <button class="btn" id="themeBtn" type="button">◐ Theme</button>
+    </div>
+  </div>
+
+  <!-- ══════════ FINDING ══════════ -->
+  <div class="card">
+    <div class="card-head">
+      <div><h2>First — a correction worth knowing</h2>
+        <p class="sub" style="margin:0">The control you like isn't actually a sliding pill. Nothing in SyncView slides today.</p></div>
+      <span class="tag i">finding</span>
+    </div>
+    <div class="cols" style="margin-top:0">
+      <div>
+        <h3>What ships today — cross-fade</h3>
+        <div class="wl-pills" id="wlDemo">
+          <button class="active" data-wl="plan">Plan only</button>
+          <button data-wl="deadlines">Plan + Due Date</button>
+        </div>
+        <p style="font-size:.82rem;color:var(--ink-2);margin:12px 0 0">
+          <code>.workload-pills button.active</code> just swaps <code>background</code> to white with
+          <code>transition: all 0.12s</code>. There is no indicator element and no <code>transform</code>
+          anywhere — the "glide" is two adjacent buttons cross-fading over a shared track. It reads as
+          motion because they sit inside one bordered, rounded container.
+        </p>
+      </div>
+      <div>
+        <h3>What a real sliding pill looks like</h3>
+        <div class="seg" id="pillDemo"><div class="seg-pill"></div>
+          <button class="seg-btn" aria-selected="true">Plan only</button>
+          <button class="seg-btn" aria-selected="false">Plan + Due Date</button>
+        </div>
+        <p style="font-size:.82rem;color:var(--ink-2);margin:12px 0 0">
+          One absolutely-positioned pill that <code>translateX</code>es to the selected button and
+          animates its width, 340ms on an ease-out curve. Click both to feel the difference.
+        </p>
+      </div>
+    </div>
+    <div class="note"><b>So this is good news:</b> the thing you already like is the cheap version. Building a
+      genuine sliding pill is an upgrade you haven't seen yet — and it's the smallest piece of every direction below.
+      All three mockups use the real thing.</div>
+  </div>
+
+  <!-- ══════════ BASELINE ══════════ -->
+  <div class="card">
+    <div class="card-head">
+      <div><h2>Today — for reference</h2>
+        <p class="sub" style="margin:0">Nine equal-weight buttons. No hierarchy: <em>TikTok Upload</em> looks exactly as important as <em>Calendar</em>.</p></div>
+      <span class="tag s">baseline</span>
+    </div>
+    <div class="chrome">
+      <div class="chrome-head">
+        <div class="chrome-logo"><span class="mark">SV</span> SyncView</div>
+        <div class="navbar" id="baselineNav"></div>
+        <div class="chrome-actions"><div class="avatar av">A</div></div>
+      </div>
+      <div class="chrome-body">
+        <p class="stub-title" id="titleBase">Calendar</p>
+        <p class="stub-sub" id="subBase">#calendar</p>
+        <div class="stub-grid"><div class="stub-box"></div><div class="stub-box"></div><div class="stub-box"></div><div class="stub-box"></div></div>
+      </div>
+    </div>
+    <div class="note warn"><b>Two real frictions.</b>
+      (1) The bar already scrolls horizontally between 761–1400px — on a 13" laptop the last tabs are off-screen.
+      (2) Two labels are inverted: the visible <b>“Linear”</b> tab is internally <code>production</code>/<code>#production</code>,
+      while the visible <b>“Submit”</b> tab is internally <code>linear</code>/<code>#linear</code>. That inversion is
+      pinned as repo law by <code>REPO_MAP.md</code> and asserted by tests — renaming is a deliberate decision, not a freebie.</div>
+  </div>
+
+  <!-- ══════════ A ══════════ -->
+  <div class="card">
+    <div class="card-head">
+      <div><h2>Direction A — one sliding-pill bar</h2>
+        <p class="sub" style="margin:0">Same nine destinations, restyled as a single segmented control with a real moving pill. Routing, structure and gating untouched.</p></div>
+      <span class="tag s">small — ~1–2 days</span>
+    </div>
+    <div class="chrome">
+      <div class="chrome-head">
+        <div class="chrome-logo"><span class="mark">SV</span> SyncView</div>
+        <div class="seg dark" id="segA" style="overflow-x:auto;min-width:0;"><div class="seg-pill"></div></div>
+        <div class="chrome-actions"><div class="avatar av">A</div></div>
+      </div>
+      <div class="chrome-body">
+        <p class="stub-title" id="titleA">Calendar</p>
+        <p class="stub-sub" id="subA">#calendar</p>
+        <div class="stub-grid"><div class="stub-box"></div><div class="stub-box"></div><div class="stub-box"></div><div class="stub-box"></div></div>
+      </div>
+    </div>
+    <div class="cols">
+      <div><h3>Gains</h3><ul class="tight pro">
+        <li><b>Exactly the aesthetic you like</b> — and a real one, applied to what you look at all day.</li>
+        <li><b>Cheapest by far.</b> CSS plus a small pill-positioning helper. No route changes, no new URLs, no gating changes, no relearning.</li>
+        <li><b>Lowest risk against PR #931</b> — touches one CSS block and one markup region.</li>
+        <li>Reversible in a single commit.</li>
+      </ul></div>
+      <div><h3>Costs</h3><ul class="tight con">
+        <li><b>It doesn't fix the actual problem.</b> Nine segments is well past what a segmented control is for (2–5). It's a prettier version of the same flat list.</li>
+        <li><b>Still no hierarchy</b>, and still scrolls on a laptop.</li>
+        <li><b>The pill fights the scroll strip:</b> when <code>.header-nav</code> scrolls, the pill must track <code>scrollLeft</code> or it visually detaches — the one real engineering wrinkle.</li>
+        <li>Tests pin <code>.header-nav-btn { flex: 0 0 auto; white-space: nowrap }</code> and the exact
+          <code>navHome &lt; navProd &lt; navLinear</code> order, so the restyle must keep both.</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <!-- ══════════ B ══════════ -->
+  <div class="card">
+    <div class="card-head">
+      <div><h2>Direction B — grouped: 4 top-level + sub-tabs</h2>
+        <p class="sub" style="margin:0">Nine destinations collapse into four workflow groups. The pill appears at both levels — dark up top, quiet below.</p></div>
+      <span class="tag m">medium–large — ~1–2 weeks</span>
+    </div>
+    <div class="chrome">
+      <div class="chrome-head">
+        <div class="chrome-logo"><span class="mark">SV</span> SyncView</div>
+        <div class="seg dark" id="segB1"><div class="seg-pill"></div></div>
+        <div class="chrome-actions"><div class="avatar av">A</div></div>
+      </div>
+      <div class="subbar">
+        <span class="crumb" id="crumbB">Produce</span>
+        <div class="seg" id="segB2"><div class="seg-pill"></div></div>
+      </div>
+      <div class="chrome-body">
+        <p class="stub-title" id="titleB">Calendar</p>
+        <p class="stub-sub" id="subB">#calendar</p>
+        <div class="stub-grid"><div class="stub-box"></div><div class="stub-box"></div><div class="stub-box"></div><div class="stub-box"></div></div>
+      </div>
+    </div>
+    <div class="cols">
+      <div><h3>Gains</h3><ul class="tight pro">
+        <li><b>Four items is a real segmented control</b> — the pill finally fits, and the top bar never scrolls again.</li>
+        <li><b>Creates the missing hierarchy:</b> daily work sits above occasional work.</li>
+        <li><b>Room to grow</b> — a new surface joins a group instead of becoming a 10th top-level button.</li>
+        <li>Natural moment to <b>fix the Linear/Submit inversion</b>, since labels are being touched anyway.</li>
+        <li>Switch <b>Nav model → Respect capability</b> above: grouping makes it obvious when a role should simply not see a group.</li>
+      </ul></div>
+      <div><h3>Costs</h3><ul class="tight con">
+        <li><b>Two clicks</b> where there was one (mitigable: remember the last sub-tab per group).</li>
+        <li><b>The grouping is a judgement call</b> — if you disagree with the buckets it's worse than flat. This is the main thing to react to.</li>
+        <li><b>Breaks a load-bearing selector.</b> Nesting buttons inside groups breaks <code>#headerNav &gt; .header-nav-btn</code>, which the active-tab scroll-into-view and three test suites depend on.</li>
+        <li><b>The route table is duplicated in a pre-paint <code>&lt;head&gt;</code> script</b> plus hard-coded <code>#navX</code> CSS selectors (52 <code>data-boot-nav</code> references). Groups must be taught to both copies or the pre-JS highlight silently breaks.</li>
+        <li>Costs ~44px of vertical space on data-dense views.</li>
+      </ul></div>
+    </div>
+    <div class="note"><b>Proposed grouping</b> — the decision I most want your reaction to:
+      <b>Plan</b> = Workload · Filming Plans · Templates &nbsp;·&nbsp;
+      <b>Produce</b> = Calendar · Samples · Linear · Submit &nbsp;·&nbsp;
+      <b>Publish</b> = TikTok Upload &nbsp;·&nbsp;
+      <b>Measure</b> = Analytics</div>
+  </div>
+
+  <!-- ══════════ C ══════════ -->
+  <div class="card">
+    <div class="card-head">
+      <div><h2>Direction C — left sidebar</h2>
+        <p class="sub" style="margin:0">Vertical nav with labelled sections; the pill becomes a vertical indicator gliding between rows.</p></div>
+      <span class="tag l">large — ~2–3 weeks</span>
+    </div>
+    <div class="chrome">
+      <div class="chrome-head">
+        <div class="chrome-logo"><span class="mark">SV</span> SyncView</div>
+        <div class="chrome-actions"><div class="avatar av">A</div></div>
+      </div>
+      <div class="side-layout">
+        <nav class="side" id="sideNav"></nav>
+        <div class="side-content">
+          <p class="stub-title" id="titleC">Calendar</p>
+          <p class="stub-sub" id="subC">#calendar</p>
+          <div class="stub-grid"><div class="stub-box"></div><div class="stub-box"></div><div class="stub-box"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="cols">
+      <div><h3>Gains</h3><ul class="tight pro">
+        <li><b>Scales indefinitely</b> — 9 or 20 destinations, all visible at once, with real section headers.</li>
+        <li><b>Full labels always readable;</b> no truncation, no scrolling, ever.</li>
+        <li>Frees the 60px header for what belongs there — client switcher, search, account.</li>
+        <li>The vertical pill still glides, and its travel distance reads as "where am I".</li>
+      </ul></div>
+      <div><h3>Costs</h3><ul class="tight con">
+        <li><b>Eats 216px of width from the widest views</b> — Calendar strip, Workload timeline and the Linear table are precisely the surfaces that want horizontal room. Collapsing it back is more work again.</li>
+        <li><b>Biggest blast radius.</b> <code>.main</code> is full-width fluid today; a sidebar restructures the shell that ~59 media-query breakpoints assume.</li>
+        <li><b>Mobile needs a separate drawer pattern</b> — two navs to build and maintain.</li>
+        <li><b>Highest collision risk with PR #931</b>, and the same boot-script/test rework as B.</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <!-- ══════════ COMPARISON ══════════ -->
+  <div class="card">
+    <h2>Side by side</h2>
+    <div class="scroll-x"><table>
+      <tr><th>&nbsp;</th><th>A · sliding bar</th><th>B · grouped</th><th>C · sidebar</th></tr>
+      <tr><td><b>Top-level items</b></td><td>9</td><td class="y">4</td><td class="y">4 sections / 9 rows</td></tr>
+      <tr><td><b>Clicks to any surface</b></td><td class="y">1</td><td>1–2</td><td class="y">1</td></tr>
+      <tr><td><b>Fixes hierarchy</b></td><td class="n">no</td><td class="y">yes</td><td class="y">yes</td></tr>
+      <tr><td><b>Pill fits the pattern</b></td><td class="n">strained at 9</td><td class="y">yes, both levels</td><td class="y">yes, vertical</td></tr>
+      <tr><td><b>Stops horizontal scrolling</b></td><td class="n">no</td><td class="y">yes</td><td class="y">yes</td></tr>
+      <tr><td><b>Width left for wide views</b></td><td class="y">unchanged</td><td class="y">unchanged</td><td class="n">−216px</td></tr>
+      <tr><td><b>Deep links / bookmarks</b></td><td class="y">unchanged</td><td class="y">unchanged*</td><td class="y">unchanged</td></tr>
+      <tr><td><b>Boot script + <code>#navX</code> CSS rework</b></td><td class="y">minimal</td><td class="n">required</td><td class="n">required</td></tr>
+      <tr><td><b>Test suites to update</b></td><td class="y">~2</td><td class="n">~8</td><td class="n">~8</td></tr>
+      <tr><td><b>Mobile</b></td><td>same scroll issue</td><td class="y">improves</td><td class="n">needs a drawer</td></tr>
+      <tr><td><b>Collision risk with #931</b></td><td class="y">low</td><td>medium</td><td class="n">high</td></tr>
+      <tr><td><b>Rough size</b></td><td class="y">~1–2 days</td><td>~1–2 weeks</td><td class="n">~2–3 weeks</td></tr>
+    </table></div>
+    <p style="font-size:.76rem;color:var(--muted);margin:10px 0 0">* Hashes keep working; the app must additionally derive "which group owns this route" on deep-link and refresh.</p>
+    <div class="note"><b>Recommendation — B, in two shipments.</b> Ship <b>A first as its own PR</b>: the real sliding pill plus
+      the label fix. It's ~2 days, independently valuable, and it's the entire visual payoff. Then ship the grouping
+      once you've ratified the buckets — that's where the structural win is, and it can wait for #931.
+      <b>C</b> is the better end-state only if SyncView keeps adding surfaces; today it costs the most and takes width
+      from the views that need it most.</div>
+  </div>
+
+  <!-- ══════════ ROLE / VISIBILITY ══════════ -->
+  <div class="card">
+    <h2>Who sees what — as verified in the shipping code</h2>
+    <div class="note warn" style="margin-top:0;margin-bottom:14px"><b>Surprise:</b> the nav buttons are <b>not role-gated at all.</b>
+      Every signed-in staff member — Admin, SMM or Creative — sees the same nine buttons. Access is enforced
+      <em>downstream</em>: the route bounces to Analytics (Linear mirror), or the data fetch fails a capability check
+      (Workload), or the edit controls quietly disappear. There are only three real auth roles
+      (<code>admin</code>, <code>smm</code>, <code>creative</code>) — "Kasper" is a comment-author role and a
+      <code>?Kasper=1</code> session unlock, not an auth role; "editor"/"designer" are display labels for Creative.
+      Client-link visitors don't get a filtered nav — the whole header is removed.</div>
+    <div class="scroll-x"><table id="roleTable"></table></div>
+    <div class="note"><b>Design consequence:</b> "Respect capability" (toggle above) is a genuine improvement B and C
+      unlock — a Creative would stop seeing four tabs that bounce or fail for them. It's also a <b>behaviour change</b>,
+      not just styling: it needs your sign-off separately from the layout question.</div>
+  </div>
+
+</div>
+
+<script>
+/* NON-OPERATIVE MOCKUP — self-contained, no app code imported. */
+const ICON = {
+  analytics:'<svg viewBox="0 0 16 16" fill="none"><path d="M2 8.5L8 2.5L14 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7V13.5H12V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  linear:'<svg viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  submit:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>',
+  templates:'<svg viewBox="0 0 16 16" fill="none"><rect x="2.25" y="2.25" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="8.75" y="2.25" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="2.25" y="8.75" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="8.75" y="8.75" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>',
+  filming:'<svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2" stroke="currentColor" stroke-width="1.5"/><path d="M11 7l2.5-1.6v5.2L11 9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+  workload:'<svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><rect x="4.5" y="8" width="2" height="2" rx="0.3" fill="currentColor"/><rect x="7" y="8" width="2" height="2" rx="0.3" fill="currentColor"/><rect x="9.5" y="8" width="2" height="2" rx="0.3" fill="currentColor"/></svg>',
+  calendar:'<svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  samples:'<svg viewBox="0 0 16 16" fill="none"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 8.2L7 10.2L11 5.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  tiktok:'<svg viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 13.5h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
+};
+
+/* visibility = how the button is gated TODAY. capability = who can actually USE it. */
+const TABS = [
+  {key:'home',      label:'Analytics',     icon:'analytics', hash:'#',              group:'Measure', vis:'always', cap:['admin','smm','creative'], gate:'—',                       use:'Tier 2 · weekly'},
+  {key:'production',label:'Linear',        icon:'linear',    hash:'#production',    group:'Produce', vis:'always', cap:['admin','smm','creative'], gate:'route bounces if no identity', use:'Tier 1 · daily'},
+  {key:'linear',    label:'Submit',        icon:'submit',    hash:'#linear',        group:'Produce', vis:'always', cap:['admin','smm'],            gate:'intake = admin/smm',      use:'Tier 1 · intake'},
+  {key:'templates', label:'Templates',     icon:'templates', hash:'#templates',     group:'Plan',    vis:'always', cap:['admin','smm','creative'], gate:'—',                       use:'Tier 2 · occasional'},
+  {key:'filming',   label:'Filming Plans', icon:'filming',   hash:'#filming-plans', group:'Plan',    vis:'always', cap:['admin','smm','creative'], gate:'edit = admin only',       use:'Tier 2 · weekly'},
+  {key:'workload',  label:'Workload',      icon:'workload',  hash:'#workload',      group:'Plan',    vis:'always', cap:['admin','smm','creative'], gate:'read admin/smm/creative · edit admin/smm', use:'Tier 2 · daily'},
+  {key:'calendar',  label:'Calendar',      icon:'calendar',  hash:'#calendar',      group:'Produce', vis:'always', cap:['admin','smm','creative'], gate:'—',                       use:'Tier 0/1 · daily'},
+  {key:'samples',   label:'Samples',       icon:'samples',   hash:'#sample-reviews',group:'Produce', vis:'flag',   cap:['admin','smm','creative'], gate:'flag _sxrEnabled (?sxr=0 opts out)', use:'Tier 0/1 · daily'},
+  {key:'tiktok',    label:'TikTok Upload', icon:'tiktok',    hash:'#tiktok-upload', group:'Publish', vis:'always', cap:['admin','smm'],            gate:'—',                       use:'occasional'}
+];
+const GROUPS = ['Plan','Produce','Publish','Measure'];
+const ROLE_LABEL = {admin:'Admin', smm:'SMM', creative:'Creative'};
+
+let role = 'admin', model = 'today';
+let selBase='calendar', selA='calendar', selB={group:'Produce',tab:'calendar'}, selC='calendar';
+
+const visible = () => model === 'today' ? TABS.slice() : TABS.filter(t => t.cap.includes(role));
+const tabsIn = g => visible().filter(t => t.group === g);
+const groupsFor = () => GROUPS.filter(g => tabsIn(g).length > 0);
+const byKey = k => TABS.find(t => t.key === k);
+const usable = t => t.cap.includes(role);
+
+function movePill(seg, animate) {
+  if (!seg) return;
+  const pill = seg.querySelector('.seg-pill');
+  const act = seg.querySelector('[aria-selected="true"]');
+  if (!pill) return;
+  if (!act) { pill.style.opacity = '0'; return; }
+  pill.style.opacity = '1';
+  if (!animate) pill.style.transition = 'none';
+  pill.style.width = act.offsetWidth + 'px';
+  pill.style.transform = 'translateX(' + act.offsetLeft + 'px)';
+  if (!animate) requestAnimationFrame(() => { pill.style.transition = ''; });
+}
+function segBtn(t, sel) {
+  const dim = (model === 'today' && !usable(t)) ? ' style="opacity:.45"' : '';
+  return '<button class="seg-btn" data-key="' + t.key + '" aria-selected="' + sel + '"' + dim + '>' + ICON[t.icon] + t.label + '</button>';
+}
+function stub(idT, idS, t) {
+  document.getElementById(idT).textContent = t.label;
+  document.getElementById(idS).textContent = t.hash + '   ·   ' + t.use + (usable(t) ? '' : '   ·   ⚠ not usable by ' + ROLE_LABEL[role]);
+}
+
+function render(animate = true) {
+  const list = visible();
+  [['selBase',()=>selBase,v=>selBase=v], ['selA',()=>selA,v=>selA=v], ['selC',()=>selC,v=>selC=v]]
+    .forEach(([,get,set]) => { if (!list.some(t => t.key === get())) set(list[0].key); });
+
+  document.querySelectorAll('.avatar.av').forEach(a => a.textContent = ROLE_LABEL[role][0]);
+
+  document.getElementById('baselineNav').innerHTML = list.map(t =>
+    '<button class="nav-btn' + (t.key===selBase?' active':'') + '"' + ((model==='today'&&!usable(t))?' style="opacity:.5"':'') + ' data-base="' + t.key + '">' + ICON[t.icon] + t.label + '</button>').join('');
+  stub('titleBase','subBase', byKey(selBase));
+
+  const segA = document.getElementById('segA');
+  segA.innerHTML = '<div class="seg-pill"></div>' + list.map(t => segBtn(t, t.key===selA)).join('');
+  stub('titleA','subA', byKey(selA));
+
+  const gs = groupsFor();
+  if (!gs.includes(selB.group)) selB.group = gs[0];
+  let inG = tabsIn(selB.group);
+  if (!inG.some(t => t.key === selB.tab)) selB.tab = inG[0].key;
+  document.getElementById('segB1').innerHTML = '<div class="seg-pill"></div>' + gs.map(g =>
+    '<button class="seg-btn" data-group="' + g + '" aria-selected="' + (g===selB.group) + '">' + g +
+    '<span class="badge">' + tabsIn(g).length + '</span></button>').join('');
+  document.getElementById('segB2').innerHTML = '<div class="seg-pill"></div>' + inG.map(t => segBtn(t, t.key===selB.tab)).join('');
+  document.getElementById('crumbB').textContent = selB.group;
+  stub('titleB','subB', byKey(selB.tab));
+
+  let html = '';
+  gs.forEach(g => {
+    html += '<div class="side-group">' + g + '</div><div class="side-rail"><div class="side-pill"></div>';
+    tabsIn(g).forEach(t => {
+      const dim = (model==='today' && !usable(t)) ? ' style="opacity:.45"' : '';
+      html += '<button class="side-btn" data-side="' + t.key + '" aria-selected="' + (t.key===selC) + '"' + dim + '>' + ICON[t.icon] + t.label + '</button>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('sideNav').innerHTML = html;
+  stub('titleC','subC', byKey(selC));
+
+  requestAnimationFrame(() => {
+    ['roleSeg','modelSeg','segA','segB1','segB2','pillDemo'].forEach(id => movePill(document.getElementById(id), animate));
+    document.querySelectorAll('#sideNav .side-rail').forEach(rail => {
+      const pill = rail.querySelector('.side-pill'), act = rail.querySelector('[aria-selected="true"]');
+      if (!pill) return;
+      if (!act) { pill.style.opacity = '0'; return; }
+      pill.style.opacity = '1';
+      if (!animate) pill.style.transition = 'none';
+      pill.style.transform = 'translateY(' + act.offsetTop + 'px)';
+      if (!animate) requestAnimationFrame(() => { pill.style.transition = ''; });
+    });
+  });
+  renderRoleTable();
+}
+
+function renderRoleTable() {
+  const roles = ['admin','smm','creative'];
+  let h = '<tr><th>Destination</th><th>Route</th><th>Group (B/C)</th><th>Visible today</th>' +
+          roles.map(r => '<th>' + ROLE_LABEL[r] + ' can use</th>').join('') +
+          '<th>Downstream gate</th></tr>';
+  TABS.forEach(t => {
+    h += '<tr><td><b>' + t.label + '</b></td><td><code>' + t.hash + '</code></td><td>' + t.group + '</td>' +
+      '<td>' + (t.vis === 'always' ? '<span class="y">always</span>' : '<span class="flag">flag</span>') + '</td>' +
+      roles.map(r => t.cap.includes(r) ? '<td class="y">●</td>' : '<td class="n">✕</td>').join('') +
+      '<td class="dim">' + t.gate + '</td></tr>';
+  });
+  h += '<tr><td colspan="8" style="border:0;padding-top:12px;color:var(--muted);font-size:.76rem">' +
+       'Also gated, not shown above: <b>Kasper</b> (<code>?Kasper=1</code> session unlock) · <b>TikTok Pilot</b> ' +
+       '(<code>?ttpilot=1</code>) · <b>Time Off</b> (<code>#time-off</code>, no button — staff menu only, admin panel needs <code>pto-admin</code>).' +
+       '<br>Nav shown for <b>' + ROLE_LABEL[role] + '</b> in “' + (model === 'today' ? 'Show all (today)' : 'Respect capability') +
+       '”: <b>' + visible().length + '</b> of ' + TABS.length + ' destinations.</td></tr>';
+  document.getElementById('roleTable').innerHTML = h;
+}
+
+document.addEventListener('click', e => {
+  const r = e.target.closest('#roleSeg [data-role]');
+  if (r) { role = r.dataset.role; document.querySelectorAll('#roleSeg [data-role]').forEach(b => b.setAttribute('aria-selected', String(b===r))); render(); return; }
+  const m = e.target.closest('#modelSeg [data-model]');
+  if (m) { model = m.dataset.model; document.querySelectorAll('#modelSeg [data-model]').forEach(b => b.setAttribute('aria-selected', String(b===m))); render(); return; }
+  const wl = e.target.closest('#wlDemo button');
+  if (wl) { document.querySelectorAll('#wlDemo button').forEach(b => b.classList.toggle('active', b===wl)); return; }
+  const pd = e.target.closest('#pillDemo .seg-btn');
+  if (pd) { document.querySelectorAll('#pillDemo .seg-btn').forEach(b => b.setAttribute('aria-selected', String(b===pd))); movePill(document.getElementById('pillDemo'), true); return; }
+  const bs = e.target.closest('#baselineNav [data-base]');
+  if (bs) { selBase = bs.dataset.base; render(); return; }
+  const a = e.target.closest('#segA [data-key]');
+  if (a) { selA = a.dataset.key; render(); return; }
+  const b1 = e.target.closest('#segB1 [data-group]');
+  if (b1) { selB.group = b1.dataset.group; selB.tab = tabsIn(selB.group)[0].key; render(); return; }
+  const b2 = e.target.closest('#segB2 [data-key]');
+  if (b2) { selB.tab = b2.dataset.key; render(); return; }
+  const c = e.target.closest('#sideNav [data-side]');
+  if (c) { selC = c.dataset.side; render(); return; }
+});
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const r = document.documentElement;
+  r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark';
+  render(false);
+});
+window.addEventListener('resize', () => render(false));
+render(false);
+</script>
+</body>
+</html>

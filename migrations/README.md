@@ -131,6 +131,55 @@ executes these files (see `README.md` › Repository layout).
   runtime flag, authority, or live data. Migration apply, function deploy, and
   the real TEST creation drill require a separate post-merge owner-approved
   window.
+- **`2026-07-23-f34-f53-production-attachments.sql`** is the source-only
+  F34/F53/F137 artifact delta. It widens the F202 operation CHECK and both
+  enqueue allowlists by adding only `attachment`; all twelve previously
+  accepted operations remain accepted. This is the same deliberate,
+  owner-approved exception to the additive-only rule: PostgreSQL has no
+  in-place CHECK-expression alteration, so the named CHECK is dropped and
+  re-added as a strict thirteen-operation superset in one transaction. It is
+  data-safe: no data/table/column is dropped, nothing is renamed, no type is
+  changed, and no row is backfilled. The migration also adds a durable
+  monotonic artifact revision plus a service-role-only atomic Graphics
+  artifact/card projection RPC, a private
+  exact-URL-hash access-evidence sidecar, and a private Linear archive rescue
+  sidecar. Rescue certification is bound to an owner-configured private Drive
+  folder, dedicated capability hash, independent byte readback, content
+  SHA-256/length/time, and an HMAC receipt; the service role cannot seed that
+  configuration or directly certify a row. A v3 final occurrence inventory
+  produced from an independent Linear export is required before the planner
+  can report a complete zero-gap scan. It binds source artifact/export/org
+  metadata, deterministic references, hashed issue/location/URL identity and
+  source kind per occurrence; the runner requires both an owner-HMAC
+  certification and a separately pinned SHA-256 of the exact inventory file.
+  Duplicate URLs remain independently reconciled occurrences, an export-only
+  undiscovered occurrence remains a gap, and unrecoverable references require
+  a separate exact-hash owner disposition. `VERIFIED` also requires a
+  nonempty, exact, duplicate-free independent readback receipt set for all
+  rescued rows. The migration revokes inherited whole-table browser SELECT on
+  `batches`/`deliverables`, withholds the three typed batch URL columns plus
+  `file_url`, `brief`, and `linear_raw`, and exposes only bounded derived,
+  URL-free Production/Workload fields through
+  `production_deliverables_browser_v1`; exact Markdown description reads use
+  the active-roster, role/team-scoped no-store `production-write` action.
+  Service reads are unchanged. The compatible UI/functions must release before
+  that grant change; their temporary legacy projection is entered only for an
+  explicit relation-not-found response for this exact view, never for an
+  authorization, server, or network failure. The migration seeds no rescue configuration and changes neither
+  frozen writer, runtime flag, authority, n8n, nor live data. Constraint apply,
+  function deploy, config seed, rescue, and any real TEST attachment drill
+  remain a separate post-merge owner-approved window under
+  `docs/ops/F34_LINEAR_ASSET_RESCUE.md`.
+- **`2026-07-23-production-comment-thread-lifecycle.sql`** is the additive,
+  source-only F39/F42/F43 canonical comment delta. It adds protected read
+  audit/budgets, lifecycle idempotency receipts, card-link/import conflict
+  provenance, and service-only RPCs for lifecycle, native-ID binding, and the
+  separately reviewed two-surface import. It replaces relevant RPC bodies
+  without dropping data and reuses the existing `comment` operation; there is
+  no outbox CHECK widening or F27 operation-allowlist change. F2 `off` pauses
+  applicable comment drain debt rather than retiring it. Migration apply,
+  function deploy, private Calendar+SXR import, and real TEST read/write/
+  projection drills require a separate post-merge owner-approved window.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

@@ -329,7 +329,7 @@ ok(/const WORKLOAD_LINEAR_URL\s*=\s*CAL_SUPABASE_URL \+ '\/functions\/v1\/worklo
   && /_syncviewRequireStaffIdentity\('workload-linear-read'\)/.test(clientMetadataRead)
   && /action: 'metadata', issue_ids: chunk/.test(clientForeignMetadataRead)
   && /index \+= 100/.test(clientForeignMetadataRead)
-  && /Math\.min\(3, chunks\.length\)/.test(clientForeignMetadataRead)
+  && /Math\.min\(6, chunks\.length\)/.test(clientForeignMetadataRead)
   && /json\.complete !== true/.test(clientForeignMetadataRead)
   && /if \(capability === 'workload-linear-read'\) return role === 'admin' \|\| role === 'smm' \|\| role === 'creative';/.test(INDEX)
   && /if \(capability === 'workload-linear'\) return role === 'admin' \|\| role === 'smm';/.test(INDEX),

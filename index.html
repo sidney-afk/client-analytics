@@ -3262,6 +3262,12 @@
         .wl-plan-origin svg { width: 13px; height: 13px; display: block; }
         .wl-plan-origin.is-manual { color: var(--sv-fg-5e6ad2); }
         .wl-plan-origin.is-fallback { color: var(--sv-fg-92400e); }
+        .wl-plan-origin.is-loading { color: var(--text-muted); }
+        .wl-plan-origin.is-loading svg { animation: wlPlanOriginSpin 0.9s linear infinite; }
+        @keyframes wlPlanOriginSpin { to { transform: rotate(360deg); } }
+        .wl-settle-in { animation: wlSettleIn 340ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+        @keyframes wlSettleIn { from { opacity: 0.25; transform: translateY(-6px) scale(0.985); } to { opacity: 1; transform: none; } }
+        @media (prefers-reduced-motion: reduce) { .wl-plan-origin.is-loading svg, .wl-settle-in { animation: none; } }
         .wl-plan-origin-count { min-width: 6px; text-align: center; }
         .wl-workload-group { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; color: var(--sv-fg-9a3412); flex: 0 0 16px; transition: background 0.12s, opacity 0.12s; }
         .wl-workload-group.is-some { opacity: 0.68; }
@@ -13041,6 +13047,7 @@
         linearMetadataStatus: 'loading',            // 'loading' | 'refreshing' | 'ready' | 'stale' | 'unknown'
         linearMetadataError: null,
         planHasSnapshot: false,                    // true only after one authoritative workload-plan list response
+        planLoading: false,                        // true during the fast first paint, before plans have resolved/failed — items use the automatic estimate so they don't move when plans land
         planStatus: 'loading',                     // 'loading' | 'refreshing' | 'ready' | 'stale' | 'unknown'
         planError: null,
         planFetchedAt: null,
@@ -13108,6 +13115,33 @@
         return on;
     }
     function _wlV2Ready() { return _wlV2Enabled() && !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY; }
+
+    // Fast first paint: publish the (non-sensitive) issue rows and drop the
+    // skeleton as soon as the fast Supabase read returns, instead of blocking
+    // the whole cold load on the live-Linear weight-metadata sweep. Plans stay
+    // gated behind the fail-closed auth check (no early adoption), but every
+    // item is placed with the same automatic due−1-working-day estimate the
+    // post-plan board uses, so never-manually-planned items land in their final
+    // column and don't move; only manually-planned items settle when plans
+    // arrive, and weights refine in place. Default ON with a sticky per-browser
+    // kill switch mirroring ?wl2: ?wlfast=0 forces the original block-until-
+    // metadata behavior, ?wlfast=1 clears the opt-out. Flip WL_FAST_PAINT_DEFAULT
+    // to false to disable for everyone (lossless — it only reorders paint).
+    const WL_FAST_PAINT_DEFAULT = true;
+    const WL_FAST_PAINT_KILL_KEY = 'syncview_workload_fastpaint_off';
+    let _wlFastPaintFlagCache = null;
+    function _wlFastPaintEnabled() {
+        if (_wlFastPaintFlagCache !== null) return _wlFastPaintFlagCache;
+        let on = WL_FAST_PAINT_DEFAULT;
+        try {
+            const q = new URLSearchParams(location.search).get('wlfast');
+            if (q === '1' || q === 'true') { on = true; localStorage.removeItem(WL_FAST_PAINT_KILL_KEY); }
+            else if (q === '0' || q === 'false') { on = false; localStorage.setItem(WL_FAST_PAINT_KILL_KEY, '1'); }
+            else { on = WL_FAST_PAINT_DEFAULT && (localStorage.getItem(WL_FAST_PAINT_KILL_KEY) !== '1'); }
+        } catch { on = WL_FAST_PAINT_DEFAULT; }
+        _wlFastPaintFlagCache = on;
+        return on;
+    }
 
     let _wlV2ClientObj = null, _wlV2ClientPromise = null;
     function _wlV2Client() {
@@ -13484,39 +13518,90 @@
         return authority;
     }
 
+    // Session memo for the live-Linear weight sweep, paired with the 5-minute
+    // issue cache: an issue's foreign metadata (weight + due) rarely changes,
+    // and the watermark poll + realtime refresh catch changes, so a bounded
+    // 5-minute reuse lets repeated foreground loads skip re-sweeping ids we
+    // already have — shrinking the live api.linear.app round-trips. In-memory
+    // only (never persisted); a full purge clears it.
+    const WL_FOREIGN_METADATA_TTL_MS = 5 * 60 * 1000;
+    const WL_FOREIGN_METADATA_MAX_RETRIES = 3;
+    const _wlForeignMetadataCache = new Map();
+    function wlForeignMetadataCacheClear() {
+        try { _wlForeignMetadataCache.clear(); } catch {}
+    }
     async function wlFetchForeignLinearMetadata(issueIds) {
         if (!issueIds.length) return [];
-        const chunks = [];
-        for (let index = 0; index < issueIds.length; index += 100) chunks.push(issueIds.slice(index, index + 100));
+        // Reuse fresh cached rows (5-min TTL) and only sweep the misses. The
+        // cache is module-level in the app; when this function is unit-extracted
+        // in isolation it is absent, so we transparently fall back to fetching
+        // every id (no behavior change for those tests).
+        const cache = (typeof _wlForeignMetadataCache !== 'undefined' && _wlForeignMetadataCache) || null;
+        const ttl = (typeof WL_FOREIGN_METADATA_TTL_MS !== 'undefined' && WL_FOREIGN_METADATA_TTL_MS) || (5 * 60 * 1000);
+        const maxRetries = (typeof WL_FOREIGN_METADATA_MAX_RETRIES !== 'undefined' && WL_FOREIGN_METADATA_MAX_RETRIES) || 3;
+        const now = Date.now();
         const rows = [];
+        const toFetch = [];
+        for (const id of issueIds) {
+            const key = String(id || '');
+            const entry = cache && cache.get(key);
+            if (entry && (now - entry.fetchedAt) < ttl) rows.push(entry.row);
+            else toFetch.push(id);
+        }
+        if (!toFetch.length) return rows;
+        const chunks = [];
+        for (let index = 0; index < toFetch.length; index += 100) chunks.push(toFetch.slice(index, index + 100));
         let cursor = 0;
         const worker = async () => {
             while (cursor < chunks.length) {
                 const chunk = chunks[cursor++];
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), WL_LINEAR_READ_TIMEOUT_MS);
-                try {
-                    const resp = await fetch(WORKLOAD_LINEAR_URL, {
-                        method: 'POST',
-                        cache: 'no-store',
-                        signal: controller.signal,
-                        headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, WORKLOAD_LINEAR_URL),
-                        body: JSON.stringify({ action: 'metadata', issue_ids: chunk })
-                    });
-                    let json = null;
-                    try { json = await resp.json(); } catch (error) {}
-                    if (!resp.ok || !json || json.ok !== true || json.complete !== true || !Array.isArray(json.rows)) {
-                        const error = new Error((json && json.error) || ('HTTP ' + resp.status));
-                        error.status = resp.status;
-                        throw error;
+                // A live Linear sweep can hit rate limits; retry a 429 with
+                // exponential backoff (honoring Retry-After) before failing.
+                for (let attempt = 0; ; attempt++) {
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), WL_LINEAR_READ_TIMEOUT_MS);
+                    let retryDelay = -1;
+                    let chunkRows = null;
+                    try {
+                        const resp = await fetch(WORKLOAD_LINEAR_URL, {
+                            method: 'POST',
+                            cache: 'no-store',
+                            signal: controller.signal,
+                            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, WORKLOAD_LINEAR_URL),
+                            body: JSON.stringify({ action: 'metadata', issue_ids: chunk })
+                        });
+                        if (resp.status === 429 && attempt < maxRetries) {
+                            const header = resp.headers && resp.headers.get ? Number(resp.headers.get('Retry-After')) : NaN;
+                            retryDelay = Number.isFinite(header) && header > 0
+                                ? Math.min(header * 1000, 8000)
+                                : Math.min(500 * Math.pow(2, attempt), 8000);
+                        } else {
+                            let json = null;
+                            try { json = await resp.json(); } catch (error) {}
+                            if (!resp.ok || !json || json.ok !== true || json.complete !== true || !Array.isArray(json.rows)) {
+                                const error = new Error((json && json.error) || ('HTTP ' + resp.status));
+                                error.status = resp.status;
+                                throw error;
+                            }
+                            chunkRows = json.rows;
+                        }
+                    } finally {
+                        clearTimeout(timeout);
                     }
-                    rows.push(...json.rows);
-                } finally {
-                    clearTimeout(timeout);
+                    if (retryDelay >= 0) {
+                        await new Promise(resolve => setTimeout(resolve, retryDelay));
+                        continue;
+                    }
+                    for (const row of chunkRows) {
+                        rows.push(row);
+                        const key = cache && String(row && row.issue_id || '');
+                        if (cache && key) cache.set(key, { row, fetchedAt: Date.now() });
+                    }
+                    break;
                 }
             }
         };
-        await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, worker));
+        await Promise.all(Array.from({ length: Math.min(6, chunks.length) }, worker));
         return rows;
     }
 
@@ -13939,6 +14024,7 @@
         wlState.planError = 'Staff sign-in is required to load saved work days.';
         wlState.planFetchedAt = null;
         wlState.workloadByIssueId.clear();
+        if (typeof wlForeignMetadataCacheClear === 'function') wlForeignMetadataCacheClear();
         if (wlState.dueAuthorityByIssueId) wlState.dueAuthorityByIssueId.clear();
         if (wlState.nativeDueTargetByIssueId) wlState.nativeDueTargetByIssueId.clear();
         wlState.linearMetadataStatus = 'unknown';
@@ -13953,8 +14039,12 @@
         }
     }
 
+    // Issue ids that moved from their fast-paint automatic estimate to a saved
+    // manual plan when plans landed — the bounded set that animates its settle.
+    let _wlSettleAnimIds = null;
     async function wlLoadSnapshot(force, fallback) {
         const loadGeneration = ++_wlPlanLoadGeneration;
+        let fastPainted = false;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'refreshing' : 'loading';
         wlState.planError = null;
@@ -13977,12 +14067,35 @@
             payload = { issues: wlState.issueSnapshot, fetchedAt: wlState.fetchedAt, fromCache: true, usedFallback: true };
         }
         if (!payload) throw issuesResult.reason || new Error('Failed to load issues from Linear.');
+
+        // Fast first paint. Publish issue rows (NOT role-sensitive — the auth
+        // branch below keeps them while withholding the private projections) and
+        // drop the skeleton NOW, before the live-Linear weight sweep. Plans stay
+        // gated behind the auth check (no early adoption — the fail-closed
+        // contract is unchanged); planLoading places every item at the same
+        // automatic estimate the post-plan board uses, so non-manually-planned
+        // items don't move and only manually-planned items settle when plans
+        // land. Weights show the one-unit fallback until the sweep resolves.
+        if (typeof _wlFastPaintEnabled === 'function' && _wlFastPaintEnabled() && loadGeneration === _wlPlanLoadGeneration) {
+            wlState.planLoading = true;
+            fastPainted = true;
+            wlApplyData(payload.issues, payload.fetchedAt);
+            wlState.loading = false;
+            if (document.querySelector('.workload-view')) {
+                renderWorkloadAll();
+            }
+        }
+
         const [metadataResult] = await Promise.allSettled([wlFetchLinearMetadata(payload.issues)]);
 
         // Only the newest overlapping refresh may publish plan or issue state.
         // Older calls can still populate the shared HTTP cache, but they cannot
         // overwrite a newer saved-plan snapshot or downgrade its status.
         if (loadGeneration !== _wlPlanLoadGeneration) return null;
+        // Plans/metadata have resolved (or failed): leave the fast-paint
+        // loading estimate. A genuine failure now shows the honest deadline
+        // fallback; success switches to authoritative auto/manual placement.
+        wlState.planLoading = false;
         const foregroundFailures = [plansResult, metadataResult]
             .filter(result => result.status === 'rejected')
             .map(result => result.reason);
@@ -14008,7 +14121,40 @@
             console.warn('[workload] Workload label metadata unavailable; using one unit per item', metadataResult.reason);
         }
         wlApplyData(payload.issues, payload.fetchedAt);
+        // If this load fast-painted at automatic estimates, flag the manually
+        // planned items whose saved day differs from that estimate so the next
+        // render can animate only their bounded settle (non-manual items never
+        // moved). Cleared and consumed by the settle pass in initWorkloadView.
+        if (fastPainted && wlState.planHasSnapshot) {
+            const moved = new Set();
+            for (const issue of payload.issues || []) {
+                if (!issue || !issue.isSubIssue) continue;
+                const manual = wlPlanDate(issue);
+                if (manual && manual !== wlAutoPlanDate(issue)) moved.add(String(issue.id || ''));
+            }
+            _wlSettleAnimIds = moved.size ? moved : null;
+        }
         return payload;
+    }
+
+    // Entrance animation for the bounded set of manually planned items that
+    // settle from their fast-paint estimate to their saved column. Runs after
+    // the authoritative render; skipped under reduced-motion. Purely visual.
+    function wlApplySettleAnimation() {
+        const ids = _wlSettleAnimIds;
+        _wlSettleAnimIds = null;
+        if (!ids || !ids.size) return;
+        try {
+            if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        } catch {}
+        try {
+            document.querySelectorAll('.workload-view [data-wl-issue-id]').forEach(el => {
+                if (!ids.has(el.getAttribute('data-wl-issue-id') || '')) return;
+                el.classList.add('wl-settle-in');
+                const done = () => { el.classList.remove('wl-settle-in'); el.removeEventListener('animationend', done); };
+                el.addEventListener('animationend', done);
+            });
+        } catch {}
     }
 
     const WL_WORKLOAD_TIME_ZONE = 'America/Guatemala';
@@ -14105,7 +14251,7 @@
             && Number.isFinite(Date.parse(value));
     }
     function wlPlacementLabel(mode) {
-        return ({ auto: 'Automatically planned', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback' })[mode] || '';
+        return ({ auto: 'Automatically planned', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
     }
     function wlPlanOriginHtml(mode, compact, count) {
         const label = wlPlacementLabel(mode);
@@ -14113,6 +14259,8 @@
         let icon;
         if (mode === 'manual') {
             icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.2 2.2h5.6l-.8 3 1.7 1.7v1.3H8.7v5.2L8 14l-.7-.6V8.2H4.3V6.9L6 5.2l-.8-3Z" fill="currentColor"/></svg>';
+        } else if (mode === 'loading') {
+            icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 0 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
         } else if (mode === 'fallback') {
             icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.2h10v9.6H3zM3 6h10M5.5 1.8v2.8M10.5 1.8v2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8v2.1M8 11.8h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
         } else {
@@ -14122,9 +14270,11 @@
         const accessible = Number(count) > 0 ? `${Number(count)} ${label.toLowerCase()}` : label;
         const tip = mode === 'manual'
             ? 'Manual plan: stays on this work day until someone changes or clears it.'
-            : (mode === 'fallback'
-                ? 'Deadline fallback: no plan day is saved, so this uses the due date.'
-                : 'Automatic plan: follows the authoritative due date and moves when that deadline changes.');
+            : (mode === 'loading'
+                ? 'Loading saved plans… showing an automatic estimate from the due date; only manually planned items will settle when plans arrive.'
+                : (mode === 'fallback'
+                    ? 'Deadline fallback: no plan day is saved, so this uses the due date.'
+                    : 'Automatic plan: follows the authoritative due date and moves when that deadline changes.'));
         return `<span class="wl-plan-origin is-${wlEscape(mode)}" role="img" aria-label="${wlEscape(accessible)}" data-tip="${wlEscape(tip)}">${icon}${amount}</span>`;
     }
     function wlGroupPlacementMode(subs) {
@@ -14134,7 +14284,7 @@
         return 'mixed';
     }
     function wlGroupPlanOriginHtml(subs) {
-        const counts = { auto: 0, manual: 0, fallback: 0 };
+        const counts = { auto: 0, manual: 0, fallback: 0, loading: 0 };
         for (const sub of subs || []) {
             const mode = wlPlacementMode(sub);
             if (Object.prototype.hasOwnProperty.call(counts, mode)) counts[mode]++;
@@ -14475,16 +14625,24 @@
         if (wlPlanDate(sub)) return 'manual';
         if (!String(sub && sub.dueDate || '').slice(0, 10)) return 'none';
         // Only call a derived day "automatic" after the role-gated sidecar
-        // answered authoritatively. Otherwise a hidden manual override may
-        // exist, so the honest degraded label is "Deadline fallback".
-        return wlState.planHasSnapshot ? 'auto' : 'fallback';
+        // answered authoritatively. While plans are still loading (fast first
+        // paint) we place at the same automatic estimate so never-manually-
+        // planned items don't move, but label it "Planning…" — honest that a
+        // hidden manual override may still settle. A genuine failure (not
+        // loading, no snapshot) keeps the "Deadline fallback" (raw due date).
+        if (wlState.planHasSnapshot) return 'auto';
+        return wlState.planLoading ? 'loading' : 'fallback';
     }
     function wlDisplayDate(sub) {
         const manual = wlPlanDate(sub);
         if (manual) return manual;
         const dueDate = String(sub && sub.dueDate || '').slice(0, 10);
         if (!dueDate) return '';
-        return wlState.planHasSnapshot ? wlAutoPlanDate(sub) : dueDate;
+        // During the fast first paint (planLoading) place at the same
+        // automatic estimate the post-plan board uses, so non-manually-planned
+        // items land in their final column and never shift when plans arrive.
+        // A genuine plan-read failure still shows the raw due date.
+        return (wlState.planHasSnapshot || wlState.planLoading) ? wlAutoPlanDate(sub) : dueDate;
     }
 
     // Hybrid mode is deliberately item-local: an explicit manual plan wins;
@@ -14710,8 +14868,14 @@
             if (!cache) wlState.error = e.message || 'Failed to load issues from Linear.';
         } finally {
             wlState.loading = false;
+            // Backstop: the load has settled, so leave the fast-paint estimate
+            // even if wlLoadSnapshot returned early (superseded/thrown).
+            wlState.planLoading = false;
             wlScheduleNativeDueReceiptRetry();
             renderWorkloadAll({ deferWhilePopoverOpen: true });
+            // Animate only the manually planned items that settled to a new
+            // column (non-manual items kept their fast-paint estimate).
+            wlApplySettleAnimation();
             // If the user already opened the client-search dropdown while we
             // were fetching, drop the "Loading workload…" row now that data
             // is in. We trigger an `input` event so the existing render
@@ -41002,6 +41166,123 @@
             if (PROD_ORDER_KEYS.has(saved.orderBy)) _prodState.orderBy = saved.orderBy;
             if (typeof saved.showSubIssues === 'boolean') _prodState.showSubIssues = saved.showSubIssues;
         }
+
+        /* -----------------------------------------------------------------
+         * Production stale-while-revalidate cache (mirrors Workload's cache)
+         * -----------------------------------------------------------------
+         * The Linear tab re-reads its whole projection — clients, members,
+         * batches, and every browser-safe deliverable row (~thousands) — from
+         * Supabase on every page load, and shows the skeleton until all of it
+         * lands + is processed. `_prodState` is in-memory only, so a fresh page
+         * load never benefits from the previous one. This persists the exact
+         * adapter inputs to localStorage so a REVISIT paints instantly from the
+         * last snapshot, then revalidates in the background and re-renders only
+         * on a diff (the normal foreground read still runs on a cold cache).
+         *
+         * Best-effort: rows are cached VERBATIM (a JSON round-trip preserves
+         * null-valued keys, which _prodDeliverableLive / identity-repair reads
+         * probe with _prodHasOwn), and a QuotaExceededError just skips the write
+         * — behavior degrades to exactly today's every-visit reload, never
+         * worse. Default ON with a sticky kill switch (?prodcache=0), mirroring
+         * the ?wl2 / ?v2 convention. The DATA is the same anon-granted browser
+         * projection the calendar already caches per client.
+         * ----------------------------------------------------------------- */
+        const PROD_CACHE_KEY = 'syncview_production_cache_v1';
+        const PROD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+        const PROD_CACHE_KILL_KEY = 'syncview_production_cache_off';
+        let _prodCacheFlagCache = null;
+        function _prodCacheEnabled() {
+            if (_prodCacheFlagCache !== null) return _prodCacheFlagCache;
+            let on = true;
+            try {
+                const q = new URLSearchParams(location.search).get('prodcache');
+                if (q === '1' || q === 'true') { on = true; localStorage.removeItem(PROD_CACHE_KILL_KEY); }
+                else if (q === '0' || q === 'false') { on = false; localStorage.setItem(PROD_CACHE_KILL_KEY, '1'); }
+                else { on = (localStorage.getItem(PROD_CACHE_KILL_KEY) !== '1'); }
+            } catch { on = true; }
+            _prodCacheFlagCache = on;
+            return on;
+        }
+        function _prodCacheRead() {
+            if (!_prodCacheEnabled()) return null;
+            try {
+                const raw = localStorage.getItem(PROD_CACHE_KEY);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (!parsed || parsed.schema !== 1 || !parsed.savedAt) return null;
+                if (Date.now() - Number(parsed.savedAt) > PROD_CACHE_TTL_MS) return null;
+                if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.members)
+                    || !Array.isArray(parsed.batches) || !Array.isArray(parsed.deliverables)) return null;
+                return parsed;
+            } catch { return null; }
+        }
+        function _prodCacheWrite(data) {
+            if (!_prodCacheEnabled() || !data) return false;
+            let payload;
+            try {
+                payload = JSON.stringify({
+                    schema: 1,
+                    savedAt: Date.now(),
+                    clients: data.clients || [],
+                    members: data.members || [],
+                    batches: data.batches || [],
+                    deliverables: data.deliverables || [],
+                    authority: data.authority || null
+                });
+            } catch { return false; }
+            try { localStorage.setItem(PROD_CACHE_KEY, payload); return true; }
+            catch (e) {
+                // QuotaExceededError — evict oldest same-family snapshots
+                // (calendar / samples) and our own prior entry to make room,
+                // then retry. On final failure drop our key so a truncated or
+                // stale snapshot never seeds a wrong first paint (same
+                // drop-on-fail rule as _calCacheWrite). Cache-off then just
+                // means today's every-visit reload.
+                try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
+                try {
+                    const evictable = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const k = localStorage.key(i);
+                        if (!k) continue;
+                        if (k.startsWith(CAL_CACHE_KEY_PREFIX) || k.startsWith(SXR_CACHE_PREFIX)) {
+                            let savedAt = 0;
+                            try { savedAt = Number(JSON.parse(localStorage.getItem(k) || '{}').savedAt) || 0; } catch {}
+                            evictable.push({ k, savedAt });
+                        }
+                    }
+                    evictable.sort((a, b) => a.savedAt - b.savedAt);
+                    for (const { k } of evictable) {
+                        try { localStorage.removeItem(k); } catch {}
+                        try { localStorage.setItem(PROD_CACHE_KEY, payload); return true; } catch {}
+                    }
+                } catch {}
+                return false;
+            }
+        }
+        function _prodHydrateFromCache() {
+            const cached = _prodCacheRead();
+            if (!cached) return false;
+            const clients = cached.clients;
+            const members = cached.members;
+            const batches = cached.batches;
+            const deliverables = cached.deliverables;
+            _prodState.clients = clients;
+            _prodState.members = members;
+            _prodState.batches = batches;
+            _prodState.deliverables = deliverables;
+            _prodState.authority = cached.authority || null;
+            _prodState.authorityLoaded = !!cached.authority;
+            _prodState.authorityReadAt = Number(cached.savedAt) || 0;
+            _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables });
+            _prodState.loaded = true;
+            _prodState.fromCache = true;
+            // A deep-link target absent from the cached snapshot falls back to
+            // the list — the same guard _prodLoadData applies after a live read.
+            if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
+            if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
+            if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) { _prodState.openProjectId = ''; _prodState.view = 'list'; }
+            return true;
+        }
         function _prodLoadDisplayPrefs() {
             // PORT-DELTA: wired Production persists display-only state per user; the artifact keeps state in memory.
             try {
@@ -45455,8 +45736,14 @@
             _prodPrimeFromUrl();
             _prodStartAuthorityRefresh();
             _prodStartPolicyDayClock();
+            // Stale-while-revalidate: paint instantly from the last snapshot,
+            // then revalidate in the background. On a cold cache this is a no-op
+            // and the normal foreground load runs below.
+            let hydrated = false;
+            if (!_prodState.loaded && !_prodState.loading) hydrated = _prodHydrateFromCache();
             _prodRender();
-            if (!_prodState.loaded && !_prodState.loading) _prodLoadData();
+            if (hydrated) _prodLoadData({ silent: true });
+            else if (!_prodState.loaded && !_prodState.loading) _prodLoadData();
         }
         function _prodPrimeFromUrl() {
             try {
@@ -45558,6 +45845,9 @@
                 _prodState.adapter = _prodAdapter({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables });
                 _prodState.loaded = true;
                 _prodState.loading = false;
+                _prodState.fromCache = false;
+                // Persist this snapshot so the next visit paints instantly.
+                _prodCacheWrite({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables, authority });
                 if (_prodState.openId && !_prodIssue(_prodState.openId)) {
                     _prodState.openId = '';
                     _prodState.view = 'list';

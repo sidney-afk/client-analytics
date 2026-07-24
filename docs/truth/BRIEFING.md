@@ -1,6 +1,6 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-24 @ e02b942 (owner-approved F200 roster/data correction live; product source
+> Last verified: 2026-07-24 @ 2ae3cc9 (owner-approved F200 roster/data correction live; product source
 > unchanged from audit base `1e7c0fd`) + source-only F27 operator-toolkit candidate (PR #901 stop
 > evidence still governs live state; corrective source is not live) + Phase-3 reconciliation, the
 > public-safe boot/refresh/history audits ending at F199, and the read-only Production/Graphics gap

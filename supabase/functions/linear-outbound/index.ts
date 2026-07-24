@@ -13,6 +13,7 @@ import {
   exactCreateIssueLabelIds,
   extractMutationResult,
   issueFields,
+  markerFromBody,
   mergeBatchParentIds,
   stateIdForSlug,
   terminalCreateDependencyConflict,
@@ -240,6 +241,46 @@ async function readIssue(id: string, allowMissing = false): Promise<JsonMap | nu
   }
 }
 
+async function readLinearComment(id: string, allowMissing = false): Promise<JsonMap | null> {
+  if (!id) return null;
+  try {
+    const data = await linearGraphql(
+      "query SyncViewMirrorComment($id: String!) { comment(id: $id) { id body createdAt updatedAt issue { id identifier updatedAt } } }",
+      { id },
+    );
+    const comment = data.comment;
+    return comment && typeof comment === "object" && !Array.isArray(comment)
+      ? comment as JsonMap
+      : null;
+  } catch (error) {
+    if (allowMissing && /\b(entity|comment|resource) not found\b/i.test(safeError(error))) return null;
+    throw error;
+  }
+}
+
+async function readCommentByMarker(issueId: string, dedupKey: string): Promise<JsonMap | null> {
+  if (!issueId || !dedupKey) return null;
+  let after: string | null = null;
+  for (let page = 0; page < 50; page++) {
+    const data = await linearGraphql(
+      "query SyncViewMirrorIssueComments($id: String!, $after: String) { issue(id: $id) { comments(first: 100, after: $after) { nodes { id body createdAt updatedAt issue { id identifier updatedAt } } pageInfo { hasNextPage endCursor } } } }",
+      { id: issueId, after },
+    );
+    const connection = parseJson(parseJson(data.issue).comments);
+    const nodes = Array.isArray(connection.nodes) ? connection.nodes : [];
+    const match = nodes.find(item =>
+      markerFromBody(parseJson(item).body) === clean(dedupKey)
+    );
+    if (match && typeof match === "object" && !Array.isArray(match)) return match as JsonMap;
+    const pageInfo = parseJson(connection.pageInfo);
+    if (pageInfo.hasNextPage !== true) return null;
+    const next = clean(pageInfo.endCursor);
+    if (!next || next === after) throw new Error("comment marker pagination stalled");
+    after = next;
+  }
+  throw new Error("comment marker pagination exceeded");
+}
+
 async function readTeam(id: string): Promise<JsonMap | null> {
   if (!id) return null;
   const data = await linearGraphql(
@@ -385,11 +426,27 @@ async function dependencyResult(supabase: SupabaseClient, row: OutboxRow): Promi
       conflict: parseJson(result.conflict),
     };
   }
-  if (data.status === "written") return result;
+  if (data.status === "written"
+      || (data.status === "skipped"
+        && clean(data.operation) === "comment"
+        && !!clean(result.comment_id))) {
+    return result;
+  }
   if (data.status === "shadow_ok") {
     const wouldSend = parseJson(result.would_send);
     const variables = parseJson(wouldSend.variables);
     const input = parseJson(variables.input);
+    if (clean(data.operation) === "comment") {
+      const shadowCommentId = clean(variables.id || input.id)
+        || `shadow-comment-dependency:${Number(data.id)}`;
+      return {
+        ...result,
+        comment_id: shadowCommentId,
+        linear_comment_id: shadowCommentId,
+        shadow_dependency: true,
+        synthetic_comment_dependency: true,
+      };
+    }
     const issueId = clean(input.id);
     if (issueId) return { ...result, linear_issue_id: issueId, shadow_dependency: true };
   }
@@ -411,6 +468,11 @@ async function resolveContext(
       payload.parent_linear_issue_id
         || dependency.linear_issue_id
         || dependency.issue_id,
+    ),
+    linear_comment_id: clean(
+      payload.linear_comment_id
+        || dependency.comment_id
+        || dependency.linear_comment_id,
     ),
   };
 
@@ -481,6 +543,26 @@ async function checkpointLinearResult(
     throw new Error("outbox create checkpoint CAS failed");
   }
   row.linear_result = linearResult;
+}
+
+async function bindLinearCommentId(
+  supabase: SupabaseClient,
+  row: OutboxRow,
+  linearCommentId: string,
+): Promise<void> {
+  const commentId = clean(parseJson(row.payload).comment_id || row.comment_id);
+  const providerId = clean(linearCommentId);
+  if (!commentId || !providerId) throw new Error("comment Linear binding identity missing");
+  const { data, error } = await supabase.rpc("production_comment_bind_linear_id", {
+    p_comment_id: commentId,
+    p_linear_comment_id: providerId,
+    p_outbox_id: Number(row.id),
+  });
+  const bound = parseJson(data);
+  if (error || clean(bound.id) !== commentId
+      || clean(bound.linear_comment_id) !== providerId) {
+    throw new Error("comment Linear binding failed");
+  }
 }
 
 async function releaseRow(
@@ -1227,6 +1309,39 @@ Deno.serve(async (req: Request) => {
         await unlockPending(supabase, row, 15);
         continue;
       }
+      const commentPayload = row.operation === "comment" ? parseJson(row.payload) : {};
+      const commentAction = lower(commentPayload.action || "add");
+      const cardImportWithoutForeign = row.operation === "comment"
+        && commentPayload.card_import_without_foreign === true
+        && !clean(commentPayload.linear_comment_id)
+        && !Number(row.depends_on_id || 0);
+      const shadowWithoutForeign = dependency.synthetic_comment_dependency === true
+        && control.mode === "live";
+      if ((shadowWithoutForeign || cardImportWithoutForeign)
+          && row.operation === "comment"
+          && commentAction === "delete") {
+        // No foreign comment exists for an F42 import or for shadow-only
+        // history. Canonical deletion is already converged, so terminalize
+        // without inventing a provider id or issuing a Linear request.
+        counts.written++;
+        await releaseRow(supabase, row, {
+          status: "written",
+          processed_at: new Date().toISOString(),
+          linear_result: bindF27LinearResult({
+            mutation: "commentDelete",
+            comment_id: null,
+            delete_attempted: false,
+            delete_applied: true,
+            recovered_idempotently: true,
+            shadow_transition_noop: shadowWithoutForeign,
+            card_import_transition_noop: cardImportWithoutForeign,
+            recovery_reason: "no_foreign_comment_materialized",
+          }, f27Replay, row),
+          last_error: null,
+          next_retry_at: null,
+        });
+        continue;
+      }
       const issueId = linearIssueId(row, entity, dependency)
         || (row.operation === "create" ? await deterministicLinearCreateId(row.dedup_key) : "");
       const issue = issueId ? await readIssue(issueId, row.operation === "create") : null;
@@ -1234,6 +1349,37 @@ Deno.serve(async (req: Request) => {
         await testScope(supabase, row, issue);
       }
       const context = await resolveContext(supabase, row, entity, issue, dependency);
+      if (dependency.synthetic_comment_dependency === true
+          && control.mode === "live"
+          && row.operation === "comment"
+          && commentAction === "edit") {
+        // Materialize only the current canonical edit at the shadow-to-live
+        // boundary. Historical shadow rows stay terminal; this intent creates
+        // the provider comment and binds its real id for all later lifecycle.
+        context.comment_shadow_materialize = true;
+        context.linear_comment_id = "";
+      }
+      if (cardImportWithoutForeign
+          && row.operation === "comment"
+          && commentAction === "edit") {
+        // F42 import preserves the native history but creates no Linear
+        // object. The first applicable edit therefore materializes the current
+        // canonical body once and binds that provider id for later lifecycle.
+        context.comment_import_materialize = true;
+        context.linear_comment_id = "";
+      }
+      if (row.operation === "comment" && (commentAction === "add" || commentAction === "edit")) {
+        context.comment_marker_match = await readCommentByMarker(issueId, row.dedup_key);
+      }
+      if (row.operation === "comment"
+          && commentAction === "delete"
+          && parseJson(row.linear_result).delete_attempted === true) {
+        context.comment_delete_checked = true;
+        context.linear_comment = await readLinearComment(
+          clean(context.linear_comment_id),
+          true,
+        );
+      }
       const conflict = decideConflict(row, issue, context);
 
       if (conflict.decision === "tolerated_historical") {
@@ -1284,11 +1430,34 @@ Deno.serve(async (req: Request) => {
         continue;
       }
       if (conflict.decision === "already_applied" || conflict.decision === "already_exists") {
+        const recoveredCommentId = row.operation === "comment"
+          && (commentAction === "add" || commentAction === "edit")
+          && context.comment_marker_match
+          ? clean(parseJson(context.comment_marker_match).id)
+          : commentAction === "delete"
+            ? clean(context.linear_comment_id)
+            : "";
+        if (row.operation === "comment"
+            && (commentAction === "add" || commentAction === "edit")
+            && context.comment_marker_match) {
+          await bindLinearCommentId(
+            supabase,
+            row,
+            clean(parseJson(context.comment_marker_match).id),
+          );
+        }
         counts.skipped++;
         await releaseRow(supabase, row, {
           status: f27Replay ? "written" : "skipped",
           processed_at: new Date().toISOString(),
-          linear_result: bindF27LinearResult({ conflict, issue: compactIssue(issue) }, f27Replay, row),
+          linear_result: bindF27LinearResult({
+            ...parseJson(row.linear_result),
+            conflict,
+            issue: compactIssue(issue),
+            ...(recoveredCommentId ? { comment_id: recoveredCommentId } : {}),
+            ...(commentAction === "delete" ? { delete_applied: true } : {}),
+            recovered_idempotently: row.operation === "comment",
+          }, f27Replay, row),
           last_error: null,
           next_retry_at: null,
         });
@@ -1352,6 +1521,21 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
+      if (mutation.kind === "commentDelete") {
+        // This durable pre-attempt receipt closes the external delete crash
+        // window. If Linear deletes the marker and the worker dies before its
+        // terminal checkpoint, retry verifies the exact provider comment is
+        // absent and terminalizes without issuing a second delete mutation.
+        await checkpointLinearResult(supabase, row, bindF27LinearResult({
+          ...parseJson(row.linear_result),
+          mutation: mutation.kind,
+          issue_id: issueId,
+          comment_id: clean(context.linear_comment_id),
+          delete_attempted: true,
+          delete_applied: false,
+          expected: mutation.variables,
+        }, f27Replay, row));
+      }
       if (Number(row.attempts || 0) > 0) counts.retried++;
       const data = await linearGraphql(mutation.query, mutation.variables as JsonMap);
       let result = extractMutationResult(mutation.kind, data);
@@ -1359,7 +1543,7 @@ Deno.serve(async (req: Request) => {
         result = await readIssue(issueId);
       }
       const resultMap = result && typeof result === "object" ? result as JsonMap : {};
-      const resultIssue = mutation.kind === "commentCreate"
+      const resultIssue = mutation.kind === "commentCreate" || mutation.kind === "commentUpdate"
         ? parseJson(resultMap.issue)
         : resultMap;
       const createVerification = row.operation === "create"
@@ -1370,10 +1554,17 @@ Deno.serve(async (req: Request) => {
         issue_id: clean(resultIssue.id) || issueId,
         identifier: clean(resultIssue.identifier),
         updated_at: clean(resultIssue.updatedAt || resultMap.createdAt),
-        comment_id: mutation.kind === "commentCreate" ? clean(resultMap.id) : null,
+        comment_id: mutation.kind === "commentCreate" || mutation.kind === "commentUpdate"
+          ? clean(resultMap.id)
+          : mutation.kind === "commentDelete"
+            ? clean(context.linear_comment_id)
+            : null,
         mirror_actor_id: clean(mirrorActor.id),
         mirror_actor_name: clean(mirrorActor.name),
         expected: mutation.variables,
+        ...(mutation.kind === "commentDelete"
+          ? { delete_attempted: true, delete_applied: true }
+          : {}),
         ...(createVerification ? { create_verification: createVerification } : {}),
         ...(createVerification?.decision === "idempotency_conflict"
           ? { conflict: createVerification }
@@ -1383,6 +1574,11 @@ Deno.serve(async (req: Request) => {
       // deliver its webhook immediately, and inbound must see the exact intent
       // even while this row is still locked/finalizing.
       await checkpointLinearResult(supabase, row, linearResult);
+      if (mutation.kind === "commentCreate" || mutation.kind === "commentUpdate") {
+        // The provider id is part of canonical lifecycle state, not merely an
+        // outbox receipt. Bind it before releasing the outbox row as terminal.
+        await bindLinearCommentId(supabase, row, clean(resultMap.id));
+      }
       if (createVerification?.decision === "idempotency_conflict") {
         await quarantineCreateIdentity(supabase, row);
         counts.failed++;

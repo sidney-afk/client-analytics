@@ -2876,6 +2876,13 @@
         .prod-comment-body a { color: var(--prod-link); text-decoration: none; }
         .prod-comment-body a:hover { text-decoration: underline; }
         .prod-comment.is-deleted .prod-comment-body { color: var(--prod-faint); font-style: italic; }
+        .prod-comment-attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+        .prod-comment-attachment { display: inline-flex; align-items: center; min-height: 25px; max-width: 100%; padding: 0 8px; border: 1px solid var(--prod-border-soft); border-radius: 7px; color: var(--prod-link); font-size: 11.5px; text-decoration: none; }
+        .prod-comment-attachment:hover { background: var(--prod-hover); }
+        .prod-comment-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+        .prod-comment-action { min-height: 24px; padding: 0 7px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-muted); font: inherit; font-size: 11.5px; cursor: pointer; }
+        .prod-comment-action:hover { background: var(--prod-hover); color: var(--prod-strong); }
+        .prod-comment-action.is-danger { color: var(--prod-danger); }
         .prod-comment-state { color: var(--prod-faint); font-size: 12.5px; line-height: 19px; margin-bottom: 12px; }
         .prod-comment-state.is-error { color: var(--prod-danger); }
         .prod-comment-state-action, .prod-comment-more { min-height: 27px; margin-top: 8px; padding: 0 10px; border: 1px solid var(--prod-border-soft); border-radius: 7px; background: var(--prod-surface); color: var(--prod-strong); font: inherit; font-size: 12px; cursor: pointer; }
@@ -2893,6 +2900,7 @@
         .prod-composer-submit { min-height: 27px; border: 0; border-radius: 7px; padding: 0 11px; background: var(--prod-accent); color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
         .prod-composer-submit:disabled, .prod-composer-input:disabled, .prod-composer-audience:disabled { cursor: default; opacity: .58; }
         .prod-write-state { color: var(--prod-faint); font-size: 11.5px; }
+        .prod-write-state.is-error { color: var(--prod-danger); }
         .prod-prop-btn[aria-disabled="true"], .prod-status[data-prod-write="off"], .prod-due[data-prod-write="off"], .prod-assign-hot[data-prod-write="off"] { cursor: default; opacity: .68; }
         .prod-labels-btn { flex-wrap: wrap; align-items: center; gap: 5px; padding-top: 3px; padding-bottom: 3px; }
         .prod-label-chip { --prod-label-color: var(--prod-faint); display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; min-height: 20px; padding: 0 7px; border: 1px solid color-mix(in srgb, var(--prod-label-color) 42%, var(--prod-border-soft)); border-radius: 999px; background: color-mix(in srgb, var(--prod-label-color) 12%, var(--prod-surface)); color: var(--prod-strong); font-size: 11.5px; line-height: 18px; }
@@ -23873,7 +23881,7 @@
         // that bled onto the wrong client's row): the text is preserved in the
         // sheet (hide-not-delete) but never shown or counted. The save path uses
         // _calCommentsFor (unfiltered) so these are never written away.
-        list = list.filter(c => c && !c.deleted && !c.hidden);
+        list = list.filter(c => c && (!c.deleted || c.canonical) && !c.hidden);
         if (!_isClientLink) return list;
         // Resolve each message's thread-root so a reply inherits the root's
         // audience (replies point straight at the root via parent_id).
@@ -28336,6 +28344,132 @@
                         round: meta && Number.isInteger(meta.round) ? meta.round : null
                     }
                 }, repair);
+    }
+    async function _writeUiCardCommentLifecycle(surface, post, component, comment, action, body, retryCursor) {
+        const nativeId = _writeUiNativeId(post, component);
+        const gate = _prodCanonicalCommentGate(post, component);
+        if (!nativeId || !gate.ready) throw _writeUiGatewayError(409, 'canonical_comment_read_required');
+        const rebased = retryCursor && retryCursor.rebased === true;
+        const version = Number(rebased ? retryCursor.expectedVersion : comment && comment.version);
+        const updatedAt = String(rebased
+            ? retryCursor.expectedUpdatedAt
+            : comment && (comment.canonical_updated_at || comment.row_updated_at) || '').trim();
+        if (!Number.isInteger(version) || version < 1 || !updatedAt) {
+            throw _writeUiGatewayError(409, 'comment_cas_required');
+        }
+        const lifecycleComment = {
+            action,
+            id: String(comment.id || ''),
+            expected_version: version,
+            expected_updated_at: updatedAt
+        };
+        if (action === 'edit') lifecycleComment.body = String(body == null ? comment.body || '' : body).trim();
+        return _writeUiGatewayWithRepair({
+            surface,
+            operation: 'comment',
+            team: _writeUiTeam(component),
+            nativeId,
+            sourceEditedAt: new Date().toISOString(),
+            requestId: _writeUiIntentId(surface, 'comment-' + action, [nativeId, comment.id, version, updatedAt]),
+            comment: lifecycleComment
+        }, null);
+    }
+    async function _writeUiCommitCardCommentLifecycle(surface, post, component, comment, action, body, retryCursor) {
+        post._canonicalCommentActionError = null;
+        try {
+            const receipt = await _writeUiCardCommentLifecycle(surface, post, component, comment, action, body, retryCursor);
+            if (receipt && receipt.comment) _prodComments.adopt(_writeUiNativeId(post, component), receipt.comment);
+            await _prodProjectCanonicalCardComments(surface, post.id);
+            return receipt;
+        } catch (error) {
+            const failure = {
+                commentId: String(comment && comment.id || ''),
+                action,
+                body: action === 'edit' ? String(body == null ? comment && comment.body || '' : body) : '',
+                expectedVersion: null,
+                expectedUpdatedAt: '',
+                currentBody: '',
+                rebased: false,
+                lifecycleRequestId: '',
+                message: String(error && (error.code || error.message) || 'write_failed')
+            };
+            post._canonicalCommentActionError = failure;
+            _writeUiReportFailure(surface, 'comment', error);
+            // A CAS conflict keeps the local edit draft intact, then refreshes
+            // the exact canonical thread so Retry uses the new server cursor.
+            try {
+                await _prodComments.readCanonical(_writeUiNativeId(post, component));
+                await _prodProjectCanonicalCardComments(surface, post.id);
+                const refreshed = _prodComments.find(
+                    _writeUiNativeId(post, component),
+                    failure.commentId
+                );
+                if (Number(error && error.status) === 409
+                    && action === 'edit'
+                    && refreshed
+                    && Number.isInteger(Number(refreshed.version))
+                    && String(refreshed.row_updated_at || '').trim()) {
+                    failure.expectedVersion = Number(refreshed.version);
+                    failure.expectedUpdatedAt = String(refreshed.row_updated_at).trim();
+                    failure.currentBody = String(refreshed.body || '');
+                    failure.rebased = true;
+                    failure.message = 'A newer version was loaded. Your draft is preserved; Retry applies it to the current comment.';
+                }
+            } catch (refreshError) {}
+            if (surface === 'calendar' && _calOpenCommentsPid === post.id) _calRenderCommentsModal();
+            if (surface === 'sxr' && _sxrOpenCommentsPid === post.id) _sxrRenderCommentsModal();
+            return null;
+        }
+    }
+    async function _writeUiPersistCanonicalCommentProjection(surface, post, component) {
+        const list = surface === 'calendar'
+            ? _calCommentsFor(post, component)
+            : _isClientLink
+                ? _sxrCanonicalCommentsFor(post, component)
+                : _sxrCommentsFor(post, component);
+        if (surface === 'calendar') {
+            _calPendingEdits[post.id] = Object.assign(_calPendingEdits[post.id] || {}, {
+                [component + '_tweaks']: _calStringifyComments(list)
+            });
+            await _calWatchNoteSave(post.id);
+            _calRefreshCommentsBtn(post.id);
+            _calUpdateCardStatusDisplay(post.id);
+            if (_calOpenCommentsPid === post.id) _calRenderCommentsModal();
+        } else {
+            // A verified client thread is already durable in the canonical
+            // comment store. Never serialize that projection back into the
+            // legacy Samples card arrays.
+            if (_isClientLink) {
+                _sxrRefreshCommentsBtn(post.id);
+                _sxrUpdateCardStatusDisplay(post.id);
+                if (_sxrOpenCommentsPid === post.id) _sxrRenderCommentsModal();
+                return;
+            }
+            _sxrPendingEdits[post.id] = Object.assign(_sxrPendingEdits[post.id] || {}, {
+                [component + '_tweaks']: _sxrStringifyComments(list)
+            });
+            await _sxrWatchNoteSave(post.id);
+            _sxrRefreshCommentsBtn(post.id);
+            _sxrUpdateCardStatusDisplay(post.id);
+            if (_sxrOpenCommentsPid === post.id) _sxrRenderCommentsModal();
+        }
+    }
+    function _writeUiRetryCardCommentAction(surface, pid) {
+        const state = surface === 'calendar' ? calState : sxrState;
+        const post = state.posts.find(row => String(row.id) === String(pid));
+        const failure = post && post._canonicalCommentActionError;
+        if (!post || !failure) return false;
+        post._canonicalCommentActionError = null;
+        if (surface === 'calendar') {
+            if (failure.action === 'delete') _calDeleteComment(failure.commentId);
+            else if (failure.action === 'edit') _calRetryCommentEdit(failure.commentId, failure.body, failure);
+            else _calToggleCommentDone(failure.commentId);
+        } else {
+            if (failure.action === 'delete') _sxrDeleteComment(failure.commentId);
+            else if (failure.action === 'edit') _sxrRetryCommentEdit(failure.commentId, failure.body, failure);
+            else _sxrToggleCommentDone(failure.commentId);
+        }
+        return false;
     }
     /* "URGENT TWEAKS NEEDED" ping for a video in tweaks. Sends only the video
        sub-issue's Linear URL + client name to send-urgent-slack; the workflow
@@ -38011,6 +38145,8 @@
        reply box isn't wiped by a save round-trip. */
     let _calReplyTarget = null;
     const _calReplyDrafts = Object.create(null);
+    let _calEditTarget = null;
+    const _calEditDrafts = Object.create(null);
     let _calRootDraft = '';
     /* Audience for the NEXT new root note an SMM sends from the Notes modal:
        'internal' (team-only — you + Kasper, hidden from the client) or 'client'
@@ -38155,11 +38291,11 @@
     }
     function _calMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
     function _calCommentRoots(arr) {
-        return arr.filter(c => !c.parent_id && !c.deleted && !c.hidden)
+        return arr.filter(c => !c.parent_id && (!c.deleted || c.canonical) && !c.hidden)
             .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
     }
     function _calCommentReplies(arr, rootId) {
-        return arr.filter(c => c.parent_id === rootId && !c.deleted && !c.hidden)
+        return arr.filter(c => c.parent_id === rootId && (!c.deleted || c.canonical) && !c.hidden)
             .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
     }
     /* Count open / total threads across all three components (video, graphic,
@@ -38202,7 +38338,7 @@
                 // Count only open change-requests (tweaks). A plain comment is
                 // a conversation, not an open task, so it never adds to the
                 // "N open" badge and isn't something to resolve.
-                if (_calMsgIsTweak(root) && !root.done) n++;
+                if (!root.deleted && _calMsgIsTweak(root) && !root.done) n++;
             }
         }
         return n;
@@ -38390,7 +38526,9 @@
         if (!post) return;
         _calOpenCommentsPid = pid;
         _calReplyTarget = null;
+        _calEditTarget = null;
         for (const k of Object.keys(_calReplyDrafts)) delete _calReplyDrafts[k];
+        for (const k of Object.keys(_calEditDrafts)) delete _calEditDrafts[k];
         // A half-written note survives an accidental close (Esc, mis-click on
         // the backdrop): the draft is kept per card for the tab's lifetime
         // and cleared on send.
@@ -38401,6 +38539,7 @@
         _calComposeComp = 'video';          // Part B: picker defaults to Video
         _calShowResolved = false;           // start on the live feed, not history
         _notesMarkSeen(pid);                // opening = caught up; clears the unread dot
+        _prodProjectCanonicalCardComments('calendar', pid);
         const ovl = document.getElementById('calCommentsOverlay');
         if (!ovl) return;
         ovl.classList.add('open');
@@ -38422,6 +38561,7 @@
         const pid = _calOpenCommentsPid;
         _calOpenCommentsPid = null;
         _calReplyTarget = null;
+        _calEditTarget = null;
         // Caught up while it was open — re-stamp seen and refresh the button so
         // the unread dot clears immediately.
         if (pid) { _notesMarkSeen(pid); _calRefreshCommentsBtn(pid); }
@@ -38431,7 +38571,8 @@
         if (!root) return;
         const composer = root.querySelector('#calCommentComposer');
         if (composer) {
-            if (_calReplyTarget) _calReplyDrafts[_calReplyTarget] = composer.value;
+            if (_calEditTarget) _calEditDrafts[_calEditTarget] = composer.value;
+            else if (_calReplyTarget) _calReplyDrafts[_calReplyTarget] = composer.value;
             else _calRootDraft = composer.value;
         }
     }
@@ -38479,6 +38620,12 @@
             const typeTag = (!isReply && _calMsgIsTweak(c))
                 ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the card to Tweaks Needed">Tweak${c.round ? ' #' + c.round : ''}</span>`
                 : '';
+            const editedTag = c.edited ? '<span class="prod-comment-edited">(edited)</span>' : '';
+            const attachments = Array.isArray(c.attachments) && c.attachments.length
+                ? '<div class="prod-comment-attachments">' + c.attachments.map(item =>
+                    '<a class="prod-comment-attachment" href="' + _calEscAttr(item.url) + '" target="_blank" rel="noopener noreferrer">' + _calEsc(item.name || 'Attachment') + '</a>'
+                ).join('') + '</div>'
+                : '';
             return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}">
                 <div class="cal-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
                 <div class="cal-cm-body-col">
@@ -38490,7 +38637,7 @@
                         ${doneTag}
                         ${compLabel}
                     </div>
-                    <div class="cal-cm-row-body">${_calEsc(c.body || '')}</div>
+                    <div class="cal-cm-row-body">${c.deleted ? 'Comment deleted.' : _calEsc(c.body || '')}${editedTag}${attachments}</div>
                 </div>
                 ${_calCommentActionsHtml(c, isReply)}
             </div>`;
@@ -38517,6 +38664,9 @@
         const histBtn = resolvedCount
             ? `<button class="cal-comments-hist${_calShowResolved ? ' is-active' : ''}" type="button" onclick="_calToggleShowResolved()" title="${_calShowResolved ? 'Hide resolved' : 'Show resolved (' + resolvedCount + ')'}" aria-label="Toggle resolved history"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5V8l2.5 1.5"/><path d="M2.6 8a5.4 5.4 0 1 0 1.5-3.7M2.5 3v2.2h2.2"/></svg>${_calShowResolved ? '' : `<span class="cal-comments-hist-count">${resolvedCount}</span>`}</button>`
             : '';
+        const actionFailure = post._canonicalCommentActionError
+            ? '<div class="prod-comment-state is-error" role="alert">' + (post._canonicalCommentActionError.action === 'edit' ? (post._canonicalCommentActionError.rebased ? 'A newer version was loaded. Your draft was preserved; Retry applies it to the current comment.' : 'The edit was not saved. Your draft was kept and the canonical thread was refreshed.') : 'The canonical comment action was not saved.') + ' <button type="button" class="prod-comment-state-action" onclick="_writeUiRetryCardCommentAction(\'calendar\',' + _jsAttrArg(pid) + ')">Retry</button></div>'
+            : '';
 
         modal.innerHTML = `
             <div class="cal-comments-head">
@@ -38527,6 +38677,7 @@
                 ${histBtn}
                 <button class="cal-comments-close" type="button" onclick="closeCalComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
+            ${actionFailure}
             <div class="cal-comments-feed" id="calCommentsFeed">
                 <div class="cal-comments-feed-inner">${feedHtml}</div>
             </div>
@@ -38548,6 +38699,7 @@
         return _calCommentRole() === 'smm';
     }
     function _calCommentActionsHtml(c, isReply) {
+        if (c.deleted) return '';
         const replyIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
         const checkIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         const undoIco   = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2 7l3.5 3.5M2 7h7a3.5 3.5 0 0 1 0 7"/></svg>`;
@@ -38556,18 +38708,23 @@
         // the resolve toggle, and only the SMM ever sees that toggle.
         const rootId = isReply ? c.parent_id : c.id;
         const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_calBeginReply(${_jsAttrArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
+        const editBtn = c.canonical && c.can_edit
+            ? `<button class="cal-cm-action" type="button" onclick="_calBeginCommentEdit(${_jsAttrArg(c.id)})" title="Edit"><span>Edit</span></button>`
+            : '';
         // Resolve toggle is only meaningful on a change-request (tweak). A plain
         // comment is a conversation, not a task, so it gets no "Mark done".
-        const doneBtn  = (!isReply && _calCanResolveComment() && _calMsgIsTweak(c))
+        const canResolve = c.canonical ? c.can_resolve : (_calCanResolveComment() && _calMsgIsTweak(c));
+        const doneBtn  = (!isReply && canResolve)
             ? (c.done
                 ? `<button class="cal-cm-action is-done-on" type="button" onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="Reopen">${undoIco}<span>Reopen</span></button>`
                 : `<button class="cal-cm-action" type="button" onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="Mark thread done">${checkIco}<span>Mark done</span></button>`)
             : '';
-        const delBtn = _calCanDeleteComment(c)
+        const canDelete = c.canonical ? c.can_delete : _calCanDeleteComment(c);
+        const delBtn = canDelete
             ? `<button class="cal-cm-action is-danger" type="button" onclick="_calDeleteComment(${_jsAttrArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>`
             : '';
-        if (!replyBtn && !doneBtn && !delBtn) return '';
-        return `<div class="cal-cm-actions">${replyBtn}${doneBtn}${delBtn}</div>`;
+        if (!replyBtn && !editBtn && !doneBtn && !delBtn) return '';
+        return `<div class="cal-cm-actions">${replyBtn}${editBtn}${doneBtn}${delBtn}</div>`;
     }
 
     function _calComposerHtml(post, comments) {
@@ -38576,25 +38733,42 @@
         const initial  = _calAvatarInitial(author, role);
         const roleCls  = role === 'client' ? 'is-client' : 'is-smm';
         const isReply  = !!_calReplyTarget;
+        const isEdit   = !!_calEditTarget;
         // Reply target may live on any component's thread — look across all.
         const allLists = _calComponentsFor(post).map(c => c === 'video'
             ? (Array.isArray(post.comments) ? post.comments : _calLoadComments(post))
             : _calCommentsFor(post, c));
-        const target   = isReply
-            ? allLists.flatMap(l => l).find(c => c && c.id === _calReplyTarget)
+        const targetId = isEdit ? _calEditTarget : _calReplyTarget;
+        const target   = targetId
+            ? allLists.flatMap(l => l).find(c => c && c.id === targetId)
             : null;
-        const draft    = isReply ? (_calReplyDrafts[_calReplyTarget] || '') : (_calRootDraft || '');
-        const placeholder = isReply
+        const draft    = isEdit
+            ? (_calEditDrafts[_calEditTarget] || '')
+            : isReply ? (_calReplyDrafts[_calReplyTarget] || '') : (_calRootDraft || '');
+        const placeholder = isEdit
+            ? 'Edit this note...'
+            : isReply
             ? `Reply to ${target ? (target.author || 'thread') : 'thread'}…`
             : _calComposePlaceholder(role);
-        const replyingTo = isReply && target
-            ? `<div class="cal-cm-replying-to">Replying to <strong>${_calEsc(target.author || 'thread')}</strong> <button class="cal-cm-cancel-reply" type="button" onclick="_calBeginReply(null)" title="Cancel reply"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>`
+        const replyingTo = target
+            ? `<div class="cal-cm-replying-to">${isEdit ? 'Editing' : 'Replying to'} <strong>${_calEsc(target.author || 'thread')}</strong> <button class="cal-cm-cancel-reply" type="button" onclick="${isEdit ? '_calBeginCommentEdit(null)' : '_calBeginReply(null)'}" title="Cancel"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>`
             : '';
         const lockIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>`;
         // SMM starting a NEW thread picks who can see it. A reply inherits its
         // root's audience, so the toggle only shows on a fresh root; the client
         // has no toggle (everything they post is shared with them by nature).
-        const audienceToggle = (!isReply && role !== 'client')
+        const canonicalGate = _prodCanonicalCommentGate(post, (isReply || isEdit) && target
+            ? _calFindCompForCommentId(post, target.id)
+            : _calComposeComp);
+        if (canonicalGate.linked && !canonicalGate.ready) {
+            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">'
+                + (canonicalGate.status === 'error' ? 'Notes could not load' : 'Loading canonical notes')
+                + '</div>' + (canonicalGate.status === 'error'
+                    ? '<button type="button" class="prod-comment-state-action" onclick="_prodProjectCanonicalCardComments(\'calendar\',' + _jsAttrArg(post.id) + ')">Retry</button>'
+                    : 'The composer unlocks after this exact deliverable is authorized.')
+                + '</div>';
+        }
+        const audienceToggle = (!isReply && !isEdit && role !== 'client' && canonicalGate.client)
             ? `<div class="cal-cm-audience" data-cm-toggle="audience" role="group" aria-label="Who can see this note">
                 <span class="cal-cm-audience-cap">Who sees this?</span>
                 <div class="cal-cm-aud-seg">
@@ -38605,7 +38779,7 @@
             : '';
         // Client picks comment vs change request. Default comment, so a reply or
         // a question never flips the post to Tweaks Needed.
-        const changeToggle = (!isReply && role === 'client')
+        const changeToggle = (!isReply && !isEdit && role === 'client')
             ? `<div class="cal-cm-audience" data-cm-toggle="tweak" role="group" aria-label="Comment or change request">
                 <span class="cal-cm-audience-cap">This is a…</span>
                 <div class="cal-cm-aud-seg">
@@ -38619,7 +38793,7 @@
         // inherit their thread's component so they get no picker. Offers the
         // card's active review components (Title appears once the title is an
         // engaged review component); defaults to Video.
-        const compPicker = !isReply
+        const compPicker = !isReply && !isEdit
             ? `<div class="cal-cm-audience" data-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about">
                 <span class="cal-cm-audience-cap">About the…</span>
                 <div class="cal-cm-aud-seg">${_calComponentsFor(post).map(c =>
@@ -38637,7 +38811,7 @@
                 <div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
                 <textarea id="calCommentComposer" rows="1" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnComposerInput(this)" onkeydown="_calOnComposerKey(event)">${_calEsc(draft)}</textarea>
                 <div class="cal-cm-composer-actions">
-                    <button class="cal-cm-send" type="button" onclick="_calSubmitComposer()" title="Send (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button>
+                    <button class="cal-cm-send" type="button" onclick="_calSubmitComposer()" title="${isEdit ? 'Save edit' : 'Send'} (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button>
                 </div>
             </div>
         </div>`;
@@ -38649,7 +38823,8 @@
     }
     function _calOnComposerInput(ta) {
         _calAutosizeComposer(ta);
-        if (_calReplyTarget) _calReplyDrafts[_calReplyTarget] = ta.value;
+        if (_calEditTarget) _calEditDrafts[_calEditTarget] = ta.value;
+        else if (_calReplyTarget) _calReplyDrafts[_calReplyTarget] = ta.value;
         else {
             _calRootDraft = ta.value;
             try {
@@ -38666,13 +38841,15 @@
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             _calSubmitComposer();
-        } else if (e.key === 'Escape' && _calReplyTarget) {
+        } else if (e.key === 'Escape' && (_calReplyTarget || _calEditTarget)) {
             e.preventDefault();
-            _calBeginReply(null);
+            if (_calEditTarget) _calBeginCommentEdit(null);
+            else _calBeginReply(null);
         }
     }
     function _calBeginReply(rootId) {
         _calCaptureModalDrafts();
+        _calEditTarget = null;
         _calReplyTarget = rootId || null;
         // Hitting Reply re-renders the feed, which would otherwise reset its
         // scroll to the top. Keep the reader exactly where they were.
@@ -38682,12 +38859,36 @@
         const feed2 = document.getElementById('calCommentsFeed');
         if (feed2 && prevScroll != null) feed2.scrollTop = prevScroll;
     }
+    function _calBeginCommentEdit(commentId) {
+        _calCaptureModalDrafts();
+        const post = calState.posts.find(p => p.id === _calOpenCommentsPid);
+        const comp = post && commentId ? _calFindCompForCommentId(post, commentId) : '';
+        const list = post && comp ? _calCommentsFor(post, comp) : [];
+        const target = Array.isArray(list) ? list.find(c => c && c.id === commentId) : null;
+        _calReplyTarget = null;
+        _calEditTarget = target && target.canonical && target.can_edit ? commentId : null;
+        if (_calEditTarget && _calEditDrafts[_calEditTarget] == null) {
+            _calEditDrafts[_calEditTarget] = String(target.body || '');
+        }
+        _calRenderCommentsModal();
+        return false;
+    }
     async function _calSubmitComposer() {
         const pid = _calOpenCommentsPid;
         if (!pid) return;
         _calCaptureModalDrafts();
-        const body = (_calReplyTarget ? (_calReplyDrafts[_calReplyTarget] || '') : (_calRootDraft || '')).trim();
+        const body = (_calEditTarget
+            ? (_calEditDrafts[_calEditTarget] || '')
+            : _calReplyTarget ? (_calReplyDrafts[_calReplyTarget] || '') : (_calRootDraft || '')).trim();
         if (!body) return;
+        if (_calEditTarget) {
+            const editId = _calEditTarget;
+            if (!await _calSaveCommentEdit(pid, editId, body)) return;
+            delete _calEditDrafts[editId];
+            _calEditTarget = null;
+            _calRenderCommentsModal();
+            return;
+        }
         const parentId = _calReplyTarget;
         const saved = await _calAppendComment(pid, parentId, body);
         if (!saved) return;
@@ -38727,6 +38928,11 @@
         const comp = parentId
             ? _calFindCompForCommentId(post, parentId)
             : (_calComponentsFor(post).indexOf(_calComposeComp) >= 0 ? _calComposeComp : 'video');
+        const canonicalGate = _prodCanonicalCommentGate(post, comp);
+        if (canonicalGate.linked && !canonicalGate.ready) {
+            showNotify('Notes are still loading', 'Retry the canonical thread before sending.');
+            return false;
+        }
         const arr = comp === 'video'
             ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
             : _calCommentsFor(post, comp).slice();
@@ -38812,6 +39018,37 @@
         }
         return 'video';
     }
+    async function _calSaveCommentEdit(pid, commentId, body, retryCursor) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return false;
+        const comp = _calFindCompForCommentId(post, commentId);
+        const target = _calCommentsFor(post, comp).find(c => c && c.id === commentId);
+        const gate = _prodCanonicalCommentGate(post, comp);
+        if (!target || !target.canonical || !target.can_edit || !gate.linked || !gate.ready) return false;
+        const receipt = await _writeUiCommitCardCommentLifecycle(
+            'calendar', post, comp, target, 'edit', body, retryCursor
+        );
+        if (!receipt) return false;
+        await _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
+        return true;
+    }
+    function _calRetryCommentEdit(commentId, body, retryCursor) {
+        const pid = _calOpenCommentsPid;
+        if (!pid) return false;
+        _calEditTarget = commentId;
+        _calReplyTarget = null;
+        _calEditDrafts[commentId] = String(body || '');
+        _calSaveCommentEdit(pid, commentId, _calEditDrafts[commentId], retryCursor).then(saved => {
+            if (!saved) {
+                _calRenderCommentsModal();
+                return;
+            }
+            delete _calEditDrafts[commentId];
+            _calEditTarget = null;
+            _calRenderCommentsModal();
+        });
+        return false;
+    }
     function _calToggleCommentDone(rootId) {
         const pid = _calOpenCommentsPid;
         if (!pid) return;
@@ -38832,6 +39069,16 @@
         // still-open change-requests, with this root excluded.
         const otherOpen = list.filter(c => !c.parent_id && !c.done && !c.deleted && _calMsgIsTweak(c) && c.id !== rootId).length;
         const deferToChooser = !wasDone && _calCommentRole() === 'smm' && otherOpen === 0;
+        const canonicalGate = _prodCanonicalCommentGate(post, comp);
+        if (canonicalGate.linked) {
+            if (deferToChooser) {
+                _calResolveLastTweak(pid, comp, rootId);
+                return;
+            }
+            _writeUiCommitCardCommentLifecycle('calendar', post, comp, root, wasDone ? 'unresolve' : 'resolve')
+                .then(receipt => receipt && _writeUiPersistCanonicalCommentProjection('calendar', post, comp));
+            return;
+        }
 
         // Flip the comment's done state (data only).
         const mutate = () => {
@@ -38886,12 +39133,22 @@
             ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
             : _calCommentsFor(post, comp).slice();
         const target = arr.find(c => c.id === commentId);
-        if (!target || !_calCanDeleteComment(target)) return;
+        if (!target || (target.canonical ? !target.can_delete : !_calCanDeleteComment(target))) return;
         const isRoot = !target.parent_id;
-        const msg = isRoot
-            ? "This deletes the message and every reply in this thread. This can't be undone."
-            : "Delete this reply? This can't be undone.";
-        showConfirm('Delete tweak?', msg, () => {
+        const msg = target.canonical
+            ? (isRoot
+                ? "Delete this note? Replies remain in the thread under a deleted-note marker. This can't be undone."
+                : "Delete this reply? A deleted-note marker remains. This can't be undone.")
+            : isRoot
+                ? "This deletes the message and every reply in this thread. This can't be undone."
+                : "Delete this reply? This can't be undone.";
+        showConfirm('Delete tweak?', msg, async () => {
+            const canonicalGate = _prodCanonicalCommentGate(post, comp);
+            if (canonicalGate.linked) {
+                const receipt = await _writeUiCommitCardCommentLifecycle('calendar', post, comp, target, 'delete');
+                if (receipt) await _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
+                return;
+            }
             // Soft-delete (tombstone) instead of dropping the comment. A bare
             // removal can be resurrected by any later merge that still carries
             // the live copy (a laggy background poll, the save echo, or the
@@ -39070,13 +39327,25 @@
             reason: _calResolveDestReason(post, comp),
             openTweaks: root ? [root] : [],
             fromReview: false,
-            onChoose: (destPick, ids) => {
+            onChoose: async (destPick, ids) => {
                 // Resolve only on a pick (closing never reaches here), THEN flip
                 // the sub-status — unless the SMM chose "don't change the status"
                 // (dest 'stay'), in which case it's a plain mark-done, no routing.
-                _calResolveTweaksDone(post, comp, (ids && ids.length) ? ids : [rootId]);
+                const chosen = (ids && ids.length) ? ids : [rootId];
+                const canonicalGate = _prodCanonicalCommentGate(post, comp);
+                if (canonicalGate.linked) {
+                    for (const id of chosen) {
+                        const comment = _calCommentsFor(post, comp).find(row => row && row.id === id);
+                        if (!comment) continue;
+                        const receipt = await _writeUiCommitCardCommentLifecycle('calendar', post, comp, comment, 'resolve');
+                        if (!receipt) return;
+                    }
+                } else {
+                    _calResolveTweaksDone(post, comp, chosen);
+                }
                 if (destPick !== 'stay') _calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick);
-                _calWatchNoteSave(pid);
+                if (canonicalGate.linked) await _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
+                else _calWatchNoteSave(pid);
                 _calRefreshCommentsBtn(pid);
                 _calUpdateCardStatusDisplay(pid);
                 _calCaptureModalDrafts();
@@ -43847,6 +44116,182 @@
                 .catch(error => _prodToast(_prodWriteErrorText(error, issue, 'comment')));
             return false;
         }
+        // F43 canonical-thread composer. These declarations intentionally
+        // replace the Phase-2 top-level-only composer above while keeping the
+        // surrounding Production port mechanically stable.
+        function _prodCommentDraftFor(id) {
+            id = String(id || '');
+            if (!_prodState.commentDrafts.has(id)) _prodState.commentDrafts.set(id, {
+                body: '', audience: 'internal', requestId: '', action: 'add',
+                commentId: '', parentId: '', expectedVersion: null,
+                expectedUpdatedAt: '', error: '', lifecycleKey: '',
+                lifecycleRequestId: '', currentBody: '', rebased: false
+            });
+            return _prodState.commentDrafts.get(id);
+        }
+        function _prodCommentDraftInput(id, body) {
+            const draft = _prodCommentDraftFor(id);
+            body = String(body || '');
+            if (draft.body !== body) draft.requestId = '';
+            draft.body = body;
+            draft.error = '';
+        }
+        function _prodCommentBegin(id, action, commentId) {
+            const draft = _prodCommentDraftFor(id);
+            const comment = _prodComments.find(id, commentId);
+            action = action === 'edit' ? 'edit' : 'add';
+            draft.action = action;
+            draft.commentId = action === 'edit' && comment ? comment.id : '';
+            draft.parentId = action === 'add' && comment ? (comment.parent_id || comment.id) : '';
+            draft.body = action === 'edit' && comment ? comment.body : '';
+            draft.audience = comment ? comment.audience : 'internal';
+            draft.expectedVersion = comment ? comment.version : null;
+            draft.expectedUpdatedAt = comment ? comment.row_updated_at : '';
+            draft.currentBody = comment ? comment.body : '';
+            draft.rebased = false;
+            draft.requestId = '';
+            draft.error = '';
+            _prodRender();
+            setTimeout(() => {
+                const form = document.querySelector('[data-prod-comment-form="' + CSS.escape(String(id || '')) + '"]');
+                const input = form && form.querySelector('[data-prod-comment-input]');
+                if (input) input.focus();
+            }, 0);
+            return false;
+        }
+        function _prodCommentCancel(id) {
+            _prodState.commentDrafts.delete(String(id || ''));
+            _prodRender();
+            return false;
+        }
+        async function _prodRebaseCommentEditDraft(id, draft, error) {
+            if (!draft || draft.action !== 'edit' || Number(error && error.status) !== 409) return false;
+            const commentId = String(draft.commentId || '');
+            await _prodComments.readCanonical(id);
+            if (_prodState.commentDrafts.get(String(id || '')) !== draft
+                || draft.action !== 'edit'
+                || String(draft.commentId || '') !== commentId) return false;
+            const refreshed = _prodComments.find(id, commentId);
+            if (!refreshed
+                || !Number.isInteger(Number(refreshed.version))
+                || !String(refreshed.row_updated_at || '').trim()) {
+                draft.error = 'The current comment could not be reloaded. Your draft is preserved; refresh before retrying.';
+                return false;
+            }
+            draft.expectedVersion = Number(refreshed.version);
+            draft.expectedUpdatedAt = String(refreshed.row_updated_at).trim();
+            draft.currentBody = String(refreshed.body || '');
+            draft.rebased = true;
+            // The retained draft now targets a different canonical CAS
+            // snapshot, so it must own a fresh idempotency identity.
+            draft.requestId = '';
+            draft.lifecycleRequestId = '';
+            draft.error = 'A newer version was loaded. Your draft is preserved; retry applies it to the current comment.';
+            return true;
+        }
+        function _prodComposerHTML(issue) {
+            const writable = _prodCanWrite(issue, 'comment');
+            const gate = _prodWriteGateText(issue, 'comment');
+            if (!writable) {
+                return '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" onclick="_prodToast(' + _jsAttrArg(gate) + ');return false" title="' + _calEscAttr(gate) + '" data-prod-tip="' + _calEscAttr(gate) + '">' + _calEsc(gate) + '</button></div>';
+            }
+            const draft = _prodCommentDraftFor(issue.id);
+            const pending = _prodWritePending(issue.id, 'comment');
+            const context = draft.action === 'edit' ? 'Editing comment' : draft.parentId ? 'Replying to thread' : '';
+            const canOfferClient = _prodIssueClientCommentSurfaceKnown(issue);
+            if (!canOfferClient && draft.audience === 'client') draft.audience = 'internal';
+            const visibility = canOfferClient
+                ? '<button class="prod-comment-action" type="button" onclick="_prodCommentDraftAudience(' + _jsAttrArg(issue.id) + ',' + _jsAttrArg(draft.audience === 'client' ? 'internal' : 'client') + ');_prodRender()">' + (draft.audience === 'client' ? 'Client-visible' : 'Internal') + '</button>'
+                : '<span class="prod-write-state" data-prod-client-visible-disabled="1" title="Client-visible is available only for an exact Samples Review card linked to this canonical deliverable">Internal</span>';
+            return '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><form class="prod-composer-form" data-prod-comment-form="' + _calEscAttr(issue.id) + '" onsubmit="return _prodSubmitComment(event,' + _jsAttrArg(issue.id) + ')">'
+                + (context ? '<div class="prod-composer-actions"><b class="prod-write-state">' + _calEsc(context) + '</b><span class="prod-spacer"></span><button class="prod-comment-action" type="button" onclick="_prodCommentCancel(' + _jsAttrArg(issue.id) + ')">Cancel</button></div>' : '')
+                + '<textarea class="prod-composer-input" data-prod-comment-input="1" maxlength="20000" placeholder="' + (draft.parentId ? 'Write a reply...' : draft.action === 'edit' ? 'Edit comment...' : 'Write a comment...') + '" oninput="_prodCommentDraftInput(' + _jsAttrArg(issue.id) + ',this.value)" onkeydown="_prodComposerKeydown(event,' + _jsAttrArg(issue.id) + ')"' + (pending ? ' disabled' : '') + '>' + _calEsc(draft.body) + '</textarea>'
+                + '<div class="prod-composer-actions">' + (draft.action === 'add' && !draft.parentId ? visibility : '') + '<span class="prod-spacer"></span>'
+                + (draft.error ? '<span class="prod-write-state is-error" role="alert">' + _calEsc(draft.error) + '</span>' : pending ? '<span class="prod-write-state" role="status">Saving...</span>' : '<span class="prod-write-state">Ctrl/Cmd Enter</span>')
+                + '<button class="prod-composer-submit" type="submit"' + (pending ? ' disabled' : '') + '>' + (pending ? 'Saving...' : draft.action === 'edit' ? 'Save edit' : draft.parentId ? 'Reply' : 'Comment') + '</button></div></form></div>';
+        }
+        function _prodSubmitComment(event, id) {
+            if (event) event.preventDefault();
+            const issue = _prodIssue(id);
+            const form = event && event.currentTarget && event.currentTarget.tagName === 'FORM'
+                ? event.currentTarget
+                : document.querySelector('[data-prod-comment-form="' + CSS.escape(String(id || '')) + '"]');
+            const input = form && form.querySelector('[data-prod-comment-input]');
+            const draft = _prodCommentDraftFor(id);
+            if (input) _prodCommentDraftInput(id, input.value);
+            if (!String(draft.body || '').trim()) {
+                draft.error = 'Write a comment first.';
+                _prodRender();
+                return false;
+            }
+            if (!draft.requestId) draft.requestId = _prodWriteRequestId('comment');
+            const comment = {
+                action: draft.action || 'add',
+                body: String(draft.body).trim(),
+                audience: draft.audience
+            };
+            if (draft.parentId) comment.parent_id = draft.parentId;
+            if (draft.action === 'edit') {
+                comment.id = draft.commentId;
+                comment.expected_version = draft.expectedVersion;
+                comment.expected_updated_at = draft.expectedUpdatedAt;
+            }
+            draft.error = '';
+            _prodGatewayWrite(issue, 'comment', { comment }, draft.requestId).then(result => {
+                if (!result) return;
+                const finishedAction = draft.action;
+                const wasReply = !!draft.parentId;
+                _prodState.commentDrafts.delete(String(id));
+                _prodComments.adopt(id, result.comment);
+                _prodComments.refresh(id);
+                _prodToast(finishedAction === 'edit' ? 'Comment updated' : wasReply ? 'Reply added' : 'Comment added');
+            }).catch(async error => {
+                draft.error = _prodWriteErrorText(error, issue, 'comment');
+                if (error && error.status === 409) {
+                    if (draft.action === 'edit') {
+                        try {
+                            await _prodRebaseCommentEditDraft(id, draft, error);
+                        } catch (refreshError) {
+                            draft.error = 'A newer version exists, but it could not be loaded. Your draft is preserved; refresh before retrying.';
+                        }
+                    } else {
+                        _prodComments.refresh(id);
+                    }
+                }
+                _prodRender();
+            });
+            return false;
+        }
+        function _prodCommentLifecycle(id, commentId, action) {
+            const issue = _prodIssue(id);
+            const comment = _prodComments.find(id, commentId);
+            if (!issue || !comment) return false;
+            const state = _prodCommentDraftFor(id);
+            const key = [action, comment.id, comment.version, comment.row_updated_at].join(':');
+            if (state.lifecycleKey !== key) {
+                state.lifecycleKey = key;
+                state.lifecycleRequestId = _prodWriteRequestId('comment-' + action);
+            }
+            state.error = '';
+            _prodGatewayWrite(issue, 'comment', {
+                comment: {
+                    action,
+                    id: comment.id,
+                    expected_version: comment.version,
+                    expected_updated_at: comment.row_updated_at
+                }
+            }, state.lifecycleRequestId).then(result => {
+                state.lifecycleKey = '';
+                state.lifecycleRequestId = '';
+                _prodComments.adopt(id, result && result.comment);
+                _prodComments.refresh(id);
+            }).catch(error => {
+                state.error = _prodWriteErrorText(error, issue, 'comment');
+                _prodComments.refresh(id);
+                _prodRender();
+            });
+            return false;
+        }
         function _prodClearBoardDropFx() {
             document.querySelectorAll('.prod-col-drop').forEach(el => el.classList.remove('prod-col-drop'));
             document.querySelectorAll('.prod-card-dragging, .pcard-dragging').forEach(el => el.classList.remove('prod-card-dragging', 'pcard-dragging'));
@@ -43998,6 +44443,12 @@
                 : role === 'client' ? 'client' : 'internal';
             const createdMs = Date.parse(createdAt);
             const updatedMs = Date.parse(updatedAt);
+            const attachments = (Array.isArray(row.attachments) ? row.attachments : []).slice(0, 20).map(item => {
+                item = item && typeof item === 'object' && !Array.isArray(item) ? item : {};
+                const url = String(item.url || item.href || item.file_url || '').trim();
+                if (!/^https:\/\/[^\s]+$/i.test(url)) return null;
+                return { url, name: String(item.name || item.title || item.filename || 'Attachment').trim().slice(0, 240) || 'Attachment' };
+            }).filter(Boolean);
             return {
                 id,
                 parent_id: String(row.parent_id || row.parentId || '').trim(),
@@ -44007,6 +44458,15 @@
                 body,
                 created_at: createdAt,
                 updated_at: updatedAt,
+                row_updated_at: String(row.updated_at || '').trim(),
+                version: Number.isInteger(Number(row.version)) ? Number(row.version) : 1,
+                attachments,
+                component: String(row.component || '').trim(),
+                is_tweak: _prodCommentTruthy(row.is_tweak),
+                round: Number.isInteger(Number(row.round)) ? Number(row.round) : null,
+                can_edit: _prodCommentTruthy(row.can_edit),
+                can_delete: _prodCommentTruthy(row.can_delete),
+                can_resolve: _prodCommentTruthy(row.can_resolve),
                 edited: !deleted && (!!String(row.edited_at || '').trim() || _prodCommentTruthy(row.edited)
                     || (Number.isFinite(createdMs) && Number.isFinite(updatedMs) && updatedMs > createdMs + 1000)),
                 deleted,
@@ -44051,20 +44511,88 @@
                 + (c.done ? '<span class="prod-comment-pill">Resolved</span>' : '');
             const edited = c.edited ? '<span class="prod-comment-edited">(edited)</span>' : '';
             const body = c.deleted ? 'Comment deleted.' : _prodLinkify(c.body);
+            const attachments = !c.deleted && c.attachments.length
+                ? '<div class="prod-comment-attachments">' + c.attachments.map(item =>
+                    '<a class="prod-comment-attachment" href="' + _calEscAttr(item.url) + '" target="_blank" rel="noopener noreferrer">' + _calEsc(item.name) + '</a>'
+                ).join('') + '</div>'
+                : '';
+            const issueId = String(_prodState.openId || '');
+            const actions = c.deleted ? '' : '<div class="prod-comment-actions">'
+                + (!c.done ? '<button class="prod-comment-action" type="button" onclick="_prodCommentBegin(' + _jsAttrArg(issueId) + ',\'add\',' + _jsAttrArg(c.id) + ')">Reply</button>' : '')
+                + (c.can_edit ? '<button class="prod-comment-action" type="button" onclick="_prodCommentBegin(' + _jsAttrArg(issueId) + ',\'edit\',' + _jsAttrArg(c.id) + ')">Edit</button>' : '')
+                + (c.can_resolve && !c.parent_id ? '<button class="prod-comment-action" type="button" onclick="_prodCommentLifecycle(' + _jsAttrArg(issueId) + ',' + _jsAttrArg(c.id) + ',' + _jsAttrArg(c.done ? 'unresolve' : 'resolve') + ')">' + (c.done ? 'Reopen' : 'Resolve') + '</button>' : '')
+                + (c.can_delete ? '<button class="prod-comment-action is-danger" type="button" onclick="_prodCommentLifecycle(' + _jsAttrArg(issueId) + ',' + _jsAttrArg(c.id) + ',\'delete\')">Delete</button>' : '')
+                + '</div>';
             return '<div class="prod-comment' + (c.parent_id ? ' is-reply' : '') + (c.deleted ? ' is-deleted' : '') + '" data-prod-comment-id="' + _calEscAttr(c.id) + '">'
                 + _prodAvatar(null, 18)
                 + '<div class="prod-comment-main"><div class="prod-comment-meta"><span class="prod-comment-author">' + _calEsc(c.author) + '</span>'
                 + '<span aria-hidden="true">·</span><time' + (time.raw ? ' datetime="' + _calEscAttr(time.raw) + '" title="' + _calEscAttr(time.raw) + '"' : '') + '>' + _calEsc(time.text) + '</time>'
-                + edited + pills + '</div><div class="prod-comment-body">' + body + '</div></div></div>';
+                + edited + pills + '</div><div class="prod-comment-body">' + body + '</div>' + attachments + actions + '</div></div>';
         }
         function _prodCommentLoadingHTML() {
             return Array.from({ length: 2 }, () => '<div class="prod-comment-loading" role="status" aria-label="Loading comments"><span class="prod-skeleton" style="width:18px;height:18px;border-radius:50%;"></span><span class="prod-comment-loading-copy"><span class="prod-skeleton" style="height:11px;width:110px;"></span><span class="prod-skeleton" style="height:12px;width:min(360px,82%);"></span></span></div>').join('');
+        }
+        function _prodIssueClientCommentSurfaceKnown(issue) {
+            const row = issue && issue.raw && typeof issue.raw === 'object' ? issue.raw : {};
+            const team = String(issue && issue.team || row.team || '').trim().toLowerCase();
+            return String(row.origin || '').trim().toLowerCase() === 'samples'
+                && !!String(row.card_id || '').trim()
+                && (team === 'video' || team === 'graphics');
+        }
+        function _prodCardClientCommentSurfaceKnown(surface, post, component) {
+            if (surface !== 'sxr' || !post || !String(post.id || '').trim()) return false;
+            if (component !== 'video' && component !== 'graphic') return false;
+            return !!_writeUiNativeId(post, component);
+        }
+        function _prodVerifiedClientCommentSurfaceContext(surface, post, component, deliverableId) {
+            if (!_prodCardClientCommentSurfaceKnown(surface, post, component)) return null;
+            let cap = null;
+            let current = false;
+            try {
+                cap = _syncviewClientEntryCapability;
+                current = !!(_isClientLink
+                    && _syncviewClientEntryRunCurrent(_syncviewClientEntryDataRun));
+            } catch (e) {}
+            if (!current || !cap || !cap.verified || cap.view !== 'sample-reviews') return null;
+            let mountedSlug = '';
+            try { mountedSlug = sxrClientSlug(sxrState && sxrState.client); } catch (e) {}
+            const rowSlug = String(post.client_slug || post.client || '').trim();
+            if (!mountedSlug || mountedSlug !== String(cap.slug || '').trim()) return null;
+            if (rowSlug && rowSlug !== mountedSlug) return null;
+            if (String(_writeUiNativeId(post, component)) !== String(deliverableId || '')) return null;
+            return Object.freeze({
+                source_surface: 'sxr',
+                card_id: String(post.id),
+                component
+            });
+        }
+        function _prodClientCommentSurfaceKey(value) {
+            const source = value && typeof value === 'object' ? value : {};
+            const sourceSurface = String(source.source_surface || '').trim().toLowerCase();
+            const cardId = String(source.card_id || '').trim();
+            const component = String(source.component || '').trim().toLowerCase();
+            return sourceSurface === 'sxr'
+                && !!cardId
+                && (component === 'video' || component === 'graphic')
+                ? [sourceSurface, cardId, component].join('|')
+                : '';
         }
         const _prodComments = (() => {
             const states = new Map();
             let generation = 0;
             const stateFor = id => states.get(String(id || '')) || null;
             const repaint = () => { try { _prodRender(); } catch (e) {} };
+            const clientSurfaceFor = value => {
+                const source = value && typeof value === 'object' ? value : {};
+                const sourceSurface = String(source.source_surface || '').trim().toLowerCase();
+                const cardId = String(source.card_id || '').trim();
+                const component = String(source.component || '').trim().toLowerCase();
+                return sourceSurface === 'sxr'
+                    && !!cardId
+                    && (component === 'video' || component === 'graphic')
+                    ? { source_surface: 'sxr', card_id: cardId, component }
+                    : null;
+            };
             const authHeaders = () => _syncviewEfHeaders({
                 apikey: CAL_SUPABASE_ANON_KEY,
                 Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
@@ -44076,38 +44604,86 @@
                 options = options || {};
                 if (!id) return;
                 const append = !!options.append;
-                const current = stateFor(id);
+                const previous = stateFor(id);
+                const requestedClientSurface = clientSurfaceFor(options.clientSurface);
+                const previousClientSurface = clientSurfaceFor(previous && previous.clientSurface);
+                const bindingChanged = !!requestedClientSurface
+                    && _prodClientCommentSurfaceKey(requestedClientSurface)
+                        !== _prodClientCommentSurfaceKey(previousClientSurface);
+                // One deliverable may be opened from more than one card over its
+                // lifetime. A new exact SXR binding is a new authorization
+                // context, never a refresh of the prior card's verified state.
+                const current = bindingChanged ? null : previous;
+                const clientSurface = requestedClientSurface || previousClientSurface;
                 if (append && (!current || current.status !== 'ready' || current.loadingMore || !current.cursor)) return;
                 if (!append && current && !options.force) return;
-                if (!_syncviewStaffIdentityForHeaders()) {
-                    states.set(id, { status: 'signin', items: [], cursor: null, hasMore: false, loadingMore: false, moreError: '' });
+                if (_isClientLink && !clientSurface) {
+                    states.set(id, {
+                        status: 'forbidden', items: [], cursor: null, hasMore: false,
+                        loadingMore: false, moreError: '', clientSurface: null,
+                        clientSurfaceVerified: false
+                    });
                     repaint();
-                    return;
+                    return stateFor(id);
+                }
+                let hasClientCredential = false;
+                try { hasClientCredential = !!(_isClientLink && _syncviewClientWriteToken()); } catch (e) {}
+                if (!_syncviewStaffIdentityForHeaders() && !hasClientCredential) {
+                    states.set(id, {
+                        status: 'signin', items: [], cursor: null, hasMore: false,
+                        loadingMore: false, moreError: '', clientSurface,
+                        clientSurfaceVerified: false
+                    });
+                    repaint();
+                    return stateFor(id);
                 }
                 const requestGeneration = generation;
-                const token = (current && current.token || 0) + 1;
+                const token = (previous && previous.token || 0) + 1;
                 const refreshing = !append && !!options.refresh && !!current && current.status === 'ready';
                 if (append) states.set(id, { ...current, token, loadingMore: true, moreError: '' });
                 else if (refreshing) states.set(id, { ...current, token, refreshing: true, loadingMore: false, refreshError: '' });
-                else states.set(id, { status: 'loading', items: [], cursor: null, hasMore: false, loadingMore: false, refreshing: false, moreError: '', refreshError: '', pagesLoaded: 0, token });
+                else states.set(id, {
+                    status: 'loading', items: [], cursor: null, hasMore: false,
+                    loadingMore: false, refreshing: false, moreError: '',
+                    refreshError: '', pagesLoaded: 0, clientSurface,
+                    clientSurfaceVerified: false, token
+                });
                 repaint();
                 const cursor = append && current ? current.cursor : null;
                 try {
+                    const requestBody = {
+                        deliverable_id: id,
+                        limit: PROD_COMMENTS_PAGE_SIZE,
+                        before: cursor || null
+                    };
+                    if (clientSurface) Object.assign(requestBody, clientSurface);
                     const response = await fetch(PROD_COMMENTS_EF_URL, {
                         method: 'POST',
                         headers: authHeaders(),
                         cache: 'no-store',
-                        body: JSON.stringify({ deliverable_id: id, limit: PROD_COMMENTS_PAGE_SIZE, before: cursor || null })
+                        body: JSON.stringify(requestBody)
                     });
                     const json = await response.json().catch(() => ({}));
                     if (generation !== requestGeneration || !stateFor(id) || stateFor(id).token !== token) return;
                     if (response.status === 401 || response.status === 403) {
-                        states.set(id, { status: 'signin', items: [], cursor: null, hasMore: false, loadingMore: false, moreError: '' });
+                        states.set(id, {
+                            status: response.status === 401 ? 'signin' : 'forbidden',
+                            items: [], cursor: null, hasMore: false,
+                            loadingMore: false, refreshing: false, moreError: '',
+                            refreshError: '', pagesLoaded: 0, clientSurface,
+                            clientSurfaceVerified: false, token
+                        });
                         repaint();
-                        return;
+                        return stateFor(id);
                     }
                     if (!response.ok) throw new Error('Comments read failed: HTTP ' + response.status);
-                    const page = Array.isArray(json.comments) ? json.comments : Array.isArray(json.items) ? json.items : [];
+                    const rawPage = Array.isArray(json.comments) ? json.comments : Array.isArray(json.items) ? json.items : [];
+                    // The reader enforces this server-side. Keep the real client
+                    // surface fail-closed if a stale/misconfigured deployment
+                    // ever returns an internal row anyway.
+                    const page = clientSurface
+                        ? rawPage.filter(row => row && String(row.audience || '').trim().toLowerCase() === 'client')
+                        : rawPage;
                     const candidateCursor = json.next_cursor || json.nextCursor || null;
                     const nextCursor = candidateCursor && typeof candidateCursor === 'object'
                         && String(candidateCursor.created_at || '').trim()
@@ -44130,15 +44706,26 @@
                         moreError: '',
                         refreshError: '',
                         pagesLoaded: append ? priorPages + 1 : refreshing ? priorPages : 1,
+                        clientSurface,
+                        clientSurfaceVerified: !!(clientSurface
+                            && hasClientCredential
+                            && json.canonical_thread === true
+                            && String(json.audience_scope || '').trim().toLowerCase() === 'client'),
                         token,
                     });
                 } catch (e) {
                     if (generation !== requestGeneration || !stateFor(id) || stateFor(id).token !== token) return;
                     if (append && current) states.set(id, { ...current, token, loadingMore: false, moreError: 'Older comments could not load.' });
                     else if (refreshing && current) states.set(id, { ...current, token, refreshing: false, loadingMore: false, refreshError: 'Comments could not refresh.' });
-                    else states.set(id, { status: 'error', items: [], cursor: null, hasMore: false, loadingMore: false, refreshing: false, moreError: '', refreshError: '', pagesLoaded: 0, token });
+                    else states.set(id, {
+                        status: 'error', items: [], cursor: null, hasMore: false,
+                        loadingMore: false, refreshing: false, moreError: '',
+                        refreshError: '', pagesLoaded: 0, clientSurface,
+                        clientSurfaceVerified: false, token
+                    });
                 }
                 repaint();
+                return stateFor(id);
             }
             function ensure(id) {
                 if (!stateFor(id)) load(id);
@@ -44157,6 +44744,36 @@
             function loadOlder(id) {
                 load(id, { append: true });
             }
+            function find(id, commentId) {
+                const state = stateFor(id);
+                return state && Array.isArray(state.items)
+                    ? state.items.find(row => String(row.id) === String(commentId)) || null
+                    : null;
+            }
+            function adopt(id, row) {
+                if (!row) return;
+                const state = stateFor(id);
+                if (!state || state.status !== 'ready') return;
+                states.set(String(id), { ...state, items: _prodCommentMerge(state.items, [row]) });
+                repaint();
+            }
+            async function readCanonical(id, options) {
+                options = options || {};
+                await load(id, {
+                    force: true,
+                    refresh: true,
+                    clientSurface: options.clientSurface || null
+                });
+                for (let page = 1; page < 20; page++) {
+                    const state = stateFor(id);
+                    if (!state || state.status !== 'ready' || !state.hasMore || !state.cursor) break;
+                    await load(id, {
+                        append: true,
+                        clientSurface: state.clientSurface || options.clientSurface || null
+                    });
+                }
+                return stateFor(id);
+            }
             async function signIn(id) {
                 await _syncviewOpenStaffIdentity({ reason: 'required' });
                 if (_syncviewStaffIdentityForHeaders()) retry(id);
@@ -44171,6 +44788,7 @@
                 const state = stateFor(id);
                 if (!state || state.status === 'loading') return _prodCommentLoadingHTML();
                 if (state.status === 'signin') return '<div class="prod-comment-state" data-prod-comments-state="signin">Sign in with your staff account to view comments.<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.signIn(' + _jsAttrArg(id) + ')">Sign in to view comments</button></div>';
+                if (state.status === 'forbidden') return '<div class="prod-comment-state is-error" data-prod-comments-state="forbidden">This comment thread is not available to your exact team or client scope.</div>';
                 if (state.status === 'error') return '<div class="prod-comment-state is-error" data-prod-comments-state="error">Comments could not load.<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.retry(' + _jsAttrArg(id) + ')">Retry</button></div>';
                 if (!state.items.length) return '<div class="prod-comment-state" data-prod-comments-state="empty">No comments yet.</div>';
                 const rows = state.items.map(_prodCommentHTML).join('');
@@ -44181,8 +44799,148 @@
                 const moreError = state.moreError ? '<div class="prod-comment-state is-error">' + _calEsc(state.moreError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.loadOlder(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
                 return refreshError + '<div class="prod-comment-feed" data-prod-comments-state="ready">' + rows + '</div>' + moreError + more;
             }
-            return { clear, ensure, refresh, retry, loadOlder, signIn, render };
+            return { clear, ensure, refresh, retry, loadOlder, signIn, render, find, adopt, readCanonical };
         })();
+        function _prodCanonicalCardComment(row) {
+            const c = _prodCommentNormalize(row);
+            return {
+                id: c.id,
+                parent_id: c.parent_id || null,
+                author: c.author,
+                role: c.role,
+                body: c.body,
+                audience: c.audience,
+                component: c.component,
+                is_tweak: c.is_tweak,
+                round: c.round,
+                attachments: c.attachments,
+                created_at: c.created_at,
+                updated_at: c.row_updated_at || c.updated_at,
+                done: c.done,
+                done_at: c.done ? (c.row_updated_at || c.updated_at) : '',
+                deleted: c.deleted,
+                edited: c.edited,
+                version: c.version,
+                row_updated_at: c.row_updated_at,
+                canonical_updated_at: c.row_updated_at,
+                can_edit: c.can_edit,
+                can_delete: c.can_delete,
+                can_resolve: c.can_resolve,
+                canonical: true
+            };
+        }
+        async function _prodProjectCanonicalCardComments(surface, pid) {
+            const calendar = surface === 'calendar';
+            const state = calendar ? calState : sxrState;
+            const post = state && Array.isArray(state.posts) ? state.posts.find(row => String(row.id) === String(pid)) : null;
+            if (!post) return false;
+            const components = calendar ? _calComponentsFor(post) : SXR_COMPONENTS;
+            post._canonicalCommentReads = post._canonicalCommentReads || {};
+            const groups = new Map();
+            components.forEach(component => {
+                const deliverableId = _writeUiNativeId(post, component);
+                if (!deliverableId) return;
+                if (!groups.has(deliverableId)) groups.set(deliverableId, []);
+                groups.get(deliverableId).push(component);
+                const clientSurface = _prodVerifiedClientCommentSurfaceContext(
+                    surface, post, component, deliverableId
+                );
+                post._canonicalCommentReads[deliverableId] = {
+                    status: 'loading',
+                    client: false,
+                    clientSurface
+                };
+                // A client projection belongs to this exact card/component.
+                // Clear it before authorization so a failed binding switch can
+                // never retain rows from the previously verified card.
+                if (!calendar && _isClientLink) {
+                    _sxrSetCanonicalCommentsFor(post, component, []);
+                }
+            });
+            if (!groups.size) return false;
+            if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
+            if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
+            await Promise.all([...groups.entries()].map(async ([deliverableId, linkedComponents]) => {
+                const component = linkedComponents[0];
+                const clientSurface = _prodVerifiedClientCommentSurfaceContext(
+                    surface, post, component, deliverableId
+                );
+                const thread = await _prodComments.readCanonical(deliverableId, {
+                    clientSurface
+                });
+                if (!thread || thread.status !== 'ready') {
+                    post._canonicalCommentReads[deliverableId] = {
+                        status: 'error',
+                        client: false,
+                        clientSurface
+                    };
+                    return;
+                }
+                const clientBindingVerified = !_isClientLink || !!(
+                    clientSurface
+                    && thread.clientSurfaceVerified
+                    && _prodClientCommentSurfaceKey(thread.clientSurface)
+                        === _prodClientCommentSurfaceKey(clientSurface)
+                );
+                if (!clientBindingVerified) {
+                    linkedComponents.forEach(linkedComponent => {
+                        if (!calendar) _sxrSetCanonicalCommentsFor(post, linkedComponent, []);
+                    });
+                    post._canonicalCommentReads[deliverableId] = {
+                        status: 'error',
+                        client: false,
+                        clientSurface
+                    };
+                    return;
+                }
+                const rows = (thread.items || []).map(_prodCanonicalCardComment);
+                linkedComponents.forEach(component => {
+                    const projected = rows.filter(row => {
+                        const tagged = String(row.component || '').trim();
+                        return tagged ? tagged === component : component === linkedComponents[0];
+                    });
+                    if (calendar) {
+                        _calSetCommentsFor(post, component, projected);
+                        if (component === 'video') post.comments = projected;
+                    } else if (_isClientLink) {
+                        _sxrSetCanonicalCommentsFor(post, component, projected);
+                    } else {
+                        _sxrSetCommentsFor(post, component, projected);
+                        if (component === 'video') post.comments = projected;
+                    }
+                });
+                post._canonicalCommentReads[deliverableId] = {
+                    status: 'ready',
+                    client: _isClientLink
+                        ? clientBindingVerified
+                        : _prodCardClientCommentSurfaceKnown(surface, post, component),
+                    clientSurface
+                };
+            }));
+            if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
+            if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
+            return true;
+        }
+        function _prodCanonicalCommentGate(post, component) {
+            const deliverableId = _writeUiNativeId(post, component);
+            if (!deliverableId) return { linked: false, ready: false, client: false, status: 'unlinked' };
+            const state = post && post._canonicalCommentReads && post._canonicalCommentReads[deliverableId];
+            const expectedClientSurface = _isClientLink
+                ? _prodVerifiedClientCommentSurfaceContext('sxr', post, component, deliverableId)
+                : null;
+            const exactClientBinding = !_isClientLink || !!(
+                expectedClientSurface
+                && state
+                && _prodClientCommentSurfaceKey(state.clientSurface)
+                    === _prodClientCommentSurfaceKey(expectedClientSurface)
+            );
+            return {
+                linked: true,
+                ready: !!(state && state.status === 'ready' && exactClientBinding),
+                client: !!(state && state.client && exactClientBinding),
+                status: state && state.status || 'loading'
+            };
+        }
         function _prodDescriptionHTML(value, loaded, emptyText, rich) {
             if (value) return rich ? _prodLinkify(value) : _calEsc(value);
             if (!loaded) return '<span class="prod-skeleton prod-desc-loading" data-prod-desc-loading="1" role="status" aria-label="Loading description"></span>';
@@ -49681,6 +50439,24 @@
         if (comp === 'graphic') { post.graphic_comments = list; post.graphic_tweaks = str; return; }
         post.video_comments = list; post.comments = list; post.video_tweaks = str; post.tweaks = str;
     }
+    function _sxrCanonicalCommentsFor(post, comp) {
+        const slots = post && post._canonicalCommentsByComponent;
+        return slots && Array.isArray(slots[comp]) ? slots[comp] : [];
+    }
+    function _sxrSetCanonicalCommentsFor(post, comp, arr) {
+        if (!post || (comp !== 'video' && comp !== 'graphic')) return;
+        if (!post._canonicalCommentsByComponent
+            || typeof post._canonicalCommentsByComponent !== 'object'
+            || Array.isArray(post._canonicalCommentsByComponent)) {
+            post._canonicalCommentsByComponent = Object.create(null);
+        }
+        post._canonicalCommentsByComponent[comp] = Array.isArray(arr) ? arr : [];
+    }
+    function _sxrCommentsForAction(post, comp) {
+        return _isClientLink
+            ? _sxrCanonicalCommentsFor(post, comp)
+            : _sxrCommentsFor(post, comp);
+    }
     function _sxrStringifyComments(arr) { const list = Array.isArray(arr) ? arr.filter(c => c && c.id) : []; return list.length ? JSON.stringify(list) : ''; }
     function _sxrCommentStamp(c) { return String((c && (c.updated_at || c.created_at)) || ''); }
     function _sxrMergeCommentLists(a, b) {
@@ -49696,22 +50472,32 @@
     }
     function _sxrMsgAudience(c) { if (!c) return 'client'; if (c.audience === 'internal' || c.audience === 'client') return c.audience; return (c.role === 'kasper' || c.role === 'smm') ? 'internal' : 'client'; }
     function _sxrMsgIsTweak(c) { if (!c) return false; if (typeof c.is_tweak === 'boolean') return c.is_tweak; return true; }
-    function _sxrNextTweakRound(post, comp) { const list = _sxrCommentsFor(post, comp); return Array.isArray(list) ? list.filter(c => c && _sxrMsgIsTweak(c) && !c.deleted).length + 1 : 1; }
+    function _sxrNextTweakRound(post, comp) { const list = _sxrCommentsForAction(post, comp); return Array.isArray(list) ? list.filter(c => c && _sxrMsgIsTweak(c) && !c.deleted).length + 1 : 1; }
     function _sxrCommentsForView(post, comp) {
-        let list = _sxrCommentsFor(post, comp);
-        if (!Array.isArray(list)) return [];
-        list = list.filter(c => c && !c.deleted && !c.hidden);
-        if (!_isClientLink) return list;
-        const byId = new Map(); for (const c of list) if (c && c.id) byId.set(c.id, c);
-        const rootAudience = (c) => { const root = (c.parent_id && byId.has(c.parent_id)) ? byId.get(c.parent_id) : c; return _sxrMsgAudience(root); };
-        return list.filter(c => { if (!c) return false; if (c.role === 'kasper') return false; return rootAudience(c) === 'client'; });
+        if (!_isClientLink) {
+            const list = _sxrCommentsFor(post, comp);
+            return Array.isArray(list)
+                ? list.filter(c => c && (!c.deleted || c.canonical) && !c.hidden)
+                : [];
+        }
+        const canonicalGate = _prodCanonicalCommentGate(post, comp);
+        // A verified client link never falls back to the legacy card arrays.
+        // Until this exact SXR card/component/deliverable read succeeds, the
+        // canonical client thread is simply unavailable.
+        if (!canonicalGate.linked || !canonicalGate.ready || !canonicalGate.client) return [];
+        const list = _sxrCanonicalCommentsFor(post, comp);
+        return list.filter(c => c
+            && c.canonical === true
+            && c.audience === 'client'
+            && (!c.deleted || c.canonical)
+            && !c.hidden);
     }
-    function _sxrCommentRoots(arr) { return arr.filter(c => !c.parent_id && !c.deleted && !c.hidden).sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || ''))); }
-    function _sxrCommentReplies(arr, rootId) { return arr.filter(c => c.parent_id === rootId && !c.deleted && !c.hidden).sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || ''))); }
+    function _sxrCommentRoots(arr) { return arr.filter(c => !c.parent_id && (!c.deleted || c.canonical) && !c.hidden).sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || ''))); }
+    function _sxrCommentReplies(arr, rootId) { return arr.filter(c => c.parent_id === rootId && (!c.deleted || c.canonical) && !c.hidden).sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || ''))); }
     function _sxrCommentRole() { return _isClientLink ? 'client' : 'smm'; }
     function _sxrCurrentAuthor() { return _isClientLink ? (sxrState.client ? String(sxrState.client) : 'Client') : 'Synchro Social'; }
     function _sxrMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
-    function _sxrOpenCommentCount(post) { if (!post) return 0; let n = 0; for (const c of SXR_COMPONENTS) { const list = _sxrCommentsForView(post, c); for (const root of _sxrCommentRoots(list || [])) { if (_sxrMsgIsTweak(root) && !root.done) n++; } } return n; }
+    function _sxrOpenCommentCount(post) { if (!post) return 0; let n = 0; for (const c of SXR_COMPONENTS) { const list = _sxrCommentsForView(post, c); for (const root of _sxrCommentRoots(list || [])) { if (!root.deleted && _sxrMsgIsTweak(root) && !root.done) n++; } } return n; }
     function _sxrFmtCommentTime(iso) { const t = Date.parse(iso || ''); if (!isFinite(t)) return ''; const mins = Math.round((Date.now() - t) / 60000); if (mins < 1) return 'just now'; if (mins < 60) return mins + 'm ago'; const hrs = Math.round(mins / 60); if (hrs < 24) return hrs + 'h ago'; const days = Math.round(hrs / 24); if (days < 7) return days + 'd ago'; return new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
     function _sxrAvatarInitial(name, role) { const s = String(name || '').trim(); if (s) return s.charAt(0).toUpperCase(); return role === 'client' ? 'C' : 'S'; }
     function _sxrLinearUrlFor(post, comp) { if (!post) return ''; if (comp === 'graphic') return String(post.graphic_linear_issue_id || '').trim(); return String(post.linear_issue_id || '').trim(); }
@@ -50074,10 +50860,22 @@
             reason: _sxrResolveDestReason(post, comp),
             openTweaks: root ? [root] : [],
             fromReview: false,
-            onChoose: (destPick, ids) => {
-                _sxrResolveTweaksDone(post, comp, (ids && ids.length) ? ids : [rootId]);
+            onChoose: async (destPick, ids) => {
+                const chosen = (ids && ids.length) ? ids : [rootId];
+                const canonicalGate = _prodCanonicalCommentGate(post, comp);
+                if (canonicalGate.linked) {
+                    for (const id of chosen) {
+                        const comment = _sxrCommentsFor(post, comp).find(row => row && row.id === id);
+                        if (!comment) continue;
+                        const receipt = await _writeUiCommitCardCommentLifecycle('sxr', post, comp, comment, 'resolve');
+                        if (!receipt) return;
+                    }
+                } else {
+                    _sxrResolveTweaksDone(post, comp, chosen);
+                }
                 if (destPick !== 'stay') _sxrApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick);
-                _sxrWatchNoteSave(pid);
+                if (canonicalGate.linked) await _writeUiPersistCanonicalCommentProjection('sxr', post, comp);
+                else _sxrWatchNoteSave(pid);
                 _sxrRefreshCommentsBtn(pid);
                 _sxrUpdateCardStatusDisplay(pid);
                 _sxrCaptureModalDrafts();
@@ -50654,6 +51452,8 @@
     let _sxrOpenCommentsPid = null;
     let _sxrReplyTarget = null;
     let _sxrReplyDrafts = Object.create(null);
+    let _sxrEditTarget = null;
+    let _sxrEditDrafts = Object.create(null);
     let _sxrRootDraft = '';
     let _sxrComposeAudience = 'internal';
     let _sxrComposeIsTweak = false;
@@ -50666,7 +51466,9 @@
         if (!post) return;
         _sxrOpenCommentsPid = pid;
         _sxrReplyTarget = null;
+        _sxrEditTarget = null;
         for (const k of Object.keys(_sxrReplyDrafts)) delete _sxrReplyDrafts[k];
+        for (const k of Object.keys(_sxrEditDrafts)) delete _sxrEditDrafts[k];
         _sxrRootDraft = '';
         try { _sxrRootDraft = sessionStorage.getItem('sv_sxrNoteDraft_' + pid) || ''; } catch (e) {}
         _sxrComposeAudience = 'internal';
@@ -50674,6 +51476,7 @@
         _sxrComposeComp = 'video';
         _sxrShowResolved = false;
         _sxrNotesMarkSeen(pid);
+        _prodProjectCanonicalCardComments('sxr', pid);
         const ovl = document.getElementById('sxrCommentsOverlay');
         if (!ovl) return;
         ovl.classList.add('open');
@@ -50687,14 +51490,18 @@
         if (ovl) ovl.classList.remove('open');
         document.body.classList.remove('cal-modal-open');
         const pid = _sxrOpenCommentsPid;
-        _sxrOpenCommentsPid = null; _sxrReplyTarget = null;
+        _sxrOpenCommentsPid = null; _sxrReplyTarget = null; _sxrEditTarget = null;
         if (pid) { _sxrNotesMarkSeen(pid); _sxrRefreshCommentsBtn(pid); }
     }
     function _sxrCaptureModalDrafts() {
         const root = document.getElementById('sxrCommentsModal');
         if (!root) return;
         const composer = root.querySelector('#sxrCommentComposer');
-        if (composer) { if (_sxrReplyTarget) _sxrReplyDrafts[_sxrReplyTarget] = composer.value; else _sxrRootDraft = composer.value; }
+        if (composer) {
+            if (_sxrEditTarget) _sxrEditDrafts[_sxrEditTarget] = composer.value;
+            else if (_sxrReplyTarget) _sxrReplyDrafts[_sxrReplyTarget] = composer.value;
+            else _sxrRootDraft = composer.value;
+        }
     }
     function _sxrRenderCommentsModal() {
         const pid = _sxrOpenCommentsPid;
@@ -50702,7 +51509,7 @@
         if (!modal || !pid) return;
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) { closeSxrComments(); return; }
-        const videoComments = Array.isArray(post.comments) ? post.comments : _sxrLoadComments(post);
+        const videoComments = _sxrCommentsForAction(post, 'video');
         post.comments = videoComments;
         const compThreads = SXR_COMPONENTS.flatMap(c => {
             const list = _sxrCommentsForView(post, c);
@@ -50721,7 +51528,13 @@
             const compLabel = (!isReply && comp) ? `<span class="cal-cm-comp-label cal-cm-comp-${comp}">${_sxrEsc(COMP_LABELS[comp])}</span>` : '';
             const lock = (!isReply && !_isClientLink && _sxrMsgAudience(c) === 'internal') ? `<span class="cal-cm-lock" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>` : '';
             const typeTag = (!isReply && _sxrMsgIsTweak(c)) ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the sample to Tweaks Needed">Tweak${c.round ? ' #' + c.round : ''}</span>` : '';
-            return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}"><div class="cal-cm-avatar ${roleCls}">${_sxrEsc(initial)}</div><div class="cal-cm-body-col"><div class="cal-cm-head-line"><span class="cal-cm-author">${_sxrEsc(author)}</span>${typeTag}${lock}<span class="cal-cm-time">${_sxrEsc(_sxrFmtCommentTime(c.created_at))}</span>${doneTag}${compLabel}</div><div class="cal-cm-row-body">${_sxrEsc(c.body || '')}</div></div>${_sxrCommentActionsHtml(c, isReply)}</div>`;
+            const editedTag = c.edited ? '<span class="prod-comment-edited">(edited)</span>' : '';
+            const attachments = Array.isArray(c.attachments) && c.attachments.length
+                ? '<div class="prod-comment-attachments">' + c.attachments.map(item =>
+                    '<a class="prod-comment-attachment" href="' + _sxrEscAttr(item.url) + '" target="_blank" rel="noopener noreferrer">' + _sxrEsc(item.name || 'Attachment') + '</a>'
+                ).join('') + '</div>'
+                : '';
+            return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}"><div class="cal-cm-avatar ${roleCls}">${_sxrEsc(initial)}</div><div class="cal-cm-body-col"><div class="cal-cm-head-line"><span class="cal-cm-author">${_sxrEsc(author)}</span>${typeTag}${lock}<span class="cal-cm-time">${_sxrEsc(_sxrFmtCommentTime(c.created_at))}</span>${doneTag}${compLabel}</div><div class="cal-cm-row-body">${c.deleted ? 'Comment deleted.' : _sxrEsc(c.body || '')}${editedTag}${attachments}</div></div>${_sxrCommentActionsHtml(c, isReply)}</div>`;
         };
         const renderThread = (entry) => { const replies = _sxrCommentReplies(entry.list, entry.root.id); return `<div class="cal-cm-thread${entry.root.done ? ' is-done' : ''}" data-thread="${entry.root.id}">${renderRow(entry.root, false, entry.comp)}${replies.map(r => renderRow(r, true, entry.comp)).join('')}</div>`; };
         const emptyMsg = _sxrShowResolved
@@ -50729,12 +51542,16 @@
             : (resolvedCount ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">All clear</div>No open notes — resolved items are in history (top right).</div>` : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`);
         const feedHtml = visibleThreads.length ? visibleThreads.map(renderThread).join('') : emptyMsg;
         const histBtn = resolvedCount ? `<button class="cal-comments-hist${_sxrShowResolved ? ' is-active' : ''}" type="button" onclick="_sxrToggleShowResolved()" title="${_sxrShowResolved ? 'Hide resolved' : 'Show resolved (' + resolvedCount + ')'}" aria-label="Toggle resolved history"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5V8l2.5 1.5"/><path d="M2.6 8a5.4 5.4 0 1 0 1.5-3.7M2.5 3v2.2h2.2"/></svg>${_sxrShowResolved ? '' : `<span class="cal-comments-hist-count">${resolvedCount}</span>`}</button>` : '';
+        const actionFailure = post._canonicalCommentActionError
+            ? '<div class="prod-comment-state is-error" role="alert">' + (post._canonicalCommentActionError.action === 'edit' ? (post._canonicalCommentActionError.rebased ? 'A newer version was loaded. Your draft was preserved; Retry applies it to the current comment.' : 'The edit was not saved. Your draft was kept and the canonical thread was refreshed.') : 'The canonical comment action was not saved.') + ' <button type="button" class="prod-comment-state-action" onclick="_writeUiRetryCardCommentAction(\'sxr\',' + _sxrJsArg(pid) + ')">Retry</button></div>'
+            : '';
         modal.innerHTML = `
             <div class="cal-comments-head">
                 <div class="cal-comments-head-text"><h3 id="sxrCommentsTitle">${_sxrShowResolved ? 'Resolved' : 'Notes'}</h3><p>${postName}</p></div>
                 ${histBtn}
                 <button class="cal-comments-close" type="button" onclick="closeSxrComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
+            ${actionFailure}
             <div class="cal-comments-feed" id="sxrCommentsFeed"><div class="cal-comments-feed-inner">${feedHtml}</div></div>
             ${_sxrComposerHtml(post, videoComments)}`;
         const ta = document.getElementById('sxrCommentComposer');
@@ -50743,16 +51560,20 @@
     function _sxrCanDeleteComment(c) { return _sxrCommentRole() === 'smm' || c.role === 'client'; }
     function _sxrCanResolveComment() { return _sxrCommentRole() === 'smm'; }
     function _sxrCommentActionsHtml(c, isReply) {
+        if (c.deleted) return '';
         const replyIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
         const checkIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         const undoIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2 7l3.5 3.5M2 7h7a3.5 3.5 0 0 1 0 7"/></svg>`;
         const trashIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"/></svg>`;
         const rootId = isReply ? c.parent_id : c.id;
         const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_sxrBeginReply(${_sxrJsArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
-        const doneBtn = (!isReply && _sxrCanResolveComment() && _sxrMsgIsTweak(c)) ? (c.done ? `<button class="cal-cm-action is-done-on" type="button" onclick="_sxrToggleCommentDone(${_sxrJsArg(c.id)})" title="Reopen">${undoIco}<span>Reopen</span></button>` : `<button class="cal-cm-action" type="button" onclick="_sxrToggleCommentDone(${_sxrJsArg(c.id)})" title="Mark thread done">${checkIco}<span>Mark done</span></button>`) : '';
-        const delBtn = _sxrCanDeleteComment(c) ? `<button class="cal-cm-action is-danger" type="button" onclick="_sxrDeleteComment(${_sxrJsArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>` : '';
-        if (!replyBtn && !doneBtn && !delBtn) return '';
-        return `<div class="cal-cm-actions">${replyBtn}${doneBtn}${delBtn}</div>`;
+        const editBtn = c.canonical && c.can_edit ? `<button class="cal-cm-action" type="button" onclick="_sxrBeginCommentEdit(${_sxrJsArg(c.id)})" title="Edit"><span>Edit</span></button>` : '';
+        const canResolve = c.canonical ? c.can_resolve : (_sxrCanResolveComment() && _sxrMsgIsTweak(c));
+        const doneBtn = (!isReply && canResolve) ? (c.done ? `<button class="cal-cm-action is-done-on" type="button" onclick="_sxrToggleCommentDone(${_sxrJsArg(c.id)})" title="Reopen">${undoIco}<span>Reopen</span></button>` : `<button class="cal-cm-action" type="button" onclick="_sxrToggleCommentDone(${_sxrJsArg(c.id)})" title="Mark thread done">${checkIco}<span>Mark done</span></button>`) : '';
+        const canDelete = c.canonical ? c.can_delete : _sxrCanDeleteComment(c);
+        const delBtn = canDelete ? `<button class="cal-cm-action is-danger" type="button" onclick="_sxrDeleteComment(${_sxrJsArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>` : '';
+        if (!replyBtn && !editBtn && !doneBtn && !delBtn) return '';
+        return `<div class="cal-cm-actions">${replyBtn}${editBtn}${doneBtn}${delBtn}</div>`;
     }
     function _sxrComposePlaceholder(role) {
         if (role === 'client') return 'Message your Synchro Social team…';
@@ -50764,29 +51585,45 @@
         const initial = _sxrAvatarInitial(author, role);
         const roleCls = role === 'client' ? 'is-client' : 'is-smm';
         const isReply = !!_sxrReplyTarget;
-        const allLists = SXR_COMPONENTS.map(c => c === 'video' ? (Array.isArray(post.comments) ? post.comments : _sxrLoadComments(post)) : _sxrCommentsFor(post, c));
-        const target = isReply ? allLists.flatMap(l => l).find(c => c && c.id === _sxrReplyTarget) : null;
-        const draft = isReply ? (_sxrReplyDrafts[_sxrReplyTarget] || '') : (_sxrRootDraft || '');
-        const placeholder = isReply ? `Reply to ${target ? (target.author || 'thread') : 'thread'}…` : _sxrComposePlaceholder(role);
-        const replyingTo = isReply && target ? `<div class="cal-cm-replying-to">Replying to <strong>${_sxrEsc(target.author || 'thread')}</strong> <button class="cal-cm-cancel-reply" type="button" onclick="_sxrBeginReply(null)" title="Cancel reply"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>` : '';
+        const isEdit = !!_sxrEditTarget;
+        const allLists = SXR_COMPONENTS.map(c => _sxrCommentsForAction(post, c));
+        const targetId = isEdit ? _sxrEditTarget : _sxrReplyTarget;
+        const target = targetId ? allLists.flatMap(l => l).find(c => c && c.id === targetId) : null;
+        const draft = isEdit ? (_sxrEditDrafts[_sxrEditTarget] || '') : isReply ? (_sxrReplyDrafts[_sxrReplyTarget] || '') : (_sxrRootDraft || '');
+        const placeholder = isEdit ? 'Edit this note...' : isReply ? `Reply to ${target ? (target.author || 'thread') : 'thread'}…` : _sxrComposePlaceholder(role);
+        const replyingTo = target ? `<div class="cal-cm-replying-to">${isEdit ? 'Editing' : 'Replying to'} <strong>${_sxrEsc(target.author || 'thread')}</strong> <button class="cal-cm-cancel-reply" type="button" onclick="${isEdit ? '_sxrBeginCommentEdit(null)' : '_sxrBeginReply(null)'}" title="Cancel"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>` : '';
         const lockIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>`;
-        const audienceToggle = (!isReply && role !== 'client') ? `<div class="cal-cm-audience" data-cm-toggle="audience" role="group" aria-label="Who can see this note"><span class="cal-cm-audience-cap">Who sees this?</span><div class="cal-cm-aud-seg"><button type="button" class="cal-cm-aud-btn${_sxrComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_sxrSetComposeAudience('internal')" title="Team only — you and Kasper.">${lockIco}Kasper / team</button><button type="button" class="cal-cm-aud-btn${_sxrComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_sxrSetComposeAudience('client')" title="Shared — the client can see this too.">Client</button></div></div>` : '';
-        const changeToggle = (!isReply && role === 'client') ? `<div class="cal-cm-audience" data-cm-toggle="tweak" role="group" aria-label="Comment or change request"><span class="cal-cm-audience-cap">This is a…</span><div class="cal-cm-aud-seg"><button type="button" class="cal-cm-aud-btn${!_sxrComposeIsTweak ? ' is-active' : ''}" data-tweak="0" onclick="_sxrSetComposeIsTweak(false)">Comment</button><button type="button" class="cal-cm-aud-btn${_sxrComposeIsTweak ? ' is-active' : ''}" data-tweak="1" onclick="_sxrSetComposeIsTweak(true)" title="Request a change — moves the sample to Tweaks Needed">Request a change</button></div></div>` : '';
-        const compPicker = !isReply ? `<div class="cal-cm-audience" data-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about"><span class="cal-cm-audience-cap">About the…</span><div class="cal-cm-aud-seg">${SXR_COMPONENTS.map(c => `<button type="button" class="cal-cm-aud-btn${_sxrComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_sxrSetComposeComp('${c}')" title="This note is about the ${_sxrEscAttr(String(COMP_LABELS[c] || c).toLowerCase())}">${_sxrEsc(COMP_LABELS[c] || c)}</button>`).join('')}</div></div>` : '';
+        const canonicalGate = _prodCanonicalCommentGate(post, (isReply || isEdit) && target ? _sxrFindCompForCommentId(post, target.id) : _sxrComposeComp);
+        if (role === 'client' && !canonicalGate.linked) {
+            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">Notes are not available</div>This sample component is not linked to an exact Production deliverable.</div>';
+        }
+        if (canonicalGate.linked && (!canonicalGate.ready || (role === 'client' && !canonicalGate.client))) {
+            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">'
+                + (canonicalGate.status === 'error' ? 'Notes could not load' : 'Loading canonical notes')
+                + '</div>' + (canonicalGate.status === 'error'
+                    ? '<button type="button" class="prod-comment-state-action" onclick="_prodProjectCanonicalCardComments(\'sxr\',' + _sxrJsArg(post.id) + ')">Retry</button>'
+                    : 'The composer unlocks after this exact deliverable is authorized.')
+                + '</div>';
+        }
+        const audienceToggle = (!isReply && !isEdit && role !== 'client' && canonicalGate.client) ? `<div class="cal-cm-audience" data-cm-toggle="audience" role="group" aria-label="Who can see this note"><span class="cal-cm-audience-cap">Who sees this?</span><div class="cal-cm-aud-seg"><button type="button" class="cal-cm-aud-btn${_sxrComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_sxrSetComposeAudience('internal')" title="Team only — you and Kasper.">${lockIco}Kasper / team</button><button type="button" class="cal-cm-aud-btn${_sxrComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_sxrSetComposeAudience('client')" title="Shared — the client can see this too.">Client</button></div></div>` : '';
+        const changeToggle = (!isReply && !isEdit && role === 'client') ? `<div class="cal-cm-audience" data-cm-toggle="tweak" role="group" aria-label="Comment or change request"><span class="cal-cm-audience-cap">This is a…</span><div class="cal-cm-aud-seg"><button type="button" class="cal-cm-aud-btn${!_sxrComposeIsTweak ? ' is-active' : ''}" data-tweak="0" onclick="_sxrSetComposeIsTweak(false)">Comment</button><button type="button" class="cal-cm-aud-btn${_sxrComposeIsTweak ? ' is-active' : ''}" data-tweak="1" onclick="_sxrSetComposeIsTweak(true)" title="Request a change — moves the sample to Tweaks Needed">Request a change</button></div></div>` : '';
+        const compPicker = !isReply && !isEdit ? `<div class="cal-cm-audience" data-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about"><span class="cal-cm-audience-cap">About the…</span><div class="cal-cm-aud-seg">${SXR_COMPONENTS.map(c => `<button type="button" class="cal-cm-aud-btn${_sxrComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_sxrSetComposeComp('${c}')" title="This note is about the ${_sxrEscAttr(String(COMP_LABELS[c] || c).toLowerCase())}">${_sxrEsc(COMP_LABELS[c] || c)}</button>`).join('')}</div></div>` : '';
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
-        return `<div class="cal-cm-composer-wrap">${replyingTo}${compPicker}${audienceToggle}${changeToggle}<div class="cal-cm-composer"><div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_sxrEsc(initial)}</div><textarea id="sxrCommentComposer" rows="1" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrOnComposerInput(this)" onkeydown="_sxrOnComposerKey(event)">${_sxrEsc(draft)}</textarea><div class="cal-cm-composer-actions"><button class="cal-cm-send" type="button" onclick="_sxrSubmitComposer()" title="Send (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button></div></div></div>`;
+        return `<div class="cal-cm-composer-wrap">${replyingTo}${compPicker}${audienceToggle}${changeToggle}<div class="cal-cm-composer"><div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_sxrEsc(initial)}</div><textarea id="sxrCommentComposer" rows="1" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrOnComposerInput(this)" onkeydown="_sxrOnComposerKey(event)">${_sxrEsc(draft)}</textarea><div class="cal-cm-composer-actions"><button class="cal-cm-send" type="button" onclick="_sxrSubmitComposer()" title="${isEdit ? 'Save edit' : 'Send'} (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button></div></div></div>`;
     }
     function _sxrAutosizeComposer(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; }
     function _sxrOnComposerInput(ta) {
         _sxrAutosizeComposer(ta);
-        if (_sxrReplyTarget) _sxrReplyDrafts[_sxrReplyTarget] = ta.value;
+        if (_sxrEditTarget) _sxrEditDrafts[_sxrEditTarget] = ta.value;
+        else if (_sxrReplyTarget) _sxrReplyDrafts[_sxrReplyTarget] = ta.value;
         else { _sxrRootDraft = ta.value; try { if (ta.value) sessionStorage.setItem('sv_sxrNoteDraft_' + _sxrOpenCommentsPid, ta.value); else sessionStorage.removeItem('sv_sxrNoteDraft_' + _sxrOpenCommentsPid); } catch (e) {} }
         const wrap = ta.closest('.cal-cm-composer'); if (!wrap) return;
         const sendBtn = wrap.querySelector('.cal-cm-send'); if (sendBtn) sendBtn.disabled = !ta.value.trim();
     }
-    function _sxrOnComposerKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _sxrSubmitComposer(); } else if (e.key === 'Escape' && _sxrReplyTarget) { e.preventDefault(); _sxrBeginReply(null); } }
+    function _sxrOnComposerKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _sxrSubmitComposer(); } else if (e.key === 'Escape' && (_sxrReplyTarget || _sxrEditTarget)) { e.preventDefault(); if (_sxrEditTarget) _sxrBeginCommentEdit(null); else _sxrBeginReply(null); } }
     function _sxrBeginReply(rootId) {
         _sxrCaptureModalDrafts();
+        _sxrEditTarget = null;
         _sxrReplyTarget = rootId || null;
         const feed = document.getElementById('sxrCommentsFeed');
         const prevScroll = feed ? feed.scrollTop : null;
@@ -50794,11 +51631,35 @@
         const feed2 = document.getElementById('sxrCommentsFeed');
         if (feed2 && prevScroll != null) feed2.scrollTop = prevScroll;
     }
+    function _sxrBeginCommentEdit(commentId) {
+        _sxrCaptureModalDrafts();
+        const post = sxrState.posts.find(p => p.id === _sxrOpenCommentsPid);
+        const comp = post && commentId ? _sxrFindCompForCommentId(post, commentId) : '';
+        const list = post && comp ? _sxrCommentsForAction(post, comp) : [];
+        const target = Array.isArray(list) ? list.find(c => c && c.id === commentId) : null;
+        _sxrReplyTarget = null;
+        _sxrEditTarget = target && target.canonical && target.can_edit ? commentId : null;
+        if (_sxrEditTarget && _sxrEditDrafts[_sxrEditTarget] == null) {
+            _sxrEditDrafts[_sxrEditTarget] = String(target.body || '');
+        }
+        _sxrRenderCommentsModal();
+        return false;
+    }
     async function _sxrSubmitComposer() {
         const pid = _sxrOpenCommentsPid; if (!pid) return;
         _sxrCaptureModalDrafts();
-        const body = (_sxrReplyTarget ? (_sxrReplyDrafts[_sxrReplyTarget] || '') : (_sxrRootDraft || '')).trim();
+        const body = (_sxrEditTarget
+            ? (_sxrEditDrafts[_sxrEditTarget] || '')
+            : _sxrReplyTarget ? (_sxrReplyDrafts[_sxrReplyTarget] || '') : (_sxrRootDraft || '')).trim();
         if (!body) return;
+        if (_sxrEditTarget) {
+            const editId = _sxrEditTarget;
+            if (!await _sxrSaveCommentEdit(pid, editId, body)) return;
+            delete _sxrEditDrafts[editId];
+            _sxrEditTarget = null;
+            _sxrRenderCommentsModal();
+            return;
+        }
         const parentId = _sxrReplyTarget;
         const saved = await _sxrAppendComment(pid, parentId, body);
         if (!saved) return;
@@ -50816,16 +51677,56 @@
     }
     function _sxrFindCompForCommentId(post, commentId) {
         for (const c of SXR_COMPONENTS) {
-            const list = c === 'video' ? (Array.isArray(post.comments) ? post.comments : _sxrLoadComments(post)) : _sxrCommentsFor(post, c);
+            const list = _sxrCommentsForAction(post, c);
             if (Array.isArray(list) && list.some(x => x.id === commentId)) return c;
         }
         return 'video';
+    }
+    async function _sxrSaveCommentEdit(pid, commentId, body, retryCursor) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return false;
+        const comp = _sxrFindCompForCommentId(post, commentId);
+        const target = _sxrCommentsForAction(post, comp).find(c => c && c.id === commentId);
+        const gate = _prodCanonicalCommentGate(post, comp);
+        if (!target || !target.canonical || !target.can_edit || !gate.linked || !gate.ready) return false;
+        const receipt = await _writeUiCommitCardCommentLifecycle(
+            'sxr', post, comp, target, 'edit', body, retryCursor
+        );
+        if (!receipt) return false;
+        await _writeUiPersistCanonicalCommentProjection('sxr', post, comp);
+        return true;
+    }
+    function _sxrRetryCommentEdit(commentId, body, retryCursor) {
+        const pid = _sxrOpenCommentsPid;
+        if (!pid) return false;
+        _sxrEditTarget = commentId;
+        _sxrReplyTarget = null;
+        _sxrEditDrafts[commentId] = String(body || '');
+        _sxrSaveCommentEdit(pid, commentId, _sxrEditDrafts[commentId], retryCursor).then(saved => {
+            if (!saved) {
+                _sxrRenderCommentsModal();
+                return;
+            }
+            delete _sxrEditDrafts[commentId];
+            _sxrEditTarget = null;
+            _sxrRenderCommentsModal();
+        });
+        return false;
     }
     async function _sxrAppendComment(pid, parentId, body) {
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
         const comp = parentId ? _sxrFindCompForCommentId(post, parentId) : (SXR_COMPONENTS.indexOf(_sxrComposeComp) >= 0 ? _sxrComposeComp : 'video');
-        const arr = comp === 'video' ? (Array.isArray(post.comments) ? post.comments.slice() : _sxrLoadComments(post)) : _sxrCommentsFor(post, comp).slice();
+        const canonicalGate = _prodCanonicalCommentGate(post, comp);
+        if (_isClientLink && (!canonicalGate.linked || !canonicalGate.ready || !canonicalGate.client)) {
+            if (typeof showNotify === 'function') showNotify('Notes are not available', 'This exact client thread is not authorized.');
+            return false;
+        }
+        if (canonicalGate.linked && !canonicalGate.ready) {
+            if (typeof showNotify === 'function') showNotify('Notes are still loading', 'Retry the canonical thread before sending.');
+            return false;
+        }
+        const arr = _sxrCommentsForAction(post, comp).slice();
         const role = _sxrCommentRole();
         const _now = new Date().toISOString();
         const isRoot = !parentId;
@@ -50840,6 +51741,21 @@
                 committedBatch = {};
                 _writeUiBindRepairAck(post, committedBatch, acknowledgement);
                 nativeCommentCommitted = !!(acknowledgement && acknowledgement.native_committed);
+                if (_isClientLink && nativeCommentCommitted) {
+                    if (acknowledgement.comment) {
+                        _prodComments.adopt(_writeUiNativeId(post, comp), acknowledgement.comment);
+                    }
+                    await _prodProjectCanonicalCardComments('sxr', pid);
+                    // A client change request still advances the Samples status,
+                    // but its canonical comment is never copied into the legacy
+                    // card comment arrays or source-save payload.
+                    if (isRoot && msg.is_tweak && _sxrApplyAutoStatus(pid, 'client_added', comp)) {
+                        await _sxrWatchNoteSave(pid);
+                    }
+                    _sxrRefreshCommentsBtn(pid);
+                    _sxrUpdateCardStatusDisplay(pid);
+                    return true;
+                }
             } catch (e) {
                 _writeUiReportFailure('sxr', 'comment', e);
                 return false;
@@ -50860,7 +51776,7 @@
         const pid = _sxrOpenCommentsPid; if (!pid) return;
         const post = sxrState.posts.find(p => p.id === pid); if (!post) return;
         const comp = _sxrFindCompForCommentId(post, rootId);
-        const list = comp === 'video' ? (Array.isArray(post.comments) ? post.comments.slice() : _sxrLoadComments(post)) : _sxrCommentsFor(post, comp).slice();
+        const list = _sxrCommentsForAction(post, comp).slice();
         const root = list.find(c => c.id === rootId && !c.parent_id); if (!root) return;
         const wasDone = !!root.done;
         // Resolving the LAST open SMM change-request routes the component onward
@@ -50871,6 +51787,12 @@
         const otherOpen = list.filter(c => !c.parent_id && !c.done && !c.deleted && _sxrMsgIsTweak(c) && c.id !== rootId).length;
         const deferToChooser = !wasDone && _sxrCommentRole() === 'smm' && otherOpen === 0;
         if (deferToChooser) { _sxrResolveLastTweak(pid, comp, rootId); return; }
+        const canonicalGate = _prodCanonicalCommentGate(post, comp);
+        if (canonicalGate.linked) {
+            _writeUiCommitCardCommentLifecycle('sxr', post, comp, root, wasDone ? 'unresolve' : 'resolve')
+                .then(receipt => receipt && _writeUiPersistCanonicalCommentProjection('sxr', post, comp));
+            return;
+        }
         if (wasDone) { root.done = false; root.done_at = ''; root.done_by = ''; }
         else { root.done = true; root.done_at = new Date().toISOString(); root.done_by = _sxrCurrentAuthor(); }
         root.updated_at = new Date().toISOString();
@@ -50888,12 +51810,24 @@
         const pid = _sxrOpenCommentsPid; if (!pid) return;
         const post = sxrState.posts.find(p => p.id === pid); if (!post) return;
         const comp = _sxrFindCompForCommentId(post, commentId);
-        const arr = comp === 'video' ? (Array.isArray(post.comments) ? post.comments.slice() : _sxrLoadComments(post)) : _sxrCommentsFor(post, comp).slice();
+        const arr = _sxrCommentsForAction(post, comp).slice();
         const target = arr.find(c => c.id === commentId);
-        if (!target || !_sxrCanDeleteComment(target)) return;
+        if (!target || (target.canonical ? !target.can_delete : !_sxrCanDeleteComment(target))) return;
         const isRoot = !target.parent_id;
-        const msg = isRoot ? "This deletes the message and every reply in this thread. This can't be undone." : "Delete this reply? This can't be undone.";
-        showConfirm('Delete note?', msg, () => {
+        const msg = target.canonical
+            ? (isRoot
+                ? "Delete this note? Replies remain in the thread under a deleted-note marker. This can't be undone."
+                : "Delete this reply? A deleted-note marker remains. This can't be undone.")
+            : isRoot
+                ? "This deletes the message and every reply in this thread. This can't be undone."
+                : "Delete this reply? This can't be undone.";
+        showConfirm('Delete note?', msg, async () => {
+            const canonicalGate = _prodCanonicalCommentGate(post, comp);
+            if (canonicalGate.linked) {
+                const receipt = await _writeUiCommitCardCommentLifecycle('sxr', post, comp, target, 'delete');
+                if (receipt) await _writeUiPersistCanonicalCommentProjection('sxr', post, comp);
+                return;
+            }
             const _delAt = new Date().toISOString();
             const next = arr.map(c => (c.id === commentId || c.parent_id === commentId) ? Object.assign({}, c, { deleted: true, updated_at: _delAt }) : c);
             _sxrSetCommentsFor(post, comp, next);
@@ -51640,7 +52574,15 @@
         return chain;
     }
     async function _sxrPostLinearComment(issueUrl, body, author, meta) {
-        if (!(await _writeUiUseGatewayWhenReady('sxr', meta))) {
+        const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
+        const nativeId = _writeUiNativeId(meta && meta.post, component);
+        const clientCanonicalWrite = !!_isClientLink;
+        if (clientCanonicalWrite) {
+            const gate = _prodCanonicalCommentGate(meta && meta.post, component);
+            if (!gate.linked || !gate.ready || !gate.client || !nativeId) {
+                throw _writeUiGatewayError(409, 'canonical_comment_read_required');
+            }
+        } else if (!(await _writeUiUseGatewayWhenReady('sxr', meta))) {
             if (meta && meta.deferLegacyUntilSourceSave) {
                 return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
             }
@@ -51648,8 +52590,6 @@
             return Promise.resolve({ skipped: true, legacy_transport: true });
         }
         const url = String(issueUrl || '').trim(), txt = String(body || '').trim();
-        const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
-        const nativeId = _writeUiNativeId(meta && meta.post, component);
         if (!txt) return Promise.resolve({ skipped: true });
         if (!url && !nativeId) {
             const targetless = await _writeUiClassifyTargetless('sxr', component, meta);
@@ -51660,7 +52600,11 @@
                 })
                 : targetless;
         }
-        const repair = meta && meta.repairRecord ? meta.repairRecord : _writeUiBuildSourceRepair('sxr', 'comment', meta);
+        const repair = clientCanonicalWrite
+            ? null
+            : meta && meta.repairRecord
+                ? meta.repairRecord
+                : _writeUiBuildSourceRepair('sxr', 'comment', meta);
         const comment = meta && meta.comment;
         const nativeCommentId = String(comment && comment.id || _writeUiIntentId('sxr', 'comment', [Date.now(), txt.slice(0, 24)]));
         return _writeUiGatewayWithRepair({

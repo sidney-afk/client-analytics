@@ -211,9 +211,333 @@ function expect(condition, message) {
     await page.locator('[data-prod-comments-state="error"] button', { hasText: 'Retry' }).click();
     await page.waitForSelector('[data-prod-comments-state="empty"]', { timeout: 5000 });
 
+    const clientPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const clientPageErrors = [];
+    const clientCommentReads = [];
+    const clientGatewayWrites = [];
+    const clientFallbackWrites = [];
+    const clientToken = 'synthetic-client-comment-token';
+    let trackClientWrite = false;
+    let releaseBindingSwitch;
+    let markBindingSwitchStarted;
+    const bindingSwitchStarted = new Promise(resolve => { markBindingSwitchStarted = resolve; });
+    const bindingSwitchRelease = new Promise(resolve => { releaseBindingSwitch = resolve; });
+    clientPage.on('pageerror', error => clientPageErrors.push(error.message));
+    clientPage.on('request', request => {
+      if (!trackClientWrite || request.method() !== 'POST') return;
+      const pathname = new URL(request.url()).pathname;
+      if (pathname === '/functions/v1/production-comments'
+        || pathname === '/functions/v1/production-write') return;
+      clientFallbackWrites.push(`${request.method()} ${request.url()}`);
+    });
+    await clientPage.route('**/rest/v1/**', async route => {
+      const url = new URL(route.request().url());
+      const table = url.pathname.split('/').pop();
+      const flagKey = url.searchParams.get('key') || '';
+      const rows = table === 'syncview_runtime_flags' && flagKey === 'eq.prod_authority'
+        ? [{ value: { video: 'linear', graphics: 'linear' } }]
+        : table === 'syncview_runtime_flags'
+          ? [{ value: { clients: [] } }]
+        : table === 'sample_reviews'
+        ? [{
+          id: 'client-card',
+          client: 'browserclient',
+          name: 'Canonical client comment fixture',
+          status: 'Client Approval',
+          video_status: 'Client Approval',
+          graphic_status: 'In Progress',
+          video_deliverable_id: 'client-deliverable-video',
+          graphic_deliverable_id: 'client-deliverable-graphic',
+          video_tweaks: JSON.stringify([
+            {
+              id: 'legacy-internal',
+              author: 'Legacy staff',
+              role: 'smm',
+              audience: 'internal',
+              body: 'LEGACY INTERNAL LEAK',
+              created_at: '2026-07-20T10:00:00Z',
+            },
+            {
+              id: 'legacy-client',
+              author: 'Legacy staff',
+              role: 'smm',
+              audience: 'client',
+              body: 'LEGACY CLIENT STALE',
+              created_at: '2026-07-20T10:01:00Z',
+            },
+          ]),
+          graphic_tweaks: '[]',
+          updated_at: '2026-07-20T12:00:00Z',
+        }]
+        : [];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(rows),
+      });
+    });
+    await clientPage.route('**/functions/v1/client-token-verify', async route => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      const valid = body.client === 'Browser Client'
+        && body.slug === 'browserclient'
+        && body.token === clientToken
+        && body.view === 'sample-reviews'
+        && body.strict === true;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(valid
+          ? {
+            ok: true,
+            valid: true,
+            allowed: true,
+            slug: 'browserclient',
+            display_name: 'Browser Client',
+            view: 'sample-reviews',
+            strict: true,
+            active: true,
+            protocol: 'syncview-client-entry-v1',
+          }
+          : { ok: true, valid: false, allowed: false, error: 'invalid_client_link' }),
+      });
+    });
+    await clientPage.route('**/functions/v1/production-comments', async route => {
+      const request = route.request();
+      const body = JSON.parse(request.postData() || '{}');
+      clientCommentReads.push({ body, headers: request.headers() });
+      if (body.card_id === 'client-card-switch') {
+        markBindingSwitchStarted();
+        await bindingSwitchRelease;
+        await route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'held binding switch failure' }),
+        });
+        return;
+      }
+      const comments = body.deliverable_id === 'client-deliverable-video'
+        ? [
+          {
+            id: 'client-safe',
+            author_name: 'Fixture team',
+            role: 'smm',
+            body: 'Canonical client-visible note',
+            audience: 'client',
+            component: 'video',
+            source_created_at: '2026-07-21T10:00:00Z',
+            source_updated_at: '2026-07-21T10:00:00Z',
+          },
+          {
+            id: 'client-internal-leak',
+            author_name: 'Fixture team',
+            role: 'smm',
+            body: 'CLIENT INTERNAL LEAK',
+            audience: 'internal',
+            component: 'video',
+            source_created_at: '2026-07-21T10:01:00Z',
+            source_updated_at: '2026-07-21T10:01:00Z',
+          },
+        ]
+        : [];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          canonical_thread: true,
+          audience_scope: 'client',
+          comments,
+          next_cursor: null,
+          has_more: false,
+        }),
+      });
+    });
+    await clientPage.route('**/functions/v1/production-write', async route => {
+      const request = route.request();
+      const body = JSON.parse(request.postData() || '{}');
+      clientGatewayWrites.push({ body, headers: request.headers() });
+      const now = '2026-07-21T12:00:00Z';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          native_committed: true,
+          authority: 'linear',
+          legacy_parity: true,
+          mirror_pending: false,
+          row: {
+            id: body.id,
+            client_slug: 'browserclient',
+            team: 'video',
+          },
+          comment: {
+            id: 'client-gateway-write',
+            native_comment_id: body.comment && body.comment.native_comment_id,
+            deliverable_id: body.id,
+            parent_id: body.comment && body.comment.parent_id || null,
+            author_name: 'Browser Client',
+            role: 'client',
+            body: body.comment && body.comment.body,
+            audience: 'client',
+            component: body.comment && body.comment.component,
+            is_tweak: false,
+            source_created_at: now,
+            source_updated_at: now,
+            created_at: now,
+            updated_at: now,
+            version: 1,
+            can_edit: true,
+            can_delete: true,
+            can_resolve: false,
+          },
+        }),
+      });
+    });
+    try {
+      const query = new URLSearchParams({
+        sxr: '1',
+        c: 'Browser Client',
+        t: clientToken,
+        v: 'sample-reviews',
+      });
+      await clientPage.goto(
+        `http://127.0.0.1:${server.address().port}/?${query}`,
+        { waitUntil: 'domcontentloaded' },
+      );
+      await clientPage.waitForFunction(() => typeof sxrState === 'object'
+        && sxrState.client === 'Browser Client'
+        && Array.isArray(sxrState.posts)
+        && sxrState.posts.some(row => row.id === 'client-card'), null, { timeout: 15000 });
+      await clientPage.evaluate(() => openSxrComments('client-card'));
+      await clientPage.waitForSelector('[data-cm-row="client-safe"]', { timeout: 5000 });
+
+      const exactReads = clientCommentReads.map(read => read.body);
+      expect(exactReads.length === 2, 'client Notes did not read both exact canonical deliverable slots');
+      expect(exactReads.every(body => body.source_surface === 'sxr'
+        && body.card_id === 'client-card'
+        && (body.component === 'video' || body.component === 'graphic')),
+      'client comment read did not bind the exact SXR card/component');
+      expect(exactReads.some(body => body.deliverable_id === 'client-deliverable-video'
+        && body.component === 'video')
+        && exactReads.some(body => body.deliverable_id === 'client-deliverable-graphic'
+          && body.component === 'graphic'),
+      'client comment read crossed a canonical component/deliverable slot');
+      expect(clientCommentReads.every(read =>
+        read.headers['x-syncview-client-token'] === clientToken
+        && !read.headers['x-syncview-key']),
+      'verified client Notes did not use the exact client token principal');
+      const clientModalText = await clientPage.locator('#sxrCommentsModal').textContent();
+      expect(clientModalText.includes('Canonical client-visible note'),
+        'canonical client-visible comment did not render on the verified client surface');
+      expect(!clientModalText.includes('CLIENT INTERNAL LEAK')
+        && !clientModalText.includes('LEGACY INTERNAL LEAK')
+        && !clientModalText.includes('LEGACY CLIENT STALE'),
+      'client surface rendered an internal or legacy card-array comment');
+      await clientPage.evaluate(() => {
+        const post = sxrState.posts.find(row => row.id === 'client-card');
+        _sxrMergePostComments(post, {
+          video_comments: [{
+            id: 'legacy-internal-reply',
+            parent_id: 'client-safe',
+            author: 'Legacy staff',
+            role: 'smm',
+            audience: 'internal',
+            body: 'LEGACY INTERNAL REPLY LEAK',
+            created_at: '2026-07-21T11:00:00Z',
+            updated_at: '2026-07-21T11:00:00Z',
+          }],
+        });
+        _sxrRenderCommentsModal();
+      });
+      const afterLegacyMerge = await clientPage.locator('#sxrCommentsModal').textContent();
+      expect(!afterLegacyMerge.includes('LEGACY INTERNAL REPLY LEAK'),
+        'a later legacy merge exposed an internal reply beneath a client root');
+      expect(await clientPage.evaluate(() => {
+        const post = sxrState.posts.find(row => row.id === 'client-card');
+        const visible = _sxrCommentsForView(post, 'video');
+        return visible.length > 0
+          && visible.every(row => row.canonical === true && row.audience === 'client');
+      }), 'verified client rendering admitted a noncanonical or non-client row');
+      expect(await clientPage.evaluate(() => {
+        const post = sxrState.posts.find(row => row.id === 'client-card');
+        const video = _prodCanonicalCommentGate(post, 'video');
+        const graphic = _prodCanonicalCommentGate(post, 'graphic');
+        return video.ready && video.client && graphic.ready && graphic.client;
+      }), 'real verified client-surface reads did not establish exact canonical capability');
+
+      trackClientWrite = true;
+      const writeSaved = await clientPage.evaluate(() => {
+        _sxrComposeComp = 'video';
+        _sxrComposeIsTweak = false;
+        return _sxrAppendComment('client-card', null, 'Gateway-only client note');
+      });
+      trackClientWrite = false;
+      expect(writeSaved === true, 'verified client comment did not complete');
+      expect(clientGatewayWrites.length === 1,
+        'flag-off verified client comment did not use exactly one production-write request');
+      expect(clientGatewayWrites[0].body.operation === 'comment'
+        && clientGatewayWrites[0].body.surface === 'sxr'
+        && clientGatewayWrites[0].body.id === 'client-deliverable-video'
+        && clientGatewayWrites[0].body.legacy_parity === true
+        && clientGatewayWrites[0].headers['x-syncview-client-token'] === clientToken,
+      'verified client comment lost its exact gateway target, parity lane, or principal');
+      expect(clientFallbackWrites.length === 0,
+        'flag-off verified client comment reached a legacy/source fallback: ' + clientFallbackWrites.join(' | '));
+      expect(await clientPage.evaluate(() => {
+        const post = sxrState.posts.find(row => row.id === 'client-card');
+        return !_sxrCommentsFor(post, 'video').some(row =>
+          row && (row.id === 'client-gateway-write' || row.body === 'Gateway-only client note'))
+          && _sxrCommentsForView(post, 'video').some(row =>
+            row && row.id === 'client-gateway-write' && row.canonical === true
+              && row.audience === 'client');
+      }), 'gateway client comment was persisted into legacy card arrays or missed canonical projection');
+
+      await clientPage.evaluate(() => {
+        const original = sxrState.posts.find(row => row.id === 'client-card');
+        const switched = {
+          ...original,
+          id: 'client-card-switch',
+          name: 'Binding switch fixture',
+          graphic_deliverable_id: '',
+          _canonicalCommentReads: {},
+          _canonicalCommentsByComponent: Object.create(null),
+        };
+        sxrState.posts.push(switched);
+        window.__bindingSwitchRead = _prodProjectCanonicalCardComments('sxr', switched.id);
+      });
+      await Promise.race([
+        bindingSwitchStarted,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('binding switch request did not start')), 5000)),
+      ]);
+      expect(await clientPage.evaluate(() => {
+        const post = sxrState.posts.find(row => row.id === 'client-card-switch');
+        const gate = _prodCanonicalCommentGate(post, 'video');
+        return gate.status === 'loading'
+          && !gate.ready
+          && !gate.client
+          && _sxrCanonicalCommentsFor(post, 'video').length === 0
+          && _prodComments.find('client-deliverable-video', 'client-safe') === null;
+      }), 'binding switch retained prior ready capability or canonical items while the new read was held');
+      releaseBindingSwitch();
+      await clientPage.evaluate(() => window.__bindingSwitchRead);
+      expect(await clientPage.evaluate(() => {
+        const post = sxrState.posts.find(row => row.id === 'client-card-switch');
+        const gate = _prodCanonicalCommentGate(post, 'video');
+        return gate.status === 'error'
+          && !gate.ready
+          && !gate.client
+          && _sxrCanonicalCommentsFor(post, 'video').length === 0
+          && _prodComments.find('client-deliverable-video', 'client-safe') === null;
+      }), 'failed binding switch restored prior verified rows or capability');
+      expect(!clientPageErrors.length, 'client page errors: ' + clientPageErrors.join(' | '));
+    } finally {
+      await clientPage.close();
+    }
+
     expect(!unexpectedWrites.length, 'unexpected write-like requests: ' + unexpectedWrites.join(' | '));
     expect(!pageErrors.length, 'page errors: ' + pageErrors.join(' | '));
-    console.log('prod-comments-browser: auth, refresh races, paging, merge, escaping, visibility, states, and authority-gated composer passed');
+    console.log('prod-comments-browser: staff thread plus exact verified client-link SXR canonical projection passed');
   } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));

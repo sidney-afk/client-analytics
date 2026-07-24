@@ -208,6 +208,64 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && /via SyncView/.test(comment.variables.input.body)
     && mapping.markerFromBody(comment.variables.input.body) === 'fixture:comment:1',
   'comment mapping carries the visible convention and hidden dedup marker');
+  const dependencyEdit = mapping.buildMutation({
+    ...baseRow,
+    operation: 'comment',
+    dedup_key: 'fixture:comment:edit',
+    payload: { action: 'edit', body: 'Edited while drain was paused' },
+  }, { linear_comment_id: 'linear-comment-from-add' });
+  const dependencyDelete = mapping.buildMutation({
+    ...baseRow,
+    operation: 'comment',
+    dedup_key: 'fixture:comment:delete',
+    payload: { action: 'delete' },
+  }, { linear_comment_id: 'linear-comment-from-edit' });
+  ok(dependencyEdit.kind === 'commentUpdate'
+    && dependencyEdit.variables.id === 'linear-comment-from-add'
+    && dependencyDelete.kind === 'commentDelete'
+    && dependencyDelete.variables.id === 'linear-comment-from-edit',
+  'comment edit/delete accept the provider id handed forward by their ordered dependency');
+  const shadowMaterializedEdit = mapping.buildMutation({
+    ...baseRow,
+    operation: 'comment',
+    dedup_key: 'fixture:comment:shadow-live-edit',
+    payload: { action: 'edit', body: 'Current canonical body' },
+  }, {
+    linear_issue_id: 'issue_fixture',
+    comment_shadow_materialize: true,
+  });
+  ok(shadowMaterializedEdit.kind === 'commentCreate'
+    && shadowMaterializedEdit.variables.input.issueId === 'issue_fixture'
+    && mapping.markerFromBody(shadowMaterializedEdit.variables.input.body)
+      === 'fixture:comment:shadow-live-edit',
+  'the first live edit after a shadow-only predecessor materializes only the current canonical comment');
+  const importedMaterializedEdit = mapping.buildMutation({
+    ...baseRow,
+    operation: 'comment',
+    dedup_key: 'fixture:comment:import-live-edit',
+    payload: { action: 'edit', body: 'Current imported canonical body' },
+  }, {
+    linear_issue_id: 'issue_fixture',
+    comment_import_materialize: true,
+  });
+  ok(importedMaterializedEdit.kind === 'commentCreate'
+    && importedMaterializedEdit.variables.input.issueId === 'issue_fixture'
+    && mapping.markerFromBody(importedMaterializedEdit.variables.input.body)
+      === 'fixture:comment:import-live-edit',
+  'the first edit of an F42 import materializes the current canonical body instead of providerless update');
+  const recoveredDelete = mapping.decideConflict({
+    ...baseRow,
+    operation: 'comment',
+    payload: { action: 'delete' },
+    linear_result: { delete_attempted: true },
+  }, { id: 'issue_fixture' }, {
+    linear_comment_id: 'linear-comment-recovered',
+    comment_delete_checked: true,
+    linear_comment: null,
+  });
+  ok(recoveredDelete.decision === 'already_applied'
+    && recoveredDelete.comment_id === 'linear-comment-recovered',
+  'delete crash recovery retains the dependency-supplied provider receipt');
 
   const createPayload = {
     team_id: 'team_fixture',
@@ -648,6 +706,24 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
       < dependencyConflictBlock.indexOf('status: "skipped"')
     && /last_error: f27Replay[\s\S]{0,140}"parent_create_idempotency_conflict"/.test(dependencyConflictBlock),
   'a child create inherits a terminal parent conflict, persists its own read-only quarantine, and skips before any Linear read');
+  ok(/data\.status === "skipped"[\s\S]{0,120}data\.operation\) === "comment"[\s\S]{0,100}result\.comment_id/.test(ef)
+    && /payload\.linear_comment_id[\s\S]{0,100}dependency\.comment_id[\s\S]{0,100}dependency\.linear_comment_id/.test(ef)
+    && /recoveredCommentId[\s\S]{0,500}comment_id: recoveredCommentId/.test(ef)
+    && /comment_id: clean\(context\.linear_comment_id\)/.test(ef),
+  'ordered comment dependencies resume through written or recovered skipped receipts and preserve the provider id');
+  const shadowDependencyStart = ef.indexOf('if (data.status === "shadow_ok")');
+  const shadowDependencyEnd = ef.indexOf('\n  return { waiting: true', shadowDependencyStart);
+  const shadowDependency = ef.slice(shadowDependencyStart, shadowDependencyEnd);
+  ok(/data\.operation\) === "comment"/.test(shadowDependency)
+    && /shadow-comment-dependency:/.test(shadowDependency)
+    && /synthetic_comment_dependency: true/.test(shadowDependency)
+    && /const shadowWithoutForeign = dependency\.synthetic_comment_dependency === true[\s\S]{0,100}control\.mode === "live"/.test(ef)
+    && /\(shadowWithoutForeign \|\| cardImportWithoutForeign\)[\s\S]{0,160}commentAction === "delete"/.test(ef)
+    && /shadow_transition_noop: shadowWithoutForeign/.test(ef)
+    && /recovery_reason: "no_foreign_comment_materialized"/.test(ef)
+    && /commentAction === "edit"[\s\S]{0,520}context\.comment_shadow_materialize = true/.test(ef)
+    && /context\.linear_comment_id = ""/.test(ef),
+  'shadow chains stay terminal: live edit materializes current state while direct delete records an exact no-foreign-object convergence');
   const preConflictStart = ef.indexOf('if (conflict.decision === "idempotency_conflict" && row.operation === "create")');
   const preConflictEnd = ef.indexOf('if (conflict.decision === "failed")', preConflictStart);
   const preConflictBlock = ef.slice(preConflictStart, preConflictEnd);

@@ -19,12 +19,15 @@ import {
   clean,
   clientOperationAllowed,
   clientScopeAllowed,
+  commentLifecycleCapabilities,
+  commentLifecycleAllowed,
   credentialMode,
   deterministicNativeId,
   intentFingerprint,
   legacyParityAllowed,
   lower,
   normalizeActor,
+  normalizeCommentAction,
   normalizeOperation,
   normalizeTeam,
   overdueStatusBumpDate,
@@ -848,20 +851,56 @@ function publicDescriptionRow(value: unknown): JsonMap {
   };
 }
 
-function publicComment(value: unknown): JsonMap {
+function publicComment(value: unknown, principal?: Principal): JsonMap {
   const row = parseJson(value);
-  const fields = [
-    "id", "native_comment_id", "deliverable_id", "batch_id", "client_slug", "team",
-    "linear_issue_uuid", "linear_identifier", "linear_comment_id",
-    "parent_id", "thread_root_id", "linear_parent_comment_id", "linear_thread_root_id",
-    "author_key", "author_member_id", "linear_author_id", "author_name", "role",
-    "transport_actor", "transport_role", "transport_linear_user_id",
-    "body", "body_format", "attachments", "audience", "component", "is_tweak", "round",
-    "origin", "source", "source_created_at", "source_updated_at", "edited_at", "deleted_at",
-    "deleted_by_key", "deleted_by_name", "resolved_at", "resolved_by_key", "resolved_by_name",
-    "version", "created_at", "updated_at", "ingested_at",
-  ];
-  return Object.fromEntries(fields.map(field => [field, row[field] ?? null]));
+  const deleted = !!clean(row.deleted_at);
+  const attachments = (deleted ? [] : Array.isArray(row.attachments) ? row.attachments : [])
+    .slice(0, 20)
+    .map(value => parseJson(value))
+    .map(item => {
+      const rawUrl = clean(item.url || item.href || item.file_url);
+      let url = "";
+      try {
+        const parsed = new URL(rawUrl);
+        if (parsed.protocol === "https:") url = parsed.href;
+      } catch (_error) {
+        url = "";
+      }
+      if (!url) return null;
+      return {
+        url,
+        name: clean(item.name || item.title || item.filename).slice(0, 240) || "Attachment",
+        ...(clean(item.mime_type || item.content_type)
+          ? { mime_type: clean(item.mime_type || item.content_type).slice(0, 120) }
+          : {}),
+      };
+    })
+    .filter(Boolean);
+  return {
+    id: clean(row.id),
+    // This bounded native identity is the only receipt field Calendar/Samples
+    // need to adopt an already-committed write after a lost HTTP response.
+    native_comment_id: clean(row.native_comment_id).slice(0, 160) || null,
+    parent_id: clean(row.parent_id) || null,
+    author_name: clean(row.author_name) || "Unknown author",
+    role: clean(row.role) || null,
+    body: deleted ? "Comment deleted." : row.body == null ? "" : String(row.body),
+    body_format: clean(row.body_format) || "markdown",
+    attachments,
+    audience: lower(row.audience) === "client" ? "client" : "internal",
+    component: clean(row.component) || null,
+    is_tweak: row.is_tweak === true,
+    round: Number.isInteger(Number(row.round)) ? Number(row.round) : null,
+    source_created_at: clean(row.source_created_at) || null,
+    source_updated_at: clean(row.source_updated_at) || null,
+    edited_at: clean(row.edited_at) || null,
+    deleted_at: clean(row.deleted_at) || null,
+    resolved_at: clean(row.resolved_at) || null,
+    version: Number.isInteger(Number(row.version)) ? Number(row.version) : 1,
+    created_at: clean(row.created_at) || null,
+    updated_at: clean(row.updated_at) || null,
+    ...commentLifecycleCapabilities(principal, row),
+  };
 }
 
 function assertCas(body: JsonMap, existing: JsonMap, includeDescription = false): void {
@@ -1169,7 +1208,7 @@ async function reconcileEntityOperation(
     if (!commentBody || commentBody.length > MAX_COMMENT_BODY) {
       throw new GatewayError(400, "invalid_comment_body");
     }
-    const audience = principal.kind === "client" ? "client" : lower(commentInput.audience || "internal");
+    let audience = principal.kind === "client" ? "client" : lower(commentInput.audience || "internal");
     if (!["internal", "client"].includes(audience)) throw new GatewayError(400, "invalid_comment_audience");
     const suppliedNativeId = clean(commentInput.native_comment_id);
     if (suppliedNativeId
@@ -1200,6 +1239,9 @@ async function reconcileEntityOperation(
         throw new GatewayError(403, "comment_parent_forbidden");
       }
       parentId = clean(parent.id);
+      // A reply is part of the resolved canonical thread. Its visibility is
+      // inherited server-side and cannot be widened or hidden by caller input.
+      audience = lower(parent.audience) === "client" ? "client" : "internal";
     }
     productionCommentId = suppliedNativeId
       ? await deterministicNativeId("pc", `${entity}:${id}`, suppliedNativeId)
@@ -1291,7 +1333,7 @@ async function reconcileEntityOperation(
     row: operation === "description" ? publicDescriptionRow(current) : publicRow(current),
     receipt: receiptPublic,
     comment: receipt.outcome === "committed_exact" && canonicalComment
-      ? publicComment(canonicalComment)
+      ? publicComment(canonicalComment, principal)
       : null,
   };
   return json(
@@ -2640,6 +2682,10 @@ async function handleEntityOperation(
   );
   if (legacyParity) await assertLegacyParityEnabled(supabase);
   const authorityGeneration = await f27WriteAuthorizationGeneration(supabase, team);
+  // F2 controls draining, not whether an intent exists. F32 has not installed
+  // an owner-controlled retired epoch, so applicable comment mutations keep
+  // queuing while F2 is off, missing, or unreadable like every native writer.
+  const commentMirrorEnabled = operation === "comment";
   let dedup = dedupKey(operation, entity, id, requestId);
   const outboundBase: JsonMap = {
     entity: operation === "comment" ? "comment" : entity,
@@ -2653,29 +2699,96 @@ async function handleEntityOperation(
 
   let result: unknown;
   let labelsReceipt: JsonMap | null = null;
+  let commentMirrorApplicable = operation !== "comment" || commentMirrorEnabled;
   if (operation === "comment") {
     const commentInput = parseJson(body.comment);
-    const commentBody = String(commentInput.body == null ? body.body || "" : commentInput.body).trim();
-    if (!commentBody || commentBody.length > MAX_COMMENT_BODY) {
-      throw new GatewayError(400, "invalid_comment_body");
+    const action = normalizeCommentAction(commentInput.action || "add");
+    if (!action) throw new GatewayError(400, "invalid_comment_action");
+    let lifecycleRow: JsonMap | null = null;
+    let commentBody = String(commentInput.body == null ? body.body || "" : commentInput.body).trim();
+    let audience = principal.kind === "client" ? "client" : lower(commentInput.audience || "internal");
+    let suppliedNativeId = clean(commentInput.native_comment_id);
+    let productionCommentId = "";
+    let nativeCommentId = "";
+    let parentId = "";
+    let commentDependsOnId: number | null = null;
+    let expectedCommentVersion: number | null = null;
+    let expectedCommentUpdatedAt = "";
+
+    if (action === "add") {
+      if (!commentBody || commentBody.length > MAX_COMMENT_BODY) {
+        throw new GatewayError(400, "invalid_comment_body");
+      }
+      if (!["internal", "client"].includes(audience)) {
+        throw new GatewayError(400, "invalid_comment_audience");
+      }
+    } else {
+      const commentRef = clean(commentInput.id || commentInput.comment_id || commentInput.native_comment_id);
+      if (!/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(commentRef)) {
+        throw new GatewayError(400, "valid_comment_id_required");
+      }
+      const { data: matches, error: commentError } = await supabase.from("production_comments")
+        .select("*")
+        .or(`id.eq.${commentRef},native_comment_id.eq.${commentRef}`)
+        .limit(2);
+      if (commentError) throw new GatewayError(503, "comment_lookup_unavailable");
+      if (!Array.isArray(matches) || matches.length !== 1) {
+        // Missing and out-of-thread identifiers share the same non-enumerating
+        // response once the target thread itself has been authorized.
+        throw new GatewayError(403, "comment_forbidden");
+      }
+      lifecycleRow = matches[0] as JsonMap;
+      if (clean(lifecycleRow.client_slug) !== targetClientSlug
+          || clean(lifecycleRow.deliverable_id) !== (entity === "deliverable" ? id : "")
+          || clean(lifecycleRow.batch_id) !== (entity === "batch" ? id : "")
+          || normalizeTeam(lifecycleRow.team) !== team
+          || (principal.kind === "client" && lower(lifecycleRow.audience) !== "client")
+          || !commentLifecycleAllowed(principal, action, lifecycleRow)) {
+        throw new GatewayError(403, "comment_forbidden");
+      }
+      if ((action === "resolve" || action === "unresolve") && clean(lifecycleRow.parent_id)) {
+        throw new GatewayError(400, "comment_root_required");
+      }
+      expectedCommentVersion = Number(commentInput.expected_version);
+      expectedCommentUpdatedAt = clean(commentInput.expected_updated_at);
+      if (!Number.isInteger(expectedCommentVersion) || Number(expectedCommentVersion) < 1
+          || !expectedCommentUpdatedAt) {
+        throw new GatewayError(400, "comment_cas_required");
+      }
+      if (Number(lifecycleRow.version) !== expectedCommentVersion
+          || clean(lifecycleRow.updated_at) !== expectedCommentUpdatedAt) {
+        throw new GatewayError(409, "write_conflict", {
+          conflict: true,
+          comment: publicComment(lifecycleRow, principal),
+        });
+      }
+      if (action === "edit" && (!commentBody || commentBody.length > MAX_COMMENT_BODY)) {
+        throw new GatewayError(400, "invalid_comment_body");
+      }
+      if (action !== "edit") commentBody = clean(lifecycleRow.body);
+      audience = lower(lifecycleRow.audience);
+      suppliedNativeId = "";
+      productionCommentId = clean(lifecycleRow.id);
+      nativeCommentId = clean(lifecycleRow.native_comment_id) || productionCommentId;
+      parentId = clean(lifecycleRow.parent_id);
+      commentMirrorApplicable = commentMirrorEnabled
+        && (action === "edit" || action === "delete");
     }
-    const audience = principal.kind === "client" ? "client" : lower(commentInput.audience || "internal");
-    if (!["internal", "client"].includes(audience)) throw new GatewayError(400, "invalid_comment_audience");
-    const suppliedNativeId = clean(commentInput.native_comment_id);
+
     if (suppliedNativeId
         && (!(surface === "calendar" || surface === "sxr")
           || !/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(suppliedNativeId))) {
       throw new GatewayError(400, "invalid_native_comment_id");
     }
-    if (suppliedNativeId) {
+    if (action === "add" && suppliedNativeId) {
       // Calendar/SXR queue entries carry a stable native id. Make that id,
       // rather than a retry's request id, own the one durable/outbound intent.
       dedup = dedupKey("comment", entity, id, `native:${suppliedNativeId}`);
       outboundBase.dedup_key = dedup;
     }
-    const rawParentId = clean(commentInput.parent_id);
-    let parentId = rawParentId;
-    if (rawParentId) {
+    const rawParentId = action === "add" ? clean(commentInput.parent_id) : "";
+    parentId = action === "add" ? rawParentId : parentId;
+    if (action === "add" && rawParentId) {
       if (!/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(rawParentId)) {
         throw new GatewayError(400, "invalid_comment_parent");
       }
@@ -2695,11 +2808,16 @@ async function handleEntityOperation(
         throw new GatewayError(403, "comment_parent_forbidden");
       }
       parentId = clean(parent.id);
+      // Reply visibility is a canonical-thread property. Ignore any
+      // caller-supplied audience and inherit the resolved parent audience.
+      audience = lower(parent.audience) === "client" ? "client" : "internal";
     }
-    const productionCommentId = suppliedNativeId
-      ? await deterministicNativeId("pc", `${entity}:${id}`, suppliedNativeId)
-      : await deterministicNativeId("pc", requestId, `${entity}:${id}:production`);
-    const nativeCommentId = suppliedNativeId || productionCommentId;
+    if (action === "add") {
+      productionCommentId = suppliedNativeId
+        ? await deterministicNativeId("pc", `${entity}:${id}`, suppliedNativeId)
+        : await deterministicNativeId("pc", requestId, `${entity}:${id}:production`);
+      nativeCommentId = suppliedNativeId || productionCommentId;
+    }
     const round = commentInput.round == null || commentInput.round === ""
       ? null
       : Number(commentInput.round);
@@ -2707,7 +2825,7 @@ async function handleEntityOperation(
       throw new GatewayError(400, "invalid_comment_round");
     }
     const fingerprint = await intentFingerprint({
-      operation, entity, id,
+      operation, action, entity, id,
       ...(suppliedNativeId ? {} : { requestId, surface, legacyParity }),
       actorKey: principal.actorKey,
       comment: {
@@ -2718,18 +2836,45 @@ async function handleEntityOperation(
         component: clean(commentInput.component) || null,
         is_tweak: commentInput.is_tweak === true,
         round,
+        expected_version: expectedCommentVersion,
+        expected_updated_at: expectedCommentUpdatedAt || null,
       },
     });
+    if (commentMirrorApplicable && action !== "add") {
+      const { data: dependency, error: dependencyError } = await supabase.from("mirror_outbox")
+        .select("id")
+        .eq("entity", "comment")
+        .eq("operation", "comment")
+        .eq("comment_id", productionCommentId)
+        .neq("dedup_key", dedup)
+        .in("status", ["pending", "failed", "shadow_ok", "written", "skipped"])
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (dependencyError) throw new GatewayError(503, "comment_dependency_lookup_unavailable");
+      const dependencyId = Number(parseJson(dependency).id || 0);
+      commentDependsOnId = Number.isSafeInteger(dependencyId) && dependencyId > 0
+        ? dependencyId
+        : null;
+    }
     const outbound = {
       ...outboundBase,
       comment_id: productionCommentId,
+      ...(commentDependsOnId ? { depends_on_id: commentDependsOnId } : {}),
       payload: f27FencedPayload(
-        { body: commentBody, _intent_fingerprint: fingerprint },
+        {
+          action,
+          body: commentBody,
+          linear_comment_id: clean(lifecycleRow && lifecycleRow.linear_comment_id) || null,
+          _intent_fingerprint: fingerprint,
+        },
         authorityGeneration,
         legacyParity,
       ),
     };
     const event = eventFor(operation, principal, sourceEditedAt, surface, outbound, existing);
+    event.comment_action = action;
+    event.comment_id = productionCommentId;
     if (body.expected_status !== undefined) event.expected_status = clean(body.expected_status);
     if (body.expected_updated_at !== undefined) event.expected_updated_at = clean(body.expected_updated_at);
     const comment: JsonMap = {
@@ -2739,45 +2884,65 @@ async function handleEntityOperation(
       deliverable_id: entity === "deliverable" ? id : null,
       batch_id: entity === "batch" ? id : null,
       team,
-      operation: "add",
-      author_key: principal.actorKey,
-      author_member_id: principal.memberId,
-      author_name: principal.actorName,
-      role: principal.actorRole,
+      operation: action,
       transport_actor: "production-write",
       transport_role: "gateway",
-      body: commentBody,
-      body_format: "markdown",
-      audience,
-      parent_id: parentId || null,
-      component: clean(commentInput.component) || null,
-      is_tweak: commentInput.is_tweak === true,
-      round,
-      origin: "native",
-      source: "ui",
-      source_created_at: sourceEditedAt,
       source_updated_at: sourceEditedAt,
-      provenance: { surface },
+      provenance: { surface, action },
     };
-    const replay = await assertDedupIntent(
-      supabase,
-      dedup,
-      dedupExpectation(principal, team, sourceEditedAt, outbound, fingerprint),
-    );
-    if (replay) {
-      const { data: committed, error: committedError } = await supabase.from("production_comments")
-        .select("*")
-        .eq("id", productionCommentId)
-        .maybeSingle();
-      if (committedError || !committed) throw new GatewayError(500, "idempotent_result_missing");
-      result = committed;
-    } else {
-      if (principal.kind === "client"
-          && !clientOperationAllowed(operation, existing.status, nextStatus)) {
-        throw new GatewayError(403, "operation_forbidden");
+    if (action === "add") {
+      Object.assign(comment, {
+        author_key: principal.actorKey,
+        author_member_id: principal.memberId,
+        author_name: principal.actorName,
+        role: principal.actorRole,
+        body: commentBody,
+        body_format: "markdown",
+        audience,
+        parent_id: parentId || null,
+        component: clean(commentInput.component) || null,
+        is_tweak: commentInput.is_tweak === true,
+        round,
+        origin: "native",
+        source: "ui",
+        source_created_at: sourceEditedAt,
+      });
+      const replay = await assertDedupIntent(
+        supabase,
+        dedup,
+        dedupExpectation(principal, team, sourceEditedAt, outbound, fingerprint),
+      );
+      if (replay) {
+        const { data: committed, error: committedError } = await supabase.from("production_comments")
+          .select("*")
+          .eq("id", productionCommentId)
+          .maybeSingle();
+        if (committedError || !committed) throw new GatewayError(500, "idempotent_result_missing");
+        result = committed;
+      } else {
+        if (principal.kind === "client"
+            && !clientOperationAllowed(operation, existing.status, nextStatus)) {
+          throw new GatewayError(403, "operation_forbidden");
+        }
+        assertCas(body, existing);
+        result = await rpc(supabase, "production_comment_write", { p_comment: comment, p_event: event });
       }
-      assertCas(body, existing);
-      result = await rpc(supabase, "production_comment_write", { p_comment: comment, p_event: event });
+    } else {
+      if (action === "edit") comment.body = commentBody;
+      if (action === "delete") {
+        comment.deleted_by_key = principal.actorKey;
+        comment.deleted_by_name = principal.actorName;
+      }
+      if (action === "resolve") {
+        comment.resolved_by_key = principal.actorKey;
+        comment.resolved_by_name = principal.actorName;
+      }
+      result = await rpc(supabase, "production_comment_lifecycle_write", {
+        p_comment: comment,
+        p_event: event,
+        p_expected_version: expectedCommentVersion,
+        p_expected_updated_at: expectedCommentUpdatedAt,
+      });
     }
   } else if (operation === "labels") {
     const labelIds = canonicalLabelIds(body.label_ids);
@@ -2950,15 +3115,20 @@ async function handleEntityOperation(
     && !principal.testOnly
     && !legacyParity
     && await outboundLiveForDrain(supabase);
-  const shouldDrain = legacyParity || principal.testOnly || syncviewLiveDrain;
+  const mutationHasMirror = operation !== "comment" || commentMirrorApplicable;
+  const shouldDrain = mutationHasMirror && (legacyParity || principal.testOnly || syncviewLiveDrain);
   const awaitedDrain = legacyParity || principal.testOnly;
-  const mirror = awaitedDrain
+  const mirror = !mutationHasMirror
+    ? { attempted: false, acknowledged: true, not_applicable: true }
+    : awaitedDrain
     ? await targetedDrain(dedup, principal)
     : syncviewLiveDrain
       ? { attempted: true, acknowledged: false, asynchronous: true }
       : { attempted: false, acknowledged: false };
   if (shouldDrain && !awaitedDrain) scheduleSyncviewLiveDrains([dedup], principal);
-  const mirrorPending = awaitedDrain ? mirror.acknowledged !== true : true;
+  const mirrorPending = !mutationHasMirror
+    ? false
+    : awaitedDrain ? mirror.acknowledged !== true : true;
   return json({
     ok: true,
     native_committed: true,
@@ -2973,7 +3143,7 @@ async function handleEntityOperation(
       : operation === "comment"
         ? publicRow(existing)
         : publicRow(result),
-    ...(operation === "comment" ? { comment: parseJson(result) } : {}),
+    ...(operation === "comment" ? { comment: publicComment(result, principal) } : {}),
     ...(labelsReceipt || {}),
   }, mirrorPending && awaitedDrain ? 202 : 200);
 }

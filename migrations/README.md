@@ -131,6 +131,16 @@ executes these files (see `README.md` › Repository layout).
   runtime flag, authority, or live data. Migration apply, function deploy, and
   the real TEST creation drill require a separate post-merge owner-approved
   window.
+- **`2026-07-23-production-comment-thread-lifecycle.sql`** is the additive,
+  source-only F39/F42/F43 canonical comment delta. It adds protected read
+  audit/budgets, lifecycle idempotency receipts, card-link/import conflict
+  provenance, and service-only RPCs for lifecycle, native-ID binding, and the
+  separately reviewed two-surface import. It replaces relevant RPC bodies
+  without dropping data and reuses the existing `comment` operation; there is
+  no outbox CHECK widening or F27 operation-allowlist change. F2 `off` pauses
+  applicable comment drain debt rather than retiring it. Migration apply,
+  function deploy, private Calendar+SXR import, and real TEST read/write/
+  projection drills require a separate post-merge owner-approved window.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

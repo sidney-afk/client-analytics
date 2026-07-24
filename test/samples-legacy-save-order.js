@@ -324,6 +324,7 @@ async function runKasperTweakCase({ gateway, saveOk }) {
   };
   const item = { slug: 'fixtureclient', post };
   const context = {
+    _isClientLink: false,
     _sxrKasperState: { saving: {}, errors: {}, drafts: {} },
     _kasperState: { sxrRepairs: [] },
     _sxrLinearPushChain: Object.create(null),

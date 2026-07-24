@@ -153,12 +153,22 @@ function sxrCards() {
   }];
 }
 
-function fixtureSnapshot() {
-  const calendar = calendarCards();
-  const sxr = sxrCards();
+// The v2 crosswalk projection, exactly as the exporter emits it and exactly as
+// the seeded deliverables rows exist in the database — so the plan is certified
+// against the same facts the import RPC will re-check.
+function deliverableCrosswalk() {
+  return FIXTURE_DELIVERABLES.map(d => ({
+    id: d.id, client_slug: 'test-client', team: d.team, origin: d.origin, card_id: d.card_id,
+  }));
+}
+
+function fixtureSnapshot(overrides = {}) {
+  const calendar = overrides.calendar || calendarCards();
+  const sxr = overrides.sxr || sxrCards();
   return {
     contract: SNAPSHOT_CONTRACT,
     surfaces: { calendar, sxr },
+    deliverables: overrides.deliverables || deliverableCrosswalk(),
     manifest: {
       surfaces: {
         calendar: sourceCoverage(calendar, 'calendar'),
@@ -385,6 +395,70 @@ async function rehearse() {
       applyRunner.applyEligibility(plan).eligible === true,
       applyRunner.applyEligibility(plan).reasons);
 
+    // 3b. RPC-parity gap cases. Each of these was empirically REJECTED by the
+    // real production_comment_card_import while the planner certified it, which
+    // is how the live apply died on its first call with zero rows written. The
+    // planner must now refuse every one of them at plan time. Each case is
+    // asserted twice: the planner blocks/defers it, AND — for the cases the
+    // planner would otherwise have passed through — the raw RPC really does
+    // reject it, so these stay honest if the migration ever changes.
+    const gapCase = (name, cards, expect) => {
+      const plan = applyRunner.derivePlan(fixtureSnapshot({ calendar: cards, sxr: [] }),
+        { importRunId: `gap-${name}` });
+      const classes = new Set([
+        ...plan.conflicts.map(c => c.classification),
+        ...plan.deferrals.map(d => `defer:${d.classification}`),
+      ]);
+      check(`gap: ${name} is caught at plan time (${expect})`,
+        classes.has(expect) && plan.imports.length === 0,
+        { classes: [...classes], planned: plan.imports.length });
+    };
+    const gapCard = (over, cardOver) => [Object.assign({
+      id: 'cal-card-1', client_slug: 'test-client', video_deliverable_id: 'dlv-cal-vid',
+      comments: [Object.assign(
+        { id: 'gap-c', author: 'SMM', role: 'smm', body: 'Gap note', created_at: '2026-07-23T10:00:00Z' },
+        over,
+      )],
+    }, cardOver || {})];
+
+    // A NUL byte anywhere in the payload: PostgREST rejects the whole call with
+    // "unsupported Unicode escape sequence".
+    gapCase('nul byte in body', gapCard({ body: `has${String.fromCharCode(0)}nul` }),
+      'unsupported_text_control_character');
+    gapCase('nul byte in author', gapCard({ author: `a${String.fromCharCode(0)}b` }),
+      'unsupported_text_control_character');
+    // round is int4: a positive integer above 2^31-1 passes every JS check and
+    // is then rejected by the column type.
+    gapCase('round above int4 range', gapCard({ round: 2147483648 }), 'invalid_round');
+    // The RPC re-checks the deliverable crosswalk; a card pointing at a
+    // deliverable that does not exist has no target at all (deferred), while one
+    // whose deliverable describes a different card/client/team/origin is a
+    // defect that must block rather than be written to the wrong target.
+    gapCase('deliverable absent from the crosswalk',
+      gapCard({}, { video_deliverable_id: 'dlv-does-not-exist' }), 'defer:deliverable_not_found');
+    gapCase('deliverable belongs to another card',
+      gapCard({}, { id: 'cal-card-other' }), 'deliverable_crosswalk_mismatch');
+    gapCase('deliverable belongs to another client',
+      gapCard({}, { client_slug: 'other-client' }), 'deliverable_crosswalk_mismatch');
+    gapCase('deliverable origin does not match the surface',
+      gapCard({}, { video_deliverable_id: 'dlv-sxr-vid' }), 'deliverable_crosswalk_mismatch');
+
+    // Prove the RPC really would have rejected the two payload-shape cases, so
+    // this parity claim cannot rot silently if the migration changes.
+    const rawRejects = async (name, mutate) => {
+      const good = applyRunner.derivePlan(fixtureSnapshot(), { importRunId: 'gap-raw' });
+      const item = good.imports[0];
+      let threw = '';
+      try {
+        await psqlDeps(cluster).importOne(item.link, mutate(JSON.parse(JSON.stringify(item.comment))), item.event);
+      } catch (error) { threw = String(error && error.message || error); }
+      check(`gap: the real RPC still rejects ${name}`, !!threw, { threw: threw.slice(0, 120) });
+    };
+    await rawRejects('a NUL byte in the body',
+      comment => Object.assign(comment, { body: `x${String.fromCharCode(0)}y` }));
+    await rawRejects('a round above int4 range',
+      comment => Object.assign(comment, { round: 2147483648 }));
+
     // 4. Apply with the real apply runner against the disposable database.
     const deps = psqlDeps(cluster);
     const applied = await applyRunner.applyPlan(plan, deps);
@@ -434,9 +508,12 @@ if (require.main === module) {
 }
 
 module.exports = {
+  Cluster,
   FOUNDATION_SQL,
   PENDING_MIGRATIONS,
   PREREQ_MIGRATIONS,
   fixtureSnapshot,
+  psqlDeps,
   rehearse,
+  seedFixtures,
 };

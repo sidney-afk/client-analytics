@@ -17,7 +17,12 @@
 
 const fs = require('fs');
 const path = require('path');
-const { SNAPSHOT_CONTRACT, COMPONENT_FIELDS, sourceCoverage } = require('./f42-card-comment-import');
+const {
+  COMPONENT_FIELDS,
+  DELIVERABLE_FIELDS,
+  SNAPSHOT_CONTRACT,
+  sourceCoverage,
+} = require('./f42-card-comment-import');
 
 // The exact source fields the planner reads. Everything else on the row (brief,
 // linear_raw, attachments the planner does not import, timestamps, etc.) is
@@ -89,15 +94,39 @@ async function exportSurface(config, surface, fetchImpl) {
   return rows.map(projectCard).filter(cardHasComments);
 }
 
+// The deliverable crosswalk the import RPC validates every comment against: the
+// row must exist, and its origin/team/client_slug/card_id must match the card
+// the comment came from. Carrying it in the snapshot is what lets the planner
+// certify a plan the RPC will actually accept. Projected to exactly the five
+// crosswalk fields — never briefs, titles, linear_raw or other columns.
+function projectDeliverable(row) {
+  const source = row && typeof row === 'object' && !Array.isArray(row) ? row : {};
+  const record = {};
+  for (const field of DELIVERABLE_FIELDS) {
+    record[field] = source[field] == null ? null : source[field];
+  }
+  return record;
+}
+
+async function exportDeliverables(config, fetchImpl) {
+  const rows = await fetchAllRows(config, 'deliverables', fetchImpl);
+  return rows
+    .map(projectDeliverable)
+    .filter(row => clean(row.id))
+    .sort((a, b) => clean(a.id).localeCompare(clean(b.id)));
+}
+
 async function exportSnapshot(config = {}, deps = {}) {
   const fetchImpl = deps.fetch || globalThis.fetch;
   if (typeof fetchImpl !== 'function') throw new Error('fetch_unavailable');
   if (!clean(config.url) || !clean(config.serviceKey)) throw new Error('supabase_configuration_required');
   const calendar = await exportSurface(config, 'calendar', fetchImpl);
   const sxr = await exportSurface(config, 'sxr', fetchImpl);
+  const deliverables = await exportDeliverables(config, fetchImpl);
   return {
     contract: SNAPSHOT_CONTRACT,
     surfaces: { calendar, sxr },
+    deliverables,
     manifest: {
       surfaces: {
         calendar: sourceCoverage(calendar, 'calendar'),
@@ -131,6 +160,7 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
     contract: snapshot.contract,
     calendar_cards: snapshot.surfaces.calendar.length,
     sxr_cards: snapshot.surfaces.sxr.length,
+    deliverables: snapshot.deliverables.length,
   };
 }
 
@@ -146,6 +176,8 @@ if (require.main === module) {
 module.exports = {
   COMMENT_FIELDS,
   PROJECTED_FIELDS,
+  exportDeliverables,
+  projectDeliverable,
   SURFACE_TABLES,
   cardHasComments,
   exportSnapshot,

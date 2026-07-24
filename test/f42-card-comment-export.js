@@ -59,9 +59,22 @@ function fakeFetch(tables) {
     video_comments: [{ id: 'sxr-root', author: 'SMM', role: 'smm', body: 'SXR note', created_at: '2026-07-23T12:00:00Z' }],
   }];
 
+  // The v2 contract requires the deliverable crosswalk the import RPC re-checks.
+  const deliverableRows = [
+    { id: 'dlv-cal-vid', client_slug: 'test-client', team: 'video', origin: 'calendar',
+      card_id: 'cal-card-1', title: 'SECRET deliverable title', linear_raw: { private: true } },
+    { id: 'dlv-cal-gra', client_slug: 'test-client', team: 'graphics', origin: 'calendar',
+      card_id: 'cal-card-1' },
+    { id: 'dlv-sxr-vid', client_slug: 'test-client', team: 'video', origin: 'samples',
+      card_id: 'sxr-card-1' },
+    { id: 'dlv-sxr-gra', client_slug: 'test-client', team: 'graphics', origin: 'samples',
+      card_id: 'sxr-card-1' },
+  ];
   const snapshot = await exporter.exportSnapshot(
     { url: 'https://fixture.invalid', serviceKey: 'service-key' },
-    { fetch: fakeFetch({ calendar_posts: calendarRows, sample_reviews: sxrRows }) },
+    { fetch: fakeFetch({
+      calendar_posts: calendarRows, sample_reviews: sxrRows, deliverables: deliverableRows,
+    }) },
   );
   ok(snapshot.contract === SNAPSHOT_CONTRACT
     && snapshot.surfaces.calendar.length === 1
@@ -74,6 +87,18 @@ function fakeFetch(tables) {
     && snapshot.manifest.surfaces.sxr.cards === 1
     && /^[a-f0-9]{64}$/.test(snapshot.manifest.surfaces.calendar.source_sha256),
   'the exporter produces a self-consistent coverage manifest with a stable source hash');
+
+  // The exporter must carry the crosswalk the import RPC validates against, and
+  // project it to exactly the five crosswalk fields.
+  ok(Array.isArray(snapshot.deliverables)
+    && snapshot.deliverables.length === 4
+    && snapshot.deliverables.every(row =>
+      Object.keys(row).sort().join(',') === 'card_id,client_slug,id,origin,team')
+    && snapshot.deliverables[0].id === 'dlv-cal-gra',
+  'exportSnapshot emits the deliverable crosswalk, id-sorted and projected to the crosswalk fields');
+  ok(JSON.stringify(snapshot.deliverables).indexOf('SECRET deliverable title') === -1
+    && JSON.stringify(snapshot.deliverables).indexOf('linear_raw') === -1,
+  'the exported crosswalk never carries deliverable titles or linear_raw');
 
   // The exported snapshot must certify through the real planner unchanged.
   const plan = planCardCommentImport(snapshot, { importRunId: 'export-fixture' });
@@ -88,7 +113,7 @@ function fakeFetch(tables) {
   }));
   const paged = await exporter.exportSnapshot(
     { url: 'https://fixture.invalid', serviceKey: 'k', pageSize: 1000 },
-    { fetch: fakeFetch({ calendar_posts: many, sample_reviews: [] }) },
+    { fetch: fakeFetch({ calendar_posts: many, sample_reviews: [], deliverables: [] }) },
   );
   ok(paged.surfaces.calendar.length === 1500,
     'exportSnapshot paginates PostgREST reads until the final short page');

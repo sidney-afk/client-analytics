@@ -13,11 +13,15 @@ The private snapshot must use this topology:
 
 ```json
 {
-  "contract": "syncview-f42-card-comment-snapshot-v1",
+  "contract": "syncview-f42-card-comment-snapshot-v2",
   "surfaces": {
     "calendar": [],
     "sxr": []
   },
+  "deliverables": [
+    { "id": "", "client_slug": "", "team": "video|graphics",
+      "origin": "calendar|samples", "card_id": "" }
+  ],
   "manifest": {
     "surfaces": {
       "calendar": {
@@ -63,6 +67,41 @@ manifest must still match what the planner read.
 
 Deferred rows are picked up automatically by a later plan once their card gains a deliverable
 binding — no replan flag or manual step is required.
+
+## RPC parity: the plan must never be rejected by the import
+
+The first live apply failed on its FIRST RPC call (`rpc_production_comment_card_import_400`, zero
+rows written) because the planner certified rows the RPC then refused. The planner now pre-validates
+every rule `production_comment_card_import`, `production_comment_upsert` and the
+`production_comments` constraints enforce, so a certified plan is one the RPC will accept:
+
+| Enforcement | Planner classification |
+| --- | --- |
+| Deliverable row must exist | `deliverable_not_found` (**deferred** — no target exists) |
+| Deliverable `origin`/`team`/`client_slug`/`card_id` must match the card | `deliverable_crosswalk_mismatch` (**blocking** — wrong target) |
+| `text` cannot hold a NUL byte (PostgREST rejects the whole call) | `unsupported_text_control_character` |
+| `round` is `integer` (int4) and `> 0` | `invalid_round` (`round_exceeds_int4_range`) |
+| `source_*`/`edited_at`/`deleted_at`/`resolved_at` cast to `timestamptz` | `malformed_lifecycle_timestamp` |
+| `author_key`/`author_name`/`role` non-empty, `audience` enum, `attachments` array, `body_format` enum, `team` enum, one native target, id shape, self-parent, parent exists in-thread | already guaranteed by construction or by existing classes |
+
+The crosswalk is why the snapshot moved to **v2**: those facts live on `deliverables`, not on the
+card, so a v1 snapshot could not see them. `scripts/f42-card-comment-export.js` now exports the
+crosswalk projected to exactly the five fields above (never titles, briefs or `linear_raw`), and the
+plan carries a `deliverables_fingerprint` that is part of the apply digest — a deliverable re-pointed
+between plan and apply moves the digest and the drift guard refuses before any write.
+
+Every row in that table is covered by a rehearsal fixture case, and the two payload-shape cases
+additionally assert that the **real** RPC still rejects them, so the parity claim cannot rot
+silently if a migration changes.
+
+## RPC failure detail
+
+A failed PostgREST call now reports the SQLSTATE `code` and `message` (each truncated to 200
+characters) alongside the function and status, in the FAIL document and therefore the step log.
+`details` and `hint` are deliberately **dropped**: a constraint violation echoes the offending row
+("Failing row contains …"), which would put private comment bodies, card ids and client slugs into a
+public Actions log. The raw payload is not retained on the error at all, so no downstream serializer
+can reach them.
 
 ## Offline plan
 

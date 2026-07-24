@@ -1,6 +1,6 @@
 # docs/truth/ — the living current-truth layer
 
-> Last verified: 2026-07-14 @ 616ea20
+> Last verified: 2026-07-24 @ c8a61d2
 
 **Problem this solves:** every audit written as a dated snapshot (`docs/audits/`) is stale the
 moment the code changes, so each new session re-audits the same ground. These docs are the

@@ -70,13 +70,13 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   until the exact function source is manually deployed. Effective schema
   and grants were read back and the exact-source function is deployed; the release drill ended with
   zero sidecar-row residue. F147 tracks the exact revoke-correction artifact provenance.
-- **Edge Functions.** 29 are represented under `supabase/functions/`; **the app calls 24**
-  (**"20 literal + 4 composed" Edge Functions**, see
+- **Edge Functions.** 30 are represented under `supabase/functions/`; **the app calls 25**
+  (**"21 literal + 4 composed" Edge Functions**, see
   §7). Five are backend-only: the Linear webhook target (`linear-inbound`), B4 outbox drainer
   (`linear-outbound`), service-only write wrappers (`deliverable-write`, `batch-write`), and the
   scheduled thumbnail Drive scanner (`thumbnail-revision-scan`). `production-write` is app-called
-  by merged #812. Real teams remain read-only under Linear authority; the bounded active-TEST lane
-  can write.
+  by merged #812; `production-archive` is app-called source-only candidate code for F34.
+  Real teams remain read-only under Linear authority; the bounded active-TEST lane can write.
 - **n8n** (single host). **54 webhook paths** referenced by the app (§7). Live-instance check
   2026-07-11: **53 of 54 are served by ACTIVE workflows**; the lone exception is `ttp-status`, which
   has **no serving webhook** — its constant is defined but never fetched, and TikTok-Pilot status is
@@ -525,7 +525,10 @@ n8n in the metric read path.*
   full `deliverables` row (brief + raw, on open), bulk brief hydration 6.5 s post-boot / on palette
   open. Issue-detail comments page through the protected `production-comments` Edge Function in
   50-row `{created_at,id}` cursor pages; it returns the normalized native thread, not the old
-  actor/action activity summaries. Issue detail calls `_prodLoadEventsFor` to derive its Properties
+  actor/action activity summaries. F39 candidate source authorizes the exact deliverable/team/client
+  before body access, applies principal/request budgets and durable non-secret read audit, and
+  filters client-audience totals/pages; this source is not deployed. Issue detail calls
+  `_prodLoadEventsFor` to derive its Properties
   status-history hover, but the reader pre-seeds/catches to empty and `_prodActivity` still has no
   render caller, so persisted native Activity is not shown and read failure is not distinguishable
   from no events (F138). F201 candidate source lazily calls the authenticated `production-write`
@@ -534,6 +537,17 @@ n8n in the metric read path.*
   comes from the native `linear_raw.issue.labels` relation rather than a foreign Linear round trip.
   The sole exception is the service-authenticated TEST drill, which may bootstrap an older TEST
   row's missing native selection from that same complete Linear snapshot; browser/staff rows cannot.
+  F34/F53/F137 candidate source removes the four typed asset URLs from anonymous
+  bootstrap, withholds only those columns through explicit grants, and calls
+  `production-write` for the authenticated no-store four-slot asset/access read.
+  Current non-asset browser columns and service reads remain available.
+  Historical URLs embedded in `brief`/`linear_raw` are a separate inherited
+  exposure, so this is not a blanket body-confidentiality claim. The tab also
+  calls the new staff-only `production-archive` Edge Function for bounded,
+  generation-scoped archive-repair list/detail pages. The archive reader
+  repeats active-client and exact Admin/SMM or same-team Creative authorization,
+  returns only certified private rescue links, and is not live until the separate
+  owner-approved migration/function gate.
   Also fires the shared Sheets essentials in the background for app chrome. The tab reads the
   single `prod_authority` runtime-flag row to gate controls.
 - **Writes.** Status, comment, due date, assignee, F201 candidate labels, and F202 candidate
@@ -553,10 +567,24 @@ n8n in the metric read path.*
   Production parent/sub-issue create candidate. That candidate accepts only the issue fields,
   persists one manual native hierarchy plus one private create intent atomically, and contains no
   Calendar/Samples/card/link input or writer.
+  F53/F137 candidate source adds a guarded Graphics `attachment` operation,
+  transactional exact-card projection, typed source/delivery assets, a stable
+  request/source clock across ambiguous retry, file-only canonical validation,
+  revision-safe Linear attachment mirroring, and a server-side SMM Approval
+  artifact gate whose client authorization precedes provider probing. F34 adds
+  a private, occurrence-complete, capability- and byte-readback-certified
+  rescue sidecar; its migration, functions, inventory, and rescue remain
+  source-only pending the dedicated owner window.
+  F43 candidate source adds canonical add/reply/edit/delete/resolve/reopen for Production,
+  Calendar, and Samples through the same gateway, with safe attachments, CAS/idempotency receipts,
+  audit, refresh, second-device draft rebase, and ordered existing-`comment` outbox dependencies.
+  F2 `off`/outage pauses applicable debt rather than retiring it. Its migration/functions/import/
+  TEST drill are not live.
 - **Current hard gaps (F50/F53/F54/F94/F136–F138/F200–F205).** A successful deliverable status write does **not** project to
   the linked Calendar/Samples card, whose component status remains a separate downstream truth.
-  Graphics has no canonical protected file/delivery-link operation; a manual card-side organizer
-  edit does not set `deliverables.file_url`. Inactive clients are loaded into ordinary queues, and
+  The new canonical Graphics artifact/archive-rescue source is not deployed or
+  live-proven, so F34/F53/F137 remain rollout gates despite the candidate
+  contracts. Inactive clients are loaded into ordinary queues, and
   neither browser staff gating nor server staff-key writes enforce `clients.active` for
   status/comment/due/assignee. Manual assignment also offers/accepts any active same-team roster row,
   without compatible-role or usable-Linear-mapping enforcement before the native commit (F94).
@@ -599,7 +627,10 @@ n8n in the metric read path.*
   Reopening an issue and the normal
   Production refresh both revalidate the newest comment page; stable-ID merge keeps already-loaded
   older pages and request tokens drop stale pagination races. Comment drafts, per-operation pending
-  state, and retry idempotency keys are memory-only; comment bodies never enter localStorage.
+  state, retry idempotency keys, and second-device rebase cursors are memory-only; comment bodies
+  never enter localStorage. F42 candidate source adds durable composite card/comment links,
+  import-run provenance/conflicts, and lifecycle receipts only after an owner-approved migration
+  and complete two-surface manifest-bound import.
   Authority is fail-closed and re-read on normal refresh/focus plus a 30-second foreground timer.
 - **Roles.** Every verified staff role can use the mounted nav item. Comment reads additionally
   re-check the role key plus one active role-compatible roster identity server-side; direct
@@ -608,8 +639,10 @@ n8n in the metric read path.*
   may use all five operations, including full-set labels. Creative **writes** are limited to
   same-team status/comment, not labels or own-assignment, and status policy does not validate
   current state (F37/F136). The
-  protected comment **reader does not fetch the target or enforce member-team scope** (F39), so a
-  creative key can currently read another team's full protected thread by deliverable ID. Direct
+  deployed protected comment **reader does not fetch the target or enforce member-team scope**
+  (F39), so a creative key can currently read another team's full protected thread by deliverable
+  ID. Candidate source closes that scope with exact target/team/client checks, non-enumerating
+  denials, audit, and budgets, but is not live. Direct
   diagnostics without a verified identity remain read-only. "My issues" is a hardcoded heuristic
   (member matching a specific name, else first active assignee), not a real identity (F37). At
   ≤900px the sidebar containing My issues and the only visible palette trigger is hidden; the
@@ -1396,8 +1429,8 @@ they drift — in either direction, including the counts. When it fails: update 
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
 - **n8n webhooks (54):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
-- **Edge functions (24):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan`
-- **Not counted above:** 20 of the 24 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live; `workload-linear` is app-called candidate source but not live until its exact-SHA manual deploy.
+- **Edge functions (25):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan`
+- **Not counted above:** 21 of the 25 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live; `workload-linear` and `production-archive` are app-called candidate source but are not live until their exact-SHA owner-gated deploys.
 - **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, the one-row `syncview_runtime_flags` authority read, and issue-detail `deliverable_events`. The event read currently feeds only a status-history hover, collapses failure to empty, and has no visible Activity renderer call (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (6):** `calendar_upsert_ef_clients` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`

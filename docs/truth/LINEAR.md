@@ -1,8 +1,9 @@
 # Linear — current truth
 
-> Last verified: 2026-07-24 @ f9fe855 + F200 owner-approved live data repair + source-only F201/F202/F203 candidates
-> (F145 parent-link projection and the F200 roster/data correction are live; F201/F202 gateway/outbound/inbound
-> plus F203 create additions remain gated pending their owner-approved migration/function/drill releases)
+> Last verified: 2026-07-24 @ f9fe855 + F200 owner-approved live data repair + source-only F39/F42/F43 and F201/F202/F203 candidates
+> (F145 parent-link projection and the F200 roster/data correction are live; F39/F42/F43 comment/attachment/lifecycle
+> additions and F201/F202 gateway/outbound/inbound plus F203 create additions remain gated pending their owner-approved
+> migration/function/drill releases)
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -44,6 +45,15 @@
 - **Legacy Calendar/Samples card comments:** app → Linear via `webhook/linear-add-comment`,
   prefixed `**{Reviewer} (via SyncView):**`. Those card-local arrays do not receive a complete
   inbound comment/lifecycle projection; see F42/F43.
+- **Canonical comment candidate (F39/F42/F43):** source-only code protects the exact canonical
+  thread by team/client, requires a two-surface Calendar+SXR snapshot with independently supplied
+  counts and stable hashes before import can certify complete, and routes add/reply/edit/delete/
+  resolve/reopen through `production-write`. Existing `comment` outbox rows carry ordered
+  dependencies so edit/delete cannot pass an unresolved add. F2 `off`/outage preserves applicable
+  debt for later drain; a first live edit after shadow-only history materializes the current
+  canonical body once, while deleting a never-materialized foreign comment is a terminal no-op.
+  No new outbox operation or CHECK widening is used. Nothing in this candidate is live-applied,
+  deployed, imported, or drilled.
 - **Current caller-auth defect (F91):** `linear-set-status`, `linear-add-comment`, `video-form`, and
   `graphic-form` authenticate no incoming principal. Their authority checks only choose whether a
   team may still write toward Linear; with both teams Linear-authoritative they permit the route.

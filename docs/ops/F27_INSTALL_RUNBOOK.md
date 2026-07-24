@@ -7,12 +7,13 @@ PR #901 is the prior stop proof: F27 is not installed. The corrective source
 and this toolkit must be cloud-reviewed and owner-merged before either window
 below can be proposed.
 
-F201/F202 source compatibility is additive and does not change that status:
+F201/F202/F53 source compatibility is additive and does not change that status:
 the parked F27 `mirror_outbox_enqueue` allowlist now includes `labels` and
-`description` so a future F27 install cannot regress either separately gated
-operation. This is source-only; F27 remains parked and uninstalled. It
-authorizes no live F201/F202 constraint change, `production-write` deployment,
-or real TEST labels/description drill.
+`description`, plus the Graphics `attachment` operation, so a future F27
+install cannot regress any separately gated operation. This is source-only;
+F27 remains parked and uninstalled. It authorizes no live F201/F202/F53
+constraint change, `production-write` deployment, or real TEST
+labels/description/attachment drill.
 
 The runbook is the single mechanical source of truth. Run the sections in
 order. Stop on any mismatch; do not reconstruct a command, DDL fragment, source

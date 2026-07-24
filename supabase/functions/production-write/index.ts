@@ -3197,10 +3197,13 @@ async function handleEntityOperation(
       && !clientOperationAllowed(operation, existing.status, nextStatus)) {
     throw new GatewayError(403, "operation_forbidden");
   }
-  if (operation === "status" && nextStatus === "smm_approval") {
-    await assertGraphicsApprovalArtifact(supabase, existing);
-  }
   if (body.reconcile_only === true) {
+    // Reconcile resolves its own historical authority inside
+    // reconcileEntityOperation and is permitted for still-Linear-authoritative
+    // teams, so the approval-artifact gate stays here before delegating.
+    if (operation === "status" && nextStatus === "smm_approval") {
+      await assertGraphicsApprovalArtifact(supabase, existing);
+    }
     return await reconcileEntityOperation(
       supabase,
       body,
@@ -3216,6 +3219,12 @@ async function handleEntityOperation(
       principal,
     );
   }
+  // Resolve the full write-authority chain — team authority, lane eligibility,
+  // legacy-parity, and the F27 generation fence — BEFORE any provider probe. A
+  // write-ineligible request (a Linear-authoritative team, an unreadable
+  // authority flag, or a failed generation fence) must be rejected before
+  // assertGraphicsApprovalArtifact performs an external access and upserts
+  // production_asset_access_checks.
   const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
   const legacyParity = authorityLane(
     authority,
@@ -3226,6 +3235,9 @@ async function handleEntityOperation(
   );
   if (legacyParity) await assertLegacyParityEnabled(supabase);
   const authorityGeneration = await f27WriteAuthorizationGeneration(supabase, team);
+  if (operation === "status" && nextStatus === "smm_approval") {
+    await assertGraphicsApprovalArtifact(supabase, existing);
+  }
   // F2 controls draining, not whether an intent exists. F32 has not installed
   // an owner-controlled retired epoch, so applicable comment mutations keep
   // queuing while F2 is off, missing, or unreadable like every native writer.

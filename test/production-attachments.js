@@ -253,12 +253,26 @@ function extractFunction(source, name) {
   const earlyClientTransition = entitySource.indexOf(
     '&& !clientOperationAllowed(operation, existing.status, nextStatus)',
   );
-  const artifactProbe = entitySource.indexOf('await assertGraphicsApprovalArtifact(supabase, existing)');
   const reconcileRoute = entitySource.indexOf('if (body.reconcile_only === true)');
+  // Forbidden client transitions are still rejected before either branch can
+  // probe the provider, and the reconcile branch keeps its own artifact gate.
+  const reconcileArtifactProbe = entitySource.indexOf('await assertGraphicsApprovalArtifact(supabase, existing)', reconcileRoute);
   ok(earlyClientTransition > 0
-      && earlyClientTransition < artifactProbe
-      && artifactProbe < reconcileRoute,
+      && earlyClientTransition < reconcileRoute
+      && reconcileArtifactProbe > reconcileRoute,
   'forbidden client status/reconcile requests are rejected before any artifact provider probe');
+  // The normal (non-reconcile) write path must resolve the full authority
+  // chain — team authority, lane eligibility, and the F27 generation fence —
+  // before the external artifact probe upserts production_asset_access_checks.
+  const normalAuthority = entitySource.indexOf('await authorityFor(supabase, team)', reconcileArtifactProbe);
+  const normalLane = entitySource.indexOf('authorityLane(', reconcileArtifactProbe);
+  const normalGenerationFence = entitySource.indexOf('await f27WriteAuthorizationGeneration(supabase, team)', reconcileArtifactProbe);
+  const normalArtifactProbe = entitySource.indexOf('await assertGraphicsApprovalArtifact(supabase, existing)', normalLane);
+  ok(normalAuthority > reconcileRoute
+      && normalLane > normalAuthority
+      && normalGenerationFence > normalLane
+      && normalArtifactProbe > normalGenerationFence,
+  'the normal write path resolves team authority, lane eligibility and the F27 fence before any artifact provider probe');
   const attachmentWriteStart = edge.lastIndexOf('} else if (operation === "attachment") {');
   const attachmentWriteBranch = edge.slice(
     attachmentWriteStart,

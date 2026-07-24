@@ -1,15 +1,17 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-23 @ f781add (read-only Production/Graphics audit rebase; product source
+> Last verified: 2026-07-24 @ e02b942 (owner-approved F200 roster/data correction live; product source
 > unchanged from audit base `1e7c0fd`) + source-only F27 operator-toolkit candidate (PR #901 stop
 > evidence still governs live state; corrective source is not live) + Phase-3 reconciliation, the
 > public-safe boot/refresh/history audits ending at F199, and the read-only Production/Graphics gap
 > audit through F205. The owner split F176/F179 overnight-runner containment into parked draft #908
 > for later review; it is not a blocker, must not be expanded or reopened, and was outside both
-> audits. Client-token verifier v28 and the matching #891 browser are live. Round 2 is audit-only:
-> F186–F199 remain an unremediated staff punch list, with one BLOCKER at F186; F200–F205 are the
-> unremediated Production/Graphics findings. No product code, test harness, deployment, flag,
-> migration, workflow, backend, writer, or live data changed. Workload background refresh is on
+> audits. Client-token verifier v28 and the matching #891 browser are live. F186–F199 remain an
+> unremediated staff punch list, with one BLOCKER at F186. F200 is live as a bounded roster/data
+> correction: three active project mappings, one active personal-brand `internal`→`client` correction,
+> and 87 owner-ratified CAS attribution repairs; F201–F205 remain unremediated Production/Graphics
+> findings. F200 added no schema, migration, runtime flag, n8n workflow, Edge Function, frozen writer,
+> deployment, or outbound/Linear mutation. Workload background refresh is on
 > `main`, while its deliberate-manual function boundaries remain unchanged. Coverage state lives in
 > `docs/testing/ASSURANCE_LEDGER.md`.
 

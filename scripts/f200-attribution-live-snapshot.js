@@ -48,13 +48,47 @@ function registeredGitWorktrees() {
   return worktrees;
 }
 
+function assertNoLinkedComponents(absolutePath) {
+  const parsed = path.parse(absolutePath);
+  const parts = absolutePath.slice(parsed.root.length).split(/[\\/]+/).filter(Boolean);
+  let cursor = parsed.root;
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    cursor = path.join(cursor, part);
+    let stat;
+    try { stat = fs.lstatSync(cursor); } catch (error) {
+      if (error && error.code === 'ENOENT' && index === parts.length - 1) return;
+      if (error && error.code === 'ENOENT') {
+        throw new Error('--out parent directory must already exist and cannot include links');
+      }
+      throw error;
+    }
+    if (stat.isSymbolicLink()) throw new Error('--out path cannot contain symlinks or junctions');
+  }
+}
+
 function assertPrivateOutputPath(value) {
   if (!clean(value) || !path.isAbsolute(value)) {
     throw new Error('--out must be an absolute private path outside every Git worktree');
   }
   const output = path.resolve(value);
+  assertNoLinkedComponents(output);
   if (registeredGitWorktrees().some(worktree => pathInside(comparisonPath(output), worktree))) {
     throw new Error('--out must be outside every Git worktree');
+  }
+  const parent = path.dirname(output);
+  const parentStat = fs.lstatSync(parent);
+  if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
+    throw new Error('--out parent directory must be a private directory');
+  }
+  try { fs.accessSync(parent, fs.constants.W_OK); } catch (_) {
+    throw new Error('--out parent directory must be writable');
+  }
+  try {
+    fs.lstatSync(output);
+    throw new Error('--out destination must not already exist');
+  } catch (error) {
+    if (!error || error.code !== 'ENOENT') throw error;
   }
   return output;
 }
@@ -168,8 +202,11 @@ async function main() {
       },
     },
   };
-  fs.mkdirSync(path.dirname(output), { recursive: true });
-  fs.writeFileSync(output, JSON.stringify(snapshot, null, 2), { encoding: 'utf8', mode: 0o600 });
+  fs.writeFileSync(output, JSON.stringify(snapshot, null, 2), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+  if (process.platform !== 'win32') {
+    fs.chmodSync(output, 0o600);
+    if ((fs.statSync(output).mode & 0o077) !== 0) throw new Error('private snapshot file permissions are too broad');
+  }
   console.log(JSON.stringify({
     schema: snapshot.schema,
     unattributed_deliverables: deliverables.length,
@@ -186,4 +223,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { assertPrivateOutputPath, registeredGitWorktrees };
+module.exports = { assertNoLinkedComponents, assertPrivateOutputPath, registeredGitWorktrees };

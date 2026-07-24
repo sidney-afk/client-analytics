@@ -2,6 +2,7 @@
 
 const { execFileSync } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const {
   OWNER_MANIFEST_SCHEMA,
@@ -710,6 +711,25 @@ throws(
   /outside every Git worktree/,
   'the private F200 snapshot refuses a worktree output path',
 );
+const privateSnapshotTestRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'f200-private-snapshot-'));
+try {
+  const freshPrivateSnapshot = path.join(privateSnapshotTestRoot, 'fresh-snapshot.json');
+  ok(assertPrivateOutputPath(freshPrivateSnapshot) === freshPrivateSnapshot,
+    'the private F200 snapshot accepts a new absolute path outside Git worktrees');
+  const existingPrivateSnapshot = path.join(privateSnapshotTestRoot, 'snapshot.json');
+  fs.writeFileSync(existingPrivateSnapshot, '{}', 'utf8');
+  throws(
+    () => assertPrivateOutputPath(existingPrivateSnapshot),
+    /destination must not already exist/,
+    'the private F200 snapshot refuses to overwrite an existing file',
+  );
+} finally {
+  fs.rmSync(privateSnapshotTestRoot, { recursive: true, force: true });
+}
+ok(/assertNoLinkedComponents\(output\)/.test(liveSnapshotSource)
+  && /flag:\s*'wx'/.test(liveSnapshotSource)
+  && /chmodSync\(output, 0o600\)/.test(liveSnapshotSource),
+'the private F200 snapshot rejects linked destinations and creates a new private-mode file');
 
 const inboundSource = fs.readFileSync(
   path.join(__dirname, '..', 'supabase', 'functions', 'linear-inbound', 'index.ts'),

@@ -145,6 +145,28 @@ export function normalizeCommentAction(value) {
   return ["add", "edit", "delete", "resolve", "unresolve"].includes(action) ? action : "";
 }
 
+// A client comment mutation must be bound to the exact SXR Samples-card context
+// the protected reader authorizes (production-comments clientSurfaceTargetAllowed):
+// the request surface is `sxr`, the target deliverable is Samples-origin with a
+// real card id, and the comment's component maps to the deliverable's team. This
+// stops a valid client token from mutating a Calendar/manual deliverable or a
+// wrong-component target that merely shares the same client slug. Client threads
+// are only the graphic/video review surfaces, matching the reader exactly.
+export function clientCommentTargetAllowed(surface, existing, component) {
+  const row = existing && typeof existing === "object" ? existing : {};
+  const comp = lower(component);
+  const expectedTeam = comp === "graphic"
+    ? "graphics"
+    : comp === "video"
+      ? "video"
+      : "";
+  return lower(surface) === "sxr"
+    && lower(row.origin) === "samples"
+    && !!clean(row.card_id)
+    && !!expectedTeam
+    && normalizeTeam(row.team) === expectedTeam;
+}
+
 // Comment lifecycle authority is narrower than the top-level `comment`
 // operation. Admin/SMM may moderate any authorized thread, creatives may edit
 // or delete only their own same-team comments, and a client may edit/delete

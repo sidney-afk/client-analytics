@@ -20,6 +20,7 @@ import {
   canonicalDescription,
   canonicalLabelIds,
   clean,
+  clientCommentTargetAllowed,
   clientOperationAllowed,
   clientScopeAllowed,
   commentLifecycleCapabilities,
@@ -3279,6 +3280,12 @@ async function handleEntityOperation(
       if (!["internal", "client"].includes(audience)) {
         throw new GatewayError(400, "invalid_comment_audience");
       }
+      // A client add is bound to the exact SXR card/component/deliverable
+      // crosswalk the reader authorizes, not merely the client slug.
+      if (principal.kind === "client"
+          && !clientCommentTargetAllowed(surface, existing, commentInput.component)) {
+        throw new GatewayError(403, "comment_forbidden");
+      }
     } else {
       const commentRef = clean(commentInput.id || commentInput.comment_id || commentInput.native_comment_id);
       if (!/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(commentRef)) {
@@ -3300,6 +3307,10 @@ async function handleEntityOperation(
           || clean(lifecycleRow.batch_id) !== (entity === "batch" ? id : "")
           || normalizeTeam(lifecycleRow.team) !== team
           || (principal.kind === "client" && lower(lifecycleRow.audience) !== "client")
+          // A client edit/delete is bound to the same exact SXR
+          // card/component/deliverable crosswalk as the reader and the add path.
+          || (principal.kind === "client"
+            && !clientCommentTargetAllowed(surface, existing, lifecycleRow.component))
           || !commentLifecycleAllowed(principal, action, lifecycleRow)) {
         throw new GatewayError(403, "comment_forbidden");
       }

@@ -10,12 +10,10 @@ export const OPERATIONS = Object.freeze([
   "assignee",
   "labels",
   "description",
-  "attachment",
   "intake_create",
 ]);
 
 export const MAX_DESCRIPTION_LENGTH = 100_000;
-export const MAX_ARTIFACT_URL_LENGTH = 2_048;
 
 export const DELIVERABLE_STATUSES = Object.freeze([
   "triage",
@@ -120,17 +118,8 @@ export function staffOperationAllowed(keyRole, operation, memberTeam, targetTeam
   if (key === "admin" || key === "smm") return true;
   if (key !== "creative" || normalizeTeam(memberTeam) !== normalizeTeam(targetTeam)) return false;
   if (op === "comment") return true;
-  if (op === "attachment") return normalizeTeam(targetTeam) === "graphics";
   if (op === "status") return CREATIVE_STATUSES.has(lower(nextStatus));
   return false;
-}
-
-export function staffAssetReadAllowed(keyRole, memberTeam, targetTeam) {
-  const key = lower(keyRole);
-  if (key === "admin" || key === "smm") return true;
-  return key === "creative"
-    && !!normalizeTeam(memberTeam)
-    && normalizeTeam(memberTeam) === normalizeTeam(targetTeam);
 }
 
 export function clientOperationAllowed(operation, currentStatus, nextStatus) {
@@ -138,46 +127,6 @@ export function clientOperationAllowed(operation, currentStatus, nextStatus) {
   if (op === "comment") return true;
   if (op !== "status" || !CLIENT_STATUSES.has(lower(nextStatus))) return false;
   return ["client_approval", "tweak"].includes(lower(currentStatus));
-}
-
-export function normalizeCommentAction(value) {
-  const action = lower(value || "add");
-  return ["add", "edit", "delete", "resolve", "unresolve"].includes(action) ? action : "";
-}
-
-// Comment lifecycle authority is narrower than the top-level `comment`
-// operation. Admin/SMM may moderate any authorized thread, creatives may edit
-// or delete only their own same-team comments, and a client may edit/delete
-// only its own client-visible comment. Resolving/reopening remains staff
-// moderation and is never available to a client principal.
-export function commentLifecycleAllowed(principal, actionValue, row) {
-  const action = normalizeCommentAction(actionValue);
-  if (!action || action === "add") return action === "add";
-  const actor = principal && typeof principal === "object" ? principal : {};
-  const comment = row && typeof row === "object" ? row : {};
-  const kind = lower(actor.kind);
-  const keyRole = lower(actor.keyRole);
-  if (kind === "staff" || kind === "test") {
-    if (keyRole === "admin" || keyRole === "smm" || keyRole === "test") return true;
-    if (action === "resolve" || action === "unresolve") return false;
-    return keyRole === "creative"
-      && !!clean(actor.memberId)
-      && clean(actor.memberId) === clean(comment.author_member_id);
-  }
-  if (kind !== "client" || (action !== "edit" && action !== "delete")) return false;
-  return lower(comment.audience) === "client"
-    && !!clean(actor.actorKey)
-    && clean(actor.actorKey) === clean(comment.author_key);
-}
-
-export function commentLifecycleCapabilities(principal, row) {
-  const comment = row && typeof row === "object" ? row : {};
-  return {
-    can_edit: commentLifecycleAllowed(principal, "edit", comment),
-    can_delete: commentLifecycleAllowed(principal, "delete", comment),
-    can_resolve: !clean(comment.parent_id)
-      && commentLifecycleAllowed(principal, "resolve", comment),
-  };
 }
 
 export function legacyParityAllowed(surface, operation) {
@@ -250,132 +199,6 @@ export function canonicalDescription(value) {
       && !value.includes("\0")
     ? value
     : null;
-}
-
-const ASSET_HOSTS = Object.freeze([
-  "drive.google.com",
-  "docs.google.com",
-  "frame.io",
-  "app.frame.io",
-  "f.io",
-  "dropbox.com",
-  "www.dropbox.com",
-  "uploads.linear.app",
-]);
-const SAFE_ASSET_QUERY_KEYS = new Set([
-  "usp", "dl", "raw", "download", "id", "tab", "rlkey", "resourcekey",
-]);
-const CREDENTIAL_QUERY_KEY = /(?:^|[-_])(?:token|auth|key|secret|signature|sig|expires?|credential|policy)(?:$|[-_])/i;
-
-function assetHostAllowed(hostname) {
-  const host = lower(hostname).replace(/\.$/, "");
-  return ASSET_HOSTS.includes(host);
-}
-
-function providerQuerySafe(url, host) {
-  if (host === "uploads.linear.app") return true;
-  for (const key of url.searchParams.keys()) {
-    if (CREDENTIAL_QUERY_KEY.test(key) || !SAFE_ASSET_QUERY_KEYS.has(lower(key))) return false;
-  }
-  return true;
-}
-
-export function assetUrlType(value) {
-  const raw = clean(value);
-  if (!raw || raw.length > MAX_ARTIFACT_URL_LENGTH || raw.includes("\0")) return "invalid";
-  let url;
-  try {
-    url = new URL(raw);
-  } catch (_error) {
-    return "invalid";
-  }
-  const host = lower(url.hostname).replace(/\.$/, "");
-  if (url.protocol !== "https:" || url.username || url.password
-      || !assetHostAllowed(host) || !clean(url.pathname) || url.pathname === "/"
-      || !providerQuerySafe(url, host)) {
-    return "invalid";
-  }
-  if (host === "uploads.linear.app") return "linear_upload";
-  if (host === "docs.google.com") return "document";
-  if (host === "drive.google.com") {
-    if (/\/folders\//i.test(url.pathname)) return "folder";
-    if (/\/file\/d\//i.test(url.pathname) || /[?&]id=[A-Za-z0-9_-]+/i.test(url.search)) return "file";
-    return "invalid";
-  }
-  if (host === "frame.io" || host === "app.frame.io" || host === "f.io") return "folder";
-  if (host === "dropbox.com" || host === "www.dropbox.com") {
-    return /\/scl\/fo\/|\/sh\//i.test(url.pathname) ? "folder" : "file";
-  }
-  return "invalid";
-}
-
-export function assetTypeAllowed(slot, value) {
-  const kind = assetUrlType(value);
-  const key = lower(slot);
-  if (key === "filming_plan") return kind === "document" || kind === "file";
-  if (key === "raw_footage" || key === "delivery_folder") return kind === "folder";
-  // The canonical Graphics artifact must be a concrete deliverable file.
-  // Source documents, raw-footage folders, delivery folders and Frame folders
-  // remain independently visible, but can never be promoted into file_url.
-  if (key === "deliverable_file") return kind === "file";
-  return false;
-}
-
-export function canonicalArtifactUrl(value) {
-  const raw = clean(value);
-  if (!assetTypeAllowed("deliverable_file", raw)) return null;
-  const url = new URL(raw);
-  const host = lower(url.hostname).replace(/\.$/, "");
-  const stableShare = new URLSearchParams();
-  if ((host === "drive.google.com" || host === "docs.google.com")
-      && url.searchParams.get("resourcekey")) {
-    stableShare.set("resourcekey", url.searchParams.get("resourcekey"));
-  }
-  if ((host === "dropbox.com" || host === "www.dropbox.com")
-      && url.searchParams.get("rlkey")) {
-    stableShare.set("rlkey", url.searchParams.get("rlkey"));
-  }
-  if (host === "drive.google.com") {
-    const pathId = url.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/i)?.[1];
-    const folderId = url.pathname.match(/\/folders\/([A-Za-z0-9_-]+)/i)?.[1];
-    const queryId = url.searchParams.get("id");
-    if (pathId || queryId) url.pathname = `/file/d/${pathId || queryId}/view`;
-    else if (folderId) url.pathname = `/drive/folders/${folderId}`;
-  }
-  // Stable provider share identity lives in the approved path. Benign display
-  // switches are discarded. Dropbox rlkey and Drive resourcekey are stable
-  // provider share identifiers, not expiring bearer/signature parameters.
-  url.search = stableShare.toString();
-  url.hash = "";
-  return url.toString();
-}
-
-export function signedAssetExpired(value, now = Date.now()) {
-  let url;
-  try {
-    url = new URL(clean(value));
-  } catch (_error) {
-    return false;
-  }
-  const direct = ["Expires", "expires", "X-Goog-Expires", "x-goog-expires"]
-    .map(key => url.searchParams.get(key))
-    .find(Boolean);
-  const signedAt = url.searchParams.get("X-Goog-Date") || url.searchParams.get("x-goog-date");
-  if (signedAt && direct && /^\d{8}T\d{6}Z$/.test(signedAt) && /^\d+$/.test(direct)) {
-    const year = Number(signedAt.slice(0, 4));
-    const month = Number(signedAt.slice(4, 6));
-    const day = Number(signedAt.slice(6, 8));
-    const hour = Number(signedAt.slice(9, 11));
-    const minute = Number(signedAt.slice(11, 13));
-    const second = Number(signedAt.slice(13, 15));
-    const start = Date.UTC(year, month - 1, day, hour, minute, second);
-    return Number.isFinite(start) && start + Number(direct) * 1_000 <= now;
-  }
-  if (direct && /^\d{9,13}$/.test(direct)) {
-    const expiry = Number(direct);
-    return (direct.length <= 10 ? expiry * 1_000 : expiry) <= now;
-  }
-  return false;
 }
 
 // Match the legacy linear-set-status bridge exactly: an overdue YYYY-MM-DD

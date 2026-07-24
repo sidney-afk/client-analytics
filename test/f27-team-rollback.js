@@ -15,7 +15,6 @@ const root = path.join(__dirname, '..');
 const sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-20-f27-team-rollback.sql'), 'utf8');
 const f202Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-f202-production-descriptions.sql'), 'utf8');
 const f203Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-f203-production-issue-create.sql'), 'utf8');
-const f43Sql = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-production-comment-thread-lifecycle.sql'), 'utf8');
 const migrationsReadme = fs.readFileSync(path.join(root, 'migrations', 'README.md'), 'utf8');
 const proof = fs.readFileSync(path.join(root, 'scripts', 'f27-team-rollback-proof.sql'), 'utf8');
 const snapshotTool = fs.readFileSync(path.join(root, 'scripts', 'f27-mirror-outbox-snapshot.js'), 'utf8');
@@ -140,11 +139,11 @@ ok(/jsonb_typeof\(v_issue->'labels'->'nodes'\) is distinct from 'array'/.test(f2
   && /jsonb_array_length\(v_issue->'labels'->'nodes'\)[\s\S]{0,100}jsonb_array_length\(v_payload->'label_ids'\)/.test(f203Sql)
   && /select distinct node->>'id' as label[\s\S]{0,180}is distinct from v_payload->'label_ids'/.test(f203Sql),
 'F203 atomic RPC requires exact complete native label-node IDs before insert');
-ok(/'priority', 'parent', 'archive', 'restore', 'labels', 'description',[\s\S]{0,80}'attachment'/.test(sql)
-  && /F201\/F202\/F53 source compatibility/.test(installRunbook)
-  && /allowlist now includes `labels` and[\s\S]*`description`, plus the Graphics `attachment` operation/.test(installRunbook)
+ok(/'priority', 'parent', 'archive', 'restore', 'labels', 'description'/.test(sql)
+  && /F201\/F202 source compatibility/.test(installRunbook)
+  && /allowlist now includes `labels` and[\s\S]*`description`/.test(installRunbook)
   && /F27 remains parked and uninstalled/.test(installRunbook),
-  'parked F27 source carries labels, description, and attachment without authorizing an install');
+  'parked F27 source carries labels and description without authorizing an install');
 
 ok(/CREATE SCHEMA f27_test/.test(proof), 'proof uses an isolated TEST schema');
 ok(/f27_migration_probe_not_rolled_back/.test(proof)
@@ -175,29 +174,6 @@ ok(/2026-07-23-f203-production-issue-create\.sql/.test(proof)
   && /f203_wrong_label_relation_unexpectedly_accepted/.test(proof)
   && /f203_disposable_proof_residue/.test(proof),
 'existing disposable PostgreSQL proof executes F203 root and child routes, preserves later edits, rejects structural replay drift, and rolls back cleanly');
-ok(/2026-07-23-production-comment-thread-lifecycle\.sql/.test(proof)
-  && /f39_principal_budget_not_bounded/.test(proof)
-  && /f39_read_audit_not_exact/.test(proof)
-  && /f43_f2_off_comment_enqueue_not_exact/.test(proof)
-  && /f43_f2_off_create_edit_delete_not_ordered/.test(proof)
-  && /depends_on_id FROM public\.mirror_outbox[\s\S]{0,120}v_edit_id[\s\S]{0,160}v_add_id/.test(proof)
-  && /depends_on_id FROM public\.mirror_outbox[\s\S]{0,120}v_delete_id[\s\S]{0,160}v_edit_id/.test(proof)
-  && /f43_add_provider_handoff_missing/.test(proof)
-  && /commentCreate[\s\S]{0,700}commentUpdate[\s\S]{0,700}commentDelete/.test(proof)
-  && /f43_edit_exact_replay_not_canonical/.test(proof)
-  && /production_comment_bind_linear_id/.test(proof)
-  && /f43_lifecycle_conflict_audit_or_mirror_not_exact/.test(proof)
-  && /f42_card_import_or_idempotent_rerun_not_exact/.test(proof)
-  && /f42_import_first_edit_materialization_not_exact/.test(proof)
-  && /f42_import_first_edit_provider_bind_failed/.test(proof)
-  && /f42_import_without_foreign_transition_not_exact/.test(proof)
-  && /f42_cross_client_import_unexpectedly_succeeded/.test(proof)
-  && /f39_f42_f43_disposable_proof_residue/.test(proof),
-'existing disposable PostgreSQL proof executes bounded reads, F2-off ordered add/edit/delete, provider handoff, exact replay and card import, then rolls back cleanly');
-ok(/production_comment_mirror_applicable[\s\S]{0,600}return true;/.test(f43Sql)
-  && !/drop constraint/i.test(f43Sql)
-  && !/track_b_enqueue_outbound_intent/i.test(f43Sql),
-'F39/F42/F43 keeps F2 as a drain pause and reuses the existing comment operation without widening F27 or the outbox CHECK');
 ok(/CREATE ROLE service_role NOLOGIN BYPASSRLS/.test(proof)
   && /SET LOCAL ROLE service_role/.test(proof)
   && /f202_service_description_audit_or_outbox_not_exact/.test(proof)
@@ -263,8 +239,6 @@ ok(/migrations\/2026-07-23-f202-production-descriptions\.sql/.test(workflow),
   'F202 migration changes trigger the existing disposable-PostgreSQL proof workflow');
 ok(/migrations\/2026-07-23-f203-production-issue-create\.sql/.test(workflow),
   'F203 migration changes trigger the existing disposable-PostgreSQL proof workflow');
-ok(/migrations\/2026-07-23-production-comment-thread-lifecycle\.sql/.test(workflow),
-  'F39/F42/F43 migration changes trigger the existing disposable-PostgreSQL proof workflow');
 ok(/createdb f27_contract/.test(workflow)
   && /PGDATABASE=f27_contract[\s\S]*f27-team-rollback-proof\.sql/.test(workflow)
   && /createdb f27_operator_toolkit/.test(workflow)

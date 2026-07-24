@@ -1,8 +1,8 @@
 # Endpoint inventory — what `index.html` actually calls
 
 > Last verified: 2026-07-22 @ eea504a (source candidate + Phase-3 Order-1 reconciliation)
-> (21 literal + 4 composed app callers; 30 source slugs / 28 live until `workload-linear` and
-> `production-archive` are manually deployed; #850 write gateway remains deployed dark)
+> (20 literal + 4 composed app callers; 29 source slugs / 28 live until `workload-linear` is manually
+> deployed; #850 write gateway remains deployed dark)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets
 from `index.html` (`grep -oE 'webhook/[a-zA-Z0-9_-]+'` / `grep -oE 'functions/v1/[a-zA-Z0-9_-]+'`)
@@ -77,7 +77,7 @@ Other:
 - `webhook/filming-plan-tabs` — filming-plans tab data
 - `webhook/add-hook-to-library` — hook library capture
 
-## Supabase Edge Functions (21 literal URLs + 4 composed onboarding URLs)
+## Supabase Edge Functions (20 literal URLs + 4 composed onboarding URLs)
 
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
@@ -115,22 +115,10 @@ Other:
   Release is paired: exact-merge-SHA `workload-plan` must be deployed/read back before
   `workload-linear`, then Creative must prove plan/metadata reads `200` and both functions must prove
   mutation `403`; deploying only `workload-linear` preserves the old role-dependent calendar.
-- `functions/v1/production-archive` — source-only, deliberate-manual F34 archive-repair reader.
-  It provides bounded staff list/detail pages, repeats active-client and exact Admin/SMM or
-  same-team Creative authorization, and exposes only capability-, private-folder-, and byte-readback-
-  certified rescue links. It has not been deployed; migration/configuration, exact-SHA function
-  deploy, full inventory reconciliation, and retrieval drills require a separate owner-approved
-  window.
-- `functions/v1/production-comments` — bounded, no-store canonical-thread reader. The deployed
-  version still has F39's target/team gap. Candidate source resolves exactly one active compatible
-  roster member or one active exact-client token, authorizes the exact target/team/client before
-  reading bodies, records durable non-secret allow/deny audit, applies principal/request budgets,
-  filters client pages/totals by audience, and uses non-enumerating denials. Client principals must
-  also send the verified Samples Review `sxr` card/component identity; candidate source revalidates
-  that identity against the exact Samples-origin deliverable and component team. The client UI
-  defensively projects client audience only and staff Client-visible depends on durable Samples-card
-  linkage, not an endpoint assertion. This candidate is not live; client-visible UI remains gated
-  on its separately approved migration/deploy/tokened TEST read drill.
+- `functions/v1/production-comments` — bounded, no-store Production-thread reader; it verifies a
+  staff role key and active roster selection before service-role reads, but does not enforce the
+  requested deliverable's team against that member (F39). Comment bodies are not anon-readable;
+  creative cross-team scope remains an open gate.
 - `functions/v1/production-write` — authenticated native status/comment/due/assignee gateway for the
   Linear mirror; browser controls fail closed unless the target team is SyncView-authoritative or
   the active TEST client uses the bounded override. The backend has CAS-capable operations, but
@@ -138,14 +126,6 @@ Other:
   last-write-wins (F36). Do not claim end-to-end CAS until every mutation sends the version, stale
   requests create no intent, and 409 compare/reapply UX is proved. Successful accepted operations
   commit through the ledger/outbox RPCs before the UI updates.
-  F53/F137 candidate source adds the authenticated no-store typed-asset read and
-  guarded Graphics attachment operation. Its paired source migration revokes
-  browser table-level SELECT and re-grants every current non-asset
-  `batches`/`deliverables` column, withholding only the three typed batch URLs
-  and `deliverables.file_url`; service reads remain unchanged. The endpoint
-  returns those exact four URLs only after active-client and role/team
-  authorization. This does not protect historical URLs embedded in the still
-  browser-readable `brief`/`linear_raw` bodies.
   PR #850's merged dark cohort extends this same endpoint—without creating another function—with shared
   Submit/Calendar `intake_create`. Calendar provides paired Video/Graphics creation and append to
   an active same-client `batch_id` under batch CAS; Submit still permits Advanced single-team
@@ -158,10 +138,6 @@ Other:
   source fingerprints passing; #850's callers are live on Pages only for the allowlisted dark cohort
   (last verified private TEST fixture only). Any real-client enrollment remains owner-gated, and an
   ordinary merge/push still deploys neither write function.
-  F43 candidate source extends this same gateway with canonical add/reply/edit/delete/resolve/reopen,
-  safe attachments, CAS/idempotency receipts, audit, refresh, and ordered existing-`comment`
-  outbox debt. F2 `off` or drainer outage pauses applicable debt; it does not retire or discard it.
-  The migration, function deploy, F42 import, and TEST drill remain separately owner-gated.
 - `functions/v1/filming-plans` — filming plans backend. Source authenticates every GET before
   constructing the service-role client, accepts verified admin/SMM/creative staff role keys for
   reads, and keeps writes admin-only. The function is live and missing/wrong keys return `401`.

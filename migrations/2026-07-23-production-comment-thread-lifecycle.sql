@@ -522,6 +522,25 @@ begin
     v_legacy_parity
   );
 
+  -- The CAS above proves the caller holds the current row, so a lifecycle
+  -- edit/delete/resolve/reopen is a server-authoritative mutation. Clamp its
+  -- source clock so it can never regress below the stored value. Without this a
+  -- browser clock behind the row's source_updated_at — including a valid
+  -- future-dated imported comment — would trip the production_comment_upsert
+  -- stale-source guard, which returns the row unchanged; this function would
+  -- then insert a mutation receipt and enqueue the old body, reporting (and
+  -- letting exact retries replay) a false success for a write that never
+  -- happened.
+  v_comment := jsonb_set(
+    v_comment,
+    '{source_updated_at}',
+    to_jsonb(greatest(
+      coalesce(nullif(btrim(v_comment->>'source_updated_at'), '')::timestamptz, now()),
+      v_existing.source_updated_at
+    )::text),
+    true
+  );
+
   v_result := public.production_comment_upsert(v_comment, v_event - 'outbound');
 
   insert into public.production_comment_mutation_receipts (

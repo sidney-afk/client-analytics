@@ -1355,6 +1355,37 @@ function dedupExpectation(
   };
 }
 
+// Exact lifecycle receipt replay, mirroring production_comment_lifecycle_write's
+// own receipt guard. An existing receipt for this dedup identity is a committed
+// prior attempt whose HTTP response was lost; adopt its result rather than
+// letting the pre-RPC CAS observe the already-advanced row and 409.
+async function readLifecycleReceipt(
+  supabase: SupabaseClient,
+  dedup: string,
+  commentId: string,
+  action: string,
+  fingerprint: string,
+): Promise<JsonMap | null> {
+  const { data, error } = await supabase.from("production_comment_mutation_receipts")
+    .select("dedup_key,comment_id,action,intent_fingerprint,result_version")
+    .eq("dedup_key", dedup)
+    .maybeSingle();
+  if (error) throw new GatewayError(503, "comment_receipt_lookup_unavailable");
+  if (!data) return null;
+  const receipt = data as JsonMap;
+  if (clean(receipt.comment_id) !== clean(commentId)
+      || clean(receipt.action) !== clean(action)
+      || clean(receipt.intent_fingerprint) !== clean(fingerprint)) {
+    throw new GatewayError(409, "idempotency_conflict");
+  }
+  const { data: committed, error: committedError } = await supabase.from("production_comments")
+    .select("*")
+    .eq("id", receipt.comment_id)
+    .maybeSingle();
+  if (committedError || !committed) throw new GatewayError(500, "idempotent_result_missing");
+  return committed as JsonMap;
+}
+
 type ReceiptOutcome = "committed_exact" | "absent" | "conflict";
 type OutboxReceipt = {
   outcome: ReceiptOutcome;
@@ -3323,13 +3354,9 @@ async function handleEntityOperation(
           || !expectedCommentUpdatedAt) {
         throw new GatewayError(400, "comment_cas_required");
       }
-      if (Number(lifecycleRow.version) !== expectedCommentVersion
-          || clean(lifecycleRow.updated_at) !== expectedCommentUpdatedAt) {
-        throw new GatewayError(409, "write_conflict", {
-          conflict: true,
-          comment: publicComment(lifecycleRow, principal),
-        });
-      }
+      // The CAS comparison is deferred until after exact receipt replay (see the
+      // lifecycle dispatch below). Comparing here would 409 a committed
+      // response-loss retry before its receipt could be adopted.
       if (action === "edit" && (!commentBody || commentBody.length > MAX_COMMENT_BODY)) {
         throw new GatewayError(400, "invalid_comment_body");
       }
@@ -3496,6 +3523,7 @@ async function handleEntityOperation(
         result = await rpc(supabase, "production_comment_write", { p_comment: comment, p_event: event });
       }
     } else {
+      const currentRow = lifecycleRow as JsonMap;
       if (action === "edit") comment.body = commentBody;
       if (action === "delete") {
         comment.deleted_by_key = principal.actorKey;
@@ -3505,12 +3533,32 @@ async function handleEntityOperation(
         comment.resolved_by_key = principal.actorKey;
         comment.resolved_by_name = principal.actorName;
       }
-      result = await rpc(supabase, "production_comment_lifecycle_write", {
-        p_comment: comment,
-        p_event: event,
-        p_expected_version: expectedCommentVersion,
-        p_expected_updated_at: expectedCommentUpdatedAt,
-      });
+      // Replay an exact prior receipt BEFORE the stale CAS. A response-loss
+      // retry of a committed edit/delete/resolve/reopen carries the original
+      // version/timestamp, so comparing them here would observe the
+      // already-advanced row and 409 before the lifecycle RPC could adopt the
+      // receipt — making the UI mint a second canonical mutation and mirror
+      // intent. Adopt the first committed result instead.
+      const lifecycleReplay = await readLifecycleReceipt(
+        supabase, dedup, productionCommentId, action, fingerprint,
+      );
+      if (lifecycleReplay) {
+        result = lifecycleReplay;
+      } else {
+        if (Number(currentRow.version) !== expectedCommentVersion
+            || clean(currentRow.updated_at) !== expectedCommentUpdatedAt) {
+          throw new GatewayError(409, "write_conflict", {
+            conflict: true,
+            comment: publicComment(currentRow, principal),
+          });
+        }
+        result = await rpc(supabase, "production_comment_lifecycle_write", {
+          p_comment: comment,
+          p_event: event,
+          p_expected_version: expectedCommentVersion,
+          p_expected_updated_at: expectedCommentUpdatedAt,
+        });
+      }
     }
   } else if (operation === "labels") {
     const labelIds = canonicalLabelIds(body.label_ids);

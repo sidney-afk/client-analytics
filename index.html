@@ -32271,13 +32271,49 @@
                See the _calThumbRev block.
        Objects without an id / updated_at (live-preview probes) get whichever
        tokens apply — a raw link change already forces a fresh fetch there. */
+    // Sticky per-browser kill switch for the content-versioned thumbnail cache
+    // key. Default ON: a card that carries a thumb_rev gets a STABLE, browser-
+    // cacheable URL (only _r=thumb_rev, no per-save _cb), so an unchanged
+    // thumbnail is served from the browser HTTP cache instantly on refresh.
+    // ?thumbcache=0 restores the legacy updated_at buster (_cb+_r on every
+    // save) for that browser; ?thumbcache=1 clears the opt-out. Mirrors the
+    // ?prodcache convention from the production cache.
+    const THUMB_CACHE_KILL_KEY = 'syncview_thumbnail_cache_off';
+    let _thumbCacheStableFlag = null;
+    function _thumbCacheStableEnabled() {
+        if (_thumbCacheStableFlag !== null) return _thumbCacheStableFlag;
+        let on = true;
+        try {
+            const q = new URLSearchParams(location.search).get('thumbcache');
+            if (q === '1' || q === 'true') { on = true; localStorage.removeItem(THUMB_CACHE_KILL_KEY); }
+            else if (q === '0' || q === 'false') { on = false; localStorage.setItem(THUMB_CACHE_KILL_KEY, '1'); }
+            else { on = (localStorage.getItem(THUMB_CACHE_KILL_KEY) !== '1'); }
+        } catch { on = true; }
+        _thumbCacheStableFlag = on;
+        return on;
+    }
     function _calCacheBustThumb(url, p) {
         if (!url) return url;
         let out = url;
         const tok = p && p.updated_at;
-        if (tok) out += (out.includes('?') ? '&' : '?') + '_cb=' + encodeURIComponent(tok);
         const rev = (p && p.thumb_rev) || (p && p.id && _calThumbRev[p.id]);
-        if (rev) out += (out.includes('?') ? '&' : '?') + '_r=' + encodeURIComponent(rev);
+        const append = (key, value) => { out += (out.includes('?') ? '&' : '?') + key + '=' + encodeURIComponent(value); };
+        const stable = (typeof _thumbCacheStableEnabled === 'function') ? _thumbCacheStableEnabled() : true;
+        if (!stable) {
+            // Kill switch (?thumbcache=0): legacy behavior — the updated_at
+            // cache-buster on every save, plus the revision.
+            if (tok) append('_cb', tok);
+            if (rev) append('_r', rev);
+            return out;
+        }
+        // Content-versioned key. A rev-carrying card gets a stable URL that only
+        // changes when the revision rotates (a real thumbnail change) — the
+        // browser HTTP cache then serves it instantly across refreshes, and a
+        // new thumbnail bumps thumb_rev → new URL → auto-bust. A rev-less legacy
+        // card keeps the updated_at buster as its only freshness signal until
+        // the scanner assigns it a revision.
+        if (rev) append('_r', rev);
+        else if (tok) append('_cb', tok);
         return out;
     }
     function _calDriveFileId(url) {

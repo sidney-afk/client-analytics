@@ -51695,8 +51695,12 @@
         }
         post._canonicalCommentsByComponent[comp] = Array.isArray(arr) ? arr : [];
     }
+    // Canonical-where-linked, legacy-where-not. A Samples card with no native
+    // deliverable binding has no canonical thread to address — F42 cannot import
+    // one either — so the client surface acts on the same legacy card arrays
+    // staff already acts on there. A LINKED card keeps the canonical contract.
     function _sxrCommentsForAction(post, comp) {
-        return _isClientLink
+        return _isClientLink && _prodCanonicalCommentGate(post, comp).linked
             ? _sxrCanonicalCommentsFor(post, comp)
             : _sxrCommentsFor(post, comp);
     }
@@ -51724,10 +51728,33 @@
                 : [];
         }
         const canonicalGate = _prodCanonicalCommentGate(post, comp);
-        // A verified client link never falls back to the legacy card arrays.
-        // Until this exact SXR card/component/deliverable read succeeds, the
-        // canonical client thread is simply unavailable.
-        if (!canonicalGate.linked || !canonicalGate.ready || !canonicalGate.client) return [];
+        if (!canonicalGate.linked) {
+            // UNLINKED card: no native deliverable binding exists, so there is
+            // no canonical thread for this component and F42 has nothing to
+            // import into. Fall back to the pre-Slice-4 legacy card-array view:
+            // thread audience lives on the ROOT and replies inherit it, and
+            // Kasper authorship is hard-hidden belt-and-braces so internal
+            // review chatter can never surface on a mis-tagged thread. Staff
+            // already reads these arrays here; this aligns the client surface.
+            const legacy = _sxrCommentsFor(post, comp);
+            if (!Array.isArray(legacy)) return [];
+            const visible = legacy.filter(c => c && (!c.deleted || c.canonical) && !c.hidden);
+            const byId = new Map();
+            for (const c of visible) if (c && c.id) byId.set(c.id, c);
+            const rootAudience = (c) => {
+                const root = (c.parent_id && byId.has(c.parent_id)) ? byId.get(c.parent_id) : c;
+                return _sxrMsgAudience(root);
+            };
+            return visible.filter(c => {
+                if (!c) return false;
+                if (c.role === 'kasper') return false;
+                return rootAudience(c) === 'client';
+            });
+        }
+        // A verified client link on a LINKED card never falls back to the legacy
+        // card arrays. Until this exact SXR card/component/deliverable read
+        // succeeds, the canonical client thread is simply unavailable.
+        if (!canonicalGate.ready || !canonicalGate.client) return [];
         const list = _sxrCanonicalCommentsFor(post, comp);
         return list.filter(c => c
             && c.canonical === true
@@ -52961,7 +52988,11 @@
         if (!post) return;
         const comp = parentId ? _sxrFindCompForCommentId(post, parentId) : (SXR_COMPONENTS.indexOf(_sxrComposeComp) >= 0 ? _sxrComposeComp : 'video');
         const canonicalGate = _prodCanonicalCommentGate(post, comp);
-        if (_isClientLink && (!canonicalGate.linked || !canonicalGate.ready || !canonicalGate.client)) {
+        // A LINKED card keeps the fail-closed canonical contract: an unready or
+        // unauthorized exact client thread never falls back. An UNLINKED card
+        // has no canonical thread to authorize against at all, so the client
+        // posts through the same legacy path staff uses there.
+        if (_isClientLink && canonicalGate.linked && (!canonicalGate.ready || !canonicalGate.client)) {
             if (typeof showNotify === 'function') showNotify('Notes are not available', 'This exact client thread is not authorized.');
             return false;
         }
@@ -52984,7 +53015,10 @@
                 committedBatch = {};
                 _writeUiBindRepairAck(post, committedBatch, acknowledgement);
                 nativeCommentCommitted = !!(acknowledgement && acknowledgement.native_committed);
-                if (_isClientLink && nativeCommentCommitted) {
+                // Canonical adoption/projection only exists for a LINKED card.
+                // On an unlinked card the write took the legacy transport, so
+                // fall through to the legacy card-array append below.
+                if (_isClientLink && canonicalGate.linked && nativeCommentCommitted) {
                     if (acknowledgement.comment) {
                         _prodComments.adopt(_writeUiNativeId(post, comp), acknowledgement.comment);
                     }
@@ -53819,13 +53853,21 @@
     async function _sxrPostLinearComment(issueUrl, body, author, meta) {
         const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
         const nativeId = _writeUiNativeId(meta && meta.post, component);
-        const clientCanonicalWrite = !!_isClientLink;
+        // Canonical-where-linked, legacy-where-not. A client write is canonical
+        // only when the card actually carries a native deliverable binding; an
+        // UNLINKED card takes the identical transport decision staff takes
+        // (reroute flag on -> gateway, off -> legacy n8n delivery), which is
+        // exactly the pre-Slice-4 behavior for these cards.
+        const clientGate = _isClientLink
+            ? _prodCanonicalCommentGate(meta && meta.post, component)
+            : null;
+        const clientCanonicalWrite = !!(clientGate && clientGate.linked);
         const clientSurface = clientCanonicalWrite
             ? _prodVerifiedClientCommentMutationContext('sxr', meta && meta.post, component, nativeId)
             : null;
         if (clientCanonicalWrite) {
-            const gate = _prodCanonicalCommentGate(meta && meta.post, component);
-            if (!gate.linked || !gate.ready || !gate.client || !nativeId || !clientSurface) {
+            // A LINKED client thread stays fail-closed and never falls back.
+            if (!clientGate.ready || !clientGate.client || !nativeId || !clientSurface) {
                 throw _writeUiGatewayError(409, 'canonical_comment_read_required');
             }
         } else if (!(await _writeUiUseGatewayWhenReady('sxr', meta))) {

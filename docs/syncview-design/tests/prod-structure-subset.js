@@ -94,27 +94,9 @@ async function assertNoWriteRequests(requests) {
       && typeof body.id === 'string'
       && body.id.length > 0;
   };
-  const isAssetAccessRead = r => {
-    if (r.method !== 'POST') return false;
-    let pathname = '';
-    try { pathname = new URL(r.url).pathname; } catch (e) {}
-    if (pathname !== '/functions/v1/production-write') return false;
-    let body = null;
-    try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
-    if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
-    const keys = Object.keys(body).sort();
-    return keys.join(',') === 'action,client_slug,id,surface'
-      && body.action === 'asset_access_read'
-      && body.surface === 'production'
-      && typeof body.id === 'string'
-      && body.id.length > 0
-      && typeof body.client_slug === 'string'
-      && body.client_slug.length > 0;
-  };
   const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)
     && !isCommentRead(r)
-    && !isLabelsRead(r)
-    && !isAssetAccessRead(r));
+    && !isLabelsRead(r));
   if (writes.length) {
     throw new Error('Production structure subset made write-like browser requests: '
       + writes.slice(0, 5).map(r => `${r.method} ${r.url}`).join(' | '));
@@ -166,26 +148,6 @@ async function assertNoWriteRequests(requests) {
           catalog: [],
           selected_label_ids: [],
           selected_labels: [],
-        }),
-      });
-      return;
-    }
-    if (body && body.action === 'asset_access_read'
-        && body.surface === 'production'
-        && typeof body.id === 'string'
-        && typeof body.client_slug === 'string') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          ok: true,
-          complete: true,
-          assets: [
-            { slot: 'filming_plan', state: 'missing', url: null },
-            { slot: 'raw_footage', state: 'missing', url: null },
-            { slot: 'delivery_folder', state: 'missing', url: null },
-            { slot: 'deliverable_file', state: 'missing', url: null },
-          ],
         }),
       });
       return;

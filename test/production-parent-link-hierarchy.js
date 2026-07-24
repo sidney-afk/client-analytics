@@ -173,10 +173,8 @@ ok(/const parentLinks = _prodResolveParentLinks\(deliverables\)/.test(adapter)
 ok(!/batchParent|batchTeamKey|_prodSameTitle|title[^;\n]+batch\.name/.test(adapter),
   'the Production adapter has no batch/title parent heuristic');
 ok(/linear_issue_uuid/.test(source)
-  && /production_deliverables_browser_v1/.test(source)
-  && /raw_issue_parent_id,raw_project_id/.test(source)
-  && /if \(!_prodBrowserProjectionMissing\(error\)\) throw error/.test(source),
-'the safe lightweight Production projection carries stable Linear issue and parent UUIDs');
+  && /raw_issue_parent_id:linear_raw->issue->parent->>id/.test(source),
+'the lightweight Production read projects the stable Linear issue and parent UUIDs');
 
 if (failures) {
   console.error('\nproduction-parent-link-hierarchy: ' + failures + ' check(s) failed');

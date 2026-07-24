@@ -517,7 +517,7 @@ async function run() {
         if (String(url).includes('syncview_runtime_flags')) {
           return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'linear' } }] };
         }
-        if (String(url).includes('/rest/v1/production_deliverables_browser_v1')) {
+        if (String(url).includes('/rest/v1/deliverables')) {
           return { ok: true, status: 200, json: async () => [{
             id: 'native-deliverable-video',
             client_slug: 'synthetic-client',
@@ -525,10 +525,13 @@ async function run() {
             linear_issue_uuid: 'native-video',
             due_date: '2026-08-14',
             updated_at: '2026-07-22T12:30:00Z',
-            workload_labels_complete: true,
-            workload_labels: [
-              { id: 'three', name: '3× Workload', color: '#00AA44' },
-            ],
+            linear_raw: { issue: { labels: {
+              nodes: [
+                { id: 'ordinary', name: 'Keep me', color: '#112233', description: 'Arbitrary label survives' },
+                { id: 'three', name: '3× Workload', color: '#00aa44', description: 'Three units' },
+              ],
+              pageInfo: { hasNextPage: false },
+            } } },
           }] };
         }
         if (String(url).includes('/functions/v1/workload-linear')) {
@@ -555,7 +558,6 @@ async function run() {
       'wlNativeWorkloadLabel',
       'wlNativeDueDate',
       'wlValidRfc3339Timestamp',
-      '_prodBrowserProjectionMissing',
       'wlFetchNativeMetadata',
       'wlMetadataFailure',
       'wlMetadataTeamBucket',
@@ -576,9 +578,8 @@ async function run() {
       calls.find(call => call.url.includes('/functions/v1/workload-linear')).body.issue_ids,
       ['linear-graphics'],
       'only Linear-authoritative ids cross the workload-linear boundary');
-    assert(calls.find(call =>
-      call.url.includes('/rest/v1/production_deliverables_browser_v1')).url.includes('native-video'),
-    'SyncView-authoritative ids use the native safe deliverables projection');
+    assert(calls.find(call => call.url.includes('/rest/v1/deliverables')).url.includes('native-video'),
+      'SyncView-authoritative ids use native deliverables metadata');
     mixed.wlAdoptLinearMetadata(rows, issues, 1);
     assert.strictEqual(issues[0].dueDate, '2026-08-14', 'native due date reaches the current metadata shape');
     assert.strictEqual(mixed.wlState.dueAuthorityByIssueId.get('native-video').authority, 'syncview',
@@ -645,8 +646,7 @@ async function run() {
         && Array.from(error.workloadMetadataIssueIds || []).join(',') === 'unknown-team'
         && /team authority is unavailable/.test(error.message),
       'an unrecognized active team fails closed for the complete active-id set');
-    assert.strictEqual(unknownTeamCalls.some(url =>
-      url.includes('/rest/v1/production_deliverables_browser_v1')), false,
+    assert.strictEqual(unknownTeamCalls.some(url => url.includes('/rest/v1/deliverables')), false,
       'an unrecognized team never reaches native deliverables metadata');
     assert.strictEqual(unknownTeamCalls.some(url => url.includes('/functions/v1/workload-linear')), false,
       'an unrecognized team never reaches foreign Workload metadata');
@@ -655,7 +655,7 @@ async function run() {
       if (String(url).includes('syncview_runtime_flags')) {
         return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
       }
-      if (String(url).includes('/rest/v1/production_deliverables_browser_v1')) {
+      if (String(url).includes('/rest/v1/deliverables')) {
         return { ok: true, status: 200, json: async () => [{
           id: 'deliverable-native-empty',
           client_slug: 'synthetic-client',
@@ -663,8 +663,7 @@ async function run() {
           linear_issue_uuid: 'native-empty',
           due_date: null,
           updated_at: '2026-07-22T12:30:00Z',
-          workload_labels_complete: true,
-          workload_labels: [],
+          linear_raw: { issue: { labels: { nodes: [], pageInfo: { hasNextPage: false } } } },
         }] };
       }
       throw new Error('empty native state fell through to Linear');
@@ -676,7 +675,7 @@ async function run() {
       if (String(url).includes('syncview_runtime_flags')) {
         return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
       }
-      if (String(url).includes('/rest/v1/production_deliverables_browser_v1')) {
+      if (String(url).includes('/rest/v1/deliverables')) {
         return { ok: true, status: 200, json: async () => [{
           id: 'deliverable-native-incomplete',
           client_slug: 'synthetic-client',
@@ -684,8 +683,7 @@ async function run() {
           linear_issue_uuid: 'native-incomplete',
           due_date: null,
           updated_at: '2026-07-22T12:30:00Z',
-          workload_labels_complete: false,
-          workload_labels: [],
+          linear_raw: { issue: { labels: { nodes: [], pageInfo: { hasNextPage: true } } } },
         }] };
       }
       throw new Error('incomplete native state fell through to Linear');
@@ -699,7 +697,7 @@ async function run() {
       if (String(url).includes('syncview_runtime_flags')) {
         return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
       }
-      if (String(url).includes('/rest/v1/production_deliverables_browser_v1')) {
+      if (String(url).includes('/rest/v1/deliverables')) {
         return { ok: true, status: 200, json: async () => [{
           id: 'deliverable-native-missing-page-info',
           client_slug: 'synthetic-client',
@@ -707,8 +705,7 @@ async function run() {
           linear_issue_uuid: 'native-missing-page-info',
           due_date: null,
           updated_at: '2026-07-22T12:30:00Z',
-          workload_labels_complete: false,
-          workload_labels: [],
+          linear_raw: { issue: { labels: { nodes: [] } } },
         }] };
       }
       throw new Error('unproven native state fell through to Linear');
@@ -768,7 +765,7 @@ async function run() {
         if (String(url).includes('syncview_runtime_flags')) {
           return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
         }
-        if (String(url).includes('/rest/v1/production_deliverables_browser_v1')) {
+        if (String(url).includes('/rest/v1/deliverables')) {
           return { ok: true, status: 200, json: async () => [{
             id: 'deliverable-' + malformedRelation.id,
             client_slug: 'synthetic-client',
@@ -776,8 +773,7 @@ async function run() {
             linear_issue_uuid: malformedRelation.id,
             due_date: null,
             updated_at: '2026-07-22T12:30:00Z',
-            workload_labels_complete: false,
-            workload_labels: [],
+            linear_raw: { issue: malformedRelation.issue },
           }] };
         }
         throw new Error('invalid native state fell through to Linear');
@@ -809,7 +805,7 @@ async function run() {
         if (String(url).includes('syncview_runtime_flags')) {
           return { ok: true, status: 200, json: async () => [{ value: { video: 'syncview', graphics: 'syncview' } }] };
         }
-        if (String(url).includes('/rest/v1/production_deliverables_browser_v1')) {
+        if (String(url).includes('/rest/v1/deliverables')) {
           return { ok: false, status: 503, json: async () => ({}) };
         }
         throw new Error('native issue fell through to foreign metadata');
@@ -824,7 +820,6 @@ async function run() {
       'wlFetchForeignLinearMetadata',
       'wlNativeWorkloadLabel',
       'wlNativeDueDate',
-      '_prodBrowserProjectionMissing',
       'wlFetchNativeMetadata',
       'wlMetadataFailure',
       'wlMetadataTeamBucket',

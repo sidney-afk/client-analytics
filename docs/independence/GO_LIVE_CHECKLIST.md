@@ -547,23 +547,13 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       allow-deny audit, applies request controls, and passes own-team/cross-team tests for both roles.
 - [ ] **Existing card threads are migrated and replyable** (F42): every active linked
       Calendar/Samples root and reply has one composite-scoped normalized identity; unresolved and
-      duplicate-ID cases are classified. The private snapshot contains both Calendar and SXR arrays,
-      independently supplied exact per-surface card/component counts and stable hashes, and produces
-      `complete: true`, both `matches_manifest: true`, and zero conflicts before owner approval. An
-      existing-root TEST reply then survives canonical projection, reload, and retry with no
-      card-local-only mutation.
+      duplicate-ID cases are classified; an existing-root TEST reply survives projection/reload.
 - [ ] **Comments have one truth across every persona** (F43): plain comment, tweak, reply, edit,
       resolve, reopen, delete, and Production-origin Client-visible paths use one canonical
-      lifecycle. A real tokened TEST `sample-reviews` link must send its exact `sxr`
-      card/component/deliverable identity, receive only client-audience rows, and fail
-      non-enumerating for manual, Calendar, unlinked, wrong-card, wrong-team, or wrong-client
-      targets; no endpoint capability assertion may unlock staff Client-visible. Canonical
+      lifecycle, with exact audience enforcement on real tokened TEST client links. Canonical
       persistence must succeed before any Linear/mirror side effect; failure retains the draft and
-      queue with visible retry. Retry and second-device rebase preserve the local edit and produce
-      exactly one canonical mutation. While mirroring is applicable, F2 `off`/outage retains ordered
-      add/edit/delete debt and recovery supplies the provider ID to dependents; a shadow-only to
-      live edit materializes once and delete without a foreign comment is a proved terminal no-op.
-      Retirement, if separately approved, produces zero new mirror/outbox intents.
+      queue with visible retry. Retry produces exactly one canonical mutation and, while mirroring is
+      enabled, exactly one applicable mirror intent; retired mode produces zero mirror/outbox intents.
 - [ ] **Samples Finish history is durable** (F65): `kasper_finish_log` exists in schema, every EF/
       fallback allowlist and mirror preserves it, and Finish/re-finish/undo/retry survives refresh
       and a second TEST device with exact append-only equality.

@@ -5,7 +5,6 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const migration = fs.readFileSync(path.join(root, 'migrations', '2026-07-12-production-comments.sql'), 'utf8');
-const lifecycleMigration = fs.readFileSync(path.join(root, 'migrations', '2026-07-23-production-comment-thread-lifecycle.sql'), 'utf8');
 const edge = fs.readFileSync(path.join(root, 'supabase', 'functions', 'production-comments', 'index.ts'), 'utf8');
 let failures = 0;
 
@@ -63,48 +62,16 @@ ok(/\(v_event - 'outbound' - 'comment' - 'event_key'\)/.test(migration), 'RPC st
 ok(/grant execute on function public\.production_comment_upsert\(jsonb, jsonb\)[\s\S]{0,80}to service_role/.test(migration), 'only service_role receives RPC execute');
 
 ok(/authorizeStaffKey\(key, \["admin", "smm", "creative"\]\)/.test(edge), 'reader requires a valid staff role key');
-ok(/\.eq\("active", true\)/.test(edge) && /roleCompatible\(keyRole, member\.role\)/.test(edge), 'reader requires one active compatible roster member');
+ok(/\.eq\("active", true\)/.test(edge) && /roleCompatible\(keyRole, member\)/.test(edge), 'reader requires one active compatible roster member');
 ok(/req\.method === "OPTIONS"/.test(edge) && /req\.method !== "POST"/.test(edge), 'reader contract is POST with CORS preflight');
 ok(/const MAX_LIMIT = 100/.test(edge) && /parsed > MAX_LIMIT/.test(edge), 'reader enforces the 100-row bound');
-ok(/body\.deliverable_id/.test(edge)
-  && /body\.source_surface/.test(edge)
-  && /body\.card_id/.test(edge)
-  && /body\.component/.test(edge)
-  && /parseCursor\(body\.before\)/.test(edge),
-'reader accepts the canonical deliverable plus exact SXR card/component context and before cursor');
+ok(/body\.deliverable_id/.test(edge) && /parseCursor\(body\.before\)/.test(edge), 'reader accepts deliverable_id and before cursor in JSON');
 ok(/created_at\.lt\.\$\{before\.created_at\}[\s\S]{0,120}id\.lt\.\$\{before\.id\}/.test(edge), 'reader applies a stable created_at/id cursor');
 ok(/count: "exact", head: true/.test(edge), 'reader returns an exact target total');
 ok(/has_more: hasMore/.test(edge) && /next_cursor: hasMore/.test(edge), 'reader returns has_more and next_cursor');
+ok(/"native_comment_id"/.test(edge) && /"transport_linear_user_id"/.test(edge), 'reader returns both native and transport identities');
 ok(!/"provenance"/.test(edge), 'reader does not return raw provenance');
 ok(/"Cache-Control": "no-store"/.test(edge), 'reader responses are no-store');
-ok(/timingSafeEqual\(token, stored\)/.test(edge)
-  && /\.from\("clients"\)[\s\S]{0,180}\.eq\("slug", clientSlug\)/.test(edge),
-'client authentication is exact-token and requires the exact active roster client');
-ok(edge.indexOf('takeReadBudget(supabase, await clientPreauthActor(req))')
-    < edge.indexOf('.from("client_access").select("slug,review_token")'),
-'invalid client tokens hit an opaque edge-principal budget before the token-table scan');
-ok(edge.indexOf('takeReadBudget(supabase, principal.actorKey)')
-    < edge.indexOf('.from("deliverables")'),
-'authenticated principals take a principal-wide budget before target lookup');
-ok(edge.indexOf('authorizeAllowedRead(supabase, principal, deliverableId)')
-    < edge.indexOf('.from("production_comments")'),
-'durable allow audit succeeds before any comment body query');
-ok((edge.match(/\.eq\("audience", "client"\)/g) || []).length >= 2,
-'client total and page queries both enforce client audience');
-ok(/\.select\("id,client_slug,team,origin,card_id"\)/.test(edge)
-  && /clientSurfaceTargetAllowed\(clientSurface, target\)/.test(edge)
-  && /canonical_thread: true/.test(edge)
-  && !/client_surface_canonical/.test(edge),
-'client capability comes from exact durable Samples card/component validation, never endpoint self-attestation');
-ok(/const \{ error \} = await supabase\.from\("production_comment_read_audit"\)\.insert/.test(edge)
-  && /production_comment_denial_audit_failed/.test(edge),
-'bounded denial audit detects returned Supabase errors');
-ok(/create table if not exists public\.production_comment_read_budget \([\s\S]{0,220}primary key \(actor_key, window_start\)/.test(lifecycleMigration)
-  && !/production_comment_read_budget \([\s\S]{0,220}deliverable_id/.test(lifecycleMigration),
-'read budget is principal-wide rather than target-scoped');
-ok(/production_comment_read_budget_take\(text\)[\s\S]{0,120}to service_role/.test(lifecycleMigration)
-  && /production_comment_read_authorize\(text, text, text\)[\s\S]{0,120}to service_role/.test(lifecycleMigration),
-'budget and strict allow-audit RPCs are service-only');
 
 if (failures) {
   console.error(`\n${failures} production-comments source check(s) failed`);

@@ -103,20 +103,31 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          # Redirect (never tee) the full result to a runner-local file: it can
-          # carry per-surface coverage detail and must not reach the public log.
-          # Only aggregate counts + the digest are echoed below.
+          # Redirect (never tee) the full result to a runner-local file: its
+          # conflict rows carry per-row evidence (card/comment identities,
+          # client slugs) that must not reach the public log.
+          #
+          # A blocked plan exits nonzero. Tolerate that exit code HERE so the
+          # public-safe aggregate breakdown below still renders — otherwise the
+          # step dies under `-e` with no visible reason at all, and the operator
+          # cannot tell why the plan is blocked.
+          plan_exit=0
           node scripts/f42-card-comment-apply.js \
             --input snapshot.json --import-run-id "$IMPORT_RUN_ID" \
-            > plan-summary.json
-          node -e "const r=require('./plan-summary.json'); if(r.status!=='READY'){console.error('::error::plan not READY (see runner-local plan-summary.json); reasons count:',Array.isArray(r.reasons)?r.reasons.length:0);process.exit(2)}"
-          {
-            echo "## F42 import — PLAN"
-            echo
-            node -e "const r=require('./plan-summary.json');console.log('- status: '+r.status);console.log('- planned imports: '+Number(r.planned_imports||0));console.log('- conflicts: '+Number(r.conflicts||0));console.log('- apply digest: \`'+String(r.apply_digest||'')+'\`')"
-            echo
-            echo "Re-run this workflow with mode=apply, the same import_run_id, expected_apply_digest set to the digest above, and confirm=IMPORT_CARD_COMMENTS."
-          } >> "$GITHUB_STEP_SUMMARY"
+            > plan-summary.json || plan_exit=$?
+          if [ ! -s plan-summary.json ]; then
+            echo "::error::planner produced no result document (exit $plan_exit); see the step log"
+            exit 1
+          fi
+          # renderPlanSummaryMarkdown is the tested allowlist projection: it
+          # emits status/gate slugs, the digest, counts, and the planner's own
+          # classification/surface/reason enums — never an identifier.
+          node -e "process.stdout.write(require('./scripts/f42-card-comment-apply.js').renderPlanSummaryMarkdown(require('./plan-summary.json')))" \
+            >> "$GITHUB_STEP_SUMMARY"
+          if [ "$plan_exit" -ne 0 ]; then
+            echo "::error::plan not READY (exit $plan_exit) — see the blocking-reason breakdown in the run summary"
+            exit "$plan_exit"
+          fi
       - name: Apply (live import, owner-confirmed + digest-pinned)
         if: inputs.mode == 'apply'
         env:
@@ -130,15 +141,24 @@ jobs:
           fi
           # Redirect (never tee) the full result to a runner-local file: the
           # APPLY result carries per-row receipts (canonical/native comment ids,
-          # deliverable ids) that must never reach the public log. Only aggregate
-          # counts + the digest are echoed below.
+          # deliverable ids) that must never reach the public log.
+          #
+          # A GAPS apply exits nonzero. Tolerate that exit code HERE so the
+          # public-safe count/mismatch summary below still renders: a mid-window
+          # GAPS with no visible verification detail is the same blindness the
+          # plan lane had, and here the writes have already happened.
+          apply_exit=0
           node scripts/f42-card-comment-apply.js \
             --input snapshot.json --import-run-id "$IMPORT_RUN_ID" \
             --expect-apply-digest "$EXPECTED_APPLY_DIGEST" --apply \
-            > apply-summary.json
-          node -e "const r=require('./apply-summary.json'); if(r.status!=='APPLIED'){console.error('::error::apply not APPLIED (see runner-local apply-summary.json); status:',String(r.status||''));process.exit(2)}"
-          {
-            echo "## F42 import — APPLY"
-            echo
-            node -e "const r=require('./apply-summary.json');const c=(r.verification&&r.verification.checks)||{};console.log('- status: '+r.status);console.log('- applied: '+Number(r.applied_count||0));console.log('- apply digest: \`'+String(r.apply_digest||'')+'\`');console.log('- readback links/comments: '+Number(c.card_link_count||0)+' / '+Number(c.comment_count||0))"
-          } >> "$GITHUB_STEP_SUMMARY"
+            > apply-summary.json || apply_exit=$?
+          if [ ! -s apply-summary.json ]; then
+            echo "::error::apply produced no result document (exit $apply_exit); see the step log"
+            exit 1
+          fi
+          node -e "process.stdout.write(require('./scripts/f42-card-comment-apply.js').renderPlanSummaryMarkdown(require('./apply-summary.json')))" \
+            >> "$GITHUB_STEP_SUMMARY"
+          if [ "$apply_exit" -ne 0 ]; then
+            echo "::error::apply not APPLIED (exit $apply_exit) — see the verification summary in the run summary"
+            exit "$apply_exit"
+          fi

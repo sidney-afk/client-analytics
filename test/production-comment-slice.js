@@ -171,6 +171,18 @@ function snapshotFor(calendar, sxr, mutateManifest) {
     && replyCaps.can_edit && replyCaps.can_delete && !replyCaps.can_resolve,
   'server-derived receipts expose moderation capabilities but never resolve replies');
 
+  const sxrVideoTarget = { origin: 'samples', card_id: 'sxr-card', team: 'video' };
+  const sxrGraphicTarget = { origin: 'samples', card_id: 'sxr-card', team: 'graphics' };
+  ok(writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'video')
+    && writerPolicy.clientCommentTargetAllowed('sxr', sxrGraphicTarget, 'graphic')
+    && !writerPolicy.clientCommentTargetAllowed('calendar', sxrVideoTarget, 'video')
+    && !writerPolicy.clientCommentTargetAllowed('sxr', { ...sxrVideoTarget, origin: 'manual' }, 'video')
+    && !writerPolicy.clientCommentTargetAllowed('sxr', { ...sxrVideoTarget, card_id: '' }, 'video')
+    && !writerPolicy.clientCommentTargetAllowed('sxr', sxrGraphicTarget, 'video')
+    && !writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'graphic')
+    && !writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'caption'),
+  'client comment mutations require the exact SXR card/component/Samples-origin crosswalk, not just the client slug');
+
   const rootComment = {
     id: 'root',
     author: 'Fixture SMM',
@@ -497,6 +509,9 @@ function snapshotFor(calendar, sxr, mutateManifest) {
     && /snapshot_contract_required/.test(migration)
     && /coverage_mismatch/.test(migration),
   'the durable F42 conflict catalog accepts certification and malformed-source evidence');
+  ok(/principal\.kind === "client"\s*\n\s*&& !clientCommentTargetAllowed\(surface, existing, commentInput\.component\)/.test(writer)
+    && /principal\.kind === "client"\s*\n\s*&& !clientCommentTargetAllowed\(surface, existing, lifecycleRow\.component\)/.test(writer),
+  'the writer binds every client comment add and edit/delete to the exact SXR card/component crosswalk');
 
   if (failures) {
     console.error(`\n${failures} production comment slice check(s) failed`);

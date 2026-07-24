@@ -20813,6 +20813,20 @@
                         _prodClearLayer();
                     }
                 } catch (e) {}
+                // Archive asset repair holds cached archive comments and rescued
+                // private links. Clear it, invalidate its in-flight request
+                // tokens, and remove its overlay so no signed-out session keeps
+                // protected history visible in ?prod=1 preview mode.
+                if (_prodState.archiveRepair) {
+                    _prodState.archiveRepair.listRequestToken = Number(_prodState.archiveRepair.listRequestToken || 0) + 1;
+                    _prodState.archiveRepair.detailRequestToken = Number(_prodState.archiveRepair.detailRequestToken || 0) + 1;
+                    _prodState.archiveRepair = null;
+                    try {
+                        if (document.querySelector('[data-prod-archive-modal]') && typeof _prodClearLayer === 'function') {
+                            _prodClearLayer();
+                        }
+                    } catch (e) {}
+                }
             }
         } catch (e) {}
         try {
@@ -42437,11 +42451,16 @@
         async function _prodArchiveLoadList(append) {
             const state = _prodState.archiveRepair;
             if (!state || state.loading || !state.clientSlug) return false;
+            const verificationEpoch = _syncviewStaffVerificationEpoch;
             const generation = Number(state.scopeGeneration || 0);
             const scopeSignature = _prodArchiveScopeSignature(state);
             const requestToken = Number(state.listRequestToken || 0) + 1;
             state.listRequestToken = requestToken;
+            // A staff sign-out/invalidation between request and response must not
+            // populate the modal — bind the response to the current verification
+            // epoch, as the protected asset reads do.
             const requestStillCurrent = () => _prodState.archiveRepair === state
+                && verificationEpoch === _syncviewStaffVerificationEpoch
                 && Number(state.scopeGeneration || 0) === generation
                 && Number(state.listRequestToken || 0) === requestToken
                 && _prodArchiveScopeSignature(state) === scopeSignature;
@@ -42482,12 +42501,16 @@
                 state.detail = null;
             }
             const existing = state.detail;
+            const verificationEpoch = _syncviewStaffVerificationEpoch;
             const generation = Number(state.scopeGeneration || 0);
             const scopeSignature = _prodArchiveScopeSignature(state);
             const selectedId = String(state.selectedId || '');
             const requestToken = Number(state.detailRequestToken || 0) + 1;
             state.detailRequestToken = requestToken;
+            // Bind the protected-history response to the current verification
+            // epoch so a sign-out mid-flight cannot render rescued private links.
             const requestStillCurrent = () => _prodState.archiveRepair === state
+                && verificationEpoch === _syncviewStaffVerificationEpoch
                 && Number(state.scopeGeneration || 0) === generation
                 && Number(state.detailRequestToken || 0) === requestToken
                 && String(state.selectedId || '') === selectedId

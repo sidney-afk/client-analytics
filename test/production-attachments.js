@@ -534,6 +534,7 @@ function extractFunction(source, name) {
 
   const archivePending = [];
   const archiveContext = {
+    _syncviewStaffVerificationEpoch: 0,
     _prodState: {
       archiveRepair: {
         clientSlug: 'test-client',
@@ -615,6 +616,20 @@ function extractFunction(source, name) {
       && archiveContext._prodState.archiveRepair.detail.issue.linear_uuid === 'issue-b'
       && archiveContext._prodState.archiveRepair.detailLoading === false,
   'a newer archive detail selection supersedes an older in-flight response');
+
+  // A staff sign-out/invalidation between request and response bumps the
+  // verification epoch; the mid-flight response must not populate the modal.
+  archiveContext._prodState.archiveRepair.detail = null;
+  archiveContext._prodState.archiveRepair.selectedId = '';
+  const epochStaleDetail = archiveContext.openIssue('issue-c', false);
+  archiveContext._syncviewStaffVerificationEpoch++;
+  resolveArchive(
+    body => body.action === 'issue' && body.linear_uuid === 'issue-c',
+    { ok: true, issue: { linear_uuid: 'issue-c' }, comments: [{ body: 'https://uploads.linear.app/secret' }], asset_refs: [] },
+  );
+  await epochStaleDetail;
+  ok(archiveContext._prodState.archiveRepair.detail === null,
+  'an archive detail response that lands after a verification-epoch change is discarded (no rescued links rendered post sign-out)');
 
   const assetCalls = [];
   const assetContext = {

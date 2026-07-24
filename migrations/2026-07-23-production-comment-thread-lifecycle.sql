@@ -175,6 +175,8 @@ create table if not exists public.production_comment_import_conflicts (
       'missing_client_slug', 'missing_parent', 'parent_cycle',
       'duplicate_identity', 'identity_collision',
       'invalid_comment', 'malformed_comment_field',
+      'malformed_attachment_field', 'malformed_attachment_entry',
+      'malformed_lifecycle_timestamp',
       'snapshot_contract_required', 'coverage_mismatch'
     )
   ),
@@ -747,6 +749,30 @@ $fn$;
 revoke all on function public.production_comment_card_import(jsonb, jsonb, jsonb)
   from public, anon, authenticated;
 grant execute on function public.production_comment_card_import(jsonb, jsonb, jsonb)
+  to service_role;
+
+-- Service-only exact-count readback for the F42 apply runner. Returns the
+-- number of card crosswalk links and their distinct canonical comments for a
+-- backfill tag so the apply runner can verify applied == planned independently
+-- of the RPC's own receipts. Body-free; exposes only two integers.
+create or replace function public.production_comment_card_import_counts(
+  p_backfill_tag text
+) returns table (card_link_count bigint, comment_count bigint)
+language sql
+security definer
+set search_path = public
+as $fn$
+  select
+    count(*)::bigint as card_link_count,
+    count(distinct l.production_comment_id)::bigint as comment_count
+  from public.production_comment_card_links l
+  join public.production_comments c on c.id = l.production_comment_id
+  where c.backfill_tag = p_backfill_tag;
+$fn$;
+
+revoke all on function public.production_comment_card_import_counts(text)
+  from public, anon, authenticated;
+grant execute on function public.production_comment_card_import_counts(text)
   to service_role;
 
 commit;

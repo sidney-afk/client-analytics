@@ -713,6 +713,13 @@ throws(
 );
 const privateSnapshotTestRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'f200-private-snapshot-'));
 try {
+  const unrelatedWorktree = path.join(privateSnapshotTestRoot, 'unrelated-worktree');
+  fs.mkdirSync(path.join(unrelatedWorktree, '.git'), { recursive: true });
+  throws(
+    () => assertPrivateOutputPath(path.join(unrelatedWorktree, 'snapshot.json')),
+    /outside every Git worktree/,
+    'the private F200 snapshot refuses output paths inside unrelated Git worktrees',
+  );
   if (process.platform === 'win32') {
     throws(
       () => assertPrivateOutputPath(path.join(privateSnapshotTestRoot, 'fresh-snapshot.json')),
@@ -738,8 +745,9 @@ try {
 ok(/assertNoLinkedComponents\(output\)/.test(liveSnapshotSource)
   && /flag:\s*'wx'/.test(liveSnapshotSource)
   && /chmodSync\(output, 0o600\)/.test(liveSnapshotSource)
-  && /assertPrivateParent\(parent\)/.test(liveSnapshotSource),
-'the private F200 snapshot rejects linked destinations and creates a new private-mode file in a verified private parent');
+  && /assertPrivateParent\(parent\)/.test(liveSnapshotSource)
+  && /hasContainingGitMarker\(output\)/.test(liveSnapshotSource),
+'the private F200 snapshot rejects linked and every Git-worktree destination before creating a private-mode file');
 
 const inboundSource = fs.readFileSync(
   path.join(__dirname, '..', 'supabase', 'functions', 'linear-inbound', 'index.ts'),

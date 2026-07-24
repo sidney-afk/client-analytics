@@ -67,6 +67,21 @@ function assertNoLinkedComponents(absolutePath) {
   }
 }
 
+function hasContainingGitMarker(absolutePath) {
+  let cursor = path.dirname(absolutePath);
+  while (true) {
+    try {
+      fs.lstatSync(path.join(cursor, '.git'));
+      return true;
+    } catch (error) {
+      if (!error || error.code !== 'ENOENT') return true;
+    }
+    const parent = path.dirname(cursor);
+    if (parent === cursor) return false;
+    cursor = parent;
+  }
+}
+
 function assertPrivateParent(parent) {
   const parentStat = fs.lstatSync(parent);
   if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
@@ -97,6 +112,7 @@ function assertPrivateOutputPath(value) {
   if (registeredGitWorktrees().some(worktree => pathInside(comparisonPath(output), worktree))) {
     throw new Error('--out must be outside every Git worktree');
   }
+  if (hasContainingGitMarker(output)) throw new Error('--out must be outside every Git worktree');
   const parent = path.dirname(output);
   assertPrivateParent(parent);
   try {
@@ -238,4 +254,10 @@ if (require.main === module) {
   });
 }
 
-module.exports = { assertNoLinkedComponents, assertPrivateOutputPath, assertPrivateParent, registeredGitWorktrees };
+module.exports = {
+  assertNoLinkedComponents,
+  assertPrivateOutputPath,
+  assertPrivateParent,
+  hasContainingGitMarker,
+  registeredGitWorktrees,
+};

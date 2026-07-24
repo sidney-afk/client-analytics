@@ -9,9 +9,16 @@ name: Deploy staff-sensitive edge functions
 # can_edit/can_delete and unlocks the lifecycle UI, so a new reader running
 # against the old production-write would let an edit be mis-handled as a create
 # (silent duplicate comment). A normal merge/push must never deploy that set.
-# Uses the existing SUPABASE_ACCESS_TOKEN Actions secret. Role keys and
-# transition-only legacy passphrases live as Supabase function secrets, never in
-# this repository.
+#
+# Secret exposure is fenced by the release order, not just by the deploy step's
+# own auth: main-ancestry validation runs FIRST, from the trusted default
+# branch, with no repository script executed and no production secret in scope.
+# Only after a dispatched commit is proven to be on main is its (now trusted)
+# working tree checked out, and only the deploy/attestation steps that need it
+# carry SUPABASE_ACCESS_TOKEN — the job never exposes it job-wide. The job also
+# runs in the `production` GitHub Environment so a branch copy of this workflow
+# cannot reach the production secret at all. Role keys and transition-only
+# legacy passphrases live as Supabase function secrets, never in this repository.
 on:
   push:
     branches: [main]
@@ -36,23 +43,27 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # The production Environment gates the deploy secret: its deployment-branch
+    # policy must be restricted to `main`, and SUPABASE_ACCESS_TOKEN must live in
+    # the environment (not at repo level), so a branch copy of this workflow
+    # cannot obtain the token even if it re-implements every step below.
+    environment: production
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PROJECT_REF: uzltbbrjidmjwwfakwve
       DEPLOY_COMMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_sha || github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      # 1. Validate FIRST, from the trusted default branch, with no secret in
+      #    scope and no repository script from the dispatched ref executed. A
+      #    malicious dispatched commit can therefore neither run code nor read a
+      #    production secret before it is proven to be an ancestor of main.
+      - name: Check out the trusted default branch for validation
+        uses: actions/checkout@v4
         with:
-          ref: ${{ env.DEPLOY_COMMIT }}
+          ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
-      - name: Verify pinned deploy commit
+      - name: Validate the dispatched commit is on main
         shell: bash
         run: |
-          actual="$(git rev-parse HEAD)"
-          if [ "$actual" != "$DEPLOY_COMMIT" ]; then
-            echo "::error::Checked out $actual instead of requested $DEPLOY_COMMIT"
-            exit 1
-          fi
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             if ! [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
               echo "::error::Manual deploys require an exact 40-character commit SHA"
@@ -63,10 +74,30 @@ jobs:
               echo "::error::Manual deploy commit is not on origin/main"
               exit 1
             fi
-            if [ ! -f scripts/ef-fingerprint.js ]; then
+            # Attestor presence is checked at the object level (git cat-file),
+            # never by running the pinned commit's script, so validation stays
+            # free of dispatched-ref code execution.
+            if ! git cat-file -e "$DEPLOY_COMMIT:scripts/ef-fingerprint.js" 2>/dev/null; then
               echo "::error::Pinned commit predates the required Edge Function fingerprint attestor"
               exit 1
             fi
+          fi
+      # 2. Only now — after ancestry passed — materialize the validated commit.
+      #    Proven to be on main, its working tree is trusted to execute.
+      - name: Check out the validated deploy commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_COMMIT }}
+          fetch-depth: 0
+      - name: Verify the validated commit is checked out
+        shell: bash
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$DEPLOY_COMMIT" ]; then
+            echo "::error::Checked out $actual instead of requested $DEPLOY_COMMIT"
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --expected-only --format=json > /dev/null
           fi
           echo "Deploying Edge Functions from $actual" >> "$GITHUB_STEP_SUMMARY"
@@ -75,9 +106,13 @@ jobs:
           version: latest
       - name: Deploy push-safe staff-sensitive functions
         id: push_safe_deploy
+        # The production secret is scoped to the deploy step only — never the job
+        # env — so no validation/checkout step can observe it.
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "::error::SUPABASE_ACCESS_TOKEN secret is not set — add it in repo Settings -> Secrets and variables -> Actions."
+            echo "::error::SUPABASE_ACCESS_TOKEN secret is not set — add it to the production Environment (Settings -> Environments -> production -> Secrets)."
             exit 1
           fi
           for fn in onboarding-list ai-onboarding-list legacy-onboarding-list onboarding-full client-credentials filming-plans smm-weekly-reports key-verify; do
@@ -87,6 +122,8 @@ jobs:
       - name: Deploy pinned Track-B write/read functions
         id: track_b_deploy
         if: github.event_name == 'workflow_dispatch'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           # Provider and write gateway first, comment/archive readers last.
           # production-comments (scoped canonical comment reader) and
@@ -103,7 +140,11 @@ jobs:
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
           done
       - name: Attest pinned manual release
-        if: always() && github.event_name == 'workflow_dispatch'
+        # Gated on validation + deploy success (no always()): an attestation must
+        # never be produced for a run whose ancestry check or deploy failed.
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         shell: bash
         run: |
           set -o pipefail
@@ -114,6 +155,7 @@ jobs:
             echo "- Push-safe deploy step: \`${{ steps.push_safe_deploy.outcome }}\`"
             echo "- Track-B deploy step: \`${{ steps.track_b_deploy.outcome }}\`"
             echo "- Fingerprint scope: 12 functions deployed by this workflow"
+            echo "- JWT posture: expected verify_jwt=false (each function self-authenticates); the attestation FAILs any function whose live posture differs"
             echo "- Drill outcome: \`PENDING\` (the separate service-only TEST drill does not run in this deploy job)"
             echo
           } >> "$GITHUB_STEP_SUMMARY"

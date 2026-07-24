@@ -173,15 +173,23 @@ function snapshotFor(calendar, sxr, mutateManifest) {
 
   const sxrVideoTarget = { origin: 'samples', card_id: 'sxr-card', team: 'video' };
   const sxrGraphicTarget = { origin: 'samples', card_id: 'sxr-card', team: 'graphics' };
-  ok(writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'video')
-    && writerPolicy.clientCommentTargetAllowed('sxr', sxrGraphicTarget, 'graphic')
-    && !writerPolicy.clientCommentTargetAllowed('calendar', sxrVideoTarget, 'video')
-    && !writerPolicy.clientCommentTargetAllowed('sxr', { ...sxrVideoTarget, origin: 'manual' }, 'video')
-    && !writerPolicy.clientCommentTargetAllowed('sxr', { ...sxrVideoTarget, card_id: '' }, 'video')
-    && !writerPolicy.clientCommentTargetAllowed('sxr', sxrGraphicTarget, 'video')
-    && !writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'graphic')
-    && !writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'caption'),
+  ok(writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'video', 'sxr-card')
+    && writerPolicy.clientCommentTargetAllowed('sxr', sxrGraphicTarget, 'graphic', 'sxr-card')
+    && !writerPolicy.clientCommentTargetAllowed('calendar', sxrVideoTarget, 'video', 'sxr-card')
+    && !writerPolicy.clientCommentTargetAllowed('sxr', { ...sxrVideoTarget, origin: 'manual' }, 'video', 'sxr-card')
+    && !writerPolicy.clientCommentTargetAllowed('sxr', { ...sxrVideoTarget, card_id: '' }, 'video', 'sxr-card')
+    && !writerPolicy.clientCommentTargetAllowed('sxr', sxrGraphicTarget, 'video', 'sxr-card')
+    && !writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'graphic', 'sxr-card')
+    && !writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'caption', 'sxr-card'),
   'client comment mutations require the exact SXR card/component/Samples-origin crosswalk, not just the client slug');
+  // Finding P1 #4 — the presented card must EXACTLY match the target's card
+  // binding: a different or missing requested card is not authorization.
+  ok(!writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'video', 'other-card')
+    && !writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'video', '')
+    && !writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'video', null)
+    && !writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'video', undefined)
+    && writerPolicy.clientCommentTargetAllowed('sxr', sxrVideoTarget, 'video', ' sxr-card '),
+  'a client authorized for one card cannot mutate a different card that shares the slug/team (exact, whitespace-trimmed match)');
 
   const rootComment = {
     id: 'root',
@@ -454,6 +462,83 @@ function snapshotFor(calendar, sxr, mutateManifest) {
     && nonHttpsImport.comment.attachments[0].url.startsWith('https://'),
   'a well-formed non-HTTPS attachment stays a policy sanitization, not a blocking malformation');
 
+  // Finding P1 #3 — audience inheritance and quarantine.
+  const clientRootInternalReplyRows = [{
+    id: 'card-audience', client_slug: 'test-client', video_deliverable_id: 'deliverable-audience',
+    comments: [
+      { id: 'a-root', author: 'SMM', role: 'smm', audience: 'client', body: 'Client-visible root',
+        created_at: '2026-07-23T10:00:00Z' },
+      { id: 'a-reply-ok', parent_id: 'a-root', author: 'Client', role: 'client', body: 'Client reply',
+        created_at: '2026-07-23T10:01:00Z' },
+      { id: 'a-reply-bad', parent_id: 'a-root', author: 'SMM', role: 'smm', audience: 'internal',
+        body: 'Internal note under a client root', created_at: '2026-07-23T10:02:00Z' },
+    ],
+  }];
+  const audiencePlan = planCardCommentImport(snapshotFor(clientRootInternalReplyRows, []));
+  ok(!audiencePlan.complete
+    && audiencePlan.conflicts.some(row =>
+      row.classification === 'audience_quarantine'
+      && row.native_comment_id === 'a-reply-bad'
+      && row.reason === 'internal_reply_under_client_visible_root')
+    && audiencePlan.imports.every(row => row.identity !== 'calendar|card-audience|video|a-reply-bad'),
+  'an explicitly-internal reply under a client-visible root is quarantined, never silently flipped client-visible');
+
+  const internalRootClientReplyRows = [{
+    id: 'card-inherit', client_slug: 'test-client', video_deliverable_id: 'deliverable-inherit',
+    comments: [
+      { id: 'i-root', author: 'SMM', role: 'smm', audience: 'internal', body: 'Internal root',
+        created_at: '2026-07-23T10:00:00Z' },
+      { id: 'i-reply', parent_id: 'i-root', author: 'Client', role: 'client', body: 'Reply inherits internal',
+        created_at: '2026-07-23T10:01:00Z' },
+    ],
+  }];
+  const inheritPlan = planCardCommentImport(snapshotFor(internalRootClientReplyRows, []));
+  const inheritedReply = inheritPlan.imports.find(row => row.identity === 'calendar|card-inherit|video|i-reply');
+  const inheritedRoot = inheritPlan.imports.find(row => row.identity === 'calendar|card-inherit|video|i-root');
+  ok(inheritPlan.complete
+    && inheritedRoot && inheritedRoot.comment.audience === 'internal'
+    && inheritedReply && inheritedReply.comment.audience === 'internal',
+  'every reply inherits its root audience: a would-be client reply under an internal root becomes internal');
+
+  // Finding P1 #5 — strict calendar validation (reject silently-normalized
+  // dates) and a positive-integer round.
+  const overflowDateRows = [{
+    id: 'card-overflow', client_slug: 'test-client', video_deliverable_id: 'deliverable-overflow',
+    comments: [{ id: 'ovf', author: 'SMM', role: 'smm', body: 'Feb 30 overflows',
+      created_at: '2026-02-30T10:00:00Z' }],
+  }];
+  const overflowPlan = planCardCommentImport(snapshotFor(overflowDateRows, []));
+  ok(!overflowPlan.complete
+    && overflowPlan.conflicts.some(row =>
+      row.classification === 'malformed_lifecycle_timestamp' && row.native_comment_id === 'ovf'),
+  'a calendar-overflow date (2026-02-30) Date.parse would silently normalize is rejected');
+  const looseDateRows = [{
+    id: 'card-loose', client_slug: 'test-client', video_deliverable_id: 'deliverable-loose',
+    comments: [{ id: 'loose', author: 'SMM', role: 'smm', body: 'Non-ISO stamp',
+      created_at: '2026-07-23T10:00:00Z', edited_at: '2026/07/23 10:00' }],
+  }];
+  ok(!planCardCommentImport(snapshotFor(looseDateRows, [])).complete,
+  'a non-ISO timestamp string Date.parse would normalize is rejected');
+  const badRoundRows = [{
+    id: 'card-round', client_slug: 'test-client', video_deliverable_id: 'deliverable-round',
+    comments: [{ id: 'rnd', author: 'SMM', role: 'smm', body: 'Round is zero',
+      created_at: '2026-07-23T10:00:00Z', round: 0 }],
+  }];
+  const badRoundPlan = planCardCommentImport(snapshotFor(badRoundRows, []));
+  ok(!badRoundPlan.complete
+    && badRoundPlan.conflicts.some(row =>
+      row.classification === 'invalid_round' && row.native_comment_id === 'rnd'),
+  'a present round of 0 is rejected rather than normalized to null');
+  const goodRoundRows = [{
+    id: 'card-round-ok', client_slug: 'test-client', video_deliverable_id: 'deliverable-round-ok',
+    comments: [{ id: 'rnd-ok', author: 'SMM', role: 'smm', body: 'Round two',
+      created_at: '2026-07-23T10:00:00Z', round: 2 }],
+  }];
+  const goodRoundPlan = planCardCommentImport(snapshotFor(goodRoundRows, []));
+  const goodRoundImport = goodRoundPlan.imports.find(row => row.identity === 'calendar|card-round-ok|video|rnd-ok');
+  ok(goodRoundPlan.complete && goodRoundImport && goodRoundImport.comment.round === 2,
+  'a present positive-integer round is preserved; an absent round stays a legitimate null');
+
   const mismatchedPlan = planCardCommentImport(snapshotFor(fixture, [], manifest => {
     manifest.surfaces.calendar.cards += 1;
     manifest.surfaces.sxr.source_sha256 = '0'.repeat(64);
@@ -509,9 +594,10 @@ function snapshotFor(calendar, sxr, mutateManifest) {
     && /snapshot_contract_required/.test(migration)
     && /coverage_mismatch/.test(migration),
   'the durable F42 conflict catalog accepts certification and malformed-source evidence');
-  ok(/principal\.kind === "client"\s*\n\s*&& !clientCommentTargetAllowed\(surface, existing, commentInput\.component\)/.test(writer)
-    && /principal\.kind === "client"\s*\n\s*&& !clientCommentTargetAllowed\(surface, existing, lifecycleRow\.component\)/.test(writer),
-  'the writer binds every client comment add and edit/delete to the exact SXR card/component crosswalk');
+  ok(/principal\.kind === "client"\s*\n\s*&& !clientCommentTargetAllowed\(surface, existing, commentInput\.component, requestedCardId\)/.test(writer)
+    && /principal\.kind === "client"\s*\n\s*&& !clientCommentTargetAllowed\(surface, existing, lifecycleRow\.component, requestedCardId\)/.test(writer)
+    && /const requestedCardId = clean\(body\.card_id \|\| commentInput\.card_id\)/.test(writer),
+  'the writer binds every client comment add and edit/delete to the exact SXR card/component crosswalk including the presented card');
 
   // Finding #924 r3646413661 — the lifecycle RPC clamps a server-owned monotonic
   // source clock before the upsert so the stale-source guard cannot turn a

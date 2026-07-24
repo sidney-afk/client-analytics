@@ -94,6 +94,23 @@ const calendarCards = [{
   ok(mismatchThrew === 'apply_result_identity_mismatch',
     'a RPC result whose canonical id drifts from the plan fails loud');
 
+  // Finding P1 #3 — per-row audience verification (not just counts): a persisted
+  // row whose audience drifts from the plan fails loud before APPLIED.
+  let audienceMismatchThrew = '';
+  try {
+    await apply.applyImports(plan, (link, comment) => ({
+      id: comment.id,
+      audience: comment.audience === 'internal' ? 'client' : 'internal',
+    }));
+  } catch (error) { audienceMismatchThrew = error && error.message; }
+  ok(audienceMismatchThrew === 'apply_result_audience_mismatch',
+    'a persisted row whose audience drifts from the plan fails loud (per-row audience verification)');
+  const auditedResult = await apply.applyImports(plan,
+    (link, comment) => ({ id: comment.id, audience: comment.audience }));
+  ok(auditedResult.applied_count === 3
+    && auditedResult.receipts.every(receipt => typeof receipt.audience === 'string'),
+    'per-row audience that matches the plan applies and is carried on the receipt');
+
   // verifyCounts requires the applied receipts and the independent DB readback
   // to both equal the planned canonical count.
   const okVerify = apply.verifyCounts(plan, result, { card_link_count: 3, comment_count: 3 });
@@ -214,6 +231,25 @@ const calendarCards = [{
   'apply requires the confirm token and pins the reviewed apply digest as a drift guard');
   ok(!/upload-artifact/.test(wf) && /the snapshot file stays on the runner/.test(wf),
   'the private snapshot/plan are never uploaded as artifacts');
+
+  // Finding P1 #2 — the import job runs in the production Environment so a
+  // branch copy of the workflow cannot reach SUPABASE_SERVICE_ROLE_KEY.
+  ok(/^  f42-import:\n(?:    [^\n]*\n)*    environment: production\n/m.test(wf),
+  'the F42 import job runs in the production Environment');
+
+  // Finding P1 #6 — the full result JSON (apply receipts carry canonical/native
+  // comment ids + deliverable ids) is redirected to a runner-local file, never
+  // teed to the public log; only aggregate counts + the digest are echoed.
+  ok(/--import-run-id "\$IMPORT_RUN_ID" \\\n\s*> plan-summary\.json/.test(wf)
+    && /--expect-apply-digest "\$EXPECTED_APPLY_DIGEST" --apply \\\n\s*> apply-summary\.json/.test(wf)
+    && !/\| tee /.test(wf),
+  'the plan/apply result JSON is redirected to a runner-local file, never teed to the public log');
+  // Inspect only what is echoed to the log (console.log statements), not the
+  // explanatory comments that legitimately name the fields being withheld.
+  const echoedToLog = (wf.match(/console\.log\([^\n]*\)/g) || []).join('\n');
+  ok(echoedToLog.length > 0
+    && !/receipts|native_comment_id|deliverable_id|production_comment_id|\.identity/.test(echoedToLog),
+  'the public log echoes only aggregate counts + digest — never receipts or comment/deliverable identities');
 
   if (failures) {
     console.error(`\n${failures} F42 apply check(s) failed`);

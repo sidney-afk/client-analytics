@@ -15,9 +15,13 @@ name: F42 card-comment import
 #                  RPC and verifies applied == planned against an independent
 #                  count readback.
 #
-# Uses the repo's existing SUPABASE_SERVICE_ROLE_KEY Actions secret. It never
-# uploads the snapshot or plan (they carry private comment bodies) — only the
-# body-free counts/digest summary reaches the run log.
+# Uses the repo's existing SUPABASE_SERVICE_ROLE_KEY Actions secret, held in the
+# `production` GitHub Environment (restricted to main) so a branch copy of this
+# workflow cannot reach it. It never uploads the snapshot or plan (they carry
+# private comment bodies) and never prints identities: only body-free AGGREGATE
+# counts and the apply digest reach the public run log. The full result JSON —
+# which carries per-row receipts (canonical/native comment ids, deliverable
+# ids) — is redirected to a file that stays on the runner, never teed to stdout.
 
 on:
   workflow_dispatch:
@@ -51,6 +55,10 @@ permissions:
 jobs:
   f42-import:
     runs-on: ubuntu-latest
+    # The production Environment gates SUPABASE_SERVICE_ROLE_KEY: restrict its
+    # deployment branches to main and store the key in the environment (not at
+    # repo level) so no branch copy of this workflow can obtain it.
+    environment: production
     env:
       SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -95,14 +103,17 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          # Redirect (never tee) the full result to a runner-local file: it can
+          # carry per-surface coverage detail and must not reach the public log.
+          # Only aggregate counts + the digest are echoed below.
           node scripts/f42-card-comment-apply.js \
             --input snapshot.json --import-run-id "$IMPORT_RUN_ID" \
-            | tee plan-summary.json
-          node -e "const r=require('./plan-summary.json'); if(r.status!=='READY'){console.error('::error::plan not READY:',JSON.stringify(r.reasons));process.exit(2)}"
+            > plan-summary.json
+          node -e "const r=require('./plan-summary.json'); if(r.status!=='READY'){console.error('::error::plan not READY (see runner-local plan-summary.json); reasons count:',Array.isArray(r.reasons)?r.reasons.length:0);process.exit(2)}"
           {
             echo "## F42 import — PLAN"
             echo
-            node -e "const r=require('./plan-summary.json');console.log('- status: '+r.status);console.log('- planned imports: '+r.planned_imports);console.log('- conflicts: '+r.conflicts);console.log('- apply digest: \`'+r.apply_digest+'\`');console.log('- import run id: \`'+r.import_run_id+'\`')"
+            node -e "const r=require('./plan-summary.json');console.log('- status: '+r.status);console.log('- planned imports: '+Number(r.planned_imports||0));console.log('- conflicts: '+Number(r.conflicts||0));console.log('- apply digest: \`'+String(r.apply_digest||'')+'\`')"
             echo
             echo "Re-run this workflow with mode=apply, the same import_run_id, expected_apply_digest set to the digest above, and confirm=IMPORT_CARD_COMMENTS."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -117,13 +128,17 @@ jobs:
             echo "::error::apply requires expected_apply_digest from the reviewed plan run"
             exit 1
           fi
+          # Redirect (never tee) the full result to a runner-local file: the
+          # APPLY result carries per-row receipts (canonical/native comment ids,
+          # deliverable ids) that must never reach the public log. Only aggregate
+          # counts + the digest are echoed below.
           node scripts/f42-card-comment-apply.js \
             --input snapshot.json --import-run-id "$IMPORT_RUN_ID" \
             --expect-apply-digest "$EXPECTED_APPLY_DIGEST" --apply \
-            | tee apply-summary.json
-          node -e "const r=require('./apply-summary.json'); if(r.status!=='APPLIED'){console.error('::error::apply not APPLIED:',r.status);process.exit(2)}"
+            > apply-summary.json
+          node -e "const r=require('./apply-summary.json'); if(r.status!=='APPLIED'){console.error('::error::apply not APPLIED (see runner-local apply-summary.json); status:',String(r.status||''));process.exit(2)}"
           {
             echo "## F42 import — APPLY"
             echo
-            node -e "const r=require('./apply-summary.json');console.log('- status: '+r.status);console.log('- applied: '+r.applied_count);console.log('- apply digest: \`'+r.apply_digest+'\`');console.log('- readback links/comments: '+r.verification.checks.card_link_count+' / '+r.verification.checks.comment_count)"
+            node -e "const r=require('./apply-summary.json');const c=(r.verification&&r.verification.checks)||{};console.log('- status: '+r.status);console.log('- applied: '+Number(r.applied_count||0));console.log('- apply digest: \`'+String(r.apply_digest||'')+'\`');console.log('- readback links/comments: '+Number(c.card_link_count||0)+' / '+Number(c.comment_count||0))"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -3293,6 +3293,10 @@ async function handleEntityOperation(
     const commentInput = parseJson(body.comment);
     const action = normalizeCommentAction(commentInput.action || "add");
     if (!action) throw new GatewayError(400, "invalid_comment_action");
+    // The card the client presents it is authorized for. It must exactly match
+    // the target deliverable's card binding (clientCommentTargetAllowed), the
+    // same card the protected reader gates on — never merely "some card id".
+    const requestedCardId = clean(body.card_id || commentInput.card_id);
     let lifecycleRow: JsonMap | null = null;
     let commentBody = String(commentInput.body == null ? body.body || "" : commentInput.body).trim();
     let audience = principal.kind === "client" ? "client" : lower(commentInput.audience || "internal");
@@ -3312,9 +3316,10 @@ async function handleEntityOperation(
         throw new GatewayError(400, "invalid_comment_audience");
       }
       // A client add is bound to the exact SXR card/component/deliverable
-      // crosswalk the reader authorizes, not merely the client slug.
+      // crosswalk the reader authorizes, not merely the client slug — the
+      // presented card must equal the target deliverable's card binding.
       if (principal.kind === "client"
-          && !clientCommentTargetAllowed(surface, existing, commentInput.component)) {
+          && !clientCommentTargetAllowed(surface, existing, commentInput.component, requestedCardId)) {
         throw new GatewayError(403, "comment_forbidden");
       }
     } else {
@@ -3339,9 +3344,10 @@ async function handleEntityOperation(
           || normalizeTeam(lifecycleRow.team) !== team
           || (principal.kind === "client" && lower(lifecycleRow.audience) !== "client")
           // A client edit/delete is bound to the same exact SXR
-          // card/component/deliverable crosswalk as the reader and the add path.
+          // card/component/deliverable crosswalk as the reader and the add path,
+          // including the presented card matching the target's card binding.
           || (principal.kind === "client"
-            && !clientCommentTargetAllowed(surface, existing, lifecycleRow.component))
+            && !clientCommentTargetAllowed(surface, existing, lifecycleRow.component, requestedCardId))
           || !commentLifecycleAllowed(principal, action, lifecycleRow)) {
         throw new GatewayError(403, "comment_forbidden");
       }

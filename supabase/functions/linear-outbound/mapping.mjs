@@ -297,10 +297,28 @@ function artifactRevisionSubtitle(value) {
   return revision ? `SyncView canonical revision ${revision}` : "";
 }
 
-function issueHasArtifactRevision(issue, payload) {
+// The stable marker the exact-retry idempotency check looks for: a canonical
+// URL plus the server-owned revision subtitle. null when the intent is invalid.
+export function attachmentRevisionMarker(payload) {
   const revision = artifactRevision(payload && payload.artifact_revision);
   const url = canonicalAttachmentUrl(payload && payload.url);
-  if (!revision || !url) return false;
+  if (!revision || !url) return null;
+  return { revision, url, subtitle: artifactRevisionSubtitle(revision) };
+}
+
+export function attachmentNodesHaveRevision(nodes, marker) {
+  if (!marker) return false;
+  const list = Array.isArray(nodes) ? nodes : [];
+  return list.some(value => {
+    const attachment = value && typeof value === "object" ? value : {};
+    return canonicalAttachmentUrl(attachment.url) === marker.url
+      && clean(attachment.subtitle) === marker.subtitle;
+  });
+}
+
+function issueHasArtifactRevision(issue, payload, context = {}) {
+  const marker = attachmentRevisionMarker(payload);
+  if (!marker) return false;
   const attachments = issue && issue.attachments && typeof issue.attachments === "object"
     ? issue.attachments
     : {};
@@ -309,27 +327,28 @@ function issueHasArtifactRevision(issue, payload) {
     : Array.isArray(attachments.nodes)
       ? attachments.nodes
       : [];
-  const subtitle = artifactRevisionSubtitle(revision);
-  const found = nodes.some(value => {
-    const attachment = value && typeof value === "object" ? value : {};
-    return canonicalAttachmentUrl(attachment.url) === url
-      && clean(attachment.subtitle) === subtitle;
-  });
-  if (found) return true;
+  if (attachmentNodesHaveRevision(nodes, marker)) return true;
   // The issue fetch caps `attachments(first: 100)`. When that relation is
-  // incomplete the canonical revision marker may live on an unfetched page, so
-  // "not found here" does not prove absence. Fail closed — report the revision
-  // as present so an exact retry does not fire a second attachmentCreate and
-  // mint a duplicate canonical attachment. Mirrors the incomplete-relation
-  // guard used for the create-label connection (completeCreateIssueLabels).
+  // complete (no next page) the revision is genuinely absent.
   const pageInfo = !Array.isArray(attachments) && attachments.pageInfo
     && typeof attachments.pageInfo === "object"
     ? attachments.pageInfo
     : null;
-  return !!(pageInfo && pageInfo.hasNextPage === true);
+  const incomplete = !!(pageInfo && pageInfo.hasNextPage === true);
+  if (!incomplete) return false;
+  // The relation is incomplete: the marker may live on an unfetched page. The
+  // drainer pages the remaining attachments and passes the DEFINITIVE presence
+  // in context.attachment_revision_present, so an exact retry is never
+  // terminalized as already-applied on partial page-one evidence. Only when no
+  // pager result is available (e.g. a direct unit call) do we fall back to
+  // fail-closed presence so a duplicate attachmentCreate can never be minted.
+  if (typeof context.attachment_revision_present === "boolean") {
+    return context.attachment_revision_present;
+  }
+  return true;
 }
 
-export function actualValueForOperation(operation, issue, payload = {}) {
+export function actualValueForOperation(operation, issue, payload = {}, context = {}) {
   const op = lower(operation);
   const row = issue && typeof issue === "object" ? issue : {};
   if (op === "status") {
@@ -357,7 +376,7 @@ export function actualValueForOperation(operation, issue, payload = {}) {
     const dedup = clean(payload.dedup_key);
     return comments.some(comment => markerFromBody(comment && comment.body) === dedup);
   }
-  if (op === "attachment") return issueHasArtifactRevision(row, payload);
+  if (op === "attachment") return issueHasArtifactRevision(row, payload, context);
   return null;
 }
 
@@ -525,7 +544,7 @@ export function decideConflict(row, issue, context = {}) {
       };
     }
   }
-  const actual = actualValueForOperation(operation, issue, { ...payload, dedup_key: row.dedup_key });
+  const actual = actualValueForOperation(operation, issue, { ...payload, dedup_key: row.dedup_key }, context);
   const intended = intendedValueForOperation(operation, payload, context);
   const alreadyApplied = operation === "description"
     ? actual === intended

@@ -7,6 +7,8 @@
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import {
+  attachmentNodesHaveRevision,
+  attachmentRevisionMarker,
   buildMutation,
   completeCreateIssueLabels,
   decideConflict,
@@ -279,6 +281,43 @@ async function readCommentByMarker(issueId: string, dedupKey: string): Promise<J
     after = next;
   }
   throw new Error("comment marker pagination exceeded");
+}
+
+// Definitively resolve whether the canonical attachment revision is already on
+// the issue. The issue fetch only carries the first `attachments(first: 100)`
+// page; when the marker is absent there and a next page exists, page ON (bounded)
+// until it is found or the relation is exhausted. This replaces the old
+// fail-closed "assume present" behavior so an outbox row is never terminalized
+// as already-applied on partial page-one evidence — it either really exists
+// (skip) or really does not (apply). Only page-one is available without a Linear
+// call, so a found/complete first page short-circuits with no extra request.
+async function readAttachmentRevisionPresent(
+  issueId: string,
+  issue: JsonMap | null,
+  payload: JsonMap,
+): Promise<boolean> {
+  const marker = attachmentRevisionMarker(payload);
+  if (!marker) return false;
+  const attachments = parseJson(issue && issue.attachments);
+  if (attachmentNodesHaveRevision(parseArray(attachments.nodes), marker)) return true;
+  const firstPageInfo = parseJson(attachments.pageInfo);
+  if (firstPageInfo.hasNextPage !== true) return false;
+  let after: string | null = clean(firstPageInfo.endCursor) || null;
+  if (!after) throw new Error("attachment revision pagination missing first cursor");
+  for (let page = 0; page < 50; page++) {
+    const data = await linearGraphql(
+      "query SyncViewMirrorIssueAttachments($id: String!, $after: String) { issue(id: $id) { attachments(first: 100, after: $after) { nodes { id url title subtitle } pageInfo { hasNextPage endCursor } } } }",
+      { id: issueId, after },
+    );
+    const connection = parseJson(parseJson(data.issue).attachments);
+    if (attachmentNodesHaveRevision(parseArray(connection.nodes), marker)) return true;
+    const pageInfo = parseJson(connection.pageInfo);
+    if (pageInfo.hasNextPage !== true) return false;
+    const next = clean(pageInfo.endCursor);
+    if (!next || next === after) throw new Error("attachment revision pagination stalled");
+    after = next;
+  }
+  throw new Error("attachment revision pagination exceeded");
 }
 
 async function readTeam(id: string): Promise<JsonMap | null> {
@@ -1378,6 +1417,16 @@ Deno.serve(async (req: Request) => {
         context.linear_comment = await readLinearComment(
           clean(context.linear_comment_id),
           true,
+        );
+      }
+      if (row.operation === "attachment" && issue) {
+        // Resolve the definitive attachment-revision presence by paging past the
+        // first attachments page when needed, so decideConflict never
+        // terminalizes the row as already-applied on partial page-one evidence.
+        context.attachment_revision_present = await readAttachmentRevisionPresent(
+          issueId,
+          issue,
+          parseJson(row.payload),
         );
       }
       const conflict = decideConflict(row, issue, context);

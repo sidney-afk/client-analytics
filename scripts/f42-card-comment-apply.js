@@ -117,12 +117,29 @@ async function applyImports(plan, importOne) {
       error.actual = productionId;
       throw error;
     }
+    // Per-row audience verification (not just counts): the persisted row's
+    // audience must equal the planned audience. A server-side clamp or RPC bug
+    // that flipped a client-visible row to internal (or the reverse) is a
+    // silent visibility change and must fail the run loudly, before it is
+    // called APPLIED. Verified whenever the RPC returns the row's audience.
+    const expectedAudience = clean(item.comment && item.comment.audience);
+    if (row && typeof row === 'object' && Object.prototype.hasOwnProperty.call(row, 'audience')) {
+      const appliedAudience = clean(row.audience);
+      if (appliedAudience !== expectedAudience) {
+        const error = new Error('apply_result_audience_mismatch');
+        error.identity = item.identity;
+        error.expected = expectedAudience;
+        error.actual = appliedAudience;
+        throw error;
+      }
+    }
     receipts.push({
       identity: item.identity,
       production_comment_id: productionId,
       native_comment_id: clean(item.link && item.link.native_comment_id),
       deliverable_id: clean(item.link && item.link.deliverable_id),
       component: clean(item.link && item.link.component),
+      audience: expectedAudience,
     });
     seen.add(productionId);
   }

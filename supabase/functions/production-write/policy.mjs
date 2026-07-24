@@ -147,12 +147,14 @@ export function normalizeCommentAction(value) {
 
 // A client comment mutation must be bound to the exact SXR Samples-card context
 // the protected reader authorizes (production-comments clientSurfaceTargetAllowed):
-// the request surface is `sxr`, the target deliverable is Samples-origin with a
-// real card id, and the comment's component maps to the deliverable's team. This
-// stops a valid client token from mutating a Calendar/manual deliverable or a
-// wrong-component target that merely shares the same client slug. Client threads
-// are only the graphic/video review surfaces, matching the reader exactly.
-export function clientCommentTargetAllowed(surface, existing, component) {
+// the request surface is `sxr`, the target deliverable is Samples-origin, the
+// comment's component maps to the deliverable's team, AND the card the client
+// presented (requestedCardId) is the exact card the target deliverable belongs
+// to. "Has some nonempty card_id" is not authorization: a client authorized for
+// card A could otherwise mutate a comment on card B under the same slug/team.
+// The exact card match mirrors the reader's `row.card_id === cardId` gate so the
+// writer is never weaker than the reader it fronts.
+export function clientCommentTargetAllowed(surface, existing, component, requestedCardId) {
   const row = existing && typeof existing === "object" ? existing : {};
   const comp = lower(component);
   const expectedTeam = comp === "graphic"
@@ -160,9 +162,13 @@ export function clientCommentTargetAllowed(surface, existing, component) {
     : comp === "video"
       ? "video"
       : "";
+  const targetCardId = clean(row.card_id);
+  const requestedCard = clean(requestedCardId);
   return lower(surface) === "sxr"
     && lower(row.origin) === "samples"
-    && !!clean(row.card_id)
+    && !!targetCardId
+    && !!requestedCard
+    && targetCardId === requestedCard
     && !!expectedTeam
     && normalizeTeam(row.team) === expectedTeam;
 }

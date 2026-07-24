@@ -307,7 +307,33 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     },
   };
   ok(mapping.decideConflict(attachmentRow, incompleteAttachmentIssue, attachmentContext).decision === 'already_applied',
-    'an incomplete attachments relation fails closed so an exact retry never mints a duplicate attachment');
+    'an incomplete attachments relation fails closed (no pager result) so an exact retry never mints a duplicate attachment');
+
+  // Finding P2 #7 — when the relation is incomplete, the drainer pages on and
+  // passes the DEFINITIVE presence in context. A definitive "absent" must
+  // create the attachment (apply), never terminalize on partial page-one
+  // evidence; a definitive "present" stays already_applied.
+  ok(mapping.decideConflict(attachmentRow, incompleteAttachmentIssue,
+    { ...attachmentContext, attachment_revision_present: false }).decision === 'apply',
+    'an incomplete relation with a definitive absent pager result creates the attachment, never a false already-applied');
+  ok(mapping.decideConflict(attachmentRow, incompleteAttachmentIssue,
+    { ...attachmentContext, attachment_revision_present: true }).decision === 'already_applied',
+    'an incomplete relation with a definitive present pager result stays already_applied');
+  const markerFixture = mapping.attachmentRevisionMarker({ url: attachmentUrl, artifact_revision: 3 });
+  ok(markerFixture && markerFixture.subtitle === revisionSubtitle
+    && mapping.attachmentNodesHaveRevision(
+      [{ url: attachmentUrl, subtitle: revisionSubtitle }], markerFixture) === true
+    && mapping.attachmentNodesHaveRevision(
+      [{ url: 'https://drive.google.com/file/d/other/view', subtitle: revisionSubtitle }], markerFixture) === false
+    && mapping.attachmentRevisionMarker({ url: '', artifact_revision: 3 }) === null,
+    'the attachment revision marker/predicate the drainer pages with matches on canonical url + revision subtitle');
+  const outboundIndexSource = read('supabase/functions/linear-outbound/index.ts');
+  ok(/async function readAttachmentRevisionPresent\(/.test(outboundIndexSource)
+    && /SyncViewMirrorIssueAttachments/.test(outboundIndexSource)
+    && /attachments\(first: 100, after: \$after\)/.test(outboundIndexSource)
+    && /attachment revision pagination stalled/.test(outboundIndexSource)
+    && /context\.attachment_revision_present = await readAttachmentRevisionPresent\(/.test(outboundIndexSource),
+    'the drainer pages the attachments relation (bounded) and feeds the definitive presence into the conflict decision');
 
   const createPayload = {
     team_id: 'team_fixture',

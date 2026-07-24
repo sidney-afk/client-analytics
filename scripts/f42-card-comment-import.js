@@ -120,11 +120,30 @@ const LIFECYCLE_TIMESTAMP_FIELDS = Object.freeze([
   'edited_at', 'deleted_at', 'done_at', 'resolved_at',
 ]);
 
+// Strict, timezone-independent calendar validation. The lifecycle fields are
+// cast to timestamptz mid-apply, and `Date.parse` silently NORMALIZES junk
+// (2026-02-30 -> Mar 2, hour 24 -> next day, "2026/1/1", "July 3"), which would
+// let an apply-unsafe or meaning-shifted value certify. Require a canonical
+// ISO-8601 instant and confirm every calendar component is in range for its
+// month/year, so anything Date.parse would rewrite is rejected instead.
 function isValidTimestampValue(value) {
   if (value == null) return true;
   if (typeof value !== 'string') return false;
   const text = value.trim();
   if (!text) return true;
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.exec(text);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  if (month < 1 || month > 12) return false;
+  // Day 0 of the following month is the last calendar day of `month`.
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (day < 1 || day > daysInMonth) return false;
+  if (hour > 23 || minute > 59 || second > 59) return false;
   return Number.isFinite(Date.parse(text));
 }
 
@@ -147,6 +166,37 @@ function lifecycleTimestampConflicts(raw, scope = {}) {
     });
   }
   return out;
+}
+
+// `round` is optional (historical comments legitimately omit it), but when the
+// source supplies one it must be a POSITIVE INTEGER. The old normalization
+// silently collapsed null/""/0/"3.5"/-1 to null, which erased the reviewer's
+// ability to see a bad round before the cohort was applied. Surface a present
+// but non-positive-integer round as a blocking conflict instead. An absent
+// field stays a legitimate null.
+function isPresentRound(raw) {
+  return raw && typeof raw === 'object' && !Array.isArray(raw)
+    && Object.prototype.hasOwnProperty.call(raw, 'round');
+}
+
+function normalizedRound(value) {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !value.trim()) return null;
+  const numeric = Number(value);
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
+}
+
+function roundConflicts(raw, scope = {}) {
+  if (!isPresentRound(raw)) return [];
+  if (normalizedRound(raw.round) !== null) return [];
+  return [{
+    classification: 'invalid_round',
+    surface: clean(scope.surface) || null,
+    card_id: clean(scope.cardId) || null,
+    component: clean(scope.component) || null,
+    native_comment_id: clean(scope.nativeId) || null,
+    reason: 'round_must_be_a_positive_integer',
+  }];
 }
 
 function commentsFor(row, component, conflicts = null, scope = {}) {
@@ -316,6 +366,23 @@ function topologicallyOrder(candidates, conflicts) {
   return ordered.filter(candidate => !invalid.has(candidate.comment.id));
 }
 
+// A comment's own audience from its source role/audience field, before any
+// root inheritance. 'client' only when the source says so (explicit client
+// audience or a client author); everything else is internal.
+function ownAudience(raw) {
+  const role = clean(raw && raw.role || 'smm').toLowerCase();
+  return clean(raw && raw.audience).toLowerCase() === 'client' || role === 'client'
+    ? 'client'
+    : 'internal';
+}
+
+// A reply is *explicitly* internal only when its source literally marks it so.
+// This is the sole case that must QUARANTINE rather than inherit a client-
+// visible root: forcing it client-visible would leak an internal note.
+function isExplicitlyInternal(raw) {
+  return clean(raw && raw.audience).toLowerCase() === 'internal';
+}
+
 function normalizeComment(raw, scope, parentProductionId) {
   const sourceCreatedAt = clean(raw.created_at || raw.createdAt || raw.ts || raw.updated_at);
   const sourceUpdatedAt = clean(raw.updated_at || raw.updatedAt || sourceCreatedAt);
@@ -326,9 +393,12 @@ function normalizeComment(raw, scope, parentProductionId) {
     ? clean(raw.done_at || sourceUpdatedAt)
     : clean(raw.resolved_at) || null;
   const role = clean(raw.role || 'smm').toLowerCase();
-  const audience = clean(raw.audience).toLowerCase() === 'client' || role === 'client'
-    ? 'client'
-    : 'internal';
+  // A reply inherits its root's audience (scope.resolvedAudience); a root uses
+  // its own. Inheritance is never a silent client-visible flip of an explicitly
+  // internal reply — that case is quarantined upstream before we get here.
+  const audience = scope.resolvedAudience === 'client' || scope.resolvedAudience === 'internal'
+    ? scope.resolvedAudience
+    : ownAudience(raw);
   return {
     id: scope.productionId,
     // The legacy id is only unique inside its card/component store. Keep that
@@ -350,7 +420,7 @@ function normalizeComment(raw, scope, parentProductionId) {
     // Historical tweak arrays often omitted the redundant flag. The source
     // field is durable provenance, while an explicit flag remains preserved.
     is_tweak: raw.is_tweak === true || /_tweaks$/.test(clean(raw._source_field)),
-    round: Number.isInteger(Number(raw.round)) ? Number(raw.round) : null,
+    round: normalizedRound(raw.round),
     source_created_at: sourceCreatedAt || sourceUpdatedAt || new Date(0).toISOString(),
     source_updated_at: sourceUpdatedAt || sourceCreatedAt || new Date(0).toISOString(),
     edited_at: clean(raw.edited_at) || null,
@@ -402,10 +472,29 @@ function planSurface(input, options = {}) {
         continue;
       }
       const idMap = new Map();
+      const rawByNativeId = new Map();
+      const parentNativeById = new Map();
       list.forEach(raw => {
         const nativeId = clean(raw.id || raw.comment_id || raw.native_comment_id);
-        if (nativeId) idMap.set(nativeId, productionId(surface, cardId, component, nativeId));
+        if (!nativeId) return;
+        if (!idMap.has(nativeId)) idMap.set(nativeId, productionId(surface, cardId, component, nativeId));
+        if (!rawByNativeId.has(nativeId)) rawByNativeId.set(nativeId, raw);
+        const parentNativeId = clean(raw.parent_id || raw.parentId);
+        if (parentNativeId) parentNativeById.set(nativeId, parentNativeId);
       });
+      // Resolve the audience of the thread ROOT (topmost reachable ancestor) so
+      // every reply inherits it. A reply never sets its own client visibility.
+      const rootAudienceFor = (nativeId) => {
+        const seen = new Set();
+        let cursor = nativeId;
+        while (parentNativeById.has(cursor)
+          && rawByNativeId.has(parentNativeById.get(cursor))
+          && !seen.has(cursor)) {
+          seen.add(cursor);
+          cursor = parentNativeById.get(cursor);
+        }
+        return ownAudience(rawByNativeId.get(cursor) || {});
+      };
       list.forEach(raw => {
         const nativeId = clean(raw.id || raw.comment_id || raw.native_comment_id);
         if (!nativeId) {
@@ -420,9 +509,27 @@ function planSurface(input, options = {}) {
           });
           return;
         }
+        // Audience inheritance: a reply takes its root's audience. An explicitly
+        // internal reply under a client-visible root is QUARANTINED (blocking
+        // conflict), never silently flipped client-visible — that would leak an
+        // internal note. A root keeps its own audience.
+        let resolvedAudience = ownAudience(raw);
+        if (parentNativeId) {
+          const rootAudience = rootAudienceFor(nativeId);
+          if (isExplicitlyInternal(raw) && rootAudience === 'client') {
+            conflicts.push({
+              classification: 'audience_quarantine', surface, card_id: cardId,
+              component, native_comment_id: nativeId,
+              reason: 'internal_reply_under_client_visible_root',
+            });
+            return;
+          }
+          resolvedAudience = rootAudience;
+        }
         const scope = {
           surface, cardId, component, nativeId, deliverableId: targetId,
           productionId: idMap.get(nativeId), importRunId,
+          resolvedAudience,
           // Card exports do not reliably carry a row-level team. The linked
           // slot is the canonical contract: graphic -> Graphics; every
           // video/caption/title thread shares the Video deliverable.
@@ -442,6 +549,7 @@ function planSurface(input, options = {}) {
         const unsafe = [
           ...lifecycleTimestampConflicts(raw, scope),
           ...attachmentConflicts(raw.attachments, scope),
+          ...roundConflicts(raw, scope),
         ];
         if (unsafe.length) {
           unsafe.forEach(conflict => conflicts.push(conflict));
@@ -646,13 +754,17 @@ module.exports = {
   SURFACES,
   attachmentConflicts,
   commentsFor,
+  isExplicitlyInternal,
   isValidTimestampValue,
   lifecycleTimestampConflicts,
   manifestMismatches,
   normalizeComment,
+  normalizedRound,
+  ownAudience,
   planCardCommentImport,
   planSurface,
   productionId,
+  roundConflicts,
   safeAttachments,
   sourceCoverage,
   teamForComponent,

@@ -2,9 +2,10 @@ name: Deploy staff-sensitive edge functions
 
 # Auto-deploys onboarding, credentials, filming-plan, and SMM-report functions
 # plus their shared role-key helper whenever they change on main, or on manual
-# dispatch. The Track-B linear-outbound + production-write pair is manual-only:
-# it must come from an exact commit already on main, and the provider deploys
-# before the gateway. A normal merge/push must never deploy that pair.
+# dispatch. The Track-B write/read set — linear-outbound, production-comments,
+# production-archive, production-write — is manual-only: it must come from an
+# exact commit already on main, and within the set the provider/readers deploy
+# before the write gateway. A normal merge/push must never deploy that set.
 # Uses the existing SUPABASE_ACCESS_TOKEN Actions secret. Role keys and
 # transition-only legacy passphrases live as Supabase function secrets, never in
 # this repository.
@@ -80,11 +81,15 @@ jobs:
             echo "Deploying $fn…"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
           done
-      - name: Deploy pinned Track-B write functions
+      - name: Deploy pinned Track-B write/read functions
         id: track_b_deploy
         if: github.event_name == 'workflow_dispatch'
         run: |
-          for fn in linear-outbound production-write; do
+          # Provider and readers first, write gateway last. production-comments
+          # (scoped canonical comment reader) and production-archive (protected
+          # archive reader) join the set so the whole comment-import window
+          # deploys from one pinned commit, never local credentials.
+          for fn in linear-outbound production-comments production-archive production-write; do
             echo "Deploying $fn…"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
           done
@@ -99,10 +104,10 @@ jobs:
             echo "- Pinned SHA: \`$DEPLOY_COMMIT\`"
             echo "- Push-safe deploy step: \`${{ steps.push_safe_deploy.outcome }}\`"
             echo "- Track-B deploy step: \`${{ steps.track_b_deploy.outcome }}\`"
-            echo "- Fingerprint scope: 10 functions deployed by this workflow"
+            echo "- Fingerprint scope: 12 functions deployed by this workflow"
             echo "- Drill outcome: \`PENDING\` (the separate service-only TEST drill does not run in this deploy job)"
             echo
           } >> "$GITHUB_STEP_SUMMARY"
           node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
-            --slugs=onboarding-list,ai-onboarding-list,legacy-onboarding-list,onboarding-full,client-credentials,filming-plans,smm-weekly-reports,key-verify,linear-outbound,production-write \
+            --slugs=onboarding-list,ai-onboarding-list,legacy-onboarding-list,onboarding-full,client-credentials,filming-plans,smm-weekly-reports,key-verify,linear-outbound,production-comments,production-archive,production-write \
             --format=markdown | tee -a "$GITHUB_STEP_SUMMARY"

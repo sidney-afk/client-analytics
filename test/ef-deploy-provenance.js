@@ -70,12 +70,12 @@ ok(/method:\s*['"]GET['"]/.test(fingerprintSource)
 'fingerprint readback is pinned to redirect-free GET requests on the official Management API');
 
 ok(/- name: Attest pinned manual release[\s\S]*if: always\(\) && github\.event_name == 'workflow_dispatch'/.test(workflow)
-  && workflow.includes('Fingerprint scope: 10 functions deployed by this workflow')
+  && workflow.includes('Fingerprint scope: 12 functions deployed by this workflow')
   && workflow.includes('Drill outcome: \\`PENDING\\`')
   && workflow.includes('--format=markdown | tee -a "$GITHUB_STEP_SUMMARY"'),
 'manual dispatch appends a scoped public-safe fingerprint attestation and drill placeholder');
 
-const providerAt = workflow.indexOf('for fn in linear-outbound production-write');
+const providerAt = workflow.indexOf('for fn in linear-outbound production-comments production-archive production-write');
 const attestationAt = workflow.indexOf('- name: Attest pinned manual release');
 const attestorPreflightAt = workflow.indexOf('node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --expected-only');
 ok(attestorPreflightAt >= 0 && attestorPreflightAt < providerAt
@@ -93,8 +93,11 @@ ok(/\| `client-review-link` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL
 'client-review-link is explicitly recorded as the operator-deployed v2 deliberate-manual exception');
 ok(/\| `client-token-verify` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release\./.test(manifest),
 'client-token-verify pins the fail-closed provider-before-browser manual release order');
-ok(/\| `production-archive` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Source-only F34 protected archive reader/.test(manifest),
-'production-archive is explicitly source-only and owner-gated for its first manual release');
+ok(/\| `production-archive` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
+  && /\| `production-comments` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
+'production-comments and production-archive deploy via the pinned-SHA dispatch-only lane, not local credentials');
+ok(/for fn in linear-outbound production-comments production-archive production-write/.test(workflow),
+'the Track-B deploy set deploys providers/readers before the write gateway from one pinned commit');
 ok(/\| `workload-linear` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Source-only Workload Linear metadata\/deadline gateway/.test(manifest),
 'workload-linear is explicitly recorded as a source-only deliberate-manual exception');
 

@@ -970,12 +970,13 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   ok(!!pushBlock && forbiddenPushPaths.every(path => !pushBlock.includes(`- '${path}'`)),
     'high-risk functions and broad shared changes never trigger a push deploy');
 
-  const pinnedStepAt = deployWorkflow.indexOf('- name: Deploy pinned Track-B write functions');
+  const pinnedStepAt = deployWorkflow.indexOf('- name: Deploy pinned Track-B write/read functions');
   const pinnedStep = pinnedStepAt >= 0 ? deployWorkflow.slice(pinnedStepAt) : '';
   const pinnedLoop = (pinnedStep.match(/for fn in ([^;]+); do/) || [])[1] || '';
   ok(/if: github\.event_name == 'workflow_dispatch'/.test(pinnedStep)
-    && pinnedLoop === 'linear-outbound production-write',
-  'manual deploy step is dispatch-only and deploys the provider before its gateway caller');
+    && pinnedLoop === 'linear-outbound production-comments production-archive production-write'
+    && pinnedLoop.indexOf('linear-outbound') < pinnedLoop.indexOf('production-write'),
+  'manual deploy step is dispatch-only and deploys the provider/readers before its gateway caller');
 
   const ancestorGuard = 'git merge-base --is-ancestor "$DEPLOY_COMMIT" origin/main';
   const ancestorGuardAt = deployWorkflow.indexOf(ancestorGuard);

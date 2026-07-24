@@ -90,20 +90,23 @@ function by(values, key) {
 async function main() {
   const output = path.resolve(arg('out'));
   if (!output) throw new Error('--out is required');
-  const [deliverables, clients, kasperDeliverables, kasperBatches, kasperCalendar, kasperSamples] = await Promise.all([
+  const [deliverables, clients, allBatches, kasperDeliverables, kasperBatches, kasperCalendar, kasperSamples] = await Promise.all([
     supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,updated_at,linear_issue_uuid,linear_raw', 'client_slug=eq.unattributed'),
     supabaseRows('clients', 'slug,display_name,kind,active,linear_project_ids'),
+    supabaseRows('batches', 'id,client_slug,team,name,description,status,linear_parent_ids'),
     supabaseRows('deliverables', 'id,team,kind,status,origin', 'client_slug=eq.kasperhytonen'),
     supabaseRows('batches', 'id,team,status', 'client_slug=eq.kasperhytonen'),
     supabaseRows('calendar_posts', 'id,status', 'client=eq.kasperhytonen'),
     supabaseRows('sample_reviews', 'id,status', 'client=eq.kasperhytonen'),
   ]);
   const issues = await linearIssues(deliverables.map(row => clean(row.linear_issue_uuid)));
+  const cohortBatchIds = new Set(deliverables.map(row => clean(row.batch_id)).filter(Boolean));
   const snapshot = {
     schema: 'syncview_f200_live_snapshot_v1',
     generated_at: new Date().toISOString(),
     family_complete: true,
     deliverables,
+    batches: allBatches.filter(row => cohortBatchIds.has(clean(row.id))),
     clients,
     linear_issues: issues,
     downstream: {

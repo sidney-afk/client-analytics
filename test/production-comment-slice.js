@@ -366,6 +366,82 @@ function snapshotFor(calendar, sxr, mutateManifest) {
       && row.source_field === 'comments'),
   'malformed nonempty legacy comment fields become visible conflicts');
 
+  const badTimestampRows = [{
+    id: 'card-bad-timestamp',
+    client_slug: 'test-client',
+    video_deliverable_id: 'deliverable-bad-timestamp',
+    comments: [{
+      id: 'ts-bad', author: 'Fixture SMM', role: 'smm', body: 'Has a bad edit stamp',
+      created_at: '2026-07-23T10:00:00Z', updated_at: '2026-07-23T10:00:00Z',
+      edited_at: 'not-a-real-timestamp',
+    }],
+  }];
+  const badTimestampPlan = planCardCommentImport(snapshotFor(badTimestampRows, []));
+  ok(!badTimestampPlan.complete
+    && badTimestampPlan.conflicts.some(row =>
+      row.classification === 'malformed_lifecycle_timestamp'
+      && row.source_field === 'edited_at'
+      && row.native_comment_id === 'ts-bad')
+    && badTimestampPlan.imports.every(row => row.identity !== 'calendar|card-bad-timestamp|video|ts-bad'),
+  'a malformed lifecycle timestamp blocks certification and excludes the apply-unsafe row');
+
+  const badAttachmentFieldRows = [{
+    id: 'card-bad-attach-field',
+    client_slug: 'test-client',
+    video_deliverable_id: 'deliverable-bad-attach-field',
+    comments: [{
+      id: 'attach-field-bad', author: 'Fixture SMM', role: 'smm', body: 'Attachment field is not an array',
+      created_at: '2026-07-23T10:00:00Z',
+      attachments: '{"not":"an array"}',
+    }],
+  }];
+  const badAttachmentFieldPlan = planCardCommentImport(snapshotFor(badAttachmentFieldRows, []));
+  ok(!badAttachmentFieldPlan.complete
+    && badAttachmentFieldPlan.conflicts.some(row =>
+      row.classification === 'malformed_attachment_field'
+      && row.native_comment_id === 'attach-field-bad'),
+  'a nonempty non-array attachments field is a blocking conflict, never a silent drop');
+
+  const badAttachmentEntryRows = [{
+    id: 'card-bad-attach-entry',
+    client_slug: 'test-client',
+    video_deliverable_id: 'deliverable-bad-attach-entry',
+    comments: [{
+      id: 'attach-entry-bad', author: 'Fixture SMM', role: 'smm', body: 'One attachment entry is a bare string',
+      created_at: '2026-07-23T10:00:00Z',
+      attachments: ['https://example.invalid/ok.png', 'not-an-object'],
+    }],
+  }];
+  const badAttachmentEntryPlan = planCardCommentImport(snapshotFor(badAttachmentEntryRows, []));
+  ok(!badAttachmentEntryPlan.complete
+    && badAttachmentEntryPlan.conflicts.some(row =>
+      row.classification === 'malformed_attachment_entry'
+      && row.native_comment_id === 'attach-entry-bad'
+      && row.source_index === 1),
+  'a non-object attachment array entry is a blocking conflict');
+
+  const nonHttpsAttachmentRows = [{
+    id: 'card-nonhttps-attach',
+    client_slug: 'test-client',
+    video_deliverable_id: 'deliverable-nonhttps-attach',
+    comments: [{
+      id: 'attach-nonhttps', author: 'Fixture SMM', role: 'smm', body: 'Has a well-formed http attachment',
+      created_at: '2026-07-23T10:00:00Z',
+      attachments: [
+        { url: 'https://example.invalid/keep.png', name: 'Keep' },
+        { url: 'http://example.invalid/drop.png', name: 'Drop' },
+      ],
+    }],
+  }];
+  const nonHttpsAttachmentPlan = planCardCommentImport(snapshotFor(nonHttpsAttachmentRows, []));
+  const nonHttpsImport = nonHttpsAttachmentPlan.imports.find(row => row.identity === 'calendar|card-nonhttps-attach|video|attach-nonhttps');
+  ok(nonHttpsAttachmentPlan.complete
+    && nonHttpsAttachmentPlan.conflicts.length === 0
+    && nonHttpsImport
+    && nonHttpsImport.comment.attachments.length === 1
+    && nonHttpsImport.comment.attachments[0].url.startsWith('https://'),
+  'a well-formed non-HTTPS attachment stays a policy sanitization, not a blocking malformation');
+
   const mismatchedPlan = planCardCommentImport(snapshotFor(fixture, [], manifest => {
     manifest.surfaces.calendar.cards += 1;
     manifest.surfaces.sxr.source_sha256 = '0'.repeat(64);

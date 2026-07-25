@@ -36,6 +36,7 @@ const {
   renderSafeCopySections,
   runOpaqueTool,
   selectAuthenticatedCandidates,
+  selectLatestAuthenticatedFromDrive,
   snapshotName,
   strictConnectionInfo,
   verifyReadOnlyPrivilegeOutput,
@@ -312,6 +313,61 @@ try {
   const afterReadbackFailure = selectAuthenticatedCandidates([priorCandidate], HMAC_KEY, currentMs);
   ok(afterReadbackFailure.latest && afterReadbackFailure.latest.file.id === 'prior-lkg',
     'a readback mismatch leaves the prior last-known-good package selected');
+  const olderGeneratedAt = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+  const olderPackageFile = path.join(tempDir, 'older.snapshot');
+  const olderManifest = packSnapshot(dumpFile, olderPackageFile, olderGeneratedAt, productionDirect, HMAC_KEY);
+  const olderPackageBytes = fs.readFileSync(olderPackageFile);
+  const olderDriveName = snapshotName(olderManifest.generated_at);
+  let incrementalDone = false;
+  process.on('exit', () => {
+    if (!incrementalDone) {
+      console.error('FAIL track-b-backup: incremental Drive selection checks did not run to completion');
+      process.exitCode = 1;
+    }
+  });
+  (async () => {
+    const order = [];
+    const driveBytes = {
+      'inc-newest-corrupt': corruptCandidate,
+      'inc-older-valid': olderPackageBytes,
+      'inc-newer-valid': validPackageBytes,
+    };
+    const download = async (_token, fileId) => {
+      order.push(fileId);
+      if (fileId === 'inc-download-error') throw new Error('download failed');
+      return driveBytes[fileId];
+    };
+    const incremental = await selectLatestAuthenticatedFromDrive('token', [
+      { id: 'inc-newest-corrupt', name: driveName },
+      { id: 'inc-older-valid', name: olderDriveName },
+      { id: 'inc-download-error', name: driveName },
+      { id: 'inc-newer-valid', name: driveName },
+    ], { hmacInput: HMAC_KEY, nowMs: currentMs, download });
+    ok(order.join(',') === 'inc-newest-corrupt,inc-older-valid,inc-download-error,inc-newer-valid',
+      'incremental selection downloads each Drive candidate exactly once, in listing order');
+    ok(incremental.latest && incremental.latest.file.id === 'inc-newer-valid'
+      && incremental.latest.generatedMs === authenticatedGeneratedAt(manifest, currentMs)
+      && incremental.latest.manifest.snapshot.sha256 === manifest.snapshot.sha256
+      && incremental.latest.bytes === null,
+      'incremental selection keeps the newest authenticated manifest and, by default, no package bytes');
+    ok(incremental.validCount === 2 && incremental.invalidCount === 2 && incremental.newestCandidateValid === false,
+      'corrupt and failed downloads count invalid, and a bad newest Drive file fails the newest-candidate check');
+    const retained = await selectLatestAuthenticatedFromDrive('token', [
+      { id: 'inc-older-valid', name: olderDriveName },
+      { id: 'inc-newer-valid', name: driveName },
+    ], { hmacInput: HMAC_KEY, nowMs: currentMs, download, retainBytes: true });
+    ok(retained.latest && retained.latest.file.id === 'inc-newer-valid'
+      && Buffer.isBuffer(retained.latest.bytes) && retained.latest.bytes.equals(validPackageBytes)
+      && retained.newestCandidateValid === true,
+      'download-latest retention keeps exactly the winning package bytes and a valid newest candidate passes');
+    const empty = await selectLatestAuthenticatedFromDrive('token', [], { hmacInput: HMAC_KEY, nowMs: currentMs, download });
+    ok(!empty.latest && empty.newestCandidateValid === true && empty.validCount === 0 && empty.invalidCount === 0,
+      'an empty Drive folder yields no latest candidate without failing the newest-candidate check');
+    incrementalDone = true;
+  })().catch(error => {
+    console.error('FAIL track-b-backup:', error && error.message || error);
+    process.exit(1);
+  });
   let wrongKeyRejected = false;
   try { readSnapshotFile(packageFile, WRONG_HMAC_KEY); } catch (_) { wrongKeyRejected = true; }
   ok(wrongKeyRejected, 'a Drive writer without the HMAC key cannot authenticate a replacement package');
@@ -421,8 +477,9 @@ ok(/driveFileMetadata/.test(backupSource)
   && /assertDriveReadback/.test(backupSource)
   && /readback_verified: true/.test(backupSource)
   && /authenticated_generated_at/.test(backupSource)
-  && /downloadDriveCandidates/.test(backupSource),
-'upload success requires metadata/content readback and freshness downloads authenticated candidates');
+  && /selectLatestAuthenticatedFromDrive\(token, files/.test(backupSource)
+  && !/downloadDriveCandidates/.test(backupSource),
+'upload success requires metadata/content readback; freshness and download-latest authenticate Drive candidates one at a time, never the whole folder at once');
 ok(/FRESHNESS_HOURS[\s\S]+7/.test(backupSource) && /syncview-track-b-alert-/.test(backupSource),
   'freshness monitor pages after seven hours and deduplicates with a signed private-Drive marker');
 ok(restoreSource.includes(`const {\n  PRODUCTION_REF,`)

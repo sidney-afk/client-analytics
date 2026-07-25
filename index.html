@@ -2665,9 +2665,9 @@
         .brief-section-header:first-child { margin-top: 0; }
 
         /* Header nav */
-        .header-nav { display: flex; align-items: center; gap: 6px; width: max-content; max-width: 100%; min-width: 0; justify-self: center; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+        .header-nav { display: flex; align-items: center; gap: 6px; width: max-content; max-width: 100%; min-width: 0; justify-self: center; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; position: relative; }
         .header-nav::-webkit-scrollbar { display: none; }
-        .header-nav-btn { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; text-decoration: none; white-space: nowrap; }
+        .header-nav-btn { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; text-decoration: none; white-space: nowrap; position: relative; z-index: 1; }
         @media (min-width: 761px) and (max-width: 1400px) {
             .header { padding-left: 18px; padding-right: 18px; }
             .header-nav { gap: 4px; }
@@ -2677,6 +2677,25 @@
         .header-nav-btn:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); background: var(--bg); }
         .header-nav-btn.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .header-nav-btn svg { flex-shrink: 0; }
+        /* Sliding active pill.
+           The pill is an absolutely-positioned sibling INSIDE #headerNav, so the
+           buttons stay direct children (the active-tab scrollIntoView and the
+           wired nav suites both key on `#headerNav > .header-nav-btn`). Because
+           #headerNav is the scroll container AND the offset parent, the pill
+           lives in the same scrolled coordinate space as the buttons and tracks
+           horizontal scrolling for free — no scrollLeft bookkeeping.
+           Pre-JS the per-button .active background is still the highlight (see
+           the data-boot-nav block above), so a cold boot never flashes an
+           unpositioned pill: #headerNav only gets .pill-ready once JS has
+           measured and parked it, and every pill rule is additionally scoped to
+           html:not([data-boot-nav]) so the pre-paint route highlight always wins. */
+        .header-nav-pill { position: absolute; top: 0; left: 0; width: 0; height: 0; border-radius: 8px; background: var(--text-primary); opacity: 0; pointer-events: none; z-index: 0; transition: transform 0.34s cubic-bezier(0.22, 0.61, 0.36, 1), width 0.34s cubic-bezier(0.22, 0.61, 0.36, 1); }
+        html:not([data-boot-nav]) #headerNav.pill-ready .header-nav-pill { opacity: 1; }
+        html:not([data-boot-nav]) #headerNav.pill-ready .header-nav-btn { background: transparent; border-color: transparent; }
+        html:not([data-boot-nav]) #headerNav.pill-ready .header-nav-btn:hover { background: var(--bg); border-color: var(--sv-border-aaa); color: var(--text-primary); }
+        html:not([data-boot-nav]) #headerNav.pill-ready .header-nav-btn.active { background: transparent; border-color: transparent; color: var(--white); }
+        html:not([data-boot-nav]) #headerNav.pill-ready .header-nav-btn.active:hover { background: transparent; border-color: transparent; color: var(--white); }
+        @media (prefers-reduced-motion: reduce) { .header-nav-pill { transition: none; } }
 
         /* Linear form */
         .linear-view { max-width: 620px; margin: 0 auto; animation: fadeIn 0.15s ease; }
@@ -7252,6 +7271,7 @@
         <span class="logo-text">SyncView</span>
     </a>
     <div class="header-nav" id="headerNav">
+        <span class="header-nav-pill" aria-hidden="true"></span>
         <a class="header-nav-btn active" id="navHome" href="#" onclick="if(_modClick(event))return;event.preventDefault();navTo('home')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8.5L8 2.5L14 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7V13.5H12V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Analytics
@@ -19146,6 +19166,52 @@
         const route = String(page || '');
         return route === 'samples' || route.startsWith('samples/') ? 'sample-reviews' : page;
     }
+    /* Park the sliding pill under the active header tab.
+       offsetLeft/offsetTop are measured against #headerNav (position: relative,
+       so it is the offset parent) — the same scrolled coordinate space the pill
+       is absolutely positioned in, which is why the pill stays glued to its tab
+       while the strip scrolls horizontally.
+       Fail-soft by contract: if anything is missing or the active tab is not
+       rendered (client-link header removal, a hidden flag tab, a zero-width
+       first paint), we drop `pill-ready` and the app falls back to the original
+       per-button .active background. This must never throw — the boot probes
+       fail on any console error. `animate` defaults to "animate unless this is
+       the first placement", so the pill appears parked rather than flying in. */
+    function _navPillSync(animate) {
+        try {
+            // While the pre-paint gate is still up, the CSS route highlight owns
+            // the active look and the .active CLASS may still be on the statically
+            // marked tab. Establishing the pill here would park it under the wrong
+            // tab and make the first real route animate a fly-in, so wait for
+            // navTo()/render() to lift the gate.
+            if (document.documentElement.hasAttribute('data-boot-nav')) return;
+            const nav = document.getElementById('headerNav');
+            if (!nav) return;
+            const pill = nav.querySelector(':scope > .header-nav-pill');
+            if (!pill) return;
+            const active = nav.querySelector(':scope > .header-nav-btn.active');
+            if (!active || !active.getClientRects().length || !active.offsetWidth) {
+                nav.classList.remove('pill-ready');
+                return;
+            }
+            const first = !nav.classList.contains('pill-ready');
+            const shouldAnimate = animate === undefined ? !first : !!animate;
+            if (!shouldAnimate) pill.style.transition = 'none';
+            pill.style.width = active.offsetWidth + 'px';
+            pill.style.height = active.offsetHeight + 'px';
+            pill.style.transform = 'translate(' + active.offsetLeft + 'px, ' + active.offsetTop + 'px)';
+            nav.classList.add('pill-ready');
+            if (!shouldAnimate) requestAnimationFrame(() => { try { pill.style.transition = ''; } catch (e) {} });
+        } catch (e) {}
+    }
+    // Re-measure on anything that can change a tab's width or position: viewport
+    // changes, the webfont swapping in, and tabs revealed later by a flag.
+    try {
+        window.addEventListener('resize', () => _navPillSync(false));
+        if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+            document.fonts.ready.then(() => _navPillSync(false)).catch(() => {});
+        }
+    } catch (e) {}
     function navTo(page, push = true) {
         if (_isClientLink) {
             const cap = _syncviewClientEntryCapability;
@@ -19210,6 +19276,7 @@
         if (activeHeaderNav && activeHeaderNav.getClientRects().length && typeof activeHeaderNav.scrollIntoView === 'function') {
             requestAnimationFrame(() => activeHeaderNav.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
         }
+        _navPillSync();
         // The standalone Calendar page hides the page header (pageTop) and drops
         // the toolbar straight under the sticky nav, so the global .main top
         // gutter reads as dead space. Tag the body so we can tighten that band
@@ -48753,6 +48820,7 @@
                     _kasperUnlocked=true;
                     const navKp=document.getElementById('navKasper');
                     if(navKp) navKp.style.display='';
+                    _navPillSync(false);   // a revealed tab reflows the strip
                 }
             }catch(e){}
 
@@ -48767,6 +48835,7 @@
                     _ttpUnlocked=true;
                     const navTtp=document.getElementById('navTiktokPilot');
                     if(navTtp) navTtp.style.display='';
+                    _navPillSync(false);   // a revealed tab reflows the strip
                 }
             }catch(e){}
             // Calendar can mount immediately on the fast path, before the
@@ -55334,6 +55403,7 @@
         if (_sxrEnabled()) {
             const _sxrNavEl = document.getElementById('navSxr');
             if (_sxrNavEl) _sxrNavEl.style.display = '';
+            _navPillSync(false);   // a revealed tab reflows the strip
         }
     } catch (e) {}
     // <<< SXR_END

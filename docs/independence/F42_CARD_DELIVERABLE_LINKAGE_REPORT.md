@@ -468,21 +468,22 @@ fraction of the 6,032 is QA fixture data that should be excluded rather than imp
 
 ## 5. Open questions for the owner
 
-1. **Q1 — Fixture boundary.** Which client slugs are real production clients? 2,048 comment rows are
-   demonstrably on fixture-linked cards and 3,815 are unclassifiable from anon data. *Blocks the
-   entire coverage estimate and Brick 3's scope.*
-2. **Q2 — Is deliverable creation authorized at all?** Brick 3 mints thousands of `deliverables`,
-   `batches` (and possibly `clients`) rows in production. This is a materially bigger commitment
-   than "linkage" implies. *Blocks Brick 3.*
+1. ~~**Q1 — Fixture boundary.**~~ **RESOLVED 2026-07-25 by cloud review — see §7.** `clients` *is*
+   anon-readable; my earlier probe was a bug on my side (the paging helper hardcoded
+   `order=id.asc`, but `clients` is keyed on `slug`, so the request 400'd and was swallowed by a
+   `.catch`). The roster resolves the scope question completely and shrinks the program by ~96%.
+2. **Q2 — Is deliverable creation authorized at all?** Brick 3 mints `deliverables`/`batches` rows
+   in production. Post-§7 this is **~290 comment rows across ~278 identifier-absent + 12 no-link
+   slots**, not thousands — materially smaller than first assessed, but still a creation program.
+   *Blocks Brick 3.*
 3. **Q3 — Class C authority.** For the 2 rows where a valid deliverable is bound to a different
    card: repoint the deliverable, or clear the pointing card's column? *Blocks 2 rows of Brick 1.*
 4. **Q4 — Ship Brick 1 alone?** Defect repair is +33 rows, low risk, no card writes, no render flip.
    Recommend yes, as a standalone PR. *Blocks nothing; needs a go.*
 5. **Q5 — Brick 2 invariant reversal.** Guarding the write path changes behavior asserted in a
    shipped test. Route through the decision register as a `D-nn`? *Blocks Brick 2.*
-6. **Q6 — Anon column grant on `deliverables`.** `card_id`, `client_slug`, `origin`, `team`,
-   `linear_*` and `title` are world-readable with the published anon key. Intended, or an
-   over-grant to close? *Independent of this program; flagging because it was found here.*
+6. ~~**Q6 — Anon column grant on `deliverables`.**~~ **RESOLVED — as designed.** The f34-f53
+   migration's column grant list deliberately includes the crosswalk fields. No action.
 
 ---
 
@@ -529,6 +530,64 @@ Every claim below was verified this session. Live probes: HTTP GET, public anon 
 - `production_comments` contents (service-role only), so "has this deliverable ever been imported?"
   could not be evaluated live — it is assumed to require a runner-local service-role read.
 - Triggers on `deliverables`/card-column UPDATE were not enumerated; an implementation PR must.
+
+---
+
+## 7. Addendum — coverage re-run against the real client roster (2026-07-25, post-review)
+
+Cloud review corrected Q1: `clients` **is** anon-readable. The original probe failed on my side —
+the paging helper hardcoded `order=id.asc` while `clients` is keyed on `slug`, so PostgREST returned
+400 and a `.catch` turned it into an empty array. Re-run with the roster:
+
+**Roster (live):** 39 rows — 32 `kind='client', active=true`; 3 `kind='client', active=false`;
+1 `kind='internal'`; 3 `kind='test'`. The active roster is mirrored in the three Track-A rollout
+flags in `syncview_runtime_flags` — `calendar_upsert_ef_clients`, `sample_review_ef_clients`,
+`settings_ef_clients` — at **33 clients each** (the 32 active clients plus the one active test
+client).
+
+Comment rows by client class × the workspace their Linear link points at:
+
+| Client class | Link workspace | Rows | T0 | Defect | T1 | No link | Unparseable | Ident absent |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Active client | production | 924 | 609 | **35** | **2** | 0 | 0 | 278 |
+| Active client | none | 12 | 0 | 0 | 0 | 12 | 0 | 0 |
+| Test/internal | fixture | 2,135 | 0 | 0 | 0 | 0 | 1,611 | 524 |
+| Test/internal | none | 3,688 | 0 | 0 | 0 | 3,688 | 0 | 0 |
+| Test/internal | production | 37 | 11 | 0 | 0 | 0 | 0 | 26 |
+
+**This changes the program's shape fundamentally.**
+
+| | Rows |
+| --- | ---: |
+| **In scope** — active `kind='client'`, non-fixture workspace | **936** |
+| — already imported (T0) | 609 |
+| — repairable defects (Brick 1) | **35** |
+| — matchable (T1) | **2** |
+| — need deliverable creation (Brick 3) | 278 + 12 = **290** |
+| **Out of scope** — test/internal clients or fixture workspace | **5,860** |
+
+**~96% of the 6,032 deferred comments belong to test or internal clients, not to real client
+work.** No comment-bearing card belongs to an inactive client, and every card's slug resolves
+against the roster (no orphans).
+
+Revised gains, restated honestly:
+
+- Brick 1 (defect repair, Classes A+B): **33 rows — ~10% of the 327 production rows still
+  outstanding**, not 0.5% of 6,032. Its value is an order of magnitude higher than §4.5 implied.
+- T1 matching: still 2 rows.
+- Brick 3 (creation): targets **~290 production comment rows**, not thousands. Still a creation
+  program requiring Q2 ratification, but a tractable one.
+- The 5,860 out-of-scope rows should be **excluded by policy, not imported**. Per owner's
+  provisional ruling, workspaces `x`, `sidtest`, `syn`, `acme` are excluded from import scope; that
+  exclusion is encoded as a scope-policy entry covered by the apply digest (see the Brick 1 plan
+  doc), pending final sign-off at the window.
+
+§4.5's coverage table is superseded by this section. §1.4 and §2.2's raw counts remain correct as
+whole-table measurements — they simply were not segmented by client class.
+
+Independently confirmed by cloud review: the #937 projection writeback defect (§4.2) — the gate is
+card-side-only, `_calSetCommentsFor` zeroes the `*_tweaks` wire strings, and the next save persists
+it.
 
 ---
 

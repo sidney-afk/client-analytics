@@ -184,6 +184,10 @@ PRIOR_RECONCILER_SHA=<captured apply-capable source SHA>
 
 Read back, do not infer:
 
+- `RELEASE_SHA` is at or after `1738ad3` (2026-07-24 Slice 4): the live outbox
+  operation CHECK already includes `labels`, `description`, and `attachment`
+  (five migrations applied 2026-07-24, see `EXECUTION_LOG.md`), so an older
+  toolkit checkout would regress that live constraint;
 - `prod_authority` is exactly `{"video":"linear","graphics":"linear"}`;
 - `linear_outbound_enabled` is exactly `{"mode":"off"}`;
 - `linear_legacy_parity_enabled` is exactly `{"enabled":false}`;

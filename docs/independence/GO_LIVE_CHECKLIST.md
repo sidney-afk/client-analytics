@@ -51,6 +51,11 @@ source and the source-only toolkit do not change this table. Follow
 deploys only locked `linear-inbound` and proves webhook freshness; only a later
 owner window snapshots the queue, migrates, deploys the remaining four closures,
 and drills. Every window starts by re-reading the values above and F27 posture.
+**New precondition (2026-07-24 Slice 4):** any future F27 install must run from a
+`RELEASE_SHA` at or after `1738ad3` — the live outbox operation CHECK now
+includes `labels`, `description`, and `attachment` (five Slice 4 migrations
+applied 2026-07-24, see `EXECUTION_LOG.md`), and an older toolkit checkout
+would regress that live constraint.
 
 Merged & live: #810 gateway (deployed), #811 guards + daily TEST drill + nightly shadow audit,
 #812 mirror write-UI (locked for real teams), #850's dark Calendar/Samples/Submit reroutes,

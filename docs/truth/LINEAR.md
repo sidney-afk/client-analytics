@@ -1,9 +1,14 @@
 # Linear — current truth
 
-> Last verified: 2026-07-24 @ f9fe855 + F200 owner-approved live data repair + source-only F39/F42/F43 and F201/F202/F203 candidates
-> (F145 parent-link projection and the F200 roster/data correction are live; F39/F42/F43 comment/attachment/lifecycle
-> additions and F201/F202 gateway/outbound/inbound plus F203 create additions remain gated pending their owner-approved
-> migration/function/drill releases)
+> Last verified: 2026-07-25 @ ecc88ff + Slice 4 live: the five F201/F202/F203/comment-lifecycle/
+> F34-F53 migrations were applied to production 2026-07-24 ~22:00Z, the staff-sensitive functions
+> (`linear-outbound`, `production-write`, `production-comments`, `production-archive`) were deployed
+> from `1738ad3` (run `30129490033`), and the F42 linked-cohort comment import executed 2026-07-25
+> (615 applied / 6,032 deferred / 35 link defects; run `30138142140`). Only the real TEST drills,
+> the unlinked-cohort import, the F34 rescue config seed / inventory reconciliation, and the
+> F201/F202 `linear-inbound` normalization redeploy (inbound was not in the four-function deploy)
+> remain gated. F145 parent-link projection and the F200 roster/data
+> correction remain live.
 > Live-system facts below are from `docs/audits/2026-07-05-linear.md` +
 > `2026-07-05-reaudit-summary.md` (verified 2026-07-05) and `2026-07-07-linear-state-map.md`
 > unless noted. Spot-verify before relying on exact counts.
@@ -27,9 +32,10 @@
 - **Priority IS used again** on current batches (Urgent/High/Medium), but Workload no longer reads or
   displays it. SMMs may apply the exact `2× Workload` / `3× Workload` labels to difficult videos;
   they remain two or three video-capacity units, while Graphics remains 15 unweighted items.
-  Source-only F201 now adds the real Linear catalog, complete native selected-label relation,
+  F201 adds the real Linear catalog, complete native selected-label relation,
   searchable color/checkbox/description picker, guarded full-set write, and exact native Workload
-  metadata path. It is not live until the separate owner-approved release gate.
+  metadata path. Its migration was applied 2026-07-24 and its gateway deployed from `1738ad3`
+  (run `30129490033`); the real service-only TEST labels drill is still owed.
 - Batch mirroring is NOT universal: true GRA+VID mirrored pairs, VID-only, GRA-only, single
   parents with mixed-team children, and bidirectional cross-team parenting all exist.
   Archived history contains legacy states ("Tweak Applied"), ghost authors, and hard-deleted
@@ -45,15 +51,19 @@
 - **Legacy Calendar/Samples card comments:** app → Linear via `webhook/linear-add-comment`,
   prefixed `**{Reviewer} (via SyncView):**`. Those card-local arrays do not receive a complete
   inbound comment/lifecycle projection; see F42/F43.
-- **Canonical comment candidate (F39/F42/F43):** source-only code protects the exact canonical
+- **Canonical comment thread (F39/F42/F43; live for the linked cohort):** the deployed slice
+  protects the exact canonical
   thread by team/client, requires a two-surface Calendar+SXR snapshot with independently supplied
   counts and stable hashes before import can certify complete, and routes add/reply/edit/delete/
   resolve/reopen through `production-write`. Existing `comment` outbox rows carry ordered
   dependencies so edit/delete cannot pass an unresolved add. F2 `off`/outage preserves applicable
   debt for later drain; a first live edit after shadow-only history materializes the current
   canonical body once, while deleting a never-materialized foreign comment is a terminal no-op.
-  No new outbox operation or CHECK widening is used. Nothing in this candidate is live-applied,
-  deployed, imported, or drilled.
+  No new outbox operation or CHECK widening is used. This is now live for the linked cohort: the
+  comment-lifecycle migration was applied 2026-07-24, the reader/writer functions deployed from
+  `1738ad3`, and the F42 linked-cohort import executed 2026-07-25 (615 applied / 6,032 deferred /
+  35 link defects). The TEST read/write/projection drills and the unlinked-cohort import remain
+  gated.
 - **Current caller-auth defect (F91):** `linear-set-status`, `linear-add-comment`, `video-form`, and
   `graphic-form` authenticate no incoming principal. Their authority checks only choose whether a
   team may still write toward Linear; with both teams Linear-authoritative they permit the route.
@@ -72,14 +82,15 @@
   deliverables. Creation batch, team, client, and title are not parent-election boundaries;
   unresolved or malformed links remain visible roots. Parent-only webhook changes remain
   refresh-eventual through the existing B1/reconcile path rather than becoming a new n8n dependency.
-- **Production native creation (F203):** candidate source sends parent and sub-issue create intents
+- **Production native creation (F203):** parent and sub-issue create intents route
   through `production-write` and the existing outbound drainer. It validates the exact roster
   project/team/state/assignee/full-label scope, supplies one deterministic Linear UUID, and compares
   every original create field before accepting an already-existing Linear issue. A root owns one
   structural native batch; a child reuses its validated root batch and depends on the root create
   receipt when it is still pending. Acknowledgement patches only Linear ID/identifier/URL so later
-  native field edits survive. No Calendar/Samples/card/link input or writer participates. This
-  migration/function/UI source is not live and requires the separate owner-approved TEST release.
+  native field edits survive. No Calendar/Samples/card/link input or writer participates. The F203
+  migration was applied 2026-07-24 and the gateway deployed from `1738ad3`; the real TEST creation
+  drill is still owed.
 - **Client-attribution correction (F200):** candidate source makes the active SyncView roster the
   sole client catalog. It resolves direct mapped project → nearest mapped ancestor → owner-approved
   explicit roster/internal/TEST classification, records a mapping revision, and exposes unresolved,
@@ -122,11 +133,12 @@
 Track B (in-app Linear replacement) spec: `docs/independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md`;
 system-wide view: `docs/independence/SYSTEM_MAP.md`. The visible **Linear** tab (internal
 `production`, route `#production`, alias `?prod=1`) is the native mirror surface. #812 ships
-authority-gated status/comment/due/assignee controls; F201 candidate source adds protected label
-catalog reads and Admin/SMM full-selected-set label writes, and F202 candidate source adds
-Admin/SMM exact-Markdown description writes for root and child deliverables. F203 candidate source
+authority-gated status/comment/due/assignee controls; F201 adds protected label
+catalog reads and Admin/SMM full-selected-set label writes, and F202 adds
+Admin/SMM exact-Markdown description writes for root and child deliverables. F203
 adds Admin/SMM Production-only parent/sub-issue creation with deterministic replay and zero implicit
-Calendar/Samples linkage. Real teams remain read-only while
+Calendar/Samples linkage (all three live-applied and deployed from `1738ad3` on 2026-07-24; their
+real TEST drills remain gated). Real teams remain read-only while
 authority is Linear; the bounded active-TEST drill stays service-only and is the sole path allowed
 to seed a missing pre-F201 native selection from a complete Linear snapshot. The visible **Submit** tab retains internal key
 `linear` and route `#linear`; its native reroute landed through PR #850 / `9968bd9` and is

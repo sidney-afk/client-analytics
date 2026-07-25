@@ -1,6 +1,9 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-23 @ b1a942d + source-only F200/F202 candidates, integrated boot-audit vault
+> Last verified: 2026-07-25 @ ecc88ff + F200 live data repair and the live-applied/deployed Slice 4
+> (F201/F202/F203/F39-F42-F43/F34-F53 migrations applied 2026-07-24, functions deployed from
+> `1738ad3`, F42 linked-cohort import executed 2026-07-25; TEST drills still owed), integrated
+> boot-audit vault
 > through F199, and Production/Graphics audit through F205. The F176/F179 overnight-runner containment is isolated in parked draft
 > #908 by owner decision and does not block the client-entry product fix; do not expand or reopen
 > that containment scope here. The client verifier v28 and matching #891 browser are live. The
@@ -219,17 +222,20 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   `docs/audits/2026-07-05-logic-reviews.md`.
 - Linear comments are written prefixed `**{Reviewer} (via SyncView):**`.
   That display name is cosmetic on the legacy bridge and does not establish the caller (F91).
-- Live comment truth remains split across card JSON and normalized rows (F43). The source-only
-  F39/F42/F43 candidate adds exact team/client-scoped canonical reads; a manifest-bound import of
+- Comment truth is now canonical **where linked** (F43): the F39/F42/F43 slice adds exact
+  team/client-scoped canonical reads; a manifest-bound import of
   both Calendar and Samples/SXR arrays; and one create/reply/edit/delete/resolve/reopen lifecycle
-  across Production, Calendar, and Samples. Candidate client links now read that same thread with
-  the verified token and exact SXR card/component/deliverable identity, project only client-audience
-  rows, and never use endpoint self-attestation to unlock staff Client-visible. Those controls stay
-  unavailable until the migration/functions and tokened TEST drill are separately approved live.
+  across Production, Calendar, and Samples. Its migration was applied 2026-07-24, its functions
+  deployed from `1738ad3` (run `30129490033`), and the F42 linked-cohort import executed 2026-07-25
+  (615 applied / 6,032 deferred / 35 link defects). PR #937 (`96d87bc`) made the client comment
+  surface canonical-where-linked, legacy-where-not, and is live. Client links read the canonical
+  thread with the verified token and exact SXR card/component/deliverable identity, project only
+  client-audience rows, and never use endpoint self-attestation to unlock staff Client-visible;
+  the tokened TEST drill is still owed before client-visible controls widen further.
   Canonical persistence precedes every
   Linear/mirror side effect; F2 `off`/outage pauses applicable comment debt rather than retiring it,
-  and ordered dependencies preserve add/edit/delete handoff. This source has not been migrated,
-  deployed, imported, or drilled live.
+  and ordered dependencies preserve add/edit/delete handoff. Unlinked cards (the 6,032 deferred
+  rows) remain on legacy card-JSON truth until the linkage brick lands.
 - Kasper keeps Review Session, Samples, Messages, and Filming Plans in a stable priority row. Editors
   and Time Off sit under **Team** in an accessible More menu; Sales Intake, Onboarding, and Client
   Credentials sit under **Pipeline & Admin**. The active More destination replaces the generic label,
@@ -410,18 +416,18 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   remain on `workload-linear`; the inactive fast bridge is not part of either decision.
 - **Deployment boundary:** effective live table/grant readback matches the locked 2026-07-19
   sidecar contract, and `workload-plan` v2 remains a deliberate-manual deployment. This candidate
-  retains the deliberate-manual `workload-linear` function/browser caller and adds F201's one
-  source-only CHECK-superset migration plus label gateway/mirror/native-consumer source. It changes
+  retains the deliberate-manual `workload-linear` function/browser caller alongside F201's
+  CHECK-superset migration plus label gateway/mirror/native-consumer source. It changes
   no table/column data shape, table grant, runtime flag, n8n workflow, frozen writer, or real data.
   Slice 3 adds only the closed Workload/due gateway surface and browser/date source; it needs no
-  migration and performs no live apply, deploy, flag, authority, n8n, or data action here.
-  Nothing is live until the reviewed merge and an exact-SHA manual migration/function
-  deployment/readback/TEST drill.
+  migration.
+  The `workload-linear` function remains not live until its own exact-SHA manual
+  deployment/readback/TEST drill; F201's CHECK migration was applied to production 2026-07-24 and
+  `production-write` was deployed from `1738ad3` (run `30129490033`) the same day.
   A Pages-only revert removes the caller and restores the prior Workload display without changing
   saved plan data or Linear. If the function was deployed, retiring it is a separate captured
-  operation. F201 additionally requires its owner-approved post-merge CHECK migration,
-  `production-write` deployment/readback, and real service-only TEST labels drill; none occurs in
-  this source session. F147 keeps the exact plan-sidecar revoke-correction artifact provenance open, and
+  operation. F201's remaining owner-approved gate is the real service-only TEST labels
+  drill. F147 keeps the exact plan-sidecar revoke-correction artifact provenance open, and
   #884's server-atomic batch contract remains open.
 
 ## Linear sync surface
@@ -442,15 +448,18 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   selection from the same complete Linear snapshot; normal SyncView rows remain strictly native.
   F202 candidate source adds exact-Markdown description source/preview editing for root and child
   deliverables through the same gateway, with CAS/idempotency, audit/outbox mirror intent,
-  authoritative refresh, read-failure recovery, and dirty-draft conflict preservation. Neither
-  candidate migration/function/UI path is live in this session.
+  authoritative refresh, read-failure recovery, and dirty-draft conflict preservation. Both slices
+  are now live-applied and deployed: the F201/F202 migrations were applied 2026-07-24 and
+  `production-write` was deployed from `1738ad3` (run `30129490033`); their real service-only TEST
+  drills are still owed.
 - Slice 3 candidate source makes every Production due choice/cell carry canonical `YYYY-MM-DD`,
   seeds month and selection from `dueRaw`, and gives mouse, keyboard, typed, and multi-select paths
   the same converter. Current day, relative input, highlighting, full-date display, and overdue
   math all use the already-ratified America/Guatemala policy day on demand. Workload also binds the
   shared calendar's Today action, highlight, and initial month to that on-demand policy day. A timer
   targets the next policy midnight, and focus/visibility/pageshow return rechecks it. This source
-  and the closed `production-write` Workload-due surface are not deployed here.
+  and the closed `production-write` Workload-due surface are deployed as of the 2026-07-24
+  `1738ad3` release (run `30129490033`).
 - F203 candidate source adds Admin/SMM parent and sub-issue creation through `production-write`.
   The form uses active roster clients, the selected Video/Graphics team, exact Markdown, native
   full-year dates, active same-team assignees, and the complete real label catalog. Deterministic
@@ -459,7 +468,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   batch and one deliverable; child creation validates a current top-level same-client/team/project
   parent, reuses its batch, and waits on its create intent when needed. The closed request schema
   accepts no Calendar/Samples/card/link field, and created rows are manual `kind=other` work with
-  `card_id=null`. The additive service-only RPC source, gateway, mirror, and UI are not live here.
+  `card_id=null`. The additive service-only RPCs were applied 2026-07-24 and the gateway deployed
+  from `1738ad3`; the real TEST creation drill is still owed.
 - A protected-write 401 becomes toast copy only: Production does not clear/reverify the staff session,
   open sign-in, preserve/replay the action after fresh authorization, or otherwise recover (F10).
 - F94: manual assignment is not eligibility-safe yet. The picker/server accept any active same-team
@@ -484,8 +494,11 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - Video delivery/source data is collapsed from four typed fields to one priority winner labelled
   “Delivered file”; filming plan/raw footage can be hidden or mislabeled (F137).
 - The 2026-07-23 full-day audit remains immutable findings evidence. F200's owner-approved roster/data
-  correction applied on 2026-07-24; F39/F42/F43 and F201/F202/F203 remain source-only `IN-PROGRESS`
-  with their live repair/migration/deployment/TEST-drill/review/merge gates closed. F203 creation
+  correction applied on 2026-07-24. F39/F42/F43 and F201/F202/F203 advanced the same day: their five
+  migrations were applied to production ~22:00Z, the staff-sensitive functions deployed from
+  `1738ad3` (run `30129490033`), and the F42 linked-cohort import executed 2026-07-25 (615 applied /
+  6,032 deferred / 35 link defects). Their remaining open gates are the real TEST drills and the
+  unlinked-cohort import. F203 creation
   performs no implicit Calendar/Samples create, choose, or link action;
   explicit linkage remains later work under F112.
 - F200 is distinct from F145: the native parent link remains the hierarchy owner, while candidate

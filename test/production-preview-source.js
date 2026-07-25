@@ -130,12 +130,22 @@ check('preview filters Linear webhook delete/archive markers out of live issues 
   && /raw_issue_archived_at/.test(prodBlock)
   && /deliverables = \(raw\.deliverables \|\| \[\]\)\.filter\(_prodDeliverableLive\)/.test(prodBlock));
 check('preview fetch helper uses default GET with retry', /async function _prodRestPage\(url, table, page\)/.test(prodBlock) && /fetch\(url, \{ headers: _prodHeaders\(\) \}\)/.test(prodBlock) && /resp\.status === 429 \|\| resp\.status >= 500/.test(prodBlock));
-check('preview read helper takes explicit page size and max page cap', /async function _prodRestRows\(table, select, params, pageSize, maxPages\)/.test(prodBlock) && /page < cap/.test(prodBlock) && /read exceeded pagination cap/.test(prodBlock));
+check('preview read helper takes explicit page size and max page cap', /async function _prodRestRows\(table, select, params, pageSize, maxPages, options\)/.test(prodBlock) && /page < cap/.test(prodBlock) && /read exceeded pagination cap/.test(prodBlock));
+// F95 read path: the deliverable projection walks the primary key instead of
+// OFFSET, so no page re-sorts the whole relation and no request burst runs.
+check('deliverable projection paginates by primary-key keyset, not offset, and never bursts',
+  /const keysetColumn = String\(options && options\.keysetColumn \|\| ''\)\.trim\(\)/.test(prodBlock)
+  && /'&order=' \+ encodeURIComponent\(keysetColumn\) \+ '\.asc'/.test(prodBlock)
+  && /'=gt\.' \+ encodeURIComponent\(cursor\)/.test(prodBlock)
+  && /keyset read stalled/.test(prodBlock)
+  && /_prodRestRows\(\s*'production_deliverables_browser_v1',\s*select,\s*'',\s*1000,\s*50,\s*\{ keysetColumn: 'id' \}/.test(prodBlock)
+  && !/order=team\.asc,status\.asc,due_date\.asc/.test(prodBlock));
 check('preview read helper strips duplicate limit and offset params', prodBlock.includes('!/^limit=|^offset=/.test(p)'));
 check('preview callers pass page sizes explicitly', /_prodRestRows\(\s*'production_deliverables_browser_v1'[\s\S]{0,1200}1000,\s*50/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));
 const explicitMutationMethods = [...prodBlock.matchAll(/['"`](POST|PUT|PATCH|DELETE)['"`]/g)].map(match => match[1]);
-check('preview block limits POSTs to protected reads, guarded creation, and authority-gated native writes', explicitMutationMethods.length === 8
+check('preview block limits POSTs to protected reads, guarded creation, and authority-gated native writes', explicitMutationMethods.length === 9
   && explicitMutationMethods.every(method => method === 'POST')
+  && /async function _prodEnsureAssigneeOptions\(id, force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'assignee_options',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
   && /fetch\(PROD_COMMENTS_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock)
   && /const requestBody = \{[\s\S]{0,220}deliverable_id: id,[\s\S]{0,160}limit: PROD_COMMENTS_PAGE_SIZE,[\s\S]{0,160}before: cursor \|\| null[\s\S]{0,100}if \(clientSurface\) Object\.assign\(requestBody, clientSurface\)/.test(prodBlock)
   && /fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,500}action: 'labels_read', surface: 'production', id/.test(prodBlock)
@@ -147,9 +157,11 @@ check('preview block limits POSTs to protected reads, guarded creation, and auth
   && /async function _prodPostCreatePayload\(payload\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'/.test(prodBlock)
   && /async function _prodGatewayWrite\(issue, operation[\s\S]*?_prodCanWrite\(issue, operation\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock));
 check('preview block has no Supabase write helpers', !/\.(insert|update|upsert|rpc)\s*\(/.test(prodBlock));
-check('topbar exposes guarded New issue without Refresh chrome',
+check('topbar exposes guarded New issue plus the F95 freshness control, and no scaffold Refresh pill',
   /function _prodCreateTopbarButton\(clientSlug, team\)[\s\S]*?data-prod-create-trigger="1"[\s\S]*?New issue/.test(prodBlock)
   && /_prodCreateGateText\(clientSlug, team\)/.test(prodBlock)
+  && /function _prodFreshnessHTML\(\)[\s\S]{0,900}data-prod-refresh="1"/.test(prodBlock)
+  && (prodBlock.match(/_prodFreshnessHTML\(\)/g) || []).length >= 4
   && !/<button class="prod-tab" type="button" onclick="_prodRefresh\(\)">Refresh<\/button>/.test(prodBlock));
 check('visible write and creation affordances are guarded without scaffold pills',
   /data-prod-disabled="composer"/.test(prodBlock)

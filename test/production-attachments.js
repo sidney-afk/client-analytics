@@ -60,14 +60,20 @@ function extractFunction(source, name) {
     ROOT, 'supabase', 'functions', 'linear-outbound', 'mapping.mjs',
   )).href);
 
+  // F136 made the Graphics artifact write assignee-bound: replacing the
+  // canonical deliverable file is a mutation of the owner's work, not a comment.
+  const ownGraphics = { currentStatus: 'in_progress', targetAssigneeId: 'member-self', actorMemberId: 'member-self' };
+  const peerGraphics = { currentStatus: 'in_progress', targetAssigneeId: 'member-peer', actorMemberId: 'member-self' };
   ok(policy.normalizeOperation('attachment') === 'attachment'
       && policy.staffOperationAllowed('admin', 'attachment', '', 'graphics')
       && policy.staffOperationAllowed('smm', 'attachment', '', 'graphics')
-      && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics')
-      && !policy.staffOperationAllowed('creative', 'attachment', 'video', 'graphics')
-      && !policy.staffOperationAllowed('creative', 'attachment', 'video', 'video')
+      && policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', ownGraphics)
+      && !policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', peerGraphics)
+      && !policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics')
+      && !policy.staffOperationAllowed('creative', 'attachment', 'video', 'graphics', '', ownGraphics)
+      && !policy.staffOperationAllowed('creative', 'attachment', 'video', 'video', '', ownGraphics)
       && !policy.clientOperationAllowed('attachment', 'client_approval', ''),
-  'attachment writes are staff-only, Graphics-only, and same-team for Creative staff');
+  'attachment writes are staff-only, Graphics-only, same-team, and assignee-bound for Creative staff');
   ok(policy.staffAssetReadAllowed('admin', '', 'video')
       && policy.staffAssetReadAllowed('smm', '', 'graphics')
       && policy.staffAssetReadAllowed('creative', 'graphics', 'graphics')

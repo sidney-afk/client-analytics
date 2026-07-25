@@ -2,6 +2,58 @@
 
 All times are UTC unless noted.
 
+## 2026-07-25 — Slice 5 candidate source (F37/F94/F136 + F95) and the measured Production read-path finding — NO LIVE CHANGE
+
+- **Nothing was applied, deployed, merged, or flipped in this session.** The
+  branch carries source only: `index.html`,
+  `supabase/functions/production-write/{index.ts,policy.mjs}`, two new test
+  suites, one read-only probe, one source-only migration file, and docs. No
+  runtime flag, authority value, n8n workflow, Edge Function deployment, or
+  frozen writer (`calendar-upsert`, `sample-review-upsert`) was touched.
+- **Live actions taken were read-only anon GETs only**, through the same
+  publishable key the shipped page already publishes: the read-path timing
+  probe (`qa/probes/prod_read_path_timing.js`) and one aggregate assignment
+  audit. No body, title, client name, identifier, private URL, or member
+  identity was retained; only counts and latencies are reported.
+- **Read-path finding (the reason blocker #9 needed more than a timer).**
+  `production_deliverables_browser_v1` costs ~1.2–1.5 s upstream per 1000-row
+  page over 4,612 rows. Isolation showed the cost is neither the sort (two
+  columns under the same `ORDER BY`: 24 ms) nor the Workload label lateral
+  (pruned when unselected) but the **24 separate `linear_raw` extractions in the
+  view, one detoast each** — 0/1/24 raw columns under the same order cost
+  16/224/1216 ms. `ORDER BY` forces every page to project the whole relation, so
+  the offset walk the browser performed costs ~5.9–6.0 s of upstream time across
+  five pages, four of which it issued concurrently.
+- **Burst observation, stated exactly.** Three 4-wide bursts were run
+  2026-07-25; each page inflated from ~1.2 s solo to 2.1–2.5 s under
+  concurrency, and **all twelve returned 200** in that window. This session
+  therefore measured the mechanism but did **not** itself reproduce the reported
+  15/15 `57014`/HTTP 500. The two are consistent — the burst approaches the anon
+  statement timeout and crosses it at higher baseline load — but no claim of
+  reproduction is made here.
+- **Measured fixes.** Replacing offset paging with a sequential primary-key
+  keyset walk: 5.94 s → 3.40 s of upstream time and no concurrent burst
+  (live, both directions repeated). Rebuilding the view so each row detoasts
+  once (`migrations/2026-07-25-slice5-production-read-path.sql`, source-only):
+  951.8 ms → 312.5 ms per page and 6.9 ms → 3.2 ms on the delta window, measured
+  offline on PostgreSQL 16.13 over 4,626 synthetic rows, with zero-row
+  `EXCEPT ALL` equivalence in both directions across every column including 14
+  adversarial `linear_raw` shapes, and `create or replace view` proven to
+  preserve grants and `security_barrier`. A composite index on
+  `deliverables(team, status, due_date)` was measured and **rejected**: the
+  planner keeps the sequential scan and the page still costs ~1.28 s.
+- **Assignment audit (aggregate only).** Of 863 live non-terminal, non-archived
+  assignments, 777 are already eligible under the proposed F94 rule, 79 point at
+  inactive members (74 video / 5 graphics), 7 are cross-team, and 0 are
+  unmapped. Every active creative on the roster (1 graphics designer, 4 video
+  editors) carries a Linear mapping, and no admin/SMM roster row carries a team,
+  so the strict per-team role default excludes nobody currently eligible. The 86
+  legacy rows are named as owner repair work; nothing was reassigned.
+- **Gates run locally:** `npm test` 169/169 (the two new Slice 5 suites
+  included), `truth-sync` 458/458, `repo-map-sync` 160/160. The owner-gated
+  apply/deploy plan and the drills still owed are in
+  `docs/ops/SLICE5_APPLY_WINDOW.md`.
+
 ## 2026-07-25 — F42 linked-cohort card-comment import EXECUTED (615 applied / 6,032 deferred / 35 link defects)
 
 - The F42 Calendar/Samples → canonical Production comment import ran to a

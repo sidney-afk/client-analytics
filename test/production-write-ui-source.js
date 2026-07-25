@@ -32,6 +32,22 @@ function extract(name) {
   throw new Error(`unclosed ${name}`);
 }
 
+function extractConst(name) {
+  const match = new RegExp(`const\\s+${name}\\s*=\\s*`).exec(source);
+  if (!match) throw new Error(`missing const ${name}`);
+  const start = match.index + match[0].length;
+  const open = source[start];
+  const close = open === '{' ? '}' : ']';
+  let depth = 0;
+  for (let i = start; i < source.length; i++) {
+    if (source[i] === open) depth++;
+    else if (source[i] === close && --depth === 0) {
+      return `const ${name} = ${source.slice(start, i + 1)};`;
+    }
+  }
+  throw new Error(`unclosed const ${name}`);
+}
+
 const context = {
   identity: { role: 'smm', member: { team: null } },
   clientKind: 'video',
@@ -43,20 +59,28 @@ context._syncviewStaffIdentityForHeaders = () => context.identity;
 context._prodClient = () => ({ raw: { active: true, kind: context.clientKind } });
 vm.createContext(context);
 vm.runInContext([
+  extractConst('PROD_CREATIVE_STATUS_TRANSITIONS'),
+  extractConst('PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS'),
   extract('_prodAuthorityValue'),
   extract('_prodWriteTeam'),
   extract('_prodAttributionResolved'),
   extract('_prodAttributionGateText'),
   extract('_prodIdentityRepairGateText'),
   extract('_prodTestWriteOverride'),
+  extract('_prodCreativeNextStatuses'),
+  extract('_prodCreativeOwnsTarget'),
   extract('_prodRoleCanWrite'),
+  extract('_prodRoleGateText'),
   extract('_prodCanWrite'),
   extract('_prodWriteGateText'),
   extract('_prodWriteGateAttrs'),
 ].join('\n'), context);
 
-const video = { id: 'v', team: 'video', project: 'client', authorityProject: 'client', attribution: { state: 'resolved' } };
-const graphics = { id: 'g', team: 'graphics', project: 'client', authorityProject: 'client', attribution: { state: 'resolved' } };
+// F136: every fixture carries a current status and an assignee, because the
+// browser gate now reads both. `sourceStatus: 'todo'` + `assignee: 'me'` is the
+// creative's own in-flight work.
+const video = { id: 'v', team: 'video', project: 'client', authorityProject: 'client', attribution: { state: 'resolved' }, sourceStatus: 'todo', assignee: 'me' };
+const graphics = { id: 'g', team: 'graphics', project: 'client', authorityProject: 'client', attribution: { state: 'resolved' }, sourceStatus: 'todo', assignee: 'me' };
 ok(context._prodAuthorityValue({ video: 'linear', graphics: 'syncview' }).graphics === 'syncview', 'strict authority parser accepts the two known team stances');
 ok(context._prodAuthorityValue({ video: 'linear' }) === null
   && context._prodAuthorityValue({ video: 'linear', graphics: 'other' }) === null
@@ -72,7 +96,7 @@ ok(context._prodCanWrite(provisionalTest, 'status') === false
   && /provisional/.test(context._prodWriteGateText(provisionalTest, 'status')),
 'provisional/repair attribution stays fail-closed and cannot inherit the TEST override');
 context.clientKind = 'video';
-context.identity = { role: 'creative', member: { team: 'video' } };
+context.identity = { role: 'creative', member: { id: 'me', team: 'video' } };
 ok(context._prodCanWrite(video, 'status') === false, 'authority still blocks an otherwise compatible creative');
 context._prodState.authority.video = 'syncview';
 ok(context._prodCanWrite(video, 'status') === true
@@ -81,6 +105,30 @@ ok(context._prodCanWrite(video, 'status') === true
   && context._prodCanWrite(video, 'labels') === false
   && context._prodCanWrite(graphics, 'comment') === false,
 'creative access is own-team status/comment only; labels, due, assignee, and cross-team remain closed');
+// F136 browser mirror: reviewer/terminal current state and peer-owned work are
+// closed in the UI exactly as they are in the gateway, and each denial says why.
+const reviewerRow = { ...video, sourceStatus: 'client_approval' };
+const terminalRow = { ...video, sourceStatus: 'posted' };
+const peerRow = { ...video, assignee: 'someone-else' };
+const unassignedRow = { ...video, assignee: '' };
+ok(context._prodCanWrite(reviewerRow, 'status') === false
+  && context._prodCanWrite(terminalRow, 'status') === false
+  && /reviewer-owned/.test(context._prodWriteGateText(reviewerRow, 'status')),
+'creative status is closed on reviewer and terminal rows with an explicit reason');
+ok(context._prodCanWrite(peerRow, 'status') === false
+  && context._prodCanWrite(unassignedRow, 'status') === false
+  && /not assigned to you/.test(context._prodWriteGateText(peerRow, 'status'))
+  && context._prodCanWrite(peerRow, 'comment') === true,
+'creative status is assignee-bound in the UI while comment stays same-team-wide');
+ok(JSON.stringify(context._prodCreativeNextStatuses({ sourceStatus: 'in_progress' })) === JSON.stringify(['backlog', 'todo', 'smm_approval'])
+  && context._prodCreativeNextStatuses({ sourceStatus: 'approved' }).length === 0
+  && context._prodCreativeNextStatuses({}).length === 0,
+'the browser transition table exposes the work loop and nothing out of a reviewer/terminal or unknown state');
+context.identity = { role: 'admin', member: { id: 'boss', team: null } };
+ok(context._prodCanWrite(reviewerRow, 'status') === true
+  && context._prodCanWrite(peerRow, 'status') === true,
+'Admin authority is unchanged by the creative state machine');
+context.identity = { role: 'creative', member: { id: 'me', team: 'video' } };
 context.identity = null;
 ok(context._prodCanWrite(video, 'status') === false, 'missing verified staff identity fails closed');
 const deniedAttrs = context._prodWriteGateAttrs(video, 'due', { tip: 'Set due date' });
@@ -382,7 +430,16 @@ ok(/data-prod-description-control="source"/.test(source)
   && /_prodFocusDescriptionControl\(id, 'edit'\)/.test(extract('_prodCancelDescriptionEdit'))
   && /_prodCaptureDescriptionFocus\(root\)/.test(extract('_prodRender')),
 'description source/preview editing is bounded, keyboard accessible, and preserves focus/caret across rerenders');
-ok(/editors\[k\]\.active !== false[\s\S]{0,120}editors\[k\]\.raw\.team/.test(source), 'assignee choices are active and scoped to the deliverable team');
+// F94: assignee candidates come only from the gateway's eligible-assignee
+// projection. The browser must not rebuild them from the roster, and must offer
+// nothing selectable while the projection is loading, refused, or unavailable.
+ok(!/editors\[k\]\.active !== false[\s\S]{0,120}editors\[k\]\.raw\.team/.test(source)
+  && /if \(kind === 'assign'\)[\s\S]{0,900}_prodAssigneeOptionsState\(issue\.id\)/.test(source)
+  && /const ready = !!state && state\.status === 'ready'/.test(source)
+  && /const candidates = ready[\s\S]{0,700}\n\s*: \[\];/.test(source)
+  && /disabled: !ready/.test(source)
+  && /action: 'assignee_options'/.test(source),
+'assignee choices come only from the server eligible-assignee projection and fail closed while it is not ready');
 ok(/data-prod-comment-form/.test(source)
   && /audience: draft\.audience/.test(source)
   && /maxlength="20000"/.test(source),

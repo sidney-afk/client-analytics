@@ -1,7 +1,8 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-25 @ ecc88ff (Slice 4 live: migrations applied 2026-07-24, functions
-> deployed from `1738ad3` via run `30129490033`)
+> Last verified: 2026-07-25 @ aaccfb2 (Slice 4 live: migrations applied 2026-07-24, functions
+> deployed from `1738ad3` via run `30129490033`; Slice 5's `assignee_options` read action and
+> keyset projection read are candidate source only — unmerged and undeployed)
 > (21 literal + 4 composed app callers; 30 source slugs / 29 live — `production-archive` deployed
 > 2026-07-24; only `workload-linear` remains undeployed; #850 write gateway remains deployed dark)
 
@@ -140,6 +141,14 @@ Other:
   last-write-wins (F36). Do not claim end-to-end CAS until every mutation sends the version, stale
   requests create no intent, and 409 compare/reapply UX is proved. Successful accepted operations
   commit through the ledger/outbox RPCs before the UI updates.
+  Slice 5 candidate source (unmerged, not deployed) adds one protected read action,
+  `assignee_options`, and changes no operation name. It resolves the target deliverable's own team
+  and returns the same eligible-assignee projection the commit enforces (F94), gated by the same
+  `assignee` authority as the write, with missing/cross-client/cross-team targets collapsed into one
+  `assignee_scope_forbidden`. The same candidate makes `assignee` and `create` reject an ineligible
+  or unmirrorable target **before** the native write, using one bounded Linear `users(id, active)`
+  read per invocation that fails closed on a truncated pool, and gives the shared `status`/
+  `attachment` guard the row's current status and assignee (F136).
   F53/F137 (live-applied and deployed 2026-07-24) adds the authenticated
   no-store typed-asset read and
   guarded Graphics attachment operation. Its paired migration — applied

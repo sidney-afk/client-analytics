@@ -43,9 +43,13 @@ function matrixEqual(actual, expected, message) {
     }, `${role} may perform all eight gateway operations`);
   }
 
+  // F136 — the creative decision reads current status + current assignee, not
+  // just the requested next status. `own` is the actor's own To Do row.
+  const own = { currentStatus: 'todo', targetAssigneeId: 'member-self', actorMemberId: 'member-self' };
+  const peer = { currentStatus: 'todo', targetAssigneeId: 'member-peer', actorMemberId: 'member-self' };
   const creativeOwnTeam = Object.fromEntries(operations.map(operation => [
     operation,
-    policy.staffOperationAllowed('creative', operation, 'VID', 'video', 'in_progress'),
+    policy.staffOperationAllowed('creative', operation, 'VID', 'video', 'in_progress', own),
   ]));
   matrixEqual(creativeOwnTeam, {
     status: true,
@@ -60,25 +64,53 @@ function matrixEqual(actual, expected, message) {
 
   const creativeStatuses = Object.fromEntries(policy.DELIVERABLE_STATUSES.map(status => [
     status,
-    policy.staffOperationAllowed('creative', 'status', 'graphics', 'GRA', status),
+    policy.staffOperationAllowed('creative', 'status', 'graphics', 'GRA', status,
+      { currentStatus: 'in_progress', targetAssigneeId: 'member-self', actorMemberId: 'member-self' }),
   ]));
   matrixEqual(creativeStatuses, {
-    triage: true,
+    triage: false,
     backlog: true,
     todo: true,
-    in_progress: true,
+    in_progress: false,
     smm_approval: true,
     kasper_approval: false,
     client_approval: false,
-    tweak: true,
+    tweak: false,
     approved: false,
     scheduled: false,
     posted: false,
-    canceled: true,
-    duplicate: true,
-  }, 'creative status allowlist is exhaustive and cannot advance approval or publishing stages');
-  ok(!policy.staffOperationAllowed('creative', 'status', 'video', 'graphics', 'in_progress')
-    && !policy.staffOperationAllowed('creative', 'comment', 'video', 'graphics'),
+    canceled: false,
+    duplicate: false,
+  }, 'creative next statuses from In Progress are the work loop plus SMM handoff only');
+
+  // Every reviewer/terminal current state is a dead end for a creative: no next
+  // status at all, so regression, cancel and duplicate are impossible.
+  for (const current of ['smm_approval', 'kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate']) {
+    const anyAllowed = policy.DELIVERABLE_STATUSES.some(next =>
+      policy.staffOperationAllowed('creative', 'status', 'graphics', 'graphics', next,
+        { currentStatus: current, targetAssigneeId: 'member-self', actorMemberId: 'member-self' }));
+    ok(!anyAllowed, `creative has no legal transition out of reviewer/terminal state ${current}`);
+  }
+  // Every declared transition must round-trip through the shared projection.
+  for (const [current, nexts] of Object.entries(policy.CREATIVE_STATUS_TRANSITIONS)) {
+    const projected = policy.staffNextStatuses('creative', 'video', 'video',
+      { currentStatus: current, targetAssigneeId: 'member-self', actorMemberId: 'member-self' });
+    ok(JSON.stringify([...projected].sort()) === JSON.stringify([...nexts].sort()),
+      `staffNextStatuses matches the declared transitions out of ${current}`);
+  }
+  ok(!policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'in_progress', peer)
+    && !policy.staffOperationAllowed('creative', 'attachment', 'graphics', 'graphics', '', peer)
+    && policy.staffOperationAllowed('creative', 'comment', 'video', 'video', '', peer),
+  'creative status and attachment are assignee-bound while comment stays same-team-wide');
+  ok(!policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'in_progress',
+    { currentStatus: 'todo', targetAssigneeId: '', actorMemberId: 'member-self' })
+    && !policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'in_progress',
+      { currentStatus: 'todo', targetAssigneeId: 'member-self', actorMemberId: '' }),
+  'unassigned work and an unidentified actor both fail closed');
+  ok(!policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'in_progress'),
+    'an omitted current-state context denies the creative decision instead of defaulting open');
+  ok(!policy.staffOperationAllowed('creative', 'status', 'video', 'graphics', 'in_progress', own)
+    && !policy.staffOperationAllowed('creative', 'comment', 'video', 'graphics', '', own),
   'creative is denied status and comment writes across teams');
 
   const clientAtApproval = Object.fromEntries(operations.map(operation => [

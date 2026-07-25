@@ -15,7 +15,11 @@ import {
   DELIVERABLE_STATUSES,
   assetTypeAllowed,
   assetUrlType,
+  assigneeEligibility,
+  assigneeEligibilityPolicy,
   browserCredentialTestOverride,
+  canonicalLinearUserId,
+  eligibleAssigneeProjection,
   canonicalArtifactUrl,
   canonicalDescription,
   canonicalLabelIds,
@@ -1942,21 +1946,119 @@ async function linearStateIdForCreate(teamId: string, team: string, status: stri
   return clean(parseJson(matching[0]).id);
 }
 
+// F94 — the provider half of the eligible-assignee projection. One bounded
+// Linear read per gateway invocation resolves every candidate's provider state;
+// an incomplete page, an unreachable provider, or a missing key is a denial,
+// never an assumed-active pass. Only id + active are requested, so no provider
+// name or email enters this function.
+const ASSIGNEE_ELIGIBILITY_FLAG = "production_assignee_eligibility";
+const ASSIGNEE_PROVIDER_POOL_LIMIT = 250;
+
+async function assigneeEligibilityPolicyFor(
+  supabase: SupabaseClient,
+): Promise<{ providerMappingRequired: boolean }> {
+  try {
+    const { data, error } = await supabase.from("syncview_runtime_flags")
+      .select("value")
+      .eq("key", ASSIGNEE_ELIGIBILITY_FLAG)
+      .maybeSingle();
+    // An absent flag row is the normal pre-retirement state and must not turn
+    // an otherwise valid write into a 503; absence means "strictest".
+    if (error || !data) return { providerMappingRequired: true };
+    return assigneeEligibilityPolicy((data as JsonMap).value);
+  } catch (_error) {
+    return { providerMappingRequired: true };
+  }
+}
+
+async function assigneeProviderPool(): Promise<Map<string, boolean>> {
+  const data = await linearRead(
+    "query ProductionWriteAssigneeProviderPool($first: Int!) {"
+      + " users(first: $first, includeArchived: true) {"
+      + " nodes { id active } pageInfo { hasNextPage } } }",
+    { first: ASSIGNEE_PROVIDER_POOL_LIMIT },
+    "assignee_provider_unavailable",
+  );
+  const users = parseJson(data.users);
+  const nodes = users.nodes;
+  const page = parseJson(users.pageInfo);
+  // A truncated pool cannot prove that an absent id is merely absent, so a
+  // partial answer fails closed instead of silently denying real members.
+  if (!Array.isArray(nodes) || page.hasNextPage !== false) {
+    throw new GatewayError(503, "assignee_provider_unavailable");
+  }
+  const pool = new Map<string, boolean>();
+  for (const node of nodes) {
+    const user = parseJson(node);
+    const id = canonicalLinearUserId(user.id);
+    if (id) pool.set(id, user.active === true);
+  }
+  return pool;
+}
+
+async function assigneeEligibilityContext(
+  supabase: SupabaseClient,
+  needsProvider: boolean,
+): Promise<{ providerMappingRequired: boolean; providerActiveFor: (id: string) => boolean | null }> {
+  const policy = await assigneeEligibilityPolicyFor(supabase);
+  if (!policy.providerMappingRequired || !needsProvider) {
+    return { ...policy, providerActiveFor: () => null };
+  }
+  const pool = await assigneeProviderPool();
+  return {
+    ...policy,
+    providerActiveFor: (id: string) => (pool.has(id) ? pool.get(id) === true : null),
+  };
+}
+
+async function assigneeRosterRow(
+  supabase: SupabaseClient,
+  assigneeId: string,
+): Promise<JsonMap | null> {
+  const { data, error } = await supabase.from("team_members")
+    .select("id,name,role,team,active,linear_user_id")
+    .eq("id", assigneeId)
+    .maybeSingle();
+  if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
+  return (data || null) as JsonMap | null;
+}
+
+// The one enforcement point every assignment lane shares. It runs before the
+// native state write and before any outbox row exists, so an ineligible or
+// unmirrorable target can no longer be committed and then fail asynchronously.
+async function assertEligibleAssignee(
+  supabase: SupabaseClient,
+  assigneeId: string,
+  team: string,
+): Promise<{ id: string; linearUserId: string } | null> {
+  if (!assigneeId) return null;
+  const member = await assigneeRosterRow(supabase, assigneeId);
+  const context = await assigneeEligibilityContext(supabase, !!member);
+  const verdict = assigneeEligibility(member, team, {
+    providerMappingRequired: context.providerMappingRequired,
+    providerActive: context.providerActiveFor(canonicalLinearUserId(member && member.linear_user_id)),
+  });
+  if (!verdict.eligible) {
+    // Missing, inactive, cross-team, and role-incompatible targets share a 403
+    // so the picker cannot be used to enumerate the roster; unmirrorable ones
+    // keep the existing 409 conflict shape.
+    throw verdict.reason === "assignee_mapping_unavailable"
+        || verdict.reason === "assignee_provider_inactive"
+        || verdict.reason === "assignee_provider_unverified"
+      ? new GatewayError(409, verdict.reason)
+      : new GatewayError(403, verdict.reason === "assignee_role_incompatible"
+        ? "assignee_role_incompatible"
+        : "assignee_out_of_scope");
+  }
+  return { id: clean(member!.id), linearUserId: verdict.linear_user_id };
+}
+
 async function validateAssignee(
   supabase: SupabaseClient,
   assigneeId: string,
   team: string,
 ): Promise<void> {
-  if (!assigneeId) return;
-  const { data, error } = await supabase.from("team_members")
-    .select("id,team,active")
-    .eq("id", assigneeId)
-    .eq("active", true)
-    .maybeSingle();
-  if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
-  if (!data || normalizeTeam((data as JsonMap).team) !== normalizeTeam(team)) {
-    throw new GatewayError(403, "assignee_out_of_scope");
-  }
+  await assertEligibleAssignee(supabase, assigneeId, team);
 }
 
 async function validateCreateAssignee(
@@ -1964,19 +2066,7 @@ async function validateCreateAssignee(
   assigneeId: string,
   team: string,
 ): Promise<{ id: string; linearUserId: string } | null> {
-  if (!assigneeId) return null;
-  const { data, error } = await supabase.from("team_members")
-    .select("id,team,active,linear_user_id")
-    .eq("id", assigneeId)
-    .eq("active", true)
-    .maybeSingle();
-  if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
-  if (!data || normalizeTeam((data as JsonMap).team) !== normalizeTeam(team)) {
-    throw new GatewayError(403, "assignee_out_of_scope");
-  }
-  const linearUserId = clean((data as JsonMap).linear_user_id);
-  if (!linearUserId) throw new GatewayError(409, "assignee_mapping_unavailable");
-  return { id: clean((data as JsonMap).id), linearUserId };
+  return await assertEligibleAssignee(supabase, assigneeId, team);
 }
 
 async function mappedCreateAssignees(
@@ -1984,25 +2074,18 @@ async function mappedCreateAssignees(
   team: string,
 ): Promise<JsonMap[]> {
   const normalizedTeam = normalizeTeam(team);
+  if (!normalizedTeam) throw new GatewayError(400, "invalid_team");
   const { data, error } = await supabase.from("team_members")
-    .select("id,name,team,active,linear_user_id")
+    .select("id,name,role,team,active,linear_user_id")
     .eq("active", true)
     .eq("team", normalizedTeam);
   if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
-  return ((data || []) as JsonMap[])
-    .filter(member =>
-      normalizeTeam(member.team) === normalizedTeam
-      && clean(member.id)
-      && clean(member.linear_user_id)
-    )
-    .map(member => ({
-      id: clean(member.id),
-      name: clean(member.name) || "Unnamed team member",
-    }))
-    .sort((left, right) =>
-      clean(left.name).localeCompare(clean(right.name))
-      || clean(left.id).localeCompare(clean(right.id))
-    );
+  const rows = (data || []) as JsonMap[];
+  const context = await assigneeEligibilityContext(supabase, rows.length > 0);
+  return eligibleAssigneeProjection(rows, normalizedTeam, {
+    providerMappingRequired: context.providerMappingRequired,
+    providerActiveFor: context.providerActiveFor,
+  }) as unknown as JsonMap[];
 }
 
 async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Promise<string> {
@@ -2494,6 +2577,58 @@ async function handleCreateOptions(
     authority: scope.authority,
     catalog,
     assignees,
+  });
+}
+
+// F94 — the picker's source of truth. It resolves the target deliverable's own
+// team and returns exactly the projection the commit will accept, so a stale
+// or hand-built picker can no longer offer a candidate the gateway refuses.
+// Only callers who may actually perform the assignee operation may read it.
+async function handleAssigneeOptions(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+): Promise<Response> {
+  if (surfaceFor(body) !== "production") {
+    throw new GatewayError(400, "invalid_surface_operation");
+  }
+  const id = clean(body.id);
+  if (!id) throw new GatewayError(400, "entity_id_required");
+  const requestedClientSlug = clean(body.client_slug);
+  if (!requestedClientSlug) throw new GatewayError(400, "client_slug_required");
+  // Same anti-enumeration ordering as the other protected reads: authenticate
+  // against the declared roster scope before the id is resolved, and collapse
+  // every miss into one 403.
+  const principal = await authenticate(supabase, req, body, requestedClientSlug);
+  if (principal.kind === "client") throw new GatewayError(403, "assignee_scope_forbidden");
+  const client = principal.client || await clientBySlug(supabase, requestedClientSlug);
+  if (!client || client.active !== true) throw new GatewayError(403, "assignee_scope_forbidden");
+  const { data, error } = await supabase.from("deliverables")
+    .select("id,client_slug,team,status,assignee_id")
+    .eq("id", id)
+    .eq("client_slug", requestedClientSlug)
+    .maybeSingle();
+  if (error) throw new GatewayError(503, "entity_lookup_unavailable");
+  if (!data) throw new GatewayError(403, "assignee_scope_forbidden");
+  const existing = data as JsonMap;
+  const team = normalizeTeam(existing.team);
+  if (!team) throw new GatewayError(403, "assignee_scope_forbidden");
+  if (principal.kind === "staff"
+      && !staffOperationAllowed(principal.keyRole, "assignee", principal.memberTeam, team, "", {
+        currentStatus: lower(existing.status),
+        targetAssigneeId: clean(existing.assignee_id),
+        actorMemberId: clean(principal.memberId),
+      })) {
+    throw new GatewayError(403, "assignee_scope_forbidden");
+  }
+  return json({
+    ok: true,
+    complete: true,
+    id,
+    client_slug: clean(existing.client_slug),
+    team,
+    current_assignee_id: clean(existing.assignee_id) || null,
+    assignees: await mappedCreateAssignees(supabase, team),
   });
 }
 
@@ -3213,8 +3348,15 @@ async function handleEntityOperation(
   if (surface === "workload" && operation === "due" && !clean(body.expected_updated_at)) {
     throw new GatewayError(400, "cas_required");
   }
+  // F136: the creative decision now reads the row's current status and current
+  // assignee, not just the requested next status. CAS still guards concurrency;
+  // this guards legality.
   if (principal.kind === "staff"
-      && !staffOperationAllowed(principal.keyRole, operation, principal.memberTeam, team, nextStatus)) {
+      && !staffOperationAllowed(principal.keyRole, operation, principal.memberTeam, team, nextStatus, {
+        currentStatus: lower(existing.status),
+        targetAssigneeId: clean(existing.assignee_id),
+        actorMemberId: clean(principal.memberId),
+      })) {
     throw new GatewayError(403, "operation_forbidden");
   }
   if ((operation === "labels" || operation === "description" || operation === "attachment")
@@ -4561,6 +4703,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     if (lower(body.action) === "create_options") {
       return await handleCreateOptions(supabase, req, body);
+    }
+    if (lower(body.action) === "assignee_options") {
+      return await handleAssigneeOptions(supabase, req, body);
     }
     if (body.action !== undefined) throw new GatewayError(400, "unsupported_action");
     const operation = normalizeOperation(body.operation);

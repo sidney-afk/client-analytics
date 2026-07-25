@@ -1,6 +1,9 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-25 @ ecc88ff + F200 live data repair and the live-applied/deployed Slice 4
+> Last verified: 2026-07-25 @ aaccfb2 + Slice 5 candidate source (F37/F94/F136 assignment and
+> transition policy, F95 foreground refresh, and the measured Production read-path fix — all
+> unmerged; the read-path migration is source-only), plus F200 live data repair and the
+> live-applied/deployed Slice 4
 > (F201/F202/F203/F39-F42-F43/F34-F53 migrations applied 2026-07-24, functions deployed from
 > `1738ad3`, F42 linked-cohort import executed 2026-07-25; TEST drills still owed), integrated
 > boot-audit vault
@@ -472,12 +475,45 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   from `1738ad3`; the real TEST creation drill is still owed.
 - A protected-write 401 becomes toast copy only: Production does not clear/reverify the staff session,
   open sign-in, preserve/replay the action after fresh authorization, or otherwise recover (F10).
-- F94: manual assignment is not eligibility-safe yet. The picker/server accept any active same-team
-  roster row and do not preflight compatible creative role plus usable Linear mapping before the
-  native commit. This remains a first-flip blocker even though the control is deployed.
-- F95: operational data loads at mount and on focus/visibility/pageshow return; the repeating timer
-  refreshes only authority. There is no operational realtime/poll fallback or ordinary Refresh
-  control, so a continuously foreground Production tab can remain stale indefinitely.
+- F94: manual assignment was not eligibility-safe: the picker and server accepted any active
+  same-team roster row and did not preflight compatible creative role plus usable Linear mapping
+  before the native commit. Slice 5 candidate source closes it with one server-authoritative
+  eligible-assignee projection (`assigneeEligibility` / `eligibleAssigneeProjection` in
+  `supabase/functions/production-write/policy.mjs`) enforced at commit by `assertEligibleAssignee` for both the manual
+  and create lanes, consumed by the picker through the new protected `assignee_options` action, and
+  requiring active native member + exact per-team creative role (`video`=`editor`,
+  `graphics`=`designer`) + a Linear mapping the provider confirms active. A missing or malformed
+  `production_assignee_eligibility` flag stays strictest; only the exact
+  `{"provider_mapping_required": false}` value drops the provider requirement at retirement. A
+  read-only aggregate audit of 863 live non-terminal assignments found 777 already eligible, 79
+  pointing at inactive members and 7 cross-team, and zero unmapped — the strict role default
+  excludes nobody who is currently eligible, because every admin/SMM roster row carries no team.
+  Candidate source only; not merged and dark behind team authority.
+- F95: operational data loaded at mount and on focus/visibility/pageshow return; the repeating timer
+  refreshed only authority, so a continuously foreground Production tab could remain stale
+  indefinitely with no last-success age, degraded state, or Refresh control. Slice 5 candidate
+  source adds a bounded foreground loop that reads a `updated_at` delta rather than re-pulling,
+  refreshes the open comment thread on the same tick, invalidates scoped reads only for rows that
+  actually changed (open drafts are preserved and marked stale), backs off exponentially on
+  failure, runs a slower full reconcile so hard deletions converge, and exposes a live-region
+  last-success age plus a keyboard/touch-reachable Refresh.
+- The Production read path is the reason F95 needed a fix first, not just a timer. A 2026-07-25
+  read-only anon timing probe (`qa/probes/prod_read_path_timing.js`) measured
+  `production_deliverables_browser_v1` at ~1.2-1.5 s upstream per 1000-row page over 4,612 rows.
+  The cost is neither the sort (two columns under the same `ORDER BY`: 24 ms) nor the Workload
+  label lateral (pruned when unselected) — it is the 24 separate `linear_raw` extractions in the
+  view, one detoast each: 0/1/24 raw columns under the same order cost 16/224/1216 ms. Because
+  `ORDER BY` forces every page to project the whole relation, an offset walk of the projection costs
+  ~5.9-6.0 s of upstream time, and the shipped browser issued four of those pages concurrently.
+  Under that burst each page inflates to 2.1-2.5 s (three observed bursts, 0/12 failures in this
+  window; the reported 15/15 `57014`/HTTP 500 reproduction is a threshold effect at higher baseline
+  load, not contradicted here). Slice 5 candidate source replaces offset paging with a sequential
+  primary-key keyset walk (measured 5.94 s -> 3.40 s of upstream time, no concurrent burst), and a
+  source-only migration (`migrations/2026-07-25-slice5-production-read-path.sql`) rebuilds the view
+  so each row detoasts once (offline PostgreSQL 16, 4,626 rows: 951.8 ms -> 312.5 ms per page,
+  3.0x, output proven byte-identical in both directions of `EXCEPT ALL` including 14 adversarial
+  `linear_raw` shapes). A composite index on `deliverables(team, status, due_date)` was measured and
+  rejected: the planner keeps the sequential scan and the page still costs ~1.28 s.
 - F96: at touch-mobile widths the sidebar is hidden, taking My issues and the visible palette
   trigger with it. The mobile top bar has no personal/team queue switch; `?view=my` works only when
   supplied directly or reached through a hardware-keyboard shortcut.
@@ -489,8 +525,20 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   Native events are written. Issue detail invokes the event loader for the Properties status-history
   hover, but the loader collapses failure to an empty array and the Activity renderer still has no
   render caller; detail shows Comments only (F138).
-- Creative policy is same-team-wide and checks next status without current status or assignee, so it
-  can regress reviewer/terminal work or mutate peer work after a flip (F37/F136).
+- Creative policy was same-team-wide and checked next status without current status or assignee, so
+  it could regress reviewer/terminal work or mutate peer work after a flip (F37/F136). Slice 5
+  candidate source replaces that flat allowlist with one server-owned role × current × next × team ×
+  assignee state machine (`CREATIVE_STATUS_TRANSITIONS` in `supabase/functions/production-write/policy.mjs`, mirrored
+  byte-for-byte by `PROD_CREATIVE_STATUS_TRANSITIONS` in `index.html` and drift-guarded by
+  `test/production-assignment-transition-policy.js`). It is a strict subset of what shipped: the
+  work loop plus the SMM handoff, nothing out of `smm_approval`/`kasper_approval`/`client_approval`/
+  `approved`/`scheduled`/`posted`/`canceled`/`duplicate`, no creative cancel or duplicate, and
+  `status`/`attachment` bound to the row's current assignee while `comment` stays same-team-wide.
+  An omitted current-state context denies rather than defaulting open. "My issues" and "Assigned to
+  me" now resolve from the member id staff sign-in verified — the shipped name heuristic
+  (a specially named assignee if present, else the first active assignee) is gone, and a
+  signed-out, off-roster or deactivated session gets an explicit no-personal-queue state instead of
+  someone else's work. Candidate source only; not merged.
 - Video delivery/source data is collapsed from four typed fields to one priority winner labelled
   “Delivered file”; filming plan/raw footage can be hidden or mislabeled (F137).
 - The 2026-07-23 full-day audit remains immutable findings evidence. F200's owner-approved roster/data

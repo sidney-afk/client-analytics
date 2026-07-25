@@ -598,6 +598,11 @@ n8n in the metric read path.*
   without compatible-role or usable-Linear-mapping enforcement before the native commit (F94).
   Creative authorization also lacks current-status/assignee input, so same-team creatives can regress
   reviewer/terminal work or cancel/duplicate it unless a separate owner policy is enforced (F136).
+  Slice 5 candidate source closes F37/F94/F136 and F95 — one eligible-assignee projection shared by
+  the picker, the create form and the commit; one role × current × next × team × assignee state
+  machine mirrored by the picker; an identity-bound personal queue; and a bounded foreground delta
+  refresh sitting on a keyset read path — but it is **unmerged and undeployed**, so everything
+  described above is still the live truth.
   Video's four typed resources collapse into one priority-selected URL always labelled Delivered file
   (F137), and native activity events are read only for a failure-collapsed status-history hover,
   never rendered as Activity (F138).

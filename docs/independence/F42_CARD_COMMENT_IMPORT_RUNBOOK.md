@@ -45,7 +45,7 @@ explicit zero-count manifest with the matching stable source hash. Missing/parti
 malformed non-empty comment fields, count/hash mismatches, duplicate identities, missing parents,
 and parent cycles are blocking conflicts rather than silent skips.
 
-## Import scope: linked cohort (`missing_deliverable_id` defers)
+## Import scope: linked cohort (blocking conflicts / deferrals / link defects)
 
 A canonical comment is addressed by its card's native deliverable id. A card with **no** such
 binding has nothing for the crosswalk to point at, so its comments are **out of scope** for an
@@ -53,20 +53,35 @@ import run rather than defective — no owner action taken during the window mak
 At the 2026-07-24 plan run this was 6,032 of 6,681 comment rows (only 3 of 1,722 Samples cards were
 linked), and treating them as conflicts blocked the 649 plannable rows indefinitely.
 
-`missing_deliverable_id` is therefore the single **deferred** classification: reported in
-`plan.deferrals` and in the run summary with exact counts by surface, never imported, and never
-plan-blocking. `plan.complete` means *complete for scope* — every in-scope (linked) row planned
-cleanly — and `plan.scope` records the policy plus the planned/deferred counts so a linked-cohort
-plan can never be mistaken for a whole-source one. The apply runner refuses any plan whose
-`scope.policy` it does not recognize.
+A plan therefore sorts every non-importable row into exactly one of three buckets, and only the
+first blocks:
+
+| Bucket | Field | Blocks? | Imported? | Meaning / remedy |
+| --- | --- | :--: | :--: | --- |
+| Conflicts | `plan.conflicts` | **yes** | no | The plan is not certifiable until the owner fixes these. |
+| Deferrals | `plan.deferrals` | no | no | Out of scope — no target exists (`missing_deliverable_id`, `deliverable_not_found`). Resolves itself once the card is linked; a later plan picks the rows up automatically. |
+| Link defects | `plan.defects` | no | no | The deliverable **exists** but belongs to a different card/client/team/origin (`deliverable_crosswalk_mismatch`). Needs a **linkage-repair session** — it will *not* resolve itself. |
+
+Defects and deferrals are treated identically by the apply path: excluded from the apply set and
+from the apply digest, so they can never reach a wrong deliverable. They are reported **separately**
+because the remedy differs, each in its own titled run-summary section with the same
+classification × surface × reason counts. The per-row card/comment identity for every defect stays in
+the runner-local plan for the repair session, and never reaches the public log.
+
+`plan.complete` means *complete for scope* — every in-scope, cleanly-linked row planned cleanly —
+and `plan.scope` records the policy plus the planned/deferred/defect counts so a linked-cohort plan
+can never be mistaken for a whole-source one. The apply runner refuses any plan whose `scope.policy`
+it does not recognize, or which fails to report either non-blocking bucket.
 
 **Every other conflict class stays blocking**, including `missing_client_slug`, malformed
-lifecycle timestamps, invalid rounds, audience quarantines, duplicate identities, parent cycles and
-coverage mismatches. Source-coverage certification is unaffected: the exporter's independent
-manifest must still match what the planner read.
+lifecycle timestamps, invalid rounds, NUL bytes, audience quarantines, duplicate identities, parent
+cycles and coverage mismatches — including when they occur alongside a defect. Source-coverage
+certification is unaffected: the exporter's independent manifest must still match what the planner
+read.
 
-Deferred rows are picked up automatically by a later plan once their card gains a deliverable
-binding — no replan flag or manual step is required.
+The RPC's own crosswalk refusal is deliberately left in place as the **apply-time backstop**: even
+if this classification were ever wrong, `production_comment_card_import` still refuses a row whose
+deliverable does not match, so nothing can be written to the wrong target.
 
 ## RPC parity: the plan must never be rejected by the import
 
@@ -78,7 +93,7 @@ every rule `production_comment_card_import`, `production_comment_upsert` and the
 | Enforcement | Planner classification |
 | --- | --- |
 | Deliverable row must exist | `deliverable_not_found` (**deferred** — no target exists) |
-| Deliverable `origin`/`team`/`client_slug`/`card_id` must match the card | `deliverable_crosswalk_mismatch` (**blocking** — wrong target) |
+| Deliverable `origin`/`team`/`client_slug`/`card_id` must match the card | `deliverable_crosswalk_mismatch` (**link defect** — wrong target; non-blocking, never imported) |
 | `text` cannot hold a NUL byte (PostgREST rejects the whole call) | `unsupported_text_control_character` |
 | `round` is `integer` (int4) and `> 0` | `invalid_round` (`round_exceeds_int4_range`) |
 | `source_*`/`edited_at`/`deleted_at`/`resolved_at` cast to `timestamptz` | `malformed_lifecycle_timestamp` |

@@ -23262,6 +23262,139 @@
         if (!post) return '';
         return String((component === 'graphic' ? post.graphic_deliverable_id : post.video_deliverable_id) || '').trim();
     }
+    /* F42 crosswalk parity for the canonical comment gate.
+
+       Carrying a deliverable id is NOT the same as being linked. The import RPC
+       — and `scripts/f42-card-comment-import.js`, which mirrors it exactly —
+       accepts a card's comment only when the deliverable it names actually
+       DESCRIBES that card: matching origin, team, client_slug and card_id. A
+       card whose link fails that check has no canonical thread the import can
+       ever write into, so treating it as "linked" projects an EMPTY canonical
+       read over the card's real legacy comments. On calendar that is not merely
+       a blank render: `_calSetCommentsFor` also rewrites the `*_tweaks` wire
+       string, and the next save persists the emptied column — durable loss of
+       comment history, on staff sessions as well as client ones.
+
+       Live evidence for why this is not hypothetical: of the deliverables with
+       origin='manual', ZERO carry a card_id, so every card-side-only link write
+       produces exactly this state. See
+       docs/independence/F42_CARD_DELIVERABLE_LINKAGE_REPORT.md.
+
+       The gate therefore requires a VALIDATED link and fails back to legacy
+       rendering on mismatch, on a missing deliverable, and on any fetch
+       failure. Unknown is treated as not-linked: showing legacy comments a
+       moment longer is always recoverable; overwriting them is not. */
+    const PROD_CROSSWALK_SURFACE_ORIGIN = { calendar: 'calendar', sxr: 'samples' };
+    const PROD_CROSSWALK_SELECT = 'id,client_slug,team,origin,card_id';
+    function _prodCrosswalkTeamForComponent(component) {
+        return component === 'graphic' ? 'graphics' : 'video';
+    }
+    function _prodCrosswalkCardSlug(post) {
+        return String((post && (post.client_slug || post.client)) || '').trim();
+    }
+    /* Mirrors deliverableCrosswalkIssues() in scripts/f42-card-comment-import.js:
+       origin and team compare case-insensitively; client_slug and card_id
+       compare exactly after trimming. Returns the sorted mismatching field
+       names, so the reason string matches the planner's `crosswalk_fields:` form. */
+    function _prodCrosswalkMismatchFields(deliverable, surface, post, component) {
+        const low = v => String(v == null ? '' : v).trim().toLowerCase();
+        const exact = v => String(v == null ? '' : v).trim();
+        const expectedOrigin = PROD_CROSSWALK_SURFACE_ORIGIN[low(surface)] || '';
+        const fields = [];
+        if (low(deliverable && deliverable.origin) !== expectedOrigin) fields.push('origin');
+        if (low(deliverable && deliverable.team) !== _prodCrosswalkTeamForComponent(component)) fields.push('team');
+        if (exact(deliverable && deliverable.client_slug) !== _prodCrosswalkCardSlug(post)) fields.push('client_slug');
+        if (exact(deliverable && deliverable.card_id) !== exact(post && post.id)) fields.push('card_id');
+        return fields.sort();
+    }
+    /* Verdict cache lives on the post, mirroring `_canonicalCommentReads`, so
+       the gate stays synchronous for the 16 render/write call sites that read
+       it. `state` is one of: valid | mismatch | absent | error. Anything other
+       than 'valid' — including a deliverable id nobody has resolved yet —
+       renders legacy. */
+    function _prodCrosswalkVerdict(post, deliverableId) {
+        const slots = post && post._canonicalCrosswalk;
+        const verdict = slots && deliverableId ? slots[deliverableId] : null;
+        return verdict && typeof verdict === 'object' ? verdict : null;
+    }
+    function _prodCrosswalkSetVerdict(post, deliverableId, verdict) {
+        if (!post || !deliverableId) return;
+        if (!post._canonicalCrosswalk || typeof post._canonicalCrosswalk !== 'object') {
+            post._canonicalCrosswalk = {};
+        }
+        post._canonicalCrosswalk[deliverableId] = verdict;
+    }
+    /* Reads the crosswalk columns the anon role is granted on `deliverables`
+       (id, client_slug, team, origin, card_id — the same five the F42 exporter
+       projects). A non-OK response or a throw leaves every requested id
+       unresolved, which the gate reads as not-linked. */
+    async function _prodFetchCrosswalkRows(ids) {
+        const wanted = [...new Set((ids || []).map(id => String(id || '').trim()).filter(Boolean))];
+        if (!wanted.length) return { ok: true, rows: new Map() };
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return { ok: false, rows: new Map() };
+        // Quote each id for the PostgREST in.(...) list. Escaping uses
+        // split/join rather than a regex literal holding a double quote, and
+        // this comment avoids apostrophes and backticks on purpose: the source
+        // extractor the tests use tracks quote characters but not regex
+        // literals or comments, so either one desynchronises its brace
+        // matching and swallows the rest of the file.
+        const list = wanted.map(id => '"' + String(id).split('"').join('\\"') + '"').join(',');
+        const url = CAL_SUPABASE_URL + '/rest/v1/deliverables?select=' + PROD_CROSSWALK_SELECT
+            + '&id=in.(' + encodeURIComponent(list) + ')';
+        try {
+            const response = await fetch(url, {
+                cache: 'no-store',
+                headers: {
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json'
+                }
+            });
+            if (!response.ok) return { ok: false, rows: new Map() };
+            const payload = await response.json();
+            if (!Array.isArray(payload)) return { ok: false, rows: new Map() };
+            const rows = new Map();
+            payload.forEach(row => {
+                const id = String((row && row.id) || '').trim();
+                if (id) rows.set(id, row);
+            });
+            return { ok: true, rows };
+        } catch (_e) {
+            return { ok: false, rows: new Map() };
+        }
+    }
+    /* Resolves every (component -> deliverable id) the card names and stamps a
+       verdict for each. Returns the set of components whose link is crosswalk
+       VALID — the only ones a canonical projection may touch. */
+    async function _prodResolveCardCrosswalk(surface, post, components) {
+        const wanted = new Map();
+        (components || []).forEach(component => {
+            const deliverableId = _writeUiNativeId(post, component);
+            if (deliverableId) wanted.set(component, deliverableId);
+        });
+        if (!wanted.size) return new Set();
+        const { ok, rows } = await _prodFetchCrosswalkRows([...wanted.values()]);
+        const valid = new Set();
+        wanted.forEach((deliverableId, component) => {
+            if (!ok) {
+                _prodCrosswalkSetVerdict(post, deliverableId, { state: 'error', fields: [] });
+                return;
+            }
+            const deliverable = rows.get(deliverableId);
+            if (!deliverable) {
+                _prodCrosswalkSetVerdict(post, deliverableId, { state: 'absent', fields: [] });
+                return;
+            }
+            const fields = _prodCrosswalkMismatchFields(deliverable, surface, post, component);
+            if (fields.length) {
+                _prodCrosswalkSetVerdict(post, deliverableId, { state: 'mismatch', fields });
+                return;
+            }
+            _prodCrosswalkSetVerdict(post, deliverableId, { state: 'valid', fields: [] });
+            valid.add(component);
+        });
+        return valid;
+    }
     function _writeUiNativeStatus(value) {
         const s = String(value || '').trim().toLowerCase();
         if (!s) return '';
@@ -46236,8 +46369,16 @@
             const state = calendar ? calState : sxrState;
             const post = state && Array.isArray(state.posts) ? state.posts.find(row => String(row.id) === String(pid)) : null;
             if (!post) return false;
-            const components = calendar ? _calComponentsFor(post) : SXR_COMPONENTS;
+            const allComponents = calendar ? _calComponentsFor(post) : SXR_COMPONENTS;
             post._canonicalCommentReads = post._canonicalCommentReads || {};
+            // Resolve the F42 crosswalk BEFORE projecting anything. A component
+            // whose link does not validate is left entirely alone: no read, no
+            // projection, no setter call — so its legacy card comments (and, on
+            // calendar, its *_tweaks wire string) survive untouched.
+            const validComponents = await _prodResolveCardCrosswalk(surface, post, allComponents);
+            const components = allComponents.filter(component => validComponents.has(component));
+            if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
+            if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
             const groups = new Map();
             components.forEach(component => {
                 const deliverableId = _writeUiNativeId(post, component);
@@ -46301,6 +46442,25 @@
                         const tagged = String(row.component || '').trim();
                         return tagged ? tagged === component : component === linkedComponents[0];
                     });
+                    // A valid link still fans one deliverable id out across
+                    // several components: `video_deliverable_id` governs video,
+                    // caption AND title. A canonical thread that carries no row
+                    // tagged for a sibling component would otherwise zero that
+                    // component's legacy array and wire string. An empty
+                    // projection never overwrites non-empty legacy content —
+                    // the destructive direction is the one we refuse.
+                    //
+                    // Scoped to the two paths that write LEGACY storage. The
+                    // client SXR path writes `_canonicalCommentsByComponent`,
+                    // a separate slot whose deliberate pre-authorization clear
+                    // must not be blocked.
+                    const writesLegacy = calendar || !_isClientLink;
+                    if (!projected.length && writesLegacy) {
+                        const legacy = calendar
+                            ? _calCommentsFor(post, component)
+                            : _sxrCommentsFor(post, component);
+                        if (Array.isArray(legacy) && legacy.length) return;
+                    }
                     if (calendar) {
                         _calSetCommentsFor(post, component, projected);
                         if (component === 'video') post.comments = projected;
@@ -46326,6 +46486,23 @@
         function _prodCanonicalCommentGate(post, component) {
             const deliverableId = _writeUiNativeId(post, component);
             if (!deliverableId) return { linked: false, ready: false, client: false, status: 'unlinked' };
+            // Canonical-where-VALIDLY-linked. A deliverable id alone is not a
+            // link: unless the deliverable's origin/team/client_slug/card_id
+            // describe this exact card, the F42 import can never write a
+            // canonical thread for it, and claiming `linked` here would project
+            // an empty thread over the card's real legacy comments. Unresolved
+            // and failed lookups fall back to legacy for the same reason.
+            const crosswalk = _prodCrosswalkVerdict(post, deliverableId);
+            if (!crosswalk || crosswalk.state !== 'valid') {
+                return {
+                    linked: false,
+                    ready: false,
+                    client: false,
+                    status: crosswalk && crosswalk.state
+                        ? 'crosswalk_' + crosswalk.state
+                        : 'crosswalk_unresolved'
+                };
+            }
             const state = post && post._canonicalCommentReads && post._canonicalCommentReads[deliverableId];
             const expectedClientSurface = _isClientLink
                 ? _prodVerifiedClientCommentSurfaceContext('sxr', post, component, deliverableId)

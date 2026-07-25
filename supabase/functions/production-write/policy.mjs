@@ -34,16 +34,33 @@ export const DELIVERABLE_STATUSES = Object.freeze([
 ]);
 
 const CLIENT_STATUSES = new Set(["approved", "tweak"]);
-const CREATIVE_STATUSES = new Set([
-  "triage",
-  "backlog",
-  "todo",
-  "in_progress",
-  "smm_approval",
-  "tweak",
-  "canceled",
-  "duplicate",
-]);
+
+// F136 — one server-owned role × current × next × team × assignee state
+// machine. The previous contract exposed a flat next-status set with no
+// current-state or ownership input, so a creative could regress reviewer or
+// terminal work (kasper_approval / client_approval / approved / scheduled /
+// posted) to To Do or Tweak, cancel it, or mark it duplicate, and could do all
+// of that on a peer's row reached through All or a direct link.
+//
+// This table is the fail-closed default pending the owner's answer to gap-audit
+// question 10 ("which current→next status actions may an eligible Graphics
+// Creative perform?"). It is a strict subset of what shipped before: every
+// transition it allows was already allowed, and it newly denies reviewer and
+// terminal current states, cancel, duplicate, tweak-as-a-verdict, and peer work.
+// Widening it is an owner decision, not a code default.
+export const CREATIVE_STATUS_TRANSITIONS = Object.freeze({
+  triage: Object.freeze(["backlog", "todo", "in_progress"]),
+  backlog: Object.freeze(["todo", "in_progress"]),
+  todo: Object.freeze(["backlog", "in_progress"]),
+  in_progress: Object.freeze(["backlog", "todo", "smm_approval"]),
+  tweak: Object.freeze(["todo", "in_progress"]),
+});
+
+// Operations a creative may perform only on work that is assigned to them.
+// `comment` is deliberately absent: it is additive, cannot regress state, and
+// keeping it same-team-wide preserves today's collaboration. That split is
+// surfaced as an owner one-liner rather than silently chosen.
+const CREATIVE_ASSIGNEE_BOUND_OPERATIONS = new Set(["status", "attachment"]);
 const TEAM_KEYS = Object.freeze({
   video: "video",
   vid: "video",
@@ -113,16 +130,152 @@ export function roleCompatible(keyRole, memberRole) {
   return false;
 }
 
-export function staffOperationAllowed(keyRole, operation, memberTeam, targetTeam, nextStatus = "") {
+export function creativeNextStatuses(currentStatus) {
+  return CREATIVE_STATUS_TRANSITIONS[lower(currentStatus)] || [];
+}
+
+export function creativeTransitionAllowed(currentStatus, nextStatus) {
+  const next = lower(nextStatus);
+  return !!next && creativeNextStatuses(currentStatus).includes(next);
+}
+
+export function creativeOwnsTarget(actorMemberId, targetAssigneeId) {
+  const actor = clean(actorMemberId);
+  return !!actor && actor === clean(targetAssigneeId);
+}
+
+// `context` carries the current row state the F136 matrix needs. It is optional
+// only for admin/SMM, whose authority never depends on it; a creative decision
+// with an absent context resolves to "no transition available" and denies.
+export function staffOperationAllowed(
+  keyRole,
+  operation,
+  memberTeam,
+  targetTeam,
+  nextStatus = "",
+  context = {},
+) {
   const key = lower(keyRole);
   const op = normalizeOperation(operation);
   if (!op) return false;
   if (key === "admin" || key === "smm") return true;
-  if (key !== "creative" || normalizeTeam(memberTeam) !== normalizeTeam(targetTeam)) return false;
+  if (key !== "creative" || !normalizeTeam(memberTeam)
+      || normalizeTeam(memberTeam) !== normalizeTeam(targetTeam)) return false;
+  const scope = context && typeof context === "object" ? context : {};
+  if (CREATIVE_ASSIGNEE_BOUND_OPERATIONS.has(op)
+      && !creativeOwnsTarget(scope.actorMemberId, scope.targetAssigneeId)) return false;
   if (op === "comment") return true;
   if (op === "attachment") return normalizeTeam(targetTeam) === "graphics";
-  if (op === "status") return CREATIVE_STATUSES.has(lower(nextStatus));
+  if (op === "status") return creativeTransitionAllowed(scope.currentStatus, nextStatus);
   return false;
+}
+
+// F136's browser mirror. The picker must offer exactly the set the gateway
+// would accept, so both sides read this one projection.
+export function staffNextStatuses(keyRole, memberTeam, targetTeam, context = {}) {
+  const key = lower(keyRole);
+  if (key === "admin" || key === "smm") return [...DELIVERABLE_STATUSES];
+  return DELIVERABLE_STATUSES.filter(status =>
+    staffOperationAllowed(key, "status", memberTeam, targetTeam, status, context));
+}
+
+// F94 — one server-authoritative eligible-assignee projection.
+//
+// The shipped picker offered every active same-team roster row and the gateway
+// validated only id + active + team, so a manual reassignment could commit an
+// owner-approved-role mismatch or an unmirrorable target; the native write
+// succeeded and the asynchronous linear-outbound push threw later. The same
+// projection now backs the picker, the create form, and the commit.
+//
+// Roles are exact per team pending the owner's answer to the F94 register
+// question ("may admin/SMM ever own a creative deliverable, or is
+// Video=editor and Graphics=designer exact?"). The live roster carries no team
+// on any admin/SMM row, so the strict default excludes nobody who is currently
+// eligible.
+export const CREATIVE_ROLE_BY_TEAM = Object.freeze({
+  video: "editor",
+  graphics: "designer",
+});
+
+export const ASSIGNEE_INELIGIBLE_REASONS = Object.freeze([
+  "assignee_not_found",
+  "assignee_inactive",
+  "assignee_out_of_scope",
+  "assignee_role_incompatible",
+  "assignee_mapping_unavailable",
+  "assignee_provider_inactive",
+  "assignee_provider_unverified",
+]);
+
+export function assigneeRoleForTeam(team) {
+  return CREATIVE_ROLE_BY_TEAM[normalizeTeam(team)] || "";
+}
+
+export function canonicalLinearUserId(value) {
+  const id = clean(value);
+  return SAFE_LINEAR_ID.test(id) ? id : "";
+}
+
+// The runtime flag is a retirement switch only. Missing, unreadable and
+// malformed values keep the strictest contract; exactly
+// { "provider_mapping_required": false } drops the provider requirement, which
+// is the atomic change the register reserves for retired mode.
+export function assigneeEligibilityPolicy(value) {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed); } catch (_error) { parsed = null; }
+  }
+  const required = !(parsed
+    && typeof parsed === "object"
+    && !Array.isArray(parsed)
+    && parsed.provider_mapping_required === false);
+  return { providerMappingRequired: required };
+}
+
+// `providerActive` is a tri-state: true (provider says active), false (provider
+// says inactive/archived), null (not proven). While the provider mapping is
+// required, "not proven" is a denial, not a pass.
+export function assigneeEligibility(member, team, options = {}) {
+  const wantedTeam = normalizeTeam(team);
+  const row = member && typeof member === "object" ? member : null;
+  const providerRequired = !options || options.providerMappingRequired !== false;
+  const providerActive = options && Object.prototype.hasOwnProperty.call(options, "providerActive")
+    ? options.providerActive
+    : null;
+  const linearUserId = canonicalLinearUserId(row && row.linear_user_id);
+  const deny = reason => ({ eligible: false, reason, linear_user_id: "" });
+
+  if (!wantedTeam) return deny("assignee_out_of_scope");
+  if (!row || !clean(row.id)) return deny("assignee_not_found");
+  if (row.active !== true) return deny("assignee_inactive");
+  if (normalizeTeam(row.team) !== wantedTeam) return deny("assignee_out_of_scope");
+  if (lower(row.role) !== assigneeRoleForTeam(wantedTeam)) return deny("assignee_role_incompatible");
+  if (providerRequired) {
+    if (!linearUserId) return deny("assignee_mapping_unavailable");
+    if (providerActive === false) return deny("assignee_provider_inactive");
+    if (providerActive !== true) return deny("assignee_provider_unverified");
+  }
+  return { eligible: true, reason: "", linear_user_id: linearUserId };
+}
+
+export function eligibleAssigneeProjection(members, team, options = {}) {
+  return (Array.isArray(members) ? members : [])
+    .map(member => ({ member, verdict: assigneeEligibility(member, team, {
+      ...options,
+      providerActive: options && typeof options.providerActiveFor === "function"
+        ? options.providerActiveFor(canonicalLinearUserId(member && member.linear_user_id))
+        : (options ? options.providerActive : null),
+    }) }))
+    .filter(entry => entry.verdict.eligible)
+    .map(entry => ({
+      id: clean(entry.member.id),
+      name: clean(entry.member.name) || "Unnamed team member",
+      role: lower(entry.member.role),
+      team: normalizeTeam(entry.member.team),
+    }))
+    .sort((left, right) =>
+      clean(left.name).localeCompare(clean(right.name))
+      || clean(left.id).localeCompare(clean(right.id)));
 }
 
 export function staffAssetReadAllowed(keyRole, memberTeam, targetTeam) {

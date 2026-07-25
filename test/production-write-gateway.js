@@ -89,10 +89,13 @@ function extractFunction(name) {
     && !policy.roleCompatible('smm', 'admin'),
   'staff key family must match the active roster role');
 
+  // F136: `mine` is the creative's own In Progress row — the only shape from
+  // which a creative status write is legal at all.
+  const mine = { currentStatus: 'in_progress', targetAssigneeId: 'member-self', actorMemberId: 'member-self' };
   ok(policy.staffOperationAllowed('creative', 'comment', 'VID', 'video')
-    && policy.staffOperationAllowed('creative', 'status', 'video', 'VID', 'smm_approval')
-    && !policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'client_approval')
-    && !policy.staffOperationAllowed('creative', 'assignee', 'video', 'video')
+    && policy.staffOperationAllowed('creative', 'status', 'video', 'VID', 'smm_approval', mine)
+    && !policy.staffOperationAllowed('creative', 'status', 'video', 'video', 'client_approval', mine)
+    && !policy.staffOperationAllowed('creative', 'assignee', 'video', 'video', '', mine)
     && !policy.staffOperationAllowed('creative', 'labels', 'video', 'video')
     && !policy.staffOperationAllowed('creative', 'description', 'video', 'video')
     && !policy.staffOperationAllowed('creative', 'create', 'video', 'video')
@@ -535,15 +538,17 @@ function extractFunction(name) {
     && /lower\(client\.kind\) === "test" && !principal\.testOnly/.test(createPrincipalScope)
     && /test_scope_service_only/.test(createPrincipalScope),
   'create_options is a protected Production-only complete catalog for an active Admin/SMM or exact service TEST scope');
+  // F94: the create form and the manual picker consume one projection, and it
+  // is the same projection the commit enforces.
   ok(/from\("team_members"\)/.test(createAssignees)
-    && /\.select\("id,name,team,active,linear_user_id"\)/.test(createAssignees)
+    && /\.select\("id,name,role,team,active,linear_user_id"\)/.test(createAssignees)
     && /\.eq\("active", true\)/.test(createAssignees)
     && /\.eq\("team", normalizedTeam\)/.test(createAssignees)
-    && /clean\(member\.linear_user_id\)/.test(createAssignees)
-    && /\.map\(member => \(\{[\s\S]{0,100}id: clean\(member\.id\),[\s\S]{0,100}name: clean\(member\.name\)/.test(createAssignees)
-    && /Promise\.all\(\[[\s\S]{0,100}linearLabelCatalog[\s\S]{0,100}mappedCreateAssignees\(supabase, scope\.team\)/.test(createOptions)
+    && /eligibleAssigneeProjection\(rows, normalizedTeam, \{[\s\S]{0,200}providerMappingRequired[\s\S]{0,200}providerActiveFor/.test(createAssignees)
+    && !/linear_user_id:/.test(createAssignees)
+    && /Promise\.all\(\[[\s\S]{0,100}linearLabelCatalog[\s\S]{0,100}mappedCreateAssignees\(scope\.team\)|Promise\.all\(\[[\s\S]{0,100}linearLabelCatalog[\s\S]{0,100}mappedCreateAssignees\(supabase, scope\.team\)/.test(createOptions)
     && /catalog,[\s\S]{0,40}assignees/.test(createOptions),
-  'create_options returns only active same-team Linear-mapped assignee IDs and names without exposing Linear identity mappings');
+  'create_options returns only the eligible-assignee projection: ids and names, no Linear identity mapping');
 
   const principalPosition = createHandler.indexOf('productionCreatePrincipalScope(');
   const replayPosition = createHandler.indexOf('productionCreateReplay(');

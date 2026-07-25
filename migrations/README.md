@@ -196,6 +196,34 @@ executes these files (see `README.md` › Repository layout).
   reviewed SHA `1738ad3`, per-step boolean verified); the F42 linked-cohort
   import executed 2026-07-25 (615 applied / 6,032 deferred / 35 link defects);
   see `EXECUTION_LOG.md`. The TEST drills are still owed.
+- **`2026-07-25-slice5-production-read-path.sql`** is the source-only F95
+  read-path delta. It replaces the `production_deliverables_browser_v1` body in
+  place with `create or replace view`, so column names, order, types, existing
+  SELECT grants, and `security_barrier` are all preserved and nothing is
+  dropped, rewritten, or backfilled. The only change is the extraction
+  mechanism: a guarded `jsonb_to_record` lateral resolves the four top-level
+  `linear_raw` subtrees once per row instead of detoasting the document for each
+  of 24 separate `#>>` extractions. The Workload label lateral is left
+  byte-identical so its completeness contract (including the `labelIds`
+  cross-check) is untouched. It also adds `deliverables_updated_at_idx`, the
+  additive index behind F95's `updated_at` delta predicate.
+  Measured offline on PostgreSQL 16.13 over 4,626 synthetic rows sized to
+  reproduce the live per-row cost: 951.8 ms → 312.5 ms per 1000-row page (3.0×),
+  delta window 6.9 ms → 3.2 ms, with zero-row `EXCEPT ALL` equivalence in both
+  directions across every column — including 14 adversarial `linear_raw` shapes
+  (NULL, JSON null, string, number, array, empty object, non-object and
+  JSON-null subtrees, wrong scalar types, unmatched regex guards, and the three
+  label-completeness shapes). The `jsonb_typeof(...) = 'object'` guard is load
+  bearing: a variant without it errors with `cannot call populate_composite on a
+  scalar` as soon as any row holds a JSON scalar in `linear_raw`. A composite
+  index on `deliverables(team, status, due_date)` was measured and deliberately
+  **not** created — the planner keeps the sequential scan and the page still
+  costs ~1.28 s, because the cost is projection, not ordering. The trade-off is
+  recorded rather than hidden: a deliberately slim unfiltered `SELECT` of this
+  view pays a fixed ~80 ms instead of ~4 ms, and no shipped caller does one. The
+  file changes no table data, column, grant, runtime flag, authority value, n8n
+  workflow, or frozen writer, and carries its owner-only rollback recipe at the
+  bottom. **Source-only** until `EXECUTION_LOG.md` records the apply.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

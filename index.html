@@ -2793,6 +2793,11 @@
         .prod-tab:hover, .prod-tab.active { background: var(--prod-hover); color: var(--prod-text); }
         .prod-tab-static, .prod-tab-static.active, .prod-tab-static:hover { display: inline-flex; align-items: center; background: transparent; color: var(--prod-muted); cursor: default; padding: 0; pointer-events: none; }
         .prod-spacer { flex: 1; }
+        /* F95: last-success age + degraded state + manual Refresh. */
+        .prod-freshness { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+        .prod-freshness-age { font-size: 11px; font-weight: 500; color: var(--prod-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+        .prod-freshness[data-prod-freshness="degraded"] .prod-freshness-age { color: var(--prod-strong); }
+        .prod-freshness[data-prod-freshness="degraded"] .prod-icon-btn { color: var(--prod-strong); }
         .prod-content { flex: 1; min-height: 0; overflow: hidden; display: flex; }
         .prod-listwrap { flex: 1; overflow: auto; }
         .prod-group { position: sticky; top: 0; z-index: 1; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--prod-content); border-bottom: 1px solid var(--prod-divider); }
@@ -3008,6 +3013,9 @@
         .prod-team-name { flex: 1; text-align: left; font-size: 13px; font-weight: 500; }
         .prod-main { border-left: 1px solid var(--prod-border); border-top: 1px solid var(--prod-border); border-top-left-radius: 8px; margin-top: 8px; }
         .prod-topbar { gap: 7px; }
+        /* The age text yields first on narrow widths; the Refresh button and
+           its accessible name always stay reachable by touch. */
+        .prod-freshness-age { display: none; }
         .prod-crumb-sep { color: var(--prod-faint); display: inline-flex; }
         .prod-subbar { min-height: 44px; height: auto; flex: none; border-bottom: 1px solid var(--prod-divider); display: flex; align-items: center; gap: 7px; padding: 5px 16px; box-sizing: border-box; }
         .prod-filter-pills { display: flex; align-items: center; gap: 6px; margin-left: 6px; flex: 1 1 auto; min-width: 0; overflow: hidden; flex-wrap: nowrap; }
@@ -41551,6 +41559,22 @@
             duplicate: 'Duplicate'
         };
         const PROD_STATUS_ORDER = ['backlog','todo','prog','smm','kasper','tweak','client','approved','scheduled','posted','canceled','duplicate','triage'];
+        // F136 — browser mirror of the server-owned role × current × next × team
+        // × assignee state machine in
+        // supabase/functions/production-write/policy.mjs. The picker offers
+        // exactly what the gateway accepts; test/production-transition-policy.js
+        // fails if the two tables drift. Keys and values are the DB status
+        // strings, not the artifact keys.
+        const PROD_CREATIVE_STATUS_TRANSITIONS = {
+            triage: ['backlog', 'todo', 'in_progress'],
+            backlog: ['todo', 'in_progress'],
+            todo: ['backlog', 'in_progress'],
+            in_progress: ['backlog', 'todo', 'smm_approval'],
+            tweak: ['todo', 'in_progress']
+        };
+        // Operations a creative may perform only on work assigned to them.
+        // `comment` is deliberately absent — see the policy module comment.
+        const PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS = ['status', 'attachment'];
         // no-hardcoded-colors: allow-start (artifact-locked, dual-theme)
         const PROD_STATUS_META = {
             triage: { type: 'triage', color: '#f2994a' },
@@ -41633,6 +41657,16 @@
             linearRaw: new Map(),
             labels: new Map(),
             labelRequestTokens: new Map(),
+            // F94: the server-authoritative eligible-assignee projection, keyed
+            // by deliverable id. The picker never builds candidates locally.
+            assigneeOptions: new Map(),
+            assigneeOptionRequestTokens: new Map(),
+            // F95: foreground operational freshness.
+            refreshInFlight: false,
+            refreshFailures: 0,
+            lastSyncAt: 0,
+            lastFullSyncAt: 0,
+            lastSyncError: '',
             assets: new Map(),
             assetRequestTokens: new Map(),
             descriptions: new Map(),
@@ -41845,12 +41879,46 @@
             }
             throw lastErr || new Error(table + ' read failed');
         }
-        async function _prodRestRows(table, select, params, pageSize, maxPages) {
+        async function _prodRestRows(table, select, params, pageSize, maxPages, options) {
             if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase is not configured');
             const rows = [];
             const limit = Math.max(1, Math.min(1000, Number(pageSize || 1000)));
             const cap = Math.max(1, Number(maxPages || 100));
             const cleanParams = String(params || '').split('&').filter(p => p && !/^limit=|^offset=/.test(p)).join('&');
+            const keysetColumn = String(options && options.keysetColumn || '').trim();
+            if (keysetColumn) {
+                // Read-path fix, measured 2026-07-25 against the live anon
+                // endpoint. OFFSET pagination makes PostgreSQL project and sort
+                // the whole relation once per page, so the five boot pages each
+                // cost a full projection (~1.2 s upstream apiece) and the 4-wide
+                // parallel burst below pushed anon requests past the statement
+                // timeout (57014 / HTTP 500, 15/15 in a burst probe). A
+                // primary-key keyset walk is strictly sequential and each page
+                // scans only what is left: 5.85 s -> 3.42 s of upstream time and
+                // no concurrent burst at all.
+                const keysetParams = cleanParams.split('&')
+                    .filter(p => p && !/^order=/.test(p)).join('&');
+                let cursor = '';
+                for (let page = 0; page < cap; page++) {
+                    const url = CAL_SUPABASE_URL + '/rest/v1/' + table
+                        + '?select=' + encodeURIComponent(select)
+                        + '&limit=' + limit
+                        + '&order=' + encodeURIComponent(keysetColumn) + '.asc'
+                        + (cursor ? '&' + encodeURIComponent(keysetColumn) + '=gt.' + encodeURIComponent(cursor) : '')
+                        + (keysetParams ? '&' + keysetParams : '');
+                    const batch = await _prodRestPage(url, table, page);
+                    if (!Array.isArray(batch)) return rows;
+                    rows.push(...batch);
+                    if (batch.length < limit) return rows;
+                    const last = batch[batch.length - 1];
+                    const next = String(last && last[keysetColumn] == null ? '' : last[keysetColumn]);
+                    // A page that cannot advance the cursor would loop forever;
+                    // fail loudly instead of silently truncating the projection.
+                    if (!next || next === cursor) throw new Error(table + ' keyset read stalled');
+                    cursor = next;
+                }
+                throw new Error(table + ' read exceeded pagination cap');
+            }
             const pageUrl = page => {
                 const offset = page * limit;
                 return CAL_SUPABASE_URL + '/rest/v1/' + table
@@ -41884,15 +41952,21 @@
                 && (code === 'PGRST205' || code === '42P01')
                 && /production_deliverables_browser_v1/i.test(detail);
         }
+        const PROD_DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,artifact_revision,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state,identity_repair_reason,identity_repair_resolved_linear_issue_id,raw_issue_parent_id,raw_project_id,raw_attribution_schema,raw_attribution_state,raw_attribution_client_slug,raw_attribution_owner_kind,raw_attribution_source,raw_attribution_provisional_client_slug,raw_attribution_mapping_revision,raw_attribution_repair_required,raw_attribution_reason,raw_attribution_explicit_owner_approved,raw_attribution_has_explicit_decision_ref,raw_attribution_explicit_manifest_sha256,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived';
         async function _prodLoadDeliverableProjection() {
-            const select = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,artifact_revision,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state,identity_repair_reason,identity_repair_resolved_linear_issue_id,raw_issue_parent_id,raw_project_id,raw_attribution_schema,raw_attribution_state,raw_attribution_client_slug,raw_attribution_owner_kind,raw_attribution_source,raw_attribution_provisional_client_slug,raw_attribution_mapping_revision,raw_attribution_repair_required,raw_attribution_reason,raw_attribution_explicit_owner_approved,raw_attribution_has_explicit_decision_ref,raw_attribution_explicit_manifest_sha256,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived';
+            const select = PROD_DELIVERABLE_SELECT;
             try {
+                // The browser sorts every list itself, so the server order only
+                // ever provided stable pagination; a primary-key keyset walk
+                // provides the same stability without re-sorting the relation
+                // per page. See the keyset branch of _prodRestRows.
                 return await _prodRestRows(
                     'production_deliverables_browser_v1',
                     select,
-                    'order=team.asc,status.asc,due_date.asc',
+                    '',
                     1000,
-                    50
+                    50,
+                    { keysetColumn: 'id' }
                 );
             } catch (error) {
                 if (!_prodBrowserProjectionMissing(error)) throw error;
@@ -41904,9 +41978,10 @@
                 return _prodRestRows(
                     'deliverables',
                     legacySelect,
-                    'order=team.asc,status.asc,due_date.asc',
+                    '',
                     1000,
-                    50
+                    50,
+                    { keysetColumn: 'id' }
                 );
             }
         }
@@ -42022,6 +42097,108 @@
         }
         function _prodLabelState(id) {
             return _prodState.labels.get(String(id || '')) || null;
+        }
+        // ---- F94: server-authoritative eligible-assignee projection ----------
+        // The shipped picker listed every active same-team roster row while the
+        // gateway checked only id + active + team, so a manual reassignment
+        // could commit an incompatible role or an unmirrorable target and fail
+        // later in linear-outbound. The picker now renders only what the
+        // gateway's own projection returns, and fails closed (no selectable
+        // candidate) while that projection is loading, refused, or unavailable.
+        function _prodAssigneeOptionsState(id) {
+            return _prodState.assigneeOptions.get(String(id || '')) || null;
+        }
+        function _prodNextAssigneeOptionsToken(id) {
+            id = String(id || '');
+            const token = Number(_prodState.assigneeOptionRequestTokens.get(id) || 0) + 1;
+            _prodState.assigneeOptionRequestTokens.set(id, token);
+            return token;
+        }
+        function _prodAssigneeOptionsErrorText(error) {
+            const code = String(error && (error.code || error.message) || '');
+            if (error && error.status === 401) return 'Staff sign-in expired. Sign in again to choose an assignee.';
+            if (error && error.status === 403) return 'This staff account cannot assign this issue.';
+            if (code === 'assignee_provider_unavailable') return 'Linear could not confirm who is assignable. Nothing was changed.';
+            if (code === 'assignee_lookup_unavailable') return 'The roster could not be read. Nothing was changed.';
+            return 'Eligible assignees could not be loaded. Retry to check the current roster.';
+        }
+        function _prodRefreshAssigneeSurfaces(id) {
+            if (document.getElementById('prodRoot')) _prodRender();
+            const pop = document.querySelector('[data-prod-assign-pop="' + CSS.escape(String(id || '')) + '"]');
+            if (pop) {
+                pop.innerHTML = _prodPickerHTML('assign', _prodCurVal('assign', id), [id]);
+                _prodWirePicker(pop, 'assign', [id]);
+            }
+        }
+        async function _prodEnsureAssigneeOptions(id, force) {
+            id = String(id || '');
+            const issue = _prodIssue(id);
+            if (!issue) return null;
+            const current = _prodAssigneeOptionsState(id);
+            if (!force && current && current.status === 'ready') return current;
+            if (!force && current && current.status === 'loading') return current;
+            const staffIdentity = _syncviewStaffIdentityForHeaders();
+            if (!staffIdentity) {
+                const state = { status: 'error', candidates: [], error: 'Staff sign-in is required to choose an assignee.' };
+                _prodState.assigneeOptions.set(id, state);
+                _prodRefreshAssigneeSurfaces(id);
+                return state;
+            }
+            const verificationEpoch = _syncviewStaffVerificationEpoch;
+            const identitySignature = _syncviewStaffIdentitySignature(staffIdentity);
+            const requestToken = _prodNextAssigneeOptionsToken(id);
+            const requestStillCurrent = () => verificationEpoch === _syncviewStaffVerificationEpoch
+                && identitySignature === _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders())
+                && requestToken === _prodState.assigneeOptionRequestTokens.get(id);
+            _prodState.assigneeOptions.set(id, {
+                status: 'loading',
+                candidates: current && current.candidates || [],
+                error: ''
+            });
+            _prodRefreshAssigneeSurfaces(id);
+            try {
+                const response = await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify({
+                        action: 'assignee_options',
+                        surface: 'production',
+                        id,
+                        client_slug: issue.authorityProject || issue.storedClientSlug || issue.project || ''
+                    })
+                });
+                const json = await response.json().catch(() => ({}));
+                if (!requestStillCurrent()) return null;
+                if (!response.ok || !json || json.ok !== true || json.complete !== true
+                    || !Array.isArray(json.assignees)) {
+                    const error = new Error(String(json && json.error || 'assignee_options_failed'));
+                    error.status = response.status;
+                    error.code = String(json && json.error || 'assignee_options_failed');
+                    throw error;
+                }
+                const candidates = json.assignees
+                    .map(row => ({ id: String(row && row.id || ''), name: String(row && row.name || '') }))
+                    .filter(row => row.id);
+                const state = { status: 'ready', candidates, error: '' };
+                _prodState.assigneeOptions.set(id, state);
+                _prodRefreshAssigneeSurfaces(id);
+                return state;
+            } catch (error) {
+                if (!requestStillCurrent()) return null;
+                _prodState.assigneeOptions.set(id, {
+                    status: 'error',
+                    candidates: [],
+                    error: _prodAssigneeOptionsErrorText(error)
+                });
+                _prodRefreshAssigneeSurfaces(id);
+                return _prodAssigneeOptionsState(id);
+            }
         }
         function _prodNextLabelRequestToken(id) {
             id = String(id || '');
@@ -43371,6 +43548,10 @@
             plus: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>',
             statusField: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 2.2a4.8 4.8 0 0 1 0 9.6z" fill="currentColor"/></svg>'
         };
+        // Wired-only glyph for the F95 freshness control. It stays OUT of
+        // PROD_ICON so that object remains byte-identical to the locked artifact
+        // icon set (test/port-fidelity-check.js enforces that).
+        const PROD_REFRESH_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 7.1a5.3 5.3 0 1 0-.5 3.3"/><path d="M13.5 3.4v3.7H9.8"/></svg>';
         function _prodIcon(name) {
             if (name === 'assign') return PROD_ICON.assignI;
             return PROD_ICON[name] || '';
@@ -44173,16 +44354,50 @@
             const raw = client && client.raw;
             return !!(raw && raw.active !== false && String(raw.kind || '').trim().toLowerCase() === 'test');
         }
+        // F136 — the creative half of the write gate reads the row's current
+        // status and current assignee, exactly like the gateway. A creative can
+        // no longer reach a reviewer/terminal row through All or a direct link
+        // and regress, cancel, or duplicate it, nor mutate a peer's work.
+        function _prodCreativeNextStatuses(issue) {
+            const list = PROD_CREATIVE_STATUS_TRANSITIONS[String(issue && issue.sourceStatus || '').trim().toLowerCase()];
+            return Array.isArray(list) ? list.slice() : [];
+        }
+        function _prodCreativeOwnsTarget(issue) {
+            const identity = _syncviewStaffIdentityForHeaders();
+            const me = String(identity && identity.member && identity.member.id || '').trim();
+            return !!me && me === String(issue && issue.assignee || '').trim();
+        }
         function _prodRoleCanWrite(issue, operation) {
             const identity = _syncviewStaffIdentityForHeaders();
             if (!identity || !issue) return false;
             const role = String(identity.role || '').trim().toLowerCase();
             if (role === 'admin' || role === 'smm') return true;
+            if (role !== 'creative') return false;
             const memberTeam = _prodWriteTeam(identity.member && identity.member.team);
-            return role === 'creative'
-                && memberTeam === _prodWriteTeam(issue.team)
-                && (operation === 'status' || operation === 'comment'
-                    || (operation === 'attachment' && memberTeam === 'graphics'));
+            if (!memberTeam || memberTeam !== _prodWriteTeam(issue.team)) return false;
+            if (PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS.includes(operation)
+                && !_prodCreativeOwnsTarget(issue)) return false;
+            if (operation === 'comment') return true;
+            if (operation === 'attachment') return memberTeam === 'graphics';
+            if (operation === 'status') return _prodCreativeNextStatuses(issue).length > 0;
+            return false;
+        }
+        function _prodRoleGateText(issue, operation) {
+            const identity = _syncviewStaffIdentityForHeaders();
+            const role = String(identity && identity.role || '').trim().toLowerCase();
+            if (role !== 'creative' || !issue) return 'Your staff role cannot perform this action.';
+            const memberTeam = _prodWriteTeam(identity.member && identity.member.team);
+            if (!memberTeam || memberTeam !== _prodWriteTeam(issue.team)) {
+                return 'Your staff role cannot perform this action.';
+            }
+            if (PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS.includes(operation)
+                && !_prodCreativeOwnsTarget(issue)) {
+                return 'This issue is not assigned to you.';
+            }
+            if (operation === 'status' && !_prodCreativeNextStatuses(issue).length) {
+                return 'This status is reviewer-owned; ask an Admin or SMM to move it.';
+            }
+            return 'Your staff role cannot perform this action.';
         }
         function _prodCanWrite(issue, operation) {
             if (!issue || _prodIdentityRepairGateText(issue)
@@ -44197,7 +44412,7 @@
             if (identityGate) return identityGate;
             const attributionGate = _prodAttributionGateText(issue);
             if (attributionGate) return attributionGate;
-            if (!_prodRoleCanWrite(issue, operation)) return 'Your staff role cannot perform this action.';
+            if (!_prodRoleCanWrite(issue, operation)) return _prodRoleGateText(issue, operation);
             if (_prodTestWriteOverride(issue)) return '';
             const team = _prodWriteTeam(issue && issue.team);
             if (!_prodState.authorityLoaded || !_prodState.authority || !team) return 'Write controls are unavailable while authority is being checked.';
@@ -46818,8 +47033,18 @@
             if (kind === 'status') {
                 const identity = _syncviewStaffIdentityForHeaders();
                 const role = String(identity && identity.role || '').trim().toLowerCase();
-                const creativeStatuses = new Set(['triage', 'backlog', 'todo', 'prog', 'smm', 'tweak', 'canceled', 'duplicate']);
-                const statusOrder = role === 'creative' ? PROD_STATUS_ORDER.filter(key => creativeStatuses.has(key)) : PROD_STATUS_ORDER;
+                // F136: the offered set is the intersection of what every
+                // selected row's current state permits, so a multi-select never
+                // offers a transition the gateway would refuse on one of them.
+                const targets = (ids || []).map(_prodIssue).filter(Boolean);
+                const creativeAllowed = targets.length
+                    ? targets.map(target => new Set(_prodCreativeNextStatuses(target)
+                        .map(status => PROD_STATUS_TO_ARTIFACT[status] || status)))
+                        .reduce((acc, set) => new Set([...acc].filter(key => set.has(key))))
+                    : new Set();
+                const statusOrder = role === 'creative'
+                    ? PROD_STATUS_ORDER.filter(key => creativeAllowed.has(key))
+                    : PROD_STATUS_ORDER;
                 const smmGate = (ids || []).map(_prodIssue).filter(Boolean)
                     .map(_prodSmmArtifactGate).find(gate => !gate.ok);
                 return {
@@ -46837,17 +47062,41 @@
                 };
             }
             if (kind === 'assign') {
+                // F94: candidates come only from the gateway's eligible-assignee
+                // projection. Loading, refused, and unavailable states offer no
+                // selectable member — the picker never guesses from the roster.
                 const editors = _prodEditors();
-                const team = _prodWriteTeam(issue && issue.team);
+                const state = issue ? _prodAssigneeOptionsState(issue.id) : null;
+                const ready = !!state && state.status === 'ready';
+                const notice = !state || state.status === 'loading'
+                    ? 'Checking who can be assigned…'
+                    : state.status === 'error'
+                        ? state.error || 'Eligible assignees could not be loaded.'
+                        : ready && !state.candidates.length
+                            ? 'No eligible assignee for this team.'
+                            : '';
+                const unassigned = {
+                    v: '_',
+                    label: 'Unassigned',
+                    disabled: !ready,
+                    guidance: notice,
+                    html: '<span class="mic">' + _prodIcon('assign') + '</span><span class="mlbl">Unassigned</span>'
+                };
+                const candidates = ready
+                    ? state.candidates.map(candidate => ({
+                        v: candidate.id,
+                        label: candidate.name || (editors[candidate.id] && editors[candidate.id].name) || 'Unnamed team member',
+                        html: '<span class="mic">' + _prodAvatar(editors[candidate.id] || { name: candidate.name, init: _prodInitials(candidate.name) }, 16)
+                            + '</span><span class="mlbl">' + _calEsc(candidate.name || 'Unnamed team member') + '</span>'
+                    }))
+                    : [];
                 return {
                     hd: 'Assign to...',
                     search: true,
-                    items: [{ v: '_', label: 'Unassigned', html: '<span class="mic">' + _prodIcon('assign') + '</span><span class="mlbl">Unassigned</span>' }]
-                        .concat(Object.keys(editors).filter(k => editors[k].active !== false && _prodWriteTeam(editors[k].raw && editors[k].raw.team) === team).sort((a, b) => String(editors[a].name).localeCompare(String(editors[b].name))).map(k => ({
-                            v: k,
-                            label: editors[k].name,
-                            html: '<span class="mic">' + _prodAvatar(editors[k], 16) + '</span><span class="mlbl">' + _calEsc(editors[k].name) + '</span>'
-                        })))
+                    notice,
+                    noticeRetry: !!state && state.status === 'error' && !!issue,
+                    noticeRetryId: issue ? issue.id : '',
+                    items: [unassigned].concat(candidates)
                 };
             }
             if (kind === 'proj') {
@@ -46877,13 +47126,32 @@
         function _prodPickerHTML(kind, cur, ids) {
             const d = _prodPickerSpec(kind, ids);
             const search = d.search || d.custom;
+            const notice = d.notice
+                ? '<div class="prod-pop-empty" data-prod-picker-notice>' + _calEsc(d.notice)
+                    + (d.noticeRetry
+                        ? ' <button class="prod-label-retry" type="button" data-prod-picker-retry="'
+                            + _calEscAttr(d.noticeRetryId || '') + '">Retry</button>'
+                        : '')
+                    + '</div>'
+                : '';
             return (search ? '<div class="prod-pop-search"><input data-prod-search placeholder="' + _calEscAttr(d.ph || d.hd) + '"></div>' : '<div class="prod-pop-hd">' + _calEsc(d.hd) + '</div>')
+                + notice
                 + '<div class="prod-pop-list">' + d.items.map((it, i) => '<div class="prod-mi" data-prod-pick="' + i + '" aria-disabled="' + (it.disabled ? 'true' : 'false') + '"'
                     + (it.guidance ? ' title="' + _calEscAttr(it.guidance) + '" data-prod-tip="' + _calEscAttr(it.guidance) + '"' : '') + '>'
                     + it.html + (it.v === cur ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div>').join('') + '</div>';
         }
         function _prodWirePicker(pop, kind, ids) {
             const d = _prodPickerSpec(kind, ids);
+            if (kind === 'assign' && ids && ids.length) {
+                // Tag the live popup so an in-flight projection can repaint it
+                // in place without closing the menu under the pointer.
+                pop.setAttribute('data-prod-assign-pop', String(ids[0]));
+            }
+            pop.querySelectorAll('[data-prod-picker-retry]').forEach(el => el.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                _prodEnsureAssigneeOptions(el.getAttribute('data-prod-picker-retry'), true);
+            }));
             const pick = element => {
                 const row = element || visible()[sel] || visible()[0];
                 const item = row && d.items[+row.getAttribute('data-prod-pick')];
@@ -46980,6 +47248,7 @@
                 return;
             }
             p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null, ids);
+            if (kind === 'assign' && ids.length) _prodEnsureAssigneeOptions(ids[0], false);
             const pr = p.getBoundingClientRect();
             let x = r.right - 4;
             let y = r.top - 6;
@@ -47021,6 +47290,7 @@
                 _prodBuildDue(p, _prodIssue(ids[0]), ids, anchor ? { x: anchor.left, y: anchorTop, above: true } : { x: ev ? ev.clientX : innerWidth / 2, y: ev ? ev.clientY : 160 });
             } else {
                 p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null, ids);
+                if (kind === 'assign' && ids.length) _prodEnsureAssigneeOptions(ids[0], false);
                 if (anchor) {
                     p.style.maxHeight = Math.max(160, anchorTop - 16) + 'px';
                     p.style.overflowY = 'auto';
@@ -47428,13 +47698,27 @@
             // Active hides approved (owner decision 2026-07-18) - matches the artifact active set.
             return ['todo','prog','smm','kasper','client','tweak','scheduled'].includes(_prodArtifactStatus(status));
         }
+        // F37 — "My issues" and "Assigned to me" bind to the member id the staff
+        // sign-in verified, never to a name heuristic. The previous projection
+        // picked a specially named assignee if present, else the first active
+        // assignee in name order, so every browser saw one identity's queue.
+        // A signed-out, unverified, revoked, inactive, or off-roster session
+        // resolves to no personal identity and therefore to no personal queue.
         function _prodMyMemberId() {
-            const withRows = new Set(_prodIssues().map(d => d.assignee).filter(Boolean));
-            const editors = _prodEditors();
-            const sidney = Object.values(editors).find(m => /sidney/i.test(String(m.name || '')) && withRows.has(m.id));
-            if (sidney) return sidney.id;
-            const active = Object.values(editors).find(m => m.active !== false && withRows.has(m.id));
-            return active ? active.id : '';
+            const identity = _syncviewStaffIdentityForHeaders();
+            const id = String(identity && identity.member && identity.member.id || '').trim();
+            if (!id) return '';
+            const member = _prodEditors()[id];
+            // Before the roster loads there is nothing to contradict the
+            // verified identity, so it stands; once loaded, an absent or
+            // deactivated row revokes the personal queue.
+            if (_prodState.loaded && (!member || member.active === false)) return '';
+            return id;
+        }
+        function _prodMyQueueUnavailableText() {
+            if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with your staff account to see your issues.';
+            if (!_prodMyMemberId()) return 'This account is not an active member of the current roster.';
+            return '';
         }
         function _prodIssueRows() {
             const rows = _prodUniqueRows(_prodApplySubIssueVisibility(_prodCurIssuesUnfiltered().filter(_prodMatchFilters)));
@@ -47547,6 +47831,7 @@
         function mountProductionView() {
             _prodPrimeFromUrl();
             _prodStartAuthorityRefresh();
+            _prodStartOperationalRefresh();
             _prodStartPolicyDayClock();
             // Stale-while-revalidate: paint instantly from the last snapshot,
             // then revalidate in the background. On a cold cache this is a no-op
@@ -47659,6 +47944,12 @@
                 _prodState.loaded = true;
                 _prodState.loading = false;
                 _prodState.fromCache = false;
+                // F95: a full projection read is also a successful operational
+                // sync, so the freshness age and any degraded state clear here.
+                _prodState.lastSyncAt = Date.now();
+                _prodState.lastFullSyncAt = _prodState.lastSyncAt;
+                _prodState.lastSyncError = '';
+                _prodState.refreshFailures = 0;
                 // Persist this snapshot so the next visit paints instantly.
                 _prodCacheWrite({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables, authority });
                 if (_prodState.openId && !_prodIssue(_prodState.openId)) {
@@ -48085,6 +48376,238 @@
             _prodLastAutoRefreshAt = now;
             _prodRefresh({ silent: true });
         }
+        // ---- F95: bounded foreground operational refresh --------------------
+        // Production loaded operational rows once at mount and re-read them only
+        // on focus/visibility/pageshow return; the one repeating timer refreshed
+        // authority, not work data. A continuously foreground queue or issue
+        // could therefore hold cached assignment/status/due/artifact/comment
+        // state indefinitely, with no last-success age, no visible degraded
+        // state, and no manual Refresh.
+        //
+        // The tick is a delta read, not a re-pull: it asks only for rows at or
+        // after the highest updated_at already held. The 2026-07-25 read-path
+        // probe measured that delta at 27-39 ms upstream against ~1.2 s for one
+        // full page, so a tick costs roughly 3% of a single boot page. A slower
+        // full reconcile still runs so hard deletions and any missed row
+        // converge, and every tick is skipped while the tab is hidden, while a
+        // write is in flight, or while a foreground load is already running.
+        const PROD_DELTA_REFRESH_MS = 30000;
+        const PROD_FULL_RECONCILE_MS = 600000;
+        const PROD_REFRESH_MAX_BACKOFF_MS = 300000;
+        const PROD_STALE_AFTER_MS = 120000;
+        function _prodRowUpdatedMs(row) {
+            const value = String(row && row.updated_at || '');
+            const parsed = value ? Date.parse(value) : NaN;
+            return Number.isFinite(parsed) ? parsed : -1;
+        }
+        function _prodDeliverableWatermark(rows) {
+            let best = '';
+            let bestMs = -1;
+            (rows || []).forEach(row => {
+                const ms = _prodRowUpdatedMs(row);
+                if (ms > bestMs) {
+                    bestMs = ms;
+                    best = String(row.updated_at || '');
+                }
+            });
+            return best;
+        }
+        function _prodInvalidateScopedReadsFor(ids) {
+            const targets = new Set((ids || []).map(id => String(id || '')).filter(Boolean));
+            if (!targets.size) return;
+            targets.forEach(id => {
+                _prodState.assetRequestTokens.set(id, Number(_prodState.assetRequestTokens.get(id) || 0) + 1);
+                _prodState.descriptionRequestTokens.set(id, Number(_prodState.descriptionRequestTokens.get(id) || 0) + 1);
+                _prodState.labelRequestTokens.set(id, Number(_prodState.labelRequestTokens.get(id) || 0) + 1);
+                _prodState.assigneeOptionRequestTokens.set(id, Number(_prodState.assigneeOptionRequestTokens.get(id) || 0) + 1);
+                _prodState.assigneeOptions.delete(id);
+                _prodState.events.delete(id);
+                _prodState.linearRaw.delete(id);
+                const asset = _prodState.assets.get(id);
+                if (asset && !asset.editing && !asset.saving) _prodState.assets.delete(id);
+                else if (asset) { asset.status = 'idle'; asset.complete = false; asset.error = ''; asset.remoteChanged = true; }
+                const label = _prodState.labels.get(id);
+                if (label && !label.saving) _prodState.labels.delete(id);
+                const description = _prodState.descriptions.get(id);
+                if (description && !description.editing && !description.saving) _prodState.descriptions.delete(id);
+                else if (description) {
+                    description.refreshing = false;
+                    description.status = description.hasValue ? 'stale' : 'idle';
+                    description.refreshError = '';
+                    description.remoteChanged = true;
+                }
+            });
+        }
+        function _prodMergeDeliverableRows(changed) {
+            const rows = Array.isArray(changed) ? changed : [];
+            if (!rows.length) return [];
+            const byId = new Map((_prodState.deliverables || [])
+                .map(row => [String(row && row.id || ''), row])
+                .filter(([id]) => id));
+            const changedIds = [];
+            rows.forEach(row => {
+                const id = String(row && row.id || '');
+                if (!id) return;
+                const previous = byId.get(id);
+                // An unchanged echo (the watermark boundary is inclusive so no
+                // same-timestamp row can slip through) must not churn caches.
+                if (previous && String(previous.updated_at || '') === String(row.updated_at || '')) {
+                    byId.set(id, row);
+                    return;
+                }
+                changedIds.push(id);
+                byId.set(id, row);
+            });
+            _prodState.deliverables = Array.from(byId.values());
+            return changedIds;
+        }
+        function _prodRefreshAgeMs() {
+            return _prodState.lastSyncAt ? Math.max(0, Date.now() - _prodState.lastSyncAt) : -1;
+        }
+        function _prodRefreshDegraded() {
+            const age = _prodRefreshAgeMs();
+            return !!_prodState.lastSyncError || (age >= 0 && age > PROD_STALE_AFTER_MS);
+        }
+        function _prodRefreshAgeLabel() {
+            const age = _prodRefreshAgeMs();
+            if (age < 0) return 'not yet synced';
+            if (age < 60000) return 'updated ' + Math.max(1, Math.round(age / 1000)) + 's ago';
+            if (age < 3600000) return 'updated ' + Math.round(age / 60000) + 'm ago';
+            return 'updated ' + Math.round(age / 3600000) + 'h ago';
+        }
+        function _prodFreshnessHTML() {
+            const degraded = _prodRefreshDegraded();
+            const label = _prodRefreshAgeLabel();
+            const detail = _prodState.lastSyncError
+                ? _prodState.lastSyncError
+                : degraded
+                    ? 'Live updates are behind. Refresh to catch up.'
+                    : 'Production refreshes automatically while this tab is open.';
+            return '<div class="prod-freshness" data-prod-freshness="' + (degraded ? 'degraded' : 'fresh') + '">'
+                + '<span class="prod-freshness-age" data-prod-freshness-age aria-live="polite">'
+                + _calEsc(_prodState.lastSyncError ? 'Update failed · ' + label : label) + '</span>'
+                + '<button class="prod-icon-btn" type="button" data-prod-refresh="1"'
+                + (_prodState.refreshInFlight ? ' disabled' : '')
+                + ' aria-label="Refresh Production data" title="' + _calEscAttr(detail)
+                + '" data-prod-tip="' + _calEscAttr(label + '|' + detail) + '" onclick="return _prodManualRefresh()">'
+                + PROD_REFRESH_ICON + '</button></div>';
+        }
+        function _prodManualRefresh() {
+            _prodDeltaRefresh({ force: true, full: true });
+            return false;
+        }
+        // A background tick must never repaint under the user's hands. An open
+        // picker/menu layer or an in-flight write means "try again next tick";
+        // an explicit Retry press bypasses only the layer check, because the
+        // press itself closes the layer.
+        function _prodRefreshBusy() {
+            if (_prodState.writes && _prodState.writes.size) return true;
+            const layer = document.getElementById('prodLayer');
+            return !!(layer && layer.childElementCount);
+        }
+        function _prodSyncFreshnessControl() {
+            const button = document.querySelector('[data-prod-refresh="1"]');
+            if (button) button.disabled = !!_prodState.refreshInFlight;
+            const ageEl = document.querySelector('[data-prod-freshness-age]');
+            if (ageEl) {
+                ageEl.textContent = _prodState.lastSyncError
+                    ? 'Update failed · ' + _prodRefreshAgeLabel()
+                    : _prodRefreshAgeLabel();
+            }
+            const wrap = document.querySelector('[data-prod-freshness]');
+            if (wrap) wrap.setAttribute('data-prod-freshness', _prodRefreshDegraded() ? 'degraded' : 'fresh');
+        }
+        async function _prodDeltaRefresh(options) {
+            const opts = options || {};
+            if (!_prodEnabled() || !_prodState.loaded || _prodState.loading) return null;
+            if (_prodState.refreshInFlight) return null;
+            if (_prodState.writes && _prodState.writes.size) return null;
+            if (!opts.force && _prodRefreshBusy()) return null;
+            const watermark = _prodDeliverableWatermark(_prodState.deliverables);
+            const needsFull = !!opts.full
+                || !watermark
+                || (Date.now() - Number(_prodState.lastFullSyncAt || 0)) >= PROD_FULL_RECONCILE_MS;
+            _prodState.refreshInFlight = true;
+            _prodSyncFreshnessControl();
+            const hadError = !!_prodState.lastSyncError;
+            // A background tick repaints only when something actually changed.
+            // Repainting on every tick would rebuild the surface under the
+            // user's pointer for no reason.
+            let repaint = false;
+            try {
+                if (needsFull) {
+                    // _prodLoadData renders its own result.
+                    await _prodLoadData({ silent: true });
+                    _prodState.lastFullSyncAt = Date.now();
+                } else {
+                    const rows = await _prodRestRows(
+                        'production_deliverables_browser_v1',
+                        PROD_DELIVERABLE_SELECT,
+                        'updated_at=gte.' + encodeURIComponent(watermark),
+                        1000,
+                        50,
+                        { keysetColumn: 'id' }
+                    );
+                    const changedIds = _prodMergeDeliverableRows(rows);
+                    if (changedIds.length) {
+                        repaint = true;
+                        _prodInvalidateScopedReadsFor(changedIds);
+                        _prodState.adapter = _prodAdapter(_prodState);
+                        _prodCacheWrite({
+                            clients: _prodState.clients,
+                            members: _prodState.members,
+                            batches: _prodState.batches,
+                            deliverables: _prodState.deliverables,
+                            authority: _prodState.authority
+                        });
+                    }
+                    if (_prodState.view === 'detail' && _prodState.openId) {
+                        // The open thread is operational data too; refresh()
+                        // preserves the composer draft and scroll position.
+                        _prodComments.refresh(_prodState.openId);
+                    }
+                }
+                _prodState.lastSyncAt = Date.now();
+                _prodState.lastSyncError = '';
+                _prodState.refreshFailures = 0;
+                return true;
+            } catch (error) {
+                _prodState.refreshFailures = Number(_prodState.refreshFailures || 0) + 1;
+                const status = Number(error && error.status);
+                _prodState.lastSyncError = status === 401 || status === 403
+                    ? 'Live updates stopped: this session is no longer authorized.'
+                    : 'Live updates are failing. Retry to catch up.';
+                console.warn('[Production] operational refresh failed', error);
+                return false;
+            } finally {
+                _prodState.refreshInFlight = false;
+                if (hadError !== !!_prodState.lastSyncError) repaint = true;
+                if (repaint && document.getElementById('prodRoot')) _prodRender();
+                else _prodSyncFreshnessControl();
+            }
+        }
+        let _prodOperationalTimer = 0;
+        function _prodOperationalRefreshDelay() {
+            const failures = Number(_prodState.refreshFailures || 0);
+            if (!failures) return PROD_DELTA_REFRESH_MS;
+            return Math.min(PROD_REFRESH_MAX_BACKOFF_MS, PROD_DELTA_REFRESH_MS * Math.pow(2, failures));
+        }
+        function _prodStartOperationalRefresh() {
+            if (_prodOperationalTimer) return;
+            let nextAt = Date.now() + PROD_DELTA_REFRESH_MS;
+            _prodOperationalTimer = setInterval(() => {
+                // The age keeps counting even when no read runs, so a hidden or
+                // blocked tab still shows an honest last-success age instead of
+                // a frozen one. This touches text only; it never re-renders.
+                if (document.getElementById('prodRoot') && currentNav === 'production') {
+                    _prodSyncFreshnessControl();
+                }
+                if (document.hidden || currentNav !== 'production' || !document.getElementById('prodRoot')) return;
+                if (Date.now() < nextAt) return;
+                nextAt = Date.now() + _prodOperationalRefreshDelay();
+                _prodDeltaRefresh({});
+            }, 5000);
+        }
         function _prodCaptureListScroll(root) {
             root = root || document.getElementById('prodRoot');
             const list = root && root.querySelector ? root.querySelector('.prod-listwrap') : null;
@@ -48166,7 +48689,7 @@
             const subbar = '<div class="prod-subbar">' + tabs + '<div class="prod-filter-pills">' + filterPills + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" aria-label="Filter" data-prod-tip="Filter">' + _prodIcon('filter') + '</button><button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" aria-label="Display options" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
             const createClient = _prodState.clientSlug && _prodClient(_prodState.clientSlug) ? _prodState.clientSlug : '';
             const createTeam = _prodState.team === 'video' || _prodState.team === 'graphics' ? _prodState.team : '';
-            return '<div class="prod-topbar">' + crumb + '<div class="prod-spacer"></div><button class="prod-icon-btn" type="button" onclick="return _prodOpenArchiveRepair()" aria-label="Archive asset repair" data-prod-tip="Archive asset repair">' + _prodIcon('issues') + '</button>' + _prodCreateTopbarButton(createClient, createTeam) + '</div>' + subbar;
+            return '<div class="prod-topbar">' + crumb + '<div class="prod-spacer"></div>' + _prodFreshnessHTML() + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenArchiveRepair()" aria-label="Archive asset repair" data-prod-tip="Archive asset repair">' + _prodIcon('issues') + '</button>' + _prodCreateTopbarButton(createClient, createTeam) + '</div>' + subbar;
         }
         function _prodProjectTopbar() {
             const c = _prodClient(_prodState.openProjectId);
@@ -48174,7 +48697,7 @@
             const team = _prodProjectScopeTeam(c);
             const detailBtn = '<button class="prod-icon-btn' + (_prodState.projectDetailsOpen === false ? '' : ' active') + '" type="button" data-prod-project-details-toggle="1" onclick="_prodToggleProjectDetails()" title="Project details" data-prod-tip="Project details">' + _prodIcon('project') + '</button>';
             const subbar = '<div class="prod-subbar" data-prod-project-subbar="1"><div class="prod-filter-pills">' + _prodPillsHTML() + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" aria-label="Filter" data-prod-tip="Filter">' + _prodIcon('filter') + '</button>' + detailBtn + '<button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" aria-label="Display options" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
-            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><button class="prod-crumb-link" type="button" data-prod-crumb-root="1" onclick="_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Production">Production</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-team="' + _calEscAttr(team || 'all') + '" onclick="_prodOpenTeamView(' + _jsAttrArg(team || 'all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Open team projects">' + _calEsc(_prodTeamLabel(team)) + '</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>Project</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div>' + _prodCreateTopbarButton(c ? c.id : '', team) + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c ? c.id : '') + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>' + subbar;
+            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><button class="prod-crumb-link" type="button" data-prod-crumb-root="1" onclick="_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Production">Production</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-team="' + _calEscAttr(team || 'all') + '" onclick="_prodOpenTeamView(' + _jsAttrArg(team || 'all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Open team projects">' + _calEsc(_prodTeamLabel(team)) + '</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>Project</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div>' + _prodFreshnessHTML() + _prodCreateTopbarButton(c ? c.id : '', team) + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c ? c.id : '') + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>' + subbar;
         }
         function _prodDetailTopbar() {
             const d = _prodState.openId ? _prodIssue(_prodState.openId) : null;
@@ -48190,7 +48713,7 @@
             return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
                 + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" data-prod-crumb-project="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Open project"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
                 + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">Issue</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</button>' : '')
-                + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">' + currentKind + '</span>' + currentId + '<span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
+                + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">' + currentKind + '</span>' + currentId + '<span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div>' + _prodFreshnessHTML() + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodBody() {
             if (_prodState.loading) return _svLoadingSkeletonHtml('production');
@@ -48331,7 +48854,11 @@
             const rows = _prodIssueRows();
             if (!rows.length) {
                 let msg = 'No issues here yet.';
-                if (_prodState.filters && _prodState.filters.length) msg = 'No issues match your filters.';
+                // F37: an unverified or off-roster session must say so instead
+                // of showing an "empty personal queue" that looks like real data.
+                const myGate = _prodState.view === 'my' ? _prodMyQueueUnavailableText() : '';
+                if (myGate) msg = myGate;
+                else if (_prodState.filters && _prodState.filters.length) msg = 'No issues match your filters.';
                 else if (_prodState.view === 'my') msg = 'No issues assigned to you.';
                 else if (_prodState.tab === 'backlog') msg = 'Nothing in the backlog.';
                 else if (_prodState.tab === 'active') msg = 'No active issues.';

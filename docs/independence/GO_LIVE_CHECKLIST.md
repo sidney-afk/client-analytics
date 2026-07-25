@@ -350,6 +350,10 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       assignment scope, comment scope, and actor attribution use the server-verified immutable member
       ID. The TEST matrix covers every active creative plus peer-assigned, unassigned, direct-link,
       account-switch and zero-row cases; unsigned/revoked sessions show no personal queue.
+      *Slice 5 candidate source binds `_prodMyMemberId()` to the verified member and gives a
+      signed-out, off-roster, or deactivated session an explicit no-personal-queue state; peer-work
+      scope is closed for `status`/`attachment` and deliberately left open for `comment`. Unmerged;
+      the per-creative identity drill is what closes this box.*
 - [ ] **Production client attribution is roster-owned and explicit** (F200): every current mirror row
       resolves to one active SyncView roster client or an explicit internal/TEST classification;
       no current row remains unresolved. Future newly observed unknowns fail visibly into repair,
@@ -369,6 +373,13 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       assignment/status/due/artifact/comment changes from another device without requiring blur,
       backgrounding, or reload. Realtime/poll fallback, last-success age, stale UX, manual refresh,
       backoff, and focus/scroll/draft preservation pass two-tab TEST drills.
+      *Slice 5 candidate source adds the bounded `updated_at` delta poll, the open-thread refresh,
+      last-success age, degraded state, exponential backoff, a keyboard/touch Refresh, and
+      per-row scoped-read invalidation that preserves open drafts. It also fixes the read path the
+      poll sits on: the projection now walks the primary key instead of issuing a four-page OFFSET
+      burst (measured 5.94 s → 3.40 s of upstream time), and a source-only migration makes each row
+      detoast `linear_raw` once (offline 3.0× per page). Unmerged; the two-tab/second-device drill
+      is what closes this box.*
 - [ ] **Personal work is touch-mobile discoverable** (F96): below/at/above the 900px breakpoint, a
       fresh creative can switch between team Issues and My issues without a crafted URL or hardware
       keyboard. Deep link, back, reload, account switch, zero-row, portrait, and landscape tests pass.
@@ -597,6 +608,11 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       require active compatible creative role/team and, until retired mode, an active Linear mapping.
       Ineligible, unmapped, provider-inactive, cross-team, or stale-picker targets fail before native
       state/outbox writes. Owner explicitly decides whether admin/SMM may ever own creative work.
+      *Slice 5 candidate source implements this (one `assigneeEligibility` projection shared by the
+      `assignee_options` picker read, the create form, and `assertEligibleAssignee` at commit;
+      strict per-team roles by default; `production_assignee_eligibility` reserved for retirement).
+      Unmerged and undeployed. The negative and stale-picker TEST drills in
+      `docs/ops/SLICE5_APPLY_WINDOW.md` §3 are what close this box.*
 - [ ] **Production calendar-day semantics are stable** (F99): owner ratifies one business-zone or
       explicitly viewer-local contract; one on-demand clock powers relative parsing, quick choices,
       today highlighting, overdue display, and writes. Long-open tabs re-render at the next midnight
@@ -639,6 +655,10 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       one role/current/next/team/assignee matrix; the server and picker enforce it. Reviewer/terminal
       regression, cancel, duplicate and peer-work actions require only the explicitly approved role.
       Pass the full 13×13 TEST matrix across list/All/My/direct-link, stale CAS, retry and two devices.
+      *Slice 5 candidate source implements the matrix (`CREATIVE_STATUS_TRANSITIONS`, mirrored by the
+      picker and drift-guarded offline) at its strictest reading, pending owner ratification of the
+      six defaults listed in `docs/ops/SLICE5_APPLY_WINDOW.md` §4. Unmerged; the live 13×13 drill is
+      what closes this box.*
 - [ ] **Video editors retain every distinct work asset** (F137): Production shows separately labelled
       Filming plan, Raw footage, Delivery/Frame folder and deliverable file with missing/invalid/
       expired/permission states; no priority fallback hides or mislabels another asset. Pass all 16

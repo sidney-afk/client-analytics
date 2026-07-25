@@ -10,8 +10,23 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const SNAPSHOT_CONTRACT = 'syncview-f42-card-comment-snapshot-v1';
+// v2 adds the required `deliverables` crosswalk projection. The import RPC
+// validates every comment against the LIVE deliverables row — it must exist, and
+// its origin/team/client_slug/card_id must match the card the comment came from
+// — but a v1 snapshot carried only the card surfaces, so the planner could not
+// see those facts and certified plans the RPC then rejected on the first call.
+// Carrying the crosswalk into the snapshot is what makes the plan authoritative.
+const SNAPSHOT_CONTRACT = 'syncview-f42-card-comment-snapshot-v2';
 const SURFACES = Object.freeze(['calendar', 'sxr']);
+
+// The deliverable fields the import RPC compares against. Mirrors the crosswalk
+// guard in production_comment_card_import exactly.
+const DELIVERABLE_FIELDS = Object.freeze([
+  'id', 'client_slug', 'team', 'origin', 'card_id',
+]);
+
+// The RPC derives the expected deliverable origin from the request surface.
+const SURFACE_ORIGIN = Object.freeze({ calendar: 'calendar', sxr: 'samples' });
 
 // Import scope. A canonical comment is addressed by its card's native
 // deliverable id, so a card with no such binding has nothing for the crosswalk
@@ -201,23 +216,122 @@ function isPresentRound(raw) {
     && Object.prototype.hasOwnProperty.call(raw, 'round');
 }
 
+// production_comments.round is a PostgreSQL `integer` (int4). A positive
+// JavaScript integer above 2^31-1 passes every JS-side check and is then
+// rejected mid-apply by the column type ("value ... is out of range for type
+// integer"), so bound it here.
+const PG_INT4_MAX = 2147483647;
+
 function normalizedRound(value) {
   if (typeof value !== 'number' && typeof value !== 'string') return null;
   if (typeof value === 'string' && !value.trim()) return null;
   const numeric = Number(value);
-  return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
+  return Number.isInteger(numeric) && numeric > 0 && numeric <= PG_INT4_MAX ? numeric : null;
 }
 
 function roundConflicts(raw, scope = {}) {
   if (!isPresentRound(raw)) return [];
   if (normalizedRound(raw.round) !== null) return [];
+  const numeric = Number(raw.round);
   return [{
     classification: 'invalid_round',
     surface: clean(scope.surface) || null,
     card_id: clean(scope.cardId) || null,
     component: clean(scope.component) || null,
     native_comment_id: clean(scope.nativeId) || null,
-    reason: 'round_must_be_a_positive_integer',
+    reason: Number.isInteger(numeric) && numeric > PG_INT4_MAX
+      ? 'round_exceeds_int4_range'
+      : 'round_must_be_a_positive_integer',
+  }];
+}
+
+// PostgreSQL `text` cannot store a NUL byte. PostgREST/jsonb rejects the WHOLE
+// call with "unsupported Unicode escape sequence ... cannot be converted to
+// text", so a single such byte anywhere in the cohort fails that row at apply
+// time. Every string the planner carries into the link or comment comes from
+// source data, so scan the BUILT payload rather than maintaining a field list
+// that can silently drift out of date. Returns the first offending JSON path.
+const NUL_BYTE = '\u0000';
+function firstNulPath(value, trail = []) {
+  if (typeof value === 'string') return value.includes(NUL_BYTE) ? trail.join('.') || '(root)' : '';
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index++) {
+      const found = firstNulPath(value[index], [...trail, String(index)]);
+      if (found) return found;
+    }
+    return '';
+  }
+  if (value && typeof value === 'object') {
+    for (const key of Object.keys(value)) {
+      const found = firstNulPath(value[key], [...trail, key]);
+      if (found) return found;
+    }
+  }
+  return '';
+}
+
+// Replicate the import RPC's crosswalk guard at plan time. The RPC raises
+// 'production comment card import deliverable missing' when the deliverable row
+// does not exist, and 'production comment card import crosswalk mismatch' when
+// its origin/team/client_slug/card_id disagree with the link — both of which
+// abort the whole apply on that row. Validating here is the difference between
+// a certified plan and one the RPC rejects on its first call.
+//
+// A card pointing at a deliverable that does NOT exist is treated the same as an
+// unlinked card: out of scope (deferred), because the canonical thread has no
+// target and no owner action during the window creates one. A deliverable that
+// DOES exist but describes a different card/client/team/origin is a data defect,
+// not an absence, so it BLOCKS — importing it would attach the comment to the
+// wrong deliverable, and the owner has to adjudicate that before any write.
+function deliverableCrosswalkIssues(deliverable, scope = {}) {
+  const base = {
+    surface: clean(scope.surface) || null,
+    card_id: clean(scope.cardId) || null,
+    component: clean(scope.component) || null,
+    native_comment_id: clean(scope.nativeId) || null,
+  };
+  if (!deliverable) {
+    return {
+      deferrals: [{
+        ...base,
+        classification: 'deliverable_not_found',
+        reason: 'card_deliverable_id_has_no_matching_deliverable',
+      }],
+      conflicts: [],
+    };
+  }
+  const expectedOrigin = SURFACE_ORIGIN[clean(scope.surface).toLowerCase()] || '';
+  const expectedTeam = teamForComponent(scope.component);
+  const fields = [];
+  if (clean(deliverable.origin).toLowerCase() !== expectedOrigin) fields.push('origin');
+  if (clean(deliverable.team).toLowerCase() !== expectedTeam) fields.push('team');
+  if (clean(deliverable.client_slug) !== clean(scope.clientSlug)) fields.push('client_slug');
+  if (clean(deliverable.card_id) !== clean(scope.cardId)) fields.push('card_id');
+  if (!fields.length) return { deferrals: [], conflicts: [] };
+  return {
+    deferrals: [],
+    conflicts: [{
+      ...base,
+      classification: 'deliverable_crosswalk_mismatch',
+      // Field NAMES only — never the differing values, which are card ids and
+      // client slugs and must not reach a public log.
+      fields: fields.sort(),
+      reason: `crosswalk_fields:${fields.sort().join(',')}`,
+    }],
+  };
+}
+
+function nulByteConflicts(payload, scope = {}) {
+  const path = firstNulPath(payload);
+  if (!path) return [];
+  return [{
+    classification: 'unsupported_text_control_character',
+    surface: clean(scope.surface) || null,
+    card_id: clean(scope.cardId) || null,
+    component: clean(scope.component) || null,
+    native_comment_id: clean(scope.nativeId) || null,
+    source_field: path,
+    reason: 'nul_byte_in_text',
   }];
 }
 
@@ -464,6 +578,11 @@ function planSurface(input, options = {}) {
   // Out-of-scope rows: reported with counts, never plan-blocking. See the
   // missing_deliverable_id branch below for why this class is distinct.
   const deferrals = [];
+  // Live deliverable crosswalk, keyed by id. The RPC validates every comment
+  // against this; without it the planner cannot certify what the RPC will accept.
+  const deliverablesById = options.deliverablesById instanceof Map
+    ? options.deliverablesById
+    : new Map();
 
   rows.forEach((row, rowIndex) => {
     const cardId = clean(row && row.id);
@@ -503,6 +622,21 @@ function planSurface(input, options = {}) {
           native_comment_id: clean(raw.id || raw.comment_id || raw.native_comment_id) || null,
           reason: 'card_has_no_native_deliverable_binding',
         }));
+        continue;
+      }
+      // The card names a deliverable. Validate the LIVE crosswalk the RPC will
+      // check, per component, before any of this component's rows are planned:
+      // a missing deliverable defers the whole component, a mismatched one
+      // blocks it. Either way none of its comments reach the apply.
+      const crosswalk = deliverableCrosswalkIssues(deliverablesById.get(targetId), {
+        surface, cardId, component, clientSlug: sourceClientSlug,
+      });
+      if (crosswalk.deferrals.length || crosswalk.conflicts.length) {
+        list.forEach(raw => {
+          const nativeId = clean(raw.id || raw.comment_id || raw.native_comment_id) || null;
+          crosswalk.deferrals.forEach(issue => deferrals.push({ ...issue, native_comment_id: nativeId }));
+          crosswalk.conflicts.forEach(issue => conflicts.push({ ...issue, native_comment_id: nativeId }));
+        });
         continue;
       }
       const idMap = new Map();
@@ -584,6 +718,19 @@ function planSurface(input, options = {}) {
           ...lifecycleTimestampConflicts(raw, scope),
           ...attachmentConflicts(raw.attachments, scope),
           ...roundConflicts(raw, scope),
+          // Scan the BUILT comment plus the raw identity strings the link
+          // carries, so every source string that reaches the RPC — body, author
+          // name/key, role, resolver name, attachment url/name, card id, native
+          // comment id, client slug — is covered without a drift-prone list.
+          ...nulByteConflicts({
+            comment,
+            link: {
+              card_id: cardId,
+              native_comment_id: nativeId,
+              client_slug: sourceClientSlug,
+              deliverable_id: targetId,
+            },
+          }, scope),
         ];
         if (unsafe.length) {
           unsafe.forEach(conflict => conflicts.push(conflict));
@@ -700,6 +847,37 @@ function planCardCommentImport(input, options = {}) {
   const coverageSurfaces = {};
   let inputRows = 0;
 
+  // The deliverable crosswalk the import RPC validates against. It is MANDATORY
+  // under the v2 contract: without it the planner cannot know what the RPC will
+  // accept, and a certified plan can be rejected on its first call.
+  const deliverableRows = Array.isArray(snapshot.deliverables) ? snapshot.deliverables : null;
+  if (!deliverableRows) {
+    conflicts.push({
+      classification: 'snapshot_contract_required',
+      reason: 'deliverable_crosswalk_required',
+    });
+  }
+  const deliverablesById = new Map();
+  for (const row of deliverableRows || []) {
+    const record = row && typeof row === 'object' && !Array.isArray(row) ? row : {};
+    const id = clean(record.id);
+    if (!id) {
+      conflicts.push({
+        classification: 'snapshot_contract_required',
+        reason: 'deliverable_crosswalk_row_requires_id',
+      });
+      continue;
+    }
+    if (deliverablesById.has(id)) {
+      conflicts.push({
+        classification: 'snapshot_contract_required',
+        reason: 'deliverable_crosswalk_duplicate_id',
+      });
+      continue;
+    }
+    deliverablesById.set(id, record);
+  }
+
   if (clean(snapshot.contract) !== SNAPSHOT_CONTRACT) {
     conflicts.push({
       classification: 'snapshot_contract_required',
@@ -723,6 +901,7 @@ function planCardCommentImport(input, options = {}) {
       ...options,
       surface,
       importRunId,
+      deliverablesById,
     });
     inputRows += rows.length;
     imports.push(...surfacePlan.imports);
@@ -755,6 +934,13 @@ function planCardCommentImport(input, options = {}) {
     import_run_id: importRunId,
     input_rows: inputRows,
     coverage: { surfaces: coverageSurfaces },
+    // Stable fingerprint of the exact crosswalk the plan was certified against.
+    // If a deliverable is re-pointed to another card/client/team/origin between
+    // plan and apply, the RPC would reject the row — this moves the apply digest
+    // so the drift guard refuses first.
+    deliverables_fingerprint: sha([...deliverablesById.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, row]) => DELIVERABLE_FIELDS.map(field => `${field}=${clean(row[field])}`).join('|') + `#${id}`)),
     imports,
     conflicts,
     deferrals,
@@ -805,9 +991,15 @@ if (require.main === module) main();
 module.exports = {
   COMPONENT_FIELDS,
   DEFERRED_CLASSIFICATIONS,
+  DELIVERABLE_FIELDS,
   IMPORT_SCOPE_POLICY,
+  PG_INT4_MAX,
   SNAPSHOT_CONTRACT,
   SURFACES,
+  SURFACE_ORIGIN,
+  deliverableCrosswalkIssues,
+  firstNulPath,
+  nulByteConflicts,
   attachmentConflicts,
   commentsFor,
   isExplicitlyInternal,

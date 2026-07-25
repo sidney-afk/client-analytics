@@ -24,7 +24,30 @@ function ok(condition, message) {
   }
 }
 
-function snapshotFor(calendar, sxr, mutateManifest) {
+
+// The v2 snapshot carries the deliverable crosswalk the import RPC re-checks.
+// Derive a MATCHING one from the fixture cards so existing cases stay valid;
+// mismatch cases build their own deliberately-wrong crosswalk.
+function deliverablesFor(calendar, sxr) {
+  const rows = [];
+  const seen = new Set();
+  const add = (cards, origin) => {
+    for (const card of cards || []) {
+      const slug = String((card && (card.client_slug || card.client)) || '');
+      for (const [field, team] of [['video_deliverable_id', 'video'], ['graphic_deliverable_id', 'graphics']]) {
+        const id = String((card && card[field]) || '');
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        rows.push({ id, client_slug: slug, team, origin, card_id: String((card && card.id) || '') });
+      }
+    }
+  };
+  add(calendar, 'calendar');
+  add(sxr, 'samples');
+  return rows;
+}
+
+function snapshotFor(calendar, sxr, mutateManifest, deliverables) {
   const surfaces = { calendar, sxr };
   const manifest = {
     surfaces: {
@@ -33,7 +56,12 @@ function snapshotFor(calendar, sxr, mutateManifest) {
     },
   };
   if (typeof mutateManifest === 'function') mutateManifest(manifest);
-  return { contract: SNAPSHOT_CONTRACT, surfaces, manifest };
+  return {
+    contract: SNAPSHOT_CONTRACT,
+    surfaces,
+    deliverables: deliverables || deliverablesFor(calendar, sxr),
+    manifest,
+  };
 }
 
 (async () => {

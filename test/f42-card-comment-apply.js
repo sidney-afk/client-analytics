@@ -12,6 +12,7 @@ const {
   SNAPSHOT_CONTRACT,
   sourceCoverage,
 } = require('../scripts/f42-card-comment-import');
+const planner = require('../scripts/f42-card-comment-import');
 const apply = require('../scripts/f42-card-comment-apply');
 
 let failures = 0;
@@ -20,10 +21,34 @@ function ok(condition, message) {
   else { failures++; console.error('FAIL  ' + message); }
 }
 
-function snapshotFor(calendar, sxr) {
+
+// The v2 snapshot carries the deliverable crosswalk the import RPC re-checks.
+// Derive a MATCHING one from the fixture cards so existing cases stay valid;
+// mismatch cases build their own deliberately-wrong crosswalk.
+function deliverablesFor(calendar, sxr) {
+  const rows = [];
+  const seen = new Set();
+  const add = (cards, origin) => {
+    for (const card of cards || []) {
+      const slug = String((card && (card.client_slug || card.client)) || '');
+      for (const [field, team] of [['video_deliverable_id', 'video'], ['graphic_deliverable_id', 'graphics']]) {
+        const id = String((card && card[field]) || '');
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        rows.push({ id, client_slug: slug, team, origin, card_id: String((card && card.id) || '') });
+      }
+    }
+  };
+  add(calendar, 'calendar');
+  add(sxr, 'samples');
+  return rows;
+}
+
+function snapshotFor(calendar, sxr, deliverables) {
   return {
     contract: SNAPSHOT_CONTRACT,
     surfaces: { calendar, sxr },
+    deliverables: deliverables || deliverablesFor(calendar, sxr),
     manifest: {
       surfaces: {
         calendar: sourceCoverage(calendar, 'calendar'),
@@ -208,7 +233,7 @@ const calendarCards = [{
 
   // A coverage_mismatch has no `reason`; its coverage field names are enums.
   const coverageBlocked = apply.conflictBreakdown(apply.derivePlan(
-    snapshotFor(calendarCards, [], () => {}), { importRunId: 'x' },
+    snapshotFor(calendarCards, []), { importRunId: 'x' },
   ));
   const mismatchSnapshot = JSON.parse(JSON.stringify(snapshotFor(calendarCards, [])));
   mismatchSnapshot.manifest.surfaces.calendar.cards += 1;
@@ -318,6 +343,140 @@ const calendarCards = [{
     && !mixedRendered.includes('sxr-unlinked')
     && !/Unlinked root|Unlinked reply/.test(mixedRendered),
   'the deferred cohort renders as counts by classification/surface/reason and leaks no identifier');
+
+  // ---- RPC-parity: what the RPC enforces, the planner must pre-validate -----
+  // Each case below was empirically REJECTED by the real
+  // production_comment_card_import while the planner certified it (see the
+  // rehearsal, which re-proves the rejection against the live migration).
+  const gapPlan = (cards, deliverables) => apply.derivePlan(
+    snapshotFor(cards, [], deliverables), { importRunId: 'gap-run' });
+  const gapCard = (over, cardOver) => [Object.assign({
+    id: 'gap-card', client_slug: 'test-client', video_deliverable_id: 'gap-dlv',
+    comments: [Object.assign(
+      { id: 'g1', author: 'SMM', role: 'smm', body: 'Note', created_at: '2026-07-23T10:00:00Z' },
+      over,
+    )],
+  }, cardOver || {})];
+  const classesOf = plan => new Set([
+    ...plan.conflicts.map(c => c.classification),
+    ...plan.deferrals.map(d => `defer:${d.classification}`),
+  ]);
+
+  // Gap A — PostgreSQL text cannot hold a NUL byte; PostgREST rejects the call.
+  const NUL = String.fromCharCode(0);
+  const nulBody = gapPlan(gapCard({ body: `has${NUL}nul` }));
+  const nulAuthor = gapPlan(gapCard({ author: `a${NUL}b` }));
+  const nulAttachment = gapPlan(gapCard({
+    attachments: [{ url: 'https://example.invalid/a.png', name: `n${NUL}m` }],
+  }));
+  ok(classesOf(nulBody).has('unsupported_text_control_character')
+    && classesOf(nulAuthor).has('unsupported_text_control_character')
+    && classesOf(nulAttachment).has('unsupported_text_control_character')
+    && nulBody.imports.length === 0 && nulAuthor.imports.length === 0
+    && nulAttachment.imports.length === 0
+    && nulBody.conflicts.find(c => c.classification === 'unsupported_text_control_character')
+      .reason === 'nul_byte_in_text',
+  'a NUL byte anywhere in the built payload blocks at plan time (body, author, attachment)');
+  ok(planner.firstNulPath({ a: { b: [`x${NUL}`] } }) === 'a.b.0'
+    && planner.firstNulPath({ a: 'clean' }) === '',
+  'the NUL scan reports the offending JSON path and passes clean payloads');
+
+  // Gap B — round is int4; a larger positive integer passes every JS check.
+  const bigRound = gapPlan(gapCard({ round: planner.PG_INT4_MAX + 1 }));
+  const maxRound = gapPlan(gapCard({ round: planner.PG_INT4_MAX }));
+  ok(classesOf(bigRound).has('invalid_round')
+    && bigRound.conflicts.find(c => c.classification === 'invalid_round')
+      .reason === 'round_exceeds_int4_range'
+    && bigRound.imports.length === 0
+    && maxRound.complete === true && maxRound.imports[0].comment.round === planner.PG_INT4_MAX,
+  'a round above int4 range blocks while the exact int4 maximum still plans');
+
+  // Gap C — the crosswalk the RPC re-checks. This is what killed the live apply.
+  const goodCrosswalk = [{
+    id: 'gap-dlv', client_slug: 'test-client', team: 'video',
+    origin: 'calendar', card_id: 'gap-card',
+  }];
+  ok(gapPlan(gapCard({}), goodCrosswalk).complete === true,
+    'a matching crosswalk certifies');
+  const absent = gapPlan(gapCard({}), []);
+  ok(classesOf(absent).has('defer:deliverable_not_found')
+    && absent.complete === true && absent.imports.length === 0,
+  'a deliverable absent from the crosswalk DEFERS (no target exists) and never plans');
+  for (const [label, row] of [
+    ['card_id', { ...goodCrosswalk[0], card_id: 'another-card' }],
+    ['client_slug', { ...goodCrosswalk[0], client_slug: 'another-client' }],
+    ['team', { ...goodCrosswalk[0], team: 'graphics' }],
+    ['origin', { ...goodCrosswalk[0], origin: 'samples' }],
+  ]) {
+    const plan = gapPlan(gapCard({}), [row]);
+    const conflict = plan.conflicts.find(c => c.classification === 'deliverable_crosswalk_mismatch');
+    ok(plan.complete === false && plan.imports.length === 0
+      && conflict && conflict.fields.includes(label),
+    `a deliverable whose ${label} disagrees with the card BLOCKS and names only the field`);
+  }
+  ok(!JSON.stringify(gapPlan(gapCard({}), [{ ...goodCrosswalk[0], card_id: 'another-card' }])
+    .conflicts.map(c => ({ classification: c.classification, fields: c.fields, reason: c.reason })))
+    .includes('another-card'),
+  'a crosswalk conflict reports field names only — never the differing card id or slug');
+
+  // The v2 contract REQUIRES the crosswalk: a v1-shaped snapshot cannot certify.
+  const noCrosswalk = apply.derivePlan({
+    contract: SNAPSHOT_CONTRACT,
+    surfaces: { calendar: calendarCards, sxr: [] },
+    manifest: { surfaces: {
+      calendar: sourceCoverage(calendarCards, 'calendar'), sxr: sourceCoverage([], 'sxr') } },
+  }, { importRunId: 'no-crosswalk' });
+  ok(noCrosswalk.complete === false
+    && noCrosswalk.conflicts.some(c => c.classification === 'snapshot_contract_required'
+      && c.reason === 'deliverable_crosswalk_required'),
+  'a snapshot without the deliverable crosswalk can never certify under the v2 contract');
+  ok(SNAPSHOT_CONTRACT === 'syncview-f42-card-comment-snapshot-v2',
+    'the snapshot contract is v2 now that the crosswalk is mandatory');
+
+  // A deliverable re-pointed between plan and apply moves the digest.
+  const repointed = gapPlan(gapCard({}), [{ ...goodCrosswalk[0], card_id: 'moved-card' }]);
+  ok(gapPlan(gapCard({}), goodCrosswalk).deliverables_fingerprint
+    !== repointed.deliverables_fingerprint
+    && /^[a-f0-9]{64}$/.test(gapPlan(gapCard({}), goodCrosswalk).deliverables_fingerprint),
+  'the crosswalk fingerprint moves when a deliverable is re-pointed, so the drift guard refuses');
+
+  // ---- Part 1: PostgREST failure detail is an allowlist ---------------------
+  let rpcThrew = null;
+  try {
+    await apply.supabaseDeps({ url: 'https://x.invalid', serviceKey: 'k' }, async () => ({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        code: '22P02',
+        message: 'invalid input syntax for type integer',
+        // Both of these echo row values and must never reach a public log.
+        details: 'Failing row contains (pc_card_abc, native:pc_card_abc, PRIVATE BODY TEXT, acme-holdings).',
+        hint: 'try value "PRIVATE HINT VALUE"',
+      }),
+    })).importOne({}, {}, {});
+  } catch (error) { rpcThrew = error; }
+  const serialized = JSON.stringify({ code: rpcThrew && rpcThrew.message, rpc: rpcThrew && rpcThrew.rpc });
+  ok(rpcThrew && rpcThrew.message === 'rpc_production_comment_card_import_400'
+    && rpcThrew.rpc.code === '22P02'
+    && rpcThrew.rpc.message === 'invalid input syntax for type integer'
+    && rpcThrew.rpc.status === 400
+    && rpcThrew.rpc.function === 'production_comment_card_import',
+  'an RPC failure carries the SQLSTATE code and message alongside the status');
+  ok(!serialized.includes('PRIVATE BODY TEXT')
+    && !serialized.includes('acme-holdings')
+    && !serialized.includes('PRIVATE HINT VALUE')
+    && !('details' in rpcThrew.rpc) && !('hint' in rpcThrew.rpc)
+    && !('payload' in rpcThrew),
+  'details and hint (which echo row values) never reach the failure document');
+  let longThrew = null;
+  try {
+    await apply.supabaseDeps({ url: 'https://x.invalid', serviceKey: 'k' }, async () => ({
+      ok: false, status: 400,
+      json: async () => ({ code: 'C'.repeat(500), message: 'M'.repeat(500) }),
+    })).readback();
+  } catch (error) { longThrew = error; }
+  ok(longThrew.rpc.code.length === 200 && longThrew.rpc.message.length === 200,
+    'RPC code and message are truncated to 200 characters');
 
   // A READY plan renders the next-dispatch instruction and no blocking table.
   const readyRendered = apply.renderPlanSummaryMarkdown({

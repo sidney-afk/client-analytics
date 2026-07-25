@@ -79,6 +79,9 @@ function planApplyDigest(plan) {
     import_run_id: plan && plan.import_run_id || null,
     scope_policy: plan && plan.scope && plan.scope.policy || null,
     coverage_scope: applyCoverageScope(plan),
+    // A deliverable re-pointed between plan and apply would be rejected by the
+    // RPC crosswalk guard; moving the digest refuses it before any write.
+    deliverables_fingerprint: plan && plan.deliverables_fingerprint || null,
     imports: ((plan && plan.imports) || []).map(item => ({
       identity: item.identity,
       source_fingerprint: item.link && item.link.source_fingerprint,
@@ -401,6 +404,30 @@ function renderPlanSummaryMarkdown(result) {
 
 // ---- Supabase PostgREST database layer (production default) -----------------
 
+const RPC_DETAIL_MAX = 200;
+
+// A PostgREST error body carries `code`, `message`, `details` and `hint`.
+//
+// `code` (the SQLSTATE) and `message` are safe to surface: our own RAISE strings
+// and PostgreSQL's constraint-violation messages are static text plus a
+// constraint name. `details` is NOT — a constraint violation echoes the
+// offending ROW ("Failing row contains (…)"), which would put private comment
+// bodies, card ids and client slugs straight into a public Actions log. `hint`
+// can quote values the same way.
+//
+// This is an allowlist, not a scrub: only the two safe fields are copied onto
+// the error, and the raw payload is deliberately NOT retained anywhere on it, so
+// no downstream serializer can reach `details`/`hint` by accident.
+function publicRpcFailure(name, status, payload) {
+  const row = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+  const detail = { function: clean(name), status: Number(status) || 0 };
+  const code = clean(row.code);
+  const message = clean(row.message);
+  if (code) detail.code = code.slice(0, RPC_DETAIL_MAX);
+  if (message) detail.message = message.slice(0, RPC_DETAIL_MAX);
+  return detail;
+}
+
 async function supabaseRpc(config, name, body, fetchImpl) {
   const response = await fetchImpl(`${config.url}/rest/v1/rpc/${name}`, {
     method: 'POST',
@@ -414,7 +441,7 @@ async function supabaseRpc(config, name, body, fetchImpl) {
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     const error = new Error(`rpc_${name}_${response.status}`);
-    error.payload = payload;
+    error.rpc = publicRpcFailure(name, response.status, payload);
     throw error;
   }
   return payload;
@@ -540,6 +567,8 @@ if (require.main === module) {
       status: 'FAIL',
       code: clean(error && error.message) || 'unexpected_failure',
       reasons: error && error.reasons || undefined,
+      // Allowlisted PostgREST failure detail (SQLSTATE + message only).
+      rpc: error && error.rpc || undefined,
     })}\n`);
     process.exitCode = 1;
   });

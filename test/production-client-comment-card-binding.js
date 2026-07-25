@@ -119,6 +119,7 @@ function extractBlock(text, start) {
     extractFunction('_prodVerifiedClientCommentSurfaceContext'),
     extractFunction('_prodVerifiedClientCommentMutationContext'),
     extractFunction('_prodClientCommentSurfaceKey'),
+    extractFunction('_prodCrosswalkVerdict'),
     extractFunction('_prodCanonicalCommentGate'),
     extractFunction('_sxrPostLinearComment'),
     extractFunction('_writeUiCardCommentLifecycle'),
@@ -138,6 +139,11 @@ function extractBlock(text, start) {
     id: 'verified-card',
     client_slug: 'test-client',
     video_deliverable_id: 'deliverable-video',
+    // A deliverable id alone no longer counts as linked: the gate requires a
+    // resolved, crosswalk-VALID verdict. These fixtures stamp one so each
+    // assertion below keeps testing what it was written to test (read
+    // readiness and exact client binding), not crosswalk resolution.
+    _canonicalCrosswalk: { 'deliverable-video': { state: 'valid', fields: [] } },
     _canonicalCommentReads: {
       'deliverable-video': {
         status: 'ready',

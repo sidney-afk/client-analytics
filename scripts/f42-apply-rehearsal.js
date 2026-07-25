@@ -408,6 +408,7 @@ async function rehearse() {
       const classes = new Set([
         ...plan.conflicts.map(c => c.classification),
         ...plan.deferrals.map(d => `defer:${d.classification}`),
+        ...plan.defects.map(d => `defect:${d.classification}`),
       ]);
       check(`gap: ${name} is caught at plan time (${expect})`,
         classes.has(expect) && plan.imports.length === 0,
@@ -430,18 +431,57 @@ async function rehearse() {
     // round is int4: a positive integer above 2^31-1 passes every JS check and
     // is then rejected by the column type.
     gapCase('round above int4 range', gapCard({ round: 2147483648 }), 'invalid_round');
-    // The RPC re-checks the deliverable crosswalk; a card pointing at a
-    // deliverable that does not exist has no target at all (deferred), while one
-    // whose deliverable describes a different card/client/team/origin is a
-    // defect that must block rather than be written to the wrong target.
+    // The RPC re-checks the deliverable crosswalk. A card pointing at a
+    // deliverable that does not exist has no target at all (DEFERRED). One whose
+    // deliverable exists but describes a different card/client/team/origin is a
+    // link DEFECT: never imported, but non-blocking, because it needs a
+    // linkage-repair session rather than an import fix.
     gapCase('deliverable absent from the crosswalk',
       gapCard({}, { video_deliverable_id: 'dlv-does-not-exist' }), 'defer:deliverable_not_found');
     gapCase('deliverable belongs to another card',
-      gapCard({}, { id: 'cal-card-other' }), 'deliverable_crosswalk_mismatch');
+      gapCard({}, { id: 'cal-card-other' }), 'defect:deliverable_crosswalk_mismatch');
     gapCase('deliverable belongs to another client',
-      gapCard({}, { client_slug: 'other-client' }), 'deliverable_crosswalk_mismatch');
+      gapCard({}, { client_slug: 'other-client' }), 'defect:deliverable_crosswalk_mismatch');
     gapCase('deliverable origin does not match the surface',
-      gapCard({}, { video_deliverable_id: 'dlv-sxr-vid' }), 'deliverable_crosswalk_mismatch');
+      gapCard({}, { video_deliverable_id: 'dlv-sxr-vid' }), 'defect:deliverable_crosswalk_mismatch');
+
+    // The load-bearing behaviour change: a mis-linked card DEFECTS AND PROCEEDS.
+    // The clean cohort still certifies and still applies alongside it.
+    const mixedDefectPlan = applyRunner.derivePlan(
+      fixtureSnapshot({ calendar: [...calendarCards(), ...gapCard({}, { id: 'cal-card-other' })] }),
+      { importRunId: 'defect-and-proceed' },
+    );
+    check('a link defect does NOT block the clean cohort',
+      mixedDefectPlan.complete === true
+      && mixedDefectPlan.conflicts.length === 0
+      && mixedDefectPlan.defects.length === 1
+      && mixedDefectPlan.defects[0].classification === 'deliverable_crosswalk_mismatch'
+      && applyRunner.applyEligibility(mixedDefectPlan).eligible === true,
+      { conflicts: mixedDefectPlan.conflicts.length, defects: mixedDefectPlan.defects.length });
+    check('the defective row is excluded from the apply set',
+      !mixedDefectPlan.imports.some(item => item.link.card_id === 'cal-card-other'));
+    check('the defective row is absent from the apply digest',
+      applyRunner.planApplyDigest(mixedDefectPlan)
+        === applyRunner.planApplyDigest(applyRunner.derivePlan(
+          fixtureSnapshot({ calendar: calendarCards() }), { importRunId: 'defect-and-proceed' })));
+    const defectBreakdown = applyRunner.conflictBreakdown(mixedDefectPlan);
+    check('the defect is reported in its own breakdown bucket',
+      defectBreakdown.total_defects === 1
+      && defectBreakdown.total_conflicts === 0
+      && defectBreakdown.defect_by_classification.some(row =>
+        row.classification === 'deliverable_crosswalk_mismatch' && row.surface === 'calendar'));
+    check('the runner-local plan still carries the per-row identity for the repair session',
+      mixedDefectPlan.defects[0].card_id === 'cal-card-other'
+      && mixedDefectPlan.defects[0].native_comment_id === 'gap-c'
+      && Array.isArray(mixedDefectPlan.defects[0].fields));
+    const defectRendered = applyRunner.renderPlanSummaryMarkdown({
+      status: 'READY', eligible: true, reasons: [], apply_digest: 'd'.repeat(64),
+      conflict_breakdown: defectBreakdown,
+    });
+    check('the public summary titles the defects as link defects needing repair, leaking no identity',
+      /### Link defects needing repair — NOT imported and not blocking/.test(defectRendered)
+      && !defectRendered.includes('cal-card-other')
+      && !defectRendered.includes('gap-c'));
 
     // Prove the RPC really would have rejected the two payload-shape cases, so
     // this parity claim cannot rot silently if the migration changes.

@@ -107,13 +107,16 @@ function derivePlan(snapshot, options = {}) {
 // conflicts, and carrying at least one canonical import. Anything else is
 // returned as blocking reasons — never a partial apply.
 //
-// `plan.conflicts` is the BLOCKING set and must be empty. `plan.deferrals` —
-// out-of-scope rows whose card carries no native deliverable binding — is
-// counted and reported but deliberately does not gate: those rows can never be
-// imported by this run under any owner action, so blocking on them would only
-// keep the linked cohort permanently unimportable. The scope policy is asserted
-// explicitly so a plan produced under different (or unstated) scope semantics
-// can never be applied by this runner.
+// `plan.conflicts` is the BLOCKING set and must be empty. `plan.deferrals`
+// (out-of-scope: no target exists) and `plan.defects` (link defects: the
+// deliverable exists but points at another card/client/team/origin) are counted
+// and reported but deliberately do not gate — neither can be imported by this
+// run under any owner action, so blocking on them would only keep the clean
+// cohort permanently unimportable. Both buckets must be PRESENT though: a plan
+// that fails to report them cannot be applied, so a silent regression that
+// dropped a bucket can never be mistaken for a clean plan. The scope policy is
+// asserted explicitly so a plan produced under different (or unstated) scope
+// semantics can never be applied by this runner.
 function applyEligibility(plan) {
   const reasons = [];
   if (!plan || typeof plan !== 'object') {
@@ -124,6 +127,7 @@ function applyEligibility(plan) {
   if (plan.complete !== true) reasons.push('plan_not_complete');
   if (!Array.isArray(plan.conflicts) || plan.conflicts.length !== 0) reasons.push('plan_has_conflicts');
   if (!Array.isArray(plan.deferrals)) reasons.push('plan_deferrals_unreported');
+  if (!Array.isArray(plan.defects)) reasons.push('plan_defects_unreported');
   if (!Array.isArray(plan.imports) || plan.imports.length === 0) reasons.push('plan_has_no_imports');
   return { eligible: reasons.length === 0, reasons };
 }
@@ -293,6 +297,7 @@ function conflictBreakdown(plan) {
   const doc = plan && typeof plan === 'object' ? plan : {};
   const conflicts = Array.isArray(doc.conflicts) ? doc.conflicts : [];
   const deferrals = Array.isArray(doc.deferrals) ? doc.deferrals : [];
+  const defects = Array.isArray(doc.defects) ? doc.defects : [];
   const imports = Array.isArray(doc.imports) ? doc.imports : [];
 
   const plannedBySurface = Object.fromEntries(PUBLIC_SURFACES.map(surface => [surface, 0]));
@@ -320,17 +325,21 @@ function conflictBreakdown(plan) {
     scope_policy: clean(doc.scope && doc.scope.policy) || 'unspecified',
     total_conflicts: conflicts.length,
     total_deferred: deferrals.length,
+    total_defects: defects.length,
     planned_imports: imports.length,
     planned_by_surface: plannedBySurface,
     source_comment_rows: sourceRows,
     // Raw source rows minus planned canonical imports. This covers deferred
-    // out-of-scope rows, rows the planner blocked, AND the exact-duplicate
-    // aliases (a card shape that lists the same comment under `comments` and
-    // `video_comments`) that legitimately collapse into one canonical import.
+    // out-of-scope rows, link defects, rows the planner blocked, AND the
+    // exact-duplicate aliases (a card shape that lists the same comment under
+    // `comments` and `video_comments`) that legitimately collapse into one
+    // canonical import.
     excluded_rows: Math.max(0, sourceRows - imports.length),
     by_classification: tallyRows(conflicts),
     // Out-of-scope, non-blocking. Same allowlisted projection as conflicts.
     deferred_by_classification: tallyRows(deferrals),
+    // Link defects, non-blocking. Same allowlisted projection.
+    defect_by_classification: tallyRows(defects),
   };
 }
 
@@ -373,9 +382,10 @@ function renderPlanSummaryMarkdown(result) {
   lines.push(`- planned imports: ${Number(breakdown.planned_imports || 0)} `
     + `(calendar ${Number(planned.calendar || 0)}, sxr ${Number(planned.sxr || 0)})`);
   lines.push(`- deferred rows (out of scope, not imported): ${Number(breakdown.total_deferred || 0)}`);
+  lines.push(`- link-defect rows (bad link, not imported): ${Number(breakdown.total_defects || 0)}`);
   lines.push(`- source comment rows: ${Number(breakdown.source_comment_rows || 0)}`);
   lines.push(`- excluded rows: ${Number(breakdown.excluded_rows || 0)} `
-    + '(deferred plus blocked rows plus collapsed exact-duplicate aliases)');
+    + '(deferred, link-defect and blocked rows plus collapsed exact-duplicate aliases)');
   lines.push(`- conflicts (blocking): ${Number(breakdown.total_conflicts || 0)}`);
   lines.push(`- apply digest: \`${clean(doc.apply_digest)}\``);
 
@@ -390,8 +400,17 @@ function renderPlanSummaryMarkdown(result) {
   renderTable('### Blocking reasons (classification enums and counts only)', breakdown.by_classification);
   renderTable('### Deferred — out of scope, NOT imported and not blocking',
     breakdown.deferred_by_classification);
+  renderTable('### Link defects needing repair — NOT imported and not blocking',
+    breakdown.defect_by_classification);
+  if (Array.isArray(breakdown.defect_by_classification) && breakdown.defect_by_classification.length) {
+    lines.push('', 'These cards name a deliverable that EXISTS but belongs to a different '
+      + 'card/client/team/origin, so importing them would attach the comment to the wrong '
+      + 'deliverable. They need a linkage-repair session — unlike deferrals, they will not '
+      + 'resolve themselves. Per-row card/comment identities are in the runner-local plan.');
+  }
   if ((Array.isArray(breakdown.by_classification) && breakdown.by_classification.length)
-    || (Array.isArray(breakdown.deferred_by_classification) && breakdown.deferred_by_classification.length)) {
+    || (Array.isArray(breakdown.deferred_by_classification) && breakdown.deferred_by_classification.length)
+    || (Array.isArray(breakdown.defect_by_classification) && breakdown.defect_by_classification.length)) {
     lines.push('', 'Per-row evidence (card/comment identities, client slugs, bodies) stays in the '
       + 'runner-local result document and is never uploaded.');
   }
@@ -531,6 +550,7 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
       planned_imports: Array.isArray(plan.imports) ? plan.imports.length : 0,
       conflicts: Array.isArray(plan.conflicts) ? plan.conflicts.length : 0,
       deferred: Array.isArray(plan.deferrals) ? plan.deferrals.length : 0,
+      defects: Array.isArray(plan.defects) ? plan.defects.length : 0,
       scope: plan.scope || null,
       // Public-safe aggregate: classification/surface/reason enums plus counts.
       // This is what a BLOCKED dispatch renders to the run summary, so an

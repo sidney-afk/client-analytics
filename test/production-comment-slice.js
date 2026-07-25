@@ -428,6 +428,53 @@ function snapshotFor(calendar, sxr, mutateManifest, deliverables) {
     && noSlugPlan.deferrals.length === 0,
   'missing_client_slug stays plan-blocking — only missing_deliverable_id defers');
 
+  // A link DEFECT (deliverable exists but points at another card) is
+  // non-blocking and never imported; every other blocking class stays blocking,
+  // including when it lands alongside a defect.
+  const defectRows = [{
+    id: 'card-mislinked', client_slug: 'test-client', video_deliverable_id: 'dlv-mislinked',
+    comments: [{ id: 'ml', author: 'SMM', role: 'smm', body: 'Mislinked', created_at: '2026-07-23T10:00:00Z' }],
+  }];
+  const defectPlan = planCardCommentImport(snapshotFor(defectRows, [], null, [
+    { id: 'dlv-mislinked', client_slug: 'test-client', team: 'video', origin: 'calendar', card_id: 'a-different-card' },
+  ]));
+  ok(defectPlan.complete === true
+    && defectPlan.conflicts.length === 0
+    && defectPlan.imports.length === 0
+    && defectPlan.defects.length === 1
+    && defectPlan.defects[0].classification === 'deliverable_crosswalk_mismatch'
+    && defectPlan.defects[0].fields.includes('card_id')
+    && defectPlan.scope.defect_rows === 1,
+  'a mis-linked deliverable is a non-blocking DEFECT that never imports');
+  // Each remaining blocking class still blocks even with a defect present.
+  for (const [label, rows] of [
+    ['audience_quarantine', [{
+      id: 'card-aq', client_slug: 'test-client', video_deliverable_id: 'dlv-aq',
+      comments: [
+        { id: 'aq-root', author: 'SMM', role: 'smm', audience: 'client', body: 'Client root', created_at: '2026-07-23T10:00:00Z' },
+        { id: 'aq-reply', parent_id: 'aq-root', author: 'SMM', role: 'smm', audience: 'internal', body: 'Internal', created_at: '2026-07-23T10:01:00Z' },
+      ],
+    }]],
+    ['malformed_lifecycle_timestamp', [{
+      id: 'card-ts', client_slug: 'test-client', video_deliverable_id: 'dlv-ts',
+      comments: [{ id: 'ts', author: 'SMM', role: 'smm', body: 'x', created_at: '2026-02-30T10:00:00Z' }],
+    }]],
+    ['missing_client_slug', [{
+      id: 'card-ns', video_deliverable_id: 'dlv-ns',
+      comments: [{ id: 'ns', author: 'SMM', role: 'smm', body: 'x', created_at: '2026-07-23T10:00:00Z' }],
+    }]],
+  ]) {
+    const cards = [...rows, ...defectRows];
+    const plan = planCardCommentImport(snapshotFor(cards, [], null, [
+      ...deliverablesFor(rows, []),
+      { id: 'dlv-mislinked', client_slug: 'test-client', team: 'video', origin: 'calendar', card_id: 'a-different-card' },
+    ]));
+    ok(plan.complete === false
+      && plan.conflicts.some(row => row.classification === label)
+      && plan.defects.length === 1,
+    `${label} still BLOCKS even when a non-blocking link defect is present`);
+  }
+
   const partialSnapshot = {
     contract: SNAPSHOT_CONTRACT,
     surfaces: { calendar: fixture },

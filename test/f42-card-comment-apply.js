@@ -227,9 +227,10 @@ const calendarCards = [{
   ok(/- planned imports: \d+ \(calendar \d+, sxr \d+\)/.test(blockedRendered)
     && /- source comment rows: \d+/.test(blockedRendered)
     && /- deferred rows \(out of scope, not imported\): \d+/.test(blockedRendered)
-    && /- excluded rows: \d+ \(deferred plus blocked rows plus collapsed exact-duplicate aliases\)/.test(blockedRendered)
+    && /- link-defect rows \(bad link, not imported\): \d+/.test(blockedRendered)
+    && /- excluded rows: \d+ \(deferred, link-defect and blocked rows plus collapsed exact-duplicate aliases\)/.test(blockedRendered)
     && /- import scope: linked-cohort/.test(blockedRendered),
-  'the rendered blocked summary reports planned-vs-deferred-vs-excluded totals and the declared scope');
+  'the rendered blocked summary reports planned-vs-deferred-vs-defect-vs-excluded totals and the scope');
 
   // A coverage_mismatch has no `reason`; its coverage field names are enums.
   const coverageBlocked = apply.conflictBreakdown(apply.derivePlan(
@@ -402,6 +403,10 @@ const calendarCards = [{
   ok(classesOf(absent).has('defer:deliverable_not_found')
     && absent.complete === true && absent.imports.length === 0,
   'a deliverable absent from the crosswalk DEFERS (no target exists) and never plans');
+  // A deliverable that EXISTS but points elsewhere is a link DEFECT: never
+  // imported, but non-blocking, because it needs a linkage-repair session rather
+  // than an import fix. The RPC's own crosswalk refusal stays the apply-time
+  // backstop, so a mis-classification here still cannot write to a wrong target.
   for (const [label, row] of [
     ['card_id', { ...goodCrosswalk[0], card_id: 'another-card' }],
     ['client_slug', { ...goodCrosswalk[0], client_slug: 'another-client' }],
@@ -409,15 +414,82 @@ const calendarCards = [{
     ['origin', { ...goodCrosswalk[0], origin: 'samples' }],
   ]) {
     const plan = gapPlan(gapCard({}), [row]);
-    const conflict = plan.conflicts.find(c => c.classification === 'deliverable_crosswalk_mismatch');
-    ok(plan.complete === false && plan.imports.length === 0
-      && conflict && conflict.fields.includes(label),
-    `a deliverable whose ${label} disagrees with the card BLOCKS and names only the field`);
+    const defect = plan.defects.find(d => d.classification === 'deliverable_crosswalk_mismatch');
+    ok(plan.complete === true && plan.conflicts.length === 0
+      && plan.imports.length === 0
+      && defect && defect.fields.includes(label)
+      && !plan.deferrals.some(d => d.classification === 'deliverable_crosswalk_mismatch'),
+    `a deliverable whose ${label} disagrees is a non-blocking DEFECT that never imports`);
   }
-  ok(!JSON.stringify(gapPlan(gapCard({}), [{ ...goodCrosswalk[0], card_id: 'another-card' }])
-    .conflicts.map(c => ({ classification: c.classification, fields: c.fields, reason: c.reason })))
+  const defectPlan = gapPlan(gapCard({}), [{ ...goodCrosswalk[0], card_id: 'another-card' }]);
+  ok(!JSON.stringify(defectPlan.defects.map(d =>
+    ({ classification: d.classification, fields: d.fields, reason: d.reason })))
     .includes('another-card'),
-  'a crosswalk conflict reports field names only — never the differing card id or slug');
+  'a crosswalk defect reports field names only — never the differing card id or slug');
+  ok(defectPlan.defects[0].card_id === 'gap-card'
+    && defectPlan.defects[0].native_comment_id === 'g1'
+    && defectPlan.defects[0].component === 'video'
+    && defectPlan.defects[0].surface === 'calendar',
+  'the runner-local plan still records the per-row identity for the linkage-repair session');
+  ok(apply.applyEligibility(defectPlan).eligible === false
+    && apply.applyEligibility(defectPlan).reasons.includes('plan_has_no_imports')
+    && !apply.applyEligibility(defectPlan).reasons.includes('plan_has_conflicts'),
+  'a defect-only plan is ineligible solely because nothing remains to import, not because it blocks');
+  ok(apply.applyEligibility({ ...defectPlan, defects: undefined })
+    .reasons.includes('plan_defects_unreported'),
+  'a plan that fails to report its defects bucket can never be applied');
+
+  // Defect-and-proceed: a mis-linked card alongside a clean one still certifies,
+  // still applies the clean rows, and leaves the digest untouched.
+  // Hold the crosswalk CONSTANT across both plans so the comparison isolates the
+  // defective rows themselves: the crosswalk fingerprint is legitimately part of
+  // the digest (a re-pointed deliverable must move it), so the two snapshots
+  // differ only by whether the defective card's comments are present.
+  const sharedCrosswalk = [
+    ...deliverablesFor(calendarCards, []),
+    { id: 'defect-dlv', client_slug: 'test-client', team: 'video', origin: 'calendar', card_id: 'somewhere-else' },
+  ];
+  const defectCards = gapCard({}, { id: 'defect-card', video_deliverable_id: 'defect-dlv' });
+  const withDefectCards = [...calendarCards, ...defectCards];
+  const planFor = cards => apply.derivePlan({
+    contract: SNAPSHOT_CONTRACT,
+    surfaces: { calendar: cards, sxr: [] },
+    deliverables: sharedCrosswalk,
+    manifest: { surfaces: {
+      calendar: sourceCoverage(cards, 'calendar'), sxr: sourceCoverage([], 'sxr') } },
+  }, { importRunId: 'apply-fixture-run' });
+  const cleanPlusDefect = planFor(withDefectCards);
+  const cleanOnly = planFor(calendarCards);
+  ok(cleanPlusDefect.complete === true
+    && cleanPlusDefect.conflicts.length === 0
+    && cleanPlusDefect.defects.length === 1
+    && cleanPlusDefect.imports.length === 3
+    && apply.applyEligibility(cleanPlusDefect).eligible === true
+    && !cleanPlusDefect.imports.some(item => item.link.card_id === 'defect-card'),
+  'a link defect does not block the clean cohort and is excluded from the apply set');
+  ok(apply.planApplyDigest(cleanPlusDefect) === apply.planApplyDigest(cleanOnly)
+    && cleanOnly.defects.length === 0,
+  'defective rows contribute nothing to the apply digest (identical to the same plan without them)');
+  const defectBreakdown = apply.conflictBreakdown(cleanPlusDefect);
+  ok(defectBreakdown.total_defects === 1
+    && defectBreakdown.total_conflicts === 0
+    && defectBreakdown.defect_by_classification.some(row =>
+      row.classification === 'deliverable_crosswalk_mismatch'
+      && row.surface === 'calendar'
+      && row.count === 1)
+    && cleanPlusDefect.scope.defect_rows === 1,
+  'defects are tallied in their own breakdown bucket and counted in the declared scope');
+  const defectRendered = apply.renderPlanSummaryMarkdown({
+    status: 'READY', eligible: true, reasons: [], apply_digest: 'e'.repeat(64),
+    conflict_breakdown: defectBreakdown,
+  });
+  ok(/### Link defects needing repair — NOT imported and not blocking/.test(defectRendered)
+    && /\| `deliverable_crosswalk_mismatch` \| calendar \| `crosswalk_fields:card_id` \| 1 \|/.test(defectRendered)
+    && /linkage-repair session/.test(defectRendered)
+    && !/### Blocking reasons/.test(defectRendered)
+    && !defectRendered.includes('defect-card')
+    && !defectRendered.includes('somewhere-else'),
+  'the public summary gives link defects their own titled section and leaks no identifier');
 
   // The v2 contract REQUIRES the crosswalk: a v1-shaped snapshot cannot certify.
   const noCrosswalk = apply.derivePlan({

@@ -28,20 +28,39 @@ const DELIVERABLE_FIELDS = Object.freeze([
 // The RPC derives the expected deliverable origin from the request surface.
 const SURFACE_ORIGIN = Object.freeze({ calendar: 'calendar', sxr: 'samples' });
 
-// Import scope. A canonical comment is addressed by its card's native
-// deliverable id, so a card with no such binding has nothing for the crosswalk
-// to point at. Those rows are OUT OF SCOPE for an import run, not defective:
-// no owner action taken during the window makes them plannable, and treating
-// them as conflicts blocked the entire linked cohort indefinitely. They are
-// classified as DEFERRALS — reported with exact counts, never imported, and
-// picked up automatically by a later plan once the card gains a binding.
+// Import scope. A plan sorts every non-importable row into exactly one of three
+// buckets, and only the first one blocks:
 //
-// This is the ONLY deferred class. Every other conflict classification stays
-// plan-blocking, so malformed timestamps, bad rounds, audience quarantines,
-// duplicate identities, parent cycles, coverage mismatches and missing client
-// slugs all still refuse the plan exactly as before.
+//   CONFLICTS  — blocking. The plan is not certifiable until the owner fixes
+//                these: malformed timestamps, invalid rounds, NUL bytes,
+//                audience quarantines, duplicate identities, parent cycles,
+//                coverage mismatches, missing client slugs, missing comment ids.
+//
+//   DEFERRALS  — out of scope, non-blocking. The card has no target for the
+//                canonical crosswalk to address (no native deliverable binding,
+//                or a binding that names a deliverable which does not exist).
+//                No owner action during the window makes them plannable; a later
+//                plan picks them up automatically once the card gains a binding.
+//
+//   DEFECTS    — link defects, non-blocking. The deliverable EXISTS but
+//                describes a different card/client/team/origin, so importing the
+//                row would attach the comment to the WRONG deliverable. These
+//                need a linkage-repair session, not an import fix. They are
+//                never imported and never enter the apply digest — exactly like
+//                deferrals — but they are reported separately because the
+//                remedy is different: a deferral resolves itself when the card
+//                is linked, a defect needs someone to repair a bad link.
+//
+// Blocking on defects kept the whole linked cohort unimportable while the
+// mis-linked rows sat there; the RPC's own crosswalk refusal remains in place as
+// the apply-time backstop, so nothing can reach the wrong deliverable even if
+// this classification were ever wrong.
 const IMPORT_SCOPE_POLICY = 'linked-cohort';
-const DEFERRED_CLASSIFICATIONS = Object.freeze(['missing_deliverable_id']);
+const DEFERRED_CLASSIFICATIONS = Object.freeze([
+  'missing_deliverable_id',
+  'deliverable_not_found',
+]);
+const DEFECT_CLASSIFICATIONS = Object.freeze(['deliverable_crosswalk_mismatch']);
 const COMPONENT_FIELDS = Object.freeze({
   video: ['comments', 'video_comments', 'video_tweaks'],
   graphic: ['graphic_comments', 'graphic_tweaks'],
@@ -277,12 +296,14 @@ function firstNulPath(value, trail = []) {
 // abort the whole apply on that row. Validating here is the difference between
 // a certified plan and one the RPC rejects on its first call.
 //
-// A card pointing at a deliverable that does NOT exist is treated the same as an
-// unlinked card: out of scope (deferred), because the canonical thread has no
-// target and no owner action during the window creates one. A deliverable that
-// DOES exist but describes a different card/client/team/origin is a data defect,
-// not an absence, so it BLOCKS — importing it would attach the comment to the
-// wrong deliverable, and the owner has to adjudicate that before any write.
+// A card pointing at a deliverable that does NOT exist is out of scope
+// (DEFERRED), because the canonical thread has no target and no owner action
+// during the window creates one. A deliverable that DOES exist but describes a
+// different card/client/team/origin is a link DEFECT: importing it would attach
+// the comment to the wrong deliverable, so the row is never imported — but it
+// needs a linkage-repair session rather than an import fix, so it is reported in
+// its own bucket instead of blocking the clean cohort. The RPC's own crosswalk
+// refusal stays in place as the apply-time backstop.
 function deliverableCrosswalkIssues(deliverable, scope = {}) {
   const base = {
     surface: clean(scope.surface) || null,
@@ -297,7 +318,7 @@ function deliverableCrosswalkIssues(deliverable, scope = {}) {
         classification: 'deliverable_not_found',
         reason: 'card_deliverable_id_has_no_matching_deliverable',
       }],
-      conflicts: [],
+      defects: [],
     };
   }
   const expectedOrigin = SURFACE_ORIGIN[clean(scope.surface).toLowerCase()] || '';
@@ -307,14 +328,15 @@ function deliverableCrosswalkIssues(deliverable, scope = {}) {
   if (clean(deliverable.team).toLowerCase() !== expectedTeam) fields.push('team');
   if (clean(deliverable.client_slug) !== clean(scope.clientSlug)) fields.push('client_slug');
   if (clean(deliverable.card_id) !== clean(scope.cardId)) fields.push('card_id');
-  if (!fields.length) return { deferrals: [], conflicts: [] };
+  if (!fields.length) return { deferrals: [], defects: [] };
   return {
     deferrals: [],
-    conflicts: [{
+    defects: [{
       ...base,
       classification: 'deliverable_crosswalk_mismatch',
       // Field NAMES only — never the differing values, which are card ids and
-      // client slugs and must not reach a public log.
+      // client slugs and must not reach a public log. The runner-local plan
+      // still carries the per-row card/comment identity for the repair session.
       fields: fields.sort(),
       reason: `crosswalk_fields:${fields.sort().join(',')}`,
     }],
@@ -578,6 +600,9 @@ function planSurface(input, options = {}) {
   // Out-of-scope rows: reported with counts, never plan-blocking. See the
   // missing_deliverable_id branch below for why this class is distinct.
   const deferrals = [];
+  // Link-defect rows: the deliverable exists but points elsewhere. Never
+  // imported, never blocking; surfaced separately for the repair session.
+  const defects = [];
   // Live deliverable crosswalk, keyed by id. The RPC validates every comment
   // against this; without it the planner cannot certify what the RPC will accept.
   const deliverablesById = options.deliverablesById instanceof Map
@@ -626,16 +651,16 @@ function planSurface(input, options = {}) {
       }
       // The card names a deliverable. Validate the LIVE crosswalk the RPC will
       // check, per component, before any of this component's rows are planned:
-      // a missing deliverable defers the whole component, a mismatched one
-      // blocks it. Either way none of its comments reach the apply.
+      // a missing deliverable DEFERS the whole component, a mismatched one marks
+      // it a link DEFECT. Neither blocks, and neither reaches the apply.
       const crosswalk = deliverableCrosswalkIssues(deliverablesById.get(targetId), {
         surface, cardId, component, clientSlug: sourceClientSlug,
       });
-      if (crosswalk.deferrals.length || crosswalk.conflicts.length) {
+      if (crosswalk.deferrals.length || crosswalk.defects.length) {
         list.forEach(raw => {
           const nativeId = clean(raw.id || raw.comment_id || raw.native_comment_id) || null;
           crosswalk.deferrals.forEach(issue => deferrals.push({ ...issue, native_comment_id: nativeId }));
-          crosswalk.conflicts.forEach(issue => conflicts.push({ ...issue, native_comment_id: nativeId }));
+          crosswalk.defects.forEach(issue => defects.push({ ...issue, native_comment_id: nativeId }));
         });
         continue;
       }
@@ -798,8 +823,9 @@ function planSurface(input, options = {}) {
     imports: orderedImports,
     conflicts,
     deferrals,
-    // Complete FOR SCOPE: every in-scope (linked) row planned cleanly. Deferred
-    // out-of-scope rows are counted, never blocking.
+    defects,
+    // Complete FOR SCOPE: every in-scope, cleanly-linked row planned cleanly.
+    // Deferred out-of-scope rows and link defects are counted, never blocking.
     complete: conflicts.length === 0,
   };
 }
@@ -819,6 +845,7 @@ function planCardCommentImport(input, options = {}) {
         policy: IMPORT_SCOPE_POLICY,
         planned_imports: Array.isArray(plan.imports) ? plan.imports.length : 0,
         deferred_rows: Array.isArray(plan.deferrals) ? plan.deferrals.length : 0,
+        defect_rows: Array.isArray(plan.defects) ? plan.defects.length : 0,
       },
       complete: false,
     };
@@ -843,6 +870,7 @@ function planCardCommentImport(input, options = {}) {
   const importRunId = clean(options.importRunId) || 'f42-card-thread-snapshot-dry-run';
   const conflicts = [];
   const deferrals = [];
+  const defects = [];
   const imports = [];
   const coverageSurfaces = {};
   let inputRows = 0;
@@ -907,6 +935,7 @@ function planCardCommentImport(input, options = {}) {
     imports.push(...surfacePlan.imports);
     conflicts.push(...surfacePlan.conflicts);
     deferrals.push(...surfacePlan.deferrals);
+    defects.push(...surfacePlan.defects);
     const expected = manifestSurfaces[surface];
     const mismatches = manifestMismatches(expected, surfacePlan.coverage);
     coverageSurfaces[surface] = {
@@ -944,12 +973,14 @@ function planCardCommentImport(input, options = {}) {
     imports,
     conflicts,
     deferrals,
+    defects,
     // The plan's scope is explicit in the artifact so an operator (and the apply
     // runner) can never mistake a linked-cohort plan for a whole-source one.
     scope: {
       policy: IMPORT_SCOPE_POLICY,
       planned_imports: imports.length,
       deferred_rows: deferrals.length,
+      defect_rows: defects.length,
     },
     // Complete FOR SCOPE — see IMPORT_SCOPE_POLICY. Deferred rows are counted
     // and reported but never block; every other conflict class still does.
@@ -990,6 +1021,7 @@ if (require.main === module) main();
 
 module.exports = {
   COMPONENT_FIELDS,
+  DEFECT_CLASSIFICATIONS,
   DEFERRED_CLASSIFICATIONS,
   DELIVERABLE_FIELDS,
   IMPORT_SCOPE_POLICY,

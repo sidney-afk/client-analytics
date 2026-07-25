@@ -217,9 +217,13 @@ rehearsal green on the same SHA before `mode: apply` is dispatched.
 
 The 2026-07-24/25 window executed steps 1–5; steps 6–7 are **still owed**:
 
-1. ~~database backup and additive migration apply~~ — **DONE 2026-07-24 ~22:00Z**: all five
+1. database backup and ~~additive migration apply~~ — migration apply **DONE 2026-07-24
+   ~22:00Z**: all five
    Slice 4 migrations applied in order via the Supabase SQL editor, pinned to reviewed SHA
-   `1738ad3`, each verified by its per-step SQL boolean (`EXECUTION_LOG.md`);
+   `1738ad3`, each verified by its per-step SQL boolean (`EXECUTION_LOG.md`); the dedicated
+   pre-apply database backup was NOT separately taken; the standing Track-B 6-hourly private
+   snapshot cadence (PR #840) is the pre-window restore point — recorded as owner-accepted
+   residual;
 2. ~~exact-source `production-comments`, `production-write`, and `linear-outbound`
    deploy/readback~~ — **DONE 2026-07-24 21:58Z**: deploy run `30129490033`
    (`workflow_dispatch` pinned to `1738ad3`) succeeded with attestation, deploying

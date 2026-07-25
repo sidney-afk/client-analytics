@@ -57,6 +57,9 @@ All times are UTC unless noted.
   `deliverables?select=linear_raw` returns `401`;
   `production_deliverables_browser_v1` returns `200`; and `production_comments`
   remains service-role-only.
+- Backup taken: none separately — no dedicated rule-4 phase snapshot was taken
+  for this window (owner-accepted residual); the most recent scheduled Track-B
+  6-hourly private snapshot (PR #840 cadence) is the pre-window restore point.
 - Runtime flags were not changed by the window: `linear_outbound_enabled`
   remains `{"mode":"off"}` (mirror debt accrues by design), `linear_inbound`
   remains enabled, `prod_authority` remains `{video: linear, graphics: linear}`,

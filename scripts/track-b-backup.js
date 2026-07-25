@@ -828,16 +828,48 @@ function selectAuthenticatedCandidates(candidates, hmacInput = HMAC_KEY_INPUT, n
   return { latest: valid[0] || null, validCount: valid.length, invalidCount };
 }
 
-async function downloadDriveCandidates(token, files) {
-  const candidates = [];
+async function selectLatestAuthenticatedFromDrive(token, files, {
+  retainBytes = false,
+  hmacInput = HMAC_KEY_INPUT,
+  nowMs = Date.now(),
+  download = downloadBackupBytes,
+} = {}) {
+  parseHmacKey(hmacInput);
+  // One candidate at a time: the Drive folder accumulates snapshots without
+  // pruning, and authenticating a package materializes its full parsed dump,
+  // so holding every candidate at once grows the heap with folder history
+  // until the freshness/restore lanes OOM. Only the winner's package bytes
+  // (never its parsed dump) may be retained, and only when asked.
+  let latest = null;
+  let validCount = 0;
+  let invalidCount = 0;
+  let newestCandidateValid = true;
+  let first = true;
   for (const file of files || []) {
+    let candidate;
     try {
-      candidates.push({ file, bytes: await downloadBackupBytes(token, file.id) });
+      candidate = { file, bytes: await download(token, file.id) };
     } catch (_) {
-      candidates.push({ file, error: true });
+      candidate = { file, error: true };
     }
+    const single = selectAuthenticatedCandidates([candidate], hmacInput, nowMs);
+    if (single.latest) {
+      validCount += 1;
+      if (!latest || single.latest.generatedMs > latest.generatedMs) {
+        latest = {
+          file,
+          generatedMs: single.latest.generatedMs,
+          manifest: single.latest.snapshot.manifest,
+          bytes: retainBytes ? candidate.bytes : null,
+        };
+      }
+    } else {
+      invalidCount += 1;
+      if (first) newestCandidateValid = false;
+    }
+    first = false;
   }
-  return candidates;
+  return { latest, validCount, invalidCount, newestCandidateValid };
 }
 
 async function createAndUpload() {
@@ -904,14 +936,11 @@ async function checkFreshness() {
   const driveContext = await resolveDriveContext(token, account);
   const files = await listBackups(token, fetch, driveContext.folderId, driveContext.driveId);
   const nowMs = Date.now();
-  const candidates = await downloadDriveCandidates(token, files);
-  const selection = selectAuthenticatedCandidates(candidates, HMAC_KEY_INPUT, nowMs);
+  const selection = await selectLatestAuthenticatedFromDrive(token, files, { nowMs });
   const latest = selection.latest;
-  const newestCandidateValid = !candidates.length
-    || Boolean(selectAuthenticatedCandidates([candidates[0]], HMAC_KEY_INPUT, nowMs).latest);
   const freshness = classifyFreshness({
     fileCount: files.length,
-    newestCandidateValid,
+    newestCandidateValid: selection.newestCandidateValid,
     latestGeneratedMs: latest ? latest.generatedMs : NaN,
     nowMs,
     thresholdHours: FRESHNESS_HOURS,
@@ -921,7 +950,7 @@ async function checkFreshness() {
       ok: true,
       stale: false,
       latest_file_id: latest.file.id,
-      authenticated_generated_at: latest.snapshot.manifest.generated_at,
+      authenticated_generated_at: latest.manifest.generated_at,
       age_hours: Number(freshness.ageHours.toFixed(2)),
       threshold_hours: FRESHNESS_HOURS,
       invalid_candidates: selection.invalidCount,
@@ -931,7 +960,7 @@ async function checkFreshness() {
     return;
   }
   const staleKey = latest
-    ? `snapshot:${latest.snapshot.manifest.snapshot.sha256.slice(0, 24)}`
+    ? `snapshot:${latest.manifest.snapshot.sha256.slice(0, 24)}`
     : `no-valid-snapshot:${new Date(nowMs).toISOString().slice(0, 10)}`;
   let alreadyPaged = false;
   let slackAlerted = false;
@@ -954,7 +983,7 @@ async function checkFreshness() {
     slack_already_paged: alreadyPaged,
     alert_transport: 'github_workflow_failure_email',
     stale_key: staleKey,
-    authenticated_generated_at: latest ? latest.snapshot.manifest.generated_at : null,
+    authenticated_generated_at: latest ? latest.manifest.generated_at : null,
     age_hours: Number.isFinite(freshness.ageHours) ? Number(freshness.ageHours.toFixed(2)) : null,
     threshold_hours: FRESHNESS_HOURS,
     invalid_candidates: selection.invalidCount,
@@ -970,11 +999,11 @@ async function downloadLatest() {
   const driveContext = await resolveDriveContext(token, account);
   const files = await listBackups(token, fetch, driveContext.folderId, driveContext.driveId);
   if (!files.length) throw new Error('No Track-B backup exists in the configured Drive folder');
-  const selection = selectAuthenticatedCandidates(await downloadDriveCandidates(token, files));
+  const selection = await selectLatestAuthenticatedFromDrive(token, files, { retainBytes: true });
   if (!selection.latest) throw new Error('No authenticated Track-B backup exists in the configured Drive folder');
   fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
   fs.writeFileSync(path.resolve(output), selection.latest.bytes, { mode: 0o600 });
-  const manifest = selection.latest.snapshot.manifest;
+  const manifest = selection.latest.manifest;
   console.log(JSON.stringify({
     ok: true,
     file_id: selection.latest.file.id,
@@ -1039,6 +1068,7 @@ module.exports = {
   renderSafeCopySections,
   runOpaqueTool,
   selectAuthenticatedCandidates,
+  selectLatestAuthenticatedFromDrive,
   sha256,
   snapshotName,
   strictConnectionInfo,

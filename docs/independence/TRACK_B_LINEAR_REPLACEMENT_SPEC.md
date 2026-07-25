@@ -1310,13 +1310,20 @@ and refresh matrix. Canonical persistence must succeed before any Linear/mirror 
 retains the draft/queue with visible retry. Retry produces exactly one canonical mutation and, while
 mirroring is enabled, exactly one applicable mirror intent; retired mode produces zero mirror/outbox intents.
 
-**Source-only candidate state (2026-07-23; not live).** F39 candidate source resolves the exact
+**Post-window state (2026-07-25; live for the linked cohort).** The F39/F42/F43 slice advanced
+from source-only candidate to executed: its migration was applied to production 2026-07-24
+(pinned to `1738ad3`), the reader/writer functions deployed from `1738ad3` (run `30129490033`
+including the F39 scope closure), and the F42 linked-cohort import executed 2026-07-25
+(run `30138142140`, 615 applied / 6,032 deferred `missing_deliverable_id` / 35 quarantined
+`deliverable_crosswalk_mismatch` link defects; counts readback matched). F39 resolves the exact
 target before body access, enforces exact creative-team or active exact-client scope, filters
 client-audience totals/pages, and adds bounded request controls plus durable non-secret read audit.
 F42's planner can certify completeness only from the
-`syncview-f42-card-comment-snapshot-v1` contract containing both Calendar and SXR arrays and an
-independently supplied per-surface card/component-count/stable-hash manifest; missing, malformed,
-duplicate, parent, or coverage conflicts block import. F43 candidate source gives Production,
+`syncview-f42-card-comment-snapshot-v2` contract (v2 adds the deliverable crosswalk; PR #939)
+containing both Calendar and SXR arrays and an
+independently supplied per-surface card/component-count/stable-hash manifest; blocking conflicts
+block import, while `missing_deliverable_id` defers and `deliverable_crosswalk_mismatch`
+quarantines as a non-blocking link-defect class (PRs #938/#940). F43 gives Production,
 Calendar, and Samples one guarded add/reply/edit/delete/resolve/reopen lifecycle with safe
 attachments, CAS/idempotency, audit, refresh, and second-device draft rebase. A verified
 `sample-reviews` client link reads the same canonical thread with its client token plus exact
@@ -1326,8 +1333,9 @@ Client-visible is available only for that durable exact Samples card linkage, ne
 endpoint capability assertion. It reuses the existing `comment` operation. Applicable
 add/edit/delete intents are
 dependency-ordered and remain queued while F2 is `off` or the drainer is unavailable; this is a
-drain pause, not retirement. Live migration, exact private import, functions, and TEST drills remain
-separate owner-approved gates.
+drain pause, not retirement. The migration, functions, and linked-cohort import are live as above;
+the TEST read/write/projection drills and the unlinked-cohort import remain separate
+owner-approved gates.
 
 **9.6 Assignment & due date:** single-row writes; the calendar card shows the editor chip via
 `*_deliverable_id → deliverables → team_members`.

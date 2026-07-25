@@ -1,6 +1,9 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-22 @ 6d3964f + source-only F27 operator-toolkit candidate (PR #901 confirms
+> Last verified: 2026-07-25 @ ecc88ff + Slice 4 live (five migrations applied 2026-07-24 ~22:00Z
+> pinned to `1738ad3`; `linear-outbound` → `production-write` → `production-comments` →
+> `production-archive` deployed from `1738ad3` via run `30129490033`; F42 linked-cohort import
+> executed 2026-07-25) + source-only F27 operator-toolkit candidate (PR #901 confirms
 > no F27 live install; corrective source is merged but not applied/deployed) + Phase-3 Order-1 reconciliation + Workload Creative read-only plan
 > candidate (plan-date effective schema/grants and v2 live; exact correction provenance F147; #850
 > write gateway deployed dark; candidate function source requires manual deployment)
@@ -176,9 +179,12 @@ the old response shape, making an inverted rollout fail closed but visibly unava
 
 PR #850 superseded closed-unmerged #813 without broadening the workflow's push paths:
 `linear-outbound` and `production-write` remain absent from the merge/push trigger and deploy only
-from a manual `workflow_dispatch` pinned to one exact 40-character SHA already on `main`. Pinned run
-`29601466479` used that path at `main@9d76df6`, deploying `linear-outbound` v33 before
-`production-write` v24 and passing both source fingerprints. An ordinary merge still deploys
+from a manual `workflow_dispatch` pinned to one exact 40-character SHA already on `main`. The
+current release identity is pinned run `30129490033` (2026-07-24 21:58Z) at `main@1738ad3`, which
+deployed `linear-outbound` → `production-write` → `production-comments` → `production-archive` in
+order, SUCCESS with attestation. The earlier pinned run `29601466479` at `main@9d76df6`
+(`linear-outbound` v33 before `production-write` v24, both fingerprints passing) is superseded
+historical evidence. An ordinary merge still deploys
 neither function.
 
 The corrective F27 source changes five future runtime closures. The operator
@@ -190,8 +196,9 @@ The reconciler is pinned to that SHA as well. This is source/runbook truth, not 
 `calendar-upsert` and `sample-review-upsert` remain frozen and excluded. See
 `docs/ops/F27_INSTALL_RUNBOOK.md`; this toolkit session deploys nothing.
 
-Live set in `docs/truth/ENDPOINTS.md`. Source now represents 29 deployable function slugs while the
-live inventory remains 28 until `workload-linear` is deliberately deployed;
+Live set in `docs/truth/ENDPOINTS.md`. Source represents 30 deployable function slugs and the live
+inventory is 29 after the 2026-07-24 run `30129490033` deployed `production-comments` and
+`production-archive` from `1738ad3`; only `workload-linear` remains deliberately undeployed;
 `workload-plan` is ACTIVE v2 with the four-file deployed source closure byte-identical to merge
 `fd3e0eaa`; that deployed version still denies Creative list and set. The candidate widens only list
 access and requires a deliberate manual deployment after merge. The release is a paired exact-SHA

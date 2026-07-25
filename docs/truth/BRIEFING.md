@@ -1,17 +1,27 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-24 @ 2ae3cc9 (owner-approved F200 roster/data correction live; product source
-> unchanged from audit base `1e7c0fd`) + source-only F27 operator-toolkit candidate (PR #901 stop
-> evidence still governs live state; corrective source is not live) + Phase-3 reconciliation, the
+> Last verified: 2026-07-25 @ ecc88ff (Slice 4 live: PR #931 squash-merged as `1738ad3`
+> 2026-07-24 ~21:47Z; the five F201/F202/F203/comment-lifecycle/F34-F53 migrations applied to
+> production ~22:00Z; `linear-outbound` → `production-write` → `production-comments` →
+> `production-archive` deployed from `1738ad3` via run `30129490033`; F42 linked-cohort comment
+> import executed 2026-07-25 via run `30138142140`, 615 applied / 6,032 deferred / 35 link defects;
+> PR #937's client canonical-where-linked comment surface live) + source-only F27 operator-toolkit
+> candidate (PR #901 stop
+> evidence still governs F27 live state; corrective source is not live) + Phase-3 reconciliation, the
 > public-safe boot/refresh/history audits ending at F199, and the read-only Production/Graphics gap
 > audit through F205. The owner split F176/F179 overnight-runner containment into parked draft #908
 > for later review; it is not a blocker, must not be expanded or reopened, and was outside both
 > audits. Client-token verifier v28 and the matching #891 browser are live. F186–F199 remain an
 > unremediated staff punch list, with one BLOCKER at F186. F200 is live as a bounded roster/data
 > correction: three active project mappings, one active personal-brand `internal`→`client` correction,
-> and 87 owner-ratified CAS attribution repairs; F201–F205 remain unremediated Production/Graphics
+> and 87 owner-ratified CAS attribution repairs. The register now splits: **F201/F202/F203 and the
+> F34/F53 attachment slice are live-applied and deployed** (their real TEST drills, the F42
+> unlinked-cohort import, and the F34 rescue config seed / inventory reconciliation remain gated),
+> while **F204/F205 remain unremediated** Production/Graphics
 > findings. F200 added no schema, migration, runtime flag, n8n workflow, Edge Function, frozen writer,
-> deployment, or outbound/Linear mutation. Workload background refresh is on
+> deployment, or outbound/Linear mutation; runtime flags were also unchanged by the Slice 4 window
+> (authority Linear/Linear, outbound off, inbound enabled, auth permissive). Workload background
+> refresh is on
 > `main`, while its deliberate-manual function boundaries remain unchanged. Coverage state lives in
 > `docs/testing/ASSURANCE_LEDGER.md`.
 
@@ -169,9 +179,10 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   (F203). F204 owns saved/shared views and manual board ordering; F205 records project board/detail
   status/lead/target disagreement. Existing bridge, comments, assets, freshness, mobile, due,
   Activity, and navigation defects retain their prior F owners.
-  F203 candidate source now implements the guarded Production-only creation contract with
-  deterministic replay receipts and validated parent reuse; its additive RPC/function/UI release,
-  service-only TEST drill, review, and merge remain gated and nothing is live from that candidate.
+  F203 implements the guarded Production-only creation contract with
+  deterministic replay receipts and validated parent reuse; its additive RPCs were applied and its
+  gateway deployed 2026-07-24 (`1738ad3`, run `30129490033`), while the real service-only TEST
+  creation drill remains gated.
 - The public-safe boot/refresh/history/read-truth audit owns F149–F185. Client entry remains first:
   F102/F117 plus the Calendar/Brief wrong-shell refresh in F149. Browser-proven silent read failures
   and indefinite boot states are F151/F152/F158; staff data, Back/Forward and deep-link continuity

@@ -75,7 +75,8 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   §7). Five are backend-only: the Linear webhook target (`linear-inbound`), B4 outbox drainer
   (`linear-outbound`), service-only write wrappers (`deliverable-write`, `batch-write`), and the
   scheduled thumbnail Drive scanner (`thumbnail-revision-scan`). `production-write` is app-called
-  by merged #812; `production-archive` is app-called source-only candidate code for F34.
+  by merged #812; `production-archive` is app-called and **deployed 2026-07-24** from `1738ad3`
+  (run `30129490033`) for F34.
   Real teams remain read-only under Linear authority; the bounded active-TEST lane can write.
 - **n8n** (single host). **54 webhook paths** referenced by the app (§7). Live-instance check
   2026-07-11: **53 of 54 are served by ACTIVE workflows**; the lone exception is `ttp-status`, which
@@ -525,9 +526,10 @@ n8n in the metric read path.*
   full `deliverables` row (brief + raw, on open), bulk brief hydration 6.5 s post-boot / on palette
   open. Issue-detail comments page through the protected `production-comments` Edge Function in
   50-row `{created_at,id}` cursor pages; it returns the normalized native thread, not the old
-  actor/action activity summaries. F39 candidate source authorizes the exact deliverable/team/client
+  actor/action activity summaries. The deployed F39 scope closure (from `1738ad3`, run
+  `30129490033`, 2026-07-24) authorizes the exact deliverable/team/client
   before body access, applies principal/request budgets and durable non-secret read audit, and
-  filters client-audience totals/pages; this source is not deployed. Issue detail calls
+  filters client-audience totals/pages. Issue detail calls
   `_prodLoadEventsFor` to derive its Properties
   status-history hover, but the reader pre-seeds/catches to empty and `_prodActivity` still has no
   render caller, so persisted native Activity is not shown and read failure is not distinguishable
@@ -546,8 +548,10 @@ n8n in the metric read path.*
   calls the new staff-only `production-archive` Edge Function for bounded,
   generation-scoped archive-repair list/detail pages. The archive reader
   repeats active-client and exact Admin/SMM or same-team Creative authorization,
-  returns only certified private rescue links, and is not live until the separate
-  owner-approved migration/function gate.
+  returns only certified private rescue links, and is deployed as of 2026-07-24
+  (`1738ad3`, run `30129490033`) with its migration applied the same day; rescue
+  configuration seed, inventory reconciliation, and retrieval drills remain a
+  separate owner-approved window.
   Also fires the shared Sheets essentials in the background for app chrome. The tab reads the
   single `prod_authority` runtime-flag row to gate controls.
 - **Writes.** Status, comment, due date, assignee, F201 candidate labels, and F202 candidate
@@ -563,8 +567,9 @@ n8n in the metric read path.*
   but browser staff credentials cannot enter TEST scope and the gateway rejects that override.
   A committing pre-flip TEST drill remains service-role-only. The browser never requests legacy
   parity, changes flags, calls an n8n mutation, or writes Linear directly. Project moves, creates,
-  deletes, and the remaining artifact affordances stay read-only except for F203's source-only
-  Production parent/sub-issue create candidate. That candidate accepts only the issue fields,
+  deletes, and the remaining artifact affordances stay read-only except for F203's
+  Production parent/sub-issue create path (RPCs applied and gateway deployed 2026-07-24; the TEST
+  creation drill is still owed). That path accepts only the issue fields,
   persists one manual native hierarchy plus one private create intent atomically, and contains no
   Calendar/Samples/card/link input or writer.
   F53/F137 candidate source adds a guarded Graphics `attachment` operation,
@@ -573,18 +578,21 @@ n8n in the metric read path.*
   revision-safe Linear attachment mirroring, and a server-side SMM Approval
   artifact gate whose client authorization precedes provider probing. F34 adds
   a private, occurrence-complete, capability- and byte-readback-certified
-  rescue sidecar; its migration, functions, inventory, and rescue remain
-  source-only pending the dedicated owner window.
-  F43 candidate source adds canonical add/reply/edit/delete/resolve/reopen for Production,
+  rescue sidecar; its migration was applied 2026-07-24 and its functions
+  deployed from `1738ad3`, while inventory reconciliation and the rescue itself
+  remain pending the dedicated owner window.
+  F43 adds canonical add/reply/edit/delete/resolve/reopen for Production,
   Calendar, and Samples through the same gateway, with safe attachments, CAS/idempotency receipts,
   audit, refresh, second-device draft rebase, and ordered existing-`comment` outbox dependencies.
-  F2 `off`/outage pauses applicable debt rather than retiring it. Its migration/functions/import/
-  TEST drill are not live.
+  F2 `off`/outage pauses applicable debt rather than retiring it. Its migration was applied
+  2026-07-24, its functions deployed from `1738ad3` (run `30129490033`), and the F42 linked-cohort
+  import executed 2026-07-25; the TEST drill is still owed.
 - **Current hard gaps (F50/F53/F54/F94/F136–F138/F200–F205).** A successful deliverable status write does **not** project to
   the linked Calendar/Samples card, whose component status remains a separate downstream truth.
-  The new canonical Graphics artifact/archive-rescue source is not deployed or
-  live-proven, so F34/F53/F137 remain rollout gates despite the candidate
-  contracts. Inactive clients are loaded into ordinary queues, and
+  The canonical Graphics artifact/archive-rescue migration and functions are applied/deployed as
+  of 2026-07-24 (`1738ad3`, run `30129490033`), but the rescue configuration, inventory
+  reconciliation, and TEST attachment drill are not yet run, so F34/F53/F137 keep those remaining
+  rollout gates. Inactive clients are loaded into ordinary queues, and
   neither browser staff gating nor server staff-key writes enforce `clients.active` for
   status/comment/due/assignee. Manual assignment also offers/accepts any active same-team roster row,
   without compatible-role or usable-Linear-mapping enforcement before the native commit (F94).
@@ -609,12 +617,13 @@ n8n in the metric read path.*
   classification (F200). F200 candidate source now removes Linear-derived client insertion, exposes
   repair/provisional/conflict states, rechecks hierarchy/revision, and supplies a private-manifest,
   exact-72 guarded repair path; it performs no live classification here. F201 label display/write and
-  native Workload metadata plus F202 root/child description editing/mirroring are source-only
-  candidates; their repair/migration, function deploy, real service-only TEST drill, review, and
-  merge remain gated. F203 candidate source adds guarded parent/sub-issue creation, deterministic
+  native Workload metadata plus F202 root/child description editing/mirroring are live-applied and
+  deployed as of 2026-07-24 (migrations ~22:00Z; `production-write` from `1738ad3`, run
+  `30129490033`); their real service-only TEST drills remain gated. F203 adds guarded
+  parent/sub-issue creation, deterministic
   IDs, exact replay receipts, validated parent dependency/batch reuse, and zero implicit
-  Calendar/Samples linkage; its additive RPC/function deployment, TEST drill, review, and merge
-  likewise remain gated.
+  Calendar/Samples linkage; its additive RPCs are applied and its gateway deployed the same way,
+  while its TEST creation drill likewise remains gated.
   shared views/manual board ordering await owner scope (F204);
   and project detail/pickers can replace the card's real status/lead/target with defaults because
   they read a slimmer project object (F205). See
@@ -628,9 +637,10 @@ n8n in the metric read path.*
   Production refresh both revalidate the newest comment page; stable-ID merge keeps already-loaded
   older pages and request tokens drop stale pagination races. Comment drafts, per-operation pending
   state, retry idempotency keys, and second-device rebase cursors are memory-only; comment bodies
-  never enter localStorage. F42 candidate source adds durable composite card/comment links,
-  import-run provenance/conflicts, and lifecycle receipts only after an owner-approved migration
-  and complete two-surface manifest-bound import.
+  never enter localStorage. F42's durable composite card/comment links,
+  import-run provenance, and lifecycle receipts are live for the linked cohort: the migration was
+  applied 2026-07-24 and the manifest-bound two-surface import executed 2026-07-25 (615 applied /
+  6,032 deferred / 35 link defects; run `30138142140`).
   Authority is fail-closed and re-read on normal refresh/focus plus a 30-second foreground timer.
 - **Roles.** Every verified staff role can use the mounted nav item. Comment reads additionally
   re-check the role key plus one active role-compatible roster identity server-side; direct
@@ -639,10 +649,11 @@ n8n in the metric read path.*
   may use all five operations, including full-set labels. Creative **writes** are limited to
   same-team status/comment, not labels or own-assignment, and status policy does not validate
   current state (F37/F136). The
-  deployed protected comment **reader does not fetch the target or enforce member-team scope**
-  (F39), so a creative key can currently read another team's full protected thread by deliverable
-  ID. Candidate source closes that scope with exact target/team/client checks, non-enumerating
-  denials, audit, and budgets, but is not live. Direct
+  cross-team comment-read hole is **CLOSED**: the `production-comments` deployed 2026-07-24 from
+  `1738ad3` (run `30129490033`) includes the F39 scope closure — exact target/team/client checks
+  before body access, non-enumerating
+  denials, audit, and budgets — so a creative key can no longer read another team's protected
+  thread by deliverable ID. Direct
   diagnostics without a verified identity remain read-only. "My issues" is a hardcoded heuristic
   (member matching a specific name, else first active assignee), not a real identity (F37). At
   ≤900px the sidebar containing My issues and the only visible palette trigger is hidden; the
@@ -666,9 +677,9 @@ n8n in the metric read path.*
   service-only; this deliberately avoids extending the existing anon-readable mirror policy to
   internal comment text. Deleted/archived issues are filtered client-side from tombstone JSON, not
   server-side.
-- **Track B.** The mirror has the Part 2 status/comment/due/assignee caller and source-only F201 label
-  plus F202 description callers, but both production
-  teams remain read-only while their authority is `linear`; no deploy or flag flip is implied. D-28
+- **Track B.** The mirror has the Part 2 status/comment/due/assignee caller plus the F201 label
+  and F202 description callers (backend deployed from `1738ad3`, 2026-07-24), but both production
+  teams remain read-only while their authority is `linear`; no flag flip is implied. D-28
   can enable Graphics first, then Video, by owner-controlled flag changes with no code change. B5:
   the only production surface.
 
@@ -1360,21 +1371,24 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   completed 18 operations, observed zero unexpected echoes, reconciled `0/0/0`, cleaned up, and
   proved the pre-existing runtime flags unchanged; it did not exercise the now-required F27
   generation or reserved-drill contracts and is not install authorization.
-- **F201 source-only label candidate:** the same gateway adds a protected complete catalog/selected
+- **F201 labels (live-applied + deployed 2026-07-24):** the same gateway adds a protected complete
+  catalog/selected
   read and Admin/SMM full-set label write, while inbound/outbound preserve exact label sets and
   native Workload metadata consumes flipped-team labels directly. Its strict-superset outbox CHECK
-  migration, `production-write` deployment/readback, and real service-only TEST labels drill are a
-  separate owner-approved post-merge window. No migration, deployment, authority/flag change, or
-  live drill is implied by this source candidate; F27 remains parked and uninstalled.
-- **F203 source-only creation candidate:** `production-write` permits `operation=create` only on
+  migration was applied ~22:00Z and `production-write` deployed from `1738ad3` (run `30129490033`);
+  the real service-only TEST labels drill remains a
+  separate owner-approved window. No authority/flag change occurred; F27 remains parked and
+  uninstalled.
+- **F203 creation (live-applied + deployed 2026-07-24):** `production-write` permits `operation=create` only on
   Production for Admin/SMM or the bounded service-only TEST principal. It validates active roster
   client, exact authority/project/team/state/assignee/full-label scope, then atomically writes either
   one structural root batch plus one manual deliverable or one validated child reusing the root
   batch. A deterministic Linear UUID, redacted public audit, private exact outbox envelope, and
   immutable replay receipt recover response loss. Post-ack linkage row-locks and patches only
   Linear ID/identifier/URL, preserving later native edits and later pending intent state. No
-  Calendar/Samples/card/link field is accepted or written. The additive RPCs, function source, and
-  real TEST drill remain a separate owner-approved post-merge release window.
+  Calendar/Samples/card/link field is accepted or written. The additive RPCs were applied and the
+  gateway deployed from `1738ad3`; the
+  real TEST creation drill remains a separate owner-approved window.
 - **B5 (after clean batch cycles per team).** Linear frozen → archived; the `linear-*` n8n family and
   legacy card-write webhooks retired; Workload reconciler + `workload_issues` retired; SyncView is
   the whole production system.
@@ -1430,7 +1444,7 @@ section in §4 **and** the list here, in the same change that touched `index.htm
 
 - **n8n webhooks (54):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `editors-week` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `graphic-form` · `kasper-queue` · `linear-add-comment` · `linear-issue-statuses` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-status` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `video-form` · `weekly-slack-top-reel`
 - **Edge functions (25):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `filming-plans` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan`
-- **Not counted above:** 21 of the 25 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live; `workload-linear` and `production-archive` are app-called candidate source but are not live until their exact-SHA owner-gated deploys.
+- **Not counted above:** 21 of the 25 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. Five more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, and `thumbnail-revision-scan`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy.
 - **Supabase REST tables, literal (9):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`
 - **Supabase REST tables, dynamic:** the visible Linear mirror (internal `production` surface) pages through `'/rest/v1/' + table` (variable `table` in `_prodRestRows`) for `batches`, `deliverables`, `team_members`, `clients`, the one-row `syncview_runtime_flags` authority read, and issue-detail `deliverable_events`. The event read currently feeds only a status-history hover, collapses failure to empty, and has no visible Activity renderer call (F138). SXR reads `'/rest/v1/' + SXR_TABLE` where `SXR_TABLE` = `sample_reviews`.
 - **Runtime kill-switch flags (6):** `calendar_upsert_ef_clients` · `prod_authority` · `pto_v1` · `sample_review_ef_clients` · `settings_ef_clients` · `write_ui_reroute_clients`

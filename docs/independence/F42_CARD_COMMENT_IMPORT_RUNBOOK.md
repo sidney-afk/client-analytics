@@ -1,7 +1,13 @@
 # F42 Calendar/Samples comment import runbook
 
-> Status: SOURCE-ONLY. This document is not authority to apply a migration, deploy a function,
-> export private card data, run an import, change F2, or perform a live TEST drill.
+> Status: EXECUTED for the linked cohort. Apply run `f42-import-2026-07-25c` (Actions run
+> `30138142140`, 2026-07-25 01:16Z, apply digest
+> `bfc03c2c34cd7f779f80aa05b7ab83066eeefa8f50ca1d6e9c5806deb572d237`) applied **615** comments
+> (612 calendar / 3 sxr), with **6,032 deferred** (`missing_deliverable_id`) and **35 quarantined
+> link defects** (`deliverable_crosswalk_mismatch`); the independent counts readback matched. The
+> full seven-run history is in `EXECUTION_LOG.md`. This document remains NON-AUTHORITY for further
+> runs: it does not authorize applying a migration, deploying a function, exporting private card
+> data, running another import, changing F2, or performing a live TEST drill.
 
 F42 closes only when every active Calendar and Samples/SXR card comment root and reply is accounted
 for in one canonical Production thread. The planner is deliberately offline: it reads one local
@@ -66,7 +72,9 @@ Defects and deferrals are treated identically by the apply path: excluded from t
 from the apply digest, so they can never reach a wrong deliverable. They are reported **separately**
 because the remedy differs, each in its own titled run-summary section with the same
 classification × surface × reason counts. The per-row card/comment identity for every defect stays in
-the runner-local plan for the repair session, and never reaches the public log.
+the runner-local plan for the repair session, and never reaches the public log. Those defect-row
+identities are **ephemeral per-run**: they are not retained anywhere durable, so regenerate them
+with a fresh `mode: plan` dispatch when the linkage-repair session actually starts.
 
 `plan.complete` means *complete for scope* — every in-scope, cleanly-linked row planned cleanly —
 and `plan.scope` records the policy plus the planned/deferred/defect counts so a linked-cohort plan
@@ -136,8 +144,9 @@ There is no `--apply` mode. A plan is eligible for owner review only when:
   tweak classification, source fingerprints, and deliverable/card crosswalks match the private
   source evidence.
 
-The service-only `production_comment_card_import` RPC is a later release mechanism. The planner
-does not call it.
+The service-only `production_comment_card_import` RPC is live (its migration was applied to
+production 2026-07-24) and has executed the 2026-07-25 linked-cohort apply. The planner still never
+calls it.
 
 ## Reviewed apply runner (`scripts/f42-card-comment-apply.js`)
 
@@ -168,8 +177,10 @@ disagreement is a `GAPS` result to reconcile.
 ## Repeatable apply rehearsal (`scripts/f42-apply-rehearsal.js`)
 
 Before the live window, `node scripts/f42-apply-rehearsal.js` (also `npm run test:f42-rehearsal`)
-spins up a disposable PostgreSQL cluster, applies every pending migration in order
-(f201 → f202 → f203 → comment-lifecycle → attachments), loads public-safe fixture cards, runs the
+spins up a disposable PostgreSQL cluster, applies the five Slice 4 migrations in order
+(f201 → f202 → f203 → comment-lifecycle → attachments — all five are applied to production as of
+2026-07-24, so no migration is pending live; the rehearsal still applies them to its disposable
+cluster), loads public-safe fixture cards, runs the
 planner and the apply runner against them, and asserts the exact counts and idempotent re-apply.
 It requires local `initdb`/`pg_ctl` and leaves no residue. A green rehearsal on the exact merged
 SHA is a precondition of the coordinated apply; it is not itself authority to apply live.
@@ -204,18 +215,33 @@ rehearsal green on the same SHA before `mode: apply` is dispatched.
 
 ## Separate owner-approved release window
 
-Before any live action, the owner must approve the exact merged SHA and a private proof location,
-then separately gate:
+The 2026-07-24/25 window executed steps 1–5; steps 6–7 are **still owed**:
 
-1. database backup and additive migration apply;
-2. exact-source `production-comments`, `production-write`, and `linear-outbound` deploy/readback;
-3. a fresh private two-surface snapshot and independently produced manifest;
-4. dry plan review with both manifests matching and zero conflicts;
-5. import plus exact counts/crosswalk/readback;
+1. database backup and ~~additive migration apply~~ — migration apply **DONE 2026-07-24
+   ~22:00Z**: all five
+   Slice 4 migrations applied in order via the Supabase SQL editor, pinned to reviewed SHA
+   `1738ad3`, each verified by its per-step SQL boolean (`EXECUTION_LOG.md`); the dedicated
+   pre-apply database backup was NOT separately taken; the standing Track-B 6-hourly private
+   snapshot cadence (PR #840) is the pre-window restore point — recorded as owner-accepted
+   residual;
+2. ~~exact-source `production-comments`, `production-write`, and `linear-outbound`
+   deploy/readback~~ — **DONE 2026-07-24 21:58Z**: deploy run `30129490033`
+   (`workflow_dispatch` pinned to `1738ad3`) succeeded with attestation, deploying
+   `linear-outbound` → `production-write` → `production-comments` → `production-archive`;
+3. ~~a fresh private two-surface snapshot and independently produced manifest~~ — **DONE**: the
+   Actions lane re-exported a fresh two-surface snapshot for every dispatch (v1 for the first
+   four runs; v2 with the deliverable crosswalk from PR #939 onward — the final READY plan and
+   the successful apply both ran on v2);
+4. ~~dry plan review with both manifests matching and zero conflicts~~ — **DONE**: plan runs
+   `30133665009` and `30138065529` were READY (blocking-conflict-free under the PR #938/#940
+   deferral/defect classes);
+5. ~~import plus exact counts/crosswalk/readback~~ — **DONE 2026-07-25 01:16Z**: apply run
+   `30138142140` (`f42-import-2026-07-25c`), 615 applied / 6,032 deferred / 35 link defects,
+   counts readback matched;
 6. one existing-root TEST reply and lifecycle drill through the canonical reader/writer, including
    projection, refresh, response-loss retry, second-device conflict/rebase, and exact client
-   audience denial/allow; and
-7. rollback evidence and private artifact retention.
+   audience denial/allow — **STILL OWED**; and
+7. rollback evidence and private artifact retention — **STILL OWED**.
 
 Client-visible controls remain unavailable until the canonical exact-client reader is deployed and
 its tokened TEST drill proves the exact `sxr` card/component/deliverable request, Samples-origin

@@ -2,6 +2,84 @@
 
 All times are UTC unless noted.
 
+## 2026-07-25 — F42 linked-cohort card-comment import EXECUTED (615 applied / 6,032 deferred / 35 link defects)
+
+- The F42 Calendar/Samples → canonical Production comment import ran to a
+  verified apply through the guarded Actions lane
+  (`.github/workflows/f42-card-comment-import.yml`), every dispatch pinned to an
+  exact merged `main` SHA. Full run history:
+  - `30129652798` (2026-07-24 22:01Z, `mode: plan`) — **FAIL**: silent exit with
+    no public blocking-reason breakdown; fixed by PR #936.
+  - `30131113760` (22:29Z, `mode: plan`) — **BLOCKED**: 6,032 of 6,681 comment
+    rows had `missing_deliverable_id`; PR #938 introduced the non-blocking
+    deferral class for the unlinked cohort.
+  - `30133665009` (23:23Z, `mode: plan`) — **READY**.
+  - `30133730896` (23:25Z, `mode: apply`, import run `f42-import-2026-07-25`) —
+    **FAIL**: first RPC call returned `rpc_production_comment_card_import_400`,
+    zero rows written; PR #939 moved the export to snapshot contract v2 with the
+    deliverable crosswalk and planner/RPC parity.
+  - `30135262682` (2026-07-25 00:00Z, `mode: plan`) — **BLOCKED** by
+    `deliverable_crosswalk_mismatch` rows; PR #940 reclassified them as the
+    non-blocking link-defect class.
+  - `30138065529` (01:14Z, `mode: plan`) — **READY**.
+  - `30138142140` (01:16Z, `mode: apply`, import run `f42-import-2026-07-25c`,
+    apply digest
+    `bfc03c2c34cd7f779f80aa05b7ab83066eeefa8f50ca1d6e9c5806deb572d237`) —
+    **SUCCESS**.
+- Final outcome: **615 comments applied** (612 calendar / 3 sxr), **6,032
+  deferred** (`missing_deliverable_id` — out of scope until the card gains a
+  native deliverable linkage; a later plan picks them up automatically), and
+  **35 quarantined link defects** (`deliverable_crosswalk_mismatch`: 27
+  card_id+origin, 6 team, 2 card_id — these need a linkage-repair session and
+  will not self-resolve). The applied receipts, distinct canonical ids, and the
+  independent `production_comment_card_import_counts` readback all matched the
+  planned count.
+- Per-row card/comment identities, client slugs, and comment bodies remain
+  runner-local and are deliberately excluded from this public log. Defect-row
+  identities are ephemeral per-run: regenerate them with a fresh `mode: plan`
+  dispatch when the linkage-repair session starts.
+- Separately, PR #937 (`96d87bc`) made the client comment surface
+  canonical-where-linked, legacy-where-not; it is live on Pages.
+
+## 2026-07-24 — Five Slice 4 migrations applied to production (~22:00Z)
+
+- The owner applied all five Slice 4 migrations via the Supabase SQL editor, in
+  order, each pinned to the reviewed SHA `1738ad3` (PR #931 squash-merge,
+  ~21:47Z) and each verified by its per-step SQL boolean:
+  1. `2026-07-23-f201-production-labels.sql`
+  2. `2026-07-23-f202-production-descriptions.sql`
+  3. `2026-07-23-f203-production-issue-create.sql`
+  4. `2026-07-23-production-comment-thread-lifecycle.sql`
+  5. `2026-07-23-f34-f53-production-attachments.sql`
+- External read-only readbacks confirmed the effective posture: the
+  `mirror_outbox` operation CHECK accepts `labels`, `description`, and
+  `attachment` operations; anonymous browser GET of
+  `deliverables?select=linear_raw` returns `401`;
+  `production_deliverables_browser_v1` returns `200`; and `production_comments`
+  remains service-role-only.
+- Backup taken: none separately — no dedicated rule-4 phase snapshot was taken
+  for this window (owner-accepted residual); the most recent scheduled Track-B
+  6-hourly private snapshot (PR #840 cadence) is the pre-window restore point.
+- Runtime flags were not changed by the window: `linear_outbound_enabled`
+  remains `{"mode":"off"}` (mirror debt accrues by design), `linear_inbound`
+  remains enabled, `prod_authority` remains `{video: linear, graphics: linear}`,
+  and `auth_enforcement` remains permissive. Owner-ratified decisions recorded
+  with the window: repo-level secrets stay (recorded in the PR #931 body);
+  `deliverable_crosswalk_mismatch` is a non-blocking defect class; deferred
+  rows wait for the linkage brick.
+
+## 2026-07-24 — Slice 4 staff-sensitive Edge Functions deployed from `1738ad3` (21:58Z)
+
+- "Deploy staff-sensitive edge functions" run `30129490033`
+  (`workflow_dispatch` pinned to `1738ad3`) completed **SUCCESS with
+  attestation**, deploying in order: `linear-outbound` → `production-write` →
+  `production-comments` → `production-archive`.
+- This supersedes the previous pinned release identity (`linear-outbound` v33 /
+  `production-write` v24 from `main@9d76df6`, run `29601466479`) for those two
+  functions, and is the first deployment of `production-comments` with the F39
+  scope closure (exact target/team/client authorization before body access) and
+  of `production-archive`. No runtime flag, authority, or n8n state changed.
+
 ## 2026-07-23 — Workload proximity and expanded hierarchy polish; client only
 
 - Replaced the muted Workload proximity circles with matched eight-pixel,

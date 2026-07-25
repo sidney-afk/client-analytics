@@ -98,6 +98,8 @@ executes these files (see `README.md` › Repository layout).
   allowlist, but F27 remains uninstalled. Neither migration is live-applied by
   this source change; the F201 constraint apply, production-write deploy, and
   real TEST labels drill require a separate post-merge owner-approved window.
+  **Applied to production 2026-07-24 ~22:00Z** (Supabase SQL editor, pinned to
+  reviewed SHA `1738ad3`, per-step boolean verified); see `EXECUTION_LOG.md`.
 - **`2026-07-23-f202-production-descriptions.sql`** is the source-only F202
   outbox delta. It widens the F201 operation CHECK and installed pre-F27
   enqueue allowlist by adding only `description`; all eleven accepted
@@ -114,6 +116,8 @@ executes these files (see `README.md` › Repository layout).
   meaningful service-side audit event. The
   F202 constraint apply, production-write deploy, and real TEST description
   drill require a separate post-merge owner-approved window.
+  **Applied to production 2026-07-24 ~22:00Z** (Supabase SQL editor, pinned to
+  reviewed SHA `1738ad3`, per-step boolean verified); see `EXECUTION_LOG.md`.
 - **`2026-07-23-f203-production-issue-create.sql`** is the additive,
   source-only F203 creation delta. It adds one service-role-only atomic create
   RPC for a Production root issue (one structural native batch plus one
@@ -131,6 +135,9 @@ executes these files (see `README.md` › Repository layout).
   runtime flag, authority, or live data. Migration apply, function deploy, and
   the real TEST creation drill require a separate post-merge owner-approved
   window.
+  **Applied to production 2026-07-24 ~22:00Z** (Supabase SQL editor, pinned to
+  reviewed SHA `1738ad3`, per-step boolean verified); see `EXECUTION_LOG.md`.
+  The real TEST creation drill is still owed.
 - **`2026-07-23-f34-f53-production-attachments.sql`** is the source-only
   F34/F53/F137 artifact delta. It widens the F202 operation CHECK and both
   enqueue allowlists by adding only `attachment`; all twelve previously
@@ -170,6 +177,11 @@ executes these files (see `README.md` › Repository layout).
   function deploy, config seed, rescue, and any real TEST attachment drill
   remain a separate post-merge owner-approved window under
   `docs/ops/F34_LINEAR_ASSET_RESCUE.md`.
+  **Applied to production 2026-07-24 ~22:00Z** (Supabase SQL editor, pinned to
+  reviewed SHA `1738ad3`, per-step boolean verified; anon `linear_raw` read
+  `401`, `production_deliverables_browser_v1` `200`); see `EXECUTION_LOG.md`.
+  Rescue config seed, inventory reconciliation, and the TEST attachment drill
+  are still owed.
 - **`2026-07-23-production-comment-thread-lifecycle.sql`** is the additive,
   source-only F39/F42/F43 canonical comment delta. It adds protected read
   audit/budgets, lifecycle idempotency receipts, card-link/import conflict
@@ -180,6 +192,10 @@ executes these files (see `README.md` › Repository layout).
   applicable comment drain debt rather than retiring it. Migration apply,
   function deploy, private Calendar+SXR import, and real TEST read/write/
   projection drills require a separate post-merge owner-approved window.
+  **Applied to production 2026-07-24 ~22:00Z** (Supabase SQL editor, pinned to
+  reviewed SHA `1738ad3`, per-step boolean verified); the F42 linked-cohort
+  import executed 2026-07-25 (615 applied / 6,032 deferred / 35 link defects);
+  see `EXECUTION_LOG.md`. The TEST drills are still owed.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

@@ -1,6 +1,8 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-25 @ ecc88ff + Slice 4 live (five migrations applied 2026-07-24 ~22:00Z
+> Last verified: 2026-07-25 @ aaccfb2 + Slice 5 read-path candidate
+> (`migrations/2026-07-25-slice5-production-read-path.sql`, source-only, unapplied)
+> + Slice 4 live (five migrations applied 2026-07-24 ~22:00Z
 > pinned to `1738ad3`; `linear-outbound` → `production-write` → `production-comments` →
 > `production-archive` deployed from `1738ad3` via run `30129490033`; F42 linked-cohort import
 > executed 2026-07-25) + source-only F27 operator-toolkit candidate (PR #901 confirms
@@ -257,6 +259,39 @@ returns aggregate counts only. Repository variable `THUMBNAIL_REVISION_SCAN_ENAB
 - The Management API does not settle billed egress or the project's spend-cap posture. Before the
   first flip, the owner must answer from **Dashboard -> Usage/Billing**: what is current egress, and
   is the spend cap enabled or disabled?
+
+## Production browser projection read cost (measured 2026-07-25)
+
+`production_deliverables_browser_v1` is the only browser-readable projection of `deliverables`;
+the underlying table's `linear_raw`, `brief`, `file_url` and legacy `comments` remain revoked. The
+view derives 24 of its 45 columns with separate `linear_raw #>> ...` extractions, and **each one
+detoasts the row's Linear document again**. Read-only anon probes
+(`qa/probes/prod_read_path_timing.js`) over the live 4,612-row mirror:
+
+| shape (1000-row page) | upstream |
+|---|---:|
+| full 43-column browser projection + `ORDER BY team,status,due_date` | ~1.2–1.5 s |
+| same projection + `ORDER BY id` | ~1.2–1.4 s |
+| base scalar columns only (no `raw_*`) + same order | ~33–92 ms |
+| `id,status` + same order | ~14–24 ms |
+| `raw_*`/`identity_repair_*` columns only | ~1.17 s |
+| 0 / 1 / 24 `raw_*` columns under the same order | 16 / 224 / 1216 ms |
+
+`ORDER BY` makes every page project the whole relation, so an offset walk of the projection costs
+~5.9–6.0 s of upstream time; a sequential primary-key keyset walk costs ~3.4 s. Under the shipped
+4-wide page burst each request inflates to 2.1–2.5 s (three bursts observed 2026-07-25, 0/12
+failures in that window; the separately reported 15/15 `57014`/HTTP 500 is the same mechanism
+crossing the anon statement timeout at higher baseline load). A composite index on
+`deliverables(team, status, due_date)` was measured and does **not** help — the planner keeps the
+sequential scan because the cost is projection, not ordering.
+
+`migrations/2026-07-25-slice5-production-read-path.sql` (source-only, unapplied) replaces the view
+body so each row detoasts once via a guarded `jsonb_to_record` lateral, leaves the Workload label
+lateral byte-identical, and adds `deliverables_updated_at_idx` for the F95 delta predicate. Offline
+PostgreSQL 16 over 4,626 rows: 951.8 ms → 312.5 ms per page (3.0×), delta window 6.9 ms → 3.2 ms,
+with zero-row `EXCEPT ALL` equivalence in both directions across every column including 14
+adversarial `linear_raw` shapes, and `create or replace view` preserving grants and
+`security_barrier`.
 
 ## Migrations
 

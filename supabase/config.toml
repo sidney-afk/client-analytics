@@ -89,6 +89,13 @@ verify_jwt = false
 [functions.production-comments]
 verify_jwt = false
 
+# Staff-only paginated Production archive reader. The static browser supplies
+# its publishable key for routing; the function separately verifies the stored
+# staff role key, active roster member, active client, and exact team/audience
+# scope before any service-role read.
+[functions.production-archive]
+verify_jwt = false
+
 # Browser-callable native Production write gateway. Supabase JWT verification
 # stays off because the static SPA authenticates each request with either a
 # staff role key plus exact roster actor or a scoped client review token.

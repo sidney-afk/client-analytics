@@ -202,10 +202,11 @@ function matrixEqual(actual, expected, message) {
   const reconcileStart = edge.indexOf('async function reconcileEntityOperation(');
   const reconcileEnd = edge.indexOf('\nfunction configuredTestProjectIds(', reconcileStart);
   const reconcile = edge.slice(reconcileStart, reconcileEnd);
-  const authPosition = entityHandler.indexOf('const principal = await authenticate(');
+  const authPosition = entityHandler.indexOf('preauthenticatedPrincipal = await authenticate(');
   const staffPermissionPosition = entityHandler.indexOf('staffOperationAllowed(');
   const reconcilePosition = entityHandler.indexOf('body.reconcile_only === true');
   ok(authPosition >= 0
+    && /const principal = preauthenticatedPrincipal[\s\S]{0,80}\|\| await authenticate\(/.test(entityHandler)
     && staffPermissionPosition > authPosition
     && reconcilePosition > staffPermissionPosition
     && /principal\.kind === "client"[\s\S]{0,120}clientOperationAllowed\("status", "client_approval", nextStatus\)/.test(reconcile)

@@ -65,7 +65,7 @@ ok(!rows.some(row => row.id === 'hidden'), 'hidden comments never enter render s
 ok(rows.some(row => row.audience === 'client') && rows.some(row => row.audience === 'internal'), 'staff keeps both audiences');
 ok(/PROD_COMMENTS_PAGE_SIZE\s*=\s*50/.test(source), 'page size is 50');
 ok(/\/functions\/v1\/production-comments/.test(source), 'protected Production comments endpoint is used');
-ok(/deliverable_id: id, limit: PROD_COMMENTS_PAGE_SIZE, before: cursor \|\| null/.test(source), 'request posts the opaque before cursor');
+ok(/deliverable_id: id,[\s\S]{0,120}limit: PROD_COMMENTS_PAGE_SIZE,[\s\S]{0,120}before: cursor \|\| null/.test(source), 'request posts the opaque before cursor');
 ok(/candidateCursor\.created_at[\s\S]*candidateCursor\.id/.test(source), 'response preserves created_at/id cursor object');
 ok(/Authorization:\s*'Bearer '\s*\+\s*CAL_SUPABASE_ANON_KEY/.test(source) && /_syncviewEfHeaders/.test(source), 'request combines anon EF routing with verified staff headers');
 ok(/data-prod-comments-state="signin"/.test(source) && /data-prod-comments-state="error"/.test(source) && /data-prod-comments-state="empty"/.test(source), 'sign-in error and empty states are explicit');
@@ -84,7 +84,67 @@ ok(/function _prodComposerHTML\(issue\)/.test(source)
   && /data-prod-comment-form/.test(source)
   && /data-prod-disabled=\\?"composer/.test(source),
   'composer renders only behind the team authority gate and keeps an explicit read-only state');
+const issueClientSurface = extract('_prodIssueClientCommentSurfaceKnown');
+const verifiedClientContext = extract('_prodVerifiedClientCommentSurfaceContext');
+const sxrCommentsForView = extract('_sxrCommentsForView');
+ok(/row\.origin[\s\S]*=== 'samples'/.test(issueClientSurface)
+  && /row\.card_id/.test(issueClientSurface)
+  && /_prodIssueClientCommentSurfaceKnown\(issue\)/.test(source),
+'staff Client-visible is offered only from durable exact Samples card linkage');
+ok(/cap\.verified/.test(verifiedClientContext)
+  && /cap\.view !== 'sample-reviews'/.test(verifiedClientContext)
+  && /mountedSlug !== String\(cap\.slug/.test(verifiedClientContext)
+  && /_writeUiNativeId\(post, component\)/.test(verifiedClientContext)
+  && /source_surface: 'sxr'/.test(verifiedClientContext),
+'verified client SXR context binds capability, slug, card component and canonical deliverable');
+// Canonical-where-linked, legacy-where-not. On a LINKED card the verified
+// client link still never falls back; on an UNLINKED card (no native
+// deliverable binding, so no canonical thread can exist and F42 cannot import
+// one) the client view uses the pre-Slice-4 legacy card arrays.
+ok(/rawPage\.filter\(row => row[\s\S]*row\.audience[\s\S]*=== 'client'/.test(source)
+  && /if \(!canonicalGate\.ready \|\| !canonicalGate\.client\) return \[\];/.test(sxrCommentsForView)
+  && /const list = _sxrCanonicalCommentsFor\(post, comp\)/.test(sxrCommentsForView),
+'client UI drops internal rows and a LINKED card never falls back to legacy card arrays');
+ok(/if \(!canonicalGate\.linked\) \{/.test(sxrCommentsForView)
+  && /const legacy = _sxrCommentsFor\(post, comp\)/.test(sxrCommentsForView)
+  && /rootAudience\(c\) === 'client'/.test(sxrCommentsForView)
+  && /c\.role === 'kasper'/.test(sxrCommentsForView),
+'an UNLINKED card falls back to the legacy card arrays with root-audience client filtering and Kasper hidden');
+const sxrCommentsForAction = extract('_sxrCommentsForAction');
+ok(/_isClientLink && _prodCanonicalCommentGate\(post, comp\)\.linked/.test(sxrCommentsForAction)
+  && /_sxrCanonicalCommentsFor\(post, comp\)/.test(sxrCommentsForAction)
+  && /_sxrCommentsFor\(post, comp\)/.test(sxrCommentsForAction),
+'client action reads follow the same split: canonical only where linked, legacy where not');
+const sxrPostLinearComment = extract('_sxrPostLinearComment');
+ok(/const clientCanonicalWrite = !!\(clientGate && clientGate\.linked\)/.test(sxrPostLinearComment)
+  && /if \(!clientGate\.ready \|\| !clientGate\.client \|\| !nativeId \|\| !clientSurface\)/.test(sxrPostLinearComment)
+  && /canonical_comment_read_required/.test(sxrPostLinearComment)
+  && /_sxrLegacyPostLinearComment\(issueUrl, body, author, meta\)/.test(sxrPostLinearComment),
+'client posting is canonical-and-fail-closed only when linked; unlinked takes the staff/legacy transport');
+ok(!/json\.client_surface_canonical/.test(source)
+  && !/clientReaderVerified/.test(source),
+'endpoint self-attestation cannot unlock Client-visible');
 ok(!/localStorage[^\n]{0,120}comment/i.test(source.slice(source.indexOf('const _prodComments'), source.indexOf('function _prodDescriptionHTML'))), 'comment bodies are not persisted to localStorage');
+const cardCommit = extract('_writeUiCommitCardCommentLifecycle');
+const cardLifecycle = extract('_writeUiCardCommentLifecycle');
+const cardRetry = extract('_writeUiRetryCardCommentAction');
+ok(/await _prodComments\.readCanonical/.test(cardCommit)
+  && /await _prodProjectCanonicalCardComments/.test(cardCommit)
+  && /const refreshed = _prodComments\.find/.test(cardCommit)
+  && /failure\.expectedVersion = Number\(refreshed\.version\)/.test(cardCommit)
+  && /failure\.expectedUpdatedAt = String\(refreshed\.row_updated_at\)/.test(cardCommit)
+  && /failure\.currentBody = String\(refreshed\.body/.test(cardCommit)
+  && /failure\.rebased = true/.test(cardCommit),
+'Calendar/Samples second-device conflicts rebase the preserved edit onto the refreshed exact comment');
+ok(/retryCursor && retryCursor\.rebased === true/.test(cardLifecycle)
+  && /retryCursor\.expectedVersion/.test(cardLifecycle)
+  && /retryCursor\.expectedUpdatedAt/.test(cardLifecycle)
+  && /comment-' \+ action, \[nativeId, comment\.id, version, updatedAt\]/.test(cardLifecycle)
+  && /_calRetryCommentEdit\(failure\.commentId, failure\.body, failure\)/.test(cardRetry)
+  && /_sxrRetryCommentEdit\(failure\.commentId, failure\.body, failure\)/.test(cardRetry),
+'Calendar/Samples retry uses the refreshed CAS cursor and therefore a fresh lifecycle intent identity');
+ok(/A newer version was loaded\. Your draft was preserved; Retry applies it to the current comment\./.test(source),
+'conflict copy tells the user the newer version is loaded and the preserved draft will apply to current state');
 
 if (failures) {
   console.error(`\n${failures} Production comment UI source check(s) failed`);

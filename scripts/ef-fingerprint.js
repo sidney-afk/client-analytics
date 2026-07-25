@@ -32,6 +32,22 @@ const SOURCE_EXTENSIONS = ['', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.j
 const INDEX_CANDIDATES = ['index.ts', 'index.tsx', 'index.js', 'index.mjs'];
 const VALID_FORMATS = new Set(['text', 'markdown', 'json']);
 
+// Every function this attestor covers is deployed `--no-verify-jwt` and does its
+// own auth (service-role, staff role key, client review token, or Linear HMAC),
+// so the only sound live posture is verify_jwt=false. A function that silently
+// flipped to platform JWT verification (or whose posture is unknown) would break
+// its caller and is a deploy regression — fold it into the PASS/FAIL verdict, do
+// not merely record it.
+const EXPECTED_VERIFY_JWT = false;
+
+function jwtPostureOk(verifyJwt) {
+  return verifyJwt === EXPECTED_VERIFY_JWT;
+}
+
+function jwtPostureLabel(verifyJwt) {
+  return verifyJwt === null || verifyJwt === undefined ? 'unknown' : String(verifyJwt);
+}
+
 function fail(message, code = 2) {
   console.error(`ef-fingerprint: ${message}`);
   process.exit(code);
@@ -395,6 +411,9 @@ function reasonFor(result) {
   if (result.error) return result.error;
   const parts = [];
   if (result.status && result.status !== 'ACTIVE') parts.push(`status=${result.status}`);
+  if (Object.prototype.hasOwnProperty.call(result, 'verify_jwt') && !jwtPostureOk(result.verify_jwt)) {
+    parts.push(`verify_jwt=${jwtPostureLabel(result.verify_jwt)} (expected ${EXPECTED_VERIFY_JWT})`);
+  }
   if (result.comparison) {
     if (result.comparison.missing.length) parts.push(`missing=${result.comparison.missing.join(',')}`);
     if (result.comparison.extra.length) parts.push(`extra=${result.comparison.extra.join(',')}`);
@@ -417,10 +436,12 @@ function renderText(report) {
       lines.push(`EXPECTED ${result.slug} source=${result.expected_fingerprint} files=${result.expected_files}`);
       continue;
     }
-    lines.push(`${result.result} ${result.slug} version=${result.version ?? '-'} source=${short(result.expected_fingerprint)} live=${short(result.live_fingerprint)} bundle=${short(result.bundle_fingerprint)} files=${result.expected_files}/${result.live_files ?? '-'}`);
+    lines.push(`${result.result} ${result.slug} version=${result.version ?? '-'} jwt=${jwtPostureLabel(result.verify_jwt)} source=${short(result.expected_fingerprint)} live=${short(result.live_fingerprint)} bundle=${short(result.bundle_fingerprint)} files=${result.expected_files}/${result.live_files ?? '-'}`);
     if (result.result !== 'PASS') lines.push(`  ${reasonFor(result)}`);
   }
-  lines.push('', `Summary: ${report.summary.pass} PASS, ${report.summary.fail} FAIL, ${report.summary.error} ERROR`);
+  lines.push('',
+    `Summary: ${report.summary.pass} PASS, ${report.summary.fail} FAIL, ${report.summary.error} ERROR`,
+    `JWT posture: ${report.summary.jwt_ok} verify_jwt=${EXPECTED_VERIFY_JWT}, ${report.summary.jwt_flagged} off-posture`);
   return lines.join('\n');
 }
 
@@ -436,14 +457,19 @@ function renderMarkdown(report) {
     `- Comparison: ${report.mode === 'live-read-only' ? 'live read-only Supabase Management API GET' : 'expected source only; no live API call'}`,
     `- Project ref: \`${report.project_ref || '-'}\``,
     '',
-    '| Slug | Result | Live version | Expected source | Live source | Deployed bundle | Files |',
-    '|---|---:|---:|---|---|---|---:|',
+    '| Slug | Result | Live version | verify_jwt | Expected source | Live source | Deployed bundle | Files |',
+    '|---|---:|---:|:--:|---|---|---|---:|',
   ];
   for (const result of report.results) {
     const resultText = report.mode === 'expected-only' ? 'EXPECTED' : result.result;
-    lines.push(`| \`${escapeCell(result.slug)}\` | ${resultText} | ${escapeCell(result.version)} | \`${short(result.expected_fingerprint)}\` | \`${short(result.live_fingerprint)}\` | \`${short(result.bundle_fingerprint)}\` | ${result.expected_files}/${result.live_files ?? '-'} |`);
+    const jwtCell = report.mode === 'expected-only'
+      ? '-'
+      : `${jwtPostureLabel(result.verify_jwt)}${jwtPostureOk(result.verify_jwt) ? '' : ' ⚠'}`;
+    lines.push(`| \`${escapeCell(result.slug)}\` | ${resultText} | ${escapeCell(result.version)} | ${escapeCell(jwtCell)} | \`${short(result.expected_fingerprint)}\` | \`${short(result.live_fingerprint)}\` | \`${short(result.bundle_fingerprint)}\` | ${result.expected_files}/${result.live_files ?? '-'} |`);
   }
-  lines.push('', `**Result:** ${report.summary.pass} PASS, ${report.summary.fail} FAIL, ${report.summary.error} ERROR.`);
+  lines.push('',
+    `**Result:** ${report.summary.pass} PASS, ${report.summary.fail} FAIL, ${report.summary.error} ERROR.`,
+    `**JWT posture:** ${report.summary.jwt_ok} at verify_jwt=${EXPECTED_VERIFY_JWT}, ${report.summary.jwt_flagged} off-posture.`);
   const failures = report.results.filter(result => result.result === 'FAIL' || result.result === 'ERROR');
   for (const result of failures) lines.push(`- \`${result.slug}\`: ${escapeCell(reasonFor(result))}`);
   return lines.join('\n');
@@ -521,12 +547,13 @@ async function main() {
       const liveFingerprint = closureFingerprint(liveClosure);
       const comparison = compareClosures(expectedRecord.closure, liveClosure);
       const active = String(metadata.status || '') === 'ACTIVE';
+      const verifyJwt = metadata.verify_jwt ?? null;
       return {
         slug,
-        result: comparison.pass && active ? 'PASS' : 'FAIL',
+        result: comparison.pass && active && jwtPostureOk(verifyJwt) ? 'PASS' : 'FAIL',
         status: String(metadata.status || ''),
         version: metadata.version ?? null,
-        verify_jwt: metadata.verify_jwt ?? null,
+        verify_jwt: verifyJwt,
         expected_fingerprint: expectedRecord.fingerprint,
         live_fingerprint: liveFingerprint,
         bundle_fingerprint: String(metadata.ezbr_sha256 || ''),
@@ -549,6 +576,8 @@ async function main() {
     pass: results.filter(result => result.result === 'PASS').length,
     fail: results.filter(result => result.result === 'FAIL').length,
     error: results.filter(result => result.result === 'ERROR').length,
+    jwt_ok: results.filter(result => jwtPostureOk(result.verify_jwt)).length,
+    jwt_flagged: results.filter(result => !jwtPostureOk(result.verify_jwt)).length,
   };
   const report = {
     schema_version: 1,
@@ -567,11 +596,14 @@ if (require.main === module) {
   main().catch(error => fail(String(error && error.message || error), 2));
 } else {
   module.exports = {
+    EXPECTED_VERIFY_JWT,
     closureFingerprint,
     compareClosures,
     dispositionValue,
+    jwtPostureOk,
     multipartBoundary,
     normalizeLivePath,
     parseMultipart,
+    reasonFor,
   };
 }

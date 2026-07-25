@@ -60,10 +60,12 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     comments: { nodes: [] },
   };
 
-  ok(mapping.OUTBOUND_OPERATIONS.length === 12
-    && mapping.OUTBOUND_OPERATIONS.includes('labels')
-    && mapping.OUTBOUND_OPERATIONS.includes('description'),
-  'the strict outbound operation catalog adds description after labels without dropping an existing operation');
+  ok(JSON.stringify(mapping.OUTBOUND_OPERATIONS) === JSON.stringify([
+    'create', 'status', 'comment', 'due', 'assignee', 'title',
+    'priority', 'parent', 'archive', 'restore', 'labels', 'description',
+    'attachment',
+  ]),
+  'the strict outbound operation catalog keeps every prior operation and adds attachment only');
   ok(mapping.D27_LIVE_ERA_START === D27_LIVE_ERA_START,
     'reconciler and Edge Function share the exact D-27 live-era boundary');
   const status = mapping.buildMutation(baseRow, { state_id: 'state_approved', linear_issue_id: 'issue_fixture' });
@@ -208,6 +210,189 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     && /via SyncView/.test(comment.variables.input.body)
     && mapping.markerFromBody(comment.variables.input.body) === 'fixture:comment:1',
   'comment mapping carries the visible convention and hidden dedup marker');
+  const dependencyEdit = mapping.buildMutation({
+    ...baseRow,
+    operation: 'comment',
+    dedup_key: 'fixture:comment:edit',
+    payload: { action: 'edit', body: 'Edited while drain was paused' },
+  }, { linear_comment_id: 'linear-comment-from-add' });
+  const dependencyDelete = mapping.buildMutation({
+    ...baseRow,
+    operation: 'comment',
+    dedup_key: 'fixture:comment:delete',
+    payload: { action: 'delete' },
+  }, { linear_comment_id: 'linear-comment-from-edit' });
+  ok(dependencyEdit.kind === 'commentUpdate'
+    && dependencyEdit.variables.id === 'linear-comment-from-add'
+    && dependencyDelete.kind === 'commentDelete'
+    && dependencyDelete.variables.id === 'linear-comment-from-edit',
+  'comment edit/delete accept the provider id handed forward by their ordered dependency');
+  const shadowMaterializedEdit = mapping.buildMutation({
+    ...baseRow,
+    operation: 'comment',
+    dedup_key: 'fixture:comment:shadow-live-edit',
+    payload: { action: 'edit', body: 'Current canonical body' },
+  }, {
+    linear_issue_id: 'issue_fixture',
+    comment_shadow_materialize: true,
+  });
+  ok(shadowMaterializedEdit.kind === 'commentCreate'
+    && shadowMaterializedEdit.variables.input.issueId === 'issue_fixture'
+    && mapping.markerFromBody(shadowMaterializedEdit.variables.input.body)
+      === 'fixture:comment:shadow-live-edit',
+  'the first live edit after a shadow-only predecessor materializes only the current canonical comment');
+  const importedMaterializedEdit = mapping.buildMutation({
+    ...baseRow,
+    operation: 'comment',
+    dedup_key: 'fixture:comment:import-live-edit',
+    payload: { action: 'edit', body: 'Current imported canonical body' },
+  }, {
+    linear_issue_id: 'issue_fixture',
+    comment_import_materialize: true,
+  });
+  ok(importedMaterializedEdit.kind === 'commentCreate'
+    && importedMaterializedEdit.variables.input.issueId === 'issue_fixture'
+    && mapping.markerFromBody(importedMaterializedEdit.variables.input.body)
+      === 'fixture:comment:import-live-edit',
+  'the first edit of an F42 import materializes the current canonical body instead of providerless update');
+  const recoveredDelete = mapping.decideConflict({
+    ...baseRow,
+    operation: 'comment',
+    payload: { action: 'delete' },
+    linear_result: { delete_attempted: true },
+  }, { id: 'issue_fixture' }, {
+    linear_comment_id: 'linear-comment-recovered',
+    comment_delete_checked: true,
+    linear_comment: null,
+  });
+  ok(recoveredDelete.decision === 'already_applied'
+    && recoveredDelete.comment_id === 'linear-comment-recovered',
+  'delete crash recovery retains the dependency-supplied provider receipt');
+
+  const attachmentUrl = 'https://drive.google.com/file/d/canonical123/view';
+  const attachmentRow = {
+    ...baseRow,
+    operation: 'attachment',
+    payload: { linear_issue_id: 'issue_fixture', url: attachmentUrl, artifact_revision: 3 },
+  };
+  const attachmentContext = { entity: { file_url: attachmentUrl, artifact_revision: 3 } };
+  const revisionSubtitle = 'SyncView canonical revision 3';
+  const foundAttachmentIssue = {
+    id: 'issue_fixture',
+    attachments: {
+      nodes: [{ id: 'att-found', url: attachmentUrl, subtitle: revisionSubtitle }],
+      pageInfo: { hasNextPage: false },
+    },
+  };
+  ok(mapping.decideConflict(attachmentRow, foundAttachmentIssue, attachmentContext).decision === 'already_applied',
+    'an attachment revision present on the fetched page is recognized as already applied');
+  const completeAbsentIssue = {
+    id: 'issue_fixture',
+    attachments: {
+      nodes: [{ id: 'att-other', url: 'https://drive.google.com/file/d/other456/view', subtitle: revisionSubtitle }],
+      pageInfo: { hasNextPage: false },
+    },
+  };
+  ok(mapping.decideConflict(attachmentRow, completeAbsentIssue, attachmentContext).decision === 'apply',
+    'a genuinely absent revision on a complete attachments relation still creates the canonical attachment');
+  const incompleteAttachmentIssue = {
+    id: 'issue_fixture',
+    attachments: {
+      nodes: Array.from({ length: 100 }, (_, index) => ({
+        id: `att-${index}`,
+        url: `https://drive.google.com/file/d/pageone${index}/view`,
+        subtitle: 'SyncView canonical revision 1',
+      })),
+      pageInfo: { hasNextPage: true, endCursor: 'attachment-cursor-1' },
+    },
+  };
+  ok(mapping.decideConflict(attachmentRow, incompleteAttachmentIssue, attachmentContext).decision === 'already_applied',
+    'an incomplete attachments relation fails closed (no pager result) so an exact retry never mints a duplicate attachment');
+
+  // Finding P2 #7 — when the relation is incomplete, the drainer pages on and
+  // passes the DEFINITIVE presence in context. A definitive "absent" must
+  // create the attachment (apply), never terminalize on partial page-one
+  // evidence; a definitive "present" stays already_applied.
+  ok(mapping.decideConflict(attachmentRow, incompleteAttachmentIssue,
+    { ...attachmentContext, attachment_revision_present: false }).decision === 'apply',
+    'an incomplete relation with a definitive absent pager result creates the attachment, never a false already-applied');
+  ok(mapping.decideConflict(attachmentRow, incompleteAttachmentIssue,
+    { ...attachmentContext, attachment_revision_present: true }).decision === 'already_applied',
+    'an incomplete relation with a definitive present pager result stays already_applied');
+  const markerFixture = mapping.attachmentRevisionMarker({ url: attachmentUrl, artifact_revision: 3 });
+  ok(markerFixture && markerFixture.subtitle === revisionSubtitle
+    && mapping.attachmentNodesHaveRevision(
+      [{ url: attachmentUrl, subtitle: revisionSubtitle }], markerFixture) === true
+    && mapping.attachmentNodesHaveRevision(
+      [{ url: 'https://drive.google.com/file/d/other/view', subtitle: revisionSubtitle }], markerFixture) === false
+    && mapping.attachmentRevisionMarker({ url: '', artifact_revision: 3 }) === null,
+    'the attachment revision marker/predicate the drainer pages with matches on canonical url + revision subtitle');
+  const outboundIndexSource = read('supabase/functions/linear-outbound/index.ts');
+  ok(/attachments\(first: 100\)[^{]*\{[\s\S]{0,180}pageInfo \{ hasNextPage endCursor \}/
+    .test(mapping.issueFields()),
+  'the initial issue attachment selection requests the cursor required to reach page two');
+  ok(/async function readAttachmentRevisionPresent\(/.test(outboundIndexSource)
+    && /SyncViewMirrorIssueAttachments/.test(outboundIndexSource)
+    && /attachments\(first: 100, after: \$after\)/.test(outboundIndexSource)
+    && /attachment revision pagination stalled/.test(outboundIndexSource)
+    && /context\.attachment_revision_present = await readAttachmentRevisionPresent\(/.test(outboundIndexSource),
+    'the drainer pages the attachments relation (bounded) and feeds the definitive presence into the conflict decision');
+  const attachmentPagerSource = outboundIndexSource.match(
+    /async function readAttachmentRevisionPresent\([^]*?\n\}/,
+  );
+  ok(!!attachmentPagerSource, 'the attachment revision pager is present for behavioral coverage');
+  if (attachmentPagerSource) {
+    const cursorCalls = [];
+    const attachmentPagerContext = {
+      attachmentRevisionMarker: mapping.attachmentRevisionMarker,
+      attachmentNodesHaveRevision: mapping.attachmentNodesHaveRevision,
+      clean: value => String(value == null ? '' : value).trim(),
+      parseArray: value => Array.isArray(value) ? value : [],
+      parseJson: value => value && typeof value === 'object' && !Array.isArray(value) ? value : {},
+      linearGraphql: async (_query, variables) => {
+        cursorCalls.push(variables.after);
+        if (variables.after === 'attachment-cursor-1') {
+          return {
+            issue: {
+              attachments: {
+                nodes: [{ id: 'page-2-other', url: 'https://example.invalid/other', subtitle: revisionSubtitle }],
+                pageInfo: { hasNextPage: true, endCursor: 'attachment-cursor-2' },
+              },
+            },
+          };
+        }
+        if (variables.after === 'attachment-cursor-2') {
+          return {
+            issue: {
+              attachments: {
+                nodes: [{ id: 'page-3-other', url: 'https://example.invalid/still-other', subtitle: revisionSubtitle }],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          };
+        }
+        throw new Error('unexpected attachment cursor ' + variables.after);
+      },
+    };
+    vm.createContext(attachmentPagerContext);
+    vm.runInContext(attachmentPagerSource[0]
+      .replace(
+        /async function readAttachmentRevisionPresent\([^]*?\): Promise<boolean> \{/,
+        'async function readAttachmentRevisionPresent(issueId, issue, payload) {',
+      )
+      .replace('let after: string | null', 'let after'), attachmentPagerContext);
+    const definitiveAbsent = await attachmentPagerContext.readAttachmentRevisionPresent(
+      'issue_fixture',
+      incompleteAttachmentIssue,
+      attachmentRow.payload,
+    );
+    ok(definitiveAbsent === false
+      && JSON.stringify(cursorCalls) === JSON.stringify([
+        'attachment-cursor-1',
+        'attachment-cursor-2',
+      ]),
+    'the attachment pager consumes the initial and subsequent endCursor values through definitive completion');
+  }
 
   const createPayload = {
     team_id: 'team_fixture',
@@ -648,6 +833,24 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
       < dependencyConflictBlock.indexOf('status: "skipped"')
     && /last_error: f27Replay[\s\S]{0,140}"parent_create_idempotency_conflict"/.test(dependencyConflictBlock),
   'a child create inherits a terminal parent conflict, persists its own read-only quarantine, and skips before any Linear read');
+  ok(/data\.status === "skipped"[\s\S]{0,120}data\.operation\) === "comment"[\s\S]{0,100}result\.comment_id/.test(ef)
+    && /payload\.linear_comment_id[\s\S]{0,100}dependency\.comment_id[\s\S]{0,100}dependency\.linear_comment_id/.test(ef)
+    && /recoveredCommentId[\s\S]{0,500}comment_id: recoveredCommentId/.test(ef)
+    && /comment_id: clean\(context\.linear_comment_id\)/.test(ef),
+  'ordered comment dependencies resume through written or recovered skipped receipts and preserve the provider id');
+  const shadowDependencyStart = ef.indexOf('if (data.status === "shadow_ok")');
+  const shadowDependencyEnd = ef.indexOf('\n  return { waiting: true', shadowDependencyStart);
+  const shadowDependency = ef.slice(shadowDependencyStart, shadowDependencyEnd);
+  ok(/data\.operation\) === "comment"/.test(shadowDependency)
+    && /shadow-comment-dependency:/.test(shadowDependency)
+    && /synthetic_comment_dependency: true/.test(shadowDependency)
+    && /const shadowWithoutForeign = dependency\.synthetic_comment_dependency === true[\s\S]{0,100}control\.mode === "live"/.test(ef)
+    && /\(shadowWithoutForeign \|\| cardImportWithoutForeign\)[\s\S]{0,160}commentAction === "delete"/.test(ef)
+    && /shadow_transition_noop: shadowWithoutForeign/.test(ef)
+    && /recovery_reason: "no_foreign_comment_materialized"/.test(ef)
+    && /commentAction === "edit"[\s\S]{0,520}context\.comment_shadow_materialize = true/.test(ef)
+    && /context\.linear_comment_id = ""/.test(ef),
+  'shadow chains stay terminal: live edit materializes current state while direct delete records an exact no-foreign-object convergence');
   const preConflictStart = ef.indexOf('if (conflict.decision === "idempotency_conflict" && row.operation === "create")');
   const preConflictEnd = ef.indexOf('if (conflict.decision === "failed")', preConflictStart);
   const preConflictBlock = ef.slice(preConflictStart, preConflictEnd);
@@ -852,12 +1055,13 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   ok(!!pushBlock && forbiddenPushPaths.every(path => !pushBlock.includes(`- '${path}'`)),
     'high-risk functions and broad shared changes never trigger a push deploy');
 
-  const pinnedStepAt = deployWorkflow.indexOf('- name: Deploy pinned Track-B write functions');
+  const pinnedStepAt = deployWorkflow.indexOf('- name: Deploy pinned Track-B write/read functions');
   const pinnedStep = pinnedStepAt >= 0 ? deployWorkflow.slice(pinnedStepAt) : '';
   const pinnedLoop = (pinnedStep.match(/for fn in ([^;]+); do/) || [])[1] || '';
   ok(/if: github\.event_name == 'workflow_dispatch'/.test(pinnedStep)
-    && pinnedLoop === 'linear-outbound production-write',
-  'manual deploy step is dispatch-only and deploys the provider before its gateway caller');
+    && pinnedLoop === 'linear-outbound production-write production-comments production-archive'
+    && pinnedLoop.indexOf('production-write') < pinnedLoop.indexOf('production-comments'),
+  'manual deploy step is dispatch-only and deploys the provider and write gateway before the comment/archive readers');
 
   const ancestorGuard = 'git merge-base --is-ancestor "$DEPLOY_COMMIT" origin/main';
   const ancestorGuardAt = deployWorkflow.indexOf(ancestorGuard);

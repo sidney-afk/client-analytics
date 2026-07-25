@@ -54,7 +54,8 @@ jobs:
       - name: End-to-end apply rehearsal on disposable PostgreSQL
         run: node scripts/f42-apply-rehearsal.js | tee "${{ runner.temp }}/f42-rehearsal.json"
       - name: Gate on a clean rehearsal
-        run: grep -q '"status": "PASS"' "${{ runner.temp }}/f42-rehearsal.json"
+        run: |
+          grep -q '"status": "PASS"' "${{ runner.temp }}/f42-rehearsal.json"
       - uses: actions/upload-artifact@v4
         with:
           name: f42-apply-rehearsal

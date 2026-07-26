@@ -231,15 +231,56 @@ Report one bucket per hold reason:
 | **(c)** | Audience divergence. A staff reply carries no audience of its own and inherits `client` from its root in the legacy view, while the canonical client view filters per-row and drops it. Held so the client never loses a message. **Open owner question — see below.** | non-zero forever |
 | **(d)** | Duplicate collapse, and any normalization difference in the raw body (trailing whitespace, CRLF vs LF), where canonical carries fewer copies than legacy. | non-zero forever |
 | **(e)** | **Content mismatch** — canonical genuinely does not carry the legacy content, for none of the above reasons. | **should be zero** |
-| **(f)** | Unrepresentable legacy state — a row carrying `hidden: true`, which `production_comments` cannot store. Measured live: 6 comment rows across 4 cards. | non-zero forever, and tiny |
+| **(f)** | Unrepresentable legacy state — `hidden: true` (6 rows / 4 cards live) or a legacy soft-delete (see below). `production_comments` can store neither. | non-zero forever |
 
 **Buckets (a)–(d) and (f) are the known-permanent baseline.** Only **(e)** is a signal, and only (e)
 should be investigated. A window that ends with (e) at zero has converged, whatever the total says.
 
-Also worth recording at the window: `deleted: true` legacy rows (2,701 live) keep their body in the
-card array while the canonical side blanks it, so any card that has ever had a comment soft-deleted
-falls into (e) on the staff path today. That asymmetry is pre-existing and unfixed; expect it to
-dominate (e) until it is addressed, and subtract it before treating (e) as a signal.
+### Why legacy soft-deletes are in (f), not (e)
+
+Soft-deleted rows were initially expected to land in (e), because the card array keeps the body
+while the canonical side blanks it. Comparing them by identity + deleted-state instead of by body
+would have moved them out. **That fix is unsafe, and the reason was established by test, not by
+reading.**
+
+A tombstone works **by id**. The deleted row stays in storage so a stale merge or a laggy poll
+carrying the pre-delete copy loses the union on that id — `_calMergeCommentLists` keeps the newer
+stamp and logs the attempt. Adoption replaces the row with its canonical twin, whose id is
+composite-derived (`native_comment_id` is the production id, not the legacy one), so the legacy id
+leaves the card store entirely.
+
+Driving the real merge against the real stored form:
+
+| Question | Answer |
+| --- | --- |
+| (a) Is a tombstone still present after adoption, with `deleted: true`? | **Yes** — but under the canonical composite id. |
+| (b) Does that id match the legacy id a stale merge carries? | **No.** The legacy id is absent from the adopted store. |
+| (c) Does a simulated stale merge / laggy poll resurrect it? | **Yes.** The deleted body renders again — and the existing resurrection log never fires, because the merge sees a new id rather than a tombstone override. |
+
+So the anti-resurrection guarantee does **not** survive adoption. A resurrected deleted comment is a
+visible correctness and privacy failure, so adoption is refused whenever a legacy row carries
+`deleted: true`, exactly as for `hidden`. A card that has already adopted is **not** held by its own
+canonical tombstones, or it could never converge.
+
+### What the refusal costs
+
+The 2,701 live `deleted: true` rows are dominated by test and fixture data. Segmented against the
+active-client, non-fixture cohort:
+
+| | whole table | production cohort |
+| --- | ---: | ---: |
+| Comment-bearing (card, component) slots | 4,477 | 462 |
+| — blocked by a legacy soft-delete | 1,322 (29.5%) | **39 (8.4%)** |
+| Comment-bearing cards | 3,917 | 258 |
+| — blocked | 1,143 (29.2%) | **35 (13.6%)** |
+| `deleted: true` rows | 2,701 | **93** |
+| Comment rows in blocked slots | — | **192 of 948 (20.3%)** |
+
+**Stated plainly: this does not end the value of the repair window.** The alarming 2,701 figure is
+~96% fixture data. In the cohort that matters the refusal holds **35 cards / 192 comment rows**, and
+the great majority of the production cohort still converges. Bucket (f) should be expected at
+roughly that size, and a materially larger (f) is itself a signal that the cohort segmentation is
+wrong.
 
 ### Open owner question — the audience divergence behind bucket (c)
 

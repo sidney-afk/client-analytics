@@ -23533,11 +23533,31 @@
 
        Refusing rather than carrying is deliberate for anything canonical cannot
        store: carrying it would produce a row whose suppression evaporates on
-       the next canonical read, which is a slower version of the same bug. */
+       the next canonical read, which is a slower version of the same bug.
+
+       `deleted` is here for a different and sharper reason: a tombstone works
+       by ID. A soft-deleted row stays in storage so a stale merge or a laggy
+       poll carrying the pre-delete copy loses the union on that id
+       (_calMergeCommentLists keeps the newer stamp and logs the attempt).
+       Adoption replaces the row with its canonical twin, whose id is composite
+       derived — `native_comment_id` is the production id, not the legacy one —
+       so the legacy id disappears from the card store entirely. The tombstone
+       still exists, under an id nothing will ever collide with, and a stale
+       copy of the legacy row is absorbed as a BRAND NEW comment. Proven by
+       driving the real merge in
+       test/production-canonical-projection-invocation.js: the deleted body
+       becomes visible again and the existing resurrection log never fires,
+       because the merge never sees it as overriding a tombstone.
+
+       Scoped to rows that are not already canonical: once a card has adopted,
+       its own deleted canonical rows are the correct stored form and must not
+       hold it forever. */
     function _prodLegacyUnrepresentableState(rows) {
         const found = new Set();
         for (const row of Array.isArray(rows) ? rows : []) {
-            if (row && row.hidden === true) found.add('hidden');
+            if (!row || row.canonical === true) continue;
+            if (row.hidden === true) found.add('hidden');
+            if (row.deleted === true) found.add('deleted');
         }
         return [...found].sort();
     }

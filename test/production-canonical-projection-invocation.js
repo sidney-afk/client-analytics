@@ -168,6 +168,28 @@ function makeShaper() {
   return env;
 }
 
+/* Sandbox for the real card-store merge, used to test whether the tombstone
+   anti-resurrection guarantee survives adoption. Separate from makeApp so the
+   merge runs against plain stored rows with no projection in the way. */
+function makeMerger() {
+  const env = {
+    console,
+    _isClientLink: false,
+    __log: [],
+    _calV2Log: (...a) => { env.__log.push(a.join(' ')); },
+    _calStringifyComments: l => JSON.stringify(l || []),
+    _calComponentsFor: () => ['video'],
+    _calMsgAudience: c => (c && c.audience) || 'client',
+  };
+  vm.createContext(env);
+  vm.runInContext([
+    extractFunction('_calCommentsFor'), extractFunction('_calSetCommentsFor'),
+    extractFunction('_calCommentStamp'), extractFunction('_calMergeCommentLists'),
+    extractFunction('_calMergePostComments'), extractFunction('_calCommentsForView'),
+  ].join('\n'), env);
+  return env;
+}
+
 const DELIVERABLE = {
   id: 'dlv-1', client_slug: 'acme-co', team: 'video', kind: 'video',
   origin: 'calendar', card_id: 'card-1',
@@ -608,6 +630,87 @@ function canonicalRow(body, extra) {
     });
     ok(noResolve.done === false && noResolve.done_at === '' && noResolve.done_by === '',
       'an unresolved row carries no resolve provenance');
+  }
+
+  // ================================================================ tombstone survival
+  // The question the guard turns on: does a soft-delete stay un-resurrectable
+  // after adoption? A tombstone works by ID — the deleted row stays in storage
+  // so a stale merge carrying the pre-delete copy loses the union on that id.
+  // Adoption replaces it with a canonical twin whose id is composite-derived,
+  // so the legacy id leaves the store and a stale copy is absorbed as new.
+  {
+    const merge = makeMerger();
+    const legacyLive = {
+      id: 'c1', body: 'keep me', author: 'S',
+      created_at: '2026-01-02T10:00:00.000Z', updated_at: '2026-01-02T10:00:00.000Z',
+    };
+    const legacyDeleted = {
+      id: 'c2', body: 'delete me', author: 'S', deleted: true,
+      created_at: '2026-01-03T10:00:00.000Z', updated_at: '2026-01-04T09:00:00.000Z',
+    };
+    const stalePoll = [
+      legacyLive,
+      { ...legacyDeleted, deleted: false, updated_at: '2026-01-03T10:00:00.000Z' },
+    ];
+
+    // BASELINE: pre-adoption, the tombstone holds.
+    const before = {};
+    merge._calSetCommentsFor(before, 'video', [legacyLive, legacyDeleted]);
+    const staleA = {};
+    merge._calSetCommentsFor(staleA, 'video', stalePoll);
+    merge._calMergePostComments(before, staleA);
+    ok(!merge._calCommentsForView(before, 'video').some(c => c.body === 'delete me'),
+      'BASELINE: pre-adoption a stale merge cannot resurrect a tombstoned comment');
+
+    // POST-ADOPTION: canonical twins, composite ids, deleted body blanked.
+    const canonLive = {
+      id: 'pc_card_aaa', canonical: true, body: 'keep me', author: 'S',
+      created_at: '2026-01-02T10:00:00.000Z', updated_at: '2026-07-26T00:00:00.000Z',
+    };
+    const canonDeleted = {
+      id: 'pc_card_bbb', canonical: true, body: '', author: 'S', deleted: true,
+      created_at: '2026-01-03T10:00:00.000Z', updated_at: '2026-07-26T00:00:00.000Z',
+    };
+    const after = {};
+    merge._calSetCommentsFor(after, 'video', [canonLive, canonDeleted]);
+    const stored = merge._calCommentsFor(after, 'video');
+    // (a) a tombstone IS still present...
+    ok(stored.some(c => c.deleted === true),
+      '(a) after adoption a tombstone is still present in stored form with deleted:true');
+    // (b) ...but not under the id anything will collide with.
+    ok(!stored.some(c => c.id === 'c2'),
+      '(b) the LEGACY id a stale merge carries is absent from the adopted store');
+    // (c) so the stale merge resurrects.
+    const staleB = {};
+    merge._calSetCommentsFor(staleB, 'video', stalePoll);
+    merge._calMergePostComments(after, staleB);
+    ok(merge._calCommentsForView(after, 'video').some(c => c.body === 'delete me'),
+      '(c) PROVEN: after adoption a stale merge DOES resurrect the deleted comment');
+    ok(merge.__log.length === 0,
+      '(c) the existing resurrection log never fires — the merge sees a new id, not a tombstone override');
+
+    // Therefore adoption is refused while a legacy soft-delete is present.
+    const app = makeApp({
+      deliverables: [DELIVERABLE],
+      threads: { 'dlv-1': { items: [canonicalRow('keep me'), canonicalRow('', { deleted: true })] } },
+    });
+    app.calState.posts = [{
+      id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      video_comments: [legacyLive, legacyDeleted],
+      video_tweaks: JSON.stringify([legacyLive, legacyDeleted]),
+    }];
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    const post = app.calState.posts[0];
+    ok(post.video_comments.some(c => c.id === 'c2' && c.deleted === true),
+      'REGRESSION: a card carrying a legacy soft-delete keeps its tombstone, under its own id');
+    ok(app._prodCanonicalCommentGate(post, 'video').status === 'legacy_retained',
+      'REGRESSION: adoption is refused while a legacy tombstone would be replaced');
+    ok(JSON.stringify(app._prodLegacyUnrepresentableState([legacyDeleted])) === JSON.stringify(['deleted']),
+      'a legacy soft-delete is reported as state the canonical shape cannot represent');
+    // A card that has ALREADY adopted must not be held by its own canonical
+    // tombstones, or it would never converge.
+    ok(app._prodLegacyUnrepresentableState([canonDeleted]).length === 0,
+      'a canonical tombstone on an adopted card does NOT hold it (no permanent stall)');
   }
 
   // ================================================================ staff hold status

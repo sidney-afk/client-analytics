@@ -622,7 +622,15 @@ function planSurface(input, options = {}) {
         rowIndex,
       });
       if (!list.length) continue;
-      const sourceClientSlug = clean(row && (row.client_slug || row.client) || options.clientSlug);
+      // Strictly the card's OWN slug. An operator-supplied fallback used to fill
+      // in here, which broke the parity invariant that an importer-accepted row
+      // is one the browser will also accept: the browser compares the
+      // deliverable's client_slug against `row.client_slug || row.client` and
+      // has no way to know what the CLI substituted, so an imported row landed
+      // on a card the canonical gate then rejected as client_slug-invalid.
+      // A card carrying no slug of its own is a blocking `missing_client_slug`
+      // conflict, exactly as before — it is simply no longer maskable.
+      const sourceClientSlug = clean(row && (row.client_slug || row.client));
       if (!sourceClientSlug) {
         list.forEach(raw => conflicts.push({
           classification: 'missing_client_slug',
@@ -1007,9 +1015,17 @@ function main() {
   if (!snapshot || Array.isArray(snapshot) || clean(snapshot.contract) !== SNAPSHOT_CONTRACT) {
     throw new Error(`F42 CLI requires ${SNAPSHOT_CONTRACT} with both Calendar and SXR surfaces`);
   }
+  // Rejected outright rather than silently ignored, so an operator who reaches
+  // for it learns that the card cohort has no slug fallback by design.
+  if (args['client-slug'] !== undefined) {
+    throw new Error(
+      'client_slug_fallback_not_supported: a card cohort derives client_slug only from the card row'
+      + ' (client_slug || client); an operator-supplied slug would import rows the canonical gate'
+      + ' then rejects as client_slug-invalid'
+    );
+  }
   const plan = planCardCommentImport(snapshot, {
     importRunId: args['import-run-id'],
-    clientSlug: args['client-slug'],
   });
   const output = JSON.stringify(plan, null, 2) + '\n';
   if (args.output) fs.writeFileSync(path.resolve(String(args.output)), output);

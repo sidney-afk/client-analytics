@@ -45,8 +45,18 @@ Refused rather than guessed when any of these hold — each is a test case:
 - its `origin` is not `manual` (`origin_is_not_manual`);
 - `client_slug` or `team` disagree (`client_slug_disagrees`, `team_disagrees` — structurally
   unreachable for this field-set, kept as defence in depth);
+- **its `kind` does not match the card slot** (`kind_does_not_match_the_card_slot`) — `team` alone is
+  too coarse, because `team='video'` covers both `kind='video'` and `kind='other'`, and stamping a
+  card onto the wrong kind creates a link the crosswalk accepts but that addresses the wrong
+  artifact;
+- **the card and the deliverable do not provably name the same Linear issue**
+  (`linear_identity_unproven` when either side names none, `linear_identity_disagrees` when they
+  differ). Without this the card is stamped onto whatever unclaimed deliverable happens to sit in
+  its client+team space. Unproven is not permission;
 - the write would collide with `deliverables_card_slot_unique`
-  `(client_slug, origin, card_id, kind)` (`card_slot_unique_would_collide`).
+  `(client_slug, origin, card_id, kind)` (`card_slot_unique_would_collide`);
+- **the write would invalidate any current consumer** (`would_invalidate_consumer:<fields>`) — see
+  below.
 
 ### Class B — team disagrees with kind (6 rows)
 
@@ -66,6 +76,20 @@ Refused when `kind` does not imply the repair, or when `team` is already correct
 > The other 54 inconsistent rows are latent defects that will surface as soon as their cards gain
 > comments. This brick repairs only the 6 that currently block an import; whether to correct all 60
 > in the same window is **Q-B2** below.
+
+### Every current consumer must survive the repair
+
+A deliverable can be named by more than one card slot — `video_deliverable_id` alone governs video,
+caption and title, and nothing stops two slots pointing at one row. The defect scan only sees slots
+that **carry comments**, so a quiet, comment-free slot is invisible to it while still being a live
+consumer.
+
+That matters most for Class B: correcting `team` to satisfy a commented graphic slot can silently
+**invalidate** a comment-free video slot on the same card that is crosswalk-clean today. The planner
+therefore enumerates every `(surface, card, component)` slot naming each deliverable — commented or
+not — and refuses any repair that would turn a currently-clean consumer into a mismatched one. A
+consumer that is already mismatched cannot be made worse by a repair aimed at it, so only
+currently-clean consumers veto.
 
 ### Class C — bound to another card (2 rows)
 
@@ -102,24 +126,53 @@ Mirrors the F42 lane, with two corrections the investigation found in the existi
 | Control | Behaviour |
 | --- | --- |
 | Plan / apply split | `--input` alone plans and prints; nothing touches the database without `--apply`. |
-| Digest pinning | `apply_digest` covers the scope policy, the fixture-exclusion list, and every write's `before`/`after` **and the full observed target row**. `--expected-digest` refuses on drift. |
+| **Input manifest (verified before planning)** | The exporter emits row counts per surface, a content hash of exactly what it wrote, and a `generated_at`. The runner verifies all three **before it plans**, so a truncated, hand-edited or stale export can never become a production write. Snapshots older than 6 hours are refused. |
+| Digest pinning | `apply_digest` covers the scope policy, the fixture-exclusion list, and every write's `before`/`after` **and the full observed target row**. |
+| **`--expected-digest` (mandatory)** | Apply throws `expected_digest_required_for_apply` without it. An optional drift guard is not a guard — the one run that forgets the flag is the one that applies a plan nobody reviewed. |
 | **`--expected-writes` (mandatory)** | Apply throws `expected_writes_required_for_apply` without it, and blocks on mismatch. The existing lane had only `SAFETY_CAP` (default 600) — a plan that grew from 26 writes to 599 would have proceeded. |
 | Owner confirm token | `F42_CONFIRM_LINKAGE_REPAIR=REPAIR_LINK_DEFECTS`. |
-| **Rollback artifact (mandatory)** | `--rollback-artifact` is required for apply. The artifact is written **before the first write** and flushed after every write, so a mid-run failure still reverses exactly the writes that landed. The existing lane wrote its artifact *after* the writes, so a throw left committed writes with no artifact. |
-| Verification | An independent readback must report zero remaining defects; any disagreement is `GAPS`, never `APPLIED`. |
-| Public-safety | The rendered summary is classification × surface × reason **counts only**. Asserted by test: the summary contains no card id, client slug or deliverable id. |
+| **Live CAS on every write** | Each PATCH filters on the **full observed target state** — all five crosswalk fields plus `kind`, with a planned NULL `card_id` as `is.null` — and uses `Prefer: return=representation`. A row that drifted since the export matches nothing, returns zero rows, and is recorded as a **per-row refusal**. No row is ever overwritten on the strength of its id alone. |
+| **Strict apply verification** | Exactly one returned row carrying exactly the intended after-state is the only accepted outcome. Zero rows, more than one row, a missing representation body, or any field mismatch is a refusal. |
+| **Readback (mandatory)** | Apply throws `readback_layer_required_for_apply` without a readback adapter, and an absent or unparseable reading is `readback_missing` — a GAP. "We could not check" never renders the same as "we checked and it was fine". |
+| **Rollback artifact (mandatory, never clobbered)** | `--rollback-artifact` is required for apply. The runner **refuses to overwrite an existing artifact path** — that file is the only record of how to reverse a previous run. Each row is journalled **before** its PATCH is issued. |
+| Public-safety | The rendered summary is classification × surface × reason **counts only**. Asserted by test: the summary contains no card id, client slug or deliverable id. The private snapshot carries **no comment bodies at all** — only per-component counts. |
+
+### Readback semantics — success is NOT zero defects
+
+The unruled Class C rows are **expected** to remain, because this brick deliberately never repairs
+them. Success is therefore:
+
+```
+remaining_defects === expected_remaining_defects   (the unruled Class C set)
+```
+
+Both *more* and *fewer* remaining defects than that residue are a `GAPS` result. A run that reported
+zero remaining defects would mean something repaired Class C without a ruling.
 
 ### Idempotency
 
 Every write is a field correction to a known prior value. Re-running after a successful apply
 re-plans from live data, finds the rows already crosswalk-clean, and produces **zero writes** —
 which `applyEligibility` then reports as `no_writes_planned`. There is no double-apply hazard.
+The CAS predicate makes this stronger still: even a stale plan replayed against repaired rows
+matches nothing and refuses every row.
 
-### Rollback
+### Rollback, and what crash recovery reads
 
-The private artifact records `{deliverable_id, restore, applied}` per row. Reversal is the inverse
-`UPDATE` per row, in any order — the writes are independent. The artifact carries per-row
-identities and must be retained privately; it is never uploaded to a public log.
+The private artifact carries two lists:
+
+- **`planned[]`** — every row the runner intended to write, with its `before` state. **This is what
+  crash recovery restores from.** Restoring `before` on a row that was never written is a no-op,
+  because the row is already in that state, so after an uncontrolled crash the safe reversal is to
+  restore `before` for every *planned* row, in any order.
+- **`attempted[]`** — the narrower record of rows the runner actually issued a write for, useful for
+  reconciliation but **not** the recovery input.
+
+Reversal is the inverse `UPDATE` per row; the writes are independent so order does not matter. NULL
+and `''` are preserved distinctly, so a NULL `card_id` is restored as NULL — restoring `''` would
+leave the row in a state it was never in, and one that still satisfies `card_id IS NOT NULL` in the
+partial unique index. The artifact carries per-row identities and must be retained privately; it is
+never uploaded to a public log.
 
 ## Ordering — this apply is blocked on the gate fix
 
@@ -131,16 +184,41 @@ string on the next save.
 **Therefore: the gate fix PR must be merged and deployed before this apply runs.** The repair PR may
 be reviewed and merged independently; only the *window* is ordered.
 
+### The window must end with the comment import APPLY, not a plan
+
+Repairing a link and stopping is not a finished state. Between the repair and the import, the 33
+affected cards are **crosswalk-valid but not yet imported** — precisely the window in which the
+canonical surface has a valid link and an empty canonical thread. The gate fix makes that state
+*safe* (legacy is preserved and still rendered), but it is still a half-migrated surface, and
+leaving it open across sittings means every later reader depends on that fallback holding. The
+repair and the import therefore complete **in the same sitting**.
+
+**Owner-confirmed write freeze.** For the whole interval from the repair export to the import
+readback, no staff or client comment writes may land on the affected cards, and no linkage-affecting
+edit may be made to their deliverables. The owner confirms the freeze is in force before step 4 and
+releases it only after step 8. Without it, a comment written between repair and import lands in the
+legacy array of a card the import has already read, and the two sides diverge silently.
+
 Sequence for the window:
 
-1. Gate fix deployed and verified.
-2. Fresh `mode: plan` dispatch to regenerate defect-row identities — **never** reuse identities from
-   an old run; they are ephemeral per-run by design.
-3. Repair plan run → owner reviews counts + the Class C rulings → owner records the digest.
-4. Repair apply, digest-pinned, `--expected-writes` set to the reviewed count, confirm token, rollback
-   artifact path.
-5. Readback confirms zero remaining defects.
-6. Fresh F42 `mode: plan` → the 33 unblocked comment rows now appear as importable.
+1. Gate fix deployed and verified in the live app.
+2. **Owner confirms the write freeze is in force** over the affected cards.
+3. Fresh repair export → the runner verifies its manifest (counts + content hash + freshness).
+4. Fresh F42 `mode: plan` dispatch to regenerate defect-row identities — **never** reuse identities
+   from an old run; they are ephemeral per-run by design.
+5. Repair plan run → owner reviews the counts and the Class C rulings → owner records the digest.
+6. **Repair apply** — digest-pinned (`--expected-digest`), `--expected-writes` at the reviewed
+   count, confirm token, rollback artifact path. Per-row CAS refuses anything that drifted.
+7. Repair readback → `remaining_defects === expected_remaining_defects` (the unruled Class C set).
+8. **F42 comment import APPLY** — not a plan. The 33 unblocked comment rows are imported in the same
+   sitting, through the existing digest-pinned, owner-confirmed F42 apply lane.
+9. Import readback confirms the expected canonical count, then the owner **releases the write
+   freeze**.
+
+If step 8 cannot run — for any reason, including a blocked F42 plan — the window does not close
+clean. Either roll the repair back with the artifact, or hold the freeze and finish the import
+before releasing it. A repaired-but-unimported cohort left across sittings is an accepted-residual
+decision for the owner to make explicitly, not a default.
 
 ## Expected outcome
 
@@ -158,11 +236,27 @@ Sequence for the window:
 - **Q-B3 — Final sign-off on the fixture-exclusion list.** `x, sidtest, syn, acme` is provisional.
   *Blocks the apply digest being treated as final.*
 
+## Tooling
+
+| File | Role |
+| --- | --- |
+| `scripts/f42-linkage-repair-export.js` | Produces the private snapshot the runner plans from — card identity, link columns, Linear links, deliverable crosswalk + `kind` + Linear identity, per-component comment **counts**, and the manifest. Carries **no comment bodies**. |
+| `scripts/f42-linkage-defect-repair.js` | Plans, gates and applies the repair. Ships the production PostgREST adapter (CAS patch + readback), attached only for a real `--apply`. |
+
 ## Validation
 
-`test/f42-linkage-defect-repair.js` — 42 checks covering: planner parity for all three classes,
-Class A/B repair shape and before-state capture, Class C escalation, every authority refusal
-(slot-unique collision, already-claimed, cross-client, unclassified shape), comment-free skip,
-fixture exclusion for each workspace, digest determinism and drift, the video/caption/title
-single-write collapse, contradictory-repair conflict, public-summary safety, and the full release
-mechanics including artifact-before-write ordering and mid-run failure reversal.
+`test/f42-linkage-defect-repair.js` — **70 checks**: planner parity for all three classes; Class A/B
+repair shape and NULL-faithful before-state; Class C escalation; every authority refusal
+(slot-unique collision, already-claimed, cross-client, unclassified shape, wrong `kind`, unproven
+and disagreeing Linear identity, would-invalidate-consumer); comment-free skip; fixture exclusion per
+workspace; manifest verification against truncated/edited/stale/future exports; digest determinism
+and drift; the video/caption/title single-write collapse; contradictory-repair conflict;
+public-summary safety; CAS predicate construction and every refusal shape; readback semantics
+including the Class C residue; and the full release mechanics — mandatory digest, writes, token,
+artifact and readback, journal-before-patch ordering, artifact-overwrite refusal, and mid-run
+failure reversal.
+
+`test/f42-linkage-repair-export.js` — **18 checks**: contract and shape, manifest acceptance by the
+runner, per-component count arithmetic, projection scope, and the public-safety assertions that no
+comment body, brief or `linear_raw` reaches the snapshot — plus an end-to-end check that the runner
+plans a Class A repair directly from exporter output.

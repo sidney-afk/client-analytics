@@ -278,9 +278,19 @@ function calendarCard(extra) {
     'a partially-imported thread (one of two legacy rows present) does not cover legacy');
   ok(browser._prodCanonicalCoversLegacy([], []) === true,
     'an empty canonical trivially covers empty legacy');
-  ok(browser._prodCommentProvenanceKey({ body: ' Hello   World ', author_key: 'A', created_at: 't' })
-    === browser._prodCommentProvenanceKey({ text: 'hello world', author: 'a', at: 't' }),
-  'provenance matching is whitespace/case/field-shape tolerant and content-strict');
+  // Field-SHAPE tolerant (body/text, author_key/author, created_at/at) but
+  // content-EXACT: case-folding and whitespace collapsing made materially
+  // different messages compare equal, in the direction that permits a lossy
+  // replacement, so both were removed.
+  ok(browser._prodCommentProvenanceKey({ body: 'Hello World', author_key: 'A', created_at: 't' })
+    === browser._prodCommentProvenanceKey({ text: 'Hello World', author: 'A', at: 't' }),
+  'provenance matching is field-shape tolerant for identical content');
+  ok(browser._prodCommentProvenanceKey({ body: 'Approved', author_key: 'A', created_at: 't' })
+    !== browser._prodCommentProvenanceKey({ body: 'approved', author_key: 'A', created_at: 't' }),
+  'REGRESSION G2: case-differing bodies are DIFFERENT messages');
+  ok(browser._prodCommentProvenanceKey({ body: 'one\ntwo', author_key: 'A', created_at: 't' })
+    !== browser._prodCommentProvenanceKey({ body: 'one two', author_key: 'A', created_at: 't' }),
+  'REGRESSION G2: line breaks are content, not noise');
   ok(browser._prodCommentProvenanceKey({ body: 'a', author_key: 'x', created_at: 't1' })
     !== browser._prodCommentProvenanceKey({ body: 'a', author_key: 'x', created_at: 't2' }),
   'the same body from the same author at a different time is a different message');
@@ -302,9 +312,15 @@ function calendarCard(extra) {
   ) === false,
   'REGRESSION: a boundary-collision row is NOT accepted as covering a different legacy row');
 
-  // The delimiter must be a written escape, never a raw control byte in source.
-  ok(/\[body, author, when\]\.join\('\\u0001'\)/.test(source),
-    'the provenance key joins on an escaped U+0001 delimiter');
+  // Injective by CONSTRUCTION rather than by a delimiter assumption: a hand-
+  // joined key is only safe while no field can contain the delimiter, which is
+  // an unenforced claim about data. JSON.stringify escapes whatever a field
+  // holds.
+  ok(/return JSON\.stringify\(\[body, author, when\]\);/.test(source),
+    'REGRESSION G3: the provenance key is built with JSON.stringify, not a hand-joined delimiter');
+  ok(browser._prodCommentProvenanceKey({ body: 'a', author_key: String.fromCharCode(1) + 'b', created_at: 't' })
+    !== browser._prodCommentProvenanceKey({ body: 'a' + String.fromCharCode(1), author_key: 'b', created_at: 't' }),
+  'REGRESSION G3: a control character inside a field cannot forge a field boundary');
   ok(!source.includes(String.fromCharCode(0)),
     'index.html contains no raw NUL byte (it must stay a text file to git and grep)');
 

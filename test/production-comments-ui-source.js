@@ -105,11 +105,20 @@ ok(/rawPage\.filter\(row => row[\s\S]*row\.audience[\s\S]*=== 'client'/.test(sou
   && /if \(!canonicalGate\.ready \|\| !canonicalGate\.client\) return \[\];/.test(sxrCommentsForView)
   && /const list = _sxrCanonicalCommentsFor\(post, comp\)/.test(sxrCommentsForView),
 'client UI drops internal rows and a LINKED card never falls back to legacy card arrays');
+// The legacy client filter now lives in _sxrClientVisibleLegacyRows, which is
+// deliberately GATE-INDEPENDENT: the canonical projection has to know what the
+// client can see before it decides whether replacing it would hide anything,
+// and asking the gate-dependent view answers with the canonical set on a linked
+// card. Same filter, one definition, two callers.
+const sxrClientVisibleLegacyRows = extract('_sxrClientVisibleLegacyRows');
 ok(/if \(!canonicalGate\.linked\) \{/.test(sxrCommentsForView)
-  && /const legacy = _sxrCommentsFor\(post, comp\)/.test(sxrCommentsForView)
-  && /rootAudience\(c\) === 'client'/.test(sxrCommentsForView)
-  && /c\.role === 'kasper'/.test(sxrCommentsForView),
+  && /return _sxrClientVisibleLegacyRows\(post, comp\)/.test(sxrCommentsForView)
+  && /const legacy = _sxrCommentsFor\(post, comp\)/.test(sxrClientVisibleLegacyRows)
+  && /rootAudience\(c\) === 'client'/.test(sxrClientVisibleLegacyRows)
+  && /c\.role === 'kasper'/.test(sxrClientVisibleLegacyRows),
 'an UNLINKED card falls back to the legacy card arrays with root-audience client filtering and Kasper hidden');
+ok(!/_prodCanonicalCommentGate/.test(sxrClientVisibleLegacyRows),
+  'the legacy client reader never consults the canonical gate (no circular hold)');
 const sxrCommentsForAction = extract('_sxrCommentsForAction');
 ok(/_isClientLink && _prodCanonicalCommentGate\(post, comp\)\.linked/.test(sxrCommentsForAction)
   && /_sxrCanonicalCommentsFor\(post, comp\)/.test(sxrCommentsForAction)

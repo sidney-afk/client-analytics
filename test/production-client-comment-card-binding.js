@@ -128,6 +128,7 @@ function extractBlock(text, start) {
     extractFunction('_sxrCanonicalCommentsFor'),
     extractFunction('_sxrMsgAudience'),
     extractFunction('_sxrCommentsForAction'),
+    extractFunction('_sxrClientVisibleLegacyRows'),
     extractFunction('_sxrCommentsForView'),
   ].join('\n'), browser);
 

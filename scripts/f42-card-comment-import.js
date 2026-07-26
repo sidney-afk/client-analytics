@@ -270,9 +270,18 @@ function roundConflicts(raw, scope = {}) {
 // time. Every string the planner carries into the link or comment comes from
 // source data, so scan the BUILT payload rather than maintaining a field list
 // that can silently drift out of date. Returns the first offending JSON path.
-const NUL_BYTE = '\u0000';
+// The whole C0 control range, not just NUL. PostgREST rejects the call
+// outright on a NUL, which is why that one was screened first — but any
+// control character in a comment body is content nobody can see, cannot
+// retype, and that no reader renders faithfully. It is also exactly the
+// material that would let a delimiter-joined provenance key be forged
+// downstream, so screening the range keeps the canonical store free of it
+// rather than leaving injectivity to depend on an encoding choice.
+// Tab, LF and CR are deliberately allowed: ordinary in a multi-line body.
+// eslint-disable-next-line no-control-regex
+const C0_CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 function firstNulPath(value, trail = []) {
-  if (typeof value === 'string') return value.includes(NUL_BYTE) ? trail.join('.') || '(root)' : '';
+  if (typeof value === 'string') return C0_CONTROL.test(value) ? trail.join('.') || '(root)' : '';
   if (Array.isArray(value)) {
     for (let index = 0; index < value.length; index++) {
       const found = firstNulPath(value[index], [...trail, String(index)]);
@@ -353,7 +362,10 @@ function nulByteConflicts(payload, scope = {}) {
     component: clean(scope.component) || null,
     native_comment_id: clean(scope.nativeId) || null,
     source_field: path,
-    reason: 'nul_byte_in_text',
+    // The classification stays `unsupported_text_control_character`; the reason
+    // widens with the screen, which now covers the whole C0 range and DEL, not
+    // just NUL.
+    reason: 'control_character_in_text',
   }];
 }
 

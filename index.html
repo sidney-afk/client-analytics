@@ -23388,7 +23388,17 @@
         const when = String(
             item.source_created_at || item.created_at || item.at || item.ts || ''
         ).trim();
-        return [body, author, when].join(' ');
+        // U+0001 delimiter, written as an escape sequence, never a space and
+        // never a raw control byte in this file: `body` is whitespace-
+        // normalised and may contain spaces, so a space-joined key lets a
+        // field boundary shift without changing the key — body "ab c" plus
+        // author "d" would collide with body "ab" plus author "c d". That
+        // collision direction is the dangerous one: it marks a legacy row as
+        // COVERED by canonical content that does not contain it, and so
+        // PERMITS the overwrite this invariant exists to prevent. A control
+        // character never appears in a comment body, author key or timestamp,
+        // so the joined key cannot be forged by field content.
+        return [body, author, when].join('\u0001');
     }
     /* True when every legacy row is represented in the canonical projection. An
        empty legacy array is trivially covered. */

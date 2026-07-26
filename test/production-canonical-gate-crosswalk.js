@@ -285,6 +285,29 @@ function calendarCard(extra) {
     !== browser._prodCommentProvenanceKey({ body: 'a', author_key: 'x', created_at: 't2' }),
   'the same body from the same author at a different time is a different message');
 
+  // Field-boundary collision. `body` is whitespace-normalised and may contain
+  // spaces, so any separator that can occur inside a field lets the boundary
+  // shift without changing the key. The dangerous direction is that it marks a
+  // legacy row COVERED by canonical content that does not contain it — which
+  // PERMITS the very overwrite the invariant exists to prevent.
+  ok(browser._prodCommentProvenanceKey({ body: 'ab c', author_key: 'd', created_at: 't' })
+    !== browser._prodCommentProvenanceKey({ body: 'ab', author_key: 'c d', created_at: 't' }),
+  'REGRESSION: a shifted field boundary does NOT produce the same provenance key');
+  ok(browser._prodCommentProvenanceKey({ body: 'ab', author_key: 'c', created_at: 't' })
+    !== browser._prodCommentProvenanceKey({ body: 'a', author_key: 'bc', created_at: 't' }),
+  'REGRESSION: the empty-separator collision (body "ab"+author "c" vs "a"+"bc") is closed');
+  ok(browser._prodCanonicalCoversLegacy(
+    [{ body: 'ab c', author_key: 'd', source_created_at: 't' }],
+    [{ body: 'ab', author_key: 'c d', created_at: 't' }],
+  ) === false,
+  'REGRESSION: a boundary-collision row is NOT accepted as covering a different legacy row');
+
+  // The delimiter must be a written escape, never a raw control byte in source.
+  ok(/\[body, author, when\]\.join\('\\u0001'\)/.test(source),
+    'the provenance key joins on an escaped U+0001 delimiter');
+  ok(!source.includes(String.fromCharCode(0)),
+    'index.html contains no raw NUL byte (it must stay a text file to git and grep)');
+
   // ---------------------------------------------------------------- R2 component-keyed cache
   const twoSlot = calendarCard({ video_deliverable_id: 'dlv-shared', graphic_deliverable_id: 'dlv-shared' });
   browser._prodCrosswalkSetVerdict(twoSlot, 'dlv-shared', 'video', { state: 'valid', fields: [] });

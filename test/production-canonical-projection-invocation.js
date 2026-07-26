@@ -69,7 +69,14 @@ function makeApp(options) {
     SXR_COMPONENTS,
     PROD_CROSSWALK_SURFACE_ORIGIN: { calendar: 'calendar', sxr: 'samples' },
     PROD_CROSSWALK_SELECT: 'id,client_slug,team,origin,card_id',
-    PROD_EPHEMERAL_CANONICAL_KEYS: Object.freeze(['_canonicalCrosswalk', '_canonicalCommentReads']),
+    // Read from source, never hardcoded: a stale copy here would let the real
+    // list drift while the cache-stripping assertions kept passing.
+    PROD_EPHEMERAL_CANONICAL_KEYS: Object.freeze(
+      (source.slice(
+        source.indexOf('const PROD_EPHEMERAL_CANONICAL_KEYS'),
+        source.indexOf(']);', source.indexOf('const PROD_EPHEMERAL_CANONICAL_KEYS')),
+      ).match(/'_[A-Za-z]+'/g) || []).map(s => s.slice(1, -1)),
+    ),
     CAL_SUPABASE_URL: 'https://db.test',
     CAL_SUPABASE_ANON_KEY: 'anon',
     _isClientLink: !!opts.clientLink,
@@ -119,7 +126,14 @@ function makeApp(options) {
     extractFunction('_prodCrosswalkVerdict'),
     extractFunction('_prodCrosswalkSetVerdict'),
     extractFunction('_prodCommentProvenanceKey'),
+    extractFunction('_prodLegacyRawFieldCount'),
+    extractFunction('_prodLegacySameContent'),
+  extractFunction('_prodLegacyReadIncomplete'),
+  extractFunction('_prodStripEphemeralCanonicalState'),
+    extractFunction('_prodMarkLegacyReadIncomplete'),
+    extractFunction('_prodRootAudienceClientRows'),
     extractFunction('_prodCanonicalCoversLegacy'),
+    extractFunction('_calLoadCommentsField'),
     extractFunction('_prodFetchCrosswalkRows'),
     extractFunction('_prodCardBindingToken'),
     extractFunction('_prodResolveCardCrosswalk'),
@@ -270,28 +284,312 @@ function canonicalRow(body, extra) {
     'G3: a boundary-forging legacy row is not treated as covered');
   }
 
-  // ================================================================ malformed loader case
+  // ================================================================ unreadable legacy column
+  // A column the loader could not fully read is UNKNOWN, not empty. Its text is
+  // still recoverable by a human, a support query or a migration right up until
+  // a projection overwrites it — at which point it is gone for everyone.
   {
-    // A malformed but NON-EMPTY *_tweaks string is reduced to [] by the loader.
-    // The parsed array is then empty while the wire string still holds content:
-    // coverage sees nothing to protect, so the write proceeds and the wire
-    // string is rewritten. Pinned as the CURRENT behaviour so a future change
-    // to the loader cannot silently alter it unobserved.
+    const app = makeApp({});
+    ok(app._prodLegacyRawFieldCount('') === 0 && app._prodLegacyRawFieldCount('   ') === 0,
+      'an empty column counts zero stored rows');
+    ok(app._prodLegacyRawFieldCount('[{"id":"a"},{"id":"b"}]') === 2,
+      'a well-formed array column counts its rows');
+    ok(app._prodLegacyRawFieldCount('[{"id":"broken",  not json') === 1,
+      'an UNPARSEABLE column counts as holding content, not as empty');
+    ok(app._prodLegacyRawFieldCount('plain text feedback') === 1,
+      'a non-JSON column counts as holding content');
+    ok(app._prodLegacyRawFieldCount('{"not":"an array"}') === 1,
+      'a JSON non-array column counts as holding content');
+  }
+  for (const [label, raw] of [
+    ['unparseable JSON', '[{"id":"broken",  not json'],
+    // The reviewer reproduction: parses perfectly, is human-readable, and is
+    // dropped only for lacking an id.
+    ['a readable row with no id', '[{"body":"real feedback, no id"}]'],
+    ['a JSON non-array', '{"body":"real feedback"}'],
+  ]) {
     const app = makeApp({
       deliverables: [DELIVERABLE],
       threads: { 'dlv-1': { items: [canonicalRow('Fresh reply')] } },
     });
     app.calState.posts = [{
       id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
-      video_comments: [],
-      video_tweaks: '[{"id":"broken",  not json',
+      video_comments: [], video_tweaks: raw,
     }];
     await app._prodProjectCanonicalCardComments('calendar', 'card-1');
-    const post = app.calState.posts[0];
-    ok(post.video_comments.length === 1 && post.video_comments[0].body === 'Fresh reply',
-      'malformed-but-nonempty tweaks: the parsed array was already empty, so canonical writes');
-    ok(post.video_tweaks !== '[{"id":"broken",  not json',
-      'malformed-but-nonempty tweaks: the unparseable wire string IS replaced (documented behaviour)');
+    ok(app.calState.posts[0].video_tweaks === raw,
+      `REGRESSION: ${label} is NOT overwritten — an unread column is unknown, not empty`);
+  }
+  {
+    // Partial drop: one row survives, one is dropped for lacking an id. The
+    // surviving row alone must not license replacing the column.
+    const app = makeApp({
+      deliverables: [DELIVERABLE],
+      threads: { 'dlv-1': { items: [canonicalRow('kept', { id: 'k' })] } },
+    });
+    const raw = '[{"id":"k","body":"kept"},{"body":"dropped, no id"}]';
+    app.calState.posts = [{
+      id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      video_comments: [{ id: 'k', body: 'kept', author_key: 'client:acme', created_at: '2026-07-20T00:00:00Z' }],
+      video_tweaks: raw,
+    }];
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    ok(app.calState.posts[0].video_tweaks === raw,
+      'REGRESSION: a PARTIALLY read column is not overwritten even though the loaded rows are covered');
+  }
+  {
+    // A cleanly-read column still replaces, so the guard is not "never".
+    const legacy = [legacyRow('Readable')];
+    const app = makeApp({
+      deliverables: [DELIVERABLE],
+      threads: { 'dlv-1': { items: [canonicalRow('Readable')] } },
+    });
+    app.calState.posts = [{
+      id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      video_comments: legacy.slice(), video_tweaks: JSON.stringify(legacy),
+    }];
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    ok(app.calState.posts[0].video_comments[0].canonical === true,
+      'a fully-read column whose content IS carried still replaces');
+  }
+  {
+    // The loader stamps the signal at the point the drop happens, and the
+    // signal survives a cache rehydrate where the loader never runs again.
+    const app = makeApp({});
+    const post = { video_tweaks: '[{"body":"no id"}]' };
+    const loaded = app._calLoadCommentsField(post, 'video_tweaks', '');
+    ok(loaded.length === 0 && post._legacyReadIncomplete
+      && post._legacyReadIncomplete.video === true,
+    'the calendar loader marks the read incomplete when it drops an id-less row');
+    ok(app._prodLegacyReadIncomplete({ video_tweaks: '[{"body":"no id"}]' }, 'video', []) === true,
+      'incompleteness is recomputable from the raw column alone, so a rehydrated post is still protected');
+  }
+  {
+    // Samples: no legacy-seed path at all, so a non-JSON column is pure loss.
+    const app = makeApp({
+      clientLink: true,
+      deliverables: [SXR_DELIVERABLE],
+      threads: { 'dlv-1': { items: [canonicalRow('Fresh')] } },
+    });
+    app.sxrState.posts = [{
+      id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      video_comments: [], video_tweaks: 'plain text a client wrote',
+    }];
+    await app._prodProjectCanonicalCardComments('sxr', 'card-1');
+    ok(app.sxrState.posts[0].video_tweaks === 'plain text a client wrote'
+      && app._prodCanonicalCommentGate(app.sxrState.posts[0], 'video').status === 'legacy_retained',
+    'REGRESSION: an unreadable Samples column holds the card rather than overwriting');
+  }
+
+  // ---------------------------------------------------------------- the `tweaks` alias
+  // The video slot spans two legacy columns. Both setters write both, but the
+  // loader reads `tweaks` only as a fallback and skips it entirely once
+  // `video_tweaks` holds something — so divergent content in `tweaks` is read
+  // by nobody and destroyed by every write.
+  {
+    const legacy = [legacyRow('in video_tweaks', { id: 'a' })];
+    const app = makeApp({
+      deliverables: [DELIVERABLE],
+      threads: { 'dlv-1': { items: [canonicalRow('in video_tweaks', { id: 'a' })] } },
+    });
+    app.calState.posts = [{
+      id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      video_comments: legacy.slice(), video_tweaks: JSON.stringify(legacy),
+      tweaks: 'ORIGINAL FEEDBACK ONLY IN THE ALIAS COLUMN',
+    }];
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    ok(app.calState.posts[0].tweaks === 'ORIGINAL FEEDBACK ONLY IN THE ALIAS COLUMN',
+      'REGRESSION: divergent content in the `tweaks` alias is not destroyed by a covered write');
+  }
+  {
+    // The normal case — both columns in sync — must NOT be held forever.
+    const legacy = [legacyRow('Synced', { id: 'a' })];
+    const wire = JSON.stringify(legacy);
+    const app = makeApp({
+      deliverables: [DELIVERABLE],
+      threads: { 'dlv-1': { items: [canonicalRow('Synced', { id: 'a' })] } },
+    });
+    app.calState.posts = [{
+      id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      video_comments: legacy.slice(), video_tweaks: wire, tweaks: wire,
+    }];
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    ok(app.calState.posts[0].video_comments[0].canonical === true,
+      'a card whose two video columns are in sync still adopts (the alias rule is not a blanket hold)');
+  }
+  {
+    // Primary empty, alias holds content: the loader SEEDS from the alias, so
+    // the content is carried and must not be double-counted into a false hold.
+    const app = makeApp({});
+    const seeded = app._calLoadCommentsField(
+      { video_tweaks: '', tweaks: 'legacy blob' }, 'video_tweaks', 'legacy blob',
+    );
+    ok(seeded.length === 1,
+      'an empty primary seeds one row from the alias, so the alias content is carried');
+    ok(app._prodLegacyReadIncomplete({ video_tweaks: '', tweaks: 'legacy blob' }, 'video', seeded) === false,
+      'a seeded alias is not counted as unread (no false hold)');
+  }
+
+  // ================================================================ audience alignment
+  {
+    // A canonical REPLY tagged internal beneath a client-visible root is
+    // client-visible under the root-audience rule. Filtering canonical on each
+    // row own audience would drop it, so coverage could never succeed and the
+    // card would hold forever.
+    const app = makeApp({});
+    const rows = [
+      { id: 'r', body: 'root', audience: 'client', role: 'client' },
+      { id: 'a', parent_id: 'r', body: 'reply', audience: 'internal', role: 'client' },
+    ];
+    ok(app._prodRootAudienceClientRows(rows).length === 2,
+      'a reply inherits its root audience, so both rows are client-visible');
+    ok(app._prodRootAudienceClientRows([
+      { id: 'r', body: 'root', audience: 'internal', role: 'smm' },
+      { id: 'a', parent_id: 'r', body: 'reply', audience: 'client', role: 'client' },
+    ]).length === 0,
+    'a client-tagged reply under an INTERNAL root stays hidden');
+    ok(app._prodRootAudienceClientRows([{ id: 'k', body: 'x', audience: 'client', role: 'kasper' }]).length === 0,
+      'Kasper authorship is hard-hidden regardless of audience');
+  }
+  {
+    // THE CLIENT-LOSS CASE. A staff reply carries no audience of its own and
+    // inherits `client` from its root, so the client reads it today. Its
+    // canonical twin is tagged `internal` and the linked render filters it out
+    // per-row. Building the canonical comparison set with root inheritance
+    // would certify it as covered, the card would adopt, and the client would
+    // lose a message they can read right now. Coverage must therefore compare
+    // what the reader will ACTUALLY emit.
+    const legacy = [
+      legacyRow('root note', { id: 'r', audience: 'client' }),
+      legacyRow('reply note', { id: 'a', parent_id: 'r', role: 'smm', audience: undefined }),
+    ];
+    const app = makeApp({
+      clientLink: true,
+      deliverables: [SXR_DELIVERABLE],
+      threads: {
+        'dlv-1': {
+          items: [
+            canonicalRow('root note', { id: 'cr', audience: 'client' }),
+            canonicalRow('reply note', { id: 'ca', parent_id: 'cr', role: 'smm', audience: 'internal' }),
+          ],
+        },
+      },
+    });
+    app.sxrState.posts = [{
+      id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      video_comments: legacy.slice(), video_tweaks: JSON.stringify(legacy),
+    }];
+    const before = app._sxrClientVisibleLegacyRows(app.sxrState.posts[0], 'video').map(r => r.body);
+    await app._prodProjectCanonicalCardComments('sxr', 'card-1');
+    const post = app.sxrState.posts[0];
+    const after = app._sxrCommentsForView(post, 'video').map(r => r.body);
+    ok(before.length === 2 && before.includes('reply note'),
+      'the client reads the staff reply today, by root-audience inheritance');
+    ok(after.length >= before.length && before.every(b => after.includes(b)),
+      'REGRESSION: adoption never leaves the client seeing LESS than they see today');
+    ok(app._prodCanonicalCommentGate(post, 'video').status === 'legacy_retained',
+      'the card is held, because the canonical render rule would drop the staff reply');
+  }
+  {
+    // Explicitly agreeing rows still adopt: the hold above is caused by the two
+    // render rules disagreeing, not by a blanket refusal on threaded content.
+    const legacy = [
+      legacyRow('root note', { id: 'r', audience: 'client' }),
+      legacyRow('reply note', { id: 'a', parent_id: 'r', audience: 'client' }),
+    ];
+    const app = makeApp({
+      clientLink: true,
+      deliverables: [SXR_DELIVERABLE],
+      threads: {
+        'dlv-1': {
+          items: [
+            canonicalRow('root note', { id: 'cr', audience: 'client' }),
+            canonicalRow('reply note', { id: 'ca', parent_id: 'cr', audience: 'client' }),
+          ],
+        },
+      },
+    });
+    app.sxrState.posts = [{
+      id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      video_comments: legacy.slice(), video_tweaks: JSON.stringify(legacy),
+    }];
+    await app._prodProjectCanonicalCardComments('sxr', 'card-1');
+    ok(app._prodCanonicalCommentGate(app.sxrState.posts[0], 'video').status === 'ready',
+      'a thread whose rows agree on BOTH render rules adopts normally');
+  }
+  {
+    // ...and the hold still fires when the canonical side genuinely lacks it.
+    const legacy = [
+      legacyRow('root note', { id: 'r', audience: 'client' }),
+      legacyRow('reply note', { id: 'a', parent_id: 'r', audience: 'client' }),
+    ];
+    const app = makeApp({
+      clientLink: true,
+      deliverables: [SXR_DELIVERABLE],
+      threads: { 'dlv-1': { items: [canonicalRow('root note', { id: 'cr', audience: 'client' })] } },
+    });
+    app.sxrState.posts = [{
+      id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      video_comments: legacy.slice(), video_tweaks: JSON.stringify(legacy),
+    }];
+    await app._prodProjectCanonicalCardComments('sxr', 'card-1');
+    ok(app._prodCanonicalCommentGate(app.sxrState.posts[0], 'video').status === 'legacy_retained',
+      'a genuinely missing reply still holds the card');
+  }
+
+  // ================================================================ staff hold status
+  {
+    // An unread column must hold the STAFF path too. Falling through to `ready`
+    // would report linked+ready while the legacy thread is what renders, and
+    // the comment lifecycle would then address a canonical row that does not
+    // exist (CAS failure, mark-done silently dead).
+    const app = makeApp({
+      deliverables: [DELIVERABLE],
+      threads: { 'dlv-1': { items: [canonicalRow('Fresh')] } },
+    });
+    app.calState.posts = [{
+      id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      video_comments: [], video_tweaks: '[{"body":"no id"}]',
+    }];
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    const gate = app._prodCanonicalCommentGate(app.calState.posts[0], 'video');
+    ok(gate.status === 'legacy_retained' && gate.linked === false,
+      'REGRESSION: a held staff card reports legacy_retained, not linked+ready');
+  }
+
+  // ================================================================ cache + flag lifecycle
+  {
+    const app = makeApp({});
+    ok(app.PROD_EPHEMERAL_CANONICAL_KEYS.includes('_legacyReadIncomplete'),
+      'the incomplete-read verdict is stripped from the 7-day cache like the other live verdicts');
+    const cached = app._prodStripEphemeralCanonicalState({
+      id: 'c', video_tweaks: '[]', _legacyReadIncomplete: { video: true },
+    });
+    ok(!('_legacyReadIncomplete' in cached),
+      'a cached post carries no stale incomplete-read verdict');
+    // A repaired column clears the flag rather than holding for the cache TTL.
+    const post = { video_tweaks: '[{"body":"no id"}]' };
+    app._calLoadCommentsField(post, 'video_tweaks', '');
+    ok(post._legacyReadIncomplete.video === true, 'a dropped row stamps the flag');
+    post.video_tweaks = '[{"id":"c1","body":"repaired"}]';
+    app._calLoadCommentsField(post, 'video_tweaks', '');
+    ok(!post._legacyReadIncomplete.video,
+      'REGRESSION: a repaired column CLEARS the flag, so the hold is not sticky');
+  }
+  {
+    // Samples has no seed path, so an empty primary does NOT carry the alias.
+    const app = makeApp({});
+    const sxrPost = { video_tweaks: '', tweaks: '[{"id":"s1","body":"only in alias"}]' };
+    ok(app._prodLegacyReadIncomplete(sxrPost, 'video', [], 'sxr') === true,
+      'REGRESSION: on Samples an empty primary with a populated alias is INCOMPLETE');
+    ok(app._prodLegacyReadIncomplete(sxrPost, 'video', [], 'calendar') === false,
+      'on calendar the same shape is carried by the seed fallback, so it is complete');
+    // Re-serialised identical content must not hold forever.
+    ok(app._prodLegacySameContent(
+      '[{"id":"c1","body":"fix the intro","author":"S","created_at":"t"}]',
+      '[{"body": "fix the intro", "id": "c1", "author":"S", "created_at":"t"}]',
+    ) === true,
+    'REGRESSION: the alias comparison is by content, not bytes, so a reserialised column does not hold');
   }
 
   // ================================================================ G4 client SXR

@@ -62,6 +62,9 @@ const REAL = [
   grabConst('CAL_STATUSES'), grabConst('CAL_PRIORITY'), grabConst('CAL_COMPONENTS'), grabConst('CAL_REVIEW_COMPONENTS'),
   grabFunc('_calIsYouTubeCard'), grabFunc('_calTitleEngaged'), grabFunc('_calComponentsFor'),
   grabFunc('_calNormStatus'), grabFunc('computeOverallStatus'), grabFunc('_calClearStaleApprovals'),
+  // The loader records whether it dropped content it could not carry, so the
+  // canonical projection can refuse to overwrite a column it never fully read.
+  grabFunc('_prodMarkLegacyReadIncomplete'),
   grabFunc('_calLoadCommentsField'), grabFunc('_calMigratePostShape'), grabFunc('_calCommentsFor'),
   grabFunc('_calSetCommentsFor'), grabFunc('_calStringifyComments'), grabFunc('_calCommentStamp'),
   grabFunc('_calMergeCommentLists'), grabFunc('_calMergePostComments'), grabFunc('_calPostsEqualForRender'),

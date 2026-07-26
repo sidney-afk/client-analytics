@@ -376,8 +376,21 @@ const calendarCards = [{
     && nulBody.imports.length === 0 && nulAuthor.imports.length === 0
     && nulAttachment.imports.length === 0
     && nulBody.conflicts.find(c => c.classification === 'unsupported_text_control_character')
-      .reason === 'nul_byte_in_text',
+      .reason === 'control_character_in_text',
   'a NUL byte anywhere in the built payload blocks at plan time (body, author, attachment)');
+  // The screen covers the whole C0 range and DEL, not just NUL: any control
+  // character in a comment body is content nobody can see and no reader renders
+  // faithfully. Tab, LF and CR stay legal — ordinary in a multi-line body.
+  for (const [label, code] of [['SOH', 1], ['ESC', 0x1b], ['DEL', 0x7f]]) {
+    const plan = gapPlan(gapCard({ body: `x${String.fromCharCode(code)}y` }));
+    ok(classesOf(plan).has('unsupported_text_control_character') && plan.imports.length === 0,
+      `a ${label} control character in a body also blocks at plan time`);
+  }
+  for (const [label, code] of [['tab', 9], ['newline', 10], ['carriage return', 13]]) {
+    const plan = gapPlan(gapCard({ body: `x${String.fromCharCode(code)}y` }));
+    ok(!classesOf(plan).has('unsupported_text_control_character'),
+      `a ${label} is legal in a body and does not block`);
+  }
   ok(planner.firstNulPath({ a: { b: [`x${NUL}`] } }) === 'a.b.0'
     && planner.firstNulPath({ a: 'clean' }) === '',
   'the NUL scan reports the offending JSON path and passes clean payloads');

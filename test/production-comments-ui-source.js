@@ -105,11 +105,26 @@ ok(/rawPage\.filter\(row => row[\s\S]*row\.audience[\s\S]*=== 'client'/.test(sou
   && /if \(!canonicalGate\.ready \|\| !canonicalGate\.client\) return \[\];/.test(sxrCommentsForView)
   && /const list = _sxrCanonicalCommentsFor\(post, comp\)/.test(sxrCommentsForView),
 'client UI drops internal rows and a LINKED card never falls back to legacy card arrays');
+// The legacy client filter now lives in _sxrClientVisibleLegacyRows, which is
+// deliberately GATE-INDEPENDENT: the canonical projection has to know what the
+// client can see before it decides whether replacing it would hide anything,
+// and asking the gate-dependent view answers with the canonical set on a linked
+// card. Same filter, one definition, two callers.
+// The root-audience rule now has ONE definition, _prodRootAudienceClientRows,
+// shared by the legacy reader and by the canonical side of the client coverage
+// comparison — filtering canonical on each row own audience instead made the
+// two sets incomparable and held such cards forever.
+const sxrClientVisibleLegacyRows = extract('_sxrClientVisibleLegacyRows');
+const rootAudienceClientRows = extract('_prodRootAudienceClientRows');
 ok(/if \(!canonicalGate\.linked\) \{/.test(sxrCommentsForView)
-  && /const legacy = _sxrCommentsFor\(post, comp\)/.test(sxrCommentsForView)
-  && /rootAudience\(c\) === 'client'/.test(sxrCommentsForView)
-  && /c\.role === 'kasper'/.test(sxrCommentsForView),
+  && /return _sxrClientVisibleLegacyRows\(post, comp\)/.test(sxrCommentsForView)
+  && /_prodRootAudienceClientRows\(_sxrCommentsFor\(post, comp\)\)/.test(sxrClientVisibleLegacyRows)
+  && /rootAudience\(c\) === 'client'/.test(rootAudienceClientRows)
+  && /c\.role === 'kasper'/.test(rootAudienceClientRows),
 'an UNLINKED card falls back to the legacy card arrays with root-audience client filtering and Kasper hidden');
+ok(!/_prodCanonicalCommentGate/.test(sxrClientVisibleLegacyRows)
+  && !/_prodCanonicalCommentGate/.test(rootAudienceClientRows),
+  'the legacy client reader never consults the canonical gate (no circular hold)');
 const sxrCommentsForAction = extract('_sxrCommentsForAction');
 ok(/_isClientLink && _prodCanonicalCommentGate\(post, comp\)\.linked/.test(sxrCommentsForAction)
   && /_sxrCanonicalCommentsFor\(post, comp\)/.test(sxrCommentsForAction)

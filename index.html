@@ -23342,7 +23342,13 @@
        verdict, and a stale `ready` would let an empty projection act. Stripped
        on the way into the cache so a hydrated post always re-resolves. */
     const PROD_EPHEMERAL_CANONICAL_KEYS = Object.freeze([
-        '_canonicalCrosswalk', '_canonicalCommentReads',
+        // `_legacyReadIncomplete` is here for exactly the reason the other two
+        // are: it is a verdict derived from a live read, and a copy rehydrated
+        // up to 7 days later is a stale one. It refuses rather than permits, so
+        // a stale copy holds a card whose column has since been repaired —
+        // and the Samples loader skips re-parsing entirely when the cached post
+        // already carries its array, so nothing would ever recompute it.
+        '_canonicalCrosswalk', '_canonicalCommentReads', '_legacyReadIncomplete',
     ]);
     function _prodStripEphemeralCanonicalState(post) {
         if (!post || typeof post !== 'object') return post;
@@ -23380,36 +23386,203 @@
        identified by what a human wrote, not by how it was stored. */
     function _prodCommentProvenanceKey(row) {
         const item = row && typeof row === 'object' ? row : {};
-        const body = String(item.body == null ? (item.text == null ? '' : item.text) : item.body)
-            .replace(/\s+/g, ' ').trim().toLowerCase();
+        // The RAW body: no case-folding, no whitespace collapsing. Those
+        // normalisations made materially different content compare EQUAL —
+        // "Approved" against "approved", or a message whose line breaks carry
+        // its meaning — and that error runs in the dangerous direction: it
+        // marks a legacy row as covered by canonical content that differs
+        // from it, permitting a lossy replacement.
+        const body = String(item.body == null ? (item.text == null ? '' : item.text) : item.body);
         const author = String(
             item.author_key || item.author_name || item.author || item.by || item.role || ''
-        ).trim().toLowerCase();
+        );
         const when = String(
             item.source_created_at || item.created_at || item.at || item.ts || ''
-        ).trim();
-        // U+0001 delimiter, written as an escape sequence, never a space and
-        // never a raw control byte in this file: `body` is whitespace-
-        // normalised and may contain spaces, so a space-joined key lets a
-        // field boundary shift without changing the key — body "ab c" plus
-        // author "d" would collide with body "ab" plus author "c d". That
-        // collision direction is the dangerous one: it marks a legacy row as
-        // COVERED by canonical content that does not contain it, and so
-        // PERMITS the overwrite this invariant exists to prevent. A control
-        // character never appears in a comment body, author key or timestamp,
-        // so the joined key cannot be forged by field content.
-        return [body, author, when].join('\u0001');
+        );
+        // Structurally injective by CONSTRUCTION, not by assumption about
+        // what field values can contain: JSON.stringify escapes any delimiter
+        // a field could otherwise forge, so no combination of body/author/
+        // timestamp can produce the key of a different combination. (No
+        // apostrophes in this comment on purpose: the source extractor the
+        // tests use tracks quote characters but not comments, so a stray
+        // apostrophe desynchronises its brace matching.)
+        return JSON.stringify([body, author, when]);
     }
-    /* True when every legacy row is represented in the canonical projection. An
-       empty legacy array is trivially covered. */
+    /* A legacy comment column we FAILED TO FULLY READ is not an empty column.
+
+       Both card loaders drop content silently: an unparseable JSON string, a
+       row with no `id`, or (on Samples) any non-JSON string all reduce to an
+       empty or short array. The stored column is untouched and stays perfectly
+       readable to a human, a support query or a migration — until a projection
+       overwrites it, at which point it is gone for everyone.
+
+       So the state is UNKNOWN, not EMPTY, and coverage must refuse: never
+       replace content you cannot demonstrably carry, and a column we failed to
+       read is content we do not carry.
+
+       Computed from the raw column against the parsed array rather than trusted
+       from a load-time flag alone, because a post rehydrated from the 7-day
+       cache already carries its parsed array and skips the loader entirely. */
+    function _prodLegacyRawFieldCount(raw) {
+        const text = String(raw == null ? '' : raw).trim();
+        if (!text) return 0;
+        if (text.charAt(0) !== '[') return 1;
+        try {
+            const parsed = JSON.parse(text);
+            // A JSON-shaped column that does not parse, or does not hold an
+            // array, still holds SOMETHING a human can read.
+            return Array.isArray(parsed) ? parsed.length : 1;
+        } catch (_e) {
+            return 1;
+        }
+    }
+    /* Do two raw columns hold the SAME content? Compared as parsed data when
+       both parse to arrays, so a non-destructive backfill that rewrites one
+       column with different key order or spacing does not read as extra
+       unread content and hold the card forever. */
+    function _prodLegacySameContent(a, b) {
+        const left = String(a == null ? '' : a).trim();
+        const right = String(b == null ? '' : b).trim();
+        if (left === right) return true;
+        try {
+            const lp = JSON.parse(left);
+            const rp = JSON.parse(right);
+            if (!Array.isArray(lp) || !Array.isArray(rp)) return false;
+            const norm = rows => JSON.stringify(rows.map(_prodCommentProvenanceKey).sort());
+            return norm(lp) === norm(rp);
+        } catch (_e) {
+            return false;
+        }
+    }
+    function _prodLegacyReadIncomplete(post, component, loadedRows, surface) {
+        if (!post) return false;
+        const flags = post._legacyReadIncomplete;
+        if (flags && typeof flags === 'object' && flags[component]) return true;
+        const primaryRaw = String(post[component + '_tweaks'] == null ? '' : post[component + '_tweaks']).trim();
+        let stored = _prodLegacyRawFieldCount(primaryRaw);
+        // The video slot spans TWO legacy columns. Both setters keep
+        // `video_tweaks` and the pre-split `tweaks` alias in sync, so any write
+        // overwrites both — but the readers do not treat them alike, and the
+        // difference is SURFACE-SPECIFIC:
+        //
+        //   calendar — reads `tweaks` as a fallback and seeds one row from it
+        //              when `video_tweaks` is empty, so an empty primary still
+        //              carries the alias content.
+        //   samples  — never reads `tweaks` at all and has no seed path, so an
+        //              empty primary carries NOTHING while the write still
+        //              destroys the alias.
+        //
+        // Hence the empty-primary exemption applies to calendar only.
+        if (component === 'video') {
+            const aliasRaw = String(post.tweaks == null ? '' : post.tweaks).trim();
+            const seededByFallback = String(surface || '').toLowerCase() === 'calendar' && !primaryRaw;
+            if (aliasRaw && !seededByFallback && !_prodLegacySameContent(aliasRaw, primaryRaw)) stored += 1;
+        }
+        if (!stored) return false;
+        return stored > (Array.isArray(loadedRows) ? loadedRows.length : 0);
+    }
+    /* Stamped by the loaders at the point the drop actually happens. Always
+       call it with the VERDICT, including `false`: a stale true would hold a
+       card whose column has since been repaired, and nothing else clears it. */
+    function _prodMarkLegacyReadIncomplete(post, component, incomplete) {
+        if (!post) return;
+        if (!post._legacyReadIncomplete || typeof post._legacyReadIncomplete !== 'object') {
+            post._legacyReadIncomplete = {};
+        }
+        if (incomplete === false) delete post._legacyReadIncomplete[component];
+        else post._legacyReadIncomplete[component] = true;
+    }
+    /* Client-visible rows under the ROOT-audience rule: a reply inherits the
+       audience of its thread root, Kasper authorship is hard-hidden, and
+       tombstoned/hidden rows are excluded.
+
+       Used to build BOTH sides of the client coverage comparison. Filtering the
+       canonical side on each row own audience instead would make the two sides
+       incomparable: a canonical reply tagged internal beneath a client-visible
+       root is in the legacy set but absent from the canonical set, so coverage
+       could never succeed and the card would hold forever. */
+    function _prodRootAudienceClientRows(rows) {
+        const list = Array.isArray(rows) ? rows : [];
+        const visible = list.filter(c => c && (!c.deleted || c.canonical) && !c.hidden);
+        const byId = new Map();
+        for (const c of visible) if (c && c.id) byId.set(c.id, c);
+        const rootAudience = (c) => {
+            const root = (c.parent_id && byId.has(c.parent_id)) ? byId.get(c.parent_id) : c;
+            return _sxrMsgAudience(root);
+        };
+        return visible.filter(c => {
+            if (!c) return false;
+            if (c.role === 'kasper') return false;
+            return rootAudience(c) === 'client';
+        });
+    }
+    /* Legacy state the canonical row shape cannot represent.
+
+       Coverage matches on body + author + timestamp, but adoption REPLACES the
+       whole row. Any legacy field the canonical shape does not carry is
+       therefore destroyed even on a perfect content match — and `hidden` points
+       in the exposure direction: it is a deliberate suppression of legacy
+       cross-client feedback that bled onto the wrong client row, kept as
+       hide-not-delete so the text survives in the sheet. `production_comments`
+       has no hidden column, so an adopted twin comes back unsuppressed and the
+       text renders again.
+
+       Resolve provenance is NOT listed here: `resolved_at`/`resolved_by_name`
+       do exist in canonical storage and are now carried through, so a resolved
+       comment adopts without losing who closed it or when.
+
+       Refusing rather than carrying is deliberate for anything canonical cannot
+       store: carrying it would produce a row whose suppression evaporates on
+       the next canonical read, which is a slower version of the same bug.
+
+       `deleted` is here for a different and sharper reason: a tombstone works
+       by ID. A soft-deleted row stays in storage so a stale merge or a laggy
+       poll carrying the pre-delete copy loses the union on that id
+       (_calMergeCommentLists keeps the newer stamp and logs the attempt).
+       Adoption replaces the row with its canonical twin, whose id is composite
+       derived — `native_comment_id` is the production id, not the legacy one —
+       so the legacy id disappears from the card store entirely. The tombstone
+       still exists, under an id nothing will ever collide with, and a stale
+       copy of the legacy row is absorbed as a BRAND NEW comment. Proven by
+       driving the real merge in
+       test/production-canonical-projection-invocation.js: the deleted body
+       becomes visible again and the existing resurrection log never fires,
+       because the merge never sees it as overriding a tombstone.
+
+       Scoped to rows that are not already canonical: once a card has adopted,
+       its own deleted canonical rows are the correct stored form and must not
+       hold it forever. */
+    function _prodLegacyUnrepresentableState(rows) {
+        const found = new Set();
+        for (const row of Array.isArray(rows) ? rows : []) {
+            if (!row || row.canonical === true) continue;
+            if (row.hidden === true) found.add('hidden');
+            if (row.deleted === true) found.add('deleted');
+        }
+        return [...found].sort();
+    }
+    /* True when the canonical projection contains every legacy row — counted
+       as a MULTISET, not a set. N identical legacy messages need N canonical
+       copies: set containment let ONE canonical row "cover" all N, and the
+       replacement then silently dropped the duplicates. An empty legacy array
+       is trivially covered. */
     function _prodCanonicalCoversLegacy(canonicalRows, legacyRows) {
         const legacy = Array.isArray(legacyRows) ? legacyRows : [];
         if (!legacy.length) return true;
         const canonical = Array.isArray(canonicalRows) ? canonicalRows : [];
         if (!canonical.length) return false;
-        const present = new Set(canonical.map(_prodCommentProvenanceKey));
+        const available = new Map();
+        for (const row of canonical) {
+            const key = _prodCommentProvenanceKey(row);
+            available.set(key, (available.get(key) || 0) + 1);
+        }
         for (const row of legacy) {
-            if (!present.has(_prodCommentProvenanceKey(row))) return false;
+            const key = _prodCommentProvenanceKey(row);
+            const remaining = available.get(key) || 0;
+            // Absent entirely, or every canonical copy already spoken for by
+            // an earlier legacy row: this legacy message would be lost.
+            if (remaining <= 0) return false;
+            available.set(key, remaining - 1);
         }
         return true;
     }
@@ -24348,15 +24521,37 @@
        a legacy plaintext value (seeded as a single SMM note) so existing
        data is never lost during the per-component tweaks migration. */
     function _calLoadCommentsField(post, fieldName, legacyFallback) {
+        // The component this column belongs to, for the incomplete-read signal.
+        const component = String(fieldName || '').replace(/_tweaks$/, '');
         const direct = post && post['_' + fieldName + '_parsed'];
-        if (Array.isArray(direct)) return direct.filter(c => c && c.id);
+        if (Array.isArray(direct)) {
+            const kept = direct.filter(c => c && c.id);
+            _prodMarkLegacyReadIncomplete(post, component, kept.length !== direct.length);
+            return kept;
+        }
         const raw = String((post && post[fieldName] != null) ? post[fieldName] : '').trim();
         const consumed = (raw && raw.startsWith('[')) ? raw : '';
         if (consumed) {
             try {
                 const parsed = JSON.parse(consumed);
-                if (Array.isArray(parsed)) return parsed.filter(c => c && c.id);
-            } catch {}
+                if (Array.isArray(parsed)) {
+                    const kept = parsed.filter(c => c && c.id);
+                    // Rows without an id are DROPPED here, and the dropped row
+                    // may be perfectly readable content — a body with real
+                    // feedback and no id. The column still holds it, so the
+                    // read is incomplete, not empty. Cleared on a clean read so
+                    // a repaired column stops holding the card.
+                    _prodMarkLegacyReadIncomplete(post, component, kept.length !== parsed.length);
+                    return kept;
+                }
+                // JSON-shaped but not an array: nothing is loaded, yet the
+                // column holds readable text.
+                _prodMarkLegacyReadIncomplete(post, component, true);
+            } catch {
+                // Unparseable JSON. The seed path below deliberately skips a
+                // consumed column, so this content reaches no reader at all.
+                _prodMarkLegacyReadIncomplete(post, component, true);
+            }
         }
         const fb = String(legacyFallback == null ? '' : legacyFallback).trim();
         if (!raw && !fb) return [];
@@ -46107,6 +46302,15 @@
                 deleted,
                 hidden,
                 done: !!String(row.resolved_at || '').trim() || _prodCommentTruthy(row.done) || _prodCommentTruthy(row.resolved),
+                // Resolve PROVENANCE, surfaced so a canonical row can carry it.
+                // The importer already preserves both into production_comments
+                // (scripts/f42-card-comment-import.js), but normalize used
+                // resolved_at only as a boolean and dropped the name entirely —
+                // so adoption replaced a resolved legacy comment with a row
+                // that had lost who marked it done and showed the INGESTION
+                // time instead of when it was actually resolved.
+                resolved_at: String(row.resolved_at || '').trim(),
+                resolved_by_name: String(row.resolved_by_name || row.done_by || '').trim(),
                 attachments,
             };
         }
@@ -46469,7 +46673,12 @@
                 created_at: c.created_at,
                 updated_at: c.row_updated_at || c.updated_at,
                 done: c.done,
-                done_at: c.done ? (c.row_updated_at || c.updated_at) : '',
+                // Prefer the real resolve timestamp over the ingestion clock,
+                // and carry who resolved it. Both come from canonical storage,
+                // so this is preservation, not invention, and it survives the
+                // next canonical read.
+                done_at: c.done ? (c.resolved_at || c.row_updated_at || c.updated_at) : '',
+                done_by: c.resolved_by_name || '',
                 deleted: c.deleted,
                 edited: c.edited,
                 version: c.version,
@@ -46501,6 +46710,18 @@
             if (validComponents === null) return false;
             if (_prodCardBindingToken(surface, post, allComponents) !== bindingToken) return false;
             const components = allComponents.filter(component => validComponents.has(component));
+            // Snapshot what the client can SEE today, per component, BEFORE the
+            // read is stamped 'loading' and before the canonical slot is
+            // cleared. Both of those change what the gate and the view would
+            // answer, so a check made afterwards can only ever observe the
+            // state this projection already imposed. Computed gate-independently
+            // for the same reason.
+            const clientVisibleBefore = new Map();
+            if (!calendar && _isClientLink) {
+                components.forEach(component => {
+                    clientVisibleBefore.set(component, _sxrClientVisibleLegacyRows(post, component));
+                });
+            }
             if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
             if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
             const groups = new Map();
@@ -46590,19 +46811,68 @@
                     // a separate slot whose deliberate pre-authorization clear
                     // must not be blocked.
                     const writesLegacy = calendar || !_isClientLink;
+                    const legacyRows = calendar
+                        ? _calCommentsFor(post, component)
+                        : _sxrCommentsFor(post, component);
+                    // A column the loader could not fully read is UNKNOWN, not
+                    // empty. Its stored text is still recoverable by a human or
+                    // a migration right up until a projection overwrites it, so
+                    // refuse on either path — there is no coverage argument to
+                    // make about content we never managed to load.
+                    if (_prodLegacyReadIncomplete(post, component, legacyRows, surface)
+                        || _prodLegacyUnrepresentableState(legacyRows).length) {
+                        // Held on EVERY path, including staff. Falling through
+                        // to `ready` here would report linked+ready for a card
+                        // whose legacy thread is what actually renders, and the
+                        // lifecycle writes then address a canonical row that
+                        // does not exist.
+                        clientLegacyHeld = true;
+                        return;
+                    }
                     if (writesLegacy) {
-                        const legacy = calendar
-                            ? _calCommentsFor(post, component)
-                            : _sxrCommentsFor(post, component);
-                        if (!_prodCanonicalCoversLegacy(projected, legacy)) return;
-                    } else if (!projected.length) {
-                        // Client SXR: a valid link whose canonical thread is
-                        // empty while client-visible legacy comments exist must
-                        // never render an empty thread at the client. Hold the
-                        // read at not-ready so the gate keeps the legacy view
-                        // instead of showing the client nothing.
-                        const legacyVisible = _sxrCommentsForView(post, component);
-                        if (Array.isArray(legacyVisible) && legacyVisible.length) {
+                        if (!_prodCanonicalCoversLegacy(projected, legacyRows)) return;
+                    } else {
+                        // Client SXR: the client must never end up seeing LESS
+                        // than they see today. The test is coverage, not
+                        // emptiness — a PARTIAL canonical thread hides whatever
+                        // it fails to carry just as surely as an empty one, and
+                        // an is-it-empty check skips that case entirely.
+                        //
+                        // Compared against the snapshot taken before this
+                        // projection stamped 'loading' and cleared the canonical
+                        // slot, because both of those change what a live read
+                        // would report.
+                        //
+                        // The two sides answer two different questions, and each
+                        // must be computed the way its own reader computes it:
+                        //
+                        //   clientLegacy    — what the client sees TODAY, which
+                        //                     the unlinked branch renders with
+                        //                     ROOT-audience inheritance.
+                        //   clientCanonical — what the client will see AFTER
+                        //                     adoption, which the linked branch
+                        //                     renders with a PER-ROW audience
+                        //                     filter.
+                        //
+                        // Building the canonical side with root inheritance
+                        // instead would certify rows the reader then drops: a
+                        // staff reply carries no audience of its own, inherits
+                        // `client` from the root today, and is filtered out as
+                        // `internal` once canonical. Coverage would pass, the
+                        // card would adopt, and the client would lose a message
+                        // they can read right now.
+                        //
+                        // So this comparison is deliberately "what they will
+                        // actually see" against "what they actually see", and a
+                        // hold caused by the two render rules disagreeing is a
+                        // CORRECT refusal, not a false positive.
+                        const clientLegacy = clientVisibleBefore.get(component) || [];
+                        const clientCanonical = projected.filter(row => row
+                            && row.canonical === true
+                            && row.audience === 'client'
+                            && (!row.deleted || row.canonical)
+                            && !row.hidden);
+                        if (!_prodCanonicalCoversLegacy(clientCanonical, clientLegacy)) {
                             clientLegacyHeld = true;
                             return;
                         }
@@ -51066,7 +51336,21 @@
             if (!Array.isArray(p[arrKey])) {
                 const raw = String(p[strKey] == null ? '' : p[strKey]).trim();
                 let arr = [];
-                if (raw.startsWith('[')) { try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) arr = parsed.filter(x => x && x.id); } catch (e) {} }
+                // Samples has no legacy-seed path at all, so ANY content this
+                // parse fails to carry — unparseable JSON, a non-array, a
+                // non-JSON string, or a row without an id — is content the app
+                // silently drops while the column keeps holding it. Mark the
+                // read incomplete so a canonical projection refuses to
+                // overwrite what it cannot demonstrably carry.
+                if (raw.startsWith('[')) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed)) {
+                            arr = parsed.filter(x => x && x.id);
+                            _prodMarkLegacyReadIncomplete(p, c, arr.length !== parsed.length);
+                        } else _prodMarkLegacyReadIncomplete(p, c, true);
+                    } catch (e) { _prodMarkLegacyReadIncomplete(p, c, true); }
+                } else _prodMarkLegacyReadIncomplete(p, c, !!raw);
                 p[arrKey] = arr;
             }
             (p[arrKey] || []).forEach(x => { if (x && !x.updated_at) x.updated_at = x.created_at || ''; });
@@ -52661,6 +52945,24 @@
     function _sxrMsgAudience(c) { if (!c) return 'client'; if (c.audience === 'internal' || c.audience === 'client') return c.audience; return (c.role === 'kasper' || c.role === 'smm') ? 'internal' : 'client'; }
     function _sxrMsgIsTweak(c) { if (!c) return false; if (typeof c.is_tweak === 'boolean') return c.is_tweak; return true; }
     function _sxrNextTweakRound(post, comp) { const list = _sxrCommentsForAction(post, comp); return Array.isArray(list) ? list.filter(c => c && _sxrMsgIsTweak(c) && !c.deleted).length + 1 : 1; }
+    /* The client-visible LEGACY rows for a component, computed WITHOUT
+       consulting the canonical gate.
+
+       This has to be gate-independent. The projection needs to know what the
+       client can see today in order to decide whether replacing it would hide
+       anything — but _sxrCommentsForView asks the gate first, and on a linked
+       card the gate answers "canonical", so asking it returns the canonical
+       view and the projection learns nothing about the legacy rows it is
+       about to overwrite. That circularity made the hold dead code.
+
+       Thread audience lives on the ROOT and replies inherit it; Kasper
+       authorship is hard-hidden belt-and-braces so internal review chatter
+       can never surface on a mis-tagged thread. */
+    function _sxrClientVisibleLegacyRows(post, comp) {
+        // One definition of the root-audience rule, shared with the canonical
+        // side of the coverage comparison so the two sets stay comparable.
+        return _prodRootAudienceClientRows(_sxrCommentsFor(post, comp));
+    }
     function _sxrCommentsForView(post, comp) {
         if (!_isClientLink) {
             const list = _sxrCommentsFor(post, comp);
@@ -52672,25 +52974,11 @@
         if (!canonicalGate.linked) {
             // UNLINKED card: no native deliverable binding exists, so there is
             // no canonical thread for this component and F42 has nothing to
-            // import into. Fall back to the pre-Slice-4 legacy card-array view:
-            // thread audience lives on the ROOT and replies inherit it, and
-            // Kasper authorship is hard-hidden belt-and-braces so internal
-            // review chatter can never surface on a mis-tagged thread. Staff
-            // already reads these arrays here; this aligns the client surface.
-            const legacy = _sxrCommentsFor(post, comp);
-            if (!Array.isArray(legacy)) return [];
-            const visible = legacy.filter(c => c && (!c.deleted || c.canonical) && !c.hidden);
-            const byId = new Map();
-            for (const c of visible) if (c && c.id) byId.set(c.id, c);
-            const rootAudience = (c) => {
-                const root = (c.parent_id && byId.has(c.parent_id)) ? byId.get(c.parent_id) : c;
-                return _sxrMsgAudience(root);
-            };
-            return visible.filter(c => {
-                if (!c) return false;
-                if (c.role === 'kasper') return false;
-                return rootAudience(c) === 'client';
-            });
+            // import into. Fall back to the pre-Slice-4 legacy card-array view.
+            // Staff already reads these arrays here; this aligns the client
+            // surface. Same filter the projection uses to decide whether a
+            // replacement would hide anything.
+            return _sxrClientVisibleLegacyRows(post, comp);
         }
         // A verified client link on a LINKED card never falls back to the legacy
         // card arrays. Until this exact SXR card/component/deliverable read

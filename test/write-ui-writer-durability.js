@@ -3941,6 +3941,11 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
   };
   vm.createContext(cacheContext);
   const exactBetween = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start) + start.length));
+  // Both cache writers strip the ephemeral canonical crosswalk/read state
+  // before serializing, so the sandbox needs those helpers too.
+  vm.runInContext(exactBetween(
+    'const PROD_EPHEMERAL_CANONICAL_KEYS', '/* PROVENANCE INVARIANT',
+  ), cacheContext);
   vm.runInContext(exactBetween('function _calCacheKey', 'function _calCacheRead'), cacheContext);
   vm.runInContext(exactBetween('function _calCacheRead', 'function _calCacheWrite'), cacheContext);
   vm.runInContext(exactBetween('function _calCacheWrite', '/* ============================================================'), cacheContext);

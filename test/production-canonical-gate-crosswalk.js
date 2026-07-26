@@ -80,6 +80,7 @@ const browser = {
   CAL_SUPABASE_ANON_KEY: 'anon-test-key',
   PROD_CROSSWALK_SURFACE_ORIGIN: { calendar: 'calendar', sxr: 'samples' },
   PROD_CROSSWALK_SELECT: 'id,client_slug,team,origin,card_id',
+  PROD_EPHEMERAL_CANONICAL_KEYS: Object.freeze(['_canonicalCrosswalk', '_canonicalCommentReads']),
   _prodVerifiedClientCommentSurfaceContext: () => null,
   _prodClientCommentSurfaceKey: value => (value ? JSON.stringify(value) : ''),
   _prodCardClientCommentSurfaceKnown: () => false,
@@ -92,9 +93,15 @@ vm.runInContext([
   extractFunction('_prodCrosswalkTeamForComponent'),
   extractFunction('_prodCrosswalkCardSlug'),
   extractFunction('_prodCrosswalkMismatchFields'),
+  extractFunction('_prodCrosswalkKey'),
   extractFunction('_prodCrosswalkVerdict'),
   extractFunction('_prodCrosswalkSetVerdict'),
+  extractFunction('_prodStripEphemeralCanonicalState'),
+  extractFunction('_prodStripEphemeralCanonicalPosts'),
+  extractFunction('_prodCommentProvenanceKey'),
+  extractFunction('_prodCanonicalCoversLegacy'),
   extractFunction('_prodFetchCrosswalkRows'),
+  extractFunction('_prodCardBindingToken'),
   extractFunction('_prodResolveCardCrosswalk'),
   extractFunction('_prodCanonicalCommentGate'),
   extractFunction('_calSetCommentsFor'),
@@ -245,7 +252,115 @@ function calendarCard(extra) {
   ok(browser._prodCanonicalCommentGate(unlinkedCard, 'video').status === 'unlinked',
     'a card with no deliverable id still reports the plain unlinked status');
 
-  // ---------------------------------------------------------------- empty-over-legacy guard
+  // ---------------------------------------------------------------- R1 provenance invariant
+  const legacyRows = [
+    { id: 'l1', body: 'Please recut the intro', author_key: 'client:acme', created_at: '2026-07-20T00:00:00Z' },
+    { id: 'l2', body: 'On it', author_key: 'smm:pat', created_at: '2026-07-20T00:05:00Z' },
+  ];
+  const canonicalSame = legacyRows.map(row => ({
+    id: 'canon-' + row.id, canonical: true,
+    body: row.body, author_key: row.author_key, source_created_at: row.created_at,
+  }));
+
+  ok(browser._prodCanonicalCoversLegacy(canonicalSame, legacyRows) === true,
+    'canonical that contains every legacy message covers it (replacement is lossless)');
+  ok(browser._prodCanonicalCoversLegacy(canonicalSame.concat([
+    { id: 'canon-new', body: 'Extra reply', author_key: 'smm:pat', source_created_at: '2026-07-21T00:00:00Z' },
+  ]), legacyRows) === true,
+  'canonical that is a strict superset of legacy still covers it');
+  ok(browser._prodCanonicalCoversLegacy([], legacyRows) === false,
+    'an EMPTY canonical thread does not cover non-empty legacy');
+  ok(browser._prodCanonicalCoversLegacy([
+    { id: 'canon-new', body: 'Fresh reply nobody imported', author_key: 'smm:pat', source_created_at: '2026-07-21T00:00:00Z' },
+  ], legacyRows) === false,
+  'REGRESSION R1: ONE unrelated canonical row does NOT cover legacy — the empty-only guard was insufficient');
+  ok(browser._prodCanonicalCoversLegacy(canonicalSame.slice(0, 1), legacyRows) === false,
+    'a partially-imported thread (one of two legacy rows present) does not cover legacy');
+  ok(browser._prodCanonicalCoversLegacy([], []) === true,
+    'an empty canonical trivially covers empty legacy');
+  ok(browser._prodCommentProvenanceKey({ body: ' Hello   World ', author_key: 'A', created_at: 't' })
+    === browser._prodCommentProvenanceKey({ text: 'hello world', author: 'a', at: 't' }),
+  'provenance matching is whitespace/case/field-shape tolerant and content-strict');
+  ok(browser._prodCommentProvenanceKey({ body: 'a', author_key: 'x', created_at: 't1' })
+    !== browser._prodCommentProvenanceKey({ body: 'a', author_key: 'x', created_at: 't2' }),
+  'the same body from the same author at a different time is a different message');
+
+  // Field-boundary collision. `body` is whitespace-normalised and may contain
+  // spaces, so any separator that can occur inside a field lets the boundary
+  // shift without changing the key. The dangerous direction is that it marks a
+  // legacy row COVERED by canonical content that does not contain it — which
+  // PERMITS the very overwrite the invariant exists to prevent.
+  ok(browser._prodCommentProvenanceKey({ body: 'ab c', author_key: 'd', created_at: 't' })
+    !== browser._prodCommentProvenanceKey({ body: 'ab', author_key: 'c d', created_at: 't' }),
+  'REGRESSION: a shifted field boundary does NOT produce the same provenance key');
+  ok(browser._prodCommentProvenanceKey({ body: 'ab', author_key: 'c', created_at: 't' })
+    !== browser._prodCommentProvenanceKey({ body: 'a', author_key: 'bc', created_at: 't' }),
+  'REGRESSION: the empty-separator collision (body "ab"+author "c" vs "a"+"bc") is closed');
+  ok(browser._prodCanonicalCoversLegacy(
+    [{ body: 'ab c', author_key: 'd', source_created_at: 't' }],
+    [{ body: 'ab', author_key: 'c d', created_at: 't' }],
+  ) === false,
+  'REGRESSION: a boundary-collision row is NOT accepted as covering a different legacy row');
+
+  // The delimiter must be a written escape, never a raw control byte in source.
+  ok(/\[body, author, when\]\.join\('\\u0001'\)/.test(source),
+    'the provenance key joins on an escaped U+0001 delimiter');
+  ok(!source.includes(String.fromCharCode(0)),
+    'index.html contains no raw NUL byte (it must stay a text file to git and grep)');
+
+  // ---------------------------------------------------------------- R2 component-keyed cache
+  const twoSlot = calendarCard({ video_deliverable_id: 'dlv-shared', graphic_deliverable_id: 'dlv-shared' });
+  browser._prodCrosswalkSetVerdict(twoSlot, 'dlv-shared', 'video', { state: 'valid', fields: [] });
+  ok(browser._prodCrosswalkVerdict(twoSlot, 'dlv-shared', 'video').state === 'valid'
+    && browser._prodCrosswalkVerdict(twoSlot, 'dlv-shared', 'graphic') === null,
+  'REGRESSION R2: a verdict earned in the video slot does NOT cross-validate the graphic slot');
+  ok(browser._prodCanonicalCommentGate(twoSlot, 'graphic').linked === false
+    && browser._prodCanonicalCommentGate(twoSlot, 'video').linked === true,
+  'the gate reads the component-keyed verdict, so one id in two slots is judged per slot');
+
+  // ---------------------------------------------------------------- R3 cache stripping
+  const cached = browser._prodStripEphemeralCanonicalState({
+    id: 'c1', video_comments: legacyRows,
+    _canonicalCrosswalk: { 'video|dlv-1': { state: 'valid' } },
+    _canonicalCommentReads: { 'dlv-1': { status: 'ready' } },
+  });
+  ok(!('_canonicalCrosswalk' in cached) && !('_canonicalCommentReads' in cached)
+    && cached.video_comments === legacyRows && cached.id === 'c1',
+  'REGRESSION R3: ephemeral canonical state is stripped for serialization, real card fields survive');
+  const source_ = { id: 'c2', _canonicalCrosswalk: { x: 1 } };
+  browser._prodStripEphemeralCanonicalState(source_);
+  ok('_canonicalCrosswalk' in source_,
+    'stripping copies rather than mutating the live post (the session keeps its verdicts)');
+  ok(browser._prodStripEphemeralCanonicalPosts([source_, null]).length === 2,
+    'the list form tolerates holes');
+  const calWrite = source.slice(source.indexOf('function _calCacheWrite'), source.indexOf('function _calCacheBustThumb'));
+  const sxrWrite = source.slice(source.indexOf('function _sxrCacheWrite'), source.indexOf('function _sxrIsArchivedRef'));
+  ok(/_prodStripEphemeralCanonicalPosts\(durablePosts\)/.test(calWrite)
+    && /_prodStripEphemeralCanonicalPosts\(live\)/.test(sxrWrite),
+  'both 7-day card caches strip the ephemeral canonical state before serializing');
+
+  // ---------------------------------------------------------------- R4 generation binding
+  const tokenCard = calendarCard();
+  const t1 = browser._prodCardBindingToken('calendar', tokenCard, ['video']);
+  ok(t1 === browser._prodCardBindingToken('calendar', tokenCard, ['video']),
+    'the binding token is stable for an unchanged card');
+  ok(t1 !== browser._prodCardBindingToken('calendar',
+    calendarCard({ video_deliverable_id: 'dlv-other' }), ['video']),
+  're-pointing the card changes the binding token');
+  ok(t1 !== browser._prodCardBindingToken('calendar', calendarCard({ id: 'other-card' }), ['video']),
+    'switching to another card changes the binding token');
+
+  const raceCard = calendarCard();
+  browser.fetch = async () => {
+    // The binding moves while the crosswalk lookup is in flight.
+    raceCard.video_deliverable_id = 'dlv-repointed';
+    return { ok: true, json: async () => [matching] };
+  };
+  const raced = await browser._prodResolveCardCrosswalk('calendar', raceCard, ['video']);
+  ok(raced === null && !raceCard._canonicalCrosswalk,
+    'REGRESSION R4: a binding change during the lookup aborts and stamps NO verdict');
+
+  // ---------------------------------------------------------------- projection wiring
   const projection = source.slice(
     source.indexOf('async function _prodProjectCanonicalCardComments'),
     source.indexOf('function _prodCanonicalCommentGate'),
@@ -253,11 +368,34 @@ function calendarCard(extra) {
   ok(/const validComponents = await _prodResolveCardCrosswalk\(surface, post, allComponents\)/.test(projection)
     && /allComponents\.filter\(component => validComponents\.has\(component\)\)/.test(projection),
   'the projection resolves the crosswalk first and only projects validated components');
-  ok(/if \(!projected\.length && writesLegacy\)/.test(projection)
-    && /if \(Array\.isArray\(legacy\) && legacy\.length\) return;/.test(projection),
-  'an empty projection never overwrites non-empty legacy content (caption/title fan-out guard)');
+  ok(/if \(validComponents === null\) return false;/.test(projection)
+    && (projection.match(/_prodCardBindingToken\(surface, post, allComponents\) !== bindingToken/g) || []).length >= 2,
+  'R4: the projection aborts on an aborted resolve and re-checks the token after the canonical read');
+  ok(/if \(!_prodCanonicalCoversLegacy\(projected, legacy\)\) return;/.test(projection),
+    'R1: legacy storage is written only when canonical demonstrably covers it');
   ok(/const writesLegacy = calendar \|\| !_isClientLink;/.test(projection),
     'the guard is scoped to the paths that write legacy storage, not the client canonical slot');
+  ok(/clientLegacyHeld = true;/.test(projection) && /status: 'legacy_retained'/.test(projection),
+    'R5: the client SXR path holds the read back instead of projecting an empty thread');
+
+  // ---------------------------------------------------------------- R5 gate behaviour
+  const heldCard = calendarCard({ video_deliverable_id: 'dlv-video-1' });
+  browser._prodCrosswalkSetVerdict(heldCard, 'dlv-video-1', 'video', { state: 'valid', fields: [] });
+  heldCard._canonicalCommentReads = { 'dlv-video-1': { status: 'legacy_retained', client: false } };
+  const heldGate = browser._prodCanonicalCommentGate(heldCard, 'video');
+  ok(heldGate.linked === false && heldGate.status === 'legacy_retained',
+    'REGRESSION R5: a held-back thread reports NOT linked, so the reader keeps showing legacy comments');
+
+  // ---------------------------------------------------------------- R6 importer parity
+  const importer = require('fs').readFileSync(
+    path.join(ROOT, 'scripts/f42-card-comment-import.js'), 'utf8',
+  );
+  ok(/const sourceClientSlug = clean\(row && \(row\.client_slug \|\| row\.client\)\);/.test(importer),
+    'REGRESSION R6: the importer derives client_slug ONLY from the card row, with no operator fallback');
+  ok(/client_slug_fallback_not_supported/.test(importer),
+    'R6: passing --client-slug is an explicit error rather than a silent parity break');
+  ok(browser._prodCrosswalkCardSlug({ client: 'acme-co' }) === 'acme-co',
+    'R6: the browser derives the same slug the importer now does (client_slug || client)');
 
   if (failures) {
     console.error(`\n${failures} canonical gate crosswalk check(s) failed`);

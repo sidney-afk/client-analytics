@@ -23311,18 +23311,107 @@
        the gate stays synchronous for the 16 render/write call sites that read
        it. `state` is one of: valid | mismatch | absent | error. Anything other
        than 'valid' — including a deliverable id nobody has resolved yet —
-       renders legacy. */
-    function _prodCrosswalkVerdict(post, deliverableId) {
+       renders legacy.
+
+       Keyed by COMPONENT + deliverable id, never by id alone. The crosswalk
+       verdict is component-specific because the expected team is derived from
+       the component, so one deliverable id occupying both the video and graphic
+       slots of a card would otherwise cross-validate: a verdict earned in the
+       slot where the team matches would silently authorize the slot where it
+       does not. */
+    function _prodCrosswalkKey(component, deliverableId) {
+        return String(component || '') + '|' + String(deliverableId || '');
+    }
+    function _prodCrosswalkVerdict(post, deliverableId, component) {
         const slots = post && post._canonicalCrosswalk;
-        const verdict = slots && deliverableId ? slots[deliverableId] : null;
+        if (!slots || !deliverableId) return null;
+        const verdict = slots[_prodCrosswalkKey(component, deliverableId)];
         return verdict && typeof verdict === 'object' ? verdict : null;
     }
-    function _prodCrosswalkSetVerdict(post, deliverableId, verdict) {
+    function _prodCrosswalkSetVerdict(post, deliverableId, component, verdict) {
         if (!post || !deliverableId) return;
         if (!post._canonicalCrosswalk || typeof post._canonicalCrosswalk !== 'object') {
             post._canonicalCrosswalk = {};
         }
-        post._canonicalCrosswalk[deliverableId] = verdict;
+        post._canonicalCrosswalk[_prodCrosswalkKey(component, deliverableId)] = verdict;
+    }
+    /* Ephemeral, session-only canonical state. These carry a verdict and a read
+       status derived from a live lookup, so a serialized copy rehydrated from
+       the 7-day card cache would be a stale authorization: a link repaired,
+       broken or re-pointed since the snapshot would still read as its old
+       verdict, and a stale `ready` would let an empty projection act. Stripped
+       on the way into the cache so a hydrated post always re-resolves. */
+    const PROD_EPHEMERAL_CANONICAL_KEYS = Object.freeze([
+        '_canonicalCrosswalk', '_canonicalCommentReads',
+    ]);
+    function _prodStripEphemeralCanonicalState(post) {
+        if (!post || typeof post !== 'object') return post;
+        let copy = post;
+        for (const key of PROD_EPHEMERAL_CANONICAL_KEYS) {
+            if (!Object.prototype.hasOwnProperty.call(copy, key)) continue;
+            if (copy === post) copy = Object.assign({}, post);
+            delete copy[key];
+        }
+        return copy;
+    }
+    function _prodStripEphemeralCanonicalPosts(posts) {
+        return (Array.isArray(posts) ? posts : []).map(_prodStripEphemeralCanonicalState);
+    }
+    /* PROVENANCE INVARIANT for overwriting legacy card storage.
+
+       A canonical projection may REPLACE non-empty legacy card content only
+       when that legacy content is demonstrably represented in the canonical
+       thread. An empty-only guard is not enough: a single canonical row — a
+       fresh reply on a card whose history was never imported — passes an
+       "is it empty?" test and then wholesale-replaces the stored array and its
+       `*_tweaks` wire string, destroying every legacy message.
+
+       The browser cannot read import provenance directly, so it proves the
+       invariant structurally: the canonical projection must be an exact
+       SUPERSET of the legacy rows, matched on body + author + timestamp. If
+       every legacy message is present in canonical, canonical is a strictly
+       better version of the same thread and replacing is lossless. If even one
+       legacy message is unmatched, the thread was not fully imported and the
+       write is refused — the caller then renders canonical WITHOUT writing
+       legacy storage, or falls back to legacy. Never destroy.
+
+       Matching is deliberately forgiving on shape and strict on content: the
+       same message can carry different id/field names on either side, so it is
+       identified by what a human wrote, not by how it was stored. */
+    function _prodCommentProvenanceKey(row) {
+        const item = row && typeof row === 'object' ? row : {};
+        const body = String(item.body == null ? (item.text == null ? '' : item.text) : item.body)
+            .replace(/\s+/g, ' ').trim().toLowerCase();
+        const author = String(
+            item.author_key || item.author_name || item.author || item.by || item.role || ''
+        ).trim().toLowerCase();
+        const when = String(
+            item.source_created_at || item.created_at || item.at || item.ts || ''
+        ).trim();
+        // U+0001 delimiter, written as an escape sequence, never a space and
+        // never a raw control byte in this file: `body` is whitespace-
+        // normalised and may contain spaces, so a space-joined key lets a
+        // field boundary shift without changing the key — body "ab c" plus
+        // author "d" would collide with body "ab" plus author "c d". That
+        // collision direction is the dangerous one: it marks a legacy row as
+        // COVERED by canonical content that does not contain it, and so
+        // PERMITS the overwrite this invariant exists to prevent. A control
+        // character never appears in a comment body, author key or timestamp,
+        // so the joined key cannot be forged by field content.
+        return [body, author, when].join('\u0001');
+    }
+    /* True when every legacy row is represented in the canonical projection. An
+       empty legacy array is trivially covered. */
+    function _prodCanonicalCoversLegacy(canonicalRows, legacyRows) {
+        const legacy = Array.isArray(legacyRows) ? legacyRows : [];
+        if (!legacy.length) return true;
+        const canonical = Array.isArray(canonicalRows) ? canonicalRows : [];
+        if (!canonical.length) return false;
+        const present = new Set(canonical.map(_prodCommentProvenanceKey));
+        for (const row of legacy) {
+            if (!present.has(_prodCommentProvenanceKey(row))) return false;
+        }
+        return true;
     }
     /* Reads the crosswalk columns the anon role is granted on `deliverables`
        (id, client_slug, team, origin, card_id — the same five the F42 exporter
@@ -23363,9 +23452,25 @@
             return { ok: false, rows: new Map() };
         }
     }
+    /* A card binding is the exact set of (component -> deliverable id) pairs the
+       card names, plus the card identity the crosswalk compares against. The
+       projection awaits a network round trip; if the card is re-pointed, or the
+       client link switches to another card, while those awaits are in flight,
+       every verdict and projected row computed from the old binding is stale
+       and must not be applied. Comparing this token before and after each await
+       is what makes the projection abort instead of writing through. */
+    function _prodCardBindingToken(surface, post, components) {
+        const parts = [String(surface || ''), String((post && post.id) || ''), _prodCrosswalkCardSlug(post)];
+        (components || []).forEach(component => {
+            parts.push(component + '=' + _writeUiNativeId(post, component));
+        });
+        return parts.join('|');
+    }
     /* Resolves every (component -> deliverable id) the card names and stamps a
        verdict for each. Returns the set of components whose link is crosswalk
-       VALID — the only ones a canonical projection may touch. */
+       VALID — the only ones a canonical projection may touch. Returns null when
+       the card binding changed during the lookup, which the caller treats as
+       "abort, resolve nothing". */
     async function _prodResolveCardCrosswalk(surface, post, components) {
         const wanted = new Map();
         (components || []).forEach(component => {
@@ -23373,24 +23478,26 @@
             if (deliverableId) wanted.set(component, deliverableId);
         });
         if (!wanted.size) return new Set();
+        const token = _prodCardBindingToken(surface, post, components);
         const { ok, rows } = await _prodFetchCrosswalkRows([...wanted.values()]);
+        if (_prodCardBindingToken(surface, post, components) !== token) return null;
         const valid = new Set();
         wanted.forEach((deliverableId, component) => {
             if (!ok) {
-                _prodCrosswalkSetVerdict(post, deliverableId, { state: 'error', fields: [] });
+                _prodCrosswalkSetVerdict(post, deliverableId, component, { state: 'error', fields: [] });
                 return;
             }
             const deliverable = rows.get(deliverableId);
             if (!deliverable) {
-                _prodCrosswalkSetVerdict(post, deliverableId, { state: 'absent', fields: [] });
+                _prodCrosswalkSetVerdict(post, deliverableId, component, { state: 'absent', fields: [] });
                 return;
             }
             const fields = _prodCrosswalkMismatchFields(deliverable, surface, post, component);
             if (fields.length) {
-                _prodCrosswalkSetVerdict(post, deliverableId, { state: 'mismatch', fields });
+                _prodCrosswalkSetVerdict(post, deliverableId, component, { state: 'mismatch', fields });
                 return;
             }
-            _prodCrosswalkSetVerdict(post, deliverableId, { state: 'valid', fields: [] });
+            _prodCrosswalkSetVerdict(post, deliverableId, component, { state: 'valid', fields: [] });
             valid.add(component);
         });
         return valid;
@@ -30546,7 +30653,17 @@
         // Persist the current collab/settings alongside the posts so the next
         // cold load can render the right shape without waiting for the network.
         const settings = Object.assign({}, CAL_SETTINGS_DEFAULTS, calState.settings || {});
-        const payload = JSON.stringify({ schema: 2, posts: durablePosts, settings, savedAt: Date.now() });
+        // Never persist the canonical crosswalk verdicts or read statuses: they
+        // are live-lookup derived, and a copy rehydrated up to 7 days later
+        // would be a stale authorization (a link repaired, broken or re-pointed
+        // since the snapshot still reading as its old verdict, or a stale
+        // `ready` letting an empty projection act).
+        const payload = JSON.stringify({
+            schema: 2,
+            posts: _prodStripEphemeralCanonicalPosts(durablePosts),
+            settings,
+            savedAt: Date.now()
+        });
         try { localStorage.setItem(key, payload); return true; }
         catch (e) {
             // QuotaExceededError or similar — drop oldest entries with our
@@ -46375,7 +46492,14 @@
             // whose link does not validate is left entirely alone: no read, no
             // projection, no setter call — so its legacy card comments (and, on
             // calendar, its *_tweaks wire string) survive untouched.
+            // Generation token for the whole projection. Every await below
+            // re-checks it, so a card re-pointed — or a client link switched to
+            // another card — mid-flight aborts instead of writing verdicts and
+            // rows derived from the binding that no longer applies.
+            const bindingToken = _prodCardBindingToken(surface, post, allComponents);
             const validComponents = await _prodResolveCardCrosswalk(surface, post, allComponents);
+            if (validComponents === null) return false;
+            if (_prodCardBindingToken(surface, post, allComponents) !== bindingToken) return false;
             const components = allComponents.filter(component => validComponents.has(component));
             if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
             if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
@@ -46436,7 +46560,12 @@
                     };
                     return;
                 }
+                // The read is another await: if the binding moved while it was
+                // in flight, these rows belong to a card that is no longer the
+                // one being projected. Drop them rather than write them.
+                if (_prodCardBindingToken(surface, post, allComponents) !== bindingToken) return;
                 const rows = (thread.items || []).map(_prodCanonicalCardComment);
+                let clientLegacyHeld = false;
                 linkedComponents.forEach(component => {
                     const projected = rows.filter(row => {
                         const tagged = String(row.component || '').trim();
@@ -46444,22 +46573,39 @@
                     });
                     // A valid link still fans one deliverable id out across
                     // several components: `video_deliverable_id` governs video,
-                    // caption AND title. A canonical thread that carries no row
-                    // tagged for a sibling component would otherwise zero that
-                    // component's legacy array and wire string. An empty
-                    // projection never overwrites non-empty legacy content —
-                    // the destructive direction is the one we refuse.
+                    // caption AND title.
+                    //
+                    // The rule is provenance, not emptiness. A canonical
+                    // projection may replace non-empty legacy content ONLY when
+                    // it demonstrably contains that content — otherwise a single
+                    // canonical row (a fresh reply on a never-imported card)
+                    // would pass an is-it-empty test and wholesale-replace the
+                    // stored array and its wire string. When the invariant
+                    // fails we leave legacy storage exactly as it is; the reader
+                    // keeps rendering the legacy thread, so nothing is hidden
+                    // and nothing is destroyed.
                     //
                     // Scoped to the two paths that write LEGACY storage. The
                     // client SXR path writes `_canonicalCommentsByComponent`,
                     // a separate slot whose deliberate pre-authorization clear
                     // must not be blocked.
                     const writesLegacy = calendar || !_isClientLink;
-                    if (!projected.length && writesLegacy) {
+                    if (writesLegacy) {
                         const legacy = calendar
                             ? _calCommentsFor(post, component)
                             : _sxrCommentsFor(post, component);
-                        if (Array.isArray(legacy) && legacy.length) return;
+                        if (!_prodCanonicalCoversLegacy(projected, legacy)) return;
+                    } else if (!projected.length) {
+                        // Client SXR: a valid link whose canonical thread is
+                        // empty while client-visible legacy comments exist must
+                        // never render an empty thread at the client. Hold the
+                        // read at not-ready so the gate keeps the legacy view
+                        // instead of showing the client nothing.
+                        const legacyVisible = _sxrCommentsForView(post, component);
+                        if (Array.isArray(legacyVisible) && legacyVisible.length) {
+                            clientLegacyHeld = true;
+                            return;
+                        }
                     }
                     if (calendar) {
                         _calSetCommentsFor(post, component, projected);
@@ -46471,6 +46617,14 @@
                         if (component === 'video') post.comments = projected;
                     }
                 });
+                if (clientLegacyHeld) {
+                    post._canonicalCommentReads[deliverableId] = {
+                        status: 'legacy_retained',
+                        client: false,
+                        clientSurface
+                    };
+                    return;
+                }
                 post._canonicalCommentReads[deliverableId] = {
                     status: 'ready',
                     client: _isClientLink
@@ -46492,7 +46646,7 @@
             // canonical thread for it, and claiming `linked` here would project
             // an empty thread over the card's real legacy comments. Unresolved
             // and failed lookups fall back to legacy for the same reason.
-            const crosswalk = _prodCrosswalkVerdict(post, deliverableId);
+            const crosswalk = _prodCrosswalkVerdict(post, deliverableId, component);
             if (!crosswalk || crosswalk.state !== 'valid') {
                 return {
                     linked: false,
@@ -46504,6 +46658,15 @@
                 };
             }
             const state = post && post._canonicalCommentReads && post._canonicalCommentReads[deliverableId];
+            // The projection held this thread back because the canonical side
+            // was empty while client-visible legacy comments still exist.
+            // Reporting `linked` here would render the client an empty thread
+            // and hide comments they can see today, so the card is reported
+            // NOT linked and the reader keeps the legacy view. Existing
+            // client-visible comments are never hidden by a link.
+            if (state && state.status === 'legacy_retained') {
+                return { linked: false, ready: false, client: false, status: 'legacy_retained' };
+            }
             const expectedClientSurface = _isClientLink
                 ? _prodVerifiedClientCommentSurfaceContext('sxr', post, component, deliverableId)
                 : null;
@@ -50860,7 +51023,12 @@
         const live = incoming.map(post => (post && post._writeUiRetrySourceAt) ? post : (repairById.get(post && post.id) || post));
         const liveIds = new Set(live.map(post => post && post.id));
         priorRepairs.forEach(post => { if (!liveIds.has(post.id)) live.push(post); });
-        const payload = JSON.stringify({ schema: 2, posts: live, at: Date.now() });
+        // Canonical crosswalk verdicts and read statuses are never persisted —
+        // see _prodStripEphemeralCanonicalState. A stale verdict rehydrated
+        // from this cache would be an authorization nobody re-checked.
+        const payload = JSON.stringify({
+            schema: 2, posts: _prodStripEphemeralCanonicalPosts(live), at: Date.now()
+        });
         try { localStorage.setItem(key, payload); return true; } catch {}
         // Quota hit — evict the other clients' sample caches and retry once.
         try {

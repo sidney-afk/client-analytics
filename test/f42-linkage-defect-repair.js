@@ -28,11 +28,16 @@ function ok(condition, message) {
   }
 }
 
+// Fixed clock so snapshot freshness is deterministic.
+const NOW_MS = Date.parse('2026-07-26T12:00:00Z');
+const NOW_ISO = new Date(NOW_MS).toISOString();
+
 function card(extra) {
   return Object.assign({
     id: 'cal-1',
     client: 'acme-co',
     linear_issue_id: 'https://linear.app/synchro-social/issue/VID-1/video',
+    graphic_linear_issue_id: 'https://linear.app/synchro-social/issue/GRA-1/thumb',
     comment_counts: { video: 3, graphic: 0, caption: 0, title: 0 },
   }, extra || {});
 }
@@ -45,14 +50,20 @@ function deliverable(extra) {
     kind: 'video',
     origin: 'manual',
     card_id: null,
+    // R15: Class A now requires proven Linear identity equality with the card.
+    linear_identifier: 'VID-1',
+    linear_issue_url: 'https://linear.app/synchro-social/issue/VID-1/video',
   }, extra || {});
 }
 
 function snapshot(cards, deliverables) {
-  return {
+  const doc = {
+    contract: repair.SNAPSHOT_CONTRACT,
     cards: { calendar: cards.calendar || [], sxr: cards.sxr || [] },
     deliverables: deliverables || [],
   };
+  doc.manifest = repair.buildSnapshotManifest(doc, NOW_ISO);
+  return doc;
 }
 
 (async () => {
@@ -94,8 +105,16 @@ function snapshot(cards, deliverables) {
     && planA.writes[0].after.origin === 'calendar'
     && planA.writes[0].after.card_id === 'cal-1'
     && planA.writes[0].before.origin === 'manual'
-    && planA.writes[0].before.card_id === '',
+    // R10: a NULL card_id is recorded as NULL, not collapsed to ''. Restoring
+    // '' where NULL stood would leave the row in a state it was never in — and
+    // one that still satisfies card_id IS NOT NULL in the partial unique index.
+    && planA.writes[0].before.card_id === null,
   'Class A stamps origin+card_id onto the unclaimed deliverable and records the before-state');
+  ok(repair.planLinkageRepair(snapshot(
+    { calendar: [card({ video_deliverable_id: 'dlv-1' })] },
+    [deliverable({ card_id: '' })],
+  ), { runId: 'r' }).writes[0].before.card_id === '',
+  'R10: an empty-string card_id is recorded as empty string, distinct from NULL');
   ok(planA.scope.comment_rows_unblocked === 3,
     'the plan reports how many comment rows the repair unblocks');
 
@@ -167,6 +186,63 @@ function snapshot(cards, deliverables) {
     && planClaimed.skipped.some(row => (row.objections || []).includes('deliverable_already_claims_a_card')),
   'a deliverable already claiming another card is skipped rather than re-pointed');
 
+  // ------------------------------------------------------------ R15 Class A extra proof
+  const planWrongKind = repair.planLinkageRepair(snapshot(
+    { calendar: [card({ video_deliverable_id: 'dlv-1' })] },
+    [deliverable({ kind: 'other' })],
+  ), { runId: 'test-kind' });
+  ok(planWrongKind.writes.length === 0
+    && planWrongKind.skipped.some(row => (row.objections || []).includes('kind_does_not_match_the_card_slot')),
+  'R15: Class A refuses when the deliverable kind does not match the card slot (team alone is too coarse)');
+
+  const planNoLinear = repair.planLinkageRepair(snapshot(
+    { calendar: [card({ video_deliverable_id: 'dlv-1', linear_issue_id: '' })] },
+    [deliverable()],
+  ), { runId: 'test-nolinear' });
+  ok(planNoLinear.writes.length === 0
+    && planNoLinear.skipped.some(row => (row.objections || []).includes('linear_identity_unproven')),
+  'R15: Class A refuses when either side names no Linear issue — unproven is not permission');
+
+  const planLinearDisagrees = repair.planLinkageRepair(snapshot(
+    { calendar: [card({ video_deliverable_id: 'dlv-1' })] },
+    [deliverable({ linear_identifier: 'VID-999', linear_issue_url: '' })],
+  ), { runId: 'test-linear' });
+  ok(planLinearDisagrees.writes.length === 0
+    && planLinearDisagrees.skipped.some(row => (row.objections || []).includes('linear_identity_disagrees')),
+  'R15: Class A refuses when the card and deliverable name DIFFERENT Linear issues');
+
+  ok(repair.linearIdentifier('https://linear.app/synchro-social/issue/VID-7/x') === 'VID-7'
+    && repair.linearIdentifier('vid-7') === 'VID-7'
+    && repair.linearIdentifier('weird text blob') === '',
+  'R15: Linear identity parses from URL or bare identifier and returns empty for junk');
+
+  // ------------------------------------------------------------ R14 all-consumer safety
+  // A team repair for the commented graphic slot would invalidate a QUIET,
+  // currently-valid video slot on another card pointing at the same deliverable.
+  const sharedTeamPlan = repair.planLinkageRepair(snapshot(
+    {
+      calendar: [
+        card({
+          id: 'cal-a',
+          // Both slots name the same deliverable. The graphic slot carries the
+          // comments and the team defect; the video slot is comment-free — so
+          // it never appears in the defect scan — but is crosswalk-CLEAN today.
+          graphic_deliverable_id: 'dlv-shared',
+          video_deliverable_id: 'dlv-shared',
+          comment_counts: { video: 0, graphic: 2, caption: 0, title: 0 },
+        }),
+      ],
+    },
+    [deliverable({
+      id: 'dlv-shared', kind: 'thumbnail', team: 'video',
+      origin: 'calendar', card_id: 'cal-a',
+    })],
+  ), { runId: 'test-consumers' });
+  ok(sharedTeamPlan.writes.length === 0
+    && sharedTeamPlan.skipped.some(row => (row.objections || [])
+      .some(objection => objection.startsWith('would_invalidate_consumer'))),
+  'R14: a team repair that would invalidate a quiet, comment-free but currently-VALID consumer refuses');
+
   // ------------------------------------------------------------ comment-free cards
   const planNoComments = repair.planLinkageRepair(snapshot(
     {
@@ -215,7 +291,9 @@ function snapshot(cards, deliverables) {
   // repair writes — so a drift the repair does not even touch still refuses.
   const planRepointed = repair.planLinkageRepair(snapshot(
     { calendar: [card({ video_deliverable_id: 'dlv-1' })] },
-    [deliverable({ kind: 'other' })],
+    // origin '' is still an acceptable Class A target, so the repair still
+    // plans — but the observed target state differs, so the digest must move.
+    [deliverable({ origin: '' })],
   ), { runId: 'test-a' });
   ok(planRepointed.writes.length === 1 && planRepointed.apply_digest !== planA.apply_digest,
     'a target deliverable mutated between plan and apply moves the digest, even in a field the repair does not write');
@@ -267,24 +345,69 @@ function snapshot(cards, deliverables) {
   ok(tallied.every(row => Object.keys(row).sort().join(',') === 'classification,count,reason,surface'),
     'the tally projection emits only classification/surface/reason/count');
 
+  // ------------------------------------------------------------ R13 input manifest
+  const goodSnapshot = snapshot(
+    { calendar: [card({ video_deliverable_id: 'dlv-1' })] }, [deliverable()],
+  );
+  ok(repair.verifySnapshotManifest(goodSnapshot, NOW_MS).length === 0,
+    'a well-formed, fresh snapshot passes manifest verification');
+  ok(repair.verifySnapshotManifest(
+    Object.assign({}, goodSnapshot, { manifest: undefined }), NOW_MS,
+  ).includes('snapshot_manifest_required'),
+  'a snapshot with no manifest is refused');
+  const truncated = JSON.parse(JSON.stringify(goodSnapshot));
+  truncated.cards.calendar = [];
+  ok(repair.verifySnapshotManifest(truncated, NOW_MS).includes('snapshot_count_mismatch:calendar'),
+    'R13: a TRUNCATED export is caught by the row-count check');
+  const edited = JSON.parse(JSON.stringify(goodSnapshot));
+  edited.deliverables[0].origin = 'calendar';
+  ok(repair.verifySnapshotManifest(edited, NOW_MS).includes('snapshot_content_hash_mismatch'),
+    'R13: a hand-EDITED export is caught by the content hash');
+  ok(repair.verifySnapshotManifest(goodSnapshot, NOW_MS + repair.MAX_SNAPSHOT_AGE_MS + 1000)
+    .includes('snapshot_too_old'),
+  'R13: a STALE export past the freshness bound is refused');
+  ok(repair.verifySnapshotManifest(goodSnapshot, NOW_MS - 3600000)
+    .includes('snapshot_generated_in_the_future'),
+  'R13: a snapshot stamped in the future is refused');
+
   // ------------------------------------------------------------ release mechanics
   const writes = [];
   const files = new Map();
-  const deps = {
-    readFileSync: () => JSON.stringify(snapshot(
-      { calendar: [card({ video_deliverable_id: 'dlv-1' })] }, [deliverable()],
-    )),
-    writeFileSync: (p, body) => files.set(String(p), body),
-    patchOne: async write => { writes.push(write.deliverable_id); },
+  // A CAS-shaped patch layer: returns the single row it claims to have written.
+  const patchOk = async write => {
+    writes.push(write.deliverable_id);
+    return [Object.assign({ id: write.deliverable_id }, write.after)];
   };
+  const deps = {
+    now: () => NOW_MS,
+    existsSync: p => files.has(String(p)),
+    readFileSync: () => JSON.stringify(goodSnapshot),
+    writeFileSync: (p, body) => files.set(String(p), body),
+    patchOne: patchOk,
+    readback: async () => ({ remaining_defects: 0, expected_remaining_defects: 0 }),
+  };
+  const digest = repair.planLinkageRepair(goodSnapshot, { runId: undefined }).apply_digest;
 
   const dryRun = await repair.run(['--input', 'snap.json'], {}, deps);
   ok(dryRun.status === 'READY' && writes.length === 0,
     'a plan run is source-only: READY without touching the database');
 
+  const staleRun = await repair.run(['--input', 'snap.json'], {}, {
+    ...deps, now: () => NOW_MS + repair.MAX_SNAPSHOT_AGE_MS + 1000,
+  });
+  ok(staleRun.status === 'BLOCKED' && staleRun.reasons.includes('snapshot_too_old'),
+    'R13: the runner verifies the manifest BEFORE planning and blocks a stale export');
+
   let threw = '';
   try {
     await repair.run(['--input', 'snap.json', '--apply'], {}, deps);
+  } catch (error) { threw = error.message; }
+  ok(threw === 'expected_digest_required_for_apply',
+    'R7: apply refuses without a mandatory --expected-digest');
+
+  threw = '';
+  try {
+    await repair.run(['--input', 'snap.json', '--apply', '--expected-digest', digest], {}, deps);
   } catch (error) { threw = error.message; }
   ok(threw === 'expected_writes_required_for_apply',
     'apply refuses without a mandatory --expected-writes count');
@@ -301,79 +424,153 @@ function snapshot(cards, deliverables) {
   ok(digestDrift.status === 'BLOCKED' && digestDrift.reasons.includes('apply_digest_drift'),
     'a digest that no longer matches the reviewed plan blocks the apply');
 
+  const applyArgs = [
+    '--input', 'snap.json', '--apply',
+    '--expected-digest', digest, '--expected-writes', '1',
+  ];
+
   threw = '';
   try {
-    await repair.run(
-      ['--input', 'snap.json', '--apply', '--expected-writes', '1', '--rollback-artifact', 'r.json'],
-      {}, deps,
-    );
+    await repair.run(applyArgs.concat(['--rollback-artifact', 'r.json']), {}, deps);
   } catch (error) { threw = error.message; }
   ok(threw === 'owner_confirmation_required' && writes.length === 0,
     'apply refuses without the exact owner confirm token');
 
+  const OWNER = { [repair.CONFIRM_ENV]: repair.CONFIRM_TOKEN };
+
   threw = '';
   try {
-    await repair.run(
-      ['--input', 'snap.json', '--apply', '--expected-writes', '1'],
-      { [repair.CONFIRM_ENV]: repair.CONFIRM_TOKEN }, deps,
-    );
+    await repair.run(applyArgs, OWNER, deps);
   } catch (error) { threw = error.message; }
   ok(threw === 'rollback_artifact_required_for_apply' && writes.length === 0,
     'apply refuses without a rollback artifact path');
 
+  threw = '';
+  try {
+    await repair.run(applyArgs.concat(['--rollback-artifact', 'r.json']), OWNER,
+      Object.assign({}, deps, { readback: undefined }));
+  } catch (error) { threw = error.message; }
+  ok(threw === 'readback_layer_required_for_apply' && writes.length === 0,
+    'R9: apply refuses without a readback layer — an unverifiable apply never runs');
+
   const applied = await repair.run(
-    ['--input', 'snap.json', '--apply', '--expected-writes', '1', '--rollback-artifact', 'r.json'],
-    { [repair.CONFIRM_ENV]: repair.CONFIRM_TOKEN },
-    { ...deps, readback: async () => ({ remaining_defects: 0 }) },
+    applyArgs.concat(['--rollback-artifact', 'r.json']), OWNER, deps,
   );
   ok(applied.status === 'APPLIED' && applied.applied === 1 && writes.length === 1,
     'a confirmed, digest-pinned, count-matched apply writes exactly the planned rows');
 
   const artifact = JSON.parse(files.get(path.resolve('r.json')));
-  ok(artifact.applied.length === 1
-    && JSON.stringify(artifact.applied[0].restore) === JSON.stringify({ origin: 'manual', card_id: '' }),
-  'the rollback artifact records the exact prior value for every applied write');
+  ok(artifact.attempted.length === 1
+    && JSON.stringify(artifact.attempted[0].restore) === JSON.stringify({ origin: 'manual', card_id: null }),
+  'R10: the rollback artifact restores NULL as NULL, not as empty string');
+  ok(Array.isArray(artifact.planned) && artifact.planned.length === 1
+    && JSON.stringify(artifact.planned[0].before) === JSON.stringify({ origin: 'manual', card_id: null }),
+  'R12: the artifact carries planned[] with before-state, which is what crash recovery restores from');
 
-  // rollback artifact must exist BEFORE the first write
+  // R11: never clobber an existing artifact
+  threw = '';
+  try {
+    await repair.run(applyArgs.concat(['--rollback-artifact', 'r.json']), OWNER, deps);
+  } catch (error) { threw = error.message; }
+  ok(threw === 'rollback_artifact_already_exists',
+    'R11: the journal refuses to overwrite an existing artifact path');
+
+  // R12: note BEFORE the patch
   const order = [];
-  const orderedDeps = {
-    ...deps,
-    writeFileSync: (p, body) => { order.push('artifact'); files.set(String(p), body); },
-    patchOne: async () => { order.push('write'); },
-    readback: async () => ({ remaining_defects: 0 }),
-  };
   await repair.run(
-    ['--input', 'snap.json', '--apply', '--expected-writes', '1', '--rollback-artifact', 'r2.json'],
-    { [repair.CONFIRM_ENV]: repair.CONFIRM_TOKEN }, orderedDeps,
+    applyArgs.concat(['--rollback-artifact', 'r2.json']), OWNER,
+    Object.assign({}, deps, {
+      writeFileSync: (p, body) => { order.push('artifact'); files.set(String(p), body); },
+      patchOne: async write => { order.push('write'); return [Object.assign({ id: write.deliverable_id }, write.after)]; },
+    }),
   );
-  ok(order[0] === 'artifact' && order.indexOf('write') > 0,
-    'the rollback artifact is written BEFORE the first write, so a mid-run failure is still reversible');
+  ok(order[0] === 'artifact' && order[1] === 'artifact' && order[2] === 'write',
+    'R12: the row is journalled BEFORE its PATCH is issued, so a crash cannot lose it');
+
+  // ------------------------------------------------------------ R8/R9 CAS
+  const planCas = repair.planLinkageRepair(goodSnapshot, { runId: 'cas' });
+  const write0 = planCas.writes[0];
+  ok(repair.verifyPatchResult(write0, []) === 'cas_no_row_matched_observed_state',
+    'R8: a PATCH that matched no row is a per-row refusal, never treated as applied');
+  ok(repair.verifyPatchResult(write0, null) === 'patch_returned_no_representation',
+    'R8: a PATCH with no representation body is refused');
+  ok(repair.verifyPatchResult(write0, [{}, {}]) === 'cas_matched_multiple_rows',
+    'R9: a PATCH that touched more than one row is refused');
+  ok(repair.verifyPatchResult(write0, [{ origin: 'calendar', card_id: 'cal-1' }]) === '',
+    'R9: exactly one row carrying the exact after-state is the only accepted outcome');
+  ok(repair.verifyPatchResult(write0, [{ origin: 'manual', card_id: 'cal-1' }])
+    === 'after_state_mismatch:origin',
+  'R9: a returned row whose after-state differs is refused');
+
+  const casUrl = repair.casPatchUrl('https://db.test', write0);
+  ok(casUrl.includes('id=eq.dlv-1') && casUrl.includes('client_slug=eq.acme-co')
+    && casUrl.includes('team=eq.video') && casUrl.includes('kind=eq.video')
+    && casUrl.includes('origin=eq.manual') && casUrl.includes('card_id=is.null'),
+  'R8: the PATCH filters on ALL five target fields, with a planned NULL card_id as is.null');
+
+  const refused = await repair.applyRepairs(planCas, {
+    rollbackArtifact: '',
+    writeFileSync: () => {},
+    patchOne: async () => [],
+  });
+  ok(refused.applied === 0 && refused.refusals.length === 1
+    && repair.verifyApply(planCas, refused, { remaining_defects: 0, expected_remaining_defects: 0 })
+      .some(gap => gap.startsWith('cas_refused')),
+  'R8: a drifted row is refused per-row and surfaces as GAPS, never a silent success');
+
+  // ------------------------------------------------------------ R9 readback semantics
+  ok(repair.verifyApply(planA, { applied: 1, planned: 1, failure: null, refusals: [] }, null)
+    .includes('readback_missing'),
+  'R9: an ABSENT readback is a GAP — "could not check" never renders as "checked and fine"');
+  ok(repair.verifyApply(planA, { applied: 1, planned: 1, failure: null, refusals: [] },
+    { remaining_defects: 2, expected_remaining_defects: 2 }).length === 0,
+  'R16: success is remaining defects EQUAL to the unruled Class C residue, not zero');
+  ok(repair.verifyApply(planA, { applied: 1, planned: 1, failure: null, refusals: [] },
+    { remaining_defects: 0, expected_remaining_defects: 2 })
+    .includes('defects_remain_after_repair'),
+  'R16: fewer remaining defects than the expected residue is also a GAP');
+  ok(repair.verifyApply(planA, { applied: 1, planned: 1, failure: null, refusals: [] },
+    { remaining_defects: 4, expected_remaining_defects: 0 })
+    .includes('defects_remain_after_repair'),
+  'an independent readback that still sees defects is a GAPS result');
 
   // a mid-run failure still leaves an artifact covering exactly what landed
   const failingPlan = repair.planLinkageRepair(snapshot(
     {
       calendar: [
         card({ id: 'cal-1', video_deliverable_id: 'dlv-1', comment_counts: { video: 1, graphic: 0, caption: 0, title: 0 } }),
-        card({ id: 'cal-2', video_deliverable_id: 'dlv-2', comment_counts: { video: 1, graphic: 0, caption: 0, title: 0 } }),
+        card({
+          id: 'cal-2', video_deliverable_id: 'dlv-2',
+          linear_issue_id: 'https://linear.app/synchro-social/issue/VID-2/video',
+          comment_counts: { video: 1, graphic: 0, caption: 0, title: 0 },
+        }),
       ],
     },
-    [deliverable(), deliverable({ id: 'dlv-2' })],
+    [deliverable(), deliverable({
+      id: 'dlv-2', linear_identifier: 'VID-2',
+      linear_issue_url: 'https://linear.app/synchro-social/issue/VID-2/video',
+    })],
   ), { runId: 'test-fail' });
+  ok(failingPlan.writes.length === 2, 'the two-write fixture plans both rows');
   let calls = 0;
   const partial = await repair.applyRepairs(failingPlan, {
     rollbackArtifact: 'partial.json',
+    existsSync: () => false,
     writeFileSync: (p, body) => files.set(String(p), body),
-    patchOne: async () => { calls++; if (calls === 2) throw new Error('boom'); },
+    patchOne: async write => {
+      calls++;
+      if (calls === 2) throw new Error('boom');
+      return [Object.assign({ id: write.deliverable_id }, write.after)];
+    },
   });
+  const partialArtifact = JSON.parse(files.get(path.resolve('partial.json')));
   ok(partial.applied === 1 && partial.failure === 'boom'
-    && JSON.parse(files.get(path.resolve('partial.json'))).applied.length === 1,
-  'a mid-run failure leaves an artifact that reverses exactly the writes that landed');
-  ok(repair.verifyApply(failingPlan, partial, {}).some(gap => gap.startsWith('patch_failed')),
-    'a partial apply verifies as GAPS, never APPLIED');
-
-  ok(repair.verifyApply(planA, { applied: 1, planned: 1, failure: null }, { remaining_defects: 4 })
-    .includes('defects_remain_after_repair'),
-  'an independent readback that still sees defects is a GAPS result');
+    && partialArtifact.attempted.length === 2
+    && partialArtifact.planned.length === 2,
+  'a mid-run failure leaves an artifact covering every attempted and every planned row');
+  ok(repair.verifyApply(failingPlan, partial, { remaining_defects: 0, expected_remaining_defects: 0 })
+    .some(gap => gap.startsWith('patch_failed')),
+  'a partial apply verifies as GAPS, never APPLIED');
 
   if (failures) {
     console.error(`\n${failures} linkage defect repair check(s) failed`);

@@ -119,6 +119,7 @@ function extractBlock(text, start) {
     extractFunction('_prodVerifiedClientCommentSurfaceContext'),
     extractFunction('_prodVerifiedClientCommentMutationContext'),
     extractFunction('_prodClientCommentSurfaceKey'),
+    extractFunction('_prodCrosswalkKey'),
     extractFunction('_prodCrosswalkVerdict'),
     extractFunction('_prodCanonicalCommentGate'),
     extractFunction('_sxrPostLinearComment'),
@@ -143,7 +144,8 @@ function extractBlock(text, start) {
     // resolved, crosswalk-VALID verdict. These fixtures stamp one so each
     // assertion below keeps testing what it was written to test (read
     // readiness and exact client binding), not crosswalk resolution.
-    _canonicalCrosswalk: { 'deliverable-video': { state: 'valid', fields: [] } },
+    // Keyed component|deliverableId so one id in two slots cannot cross-validate.
+    _canonicalCrosswalk: { 'video|deliverable-video': { state: 'valid', fields: [] } },
     _canonicalCommentReads: {
       'deliverable-video': {
         status: 'ready',

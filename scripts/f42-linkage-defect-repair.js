@@ -82,6 +82,13 @@ const OWNER_RULING_CLASS = 'card_id';
 const EXCLUDED_LINEAR_WORKSPACES = Object.freeze(['x', 'sidtest', 'syn', 'acme']);
 const SCOPE_POLICY = 'defect-repair-clear-authority-only';
 
+const SNAPSHOT_CONTRACT = 'syncview-f42-linkage-repair-snapshot-v1';
+// A snapshot older than this cannot be trusted to describe live rows: the CAS
+// predicate would be built from stale observed state and refuse every row, and
+// worse, a defect repaired by someone else in the meantime would still be
+// planned. Six hours matches the Track-B private snapshot cadence.
+const MAX_SNAPSHOT_AGE_MS = 6 * 60 * 60 * 1000;
+
 function clean(value) {
   return String(value == null ? '' : value).trim();
 }
@@ -121,6 +128,28 @@ function linearWorkspace(value) {
   return match ? lower(match[1]) : '';
 }
 
+// The Linear issue identifier (e.g. VID-123) a value names, from a full issue
+// URL or a bare identifier. Returns '' when nothing parseable is present —
+// which callers must treat as UNPROVEN, never as a match.
+function linearIdentifier(value) {
+  const raw = clean(value);
+  if (!raw) return '';
+  const match = raw.match(/\/issue\/([A-Za-z][A-Za-z0-9]*-\d+)/)
+    || raw.match(/^([A-Za-z][A-Za-z0-9]*-\d+)$/);
+  return match ? match[1].toUpperCase() : '';
+}
+
+function cardLinearIdentity(card, component) {
+  return linearIdentifier(component === 'graphic'
+    ? card && card.graphic_linear_issue_id
+    : card && card.linear_issue_id);
+}
+
+function deliverableLinearIdentity(deliverable) {
+  return linearIdentifier(deliverable && deliverable.linear_identifier)
+    || linearIdentifier(deliverable && deliverable.linear_issue_url);
+}
+
 function cardExcludedByPolicy(card) {
   const links = [card && card.linear_issue_id, card && card.graphic_linear_issue_id];
   for (const link of links) {
@@ -151,6 +180,19 @@ function classAObjections(deliverable, surface, card, component, byCardSlot) {
   if (lower(deliverable.team) !== teamForComponent(component)) objections.push('team_disagrees');
   if (clean(deliverable.card_id)) objections.push('deliverable_already_claims_a_card');
   if (!['manual', ''].includes(lower(deliverable.origin))) objections.push('origin_is_not_manual');
+  // `team` alone is too coarse to prove this deliverable belongs in THIS slot:
+  // team='video' covers both kind='video' and kind='other'. The card slot
+  // implies an exact kind, and stamping a card_id onto the wrong kind would
+  // create a link the crosswalk accepts but that addresses the wrong artifact.
+  if (lower(deliverable.kind) !== kindForComponent(component)) objections.push('kind_does_not_match_the_card_slot');
+  // The card and the deliverable must be talking about the SAME Linear issue.
+  // Without this, a card is stamped onto whatever unclaimed deliverable happens
+  // to sit in its client+team space. Both sides must name an issue, and the two
+  // must be equal; either side missing is unproven, not permission.
+  const cardIdentity = cardLinearIdentity(card, component);
+  const deliverableIdentity = deliverableLinearIdentity(deliverable);
+  if (!cardIdentity || !deliverableIdentity) objections.push('linear_identity_unproven');
+  else if (cardIdentity !== deliverableIdentity) objections.push('linear_identity_disagrees');
   // deliverables_card_slot_unique (client_slug, origin, card_id, kind) WHERE
   // card_id IS NOT NULL AND origin IN ('calendar','samples'). Stamping this row
   // must not collide with a row already occupying that slot.
@@ -199,6 +241,43 @@ function planLinkageRepair(snapshot, options = {}) {
         lower(row.client_slug), lower(row.origin), clean(row.card_id), lower(row.kind),
       ].join('|'), row);
     }
+  }
+
+  // EVERY current consumer of every deliverable — each (surface, card,
+  // component) slot that names it, whether or not that slot carries comments
+  // and whether or not its own crosswalk currently validates. A repair is only
+  // safe if it leaves every one of these consumers in an acceptable state:
+  // a `team` correction made for a commented graphic slot can silently
+  // INVALIDATE a quiet, currently-valid video slot pointing at the same row.
+  const consumersById = new Map();
+  for (const surface of PUBLIC_SURFACES) {
+    for (const card of Array.isArray(cards[surface]) ? cards[surface] : []) {
+      const cardId = clean(card && card.id);
+      if (!cardId) continue;
+      for (const component of ['video', 'graphic', 'caption', 'title']) {
+        const targetId = clean(component === 'graphic'
+          ? card.graphic_deliverable_id
+          : card.video_deliverable_id);
+        if (!targetId) continue;
+        if (!consumersById.has(targetId)) consumersById.set(targetId, []);
+        consumersById.get(targetId).push({ surface, card, component, cardId });
+      }
+    }
+  }
+
+  // Would applying `after` to this deliverable break any current consumer that
+  // is acceptable today? "Acceptable today" means crosswalk-clean; a consumer
+  // that is already mismatched cannot be made worse by a repair aimed at it.
+  function consumersInvalidatedBy(deliverable, after) {
+    const proposed = Object.assign({}, deliverable, after);
+    const broken = [];
+    for (const consumer of consumersById.get(clean(deliverable.id)) || []) {
+      const wasClean = !mismatchFields(deliverable, consumer.surface, consumer.card, consumer.component).length;
+      if (!wasClean) continue;
+      const nowFields = mismatchFields(proposed, consumer.surface, consumer.card, consumer.component);
+      if (nowFields.length) broken.push(nowFields.join(','));
+    }
+    return [...new Set(broken)].sort();
   }
 
   const repairs = [];
@@ -281,12 +360,31 @@ function planLinkageRepair(snapshot, options = {}) {
           continue;
         }
 
+        // NULL and '' are DIFFERENT database states and the before-state is a
+        // rollback instruction: `clean()` would collapse a NULL card_id to '',
+        // and restoring '' where NULL stood would leave the row in a state it
+        // was never in — one that still satisfies `card_id IS NOT NULL` in the
+        // partial unique index. Preserve the distinction exactly.
+        const exact = value => (value === null || value === undefined ? null : String(value));
         const before = key === 'team'
-          ? { team: clean(deliverable.team) }
-          : { origin: clean(deliverable.origin), card_id: clean(deliverable.card_id) };
+          ? { team: exact(deliverable.team) }
+          : { origin: exact(deliverable.origin), card_id: exact(deliverable.card_id) };
         const after = key === 'team'
           ? { team: teamForComponent(component) }
           : { origin: SURFACE_ORIGIN[lower(surface)], card_id: cardId };
+
+        // A repair that fixes this slot must not break a different slot that is
+        // fine today — including a quiet, comment-free one, which is invisible
+        // to the defect scan but is still a live consumer of this deliverable.
+        const collateral = consumersInvalidatedBy(deliverable, after);
+        if (collateral.length) {
+          skipped.push({
+            ...base,
+            skip_reason: 'authority_not_clear',
+            objections: collateral.map(f => `would_invalidate_consumer:${f}`),
+          });
+          continue;
+        }
 
         // The full observed state of the target row, so the drift guard covers
         // the whole deliverable and not just the two fields being written. Any
@@ -468,18 +566,32 @@ function renderSummaryMarkdown(result) {
    must never be uploaded to a public log. */
 function makeRollbackJournal(artifactPath, plan, deps = {}) {
   const writeFile = deps.writeFileSync || fs.writeFileSync;
-  const applied = [];
+  const existsSync = deps.existsSync || fs.existsSync;
+  // Never overwrite an existing artifact. The file IS the rollback instruction
+  // for a previous run; clobbering it would silently destroy the only record of
+  // how to reverse writes that already landed.
+  if (artifactPath && existsSync(path.resolve(artifactPath))) {
+    throw new Error('rollback_artifact_already_exists');
+  }
+  const attempted = [];
   const record = {
     contract: PLAN_CONTRACT,
     run_id: plan.run_id,
     apply_digest: plan.apply_digest,
+    // CRASH RECOVERY READS `planned`, NOT `attempted`. Every entry here is a
+    // row the runner intended to write; restoring `before` on a row that was
+    // never written is a no-op, because the row is already in that state. So
+    // after an uncontrolled crash the safe reversal is to restore `before` for
+    // every PLANNED row, in any order. `attempted` is the narrower record of
+    // rows the runner actually issued a write for, useful for reconciliation.
     planned: plan.writes.map(write => ({
       deliverable_id: write.deliverable_id,
       repair_class: write.repair_class,
       before: write.before,
       after: write.after,
+      target: write.target,
     })),
-    applied,
+    attempted,
   };
   const flush = () => {
     if (!artifactPath) return;
@@ -487,8 +599,11 @@ function makeRollbackJournal(artifactPath, plan, deps = {}) {
   };
   flush();
   return {
+    // Called BEFORE the write is issued. Recording after the PATCH loses the
+    // row on a crash between the write landing and the note; recording before
+    // can only ever over-record, and an over-recorded restore is a no-op.
     note(write) {
-      applied.push({
+      attempted.push({
         deliverable_id: write.deliverable_id,
         restore: write.before,
         applied: write.after,
@@ -499,17 +614,45 @@ function makeRollbackJournal(artifactPath, plan, deps = {}) {
   };
 }
 
+/* Compare-and-swap verification for one PATCH result. The database layer
+   filters on the full observed target state, so a row that drifted since the
+   plan matches nothing and comes back empty. Exactly one row, carrying exactly
+   the intended after-state, is the only accepted outcome. */
+function verifyPatchResult(write, rows) {
+  const returned = Array.isArray(rows) ? rows : null;
+  if (returned === null) return 'patch_returned_no_representation';
+  if (returned.length === 0) return 'cas_no_row_matched_observed_state';
+  if (returned.length > 1) return 'cas_matched_multiple_rows';
+  const row = returned[0] || {};
+  for (const field of Object.keys(write.after || {})) {
+    const expected = write.after[field];
+    const actual = row[field] === null || row[field] === undefined ? null : String(row[field]);
+    const wanted = expected === null || expected === undefined ? null : String(expected);
+    if (actual !== wanted) return `after_state_mismatch:${field}`;
+  }
+  return '';
+}
+
 async function applyRepairs(plan, deps = {}) {
   const patchOne = deps.patchOne;
   if (typeof patchOne !== 'function') throw new Error('patch_layer_required');
   const journal = makeRollbackJournal(deps.rollbackArtifact, plan, deps);
   const receipts = [];
+  const refusals = [];
   let failure = null;
   try {
     for (const write of plan.writes) {
-      // eslint-disable-next-line no-await-in-loop
-      await patchOne(write);
       journal.note(write);
+      // eslint-disable-next-line no-await-in-loop
+      const rows = await patchOne(write);
+      const problem = verifyPatchResult(write, rows);
+      if (problem) {
+        // A per-row refusal, not a run failure: the CAS predicate did not match,
+        // so nothing was written for this row. Record it and keep going; the
+        // run still ends as GAPS because the counts will not agree.
+        refusals.push({ deliverable_id: write.deliverable_id, reason: problem });
+        continue;
+      }
       receipts.push(write.deliverable_id);
     }
   } catch (error) {
@@ -517,6 +660,7 @@ async function applyRepairs(plan, deps = {}) {
   }
   return {
     receipts,
+    refusals,
     applied: receipts.length,
     planned: plan.writes.length,
     failure,
@@ -524,14 +668,182 @@ async function applyRepairs(plan, deps = {}) {
   };
 }
 
-function verifyApply(plan, applyResult, readback = {}) {
+function verifyApply(plan, applyResult, readback) {
   const gaps = [];
   if (applyResult.failure) gaps.push(`patch_failed:${applyResult.failure}`);
   if (applyResult.applied !== plan.writes.length) gaps.push('applied_count_mismatch');
-  const remaining = Number(readback && readback.remaining_defects);
-  if (Number.isFinite(remaining) && remaining !== 0) gaps.push('defects_remain_after_repair');
-  return gaps;
+  for (const refusal of applyResult.refusals || []) gaps.push(`cas_refused:${refusal.reason}`);
+  // An absent readback is a GAP, never silence. "We could not check" and
+  // "we checked and it was fine" must never render the same.
+  if (!readback || typeof readback !== 'object') {
+    gaps.push('readback_missing');
+    return [...new Set(gaps)];
+  }
+  const remaining = Number(readback.remaining_defects);
+  if (!Number.isFinite(remaining)) {
+    gaps.push('readback_missing');
+  } else {
+    // Success is not "zero defects": the unruled Class C rows are EXPECTED to
+    // remain, because this brick deliberately never repairs them. Anything
+    // other than exactly that residue means the repair did not land as planned.
+    const expected = Number(readback.expected_remaining_defects);
+    const target = Number.isFinite(expected) ? expected : 0;
+    if (remaining !== target) gaps.push('defects_remain_after_repair');
+  }
+  return [...new Set(gaps)];
 }
+
+/* The manifest the exporter produces independently of the planner: how many
+   rows it read per surface, a content hash of exactly what it wrote, and when.
+   Verified BEFORE planning, so a truncated, edited or stale export cannot
+   become a production write. */
+function snapshotContentHash(snapshot) {
+  const doc = snapshot && typeof snapshot === 'object' ? snapshot : {};
+  const cards = doc.cards && typeof doc.cards === 'object' ? doc.cards : {};
+  return sha256({
+    cards: Object.fromEntries(PUBLIC_SURFACES.map(surface => [
+      surface, Array.isArray(cards[surface]) ? cards[surface] : [],
+    ])),
+    deliverables: Array.isArray(doc.deliverables) ? doc.deliverables : [],
+  });
+}
+
+function buildSnapshotManifest(snapshot, generatedAt) {
+  const cards = (snapshot && snapshot.cards) || {};
+  return {
+    contract: SNAPSHOT_CONTRACT,
+    generated_at: generatedAt,
+    counts: Object.assign(
+      { deliverables: Array.isArray(snapshot && snapshot.deliverables) ? snapshot.deliverables.length : 0 },
+      Object.fromEntries(PUBLIC_SURFACES.map(surface => [
+        surface, Array.isArray(cards[surface]) ? cards[surface].length : 0,
+      ])),
+    ),
+    content_sha256: snapshotContentHash(snapshot),
+  };
+}
+
+function verifySnapshotManifest(snapshot, nowMs) {
+  const problems = [];
+  const doc = snapshot && typeof snapshot === 'object' ? snapshot : {};
+  const manifest = doc.manifest && typeof doc.manifest === 'object' ? doc.manifest : null;
+  if (!manifest) return ['snapshot_manifest_required'];
+  if (clean(manifest.contract) !== SNAPSHOT_CONTRACT) problems.push('snapshot_contract_mismatch');
+
+  const cards = doc.cards && typeof doc.cards === 'object' ? doc.cards : {};
+  const counts = manifest.counts && typeof manifest.counts === 'object' ? manifest.counts : {};
+  for (const surface of PUBLIC_SURFACES) {
+    const actual = Array.isArray(cards[surface]) ? cards[surface].length : 0;
+    if (Number(counts[surface]) !== actual) problems.push(`snapshot_count_mismatch:${surface}`);
+  }
+  const actualDeliverables = Array.isArray(doc.deliverables) ? doc.deliverables.length : 0;
+  if (Number(counts.deliverables) !== actualDeliverables) problems.push('snapshot_count_mismatch:deliverables');
+
+  if (clean(manifest.content_sha256) !== snapshotContentHash(doc)) problems.push('snapshot_content_hash_mismatch');
+
+  const generatedAt = Date.parse(clean(manifest.generated_at));
+  if (!Number.isFinite(generatedAt)) problems.push('snapshot_generated_at_unparseable');
+  else if (Number.isFinite(nowMs)) {
+    if (generatedAt > nowMs + 60000) problems.push('snapshot_generated_in_the_future');
+    else if (nowMs - generatedAt > MAX_SNAPSHOT_AGE_MS) problems.push('snapshot_too_old');
+  }
+  return problems.sort();
+}
+
+/* ------------------------------------------------------------------
+   Production database layer (PostgREST + service role).
+
+   Injected everywhere else so tests and rehearsals drive the same apply logic
+   without a backend. This is the one place that talks to live Supabase, and it
+   is only reachable from the CLI during the owner window.
+   ------------------------------------------------------------------ */
+
+// PostgREST filter value: NULL is `is.null`, everything else an exact eq.
+function casFilter(column, value) {
+  if (value === null || value === undefined) return `${column}=is.null`;
+  return `${column}=eq.${encodeURIComponent(String(value))}`;
+}
+
+/* Every write is a compare-and-swap against the FULL observed target state.
+   The filters below are the plan's observation of the row; if anything about
+   it changed since the export, no row matches and PostgREST returns [] — which
+   verifyPatchResult treats as a per-row refusal. The row is never blindly
+   overwritten on the strength of its id. */
+function casPatchUrl(baseUrl, write) {
+  const target = write.target || {};
+  const filters = [
+    casFilter('id', write.deliverable_id),
+    casFilter('client_slug', target.client_slug),
+    casFilter('team', target.team),
+    casFilter('kind', target.kind),
+    casFilter('origin', target.origin),
+    // A planned NULL card_id must match `is.null`, not `eq.` — the whole point
+    // of preserving NULL vs '' in the before-state.
+    casFilter('card_id', target.card_id === '' || target.card_id === null || target.card_id === undefined
+      ? null
+      : target.card_id),
+  ];
+  return `${baseUrl}/rest/v1/deliverables?${filters.join('&')}`;
+}
+
+function productionDeps(config, fetchImpl) {
+  const baseUrl = clean(config.url).replace(/\/+$/, '');
+  const key = clean(config.serviceKey);
+  if (!baseUrl || !key) throw new Error('supabase_configuration_required');
+  const headers = {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  return {
+    async patchOne(write) {
+      const response = await fetchImpl(casPatchUrl(baseUrl, write), {
+        method: 'PATCH',
+        headers: Object.assign({}, headers, { Prefer: 'return=representation' }),
+        body: JSON.stringify(write.after),
+      });
+      if (!response.ok) {
+        // Status and function only. A constraint violation echoes the offending
+        // row, which would put card ids and client slugs into a public log.
+        throw new Error(`deliverables_patch_${response.status}`);
+      }
+      const payload = await response.json().catch(() => null);
+      return Array.isArray(payload) ? payload : null;
+    },
+    async readback(plan) {
+      // Independent count of the crosswalk defects that remain. Success is not
+      // zero — the unruled Class C rows are expected to survive — so the
+      // expectation travels with the reading.
+      const ids = (plan.writes || []).map(write => write.deliverable_id);
+      const list = ids.map(id => '"' + String(id).split('"').join('\\"') + '"').join(',');
+      const url = `${baseUrl}/rest/v1/deliverables?select=${PROD_READBACK_SELECT}`
+        + (ids.length ? `&id=in.(${encodeURIComponent(list)})` : '&id=eq.__none__');
+      const response = await fetchImpl(url, { method: 'GET', headers });
+      if (!response.ok) return null;
+      const rows = await response.json().catch(() => null);
+      if (!Array.isArray(rows)) return null;
+      const byId = new Map(rows.map(row => [clean(row && row.id), row]));
+      let unrepaired = 0;
+      for (const write of plan.writes || []) {
+        const row = byId.get(write.deliverable_id);
+        if (!row) { unrepaired++; continue; }
+        for (const field of Object.keys(write.after || {})) {
+          const actual = row[field] === null || row[field] === undefined ? null : String(row[field]);
+          const wanted = write.after[field] === null ? null : String(write.after[field]);
+          if (actual !== wanted) { unrepaired++; break; }
+        }
+      }
+      return {
+        remaining_defects: unrepaired + Number(plan.scope.owner_rulings || 0),
+        // The unruled Class C rows this brick deliberately never repairs.
+        expected_remaining_defects: Number(plan.scope.owner_rulings || 0),
+      };
+    },
+  };
+}
+
+const PROD_READBACK_SELECT = 'id,client_slug,team,kind,origin,card_id';
 
 function parseArgs(argv) {
   const args = {};
@@ -548,6 +860,20 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
   const readFile = deps.readFileSync || fs.readFileSync;
   if (!args.input) throw new Error('--input <private-snapshot.json> is required');
   const snapshot = JSON.parse(readFile(path.resolve(String(args.input)), 'utf8'));
+
+  // Verify the exporter's independent manifest BEFORE planning. A truncated,
+  // hand-edited or stale export must never reach a production write.
+  const nowMs = typeof deps.now === 'function' ? deps.now() : Date.now();
+  const manifestProblems = verifySnapshotManifest(snapshot, nowMs);
+  if (manifestProblems.length) {
+    const blocked = {
+      status: 'BLOCKED',
+      plan: { contract: PLAN_CONTRACT, run_id: clean(args['run-id']), scope: {}, apply_digest: '' },
+      reasons: manifestProblems,
+    };
+    return { ...blocked, summary_markdown: renderSummaryMarkdown(blocked) };
+  }
+
   const plan = planLinkageRepair(snapshot, { runId: args['run-id'] });
 
   if (args.output) {
@@ -558,6 +884,12 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
 
   const { eligible, reasons } = applyEligibility(plan);
 
+  // Digest pinning is MANDATORY for apply, exactly like the write count. An
+  // optional drift guard is not a guard: the one run that forgets the flag is
+  // the one that applies a plan nobody reviewed.
+  if (args.apply && args['expected-digest'] === undefined) {
+    throw new Error('expected_digest_required_for_apply');
+  }
   if (args['expected-digest'] && clean(args['expected-digest']) !== clean(plan.apply_digest)) {
     return {
       status: 'BLOCKED',
@@ -589,12 +921,15 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
   }
   if (clean(env[CONFIRM_ENV]) !== CONFIRM_TOKEN) throw new Error('owner_confirmation_required');
   if (!args['rollback-artifact']) throw new Error('rollback_artifact_required_for_apply');
+  // An apply with no way to verify itself is not an apply we are willing to
+  // run: without a readback there is no independent evidence the repair landed.
+  if (typeof deps.readback !== 'function') throw new Error('readback_layer_required_for_apply');
 
   const applyResult = await applyRepairs(plan, {
     ...deps,
     rollbackArtifact: args['rollback-artifact'],
   });
-  const readback = deps.readback ? await deps.readback(plan) : {};
+  const readback = await deps.readback(plan);
   const gaps = verifyApply(plan, applyResult, readback);
   const status = gaps.length ? 'GAPS' : 'APPLIED';
   return {
@@ -607,7 +942,17 @@ async function run(argv = process.argv.slice(2), env = process.env, deps = {}) {
 }
 
 if (require.main === module) {
-  run().then(result => {
+  // The live database layer is attached ONLY for a real --apply. A plan run
+  // stays source-only and never constructs a service-role client, so a missing
+  // key cannot turn a review into a failure.
+  const cliDeps = {};
+  if (process.argv.includes('--apply')) {
+    Object.assign(cliDeps, productionDeps({
+      url: process.env.SUPABASE_URL,
+      serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    }, globalThis.fetch));
+  }
+  run(process.argv.slice(2), process.env, cliDeps).then(result => {
     process.stdout.write(result.summary_markdown + '\n');
     if (result.status === 'BLOCKED' || result.status === 'GAPS') process.exitCode = 1;
   }).catch(error => {
@@ -620,19 +965,28 @@ module.exports = {
   CONFIRM_ENV,
   CONFIRM_TOKEN,
   EXCLUDED_LINEAR_WORKSPACES,
+  MAX_SNAPSHOT_AGE_MS,
   PLAN_CONTRACT,
   REPAIR_CLASSES,
   SCOPE_POLICY,
+  SNAPSHOT_CONTRACT,
   applyEligibility,
   applyRepairs,
+  buildSnapshotManifest,
   cardExcludedByPolicy,
+  casPatchUrl,
+  linearIdentifier,
   linearWorkspace,
   makeRollbackJournal,
   mismatchFields,
   planLinkageRepair,
+  productionDeps,
   renderSummaryMarkdown,
   repairApplyDigest,
   run,
+  snapshotContentHash,
   tallyPublic,
   verifyApply,
+  verifyPatchResult,
+  verifySnapshotManifest,
 };

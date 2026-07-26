@@ -212,8 +212,46 @@ Sequence for the window:
 7. Repair readback → `remaining_defects === expected_remaining_defects` (the unruled Class C set).
 8. **F42 comment import APPLY** — not a plan. The 33 unblocked comment rows are imported in the same
    sitting, through the existing digest-pinned, owner-confirmed F42 apply lane.
-9. Import readback confirms the expected canonical count, then the owner **releases the write
-   freeze**.
+9. Import readback confirms the expected canonical count.
+10. **Classified `legacy_retained` breakdown** (below) — not a raw count.
+11. Owner **releases the write freeze**.
+
+### Step 10 — the `legacy_retained` convergence breakdown
+
+After the import, cards whose canonical thread does not demonstrably carry their legacy content stay
+on the legacy render and report `legacy_retained`. A raw count of those cards is **not readable**:
+several classes are expected to be non-zero forever, so a non-zero total says nothing on its own.
+
+Report one bucket per hold reason:
+
+| Bucket | Hold reason | Expected |
+| --- | --- | --- |
+| **(a)** | Legacy row the importer rejects — missing id, unparseable JSON, JSON non-array, Samples plaintext. The row can never enter the canonical thread, and the guard holds the card for exactly that row. | non-zero forever |
+| **(b)** | Epoch-vs-empty timestamp. Legacy seeders mint `created_at: ''`; the importer maps empty to the epoch, so the provenance keys can never match. | non-zero forever |
+| **(c)** | Audience divergence. A staff reply carries no audience of its own and inherits `client` from its root in the legacy view, while the canonical client view filters per-row and drops it. Held so the client never loses a message. **Open owner question — see below.** | non-zero forever |
+| **(d)** | Duplicate collapse, and any normalization difference in the raw body (trailing whitespace, CRLF vs LF), where canonical carries fewer copies than legacy. | non-zero forever |
+| **(e)** | **Content mismatch** — canonical genuinely does not carry the legacy content, for none of the above reasons. | **should be zero** |
+| **(f)** | Unrepresentable legacy state — a row carrying `hidden: true`, which `production_comments` cannot store. Measured live: 6 comment rows across 4 cards. | non-zero forever, and tiny |
+
+**Buckets (a)–(d) and (f) are the known-permanent baseline.** Only **(e)** is a signal, and only (e)
+should be investigated. A window that ends with (e) at zero has converged, whatever the total says.
+
+Also worth recording at the window: `deleted: true` legacy rows (2,701 live) keep their body in the
+card array while the canonical side blanks it, so any card that has ever had a comment soft-deleted
+falls into (e) on the staff path today. That asymmetry is pre-existing and unfixed; expect it to
+dominate (e) until it is addressed, and subtract it before treating (e) as a signal.
+
+### Open owner question — the audience divergence behind bucket (c)
+
+The legacy client view applies **root-audience inheritance** (a reply inherits its root's audience);
+the canonical client view filters **per-row**. So adoption itself changes what a client can see: a
+staff reply visible today would disappear.
+
+The gate refuses to adopt in that case, which is the safe outcome, and cloud review has ruled that
+the canonical client render must **not** be changed to root-inherit — widening what clients can see
+is a privacy-direction product change that belongs to the owner, not to a hardening PR. Until the
+owner rules, threads with unaudienced staff replies under client roots hold on legacy indefinitely
+and are counted in bucket (c).
 
 If step 8 cannot run — for any reason, including a blocked F42 plan — the window does not close
 clean. Either roll the repair back with the artifact, or hold the freeze and finish the import

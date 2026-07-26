@@ -132,6 +132,7 @@ function makeApp(options) {
   extractFunction('_prodStripEphemeralCanonicalState'),
     extractFunction('_prodMarkLegacyReadIncomplete'),
     extractFunction('_prodRootAudienceClientRows'),
+    extractFunction('_prodLegacyUnrepresentableState'),
     extractFunction('_prodCanonicalCoversLegacy'),
     extractFunction('_calLoadCommentsField'),
     extractFunction('_prodFetchCrosswalkRows'),
@@ -148,6 +149,21 @@ function makeApp(options) {
     extractFunction('_sxrClientVisibleLegacyRows'),
     extractFunction('_sxrCommentsForView'),
     extractFunction('_prodProjectCanonicalCardComments'),
+  ].join('\n'), env);
+  return env;
+}
+
+/* Separate sandbox for the REAL canonical row shaper. It is deliberately not
+   in makeApp: the projection fixtures rely on an identity stub so their rows
+   stay exactly as written, and running the real normalizer there would reshape
+   every fixture out from under the coverage assertions. */
+function makeShaper() {
+  const env = { console, _prodCommentAttachments: () => [], _prodCommentBodyText: v => String(v == null ? '' : v) };
+  vm.createContext(env);
+  vm.runInContext([
+    extractFunction('_prodCommentTruthy'),
+    extractFunction('_prodCommentNormalize'),
+    extractFunction('_prodCanonicalCardComment'),
   ].join('\n'), env);
   return env;
 }
@@ -535,6 +551,63 @@ function canonicalRow(body, extra) {
     await app._prodProjectCanonicalCardComments('sxr', 'card-1');
     ok(app._prodCanonicalCommentGate(app.sxrState.posts[0], 'video').status === 'legacy_retained',
       'a genuinely missing reply still holds the card');
+  }
+
+  // ================================================================ unrepresentable legacy state
+  {
+    // THE EXPOSURE CASE. `hidden` is a deliberate suppression of legacy
+    // cross-client feedback, kept as hide-not-delete. Its canonical twin
+    // matches on body + author + timestamp, so coverage passes — but the
+    // canonical shape has no `hidden` field, so adoption would replace the row
+    // with an unsuppressed one and the text would render again.
+    const suppressed = legacyRow("wrong client's feedback", { id: 'h1', hidden: true });
+    const app = makeApp({
+      deliverables: [DELIVERABLE],
+      threads: { 'dlv-1': { items: [canonicalRow("wrong client's feedback", { id: 'c-h1' })] } },
+    });
+    app.calState.posts = [{
+      id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      video_comments: [suppressed], video_tweaks: JSON.stringify([suppressed]),
+    }];
+    ok(app._prodCanonicalCoversLegacy(
+      [canonicalRow("wrong client's feedback", { id: 'c-h1' })], [suppressed],
+    ) === true,
+    'the hidden row IS covered on content — coverage alone would let the write through');
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    const post = app.calState.posts[0];
+    ok(post.video_comments.length === 1 && post.video_comments[0].hidden === true,
+      'REGRESSION: a hidden legacy row is NOT replaced by an unsuppressed canonical twin');
+    ok(app._prodCanonicalCommentGate(post, 'video').status === 'legacy_retained',
+      'the card is held, so the suppression cannot be lost by a later write either');
+    ok(JSON.stringify(app._prodLegacyUnrepresentableState([suppressed])) === JSON.stringify(['hidden']),
+      'hidden is reported as state the canonical shape cannot represent');
+    ok(app._prodLegacyUnrepresentableState([legacyRow('ordinary')]).length === 0,
+      'an ordinary row carries no unrepresentable state');
+  }
+  {
+    // Resolve provenance IS representable — canonical storage carries
+    // resolved_at/resolved_by_name — so it is carried through rather than
+    // held. Holding here would have blocked 865+ cards measured live.
+    const shaper = makeShaper();
+    const normalized = shaper._prodCommentNormalize({
+      id: 'x', body: 'b', resolved_at: '2026-01-05T14:22:00.000Z', resolved_by_name: 'Kasper',
+    });
+    ok(normalized.done === true && normalized.resolved_at === '2026-01-05T14:22:00.000Z'
+      && normalized.resolved_by_name === 'Kasper',
+    'normalize now surfaces resolve provenance instead of using it as a bare boolean');
+    const row = shaper._prodCanonicalCardComment({
+      id: 'x', body: 'b', resolved_at: '2026-01-05T14:22:00.000Z',
+      resolved_by_name: 'Kasper', updated_at: '2026-07-26T00:00:00.000Z',
+    });
+    ok(row.done_by === 'Kasper',
+      'REGRESSION: the adopted row keeps WHO resolved it');
+    ok(row.done_at === '2026-01-05T14:22:00.000Z',
+      'REGRESSION: the adopted row keeps WHEN it was resolved, not the ingestion clock');
+    const noResolve = shaper._prodCanonicalCardComment({
+      id: 'y', body: 'b', updated_at: '2026-07-26T00:00:00.000Z',
+    });
+    ok(noResolve.done === false && noResolve.done_at === '' && noResolve.done_by === '',
+      'an unresolved row carries no resolve provenance');
   }
 
   // ================================================================ staff hold status

@@ -23516,6 +23516,31 @@
             return rootAudience(c) === 'client';
         });
     }
+    /* Legacy state the canonical row shape cannot represent.
+
+       Coverage matches on body + author + timestamp, but adoption REPLACES the
+       whole row. Any legacy field the canonical shape does not carry is
+       therefore destroyed even on a perfect content match — and `hidden` points
+       in the exposure direction: it is a deliberate suppression of legacy
+       cross-client feedback that bled onto the wrong client row, kept as
+       hide-not-delete so the text survives in the sheet. `production_comments`
+       has no hidden column, so an adopted twin comes back unsuppressed and the
+       text renders again.
+
+       Resolve provenance is NOT listed here: `resolved_at`/`resolved_by_name`
+       do exist in canonical storage and are now carried through, so a resolved
+       comment adopts without losing who closed it or when.
+
+       Refusing rather than carrying is deliberate for anything canonical cannot
+       store: carrying it would produce a row whose suppression evaporates on
+       the next canonical read, which is a slower version of the same bug. */
+    function _prodLegacyUnrepresentableState(rows) {
+        const found = new Set();
+        for (const row of Array.isArray(rows) ? rows : []) {
+            if (row && row.hidden === true) found.add('hidden');
+        }
+        return [...found].sort();
+    }
     /* True when the canonical projection contains every legacy row — counted
        as a MULTISET, not a set. N identical legacy messages need N canonical
        copies: set containment let ONE canonical row "cover" all N, and the
@@ -46257,6 +46282,15 @@
                 deleted,
                 hidden,
                 done: !!String(row.resolved_at || '').trim() || _prodCommentTruthy(row.done) || _prodCommentTruthy(row.resolved),
+                // Resolve PROVENANCE, surfaced so a canonical row can carry it.
+                // The importer already preserves both into production_comments
+                // (scripts/f42-card-comment-import.js), but normalize used
+                // resolved_at only as a boolean and dropped the name entirely —
+                // so adoption replaced a resolved legacy comment with a row
+                // that had lost who marked it done and showed the INGESTION
+                // time instead of when it was actually resolved.
+                resolved_at: String(row.resolved_at || '').trim(),
+                resolved_by_name: String(row.resolved_by_name || row.done_by || '').trim(),
                 attachments,
             };
         }
@@ -46619,7 +46653,12 @@
                 created_at: c.created_at,
                 updated_at: c.row_updated_at || c.updated_at,
                 done: c.done,
-                done_at: c.done ? (c.row_updated_at || c.updated_at) : '',
+                // Prefer the real resolve timestamp over the ingestion clock,
+                // and carry who resolved it. Both come from canonical storage,
+                // so this is preservation, not invention, and it survives the
+                // next canonical read.
+                done_at: c.done ? (c.resolved_at || c.row_updated_at || c.updated_at) : '',
+                done_by: c.resolved_by_name || '',
                 deleted: c.deleted,
                 edited: c.edited,
                 version: c.version,
@@ -46760,7 +46799,8 @@
                     // a migration right up until a projection overwrites it, so
                     // refuse on either path — there is no coverage argument to
                     // make about content we never managed to load.
-                    if (_prodLegacyReadIncomplete(post, component, legacyRows, surface)) {
+                    if (_prodLegacyReadIncomplete(post, component, legacyRows, surface)
+                        || _prodLegacyUnrepresentableState(legacyRows).length) {
                         // Held on EVERY path, including staff. Falling through
                         // to `ready` here would report linked+ready for a card
                         // whose legacy thread is what actually renders, and the

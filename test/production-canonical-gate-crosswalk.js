@@ -389,8 +389,9 @@ function calendarCard(extra) {
   'R4: the projection aborts on an aborted resolve and re-checks the token after the canonical read');
   ok(/if \(!_prodCanonicalCoversLegacy\(projected, legacyRows\)\) return;/.test(projection),
     'R1: legacy storage is written only when canonical demonstrably covers it');
-  ok(/if \(_prodLegacyReadIncomplete\(post, component, legacyRows, surface\)\) \{/.test(projection),
-    'a column the loader could not fully read blocks the write on both paths');
+  ok(/_prodLegacyReadIncomplete\(post, component, legacyRows, surface\)/.test(projection)
+    && /_prodLegacyUnrepresentableState\(legacyRows\)\.length/.test(projection),
+  'an unread column, or legacy state the canonical shape cannot represent, blocks the write on both paths');
   ok(/const writesLegacy = calendar \|\| !_isClientLink;/.test(projection),
     'the guard is scoped to the paths that write legacy storage, not the client canonical slot');
   ok(/clientLegacyHeld = true;/.test(projection) && /status: 'legacy_retained'/.test(projection),

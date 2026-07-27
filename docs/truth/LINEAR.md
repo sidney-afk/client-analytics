@@ -1,6 +1,8 @@
 # Linear — current truth
 
-> Last verified: 2026-07-25 @ ecc88ff + Slice 4 live: the five F201/F202/F203/comment-lifecycle/
+> Last verified: 2026-07-26 @ f3cf20e + Slice 5 live (assignment/transition gateway
+> `production-write` v26 via run `30226070558`, read-path view v2 applied, F95 refresh live;
+> TEST drills owed) + Slice 4 live: the five F201/F202/F203/comment-lifecycle/
 > F34-F53 migrations were applied to production 2026-07-24 ~22:00Z, the staff-sensitive functions
 > (`linear-outbound`, `production-write`, `production-comments`, `production-archive`) were deployed
 > from `1738ad3` (run `30129490033`), and the F42 linked-cohort comment import executed 2026-07-25

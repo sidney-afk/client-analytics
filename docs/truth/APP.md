@@ -1,8 +1,12 @@
 # App logic (`index.html`) — current truth
 
-> Last verified: 2026-07-25 @ aaccfb2 + Slice 5 candidate source (F37/F94/F136 assignment and
-> transition policy, F95 foreground refresh, and the measured Production read-path fix — all
-> unmerged; the read-path migration is source-only), plus F200 live data repair and the
+> Last verified: 2026-07-26 @ f3cf20e + Slice 5 LIVE (F37/F94/F136 assignment and transition
+> policy served by `production-write` v26 — deploy run `30226070558` pinned to `f3cf20e`; F95
+> foreground refresh live in the browser; the read-path migration applied 2026-07-26 ~23:45Z,
+> measured 1,273→392 ms per page; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain
+> OWED, so these are live-capable, not proven), plus the #945/#947/#948 canonical-comment gate
+> hardening (crosswalk-valid linkage, multiset provenance coverage, hidden/tombstone refusals,
+> client-never-sees-less), F200 live data repair and the
 > live-applied/deployed Slice 4
 > (F201/F202/F203/F39-F42-F43/F34-F53 migrations applied 2026-07-24, functions deployed from
 > `1738ad3`, F42 linked-cohort import executed 2026-07-25; TEST drills still owed), integrated
@@ -527,7 +531,8 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   render caller; detail shows Comments only (F138).
 - Creative policy was same-team-wide and checked next status without current status or assignee, so
   it could regress reviewer/terminal work or mutate peer work after a flip (F37/F136). Slice 5
-  candidate source replaces that flat allowlist with one server-owned role × current × next × team ×
+  (live: browser merged via #944, gateway v26 deployed 2026-07-26 via run `30226070558`; the §3
+  TEST drills remain owed) replaces that flat allowlist with one server-owned role × current × next × team ×
   assignee state machine (`CREATIVE_STATUS_TRANSITIONS` in `supabase/functions/production-write/policy.mjs`, mirrored
   byte-for-byte by `PROD_CREATIVE_STATUS_TRANSITIONS` in `index.html` and drift-guarded by
   `test/production-assignment-transition-policy.js`). It is a strict subset of what shipped: the
@@ -538,7 +543,7 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   me" now resolve from the member id staff sign-in verified — the shipped name heuristic
   (a specially named assignee if present, else the first active assignee) is gone, and a
   signed-out, off-roster or deactivated session gets an explicit no-personal-queue state instead of
-  someone else's work. Candidate source only; not merged.
+  someone else's work. Live since the 2026-07-26 window; drills owed.
 - Video delivery/source data is collapsed from four typed fields to one priority winner labelled
   “Delivered file”; filming plan/raw footage can be hidden or mislabeled (F137).
 - The 2026-07-23 full-day audit remains immutable findings evidence. F200's owner-approved roster/data

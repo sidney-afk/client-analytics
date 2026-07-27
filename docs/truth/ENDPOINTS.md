@@ -1,8 +1,9 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-07-25 @ aaccfb2 (Slice 4 live: migrations applied 2026-07-24, functions
-> deployed from `1738ad3` via run `30129490033`; Slice 5's `assignee_options` read action and
-> keyset projection read are candidate source only — unmerged and undeployed)
+> Last verified: 2026-07-26 @ f3cf20e (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
+> 2026-07-26 window: `assignee_options` and the transition policy serve from `production-write`
+> v26 — deploy run `30226070558` pinned to `f3cf20e` — and the browser's keyset projection reads
+> the applied view v2; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain owed)
 > (21 literal + 4 composed app callers; 30 source slugs / 29 live — `production-archive` deployed
 > 2026-07-24; only `workload-linear` remains undeployed; #850 write gateway remains deployed dark)
 
@@ -141,8 +142,8 @@ Other:
   last-write-wins (F36). Do not claim end-to-end CAS until every mutation sends the version, stale
   requests create no intent, and 409 compare/reapply UX is proved. Successful accepted operations
   commit through the ledger/outbox RPCs before the UI updates.
-  Slice 5 candidate source (unmerged, not deployed) adds one protected read action,
-  `assignee_options`, and changes no operation name. It resolves the target deliverable's own team
+  Slice 5 (live since the 2026-07-26 deploy, `production-write` v26) adds one protected read
+  action, `assignee_options`, and changes no operation name. It resolves the target deliverable's own team
   and returns the same eligible-assignee projection the commit enforces (F94), gated by the same
   `assignee` authority as the write, with missing/cross-client/cross-team targets collapsed into one
   `assignee_scope_forbidden`. The same candidate makes `assignee` and `create` reject an ineligible
@@ -171,9 +172,10 @@ Other:
   authenticated read-only `reconcile_only` receipt lookup for historical status/comment payloads;
   it bypasses no scope, authority, parity, RPC, drainer, or Linear gate and does not support intake.
   Browser credentials still cannot enter the service-only TEST override. The current release
-  identity is the 2026-07-24 pinned run `30129490033` from exact `main@1738ad3`, which deployed
-  `linear-outbound` → `production-write` → `production-comments` → `production-archive` with
-  attestation (superseding the earlier v33/v24 identities from `main@9d76df6`, run `29601466479`);
+  identity is the 2026-07-26 pinned run `30226070558` from exact `main@f3cf20e` (12 functions
+  attested PASS; `production-write` v26 with the Slice 5 assignment/transition gateway),
+  superseding the 2026-07-24 run `30129490033` @ `1738ad3` and the earlier v33/v24 identities
+  from `main@9d76df6` run `29601466479`;
   #850's callers are live on Pages only for the allowlisted dark cohort
   (last verified private TEST fixture only). Any real-client enrollment remains owner-gated, and an
   ordinary merge/push still deploys neither write function.

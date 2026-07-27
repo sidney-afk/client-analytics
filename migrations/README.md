@@ -196,7 +196,7 @@ executes these files (see `README.md` › Repository layout).
   reviewed SHA `1738ad3`, per-step boolean verified); the F42 linked-cohort
   import executed 2026-07-25 (615 applied / 6,032 deferred / 35 link defects);
   see `EXECUTION_LOG.md`. The TEST drills are still owed.
-- **`2026-07-25-slice5-production-read-path.sql`** is the source-only F95
+- **`2026-07-25-slice5-production-read-path.sql`** is the F95
   read-path delta. It replaces the `production_deliverables_browser_v1` body in
   place with `create or replace view`, so column names, order, types, existing
   SELECT grants, and `security_barrier` are all preserved and nothing is
@@ -223,7 +223,9 @@ executes these files (see `README.md` › Repository layout).
   view pays a fixed ~80 ms instead of ~4 ms, and no shipped caller does one. The
   file changes no table data, column, grant, runtime flag, authority value, n8n
   workflow, or frozen writer, and carries its owner-only rollback recipe at the
-  bottom. **Source-only** until `EXECUTION_LOG.md` records the apply.
+  bottom. **Applied to production 2026-07-26 ~23:45Z** (Supabase SQL editor, pinned to
+  merged SHA `f3cf20e`; 46-column/grant/`security_barrier`/index readbacks passed;
+  measured 1,273→392 ms per full page); see `EXECUTION_LOG.md`.
 - **Undated feature files (`*-migration.sql`)** predate the dated convention
   (June 2026, originally at the repo root). Their schema is also already part of
   the baseline; each is documented by its owning design doc in `docs/features/`.

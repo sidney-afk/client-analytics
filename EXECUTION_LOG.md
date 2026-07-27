@@ -2,6 +2,70 @@
 
 All times are UTC unless noted.
 
+## 2026-07-26 — Slice 5 owner window EXECUTED: read-path migration applied + `production-write` v26 deployed (blockers #8/#9 live-capable)
+
+- **Step A (~23:45Z): the owner applied `migrations/2026-07-25-slice5-production-read-path.sql`**
+  via the Supabase SQL editor, pinned to merged SHA
+  `f3cf20ec0e57fb1e57cd7c19a7d9d3ebd6cec105`, per `docs/ops/SLICE5_APPLY_WINDOW.md`. Readbacks:
+  view column count **46** (the window doc's "45" was a doc typo, corrected in this PR —
+  `create or replace view` enforces shape identity, and the reviewer's offline equivalence proof
+  compared all 46 columns over 4,626 rows with zero differences in both `EXCEPT ALL` directions);
+  `anon`/`authenticated` SELECT grants preserved; `security_barrier=true` preserved; live viewdef
+  matches the single-detoast `jsonb_to_record` mechanism; `deliverables_updated_at_idx` btree
+  created.
+- **External anon timing, measured independently by the cloud reviewer** (same probe, same
+  network, minutes apart): full-projection page **1,273 ms → 392 ms** median upstream (3.2×;
+  offline forecast was 3.0×); keyset boot walk **3.6–4.3 s → 1.15 s warm**. The F95 delta tick
+  rides the new index.
+- **Step B (23:49:48Z): "Deploy staff-sensitive edge functions" run `30226070558`**,
+  `workflow_dispatch` pinned to `f3cf20ec0e57fb1e57cd7c19a7d9d3ebd6cec105`, SUCCESS with
+  attestation: 12 functions PASS / 0 FAIL, all `verify_jwt=false` as expected;
+  `production-write` now **v26**, live source fingerprint `193d9012d6fc` matching the pinned
+  source. This supersedes the `1738ad3` / run `30129490033` release identity for
+  `production-write`.
+- **Post-deploy readback:** signed-out POST `action=assignee_options` → **401
+  `credentials_required`**, never a candidate list (fail-closed as designed). A malformed
+  signed-out `status` probe returns a generic 400 with no action taken (validation answers before
+  auth on that path — cosmetic observation only, no mutation and no data in the response).
+- **NOT run in this window:** the six service-only TEST drills in
+  `docs/ops/SLICE5_APPLY_WINDOW.md` §3 (F94 negative/stale-picker, F136 matrix, F37 identity,
+  F95 two-tab convergence, read-path re-baseline). They remain owed before F37/F94/F136/F95 are
+  called proven. No runtime flag, authority value, n8n workflow, or frozen writer changed;
+  authority remains Linear/Linear, outbound off.
+
+## 2026-07-26 — Track-B backup freshness VERIFIED RESTORED after 7 days of failures
+
+- First green "Check seven-hour Drive freshness" runs at 04:03Z and 08:42Z (then 14:05Z, 19:40Z —
+  all green since), following PR #943's one-candidate-at-a-time fix. This ended a **28-run
+  failure streak dating to 2026-07-19 ~13:58Z** (V8 heap OOM: the verifier downloaded and fully
+  parsed every snapshot in the growing Drive folder at once; the restore path `download-latest`
+  had the identical defect). Snapshots had continued uploading throughout — the gap was
+  verification/restorability, not backup-taking.
+
+## 2026-07-25→26 — Canonical comment gate hardened across PRs #945/#947/#948 (Pages-live)
+
+- Shipped to the live site in three reviewed rounds (two blocking Codex second-reviews plus the
+  cloud reviewer's verification workflows): the canonical comment surface now requires a
+  **crosswalk-VALID** card→deliverable link (validated in-browser exactly as the F42 importer
+  does; mismatch/absent/error/unresolved fall back to legacy); a canonical projection may replace
+  non-empty legacy content only when it **demonstrably contains it** (multiset provenance
+  coverage on raw body + author + timestamp, structurally injective key); adoption **refuses**
+  when a legacy row carries state canonical cannot represent (`hidden` suppression, and
+  non-canonical soft-delete tombstones — whose anti-resurrection guarantee was proven by test not
+  to survive the id swap); resolve provenance (`done_by`/`done_at`) is carried, since canonical
+  stores it; the client SXR surface can never show a client fewer comments than they see today
+  (gate-independent legacy snapshot; `legacy_retained` hold state).
+- Live-data audit at review time: **6,911 legacy comment rows scanned; zero rows able to trigger
+  any of the closed defects**; the 35 crosswalk-invalid cards fall back to legacy rendering.
+  Convergence after any future import is monitored via the classified `legacy_retained`
+  breakdown (buckets a–f in `docs/independence/F42_LINKAGE_DEFECT_REPAIR_PLAN.md`); only the
+  content-mismatch bucket is a signal, the others are known-permanent baseline.
+- Same period, source-only merges: PR #944 (Slice 5 candidate — see the window entry above for
+  its live application) and PR #946 (linkage defect-repair runner — **inert**: its apply path
+  requires an injected service adapter and is pending the SQL-block redesign recorded in the
+  repair plan; Codex's second review of the runner's execution machinery is what triggered that
+  redesign).
+
 ## 2026-07-25 — Slice 5 candidate source (F37/F94/F136 + F95) and the measured Production read-path finding — NO LIVE CHANGE
 
 - **Nothing was applied, deployed, merged, or flipped in this session.** The

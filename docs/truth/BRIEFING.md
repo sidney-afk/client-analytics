@@ -1,11 +1,17 @@
 # Session briefing — read this first
 
-> Last verified: 2026-07-25 @ ecc88ff (Slice 4 live: PR #931 squash-merged as `1738ad3`
-> 2026-07-24 ~21:47Z; the five F201/F202/F203/comment-lifecycle/F34-F53 migrations applied to
-> production ~22:00Z; `linear-outbound` → `production-write` → `production-comments` →
-> `production-archive` deployed from `1738ad3` via run `30129490033`; F42 linked-cohort comment
-> import executed 2026-07-25 via run `30138142140`, 615 applied / 6,032 deferred / 35 link defects;
-> PR #937's client canonical-where-linked comment surface live) + source-only F27 operator-toolkit
+> Last verified: 2026-07-26 @ f3cf20e (Slice 4 live since 2026-07-24 — five migrations applied,
+> four staff-sensitive functions deployed from `1738ad3`/run `30129490033`, F42 linked-cohort
+> import run `30138142140`: 615 applied / 6,032 deferred / 35 link defects; PR #937's client
+> canonical-where-linked surface live. **Slice 5 live since the 2026-07-26 window**: the
+> read-path view v2 + `deliverables_updated_at_idx` applied ~23:45Z and `production-write` v26
+> deployed via run `30226070558`, both pinned to `f3cf20e` — measured 1,273→392 ms/page; the §3
+> TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain OWED, so F37/F94/F95/F136 are
+> live-capable, not proven. The canonical comment gate was hardened Pages-live across PRs
+> #945/#947/#948: crosswalk-valid linkage required, multiset provenance coverage before any
+> legacy replacement, hidden/tombstone refusals, client-never-sees-less guarantee. Track-B backup
+> freshness verified restored 2026-07-26 after a 28-run failure streak, via PR #943.) +
+> source-only F27 operator-toolkit
 > candidate (PR #901 stop
 > evidence still governs F27 live state; corrective source is not live) + Phase-3 reconciliation, the
 > public-safe boot/refresh/history audits ending at F199, and the read-only Production/Graphics gap

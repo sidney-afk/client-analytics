@@ -1,8 +1,15 @@
 # Slice 5 — owner-gated apply / deploy window
 
-**Status:** PLAN ONLY. Nothing in this document has been executed. The migration is source-only,
-`production-write` is not deployed from this branch, and no runtime flag, authority value, n8n
-workflow, or frozen writer is touched.
+**Status:** STEPS A AND B EXECUTED 2026-07-26 (~23:45Z / 23:49Z). The owner applied the
+migration via the Supabase SQL editor and dispatched the deploy (run `30226070558`), both pinned
+to `f3cf20ec0e57fb1e57cd7c19a7d9d3ebd6cec105`; every readback below passed, with the measured
+speed-up 1,273→392 ms per page and 3.6–4.3 s→1.15 s per boot walk (receipts in
+`EXECUTION_LOG.md`). **The §3 TEST drills remain OWED** — F37/F94/F136/F95 are live-capable, not
+yet proven. No runtime flag, authority value, n8n workflow, or frozen writer was touched.
+
+One correction from the window: A1's original expected value said 45; the view has **46** columns
+(verified live and by the reviewer's 46-column equivalence proof). `create or replace view`
+enforces shape identity, so the miscount was a doc typo, not drift.
 
 **Scope:** blocker #8 (F37 + F94 + F136 — verified personal queue, eligible assignment, and one
 server-owned transition/peer-work policy) and blocker #9 (F95 — bounded foreground refresh),
@@ -49,7 +56,7 @@ Apply `migrations/2026-07-25-slice5-production-read-path.sql` verbatim, in one t
 Readbacks, all read-only, all against the live database:
 
 ```sql
--- A1. the view still has exactly its 45 browser columns, in order
+-- A1. the view still has exactly its 46 browser columns, in order
 select count(*) as columns
 from information_schema.columns
 where table_schema = 'public' and table_name = 'production_deliverables_browser_v1';
@@ -73,7 +80,7 @@ select * from public.production_deliverables_browser_v1
 order by team asc, status asc, due_date asc limit 1000;
 ```
 
-Expected: A1 = 45; A2 = `anon:SELECT`, `authenticated:SELECT`, `{security_barrier=true}`;
+Expected: A1 = 46; A2 = `anon:SELECT`, `authenticated:SELECT`, `{security_barrier=true}`;
 A3 = `true`; A4 = a btree on `(updated_at)`; A5 execution time roughly a third of the pre-apply
 figure captured in step 1.5.
 

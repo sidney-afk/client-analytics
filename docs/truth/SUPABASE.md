@@ -1,7 +1,10 @@
 # Supabase — current truth
 
-> Last verified: 2026-07-25 @ aaccfb2 + Slice 5 read-path candidate
-> (`migrations/2026-07-25-slice5-production-read-path.sql`, source-only, unapplied)
+> Last verified: 2026-07-26 @ f3cf20e + Slice 5 read path LIVE
+> (`migrations/2026-07-25-slice5-production-read-path.sql` applied 2026-07-26 ~23:45Z pinned to
+> `f3cf20e`: view v2 single-detoast body + `deliverables_updated_at_idx`, 46 columns / grants /
+> `security_barrier` read back; measured 1,273→392 ms per full page; `production-write` v26
+> deployed via run `30226070558`, TEST drills still owed)
 > + Slice 4 live (five migrations applied 2026-07-24 ~22:00Z
 > pinned to `1738ad3`; `linear-outbound` → `production-write` → `production-comments` →
 > `production-archive` deployed from `1738ad3` via run `30129490033`; F42 linked-cohort import
@@ -182,11 +185,11 @@ the old response shape, making an inverted rollout fail closed but visibly unava
 PR #850 superseded closed-unmerged #813 without broadening the workflow's push paths:
 `linear-outbound` and `production-write` remain absent from the merge/push trigger and deploy only
 from a manual `workflow_dispatch` pinned to one exact 40-character SHA already on `main`. The
-current release identity is pinned run `30129490033` (2026-07-24 21:58Z) at `main@1738ad3`, which
-deployed `linear-outbound` → `production-write` → `production-comments` → `production-archive` in
-order, SUCCESS with attestation. The earlier pinned run `29601466479` at `main@9d76df6`
-(`linear-outbound` v33 before `production-write` v24, both fingerprints passing) is superseded
-historical evidence. An ordinary merge still deploys
+current release identity is pinned run `30226070558` (2026-07-26 23:49Z) at `main@f3cf20e` —
+12 functions attested PASS, `production-write` now v26 (source fingerprint `193d9012d6fc`,
+carrying the Slice 5 assignment/transition gateway). The 2026-07-24 run `30129490033` at
+`main@1738ad3` and the earlier run `29601466479` at `main@9d76df6` are superseded historical
+evidence. An ordinary merge still deploys
 neither function.
 
 The corrective F27 source changes five future runtime closures. The operator

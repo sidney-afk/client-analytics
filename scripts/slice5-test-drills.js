@@ -90,6 +90,37 @@ const ERROR_CODES = new Set([
   'read_rebaseline',
   'report',
 ]);
+/* Public-safe failure codes. A failed run used to surface nothing but "private
+   detail stayed on the ephemeral runner", so a reviewer without runner access
+   could not tell WHICH gate refused. These say that much and no more: a fixed
+   snake_case allowlist, never a message, detail, stack, id, slug or any other
+   free text. `unclassified_failure` is the deliberate default — the stage still
+   identifies the drill even when the specific gate is not codified. */
+const FAILURE_CODES = new Set([
+  'unclassified_failure',
+  'confirm_token_missing',
+  'config_invalid',
+  'credential_missing',
+  'budget_exhausted',
+  'test_scope_violation',
+  'linear_preflight_mismatch',
+  'roster_precondition',
+  'refusal_enum_mismatch',
+  'zero_mutation_violated',
+  'gateway_status_mismatch',
+  'browser_close_timeout',
+  'cleanup_incomplete',
+  'flags_changed',
+  'report_sanitize_failed',
+]);
+/* Whether the assignee_provider_inactive negative case could be proven. The
+   Linear workspace has no inactive/archived provider user, and deactivating a
+   real seat to manufacture one is not an acceptable cost, so that single case
+   is skipped and reported as not proven rather than aborting the whole run. */
+const PROVIDER_INACTIVE_ENUMS = new Set([
+  'proven',
+  'not_proven_no_inactive_provider',
+]);
 const PUBLIC_ENUMS = new Set([
   'test_only',
   'active_test_only',
@@ -97,6 +128,8 @@ const PUBLIC_ENUMS = new Set([
   'supervised_owner_session_required',
   ...RESULT_ENUMS,
   ...ERROR_CODES,
+  ...FAILURE_CODES,
+  ...PROVIDER_INACTIVE_ENUMS,
 ]);
 const ROLE_SPECS = Object.freeze([
   Object.freeze({ role: 'admin', keyEnv: 'ROLE_KEY_ADMIN' }),
@@ -111,20 +144,23 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const nowIso = () => new Date().toISOString();
 
 class DrillError extends Error {
-  constructor(stage, message, detail) {
+  constructor(stage, message, detail, code) {
     super(message);
     this.name = 'DrillError';
     this.stage = ERROR_CODES.has(stage) ? stage : 'preflight';
     this.detail = detail;
+    // Allowlisted only. An unrecognised code degrades to the generic one rather
+    // than leaking whatever string was passed.
+    this.code = FAILURE_CODES.has(code) ? code : 'unclassified_failure';
   }
 }
 
-function fail(stage, message, detail) {
-  throw new DrillError(stage, message, detail);
+function fail(stage, message, detail, code) {
+  throw new DrillError(stage, message, detail, code);
 }
 
-function assert(condition, stage, message, detail) {
-  if (!condition) fail(stage, message, detail);
+function assert(condition, stage, message, detail, code) {
+  if (!condition) fail(stage, message, detail, code);
 }
 
 function parseJson(value) {
@@ -179,6 +215,7 @@ function parseConfig(env = process.env) {
       creative: clean(env.ROLE_KEY_CREATIVE),
     },
     reportPath: clean(env.SLICE5_TEST_DRILLS_REPORT),
+    failureReportPath: clean(env.SLICE5_TEST_DRILLS_FAILURE_REPORT),
     privateLogPath: clean(env.SLICE5_TEST_DRILLS_PRIVATE_LOG),
     jobStartedAtMs: Number(clean(env.SLICE5_JOB_STARTED_AT_MS)) || 0,
     confirmed: clean(env.SLICE5_TEST_DRILLS_CONFIRM) === DRILL_CONFIRM,
@@ -1205,21 +1242,25 @@ function selectLinearDrillProviderUsers(usersPage) {
       && machineUser.active === true
       && lower(machineUser.email) === PINNED_LINEAR_ASSIGNEE_EMAIL,
   'preflight',
-  'pinned SyncView Mirror Linear account id/email/active check failed');
+  'pinned SyncView Mirror Linear account id/email/active check failed',
+  undefined, 'linear_preflight_mismatch');
+  // OPTIONAL. The workspace may legitimately have no inactive/archived provider
+  // user, and deactivating a real Linear seat to manufacture one is not an
+  // acceptable cost for a drill. Its absence skips exactly one negative case
+  // and is reported as not proven; it must never abort the run.
   const inactiveUser = users.find(user =>
     user
       && user.active === false
       && clean(user.id)
-      && clean(user.id) !== PINNED_LINEAR_ASSIGNEE_ID);
-  assert(inactiveUser, 'preflight',
-    'Linear provider pool has no inactive/archived user for the negative drill');
+      && clean(user.id) !== PINNED_LINEAR_ASSIGNEE_ID) || null;
   return { machineUser, inactiveUser };
 }
 
 async function preflight(runtime) {
   const config = runtime.config;
   assert(config.confirmed, 'preflight',
-    `SLICE5_TEST_DRILLS_CONFIRM=${DRILL_CONFIRM} is required`);
+    `SLICE5_TEST_DRILLS_CONFIRM=${DRILL_CONFIRM} is required`,
+    undefined, 'confirm_token_missing');
   const now = Date.now();
   assert(Number.isInteger(config.jobStartedAtMs)
       && config.jobStartedAtMs > 0
@@ -1325,14 +1366,22 @@ function syntheticMemberRows(runtime) {
     row('inactiveTarget', markerText(runtime, 'Inactive Target'), 'editor', 'video', false, runtime.linear.machineUser.id),
     row('crossTeamTarget', markerText(runtime, 'Cross Team Target'), 'designer', 'graphics', true, runtime.linear.machineUser.id),
     row('roleBadTarget', markerText(runtime, 'Role Bad Target'), 'admin', 'video', true, runtime.linear.machineUser.id),
-    row('providerInactiveTarget', markerText(runtime, 'Provider Inactive Target'), 'editor', 'video', true, runtime.linear.inactiveUser.id),
   ];
+  // Only created when the workspace actually has an inactive provider user.
+  // Without one there is nothing to point this member at, and inventing a
+  // mapping would prove nothing about the real refusal path.
+  if (runtime.linear.inactiveUser) {
+    definitions.push(row('providerInactiveTarget',
+      markerText(runtime, 'Provider Inactive Target'), 'editor', 'video', true,
+      runtime.linear.inactiveUser.id));
+  }
   assert(definitions.every(member =>
     !clean(member.linear_user_id)
       || (member.key === 'providerInactiveTarget'
         ? clean(member.linear_user_id) === clean(runtime.linear.inactiveUser.id)
         : clean(member.linear_user_id) === PINNED_LINEAR_ASSIGNEE_ID)),
-  'preflight', 'synthetic member carries a non-pinned active Linear provider id');
+  'preflight', 'synthetic member carries a non-pinned active Linear provider id',
+  undefined, 'roster_precondition');
   return definitions;
 }
 
@@ -1695,13 +1744,23 @@ function assertEligibleAssignmentBundle(before, after, memberId) {
 }
 
 async function runF94Negative(runtime) {
+  // The provider-inactive case needs a real inactive Linear user. When the
+  // workspace has none it is SKIPPED, not failed and not faked: the remaining
+  // four refusals are still proven exactly as specified, and the skipped case is
+  // reported as not proven so it can never read as evidence.
+  const providerInactiveProvable = Boolean(runtime.linear.inactiveUser
+    && runtime.members.providerInactiveTarget);
   const cases = [
     ['inactive', runtime.members.inactiveTarget, 403, 'assignee_out_of_scope'],
     ['cross_team', runtime.members.crossTeamTarget, 403, 'assignee_out_of_scope'],
     ['role', runtime.members.roleBadTarget, 403, 'assignee_role_incompatible'],
     ['mapping', runtime.members.creativeZero, 409, 'assignee_mapping_unavailable'],
-    ['provider', runtime.members.providerInactiveTarget, 409, 'assignee_provider_inactive'],
   ];
+  if (providerInactiveProvable) {
+    cases.push(['provider', runtime.members.providerInactiveTarget, 409, 'assignee_provider_inactive']);
+  }
+  const expectedEnums = F94_REFUSAL_ENUMS.filter(code =>
+    providerInactiveProvable || code !== 'assignee_provider_inactive');
   let zeroProofs = 0;
   const observedEnums = new Set();
   for (const [label, member, expectedStatus, expectedCode] of cases) {
@@ -1723,15 +1782,15 @@ async function runF94Negative(runtime) {
     assert(response.status === expectedStatus && clean(response.body && response.body.error) === expectedCode,
       'f94_negative', 'F94 refusal did not return its exact status/enum', {
         label, expectedStatus, expectedCode, response,
-      });
+      }, 'gateway_status_mismatch');
     observedEnums.add(expectedCode);
     const after = await f94Snapshot(runtime, dedup);
     assertZeroF94Mutation(before, after, label);
     zeroProofs += 1;
   }
-  assert(F94_REFUSAL_ENUMS.every(code => observedEnums.has(code))
-      && observedEnums.size === F94_REFUSAL_ENUMS.length,
-  'f94_negative', 'F94 refusal enum set is not exact');
+  assert(expectedEnums.every(code => observedEnums.has(code))
+      && observedEnums.size === expectedEnums.length,
+  'f94_negative', 'F94 refusal enum set is not exact', undefined, 'refusal_enum_mismatch');
 
   const eligible = runtime.members.creativeOwn;
   assert(clean(eligible.linear_user_id) === PINNED_LINEAR_ASSIGNEE_ID,
@@ -1787,9 +1846,14 @@ async function runF94Negative(runtime) {
   return {
     result: 'pass',
     attempts_count: cases.length + 1,
+    // Counts only cases actually proven. A skipped case never enters
+    // observedEnums, so it can never inflate this.
     refusal_enum_count: observedEnums.size,
     zero_mutation_proofs_count: zeroProofs,
     eligible_bundle_count: 1,
+    assignee_provider_inactive: providerInactiveProvable
+      ? 'proven'
+      : 'not_proven_no_inactive_provider',
   };
 }
 
@@ -4140,6 +4204,7 @@ function emptyReport() {
     ok: false,
     mode: 'test_only',
     scope: 'active_test_only',
+    failure_code: 'none',
     preflight: { result: 'not_run' },
     f94_negative: {
       result: 'not_run',
@@ -4147,6 +4212,7 @@ function emptyReport() {
       refusal_enum_count: 0,
       zero_mutation_proofs_count: 0,
       eligible_bundle_count: 0,
+      assignee_provider_inactive: 'not_proven_no_inactive_provider',
     },
     f94_stale_picker: {
       result: 'not_run',
@@ -4369,14 +4435,16 @@ async function main(env = process.env, deps = {}) {
     const resourceFailures = await closeBrowsers(runtime);
     if (resourceFailures.length) {
       failure = failure || new DrillError('cleanup',
-        'one or more browser resources missed their bounded close');
+        'one or more browser resources missed their bounded close',
+        undefined, 'browser_close_timeout');
     }
     cleanupResult = await cleanup(runtime);
     report.cleanup_ok = cleanupResult.ok;
     report.deleted_member_count = cleanupResult.deletedMembers;
     if (!cleanupResult.ok) {
       failure = failure || cleanupResult.error
-        || new DrillError('cleanup', 'one or more TEST cleanup targets remain incomplete');
+        || new DrillError('cleanup', 'one or more TEST cleanup targets remain incomplete',
+          undefined, 'cleanup_incomplete');
     }
   } catch (error) {
     failure = failure || error;
@@ -4391,7 +4459,7 @@ async function main(env = process.env, deps = {}) {
       && stableJson(flagsBefore) === stableJson(flagsAfter));
     if (runtime.flagsBefore && !report.flags_unchanged) {
       failure = failure || new DrillError('flag_invariant',
-        'runtime flags changed during the TEST drill');
+        'runtime flags changed during the TEST drill', undefined, 'flags_changed');
     }
   } catch (error) {
     failure = failure || error;
@@ -4413,6 +4481,14 @@ async function main(env = process.env, deps = {}) {
       ? (ERROR_CODES.has(stage) ? stage : 'preflight')
       : 'none';
   report.error_code = code;
+  // Which GATE refused, as an allowlisted snake_case enum. Paired with the
+  // stage this is enough to diagnose a failed run without runner access, and it
+  // is structurally incapable of carrying a message, id or slug.
+  report.failure_code = failure
+    ? (failure instanceof DrillError && FAILURE_CODES.has(failure.code)
+      ? failure.code
+      : 'unclassified_failure')
+    : 'none';
   report.ok = !failure
     && report.cleanup_ok
     && report.flags_unchanged
@@ -4436,12 +4512,28 @@ async function main(env = process.env, deps = {}) {
     publicReport = sanitizePublicReport({
       ...emptyReport(),
       error_code: 'report',
+      failure_code: 'report_sanitize_failed',
     });
   }
   if (config.reportPath) {
     const output = path.resolve(config.reportPath);
     fs.mkdirSync(path.dirname(output), { recursive: true });
     fs.writeFileSync(output, JSON.stringify(publicReport, null, 2));
+  }
+  // Failure-ONLY companion. Written just when the run failed, so the workflow
+  // has something to upload and echo without parsing the aggregate, and so a
+  // successful run leaves no failure artifact to misread. Same two enums the
+  // aggregate carries; the workflow runs the same schema validator over it.
+  if (!publicReport.ok && config.failureReportPath) {
+    try {
+      const failureOutput = path.resolve(config.failureReportPath);
+      fs.mkdirSync(path.dirname(failureOutput), { recursive: true });
+      fs.writeFileSync(failureOutput, JSON.stringify({
+        schema_version: 1,
+        stage: publicReport.error_code,
+        failure_code: publicReport.failure_code,
+      }, null, 2));
+    } catch (_) { /* never let reporting mask the original failure */ }
   }
   process.stdout.write(`${JSON.stringify(publicReport)}\n`);
   if (!publicReport.ok) process.exitCode = 1;
@@ -4451,6 +4543,8 @@ async function main(env = process.env, deps = {}) {
 module.exports = {
   CREATIVE_STATUS_TRANSITIONS_SOURCE: 'supabase/functions/production-write/policy.mjs',
   F94_REFUSAL_ENUMS,
+  FAILURE_CODES,
+  PROVIDER_INACTIVE_ENUMS,
   WRITE_ADAPTERS,
   WRITE_KINDS,
   acquireBoundedResource,

@@ -97,6 +97,9 @@ function sourceFunction(source, name) {
 
 function publicLeavesAreSafe(value) {
   const safeEnums = new Set([
+    // The script's own public allowlists, so this helper cannot drift from it.
+    ...require(SCRIPT_PATH).FAILURE_CODES,
+    ...require(SCRIPT_PATH).PROVIDER_INACTIVE_ENUMS,
     'pass',
     'passed',
     'fail',
@@ -169,7 +172,17 @@ function publicLeavesAreSafe(value) {
     'the drill job is protected by the production Environment');
   ok(/^    timeout-minutes: 180$/m.test(workflow),
     'the full matrix has enough bounded runner time to reach its own cleanup');
-  ok(!/\balways\(\)/.test(workflow), 'the workflow has no always() step');
+  // Exactly one always() step is permitted: the public-safety validator must
+  // also run when the drill step fails, because the failure-only report is the
+  // artifact a reviewer reads and it must be validated before it is uploaded.
+  const alwaysSteps = (workflow.match(/\balways\(\)/g) || []).length;
+  ok(alwaysSteps === 1, 'exactly one always() step exists (the public-safety validator)');
+  ok(/- name: Validate the public-safe aggregate\n        if: always\(\)/.test(workflow),
+    'the always() step is the validator, so a failure report is never uploaded unvalidated');
+  ok(/stage=\$\{stage\} code=\$\{code\}/.test(workflow),
+    'a failed run names the refusing stage and an allowlisted failure code in the job log');
+  ok(/if: failure\(\)\n        uses: actions\/upload-artifact@v4/.test(workflow),
+    'the failure-only report is uploaded when the drill step fails');
 
   const drillClock = stepBlock(workflow, 'Start the bounded drill clock');
   const trustedCheckout = stepBlock(workflow, 'Check out trusted main for the provenance gate');
@@ -774,16 +787,26 @@ function publicLeavesAreSafe(value) {
   } catch (_error) {
     pinnedMismatchRejected = true;
   }
-  let missingInactiveRejected = false;
-  try {
-    runner.selectLinearDrillProviderUsers({
-      nodes: [{ id: pinnedLinearId, email: pinnedLinearEmail, active: true }],
-    });
-  } catch (_error) {
-    missingInactiveRejected = true;
-  }
-  ok(pinnedMismatchRejected && missingInactiveRejected,
-    'preflight aborts on pinned account drift or a missing inactive provider negative fixture');
+  ok(pinnedMismatchRejected,
+    'preflight aborts on pinned account drift');
+  // An inactive provider user is OPTIONAL. The workspace has none, and
+  // deactivating a real Linear seat to manufacture one is not an acceptable
+  // cost, so its absence skips exactly one negative case instead of aborting
+  // the whole run.
+  const withoutInactive = runner.selectLinearDrillProviderUsers({
+    nodes: [{ id: pinnedLinearId, email: pinnedLinearEmail, active: true }],
+  });
+  ok(withoutInactive && withoutInactive.inactiveUser === null,
+    'a workspace with no inactive provider user resolves to null rather than aborting preflight');
+  const withInactive = runner.selectLinearDrillProviderUsers({
+    nodes: [
+      { id: pinnedLinearId, email: pinnedLinearEmail, active: true },
+      inactiveLinearUser,
+    ],
+  });
+  ok(withInactive && withInactive.inactiveUser
+    && withInactive.inactiveUser.id === inactiveLinearUser.id,
+  'an inactive provider user is still selected when the workspace has one');
   const embeddedUuids = [...source.matchAll(
     /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi,
   )].map(match => match[0].toLowerCase());

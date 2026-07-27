@@ -136,6 +136,18 @@ override.
    `deliverables` mutation, **zero** `deliverable_events` row, and **zero** `mirror_outbox` row.
    Then assign to an eligible member and prove the native row, the event, and the outbox intent all
    appear together.
+
+   **`assignee_provider_inactive` is NOT proven by the unattended harness.** The Linear workspace
+   has no inactive or archived provider user, and deactivating a real Linear seat to manufacture one
+   is not an acceptable cost for a drill. The harness therefore **skips only that one case**, runs
+   the other four exactly as specified, and reports
+   `f94_negative.assignee_provider_inactive: 'not_proven_no_inactive_provider'` in the public
+   aggregate. A skipped case never counts toward `refusal_enum_count`, so the count itself shows
+   four rather than five. Still owed, in the same spirit as the F37 supervised note below: prove
+   this refusal once against a genuinely inactive provider user — either opportunistically, the next
+   time a real seat is deactivated in the ordinary course of business, or in a supervised session
+   the owner explicitly accepts. Until then this refusal path is implemented and unproven, and the
+   aggregate says so rather than implying coverage it does not have.
 2. **F94 stale-picker drill.** Open the picker, deactivate the chosen member out of band, then
    commit. Expect the commit to fail closed, not to trust the list the browser was holding.
 3. **F136 13×13 matrix.** For each role × current × next, with the row assigned to the actor, to a

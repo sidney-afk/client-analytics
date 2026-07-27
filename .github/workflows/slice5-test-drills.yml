@@ -144,6 +144,8 @@ jobs:
             'none',
             'test_only',
             'active_test_only',
+            'synthetic_identity_shapes_only',
+            'supervised_owner_session_required',
             'ready',
             'refused',
             'accepted',

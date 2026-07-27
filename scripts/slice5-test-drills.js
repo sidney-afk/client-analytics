@@ -44,10 +44,15 @@ const {
 
 const DEFAULT_SUPABASE_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co';
 const LINEAR_URL = 'https://api.linear.app/graphql';
+const PINNED_LINEAR_ASSIGNEE_ID = 'e92452e1-4499-41e1-8519-e8d066d99e43';
+const PINNED_LINEAR_ASSIGNEE_EMAIL = 'laruelsidney@gmail.com';
 const DRILL_CONFIRM = 'SLICE5_TEST_ONLY';
 const DRILL_MARKER = 'drill';
+const RUN_LEDGER_SURFACE = 'slice5_test_drills';
+const RUN_LEDGER_SOURCE = 'slice5_test_drill';
 const MATRIX_TEAM = 'video';
 const MATRIX_TICK_MS = 30_000;
+const AMBIGUOUS_WRITE_SETTLE_MS = 30_000;
 const LIVE_REQUEST_TIMEOUT_MS = 20_000;
 const BROWSER_REQUEST_TIMEOUT_MS = 25_000;
 const BROWSER_SETUP_TIMEOUT_MS = 120_000;
@@ -88,6 +93,8 @@ const ERROR_CODES = new Set([
 const PUBLIC_ENUMS = new Set([
   'test_only',
   'active_test_only',
+  'synthetic_identity_shapes_only',
+  'supervised_owner_session_required',
   ...RESULT_ENUMS,
   ...ERROR_CODES,
 ]);
@@ -196,15 +203,18 @@ function makeRuntime(config, deps = {}) {
     linear: null,
     policy: null,
     fixture: null,
+    identityPlan: null,
+    runLedger: null,
     members: {},
     createdMemberIds: new Set(),
     createdDeliverableIds: new Set(),
     createdBatchIds: new Set(),
     createdCommentIds: new Set(),
     createdDedups: new Set(),
+    ambiguousMemberIds: new Set(),
+    ambiguousMemberWriteAt: 0,
     readOnlyMemberIds: new Set(),
     preExistingRoster: null,
-    activeCreativeRoster: [],
     authMode: null,
     browsers: new Set(),
     browserServers: new Set(),
@@ -548,6 +558,70 @@ function assertExactPostgrestMutationTarget(
   return true;
 }
 
+function runLedgerPayload(runtime) {
+  const plan = runtime.identityPlan;
+  assert(plan && Array.isArray(plan.members) && plan.fixture, 'preflight',
+    'durable run ledger has no reserved identity plan');
+  return {
+    protocol: 'slice5_test_drill_run_v1',
+    marker: DRILL_MARKER,
+    run_token: runtime.runToken,
+    member_ids: plan.members.map(row => clean(row.id)).sort(),
+    batch_ids: [clean(plan.fixture.batchId)],
+    deliverable_ids: [clean(plan.fixture.deliverableId)],
+    linear_issue_ids: [
+      clean(plan.fixture.batchIssueId),
+      clean(plan.fixture.deliverableIssueId),
+    ].sort(),
+    dedup_prefix: `${runtime.runToken}:`,
+  };
+}
+
+function runLedgerReadResource(runtime, select = 'id,surface,client_slug,actor,role,action,source,payload') {
+  return `settings_events?select=${encodeURIComponent(select)}`
+    + `&surface=eq.${encodeURIComponent(RUN_LEDGER_SURFACE)}`
+    + `&client_slug=eq.${encodeURIComponent(runtime.client.slug)}`
+    + `&actor=eq.${encodeURIComponent(runtime.runToken)}`
+    + '&role=eq.system&action=eq.run_open'
+    + `&source=eq.${encodeURIComponent(RUN_LEDGER_SOURCE)}&limit=2`;
+}
+
+function assertRunLedgerRow(runtime, row, stage = 'cleanup') {
+  assert(row
+      && Number.isSafeInteger(Number(row.id))
+      && Number(row.id) > 0
+      && clean(row.surface) === RUN_LEDGER_SURFACE
+      && clean(row.client_slug) === runtime.client.slug
+      && clean(row.actor) === runtime.runToken
+      && clean(row.role) === 'system'
+      && clean(row.action) === 'run_open'
+      && clean(row.source) === RUN_LEDGER_SOURCE
+      && stableJson(parseJson(row.payload)) === stableJson(runLedgerPayload(runtime)),
+  stage, 'durable run ledger row is missing, ambiguous, or not run-owned');
+  return row;
+}
+
+function assertExactRunLedgerDeleteTarget(runtime, resource, expectedId, stage) {
+  const target = new URL(`https://slice5.invalid/${clean(resource).replace(/^\/+/, '')}`);
+  const exact = {
+    id: `eq.${clean(expectedId)}`,
+    surface: `eq.${RUN_LEDGER_SURFACE}`,
+    client_slug: `eq.${runtime.client.slug}`,
+    actor: `eq.${runtime.runToken}`,
+    role: 'eq.system',
+    action: 'eq.run_open',
+    source: `eq.${RUN_LEDGER_SOURCE}`,
+  };
+  const keys = [...target.searchParams.keys()].filter(key => key !== 'select').sort();
+  assert(target.pathname === '/settings_events'
+      && stableJson(keys) === stableJson(Object.keys(exact).sort())
+      && Object.entries(exact).every(([key, value]) =>
+        target.searchParams.getAll(key).length === 1
+          && clean(target.searchParams.get(key)) === value),
+  stage, 'durable run ledger delete is not bound to the exact run-owned row');
+  return true;
+}
+
 async function assertWriteMemberReferencesRunOwned(runtime, value, stage) {
   const ids = [...new Set(memberReferenceIds(value))];
   for (const id of ids) {
@@ -610,7 +684,7 @@ async function restWrite(runtime, resource, options) {
   const rows = Array.isArray(options.body) ? options.body : [options.body];
   const table = clean(resource).split('?')[0];
   const method = clean(options.method || 'POST').toUpperCase();
-  assert(['team_members', 'deliverables', 'batches'].includes(table),
+  assert(['team_members', 'deliverables', 'batches', 'settings_events'].includes(table),
     options.stage || 'cleanup',
     'Supabase mutation table is outside the drill allowlist');
   if (options.memberInsert) {
@@ -665,30 +739,68 @@ async function restWrite(runtime, resource, options) {
       options.stage || 'cleanup',
     );
   }
+  if (table === 'settings_events') {
+    assert(options.runLedgerInsert === true || options.runLedgerDelete === true,
+      options.stage || 'cleanup',
+      'settings_events mutation is not the durable run ledger');
+    if (options.runLedgerInsert === true) {
+      assert(method === 'POST'
+          && !clean(resource).includes('?')
+          && rows.length === 1
+          && clean(rows[0] && rows[0].surface) === RUN_LEDGER_SURFACE
+          && clean(rows[0] && rows[0].client_slug) === runtime.client.slug
+          && clean(rows[0] && rows[0].actor) === runtime.runToken
+          && clean(rows[0] && rows[0].role) === 'system'
+          && clean(rows[0] && rows[0].action) === 'run_open'
+          && clean(rows[0] && rows[0].source) === RUN_LEDGER_SOURCE
+          && stableJson(parseJson(rows[0] && rows[0].payload))
+            === stableJson(runLedgerPayload(runtime)),
+      options.stage || 'preflight',
+      'durable run ledger insert is not the exact reserved run identity');
+    } else {
+      assert(method === 'DELETE' && options.runLedgerId,
+        options.stage || 'cleanup',
+        'durable run ledger clear must delete one exact row');
+      assertExactRunLedgerDeleteTarget(
+        runtime, resource, options.runLedgerId, options.stage || 'cleanup',
+      );
+    }
+  }
   if (options.deliverableId) await assertRunOwnedDeliverable(runtime, options.deliverableId, options.stage);
   if (options.batchId) await assertRunOwnedBatch(runtime, options.batchId, options.stage);
   await assertActiveTestWriteTarget(
     options.targetClientSlug, runtime, options.stage || 'cleanup',
   );
-  const { response, bytes } = await liveRequest(
-    runtime,
-    `${runtime.config.supabaseUrl}/rest/v1/${resource}`,
-    {
-      method: options.method || 'POST',
-      headers: {
-        apikey: runtime.config.serviceKey,
-        Authorization: `Bearer ${runtime.config.serviceKey}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Prefer: options.prefer || 'return=representation',
+  let response;
+  let bytes;
+  try {
+    ({ response, bytes } = await liveRequest(
+      runtime,
+      `${runtime.config.supabaseUrl}/rest/v1/${resource}`,
+      {
+        method: options.method || 'POST',
+        headers: {
+          apikey: runtime.config.serviceKey,
+          Authorization: `Bearer ${runtime.config.serviceKey}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Prefer: options.prefer || 'return=representation',
+        },
+        body: JSON.stringify(options.body),
       },
-      body: JSON.stringify(options.body),
-    },
-    {
-      stage: options.stage || 'cleanup',
-      kind: 'supabase_write',
-    },
-  );
+      {
+        stage: options.stage || 'cleanup',
+        kind: 'supabase_write',
+      },
+    ));
+  } catch (error) {
+    if (options.memberInsert === true) {
+      rows.map(row => clean(row && row.id)).filter(Boolean)
+        .forEach(id => runtime.ambiguousMemberIds.add(id));
+      runtime.ambiguousMemberWriteAt = Date.now();
+    }
+    throw error;
+  }
   const body = responseBody(bytes);
   if (!response.ok) {
     fail(options.stage || 'cleanup', 'guarded Supabase write failed', {
@@ -1067,28 +1179,11 @@ async function readCompleteRoster(runtime, stage = 'preflight') {
   fail(stage, 'staff roster exceeded the bounded keyset page cap');
 }
 
-function activeCreativeRows(rows) {
-  return (rows || []).filter(row =>
-    row.active === true && ['editor', 'designer'].includes(lower(row.role)));
-}
-
 async function establishReadOnlyRoster(runtime) {
   const rows = await readCompleteRoster(runtime, 'preflight');
   assert(rows.length > 0, 'preflight', 'pre-existing staff roster is empty');
   for (const row of rows) runtime.readOnlyMemberIds.add(clean(row.id));
-  const creatives = activeCreativeRows(rows).map(row => ({
-    id: clean(row.id),
-    name: clean(row.name),
-    email: row.email == null ? null : clean(row.email),
-    role: lower(row.role),
-    team: clean(row.team) || null,
-    active: true,
-  }));
-  assert(creatives.length > 0
-      && creatives.every(row => row.id && row.name),
-  'preflight', 'active creative roster is empty or malformed');
   runtime.preExistingRoster = stable(rows);
-  runtime.activeCreativeRoster = stable(creatives);
   return true;
 }
 
@@ -1100,6 +1195,25 @@ async function assertPreExistingRosterUnchanged(runtime, stage) {
   assert(stableJson(withoutRunRows) === stableJson(runtime.preExistingRoster), stage,
     'pre-existing staff roster changed during the drill');
   return true;
+}
+
+function selectLinearDrillProviderUsers(usersPage) {
+  const users = usersPage && Array.isArray(usersPage.nodes) ? usersPage.nodes : [];
+  const machineUser = users.find(user =>
+    clean(user && user.id) === PINNED_LINEAR_ASSIGNEE_ID);
+  assert(machineUser
+      && machineUser.active === true
+      && lower(machineUser.email) === PINNED_LINEAR_ASSIGNEE_EMAIL,
+  'preflight',
+  'pinned SyncView Mirror Linear account id/email/active check failed');
+  const inactiveUser = users.find(user =>
+    user
+      && user.active === false
+      && clean(user.id)
+      && clean(user.id) !== PINNED_LINEAR_ASSIGNEE_ID);
+  assert(inactiveUser, 'preflight',
+    'Linear provider pool has no inactive/archived user for the negative drill');
+  return { machineUser, inactiveUser };
 }
 
 async function preflight(runtime) {
@@ -1158,7 +1272,7 @@ async function preflight(runtime) {
     }`),
     linearRead(runtime, `query Slice5DrillUsers($first: Int!) {
       users(first: $first, includeArchived: true) {
-        nodes { id active }
+        nodes { id email active }
         pageInfo { hasNextPage }
       }
     }`, { first: 250 }),
@@ -1178,11 +1292,8 @@ async function preflight(runtime) {
   assert(Array.isArray(usersPage.nodes) && usersPage.pageInfo
       && usersPage.pageInfo.hasNextPage === false,
   'preflight', 'Linear assignee provider pool is incomplete');
-  const activeUser = usersPage.nodes.find(user => user && user.active === true && clean(user.id));
-  const inactiveUser = usersPage.nodes.find(user => user && user.active === false && clean(user.id));
-  assert(activeUser && inactiveUser, 'preflight',
-    'Linear provider pool needs active and inactive TEST-drill shapes');
-  runtime.linear = { project, team, activeUser, inactiveUser };
+  const { machineUser, inactiveUser } = selectLinearDrillProviderUsers(usersPage);
+  runtime.linear = { project, team, machineUser, inactiveUser };
   return true;
 }
 
@@ -1201,25 +1312,154 @@ function syntheticMemberRows(runtime) {
     linear_user_id: linearUserId || null,
     default_for_team: false,
   });
-  return [
-    row('creativeOwn', duplicate, 'editor', 'video', true, runtime.linear.activeUser.id),
+  const definitions = [
+    row('creativeOwn', duplicate, 'editor', 'video', true, runtime.linear.machineUser.id),
     // Duplicate display name across incompatible roles preserves the F37 shape
     // without making production-write's creative actor-name lookup ambiguous.
-    row('creativeDuplicate', duplicate, 'admin', 'graphics', true, runtime.linear.activeUser.id),
-    row('creativePeer', markerText(runtime, 'Creative Peer'), 'editor', 'video', true, runtime.linear.activeUser.id),
+    row('creativeDuplicate', duplicate, 'admin', 'graphics', true, runtime.linear.machineUser.id),
+    row('creativePeer', markerText(runtime, 'Creative Peer'), 'editor', 'video', true, runtime.linear.machineUser.id),
     row('creativeZero', markerText(runtime, 'Creative Zero'), 'editor', 'video', true, null),
-    row('creativeDeactivate', markerText(runtime, 'Creative Deactivate'), 'editor', 'video', true, runtime.linear.activeUser.id),
+    row('creativeDeactivate', markerText(runtime, 'Creative Deactivate'), 'editor', 'video', true, runtime.linear.machineUser.id),
     row('adminActor', markerText(runtime, 'Admin Actor'), 'admin', null, true, null),
     row('smmActor', markerText(runtime, 'SMM Actor'), 'smm', null, true, null),
-    row('inactiveTarget', markerText(runtime, 'Inactive Target'), 'editor', 'video', false, runtime.linear.activeUser.id),
-    row('crossTeamTarget', markerText(runtime, 'Cross Team Target'), 'designer', 'graphics', true, runtime.linear.activeUser.id),
-    row('roleBadTarget', markerText(runtime, 'Role Bad Target'), 'admin', 'video', true, runtime.linear.activeUser.id),
+    row('inactiveTarget', markerText(runtime, 'Inactive Target'), 'editor', 'video', false, runtime.linear.machineUser.id),
+    row('crossTeamTarget', markerText(runtime, 'Cross Team Target'), 'designer', 'graphics', true, runtime.linear.machineUser.id),
+    row('roleBadTarget', markerText(runtime, 'Role Bad Target'), 'admin', 'video', true, runtime.linear.machineUser.id),
     row('providerInactiveTarget', markerText(runtime, 'Provider Inactive Target'), 'editor', 'video', true, runtime.linear.inactiveUser.id),
   ];
+  assert(definitions.every(member =>
+    !clean(member.linear_user_id)
+      || (member.key === 'providerInactiveTarget'
+        ? clean(member.linear_user_id) === clean(runtime.linear.inactiveUser.id)
+        : clean(member.linear_user_id) === PINNED_LINEAR_ASSIGNEE_ID)),
+  'preflight', 'synthetic member carries a non-pinned active Linear provider id');
+  return definitions;
 }
 
-async function createSyntheticMembers(runtime) {
-  const definitions = syntheticMemberRows(runtime);
+async function reserveRunIdentities(runtime) {
+  assert(!runtime.identityPlan, 'preflight', 'run identities were already reserved');
+  const members = syntheticMemberRows(runtime);
+  const batchId = crypto.randomUUID();
+  const deliverableId = crypto.randomUUID();
+  const batchDedup = requestId(runtime, 'fixture-batch-create');
+  const deliverableDedup = requestId(runtime, 'fixture-deliverable-create');
+  const createIds = await import(pathToFileURL(path.join(
+    runtime.config.repoRoot,
+    'supabase/functions/_shared/linear-create-id.mjs',
+  )).href);
+  const batchIssueId = await createIds.deterministicLinearCreateId(batchDedup);
+  const deliverableIssueId = await createIds.deterministicLinearCreateId(deliverableDedup);
+  runtime.createdBatchIds.add(batchId);
+  runtime.createdDeliverableIds.add(deliverableId);
+  runtime.identityPlan = {
+    members,
+    fixture: {
+      batchId,
+      deliverableId,
+      batchDedup,
+      deliverableDedup,
+      batchIssueId,
+      deliverableIssueId,
+    },
+  };
+  return runtime.identityPlan;
+}
+
+async function openDurableRunLedger(runtime) {
+  const payload = runLedgerPayload(runtime);
+  runtime.runLedger = {
+    openAttempted: true,
+    confirmed: false,
+    cleared: false,
+    ambiguous: false,
+    ambiguousAt: 0,
+    id: null,
+  };
+  const existing = await restRead(runtime, runLedgerReadResource(runtime), {
+    stage: 'preflight',
+  });
+  assert(Array.isArray(existing) && existing.length === 0, 'preflight',
+    'durable run ledger identity already exists');
+  runtime.runLedger.ambiguous = true;
+  runtime.runLedger.ambiguousAt = Date.now();
+  let inserted;
+  try {
+    inserted = await restWrite(runtime, 'settings_events', {
+      method: 'POST',
+      body: [{
+        surface: RUN_LEDGER_SURFACE,
+        client_slug: runtime.client.slug,
+        actor: runtime.runToken,
+        role: 'system',
+        action: 'run_open',
+        source: RUN_LEDGER_SOURCE,
+        payload,
+      }],
+      targetClientSlug: runtime.client.slug,
+      stage: 'preflight',
+      runLedgerInsert: true,
+    });
+  } catch (error) {
+    throw error;
+  }
+  assert(Array.isArray(inserted) && inserted.length === 1, 'preflight',
+    'durable run ledger insert did not return one row');
+  const row = assertRunLedgerRow(runtime, inserted[0], 'preflight');
+  runtime.runLedger.id = Number(row.id);
+  runtime.runLedger.confirmed = true;
+  runtime.runLedger.ambiguous = false;
+  return row;
+}
+
+async function clearDurableRunLedger(runtime) {
+  assert(runtime.runLedger && runtime.runLedger.openAttempted === true,
+    'cleanup', 'durable run ledger state is unavailable');
+  if (runtime.runLedger.ambiguous === true) {
+    const settleUntil = Number(runtime.runLedger.ambiguousAt)
+      + AMBIGUOUS_WRITE_SETTLE_MS;
+    const settleMs = Math.max(0, settleUntil - Date.now());
+    assert(Date.now() + settleMs < runtime.processDeadlineAt,
+      'cleanup', 'insufficient cleanup budget for ambiguous run-ledger settlement');
+    if (settleMs > 0) await sleep(settleMs);
+  }
+  const rows = await restRead(runtime, runLedgerReadResource(runtime), {
+    stage: 'cleanup',
+  });
+  if (Array.isArray(rows) && rows.length === 0 && runtime.runLedger.confirmed !== true) {
+    runtime.runLedger.cleared = true;
+    return true;
+  }
+  assert(Array.isArray(rows) && rows.length === 1, 'cleanup',
+    'durable run ledger is missing or ambiguous');
+  const row = assertRunLedgerRow(runtime, rows[0], 'cleanup');
+  const id = Number(row.id);
+  await restWrite(runtime,
+    `settings_events?id=eq.${encodeURIComponent(id)}`
+      + `&surface=eq.${encodeURIComponent(RUN_LEDGER_SURFACE)}`
+      + `&client_slug=eq.${encodeURIComponent(runtime.client.slug)}`
+      + `&actor=eq.${encodeURIComponent(runtime.runToken)}`
+      + '&role=eq.system&action=eq.run_open'
+      + `&source=eq.${encodeURIComponent(RUN_LEDGER_SOURCE)}`, {
+      method: 'DELETE',
+      body: null,
+      targetClientSlug: runtime.client.slug,
+      stage: 'cleanup',
+      runLedgerDelete: true,
+      runLedgerId: id,
+    });
+  const after = await restRead(runtime, runLedgerReadResource(runtime, 'id'), {
+    stage: 'cleanup',
+  });
+  assert(Array.isArray(after) && after.length === 0, 'cleanup',
+    'durable run ledger clear was not proven');
+  runtime.runLedger.id = id;
+  runtime.runLedger.cleared = true;
+  return true;
+}
+
+async function createSyntheticMembers(runtime, definitions) {
+  assert(runtime.identityPlan && definitions === runtime.identityPlan.members,
+    'preflight', 'synthetic member create did not use the durable identity plan');
   const wireRows = definitions.map(({ key, ...row }) => row);
   const inserted = await restWrite(runtime, 'team_members', {
     method: 'POST',
@@ -1308,10 +1548,15 @@ async function drainTestOutbox(runtime, dedup, stage) {
   });
 }
 
-async function createFixture(runtime) {
-  const batchDedup = requestId(runtime, 'fixture-batch-create');
-  const batchId = crypto.randomUUID();
-  runtime.createdBatchIds.add(batchId);
+async function createFixture(runtime, plan) {
+  assert(runtime.identityPlan && plan === runtime.identityPlan.fixture,
+    'preflight', 'fixture create did not use the durable identity plan');
+  const {
+    batchDedup,
+    batchId,
+    deliverableDedup,
+    deliverableId,
+  } = plan;
   const batch = await ledgerWrite(runtime, 'batch', {
     id: batchId,
     operation: 'create',
@@ -1333,9 +1578,6 @@ async function createFixture(runtime) {
       priority: 0,
     },
   }, 'preflight');
-  const deliverableDedup = requestId(runtime, 'fixture-deliverable-create');
-  const deliverableId = crypto.randomUUID();
-  runtime.createdDeliverableIds.add(deliverableId);
   const deliverable = await ledgerWrite(runtime, 'deliverable', {
     id: deliverableId,
     operation: 'create',
@@ -1492,6 +1734,8 @@ async function runF94Negative(runtime) {
   'f94_negative', 'F94 refusal enum set is not exact');
 
   const eligible = runtime.members.creativeOwn;
+  assert(clean(eligible.linear_user_id) === PINNED_LINEAR_ASSIGNEE_ID,
+    'f94_negative', 'eligible assignment is not pinned to SyncView Mirror');
   const request = requestId(runtime, 'f94-eligible');
   const dedup = `write-ui:assignee:deliverable:${runtime.fixture.deliverableId}:${request}`;
   const before = await f94Snapshot(runtime, dedup);
@@ -2276,66 +2520,6 @@ async function runF136Matrix(runtime) {
   }
 }
 
-function isCreativeRosterRole(role) {
-  return ['editor', 'designer'].includes(lower(role));
-}
-
-async function readOnlyActiveRosterSnapshot(runtime) {
-  await assertPreExistingRosterUnchanged(runtime, 'f37_identity');
-  const preExisting = runtime.preExistingRoster;
-  const creatives = runtime.activeCreativeRoster;
-  return {
-    rows: stable(preExisting),
-    creatives: stable(creatives),
-  };
-}
-
-async function buildReadOnlyRosterProjection(runtime, creatives) {
-  const rows = await restRead(runtime,
-    `production_deliverables_browser_v1?select=*&id=eq.${encodeURIComponent(runtime.fixture.deliverableId)}`
-      + `&client_slug=eq.${encodeURIComponent(runtime.client.slug)}&limit=2`,
-    { stage: 'f37_identity' });
-  assert(Array.isArray(rows) && rows.length === 1, 'f37_identity',
-    'run-owned TEST fixture browser projection is unavailable');
-  const base = rows[0];
-  assert(clean(base.client_slug) === runtime.client.slug
-      && markerPresent(base.title, runtime),
-  'f37_identity', 'read-only roster projection source escaped the drill fixture');
-  const expectedByMemberId = new Map();
-  const projectedRows = creatives.map((member, index) => {
-    const id = `${runtime.runToken}-f37-roster-${index + 1}`;
-    expectedByMemberId.set(member.id, id);
-    return {
-      ...base,
-      id,
-      identifier: `DRILL-${index + 1}`,
-      title: markerText(runtime, `Read-only roster ${index + 1}`),
-      assignee_id: member.id,
-      team: ['video', 'graphics'].includes(lower(member.team))
-        ? lower(member.team)
-        : lower(member.role) === 'designer' ? 'graphics' : 'video',
-      status: 'todo',
-      linear_issue_uuid: null,
-      linear_identifier: null,
-      linear_issue_url: null,
-      raw_issue_parent_id: null,
-      raw_issue_archived_at: null,
-      raw_webhook_delete: null,
-      raw_deleted: null,
-      raw_delete: null,
-      raw_removed: null,
-      raw_archived: null,
-    };
-  });
-  assert(projectedRows.every(row =>
-    clean(row.client_slug) === runtime.client.slug
-      && markerPresent(row.title, runtime)
-      && runtime.readOnlyMemberIds.has(clean(row.assignee_id))
-      && !runtime.createdDeliverableIds.has(clean(row.id))),
-  'f37_identity', 'browser-only roster fixture projection is not read-only scoped');
-  return { rows: projectedRows, expectedByMemberId };
-}
-
 function roleKeyForMember(runtime, memberId) {
   const member = Object.values(runtime.members).find(row => clean(row.id) === clean(memberId));
   assert(member, 'f37_identity', 'browser verifier selected an unknown member');
@@ -2409,11 +2593,8 @@ async function browserProjection(runtime, url, routeState) {
         `team_members?select=id,name,email,role,team,avatar_color,active&id=in.(${ids.map(encodeURIComponent).join(',')})&order=name.asc`,
         { stage: routeState.stage || 'f95_convergence' })
       : [];
-    const readOnlyRows = Array.isArray(routeState.readOnlyRosterRows)
-      ? routeState.readOnlyRosterRows
-      : [];
     const byId = new Map();
-    [...readOnlyRows, ...syntheticRows].forEach(row => {
+    syntheticRows.forEach(row => {
       if (row && clean(row.id)) byId.set(clean(row.id), row);
     });
     const rows = [...byId.values()];
@@ -2432,10 +2613,7 @@ async function browserProjection(runtime, url, routeState) {
       return { __forcedStatus: 503 };
     }
     const ids = [...runtime.createdDeliverableIds];
-    const readOnlyRows = Array.isArray(routeState.readOnlyDeliverableRows)
-      ? routeState.readOnlyDeliverableRows
-      : [];
-    if (!ids.length) return readOnlyRows;
+    if (!ids.length) return [];
     const select = clean(url.searchParams.get('select')) || '*';
     const filters = [
       `select=${encodeURIComponent(select)}`,
@@ -2459,7 +2637,7 @@ async function browserProjection(runtime, url, routeState) {
         updated_at: routeState.matrixSyntheticStamp,
       }))
       : (runOwnedRows || []);
-    [...readOnlyRows, ...projectedRunOwnedRows].forEach(row => {
+    projectedRunOwnedRows.forEach(row => {
       if (row && clean(row.id)) byId.set(clean(row.id), row);
     });
     return [...byId.values()];
@@ -2548,39 +2726,6 @@ async function installBrowserRoutes(runtime, context, routeState) {
             && stableJson(Object.keys(parseJson(input.member)).sort()) === stableJson(['id']),
         routeState.stage || 'f37_identity',
         'browser verifier request is not the exact run-owned identity shape');
-        const readOnlyMember = routeState.readOnlyRosterById instanceof Map
-          ? routeState.readOnlyRosterById.get(memberId)
-          : null;
-        if (readOnlyMember) {
-          assert(runtime.readOnlyMemberIds.has(memberId)
-              && !runtime.createdMemberIds.has(memberId)
-              && isCreativeRosterRole(readOnlyMember.role)
-              && readOnlyMember.active === true
-              && clean(request.headers()['x-syncview-key'])
-                === 'slice5-drill-browser-placeholder',
-          'f37_identity',
-          'local roster verifier escaped the frozen read-only creative snapshot');
-          routeState.localRosterVerifications =
-            Number(routeState.localRosterVerifications || 0) + 1;
-          await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            headers: { 'Access-Control-Allow-Origin': '*' },
-            body: JSON.stringify({
-              ok: true,
-              mode: runtime.authMode,
-              role: 'creative',
-              member: {
-                id: readOnlyMember.id,
-                name: readOnlyMember.name,
-                email: readOnlyMember.email,
-                role: readOnlyMember.role,
-                team: readOnlyMember.team,
-              },
-            }),
-          });
-          return;
-        }
         assert(runtime.createdMemberIds.has(memberId)
             && !runtime.readOnlyMemberIds.has(memberId),
         routeState.stage || 'f37_identity',
@@ -2934,9 +3079,9 @@ async function closeStaticServer(runtime, server) {
 }
 
 async function browserVerifyIdentity(runtime, page, member, stage = 'f37_identity') {
-  // Only a fixed placeholder enters the page. Synthetic members are couriered
-  // to live key-verify with the owner-provisioned role key in Node. A frozen
-  // pre-existing creative is fulfilled locally and never reaches a live write.
+  // Only a fixed placeholder enters the page. Run-created synthetic members
+  // are couriered to live key-verify with the owner-provisioned role key in
+  // Node. Real staff identities are outside this unattended drill.
   return boundedOperation(runtime, stage, 'browser identity verification', () =>
     page.evaluate(async input => {
     const candidate = {
@@ -2985,26 +3130,16 @@ async function browserReloadProjection(runtime, page, stage = 'f37_identity') {
 
 async function runF37Identity(runtime) {
   await setFixtureOracleState(runtime, 'todo', runtime.members.creativeOwn.id);
-  const rosterBefore = await readOnlyActiveRosterSnapshot(runtime);
-  const readOnlyProjection = await buildReadOnlyRosterProjection(
-    runtime,
-    rosterBefore.creatives,
-  );
   const browser = await launchBrowser(runtime, 'f37_identity');
   const routeState = {
     stage: 'f37_identity',
     reverseMembers: false,
     routeError: null,
-    readOnlyRosterRows: rosterBefore.rows,
-    readOnlyRosterById: new Map(rosterBefore.creatives.map(member => [member.id, member])),
-    readOnlyDeliverableRows: readOnlyProjection.rows,
-    localRosterVerifications: 0,
     liveVerifierWrites: 0,
   };
   const { context, page } = await openTestProductionPage(runtime, browser, routeState);
   let deactivated = false;
   let queueChecks = 0;
-  let readOnlyRosterChecks = 0;
   try {
     const server = await startStaticServer(runtime, 'f37_identity');
     const port = server.address().port;
@@ -3013,49 +3148,6 @@ async function runF37Identity(runtime) {
         runtime, 'f37_identity', page, port,
         '/?prod=1&view=my&issues=all&prodcache=0',
       );
-      const browserRoster = await pageEvaluate(
-        runtime,
-        'f37_identity',
-        'browser active creative roster enumeration',
-        page,
-        async () => {
-          _syncviewStaffRosterCache = null;
-          return _syncviewStaffRoster();
-        },
-      );
-      const browserRealCreatives = (browserRoster || [])
-        .filter(member => isCreativeRosterRole(member.role)
-          && !runtime.createdMemberIds.has(clean(member.id)))
-        .map(member => ({
-          id: clean(member.id),
-          name: clean(member.name),
-          email: member.email == null ? null : clean(member.email),
-          role: lower(member.role),
-          team: clean(member.team) || null,
-          active: true,
-        }))
-        .sort((a, b) => a.id.localeCompare(b.id));
-      assert(stableJson(browserRealCreatives) === stableJson(rosterBefore.creatives),
-        'f37_identity',
-        'browser roster enumeration differs from the frozen active creative roster');
-
-      const liveVerifierBeforeRealRoster = routeState.liveVerifierWrites;
-      for (const member of rosterBefore.creatives) {
-        const observed = await browserVerifyIdentity(runtime, page, member);
-        const expectedId = readOnlyProjection.expectedByMemberId.get(member.id);
-        assert(observed.memberId === member.id
-            && stableJson(observed.queueIds) === stableJson([expectedId])
-            && !observed.unavailable,
-        'f37_identity',
-        'read-only active creative resolved to another TEST personal queue');
-        queueChecks += 1;
-        readOnlyRosterChecks += 1;
-      }
-      assert(routeState.localRosterVerifications === rosterBefore.creatives.length
-          && routeState.liveVerifierWrites === liveVerifierBeforeRealRoster,
-      'f37_identity',
-      'a pre-existing active creative escaped the local read-only verifier');
-
       const activeCreatives = Object.values(runtime.members).filter(member =>
         member.active === true && ['editor', 'designer'].includes(lower(member.role)));
       for (const member of activeCreatives) {
@@ -3132,17 +3224,14 @@ async function runF37Identity(runtime) {
         && signedOut.queueIds.length === 0
         && !!clean(signedOut.unavailable);
       assert(signedOutOk, 'f37_identity', 'signed-out session retained a personal queue');
-      const rosterAfter = await readOnlyActiveRosterSnapshot(runtime);
-      assert(stableJson(rosterAfter) === stableJson(rosterBefore), 'f37_identity',
-        'pre-existing active roster changed during the read-only identity drill');
       assert(!routeState.routeError, 'f37_identity',
         'browser TEST-only request router failed', { error: routeState.routeError });
       return {
         result: 'pass',
-        identity_count: activeCreatives.length + rosterBefore.creatives.length,
+        scope: 'synthetic_identity_shapes_only',
+        real_sign_in_verification: 'supervised_owner_session_required',
+        synthetic_identity_count: activeCreatives.length,
         queue_checks_count: queueChecks,
-        active_creative_roster_count: rosterBefore.creatives.length,
-        read_only_roster_checks_count: readOnlyRosterChecks,
         account_switch_ok: accountSwitchOk,
         duplicate_label_ok: duplicateNamesOk,
         reorder_ok: reorderOk,
@@ -3569,6 +3658,23 @@ async function optionalRunOwnedBatch(runtime, id) {
 }
 
 async function providerIssueIdFor(runtime, kind, id, row) {
+  const fixturePlan = runtime.identityPlan && runtime.identityPlan.fixture;
+  const expected = kind === 'deliverable'
+    ? {
+      entityId: fixturePlan && fixturePlan.deliverableId,
+      issueId: fixturePlan && fixturePlan.deliverableIssueId,
+      dedup: fixturePlan && fixturePlan.deliverableDedup,
+    }
+    : {
+      entityId: fixturePlan && fixturePlan.batchId,
+      issueId: fixturePlan && fixturePlan.batchIssueId,
+      dedup: fixturePlan && fixturePlan.batchDedup,
+    };
+  assert(clean(id) === clean(expected.entityId)
+      && clean(expected.issueId)
+      && clean(expected.dedup)
+      && runtime.createdDedups.has(clean(expected.dedup)),
+  'cleanup', 'provider cleanup target is outside the durable run identity plan');
   const candidates = new Set();
   if (kind === 'deliverable') {
     const rawIssue = parseJson(parseJson(row.linear_raw).issue);
@@ -3579,44 +3685,58 @@ async function providerIssueIdFor(runtime, kind, id, row) {
       .forEach(value => candidates.add(value));
   }
   const creates = await restRead(runtime,
-    `mirror_outbox?select=status,payload,linear_result&entity=eq.${kind}`
+    `mirror_outbox?select=status,dedup_key,payload,linear_result&entity=eq.${kind}`
       + `&entity_id=eq.${encodeURIComponent(id)}&operation=eq.create`
       + `&client_slug=eq.${encodeURIComponent(runtime.client.slug)}&test_only=eq.true`,
     { stage: 'cleanup' });
-  for (const create of creates || []) {
-    const payload = parseJson(create.payload);
-    const result = parseJson(create.linear_result);
-    [
-      payload.linear_issue_id,
-      result.issue_id,
-      parseJson(result.issue).id,
-    ].map(clean).filter(Boolean).forEach(value => candidates.add(value));
-    if (lower(create.status) === 'written' && clean(payload.planned_linear_issue_id)) {
-      candidates.add(clean(payload.planned_linear_issue_id));
-    }
-    if (lower(create.status) === 'written') {
-      assert(candidates.size > 0, 'cleanup',
-        'written TEST create has no recoverable Linear issue identity');
-    }
-  }
-  assert(candidates.size <= 1, 'cleanup',
-    'run-owned native row resolves to ambiguous Linear issues');
-  return [...candidates][0] || '';
+  assert(Array.isArray(creates) && creates.length === 1, 'cleanup',
+    'run-owned provider create receipt is missing or ambiguous');
+  const create = creates[0];
+  const payload = parseJson(create.payload);
+  const result = parseJson(create.linear_result);
+  const conflict = parseJson(result.conflict);
+  assert(lower(create.status) === 'written'
+      && clean(create.dedup_key) === clean(expected.dedup)
+      && clean(result.mutation) === 'issueCreate'
+      && lower(conflict.decision) !== 'idempotency_conflict',
+  'cleanup', 'provider issue was not minted by this run');
+  [
+    payload.linear_issue_id,
+    payload.planned_linear_issue_id,
+    result.issue_id,
+    parseJson(result.issue).id,
+  ].map(clean).filter(Boolean).forEach(value => candidates.add(value));
+  assert(candidates.size > 0
+      && [...candidates].every(value => value === clean(expected.issueId)),
+  'cleanup', 'run-owned create receipt resolves to a foreign Linear issue');
+  await linearIssueSnapshot(runtime, expected.issueId, kind);
+  return clean(expected.issueId);
 }
 
-async function linearIssueSnapshot(runtime, issueId) {
+function assertRunOwnedLinearIssueSnapshot(runtime, issue, issueId, kind) {
+  const label = kind === 'batch' ? 'Batch' : 'Deliverable';
+  const description = kind === 'batch'
+    ? 'Disposable TEST batch'
+    : 'Disposable TEST deliverable';
+  assert(['batch', 'deliverable'].includes(kind)
+      && issue
+      && clean(issue.id) === clean(issueId)
+      && clean(issue.project && issue.project.id) === clean(runtime.linear.project.id)
+      && clean(issue.team && issue.team.id) === clean(runtime.linear.team.id)
+      && clean(issue.title) === markerText(runtime, label)
+      && clean(issue.description) === markerText(runtime, description),
+  'cleanup', 'cleanup Linear target is not a run-minted TEST issue');
+  return issue;
+}
+
+async function linearIssueSnapshot(runtime, issueId, kind) {
   const data = await linearRead(runtime, `query Slice5CleanupIssue($id: String!) {
     issue(id: $id) {
-      id archivedAt project { id } team { id }
+      id title description archivedAt project { id } team { id }
     }
   }`, { id: issueId }, 'cleanup');
   const issue = data && data.issue;
-  assert(issue
-      && clean(issue.id) === clean(issueId)
-      && clean(issue.project && issue.project.id) === clean(runtime.linear.project.id)
-      && clean(issue.team && issue.team.id) === clean(runtime.linear.team.id),
-  'cleanup', 'cleanup Linear target escaped the TEST project/team');
-  return issue;
+  return assertRunOwnedLinearIssueSnapshot(runtime, issue, issueId, kind);
 }
 
 async function ensureDedupTerminal(runtime, dedup) {
@@ -3700,6 +3820,7 @@ async function cleanupSyntheticMembers(runtime, deliverableIds) {
   const memberIds = [...runtime.createdMemberIds];
   let deletedMembers = 0;
   let survivors = memberIds;
+  let ambiguitySettled = runtime.ambiguousMemberIds.size === 0;
   const capture = error => errors.push(error instanceof Error
     ? error
     : new DrillError('cleanup', 'synthetic member cleanup failed'));
@@ -3741,6 +3862,20 @@ async function cleanupSyntheticMembers(runtime, deliverableIds) {
     }
   }
 
+  if (runtime.ambiguousMemberIds.size > 0) {
+    try {
+      const settleUntil = Number(runtime.ambiguousMemberWriteAt)
+        + AMBIGUOUS_WRITE_SETTLE_MS;
+      const settleMs = Math.max(0, settleUntil - Date.now());
+      assert(Date.now() + settleMs < runtime.processDeadlineAt,
+        'cleanup', 'insufficient cleanup budget for ambiguous member-write settlement');
+      if (settleMs > 0) await sleep(settleMs);
+      ambiguitySettled = true;
+    } catch (error) {
+      capture(error);
+    }
+  }
+
   for (const id of memberIds) {
     try {
       const existing = await restRead(runtime,
@@ -3777,7 +3912,10 @@ async function cleanupSyntheticMembers(runtime, deliverableIds) {
     capture(error);
   }
   return {
-    ok: errors.length === 0 && Array.isArray(survivors) && survivors.length === 0,
+    ok: errors.length === 0
+      && ambiguitySettled
+      && Array.isArray(survivors)
+      && survivors.length === 0,
     deletedMembers,
     errors,
   };
@@ -3794,7 +3932,7 @@ async function cleanup(runtime) {
     : new DrillError('cleanup', 'TEST cleanup target failed'));
   let archivedRows = 0;
   let recoveredRows = 0;
-  const providerIssueIds = new Set();
+  const providerIssueIds = new Map();
 
   for (const id of deliverableIds) {
     try {
@@ -3836,7 +3974,7 @@ async function cleanup(runtime) {
         row = await servicePatchDeliverable(runtime, id, { assignee_id: null }, 'cleanup');
       }
       const issueId = await providerIssueIdFor(runtime, 'deliverable', id, row);
-      if (issueId) providerIssueIds.add(issueId);
+      if (issueId) providerIssueIds.set(issueId, 'deliverable');
       const dedup = requestId(runtime, 'cleanup-deliverable-archive');
       await ledgerWrite(runtime, 'deliverable', {
         id,
@@ -3862,7 +4000,7 @@ async function cleanup(runtime) {
       if (!row) continue;
       recoveredRows += 1;
       const issueId = await providerIssueIdFor(runtime, 'batch', id, row);
-      if (issueId) providerIssueIds.add(issueId);
+      if (issueId) providerIssueIds.set(issueId, 'batch');
       const dedup = requestId(runtime, 'cleanup-batch-archive');
       await ledgerWrite(runtime, 'batch', {
         id,
@@ -3882,10 +4020,10 @@ async function cleanup(runtime) {
     }
   }
 
-  for (const issueId of providerIssueIds) {
+  for (const [issueId, kind] of providerIssueIds) {
     try {
       await poll(runtime, 'cleanup', 'Linear TEST issue archive', async () => {
-        const issue = await linearIssueSnapshot(runtime, issueId);
+        const issue = await linearIssueSnapshot(runtime, issueId, kind);
         return clean(issue.archivedAt) ? issue : null;
       });
     } catch (error) {
@@ -3928,10 +4066,19 @@ async function cleanup(runtime) {
     }
   }
 
-  const ok = errors.length === 0
+  let runLedgerCleared = !runtime.runLedger;
+  const cleanupProven = errors.length === 0
     && memberCleanup.ok
     && archivedRows === recoveredRows
     && rosterUnchanged;
+  if (cleanupProven && runtime.runLedger) {
+    try {
+      runLedgerCleared = await clearDurableRunLedger(runtime);
+    } catch (error) {
+      capture(error);
+    }
+  }
+  const ok = cleanupProven && errors.length === 0 && runLedgerCleared;
   return {
     ok,
     deletedMembers: memberCleanup.deletedMembers,
@@ -4032,10 +4179,10 @@ function emptyReport() {
     },
     f37_identity: {
       result: 'not_run',
-      identity_count: 0,
+      scope: 'synthetic_identity_shapes_only',
+      real_sign_in_verification: 'supervised_owner_session_required',
+      synthetic_identity_count: 0,
       queue_checks_count: 0,
-      active_creative_roster_count: 0,
-      read_only_roster_checks_count: 0,
       account_switch_ok: false,
       duplicate_label_ok: false,
       reorder_ok: false,
@@ -4178,9 +4325,13 @@ async function main(env = process.env, deps = {}) {
   try {
     await runBoundedDrillPhase(runtime, 'preflight', async () => {
       await preflight(runtime);
+      const identityPlan = await reserveRunIdentities(runtime);
+      await openDurableRunLedger(runtime);
       report.preflight.result = 'pass';
-      report.created_member_count = await createSyntheticMembers(runtime);
-      await createFixture(runtime);
+      report.created_member_count = await createSyntheticMembers(
+        runtime, identityPlan.members,
+      );
+      await createFixture(runtime, identityPlan.fixture);
     });
 
     stage = 'f94_negative';
@@ -4309,6 +4460,8 @@ module.exports = {
   assertEligibleAssignmentBundle,
   assertMatrixBlockUnchanged,
   assertPreExistingRosterUnchanged,
+  assertRunLedgerRow,
+  assertRunOwnedLinearIssueSnapshot,
   assertSyntheticMemberMutationAllowed,
   assertWriteMemberReferencesRunOwned,
   assertZeroF94Mutation,
@@ -4336,7 +4489,9 @@ module.exports = {
   requestDeadlineMs,
   restRead,
   restWrite,
+  runLedgerPayload,
   sanitizePublicReport,
+  selectLinearDrillProviderUsers,
   stable,
   stableJson,
   writePrivateFailure,

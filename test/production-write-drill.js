@@ -6,6 +6,7 @@ const path = require('path');
 const {
   assertFlipTolerantStance,
   descriptionReadbackMatches,
+  descriptionReadbackScopes,
   stableJson,
   writePrivateFailure,
 } = require('../scripts/production-write-drill');
@@ -52,6 +53,19 @@ ok(!descriptionReadbackMatches(
   { graphics: 'syncview' }, 'graphics',
   { brief: expectedDescription }, { description: expectedDescription.trim() }, expectedDescription,
 ), 'native-authoritative readback rejects drift on either side');
+ok(stableJson(descriptionReadbackScopes(['video', 'graphics'], [
+  { team: 'video', descriptionReadbackScope: 'native_and_linear' },
+])) === stableJson({
+  video: 'native_and_linear',
+  graphics: 'not_verified',
+}), 'description readback scope marks an uncompleted configured team not_verified');
+ok(stableJson(descriptionReadbackScopes(['video', 'graphics'], [
+  { team: 'video', descriptionReadbackScope: 'linear_only_authority_linear' },
+  { team: 'graphics', descriptionReadbackScope: 'native_and_linear' },
+])) === stableJson({
+  video: 'linear_only_authority_linear',
+  graphics: 'native_and_linear',
+}), 'description readback scope preserves only per-asset completed proof');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'production-write-drill.js'), 'utf8');
 const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'production-write-drill.yml'), 'utf8');
@@ -84,6 +98,9 @@ ok(source.includes('PROD_AUTHORITY = assertFlipTolerantStance(before).authority'
   && !source.includes('if (descriptionReadbackMatches')
   && source.includes('descriptionReadbackMatches('),
   'F202 description mutation is unconditional and only its readback follows prod_authority');
+ok(/await poll\(`\$\{asset\.team\} description round-trip`[\s\S]*?\}\);\r?\n\s*asset\.descriptionReadbackScope\s*=/.test(source)
+  && source.includes('description_readback_scope: descriptionReadbackScopes(DRILL_TEAMS, assets)'),
+  'description proof is recorded per asset only after its round-trip poll completes');
 ok(source.includes("reconcileArgs.push(`--team=${DRILL_TEAMS[0]}`)"),
   'one-shot reconciliation is scoped to the exercised team');
 ok(source.includes('foreign_write_detected'), 'drill checks for echo/foreign-write storms');

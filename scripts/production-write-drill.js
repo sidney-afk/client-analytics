@@ -153,6 +153,19 @@ function descriptionReadbackMatches(authority, team, native, mirrored, expected)
   return ['syncview', 'supabase'].includes(lane) && native.brief === expected;
 }
 
+function descriptionReadbackScopes(teams, assets) {
+  return Object.fromEntries(teams.map(team => {
+    const asset = assets.find(candidate => candidate.team === team);
+    const scope = clean(asset && asset.descriptionReadbackScope);
+    return [
+      team,
+      ['native_and_linear', 'linear_only_authority_linear'].includes(scope)
+        ? scope
+        : 'not_verified',
+    ];
+  }));
+}
+
 async function preflight() {
   assert(CONFIRMED, 'B4_CONFIRM_TEST_MUTATIONS=1 is required');
   assert(SUPA_KEY && LINEAR_KEY, 'Supabase service role and Linear read credential are required');
@@ -287,6 +300,10 @@ async function verifyFixture(asset) {
       PROD_AUTHORITY, asset.team, native, mirrored, description,
     ) ? { native, mirrored } : null;
   });
+  asset.descriptionReadbackScope =
+    ['syncview', 'supabase'].includes(clean(PROD_AUTHORITY[asset.team]).toLowerCase())
+      ? 'native_and_linear'
+      : 'linear_only_authority_linear';
   asset.row = descriptionResponse.row || asset.row;
   assert(!issue.dueDate && !issue.assignee, `${asset.team} due/assignee clear did not reach Linear`);
   assert((issue.comments.nodes || []).filter(comment => clean(comment.body).includes(asset.commentMarker)).length === 1, `${asset.team} Linear comment is missing or duplicated`);
@@ -435,12 +452,7 @@ async function main() {
     // may re-project it), so a green run proves LESS than a `native_and_linear`
     // green does. Record it per team rather than leaving the difference
     // invisible in an otherwise identical `ok: true`.
-    description_readback_scope: Object.fromEntries(DRILL_TEAMS.map(team => [
-      team,
-      ['syncview', 'supabase'].includes(clean(PROD_AUTHORITY && PROD_AUTHORITY[team]).toLowerCase())
-        ? 'native_and_linear'
-        : 'linear_only_authority_linear',
-    ])),
+    description_readback_scope: descriptionReadbackScopes(DRILL_TEAMS, assets),
     error_code: failure ? failureStage || 'drill_failed' : null,
   };
   if (REPORT_PATH) {
@@ -457,6 +469,7 @@ async function main() {
 module.exports = {
   assertFlipTolerantStance,
   descriptionReadbackMatches,
+  descriptionReadbackScopes,
   stable,
   stableJson,
   writePrivateFailure,

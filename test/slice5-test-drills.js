@@ -104,6 +104,8 @@ function publicLeavesAreSafe(value) {
     'none',
     'test_only',
     'active_test_only',
+    'synthetic_identity_shapes_only',
+    'supervised_owner_session_required',
     'ready',
     'refused',
     'accepted',
@@ -266,6 +268,10 @@ function publicLeavesAreSafe(value) {
     'readCompleteRoster',
     'acquireBoundedResource',
     'installBrowserRoutes',
+    'selectLinearDrillProviderUsers',
+    'runLedgerPayload',
+    'assertRunLedgerRow',
+    'assertRunOwnedLinearIssueSnapshot',
     'stableJson',
     'liveRequest',
     'writePrivateFailure',
@@ -724,8 +730,65 @@ function publicLeavesAreSafe(value) {
       && assigneeOptionsMutationShapeRejected
       && assigneeOptionFetches === assigneeOptionsFetchesAfterSuccess,
   'the stale-picker assignee-options read has one exact offline courier and rejects mutation fields');
-  ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i.test(source),
-    'the runner embeds no member, deliverable, or event UUID');
+  const pinnedLinearId = 'e92452e1-4499-41e1-8519-e8d066d99e43';
+  const pinnedLinearEmail = 'laruelsidney@gmail.com';
+  const inactiveLinearUser = {
+    id: 'offline-inactive-provider',
+    email: 'archived@example.invalid',
+    active: false,
+  };
+  const nonPinnedActiveUser = {
+    id: 'offline-real-active-user',
+    email: 'person@example.invalid',
+    active: true,
+  };
+  const selectedLinearUsers = runner.selectLinearDrillProviderUsers({
+    nodes: [
+      nonPinnedActiveUser,
+      { id: pinnedLinearId, email: pinnedLinearEmail, active: true },
+      inactiveLinearUser,
+    ],
+  });
+  ok(selectedLinearUsers.machineUser.id === pinnedLinearId
+      && selectedLinearUsers.machineUser.email === pinnedLinearEmail
+      && selectedLinearUsers.inactiveUser.id === inactiveLinearUser.id,
+  'preflight pins the eligible provider to SyncView Mirror and ignores another active user');
+  let nonPinnedActiveRejected = false;
+  try {
+    runner.selectLinearDrillProviderUsers({
+      nodes: [nonPinnedActiveUser, inactiveLinearUser],
+    });
+  } catch (_error) {
+    nonPinnedActiveRejected = true;
+  }
+  ok(nonPinnedActiveRejected,
+    'a non-pinned active Linear user is refused instead of becoming the drill assignee');
+  let pinnedMismatchRejected = false;
+  try {
+    runner.selectLinearDrillProviderUsers({
+      nodes: [
+        { id: pinnedLinearId, email: 'wrong@example.invalid', active: true },
+        inactiveLinearUser,
+      ],
+    });
+  } catch (_error) {
+    pinnedMismatchRejected = true;
+  }
+  let missingInactiveRejected = false;
+  try {
+    runner.selectLinearDrillProviderUsers({
+      nodes: [{ id: pinnedLinearId, email: pinnedLinearEmail, active: true }],
+    });
+  } catch (_error) {
+    missingInactiveRejected = true;
+  }
+  ok(pinnedMismatchRejected && missingInactiveRejected,
+    'preflight aborts on pinned account drift or a missing inactive provider negative fixture');
+  const embeddedUuids = [...source.matchAll(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi,
+  )].map(match => match[0].toLowerCase());
+  ok(JSON.stringify([...new Set(embeddedUuids)]) === JSON.stringify([pinnedLinearId]),
+    'the only embedded UUID is the explicitly pinned SyncView Mirror provider id');
 
   // ---- Public privacy: a closed projection, not generic redaction --------
   const rawPrivateFixture = {
@@ -994,21 +1057,18 @@ function publicLeavesAreSafe(value) {
     && /routeState\.matrixWrites/.test(browserRouter),
   'the Node route admits only the exact expected UI status/CAS request for the active TEST fixture');
 
-  // ---- F37 real roster: read-only enumeration, local verification --------
+  // ---- Pre-existing roster safety + synthetic-only F37 identity shapes ----
   const completeRoster = sourceFunction(source, 'readCompleteRoster');
   const establishRoster = sourceFunction(source, 'establishReadOnlyRoster');
   const rosterInvariant = sourceFunction(source, 'assertPreExistingRosterUnchanged');
-  const rosterSnapshot = sourceFunction(source, 'readOnlyActiveRosterSnapshot');
-  const rosterProjection = sourceFunction(source, 'buildReadOnlyRosterProjection');
   const f37Runner = sourceFunction(source, 'runF37Identity');
   ok(/team_members\?select=\*&order=id\.asc&limit=\$\{pageSize\}/.test(completeRoster)
     && /id=gt\./.test(completeRoster)
     && /page < 100/.test(completeRoster)
     && /runtime\.readOnlyMemberIds\.add\(clean\(row\.id\)\)/.test(establishRoster)
-    && /creatives\.length > 0/.test(establishRoster)
     && /withoutRunRows/.test(rosterInvariant)
-    && /runtime\.preExistingRoster/.test(rosterSnapshot),
-  'F37 freezes the complete paginated roster before writes and derives a nonempty creative cohort');
+    && /runtime\.preExistingRoster/.test(rosterInvariant),
+  'the safety baseline freezes the complete paginated roster without selecting real identities');
   const pagedRoster = Array.from({ length: 501 }, (_unused, index) => ({
     id: `member-${String(index + 1).padStart(4, '0')}`,
     name: `offline-${index + 1}`,
@@ -1058,104 +1118,25 @@ function publicLeavesAreSafe(value) {
   }
   ok(changedRosterRejected,
     'cleanup rejects any changed field on a pre-existing roster row');
-  ok(/production_deliverables_browser_v1/.test(rosterProjection)
-    && /assignee_id:\s*member\.id/.test(rosterProjection)
-    && /!runtime\.createdDeliverableIds\.has\(clean\(row\.id\)\)/.test(rosterProjection)
-    && /markerPresent\(row\.title, runtime\)/.test(rosterProjection),
-  'real creatives receive only drill-marked browser clones outside every write allowlist');
-  const localVerifierAt = browserRouter.indexOf('if (readOnlyMember)');
-  const liveVerifierAt = browserRouter.indexOf('guardedBrowserVerifier(');
-  ok(localVerifierAt >= 0 && liveVerifierAt > localVerifierAt
-    && /route\.fulfill/.test(browserRouter.slice(localVerifierAt, liveVerifierAt))
-    && /!runtime\.createdMemberIds\.has\(memberId\)/.test(
-      browserRouter.slice(localVerifierAt, liveVerifierAt),
-    )
-    && /slice5-drill-browser-placeholder/.test(
-      browserRouter.slice(localVerifierAt, liveVerifierAt),
-    ),
-  'pre-existing creatives complete the exact verifier flow locally and never reach live key-verify');
-  ok(/clean\(input\.surface\) === ['"]staff-login['"]/.test(browserRouter)
-    && /mode:\s*runtime\.authMode/.test(browserRouter)
-    && !/drill_read_only/.test(browserRouter),
-  'the local verifier mirrors the deployed staff-login surface and auth-mode response contract');
-  const localMember = {
-    id: 'real-read-only-creative',
-    name: 'Offline Creative',
-    email: 'offline@example.invalid',
-    role: 'editor',
-    team: 'video',
-    active: true,
-  };
-  let routeHandler = null;
-  let localFetches = 0;
-  let fulfilled = null;
-  const localRouteRuntime = {
-    runToken: 'slice5-offline-route',
-    config: { supabaseUrl: 'https://offline.invalid' },
-    authMode: 'enforced',
-    readOnlyMemberIds: new Set([localMember.id]),
-    createdMemberIds: new Set(),
-    createdBatchIds: new Set(),
-    createdDeliverableIds: new Set(),
-    activeRequestControllers: new Set(),
-    processDeadlineAt: Date.now() + (60 * 60_000),
-    cleanupStarted: false,
-    fetch: async () => {
-      localFetches++;
-      throw new Error('local verifier reached the network');
-    },
-  };
-  const localRouteState = {
-    stage: 'f37_identity',
-    readOnlyRosterById: new Map([[localMember.id, localMember]]),
-    localRosterVerifications: 0,
-    liveVerifierWrites: 0,
-    routeError: null,
-  };
-  await runner.installBrowserRoutes(localRouteRuntime, {
-    route: async (_pattern, handler) => { routeHandler = handler; },
-  }, localRouteState);
-  await routeHandler({
-    request: () => ({
-      url: () => 'https://offline.invalid/functions/v1/key-verify',
-      method: () => 'POST',
-      postData: () => JSON.stringify({
-        surface: 'staff-login',
-        member: { id: localMember.id },
-      }),
-      headers: () => ({ 'x-syncview-key': 'slice5-drill-browser-placeholder' }),
-    }),
-    fulfill: async value => { fulfilled = value; },
-    abort: async () => { throw new Error('local verifier route aborted'); },
-    continue: async () => {},
-  });
-  const localResponse = JSON.parse(fulfilled.body);
-  ok(localFetches === 0
-    && !localRouteState.routeError
-    && localRouteState.localRosterVerifications === 1
-    && localRouteState.liveVerifierWrites === 0
-    && localResponse.ok === true
-    && localResponse.mode === 'enforced'
-    && localResponse.role === 'creative'
-    && JSON.stringify(localResponse.member) === JSON.stringify({
-      id: localMember.id,
-      name: localMember.name,
-      email: localMember.email,
-      role: localMember.role,
-      team: localMember.team,
-    }),
-  'a real creative is fulfilled locally with the exact response and zero network activity');
-  ok(/stableJson\(rosterAfter\) === stableJson\(rosterBefore\)/.test(f37Runner)
-    && /routeState\.liveVerifierWrites === liveVerifierBeforeRealRoster/.test(f37Runner)
-    && /routeState\.localRosterVerifications === rosterBefore\.creatives\.length/.test(f37Runner),
-  'F37 proves the real roster stayed immutable and no real identity produced a live verifier write');
-  ok(Object.prototype.hasOwnProperty.call(sanitized.f37_identity,
-    'active_creative_roster_count')
-    && Object.prototype.hasOwnProperty.call(sanitized.f37_identity,
-      'read_only_roster_checks_count')
-    && /active_creative_roster_count:\s*rosterBefore\.creatives\.length/.test(f37Runner)
-    && /read_only_roster_checks_count:\s*readOnlyRosterChecks/.test(f37Runner),
-  'the public aggregate exposes only real-roster counts, never roster identities');
+  ok(/runtime\.createdMemberIds\.has\(memberId\)/.test(browserRouter)
+    && /!runtime\.readOnlyMemberIds\.has\(memberId\)/.test(browserRouter)
+    && !/if \(readOnlyMember\)|readOnlyRosterById|localRosterVerifications/.test(browserRouter),
+  'the F37 verifier route admits synthetic drill identities only');
+  ok(/scope:\s*['"]synthetic_identity_shapes_only['"]/.test(f37Runner)
+    && /real_sign_in_verification:\s*['"]supervised_owner_session_required['"]/.test(f37Runner)
+    && /synthetic_identity_count:\s*activeCreatives\.length/.test(f37Runner)
+    && !/preExistingRoster|readOnlyMember|rosterBefore|real creative/i.test(f37Runner),
+  'F37 reports synthetic-shape scope and explicitly leaves real sign-ins to the owner');
+  ok(sanitized.f37_identity.scope === 'synthetic_identity_shapes_only'
+    && sanitized.f37_identity.real_sign_in_verification
+      === 'supervised_owner_session_required'
+    && Object.prototype.hasOwnProperty.call(
+      sanitized.f37_identity, 'synthetic_identity_count')
+    && !Object.prototype.hasOwnProperty.call(
+      sanitized.f37_identity, 'active_creative_roster_count')
+    && !Object.prototype.hasOwnProperty.call(
+      sanitized.f37_identity, 'read_only_roster_checks_count'),
+  'the public aggregate cannot be read as proving real-staff sign-ins');
 
   // ---- Every live request is aborted inside a reserved process budget ----
   const liveRequestSource = sourceFunction(source, 'liveRequest');
@@ -1364,6 +1345,130 @@ function publicLeavesAreSafe(value) {
     'the runner contains no runtime-flag write path');
   const cleanupRunner = sourceFunction(source, 'cleanup');
   const memberCleanup = sourceFunction(source, 'cleanupSyntheticMembers');
+  const providerIssue = sourceFunction(source, 'providerIssueIdFor');
+  const mainRunner = sourceFunction(source, 'main');
+  const restWriteSource = sourceFunction(source, 'restWrite');
+  const openRunLedger = sourceFunction(source, 'openDurableRunLedger');
+  const clearRunLedger = sourceFunction(source, 'clearDurableRunLedger');
+  const linearOwnershipRuntime = {
+    runToken: 'slice5-offline-owned',
+    linear: {
+      project: { id: 'offline-test-project' },
+      team: { id: 'offline-test-team' },
+    },
+  };
+  const ownedLinearIssue = {
+    id: 'offline-minted-issue',
+    title: 'Slice 5 drill slice5-offline-owned Deliverable',
+    description: 'Slice 5 drill slice5-offline-owned Disposable TEST deliverable',
+    project: { id: 'offline-test-project' },
+    team: { id: 'offline-test-team' },
+  };
+  ok(runner.assertRunOwnedLinearIssueSnapshot(
+    linearOwnershipRuntime,
+    ownedLinearIssue,
+    ownedLinearIssue.id,
+    'deliverable',
+  ) === ownedLinearIssue,
+  'cleanup accepts an exact run-marker, issue-id, TEST-project, and TEST-team ownership proof');
+  let foreignLinearIssueRejected = false;
+  try {
+    runner.assertRunOwnedLinearIssueSnapshot(
+      linearOwnershipRuntime,
+      { ...ownedLinearIssue, title: 'Pre-existing issue' },
+      ownedLinearIssue.id,
+      'deliverable',
+    );
+  } catch (_error) {
+    foreignLinearIssueRejected = true;
+  }
+  ok(foreignLinearIssueRejected,
+    'TEST project/team scope alone cannot authorize archiving a pre-existing Linear issue');
+  ok(/lower\(create\.status\) === ['"]written['"]/.test(providerIssue)
+    && /clean\(create\.dedup_key\) === clean\(expected\.dedup\)/.test(providerIssue)
+    && /clean\(result\.mutation\) === ['"]issueCreate['"]/.test(providerIssue)
+    && /idempotency_conflict/.test(providerIssue)
+    && providerIssue.indexOf('await linearIssueSnapshot(')
+      < providerIssue.indexOf('return clean(expected.issueId)'),
+  'the create receipt and live marker ownership are proved before an issue id reaches archive');
+  ok((cleanupRunner.match(
+    /const issueId = await providerIssueIdFor\([\s\S]{0,500}?await ledgerWrite\(/g,
+  ) || []).length === 2,
+  'both deliverable and batch archive intents are submitted only after provider ownership proof');
+
+  const ledgerRuntime = {
+    runToken: 'slice5-offline-ledger',
+    client: { slug: 'offline-test-client' },
+    identityPlan: {
+      members: [{ id: 'member-b' }, { id: 'member-a' }],
+      fixture: {
+        batchId: 'batch-a',
+        deliverableId: 'deliverable-a',
+        batchIssueId: 'issue-b',
+        deliverableIssueId: 'issue-a',
+      },
+    },
+  };
+  const ledgerPayload = runner.runLedgerPayload(ledgerRuntime);
+  ok(runner.stableJson(ledgerPayload) === runner.stableJson({
+    protocol: 'slice5_test_drill_run_v1',
+    marker: 'drill',
+    run_token: 'slice5-offline-ledger',
+    member_ids: ['member-a', 'member-b'],
+    batch_ids: ['batch-a'],
+    deliverable_ids: ['deliverable-a'],
+    linear_issue_ids: ['issue-a', 'issue-b'],
+    dedup_prefix: 'slice5-offline-ledger:',
+  }),
+  'the durable ledger records every reserved cleanup identity before any create');
+  const ledgerRow = {
+    id: 7,
+    surface: 'slice5_test_drills',
+    client_slug: 'offline-test-client',
+    actor: 'slice5-offline-ledger',
+    role: 'system',
+    action: 'run_open',
+    source: 'slice5_test_drill',
+    payload: ledgerPayload,
+  };
+  ok(runner.assertRunLedgerRow(ledgerRuntime, ledgerRow, 'cleanup') === ledgerRow,
+    'only the exact active-TEST run ledger row is accepted for cleanup clearing');
+  let foreignLedgerRejected = false;
+  try {
+    runner.assertRunLedgerRow(
+      ledgerRuntime,
+      { ...ledgerRow, client_slug: 'real-client' },
+      'cleanup',
+    );
+  } catch (_error) {
+    foreignLedgerRejected = true;
+  }
+  ok(foreignLedgerRejected,
+    'a ledger row for another client cannot be cleared by this run');
+  const reserveAt = mainRunner.indexOf('reserveRunIdentities(runtime)');
+  const ledgerOpenAt = mainRunner.indexOf('openDurableRunLedger(runtime)');
+  const memberCreateAt = mainRunner.indexOf('createSyntheticMembers(');
+  const fixtureCreateAt = mainRunner.indexOf('createFixture(');
+  ok(reserveAt >= 0
+    && ledgerOpenAt > reserveAt
+    && memberCreateAt > ledgerOpenAt
+    && fixtureCreateAt > ledgerOpenAt
+    && /settings_events/.test(openRunLedger),
+  'the durable ledger is persisted after identity reservation and before the first create');
+  const ambiguousSettleAt = memberCleanup.indexOf('AMBIGUOUS_WRITE_SETTLE_MS');
+  const memberRecoveryAt = memberCleanup.indexOf('for (const id of memberIds)');
+  ok(/options\.memberInsert === true/.test(restWriteSource)
+    && /runtime\.ambiguousMemberIds\.add\(id\)/.test(restWriteSource)
+    && ambiguousSettleAt >= 0
+    && memberRecoveryAt > ambiguousSettleAt
+    && /survivors\.length === 0/.test(memberCleanup),
+  'an aborted member create stays unresolved until a settle window and final absence proof');
+  ok(/const cleanupProven = errors\.length === 0/.test(cleanupRunner)
+    && cleanupRunner.indexOf('if (cleanupProven && runtime.runLedger)')
+      < cleanupRunner.indexOf('clearDurableRunLedger(runtime)')
+    && /durable run ledger clear was not proven/.test(clearRunLedger)
+    && /runLedgerCleared/.test(cleanupRunner),
+  'cleanup_ok cannot become true or clear discoverability before every cleanup proof completes');
   ok(/deliverable_events/.test(cleanupRunner)
     && /mirror_outbox/.test(cleanupRunner)
     && /cleanupSyntheticMembers\(runtime, deliverableIds\)/.test(cleanupRunner)

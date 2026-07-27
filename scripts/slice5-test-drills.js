@@ -157,6 +157,158 @@ const FAILURE_CODES = new Set([
   'fixture_plan_mismatch',
   'preflight_only_mutation_blocked',
   'preflight_only_browser_blocked',
+  // Guarded-request and scope helpers. These fire from every stage, so an
+  // uncoded one surfaced as unclassified_failure no matter which drill ran.
+  'poll_code_missing',
+  'request_after_cleanup',
+  'deadline_exhausted',
+  'live_request_failed',
+  'rest_read_method_forbidden',
+  'supabase_read_failed',
+  'supabase_write_failed',
+  'run_marker_missing',
+  'member_target_out_of_scope',
+  'member_row_not_unique',
+  'member_marker_missing',
+  'rest_write_filter_forbidden',
+  'rest_write_method_forbidden',
+  'rest_write_target_unbound',
+  'rest_write_client_unbound',
+  'run_ledger_row_invalid',
+  'run_ledger_row_ambiguous',
+  'run_ledger_delete_unbound',
+  'run_ledger_insert_shape_forbidden',
+  'run_ledger_delete_shape_forbidden',
+  'run_ledger_state_unavailable',
+  'run_ledger_clear_unproven',
+  'deliverable_target_out_of_scope',
+  'deliverable_row_not_unique',
+  'deliverable_escaped_test_scope',
+  'deliverable_marker_missing',
+  'batch_target_out_of_scope',
+  'batch_row_not_unique',
+  'batch_escaped_test_scope',
+  'batch_marker_missing',
+  'edge_write_target_unbound',
+  'edge_write_operation_missing',
+  'edge_write_client_drift',
+  'edge_write_function_forbidden',
+  'edge_write_failed',
+  'edge_drain_target_unbound',
+  'gateway_write_target_unbound',
+  'gateway_write_operation_unbound',
+  'gateway_write_client_drift',
+  'gateway_override_impersonated',
+  'gateway_override_missing',
+  'gateway_actor_missing',
+  'gateway_actor_mismatch',
+  'gateway_actor_unexpected',
+  'ledger_write_kind_invalid',
+  'ledger_create_id_unreserved',
+  'ledger_write_row_missing',
+  'ledger_outbox_intent_missing',
+  'drain_intent_missing',
+  'drain_intent_out_of_scope',
+  'service_patch_not_unique',
+  // Browser route guards, shared by every drill that installs them.
+  'browser_verify_request_forbidden',
+  'browser_verify_target_forbidden',
+  'browser_comment_read_forbidden',
+  'browser_status_write_forbidden',
+  'browser_picker_write_forbidden',
+  'browser_write_not_enabled',
+  'browser_route_error',
+  // F94 assignment negatives.
+  'f94_row_mutated',
+  'f94_event_created',
+  'f94_outbox_created',
+  'f94_scoped_event_created',
+  'f94_scoped_outbox_created',
+  'f94_eligible_row_not_updated',
+  'f94_eligible_event_count_wrong',
+  'f94_eligible_outbox_count_wrong',
+  'f94_eligible_event_not_appended',
+  'f94_eligible_outbox_not_appended',
+  'f94_eligible_assignment_rejected',
+  'f94_assignee_not_pinned',
+  'f94_assignment_clear_failed',
+  'f94_assignment_clear_unproven',
+  'f94_picker_member_absent',
+  'f94_stale_commit_not_refused',
+  // F136 status matrix.
+  'f136_oracle_row_not_unique',
+  'f136_oracle_adoption_failed',
+  'f136_clock_ordinal_invalid',
+  'f136_actor_not_unique',
+  'f136_forbidden_tuple_escaped',
+  'f136_accepted_tuple_not_dispatched',
+  'f136_control_request_count_wrong',
+  'f136_control_coverage_incomplete',
+  'f136_policy_oracle_mismatch',
+  'f136_policy_totals_incomplete',
+  'f136_unexpected_gateway_response',
+  'f136_creative_transitions_mismatch',
+  'f136_matrix_incomplete',
+  'f136_accepted_path_mismatch',
+  'f136_cas_adoption_failed',
+  'f136_stale_cas_not_refused',
+  'f136_zero_proof_count_wrong',
+  'f136_cas_totals_mismatch',
+  // F37 personal identity.
+  'f37_member_unknown',
+  'f37_actor_not_unique',
+  'f37_wrong_personal_queue',
+  'f37_account_switch_leaked',
+  'f37_resolved_by_name',
+  'f37_reorder_changed_identity',
+  'f37_zero_row_queue',
+  'f37_deactivated_queue_retained',
+  'f37_signed_out_queue_retained',
+  // F95 convergence.
+  'f95_context_not_converged',
+  'f95_comment_not_converged',
+  'f95_comment_not_committed',
+  'f95_surface_not_scrollable',
+  'f95_scroll_not_preserved',
+  'f95_state_not_preserved',
+  'f95_composer_missing',
+  'f95_degraded_not_shown',
+  // Cleanup and provider teardown.
+  'cleanup_budget_exhausted',
+  'cleanup_recovery_target_foreign',
+  'cleanup_comment_missing',
+  'cleanup_comment_tombstone_failed',
+  'cleanup_comment_incomplete',
+  'cleanup_member_still_assigned',
+  'cleanup_member_incomplete',
+  'cleanup_auth_event_foreign',
+  'cleanup_event_residue_foreign',
+  'cleanup_outbox_not_terminal',
+  'outbox_intent_out_of_scope',
+  'provider_target_out_of_scope',
+  'provider_receipt_missing',
+  'provider_issue_not_run_owned',
+  'provider_issue_foreign',
+  'provider_issue_snapshot_foreign',
+  // Read-only timing rebaseline.
+  'rebaseline_budget_exhausted',
+  'rebaseline_probe_missing',
+  'rebaseline_failed',
+  'rebaseline_medians_unbounded',
+  // Bounded waits. One per poll() call site, so a timeout names WHICH wait
+  // ran out rather than reporting a bare stage.
+  'fixture_batch_linkage_timeout',
+  'fixture_deliverable_linkage_timeout',
+  'stale_picker_response_timeout',
+  'matrix_control_response_timeout',
+  'convergence_retry_timeout',
+  'outbox_terminal_receipt_timeout',
+  'cleanup_deliverable_archive_timeout',
+  'cleanup_batch_archive_timeout',
+  'cleanup_linear_archive_timeout',
+  'bounded_operation_timeout',
+  'bounded_resource_timeout',
+  'bounded_resource_expired',
 ]);
 /* Whether the assignee_provider_inactive negative case could be proven. The
    Linear workspace has no inactive/archived provider user, and deactivating a
@@ -333,7 +485,8 @@ function requestDeadlineMs(
   assert(Number.isFinite(processDeadline), 'preflight',
     'drill process deadline is unavailable', undefined, 'deadline_unresolved');
   if (runtime.cleanupStarted === true && !POST_CLEANUP_REQUEST_STAGES.has(stage)) {
-    fail('cleanup', 'a non-cleanup request tried to start after cleanup began');
+    fail('cleanup', 'a non-cleanup request tried to start after cleanup began',
+      undefined, 'request_after_cleanup');
   }
   const phaseDeadline = runtime.cleanupStarted === true
     ? processDeadline
@@ -342,7 +495,7 @@ function requestDeadlineMs(
   assert(remaining > 0, runtime.cleanupStarted === true ? 'cleanup' : stage,
     runtime.cleanupStarted === true
       ? 'drill process deadline exhausted during cleanup'
-      : 'drill phase exhausted the cleanup reserve');
+      : 'drill phase exhausted the cleanup reserve', undefined, 'deadline_exhausted');
   return Math.max(1, Math.min(Number(requestedMs) || LIVE_REQUEST_TIMEOUT_MS, remaining));
 }
 
@@ -381,7 +534,7 @@ async function liveRequest(runtime, url, init = {}, options = {}) {
       timeout_ms: timeoutMs,
       aborted: controller.signal.aborted,
       error: error && error.message,
-    });
+    }, 'live_request_failed');
   } finally {
     clearTimeout(timer);
     if (activeControllers) activeControllers.delete(controller);
@@ -414,7 +567,7 @@ async function boundedOperation(
         timer = setTimeout(() => {
           reject(new DrillError(stage, `${label} exceeded its deadline`, {
             timeout_ms: timeoutMs,
-          }));
+          }, 'bounded_operation_timeout'));
         }, timeoutMs);
       }),
     ]);
@@ -440,7 +593,8 @@ async function acquireBoundedResource(
       // Every resource disposer below neutralizes its handle synchronously
       // before returning a promise, so a late resolution cannot keep Node alive.
       Promise.resolve().then(() => dispose(resource)).catch(() => {});
-      throw new DrillError(stage, `${label} resolved after its owner expired`);
+      throw new DrillError(stage, `${label} resolved after its owner expired`,
+        undefined, 'bounded_resource_expired');
     }
     try {
       register(resource);
@@ -458,7 +612,7 @@ async function acquireBoundedResource(
           expired = true;
           reject(new DrillError(stage, `${label} exceeded its acquisition deadline`, {
             timeout_ms: timeoutMs,
-          }));
+          }, 'bounded_resource_timeout'));
         }, timeoutMs);
       }),
     ]);
@@ -490,7 +644,8 @@ async function restRead(runtime, resource, options = {}) {
   const stage = options.stage || 'preflight';
   const method = clean(options.method || 'GET').toUpperCase();
   assert(method === 'GET', stage,
-    'Supabase read helper refuses mutation-capable HTTP methods');
+    'Supabase read helper refuses mutation-capable HTTP methods',
+    undefined, 'rest_read_method_forbidden');
   const { response, bytes } = await liveRequest(
     runtime,
     `${runtime.config.supabaseUrl}/rest/v1/${resource}`,
@@ -514,7 +669,7 @@ async function restRead(runtime, resource, options = {}) {
       resource: resource.split('?')[0],
       status: response.status,
       body,
-    });
+    }, 'supabase_read_failed');
   }
   return body;
 }
@@ -546,23 +701,25 @@ async function assertActiveTestWriteTarget(targetClientSlug, runtime, stage = 'p
 
 function assertRunMarkerPayload(value, runtime, stage) {
   assert(markerPresent(stableJson(value), runtime), stage,
-    'mutable payload is missing the run-owned drill marker');
+    'mutable payload is missing the run-owned drill marker', undefined, 'run_marker_missing');
 }
 
 async function assertSyntheticMemberMutationAllowed(runtime, memberId, stage = 'cleanup') {
   const id = clean(memberId);
   assert(!runtime.readOnlyMemberIds.has(id), stage,
-    'pre-existing roster member cannot be a mutation target');
+    'pre-existing roster member cannot be a mutation target',
+    undefined, 'member_target_out_of_scope');
   assert(runtime.createdMemberIds.has(id), stage,
-    'member mutation target is outside the run-created allowlist');
+    'member mutation target is outside the run-created allowlist',
+    undefined, 'member_target_out_of_scope');
   const rows = await restRead(runtime,
     `team_members?select=id,name,email,role,team,active,linear_user_id&id=eq.${encodeURIComponent(id)}&limit=2`,
     { stage });
   assert(Array.isArray(rows) && rows.length === 1, stage,
-    'run-owned member no longer resolves uniquely');
+    'run-owned member no longer resolves uniquely', undefined, 'member_row_not_unique');
   const row = rows[0];
   assert(markerPresent(row.name, runtime) || markerPresent(row.email, runtime), stage,
-    'run-owned member marker is missing');
+    'run-owned member marker is missing', undefined, 'member_marker_missing');
   return row;
 }
 
@@ -618,7 +775,8 @@ function assertNoLogicalMutationFilters(resource, stage) {
   if (!query) return true;
   for (const [key] of new URLSearchParams(query)) {
     assert(!/(?:^|\.)(?:or|and|not)(?:\.|$)/.test(lower(key)), stage,
-      'logical PostgREST filters are forbidden on drill mutation resources');
+      'logical PostgREST filters are forbidden on drill mutation resources',
+      undefined, 'rest_write_filter_forbidden');
   }
   return true;
 }
@@ -635,14 +793,16 @@ function assertExactPostgrestMutationTarget(
       && idFilters.length === 1
       && clean(idFilters[0]) === `eq.${clean(expectedId)}`,
   stage,
-  'PostgREST mutation must bind the exact run-owned row id');
+  'PostgREST mutation must bind the exact run-owned row id',
+  undefined, 'rest_write_target_unbound');
   if (expectedClientSlug !== undefined) {
     const clientFilters = target.searchParams.getAll('client_slug');
     assert(clean(expectedClientSlug)
         && clientFilters.length === 1
         && clean(clientFilters[0]) === `eq.${clean(expectedClientSlug)}`,
     stage,
-    'PostgREST mutation must bind the exact active TEST client slug');
+    'PostgREST mutation must bind the exact active TEST client slug',
+    undefined, 'rest_write_client_unbound');
   }
   return true;
 }
@@ -686,7 +846,8 @@ function assertRunLedgerRow(runtime, row, stage = 'cleanup') {
       && clean(row.action) === 'run_open'
       && clean(row.source) === RUN_LEDGER_SOURCE
       && stableJson(parseJson(row.payload)) === stableJson(runLedgerPayload(runtime)),
-  stage, 'durable run ledger row is missing, ambiguous, or not run-owned');
+  stage, 'durable run ledger row is missing, ambiguous, or not run-owned',
+  undefined, 'run_ledger_row_invalid');
   return row;
 }
 
@@ -707,7 +868,8 @@ function assertExactRunLedgerDeleteTarget(runtime, resource, expectedId, stage) 
       && Object.entries(exact).every(([key, value]) =>
         target.searchParams.getAll(key).length === 1
           && clean(target.searchParams.get(key)) === value),
-  stage, 'durable run ledger delete is not bound to the exact run-owned row');
+  stage, 'durable run ledger delete is not bound to the exact run-owned row',
+  undefined, 'run_ledger_delete_unbound');
   return true;
 }
 
@@ -739,32 +901,33 @@ async function assertSyntheticMemberInsertAllowed(runtime, rows) {
 async function assertRunOwnedDeliverable(runtime, id, stage = 'preflight') {
   const key = clean(id);
   assert(runtime.createdDeliverableIds.has(key), stage,
-    'deliverable target is outside the run-created allowlist');
+    'deliverable target is outside the run-created allowlist',
+    undefined, 'deliverable_target_out_of_scope');
   const rows = await restRead(runtime,
     `deliverables?select=*&id=eq.${encodeURIComponent(key)}&limit=2`, { stage });
   assert(Array.isArray(rows) && rows.length === 1, stage,
-    'run-owned deliverable no longer resolves uniquely');
+    'run-owned deliverable no longer resolves uniquely', undefined, 'deliverable_row_not_unique');
   const row = rows[0];
   assert(clean(row.client_slug) === clean(runtime.client.slug), stage,
-    'run-owned deliverable escaped TEST scope');
+    'run-owned deliverable escaped TEST scope', undefined, 'deliverable_escaped_test_scope');
   assert(markerPresent(row.title, runtime) || markerPresent(row.brief, runtime), stage,
-    'run-owned deliverable marker is missing');
+    'run-owned deliverable marker is missing', undefined, 'deliverable_marker_missing');
   return row;
 }
 
 async function assertRunOwnedBatch(runtime, id, stage = 'preflight') {
   const key = clean(id);
   assert(runtime.createdBatchIds.has(key), stage,
-    'batch target is outside the run-created allowlist');
+    'batch target is outside the run-created allowlist', undefined, 'batch_target_out_of_scope');
   const rows = await restRead(runtime,
     `batches?select=*&id=eq.${encodeURIComponent(key)}&limit=2`, { stage });
   assert(Array.isArray(rows) && rows.length === 1, stage,
-    'run-owned batch no longer resolves uniquely');
+    'run-owned batch no longer resolves uniquely', undefined, 'batch_row_not_unique');
   const row = rows[0];
   assert(clean(row.client_slug) === clean(runtime.client.slug), stage,
-    'run-owned batch escaped TEST scope');
+    'run-owned batch escaped TEST scope', undefined, 'batch_escaped_test_scope');
   assert(markerPresent(row.name, runtime) || markerPresent(row.description, runtime), stage,
-    'run-owned batch marker is missing');
+    'run-owned batch marker is missing', undefined, 'batch_marker_missing');
   return row;
 }
 
@@ -780,7 +943,8 @@ async function restWrite(runtime, resource, options) {
   const method = clean(options.method || 'POST').toUpperCase();
   assert(['team_members', 'deliverables', 'batches', 'settings_events'].includes(table),
     options.stage || 'cleanup',
-    'Supabase mutation table is outside the drill allowlist');
+    'Supabase mutation table is outside the drill allowlist',
+    undefined, 'rest_write_table_forbidden');
   if (options.memberInsert) {
     assert(table === 'team_members', options.stage || 'preflight',
       'member insert must target team_members', undefined, 'rest_write_table_forbidden');
@@ -805,7 +969,8 @@ async function restWrite(runtime, resource, options) {
   if (table === 'team_members' && !options.memberInsert) {
     assert(['PATCH', 'DELETE'].includes(method),
       options.stage || 'cleanup',
-      'synthetic member mutation method is outside the drill allowlist');
+      'synthetic member mutation method is outside the drill allowlist',
+      undefined, 'rest_write_method_forbidden');
     assertExactPostgrestMutationTarget(
       resource,
       options.memberId,
@@ -815,7 +980,8 @@ async function restWrite(runtime, resource, options) {
   }
   if (table === 'deliverables') {
     assert(method === 'PATCH', options.stage || 'cleanup',
-      'deliverable REST mutation method is outside the drill allowlist');
+      'deliverable REST mutation method is outside the drill allowlist',
+      undefined, 'rest_write_method_forbidden');
     assertExactPostgrestMutationTarget(
       resource,
       options.deliverableId,
@@ -825,7 +991,8 @@ async function restWrite(runtime, resource, options) {
   }
   if (table === 'batches') {
     assert(method === 'PATCH', options.stage || 'cleanup',
-      'batch REST mutation method is outside the drill allowlist');
+      'batch REST mutation method is outside the drill allowlist',
+      undefined, 'rest_write_method_forbidden');
     assertExactPostgrestMutationTarget(
       resource,
       options.batchId,
@@ -836,7 +1003,8 @@ async function restWrite(runtime, resource, options) {
   if (table === 'settings_events') {
     assert(options.runLedgerInsert === true || options.runLedgerDelete === true,
       options.stage || 'cleanup',
-      'settings_events mutation is not the durable run ledger');
+      'settings_events mutation is not the durable run ledger',
+      undefined, 'rest_write_shape_forbidden');
     if (options.runLedgerInsert === true) {
       assert(method === 'POST'
           && !clean(resource).includes('?')
@@ -850,11 +1018,13 @@ async function restWrite(runtime, resource, options) {
           && stableJson(parseJson(rows[0] && rows[0].payload))
             === stableJson(runLedgerPayload(runtime)),
       options.stage || 'preflight',
-      'durable run ledger insert is not the exact reserved run identity');
+      'durable run ledger insert is not the exact reserved run identity',
+      undefined, 'run_ledger_insert_shape_forbidden');
     } else {
       assert(method === 'DELETE' && options.runLedgerId,
         options.stage || 'cleanup',
-        'durable run ledger clear must delete one exact row');
+        'durable run ledger clear must delete one exact row',
+        undefined, 'run_ledger_delete_shape_forbidden');
       assertExactRunLedgerDeleteTarget(
         runtime, resource, options.runLedgerId, options.stage || 'cleanup',
       );
@@ -901,7 +1071,7 @@ async function restWrite(runtime, resource, options) {
       resource: resource.split('?')[0],
       status: response.status,
       body,
-    });
+    }, 'supabase_write_failed');
   }
   return body;
 }
@@ -925,16 +1095,20 @@ function assertExactEdgeMutationTarget(runtime, functionName, body, options) {
         && body.test_override === true
         && clean(body.confirm) === 'B4_TEST_ONLY',
     stage,
-    'ledger Edge write is not bound to one exact run-owned TEST entity');
+    'ledger Edge write is not bound to one exact run-owned TEST entity',
+    undefined, 'edge_write_target_unbound');
     const operation = lower(body.operation);
-    assert(operation, stage, 'ledger Edge write operation is missing');
+    assert(operation, stage, 'ledger Edge write operation is missing',
+      undefined, 'edge_write_operation_missing');
     if (operation === 'create') {
       assertRunMarkerPayload(body.patch, runtime, stage);
       assert(clean(parseJson(body.patch).client_slug) === clean(options.targetClientSlug),
-        stage, 'ledger create is not bound to the active TEST client slug');
+        stage, 'ledger create is not bound to the active TEST client slug',
+        undefined, 'edge_write_client_drift');
     } else if (Object.prototype.hasOwnProperty.call(parseJson(body.patch), 'client_slug')) {
       assert(clean(parseJson(body.patch).client_slug) === clean(options.targetClientSlug),
-        stage, 'ledger mutation attempts to change client scope');
+        stage, 'ledger mutation attempts to change client scope',
+        undefined, 'edge_write_client_drift');
     }
     return { entity, id, creating: operation === 'create', dedup: '' };
   }
@@ -951,10 +1125,12 @@ function assertExactEdgeMutationTarget(runtime, functionName, body, options) {
         && !options.deliverableId
         && !options.batchId,
     stage,
-    'outbound Edge write is not bound to one tracked TEST intent');
+    'outbound Edge write is not bound to one tracked TEST intent',
+    undefined, 'edge_drain_target_unbound');
     return { entity: '', id: '', creating: false, dedup };
   }
-  fail(stage, 'Edge write function is outside the drill mutation allowlist');
+  fail(stage, 'Edge write function is outside the drill mutation allowlist',
+    undefined, 'edge_write_function_forbidden');
 }
 
 function assertExactGatewayMutationTarget(runtime, body, options) {
@@ -981,7 +1157,8 @@ function assertExactGatewayMutationTarget(runtime, body, options) {
         && !options.staff
         && !options.actorMemberId,
     stage,
-    'assignee-options read is not bound to the exact run-owned TEST fixture');
+    'assignee-options read is not bound to the exact run-owned TEST fixture',
+    undefined, 'gateway_write_target_unbound');
     return { id, operation: 'assignee_options' };
   }
   const operation = lower(body && body.operation);
@@ -991,17 +1168,21 @@ function assertExactGatewayMutationTarget(runtime, body, options) {
       && lower(body.surface) === 'production'
       && ['assignee', 'status', 'comment'].includes(operation),
   stage,
-  'gateway write is not bound to one exact run-owned deliverable operation');
+  'gateway write is not bound to one exact run-owned deliverable operation',
+  undefined, 'gateway_write_operation_unbound');
   if (Object.prototype.hasOwnProperty.call(body, 'client_slug')) {
     assert(clean(body.client_slug) === clean(options.targetClientSlug),
-      stage, 'gateway write carries a different client scope');
+      stage, 'gateway write carries a different client scope',
+      undefined, 'gateway_write_client_drift');
   }
   if (options.staff) {
     assert(body.test_override !== true && !clean(body.confirm),
-      stage, 'staff gateway request cannot impersonate the service TEST override');
+      stage, 'staff gateway request cannot impersonate the service TEST override',
+      undefined, 'gateway_override_impersonated');
   } else {
     assert(body.test_override === true && clean(body.confirm) === 'B4_TEST_ONLY',
-      stage, 'service gateway request lacks the exact TEST override');
+      stage, 'service gateway request lacks the exact TEST override',
+      undefined, 'gateway_override_missing');
   }
   return { id, operation };
 }
@@ -1026,7 +1207,7 @@ async function edgeWrite(runtime, functionName, body, options) {
         { stage: options.stage || 'cleanup' });
       assert(Array.isArray(existing) && existing.length === 0,
         options.stage || 'cleanup',
-        'reserved deliverable create id already exists');
+        'reserved deliverable create id already exists', undefined, 'synthetic_row_already_exists');
     } else {
       await assertRunOwnedDeliverable(runtime, target.id, options.stage);
     }
@@ -1038,7 +1219,7 @@ async function edgeWrite(runtime, functionName, body, options) {
         { stage: options.stage || 'cleanup' });
       assert(Array.isArray(existing) && existing.length === 0,
         options.stage || 'cleanup',
-        'reserved batch create id already exists');
+        'reserved batch create id already exists', undefined, 'synthetic_row_already_exists');
     } else {
       await assertRunOwnedBatch(runtime, target.id, options.stage);
     }
@@ -1069,7 +1250,7 @@ async function edgeWrite(runtime, functionName, body, options) {
       functionName,
       status: response.status,
       body: parsed,
-    });
+    }, 'edge_write_failed');
   }
   return parsed;
 }
@@ -1093,7 +1274,8 @@ async function gatewayWrite(runtime, body, options) {
   const staff = options.staff || null;
   if (staff) {
     assert(options.actorMemberId, options.stage || 'cleanup',
-      'staff gateway request lacks an exact synthetic actor member id');
+      'staff gateway request lacks an exact synthetic actor member id',
+      undefined, 'gateway_actor_missing');
     const actor = await assertSyntheticMemberMutationAllowed(
       runtime, options.actorMemberId, options.stage,
     );
@@ -1105,10 +1287,12 @@ async function gatewayWrite(runtime, body, options) {
         && lower(staff.role) === actorRole
         && clean(staff.key) === clean(runtime.config.roleKeys[actorRole]),
     options.stage || 'cleanup',
-    'staff gateway principal is not the exact synthetic actor');
+    'staff gateway principal is not the exact synthetic actor',
+    undefined, 'gateway_actor_mismatch');
   } else {
     assert(!options.actorMemberId, options.stage || 'cleanup',
-      'service gateway request unexpectedly carries a staff actor');
+      'service gateway request unexpectedly carries a staff actor',
+      undefined, 'gateway_actor_unexpected');
   }
   await assertActiveTestWriteTarget(
     options.targetClientSlug, runtime, options.stage || 'cleanup',
@@ -1154,7 +1338,8 @@ async function guardedBrowserVerifier(runtime, request, roleKey, options) {
       && stableJson(Object.keys(parseJson(input.member)).sort()) === stableJson(['id'])
       && runtime.createdMemberIds.has(memberId)
       && !runtime.readOnlyMemberIds.has(memberId),
-  options.stage || 'f37_identity', 'browser POST is not the exact verifier endpoint');
+  options.stage || 'f37_identity', 'browser POST is not the exact verifier endpoint',
+  undefined, 'browser_verify_request_forbidden');
   await assertActiveTestWriteTarget(
     options.targetClientSlug, runtime, options.stage || 'f37_identity',
   );
@@ -1214,7 +1399,12 @@ async function linearRead(runtime, query, variables = {}, stage = 'preflight') {
   return body.data;
 }
 
-async function poll(runtime, stage, label, fn, timeoutMs = 60_000, intervalMs = 750) {
+// The failure code is REQUIRED and positional, ahead of the predicate. A poll
+// that runs out of patience is the one failure whose message says nothing
+// useful in public -- every wait names the exact thing it was waiting for.
+async function poll(runtime, stage, label, code, fn, timeoutMs = 60_000, intervalMs = 750) {
+  assert(FAILURE_CODES.has(code), stage,
+    'poll was called without an allowlisted timeout code', { label }, 'poll_code_missing');
   const deadline = Date.now() + timeoutMs;
   let last = null;
   while (Date.now() < deadline) {
@@ -1223,7 +1413,7 @@ async function poll(runtime, stage, label, fn, timeoutMs = 60_000, intervalMs = 
     if (last) return last;
     await sleep(Math.min(intervalMs, Math.max(1, deadline - Date.now())));
   }
-  fail(stage, `${label} timed out`, { last });
+  fail(stage, `${label} timed out`, { last }, code);
 }
 
 function projectIdsForTeam(value, wantedTeam) {
@@ -1619,13 +1809,15 @@ async function openDurableRunLedger(runtime) {
 
 async function clearDurableRunLedger(runtime) {
   assert(runtime.runLedger && runtime.runLedger.openAttempted === true,
-    'cleanup', 'durable run ledger state is unavailable');
+    'cleanup', 'durable run ledger state is unavailable',
+    undefined, 'run_ledger_state_unavailable');
   if (runtime.runLedger.ambiguous === true) {
     const settleUntil = Number(runtime.runLedger.ambiguousAt)
       + AMBIGUOUS_WRITE_SETTLE_MS;
     const settleMs = Math.max(0, settleUntil - Date.now());
     assert(Date.now() + settleMs < runtime.processDeadlineAt,
-      'cleanup', 'insufficient cleanup budget for ambiguous run-ledger settlement');
+      'cleanup', 'insufficient cleanup budget for ambiguous run-ledger settlement',
+      undefined, 'cleanup_budget_exhausted');
     if (settleMs > 0) await sleep(settleMs);
   }
   const rows = await restRead(runtime, runLedgerReadResource(runtime), {
@@ -1636,7 +1828,7 @@ async function clearDurableRunLedger(runtime) {
     return true;
   }
   assert(Array.isArray(rows) && rows.length === 1, 'cleanup',
-    'durable run ledger is missing or ambiguous');
+    'durable run ledger is missing or ambiguous', undefined, 'run_ledger_row_ambiguous');
   const row = assertRunLedgerRow(runtime, rows[0], 'cleanup');
   const id = Number(row.id);
   await restWrite(runtime,
@@ -1657,7 +1849,7 @@ async function clearDurableRunLedger(runtime) {
     stage: 'cleanup',
   });
   assert(Array.isArray(after) && after.length === 0, 'cleanup',
-    'durable run ledger clear was not proven');
+    'durable run ledger clear was not proven', undefined, 'run_ledger_clear_unproven');
   runtime.runLedger.id = id;
   runtime.runLedger.cleared = true;
   return true;
@@ -1684,18 +1876,19 @@ async function createSyntheticMembers(runtime, definitions) {
 
 async function ledgerWrite(runtime, kind, request, stage) {
   const isBatch = kind === 'batch';
-  assert(isBatch || kind === 'deliverable', stage, 'invalid ledger write kind');
+  assert(isBatch || kind === 'deliverable', stage, 'invalid ledger write kind',
+    undefined, 'ledger_write_kind_invalid');
   if (request.operation === 'create') assertRunMarkerPayload(request.patch, runtime, stage);
   runtime.createdDedups.add(clean(request.dedup));
   if (request.operation === 'create') {
     const allowlist = isBatch ? runtime.createdBatchIds : runtime.createdDeliverableIds;
     const table = isBatch ? 'batches' : 'deliverables';
     assert(request.id && allowlist.has(clean(request.id)), stage,
-      'ledger create id was not reserved before send');
+      'ledger create id was not reserved before send', undefined, 'ledger_create_id_unreserved');
     const absent = await restRead(runtime,
       `${table}?select=id&id=eq.${encodeURIComponent(request.id)}&limit=1`, { stage });
     assert(Array.isArray(absent) && absent.length === 0, stage,
-      'reserved ledger create id already exists');
+      'reserved ledger create id already exists', undefined, 'synthetic_row_already_exists');
   }
   const body = {
     id: request.id || undefined,
@@ -1716,12 +1909,13 @@ async function ledgerWrite(runtime, kind, request, stage) {
     stage,
   });
   const row = data.row;
-  assert(row && clean(row.id), stage, 'ledger wrapper returned no row');
+  assert(row && clean(row.id), stage, 'ledger wrapper returned no row',
+    undefined, 'ledger_write_row_missing');
   const outboxRows = await restRead(runtime,
     `mirror_outbox?select=id,dedup_key,status,entity,entity_id,operation,client_slug,test_only&dedup_key=eq.${encodeURIComponent(request.dedup)}&limit=2`,
     { stage });
   assert(Array.isArray(outboxRows) && outboxRows.length === 1, stage,
-    'ledger wrapper outbox intent is missing');
+    'ledger wrapper outbox intent is missing', undefined, 'ledger_outbox_intent_missing');
   return { row, outbox: outboxRows[0] };
 }
 
@@ -1730,10 +1924,10 @@ async function drainTestOutbox(runtime, dedup, stage) {
     `mirror_outbox?select=id,dedup_key,entity,entity_id,client_slug,test_only&dedup_key=eq.${encodeURIComponent(dedup)}&limit=2`,
     { stage });
   assert(Array.isArray(rows) && rows.length === 1, stage,
-    'targeted TEST drain intent is missing or ambiguous');
+    'targeted TEST drain intent is missing or ambiguous', undefined, 'drain_intent_missing');
   const intent = rows[0];
   assert(clean(intent.client_slug) === runtime.client.slug && intent.test_only === true,
-    stage, 'targeted drain intent is outside TEST scope');
+    stage, 'targeted drain intent is outside TEST scope', undefined, 'drain_intent_out_of_scope');
   if (clean(intent.entity) === 'batch') {
     await assertRunOwnedBatch(runtime, intent.entity_id, stage);
   } else {
@@ -1849,7 +2043,8 @@ async function createFixture(runtime, plan) {
   }, 'preflight');
   await drainTestOutbox(runtime, batchDedup, 'preflight');
   await drainTestOutbox(runtime, deliverableDedup, 'preflight');
-  const linkedBatch = await poll(runtime, 'preflight', 'TEST batch fixture linkage', async () => {
+  const linkedBatch = await poll(runtime, 'preflight', 'TEST batch fixture linkage',
+    'fixture_batch_linkage_timeout', async () => {
     const row = await assertRunOwnedBatch(runtime, batch.row.id, 'preflight');
     const ids = projectIdsForTeam(row.linear_parent_ids, MATRIX_TEAM);
     return ids.length === 1 ? { row, issueId: ids[0] } : null;
@@ -1862,7 +2057,8 @@ async function createFixture(runtime, plan) {
   runtime.linear.verifiedProjectId = mintedIssue.projectId;
   runtime.intakeProjectVerified = true;
 
-  const linked = await poll(runtime, 'preflight', 'TEST deliverable fixture linkage', async () => {
+  const linked = await poll(runtime, 'preflight', 'TEST deliverable fixture linkage',
+    'fixture_deliverable_linkage_timeout', async () => {
     const row = await assertRunOwnedDeliverable(runtime, deliverable.row.id, 'preflight');
     return clean(row.linear_issue_uuid) ? row : null;
   });
@@ -1910,37 +2106,42 @@ async function f94Snapshot(runtime, dedup) {
 
 function assertZeroF94Mutation(before, after, label) {
   assert(stableJson(after.row) === stableJson(before.row), 'f94_negative',
-    `${label} changed the deliverable`);
+    `${label} changed the deliverable`, undefined, 'f94_row_mutated');
   if (Array.isArray(before.eventIds) && Array.isArray(after.eventIds)) {
     assert(stableJson(after.eventIds) === stableJson(before.eventIds), 'f94_negative',
-      `${label} created a target-scoped deliverable event`);
+      `${label} created a target-scoped deliverable event`, undefined, 'f94_scoped_event_created');
   }
   if (Array.isArray(before.outboxIds) && Array.isArray(after.outboxIds)) {
     assert(stableJson(after.outboxIds) === stableJson(before.outboxIds), 'f94_negative',
-      `${label} created a target-scoped outbox intent`);
+      `${label} created a target-scoped outbox intent`, undefined, 'f94_scoped_outbox_created');
   }
   assert(before.eventCount === 0 && after.eventCount === 0, 'f94_negative',
-    `${label} created a deliverable event`);
+    `${label} created a deliverable event`, undefined, 'f94_event_created');
   assert(before.outboxCount === 0 && after.outboxCount === 0, 'f94_negative',
-    `${label} created an outbox intent`);
+    `${label} created an outbox intent`, undefined, 'f94_outbox_created');
   return true;
 }
 
 function assertEligibleAssignmentBundle(before, after, memberId) {
   assert(clean(before.row.assignee_id) !== clean(memberId)
       && clean(after.row.assignee_id) === clean(memberId),
-  'f94_negative', 'eligible assignment did not update the native row');
+  'f94_negative', 'eligible assignment did not update the native row',
+  undefined, 'f94_eligible_row_not_updated');
   assert(before.eventCount === 0 && after.eventCount === 1, 'f94_negative',
-    'eligible assignment event is missing or duplicated');
+    'eligible assignment event is missing or duplicated',
+    undefined, 'f94_eligible_event_count_wrong');
   assert(before.outboxCount === 0 && after.outboxCount === 1, 'f94_negative',
-    'eligible assignment outbox intent is missing or duplicated');
+    'eligible assignment outbox intent is missing or duplicated',
+    undefined, 'f94_eligible_outbox_count_wrong');
   if (Array.isArray(before.eventIds) && Array.isArray(after.eventIds)) {
     assert(after.eventIds.length > before.eventIds.length, 'f94_negative',
-      'eligible assignment did not append a target-scoped deliverable event');
+      'eligible assignment did not append a target-scoped deliverable event',
+      undefined, 'f94_eligible_event_not_appended');
   }
   if (Array.isArray(before.outboxIds) && Array.isArray(after.outboxIds)) {
     assert(after.outboxIds.length === before.outboxIds.length + 1, 'f94_negative',
-      'eligible assignment did not append exactly one target-scoped outbox intent');
+      'eligible assignment did not append exactly one target-scoped outbox intent',
+      undefined, 'f94_eligible_outbox_not_appended');
   }
   return true;
 }
@@ -1996,7 +2197,8 @@ async function runF94Negative(runtime) {
 
   const eligible = runtime.members.creativeOwn;
   assert(clean(eligible.linear_user_id) === PINNED_LINEAR_ASSIGNEE_ID,
-    'f94_negative', 'eligible assignment is not pinned to SyncView Mirror');
+    'f94_negative', 'eligible assignment is not pinned to SyncView Mirror',
+    undefined, 'f94_assignee_not_pinned');
   const request = requestId(runtime, 'f94-eligible');
   const dedup = `write-ui:assignee:deliverable:${runtime.fixture.deliverableId}:${request}`;
   const before = await f94Snapshot(runtime, dedup);
@@ -2014,7 +2216,8 @@ async function runF94Negative(runtime) {
     trackDedup: true,
   });
   assert(response.status >= 200 && response.status < 300 && response.body && response.body.ok === true,
-    'f94_negative', 'eligible assignment was not accepted', { response });
+    'f94_negative', 'eligible assignment was not accepted', { response },
+    'f94_eligible_assignment_rejected');
   const after = await f94Snapshot(runtime, dedup);
   assertEligibleAssignmentBundle(before, after, eligible.id);
   await drainTestOutbox(runtime, dedup, 'f94_negative');
@@ -2039,12 +2242,13 @@ async function runF94Negative(runtime) {
   });
   assert(clearResponse.status >= 200 && clearResponse.status < 300
       && clearResponse.body && clearResponse.body.ok === true,
-  'f94_negative', 'eligible TEST assignment could not be cleared');
+  'f94_negative', 'eligible TEST assignment could not be cleared',
+  undefined, 'f94_assignment_clear_failed');
   await drainTestOutbox(runtime, clearDedup, 'f94_negative');
   const cleared = await assertRunOwnedDeliverable(runtime,
     runtime.fixture.deliverableId, 'f94_negative');
   assert(!clean(cleared.assignee_id), 'f94_negative',
-    'eligible TEST assignment remained on the fixture');
+    'eligible TEST assignment remained on the fixture', undefined, 'f94_assignment_clear_unproven');
   return {
     result: 'pass',
     attempts_count: cases.length + 1,
@@ -2106,23 +2310,27 @@ async function runF94StalePicker(runtime) {
     await heldCandidate.waitFor({ state: 'visible', timeout: 30_000 });
     const exactLabel = await heldCandidate.locator('.mlbl').first().textContent();
     assert(clean(exactLabel) === clean(member.name), 'f94_stale_picker',
-      'chosen eligible member is absent from the real browser picker');
+      'chosen eligible member is absent from the real browser picker',
+      undefined, 'f94_picker_member_absent');
 
     const before = await matrixBlockSnapshot(runtime, 'f94_stale_picker');
     await patchSyntheticMember(runtime, member, { active: false }, 'f94_stale_picker');
     await heldCandidate.click();
-    const response = await poll(runtime, 'f94_stale_picker', 'stale picker browser commit', async () =>
+    const response = await poll(runtime, 'f94_stale_picker', 'stale picker browser commit',
+      'stale_picker_response_timeout', async () =>
       routeState.lastProductionWrite
         && routeState.lastProductionWrite.action === 'assignee'
         ? routeState.lastProductionWrite
         : null
     );
     assert(response.status === 403 && response.code === 'assignee_out_of_scope',
-      'f94_stale_picker', 'stale picker commit did not fail closed', { response });
+      'f94_stale_picker', 'stale picker commit did not fail closed', { response },
+      'f94_stale_commit_not_refused');
     const after = await matrixBlockSnapshot(runtime, 'f94_stale_picker');
     assertMatrixBlockUnchanged(before, after, 'f94_stale_picker');
     assert(!routeState.routeError, 'f94_stale_picker',
-      'browser TEST-only request router failed', { error: routeState.routeError });
+      'browser TEST-only request router failed', { error: routeState.routeError },
+      'browser_route_error');
   } finally {
     await patchSyntheticMember(runtime, member, { active: true }, 'f94_stale_picker');
     reactivated = true;
@@ -2176,7 +2384,7 @@ async function setFixtureOracleState(runtime, status, assigneeId) {
       stage: 'f136_matrix',
     });
   assert(Array.isArray(rows) && rows.length === 1, 'f136_matrix',
-    'matrix setup did not update exactly one TEST row');
+    'matrix setup did not update exactly one TEST row', undefined, 'f136_oracle_row_not_unique');
   return rows[0];
 }
 
@@ -2200,13 +2408,15 @@ async function matrixBlockSnapshot(runtime, stage = 'f136_matrix') {
 
 function assertMatrixBlockUnchanged(before, after, stage = 'f136_matrix') {
   assert(stableJson(before) === stableJson(after), stage,
-    'matrix gateway attempts mutated row, event, or outbox state');
+    'matrix gateway attempts mutated row, event, or outbox state',
+    undefined, 'zero_mutation_violated');
   return true;
 }
 
 function matrixSyntheticStamp(blockOrdinal) {
   assert(Number.isSafeInteger(blockOrdinal) && blockOrdinal >= 0,
-    'f136_matrix', 'matrix synthetic clock ordinal is invalid');
+    'f136_matrix', 'matrix synthetic clock ordinal is invalid',
+    undefined, 'f136_clock_ordinal_invalid');
   return new Date(Date.UTC(2000, 0, 1) + blockOrdinal * 1000).toISOString();
 }
 
@@ -2319,16 +2529,19 @@ async function browserMatrixStatusControl(
     assert(interaction && interaction.blocked === true
         && interaction.dispatched === false
         && Number(routeState.matrixWrites || 0) === writesBefore,
-    'f136_matrix', 'forbidden tuple escaped its real status control');
+    'f136_matrix', 'forbidden tuple escaped its real status control',
+    undefined, 'f136_forbidden_tuple_escaped');
     routeState.matrixExpected = null;
     return { dispatched: false, blocked: true, response: null };
   }
   assert(interaction && interaction.dispatched === true && interaction.blocked === false,
-    'f136_matrix', 'accepted tuple did not dispatch from its real status control');
+    'f136_matrix', 'accepted tuple did not dispatch from its real status control',
+    undefined, 'f136_accepted_tuple_not_dispatched');
   const response = await poll(
     runtime,
     'f136_matrix',
     `matrix ${routeName} routed response`,
+    'matrix_control_response_timeout',
     async () => {
       if (routeState.routeError) throw routeState.routeError;
       const observed = routeState.lastMatrixResponse;
@@ -2349,7 +2562,8 @@ async function browserMatrixStatusControl(
     BROWSER_REQUEST_TIMEOUT_MS,
   );
   assert(Number(routeState.matrixWrites || 0) === writesBefore + 1,
-    'f136_matrix', 'accepted status control did not emit exactly one gateway request');
+    'f136_matrix', 'accepted status control did not emit exactly one gateway request',
+    undefined, 'f136_control_request_count_wrong');
   routeState.matrixExpected = null;
   return { dispatched: true, blocked: false, response };
 }
@@ -2416,7 +2630,8 @@ async function runF136Matrix(runtime) {
         ? ['editor', 'designer'].includes(lower(row.role))
         : lower(row.role) === role));
     assert(exact.length === 1 && clean(exact[0].id) === clean(actor.id),
-      'f136_matrix', 'matrix actor name does not resolve uniquely to its synthetic member');
+      'f136_matrix', 'matrix actor name does not resolve uniquely to its synthetic member',
+      undefined, 'f136_actor_not_unique');
   }
 
   const browser = await launchBrowser(runtime, 'f136_matrix');
@@ -2547,7 +2762,8 @@ async function runF136Matrix(runtime) {
             pageDeltaRefresh(runtime, directCourier.page, 'f136_matrix'),
           ]);
           assert(refreshed.every(value => value.ok === true), 'f136_matrix',
-            'browser matrix contexts could not adopt the TEST oracle row');
+            'browser matrix contexts could not adopt the TEST oracle row',
+            undefined, 'f136_oracle_adoption_failed');
           const before = await matrixBlockSnapshot(runtime);
           const expectedOffered = role === 'creative'
             ? expectedCreativeAcceptedSet(runtime.policy, current, ownership)
@@ -2625,7 +2841,7 @@ async function runF136Matrix(runtime) {
               assert(accepted === expected, 'f136_matrix',
                 'matrix accepted set differs from server policy oracle', {
                   role, current, next, ownership, routeName, classification, response,
-                });
+                }, 'f136_policy_oracle_mismatch');
             }
           }
           const after = await matrixBlockSnapshot(runtime);
@@ -2634,11 +2850,13 @@ async function runF136Matrix(runtime) {
         }
       }
     }
-    assert(unexpected === 0, 'f136_matrix', 'matrix produced an unexpected gateway response');
+    assert(unexpected === 0, 'f136_matrix', 'matrix produced an unexpected gateway response',
+      undefined, 'f136_unexpected_gateway_response');
     assert(creativeObservedList === creativeExpected
         && creativeObservedDirect === creativeExpected,
     'f136_matrix',
-    'one or both browser routes differ from CREATIVE_STATUS_TRANSITIONS');
+    'one or both browser routes differ from CREATIVE_STATUS_TRANSITIONS',
+    undefined, 'f136_creative_transitions_mismatch');
     const expectedTuples = ROLE_SPECS.length * statuses.length
       * statuses.length * OWNERSHIP_STATES.length;
     const expectedAcceptedPerContext =
@@ -2648,24 +2866,27 @@ async function runF136Matrix(runtime) {
     assert(attempts === expectedTuples * 2
         && listAttempts === expectedTuples
         && directAttempts === expectedTuples,
-    'f136_matrix', 'both-context matrix is incomplete');
+    'f136_matrix', 'both-context matrix is incomplete', undefined, 'f136_matrix_incomplete');
     assert(policyAccepted === expectedAcceptedPerContext * 2
         && authorityFenced === expectedAcceptedPerContext * 2
         && forbidden === expectedForbiddenPerContext * 2
         && authorityFenced + forbidden === attempts,
-    'f136_matrix', 'dual-context policy response totals are incomplete');
+    'f136_matrix', 'dual-context policy response totals are incomplete',
+    undefined, 'f136_policy_totals_incomplete');
     assert(controlInteractions === attempts
         && controlDispatches === policyAccepted
         && controlBlocks === forbidden
         && controlDispatches + controlBlocks === controlInteractions,
-    'f136_matrix', 'real status-control coverage is incomplete');
+    'f136_matrix', 'real status-control coverage is incomplete',
+    undefined, 'f136_control_coverage_incomplete');
     assert(listState.matrixPolicyWrites === expectedAcceptedPerContext
         && directState.matrixPolicyWrites === expectedAcceptedPerContext
         && listState.matrixCasWrites === 0
         && directState.matrixCasWrites === 0
         && !listState.routeError
         && !directState.routeError,
-    'f136_matrix', 'accepted tuples did not traverse both guarded UI routes');
+    'f136_matrix', 'accepted tuples did not traverse both guarded UI routes',
+    undefined, 'f136_accepted_path_mismatch');
 
     // The role matrix above intentionally uses a still-Linear-authoritative
     // Video row, so accepted policy combinations stop at the authority fence.
@@ -2704,7 +2925,8 @@ async function runF136Matrix(runtime) {
       pageDeltaRefresh(runtime, directCourier.page, 'f136_matrix'),
     ]);
     assert(casRefreshed.every(value => value.ok === true), 'f136_matrix',
-      'browser CAS controls could not adopt the TEST oracle row');
+      'browser CAS controls could not adopt the TEST oracle row',
+      undefined, 'f136_cas_adoption_failed');
     const casBefore = await matrixBlockSnapshot(runtime);
     const casBody = routeName => ({
       operation: 'status',
@@ -2738,14 +2960,15 @@ async function runF136Matrix(runtime) {
     assert([listCas, directCas].every(result =>
       result.response.status === 409
         && clean(result.response.body && result.response.body.error) === 'write_conflict'),
-    'f136_matrix', 'one or both UI-originated TEST stale CAS requests did not fail closed');
+    'f136_matrix', 'one or both UI-originated TEST stale CAS requests did not fail closed',
+    undefined, 'f136_stale_cas_not_refused');
     const casAfter = await matrixBlockSnapshot(runtime);
     assertMatrixBlockUnchanged(casBefore, casAfter);
     zeroProofs += 1;
     const expectedZeroProofs =
       ROLE_SPECS.length * OWNERSHIP_STATES.length * statuses.length + 1;
     assert(zeroProofs === expectedZeroProofs, 'f136_matrix',
-      'matrix zero-mutation proof count is incomplete');
+      'matrix zero-mutation proof count is incomplete', undefined, 'f136_zero_proof_count_wrong');
     assert(listState.matrixCasWrites === 1
         && directState.matrixCasWrites === 1
         && listState.matrixWrites === listState.matrixPolicyWrites + 1
@@ -2753,7 +2976,8 @@ async function runF136Matrix(runtime) {
         && matrixRequestIds.size === listState.matrixWrites + directState.matrixWrites
         && !listState.routeError
         && !directState.routeError,
-    'f136_matrix', 'dual-context UI-originated CAS coverage is incomplete');
+    'f136_matrix', 'dual-context UI-originated CAS coverage is incomplete',
+    undefined, 'f136_cas_totals_mismatch');
 
     return {
       result: 'pass',
@@ -2788,10 +3012,12 @@ async function runF136Matrix(runtime) {
 
 function roleKeyForMember(runtime, memberId) {
   const member = Object.values(runtime.members).find(row => clean(row.id) === clean(memberId));
-  assert(member, 'f37_identity', 'browser verifier selected an unknown member');
+  assert(member, 'f37_identity', 'browser verifier selected an unknown member',
+    undefined, 'f37_member_unknown');
   const role = ['editor', 'designer'].includes(lower(member.role)) ? 'creative' : lower(member.role);
   const key = runtime.config.roleKeys[role];
-  assert(key, 'f37_identity', 'browser verifier role credential is unavailable');
+  assert(key, 'f37_identity', 'browser verifier role credential is unavailable',
+    undefined, 'browser_key_unavailable');
   return key;
 }
 
@@ -2799,7 +3025,7 @@ function memberForBrowserActor(runtime, actorName) {
   const matches = Object.values(runtime.members).filter(member =>
     clean(member.name) === clean(actorName) && member.active !== false);
   assert(matches.length === 1, 'f37_identity',
-    'browser actor does not resolve to one synthetic member');
+    'browser actor does not resolve to one synthetic member', undefined, 'f37_actor_not_unique');
   return matches[0];
 }
 
@@ -2814,7 +3040,8 @@ async function guardedBrowserCommentRead(runtime, request, options) {
       && Number(input.limit) > 0
       && Number(input.limit) <= 50,
   options.stage || 'f95_convergence',
-  'browser comments POST is not the exact run-owned TEST read');
+  'browser comments POST is not the exact run-owned TEST read',
+  undefined, 'browser_comment_read_forbidden');
   const actor = memberForBrowserActor(runtime, request.headers()['x-syncview-actor']);
   const roleKey = roleKeyForMember(runtime, actor.id);
   await assertActiveTestWriteTarget(
@@ -2991,11 +3218,13 @@ async function installBrowserRoutes(runtime, context, routeState) {
             && stableJson(Object.keys(input).sort()) === stableJson(['member', 'surface'])
             && stableJson(Object.keys(parseJson(input.member)).sort()) === stableJson(['id']),
         routeState.stage || 'f37_identity',
-        'browser verifier request is not the exact run-owned identity shape');
+        'browser verifier request is not the exact run-owned identity shape',
+        undefined, 'browser_verify_request_forbidden');
         assert(runtime.createdMemberIds.has(memberId)
             && !runtime.readOnlyMemberIds.has(memberId),
         routeState.stage || 'f37_identity',
-        'live browser verifier target is not a synthetic drill member');
+        'live browser verifier target is not a synthetic drill member',
+        undefined, 'browser_verify_target_forbidden');
         const result = await guardedBrowserVerifier(
           runtime,
           request,
@@ -3041,7 +3270,8 @@ async function installBrowserRoutes(runtime, context, routeState) {
               && !routeState.matrixRequestIds.has(browserRequestId)
               && clean(request.headers()['x-syncview-actor']) === clean(actor.name)
               && lower(request.headers()['x-syncview-role']) === lower(actor.role),
-          'f136_matrix', 'browser matrix request is outside the exact TEST oracle allowlist');
+          'f136_matrix', 'browser matrix request is outside the exact TEST oracle allowlist',
+          undefined, 'browser_status_write_forbidden');
           routeState.matrixRequestIds.add(browserRequestId);
           const serviceCas = expected.kind === 'cas';
           const result = await gatewayWrite(
@@ -3078,14 +3308,16 @@ async function installBrowserRoutes(runtime, context, routeState) {
         }
         assert(routeState.allowAssigneePicker === true,
           routeState.stage || 'f94_stale_picker',
-          'browser production-write is not enabled for this drill');
+          'browser production-write is not enabled for this drill',
+          undefined, 'browser_write_not_enabled');
         assert(clean(input.id) === runtime.fixture.deliverableId
             && ((action === 'assignee_options'
                 && clean(input.client_slug) === runtime.client.slug)
               || (operation === 'assignee'
                 && runtime.createdMemberIds.has(clean(input.assignee_id)))),
         'f94_stale_picker',
-        'browser production-write is outside the exact stale-picker allowlist');
+        'browser production-write is outside the exact stale-picker allowlist',
+        undefined, 'browser_picker_write_forbidden');
         // The page performs the real picker interaction, but the intercepted
         // request is couriered through the service-only TEST override. No staff
         // credential or service value enters page JavaScript.
@@ -3112,7 +3344,8 @@ async function installBrowserRoutes(runtime, context, routeState) {
           assert(clean(input.deliverable_id) === runtime.fixture.deliverableId
               && Number(input.limit) > 0
               && Number(input.limit) <= 50,
-          'f136_matrix', 'matrix browser comment read escaped the run-owned TEST fixture');
+          'f136_matrix', 'matrix browser comment read escaped the run-owned TEST fixture',
+          undefined, 'browser_comment_read_forbidden');
           await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -3427,7 +3660,8 @@ async function runF37Identity(runtime) {
           : [];
         assert(observed.memberId === member.id
             && stableJson(observed.queueIds) === stableJson(expected.sort()),
-        'f37_identity', 'verified creative resolved to the wrong personal queue');
+        'f37_identity', 'verified creative resolved to the wrong personal queue',
+        undefined, 'f37_wrong_personal_queue');
         queueChecks += 1;
       }
 
@@ -3437,7 +3671,8 @@ async function runF37Identity(runtime) {
         && peer.memberId === runtime.members.creativePeer.id
         && own.queueIds.length === 1
         && peer.queueIds.length === 0;
-      assert(accountSwitchOk, 'f37_identity', 'account switching retained the prior queue');
+      assert(accountSwitchOk, 'f37_identity', 'account switching retained the prior queue',
+        undefined, 'f37_account_switch_leaked');
 
       const duplicateCreative = await browserVerifyIdentity(runtime, page,
         runtime.members.creativeOwn);
@@ -3447,20 +3682,23 @@ async function runF37Identity(runtime) {
         && duplicateCreative.queueIds.length === 1
         && duplicateAdmin.queueIds.length === 0;
       assert(duplicateNamesOk, 'f37_identity',
-        'duplicate display names were resolved by name instead of verified id');
+        'duplicate display names were resolved by name instead of verified id',
+        undefined, 'f37_resolved_by_name');
 
       await browserVerifyIdentity(runtime, page, runtime.members.creativeOwn);
       routeState.reverseMembers = true;
       const reordered = await browserReloadProjection(runtime, page);
       const reorderOk = reordered.memberId === runtime.members.creativeOwn.id
         && reordered.queueIds.length === 1;
-      assert(reorderOk, 'f37_identity', 'roster reorder changed personal identity');
+      assert(reorderOk, 'f37_identity', 'roster reorder changed personal identity',
+        undefined, 'f37_reorder_changed_identity');
 
       const zero = await browserVerifyIdentity(runtime, page, runtime.members.creativeZero);
       const zeroRowOk = zero.memberId === runtime.members.creativeZero.id
         && zero.queueIds.length === 0
         && !zero.unavailable;
-      assert(zeroRowOk, 'f37_identity', 'zero-row member did not resolve to an empty queue');
+      assert(zeroRowOk, 'f37_identity', 'zero-row member did not resolve to an empty queue',
+        undefined, 'f37_zero_row_queue');
 
       await browserVerifyIdentity(runtime, page, runtime.members.creativeDeactivate);
       await patchSyntheticMember(runtime, runtime.members.creativeDeactivate,
@@ -3471,7 +3709,8 @@ async function runF37Identity(runtime) {
         && revoked.queueIds.length === 0
         && !!clean(revoked.unavailable);
       assert(deactivatedOk, 'f37_identity',
-        'deactivated identity retained a personal queue');
+        'deactivated identity retained a personal queue',
+        undefined, 'f37_deactivated_queue_retained');
 
       const signedOut = await pageEvaluate(
         runtime,
@@ -3493,9 +3732,11 @@ async function runF37Identity(runtime) {
       const signedOutOk = signedOut.memberId === ''
         && signedOut.queueIds.length === 0
         && !!clean(signedOut.unavailable);
-      assert(signedOutOk, 'f37_identity', 'signed-out session retained a personal queue');
+      assert(signedOutOk, 'f37_identity', 'signed-out session retained a personal queue',
+        undefined, 'f37_signed_out_queue_retained');
       assert(!routeState.routeError, 'f37_identity',
-        'browser TEST-only request router failed', { error: routeState.routeError });
+        'browser TEST-only request router failed', { error: routeState.routeError },
+        'browser_route_error');
       return {
         result: 'pass',
         scope: 'synthetic_identity_shapes_only',
@@ -3538,7 +3779,8 @@ async function servicePatchDeliverable(runtime, deliverableId, patch, stage = 'c
       stage,
     });
   assert(Array.isArray(rows) && rows.length === 1, stage,
-    'service-side TEST-row change did not update exactly one row');
+    'service-side TEST-row change did not update exactly one row',
+    undefined, 'service_patch_not_unique');
   return rows[0];
 }
 
@@ -3578,7 +3820,8 @@ async function assertContextsConverge(runtime, pages, predicate, label) {
     if (elapsed >= MATRIX_TICK_MS) break;
     await sleep(250);
   }
-  fail('f95_convergence', `${label} did not converge within one foreground tick`);
+  fail('f95_convergence', `${label} did not converge within one foreground tick`,
+    undefined, 'f95_context_not_converged');
 }
 
 async function assertContextsObserveComment(runtime, pages, deliverableId, commentId, body) {
@@ -3602,7 +3845,8 @@ async function assertContextsObserveComment(runtime, pages, deliverableId, comme
     if (elapsed >= MATRIX_TICK_MS) break;
     await sleep(250);
   }
-  fail('f95_convergence', 'comment did not converge within one foreground tick');
+  fail('f95_convergence', 'comment did not converge within one foreground tick',
+    undefined, 'f95_comment_not_converged');
 }
 
 async function runF95Convergence(runtime) {
@@ -3680,7 +3924,8 @@ async function runF95Convergence(runtime) {
         },
       )));
     assert(listScrollBefore.every(value => value > 0), 'f95_convergence',
-      'foreground list surfaces are not genuinely scrollable');
+      'foreground list surfaces are not genuinely scrollable',
+      undefined, 'f95_surface_not_scrollable');
 
     await servicePatchFixture(runtime, { assignee_id: runtime.members.creativePeer.id });
     await assertContextsConverge(runtime, [pageA, pageB],
@@ -3696,7 +3941,8 @@ async function runF95Convergence(runtime) {
     scrollPreserved = listScrollAfter.every((value, index) =>
       value === listScrollBefore[index] && value > 0);
     assert(scrollPreserved, 'f95_convergence',
-      'foreground assignment tick did not preserve list scroll');
+      'foreground assignment tick did not preserve list scroll',
+      undefined, 'f95_scroll_not_preserved');
     changeShapes += 1;
 
     await servicePatchFixture(runtime, { status: 'in_progress', status_at: nowIso() });
@@ -3747,7 +3993,8 @@ async function runF95Convergence(runtime) {
       )));
     assert(initialDetail.every(item => item.composer
         && item.draft === 'slice5 drill browser draft'),
-    'f95_convergence', 'detail drill surface has no open composer/draft');
+    'f95_convergence', 'detail drill surface has no open composer/draft',
+    undefined, 'f95_composer_missing');
     await Promise.all([pageA, pageB].map((page, index) => pageEvaluate(
       runtime,
       'f95_convergence',
@@ -3780,7 +4027,8 @@ async function runF95Convergence(runtime) {
         && commentResponse.body && commentResponse.body.ok === true
         && clean(comment && comment.id)
         && clean(comment.body) === commentBody,
-    'f95_convergence', 'guarded service TEST comment did not commit');
+    'f95_convergence', 'guarded service TEST comment did not commit',
+    undefined, 'f95_comment_not_committed');
     runtime.createdCommentIds.add(clean(comment.id));
     await assertContextsObserveComment(
       runtime,
@@ -3809,7 +4057,8 @@ async function runF95Convergence(runtime) {
     composerPreserved = preservation.every(item => item.composer);
     draftPreserved = preservation.every(item => item.draft === 'slice5 drill browser draft');
     assert(scrollPreserved && composerPreserved && draftPreserved, 'f95_convergence',
-      'comment convergence did not preserve scroll/composer/draft');
+      'comment convergence did not preserve scroll/composer/draft',
+      undefined, 'f95_state_not_preserved');
     changeShapes += 1;
 
     await pageEvaluate(
@@ -3824,10 +4073,12 @@ async function runF95Convergence(runtime) {
     await pageA.waitForSelector('[data-prod-freshness="degraded"]', { timeout: 5_000 });
     degradedSeen = failed.ok === false
       && await pageA.locator('[data-prod-freshness="degraded"]').count() === 1;
-    assert(degradedSeen, 'f95_convergence', 'forced delta 503 did not show degraded state');
+    assert(degradedSeen, 'f95_convergence', 'forced delta 503 did not show degraded state',
+      undefined, 'f95_degraded_not_shown');
     stateA.failDelta = false;
     await pageA.locator('[data-prod-refresh="1"]').click();
-    await poll(runtime, 'f95_convergence', 'manual Retry recovery', async () =>
+    await poll(runtime, 'f95_convergence', 'manual Retry recovery',
+      'convergence_retry_timeout', async () =>
       pageEvaluate(
         runtime,
         'f95_convergence',
@@ -3854,7 +4105,7 @@ async function runF95Convergence(runtime) {
       'browser TEST-only request router failed', {
         stateA: stateA.routeError,
         stateB: stateB.routeError,
-      });
+      }, 'browser_route_error');
     return {
       result: 'pass',
       context_count: 2,
@@ -3911,7 +4162,8 @@ async function optionalRunOwnedDeliverable(runtime, id) {
   assert(Array.isArray(rows) && rows.length === 1
       && clean(rows[0].client_slug) === runtime.client.slug
       && markerPresent(`${rows[0].title || ''} ${rows[0].brief || ''}`, runtime),
-  'cleanup', 'reserved deliverable recovery target is not run-owned TEST data');
+  'cleanup', 'reserved deliverable recovery target is not run-owned TEST data',
+  undefined, 'cleanup_recovery_target_foreign');
   return rows[0];
 }
 
@@ -3923,7 +4175,8 @@ async function optionalRunOwnedBatch(runtime, id) {
   assert(Array.isArray(rows) && rows.length === 1
       && clean(rows[0].client_slug) === runtime.client.slug
       && markerPresent(`${rows[0].name || ''} ${rows[0].description || ''}`, runtime),
-  'cleanup', 'reserved batch recovery target is not run-owned TEST data');
+  'cleanup', 'reserved batch recovery target is not run-owned TEST data',
+  undefined, 'cleanup_recovery_target_foreign');
   return rows[0];
 }
 
@@ -3944,7 +4197,8 @@ async function providerIssueIdFor(runtime, kind, id, row) {
       && clean(expected.issueId)
       && clean(expected.dedup)
       && runtime.createdDedups.has(clean(expected.dedup)),
-  'cleanup', 'provider cleanup target is outside the durable run identity plan');
+  'cleanup', 'provider cleanup target is outside the durable run identity plan',
+  undefined, 'provider_target_out_of_scope');
   const candidates = new Set();
   if (kind === 'deliverable') {
     const rawIssue = parseJson(parseJson(row.linear_raw).issue);
@@ -3960,7 +4214,8 @@ async function providerIssueIdFor(runtime, kind, id, row) {
       + `&client_slug=eq.${encodeURIComponent(runtime.client.slug)}&test_only=eq.true`,
     { stage: 'cleanup' });
   assert(Array.isArray(creates) && creates.length === 1, 'cleanup',
-    'run-owned provider create receipt is missing or ambiguous');
+    'run-owned provider create receipt is missing or ambiguous',
+    undefined, 'provider_receipt_missing');
   const create = creates[0];
   const payload = parseJson(create.payload);
   const result = parseJson(create.linear_result);
@@ -3969,7 +4224,8 @@ async function providerIssueIdFor(runtime, kind, id, row) {
       && clean(create.dedup_key) === clean(expected.dedup)
       && clean(result.mutation) === 'issueCreate'
       && lower(conflict.decision) !== 'idempotency_conflict',
-  'cleanup', 'provider issue was not minted by this run');
+  'cleanup', 'provider issue was not minted by this run',
+  undefined, 'provider_issue_not_run_owned');
   [
     payload.linear_issue_id,
     payload.planned_linear_issue_id,
@@ -3978,7 +4234,8 @@ async function providerIssueIdFor(runtime, kind, id, row) {
   ].map(clean).filter(Boolean).forEach(value => candidates.add(value));
   assert(candidates.size > 0
       && [...candidates].every(value => value === clean(expected.issueId)),
-  'cleanup', 'run-owned create receipt resolves to a foreign Linear issue');
+  'cleanup', 'run-owned create receipt resolves to a foreign Linear issue',
+  undefined, 'provider_issue_foreign');
   await linearIssueSnapshot(runtime, expected.issueId, kind);
   return clean(expected.issueId);
 }
@@ -4005,7 +4262,8 @@ function assertRunOwnedLinearIssueSnapshot(runtime, issue, issueId, kind) {
       && clean(issue.team && issue.team.id) === clean(runtime.linear.team.id)
       && clean(issue.title) === markerText(runtime, label)
       && clean(issue.description) === markerText(runtime, description),
-  'cleanup', 'cleanup Linear target is not a run-minted TEST issue');
+  'cleanup', 'cleanup Linear target is not a run-minted TEST issue',
+  undefined, 'provider_issue_snapshot_foreign');
   return issue;
 }
 
@@ -4029,12 +4287,14 @@ async function ensureDedupTerminal(runtime, dedup) {
   assert(Array.isArray(rows) && rows.length === 1
       && clean(rows[0].client_slug) === runtime.client.slug
       && rows[0].test_only === true,
-  'cleanup', 'tracked TEST outbox intent is missing, ambiguous, or out of scope');
+  'cleanup', 'tracked TEST outbox intent is missing, ambiguous, or out of scope',
+  undefined, 'outbox_intent_out_of_scope');
   const terminal = new Set(['written', 'skipped', 'stale']);
   if (!terminal.has(lower(rows[0].status))) {
     await drainTestOutbox(runtime, dedup, 'cleanup');
   }
-  rows = await poll(runtime, 'cleanup', 'tracked outbox terminal receipt', async () => {
+  rows = await poll(runtime, 'cleanup', 'tracked outbox terminal receipt',
+    'outbox_terminal_receipt_timeout', async () => {
     const current = await restRead(runtime,
       `mirror_outbox?select=id,dedup_key,status,entity,entity_id,client_slug,test_only`
         + `&dedup_key=eq.${encodeURIComponent(dedup)}&limit=2`,
@@ -4057,7 +4317,8 @@ async function cleanupRunComments(runtime) {
   const owned = (rows || []).filter(row => markerPresent(row.body, runtime));
   for (const id of runtime.createdCommentIds) {
     assert(owned.some(row => clean(row.id) === clean(id)), 'cleanup',
-      'committed drill comment is missing from cleanup recovery');
+      'committed drill comment is missing from cleanup recovery',
+      undefined, 'cleanup_comment_missing');
   }
   for (const row of owned) {
     if (clean(row.deleted_at)) continue;
@@ -4082,7 +4343,8 @@ async function cleanupRunComments(runtime) {
     });
     assert(response.status >= 200 && response.status < 300
         && response.body && response.body.ok === true,
-    'cleanup', 'drill comment tombstone did not commit');
+    'cleanup', 'drill comment tombstone did not commit',
+    undefined, 'cleanup_comment_tombstone_failed');
     await ensureDedupTerminal(runtime, dedup);
   }
   const deleted = await restRead(runtime,
@@ -4091,7 +4353,7 @@ async function cleanupRunComments(runtime) {
     { stage: 'cleanup' });
   assert((deleted || []).filter(row => markerPresent(row.body, runtime))
     .every(row => !!clean(row.deleted_at)),
-  'cleanup', 'drill comment cleanup is incomplete');
+  'cleanup', 'drill comment cleanup is incomplete', undefined, 'cleanup_comment_incomplete');
   return owned.length;
 }
 
@@ -4103,7 +4365,8 @@ async function cleanupSyntheticMembers(runtime, deliverableIds) {
   let ambiguitySettled = runtime.ambiguousMemberIds.size === 0;
   const capture = error => errors.push(error instanceof Error
     ? error
-    : new DrillError('cleanup', 'synthetic member cleanup failed'));
+    : new DrillError('cleanup', 'synthetic member cleanup failed',
+      undefined, 'cleanup_member_incomplete'));
 
   // Retry assignment clearing independently of the archive phase. This finally-
   // owned pass still runs when a prior audit, provider, or outbox read failed.
@@ -4125,7 +4388,8 @@ async function cleanupSyntheticMembers(runtime, deliverableIds) {
           + `&assignee_id=in.(${memberIds.map(encodeURIComponent).join(',')})`,
         { stage: 'cleanup' });
       assert(Array.isArray(refs) && refs.length === 0, 'cleanup',
-        'synthetic members remain assigned to a deliverable', { refs });
+        'synthetic members remain assigned to a deliverable', { refs },
+        'cleanup_member_still_assigned');
     } catch (error) {
       capture(error);
     }
@@ -4134,7 +4398,8 @@ async function cleanupSyntheticMembers(runtime, deliverableIds) {
       const actorNames = [...new Set(Object.values(runtime.members)
         .map(member => clean(member.name)).filter(Boolean))];
       assert(actorNames.every(name => markerPresent(name, runtime)), 'cleanup',
-        'durable auth-event actor is not drill-marker-owned');
+        'durable auth-event actor is not drill-marker-owned',
+        undefined, 'cleanup_auth_event_foreign');
       // key-verify rows are durable security audit evidence, just like
       // deliverable_events. The drill deliberately retains marker-owned rows.
     } catch (error) {
@@ -4148,7 +4413,8 @@ async function cleanupSyntheticMembers(runtime, deliverableIds) {
         + AMBIGUOUS_WRITE_SETTLE_MS;
       const settleMs = Math.max(0, settleUntil - Date.now());
       assert(Date.now() + settleMs < runtime.processDeadlineAt,
-        'cleanup', 'insufficient cleanup budget for ambiguous member-write settlement');
+        'cleanup', 'insufficient cleanup budget for ambiguous member-write settlement',
+        undefined, 'cleanup_budget_exhausted');
       if (settleMs > 0) await sleep(settleMs);
       ambiguitySettled = true;
     } catch (error) {
@@ -4166,7 +4432,8 @@ async function cleanupSyntheticMembers(runtime, deliverableIds) {
       assert(Array.isArray(existing) && existing.length === 1
           && (markerPresent(existing[0].name, runtime)
             || markerPresent(existing[0].email, runtime)),
-      'cleanup', 'synthetic member recovery target is not marker-owned');
+      'cleanup', 'synthetic member recovery target is not marker-owned',
+      undefined, 'cleanup_recovery_target_foreign');
       await restWrite(runtime, `team_members?id=eq.${encodeURIComponent(id)}`, {
         method: 'DELETE',
         body: null,
@@ -4187,7 +4454,7 @@ async function cleanupSyntheticMembers(runtime, deliverableIds) {
         { stage: 'cleanup' })
       : [];
     assert(Array.isArray(survivors) && survivors.length === 0, 'cleanup',
-      'synthetic member cleanup is incomplete');
+      'synthetic member cleanup is incomplete', undefined, 'cleanup_member_incomplete');
   } catch (error) {
     capture(error);
   }
@@ -4209,7 +4476,8 @@ async function cleanup(runtime) {
   const errors = [];
   const capture = error => errors.push(error instanceof Error
     ? error
-    : new DrillError('cleanup', 'TEST cleanup target failed'));
+    : new DrillError('cleanup', 'TEST cleanup target failed',
+      undefined, 'cleanup_incomplete'));
   let archivedRows = 0;
   let recoveredRows = 0;
   const providerIssueIds = new Map();
@@ -4223,7 +4491,8 @@ async function cleanup(runtime) {
       assert(Array.isArray(events) && events.every(event =>
         clean(event.deliverable_id) === id
         && (!clean(event.batch_id) || runtime.createdBatchIds.has(clean(event.batch_id)))),
-      'cleanup', 'deliverable event residue escaped the run-owned TEST rows');
+      'cleanup', 'deliverable event residue escaped the run-owned TEST rows',
+      undefined, 'cleanup_event_residue_foreign');
     } catch (error) {
       capture(error);
     }
@@ -4264,7 +4533,8 @@ async function cleanup(runtime) {
         linearPayload: issueId ? { linear_issue_id: issueId } : {},
       }, 'cleanup');
       await drainTestOutbox(runtime, dedup, 'cleanup');
-      await poll(runtime, 'cleanup', 'native deliverable archive marker', async () => {
+      await poll(runtime, 'cleanup', 'native deliverable archive marker',
+        'cleanup_deliverable_archive_timeout', async () => {
         const current = await optionalRunOwnedDeliverable(runtime, id);
         return current && !!parseJson(current.linear_raw).archived ? current : null;
       });
@@ -4290,7 +4560,8 @@ async function cleanup(runtime) {
         linearPayload: issueId ? { linear_issue_id: issueId } : {},
       }, 'cleanup');
       await drainTestOutbox(runtime, dedup, 'cleanup');
-      await poll(runtime, 'cleanup', 'native batch archive marker', async () => {
+      await poll(runtime, 'cleanup', 'native batch archive marker',
+        'cleanup_batch_archive_timeout', async () => {
         const current = await optionalRunOwnedBatch(runtime, id);
         return current && lower(current.status) === 'archived' ? current : null;
       });
@@ -4302,7 +4573,8 @@ async function cleanup(runtime) {
 
   for (const [issueId, kind] of providerIssueIds) {
     try {
-      await poll(runtime, 'cleanup', 'Linear TEST issue archive', async () => {
+      await poll(runtime, 'cleanup', 'Linear TEST issue archive',
+        'cleanup_linear_archive_timeout', async () => {
         const issue = await linearIssueSnapshot(runtime, issueId, kind);
         return clean(issue.archivedAt) ? issue : null;
       });
@@ -4327,7 +4599,8 @@ async function cleanup(runtime) {
         { stage: 'cleanup' });
       assert((outbox || []).every(row =>
         ['written', 'skipped', 'stale'].includes(lower(row.status))),
-      'cleanup', 'run-owned TEST outbox residue is not terminal');
+      'cleanup', 'run-owned TEST outbox residue is not terminal',
+      undefined, 'cleanup_outbox_not_terminal');
     } catch (error) {
       capture(error);
     }
@@ -4363,7 +4636,8 @@ async function cleanup(runtime) {
     ok,
     deletedMembers: memberCleanup.deletedMembers,
     error: ok ? null : errors[0]
-      || new DrillError('cleanup', 'TEST cleanup proof is incomplete'),
+      || new DrillError('cleanup', 'TEST cleanup proof is incomplete',
+        undefined, 'cleanup_incomplete'),
   };
 }
 
@@ -4371,9 +4645,11 @@ function runReadRebaseline(runtime) {
   const remaining = runtime.processDeadlineAt - Date.now();
   assert(remaining >= REBASELINE_BUDGET_MS + REPORT_RESERVE_MS,
     'read_rebaseline',
-    'insufficient bounded process budget remains for rebaseline and reporting');
+    'insufficient bounded process budget remains for rebaseline and reporting',
+    undefined, 'rebaseline_budget_exhausted');
   const probe = path.join(runtime.config.repoRoot, 'qa/probes/prod_read_path_timing.js');
-  assert(fs.existsSync(probe), 'read_rebaseline', 'read-only timing probe is missing');
+  assert(fs.existsSync(probe), 'read_rebaseline', 'read-only timing probe is missing',
+    undefined, 'rebaseline_probe_missing');
   const childEnv = {
     PATH: process.env.PATH,
     Path: process.env.Path,
@@ -4405,12 +4681,13 @@ function runReadRebaseline(runtime) {
       signal: result.signal,
       error: result.error && result.error.message,
       output: raw,
-    });
+    }, 'rebaseline_failed');
   const medianMatches = [...raw.matchAll(/\bwall_med=(\d+(?:\.\d+)?)ms\b/gi)]
     .map(match => Number(match[1]));
   assert(medianMatches.length === 3
       && medianMatches.every(value => Number.isFinite(value) && value <= MATRIX_TICK_MS),
-  'read_rebaseline', 'timing probe did not report bounded wall medians', { output: raw });
+  'read_rebaseline', 'timing probe did not report bounded wall medians', { output: raw },
+  'rebaseline_medians_unbounded');
   return { result: 'pass', mode_count: 1, passed: true };
 }
 

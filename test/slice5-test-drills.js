@@ -36,6 +36,158 @@ function occurrences(source, needle) {
   return source.split(needle).length - 1;
 }
 
+// Position of the public failure code in each refusal constructor's argument
+// list. poll() is included because its code is what a timed-out wait reports.
+const REFUSAL_CODE_ARG = { assert: 4, fail: 3, DrillError: 3, poll: 3 };
+
+// Split one call's top-level arguments. Aware of strings, template literals
+// with interpolation, regex literals and both comment forms, because the
+// runner uses all of them inside refusal calls.
+function splitCallArgs(source, openIdx) {
+  let depth = 0;
+  const args = [];
+  let argStart = openIdx + 1;
+  for (let i = openIdx; i < source.length; i++) {
+    const c = source[i];
+    if (c === '/' && source[i + 1] === '/') { i = source.indexOf('\n', i); if (i < 0) return null; continue; }
+    if (c === '/' && source[i + 1] === '*') { i = source.indexOf('*/', i); if (i < 0) return null; i += 1; continue; }
+    if (c === '/' && depth > 0) {
+      let prev = i - 1;
+      while (prev >= 0 && /\s/.test(source[prev])) prev--;
+      if (prev < 0 || '(,=:[!&|?{;+*%~^<>'.includes(source[prev])) {
+        let k = i + 1, inClass = false, esc = false, closed = false;
+        for (; k < source.length; k++) {
+          const d = source[k];
+          if (esc) { esc = false; continue; }
+          if (d === '\\') { esc = true; continue; }
+          if (d === '[') inClass = true;
+          else if (d === ']') inClass = false;
+          else if (d === '/' && !inClass) { closed = true; break; }
+          else if (d === '\n') break;
+        }
+        if (closed) { i = k; continue; }
+      }
+    }
+    if (c === '"' || c === "'") { i = skipQuoted(source, i, c); if (i < 0) return null; continue; }
+    if (c === '`') { i = skipTemplate(source, i); if (i < 0) return null; continue; }
+    if (c === '(' || c === '[' || c === '{') { depth++; continue; }
+    if (c === ')' || c === ']' || c === '}') {
+      depth--;
+      if (depth === 0) { args.push(source.slice(argStart, i).trim()); return args; }
+      continue;
+    }
+    if (c === ',' && depth === 1) { args.push(source.slice(argStart, i).trim()); argStart = i + 1; }
+  }
+  return null;
+}
+
+function skipQuoted(source, i, quote) {
+  let esc = false;
+  for (let k = i + 1; k < source.length; k++) {
+    if (esc) { esc = false; continue; }
+    if (source[k] === '\\') { esc = true; continue; }
+    if (source[k] === quote) return k;
+  }
+  return -1;
+}
+
+function skipTemplate(source, i) {
+  let esc = false;
+  for (let k = i + 1; k < source.length; k++) {
+    const c = source[k];
+    if (esc) { esc = false; continue; }
+    if (c === '\\') { esc = true; continue; }
+    if (c === '`') return k;
+    if (c === '$' && source[k + 1] === '{') {
+      let depth = 1;
+      k += 2;
+      for (; k < source.length && depth > 0; k++) {
+        const d = source[k];
+        if (d === '`') { k = skipTemplate(source, k); if (k < 0) return -1; continue; }
+        if (d === '"' || d === "'") { k = skipQuoted(source, k, d); if (k < 0) return -1; continue; }
+        if (d === '{') depth++;
+        else if (d === '}') depth--;
+      }
+      k--;
+    }
+  }
+  return -1;
+}
+
+// Blank every comment to spaces, preserving offsets and newlines, so a
+// refusal *named in prose* is never mistaken for a refusal in code.
+function blankComments(source) {
+  const out = source.split('');
+  const blank = (from, to) => {
+    for (let k = from; k < to && k < out.length; k++) {
+      if (out[k] !== '\n') out[k] = ' ';
+    }
+  };
+  for (let i = 0; i < source.length; i++) {
+    const c = source[i];
+    if (c === '/' && source[i + 1] === '/') {
+      const end = source.indexOf('\n', i);
+      blank(i, end < 0 ? source.length : end);
+      i = end < 0 ? source.length : end;
+      continue;
+    }
+    if (c === '/' && source[i + 1] === '*') {
+      const end = source.indexOf('*/', i);
+      blank(i, end < 0 ? source.length : end + 2);
+      i = end < 0 ? source.length : end + 1;
+      continue;
+    }
+    if (c === '"' || c === "'") { i = skipQuoted(source, i, c); if (i < 0) break; continue; }
+    if (c === '`') { i = skipTemplate(source, i); if (i < 0) break; continue; }
+    if (c === '/') {
+      let prev = i - 1;
+      while (prev >= 0 && /\s/.test(source[prev])) prev--;
+      if (prev >= 0 && !'(,=:[!&|?{;+*%~^<>'.includes(source[prev])) continue;
+      let k = i + 1, inClass = false, esc = false;
+      for (; k < source.length; k++) {
+        const d = source[k];
+        if (esc) { esc = false; continue; }
+        if (d === '\\') { esc = true; continue; }
+        if (d === '[') inClass = true;
+        else if (d === ']') inClass = false;
+        else if (d === '/' && !inClass) { i = k; break; }
+        else if (d === '\n') break;
+      }
+    }
+  }
+  return out.join('');
+}
+
+// Every place the runner refuses. `only` narrows to one constructor.
+function scanRefusals(rawSource, only) {
+  const source = blankComments(rawSource);
+  const names = only ? [only] : ['assert', 'fail', 'DrillError'];
+  const found = [];
+  for (const name of names) {
+    for (let from = 0; ;) {
+      const at = source.indexOf(name + '(', from);
+      if (at < 0) break;
+      from = at + 1;
+      // Skip member calls, longer identifiers (assertRunOwnedBatch) and the
+      // declarations of the refusal helpers themselves.
+      if (at > 0 && /[A-Za-z0-9_$.]/.test(source[at - 1])) continue;
+      if (/function\s+$/.test(source.slice(Math.max(0, at - 16), at))) continue;
+      const args = splitCallArgs(source, at + name.length);
+      if (!args) continue;
+      while (args.length && !args[args.length - 1]) args.pop();
+      const raw = args[REFUSAL_CODE_ARG[name]] || '';
+      const literal = /^'[a-z0-9_]+'$/.test(raw);
+      found.push({
+        name,
+        line: source.slice(0, at).split('\n').length,
+        code: literal ? raw.slice(1, -1) : raw,
+        literal,
+      });
+    }
+  }
+  return found.sort((a, b) => a.line - b.line);
+}
+
 function stepBlock(workflow, name) {
   const marker = `      - name: ${name}`;
   const start = workflow.indexOf(marker);
@@ -206,19 +358,39 @@ function publicLeavesAreSafe(value) {
   ok(missingFromWorkflow.length === 0,
     'every script failure code is accepted by the workflow public-safety validator');
 
-  // Every preflight-reachable assert carries an explicit code: a preflight
-  // failure must never surface as unclassified_failure, which is the whole
-  // reason this lane was undebuggable.
-  const preflightBody = source.slice(
-    source.indexOf('async function preflight(runtime) {'),
-    source.indexOf('function syntheticMemberRows(runtime) {'),
-  );
-  const preflightAsserts = (preflightBody.match(/\bassert\(/g) || []).length;
-  const preflightCoded = (preflightBody.match(/,\s*'[a-z_]+'\)/g) || []).length;
-  ok(preflightAsserts > 0 && preflightCoded >= preflightAsserts,
-    'every assert inside preflight() carries an explicit public-safe failure code');
+  // ---- Failure-code coverage: the WHOLE file, not a slice of one function ----
+  // Every reported stage runs through shared helpers, so bounding this scan to
+  // preflight()'s source range was the bug: 15 refusals outside that range
+  // still reported stage=preflight with no code. Scan every refusal instead.
+  const refusals = scanRefusals(source);
+  const uncoded = refusals.filter(call => !call.code);
+  ok(refusals.length > 150,
+    `the refusal scanner sees the whole runner (${refusals.length} sites)`);
+  ok(uncoded.length === 0,
+    'every assert/fail/DrillError refusal carries an explicit public-safe failure code'
+      + (uncoded.length ? `: ${uncoded.map(c => `${c.name}@${c.line}`).join(', ')}` : ''));
+  const unallowlisted = refusals
+    .filter(call => call.literal && !runner.FAILURE_CODES.has(call.code));
+  ok(unallowlisted.length === 0,
+    'every literal failure code at a refusal site is in FAILURE_CODES'
+      + (unallowlisted.length ? `: ${unallowlisted.map(c => c.code).join(', ')}` : ''));
   ok(runner.FAILURE_CODES.has('unclassified_failure'),
     'unclassified_failure remains available for uncodified stages');
+
+  // poll() is the one refusal the scan above cannot check by itself: its code
+  // is a parameter, so an uncoded WAIT hides behind a coded fail(). Require the
+  // parameter, and require every call site to name a distinct wait.
+  ok(/async function poll\(runtime, stage, label, code, fn,/.test(source),
+    'poll takes a required failure code positionally, ahead of the predicate');
+  ok(/assert\(FAILURE_CODES\.has\(code\), stage,[\s\S]{0,140}'poll_code_missing'\)/.test(source),
+    'poll refuses at runtime when its code is missing or unallowlisted');
+  ok(/fail\(stage, `\$\{label\} timed out`, \{ last \}, code\)/.test(source),
+    'a poll timeout reports the call site code rather than a bare stage');
+  const pollCodes = scanRefusals(source, 'poll').map(call => call.code);
+  ok(pollCodes.length >= 9 && pollCodes.every(code => runner.FAILURE_CODES.has(code)),
+    `every poll call site passes an allowlisted code (${pollCodes.length} sites)`);
+  ok(new Set(pollCodes).size === pollCodes.length,
+    'no two poll call sites share a timeout code, so a timeout names which wait ran out');
 
   // ---- Intake project: verified on readback, not gated on a tagged row ----
   // The drill creates through ledgerWrite -> the b4-write edge functions, whose

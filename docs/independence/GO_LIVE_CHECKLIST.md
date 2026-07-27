@@ -290,6 +290,16 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       `hasNextPage=false`, exposes a completeness/version readback, and exactly matches the
       canonical client/team mapping in an anonymized set report; a partial read cannot populate
       the dropdown or clear a draft.
+- [ ] **Every active client's `linear_project_ids` uses the team-keyed shape.** The reader
+      (`projectIdsForTeam` in `supabase/functions/production-write/policy.mjs`) accepts a team-keyed
+      object (`{"video":"…","graphics":"…"}`) or a list whose entries carry their own `team` tag. A
+      bare id list (`["…"]`) resolves to **zero** ids, so `projectForIntake` falls through to
+      `409 project_mapping_missing` on the first native create for that client. Measured 2026-07-27
+      (re-verify before acting): 31 rows team-keyed, **7 rows bare-string**, 1 empty (`unattributed`,
+      internal). Harmless while `prod_authority` is `linear` for both teams — that lane never reads
+      the field — and **blocking the moment a team flips**. Convert the bare-string rows and read
+      back one project per required team per client before Phase 2. The TEST client is exempt:
+      `principal.testOnly` resolves its project from `B4_TEST_PROJECT_BY_TEAM`, not from the row.
 - [ ] **Card resolvability sweep = 0 failures**: every active Linear-linked calendar slot
       resolves to exactly one mirror row; the ~60 missing rows backfilled (F11).
 - [ ] **Cards expose native ownership and navigation** (F112): for each flipped component on both

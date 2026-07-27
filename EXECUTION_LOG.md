@@ -2,6 +2,40 @@
 
 All times are UTC unless noted.
 
+## 2026-07-27 — INCIDENT (open): the weekly n8n workflow export is silently partial
+
+- **Found while** verifying a pre-edit backup for the onboarding-provisioning workflow, as
+  ROLLBACK.md rule 4(b) requires. The builder session refused to proceed because the workflow it
+  was about to edit was absent from the latest backup; that refusal was correct.
+- **Measured:** the scheduled `SyncView - Weekly Backup` run of 2026-07-26 06:00Z completed
+  **successfully** and uploaded `n8n-workflows-2026-07-26.json` (635,075 bytes) to the dated Drive
+  folder. That file contains **54** items: **39 archived + 15 inactive workflows, and zero active
+  ones**. n8n holds **77 active** workflows, none of which are in the backup — including
+  `Client — Onboarding Provisioning`, active and unchanged since 2026-07-03.
+- **Cause, confirmed:** the export node's **published** version (`activeVersionId` `3cf46301…`)
+  carries `filters.activeWorkflows: false`, so the export is the exact complement of production.
+  An unpublished draft (`versionId` `8b341e89…`) removes the filter but was never published.
+  Separately the export/upload path runs `onError: continueRegularOutput`, so a short or failed
+  export can still report success — a real second defect, but **not** the cause here.
+- **Reviewer correction (same day):** this entry first recorded the filter as *excluded* as the
+  cause, reasoning that it would cap the export at 15 while the file held 54. That was wrong: the
+  workflow-listing tool used for the "92 live" figure silently omits archived workflows, so the
+  complement is 39 + 15 = 54, which matches the file exactly. Recorded because the false version
+  was committed to this log and to ROLLBACK.md before being corrected.
+- **Blast radius:** larger than a partial export. Every production automation — every active
+  workflow — has been absent from the weekly Drive backup for an unknown number of weeks, so every
+  "export before the change" claim resting on it is unproven. n8n's built-in per-workflow version
+  history is unaffected and remains a restore lane. No data was lost and nothing was restored from
+  a bad backup — this is a latent recovery gap, not an outage.
+- **Historical extent not yet quantifiable:** n8n retains only the 2026-07-26 execution, and the
+  connected Drive identity cannot open the backup workflow's private folder to audit earlier dated
+  files.
+- **Interim rule:** hand-export the specific workflow from the n8n UI before any n8n edit. See the
+  warning added under ROLLBACK.md rule 4.
+- **Not yet done (needs owner go-ahead — these are live n8n changes):** publish the pending draft;
+  make the export fail the run on a short read; assert exported count against the live workflow
+  count; audit how many prior weekly backups are also short.
+
 ## 2026-07-26 — Slice 5 owner window EXECUTED: read-path migration applied + `production-write` v26 deployed (blockers #8/#9 live-capable)
 
 - **Step A (~23:45Z): the owner applied `migrations/2026-07-25-slice5-production-read-path.sql`**

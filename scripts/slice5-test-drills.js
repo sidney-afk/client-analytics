@@ -126,6 +126,9 @@ const FAILURE_CODES = new Set([
   'rest_write_shape_forbidden',
   'linear_query_not_read_only',
   'linear_read_failed',
+  'linear_auth_failed',
+  'linear_rate_limited',
+  'linear_query_rejected',
   'runtime_flags_unavailable',
   'auth_mode_unrecognized',
   'roster_page_oversized',
@@ -186,7 +189,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const nowIso = () => new Date().toISOString();
 
 class DrillError extends Error {
-  constructor(stage, message, detail, code) {
+  constructor(stage, message, detail, code, httpStatus) {
     super(message);
     this.name = 'DrillError';
     this.stage = ERROR_CODES.has(stage) ? stage : 'preflight';
@@ -194,15 +197,21 @@ class DrillError extends Error {
     // Allowlisted only. An unrecognised code degrades to the generic one rather
     // than leaking whatever string was passed.
     this.code = FAILURE_CODES.has(code) ? code : 'unclassified_failure';
+    // A numeric HTTP status is not private data -- it names the class of
+    // failure without describing any client, issue, project or response body.
+    // Anything non-numeric is dropped rather than coerced.
+    this.httpStatus = Number.isInteger(httpStatus) && httpStatus >= 0 && httpStatus <= 599
+      ? httpStatus
+      : 0;
   }
 }
 
-function fail(stage, message, detail, code) {
-  throw new DrillError(stage, message, detail, code);
+function fail(stage, message, detail, code, httpStatus) {
+  throw new DrillError(stage, message, detail, code, httpStatus);
 }
 
-function assert(condition, stage, message, detail, code) {
-  if (!condition) fail(stage, message, detail, code);
+function assert(condition, stage, message, detail, code, httpStatus) {
+  if (!condition) fail(stage, message, detail, code, httpStatus);
 }
 
 function parseJson(value) {
@@ -1184,7 +1193,23 @@ async function linearRead(runtime, query, variables = {}, stage = 'preflight') {
   });
   const body = responseBody(bytes);
   if (!response.ok || !body || body.errors) {
-    fail(stage, 'Linear read failed', { status: response.status, errors: body && body.errors }, 'linear_read_failed');
+    // One code for three unrelated failures made this undebuggable: a bad key,
+    // a rate limit and an invalid query need three different fixes and looked
+    // identical. Split by the class of failure, and carry the numeric HTTP
+    // status -- which names the class without describing any client, issue,
+    // project or response body. The status and the GraphQL errors themselves
+    // continue to go only to the private log, which is unchanged and still
+    // never uploaded.
+    const status = Number(response.status) || 0;
+    const code = status === 401 || status === 403
+      ? 'linear_auth_failed'
+      : status === 429
+        ? 'linear_rate_limited'
+        : (response.ok && body && body.errors)
+          ? 'linear_query_rejected'
+          : 'linear_read_failed';
+    fail(stage, 'Linear read failed',
+      { status: response.status, errors: body && body.errors }, code, status);
   }
   return body.data;
 }
@@ -4373,6 +4398,7 @@ function emptyReport() {
     mode: 'test_only',
     scope: 'active_test_only',
     failure_code: 'none',
+    failure_http_status: 0,
     preflight_only: false,
     intake_project_verified: false,
     preflight: { result: 'not_run' },
@@ -4687,6 +4713,11 @@ async function main(env = process.env, deps = {}) {
       ? failure.code
       : 'unclassified_failure')
     : 'none';
+  // 0 means "no HTTP status applies", not "status zero".
+  report.failure_http_status = failure instanceof DrillError
+    && Number.isInteger(failure.httpStatus)
+    ? failure.httpStatus
+    : 0;
   report.ok = !failure
     && report.cleanup_ok
     && report.flags_unchanged
@@ -4730,6 +4761,7 @@ async function main(env = process.env, deps = {}) {
         schema_version: 1,
         stage: publicReport.error_code,
         failure_code: publicReport.failure_code,
+        http_status: publicReport.failure_http_status,
       }, null, 2));
     } catch (_) { /* never let reporting mask the original failure */ }
   }

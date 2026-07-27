@@ -551,6 +551,61 @@ function publicLeavesAreSafe(value) {
   }
   ok(readEscapeRejects === 3 && readEscapeFetches === 0,
     'read helpers reject mutation-capable HTTP and GraphQL shapes before fetch');
+
+  // ---- Linear failure classification: three fixes, three codes -----------
+  // One code for 401, 429 and a rejected query made the lane undebuggable:
+  // a bad key, a rate limit and an invalid document need different fixes and
+  // looked identical. Driven through the REAL linearRead with a stubbed fetch.
+  const linearCases = [
+    [401, { errors: [{ message: 'authentication failed' }] }, 'linear_auth_failed', 401],
+    [403, { errors: [{ message: 'forbidden' }] }, 'linear_auth_failed', 403],
+    [429, { errors: [{ message: 'rate limited' }] }, 'linear_rate_limited', 429],
+    [200, { errors: [{ message: 'Cannot query field' }] }, 'linear_query_rejected', 200],
+    [400, { errors: [{ message: 'complexity' }] }, 'linear_read_failed', 400],
+    [500, {}, 'linear_read_failed', 500],
+    [502, null, 'linear_read_failed', 502],
+  ];
+  for (const [status, payload, expectedCode, expectedStatus] of linearCases) {
+    const runtimeForStatus = {
+      ...offlineGuardRuntime,
+      fetch: async () => ({
+        ok: status >= 200 && status < 300,
+        status,
+        headers: { get: () => 'application/json' },
+        arrayBuffer: async () => Buffer.from(payload === null ? 'not json' : JSON.stringify(payload)),
+      }),
+    };
+    let caught = null;
+    try {
+      await runner.linearRead(runtimeForStatus, 'query Probe { viewer { id } }', {}, 'preflight');
+    } catch (error) {
+      caught = error;
+    }
+    ok(caught && caught.code === expectedCode,
+      `HTTP ${status} classifies as ${expectedCode}`);
+    ok(caught && caught.httpStatus === expectedStatus,
+      `HTTP ${status} carries its numeric status publicly`);
+  }
+  // A 200 with data and no errors must still succeed.
+  const okRuntime = {
+    ...offlineGuardRuntime,
+    fetch: async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'application/json' },
+      arrayBuffer: async () => Buffer.from(JSON.stringify({ data: { viewer: { id: 'v' } } })),
+    }),
+  };
+  const okData = await runner.linearRead(okRuntime, 'query Probe { viewer { id } }', {}, 'preflight');
+  ok(okData && okData.viewer && okData.viewer.id === 'v',
+    'a clean Linear read still returns its data');
+  // The status reaches the public aggregate and the failure report; nothing
+  // else from the response does.
+  ok(runner.emptyReport().failure_http_status === 0,
+    'the aggregate carries a numeric failure_http_status, 0 when no HTTP call failed');
+  const linearReadSource = sourceFunction(source, 'linearRead');
+  ok(!/body\.errors\[0\]|errors\[0\]\.message|\.message\b[\s\S]{0,40}fail\(/.test(linearReadSource),
+    'no GraphQL error text is promoted into the public code path');
   for (const invoke of [
     () => runner.restWrite(offlineGuardRuntime, 'deliverables?id=eq.offline', {
       method: 'PATCH',

@@ -138,11 +138,16 @@ jobs:
             # slug. The console log stays on the ephemeral runner as before.
             stage=unavailable
             code=unavailable
+            http=0
             if [ -f artifacts/slice5-test-drills-failure.json ]; then
               stage="$(node -e 'const r=require("./artifacts/slice5-test-drills-failure.json");process.stdout.write(String(r.stage||"unavailable"))' 2>/dev/null || echo unavailable)"
               code="$(node -e 'const r=require("./artifacts/slice5-test-drills-failure.json");process.stdout.write(String(r.failure_code||"unavailable"))' 2>/dev/null || echo unavailable)"
+              http="$(node -e 'const r=require("./artifacts/slice5-test-drills-failure.json");process.stdout.write(String(r.http_status||0))' 2>/dev/null || echo 0)"
             fi
-            echo "::error::Slice 5 TEST drills failed at stage=${stage} code=${code}; private detail stayed on the ephemeral runner."
+            # http_status is 0 when no HTTP call produced the failure. A numeric
+            # status names the class of failure without describing any client,
+            # issue, project or response body.
+            echo "::error::Slice 5 TEST drills failed at stage=${stage} code=${code} http_status=${http}; private detail stayed on the ephemeral runner."
             exit 1
           fi
           echo "Slice 5 TEST drills passed; only the public-safe aggregate will be retained."
@@ -228,6 +233,9 @@ jobs:
             'rest_write_shape_forbidden',
             'linear_query_not_read_only',
             'linear_read_failed',
+            'linear_auth_failed',
+            'linear_rate_limited',
+            'linear_query_rejected',
             'runtime_flags_unavailable',
             'auth_mode_unrecognized',
             'roster_page_oversized',

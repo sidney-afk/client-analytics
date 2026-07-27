@@ -219,6 +219,58 @@ function publicLeavesAreSafe(value) {
     'every assert inside preflight() carries an explicit public-safe failure code');
   ok(runner.FAILURE_CODES.has('unclassified_failure'),
     'unclassified_failure remains available for uncodified stages');
+
+  // ---- Intake project: verified on readback, not gated on the client row ----
+  // production-write projectForIntake branches on principal.testOnly FIRST and
+  // resolves from B4_TEST_PROJECT_BY_TEAM; clients.linear_project_ids is read
+  // only on the real-client path. Preflight must not gate on it.
+  const preflightSource = source.slice(
+    source.indexOf('async function preflight(runtime) {'),
+    source.indexOf('function syntheticMemberRows(runtime) {'),
+  );
+  ok(!/projectIdsForTeam\(runtime\.client\.linear_project_ids/.test(preflightSource),
+    'preflight no longer gates on the client-row project mapping');
+  ok(!/test_project_unavailable/.test(preflightSource),
+    'the client-row project precondition is gone from preflight');
+  ok(/linear_catalog_incomplete/.test(preflightSource)
+    && /linear_team_unavailable/.test(preflightSource)
+    && /provider_pool_incomplete/.test(preflightSource),
+  'the real Linear catalog, team and provider-pool preconditions are kept');
+
+  // projectIdsForTeam itself is untouched: the real-client intake path still
+  // depends on its stricter team-tagged shape.
+  ok(runner.projectIdsForTeam(['bare-id'], 'video').length === 0
+    && runner.projectIdsForTeam([{ team: 'video', id: 'tagged' }], 'video')[0] === 'tagged',
+  'projectIdsForTeam keeps requiring a team-tagged entry');
+  // The flat reader mirrors the edge allowlist rule (b4-write projectIds),
+  // which is what actually admits the drill create intent.
+  ok(runner.flatClientProjectIds(['bare-id'])[0] === 'bare-id'
+    && runner.flatClientProjectIds([{ team: 'video', id: 'tagged' }])[0] === 'tagged'
+    && runner.flatClientProjectIds(null).length === 0,
+  'the flat client-project reader accepts the bare id array the edge accepts');
+
+  // The readback proof fires with its own code and rejects an unusable project.
+  const intakeSource = sourceFunction(source, 'verifyGatewayIntakeProject');
+  ok(/'linear_project_unavailable'/.test(intakeSource),
+    'the intake-project readback reuses the linear_project_unavailable code');
+  ok(/archivedAt/.test(intakeSource) && /VID/.test(intakeSource),
+    'the readback asserts the project is non-archived and Video-teamed');
+  ok(/runtime\.linear\.verifiedProjectId = mintedIssue\.projectId/.test(source),
+    'the verified project id comes from the minted issue, not from the offered id');
+  ok(/clean\(issue\.project && issue\.project\.id\) === clean\(runtime\.linear\.verifiedProjectId\)/.test(source),
+    'cleanup ownership compares against the project the gateway actually used');
+
+  // preflight_only genuinely does not verify the project, and says so.
+  ok(Object.prototype.hasOwnProperty.call(runner.emptyReport(), 'intake_project_verified')
+    && runner.emptyReport().intake_project_verified === false,
+  'the aggregate reports intake_project_verified, false until the readback proves it');
+  const preflightOnlyBlock = source.slice(
+    source.indexOf("await runBoundedDrillPhase(runtime, 'preflight'"),
+    source.indexOf("stage = 'f94_negative';"),
+  );
+  ok(preflightOnlyBlock.indexOf('report.preflight_only = true;')
+    < preflightOnlyBlock.indexOf('report.intake_project_verified'),
+  'a preflight-only run returns before the project readback, so it cannot claim verification');
   for (const code of [
     'test_client_not_unique', 'test_project_unavailable', 'linear_catalog_incomplete',
     'provider_pool_incomplete', 'roster_empty', 'browser_key_unavailable',
@@ -1431,7 +1483,10 @@ function publicLeavesAreSafe(value) {
   const linearOwnershipRuntime = {
     runToken: 'slice5-offline-owned',
     linear: {
-      project: { id: 'offline-test-project' },
+      // The cleanup ownership guard now compares against the project the
+      // gateway actually used, established by the fixture readback, not the id
+      // the drill offered on its create intent.
+      verifiedProjectId: 'offline-test-project',
       team: { id: 'offline-test-team' },
     },
   };

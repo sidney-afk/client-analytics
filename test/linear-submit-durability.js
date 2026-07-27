@@ -309,22 +309,30 @@ function ok(condition, label) {
     ok(!h.buttons.linearSubmitBtnVideo.disabled, 'storage failure restores the submit controls');
   }
 
-  console.log('\nF44: empty filming plan fails client preflight before the network');
+  console.log('\nF44: empty filming plan reaches the legacy writer for server resolution');
   {
     const bodies = [];
+    const createUrls = [];
     const h = makeHarness(async (url, options) => {
       if (url === LOG_URL) return response({ ok: true });
       bodies.push(JSON.parse(options.body));
+      createUrls.push(url);
+      if (bodies.length === 1) return response({ ok: false, status: 'failed', error: 'temporary mapping retry' });
       return createdResponse(options);
     }, { planUrl: '' });
-    const blocked = await h.api.submitLinearForm('video');
-    ok(blocked.ok === false && h.calls.fetches.length === 0 && /filming plan/i.test(h.status.textContent), 'empty resolved plan sends neither telemetry nor create request');
-    ok(!h.storage.has(LINEAR_RECEIPTS_KEY) && h.calls.saves === 0 && h.calls.calendarJobs.length === 0, 'client preflight happens before draft snapshot, receipt creation, or phantom work');
+    const first = await h.api.submitLinearForm('video');
+    ok(first.ok === false && bodies.length === 1 && createUrls[0] === VIDEO_URL && bodies[0].filmingPlans === '',
+      'empty resolved plan is sent to the legacy F44 video writer for server-side resolution');
+    ok(h.storage.has(LINEAR_RECEIPTS_KEY) && h.calls.saves === 1 && h.calls.calendarJobs.length === 0,
+      'a failed server attempt retains the blank-plan receipt and does not create phantom work');
 
     h.api.setPlanUrl('https://docs.example/fixed-plan');
     const created = await h.api.submitLinearForm('video');
-    ok(created.ok === true && bodies.length === 1 && bodies[0].filmingPlans === 'https://docs.example/fixed-plan', 'fixed plan creates the first real receipt and sends exactly one create request');
-    ok(h.calls.calendarJobs.length === 1 && h.calls.nav.length === 1, 'strictly confirmed first request produces exactly one calendar job and navigation');
+    ok(created.ok === true && bodies.length === 2 && bodies[1].filmingPlans === ''
+      && bodies[1].receipt_key === bodies[0].receipt_key && bodies[1].payload_hash === bodies[0].payload_hash,
+    'retry preserves the immutable blank-plan receipt instead of silently changing the client payload');
+    ok(h.calls.calendarJobs.length === 1 && h.calls.nav.length === 1,
+      'strictly confirmed server-resolved submission produces exactly one calendar job and navigation');
   }
 
   console.log('\nF44: video then both reuses one canonical payload receipt');

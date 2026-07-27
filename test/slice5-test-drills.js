@@ -184,6 +184,61 @@ function publicLeavesAreSafe(value) {
   ok(/if: failure\(\)\n        uses: actions\/upload-artifact@v4/.test(workflow),
     'the failure-only report is uploaded when the drill step fails');
 
+  // ---- Preflight-only mode and per-assert failure codes ------------------
+  ok(/^      preflight_only:$/m.test(workflow)
+    && /^        default: false$/m.test(workflow)
+    && /^        type: boolean$/m.test(workflow),
+  'preflight_only is an optional boolean dispatch input defaulting to false');
+  ok(/SLICE5_TEST_DRILLS_PREFLIGHT_ONLY: \$\{\{ inputs\.preflight_only \}\}/.test(workflow),
+    'the preflight_only input reaches the script as an env var');
+  ok(/fs\.unlinkSync\(reportPath\)/.test(workflow)
+    && /if \(rejected\) process\.exit\(1\)/.test(workflow),
+  'a report the validator rejects is deleted so the failure upload cannot publish it');
+
+  // The workflow validator allowlist must equal the script allowlist exactly,
+  // or a legitimate failure code would be rejected as unsafe at the last step.
+  const workflowEnums = new Set(
+    (workflow.slice(workflow.indexOf('const safeEnums = new Set(['),
+      workflow.indexOf(']);', workflow.indexOf('const safeEnums = new Set(['))
+    ).match(/'[a-z0-9_]+'/g) || []).map(v => v.slice(1, -1)),
+  );
+  const missingFromWorkflow = [...runner.FAILURE_CODES].filter(c => !workflowEnums.has(c));
+  ok(missingFromWorkflow.length === 0,
+    'every script failure code is accepted by the workflow public-safety validator');
+
+  // Every preflight-reachable assert carries an explicit code: a preflight
+  // failure must never surface as unclassified_failure, which is the whole
+  // reason this lane was undebuggable.
+  const preflightBody = source.slice(
+    source.indexOf('async function preflight(runtime) {'),
+    source.indexOf('function syntheticMemberRows(runtime) {'),
+  );
+  const preflightAsserts = (preflightBody.match(/\bassert\(/g) || []).length;
+  const preflightCoded = (preflightBody.match(/,\s*'[a-z_]+'\)/g) || []).length;
+  ok(preflightAsserts > 0 && preflightCoded >= preflightAsserts,
+    'every assert inside preflight() carries an explicit public-safe failure code');
+  ok(runner.FAILURE_CODES.has('unclassified_failure'),
+    'unclassified_failure remains available for uncodified stages');
+  for (const code of [
+    'test_client_not_unique', 'test_project_unavailable', 'linear_catalog_incomplete',
+    'provider_pool_incomplete', 'roster_empty', 'browser_key_unavailable',
+    'policy_source_unavailable', 'role_key_missing', 'identity_plan_already_reserved',
+    'preflight_only_mutation_blocked', 'preflight_only_browser_blocked',
+  ]) {
+    ok(runner.FAILURE_CODES.has(code), `failure code ${code} is allowlisted`);
+  }
+  ok(/if \(runtime\.config\.preflightOnly\) \{\n        report\.preflight_only = true;\n        return;\n      \}/.test(source),
+    'preflight-only returns before the first create, not merely around each one');
+  for (const fn of ['restWrite', 'edgeWrite', 'gatewayWrite']) {
+    const body = source.slice(source.indexOf(`async function ${fn}(`),
+      source.indexOf(`async function ${fn}(`) + 700);
+    ok(/assert\(!runtime\.config\.preflightOnly/.test(body),
+      `${fn} refuses outright in preflight-only mode`);
+  }
+  ok(/assert\(!runtime\.config\.preflightOnly[\s\S]{0,160}preflight_only_browser_blocked/
+    .test(source.slice(source.indexOf('async function launchBrowser('))),
+  'launchBrowser refuses outright in preflight-only mode');
+
   const drillClock = stepBlock(workflow, 'Start the bounded drill clock');
   const trustedCheckout = stepBlock(workflow, 'Check out trusted main for the provenance gate');
   const provenance = stepBlock(workflow, 'Verify requested commit is an exact ancestor of origin/main');

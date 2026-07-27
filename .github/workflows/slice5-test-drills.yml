@@ -15,6 +15,14 @@ on:
         description: Exact lowercase 40-character commit SHA already on main
         required: true
         type: string
+      preflight_only:
+        description: >-
+          Run preflight checks only, then exit successfully. Creates nothing,
+          writes nothing, starts no browser. Use this to debug a preconditon
+          failure in ~60 seconds instead of a 1-3 hour full drill.
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -105,6 +113,7 @@ jobs:
           ROLE_KEY_SMM: ${{ secrets.ROLE_KEY_SMM }}
           ROLE_KEY_CREATIVE: ${{ secrets.ROLE_KEY_CREATIVE }}
           SLICE5_TEST_DRILLS_CONFIRM: 'SLICE5_TEST_ONLY'
+          SLICE5_TEST_DRILLS_PREFLIGHT_ONLY: ${{ inputs.preflight_only }}
           SLICE5_TEST_DRILLS_REPORT: artifacts/slice5-test-drills.json
           SLICE5_TEST_DRILLS_FAILURE_REPORT: artifacts/slice5-test-drills-failure.json
           SLICE5_TEST_DRILLS_PRIVATE_LOG: ${{ runner.temp }}/slice5-test-drills-private.json
@@ -188,7 +197,8 @@ jobs:
             'read_rebaseline',
             'report',
             // Public-safe failure codes (FAILURE_CODES in the script) — which
-            // gate refused, never why in words.
+            // gate refused, never why in words. Kept in sync with the script;
+            // test/slice5-test-drills.js asserts the two lists match exactly.
             'unclassified_failure',
             'confirm_token_missing',
             'config_invalid',
@@ -204,6 +214,48 @@ jobs:
             'cleanup_incomplete',
             'flags_changed',
             'report_sanitize_failed',
+            'browser_key_unavailable',
+            'deadline_unresolved',
+            'test_client_not_unique',
+            'test_client_not_active_test',
+            'write_target_out_of_scope',
+            'write_target_client_drift',
+            'run_ledger_payload_invalid',
+            'synthetic_row_not_run_owned',
+            'synthetic_row_marker_missing',
+            'synthetic_row_already_exists',
+            'rest_write_table_forbidden',
+            'rest_write_shape_forbidden',
+            'linear_query_not_read_only',
+            'linear_read_failed',
+            'runtime_flags_unavailable',
+            'auth_mode_unrecognized',
+            'roster_page_oversized',
+            'roster_keyset_unordered',
+            'roster_duplicate_ids',
+            'roster_page_cap_exceeded',
+            'roster_empty',
+            'roster_snapshot_missing',
+            'roster_changed_during_run',
+            'job_clock_invalid',
+            'supabase_url_mismatch',
+            'role_key_missing',
+            'fetch_unavailable',
+            'policy_source_unavailable',
+            'authority_not_linear',
+            'test_project_unavailable',
+            'linear_catalog_incomplete',
+            'linear_project_unavailable',
+            'linear_team_unavailable',
+            'provider_pool_incomplete',
+            'identity_plan_already_reserved',
+            'run_ledger_conflict',
+            'run_ledger_insert_failed',
+            'identity_plan_mismatch',
+            'synthetic_member_insert_incomplete',
+            'fixture_plan_mismatch',
+            'preflight_only_mutation_blocked',
+            'preflight_only_browser_blocked',
             // Whether the provider-inactive negative case could be proven.
             'proven',
             'not_proven_no_inactive_provider',
@@ -222,10 +274,21 @@ jobs:
               validate(child, keyPath ? `${keyPath}.${key}` : key);
             }
           }
+          let rejected = 0;
           for (const reportPath of reportPaths) {
-            validate(JSON.parse(fs.readFileSync(reportPath, 'utf8')), '');
-            console.log(`public-safe: ${reportPath}`);
+            try {
+              validate(JSON.parse(fs.readFileSync(reportPath, 'utf8')), '');
+              console.log(`public-safe: ${reportPath}`);
+            } catch (error) {
+              // A rejected report must never be uploaded. Delete it here so the
+              // if: failure() upload below cannot publish an unvalidated file,
+              // then fail the step.
+              rejected += 1;
+              try { fs.unlinkSync(reportPath); } catch (_) {}
+              console.log(`::error::rejected and deleted unvalidated report: ${reportPath}`);
+            }
           }
+          if (rejected) process.exit(1);
           NODE
 
       - name: Upload public-safe drill aggregate

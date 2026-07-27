@@ -35,7 +35,7 @@
 - [ ] Scrape 5–10 of their Instagram **reels** and write the **keywords** + **content_description**. → [§3](#3-research-keywords--content_description)
 
 **SYNCVIEW Google Sheet** (`10QQ…QqAU8`)
-- [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, slack channel id, …). → [§4](#4-clients-info-row-the-big-one)
+- [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, Slack channel ID, Roam group ID, …). → [§4](#4-clients-info-row-the-big-one)
 - [ ] **Social Media Managers** → add a row (who's their SMM). → [§5](#5-social-media-managers-row)
 - [ ] **Monthly Checkup** → add a row (client_name + email) so the client gets the automated monthly check-in email. → [§6j](#6j-monthly-check-in-email)
 - [ ] *(optional, later)* **Templates** → reels/thumbnail font & color prefs. → [§6b](#6b-templates--caption-prompts-optional)
@@ -44,7 +44,8 @@
 - [ ] Create/move the client's master filming Google Doc inside their folder in the shared **Client Filming Plans** Drive.
 - [ ] In SyncView, sign in with an **Admin** staff identity, then open the main **Filming Plans** tab and add/update the client Doc link. → [§6a](#6a-filming-plan)
 
-**Slack / Post For Me**
+**Roam / Slack / Post For Me**
+- [ ] **Before the onboarding form is submitted:** create the client's private Roam creative group, invite the same two internal onboarding members, and paste its bare Group Settings UUIDv4 into `roam_channel_id`. → [§6c1](#6c1-roam-creative-group-before-onboarding-submit)
 - [ ] Create the client's **Slack channel**, grab its **channel ID** (→ Clients Info) and **member/SMM user ID** (→ SMM tab). → [§6c](#6c-slack-channel)
 - [ ] *(not urgent)* Connect their **TikTok account in Post For Me**, put the account's `spc_…` id in `postforme_account_id`. → [§6d](#6d-post-for-me-account-not-urgent)
 
@@ -133,6 +134,7 @@ This is the part that's easy to forget the *method* for. You're producing three 
 | `tiktok_handle` | TikTok handle | **Blank/`N/A` is fine** — scrapers skip it. |
 | `youtube_channel_id` | `UC…` channel ID | **Blank/`N/A` is fine.** |
 | `slack_channel_id` | `C…` channel ID for their Slack | Fill after you create the channel ([§6c](#6c-slack-channel)). Weekly report posts here. |
+| `roam_channel_id` | Bare UUIDv4 from the private Roam group's **Group Settings** | Required **before** the intake submit when onboarding posts to Roam. Do not use an Alpha `G-…` identifier. See [§6c1](#6c1-roam-creative-group-before-onboarding-submit). |
 | `postforme_account_id` | Post For Me account id (`spc_…`) | **Usually blank** — only the TikTok‑auto‑upload clients use it ([§6d](#6d-post-for-me-account-not-urgent)). |
 
 **Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` (Slack workspace id, for deep-links). **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
@@ -203,6 +205,16 @@ The operational source-of-truth UI is the main **Filming Plans** tab. Kasper's *
 3. Copy the SMM's **user ID** (`U…`) → into the SMM tab's `slack_profile_url` (and `slack_team_id` into Clients Info if you use deep‑links).
 
 This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5NSaCMtZMh6`) posts to every Monday, and where urgent tweak pings go.
+
+### 6c1. Roam creative group (before onboarding submit)
+This is the manual setup for the onboarding kickoff and full-form messages. It does **not** replace `slack_channel_id`, which the remaining Slack automations still use.
+
+1. Create a **private** Roam group before the client submits onboarding.
+2. Name it `<first>-<last>-creative`: lowercase; collapse runs of non-alphanumerics to one hyphen; trim leading/trailing hyphens; cap the complete group name at **64 characters** and trim a trailing hyphen after capping.
+3. Invite the same two internal onboarding members used for the former Slack channel. Do not record member IDs in this public repo.
+4. In Roam **Group Settings**, copy the group's **bare UUIDv4** (not an Alpha `G-…` ID) into that client's `roam_channel_id` cell in **Clients Info**.
+
+The provisioning workflow only resolves that ID and posts the two messages. If the row or UUID is missing/invalid, it sends the complete brief to the owner’s Slack fallback instead of silently dropping it.
 
 ### 6d. Post For Me account (not urgent)
 Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`spc_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)

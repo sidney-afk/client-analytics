@@ -259,6 +259,7 @@ function publicLeavesAreSafe(value) {
     'assertSyntheticMemberMutationAllowed',
     'classifyMatrixAttempt',
     'expectedCreativeAcceptedSet',
+    'matrixSyntheticStamp',
     'requestDeadlineMs',
     'memberReferenceIds',
     'assertWriteMemberReferencesRunOwned',
@@ -903,29 +904,38 @@ function publicLeavesAreSafe(value) {
   'the gateway drill drives role x current x next and expects every non-policy case to refuse');
   ok(/403/.test(source) && /zero_mutation_proofs_count/.test(source),
     'forbidden matrix cases require 403 before any mutation');
+  const stale0 = runner.matrixSyntheticStamp(0);
+  const stale1 = runner.matrixSyntheticStamp(1);
   ok(/const OWNERSHIP_STATES = Object\.freeze\(\[['"]own['"], ['"]peer['"], ['"]unassigned['"]\]\)/.test(source)
-    && /expected_updated_at:\s*['"]1970-01-01T00:00:00\.000Z['"]/.test(source),
-  'the matrix covers own/peer/unassigned rows and sends a deliberately stale CAS');
+    && stale0 !== stale1
+    && stale0.startsWith('2000-01-01T')
+    && /matrixSyntheticStamp\(matrixBlockOrdinal\)/.test(source),
+  'the matrix covers own/peer/unassigned rows with a unique stale browser CAS per block');
   const matrixRunner = sourceFunction(source, 'runF136Matrix');
-  const matrixCourier = sourceFunction(source, 'browserMatrixStatusAttempt');
+  const matrixControl = sourceFunction(source, 'browserMatrixStatusControl');
+  const browserProjection = sourceFunction(source, 'browserProjection');
   const browserRouter = sourceFunction(source, 'installBrowserRoutes');
   ok(occurrences(matrixRunner, 'openTestProductionPage(runtime, browser') === 2
     && /\/\?prod=1&view=list&issues=all&prodcache=0/.test(matrixRunner)
     && /\/\?prod=1&d=\$\{encodeURIComponent\(runtime\.fixture\.deliverableId\)\}/.test(matrixRunner),
   'F136 opens independent list and exact direct-link browser contexts');
-  ok(/Promise\.all\(\[\s*browserMatrixStatusAttempt\(runtime, listCourier\.page/.test(matrixRunner)
-    && /browserMatrixStatusAttempt\(runtime, directCourier\.page/.test(matrixRunner)
+  ok(/driveSurface\(['"]list['"], listCourier, listState, listStatusSelector\)/.test(matrixRunner)
+    && /driveSurface\(['"]direct['"], directCourier, directState, directStatusSelector\)/.test(matrixRunner)
     && /attempts === expectedTuples \* 2/.test(matrixRunner)
     && /listAttempts === expectedTuples/.test(matrixRunner)
     && /directAttempts === expectedTuples/.test(matrixRunner)
-    && /listState\.matrixWrites === expectedTuples/.test(matrixRunner)
-    && /directState\.matrixWrites === expectedTuples/.test(matrixRunner),
-  'every F136 tuple traverses both independent browser couriers');
+    && /controlInteractions === attempts/.test(matrixRunner)
+    && /controlDispatches === policyAccepted/.test(matrixRunner)
+    && /controlBlocks === forbidden/.test(matrixRunner),
+  'every F136 tuple exercises both independent real status-control surfaces');
   ok(Object.prototype.hasOwnProperty.call(sanitized.f136_matrix, 'list_attempts_count')
     && Object.prototype.hasOwnProperty.call(sanitized.f136_matrix, 'direct_attempts_count')
+    && Object.prototype.hasOwnProperty.call(sanitized.f136_matrix, 'control_interactions_count')
+    && Object.prototype.hasOwnProperty.call(sanitized.f136_matrix, 'control_dispatches_count')
+    && Object.prototype.hasOwnProperty.call(sanitized.f136_matrix, 'control_blocks_count')
     && /list_attempts_count:\s*listAttempts/.test(matrixRunner)
     && /direct_attempts_count:\s*directAttempts/.test(matrixRunner),
-  'the public aggregate exposes both exact per-context matrix counts');
+  'the public aggregate exposes per-context and status-control matrix counts');
   ok(/creativeObservedList === creativeExpected/.test(matrixRunner)
     && /creativeObservedDirect === creativeExpected/.test(matrixRunner)
     && /assertMatrixBlockUnchanged\(before, after\)/.test(matrixRunner),
@@ -944,18 +954,45 @@ function publicLeavesAreSafe(value) {
     && expectedZeroProofs === 118
     && /policyAccepted === expectedAcceptedPerContext \* 2/.test(matrixRunner)
     && /forbidden === expectedForbiddenPerContext \* 2/.test(matrixRunner)
-    && /zeroProofs === expectedZeroProofs/.test(matrixRunner),
-  'the exact dual-context matrix totals are derived and asserted as 3042/2052/990/24/118');
-  ok(/page\.evaluate/.test(matrixCourier)
-    && /functions\/v1\/production-write/.test(matrixCourier)
-    && /CAL_SUPABASE_ANON_KEY/.test(matrixCourier)
-    && !/serviceKey|ROLE_KEY_|roleKeys/.test(matrixCourier),
-  'the page-side matrix courier receives no service or role credential');
+    && /zeroProofs === expectedZeroProofs/.test(matrixRunner)
+    && /cas_fenced_count:\s*2/.test(matrixRunner),
+  'the exact dual-context totals are derived as 3042/2052/990/24/118 plus two UI CAS fences');
+  ok(/\.prod-row\[data-prod-row=/.test(matrixRunner)
+    && /\.prod-detail\[data-prod-detail=/.test(matrixRunner)
+    && /#prodLayer \.prod-pop/.test(matrixControl)
+    && /\[data-prod-pick\]/.test(matrixControl)
+    && /control\.click\(\)/.test(matrixControl)
+    && /target\.click\(\)/.test(matrixControl)
+    && /matrix_forbidden_status_was_offered/.test(matrixControl)
+    && !/\bfetch\(/.test(matrixControl),
+  'F136 opens, inspects, blocks, and dispatches through the real list/detail status controls');
+  ok(/routeState\.allowMatrix === true/.test(browserProjection)
+    && /kind: ['"]video['"]/.test(browserProjection)
+    && /matrixSyntheticStamp/.test(browserProjection)
+    && /video: ['"]syncview['"]/.test(browserProjection),
+  'the F136-only browser lens enables staff controls and supplies unique stale projection clocks');
+  const matrixOraclePatchAt = matrixRunner.indexOf(
+    'await setFixtureOracleState(runtime, current',
+  );
+  const matrixClockHandoffAt = matrixRunner.indexOf(
+    'listState.matrixSyntheticStamp = syntheticStamp',
+  );
+  ok(/clearInterval\(_prodOperationalTimer\)/.test(matrixRunner)
+    && /clearInterval\(_prodAuthorityTimer\)/.test(matrixRunner)
+    && /matrix_background_refresh_did_not_settle/.test(matrixRunner)
+    && matrixOraclePatchAt >= 0
+    && matrixClockHandoffAt > matrixOraclePatchAt,
+  'F136 freezes background ticks and advances its browser clock only after the TEST oracle patch');
   ok(/routeState\.allowMatrix === true/.test(browserRouter)
     && /!input\.test_override/.test(browserRouter)
     && /clean\(input\.id\) === runtime\.fixture\.deliverableId/.test(browserRouter)
+    && /clean\(input\.client_slug\) === runtime\.client\.slug/.test(browserRouter)
+    && /lower\(input\.status\) === expected\.next/.test(browserRouter)
+    && /clean\(input\.expected_updated_at\) === expected\.syntheticStamp/.test(browserRouter)
+    && /matrixCasWrites/.test(browserRouter)
+    && /matrixRequestIds\.has\(browserRequestId\)/.test(browserRouter)
     && /routeState\.matrixWrites/.test(browserRouter),
-  'the Node route admits only non-override status attempts for the run-owned TEST fixture');
+  'the Node route admits only the exact expected UI status/CAS request for the active TEST fixture');
 
   // ---- F37 real roster: read-only enumeration, local verification --------
   const completeRoster = sourceFunction(source, 'readCompleteRoster');
@@ -1150,12 +1187,12 @@ function publicLeavesAreSafe(value) {
     && /runBoundedDrillPhase\(/.test(source)
     && /runtime\.cleanupStarted = true;[\s\S]{0,120}closeBrowsers\(runtime\)/.test(source),
   'the main phase cannot consume the separately reserved 30-minute cleanup window');
-  ok(/new AbortController\(\)/.test(matrixCourier)
-    && /signal:\s*controller\.signal/.test(matrixCourier)
-    && /timeoutMs:\s*BROWSER_REQUEST_TIMEOUT_MS/.test(matrixCourier)
+  ok(/pageEvaluate\(/.test(matrixControl)
+    && /poll\(/.test(matrixControl)
+    && /BROWSER_REQUEST_TIMEOUT_MS/.test(matrixControl)
     && /isLoopbackStatic/.test(browserRouter)
     && /route\.abort\(['"]blockedbyclient['"]\)/.test(browserRouter),
-  'browser live couriers abort on deadline and unknown external requests are blocked');
+  'browser matrix controls remain bounded and unknown external requests are blocked');
   const fakeNow = 1_000_000;
   ok(runner.requestDeadlineMs({
     processDeadlineAt: fakeNow + (30 * 60_000) + 5_000,

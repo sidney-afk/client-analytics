@@ -146,8 +146,11 @@ function assertFlipTolerantStance(snapshot) {
   return { authority, outbound, inbound, auth };
 }
 
-function descriptionDrillAllowed(authority, team) {
-  return ['syncview', 'supabase'].includes(clean(authority && authority[team]).toLowerCase());
+function descriptionReadbackMatches(authority, team, native, mirrored, expected) {
+  const lane = clean(authority && authority[team]).toLowerCase();
+  if (!native || !mirrored || mirrored.description !== expected) return false;
+  if (lane === 'linear') return true;
+  return ['syncview', 'supabase'].includes(lane) && native.brief === expected;
 }
 
 async function preflight() {
@@ -164,8 +167,9 @@ async function preflight() {
   assert(TEST_CLIENT, 'active TEST client has no slug');
   const before = await flags();
   // The TEST override is isolated from the real-team authority/outbound lane.
-  // Validate the current stance, but retain it so authority-specific
-  // assertions do not expect a native write from a Linear-owned feature.
+  // Validate and freeze the current stance. The TEST override always exercises
+  // the description gateway; this snapshot controls only the eventual
+  // authority-specific readback expectation.
   PROD_AUTHORITY = assertFlipTolerantStance(before).authority;
   return before;
 }
@@ -259,35 +263,31 @@ async function verifyFixture(asset) {
       assert(row.brief === 'Video 1' && issue.description === 'Video 1', 'graphics fallback description did not round-trip');
     }
   }
-  if (descriptionDrillAllowed(PROD_AUTHORITY, asset.team)) {
-    const description = `  # F202 ${RUN_ID}\n\n- ${asset.team} **Markdown**  \n`;
-    const descriptionResponse = await gateway({
-      operation: 'description',
-      surface: 'production',
-      entity: 'deliverable',
-      id: row.id,
-      expected_updated_at: row.updated_at,
-      description,
-    });
-    assert(descriptionResponse.row && descriptionResponse.row.brief === description,
-      `${asset.team} description gateway response changed Markdown bytes`);
-    asset.operations.push('description');
-    await poll(`${asset.team} description round-trip`, async () => {
-      const [nativeRows, linearData] = await Promise.all([
-        rest(`deliverables?select=id,brief,updated_at&id=eq.${encodeURIComponent(row.id)}&limit=1`),
-        linear('query ProductionWriteDrillDescription($id: String!) { issue(id: $id) { id description } }',
-          { id: row.linear_issue_uuid }),
-      ]);
-      const native = nativeRows[0];
-      const mirrored = linearData.issue;
-      return native && mirrored
-        && native.brief === description
-        && mirrored.description === description
-        ? { native, mirrored }
-        : null;
-    });
-    asset.row = descriptionResponse.row || asset.row;
-  }
+  const description = `  # F202 ${RUN_ID}\n\n- ${asset.team} **Markdown**  \n`;
+  const descriptionResponse = await gateway({
+    operation: 'description',
+    surface: 'production',
+    entity: 'deliverable',
+    id: row.id,
+    expected_updated_at: row.updated_at,
+    description,
+  });
+  assert(descriptionResponse.row && descriptionResponse.row.brief === description,
+    `${asset.team} description gateway response changed Markdown bytes`);
+  asset.operations.push('description');
+  await poll(`${asset.team} description round-trip`, async () => {
+    const [nativeRows, linearData] = await Promise.all([
+      rest(`deliverables?select=id,brief,updated_at&id=eq.${encodeURIComponent(row.id)}&limit=1`),
+      linear('query ProductionWriteDrillDescription($id: String!) { issue(id: $id) { id description } }',
+        { id: row.linear_issue_uuid }),
+    ]);
+    const native = nativeRows[0];
+    const mirrored = linearData.issue;
+    return descriptionReadbackMatches(
+      PROD_AUTHORITY, asset.team, native, mirrored, description,
+    ) ? { native, mirrored } : null;
+  });
+  asset.row = descriptionResponse.row || asset.row;
   assert(!issue.dueDate && !issue.assignee, `${asset.team} due/assignee clear did not reach Linear`);
   assert((issue.comments.nodes || []).filter(comment => clean(comment.body).includes(asset.commentMarker)).length === 1, `${asset.team} Linear comment is missing or duplicated`);
   const nativeComments = await rest(`production_comments?select=id&deliverable_id=eq.${encodeURIComponent(row.id)}&body=eq.${encodeURIComponent(asset.commentMarker)}`);
@@ -445,7 +445,7 @@ async function main() {
 
 module.exports = {
   assertFlipTolerantStance,
-  descriptionDrillAllowed,
+  descriptionReadbackMatches,
   stable,
   stableJson,
   writePrivateFailure,

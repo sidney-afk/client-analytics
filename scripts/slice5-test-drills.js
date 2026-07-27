@@ -1694,37 +1694,154 @@ function assertMatrixBlockUnchanged(before, after, stage = 'f136_matrix') {
   return true;
 }
 
-async function browserMatrixStatusAttempt(runtime, page, body) {
-  return boundedOperation(runtime, 'f136_matrix', 'browser matrix request', () =>
-    page.evaluate(async input => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), input.timeoutMs);
-    try {
-      const response = await fetch(input.endpoint, {
-        method: 'POST',
-        cache: 'no-store',
-        signal: controller.signal,
-        headers: _syncviewEfHeaders({
-          apikey: CAL_SUPABASE_ANON_KEY,
-          Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        }, input.endpoint),
-        body: JSON.stringify(input.body),
+function matrixSyntheticStamp(blockOrdinal) {
+  assert(Number.isSafeInteger(blockOrdinal) && blockOrdinal >= 0,
+    'f136_matrix', 'matrix synthetic clock ordinal is invalid');
+  return new Date(Date.UTC(2000, 0, 1) + blockOrdinal * 1000).toISOString();
+}
+
+async function browserMatrixStatusControl(
+  runtime,
+  page,
+  routeState,
+  {
+    selector,
+    body,
+    expectedAccepted,
+    expectedOffered,
+    routeName,
+    routeKind = 'policy',
+  },
+) {
+  const sequence = Number(routeState.matrixSequence || 0) + 1;
+  routeState.matrixSequence = sequence;
+  routeState.matrixExpected = {
+    sequence,
+    current: lower(body.expected_status),
+    next: lower(body.status),
+    syntheticStamp: clean(body.expected_updated_at),
+    dispatch: expectedAccepted === true,
+    kind: routeKind,
+  };
+  const writesBefore = Number(routeState.matrixWrites || 0);
+  const interaction = await pageEvaluate(
+    runtime,
+    'f136_matrix',
+    `matrix ${routeName} status control`,
+    page,
+    input => {
+      _prodClearLayer();
+      if (_prodState.selected && typeof _prodState.selected.clear === 'function') {
+        _prodState.selected.clear();
+      }
+      const issue = _prodIssue(input.id);
+      if (!issue) throw new Error('matrix_control_issue_missing');
+      const issueClient = String(
+        issue.authorityProject || issue.storedClientSlug || issue.project || '',
+      ).trim();
+      if (issueClient !== input.clientSlug
+          || String(issue.sourceStatus || '').trim().toLowerCase() !== input.current
+          || String(issue.updatedRaw || '').trim() !== input.syntheticStamp) {
+        throw new Error('matrix_control_oracle_mismatch');
+      }
+      const controls = Array.from(document.querySelectorAll(input.selector));
+      if (controls.length !== 1) throw new Error('matrix_status_control_missing');
+      const control = controls[0];
+      const enabled = control.getAttribute('data-prod-write') === 'on'
+        && control.getAttribute('aria-disabled') === 'false';
+      control.click();
+      const popup = document.querySelector('#prodLayer .prod-pop');
+      if (!enabled) {
+        if (input.expectedAccepted || popup) {
+          throw new Error('matrix_disabled_control_contract_mismatch');
+        }
+        return { dispatched: false, blocked: true, offeredCount: 0 };
+      }
+      if (!popup) throw new Error('matrix_status_popup_missing');
+      const spec = _prodPickerSpec('status', [input.id]);
+      const choices = Array.from(popup.querySelectorAll('[data-prod-pick]'));
+      const offered = choices.map(choice => {
+        const item = spec.items[Number(choice.getAttribute('data-prod-pick'))];
+        const value = item && item.v;
+        const canonical =
+          String(PROD_STATUS_FROM_ARTIFACT[value] || value || '').trim().toLowerCase();
+        const label = choice.querySelector('.mlbl');
+        const expectedLabel = _prodStatusLabel(PROD_STATUS_TO_ARTIFACT[canonical] || canonical);
+        if (!label || String(label.textContent || '').trim() !== expectedLabel) {
+          throw new Error('matrix_status_picker_label_mismatch');
+        }
+        return canonical;
+      }).filter(Boolean);
+      const expectedOffered = input.expectedOffered.slice().sort();
+      const observedOffered = offered.slice().sort();
+      if (JSON.stringify(observedOffered) !== JSON.stringify(expectedOffered)) {
+        throw new Error('matrix_status_picker_set_mismatch');
+      }
+      const target = choices.find(choice => {
+        const item = spec.items[Number(choice.getAttribute('data-prod-pick'))];
+        const value = item && item.v;
+        return String(PROD_STATUS_FROM_ARTIFACT[value] || value || '').trim().toLowerCase()
+          === input.next;
       });
-      return {
-        status: response.status,
-        body: await response.json().catch(() => ({})),
-      };
-    } finally {
-      clearTimeout(timer);
-    }
-    }, {
-      endpoint: `${runtime.config.supabaseUrl}/functions/v1/production-write`,
-      body,
-      timeoutMs: BROWSER_REQUEST_TIMEOUT_MS,
-    }),
-  BROWSER_REQUEST_TIMEOUT_MS);
+      if (!input.expectedAccepted) {
+        if (target) throw new Error('matrix_forbidden_status_was_offered');
+        _prodClearLayer();
+        return { dispatched: false, blocked: true, offeredCount: offered.length };
+      }
+      if (!target || target.getAttribute('aria-disabled') === 'true') {
+        throw new Error('matrix_accepted_status_not_selectable');
+      }
+      target.click();
+      return { dispatched: true, blocked: false, offeredCount: offered.length };
+    },
+    {
+      id: runtime.fixture.deliverableId,
+      clientSlug: runtime.client.slug,
+      selector,
+      current: lower(body.expected_status),
+      next: lower(body.status),
+      syntheticStamp: clean(body.expected_updated_at),
+      expectedAccepted: expectedAccepted === true,
+      expectedOffered: [...expectedOffered],
+    },
+  );
+  if (!expectedAccepted) {
+    assert(interaction && interaction.blocked === true
+        && interaction.dispatched === false
+        && Number(routeState.matrixWrites || 0) === writesBefore,
+    'f136_matrix', 'forbidden tuple escaped its real status control');
+    routeState.matrixExpected = null;
+    return { dispatched: false, blocked: true, response: null };
+  }
+  assert(interaction && interaction.dispatched === true && interaction.blocked === false,
+    'f136_matrix', 'accepted tuple did not dispatch from its real status control');
+  const response = await poll(
+    runtime,
+    'f136_matrix',
+    `matrix ${routeName} routed response`,
+    async () => {
+      if (routeState.routeError) throw routeState.routeError;
+      const observed = routeState.lastMatrixResponse;
+      return observed && observed.sequence === sequence ? observed : null;
+    },
+    BROWSER_REQUEST_TIMEOUT_MS,
+    25,
+  );
+  await boundedOperation(
+    runtime,
+    'f136_matrix',
+    `matrix ${routeName} status control settle`,
+    () => page.waitForFunction(
+      id => !_prodState.writes.has(String(id) + ':status'),
+      runtime.fixture.deliverableId,
+      { timeout: BROWSER_REQUEST_TIMEOUT_MS },
+    ),
+    BROWSER_REQUEST_TIMEOUT_MS,
+  );
+  assert(Number(routeState.matrixWrites || 0) === writesBefore + 1,
+    'f136_matrix', 'accepted status control did not emit exactly one gateway request');
+  routeState.matrixExpected = null;
+  return { dispatched: true, blocked: false, response };
 }
 
 async function runF136Matrix(runtime) {
@@ -1770,6 +1887,9 @@ async function runF136Matrix(runtime) {
   let forbidden = 0;
   let authorityFenced = 0;
   let unexpected = 0;
+  let controlInteractions = 0;
+  let controlDispatches = 0;
+  let controlBlocks = 0;
   let zeroProofs = 0;
   let creativeExpected = 0;
   let creativeObservedList = 0;
@@ -1790,11 +1910,19 @@ async function runF136Matrix(runtime) {
   }
 
   const browser = await launchBrowser(runtime, 'f136_matrix');
+  const matrixRequestIds = new Set();
   const listState = {
     stage: 'f136_matrix',
     allowMatrix: true,
     matrixActor: null,
     matrixWrites: 0,
+    matrixPolicyWrites: 0,
+    matrixCasWrites: 0,
+    matrixSequence: 0,
+    matrixExpected: null,
+    lastMatrixResponse: null,
+    matrixRequestIds,
+    matrixSyntheticStamp: matrixSyntheticStamp(0),
     routeError: null,
   };
   const directState = {
@@ -1802,10 +1930,24 @@ async function runF136Matrix(runtime) {
     allowMatrix: true,
     matrixActor: null,
     matrixWrites: 0,
+    matrixPolicyWrites: 0,
+    matrixCasWrites: 0,
+    matrixSequence: 0,
+    matrixExpected: null,
+    lastMatrixResponse: null,
+    matrixRequestIds,
+    matrixSyntheticStamp: matrixSyntheticStamp(0),
     routeError: null,
   };
   const listCourier = await openTestProductionPage(runtime, browser, listState);
   const directCourier = await openTestProductionPage(runtime, browser, directState);
+  const listStatusSelector =
+    `.prod-row[data-prod-row="${runtime.fixture.deliverableId}"]`
+      + ` > .prod-status[data-st="${runtime.fixture.deliverableId}"]`;
+  const directStatusSelector =
+    `.prod-detail[data-prod-detail="${runtime.fixture.deliverableId}"]`
+      + ' [data-prod-prop="status"]';
+  let matrixBlockOrdinal = 0;
   const server = await startStaticServer(runtime, 'f136_matrix');
   try {
     const port = server.address().port;
@@ -1814,6 +1956,40 @@ async function runF136Matrix(runtime) {
         '/?prod=1&view=list&issues=all&prodcache=0'),
       openBoundedProduction(runtime, 'f136_matrix', directCourier.page, port,
         `/?prod=1&d=${encodeURIComponent(runtime.fixture.deliverableId)}&issues=all&prodcache=0`),
+    ]);
+    await Promise.all([
+      pageEvaluate(
+        runtime, 'f136_matrix', 'freeze list background ticks', listCourier.page,
+        async () => {
+          if (_prodOperationalTimer) clearInterval(_prodOperationalTimer);
+          if (_prodAuthorityTimer) clearInterval(_prodAuthorityTimer);
+          _prodOperationalTimer = 0;
+          _prodAuthorityTimer = 0;
+          const deadline = Date.now() + 10_000;
+          while (_prodState.refreshInFlight && Date.now() < deadline) {
+            await new Promise(resolve => setTimeout(resolve, 25));
+          }
+          if (_prodState.refreshInFlight) {
+            throw new Error('matrix_background_refresh_did_not_settle');
+          }
+        },
+      ),
+      pageEvaluate(
+        runtime, 'f136_matrix', 'freeze direct background ticks', directCourier.page,
+        async () => {
+          if (_prodOperationalTimer) clearInterval(_prodOperationalTimer);
+          if (_prodAuthorityTimer) clearInterval(_prodAuthorityTimer);
+          _prodOperationalTimer = 0;
+          _prodAuthorityTimer = 0;
+          const deadline = Date.now() + 10_000;
+          while (_prodState.refreshInFlight && Date.now() < deadline) {
+            await new Promise(resolve => setTimeout(resolve, 25));
+          }
+          if (_prodState.refreshInFlight) {
+            throw new Error('matrix_background_refresh_did_not_settle');
+          }
+        },
+      ),
     ]);
 
     for (const role of ['admin', 'smm', 'creative']) {
@@ -1842,73 +2018,111 @@ async function runF136Matrix(runtime) {
         ),
       ]);
       await Promise.all([
-        listCourier.page.waitForSelector(
-          `.prod-status[data-st="${runtime.fixture.deliverableId}"]`,
-          { timeout: 10_000 },
-        ),
-        directCourier.page.waitForSelector('[data-prod-prop="status"]', { timeout: 10_000 }),
+        listCourier.page.waitForSelector(listStatusSelector, { timeout: 10_000 }),
+        directCourier.page.waitForSelector(directStatusSelector, { timeout: 10_000 }),
       ]);
 
       for (const ownership of OWNERSHIP_STATES) {
         for (const current of statuses) {
-        await setFixtureOracleState(runtime, current, ownershipIds[role][ownership]);
-        const refreshed = await Promise.all([
-          pageDeltaRefresh(runtime, listCourier.page, 'f136_matrix'),
-          pageDeltaRefresh(runtime, directCourier.page, 'f136_matrix'),
-        ]);
-        assert(refreshed.every(value => value.ok === true), 'f136_matrix',
-          'browser matrix couriers could not adopt the TEST oracle row');
-        const before = await matrixBlockSnapshot(runtime);
-        for (const next of statuses) {
-          const expected = expectedRoleAcceptance(runtime.policy, role, current, next, ownership);
-          if (role === 'creative' && expected) creativeExpected += 1;
-          const bodyFor = routeName => ({
-            operation: 'status',
-            surface: 'production',
-            entity: 'deliverable',
-            id: runtime.fixture.deliverableId,
-            status: next,
-            expected_status: current,
-            // Deliberately stale-CAS. Policy denial must still be 403; policy pass
-            // reaches the authority fence before assertCas.
-            expected_updated_at: '1970-01-01T00:00:00.000Z',
-            request_id: requestId(runtime, `f136-${role}-${routeName}`),
-          });
-          // Every tuple traverses both independently authenticated page
-          // contexts. Alternating tuples between pages would prove only half
-          // the matrix on each route.
-          const [listResponse, directResponse] = await Promise.all([
-            browserMatrixStatusAttempt(runtime, listCourier.page, bodyFor('list')),
-            browserMatrixStatusAttempt(runtime, directCourier.page, bodyFor('direct')),
+          matrixBlockOrdinal += 1;
+          const syntheticStamp = matrixSyntheticStamp(matrixBlockOrdinal);
+          await setFixtureOracleState(runtime, current, ownershipIds[role][ownership]);
+          // Hand off the next browser clock only after the guarded server oracle
+          // PATCH completes. Even with timers frozen, this ordering prevents an
+          // accidental refresh from pairing the new clock with the old row.
+          listState.matrixSyntheticStamp = syntheticStamp;
+          directState.matrixSyntheticStamp = syntheticStamp;
+          const refreshed = await Promise.all([
+            pageDeltaRefresh(runtime, listCourier.page, 'f136_matrix'),
+            pageDeltaRefresh(runtime, directCourier.page, 'f136_matrix'),
           ]);
-          for (const [routeName, response] of [
-            ['list', listResponse],
-            ['direct', directResponse],
-          ]) {
-            const classification = classifyMatrixAttempt(response.status, response.body);
-            attempts += 1;
-            if (routeName === 'list') listAttempts += 1;
-            else directAttempts += 1;
-            if (classification === 'forbidden') forbidden += 1;
-            else if (classification === 'authority_fenced') authorityFenced += 1;
-            else unexpected += 1;
-            const accepted = classification === 'authority_fenced';
-            if (accepted) policyAccepted += 1;
-            if (role === 'creative' && accepted) {
-              if (routeName === 'list') creativeObservedList += 1;
-              else creativeObservedDirect += 1;
-            }
-            assert(accepted === expected, 'f136_matrix',
-              'matrix accepted set differs from server policy oracle', {
-                role, current, next, ownership, routeName, classification, response,
+          assert(refreshed.every(value => value.ok === true), 'f136_matrix',
+            'browser matrix contexts could not adopt the TEST oracle row');
+          const before = await matrixBlockSnapshot(runtime);
+          const expectedOffered = role === 'creative'
+            ? expectedCreativeAcceptedSet(runtime.policy, current, ownership)
+            : [...statuses];
+          for (const next of statuses) {
+            const expected = expectedRoleAcceptance(
+              runtime.policy, role, current, next, ownership,
+            );
+            if (role === 'creative' && expected) creativeExpected += 1;
+            const bodyFor = routeName => ({
+              operation: 'status',
+              surface: 'production',
+              entity: 'deliverable',
+              id: runtime.fixture.deliverableId,
+              client_slug: runtime.client.slug,
+              status: next,
+              expected_status: current,
+              // Every browser control sees a unique old projection clock. A
+              // forbidden tuple must still return 403 before CAS; an accepted
+              // staff tuple reaches the live Video authority fence.
+              expected_updated_at: syntheticStamp,
+              request_id: requestId(runtime, `f136-${role}-${routeName}`),
+            });
+            const driveSurface = async (
+              routeName, courier, routeState, selector,
+            ) => {
+              const body = bodyFor(routeName);
+              const control = await browserMatrixStatusControl(
+                runtime,
+                courier.page,
+                routeState,
+                {
+                  selector,
+                  body,
+                  expectedAccepted: expected,
+                  expectedOffered,
+                  routeName,
+                },
+              );
+              if (control.dispatched) return control.response;
+              // The real UI intentionally suppresses this transition. Exercise
+              // the matching server tuple separately so the UI refusal and the
+              // gateway's exact pre-mutation 403 are both proven.
+              return gatewayWrite(runtime, body, {
+                staff: actor,
+                actorMemberId: actor.id,
+                targetClientSlug: runtime.client.slug,
+                stage: 'f136_matrix',
               });
+            };
+            const [listResponse, directResponse] = await Promise.all([
+              driveSurface('list', listCourier, listState, listStatusSelector),
+              driveSurface('direct', directCourier, directState, directStatusSelector),
+            ]);
+            controlInteractions += 2;
+            if (expected) controlDispatches += 2;
+            else controlBlocks += 2;
+            for (const [routeName, response] of [
+              ['list', listResponse],
+              ['direct', directResponse],
+            ]) {
+              const classification = classifyMatrixAttempt(response.status, response.body);
+              attempts += 1;
+              if (routeName === 'list') listAttempts += 1;
+              else directAttempts += 1;
+              if (classification === 'forbidden') forbidden += 1;
+              else if (classification === 'authority_fenced') authorityFenced += 1;
+              else unexpected += 1;
+              const accepted = classification === 'authority_fenced';
+              if (accepted) policyAccepted += 1;
+              if (role === 'creative' && accepted) {
+                if (routeName === 'list') creativeObservedList += 1;
+                else creativeObservedDirect += 1;
+              }
+              assert(accepted === expected, 'f136_matrix',
+                'matrix accepted set differs from server policy oracle', {
+                  role, current, next, ownership, routeName, classification, response,
+                });
+            }
           }
+          const after = await matrixBlockSnapshot(runtime);
+          assertMatrixBlockUnchanged(before, after);
+          zeroProofs += 1;
         }
-        const after = await matrixBlockSnapshot(runtime);
-        assertMatrixBlockUnchanged(before, after);
-        zeroProofs += 1;
       }
-    }
     }
     assert(unexpected === 0, 'f136_matrix', 'matrix produced an unexpected gateway response');
     assert(creativeObservedList === creativeExpected
@@ -1930,34 +2144,91 @@ async function runF136Matrix(runtime) {
         && forbidden === expectedForbiddenPerContext * 2
         && authorityFenced + forbidden === attempts,
     'f136_matrix', 'dual-context policy response totals are incomplete');
-    assert(listState.matrixWrites === expectedTuples
-        && directState.matrixWrites === expectedTuples
-        && listState.matrixWrites + directState.matrixWrites === attempts
+    assert(controlInteractions === attempts
+        && controlDispatches === policyAccepted
+        && controlBlocks === forbidden
+        && controlDispatches + controlBlocks === controlInteractions,
+    'f136_matrix', 'real status-control coverage is incomplete');
+    assert(listState.matrixPolicyWrites === expectedAcceptedPerContext
+        && directState.matrixPolicyWrites === expectedAcceptedPerContext
+        && listState.matrixCasWrites === 0
+        && directState.matrixCasWrites === 0
         && !listState.routeError
         && !directState.routeError,
-    'f136_matrix', 'every tuple did not traverse both guarded browser couriers');
+    'f136_matrix', 'accepted tuples did not traverse both guarded UI routes');
 
     // The role matrix above intentionally uses a still-Linear-authoritative
     // Video row, so accepted policy combinations stop at the authority fence.
-    // Exercise stale CAS separately through the service-only TEST lane, whose
-    // authority is SyncView and which therefore reaches assertCas.
+    // Now originate one accepted stale request from each real control and have
+    // the guarded Node route apply the service-only TEST wrapper. TEST authority
+    // is SyncView, so both requests reach assertCas and fail without mutation.
+    const casActor = actors.admin;
+    listState.matrixActor = casActor;
+    directState.matrixActor = casActor;
+    await Promise.all([
+      browserVerifyIdentity(runtime, listCourier.page, casActor, 'f136_matrix'),
+      browserVerifyIdentity(runtime, directCourier.page, casActor, 'f136_matrix'),
+    ]);
+    await Promise.all([
+      pageEvaluate(
+        runtime, 'f136_matrix', 'CAS list surface render', listCourier.page,
+        () => {
+          _prodState.view = 'list';
+          _prodState.tab = 'all';
+          _prodRender();
+        },
+      ),
+      pageEvaluate(
+        runtime, 'f136_matrix', 'CAS direct surface render', directCourier.page,
+        id => _prodOpenDeliverable(id),
+        runtime.fixture.deliverableId,
+      ),
+    ]);
+    matrixBlockOrdinal += 1;
+    const casSyntheticStamp = matrixSyntheticStamp(matrixBlockOrdinal);
     await setFixtureOracleState(runtime, 'triage', runtime.members.creativeOwn.id);
+    listState.matrixSyntheticStamp = casSyntheticStamp;
+    directState.matrixSyntheticStamp = casSyntheticStamp;
+    const casRefreshed = await Promise.all([
+      pageDeltaRefresh(runtime, listCourier.page, 'f136_matrix'),
+      pageDeltaRefresh(runtime, directCourier.page, 'f136_matrix'),
+    ]);
+    assert(casRefreshed.every(value => value.ok === true), 'f136_matrix',
+      'browser CAS controls could not adopt the TEST oracle row');
     const casBefore = await matrixBlockSnapshot(runtime);
-    const staleCas = await gatewayWrite(runtime, gatewayServiceBody(runtime, {
+    const casBody = routeName => ({
       operation: 'status',
       surface: 'production',
       entity: 'deliverable',
       id: runtime.fixture.deliverableId,
+      client_slug: runtime.client.slug,
       status: 'todo',
       expected_status: 'triage',
-      expected_updated_at: '1970-01-01T00:00:00.000Z',
-    }), {
-      targetClientSlug: runtime.client.slug,
-      stage: 'f136_matrix',
+      expected_updated_at: casSyntheticStamp,
+      request_id: requestId(runtime, `f136-cas-${routeName}`),
     });
-    assert(staleCas.status === 409
-        && clean(staleCas.body && staleCas.body.error) === 'write_conflict',
-    'f136_matrix', 'service-only TEST stale CAS did not fail closed');
+    const [listCas, directCas] = await Promise.all([
+      browserMatrixStatusControl(runtime, listCourier.page, listState, {
+        selector: listStatusSelector,
+        body: casBody('list'),
+        expectedAccepted: true,
+        expectedOffered: [...statuses],
+        routeName: 'list-cas',
+        routeKind: 'cas',
+      }),
+      browserMatrixStatusControl(runtime, directCourier.page, directState, {
+        selector: directStatusSelector,
+        body: casBody('direct'),
+        expectedAccepted: true,
+        expectedOffered: [...statuses],
+        routeName: 'direct-cas',
+        routeKind: 'cas',
+      }),
+    ]);
+    assert([listCas, directCas].every(result =>
+      result.response.status === 409
+        && clean(result.response.body && result.response.body.error) === 'write_conflict'),
+    'f136_matrix', 'one or both UI-originated TEST stale CAS requests did not fail closed');
     const casAfter = await matrixBlockSnapshot(runtime);
     assertMatrixBlockUnchanged(casBefore, casAfter);
     zeroProofs += 1;
@@ -1965,6 +2236,14 @@ async function runF136Matrix(runtime) {
       ROLE_SPECS.length * OWNERSHIP_STATES.length * statuses.length + 1;
     assert(zeroProofs === expectedZeroProofs, 'f136_matrix',
       'matrix zero-mutation proof count is incomplete');
+    assert(listState.matrixCasWrites === 1
+        && directState.matrixCasWrites === 1
+        && listState.matrixWrites === listState.matrixPolicyWrites + 1
+        && directState.matrixWrites === directState.matrixPolicyWrites + 1
+        && matrixRequestIds.size === listState.matrixWrites + directState.matrixWrites
+        && !listState.routeError
+        && !directState.routeError,
+    'f136_matrix', 'dual-context UI-originated CAS coverage is incomplete');
 
     return {
       result: 'pass',
@@ -1979,7 +2258,10 @@ async function runF136Matrix(runtime) {
       policy_accepted_count: policyAccepted,
       forbidden_count: forbidden,
       authority_fenced_count: authorityFenced,
-      cas_fenced_count: 1,
+      cas_fenced_count: 2,
+      control_interactions_count: controlInteractions,
+      control_dispatches_count: controlDispatches,
+      control_blocks_count: controlBlocks,
       unexpected_count: unexpected,
       zero_mutation_proofs_count: zeroProofs,
       creative_expected_count: creativeExpected * 2,
@@ -2109,8 +2391,15 @@ async function guardedBrowserCommentRead(runtime, request, options) {
 async function browserProjection(runtime, url, routeState) {
   const table = url.pathname.split('/rest/v1/')[1] || '';
   if (table === 'clients') {
-    return restRead(runtime,
+    const rows = await restRead(runtime,
       `clients?select=slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at&slug=eq.${encodeURIComponent(runtime.client.slug)}`);
+    if (routeState.allowMatrix !== true) return rows;
+    // Browser-only F136 lens: staff credentials and the service TEST override
+    // are mutually exclusive. Keep the exact verified TEST slug/row, but use a
+    // non-TEST kind in this local projection so the real UI emits a staff
+    // request. The Node route re-proves the live slug is the sole active
+    // kind=TEST client immediately before every gateway call.
+    return (rows || []).map(row => ({ ...row, kind: 'video' }));
   }
   if (table === 'team_members') {
     const ids = [...runtime.createdMemberIds];
@@ -2160,7 +2449,17 @@ async function browserProjection(runtime, url, routeState) {
       `production_deliverables_browser_v1?${filters.join('&')}`,
       { stage: routeState.stage || 'f95_convergence' });
     const byId = new Map();
-    [...readOnlyRows, ...(runOwnedRows || [])].forEach(row => {
+    const projectedRunOwnedRows = routeState.allowMatrix === true
+        && clean(routeState.matrixSyntheticStamp)
+      ? (runOwnedRows || []).map(row => ({
+        ...row,
+        // Browser-only stale CAS. A unique, monotonically increasing old
+        // instant per matrix block lets the delta adapter adopt every new
+        // current/ownership oracle without ever matching the live row clock.
+        updated_at: routeState.matrixSyntheticStamp,
+      }))
+      : (runOwnedRows || []);
+    [...readOnlyRows, ...projectedRunOwnedRows].forEach(row => {
       if (row && clean(row.id)) byId.set(clean(row.id), row);
     });
     return [...byId.values()];
@@ -2171,6 +2470,23 @@ async function browserProjection(runtime, url, routeState) {
       { stage: routeState.stage || 'f95_convergence' });
   }
   if (table === 'syncview_runtime_flags') {
+    if (routeState.allowMatrix === true) {
+      // Browser-only control-enablement lens. The live flag snapshot remains
+      // frozen and is checked again after cleanup; the real gateway still sees
+      // Video=Linear and provides the zero-write authority fence.
+      let rows = (runtime.flagsBefore || []).map(row => ({
+        ...row,
+        value: clean(row.key) === 'prod_authority'
+          ? { ...parseJson(row.value), video: 'syncview', graphics: 'syncview' }
+          : row.value,
+      }));
+      const keyFilter = clean(url.searchParams.get('key'));
+      if (keyFilter.startsWith('eq.')) {
+        const wanted = keyFilter.slice(3);
+        rows = rows.filter(row => clean(row.key) === wanted);
+      }
+      return rows;
+    }
     const query = url.searchParams.toString();
     return restRead(runtime, `syncview_runtime_flags?${query}`,
       { stage: routeState.stage || 'f95_convergence' });
@@ -2296,24 +2612,51 @@ async function installBrowserRoutes(runtime, context, routeState) {
         }
         if (routeState.allowMatrix === true) {
           const actor = routeState.matrixActor;
+          const expected = routeState.matrixExpected;
+          const browserRequestId = clean(input.request_id);
           assert(actor
+              && expected
+              && expected.dispatch === true
               && operation === 'status'
               && !input.test_override
               && !input.confirm
               && clean(input.id) === runtime.fixture.deliverableId
-              && runtime.policy.DELIVERABLE_STATUSES.includes(lower(input.status))
-              && runtime.policy.DELIVERABLE_STATUSES.includes(lower(input.expected_status))
-              && clean(input.expected_updated_at) === '1970-01-01T00:00:00.000Z'
+              && clean(input.client_slug) === runtime.client.slug
+              && lower(input.status) === expected.next
+              && lower(input.expected_status) === expected.current
+              && clean(input.expected_updated_at) === expected.syntheticStamp
+              && /^prod:status:[a-z0-9:_-]+$/i.test(browserRequestId)
+              && routeState.matrixRequestIds instanceof Set
+              && !routeState.matrixRequestIds.has(browserRequestId)
               && clean(request.headers()['x-syncview-actor']) === clean(actor.name)
               && lower(request.headers()['x-syncview-role']) === lower(actor.role),
           'f136_matrix', 'browser matrix request is outside the exact TEST oracle allowlist');
-          const result = await gatewayWrite(runtime, input, {
-            staff: actor,
-            actorMemberId: actor.id,
-            targetClientSlug: runtime.client.slug,
-            stage: 'f136_matrix',
-          });
+          routeState.matrixRequestIds.add(browserRequestId);
+          const serviceCas = expected.kind === 'cas';
+          const result = await gatewayWrite(
+            runtime,
+            serviceCas ? gatewayServiceBody(runtime, input) : input,
+            {
+              ...(serviceCas ? {} : {
+                staff: actor,
+                actorMemberId: actor.id,
+              }),
+              targetClientSlug: runtime.client.slug,
+              stage: 'f136_matrix',
+            },
+          );
           routeState.matrixWrites = Number(routeState.matrixWrites || 0) + 1;
+          if (serviceCas) {
+            routeState.matrixCasWrites = Number(routeState.matrixCasWrites || 0) + 1;
+          } else {
+            routeState.matrixPolicyWrites =
+              Number(routeState.matrixPolicyWrites || 0) + 1;
+          }
+          routeState.lastMatrixResponse = {
+            sequence: expected.sequence,
+            status: result.status,
+            body: { error: clean(result.body && result.body.error) },
+          };
           await route.fulfill({
             status: result.status,
             contentType: 'application/json',
@@ -3679,6 +4022,9 @@ function emptyReport() {
       forbidden_count: 0,
       authority_fenced_count: 0,
       cas_fenced_count: 0,
+      control_interactions_count: 0,
+      control_dispatches_count: 0,
+      control_blocks_count: 0,
       unexpected_count: 0,
       zero_mutation_proofs_count: 0,
       creative_expected_count: 0,
@@ -3980,6 +4326,7 @@ module.exports = {
   liveRequest,
   main,
   markerPresent,
+  matrixSyntheticStamp,
   memberReferenceIds,
   parseConfig,
   assertExactPostgrestMutationTarget,

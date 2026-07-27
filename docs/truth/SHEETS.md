@@ -1,6 +1,6 @@
 # Google Sheets — current truth
 
-> Last verified: 2026-07-20 @ 09e3dd6 (Metrics receipt schema and first scheduled production rows; other statements retain their dated sources)
+> Last verified: 2026-07-20 @ c51f897 (Metrics receipt schema and first scheduled production rows; other statements retain their dated sources)
 > Live facts from `docs/audits/2026-07-05-sheets.md` (verified 2026-07-05) unless noted.
 > Sheets change outside git and outside CI — treat every claim here as spot-verify-first.
 

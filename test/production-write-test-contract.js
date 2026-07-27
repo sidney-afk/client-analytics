@@ -108,10 +108,14 @@ const SERVICE_ONLY_TEST_CONTRACT = Object.freeze({
     && !/X-Syncview-(?:Key|Client-Token)/i.test(drillGateway)
     && policyAllows(SERVICE_ONLY_TEST_CONTRACT),
   'the real TEST drill producer and gateway policy share the one service-role/no-browser/exact-confirm contract');
+  const descriptionReadback = extractFunction(drill, 'descriptionReadbackMatches');
   ok(/operation: 'description'[\s\S]{0,220}expected_updated_at: row\.updated_at[\s\S]{0,120}description,/.test(drill)
     && /descriptionResponse\.row\.brief === description/.test(drill)
-    && /native\.brief === description[\s\S]{0,80}mirrored\.description === description/.test(drill),
-  'the existing owner-gated TEST drill proves one guarded description and exact native/Linear Markdown readback');
+    && /descriptionReadbackMatches\(\s*PROD_AUTHORITY/.test(drill)
+    && /mirrored\.description !== expected/.test(descriptionReadback)
+    && /lane === ['"]linear['"]/.test(descriptionReadback)
+    && /native\.brief === expected/.test(descriptionReadback),
+  'the owner-gated TEST drill always proves the description write and follows prod_authority for eventual readback');
 
   let captured = null;
   const context = {

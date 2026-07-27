@@ -143,10 +143,13 @@ override.
    device, and under a stale CAS. Expect the accepted set to equal
    `CREATIVE_STATUS_TRANSITIONS` exactly and every other combination to return
    `403 operation_forbidden` before any mutation.
-4. **F37 identity drill.** Every active creative signs in and sees only their own queue; account
-   switching, duplicate display names, a roster reorder, a zero-row member, a deactivated member,
-   and a signed-out session each resolve to the right queue or to the explicit no-personal-queue
-   state.
+4. **F37 identity drills.** The unattended owner-gated harness covers only synthetic TEST
+   identities: account switching, duplicate display names, a roster reorder, a zero-row member, a
+   deactivated member, and a signed-out session must each resolve to the right queue or to the
+   explicit no-personal-queue state. It does **not** claim real-staff sign-in coverage. Still owed:
+   in a supervised owner session, every active creative signs in with their real credentials and
+   sees only their own personal queue. Real staff credentials must never be issued to unattended
+   automation.
 5. **F95 two-tab convergence.** Two foreground tabs, one second device: assignment, status,
    tweak/comment, artifact, and archive changes all converge within one tick, with drafts, scroll
    position, and the open composer preserved, and a forced failure showing the degraded state and

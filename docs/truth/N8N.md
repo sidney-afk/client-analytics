@@ -1,6 +1,6 @@
 # n8n — current truth
 
-> Last verified: 2026-07-20 @ 09e3dd6 (F124 CLIENTS METRICS live receipt/coverage/quota proof; other statements retain their dated sources)
+> Last verified: 2026-07-20 @ c51f897 (F124 CLIENTS METRICS live receipt/coverage/quota proof; other statements retain their dated sources)
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
 > full-active-roster Calendar/SXR/settings writes now use Edge Functions. Snapshot workflows

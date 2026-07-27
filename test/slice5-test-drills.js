@@ -169,15 +169,22 @@ function publicLeavesAreSafe(value) {
     'the full matrix has enough bounded runner time to reach its own cleanup');
   ok(!/\balways\(\)/.test(workflow), 'the workflow has no always() step');
 
+  const drillClock = stepBlock(workflow, 'Start the bounded drill clock');
   const trustedCheckout = stepBlock(workflow, 'Check out trusted main for the provenance gate');
   const provenance = stepBlock(workflow, 'Verify requested commit is an exact ancestor of origin/main');
   const pinnedCheckout = stepBlock(workflow, 'Check out the verified commit');
   const exactHead = stepBlock(workflow, 'Reverify exact checked-out commit');
   const trustedAt = workflow.indexOf('      - name: Check out trusted main for the provenance gate');
+  const clockAt = workflow.indexOf('      - name: Start the bounded drill clock');
   const provenanceAt = workflow.indexOf('      - name: Verify requested commit is an exact ancestor of origin/main');
   const pinnedAt = workflow.indexOf('      - name: Check out the verified commit');
   ok(trustedAt >= 0 && provenanceAt > trustedAt && pinnedAt > provenanceAt,
     'trusted main checkout and ancestry proof precede dispatched-SHA checkout');
+  ok(clockAt >= 0 && clockAt < trustedAt
+    && /SLICE5_JOB_STARTED_AT_MS=%s/.test(drillClock)
+    && /\$GITHUB_ENV/.test(drillClock)
+    && !/secrets\./.test(drillClock),
+  'a credential-free workflow clock starts before checkout and dependency setup');
   ok(/ref: refs\/heads\/main/.test(trustedCheckout)
     && /fetch-depth: 0/.test(trustedCheckout)
     && /persist-credentials: false/.test(trustedCheckout),
@@ -252,7 +259,14 @@ function publicLeavesAreSafe(value) {
     'assertSyntheticMemberMutationAllowed',
     'classifyMatrixAttempt',
     'expectedCreativeAcceptedSet',
+    'requestDeadlineMs',
+    'memberReferenceIds',
+    'assertWriteMemberReferencesRunOwned',
+    'readCompleteRoster',
+    'acquireBoundedResource',
+    'installBrowserRoutes',
     'stableJson',
+    'liveRequest',
     'writePrivateFailure',
     'main',
   ]) {
@@ -288,7 +302,7 @@ function publicLeavesAreSafe(value) {
   for (const name of mutationAdapters) {
     const body = sourceFunction(source, name);
     const guardAt = body.indexOf('assertActiveTestWriteTarget');
-    const sendAt = body.indexOf('runtime.fetch(');
+    const sendAt = body.indexOf('liveRequest(');
     ok(body && guardAt >= 0 && sendAt >= 0 && guardAt < sendAt,
       `${name} revalidates active TEST scope immediately before its send`);
   }
@@ -298,12 +312,156 @@ function publicLeavesAreSafe(value) {
   // Disposable members must be both drill-marked and created by this run.
   const memberGuard = sourceFunction(source, 'assertSyntheticMemberMutationAllowed');
   ok(/runtime\.createdMemberIds\.has\(id\)/.test(memberGuard)
+    && /!runtime\.readOnlyMemberIds\.has\(id\)/.test(memberGuard)
     && /markerPresent\(row\.(?:name|email), runtime\)/.test(memberGuard)
     && /\bassert\(/.test(memberGuard),
-  'member writes require the drill marker and the run-created member-id allowlist');
+  'member writes require the drill marker/run-created allowlist and reject real roster ids');
   ok(/(?:DRILL_MEMBER_MARKER|DRILL_MARKER)/.test(source)
     && /new Set\(\)/.test(source),
   'the runner carries an explicit drill marker and disposable-member allowlist');
+  const realMemberId = 'inactive-real-member';
+  const nestedMemberPayload = {
+    patch: {
+      reviewer_member_id: realMemberId,
+      deeper: [{ member_id: realMemberId }],
+    },
+  };
+  ok(JSON.stringify(runner.memberReferenceIds(nestedMemberPayload).sort())
+      === JSON.stringify([realMemberId, realMemberId].sort()),
+  'the recursive guard discovers nested and generic member references');
+  const serializedMemberPayload = {
+    patch: JSON.stringify({ nested: { assignee_id: realMemberId } }),
+  };
+  ok(JSON.stringify(runner.memberReferenceIds(serializedMemberPayload))
+      === JSON.stringify([realMemberId])
+    && JSON.stringify(runner.postgrestMemberReferenceIds(
+      `deliverables?assignee_id=eq.${realMemberId}`,
+    )) === JSON.stringify([realMemberId]),
+  'the firewall discovers serialized patch and mutation-query member references');
+  let guardedFetches = 0;
+  const offlineGuardRuntime = {
+    runToken: 'slice5-offline',
+    client: { slug: 'test-only' },
+    config: {
+      supabaseUrl: 'https://offline.invalid',
+      serviceKey: 'offline',
+      publicAnonKey: 'offline',
+      roleKeys: { admin: 'offline', smm: 'offline', creative: 'offline' },
+    },
+    processDeadlineAt: Date.now() + (60 * 60_000),
+    cleanupStarted: false,
+    activeRequestControllers: new Set(),
+    readOnlyMemberIds: new Set([realMemberId]),
+    createdMemberIds: new Set([realMemberId]),
+    createdDeliverableIds: new Set(),
+    createdBatchIds: new Set(),
+    createdDedups: new Set(),
+    fetch: async () => {
+      guardedFetches++;
+      throw new Error('offline guard leaked to fetch');
+    },
+  };
+  for (const invoke of [
+    () => runner.restWrite(offlineGuardRuntime, 'deliverables?id=eq.offline', {
+      method: 'PATCH',
+      body: nestedMemberPayload,
+      targetClientSlug: 'test-only',
+      stage: 'f94_negative',
+    }),
+    () => runner.edgeWrite(
+      offlineGuardRuntime,
+      'offline-edge',
+      nestedMemberPayload,
+      { targetClientSlug: 'test-only', stage: 'f94_negative' },
+    ),
+    () => runner.gatewayWrite(
+      offlineGuardRuntime,
+      nestedMemberPayload,
+      { targetClientSlug: 'test-only', stage: 'f136_matrix' },
+    ),
+    () => runner.guardedBrowserVerifier(offlineGuardRuntime, {
+      method: () => 'POST',
+      url: () => 'https://offline.invalid/functions/v1/key-verify',
+      postData: () => JSON.stringify({
+        surface: 'staff-login',
+        member: { id: realMemberId },
+      }),
+      headers: () => ({}),
+    }, 'offline', {
+      targetClientSlug: 'test-only',
+      stage: 'f37_identity',
+    }),
+  ]) {
+    let rejected = false;
+    try {
+      await invoke();
+    } catch (_error) {
+      rejected = true;
+    }
+    ok(rejected && guardedFetches === 0,
+      'a write adapter aborts an inactive/nested real-member reference before fetch');
+  }
+  let serializedRejects = 0;
+  for (const invoke of [
+    () => runner.restWrite(offlineGuardRuntime, 'deliverables?id=eq.offline', {
+      method: 'PATCH',
+      body: serializedMemberPayload,
+      targetClientSlug: 'test-only',
+      stage: 'f136_matrix',
+    }),
+    () => runner.edgeWrite(
+      offlineGuardRuntime,
+      'offline-edge',
+      serializedMemberPayload,
+      { targetClientSlug: 'test-only', stage: 'f136_matrix' },
+    ),
+    () => runner.gatewayWrite(
+      offlineGuardRuntime,
+      serializedMemberPayload,
+      { targetClientSlug: 'test-only', stage: 'f136_matrix' },
+    ),
+  ]) {
+    try {
+      await invoke();
+    } catch (_error) {
+      serializedRejects++;
+    }
+  }
+  let queryRejected = false;
+  try {
+    await runner.restWrite(
+      offlineGuardRuntime,
+      `deliverables?assignee_id=eq.${realMemberId}`,
+      {
+        method: 'PATCH',
+        body: { status: 'todo' },
+        targetClientSlug: 'test-only',
+        stage: 'f136_matrix',
+      },
+    );
+  } catch (_error) {
+    queryRejected = true;
+  }
+  let logicalQueryRejected = false;
+  try {
+    await runner.restWrite(
+      offlineGuardRuntime,
+      `deliverables?or=(assignee_id.eq.${realMemberId},status.eq.todo)`,
+      {
+        method: 'PATCH',
+        body: { status: 'todo' },
+        targetClientSlug: 'test-only',
+        stage: 'f136_matrix',
+      },
+    );
+  } catch (_error) {
+    logicalQueryRejected = true;
+  }
+  ok(serializedRejects === 3
+    && queryRejected
+    && logicalQueryRejected
+    && guardedFetches === 0,
+  'every accepting adapter rejects serialized, direct-query, or logical-filter member escapes before fetch');
   ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i.test(source),
     'the runner embeds no member, deliverable, or event UUID');
 
@@ -435,8 +593,8 @@ function publicLeavesAreSafe(value) {
     && /failed_closed/.test(source),
   'the stale-picker leg deactivates out of band, fails closed, and reactivates');
   const stalePicker = sourceFunction(source, 'runF94StalePicker');
-  ok(/launchBrowser\(runtime\)/.test(stalePicker)
-    && /openProduction\(page, port, ['"]\/\?prod=1&view=list/.test(stalePicker)
+  ok(/launchBrowser\(runtime, ['"]f94_stale_picker['"]\)/.test(stalePicker)
+    && /openBoundedProduction\([\s\S]{0,160}page, port,[\s\S]{0,80}\/\?prod=1&view=list/.test(stalePicker)
     && /data-prod-assign-pop/.test(stalePicker)
     && /heldCandidate\.click\(\)/.test(stalePicker),
   'F94 stale-picker proof opens and commits through the real browser picker');
@@ -494,11 +652,39 @@ function publicLeavesAreSafe(value) {
     && /\/\?prod=1&view=list&issues=all&prodcache=0/.test(matrixRunner)
     && /\/\?prod=1&d=\$\{encodeURIComponent\(runtime\.fixture\.deliverableId\)\}/.test(matrixRunner),
   'F136 opens independent list and exact direct-link browser contexts');
-  ok(/browserMatrixStatusAttempt\(runtime, courier/.test(matrixRunner)
-    && /attempts % 2 === 0 \? listCourier\.page : directCourier\.page/.test(matrixRunner)
-    && /listState\.matrixWrites \+ directState\.matrixWrites === attempts/.test(matrixRunner)
-    && /listState\.matrixWrites > 0[\s\S]{0,100}directState\.matrixWrites > 0/.test(matrixRunner),
-  'every F136 matrix attempt alternates through and is counted by the two browser couriers');
+  ok(/Promise\.all\(\[\s*browserMatrixStatusAttempt\(runtime, listCourier\.page/.test(matrixRunner)
+    && /browserMatrixStatusAttempt\(runtime, directCourier\.page/.test(matrixRunner)
+    && /attempts === expectedTuples \* 2/.test(matrixRunner)
+    && /listAttempts === expectedTuples/.test(matrixRunner)
+    && /directAttempts === expectedTuples/.test(matrixRunner)
+    && /listState\.matrixWrites === expectedTuples/.test(matrixRunner)
+    && /directState\.matrixWrites === expectedTuples/.test(matrixRunner),
+  'every F136 tuple traverses both independent browser couriers');
+  ok(Object.prototype.hasOwnProperty.call(sanitized.f136_matrix, 'list_attempts_count')
+    && Object.prototype.hasOwnProperty.call(sanitized.f136_matrix, 'direct_attempts_count')
+    && /list_attempts_count:\s*listAttempts/.test(matrixRunner)
+    && /direct_attempts_count:\s*directAttempts/.test(matrixRunner),
+  'the public aggregate exposes both exact per-context matrix counts');
+  ok(/creativeObservedList === creativeExpected/.test(matrixRunner)
+    && /creativeObservedDirect === creativeExpected/.test(matrixRunner)
+    && /assertMatrixBlockUnchanged\(before, after\)/.test(matrixRunner),
+  'both routes independently match the creative policy set under one exact zero-mutation snapshot');
+  const expectedTuples = 3 * policy.DELIVERABLE_STATUSES.length
+    * policy.DELIVERABLE_STATUSES.length * 3;
+  const expectedAcceptedPerContext =
+    2 * policy.DELIVERABLE_STATUSES.length * policy.DELIVERABLE_STATUSES.length * 3
+    + flattenedCreative.size;
+  const expectedForbiddenPerContext = expectedTuples - expectedAcceptedPerContext;
+  const expectedZeroProofs = 3 * 3 * policy.DELIVERABLE_STATUSES.length + 1;
+  ok(expectedTuples * 2 === 3042
+    && expectedAcceptedPerContext * 2 === 2052
+    && expectedForbiddenPerContext * 2 === 990
+    && flattenedCreative.size * 2 === 24
+    && expectedZeroProofs === 118
+    && /policyAccepted === expectedAcceptedPerContext \* 2/.test(matrixRunner)
+    && /forbidden === expectedForbiddenPerContext \* 2/.test(matrixRunner)
+    && /zeroProofs === expectedZeroProofs/.test(matrixRunner),
+  'the exact dual-context matrix totals are derived and asserted as 3042/2052/990/24/118');
   ok(/page\.evaluate/.test(matrixCourier)
     && /functions\/v1\/production-write/.test(matrixCourier)
     && /CAL_SUPABASE_ANON_KEY/.test(matrixCourier)
@@ -510,6 +696,304 @@ function publicLeavesAreSafe(value) {
     && /routeState\.matrixWrites/.test(browserRouter),
   'the Node route admits only non-override status attempts for the run-owned TEST fixture');
 
+  // ---- F37 real roster: read-only enumeration, local verification --------
+  const completeRoster = sourceFunction(source, 'readCompleteRoster');
+  const establishRoster = sourceFunction(source, 'establishReadOnlyRoster');
+  const rosterInvariant = sourceFunction(source, 'assertPreExistingRosterUnchanged');
+  const rosterSnapshot = sourceFunction(source, 'readOnlyActiveRosterSnapshot');
+  const rosterProjection = sourceFunction(source, 'buildReadOnlyRosterProjection');
+  const f37Runner = sourceFunction(source, 'runF37Identity');
+  ok(/team_members\?select=\*&order=id\.asc&limit=\$\{pageSize\}/.test(completeRoster)
+    && /id=gt\./.test(completeRoster)
+    && /page < 100/.test(completeRoster)
+    && /runtime\.readOnlyMemberIds\.add\(clean\(row\.id\)\)/.test(establishRoster)
+    && /creatives\.length > 0/.test(establishRoster)
+    && /withoutRunRows/.test(rosterInvariant)
+    && /runtime\.preExistingRoster/.test(rosterSnapshot),
+  'F37 freezes the complete paginated roster before writes and derives a nonempty creative cohort');
+  const pagedRoster = Array.from({ length: 501 }, (_unused, index) => ({
+    id: `member-${String(index + 1).padStart(4, '0')}`,
+    name: `offline-${index + 1}`,
+    role: index === 0 ? 'editor' : 'admin',
+    active: true,
+  }));
+  let rosterFetches = 0;
+  const rosterRuntime = {
+    config: { supabaseUrl: 'https://offline.invalid', serviceKey: 'offline' },
+    processDeadlineAt: Date.now() + (60 * 60_000),
+    cleanupStarted: false,
+    activeRequestControllers: new Set(),
+    fetch: async urlValue => {
+      rosterFetches++;
+      const url = new URL(urlValue);
+      const cursor = String(url.searchParams.get('id') || '').replace(/^gt\./, '');
+      const start = cursor
+        ? pagedRoster.findIndex(row => row.id === cursor) + 1
+        : 0;
+      const body = pagedRoster.slice(start, start + 500);
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  };
+  const completeOfflineRoster = await runner.readCompleteRoster(rosterRuntime);
+  ok(completeOfflineRoster.length === 501
+    && completeOfflineRoster[500].id === 'member-0501'
+    && rosterFetches === 2,
+  'the roster keyset reader proves completeness beyond one 500-row page');
+  let changedRosterRejected = false;
+  try {
+    await runner.assertPreExistingRosterUnchanged({
+      preExistingRoster: [{ id: 'member-0001', name: 'Before', role: 'editor', active: true }],
+      createdMemberIds: new Set(),
+      config: { supabaseUrl: 'https://offline.invalid', serviceKey: 'offline' },
+      processDeadlineAt: Date.now() + (60 * 60_000),
+      cleanupStarted: true,
+      activeRequestControllers: new Set(),
+      fetch: async () => new Response(JSON.stringify([
+        { id: 'member-0001', name: 'Changed', role: 'editor', active: true },
+      ]), { status: 200, headers: { 'content-type': 'application/json' } }),
+    }, 'cleanup');
+  } catch (_error) {
+    changedRosterRejected = true;
+  }
+  ok(changedRosterRejected,
+    'cleanup rejects any changed field on a pre-existing roster row');
+  ok(/production_deliverables_browser_v1/.test(rosterProjection)
+    && /assignee_id:\s*member\.id/.test(rosterProjection)
+    && /!runtime\.createdDeliverableIds\.has\(clean\(row\.id\)\)/.test(rosterProjection)
+    && /markerPresent\(row\.title, runtime\)/.test(rosterProjection),
+  'real creatives receive only drill-marked browser clones outside every write allowlist');
+  const localVerifierAt = browserRouter.indexOf('if (readOnlyMember)');
+  const liveVerifierAt = browserRouter.indexOf('guardedBrowserVerifier(');
+  ok(localVerifierAt >= 0 && liveVerifierAt > localVerifierAt
+    && /route\.fulfill/.test(browserRouter.slice(localVerifierAt, liveVerifierAt))
+    && /!runtime\.createdMemberIds\.has\(memberId\)/.test(
+      browserRouter.slice(localVerifierAt, liveVerifierAt),
+    )
+    && /slice5-drill-browser-placeholder/.test(
+      browserRouter.slice(localVerifierAt, liveVerifierAt),
+    ),
+  'pre-existing creatives complete the exact verifier flow locally and never reach live key-verify');
+  ok(/clean\(input\.surface\) === ['"]staff-login['"]/.test(browserRouter)
+    && /mode:\s*runtime\.authMode/.test(browserRouter)
+    && !/drill_read_only/.test(browserRouter),
+  'the local verifier mirrors the deployed staff-login surface and auth-mode response contract');
+  const localMember = {
+    id: 'real-read-only-creative',
+    name: 'Offline Creative',
+    email: 'offline@example.invalid',
+    role: 'editor',
+    team: 'video',
+    active: true,
+  };
+  let routeHandler = null;
+  let localFetches = 0;
+  let fulfilled = null;
+  const localRouteRuntime = {
+    runToken: 'slice5-offline-route',
+    config: { supabaseUrl: 'https://offline.invalid' },
+    authMode: 'enforced',
+    readOnlyMemberIds: new Set([localMember.id]),
+    createdMemberIds: new Set(),
+    createdBatchIds: new Set(),
+    createdDeliverableIds: new Set(),
+    activeRequestControllers: new Set(),
+    processDeadlineAt: Date.now() + (60 * 60_000),
+    cleanupStarted: false,
+    fetch: async () => {
+      localFetches++;
+      throw new Error('local verifier reached the network');
+    },
+  };
+  const localRouteState = {
+    stage: 'f37_identity',
+    readOnlyRosterById: new Map([[localMember.id, localMember]]),
+    localRosterVerifications: 0,
+    liveVerifierWrites: 0,
+    routeError: null,
+  };
+  await runner.installBrowserRoutes(localRouteRuntime, {
+    route: async (_pattern, handler) => { routeHandler = handler; },
+  }, localRouteState);
+  await routeHandler({
+    request: () => ({
+      url: () => 'https://offline.invalid/functions/v1/key-verify',
+      method: () => 'POST',
+      postData: () => JSON.stringify({
+        surface: 'staff-login',
+        member: { id: localMember.id },
+      }),
+      headers: () => ({ 'x-syncview-key': 'slice5-drill-browser-placeholder' }),
+    }),
+    fulfill: async value => { fulfilled = value; },
+    abort: async () => { throw new Error('local verifier route aborted'); },
+    continue: async () => {},
+  });
+  const localResponse = JSON.parse(fulfilled.body);
+  ok(localFetches === 0
+    && !localRouteState.routeError
+    && localRouteState.localRosterVerifications === 1
+    && localRouteState.liveVerifierWrites === 0
+    && localResponse.ok === true
+    && localResponse.mode === 'enforced'
+    && localResponse.role === 'creative'
+    && JSON.stringify(localResponse.member) === JSON.stringify({
+      id: localMember.id,
+      name: localMember.name,
+      email: localMember.email,
+      role: localMember.role,
+      team: localMember.team,
+    }),
+  'a real creative is fulfilled locally with the exact response and zero network activity');
+  ok(/stableJson\(rosterAfter\) === stableJson\(rosterBefore\)/.test(f37Runner)
+    && /routeState\.liveVerifierWrites === liveVerifierBeforeRealRoster/.test(f37Runner)
+    && /routeState\.localRosterVerifications === rosterBefore\.creatives\.length/.test(f37Runner),
+  'F37 proves the real roster stayed immutable and no real identity produced a live verifier write');
+  ok(Object.prototype.hasOwnProperty.call(sanitized.f37_identity,
+    'active_creative_roster_count')
+    && Object.prototype.hasOwnProperty.call(sanitized.f37_identity,
+      'read_only_roster_checks_count')
+    && /active_creative_roster_count:\s*rosterBefore\.creatives\.length/.test(f37Runner)
+    && /read_only_roster_checks_count:\s*readOnlyRosterChecks/.test(f37Runner),
+  'the public aggregate exposes only real-roster counts, never roster identities');
+
+  // ---- Every live request is aborted inside a reserved process budget ----
+  const liveRequestSource = sourceFunction(source, 'liveRequest');
+  const deadlineSource = sourceFunction(source, 'requestDeadlineMs');
+  const directLiveAdapters = [
+    'restRead',
+    'restWrite',
+    'edgeWrite',
+    'gatewayWrite',
+    'guardedBrowserVerifier',
+    'linearRead',
+    'guardedBrowserCommentRead',
+  ];
+  ok(occurrences(source, 'runtime.fetch(') === 1
+    && /runtime\.fetch\(/.test(liveRequestSource)
+    && directLiveAdapters.every(name => /liveRequest\(/.test(sourceFunction(source, name))),
+  'every Node live request is centralized in the bounded request adapter');
+  ok(/new AbortController\(\)/.test(liveRequestSource)
+    && /setTimeout\([\s\S]*controller\.abort\(\)/.test(liveRequestSource)
+    && /signal:\s*controller\.signal/.test(liveRequestSource)
+    && /await response\.(?:arrayBuffer|text)\(/.test(liveRequestSource)
+    && /clearTimeout\(timer\)/.test(liveRequestSource),
+  'the Node abort remains armed through response-body consumption');
+  ok(/const DRILL_PROCESS_BUDGET_MS = 170 \* 60_000;/.test(source)
+    && /const CLEANUP_RESERVE_MS = 30 \* 60_000;/.test(source)
+    && /processDeadline - CLEANUP_RESERVE_MS/.test(deadlineSource)
+    && /jobStartedAtMs:\s*Number\(clean\(env\.SLICE5_JOB_STARTED_AT_MS\)\)/.test(source)
+    && /processDeadlineAt:\s*startedAt \+ DRILL_PROCESS_BUDGET_MS/.test(source)
+    && /runBoundedDrillPhase\(/.test(source)
+    && /runtime\.cleanupStarted = true;[\s\S]{0,120}closeBrowsers\(runtime\)/.test(source),
+  'the main phase cannot consume the separately reserved 30-minute cleanup window');
+  ok(/new AbortController\(\)/.test(matrixCourier)
+    && /signal:\s*controller\.signal/.test(matrixCourier)
+    && /timeoutMs:\s*BROWSER_REQUEST_TIMEOUT_MS/.test(matrixCourier)
+    && /isLoopbackStatic/.test(browserRouter)
+    && /route\.abort\(['"]blockedbyclient['"]\)/.test(browserRouter),
+  'browser live couriers abort on deadline and unknown external requests are blocked');
+  const fakeNow = 1_000_000;
+  ok(runner.requestDeadlineMs({
+    processDeadlineAt: fakeNow + (30 * 60_000) + 5_000,
+    cleanupStarted: false,
+  }, 20_000, fakeNow, 'f136_matrix') === 5_000,
+  'a drill request is shortened at the edge of the cleanup reserve');
+  ok(runner.requestDeadlineMs({
+    processDeadlineAt: fakeNow + 5_000,
+    cleanupStarted: true,
+  }, 20_000, fakeNow, 'cleanup') === 5_000,
+  'cleanup requests use only the remaining hard process budget');
+  let reserveRejected = false;
+  try {
+    runner.requestDeadlineMs({
+      processDeadlineAt: fakeNow + (30 * 60_000),
+      cleanupStarted: false,
+    }, 20_000, fakeNow, 'f136_matrix');
+  } catch (_error) {
+    reserveRejected = true;
+  }
+  ok(reserveRejected, 'the next drill request is refused once cleanup reserve begins');
+  let latePhaseRejected = false;
+  try {
+    runner.requestDeadlineMs({
+      processDeadlineAt: fakeNow + 60_000,
+      cleanupStarted: true,
+    }, 20_000, fakeNow, 'f95_convergence');
+  } catch (_error) {
+    latePhaseRejected = true;
+  }
+  ok(latePhaseRejected,
+    'a late browser/route request is refused after cleanup has begun');
+  let abortObserved = false;
+  const abortStarted = Date.now();
+  try {
+    await runner.liveRequest({
+      processDeadlineAt: Date.now() + (31 * 60_000),
+      cleanupStarted: false,
+      activeRequestControllers: new Set(),
+      fetch: (_url, init) => new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => {
+          abortObserved = true;
+          reject(new Error('offline bounded abort'));
+        }, { once: true });
+      }),
+    }, 'https://offline.invalid/read', {}, {
+      stage: 'preflight',
+      kind: 'offline_test',
+      timeoutMs: 15,
+    });
+  } catch (_error) {}
+  ok(abortObserved && Date.now() - abortStarted < 1_000,
+    'the centralized adapter actively aborts a hung fetch within its bound');
+  const boundedStarted = Date.now();
+  let operationBounded = false;
+  try {
+    await runner.boundedOperation({
+      processDeadlineAt: Date.now() + (31 * 60_000),
+      cleanupStarted: false,
+    }, 'f95_convergence', 'offline hung browser operation',
+    () => new Promise(() => {}), 15);
+  } catch (_error) {
+    operationBounded = true;
+  }
+  ok(operationBounded && Date.now() - boundedStarted < 1_000,
+    'a hung browser operation yields control before the cleanup reserve');
+  let lateRegistered = false;
+  let lateDisposed = false;
+  let acquisitionTimedOut = false;
+  try {
+    await runner.acquireBoundedResource({
+      processDeadlineAt: Date.now() + (31 * 60_000),
+      cleanupStarted: false,
+    }, 'f95_convergence', 'offline late resource',
+    () => new Promise(resolve => setTimeout(() => resolve({ handle: true }), 35)),
+    () => { lateRegistered = true; },
+    () => { lateDisposed = true; },
+    15);
+  } catch (_error) {
+    acquisitionTimedOut = true;
+  }
+  await new Promise(resolve => setTimeout(resolve, 60));
+  ok(acquisitionTimedOut && lateDisposed && !lateRegistered,
+    'a resource resolving after acquisition timeout is disposed instead of registered late');
+  const launchSource = sourceFunction(source, 'launchBrowser');
+  const contextCloseSource = sourceFunction(source, 'closeContext');
+  const staticStartSource = sourceFunction(source, 'startStaticServer');
+  const staticCloseSource = sourceFunction(source, 'closeStaticServer');
+  const centralCloseSource = sourceFunction(source, 'closeBrowsers');
+  ok(/launchServer\(/.test(launchSource)
+    && /browserServers\.add/.test(launchSource)
+    && /forceKillBrowserServer/.test(launchSource)
+    && /created\.unref\(\)/.test(staticStartSource)
+    && /neutralizeStaticServer/.test(staticCloseSource)
+    && !/finally[\s\S]*contexts\.delete/.test(contextCloseSource)
+    && /Chromium server force kill/.test(centralCloseSource)
+    && /late browser operation drain/.test(centralCloseSource),
+  'teardown retains failed contexts and force-neutralizes server/process handles');
+
   // ---- F37/F95: real browser machinery and bounded recovery --------------
   ok(/require\(['"]playwright['"]\)/.test(source)
     && /\bchromium\b/.test(source),
@@ -517,8 +1001,10 @@ function publicLeavesAreSafe(value) {
   ok(source.includes('docs/syncview-design/tests/prod-test-utils')
     || source.includes('qa/'),
   'the browser drills reuse the existing Production/QA e2e machinery');
-  ok(occurrences(source, '.newContext(') >= 2
-    || /for\s*\([^)]*<\s*2[^)]*\)[\s\S]{0,500}\.newContext\(/.test(source),
+  const f95Runner = sourceFunction(source, 'runF95Convergence');
+  ok(occurrences(f95Runner, 'openTestProductionPage(runtime, browser') === 2
+    && /const \{ context: contextA, page: pageA \}/.test(f95Runner)
+    && /const \{ context: contextB, page: pageB \}/.test(f95Runner),
   'F95 creates two independent headless browser contexts');
   ok(source.includes('?prod=1'), 'both browser contexts enter through the Production route');
   const rowConvergence = sourceFunction(source, 'assertContextsConverge');
@@ -578,8 +1064,19 @@ function publicLeavesAreSafe(value) {
   'runtime flags are independently read before/after and must remain byte-stable');
   ok(!/syncview_runtime_flags[\s\S]{0,300}(?:method:\s*['"](?:POST|PATCH|PUT|DELETE)['"])/i.test(source),
     'the runner contains no runtime-flag write path');
-  ok(/cleanup[\s\S]{0,1200}(?:deliverable_events|mirror_outbox)[\s\S]{0,1200}(?:team_members|member)/i.test(source),
-    'cleanup covers generated row/event/outbox residue and disposable members');
+  const cleanupRunner = sourceFunction(source, 'cleanup');
+  const memberCleanup = sourceFunction(source, 'cleanupSyntheticMembers');
+  ok(/deliverable_events/.test(cleanupRunner)
+    && /mirror_outbox/.test(cleanupRunner)
+    && /cleanupSyntheticMembers\(runtime, deliverableIds\)/.test(cleanupRunner)
+    && /for \(const id of memberIds\)/.test(memberCleanup)
+    && /catch \(error\)[\s\S]{0,80}capture\(error\)/.test(memberCleanup)
+    && /survivors\.length === 0/.test(memberCleanup),
+  'cleanup independently attempts row/event/outbox recovery and every disposable member');
+  ok(/assertPreExistingRosterUnchanged\(runtime, ['"]cleanup['"]\)/.test(cleanupRunner)
+    && /errors\.length === 0/.test(cleanupRunner)
+    && /cleanupResult\.ok/.test(source),
+  'cleanup_ok requires complete recovery plus a byte-stable pre-existing roster');
 
   if (failures) {
     console.error(`\nslice5-test-drills: ${failures} check(s) failed`);

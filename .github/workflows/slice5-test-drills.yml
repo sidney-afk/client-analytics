@@ -29,6 +29,12 @@ jobs:
     timeout-minutes: 180
     environment: production
     steps:
+      # Anchor all later request and cleanup deadlines to the Actions job
+      # clock, not to the much-later Node process start.
+      - name: Start the bounded drill clock
+        shell: bash
+        run: printf 'SLICE5_JOB_STARTED_AT_MS=%s\n' "$(date +%s%3N)" >> "$GITHUB_ENV"
+
       # Start from the trusted default branch. Do not ask checkout to resolve
       # the operator-supplied object until its shape and ancestry have passed.
       - name: Check out trusted main for the provenance gate

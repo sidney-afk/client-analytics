@@ -62,6 +62,17 @@ schedule while F132 is open; if reducing duplicate cadence, remove the pager's l
    capture and requires an independent deployed-source/JWT hash match; it does not reconstruct a
    historical transitive graph, and an old version ID is not an activation handle. Private artifacts stay in the
    private backup store; only public-safe names/hashes go in `EXECUTION_LOG.md`.
+
+   > ⚠️ **The weekly n8n export does not satisfy 4(b) today (found 2026-07-27).** The scheduled
+   > "SyncView - Weekly Backup" workflow uploads a **partial** workflow export and still reports
+   > success: the 2026-07-26 file holds **54** workflows against **92** live (77 active, 15
+   > inactive). The export node runs `onError: continueRegularOutput`, so a failure partway
+   > through emits what it collected and the upload proceeds. A published-vs-draft `activeWorkflows`
+   > filter discrepancy also exists on that node, but is **not** the cause — that filter would cap
+   > the export at 15, and 54 exceeds it. Until the export fails loudly on a short read and asserts
+   > its count against the live total, take the per-workflow JSON export by hand before any n8n edit
+   > and do not treat a green weekly run as rule-4(b) evidence. This is rule 7 applied to backups:
+   > a completed backup job is not a verified backup.
 5. **Log everything.** `EXECUTION_LOG.md` (create in the first execution PR) gets a dated entry
    for every deploy, flag flip, n8n change, DB migration, backup taken, incident, and rollback —
    with enough detail to reconstruct events later. This complements the in-app event ledgers

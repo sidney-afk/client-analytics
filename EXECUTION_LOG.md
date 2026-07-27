@@ -2,6 +2,32 @@
 
 All times are UTC unless noted.
 
+## 2026-07-27 — INCIDENT (open): the weekly n8n workflow export is silently partial
+
+- **Found while** verifying a pre-edit backup for the onboarding-provisioning workflow, as
+  ROLLBACK.md rule 4(b) requires. The builder session refused to proceed because the workflow it
+  was about to edit was absent from the latest backup; that refusal was correct.
+- **Measured:** n8n holds **92** workflows (77 active, 15 inactive). The scheduled
+  `SyncView - Weekly Backup` run of 2026-07-26 06:00Z completed **successfully** and uploaded
+  `n8n-workflows-2026-07-26.json` (635,075 bytes) to the dated Drive folder. That file contains
+  **54** workflows. `Client — Onboarding Provisioning` — active, unchanged since 2026-07-03 — is
+  not among them.
+- **Cause, narrowed:** the export node carries `onError: continueRegularOutput`, so a partial
+  paginated read is emitted rather than failing the run, and the upload then proceeds. The node's
+  **published** version also carries an `activeWorkflows: false` filter that its unpublished draft
+  removes (`versionId` ≠ `activeVersionId`) — but that filter is **excluded as the cause**: it
+  would cap the export at the 15 inactive workflows, and the file holds 54. Exact truncation point
+  not yet established; the file itself was not parsed in this session.
+- **Blast radius:** every "export before the change" claim resting on the weekly Drive backup is
+  unproven for an unknown number of prior weeks. n8n's built-in per-workflow version history is
+  unaffected and remains a restore lane. No data was lost and nothing was restored from a bad
+  backup — this is a latent recovery gap, not an outage.
+- **Interim rule:** hand-export the specific workflow from the n8n UI before any n8n edit. See the
+  warning added under ROLLBACK.md rule 4.
+- **Not yet done (needs owner go-ahead — these are live n8n changes):** publish the pending draft;
+  make the export fail the run on a short read; assert exported count against the live workflow
+  count; audit how many prior weekly backups are also short.
+
 ## 2026-07-26 — Slice 5 owner window EXECUTED: read-path migration applied + `production-write` v26 deployed (blockers #8/#9 live-capable)
 
 - **Step A (~23:45Z): the owner applied `migrations/2026-07-25-slice5-production-read-path.sql`**

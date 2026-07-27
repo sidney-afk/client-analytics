@@ -32,9 +32,17 @@ All times are UTC unless noted.
   files.
 - **Interim rule:** hand-export the specific workflow from the n8n UI before any n8n edit. See the
   warning added under ROLLBACK.md rule 4.
-- **Not yet done (needs owner go-ahead — these are live n8n changes):** publish the pending draft;
-  make the export fail the run on a short read; assert exported count against the live workflow
-  count; audit how many prior weekly backups are also short.
+- **RESOLVED same day (2026-07-27):** the owner approved the repair and it is **published and
+  independently verified at 131 workflows** — exactly the full corpus (77 active + 15 inactive +
+  39 archived), against the 54 the broken export produced. The `activeWorkflows` filter is gone,
+  export/assert/upload failures now stop the run instead of uploading a short file, and the run
+  asserts its exported count against an independently paginated live enumeration rather than a
+  hardcoded number. Rule 4(b) is satisfied by the weekly export again; the interim hand-export rule
+  in ROLLBACK.md stands as belt-and-braces for any edit to the backup workflow itself.
+- **Still open:** the historical audit. Prior dated folders have not been enumerated, so the number
+  of past weekly backups that are also short is still unknown, and any of them must be treated as
+  non-restorable until proven otherwise. Blocked on Drive read access to the SyncView Backups
+  parent folder for the connected identity, or an owner-supplied date/count table.
 
 ## 2026-07-26 — Slice 5 owner window EXECUTED: read-path migration applied + `production-write` v26 deployed (blockers #8/#9 live-capable)
 

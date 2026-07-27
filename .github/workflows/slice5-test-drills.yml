@@ -1,0 +1,186 @@
+name: Slice 5 TEST drills
+
+# Owner-gated proof for all six drills still owed by
+# docs/ops/SLICE5_APPLY_WINDOW.md section 3. This workflow is deliberately
+# manual-only and accepts only an exact commit already reachable from main.
+# The production Environment holds credentials, but every mutation remains
+# hard-scoped by the runner to disposable drill-marked rows under the one active
+# TEST client. This lane never changes runtime flags or dispatches production
+# work for a real client/member.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact lowercase 40-character commit SHA already on main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: slice5-test-drills
+  cancel-in-progress: false
+
+jobs:
+  drills:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    environment: production
+    steps:
+      # Start from the trusted default branch. Do not ask checkout to resolve
+      # the operator-supplied object until its shape and ancestry have passed.
+      - name: Check out trusted main for the provenance gate
+        uses: actions/checkout@v4
+        with:
+          ref: refs/heads/main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify requested commit is an exact ancestor of origin/main
+        id: provenance
+        shell: bash
+        env:
+          RUN_COMMIT: ${{ inputs.commit_sha }}
+        run: |
+          if ! [[ "$RUN_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit_sha must be exactly 40 lowercase hexadecimal characters"
+            exit 1
+          fi
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          if ! git cat-file -e "$RUN_COMMIT^{commit}" 2>/dev/null; then
+            echo "::error::commit_sha does not resolve to a commit on the trusted main history"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$RUN_COMMIT" origin/main; then
+            echo "::error::commit_sha is not an ancestor of origin/main"
+            exit 1
+          fi
+          printf 'validated_commit=%s\n' "$RUN_COMMIT" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the verified commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.provenance.outputs.validated_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Reverify exact checked-out commit
+        shell: bash
+        env:
+          RUN_COMMIT: ${{ steps.provenance.outputs.validated_commit }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$RUN_COMMIT" ]; then
+            echo "::error::checkout does not match the verified commit"
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # This repository intentionally has no lockfile. Match its established
+      # Playwright workflows without creating one on the runner.
+      - name: Install browser test dependencies
+        run: npm install --no-save --package-lock=false
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the guarded TEST-only drill suite
+        shell: bash
+        env:
+          SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          ROLE_KEY_ADMIN: ${{ secrets.ROLE_KEY_ADMIN }}
+          ROLE_KEY_SMM: ${{ secrets.ROLE_KEY_SMM }}
+          ROLE_KEY_CREATIVE: ${{ secrets.ROLE_KEY_CREATIVE }}
+          SLICE5_TEST_DRILLS_CONFIRM: 'SLICE5_TEST_ONLY'
+          SLICE5_TEST_DRILLS_REPORT: artifacts/slice5-test-drills.json
+          SLICE5_TEST_DRILLS_PRIVATE_LOG: ${{ runner.temp }}/slice5-test-drills-private.json
+        run: |
+          missing=0
+          for name in \
+            SUPABASE_SERVICE_ROLE_KEY LINEAR_API_KEY \
+            ROLE_KEY_ADMIN ROLE_KEY_SMM ROLE_KEY_CREATIVE; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required Slice 5 TEST-drill credential: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+          mkdir -p artifacts
+          if ! node scripts/slice5-test-drills.js \
+            > "${RUNNER_TEMP}/slice5-test-drills-console.log" 2>&1; then
+            echo "::error::Slice 5 TEST drills failed; private detail stayed on the ephemeral runner."
+            exit 1
+          fi
+          echo "Slice 5 TEST drills passed; only the public-safe aggregate will be retained."
+
+      - name: Validate the public-safe aggregate
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const reportPath = 'artifacts/slice5-test-drills.json';
+          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+          const forbiddenKey = /(?:^|_)(?:id|ids|slug|slugs|time|times|timestamp|timestamps|date|dates|error|errors|message|messages|stack|stacks|detail|details|url|urls|path|paths|name|names)(?:_|$)/i;
+          const safeEnums = new Set([
+            'pass',
+            'passed',
+            'fail',
+            'not_run',
+            'none',
+            'test_only',
+            'active_test_only',
+            'ready',
+            'refused',
+            'accepted',
+            'degraded',
+            'recovered',
+            'no_personal_queue',
+            'assignee_out_of_scope',
+            'assignee_role_incompatible',
+            'assignee_mapping_unavailable',
+            'assignee_provider_inactive',
+            'operation_forbidden',
+            'preflight',
+            'f94_negative',
+            'f94_stale_picker',
+            'f136_matrix',
+            'f37_identity',
+            'f95_convergence',
+            'cleanup',
+            'flag_invariant',
+            'read_rebaseline',
+            'report',
+          ]);
+          function validate(value, keyPath) {
+            if (typeof value === 'boolean') return;
+            if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return;
+            if (typeof value === 'string' && safeEnums.has(value)) return;
+            if (!value || typeof value !== 'object' || Array.isArray(value)) {
+              throw new Error('unsafe_public_aggregate');
+            }
+            for (const [key, child] of Object.entries(value)) {
+              if (forbiddenKey.test(key) && key !== 'error_code') {
+                throw new Error('unsafe_public_aggregate');
+              }
+              validate(child, keyPath ? `${keyPath}.${key}` : key);
+            }
+          }
+          validate(report, '');
+          NODE
+
+      - name: Upload public-safe drill aggregate
+        uses: actions/upload-artifact@v4
+        with:
+          name: slice5-test-drills
+          path: artifacts/slice5-test-drills.json
+          if-no-files-found: error
+          retention-days: 14

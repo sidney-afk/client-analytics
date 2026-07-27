@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const {
   assertFlipTolerantStance,
+  descriptionDrillAllowed,
   stableJson,
   writePrivateFailure,
 } = require('../scripts/production-write-drill');
@@ -28,6 +29,11 @@ ok(mixedAccepted, 'daily TEST drill accepts mixed authority and live outbound wi
 let malformedRejected = false;
 try { assertFlipTolerantStance(stance({ video: 'unknown', graphics: 'linear' }, 'live')); } catch (_) { malformedRejected = true; }
 ok(malformedRejected, 'daily TEST drill still rejects a malformed authority stance');
+ok(!descriptionDrillAllowed({ video: 'linear', graphics: 'syncview' }, 'video'),
+  'daily TEST drill does not expect a native description round-trip from Linear-authoritative video');
+ok(descriptionDrillAllowed({ video: 'linear', graphics: 'syncview' }, 'graphics')
+  && descriptionDrillAllowed({ video: 'syncview', graphics: 'supabase' }, 'graphics'),
+  'daily TEST drill retains the description round-trip for either native-authority spelling');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'production-write-drill.js'), 'utf8');
 const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'production-write-drill.yml'), 'utf8');
@@ -55,6 +61,9 @@ ok(source.includes("if (team === 'graphics' && !REAL_GRAPHIC_GENERATION) request
   'real generation request omits the skip flag instead of sending false');
 ok(source.includes('PRODUCTION_WRITE_DRILL_TEAMS') && source.includes('for (const team of DRILL_TEAMS)'),
   'one-shot drill can scope mutations to graphics only');
+ok(source.includes('PROD_AUTHORITY = assertFlipTolerantStance(before).authority')
+  && source.includes('if (descriptionDrillAllowed(PROD_AUTHORITY, asset.team))'),
+  'F202 description mutation and readback follow the live prod_authority split');
 ok(source.includes("reconcileArgs.push(`--team=${DRILL_TEAMS[0]}`)"),
   'one-shot reconciliation is scoped to the exercised team');
 ok(source.includes('foreign_write_detected'), 'drill checks for echo/foreign-write storms');

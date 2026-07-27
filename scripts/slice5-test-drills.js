@@ -1415,17 +1415,40 @@ async function preflight(runtime) {
   // while the edge would have admitted it. What the write path actually
   // resolved is verified on readback instead, where it is observable rather
   // than guessed.
+  // EVERY nested connection below is explicitly bounded. An unbounded nested
+  // connection silently takes the platform default of 50, which multiplies
+  // against the outer page size in Linear's complexity budget: projects(250) x
+  // teams(default 50) estimated ~12,500 nodes and the request was rejected
+  // 400. Flat 250 is fine on its own — the deployed production-write assignee
+  // pool reads users(first: 250) against the same API — so the outer page sizes
+  // are deliberately left alone; it is the nesting that has to be declared.
+  //
+  // DO NOT remove these bounds to "simplify" the queries: dropping one restores
+  // the default-50 multiplier and silently reintroduces the 400.
   const [projectsData, teamsData, usersData] = await Promise.all([
     linearRead(runtime, `query Slice5DrillProjects {
       projects(first: 250, includeArchived: true) {
-        nodes { id name archivedAt teams { nodes { id key name } } }
+        nodes {
+          id name archivedAt
+          # 10, because the workspace has exactly 6 teams (list_teams,
+          # hasNextPage=false), so no project can attach more. Provably
+          # non-truncating, and it drops the estimate from ~12,500 to ~2,500.
+          teams(first: 10) { nodes { id key name } }
+        }
         pageInfo { hasNextPage }
       }
     }`),
     linearRead(runtime, `query Slice5DrillTeams {
-      teams(first: 50) { nodes { id key name states { nodes { id name type } } } }
+      # Outer 10 for the same reason: 6 teams exist workspace-wide. The nested
+      # states bound is the platform default made explicit rather than implied,
+      # so the estimate is declared: 10 x 50 = ~500.
+      teams(first: 10) {
+        nodes { id key name states(first: 50) { nodes { id name type } } }
+      }
     }`),
     linearRead(runtime, `query Slice5DrillUsers($first: Int!) {
+      # No nested connection, so 250 flat carries no multiplier. Proven in
+      # production by the deployed assignee-provider pool read; left alone.
       users(first: $first, includeArchived: true) {
         nodes { id email active }
         pageInfo { hasNextPage }

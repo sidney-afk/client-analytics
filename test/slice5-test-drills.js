@@ -603,6 +603,32 @@ function publicLeavesAreSafe(value) {
   // else from the response does.
   ok(runner.emptyReport().failure_http_status === 0,
     'the aggregate carries a numeric failure_http_status, 0 when no HTTP call failed');
+
+  // ---- Linear query complexity: every nested connection is bounded --------
+  // An unbounded nested connection takes the platform default of 50, which
+  // multiplies against the outer page size. projects(250) x teams(default 50)
+  // was rejected 400. These assertions exist so the bounds are not "optimized"
+  // away and the 400 silently reintroduced.
+  const preflightQueries = source.slice(
+    source.indexOf('const [projectsData, teamsData, usersData] = await Promise.all(['),
+    source.indexOf('const projects = projectsData.projects'),
+  );
+  ok(/projects\(first: 250, includeArchived: true\)/.test(preflightQueries),
+    'the projects outer page size is unchanged at a flat 250');
+  ok(/teams\(first: 10\) \{ nodes \{ id key name \} \}/.test(preflightQueries),
+    'the projects query bounds its NESTED teams connection');
+  ok(/teams\(first: 10\) \{/.test(preflightQueries)
+    && !/\bteams\(first: 50\)/.test(preflightQueries),
+  'the teams outer page size is reduced to 10 (6 teams exist workspace-wide)');
+  ok(/states\(first: 50\)/.test(preflightQueries),
+    'the teams query bounds its NESTED states connection explicitly');
+  ok(/users\(first: \$first, includeArchived: true\)/.test(preflightQueries),
+    'the users query is left alone: no nesting, and 250 flat is proven in production');
+  // No connection anywhere in these three documents may be left unbounded.
+  const unboundedNested = (preflightQueries.match(/\b(teams|states|nodes|projects|users|issues|members)\s*\{/g) || [])
+    .filter(match => !/^nodes/.test(match.trim()));
+  ok(unboundedNested.length === 0,
+    'no connection in the preflight Linear documents is left without a first: bound');
   const linearReadSource = sourceFunction(source, 'linearRead');
   ok(!/body\.errors\[0\]|errors\[0\]\.message|\.message\b[\s\S]{0,40}fail\(/.test(linearReadSource),
     'no GraphQL error text is promoted into the public code path');

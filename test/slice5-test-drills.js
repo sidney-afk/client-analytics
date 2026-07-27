@@ -361,6 +361,39 @@ function publicLeavesAreSafe(value) {
       throw new Error('offline guard leaked to fetch');
     },
   };
+  let readEscapeFetches = 0;
+  const readEscapeRuntime = {
+    ...offlineGuardRuntime,
+    fetch: async () => {
+      readEscapeFetches++;
+      throw new Error('mutation-shaped read helper leaked to fetch');
+    },
+  };
+  let readEscapeRejects = 0;
+  for (const invoke of [
+    () => runner.restRead(readEscapeRuntime, 'clients?active=eq.true', {
+      method: 'DELETE',
+      stage: 'preflight',
+    }),
+    () => runner.restRead(readEscapeRuntime, 'team_members?id=neq.none', {
+      method: 'PATCH',
+      stage: 'preflight',
+    }),
+    () => runner.linearRead(
+      readEscapeRuntime,
+      'mutation Escape { issueArchive(id: "real") { success } }',
+      {},
+      'preflight',
+    ),
+  ]) {
+    try {
+      await invoke();
+    } catch (_error) {
+      readEscapeRejects++;
+    }
+  }
+  ok(readEscapeRejects === 3 && readEscapeFetches === 0,
+    'read helpers reject mutation-capable HTTP and GraphQL shapes before fetch');
   for (const invoke of [
     () => runner.restWrite(offlineGuardRuntime, 'deliverables?id=eq.offline', {
       method: 'PATCH',
@@ -462,6 +495,234 @@ function publicLeavesAreSafe(value) {
     && logicalQueryRejected
     && guardedFetches === 0,
   'every accepting adapter rejects serialized, direct-query, or logical-filter member escapes before fetch');
+  let broadTargetFetches = 0;
+  const broadTargetRuntime = {
+    ...offlineGuardRuntime,
+    readOnlyMemberIds: new Set(),
+    createdMemberIds: new Set(),
+    createdDeliverableIds: new Set(['owned-deliverable']),
+    fetch: async () => {
+      broadTargetFetches++;
+      throw new Error('broad PostgREST target leaked to fetch');
+    },
+  };
+  let broadTargetRejects = 0;
+  for (const resource of [
+    'deliverables?status=eq.todo',
+    'deliverables?id=eq.owned-deliverable',
+    'deliverables?id=eq.some-other-row&client_slug=eq.test-only',
+    'clients?id=eq.owned-deliverable&client_slug=eq.test-only',
+  ]) {
+    try {
+      await runner.restWrite(broadTargetRuntime, resource, {
+        method: 'PATCH',
+        body: { status: 'todo' },
+        deliverableId: 'owned-deliverable',
+        targetClientSlug: 'test-only',
+        stage: 'f136_matrix',
+      });
+    } catch (_error) {
+      broadTargetRejects++;
+    }
+  }
+  ok(broadTargetRejects === 4 && broadTargetFetches === 0,
+    'PostgREST writes bind the allowed table, exact run-owned id, and active TEST client before fetch');
+  let edgeTargetFetches = 0;
+  const edgeTargetRuntime = {
+    ...broadTargetRuntime,
+    createdBatchIds: new Set(['owned-batch']),
+    createdDedups: new Set(['owned-dedup']),
+    fetch: async () => {
+      edgeTargetFetches++;
+      throw new Error('mismatched Edge target leaked to fetch');
+    },
+  };
+  let edgeTargetRejects = 0;
+  for (const invoke of [
+    () => runner.edgeWrite(edgeTargetRuntime, 'deliverable-write', {
+      id: 'real-deliverable',
+      operation: 'archive',
+      patch: {},
+      test_override: true,
+      confirm: 'B4_TEST_ONLY',
+    }, {
+      deliverableId: 'owned-deliverable',
+      targetClientSlug: 'test-only',
+      stage: 'cleanup',
+    }),
+    () => runner.edgeWrite(edgeTargetRuntime, 'batch-write', {
+      id: 'real-batch',
+      operation: 'archive',
+      patch: {},
+      test_override: true,
+      confirm: 'B4_TEST_ONLY',
+    }, {
+      batchId: 'owned-batch',
+      targetClientSlug: 'test-only',
+      stage: 'cleanup',
+    }),
+    () => runner.edgeWrite(edgeTargetRuntime, 'unknown-write', {
+      id: 'owned-deliverable',
+    }, {
+      deliverableId: 'owned-deliverable',
+      targetClientSlug: 'test-only',
+      stage: 'cleanup',
+    }),
+    () => runner.edgeWrite(edgeTargetRuntime, 'linear-outbound', {
+      limit: 1,
+      target_dedup_key: 'foreign-dedup',
+      test_override: {
+        client_slug: 'test-only',
+        mode: 'live',
+        authority: 'syncview',
+      },
+      confirm: 'B4_TEST_ONLY',
+    }, {
+      targetClientSlug: 'test-only',
+      stage: 'cleanup',
+    }),
+  ]) {
+    try {
+      await invoke();
+    } catch (_error) {
+      edgeTargetRejects++;
+    }
+  }
+  ok(edgeTargetRejects === 4 && edgeTargetFetches === 0,
+    'Edge writes bind function, body target, and outbound dedup before fetch');
+  let gatewayTargetFetches = 0;
+  const gatewayTargetRuntime = {
+    ...edgeTargetRuntime,
+    fetch: async () => {
+      gatewayTargetFetches++;
+      throw new Error('mismatched gateway target leaked to fetch');
+    },
+  };
+  let gatewayTargetRejects = 0;
+  for (const body of [
+    {
+      operation: 'assignee',
+      entity: 'deliverable',
+      surface: 'production',
+      test_override: true,
+      confirm: 'B4_TEST_ONLY',
+    },
+    {
+      operation: 'assignee',
+      entity: 'deliverable',
+      surface: 'production',
+      id: 'real-deliverable',
+      test_override: true,
+      confirm: 'B4_TEST_ONLY',
+    },
+    {
+      operation: 'assignee',
+      entity: 'deliverable',
+      surface: 'production',
+      id: 'owned-deliverable',
+      client_slug: 'real-client',
+      test_override: true,
+      confirm: 'B4_TEST_ONLY',
+    },
+    {
+      operation: 'intake_create',
+      entity: 'deliverable',
+      surface: 'production',
+      id: 'owned-deliverable',
+      test_override: true,
+      confirm: 'B4_TEST_ONLY',
+    },
+    {
+      operation: 'assignee',
+      entity: 'batch',
+      surface: 'production',
+      id: 'owned-deliverable',
+      test_override: true,
+      confirm: 'B4_TEST_ONLY',
+    },
+    {
+      operation: 'assignee',
+      entity: 'deliverable',
+      surface: 'calendar',
+      id: 'owned-deliverable',
+      test_override: true,
+      confirm: 'B4_TEST_ONLY',
+    },
+  ]) {
+    try {
+      await runner.gatewayWrite(gatewayTargetRuntime, body, {
+        targetClientSlug: 'test-only',
+        stage: 'f94_negative',
+      });
+    } catch (_error) {
+      gatewayTargetRejects++;
+    }
+  }
+  ok(gatewayTargetRejects === 6 && gatewayTargetFetches === 0,
+    'gateway writes bind production surface, operation, entity, body id, and client scope before fetch');
+  let assigneeOptionFetches = 0;
+  const assigneeOptionsRuntime = {
+    ...gatewayTargetRuntime,
+    fetch: async (url, init = {}) => {
+      assigneeOptionFetches++;
+      const href = String(url);
+      if (href.includes('/rest/v1/deliverables?')) {
+        return new Response(JSON.stringify([{
+          id: 'owned-deliverable',
+          client_slug: 'test-only',
+          title: 'drill slice5-offline fixture',
+          brief: 'drill slice5-offline fixture',
+        }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (href.includes('/rest/v1/clients?')) {
+        return new Response(JSON.stringify([{
+          slug: 'test-only',
+          kind: 'test',
+          active: true,
+        }]), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (href.endsWith('/functions/v1/production-write') && init.method === 'POST') {
+        return new Response(JSON.stringify({
+          ok: true,
+          complete: true,
+          assignees: [],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      throw new Error('unexpected offline assignee-options request');
+    },
+  };
+  const assigneeOptionsBody = {
+    action: 'assignee_options',
+    surface: 'production',
+    id: 'owned-deliverable',
+    client_slug: 'test-only',
+    request_id: 'offline-assignee-options',
+    test_override: true,
+    confirm: 'B4_TEST_ONLY',
+  };
+  const assigneeOptionsResponse = await runner.gatewayWrite(
+    assigneeOptionsRuntime,
+    assigneeOptionsBody,
+    { targetClientSlug: 'test-only', stage: 'f94_stale_picker' },
+  );
+  const assigneeOptionsFetchesAfterSuccess = assigneeOptionFetches;
+  let assigneeOptionsMutationShapeRejected = false;
+  try {
+    await runner.gatewayWrite(assigneeOptionsRuntime, {
+      ...assigneeOptionsBody,
+      status: 'todo',
+    }, {
+      targetClientSlug: 'test-only',
+      stage: 'f94_stale_picker',
+    });
+  } catch (_error) {
+    assigneeOptionsMutationShapeRejected = true;
+  }
+  ok(assigneeOptionsResponse.status === 200
+      && assigneeOptionsFetchesAfterSuccess === 3
+      && assigneeOptionsMutationShapeRejected
+      && assigneeOptionFetches === assigneeOptionsFetchesAfterSuccess,
+  'the stale-picker assignee-options read has one exact offline courier and rejects mutation fields');
   ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i.test(source),
     'the runner embeds no member, deliverable, or event UUID');
 

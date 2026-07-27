@@ -388,11 +388,15 @@ async function runBoundedDrillPhase(runtime, stage, operation) {
 }
 
 async function restRead(runtime, resource, options = {}) {
+  const stage = options.stage || 'preflight';
+  const method = clean(options.method || 'GET').toUpperCase();
+  assert(method === 'GET', stage,
+    'Supabase read helper refuses mutation-capable HTTP methods');
   const { response, bytes } = await liveRequest(
     runtime,
     `${runtime.config.supabaseUrl}/rest/v1/${resource}`,
     {
-    method: options.method || 'GET',
+    method,
     headers: {
       apikey: runtime.config.serviceKey,
       Authorization: `Bearer ${runtime.config.serviceKey}`,
@@ -401,13 +405,13 @@ async function restRead(runtime, resource, options = {}) {
     },
     },
     {
-      stage: options.stage || 'preflight',
+      stage,
       kind: 'supabase_read',
     },
   );
   const body = responseBody(bytes);
   if (!response.ok) {
-    fail(options.stage || 'preflight', 'Supabase read failed', {
+    fail(stage, 'Supabase read failed', {
       resource: resource.split('?')[0],
       status: response.status,
       body,
@@ -520,6 +524,30 @@ function assertNoLogicalMutationFilters(resource, stage) {
   return true;
 }
 
+function assertExactPostgrestMutationTarget(
+  resource,
+  expectedId,
+  expectedClientSlug,
+  stage,
+) {
+  const target = new URL(`https://slice5.invalid/${clean(resource).replace(/^\/+/, '')}`);
+  const idFilters = target.searchParams.getAll('id');
+  assert(clean(expectedId)
+      && idFilters.length === 1
+      && clean(idFilters[0]) === `eq.${clean(expectedId)}`,
+  stage,
+  'PostgREST mutation must bind the exact run-owned row id');
+  if (expectedClientSlug !== undefined) {
+    const clientFilters = target.searchParams.getAll('client_slug');
+    assert(clean(expectedClientSlug)
+        && clientFilters.length === 1
+        && clean(clientFilters[0]) === `eq.${clean(expectedClientSlug)}`,
+    stage,
+    'PostgREST mutation must bind the exact active TEST client slug');
+  }
+  return true;
+}
+
 async function assertWriteMemberReferencesRunOwned(runtime, value, stage) {
   const ids = [...new Set(memberReferenceIds(value))];
   for (const id of ids) {
@@ -581,9 +609,16 @@ async function restWrite(runtime, resource, options) {
   options = options || {};
   const rows = Array.isArray(options.body) ? options.body : [options.body];
   const table = clean(resource).split('?')[0];
+  const method = clean(options.method || 'POST').toUpperCase();
+  assert(['team_members', 'deliverables', 'batches'].includes(table),
+    options.stage || 'cleanup',
+    'Supabase mutation table is outside the drill allowlist');
   if (options.memberInsert) {
     assert(table === 'team_members', options.stage || 'preflight',
       'member insert must target team_members');
+    assert(method === 'POST' && !clean(resource).includes('?'),
+      options.stage || 'preflight',
+      'synthetic member insert must use the exact collection resource');
     await assertSyntheticMemberInsertAllowed(runtime, rows);
     // Reserve inside the adapter after the absence/marker proof and before the
     // fetch. A committed response loss is therefore still recoverable.
@@ -600,12 +635,35 @@ async function restWrite(runtime, resource, options) {
     await assertSyntheticMemberMutationAllowed(runtime, options.memberId, options.stage);
   }
   if (table === 'team_members' && !options.memberInsert) {
-    const target = new URL(`https://slice5.invalid/${resource}`)
-      .searchParams.get('id');
-    assert(options.memberId
-        && clean(target) === `eq.${clean(options.memberId)}`,
-    options.stage || 'cleanup',
-    'team_members mutation must carry one exact synthetic member target');
+    assert(['PATCH', 'DELETE'].includes(method),
+      options.stage || 'cleanup',
+      'synthetic member mutation method is outside the drill allowlist');
+    assertExactPostgrestMutationTarget(
+      resource,
+      options.memberId,
+      undefined,
+      options.stage || 'cleanup',
+    );
+  }
+  if (table === 'deliverables') {
+    assert(method === 'PATCH', options.stage || 'cleanup',
+      'deliverable REST mutation method is outside the drill allowlist');
+    assertExactPostgrestMutationTarget(
+      resource,
+      options.deliverableId,
+      options.targetClientSlug,
+      options.stage || 'cleanup',
+    );
+  }
+  if (table === 'batches') {
+    assert(method === 'PATCH', options.stage || 'cleanup',
+      'batch REST mutation method is outside the drill allowlist');
+    assertExactPostgrestMutationTarget(
+      resource,
+      options.batchId,
+      options.targetClientSlug,
+      options.stage || 'cleanup',
+    );
   }
   if (options.deliverableId) await assertRunOwnedDeliverable(runtime, options.deliverableId, options.stage);
   if (options.batchId) await assertRunOwnedBatch(runtime, options.batchId, options.stage);
@@ -642,13 +700,138 @@ async function restWrite(runtime, resource, options) {
   return body;
 }
 
+function assertExactEdgeMutationTarget(runtime, functionName, body, options) {
+  const stage = options.stage || 'cleanup';
+  const name = clean(functionName);
+  if (name === 'deliverable-write' || name === 'batch-write') {
+    const entity = name === 'batch-write' ? 'batch' : 'deliverable';
+    const id = clean(body && body.id);
+    const expectedId = clean(entity === 'batch'
+      ? options.batchId
+      : options.deliverableId);
+    const allowlist = entity === 'batch'
+      ? runtime.createdBatchIds
+      : runtime.createdDeliverableIds;
+    assert(id
+        && expectedId
+        && id === expectedId
+        && allowlist.has(id)
+        && body.test_override === true
+        && clean(body.confirm) === 'B4_TEST_ONLY',
+    stage,
+    'ledger Edge write is not bound to one exact run-owned TEST entity');
+    const operation = lower(body.operation);
+    assert(operation, stage, 'ledger Edge write operation is missing');
+    if (operation === 'create') {
+      assertRunMarkerPayload(body.patch, runtime, stage);
+      assert(clean(parseJson(body.patch).client_slug) === clean(options.targetClientSlug),
+        stage, 'ledger create is not bound to the active TEST client slug');
+    } else if (Object.prototype.hasOwnProperty.call(parseJson(body.patch), 'client_slug')) {
+      assert(clean(parseJson(body.patch).client_slug) === clean(options.targetClientSlug),
+        stage, 'ledger mutation attempts to change client scope');
+    }
+    return { entity, id, creating: operation === 'create', dedup: '' };
+  }
+  if (name === 'linear-outbound') {
+    const dedup = clean(body && body.target_dedup_key);
+    const override = parseJson(body && body.test_override);
+    assert(dedup
+        && runtime.createdDedups.has(dedup)
+        && Number(body.limit) === 1
+        && clean(override.client_slug) === clean(options.targetClientSlug)
+        && lower(override.mode) === 'live'
+        && lower(override.authority) === 'syncview'
+        && clean(body.confirm) === 'B4_TEST_ONLY'
+        && !options.deliverableId
+        && !options.batchId,
+    stage,
+    'outbound Edge write is not bound to one tracked TEST intent');
+    return { entity: '', id: '', creating: false, dedup };
+  }
+  fail(stage, 'Edge write function is outside the drill mutation allowlist');
+}
+
+function assertExactGatewayMutationTarget(runtime, body, options) {
+  const stage = options.stage || 'cleanup';
+  const id = clean(body && body.id);
+  const action = lower(body && body.action);
+  if (action === 'assignee_options') {
+    const keys = Object.keys(body || {}).sort();
+    assert(id
+        && runtime.createdDeliverableIds.has(id)
+        && lower(body.surface) === 'production'
+        && clean(body.client_slug) === clean(options.targetClientSlug)
+        && stableJson(keys) === stableJson([
+          'action',
+          'client_slug',
+          'confirm',
+          'id',
+          'request_id',
+          'surface',
+          'test_override',
+        ])
+        && body.test_override === true
+        && clean(body.confirm) === 'B4_TEST_ONLY'
+        && !options.staff
+        && !options.actorMemberId,
+    stage,
+    'assignee-options read is not bound to the exact run-owned TEST fixture');
+    return { id, operation: 'assignee_options' };
+  }
+  const operation = lower(body && body.operation);
+  assert(id
+      && runtime.createdDeliverableIds.has(id)
+      && clean(body.entity) === 'deliverable'
+      && lower(body.surface) === 'production'
+      && ['assignee', 'status', 'comment'].includes(operation),
+  stage,
+  'gateway write is not bound to one exact run-owned deliverable operation');
+  if (Object.prototype.hasOwnProperty.call(body, 'client_slug')) {
+    assert(clean(body.client_slug) === clean(options.targetClientSlug),
+      stage, 'gateway write carries a different client scope');
+  }
+  if (options.staff) {
+    assert(body.test_override !== true && !clean(body.confirm),
+      stage, 'staff gateway request cannot impersonate the service TEST override');
+  } else {
+    assert(body.test_override === true && clean(body.confirm) === 'B4_TEST_ONLY',
+      stage, 'service gateway request lacks the exact TEST override');
+  }
+  return { id, operation };
+}
+
 async function edgeWrite(runtime, functionName, body, options) {
   options = options || {};
   await assertWriteMemberReferencesRunOwned(
     runtime, body, options.stage || 'cleanup',
   );
-  if (options.deliverableId) await assertRunOwnedDeliverable(runtime, options.deliverableId, options.stage);
-  if (options.batchId) await assertRunOwnedBatch(runtime, options.batchId, options.stage);
+  const target = assertExactEdgeMutationTarget(
+    runtime, functionName, body, options,
+  );
+  if (target.entity === 'deliverable') {
+    if (target.creating) {
+      const existing = await restRead(runtime,
+        `deliverables?select=id&id=eq.${encodeURIComponent(target.id)}&limit=1`,
+        { stage: options.stage || 'cleanup' });
+      assert(Array.isArray(existing) && existing.length === 0,
+        options.stage || 'cleanup',
+        'reserved deliverable create id already exists');
+    } else {
+      await assertRunOwnedDeliverable(runtime, target.id, options.stage);
+    }
+  }
+  if (target.entity === 'batch') {
+    if (target.creating) {
+      const existing = await restRead(runtime,
+        `batches?select=id&id=eq.${encodeURIComponent(target.id)}&limit=1`,
+        { stage: options.stage || 'cleanup' });
+      assert(Array.isArray(existing) && existing.length === 0,
+        options.stage || 'cleanup',
+        'reserved batch create id already exists');
+    } else {
+      await assertRunOwnedBatch(runtime, target.id, options.stage);
+    }
+  }
   await assertActiveTestWriteTarget(
     options.targetClientSlug, runtime, options.stage || 'cleanup',
   );
@@ -685,11 +868,12 @@ async function gatewayWrite(runtime, body, options) {
   await assertWriteMemberReferencesRunOwned(
     runtime, body, options.stage || 'cleanup',
   );
+  const target = assertExactGatewayMutationTarget(runtime, body, options);
+  await assertRunOwnedDeliverable(runtime, target.id, options.stage);
   if (options.trackDedup === true && body.id && body.operation && body.request_id) {
     runtime.createdDedups.add(`write-ui:${lower(body.operation)}:${lower(body.entity || 'deliverable')}:`
       + `${clean(body.id)}:${clean(body.request_id)}`);
   }
-  if (body.id) await assertRunOwnedDeliverable(runtime, body.id, options.stage);
   const staff = options.staff || null;
   if (staff) {
     assert(options.actorMemberId, options.stage || 'cleanup',
@@ -778,6 +962,8 @@ async function guardedBrowserVerifier(runtime, request, roleKey, options) {
 }
 
 async function linearRead(runtime, query, variables = {}, stage = 'preflight') {
+  assert(/^\s*query\b/.test(clean(query)), stage,
+    'Linear read helper refuses non-query GraphQL documents');
   const { response, bytes } = await liveRequest(runtime, LINEAR_URL, {
     method: 'POST',
     headers: {
@@ -1079,8 +1265,8 @@ async function ledgerWrite(runtime, kind, request, stage) {
   };
   const data = await edgeWrite(runtime, isBatch ? 'batch-write' : 'deliverable-write', body, {
     targetClientSlug: runtime.client.slug,
-    batchId: request.operation !== 'create' && request.id && isBatch ? request.id : null,
-    deliverableId: request.operation !== 'create' && request.id && !isBatch ? request.id : null,
+    batchId: request.id && isBatch ? request.id : null,
+    deliverableId: request.id && !isBatch ? request.id : null,
     stage,
   });
   const row = data.row;
@@ -1466,7 +1652,8 @@ async function setFixtureOracleState(runtime, status, assigneeId) {
   if (assigneeId) await assertSyntheticMemberMutationAllowed(runtime, assigneeId, 'f136_matrix');
   const stamp = nowIso();
   const rows = await restWrite(runtime,
-    `deliverables?id=eq.${encodeURIComponent(runtime.fixture.deliverableId)}`, {
+    `deliverables?id=eq.${encodeURIComponent(runtime.fixture.deliverableId)}`
+      + `&client_slug=eq.${encodeURIComponent(runtime.client.slug)}`, {
       method: 'PATCH',
       body: {
         status,
@@ -2640,7 +2827,8 @@ async function servicePatchFixture(runtime, patch, stage = 'f95_convergence') {
 async function servicePatchDeliverable(runtime, deliverableId, patch, stage = 'cleanup') {
   const body = { ...patch, updated_at: nowIso() };
   const rows = await restWrite(runtime,
-    `deliverables?id=eq.${encodeURIComponent(deliverableId)}`, {
+    `deliverables?id=eq.${encodeURIComponent(deliverableId)}`
+      + `&client_slug=eq.${encodeURIComponent(runtime.client.slug)}`, {
       method: 'PATCH',
       body,
       deliverableId,
@@ -3770,6 +3958,8 @@ module.exports = {
   WRITE_KINDS,
   acquireBoundedResource,
   assertActiveTestWriteTarget,
+  assertExactEdgeMutationTarget,
+  assertExactGatewayMutationTarget,
   assertEligibleAssignmentBundle,
   assertMatrixBlockUnchanged,
   assertPreExistingRosterUnchanged,
@@ -3786,15 +3976,18 @@ module.exports = {
   gatewayWrite,
   guardedBrowserVerifier,
   installBrowserRoutes,
+  linearRead,
   liveRequest,
   main,
   markerPresent,
   memberReferenceIds,
   parseConfig,
+  assertExactPostgrestMutationTarget,
   postgrestMemberReferenceIds,
   projectIdsForTeam,
   readCompleteRoster,
   requestDeadlineMs,
+  restRead,
   restWrite,
   sanitizePublicReport,
   stable,

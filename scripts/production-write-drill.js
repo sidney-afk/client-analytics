@@ -430,6 +430,17 @@ async function main() {
     flags_unchanged: flagsUnchanged,
     cleanup_ok: cleanupOk,
     graphic_generation_verified: assets.some(asset => asset.graphicGenerationVerified === true),
+    // Which description readback each team actually proved. Under Linear
+    // authority the native `brief` echo is deliberately not asserted (Linear
+    // may re-project it), so a green run proves LESS than a `native_and_linear`
+    // green does. Record it per team rather than leaving the difference
+    // invisible in an otherwise identical `ok: true`.
+    description_readback_scope: Object.fromEntries(DRILL_TEAMS.map(team => [
+      team,
+      ['syncview', 'supabase'].includes(clean(PROD_AUTHORITY && PROD_AUTHORITY[team]).toLowerCase())
+        ? 'native_and_linear'
+        : 'linear_only_authority_linear',
+    ])),
     error_code: failure ? failureStage || 'drill_failed' : null,
   };
   if (REPORT_PATH) {

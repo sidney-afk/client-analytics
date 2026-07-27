@@ -90,7 +90,7 @@ jobs:
       # This repository intentionally has no lockfile. Match its established
       # Playwright workflows without creating one on the runner.
       - name: Install browser test dependencies
-        run: npm install --no-save --package-lock=false
+        run: npm install --no-save --package-lock=false --ignore-scripts
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium

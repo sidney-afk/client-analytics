@@ -106,6 +106,7 @@ jobs:
           ROLE_KEY_CREATIVE: ${{ secrets.ROLE_KEY_CREATIVE }}
           SLICE5_TEST_DRILLS_CONFIRM: 'SLICE5_TEST_ONLY'
           SLICE5_TEST_DRILLS_REPORT: artifacts/slice5-test-drills.json
+          SLICE5_TEST_DRILLS_FAILURE_REPORT: artifacts/slice5-test-drills-failure.json
           SLICE5_TEST_DRILLS_PRIVATE_LOG: ${{ runner.temp }}/slice5-test-drills-private.json
         run: |
           missing=0
@@ -123,18 +124,37 @@ jobs:
           mkdir -p artifacts
           if ! node scripts/slice5-test-drills.js \
             > "${RUNNER_TEMP}/slice5-test-drills-console.log" 2>&1; then
-            echo "::error::Slice 5 TEST drills failed; private detail stayed on the ephemeral runner."
+            # Surface WHICH gate refused. Both values are allowlisted enums
+            # produced by the script — never a message, detail, stack, id or
+            # slug. The console log stays on the ephemeral runner as before.
+            stage=unavailable
+            code=unavailable
+            if [ -f artifacts/slice5-test-drills-failure.json ]; then
+              stage="$(node -e 'const r=require("./artifacts/slice5-test-drills-failure.json");process.stdout.write(String(r.stage||"unavailable"))' 2>/dev/null || echo unavailable)"
+              code="$(node -e 'const r=require("./artifacts/slice5-test-drills-failure.json");process.stdout.write(String(r.failure_code||"unavailable"))' 2>/dev/null || echo unavailable)"
+            fi
+            echo "::error::Slice 5 TEST drills failed at stage=${stage} code=${code}; private detail stayed on the ephemeral runner."
             exit 1
           fi
           echo "Slice 5 TEST drills passed; only the public-safe aggregate will be retained."
 
+      # Runs on failure too: the failure-only report is the artifact a reviewer
+      # reads when the drill step exits non-zero, so it must face the same
+      # public-safety validator as the aggregate before it is uploaded.
       - name: Validate the public-safe aggregate
+        if: always()
         shell: bash
         run: |
           node - <<'NODE'
           const fs = require('node:fs');
-          const reportPath = 'artifacts/slice5-test-drills.json';
-          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+          const reportPaths = [
+            'artifacts/slice5-test-drills.json',
+            'artifacts/slice5-test-drills-failure.json',
+          ].filter(p => fs.existsSync(p));
+          if (!reportPaths.length) {
+            console.log('no drill report was produced; nothing to validate');
+            process.exit(0);
+          }
           const forbiddenKey = /(?:^|_)(?:id|ids|slug|slugs|time|times|timestamp|timestamps|date|dates|error|errors|message|messages|stack|stacks|detail|details|url|urls|path|paths|name|names)(?:_|$)/i;
           const safeEnums = new Set([
             'pass',
@@ -167,6 +187,26 @@ jobs:
             'flag_invariant',
             'read_rebaseline',
             'report',
+            // Public-safe failure codes (FAILURE_CODES in the script) — which
+            // gate refused, never why in words.
+            'unclassified_failure',
+            'confirm_token_missing',
+            'config_invalid',
+            'credential_missing',
+            'budget_exhausted',
+            'test_scope_violation',
+            'linear_preflight_mismatch',
+            'roster_precondition',
+            'refusal_enum_mismatch',
+            'zero_mutation_violated',
+            'gateway_status_mismatch',
+            'browser_close_timeout',
+            'cleanup_incomplete',
+            'flags_changed',
+            'report_sanitize_failed',
+            // Whether the provider-inactive negative case could be proven.
+            'proven',
+            'not_proven_no_inactive_provider',
           ]);
           function validate(value, keyPath) {
             if (typeof value === 'boolean') return;
@@ -182,7 +222,10 @@ jobs:
               validate(child, keyPath ? `${keyPath}.${key}` : key);
             }
           }
-          validate(report, '');
+          for (const reportPath of reportPaths) {
+            validate(JSON.parse(fs.readFileSync(reportPath, 'utf8')), '');
+            console.log(`public-safe: ${reportPath}`);
+          }
           NODE
 
       - name: Upload public-safe drill aggregate
@@ -191,4 +234,15 @@ jobs:
           name: slice5-test-drills
           path: artifacts/slice5-test-drills.json
           if-no-files-found: error
+          retention-days: 14
+
+      # Failure-only. Carries the validated {stage, failure_code} pair so a
+      # failed dispatch is diagnosable without runner access.
+      - name: Upload public-safe drill failure report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slice5-test-drills-failure
+          path: artifacts/slice5-test-drills-failure.json
+          if-no-files-found: warn
           retention-days: 14

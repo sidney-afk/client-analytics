@@ -118,6 +118,8 @@ const MAX_LABEL_PAGES = 50;
 const ASSET_PROBE_TIMEOUT_MS = 8_000;
 const MAX_ASSET_REDIRECTS = 3;
 const ASSET_EVIDENCE_MAX_AGE_MS = 5 * 60 * 1_000;
+const INTAKE_FILMING_PLAN_MISSING_MARKER =
+  "[SyncView] FILMING PLAN MISSING - submission accepted; SMM follow-up required.";
 const ASSET_SLOTS = Object.freeze([
   { key: "filming_plan", field: "filming_doc_url" },
   { key: "raw_footage", field: "footage_folder_url" },
@@ -729,6 +731,76 @@ async function clientBySlug(supabase: SupabaseClient, slug: string): Promise<Cli
     .maybeSingle();
   if (error) throw new GatewayError(503, "client_lookup_unavailable");
   return data as ClientRow | null;
+}
+
+// This is intentionally a service-side lookup. Filming plans contain internal
+// Doc URLs and remain unreadable to anonymous intake browsers.
+async function intakeFilmingPlanForClient(supabase: SupabaseClient, clientSlug: string): Promise<string> {
+  try {
+    const { data, error } = await supabase.from("filming_plans")
+      .select("doc_url")
+      .eq("client_slug", clientSlug)
+      .maybeSingle();
+    if (error) {
+      console.warn("intake filming-plan lookup failed");
+      return "";
+    }
+    return clean(parseJson(data).doc_url);
+  } catch (_error) {
+    console.warn("intake filming-plan lookup failed");
+    return "";
+  }
+}
+
+function intakeDescriptionWithFilmingPlan(
+  sourceDescription: unknown,
+  serverPlanUrl: string,
+  submittedPlanUrl: string,
+): { description: string; planUrl: string; status: string; alert: string | null } {
+  const notes = clean(sourceDescription)
+    .split(/\r?\n/)
+    .filter(line => !/^\s*Filming Plan:\s*/i.test(line))
+    .filter(line => line.trim() !== INTAKE_FILMING_PLAN_MISSING_MARKER)
+    .join("\n")
+    .trim();
+  if (serverPlanUrl && submittedPlanUrl && serverPlanUrl !== submittedPlanUrl) {
+    return {
+      description: [
+        `Filming Plan: ${serverPlanUrl}`,
+        `[SyncView] FILMING PLAN LINK MISMATCH - server mapping used; submitted link retained for SMM review: ${submittedPlanUrl}`,
+        notes,
+      ].filter(Boolean).join("\n\n"),
+      planUrl: serverPlanUrl,
+      status: "server_mapping_mismatch",
+      alert: "Filming plan mapping differed from the submitted link; review the created work.",
+    };
+  }
+  if (serverPlanUrl) {
+    return {
+      description: [`Filming Plan: ${serverPlanUrl}`, notes].filter(Boolean).join("\n\n"),
+      planUrl: serverPlanUrl,
+      status: "resolved_server",
+      alert: null,
+    };
+  }
+  if (submittedPlanUrl) {
+    return {
+      description: [
+        `Filming Plan: ${submittedPlanUrl}`,
+        `[SyncView] FILMING PLAN MAPPING MISSING - submitted link retained; SMM verify: ${submittedPlanUrl}`,
+        notes,
+      ].filter(Boolean).join("\n\n"),
+      planUrl: submittedPlanUrl,
+      status: "submitted_unverified",
+      alert: "No protected filming-plan mapping was found; the submitted link was retained for review.",
+    };
+  }
+  return {
+    description: [INTAKE_FILMING_PLAN_MISSING_MARKER, notes].filter(Boolean).join("\n\n"),
+    planUrl: "",
+    status: "missing",
+    alert: "Submission was created without a filming plan. Add or repair the protected mapping.",
+  };
 }
 
 async function uniqueActiveTestClient(supabase: SupabaseClient): Promise<ClientRow> {
@@ -4153,6 +4225,32 @@ async function handleIntakeCreate(
   const batchId = appendToBatch
     ? requestedBatchId
     : await deterministicNativeId("bat", requestId, "submission");
+  let intakePlan = { description: "", planUrl: "", status: "not_applicable", alert: null as string | null };
+  if (!appendToBatch) {
+    // Resolve once before the first write. An exact replay preserves its first
+    // server-attached link/marker instead of changing the deterministic batch
+    // fingerprint when a plan is edited later.
+    const { data: existingBatch, error: existingBatchError } = await supabase.from("batches")
+      .select("id,description,filming_doc_url")
+      .eq("id", batchId)
+      .maybeSingle();
+    if (existingBatchError) throw new GatewayError(503, "batch_lookup_unavailable");
+    if (existingBatch) {
+      const existingPlanUrl = clean(existingBatch.filming_doc_url);
+      intakePlan = {
+        description: clean(existingBatch.description),
+        planUrl: existingPlanUrl,
+        status: existingPlanUrl ? "existing" : "missing",
+        alert: existingPlanUrl ? null : "This existing submission has no filming plan; add or repair the protected mapping.",
+      };
+    } else {
+      intakePlan = intakeDescriptionWithFilmingPlan(
+        batchInput.description,
+        await intakeFilmingPlanForClient(supabase, clientSlug),
+        clean(batchInput.filming_doc_url),
+      );
+    }
+  }
   const deliverableIds = await Promise.all(items.map((_item, index) =>
     deterministicNativeId("del", requestId, `${normalizeTeam(items[index].team)}:${index}`)
   ));
@@ -4477,8 +4575,8 @@ async function handleIntakeCreate(
     client_slug: clientSlug,
     team: teamList.length === 1 ? teamList[0] : null,
     name: clean(batchInput.name).slice(0, 500),
-    description: clean(batchInput.description) || null,
-    filming_doc_url: clean(batchInput.filming_doc_url) || null,
+    description: intakePlan.description || null,
+    filming_doc_url: intakePlan.planUrl || null,
     footage_folder_url: clean(batchInput.footage_folder_url) || null,
     delivery_folder_url: clean(batchInput.delivery_folder_url) || null,
     color: clean(batchInput.color) || null,
@@ -4519,7 +4617,7 @@ async function handleIntakeCreate(
         team_id: teamIdFor(team) || undefined,
         project_id: projectByTeam[team],
         title: clean(batchInput.name),
-        description: clean(batchInput.description) || undefined,
+        description: clean(batchRow.description) || undefined,
         _intent_fingerprint: parentFingerprint,
       }, generationByTeam[team], parityByTeam[team]),
     };
@@ -4675,6 +4773,9 @@ async function handleIntakeCreate(
     legacy_parity: parityByTeam,
     mirror_pending: mirrorPending,
     mirror: mirrorResults,
+    filming_plan_status: intakePlan.status,
+    filming_plan_missing: intakePlan.status === "missing",
+    filming_plan_alert: intakePlan.alert,
     batch: publicRow(currentBatchResult.data),
     items: currentResponseItems,
   }, targetedFailure ? 202 : 201);

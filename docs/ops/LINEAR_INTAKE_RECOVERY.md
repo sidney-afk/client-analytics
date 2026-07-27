@@ -84,15 +84,18 @@ available exact-ID read, so a create whose earlier response was lost is read
 back instead of duplicated. Submit cannot automatically replay a `partial`
 receipt. Once a server receipt exists, the browser never abandons it for a new
 hash: dependency fixes are retried against the immutable payload and Recovery
-ID. An empty filming plan is rejected before a receipt is inserted; a missing
-server-side mapping is fixed at its source and then retried with the same
-receipt.
+ID. A blank filming-plan field is valid intake input: after the receipt claim,
+the protected server mapping attaches the plan. If no mapping is available,
+the parent still creates with an internal missing-plan marker and an SMM alert;
+repair the mapping for future submissions without asking the client to resend
+their filmed work.
 
 ## Operator replay for a partial receipt
 
 1. Correct the blocking dependency first (for example the single client/team
-   project mapping, SMM credential, filming plan, or active roster). Run the
-   same preflight used by Submit and require all checks to pass.
+   project mapping, SMM credential, or active roster). A missing filming-plan
+   mapping is an alert/repair condition, not a reason to reject or hold client work.
+   Run the same preflight used by Submit and require the blocking checks to pass.
 2. Build a **new** stable JSON `replay_note`; never append text to or reuse the
    prior note. It must contain:
 

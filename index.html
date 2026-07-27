@@ -12718,7 +12718,7 @@
         filmingPlansLoadError = '';
         _fpEditSlug = '';
         _fpSavingSlug = '';
-        try { _linearPlanMap = null; _linearResolvedPlanUrl = ''; } catch (e) {}
+        try { _linearInvalidatePlanMap(); } catch (e) {}
         try { localStorage.removeItem(KASPER_FILMING_CACHE_KEY); } catch (e) {}
         try {
             if (typeof _kasperState !== 'undefined' && _kasperState) {
@@ -18079,14 +18079,26 @@
         saveLinearForm();
     }
 
-    // Filming plan is auto-resolved from the Supabase source of truth by client
-    // name and shown read-only, exactly like the Title field.
-    let _linearPlanMap = null;          // normalized client name -> doc_url
+    // Filming plans are staff-only data. A client intake link must never try to
+    // load them in the browser: the receiving writer resolves the plan from the
+    // client server-side instead. Keep the state explicit so a failed staff
+    // read cannot masquerade as a successful "no plan for this client" read.
+    let _linearPlanMap = null;          // normalized client name -> doc_url; {} means loaded, none matched
     let _linearPlanMapLoading = false;
+    let _linearPlanMapState = 'idle';   // idle | loading | loaded | failed | server
+    let _linearPlanMapError = '';
     let _linearResolvedPlanUrl = '';
+
+    function _linearIntakeUsesServerPlanResolution() {
+        return !!(document.body && document.body.classList.contains('intake-mode'));
+    }
 
     function _linearInvalidatePlanMap() {
         _linearPlanMap = null;
+        _linearPlanMapLoading = false;
+        _linearPlanMapState = 'idle';
+        _linearPlanMapError = '';
+        _linearResolvedPlanUrl = '';
     }
 
     function _normLinearName(s) {
@@ -18099,9 +18111,20 @@
     }
 
     async function loadLinearPlanMap(force) {
-        if (_linearPlanMap && !force) { updateLinearFilmingPlan(); return; }
+        if (_linearIntakeUsesServerPlanResolution()) {
+            _linearPlanMap = null;
+            _linearPlanMapLoading = false;
+            _linearPlanMapState = 'server';
+            _linearPlanMapError = '';
+            _linearResolvedPlanUrl = '';
+            updateLinearFilmingPlan();
+            return;
+        }
+        if (_linearPlanMap !== null && !force) { updateLinearFilmingPlan(); return; }
         if (_linearPlanMapLoading) return;
         _linearPlanMapLoading = true;
+        _linearPlanMapState = 'loading';
+        _linearPlanMapError = '';
         try {
             const data = await _fpEnsureLoaded(!!force);
             const map = {};
@@ -18109,8 +18132,11 @@
                 if (row.clientName && row.docUrl) map[_normLinearName(row.clientName)] = row.docUrl;
             });
             _linearPlanMap = map;
+            _linearPlanMapState = 'loaded';
         } catch (e) {
-            _linearPlanMap = _linearPlanMap || {};
+            _linearPlanMap = null;
+            _linearPlanMapState = 'failed';
+            _linearPlanMapError = String((e && e.message) || e || 'Could not load filming plans.');
         } finally {
             _linearPlanMapLoading = false;
             updateLinearFilmingPlan();
@@ -18129,7 +18155,23 @@
             saveLinearForm();
             return;
         }
-        if (!_linearPlanMap) {
+        if (_linearPlanMapState === 'server') {
+            _linearResolvedPlanUrl = '';
+            el.textContent = 'Resolved securely when submitted.';
+            el.classList.add('empty'); el.classList.remove('warn');
+            el.removeAttribute('title');
+            saveLinearForm();
+            return;
+        }
+        if (_linearPlanMapState === 'failed') {
+            _linearResolvedPlanUrl = '';
+            el.textContent = '⚠ Could not load filming plans. The server will resolve this when submitted.';
+            el.title = _linearPlanMapError;
+            el.classList.add('warn'); el.classList.remove('empty');
+            saveLinearForm();
+            return;
+        }
+        if (_linearPlanMap === null) {
             el.innerHTML = _svSkel('linear-plan-skeleton');
             el.classList.add('empty'); el.classList.remove('warn');
             loadLinearPlanMap();
@@ -41088,12 +41130,6 @@
             if (status) status.textContent = 'Choose a valid submission type and retry.';
             return { ok: false, error: 'Choose a valid submission type and retry.' };
         }
-        if (!String(_linearResolvedPlanUrl || '').trim()) {
-            const message = 'Add or reload the filming plan before submitting.';
-            if (status) status.textContent = message + ' No create request was sent.';
-            return { ok: false, error: message };
-        }
-
         allBtns.forEach(b => { if (b) b.disabled = true; });
         const activeBtn = document.getElementById(mode === 'video' ? 'linearSubmitBtnVideo' : mode === 'thumbnail' ? 'linearSubmitBtnThumbnail' : 'linearSubmitBtnBoth');
         if (activeBtn) {
@@ -41412,6 +41448,11 @@
             linearJustCreated = true;
             navTo('linear');
             if (result.mirror_pending === true) showNotify('Production created', 'Native work is saved; its Linear mirror is still draining.');
+            if (result.filming_plan_missing === true) {
+                showNotify('Filming plan needs attention', 'Production work was created and visibly marked for SMM follow-up. Add or repair the protected filming-plan mapping.');
+            } else if (result.filming_plan_alert) {
+                showNotify('Filming plan needs review', String(result.filming_plan_alert));
+            }
         } catch (error) {
             console.warn('[SyncView] Native production submission failed:', error);
             const savedJob = _linearIntakeRead();

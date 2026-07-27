@@ -46,14 +46,17 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   among Video Editors-tab emails (ties by API order); graphic-form assigns a hardcoded single
   designer; the AI-thumbnail chain is **disconnected dead code** — don't budget a port.
 - F44 server containment is live on VIDEO PRODUCTION AUTOMATION workflow
-  `BrJSe8zCKUccfmIq`, active version `f6a5ca07-e7a7-4a41-a3d3-3638a682b596`. Intake now
+  `BrJSe8zCKUccfmIq`, active version `af7671ab-deca-4470-a08b-ce591f59e08b`. Intake
   persists an idempotent Supabase receipt before work, strictly preflights exactly one project plus
-  SMM credential, filming plan and roster, and returns success only after exact parent/child create
-  confirmation. Bounded retry and payload-bearing dead-letter/replay support partial-create operator
-  recovery. Safe malformed probes `268305` and `268306` returned 400 before receipt/create; live
-  receipt rows remained zero and no work was created. This is server containment, not full closure:
-  the awaiting/draft-preserving browser change remains owner-merge/deploy required. The retained
-  rollback version is `d867fa43-2ab2-44a4-93c8-57254846ca1c`; restoring it reopens early success.
+  SMM credential and roster, and returns success only after exact parent/child create confirmation.
+  A blank client filming-plan field is valid: after receipt claim, the protected server mapping is
+  used; a missing or conflicting mapping creates visible internal work markers and alerts the assigned
+  SMM instead of refusing the filmed work. Bounded retry and payload-bearing dead-letter/replay support
+  partial-create operator recovery. Safe malformed probes `268305` and `268306` returned 400 before
+  receipt/create; live receipt rows remained zero and no work was created. Version
+  `9e5abc46-91f0-49f8-b815-fcc6baa93891` predates this containment and would reintroduce the
+  blank-plan block; `66e41fca-a86f-4ef3-a977-8ba960bc152d` must not be restored because it returned
+  the protected plan URL to an intake caller. Keep the current version as the recovery baseline.
 - Historical 2026-07-05 sizing was ~25 calendar upserts, ~41 set-status, and ~27 inbound Linear
   events/day across the then-current topology. Do not use the inbound count as current n8n traffic:
   B3 now enters through the Edge Function and the legacy n8n receiver is inactive (F46).

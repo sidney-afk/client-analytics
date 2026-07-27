@@ -112,6 +112,48 @@ const FAILURE_CODES = new Set([
   'cleanup_incomplete',
   'flags_changed',
   'report_sanitize_failed',
+  'browser_key_unavailable',
+  'deadline_unresolved',
+  'test_client_not_unique',
+  'test_client_not_active_test',
+  'write_target_out_of_scope',
+  'write_target_client_drift',
+  'run_ledger_payload_invalid',
+  'synthetic_row_not_run_owned',
+  'synthetic_row_marker_missing',
+  'synthetic_row_already_exists',
+  'rest_write_table_forbidden',
+  'rest_write_shape_forbidden',
+  'linear_query_not_read_only',
+  'linear_read_failed',
+  'runtime_flags_unavailable',
+  'auth_mode_unrecognized',
+  'roster_page_oversized',
+  'roster_keyset_unordered',
+  'roster_duplicate_ids',
+  'roster_page_cap_exceeded',
+  'roster_empty',
+  'roster_snapshot_missing',
+  'roster_changed_during_run',
+  'job_clock_invalid',
+  'supabase_url_mismatch',
+  'role_key_missing',
+  'fetch_unavailable',
+  'policy_source_unavailable',
+  'authority_not_linear',
+  'test_project_unavailable',
+  'linear_catalog_incomplete',
+  'linear_project_unavailable',
+  'linear_team_unavailable',
+  'provider_pool_incomplete',
+  'identity_plan_already_reserved',
+  'run_ledger_conflict',
+  'run_ledger_insert_failed',
+  'identity_plan_mismatch',
+  'synthetic_member_insert_incomplete',
+  'fixture_plan_mismatch',
+  'preflight_only_mutation_blocked',
+  'preflight_only_browser_blocked',
 ]);
 /* Whether the assignee_provider_inactive negative case could be proven. The
    Linear workspace has no inactive/archived provider user, and deactivating a
@@ -198,7 +240,7 @@ function markerPresent(value, runtime) {
 function extractPublicAnonKey(repoRoot) {
   const html = fs.readFileSync(path.join(repoRoot, 'index.html'), 'utf8');
   const match = html.match(/\bCAL_SUPABASE_ANON_KEY\s*=\s*['"]([^'"]+)['"]/);
-  assert(match && clean(match[1]), 'preflight', 'public browser key is unavailable');
+  assert(match && clean(match[1]), 'preflight', 'public browser key is unavailable', undefined, 'browser_key_unavailable');
   return clean(match[1]);
 }
 
@@ -214,6 +256,7 @@ function parseConfig(env = process.env) {
       smm: clean(env.ROLE_KEY_SMM),
       creative: clean(env.ROLE_KEY_CREATIVE),
     },
+    preflightOnly: /^(1|true|yes)$/i.test(clean(env.SLICE5_TEST_DRILLS_PREFLIGHT_ONLY)),
     reportPath: clean(env.SLICE5_TEST_DRILLS_REPORT),
     failureReportPath: clean(env.SLICE5_TEST_DRILLS_FAILURE_REPORT),
     privateLogPath: clean(env.SLICE5_TEST_DRILLS_PRIVATE_LOG),
@@ -279,7 +322,7 @@ function requestDeadlineMs(
 ) {
   const processDeadline = Number(runtime && runtime.processDeadlineAt);
   assert(Number.isFinite(processDeadline), 'preflight',
-    'drill process deadline is unavailable');
+    'drill process deadline is unavailable', undefined, 'deadline_unresolved');
   if (runtime.cleanupStarted === true && !POST_CLEANUP_REQUEST_STAGES.has(stage)) {
     fail('cleanup', 'a non-cleanup request tried to start after cleanup began');
   }
@@ -474,20 +517,20 @@ async function discoverUniqueActiveTestClient(runtime, stage = 'preflight') {
     { stage },
   );
   assert(Array.isArray(rows) && rows.length === 1, stage,
-    'exactly one active TEST client is required', { count: Array.isArray(rows) ? rows.length : -1 });
+    'exactly one active TEST client is required', { count: Array.isArray(rows) ? rows.length : -1 }, 'test_client_not_unique');
   const client = rows[0];
   assert(clean(client.slug) && lower(client.kind) === 'test' && client.active === true,
-    stage, 'active TEST client record is malformed');
+    stage, 'active TEST client record is malformed', undefined, 'test_client_not_active_test');
   return client;
 }
 
 async function assertActiveTestWriteTarget(targetClientSlug, runtime, stage = 'preflight') {
   const current = await discoverUniqueActiveTestClient(runtime, stage);
   assert(clean(targetClientSlug) === clean(current.slug), stage,
-    'write target is not the unique active TEST client');
+    'write target is not the unique active TEST client', undefined, 'write_target_out_of_scope');
   if (runtime.client) {
     assert(clean(runtime.client.slug) === clean(current.slug), stage,
-      'active TEST client changed during the drill');
+      'active TEST client changed during the drill', undefined, 'write_target_client_drift');
   }
   return current;
 }
@@ -598,7 +641,7 @@ function assertExactPostgrestMutationTarget(
 function runLedgerPayload(runtime) {
   const plan = runtime.identityPlan;
   assert(plan && Array.isArray(plan.members) && plan.fixture, 'preflight',
-    'durable run ledger has no reserved identity plan');
+    'durable run ledger has no reserved identity plan', undefined, 'run_ledger_payload_invalid');
   return {
     protocol: 'slice5_test_drill_run_v1',
     marker: DRILL_MARKER,
@@ -674,13 +717,13 @@ async function assertSyntheticMemberInsertAllowed(runtime, rows) {
         && !runtime.readOnlyMemberIds.has(id)
         && !runtime.createdMemberIds.has(id),
     'preflight',
-      'synthetic member id is invalid or already allowlisted');
+      'synthetic member id is invalid or already allowlisted', undefined, 'synthetic_row_not_run_owned');
     assert(markerPresent(row.name, runtime) || markerPresent(row.email, runtime), 'preflight',
-      'synthetic member insert lacks the drill marker');
+      'synthetic member insert lacks the drill marker', undefined, 'synthetic_row_marker_missing');
     const existing = await restRead(runtime,
       `team_members?select=id&id=eq.${encodeURIComponent(id)}&limit=1`);
     assert(Array.isArray(existing) && existing.length === 0, 'preflight',
-      'synthetic member id already exists');
+      'synthetic member id already exists', undefined, 'synthetic_row_already_exists');
   }
 }
 
@@ -717,6 +760,11 @@ async function assertRunOwnedBatch(runtime, id, stage = 'preflight') {
 }
 
 async function restWrite(runtime, resource, options) {
+  // PREFLIGHT-ONLY runs never reach here: the phase returns before the first
+  // create. This is the structural backstop, so a future caller cannot
+  // reintroduce a mutation into a mode whose whole point is that it has none.
+  assert(!runtime.config.preflightOnly, 'preflight',
+    'preflight-only mode attempted a mutation', undefined, 'preflight_only_mutation_blocked');
   options = options || {};
   const rows = Array.isArray(options.body) ? options.body : [options.body];
   const table = clean(resource).split('?')[0];
@@ -726,10 +774,10 @@ async function restWrite(runtime, resource, options) {
     'Supabase mutation table is outside the drill allowlist');
   if (options.memberInsert) {
     assert(table === 'team_members', options.stage || 'preflight',
-      'member insert must target team_members');
+      'member insert must target team_members', undefined, 'rest_write_table_forbidden');
     assert(method === 'POST' && !clean(resource).includes('?'),
       options.stage || 'preflight',
-      'synthetic member insert must use the exact collection resource');
+      'synthetic member insert must use the exact collection resource', undefined, 'rest_write_shape_forbidden');
     await assertSyntheticMemberInsertAllowed(runtime, rows);
     // Reserve inside the adapter after the absence/marker proof and before the
     // fetch. A committed response loss is therefore still recoverable.
@@ -950,6 +998,11 @@ function assertExactGatewayMutationTarget(runtime, body, options) {
 }
 
 async function edgeWrite(runtime, functionName, body, options) {
+  // PREFLIGHT-ONLY runs never reach here: the phase returns before the first
+  // create. This is the structural backstop, so a future caller cannot
+  // reintroduce a mutation into a mode whose whole point is that it has none.
+  assert(!runtime.config.preflightOnly, 'preflight',
+    'preflight-only mode attempted a mutation', undefined, 'preflight_only_mutation_blocked');
   options = options || {};
   await assertWriteMemberReferencesRunOwned(
     runtime, body, options.stage || 'cleanup',
@@ -1013,6 +1066,11 @@ async function edgeWrite(runtime, functionName, body, options) {
 }
 
 async function gatewayWrite(runtime, body, options) {
+  // PREFLIGHT-ONLY runs never reach here: the phase returns before the first
+  // create. This is the structural backstop, so a future caller cannot
+  // reintroduce a mutation into a mode whose whole point is that it has none.
+  assert(!runtime.config.preflightOnly, 'preflight',
+    'preflight-only mode attempted a mutation', undefined, 'preflight_only_mutation_blocked');
   options = options || {};
   await assertWriteMemberReferencesRunOwned(
     runtime, body, options.stage || 'cleanup',
@@ -1112,7 +1170,7 @@ async function guardedBrowserVerifier(runtime, request, roleKey, options) {
 
 async function linearRead(runtime, query, variables = {}, stage = 'preflight') {
   assert(/^\s*query\b/.test(clean(query)), stage,
-    'Linear read helper refuses non-query GraphQL documents');
+    'Linear read helper refuses non-query GraphQL documents', undefined, 'linear_query_not_read_only');
   const { response, bytes } = await liveRequest(runtime, LINEAR_URL, {
     method: 'POST',
     headers: {
@@ -1126,7 +1184,7 @@ async function linearRead(runtime, query, variables = {}, stage = 'preflight') {
   });
   const body = responseBody(bytes);
   if (!response.ok || !body || body.errors) {
-    fail(stage, 'Linear read failed', { status: response.status, errors: body && body.errors });
+    fail(stage, 'Linear read failed', { status: response.status, errors: body && body.errors }, 'linear_read_failed');
   }
   return body.data;
 }
@@ -1171,7 +1229,7 @@ async function runtimeFlags(runtime, stage = 'preflight') {
   const rows = await restRead(runtime,
     'syncview_runtime_flags?select=key,value,updated_at&order=key.asc',
     { stage });
-  assert(Array.isArray(rows), stage, 'runtime flag snapshot is unavailable');
+  assert(Array.isArray(rows), stage, 'runtime flag snapshot is unavailable', undefined, 'runtime_flags_unavailable');
   return rows;
 }
 
@@ -1184,7 +1242,7 @@ function authModeFromFlags(rows) {
   const row = rows.find(item => clean(item.key) === 'auth_enforcement');
   const mode = lower(parseJson(row && row.value).mode);
   assert(['permissive', 'enforced'].includes(mode), 'preflight',
-    'auth_enforcement mode is unavailable or malformed');
+    'auth_enforcement mode is unavailable or malformed', undefined, 'auth_mode_unrecognized');
   return mode;
 }
 
@@ -1198,27 +1256,27 @@ async function readCompleteRoster(runtime, stage = 'preflight') {
       `team_members?select=*&order=id.asc&limit=${pageSize}${cursor}`,
       { stage });
     assert(Array.isArray(batch) && batch.length <= pageSize, stage,
-      'staff roster page is malformed');
+      'staff roster page is malformed', undefined, 'roster_page_oversized');
     for (const row of batch) {
       const id = clean(row && row.id);
       assert(id && (!afterId || id.localeCompare(afterId) > 0), stage,
-        'staff roster keyset order is malformed');
+        'staff roster keyset order is malformed', undefined, 'roster_keyset_unordered');
       rows.push(stable({ ...row, id }));
       afterId = id;
     }
     if (batch.length < pageSize) {
       const ids = rows.map(row => clean(row.id));
       assert(new Set(ids).size === ids.length, stage,
-        'staff roster contains duplicate member ids');
+        'staff roster contains duplicate member ids', undefined, 'roster_duplicate_ids');
       return rows;
     }
   }
-  fail(stage, 'staff roster exceeded the bounded keyset page cap');
+  fail(stage, 'staff roster exceeded the bounded keyset page cap', undefined, 'roster_page_cap_exceeded');
 }
 
 async function establishReadOnlyRoster(runtime) {
   const rows = await readCompleteRoster(runtime, 'preflight');
-  assert(rows.length > 0, 'preflight', 'pre-existing staff roster is empty');
+  assert(rows.length > 0, 'preflight', 'pre-existing staff roster is empty', undefined, 'roster_empty');
   for (const row of rows) runtime.readOnlyMemberIds.add(clean(row.id));
   runtime.preExistingRoster = stable(rows);
   return true;
@@ -1226,11 +1284,11 @@ async function establishReadOnlyRoster(runtime) {
 
 async function assertPreExistingRosterUnchanged(runtime, stage) {
   assert(Array.isArray(runtime.preExistingRoster), stage,
-    'pre-existing roster baseline is unavailable');
+    'pre-existing roster baseline is unavailable', undefined, 'roster_snapshot_missing');
   const rows = await readCompleteRoster(runtime, stage);
   const withoutRunRows = rows.filter(row => !runtime.createdMemberIds.has(clean(row.id)));
   assert(stableJson(withoutRunRows) === stableJson(runtime.preExistingRoster), stage,
-    'pre-existing staff roster changed during the drill');
+    'pre-existing staff roster changed during the drill', undefined, 'roster_changed_during_run');
   return true;
 }
 
@@ -1267,15 +1325,15 @@ async function preflight(runtime) {
       && config.jobStartedAtMs <= now
       && now < config.jobStartedAtMs + DRILL_PROCESS_BUDGET_MS - CLEANUP_RESERVE_MS,
   'preflight',
-  'the workflow-owned drill clock is missing, invalid, or already inside the cleanup reserve');
+  'the workflow-owned drill clock is missing, invalid, or already inside the cleanup reserve', undefined, 'job_clock_invalid');
   assert(config.supabaseUrl === DEFAULT_SUPABASE_URL, 'preflight',
-    'SUPABASE_URL must be the expected project');
+    'SUPABASE_URL must be the expected project', undefined, 'supabase_url_mismatch');
   assert(config.serviceKey && config.linearKey, 'preflight',
-    'service and Linear credentials are required');
+    'service and Linear credentials are required', undefined, 'credential_missing');
   for (const spec of ROLE_SPECS) {
-    assert(config.roleKeys[spec.role], 'preflight', `${spec.keyEnv} is required`);
+    assert(config.roleKeys[spec.role], 'preflight', `${spec.keyEnv} is required`, undefined, 'role_key_missing');
   }
-  assert(typeof runtime.fetch === 'function', 'preflight', 'fetch is unavailable');
+  assert(typeof runtime.fetch === 'function', 'preflight', 'fetch is unavailable', undefined, 'fetch_unavailable');
 
   runtime.client = await discoverUniqueActiveTestClient(runtime);
   await establishReadOnlyRoster(runtime);
@@ -1286,7 +1344,7 @@ async function preflight(runtime) {
   assert(Array.isArray(runtime.policy.DELIVERABLE_STATUSES)
       && runtime.policy.DELIVERABLE_STATUSES.length === 13
       && runtime.policy.CREATIVE_STATUS_TRANSITIONS,
-  'preflight', 'checked-out production-write policy is unavailable');
+  'preflight', 'checked-out production-write policy is unavailable', undefined, 'policy_source_unavailable');
   runtime.flagsBefore = await runtimeFlags(runtime);
   runtime.authority = authorityFromFlags(runtime.flagsBefore);
   runtime.authMode = authModeFromFlags(runtime.flagsBefore);
@@ -1296,11 +1354,11 @@ async function preflight(runtime) {
   // 409 team_is_linear_authoritative. If this stance changes, abort before any
   // fixture/member write rather than silently changing what the matrix proves.
   assert(lower(runtime.authority[MATRIX_TEAM]) === 'linear', 'preflight',
-    'Video must remain Linear-authoritative for the F136 zero-write oracle');
+    'Video must remain Linear-authoritative for the F136 zero-write oracle', undefined, 'authority_not_linear');
 
   const projectIds = projectIdsForTeam(runtime.client.linear_project_ids, MATRIX_TEAM);
   assert(projectIds.length === 1, 'preflight',
-    'active TEST client must map exactly one Video project', { count: projectIds.length });
+    'active TEST client must map exactly one Video project', { count: projectIds.length }, 'test_project_unavailable');
   const [projectsData, teamsData, usersData] = await Promise.all([
     linearRead(runtime, `query Slice5DrillProjects {
       projects(first: 250, includeArchived: true) {
@@ -1321,18 +1379,18 @@ async function preflight(runtime) {
   const projects = projectsData.projects && projectsData.projects.nodes || [];
   assert(projectsData.projects && projectsData.projects.pageInfo
       && projectsData.projects.pageInfo.hasNextPage === false,
-  'preflight', 'Linear TEST project catalog is incomplete');
+  'preflight', 'Linear TEST project catalog is incomplete', undefined, 'linear_catalog_incomplete');
   const project = projects.find(row => clean(row.id) === projectIds[0]);
   assert(project && !project.archivedAt
       && (project.teams && project.teams.nodes || []).some(team => clean(team.key).toUpperCase() === 'VID'),
-  'preflight', 'configured TEST Video project is unavailable');
+  'preflight', 'configured TEST Video project is unavailable', undefined, 'linear_project_unavailable');
   const team = (teamsData.teams && teamsData.teams.nodes || [])
     .find(row => clean(row.key).toUpperCase() === 'VID');
-  assert(team && clean(team.id), 'preflight', 'Video team is unavailable');
+  assert(team && clean(team.id), 'preflight', 'Video team is unavailable', undefined, 'linear_team_unavailable');
   const usersPage = usersData.users || {};
   assert(Array.isArray(usersPage.nodes) && usersPage.pageInfo
       && usersPage.pageInfo.hasNextPage === false,
-  'preflight', 'Linear assignee provider pool is incomplete');
+  'preflight', 'Linear assignee provider pool is incomplete', undefined, 'provider_pool_incomplete');
   const { machineUser, inactiveUser } = selectLinearDrillProviderUsers(usersPage);
   runtime.linear = { project, team, machineUser, inactiveUser };
   return true;
@@ -1386,7 +1444,7 @@ function syntheticMemberRows(runtime) {
 }
 
 async function reserveRunIdentities(runtime) {
-  assert(!runtime.identityPlan, 'preflight', 'run identities were already reserved');
+  assert(!runtime.identityPlan, 'preflight', 'run identities were already reserved', undefined, 'identity_plan_already_reserved');
   const members = syntheticMemberRows(runtime);
   const batchId = crypto.randomUUID();
   const deliverableId = crypto.randomUUID();
@@ -1428,7 +1486,7 @@ async function openDurableRunLedger(runtime) {
     stage: 'preflight',
   });
   assert(Array.isArray(existing) && existing.length === 0, 'preflight',
-    'durable run ledger identity already exists');
+    'durable run ledger identity already exists', undefined, 'run_ledger_conflict');
   runtime.runLedger.ambiguous = true;
   runtime.runLedger.ambiguousAt = Date.now();
   let inserted;
@@ -1452,7 +1510,7 @@ async function openDurableRunLedger(runtime) {
     throw error;
   }
   assert(Array.isArray(inserted) && inserted.length === 1, 'preflight',
-    'durable run ledger insert did not return one row');
+    'durable run ledger insert did not return one row', undefined, 'run_ledger_insert_failed');
   const row = assertRunLedgerRow(runtime, inserted[0], 'preflight');
   runtime.runLedger.id = Number(row.id);
   runtime.runLedger.confirmed = true;
@@ -1508,7 +1566,7 @@ async function clearDurableRunLedger(runtime) {
 
 async function createSyntheticMembers(runtime, definitions) {
   assert(runtime.identityPlan && definitions === runtime.identityPlan.members,
-    'preflight', 'synthetic member create did not use the durable identity plan');
+    'preflight', 'synthetic member create did not use the durable identity plan', undefined, 'identity_plan_mismatch');
   const wireRows = definitions.map(({ key, ...row }) => row);
   const inserted = await restWrite(runtime, 'team_members', {
     method: 'POST',
@@ -1518,7 +1576,7 @@ async function createSyntheticMembers(runtime, definitions) {
     stage: 'preflight',
   });
   assert(Array.isArray(inserted) && inserted.length === wireRows.length, 'preflight',
-    'synthetic member insert did not return every row');
+    'synthetic member insert did not return every row', undefined, 'synthetic_member_insert_incomplete');
   for (const definition of definitions) {
     runtime.members[definition.key] = definition;
   }
@@ -1599,7 +1657,7 @@ async function drainTestOutbox(runtime, dedup, stage) {
 
 async function createFixture(runtime, plan) {
   assert(runtime.identityPlan && plan === runtime.identityPlan.fixture,
-    'preflight', 'fixture create did not use the durable identity plan');
+    'preflight', 'fixture create did not use the durable identity plan', undefined, 'fixture_plan_mismatch');
   const {
     batchDedup,
     batchId,
@@ -2993,6 +3051,10 @@ function neutralizeStaticServer(server) {
 }
 
 async function launchBrowser(runtime, stage = 'preflight') {
+  // A preflight-only dispatch must not start a browser: it is pure precondition
+  // debugging and should finish in seconds.
+  assert(!runtime.config.preflightOnly, stage,
+    'preflight-only mode attempted to launch a browser', undefined, 'preflight_only_browser_blocked');
   const PW = loadPlaywright(runtime);
   const browserServer = await acquireBoundedResource(
     runtime,
@@ -4205,6 +4267,7 @@ function emptyReport() {
     mode: 'test_only',
     scope: 'active_test_only',
     failure_code: 'none',
+    preflight_only: false,
     preflight: { result: 'not_run' },
     f94_negative: {
       result: 'not_run',
@@ -4391,14 +4454,41 @@ async function main(env = process.env, deps = {}) {
   try {
     await runBoundedDrillPhase(runtime, 'preflight', async () => {
       await preflight(runtime);
+      report.preflight.result = 'pass';
+      // PREFLIGHT-ONLY MODE. Every preflight check above is a read; the first
+      // write in this lane is reserveRunIdentities/openDurableRunLedger below.
+      // Returning here is therefore structurally incapable of mutating: it is
+      // placed before the first create, not merely guarding each one, so a
+      // future create added to this phase cannot be reached either.
+      if (runtime.config.preflightOnly) {
+        report.preflight_only = true;
+        return;
+      }
       const identityPlan = await reserveRunIdentities(runtime);
       await openDurableRunLedger(runtime);
-      report.preflight.result = 'pass';
       report.created_member_count = await createSyntheticMembers(
         runtime, identityPlan.members,
       );
       await createFixture(runtime, identityPlan.fixture);
     });
+
+    // A preflight-only dispatch exits successfully here: no drill stage runs, no
+    // browser is launched, and nothing was created for cleanup to remove. Its
+    // purpose is to turn precondition debugging into a 60-second run instead of
+    // a 1-3 hour one.
+    if (runtime.config.preflightOnly) {
+      report.ok = true;
+      report.error_code = 'none';
+      report.failure_code = 'none';
+      const preflightPublic = sanitizePublicReport(report);
+      if (config.reportPath) {
+        const output = path.resolve(config.reportPath);
+        fs.mkdirSync(path.dirname(output), { recursive: true });
+        fs.writeFileSync(output, JSON.stringify(preflightPublic, null, 2));
+      }
+      process.stdout.write(`${JSON.stringify(preflightPublic)}\n`);
+      return preflightPublic;
+    }
 
     stage = 'f94_negative';
     report.f94_negative = await runBoundedDrillPhase(

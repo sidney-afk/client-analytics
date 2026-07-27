@@ -149,6 +149,22 @@ function throwsCode(fn, code) {
   ok(!/syncview_runtime_flags|prod_authority\s*=|linear_outbound_enabled\s*=/.test(migration),
     'append migration changes no runtime authority or outbound flag');
 
+  const intakeStart = edge.indexOf('async function handleIntakeCreate(');
+  const intakeSource = edge.slice(intakeStart);
+  ok(/async function intakeFilmingPlanForClient[\s\S]{0,500}from\("filming_plans"\)[\s\S]{0,220}eq\("client_slug", clientSlug\)/.test(edge)
+    && /intake filming-plan lookup failed/.test(edge)
+    && !/from\("filming_plans"\)[\s\S]{0,500}throw new GatewayError/.test(edge),
+  'new native intake resolves the protected filming plan by server-side client slug and degrades safely on lookup failure');
+  ok(/function intakeDescriptionWithFilmingPlan\(/.test(edge)
+    && /INTAKE_FILMING_PLAN_MISSING_MARKER/.test(edge)
+    && /status: "missing"/.test(edge)
+    && /await intakeFilmingPlanForClient\(supabase, clientSlug\)/.test(intakeSource)
+    && /description: intakePlan\.description \|\| null/.test(intakeSource)
+    && /filming_doc_url: intakePlan\.planUrl \|\| null/.test(intakeSource)
+    && /description: clean\(batchRow\.description\) \|\| undefined/.test(intakeSource)
+    && /filming_plan_missing: intakePlan\.status === "missing"/.test(intakeSource),
+  'new native intake attaches the server plan or creates a visible non-blocking SMM follow-up marker');
+
   if (failures) {
     console.error(`\n${failures} production intake append check(s) failed.`);
     process.exit(1);

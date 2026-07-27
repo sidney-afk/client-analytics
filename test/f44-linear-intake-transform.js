@@ -213,10 +213,22 @@ async function runClaimVerify(workflow, suffix, expected, classified, row) {
   return result[0].json;
 }
 
+async function runSlackShape(workflow, suffix, workerResult) {
+  const values = { [`F44 Worker ${suffix}`]: workerResult };
+  const dollar = name => ({ first: () => ({ json: values[name] || {} }) });
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  const run = new AsyncFunction('$', byName(workflow, `F44 Slack Shape ${suffix}`).parameters.jsCode);
+  const result = await run(dollar);
+  return result[0].json;
+}
+
 async function simulateWorkerPlanDependency(workflow, mode) {
+  const submittedPlanUrl = (mode === 'blank-mapped' || mode === 'blank-missing')
+    ? ''
+    : 'https://docs.google.com/document/d/preflight';
   const payload = {
     clientName: 'Preflight Client',
-    filmingPlans: 'https://docs.google.com/document/d/preflight',
+    filmingPlans: submittedPlanUrl,
     notes: 'Immutable proof notes',
     title: 'Preflight Client | Jul. 14 - Jul. 18',
     videos: [{ number: 1, main_cam: 'https://drive/main', side_cam: '', audio: '', dueDate: '2026-07-21' }],
@@ -224,9 +236,11 @@ async function simulateWorkerPlanDependency(workflow, mode) {
   const payloadJson = stable(payload);
   const payloadHash = crypto.createHash('sha256').update(payloadJson).digest('hex');
   const receiptKey = 'linear-intake-v1:video:' + payloadHash;
-  const mappedPlanUrl = mode === 'missing-mapped'
+  const mappedPlanUrl = mode === 'blank-missing'
     ? ''
-    : (mode === 'different' ? 'https://docs.google.com/document/d/current-mapping' : payload.filmingPlans);
+    : (mode === 'blank-mapped'
+      ? 'https://docs.google.com/document/d/protected-mapping'
+      : (mode === 'different' ? 'https://docs.google.com/document/d/current-mapping' : payload.filmingPlans));
   const values = {
     'F44 Normalize Video': { _f44: { receipt_key: receiptKey, payload_hash: payloadHash, payload_json: payloadJson, client: payload.clientName, team: 'video', payload } },
     'F44 Read Claimed Receipt Video': { receipt_key: receiptKey, attempts: mode === 'different' ? 1 : 0, replay_note: null },
@@ -253,6 +267,7 @@ async function simulateWorkerPlanDependency(workflow, mode) {
     team: { id: input.teamId, key: 'VID' },
     project: { id: input.projectId },
     parent: input.parentId ? { id: input.parentId } : null,
+    description: String(input.description || ''),
   });
   const helper = async ({ body }) => {
     requestCount += 1;
@@ -277,7 +292,16 @@ async function simulateWorkerPlanDependency(workflow, mode) {
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
   const run = new AsyncFunction('$', 'setTimeout', byName(workflow, 'F44 Worker Video').parameters.jsCode);
   const output = await run.call({ helpers: { httpRequest: helper } }, dollar, callback => { callback(); return 0; });
-  return { result: output[0].json, requestCount, mutationCount, storedCount: stored.size };
+  const parent = Array.from(stored.values()).find(issue => !issue.parent);
+  return {
+    result: output[0].json,
+    submittedPlanUrl,
+    mappedPlanUrl,
+    parentDescription: parent ? parent.description : '',
+    requestCount,
+    mutationCount,
+    storedCount: stored.size,
+  };
 }
 
 const before = liveShapeFixture();
@@ -313,7 +337,8 @@ if (after) {
       && JSON.stringify(insert.parameters.fieldsUi.fieldValues.map(item => item.fieldId)) === JSON.stringify(RECEIPT_FIELDS), `${suffix}: authoritative receipt uses exact 14 fields and credential`);
     ok(insert.onError === 'continueErrorOutput'
       && target(after, `F44 Insert Receipt ${suffix}`, 1) === `F44 Fetch Existing Receipt ${suffix}`, `${suffix}: PK collision has a distinct dedupe path`);
-    ok(/filming plan is required/.test(normalize.parameters.jsCode), `${suffix}: empty submitted filming plan is rejected before receipt insertion`);
+    ok(!/filming plan is required/.test(normalize.parameters.jsCode)
+      && /filmingPlans: String\(raw\.filmingPlans \|\| ''\)/.test(normalize.parameters.jsCode), `${suffix}: a blank client plan remains canonical so the protected server lookup can resolve it`);
     ok(/status === 'pending'/.test(classify.parameters.jsCode)
       && /http_status: 409/.test(classify.parameters.jsCode)
       && /operator must reconcile every deterministic Linear ID/.test(classify.parameters.jsCode), `${suffix}: fresh or stale pending never reports success`);
@@ -351,10 +376,14 @@ if (after) {
     ok(workerCode.includes('projects.length !== 1')
       && workerCode.includes('if (!projectId)')
       && workerCode.includes('if (!apiKey)')
-      && workerCode.includes('if (!submittedPlanUrl)')
-      && workerCode.includes('if (!mappedPlanUrl)')
-      && workerCode.includes('no current filming plan mapping for ')
-      && workerCode.includes('no ' + branch.team + ' roster'), `${suffix}: complete preflight forbids null project and missing credential/plan/roster`);
+      && workerCode.includes('const mappedPlanUrl')
+      && workerCode.includes('const submittedPlanUrl')
+      && workerCode.includes('let filmingPlanUrl = mappedPlanUrl || submittedPlanUrl || null;')
+      && workerCode.includes("filmingPlanStatus = 'missing'")
+      && workerCode.includes('FILMING PLAN MISSING')
+      && !/if \(!submittedPlanUrl\) fail/.test(workerCode)
+      && !/if \(!mappedPlanUrl\) fail/.test(workerCode)
+      && workerCode.includes('no ' + branch.team + ' roster'), `${suffix}: complete preflight preserves credential/project/roster checks but never dead-ends an intake over a plan link`);
     // Linear removed Project.team (singular) — the 2026-07-16 intake outage.
     // The emitted project check must use the plural teams membership shape
     // that the live workers were patched to; Issue.team elsewhere stays valid.
@@ -362,9 +391,10 @@ if (after) {
       && workerCode.includes('projectTeams.some(projectTeam => projectTeam && projectTeam.id === teamId)')
       && !workerCode.includes('project(id: $id) { id team { id } }'),
       `${suffix}: project check queries Project.teams (plural) membership, not the removed Project.team`);
-    ok(workerCode.includes("const description = String(ctx.payload.notes || '')")
-      && workerCode.includes("title: String(ctx.payload.title || '')")
-      && !workerCode.includes('mappedPlanUrl !== submittedPlanUrl'), `${suffix}: immutable payload stays bound while current nonempty plan mapping may advance`);
+    ok(workerCode.includes('const notesWithoutPlan')
+      && workerCode.includes('FILMING PLAN LINK MISMATCH')
+      && workerCode.includes('filming_plan_alert: filmingPlanAlert || null')
+      && workerCode.includes("title: String(ctx.payload.title || '')"), `${suffix}: server plan resolution preserves the immutable receipt while marking missing or mismatched links for SMM review`);
     ok(workerCode.includes('confirmedChildIds.length !== videos.length')
       && workerCode.includes('new Set(confirmedChildIds).size !== videos.length')
       && workerCode.includes("status: 'created'"), `${suffix}: created requires every expected child readback`);
@@ -383,6 +413,10 @@ if (after) {
     ok(target(after, `F44 Created ${suffix}`, 0) === `F44 Success Response ${suffix}`
       && target(after, `F44 Success Response ${suffix}`) === `F44 Slack Shape ${suffix}`
       && target(after, `F44 Slack Shape ${suffix}`) === branch.slack, `${suffix}: browser success follows ledger and precedes fail-soft Slack`);
+    ok(byName(after, `F44 Slack Shape ${suffix}`).parameters.jsCode.includes('filming_plan_alert')
+      && String(byName(after, branch.slack).parameters.text || '').includes('filming_plan_alert')
+      && String(success.parameters.responseBody || '').includes('filming_plan_alert')
+      && !String(success.parameters.responseBody || '').includes('filming_plan_url'), `${suffix}: plan follow-up alert reaches both the response and assigned-SMM Slack path without exposing the protected URL`);
     ok(success.parameters.enableResponseOutput === true && success.parameters.options.responseCode === 200
       && /status: 'created'/.test(success.parameters.responseBody)
       && /ledger_status: 'created'/.test(success.parameters.responseBody)
@@ -472,8 +506,9 @@ async function main() {
         receipt_key: missingPlanKey,
       } } }) }),
     );
-    ok(missingPlanNormalized[0].json._f44.valid === false
-      && missingPlanNormalized[0].json._f44.error === 'filming plan is required', 'empty submitted filming plan fails specifically before a server receipt can be inserted');
+    ok(missingPlanNormalized[0].json._f44.valid === true
+      && missingPlanNormalized[0].json._f44.payload_hash === missingPlanHash
+      && missingPlanNormalized[0].json._f44.payload_json === stable(missingPlanPayload), 'empty submitted filming plan keeps its exact canonical receipt so protected server resolution can run after intake');
 
     const parentIssueId = '11111111-1111-4111-8111-111111111111';
     const childIssueId = '22222222-2222-4222-8222-222222222222';
@@ -543,22 +578,43 @@ async function main() {
     ok(claimedReadback.valid === true && claimedReadback.expected_attempts === 3, 'operator-claimed pending row reaches worker only after exact readback and without a second CAS');
     ok(driftedReadback.valid === false, 'operator claim readback fails closed when the DB attempt changes');
 
-    const missingMappedPlan = await simulateWorkerPlanDependency(after, 'missing-mapped');
-    ok(missingMappedPlan.result.status === 'failed'
-      && missingMappedPlan.result.http_status === 422
-      && missingMappedPlan.result.error === 'no current filming plan mapping for Preflight Client'
-      && missingMappedPlan.result.attempts === 0
-      && missingMappedPlan.result.parent_issue_id === null
-      && missingMappedPlan.result.child_issue_ids.length === 0
-      && missingMappedPlan.requestCount === 0
-      && missingMappedPlan.mutationCount === 0, 'missing current filming-plan mapping is a specific preflight failure with no Linear mutation');
+    const blankMappedPlan = await simulateWorkerPlanDependency(after, 'blank-mapped');
+    ok(blankMappedPlan.result.status === 'created'
+      && blankMappedPlan.submittedPlanUrl === ''
+      && blankMappedPlan.result.filming_plan_status === 'resolved_server'
+      && blankMappedPlan.result.filming_plan_url === blankMappedPlan.mappedPlanUrl
+      && blankMappedPlan.parentDescription.includes('Filming Plan: ' + blankMappedPlan.mappedPlanUrl)
+      && blankMappedPlan.result.child_issue_ids.length === 1
+      && blankMappedPlan.mutationCount === 2
+      && blankMappedPlan.storedCount === 2, 'blank client plan creates work with the protected server mapping attached to the parent');
+
+    const blankMissingPlan = await simulateWorkerPlanDependency(after, 'blank-missing');
+    const blankMissingSlack = await runSlackShape(after, 'Video', blankMissingPlan.result);
+    ok(blankMissingPlan.result.status === 'created'
+      && blankMissingPlan.submittedPlanUrl === ''
+      && blankMissingPlan.mappedPlanUrl === ''
+      && blankMissingPlan.result.filming_plan_status === 'missing'
+      && blankMissingPlan.result.filming_plan_url === null
+      && blankMissingPlan.parentDescription.includes('FILMING PLAN MISSING')
+      && /FILMING PLAN ACTION REQUIRED/.test(blankMissingPlan.result.filming_plan_alert || '')
+      && blankMissingSlack.filming_plan_alert === blankMissingPlan.result.filming_plan_alert
+      && blankMissingPlan.result.child_issue_ids.length === 1
+      && blankMissingPlan.mutationCount === 2
+      && blankMissingPlan.storedCount === 2, 'no protected mapping still creates marked work and carries the SMM plan alert through Slack shaping');
+
     const advancedMappedPlan = await simulateWorkerPlanDependency(after, 'different');
     ok(advancedMappedPlan.result.status === 'created'
       && advancedMappedPlan.result.payload_hash === advancedMappedPlan.result.receipt_key.slice('linear-intake-v1:video:'.length)
       && advancedMappedPlan.result.attempts === 3
+      && advancedMappedPlan.result.filming_plan_status === 'server_mapping_mismatch'
+      && advancedMappedPlan.result.filming_plan_url === advancedMappedPlan.mappedPlanUrl
+      && advancedMappedPlan.parentDescription.includes('Filming Plan: ' + advancedMappedPlan.mappedPlanUrl)
+      && advancedMappedPlan.parentDescription.includes('FILMING PLAN LINK MISMATCH')
+      && advancedMappedPlan.parentDescription.includes(advancedMappedPlan.submittedPlanUrl)
+      && /server mapping differed/.test(advancedMappedPlan.result.filming_plan_alert || '')
       && advancedMappedPlan.result.child_issue_ids.length === 1
       && advancedMappedPlan.mutationCount === 2
-      && advancedMappedPlan.storedCount === 2, 'unchanged receipt retry succeeds when the current nonempty plan mapping differs from the submitted URL');
+      && advancedMappedPlan.storedCount === 2, 'differing submitted and protected links retain the server map and visibly mark the mismatch for SMM review');
 
     const simulation = await simulateReadBeforeCreate(after);
     const expectedPrefix = [

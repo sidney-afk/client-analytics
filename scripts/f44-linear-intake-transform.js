@@ -360,7 +360,6 @@ const errors = [];
 if (!payload.clientName.trim()) errors.push('client is required');
 if (!payload.title.trim()) errors.push('title is required');
 if (!videos.length) errors.push('at least one video is required');
-if (!payload.filmingPlans.trim()) errors.push('filming plan is required');
 if (!/^[0-9a-f]{64}$/.test(suppliedHash) || suppliedHash !== computedHash) errors.push('payload hash mismatch');
 if (String(raw.team || '').toLowerCase() !== '${branch.team}') errors.push('team mismatch');
 if (suppliedKey !== receiptKey) errors.push('idempotency key mismatch');
@@ -527,7 +526,33 @@ const apiKey = String(lookupData.smmApiKey || '').trim();
 const projects = (((projectData.data || {}).team || {}).projects || {}).nodes || [];
 const mappedPlanUrl = String(lookupData.filmingPlanUrl || '').trim();
 const submittedPlanUrl = String(ctx.payload.filmingPlans || '').trim();
-const description = String(ctx.payload.notes || '');
+const notesWithoutPlan = String(ctx.payload.notes || '')
+  .split(/\\r?\\n/)
+  .filter(line => !/^\\s*Filming Plan:\\s*/i.test(line))
+  .join('\\n')
+  .trim();
+let filmingPlanUrl = mappedPlanUrl || submittedPlanUrl || null;
+let filmingPlanStatus = 'resolved_server';
+let filmingPlanAlert = '';
+let filmingPlanMarker = '';
+if (mappedPlanUrl && submittedPlanUrl && mappedPlanUrl !== submittedPlanUrl) {
+  filmingPlanStatus = 'server_mapping_mismatch';
+  filmingPlanMarker = '[SyncView] FILMING PLAN LINK MISMATCH - server mapping used; submitted link retained for SMM review: ' + submittedPlanUrl;
+  filmingPlanAlert = '[SyncView] FILMING PLAN ACTION REQUIRED for ' + client + ': server mapping differed from the submitted link. Review the parent issue.';
+} else if (!mappedPlanUrl && submittedPlanUrl) {
+  filmingPlanStatus = 'submitted_unverified';
+  filmingPlanMarker = '[SyncView] FILMING PLAN MAPPING MISSING - submitted link retained; SMM verify: ' + submittedPlanUrl;
+  filmingPlanAlert = '[SyncView] FILMING PLAN ACTION REQUIRED for ' + client + ': no protected mapping was found; the submitted link was retained for review.';
+} else if (!mappedPlanUrl) {
+  filmingPlanStatus = 'missing';
+  filmingPlanMarker = '[SyncView] FILMING PLAN MISSING - client submission accepted; SMM add or repair the protected mapping.';
+  filmingPlanAlert = '[SyncView] FILMING PLAN ACTION REQUIRED for ' + client + ': submission was created without a filming plan. Add or repair the protected mapping.';
+}
+const description = [
+  filmingPlanUrl ? 'Filming Plan: ' + filmingPlanUrl : '',
+  filmingPlanMarker,
+  notesWithoutPlan,
+].filter(Boolean).join('\\n\\n');
 const videos = Array.isArray(ctx.payload.videos) ? ctx.payload.videos : [];
 const parentId = deterministicUuidV4(receiptKey + ':parent');
 const teamId = '${branch.teamId}';
@@ -623,8 +648,6 @@ try {
   projectId = String(projects[0] && projects[0].id || '').trim();
   if (!projectId) fail('no ${branch.team} project for ' + client + '; null project is forbidden');
   if (!apiKey) fail('no SMM credential for ' + client);
-  if (!submittedPlanUrl) fail('submitted filming plan is missing for ' + client);
-  if (!mappedPlanUrl) fail('no current filming plan mapping for ' + client);
   if (!videos.length) fail('no video roster for ' + client);
 ${rosterPreflight}
   const viewer = await graph('query F44Viewer { viewer { id } }', {}, false);
@@ -686,6 +709,9 @@ ${rosterPreflight}
     parent_identifier: parentIssue.identifier || null,
     parent_title: parentIssue.title || String(ctx.payload.title || ''),
     child_issue_ids: confirmedChildIds,
+    filming_plan_status: filmingPlanStatus,
+    filming_plan_url: filmingPlanUrl,
+    filming_plan_alert: filmingPlanAlert || null,
     error: null,
     replay_note: replayNote,
     updated_at: updatedAt(),
@@ -705,6 +731,9 @@ ${rosterPreflight}
     parent_identifier: existingParent ? (existingParent.identifier || null) : null,
     parent_title: existingParent ? (existingParent.title || String(ctx.payload.title || '')) : null,
     child_issue_ids: confirmedChildIds,
+    filming_plan_status: filmingPlanStatus,
+    filming_plan_url: filmingPlanUrl,
+    filming_plan_alert: filmingPlanAlert || null,
     error: safeError(error),
     replay_note: replayNote,
     updated_at: updatedAt(),
@@ -813,6 +842,49 @@ const INSTALL_NODE_NAMES = Object.freeze(BRANCHES.flatMap(branch => {
   const result = Object.values(names);
   return branch.team === 'video' ? result.filter(name => name !== names.prepareTitles) : result;
 }));
+
+function slackShapeCode(branch) {
+  const names = namesFor(branch);
+  return `const result = $('${names.worker}').first().json || {};
+return [{ json: {
+  data: { issueCreate: { issue: {
+    id: result.parent_issue_id,
+    identifier: result.parent_identifier,
+    title: result.parent_title,
+    url: result.parent_issue_url,
+  } } },
+  filming_plan_status: result.filming_plan_status || null,
+  filming_plan_url: result.filming_plan_url || null,
+  filming_plan_alert: result.filming_plan_alert || '',
+} }];`;
+}
+
+function slackText(branch) {
+  return `=New Linear issue created for {{ $('${branch.lookupSmm}').item.json.body.clientName }}: {{ $json.data.issueCreate.issue.identifier }} - {{ $json.data.issueCreate.issue.title }}*
+{{ $json.data.issueCreate.issue.url }}{{ $json.filming_plan_alert ? ' | ' + $json.filming_plan_alert : '' }}`;
+}
+
+function successResponseBody(branch) {
+  const names = namesFor(branch);
+  // Never return the protected plan URL to the browser. The status/alert are
+  // sufficient for the client contract; the URL remains only in server-owned
+  // work and the internal SMM notification path.
+  return `={{ { ok: true, status: 'created', ledger_status: 'created', duplicate: false, team: '${branch.team}', payload_hash: $('${names.normalize}').first().json._f44.payload_hash, receipt_key: $('${names.worker}').first().json.receipt_key, parent_id: $('${names.worker}').first().json.parent_issue_id, parent: { id: $('${names.worker}').first().json.parent_issue_id, identifier: $('${names.worker}').first().json.parent_identifier, title: $('${names.worker}').first().json.parent_title, url: $('${names.worker}').first().json.parent_issue_url }, child_issue_ids: $('${names.worker}').first().json.child_issue_ids, filming_plan_status: $('${names.worker}').first().json.filming_plan_status, filming_plan_alert: $('${names.worker}').first().json.filming_plan_alert } }}`;
+}
+
+function refreshInstalledPlanResolution(workflow) {
+  for (const branch of BRANCHES) {
+    const names = namesFor(branch);
+    requireNode(workflow, names.normalize).parameters.jsCode = normalizeCode(branch);
+    requireNode(workflow, names.worker).parameters.jsCode = workerCode(branch);
+    requireNode(workflow, names.slackShape).parameters.jsCode = slackShapeCode(branch);
+    requireNode(workflow, names.successResponse).parameters.responseBody = successResponseBody(branch);
+    const slack = requireNode(workflow, branch.slack);
+    slack.parameters.text = slackText(branch);
+    slack.onError = 'continueRegularOutput';
+  }
+  return workflow;
+}
 
 function installNodes(workflow, branch, lane) {
   const names = namesFor(branch);
@@ -943,16 +1015,10 @@ function installNodes(workflow, branch, lane) {
     `={{ $('${names.worker}').first().json.status === 'created' ? 503 : ($('${names.worker}').first().json.http_status || 502) }}`,
     [x + 4280, y + 120],
   );
-  const slackShape = codeNode(names.slackShape, `const result = $('${names.worker}').first().json;
-return [{ json: { data: { issueCreate: { issue: {
-  id: result.parent_issue_id,
-  identifier: result.parent_identifier,
-  title: result.parent_title,
-  url: result.parent_issue_url,
-} } } } }];`, [x + 4280, y - 160]);
+  const slackShape = codeNode(names.slackShape, slackShapeCode(branch), [x + 4280, y - 160]);
   const successResponse = respondNode(
     names.successResponse,
-    `={{ { ok: true, status: 'created', ledger_status: 'created', duplicate: false, team: '${branch.team}', payload_hash: $('${names.normalize}').first().json._f44.payload_hash, receipt_key: $('${names.worker}').first().json.receipt_key, parent_id: $('${names.worker}').first().json.parent_issue_id, parent: { id: $('${names.worker}').first().json.parent_issue_id, identifier: $('${names.worker}').first().json.parent_identifier, title: $('${names.worker}').first().json.parent_title, url: $('${names.worker}').first().json.parent_issue_url }, child_issue_ids: $('${names.worker}').first().json.child_issue_ids } }}`,
+    successResponseBody(branch),
     200,
     [x + 4060, y - 160],
   );
@@ -976,6 +1042,7 @@ return [{ json: { data: { issueCreate: { issue: {
   }
   const slack = requireNode(workflow, branch.slack);
   slack.onError = 'continueRegularOutput';
+  slack.parameters.text = slackText(branch);
 
   connect(workflow, branch.authorityRoute, names.normalize, 0);
   connect(workflow, names.normalize, names.hashRoute);
@@ -1047,6 +1114,7 @@ function transform(input) {
       throw new Error(`F44 partial install detected (${existing.length}/${INSTALL_NODE_NAMES.length}); refusing to guess`);
     }
     const installed = clone(input);
+    refreshInstalledPlanResolution(installed);
     verify(installed);
     return installed;
   }
@@ -1105,10 +1173,13 @@ function verify(workflow) {
       `String(raw.team || '').toLowerCase() !== '${branch.team}'`,
       'suppliedKey !== receiptKey',
       'suppliedReceiptKey !== receiptKey',
-      "if (!payload.filmingPlans.trim()) errors.push('filming plan is required')",
+      "filmingPlans: String(raw.filmingPlans || '')",
       'payload_json: payloadJson',
     ]) {
       if (!normalizeSource.includes(required)) throw new Error(`F44 ${branch.label} canonical hash/binding guard missing: ${required}`);
+    }
+    if (normalizeSource.includes("filming plan is required")) {
+      throw new Error(`F44 ${branch.label} rejects a blank client plan before protected server resolution`);
     }
     const insert = requireNode(workflow, names.insert);
     if (insert.credentials?.supabaseApi?.id !== SUPABASE_CREDENTIAL.id || insert.parameters.tableId !== RECEIPT_TABLE) {
@@ -1193,10 +1264,16 @@ function verify(workflow) {
       'projects.length !== 1',
       'if (!projectId)',
       'if (!apiKey)',
-      'if (!submittedPlanUrl)',
-      'if (!mappedPlanUrl)',
-      'no current filming plan mapping for ',
-      "const description = String(ctx.payload.notes || '')",
+      'const mappedPlanUrl',
+      'const submittedPlanUrl',
+      'const notesWithoutPlan',
+      'let filmingPlanUrl = mappedPlanUrl || submittedPlanUrl || null;',
+      "filmingPlanStatus = 'missing'",
+      'FILMING PLAN MISSING',
+      'FILMING PLAN MAPPING MISSING',
+      'FILMING PLAN LINK MISMATCH',
+      'filming_plan_status: filmingPlanStatus',
+      'filming_plan_alert: filmingPlanAlert || null',
       "title: String(ctx.payload.title || '')",
       'confirmedChildIds.length !== videos.length',
       'new Set(confirmedChildIds).size !== videos.length',
@@ -1207,8 +1284,8 @@ function verify(workflow) {
     if (workerSource.indexOf('existing = await readIssue(expected.id)') > workerSource.indexOf("mutation F44CreateIssue")) {
       throw new Error(`F44 ${branch.label} can create before exact-ID absence read`);
     }
-    if (workerSource.includes('mappedPlanUrl !== submittedPlanUrl')) {
-      throw new Error(`F44 ${branch.label} immutable receipt can be stranded by a later filming-plan mapping update`);
+    if (/if \(!submittedPlanUrl\) fail|if \(!mappedPlanUrl\) fail/.test(workerSource)) {
+      throw new Error(`F44 ${branch.label} can still dead-end a client for an internal filming-plan field`);
     }
     const failureBody = String(requireNode(workflow, names.failureResponse).parameters.responseBody || '');
     if (/safe_to_abandon_receipt|mutation_started/.test(workerSource + failureBody)) {
@@ -1261,6 +1338,13 @@ function verify(workflow) {
       throw new Error(`F44 ${branch.label} fail-soft Slack does not run after the durable browser response`);
     }
     if (requireNode(workflow, branch.slack).onError !== 'continueRegularOutput') throw new Error(`F44 ${branch.label} Slack is not fail-soft`);
+    const slackShapeSource = String(requireNode(workflow, names.slackShape).parameters.jsCode || '');
+    const slackTextValue = String(requireNode(workflow, branch.slack).parameters.text || '');
+    const successResponseBody = String(requireNode(workflow, names.successResponse).parameters.responseBody || '');
+    if (!slackShapeSource.includes('filming_plan_alert') || !slackTextValue.includes('filming_plan_alert')
+        || !successResponseBody.includes('filming_plan_status') || successResponseBody.includes('filming_plan_url')) {
+      throw new Error(`F44 ${branch.label} does not notify the assigned SMM when plan follow-up is required`);
+    }
     if (!hasOnlyEdge(workflow, names.deadLetter, 0, names.failureResponse)) throw new Error(`F44 ${branch.label} dead letter does not reach a real error response`);
     const deadLetter = requireNode(workflow, names.deadLetter);
     if (deadLetter.parameters.dataTableId?.value !== DEAD_LETTER_TABLE_ID || deadLetter.onError !== 'continueRegularOutput') {

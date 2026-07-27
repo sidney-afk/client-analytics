@@ -98,8 +98,31 @@ const mountTemplates = grabFunc('mountTemplatesView');
 ok(/_fpEnsureLoaded\(false\)/.test(mountTemplates), 'Templates must load filming_plans for read-only cards');
 
 const linearPlans = grabFunc('loadLinearPlanMap');
-ok(/_fpEnsureLoaded\(\!\!force\)/.test(linearPlans), 'Linear form must resolve filming plans through the shared source');
+const intakePlanGuardStart = linearPlans.indexOf('if (_linearIntakeUsesServerPlanResolution())');
+const staffPlanLoadStart = linearPlans.indexOf('_fpEnsureLoaded(!!force)');
+const intakePlanGuard = intakePlanGuardStart >= 0 && staffPlanLoadStart > intakePlanGuardStart
+  ? linearPlans.slice(intakePlanGuardStart, staffPlanLoadStart)
+  : '';
+ok(intakePlanGuardStart >= 0 && staffPlanLoadStart > intakePlanGuardStart
+  && /_linearPlanMapState = 'server'/.test(intakePlanGuard)
+  && /_linearResolvedPlanUrl = ''/.test(intakePlanGuard)
+  && /return;/.test(intakePlanGuard)
+  && !/_fpEnsureLoaded/.test(intakePlanGuard),
+  'intake mode must defer filming-plan resolution to the server before any staff-only browser read');
+ok(/_fpEnsureLoaded\(\!\!force\)/.test(linearPlans),
+  'non-intake Linear form use must continue resolving filming plans through the shared staff source');
+ok(/_linearPlanMapState = 'loaded'/.test(linearPlans)
+  && /_linearPlanMapState = 'failed'/.test(linearPlans)
+  && /_linearPlanMapError = String/.test(linearPlans)
+  && !/_linearPlanMap\s*=\s*_linearPlanMap\s*\|\|\s*\{\}/.test(linearPlans),
+  'Linear plan lookup must distinguish loaded, failed, and server-resolved states instead of masking read failures as no plan');
 ok(!/fetch\(FILMING_PLANS_URL/.test(linearPlans), 'Linear form must not fetch the sheet directly');
+const updateLinearPlan = grabFunc('updateLinearFilmingPlan');
+ok(/_linearPlanMapState === 'server'/.test(updateLinearPlan)
+  && /Resolved securely when submitted\./.test(updateLinearPlan)
+  && /_linearPlanMapState === 'failed'/.test(updateLinearPlan)
+  && /Could not load filming plans\. The server will resolve this when submitted\./.test(updateLinearPlan),
+  'Linear plan display must keep server resolution distinct from a failed staff lookup');
 
 const kasperLoad = grabFunc('_kasperLoadFilming');
 ok(/_fpEnsureLoaded\(\!\!forceRefresh\)/.test(kasperLoad), 'Kasper filming tab must resolve plans through the shared source');

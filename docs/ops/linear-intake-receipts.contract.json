@@ -51,7 +51,7 @@
     "child_seed": "<receipt_key>:child:<stable-child-key>",
     "stable_child_key": "the canonical payload child kind plus its zero-based canonical ordinal",
     "retry_rule": "Every retry reuses the same expected Linear UUIDs. A duplicate-ID response is followed by a read of that exact UUID and is success only when the issue matches this receipt.",
-    "receipt_abandonment_rule": "Once a server receipt exists, the browser cannot replace it with a new payload hash. Empty filming plans are rejected before receipt insertion; server dependency fixes retry the immutable receipt."
+    "receipt_abandonment_rule": "Once a server receipt exists, the browser cannot replace it with a new payload hash. A blank filmingPlans field is valid canonical client input; after claim, the protected server mapping attaches the plan. If no mapping exists, the parent is still created with an internal missing-plan marker and SMM alert. Dynamic plan resolution stays outside payload_json so retries retain the immutable receipt."
   },
   "states": {
     "pending": "The payload-bearing receipt exists. A fresh pending row is an in-progress workflow and must not be replayed concurrently.",

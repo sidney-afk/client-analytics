@@ -219,6 +219,88 @@ function publicLeavesAreSafe(value) {
     'every assert inside preflight() carries an explicit public-safe failure code');
   ok(runner.FAILURE_CODES.has('unclassified_failure'),
     'unclassified_failure remains available for uncodified stages');
+
+  // ---- Intake project: verified on readback, not gated on a tagged row ----
+  // The drill creates through ledgerWrite -> the b4-write edge functions, whose
+  // TEST-override check reads clients.linear_project_ids FLAT and requires the
+  // caller-supplied project_id to be in that set union B4_TEST_PROJECT_IDS.
+  // Nothing on that path applies projectIdsForTeam, so preflight must not
+  // demand a team-tagged entry.
+  const preflightSource = source.slice(
+    source.indexOf('async function preflight(runtime) {'),
+    source.indexOf('function syntheticMemberRows(runtime) {'),
+  );
+  ok(!/projectIdsForTeam\(runtime\.client\.linear_project_ids/.test(preflightSource),
+    'preflight no longer gates on the client-row project mapping');
+  // test_project_unavailable survives, but with a different and provable
+  // meaning: not "the row lacks a team-tagged Video project" but "there is no
+  // project id to offer the TEST-override write path at all".
+  ok(!/projectIdsForTeam[\s\S]{0,120}test_project_unavailable/.test(preflightSource),
+    'test_project_unavailable no longer comes from a team-tagged client-row lookup');
+  ok(/flatClientProjectIds\(runtime\.client\.linear_project_ids\)/.test(preflightSource)
+    && /test_project_unavailable/.test(preflightSource),
+  'preflight names a missing offerable project id instead of failing inside a create');
+  ok(/linear_catalog_incomplete/.test(preflightSource)
+    && /linear_team_unavailable/.test(preflightSource)
+    && /provider_pool_incomplete/.test(preflightSource),
+  'the real Linear catalog, team and provider-pool preconditions are kept');
+
+  // projectIdsForTeam itself is untouched: the real-client intake path still
+  // depends on its stricter team-tagged shape.
+  ok(runner.projectIdsForTeam(['bare-id'], 'video').length === 0
+    && runner.projectIdsForTeam([{ team: 'video', id: 'tagged' }], 'video')[0] === 'tagged',
+  'projectIdsForTeam keeps requiring a team-tagged entry');
+  // The flat reader mirrors the edge allowlist rule (b4-write projectIds),
+  // which is what actually admits the drill create intent.
+  ok(runner.flatClientProjectIds(['bare-id'])[0] === 'bare-id'
+    && runner.flatClientProjectIds([{ team: 'video', id: 'tagged' }])[0] === 'tagged'
+    && runner.flatClientProjectIds(null).length === 0,
+  'the flat client-project reader accepts the bare id array the edge accepts');
+
+  // The readback proof, exercised directly rather than pattern-matched.
+  const intakeSource = sourceFunction(source, 'verifyGatewayIntakeProject');
+  ok(/'linear_project_unavailable'/.test(intakeSource),
+    'the intake-project readback reuses the linear_project_unavailable code');
+  const vidProject = { id: 'p-vid', teams: { nodes: [{ key: 'VID' }] } };
+  const usable = runner.intakeProjectIssueUsable({ id: 'i', project: vidProject });
+  ok(usable.usable === true && usable.projectId === 'p-vid',
+    'a live, non-archived, VID-teamed project is accepted and yields its id');
+  for (const [label, issue] of [
+    ['a missing issue', null],
+    ['an archived issue', { id: 'i', archivedAt: '2026-01-01', project: vidProject }],
+    ['a missing project', { id: 'i' }],
+    ['a project with no id', { id: 'i', project: { teams: { nodes: [{ key: 'VID' }] } } }],
+    ['an archived project', { id: 'i', project: { ...vidProject, archivedAt: '2026-01-01' } }],
+    ['a project with no teams', { id: 'i', project: { id: 'p', teams: { nodes: [] } } }],
+    ['a non-VID project', { id: 'i', project: { id: 'p', teams: { nodes: [{ key: 'GRA' }] } } }],
+  ]) {
+    const verdict = runner.intakeProjectIssueUsable(issue);
+    ok(verdict.usable === false && verdict.projectId === '',
+      `the readback rejects ${label}`);
+  }
+  // The issue TEAM must not enter the verdict: createFixture supplies that team
+  // id itself, so consulting it would make the assert unconditional.
+  ok(runner.intakeProjectIssueUsable({
+    id: 'i', team: { key: 'VID' }, project: { id: 'p', teams: { nodes: [{ key: 'GRA' }] } },
+  }).usable === false,
+  'a VID issue team cannot rescue a non-VID project (no tautological fallback)');
+  ok(!/issue\.team/.test(intakeSource),
+    'the readback does not consult the issue team the drill itself supplied');
+  ok(/runtime\.linear\.verifiedProjectId = mintedIssue\.projectId/.test(source),
+    'the verified project id comes from the minted issue, not from the offered id');
+
+
+  // preflight_only genuinely does not verify the project, and says so.
+  ok(Object.prototype.hasOwnProperty.call(runner.emptyReport(), 'intake_project_verified')
+    && runner.emptyReport().intake_project_verified === false,
+  'the aggregate reports intake_project_verified, false until the readback proves it');
+  const preflightOnlyBlock = source.slice(
+    source.indexOf("await runBoundedDrillPhase(runtime, 'preflight'"),
+    source.indexOf("stage = 'f94_negative';"),
+  );
+  ok(preflightOnlyBlock.indexOf('report.preflight_only = true;')
+    < preflightOnlyBlock.indexOf('report.intake_project_verified'),
+  'a preflight-only run returns before the project readback, so it cannot claim verification');
   for (const code of [
     'test_client_not_unique', 'test_project_unavailable', 'linear_catalog_incomplete',
     'provider_pool_incomplete', 'roster_empty', 'browser_key_unavailable',
@@ -1431,7 +1513,10 @@ function publicLeavesAreSafe(value) {
   const linearOwnershipRuntime = {
     runToken: 'slice5-offline-owned',
     linear: {
-      project: { id: 'offline-test-project' },
+      // The cleanup ownership guard now compares against the project the
+      // gateway actually used, established by the fixture readback, not the id
+      // the drill offered on its create intent.
+      verifiedProjectId: 'offline-test-project',
       team: { id: 'offline-test-team' },
     },
   };
@@ -1462,6 +1547,36 @@ function publicLeavesAreSafe(value) {
   }
   ok(foreignLinearIssueRejected,
     'TEST project/team scope alone cannot authorize archiving a pre-existing Linear issue');
+
+  // Cleanup must still recognise its own issues when the readback FAILED --
+  // both fixture issues already exist by then, so a guard that insists on a
+  // still-empty verifiedProjectId would fail every ownership check and strand
+  // live TEST issues in Linear. Exercised directly, not pattern-matched.
+  const unverifiedRuntime = {
+    runToken: 'slice5-offline-owned',
+    linear: {
+      verifiedProjectId: '',
+      intakeProjectId: 'offline-test-project',
+      team: { id: 'offline-test-team' },
+    },
+  };
+  ok(runner.assertRunOwnedLinearIssueSnapshot(
+    unverifiedRuntime, ownedLinearIssue, ownedLinearIssue.id, 'deliverable',
+  ) === ownedLinearIssue,
+  'cleanup still identifies its own issue when the intake-project readback failed');
+  let unownedWhenUnverifiedRejected = false;
+  try {
+    runner.assertRunOwnedLinearIssueSnapshot(
+      unverifiedRuntime,
+      { ...ownedLinearIssue, project: { id: 'someone-elses-project' } },
+      ownedLinearIssue.id,
+      'deliverable',
+    );
+  } catch (_error) {
+    unownedWhenUnverifiedRejected = true;
+  }
+  ok(unownedWhenUnverifiedRejected,
+    'the unverified fallback still refuses an issue in a project this run never offered');
   ok(/lower\(create\.status\) === ['"]written['"]/.test(providerIssue)
     && /clean\(create\.dedup_key\) === clean\(expected\.dedup\)/.test(providerIssue)
     && /clean\(result\.mutation\) === ['"]issueCreate['"]/.test(providerIssue)

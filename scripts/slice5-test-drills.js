@@ -1225,6 +1225,30 @@ function projectIdsForTeam(value, wantedTeam) {
   return [...found].sort();
 }
 
+/* The client-row project ids as a FLAT set, mirroring b4-write projectIds — the
+   rule the TEST-override check on the drill's own create path actually applies.
+   Deliberately separate from projectIdsForTeam, which requires a team-tagged
+   entry and is left untouched because the real-client intake path still depends
+   on that stricter shape.
+
+   Mirrors b4-write exactly, INCLUDING its blind spot: it descends into array
+   children only, so a team-keyed object such as {"video": "<id>"} yields []. */
+function flatClientProjectIds(value) {
+  const ids = new Set();
+  const stack = Array.isArray(value) ? [...value] : (value ? [value] : []);
+  while (stack.length) {
+    const item = stack.pop();
+    if (typeof item === 'string' && clean(item)) ids.add(clean(item));
+    else if (item && typeof item === 'object') {
+      for (const key of ['id', 'project_id', 'linear_project_id']) {
+        if (clean(item[key])) ids.add(clean(item[key]));
+      }
+      for (const child of Object.values(item)) if (Array.isArray(child)) stack.push(...child);
+    }
+  }
+  return [...ids].sort();
+}
+
 async function runtimeFlags(runtime, stage = 'preflight') {
   const rows = await restRead(runtime,
     'syncview_runtime_flags?select=key,value,updated_at&order=key.asc',
@@ -1356,9 +1380,16 @@ async function preflight(runtime) {
   assert(lower(runtime.authority[MATRIX_TEAM]) === 'linear', 'preflight',
     'Video must remain Linear-authoritative for the F136 zero-write oracle', undefined, 'authority_not_linear');
 
-  const projectIds = projectIdsForTeam(runtime.client.linear_project_ids, MATRIX_TEAM);
-  assert(projectIds.length === 1, 'preflight',
-    'active TEST client must map exactly one Video project', { count: projectIds.length }, 'test_project_unavailable');
+  // NO team-TAGGED client-row gate here. The drill creates through ledgerWrite
+  // -> the b4-write edge functions, whose TEST-override check reads
+  // clients.linear_project_ids FLAT (b4-write projectIds) and requires the
+  // caller-supplied project_id to be in that set union B4_TEST_PROJECT_IDS.
+  // Nothing on that path applies projectIdsForTeam, so demanding a team-tagged
+  // entry was strictly stricter than the write path itself: the active TEST row
+  // is a bare array of one id, which yields zero tagged ids and aborted the run
+  // while the edge would have admitted it. What the write path actually
+  // resolved is verified on readback instead, where it is observable rather
+  // than guessed.
   const [projectsData, teamsData, usersData] = await Promise.all([
     linearRead(runtime, `query Slice5DrillProjects {
       projects(first: 250, includeArchived: true) {
@@ -1380,10 +1411,6 @@ async function preflight(runtime) {
   assert(projectsData.projects && projectsData.projects.pageInfo
       && projectsData.projects.pageInfo.hasNextPage === false,
   'preflight', 'Linear TEST project catalog is incomplete', undefined, 'linear_catalog_incomplete');
-  const project = projects.find(row => clean(row.id) === projectIds[0]);
-  assert(project && !project.archivedAt
-      && (project.teams && project.teams.nodes || []).some(team => clean(team.key).toUpperCase() === 'VID'),
-  'preflight', 'configured TEST Video project is unavailable', undefined, 'linear_project_unavailable');
   const team = (teamsData.teams && teamsData.teams.nodes || [])
     .find(row => clean(row.key).toUpperCase() === 'VID');
   assert(team && clean(team.id), 'preflight', 'Video team is unavailable', undefined, 'linear_team_unavailable');
@@ -1392,7 +1419,31 @@ async function preflight(runtime) {
       && usersPage.pageInfo.hasNextPage === false,
   'preflight', 'Linear assignee provider pool is incomplete', undefined, 'provider_pool_incomplete');
   const { machineUser, inactiveUser } = selectLinearDrillProviderUsers(usersPage);
-  runtime.linear = { project, team, machineUser, inactiveUser };
+  // The b4-write TEST-override check requires a caller-supplied project_id that
+  // is in the client row union B4_TEST_PROJECT_IDS, so a create cannot even be
+  // attempted without one to offer. Named here rather than dying inside the
+  // create with an opaque edge error. flatClientProjectIds mirrors the edge
+  // rule exactly, which means it returns [] for the team-keyed {"video": "..."}
+  // shape the go-live checklist now asks people to convert bare rows into --
+  // if this TEST row is converted, this is the precondition that will say so.
+  const intakeProjectId = flatClientProjectIds(runtime.client.linear_project_ids)[0] || '';
+  assert(intakeProjectId, 'preflight',
+    'active TEST client carries no project id to offer the TEST-override write path',
+    undefined, 'test_project_unavailable');
+  runtime.linear = {
+    // The full catalog, so the fixture readback can judge the project the
+    // gateway actually used without a second round trip.
+    projects,
+    team,
+    machineUser,
+    inactiveUser,
+    // The id the drill offers on its create intents, read the same FLAT way
+    // the edge TEST-override check reads it. It is an OFFER, not a proof: the
+    // write path validates it against its own allowlist and the readback below
+    // is what establishes which project was really used.
+    intakeProjectId,
+    verifiedProjectId: '',
+  };
   return true;
 }
 
@@ -1655,6 +1706,43 @@ async function drainTestOutbox(runtime, dedup, stage) {
   });
 }
 
+/* Is the project the write path actually used a usable Video project?
+
+   Pure so it can be exercised directly. The issue team is deliberately NOT
+   consulted: createFixture supplies team_id from the team preflight selected by
+   key === 'VID', so an issue-team check would be a tautology that makes the
+   whole assert unconditional. The PROJECT teams are the only part of this the
+   drill did not itself determine, so they are the only part worth asserting. */
+function intakeProjectIssueUsable(issue) {
+  const project = issue && issue.project;
+  const projectTeams = (project && project.teams && project.teams.nodes || [])
+    .map(row => clean(row && row.key).toUpperCase());
+  const usable = Boolean(issue)
+    && !issue.archivedAt
+    && Boolean(project)
+    && Boolean(clean(project.id))
+    && !project.archivedAt
+    && projectTeams.includes('VID');
+  return { usable, projectId: usable ? clean(project.id) : '' };
+}
+
+/* Reads back the first TEST issue this run minted and proves the project the
+   write path resolved for it is usable: present, non-archived, and carrying
+   team key VID. This replaces the old client-row precondition, which demanded a
+   team-tagged shape that nothing downstream requires. */
+async function verifyGatewayIntakeProject(runtime, issueId) {
+  const data = await linearRead(runtime, `query Slice5IntakeProject($id: String!) {
+    issue(id: $id) {
+      id archivedAt project { id archivedAt teams { nodes { key } } }
+    }
+  }`, { id: issueId }, 'preflight');
+  const verdict = intakeProjectIssueUsable(data && data.issue);
+  assert(verdict.usable, 'preflight',
+    'the project used for TEST intake is unavailable or not a Video project',
+    undefined, 'linear_project_unavailable');
+  return { projectId: verdict.projectId };
+}
+
 async function createFixture(runtime, plan) {
   assert(runtime.identityPlan && plan === runtime.identityPlan.fixture,
     'preflight', 'fixture create did not use the durable identity plan', undefined, 'fixture_plan_mismatch');
@@ -1678,7 +1766,7 @@ async function createFixture(runtime, plan) {
     },
     linearPayload: {
       team_id: runtime.linear.team.id,
-      project_id: runtime.linear.project.id,
+      project_id: runtime.linear.intakeProjectId,
       title: markerText(runtime, 'Batch'),
       description: markerText(runtime, 'Disposable TEST batch'),
       status: 'todo',
@@ -1704,7 +1792,7 @@ async function createFixture(runtime, plan) {
     },
     linearPayload: {
       team_id: runtime.linear.team.id,
-      project_id: runtime.linear.project.id,
+      project_id: runtime.linear.intakeProjectId,
       title: markerText(runtime, 'Deliverable'),
       description: markerText(runtime, 'Disposable TEST deliverable'),
       status: 'todo',
@@ -1718,6 +1806,14 @@ async function createFixture(runtime, plan) {
     const ids = projectIdsForTeam(row.linear_parent_ids, MATRIX_TEAM);
     return ids.length === 1 ? { row, issueId: ids[0] } : null;
   });
+  // Verify the project the write path ACTUALLY used, on the first TEST issue
+  // this run minted. Whatever resolved it — the offered id or a server-side
+  // mapping — a project that is archived or not Video-teamed is only observable
+  // here, and it still fails loudly, at the point where it is provable.
+  const mintedIssue = await verifyGatewayIntakeProject(runtime, clean(linkedBatch.issueId));
+  runtime.linear.verifiedProjectId = mintedIssue.projectId;
+  runtime.intakeProjectVerified = true;
+
   const linked = await poll(runtime, 'preflight', 'TEST deliverable fixture linkage', async () => {
     const row = await assertRunOwnedDeliverable(runtime, deliverable.row.id, 'preflight');
     return clean(row.linear_issue_uuid) ? row : null;
@@ -3847,7 +3943,17 @@ function assertRunOwnedLinearIssueSnapshot(runtime, issue, issueId, kind) {
   assert(['batch', 'deliverable'].includes(kind)
       && issue
       && clean(issue.id) === clean(issueId)
-      && clean(issue.project && issue.project.id) === clean(runtime.linear.project.id)
+      // Project id is CORROBORATION, not the ownership proof — the run-token
+      // marker text, the exact issue id and the team id above already carry
+      // that. Accept the verified project when the readback established one,
+      // and otherwise the id the drill offered: if verifyGatewayIntakeProject
+      // threw, both fixture issues already exist, and insisting on a value that
+      // is still '' would fail every ownership check and strand live TEST
+      // issues in Linear rather than archiving them.
+      && [
+        clean(runtime.linear.verifiedProjectId),
+        clean(runtime.linear.intakeProjectId),
+      ].filter(Boolean).includes(clean(issue.project && issue.project.id))
       && clean(issue.team && issue.team.id) === clean(runtime.linear.team.id)
       && clean(issue.title) === markerText(runtime, label)
       && clean(issue.description) === markerText(runtime, description),
@@ -4268,6 +4374,7 @@ function emptyReport() {
     scope: 'active_test_only',
     failure_code: 'none',
     preflight_only: false,
+    intake_project_verified: false,
     preflight: { result: 'not_run' },
     f94_negative: {
       result: 'not_run',
@@ -4470,6 +4577,7 @@ async function main(env = process.env, deps = {}) {
         runtime, identityPlan.members,
       );
       await createFixture(runtime, identityPlan.fixture);
+      report.intake_project_verified = runtime.intakeProjectVerified === true;
     });
 
     // A preflight-only dispatch exits successfully here: no drill stage runs, no
@@ -4668,7 +4776,10 @@ module.exports = {
   parseConfig,
   assertExactPostgrestMutationTarget,
   postgrestMemberReferenceIds,
+  flatClientProjectIds,
+  intakeProjectIssueUsable,
   projectIdsForTeam,
+  verifyGatewayIntakeProject,
   readCompleteRoster,
   requestDeadlineMs,
   restRead,

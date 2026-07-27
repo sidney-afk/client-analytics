@@ -306,6 +306,16 @@ const FAILURE_CODES = new Set([
   'cleanup_deliverable_archive_timeout',
   'cleanup_batch_archive_timeout',
   'cleanup_linear_archive_timeout',
+  // Targeted-drain receipt. The fixture creates demand a written row that
+  // minted an issue; cleanup re-drains tolerate skipped and stale.
+  'drain_expectation_missing',
+  'drain_receipt_missing',
+  'drain_row_failed',
+  'drain_intent_not_terminal',
+  'drain_create_not_written',
+  'create_tolerated_historical',
+  'create_stale_dropped',
+  'linkage_result_shape_invalid',
   'bounded_operation_timeout',
   'bounded_resource_timeout',
   'bounded_resource_expired',
@@ -1919,7 +1929,71 @@ async function ledgerWrite(runtime, kind, request, stage) {
   return { row, outbox: outboxRows[0] };
 }
 
-async function drainTestOutbox(runtime, dedup, stage) {
+/* linear-outbound answers ok:false only when counts.failed > 0. Every OTHER
+   way a targeted create can finish without its linkage -- a tolerated
+   historical issue, a stale drop, or a create whose Linear result was not an
+   object at index.ts:1666 -- releases the row terminally, leaves counts.failed
+   at 0, and answers ok:true. edgeWrite is satisfied by that, so a create that
+   silently wrote no linkage used to surface only as a 60-second linkage poll
+   timing out with nothing to say.
+
+   The expectation is per call site and REQUIRED, for the same reason poll()
+   requires a code: only the caller knows which outcome is healthy. Cleanup
+   re-drains legitimately come back skipped or stale -- ensureDedupTerminal
+   already defines terminal as exactly that set -- so a universal written-only
+   rule would turn healthy recovery into a coded refusal and strand the run. */
+const DRAIN_EXPECTATIONS = new Set(['created', 'terminal']);
+const DRAIN_TERMINAL_STATUSES = new Set(['written', 'skipped', 'stale']);
+
+function assertDrainReceipt(drain, dedup, stage, expect) {
+  const target = parseJson(drain && drain.target);
+  const counts = parseJson(drain && drain.counts);
+  assert(clean(target.dedup_key) === clean(dedup), stage,
+    'targeted TEST drain returned no receipt for its own intent',
+    { dedup, target }, 'drain_receipt_missing');
+  const status = lower(target.status);
+  const detail = {
+    dedup,
+    status,
+    counts,
+    attempts: target.attempts,
+    last_error: target.last_error,
+  };
+  // Redundant with edgeWrite's parsed.ok check today, and kept anyway: it
+  // states the drill's own expectation instead of inheriting whatever
+  // linear-outbound happens to derive ok from.
+  assert(Number(counts.failed || 0) === 0, stage,
+    'targeted TEST drain reported a failed row', detail, 'drain_row_failed');
+  if (expect !== 'created') {
+    assert(DRAIN_TERMINAL_STATUSES.has(status), stage,
+      'targeted TEST drain left its intent non-terminal', detail, 'drain_intent_not_terminal');
+    return drain;
+  }
+  const result = parseJson(target.linear_result);
+  // Name the three silent no-linkage paths one at a time, ahead of the generic
+  // status check, so the next failure says WHICH one fired.
+  assert(lower(parseJson(result.conflict).decision) !== 'tolerated_historical', stage,
+    'targeted create drain tolerated a historical issue instead of linking it',
+    detail, 'create_tolerated_historical');
+  assert(status !== 'stale', stage,
+    'targeted create drain dropped its intent as stale instead of linking it',
+    detail, 'create_stale_dropped');
+  assert(status === 'written', stage,
+    'targeted create drain did not write its intent', detail, 'drain_create_not_written');
+  // The minted id lands as linear_result.issue_id on the create paths and as
+  // linear_result.issue.id on the conflict paths; providerIssueIdFor already
+  // reads both. Neither present is the index.ts:1666 case: written row,
+  // counts.failed 0, applyCreateLinkage never called.
+  assert(clean(result.issue_id) || clean(parseJson(result.issue).id), stage,
+    'targeted create drain wrote no Linear issue identity to link',
+    detail, 'linkage_result_shape_invalid');
+  return drain;
+}
+
+async function drainTestOutbox(runtime, dedup, stage, expect) {
+  assert(DRAIN_EXPECTATIONS.has(expect), stage,
+    'targeted TEST drain was called without a declared expectation',
+    { dedup, expect }, 'drain_expectation_missing');
   const rows = await restRead(runtime,
     `mirror_outbox?select=id,dedup_key,entity,entity_id,client_slug,test_only&dedup_key=eq.${encodeURIComponent(dedup)}&limit=2`,
     { stage });
@@ -1933,7 +2007,7 @@ async function drainTestOutbox(runtime, dedup, stage) {
   } else {
     await assertRunOwnedDeliverable(runtime, intent.entity_id, stage);
   }
-  return edgeWrite(runtime, 'linear-outbound', {
+  const drain = await edgeWrite(runtime, 'linear-outbound', {
     limit: 1,
     target_dedup_key: dedup,
     test_override: {
@@ -1946,6 +2020,9 @@ async function drainTestOutbox(runtime, dedup, stage) {
     targetClientSlug: runtime.client.slug,
     stage,
   });
+  // The receipt IS the evidence this whole change exists to stop discarding:
+  // check it, then hand it back to the caller intact.
+  return assertDrainReceipt(drain, dedup, stage, expect);
 }
 
 /* Is the project the write path actually used a usable Video project?
@@ -2041,8 +2118,8 @@ async function createFixture(runtime, plan) {
       priority: 0,
     },
   }, 'preflight');
-  await drainTestOutbox(runtime, batchDedup, 'preflight');
-  await drainTestOutbox(runtime, deliverableDedup, 'preflight');
+  await drainTestOutbox(runtime, batchDedup, 'preflight', 'created');
+  await drainTestOutbox(runtime, deliverableDedup, 'preflight', 'created');
   const linkedBatch = await poll(runtime, 'preflight', 'TEST batch fixture linkage',
     'fixture_batch_linkage_timeout', async () => {
     const row = await assertRunOwnedBatch(runtime, batch.row.id, 'preflight');
@@ -2220,7 +2297,7 @@ async function runF94Negative(runtime) {
     'f94_eligible_assignment_rejected');
   const after = await f94Snapshot(runtime, dedup);
   assertEligibleAssignmentBundle(before, after, eligible.id);
-  await drainTestOutbox(runtime, dedup, 'f94_negative');
+  await drainTestOutbox(runtime, dedup, 'f94_negative', 'terminal');
 
   // Clear the provider assignment immediately instead of carrying the
   // disposable TEST assignee through the long matrix. The service-only TEST
@@ -2244,7 +2321,7 @@ async function runF94Negative(runtime) {
       && clearResponse.body && clearResponse.body.ok === true,
   'f94_negative', 'eligible TEST assignment could not be cleared',
   undefined, 'f94_assignment_clear_failed');
-  await drainTestOutbox(runtime, clearDedup, 'f94_negative');
+  await drainTestOutbox(runtime, clearDedup, 'f94_negative', 'terminal');
   const cleared = await assertRunOwnedDeliverable(runtime,
     runtime.fixture.deliverableId, 'f94_negative');
   assert(!clean(cleared.assignee_id), 'f94_negative',
@@ -4291,7 +4368,7 @@ async function ensureDedupTerminal(runtime, dedup) {
   undefined, 'outbox_intent_out_of_scope');
   const terminal = new Set(['written', 'skipped', 'stale']);
   if (!terminal.has(lower(rows[0].status))) {
-    await drainTestOutbox(runtime, dedup, 'cleanup');
+    await drainTestOutbox(runtime, dedup, 'cleanup', 'terminal');
   }
   rows = await poll(runtime, 'cleanup', 'tracked outbox terminal receipt',
     'outbox_terminal_receipt_timeout', async () => {
@@ -4532,7 +4609,7 @@ async function cleanup(runtime) {
         patch: {},
         linearPayload: issueId ? { linear_issue_id: issueId } : {},
       }, 'cleanup');
-      await drainTestOutbox(runtime, dedup, 'cleanup');
+      await drainTestOutbox(runtime, dedup, 'cleanup', 'terminal');
       await poll(runtime, 'cleanup', 'native deliverable archive marker',
         'cleanup_deliverable_archive_timeout', async () => {
         const current = await optionalRunOwnedDeliverable(runtime, id);
@@ -4559,7 +4636,7 @@ async function cleanup(runtime) {
         patch: { status: 'archived' },
         linearPayload: issueId ? { linear_issue_id: issueId } : {},
       }, 'cleanup');
-      await drainTestOutbox(runtime, dedup, 'cleanup');
+      await drainTestOutbox(runtime, dedup, 'cleanup', 'terminal');
       await poll(runtime, 'cleanup', 'native batch archive marker',
         'cleanup_batch_archive_timeout', async () => {
         const current = await optionalRunOwnedBatch(runtime, id);
@@ -5073,6 +5150,8 @@ async function main(env = process.env, deps = {}) {
 module.exports = {
   CREATIVE_STATUS_TRANSITIONS_SOURCE: 'supabase/functions/production-write/policy.mjs',
   F94_REFUSAL_ENUMS,
+  DRAIN_EXPECTATIONS,
+  DRAIN_TERMINAL_STATUSES,
   FAILURE_CODES,
   PROVIDER_INACTIVE_ENUMS,
   WRITE_ADAPTERS,
@@ -5081,6 +5160,7 @@ module.exports = {
   assertActiveTestWriteTarget,
   assertExactEdgeMutationTarget,
   assertExactGatewayMutationTarget,
+  assertDrainReceipt,
   assertEligibleAssignmentBundle,
   assertMatrixBlockUnchanged,
   assertPreExistingRosterUnchanged,

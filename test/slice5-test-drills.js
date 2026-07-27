@@ -776,6 +776,110 @@ function publicLeavesAreSafe(value) {
   ok(runner.emptyReport().failure_http_status === 0,
     'the aggregate carries a numeric failure_http_status, 0 when no HTTP call failed');
 
+  // ---- Targeted drain receipt: the evidence is checked, not discarded ----
+  // linear-outbound answers ok:false only when counts.failed > 0. Three other
+  // paths finish a create WITHOUT its linkage, leave counts.failed at 0 and
+  // answer ok:true, so edgeWrite was satisfied and the only remaining signal
+  // was a 60s linkage poll timing out. Driven through the REAL checker.
+  const drainReceipt = (over = {}, counts = {}) => ({
+    ok: true,
+    counts: { written: 1, failed: 0, skipped: 0, stale_dropped: 0, ...counts },
+    target: {
+      dedup_key: 'drill-dedup',
+      status: 'written',
+      attempts: 1,
+      last_error: null,
+      linear_result: { mutation: 'issueCreate', issue_id: 'issue-uuid-1' },
+      ...over,
+    },
+  });
+  const drainCode = (drain, expect) => {
+    try {
+      runner.assertDrainReceipt(drain, 'drill-dedup', 'preflight', expect);
+      return null;
+    } catch (error) {
+      return error.code;
+    }
+  };
+  const drainCases = [
+    // The three silent no-linkage paths, each with its own code.
+    ['a written create carrying no minted issue id',
+      drainReceipt({ linear_result: { mutation: 'issueCreate' } }), 'created',
+      'linkage_result_shape_invalid'],
+    ['a create tolerated as historical',
+      drainReceipt({
+        status: 'skipped',
+        linear_result: { conflict: { decision: 'tolerated_historical' }, issue: { id: 'x' } },
+      }, { written: 0, skipped: 1 }), 'created', 'create_tolerated_historical'],
+    ['a create dropped as stale',
+      drainReceipt({
+        status: 'stale',
+        linear_result: { conflict: { decision: 'stale' } },
+      }, { written: 0, stale_dropped: 1 }), 'created', 'create_stale_dropped'],
+    // Everything else a create must not end as.
+    ['a create left pending', drainReceipt({ status: 'pending', linear_result: {} }, { written: 0 }),
+      'created', 'drain_create_not_written'],
+    ['a drain reporting a failed row', drainReceipt({}, { failed: 1 }), 'created', 'drain_row_failed'],
+    ['a receipt for a different intent', drainReceipt({ dedup_key: 'someone-elses' }), 'created',
+      'drain_receipt_missing'],
+    ['a response with no receipt at all', { ok: true, counts: {} }, 'created', 'drain_receipt_missing'],
+    // A create skipped for any reason OTHER than the two named above still
+    // refuses, just under the generic code -- the enumeration is a diagnostic
+    // refinement, never an escape hatch.
+    ['a create skipped on a parent conflict',
+      drainReceipt({
+        status: 'skipped',
+        linear_result: { conflict: { decision: 'parent_create_idempotency_conflict' } },
+      }, { written: 0, skipped: 1 }), 'created', 'drain_create_not_written'],
+  ];
+  for (const [label, drain, expect, expectedCode] of drainCases) {
+    ok(drainCode(drain, expect) === expectedCode, `${label} refuses as ${expectedCode}`);
+  }
+  ok(drainCode(drainReceipt(), 'created') === null,
+    'a written create that minted an issue passes the strict receipt check');
+  ok(drainCode(drainReceipt({ linear_result: { conflict: {}, issue: { id: 'i' } } }), 'created') === null,
+    'the minted id is accepted from linear_result.issue.id as well as issue_id');
+
+  // Cleanup runs under partial failure by design. A re-drained archive intent
+  // can legitimately come back skipped or stale, and ensureDedupTerminal
+  // already defines terminal as exactly that set, so a written-only rule here
+  // would turn healthy recovery into a coded failure and strand the run.
+  for (const status of ['written', 'skipped', 'stale']) {
+    ok(runner.DRAIN_TERMINAL_STATUSES.has(status),
+      `cleanup still tolerates a ${status} re-drain`);
+    ok(drainCode(drainReceipt({ status, linear_result: {} }), 'terminal') === null,
+      `a ${status} cleanup re-drain is not a failure`);
+  }
+  // ...but cleanup still refuses a non-terminal row and a failed count.
+  ok(drainCode(drainReceipt({ status: 'pending' }, { written: 0 }), 'terminal')
+    === 'drain_intent_not_terminal',
+  'a cleanup re-drain that left its intent pending still refuses');
+  ok(drainCode(drainReceipt({ status: 'skipped' }, { failed: 1 }), 'terminal') === 'drain_row_failed',
+    'a cleanup re-drain that reported a failed row still refuses');
+  // The tolerated-historical and stale codes are create-only. Firing them from
+  // cleanup is exactly the regression this parameterization prevents.
+  ok(drainCode(drainReceipt({
+    status: 'skipped',
+    linear_result: { conflict: { decision: 'tolerated_historical' } },
+  }, { written: 0, skipped: 1 }), 'terminal') === null,
+  'tolerated_historical is a create-only refusal, never a cleanup one');
+
+  // Every call site declares its expectation, and the fixture creates are the
+  // only strict ones.
+  ok(/async function drainTestOutbox\(runtime, dedup, stage, expect\)/.test(source),
+    'drainTestOutbox takes a required per-call-site expectation');
+  ok(/assert\(DRAIN_EXPECTATIONS\.has\(expect\), stage,[\s\S]{0,160}'drain_expectation_missing'\)/
+    .test(source),
+  'drainTestOutbox refuses at runtime when no expectation was declared');
+  const drainCallSites = [...source.matchAll(/drainTestOutbox\(runtime, [A-Za-z]+, '[a-z0-9_]+'(?:, '([a-z]+)')?\)/g)]
+    .map(match => match[1]);
+  ok(drainCallSites.length === 7 && drainCallSites.every(expect => expect === 'created' || expect === 'terminal'),
+    `every drainTestOutbox call site declares an expectation (${drainCallSites.length} sites)`);
+  ok(drainCallSites.filter(expect => expect === 'created').length === 2,
+    'exactly the two fixture creates use the strict expectation');
+  ok(/return assertDrainReceipt\(drain, dedup, stage, expect\);/.test(source),
+    'drainTestOutbox hands the checked receipt back rather than discarding it');
+
   // ---- Linear query complexity: every nested connection is bounded --------
   // An unbounded nested connection takes the platform default of 50, which
   // multiplies against the outer page size. projects(250) x teams(default 50)

@@ -46,6 +46,37 @@ All times are UTC unless noted.
   it exposed protected plan URLs, and `9e5abc46-91f0-49f8-b815-fcc6baa93891`
   is pruned/non-retrievable.
 
+## 2026-07-28 — MILESTONE: blockers #8 and #9 proven by Slice 5 TEST drill run #17
+
+- **Run #17** (`196afb803fb15de56227051fbb2be4bcfd0a50b5`, 54m 12s) passed **every drill stage**:
+  `f94_negative`, `f94_stale_picker`, `f136_matrix`, `f37_identity`, `f95_convergence`. This is the
+  first end-to-end exercise of the assignment and live-refresh paths against the deployed gateway
+  with real Linear issues, and it closes the proof owed by `docs/ops/SLICE5_APPLY_WINDOW.md` §3
+  items 1-5.
+  - **F94** — every ineligible assignment refused with zero `deliverables` mutation, zero
+    `deliverable_events` row and zero `mirror_outbox` row; eligible assignment produces all three.
+  - **F136** — the full 13×13 status matrix, across owned/peer/unassigned and both list and direct
+    routes, matches `CREATIVE_STATUS_TRANSITIONS` exactly. **No permission escape**: the
+    direction-split codes (`f136_gateway_more_permissive` / `_more_restrictive`) did not fire.
+  - **F37** — every active creative resolves to their own queue only.
+  - **F95** — two foreground contexts converge within one tick, with scroll position preserved.
+- **The run did not finish green.** It failed at `read_rebaseline` with
+  `rebaseline_medians_unbounded` — a **parser defect in the drill**, not a performance regression.
+  `qa/probes/prod_read_path_timing.js:118` prints `wall_med=${String(...).padStart(5)}ms`, padding
+  with spaces, while the drill's regex requires a digit immediately after `=`. It therefore matches
+  zero times for any median under 10000 ms — the check can only pass when the read path is
+  catastrophically slow. The probe's own first assert passed (exit 0, no FAILED marker), so the read
+  path is healthy; only the drill's reading of it is broken. Fix owed.
+- **What it took to get here**, because the count matters for judging the harness: runs #9-#16 each
+  failed on a *different* defect, and every one was found rather than caused. In order — no failure
+  codes at all; an over-strict client-row precondition; a nested-connection complexity rejection; a
+  missing F27 database function that made **every** entity write impossible; a facts sanitizer that
+  corrupted its own output by being non-idempotent; and a Production-tab flex chain rooted in
+  `min-height` that left the list unscrollable. Only the last was a product defect a user could
+  have hit; the rest were the harness refusing to report a false pass.
+- **Still owed before either team flips:** F27's outbound bridge, the `read_rebaseline` parser fix
+  and a green end-to-end run, plus confirmation that run #17's cleanup archived its TEST issues.
+
 ## 2026-07-28 — INCIDENT (open, flip-blocking): `production-write` cannot perform any entity write
 
 - **Found by** Slice 5 TEST drill run #12 (`928d0e6`), which failed with

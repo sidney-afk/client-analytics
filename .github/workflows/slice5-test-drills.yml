@@ -144,11 +144,14 @@ jobs:
               stage="$(node -e 'const r=require("./artifacts/slice5-test-drills-failure.json");process.stdout.write(String(r.stage||"unavailable"))' 2>/dev/null || echo unavailable)"
               code="$(node -e 'const r=require("./artifacts/slice5-test-drills-failure.json");process.stdout.write(String(r.failure_code||"unavailable"))' 2>/dev/null || echo unavailable)"
               http="$(node -e 'const r=require("./artifacts/slice5-test-drills-failure.json");process.stdout.write(String(r.http_status||0))' 2>/dev/null || echo 0)"
-              # The expected/actual pair, when the refusal carried one. Every
-              # value here is an allowlisted enum or a small integer, produced
-              # by publicFacts in the script and re-checked by the validator
-              # below before this report is ever uploaded.
-              facts="$(node -e 'const f=(require("./artifacts/slice5-test-drills-failure.json").facts)||{};if(!f.probe||f.probe==="none")process.exit(0);process.stdout.write(` probe=${f.probe} expected=${f.expected_status}/${f.expected_code} actual=${f.actual_status}/${f.actual_code}`)' 2>/dev/null || echo)"
+              # Whichever public facts the refusal carried. Every field defaults
+              # to "none" or 0, so printing exactly the NON-default ones means a
+              # code with no meaningful pair prints no pair instead of an empty
+              # 0/none, and a new fact field needs no change here. Every value
+              # is an allowlisted enum or a small integer, produced by
+              # publicFacts in the script and re-checked by the validator below
+              # before this report is ever uploaded.
+              facts="$(node -e 'const f=(require("./artifacts/slice5-test-drills-failure.json").facts)||{};const p=Object.entries(f).filter(([,v])=>v!=="none"&&v!==0).map(([k,v])=>`${k}=${v}`);if(p.length)process.stdout.write(" "+p.join(" "))' 2>/dev/null || echo)"
             fi
             # http_status is 0 when no HTTP call produced the failure. A numeric
             # status names the class of failure without describing any client,
@@ -352,7 +355,8 @@ jobs:
             'f136_accepted_tuple_not_dispatched',
             'f136_control_request_count_wrong',
             'f136_control_coverage_incomplete',
-            'f136_policy_oracle_mismatch',
+            'f136_gateway_more_restrictive',
+            'f136_gateway_more_permissive',
             'f136_policy_totals_incomplete',
             'f136_unexpected_gateway_response',
             'f136_creative_transitions_mismatch',
@@ -419,7 +423,8 @@ jobs:
             'bounded_operation_timeout',
             'bounded_resource_timeout',
             'bounded_resource_expired',
-            // Which F94 probe was in flight, and the gateway refusal
+            // Public-fact values: which probe or matrix cell was in
+            // flight, which way it diverged, and the gateway refusal
             // enums a probe may observe. Same sync rule as above.
             'inactive',
             'cross_team',
@@ -456,6 +461,32 @@ jobs:
             'client_scope_mismatch',
             'credentials_required',
             'invalid_staff_key',
+            'gateway_more_restrictive',
+            'gateway_more_permissive',
+            'admin',
+            'smm',
+            'creative',
+            'list',
+            'direct',
+            'forbidden',
+            'authority_fenced',
+            'unexpected',
+            'own',
+            'peer',
+            'unassigned',
+            'triage',
+            'backlog',
+            'todo',
+            'in_progress',
+            'smm_approval',
+            'kasper_approval',
+            'client_approval',
+            'tweak',
+            'approved',
+            'scheduled',
+            'posted',
+            'canceled',
+            'duplicate',
             // Whether the provider-inactive negative case could be proven.
             'proven',
             'not_proven_no_inactive_provider',

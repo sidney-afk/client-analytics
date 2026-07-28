@@ -1,6 +1,6 @@
 # n8n — current truth
 
-> Last verified: 2026-07-20 @ c51f897 (F124 CLIENTS METRICS live receipt/coverage/quota proof; other statements retain their dated sources)
+> Last verified: 2026-07-27 @ b6ce352 (F44 live Client Example durable-receipt/triage probe; other statements retain their dated sources)
 > Live facts from `docs/audits/2026-07-05-n8n.md` (verified 2026-07-05) unless noted.
 > n8n remains load-bearing for many unmigrated readers/writers and as dormant Track-A fallback;
 > full-active-roster Calendar/SXR/settings writes now use Edge Functions. Snapshot workflows
@@ -45,18 +45,31 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
 - VIDEO PRODUCTION AUTOMATION ground truth: "Pick Freest Editor" = fewest open sub-issues
   among Video Editors-tab emails (ties by API order); graphic-form assigns a hardcoded single
   designer; the AI-thumbnail chain is **disconnected dead code** — don't budget a port.
-- F44 server containment is live on VIDEO PRODUCTION AUTOMATION workflow
-  `BrJSe8zCKUccfmIq`, active version `af7671ab-deca-4470-a08b-ce591f59e08b`. Intake
-  persists an idempotent Supabase receipt before work, strictly preflights exactly one project plus
-  SMM credential and roster, and returns success only after exact parent/child create confirmation.
-  A blank client filming-plan field is valid: after receipt claim, the protected server mapping is
-  used; a missing or conflicting mapping creates visible internal work markers and alerts the assigned
-  SMM instead of refusing the filmed work. Bounded retry and payload-bearing dead-letter/replay support
-  partial-create operator recovery. Safe malformed probes `268305` and `268306` returned 400 before
-  receipt/create; live receipt rows remained zero and no work was created. Version
-  `9e5abc46-91f0-49f8-b815-fcc6baa93891` predates this containment and would reintroduce the
-  blank-plan block; `66e41fca-a86f-4ef3-a977-8ba960bc152d` must not be restored because it returned
-  the protected plan URL to an intake caller. Keep the current version as the recovery baseline.
+- F44 durable client intake is live on VIDEO PRODUCTION AUTOMATION workflow
+  `BrJSe8zCKUccfmIq`, active version `28dacc7f-4dd7-4d65-ba88-31db737c2c65`.
+  The Supabase receipt is inserted/claimed before authority or Linear preflight. Exact parent/child
+  confirmation still returns `created`; a valid payload already durably captured but unable to create
+  Linear work returns a strict HTTP 202 `received` acknowledgement instead. `received` is not a new
+  ledger state: its ledger is `pending`, `failed`, or `partial`, it creates no Calendar job, and it
+  tells the client that staff will complete an internal step. The response is bound to the exact
+  receipt/hash/team/idempotency key and cannot be used to represent an unrecorded submission.
+  Protected server-only filming-plan resolution remains in place. A missing/conflicting plan is never
+  a client refusal: a successful Linear create carries the internal marker, while a plan problem that
+  accompanies a create blocker is retained in triage. Missing or invalid SMM credentials, project/team
+  mappings, roster/assignee resolution, authority decisions, Linear API failures, and failed exact
+  confirmation likewise become retained staff triage. The workflow sends every `received` triage to an
+  unconditional human Slack fallback, independent of the client's per-SMM recipient; response output
+  precedes the dead-letter mirror and alert so their failure cannot block the client acknowledgement.
+  A fresh no-staff QA probe produced execution `313787`:
+  the receipt was retained `failed` with `filming_plan_mapping_missing` and
+  `smm_credential_missing`, returned the strict 202 received contract, and the fallback DM succeeded.
+  Browser code never automatically replays a retained receipt; only a server-side operator claim can
+  resume it. Malformed input still receives a correction 400 before receipt creation. A receipt-store
+  or transport outage cannot honestly claim durable capture and remains a separate availability
+  incident, not a configuration fallback. Emergency-only rollback is n8n history version
+  `af7671ab-deca-4470-a08b-ce591f59e08b`; it reintroduces the no-refuse defect. Do not restore
+  `66e41fca-a86f-4ef3-a977-8ba960bc152d` (protected plan URL exposure); historical
+  `9e5abc46-91f0-49f8-b815-fcc6baa93891` is pruned and not retrievable.
 - Historical 2026-07-05 sizing was ~25 calendar upserts, ~41 set-status, and ~27 inbound Linear
   events/day across the then-current topology. Do not use the inbound count as current n8n traffic:
   B3 now enters through the Edge Function and the legacy n8n receiver is inactive (F46).

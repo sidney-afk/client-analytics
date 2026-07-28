@@ -2,6 +2,50 @@
 
 All times are UTC unless noted.
 
+## 2026-07-27 — F44 legacy intake: durable received fallback generalized and live-proven
+
+- **Scope and live version.** VIDEO PRODUCTION AUTOMATION
+  (`BrJSe8zCKUccfmIq`) is active at
+  `28dacc7f-4dd7-4d65-ba88-31db737c2c65`. Its receipt claim now precedes
+  authority and all Linear-create prerequisites. Exact confirmed Linear work
+  still returns `created`; a valid payload already durably retained but blocked
+  by any internal prerequisite returns strict HTTP 202 `received`, with
+  `durable_capture:true`, `triage_required:true`, and a receipt-bound
+  idempotency key. `received` is not a ledger state and does not claim a
+  Linear issue or Calendar card.
+- **Prerequisite boundary.** Server-side plan resolution remains protected.
+  Missing/conflicting plan mappings, missing/invalid SMM credentials,
+  project/team mapping failure, roster/assignee failure, authority failure,
+  Linear API failure, and failed exact confirmation now retain the receipt and
+  raise staff triage rather than reject a client. Malformed input remains a
+  pre-receipt 400; a receipt-store or transport outage cannot truthfully claim
+  durable capture and is a separate availability incident.
+- **Human notification independent of SMM.** The post-receipt triage branch
+  uses an unconditional human Slack fallback rather than the client SMM. The
+  response node runs before the dead-letter mirror/Slack fan-out, so an alert
+  failure cannot turn a durable handoff into a client failure. Browser code
+  treats `received` as terminal and never automatically replays it; staff use
+  the retained receipt plus an explicit operator claim after correcting the
+  prerequisite.
+- **One supervised no-staff live probe.** The designated non-paying QA fixture
+  ran from a fresh no-staff `?intake=1#linear` session with a clearly marked
+  test title. Execution `313787` retained its Video receipt as `failed` with
+  both `filming_plan_mapping_missing` and `smm_credential_missing`, returned
+  the strict 202 received acknowledgement, rendered the browser's received
+  success state rather than “Submission incomplete,” and completed the fallback
+  Slack DM successfully. No Linear issue existed to archive because the missing
+  credential intentionally prevented creation; the retained marked receipt is
+  the recovery/audit record and must not be deleted while unresolved.
+- **Backup and rollback honesty.** The earlier live F44 workflow edit occurred
+  **without a private pre-edit JSON export**. That cannot be papered over or
+  repaired retroactively. Before this generalized change, a fresh private
+  snapshot of `af7671ab-deca-4470-a08b-ce591f59e08b` was captured outside this
+  repository. The actual current rollback route is n8n version history to that
+  version ID; it is emergency-only because it restores the missing-SMM 422
+  client refusal. `66e41fca-a86f-4ef3-a977-8ba960bc152d` is prohibited because
+  it exposed protected plan URLs, and `9e5abc46-91f0-49f8-b815-fcc6baa93891`
+  is pruned/non-retrievable.
+
 ## 2026-07-27 — INCIDENT (open): the weekly n8n workflow export is silently partial
 
 - **Found while** verifying a pre-edit backup for the onboarding-provisioning workflow, as

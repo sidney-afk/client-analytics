@@ -32,8 +32,8 @@ ok(contract.authoritative_store.kind === 'supabase'
   && contract.authoritative_store.name === 'linear_intake_receipts'
   && contract.authoritative_store.primary_key === 'receipt_key',
   'Supabase is the named primary-key receipt authority');
-ok(contract.schema_version === 2,
-  'receipt contract version includes database-bound canonical payload and replay claims');
+ok(contract.schema_version === 3,
+  'receipt contract version distinguishes durable client receipt from confirmed Linear creation');
 ok(contract.operator_mirror.id === 'EncletbVvvYfSDfF'
   && contract.operator_mirror.project_id === '4dvRQbC5gyJNowXX'
   && contract.operator_mirror.authority === false
@@ -118,14 +118,23 @@ ok(Object.keys(states).sort().join(',') === 'created,failed,partial,pending',
 ok(/fresh pending row is an in-progress workflow/i.test(states.pending)
   && /full payload/i.test(states.failed)
   && /expected issue/i.test(states.partial)
-  && /only success state/i.test(states.created),
-  'pending is concurrency-safe, failures stay replayable, and only confirmed creation is success');
+  && /only ledger state that proves confirmed Linear creation/i.test(states.created),
+  'pending is concurrency-safe, failures stay replayable, and only created proves Linear work');
+ok(contract.client_acknowledgements.created.includes('status=created')
+  && contract.client_acknowledgements.received.includes('status=received')
+  && contract.client_acknowledgements.received.includes('durable_capture=true')
+  && contract.client_acknowledgements.received_ledger_statuses.join(',') === 'pending,failed,partial'
+  && /not a receipt-table status/i.test(contract.client_acknowledgements.received)
+  && /stops automatic browser replay/i.test(contract.client_acknowledgements.client_replay_rule),
+  'the client receipt acknowledgement is durable but does not misrepresent Linear creation');
 
 ok(contract.retry.max_attempts === 3
   && contract.retry.backoff_seconds.length === contract.retry.max_attempts
   && contract.retry.automatic_retry_requires_zero_created_issue_ids === true
+  && /in-worker/i.test(contract.retry.automatic_retry_scope)
+  && contract.retry.browser_automatic_replay === false
   && contract.retry.timeout_is_failure === true,
-  'automatic retries are bounded and stop immediately after a partial create or timeout');
+  'only in-worker create retries are bounded; a client never automatically replays a retained receipt');
 
 ok(contract.identity.linear_uuid_namespace === '8ec6f2de-20f4-4dc3-8f21-8b3298e780db'
   && /<receipt_key>:parent/.test(contract.identity.parent_seed)
@@ -138,10 +147,12 @@ ok(contract.replay.resume_only_missing_expected_issue_ids === true
   && contract.replay.parent_replay_requires_recorded_absence_confirmation === true
   && contract.replay.never_clear_created_issue_ids === true
   && contract.replay.allowed_source_states.join(',') === 'failed,partial'
-  && contract.replay.operator_required_source_states.join(',') === 'partial'
-  && contract.replay.requires_operator_identity === 'partial only'
-  && /failed receipt may be claimed/i.test(contract.replay.automatic_failed_retry)
+  && contract.replay.client_automatic_replay === false
+  && contract.replay.operator_required_source_states.join(',') === 'failed,partial'
+  && contract.replay.requires_operator_identity === 'failed and partial'
+  && contract.replay.requires_reason === 'failed and partial'
   && /unchanged payload_json/.test(contract.replay.transport)
+  && /authenticated operator/i.test(contract.replay.transport)
   && /operator_replay_id/.test(contract.replay.transport)
   && /exactly matches/.test(contract.replay.operator_claim_capability)
   && /payload_hash/.test(contract.replay.replay_note_rule),

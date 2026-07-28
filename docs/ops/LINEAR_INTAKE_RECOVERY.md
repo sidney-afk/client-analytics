@@ -9,9 +9,24 @@ also copied to n8n Data Table `linear_intake_receipts` in project
 dead-letter mirror. The machine-readable row and state contract is
 `docs/ops/linear-intake-receipts.contract.json`.
 
-The green confirmation is valid only for a receipt whose `status` is `created`.
+## Client acknowledgement contract
+
+There are two valid client-facing terminal outcomes for a valid intake payload:
+
+- `created` means the receipt has `status = created` and the exact Linear parent
+  plus every expected child have been read back. This is the only claim that
+  Linear work or a Calendar card exists.
+- `received` means the workflow returned strict HTTP 202 with
+  `durable_capture: true` and `triage_required: true`, bound to the exact
+  receipt/hash/team/idempotency key. Its ledger remains `pending`, `failed`, or
+  `partial`; `received` is a transport acknowledgement, not a new receipt-table
+  state and not a claim that Linear work exists. The client has succeeded in
+  handing off the filmed work and must not be asked to resend it.
+
 An HTTP 200, a completed n8n execution, a stored receipt, or one created Linear
-issue is not by itself a successful submission.
+issue is not by itself proof of the `created` outcome. Conversely, never show
+`received` unless the authoritative receipt was durably written and exactly
+bound to the response.
 
 ## Safety boundary
 
@@ -39,12 +54,36 @@ issue is not by itself a successful submission.
   n8n/Linear operator surfaces.
 - Do not delete an unresolved receipt. Its payload is the dead letter and the
   only server-side replay source after the browser closes.
+- The browser never automatically retries a receipt after a `received` result.
+  Only a staff operator may claim a `failed` or `partial` receipt and supply the
+  private `operator_replay_id` transport capability.
+
+## Internal-prerequisite triage
+
+After a valid receipt exists, a missing protected filming-plan mapping, SMM
+credential, project mapping/team match, editor/assignee roster, legacy
+authority decision, Linear API response, or exact Linear readback is staff
+triage—not client correction. Resolve the filming plan only on the server; do
+not make the protected plan reader anonymous. If Linear work can be created
+without a plan, its parent receives the internal missing-plan marker. If a
+genuine Linear prerequisite is missing, the receipt is retained and the client
+gets `received` instead.
+
+Every `received` triage is sent to the workflow's unconditional human Slack
+fallback, not only to the client-assigned SMM. A plan-only successful create
+keeps its existing internal marker/assigned-SMM alert. The receipt response
+runs before the dead-letter/alert fan-out, so a notification outage cannot turn
+a durable client handoff into a client refusal. A malformed payload remains a
+pre-receipt 400 correction. If the authoritative receipt store itself is
+unavailable, the system cannot honestly return `received`; treat that as a
+capture-availability incident and never blame it on a client configuration.
 
 ## Triage one receipt
 
 1. Open Supabase `public.linear_intake_receipts` and filter for the exact
-   `receipt_key` reported by the UI as its copyable **Recovery ID**, or by the
-   n8n execution. There must be one
+   `receipt_key` in the unconditional triage alert or the n8n execution. A
+   `received` browser result intentionally clears its local draft/receipt, so do
+   not ask the client to retry just to obtain an ID. There must be one
    authoritative row because `receipt_key` is the primary key. The n8n mirror
    may help locate a failed/partial receipt, but re-read Supabase before acting.
 2. Record the receipt's status, attempts, deterministic expected issue IDs,
@@ -75,27 +114,31 @@ issue is not by itself a successful submission.
    - Any Linear read is unavailable or ambiguous: leave the row unresolved and
      stop. An unknown result is not permission to create.
 
-## Normal retry for a failed receipt
+## Operator-only replay for a received receipt
 
-A `failed` receipt with no confirmed IDs can be retried from Submit. The
-workflow atomically claims that same row and reuses the same payload, receipt
-key, parent UUID, and child UUIDs. Every possible create is preceded by an
-available exact-ID read, so a create whose earlier response was lost is read
-back instead of duplicated. Submit cannot automatically replay a `partial`
-receipt. Once a server receipt exists, the browser never abandons it for a new
-hash: dependency fixes are retried against the immutable payload and Recovery
-ID. A blank filming-plan field is valid intake input: after the receipt claim,
-the protected server mapping attaches the plan. If no mapping is available,
-the parent still creates with an internal missing-plan marker and an SMM alert;
-repair the mapping for future submissions without asking the client to resend
-their filmed work.
+A `failed` or `partial` receipt behind a client `received` acknowledgement is
+never retried from Submit. Correct the internal prerequisite, then have an
+authenticated operator atomically claim that same row and reuse its immutable
+payload, receipt key, deterministic parent UUID, and child UUIDs. Every
+possible create is preceded by an available exact-ID read, so an earlier lost
+response is read back instead of duplicated. Once a server receipt exists, the
+browser never abandons it for a new hash and never replays it automatically.
 
-## Operator replay for a partial receipt
+A blank filming-plan field remains valid intake input: the server resolves the
+protected mapping after receipt claim. A missing mapping is a marker/alert
+condition, not a reason to hold client work. The same principle applies to a
+missing SMM credential, project/team mapping, roster/assignee, authority,
+Linear availability, or confirmation: repair it internally and explicitly
+replay the retained receipt; never ask the client to resubmit.
+
+## Operator replay for a received failed/partial receipt
 
 1. Correct the blocking dependency first (for example the single client/team
-   project mapping, SMM credential, or active roster). A missing filming-plan
-   mapping is an alert/repair condition, not a reason to reject or hold client work.
-   Run the same preflight used by Submit and require the blocking checks to pass.
+   project mapping, SMM credential, active roster, authority stance, or Linear
+   availability). A missing filming-plan mapping is an alert/repair condition,
+   not a reason to reject or hold client work. Run the same preflight used by
+   the worker and require the blocking checks to pass. Verify that the
+   unconditional human alert has a recipient even if the client has no SMM.
 2. Build a **new** stable JSON `replay_note`; never append text to or reuse the
    prior note. It must contain:
 

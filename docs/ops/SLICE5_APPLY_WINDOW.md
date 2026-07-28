@@ -125,6 +125,17 @@ rather than allowing an unchecked assignment.
 
 ## 3. What is still owed after this window (not in scope here)
 
+> **UPDATE 2026-07-28 — items 1-5 are DISCHARGED.** Slice 5 TEST drill run #17
+> (`196afb803fb15de56227051fbb2be4bcfd0a50b5`, 54m 12s) passed `f94_negative`,
+> `f94_stale_picker`, `f136_matrix`, `f37_identity` and `f95_convergence` end to end against the
+> deployed gateway with real Linear issues. F136 in particular found **no permission escape** — the
+> full 13×13 matrix across owned/peer/unassigned and both routes matches `CREATIVE_STATUS_TRANSITIONS`
+> exactly. **Item 6 (read-path re-baseline) remains owed**: the run failed there on
+> `rebaseline_medians_unbounded`, which is a parser defect in the drill (the timing probe pads its
+> medians with spaces; the drill's regex requires a digit immediately after `wall_med=`), not a
+> performance regression — the probe itself exited clean. See `EXECUTION_LOG.md` for the full record.
+
+
 These are the gates that make F94/F136 *proven* rather than *implemented*. None of them is a real
 write against a real team; all of them run against the active TEST client with the service-only
 override.

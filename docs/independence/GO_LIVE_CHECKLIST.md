@@ -294,14 +294,25 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
       still tracks pinned direct imports, CLI/config manifests, and deliberate dependency updates. The
       six onboarding-family floating imports require a later deliberate release and are not part of
       the scoped F27 toolkit pin.
-- [x] **Authority vocabulary is singular** (F55, 2026-07-28): every browser, EF, reconciler, n8n
-      guard, flag writer, and runbook accepts exactly `linear|syncview`. The backend-only
-      `supabase` alias was removed/migrated everywhere it was accepted (`production-write`,
-      `linear-outbound`, `linear-inbound`, `_shared/b4-write.ts`, the reconcilers, the n8n guard,
-      and the pending F27 SQL — none of it live-applied), missing/malformed/legacy values are now
-      rejected consistently (including two silent-default-to-`linear` bugs found in the process),
-      and `test/f55-authority-vocabulary-contract.js` is the all-consumer contract test. No
+- [ ] **Authority vocabulary is singular** (F55): **source complete 2026-07-28, ONE live re-apply
+      owed.** Every browser, EF, reconciler, n8n guard, flag writer, and runbook now accepts
+      exactly `linear|syncview`. The backend-only `supabase` alias was removed/migrated everywhere
+      it was accepted (`production-write`, `linear-outbound`, `linear-inbound`,
+      `_shared/b4-write.ts`, the reconcilers, the n8n guard, and both F27 SQL copies),
+      missing/malformed/legacy values are now rejected consistently (including two
+      silent-default-to-`linear` bugs found in the process), and
+      `test/f55-authority-vocabulary-contract.js` is the all-consumer contract test. No
       `prod_authority` flag value changed.
+      **Why this box is not yet ticked:** one consumer is a live database function, not source.
+      `2026-07-28-f27-write-authorization-only.sql` was **applied to production on 2026-07-28**
+      (cloud-review probe, same day: `track_b_f27_write_authorization` returns
+      `401 42501 permission denied for function`, i.e. it exists and anon correctly cannot execute
+      it, while `track_b_f27_hold_guard`, `production_assert_authority`, and a deliberately fake
+      control name all return `404 PGRST202`). Editing that file in the repo does not change the
+      database, so **the live function still accepts `supabase`** until its `create or replace`
+      block is re-pasted in the Supabase SQL editor. That re-apply is additive and idempotent and,
+      with both teams at `linear`, changes no live decision — it is a step, not a risk. Tick this
+      box when the re-apply is done and read back; record it in `EXECUTION_LOG.md`.
 - [ ] **Intake migration applied** (`production_intake_append` RPC) and pilot-verified on the
       TEST client.
 - [ ] **Intake cannot acknowledge work it has not durably accepted** (F44): every legacy/native

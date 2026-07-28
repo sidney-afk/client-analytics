@@ -71,6 +71,32 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
 
 ---
 
+## OWNER RE-SCOPE — 2026-07-28 (ratified in session; governs every box below)
+
+The owner walked the four re-scope decisions prepared by `PHASE0_AUDIT_2026-07-28.md` and ratified:
+
+1. **Security containment bucket (~18 items) → POST-FLIP workstream.** F64, F122, F118, F76, F77,
+   F91, F106, F107, F115, F116, F123, F84, F85, F86, F87, F81, F48, F52, F129, F110, F111 are no
+   longer flip gates. They remain open, real, and scheduled as a dated post-flip workstream —
+   these exposures exist today with Linear as boss; the flip neither causes nor worsens them.
+2. **QA-drill bucket (~55 items) → POST-FLIP, except the Graphics-specific subset.** Kept as flip
+   gates: **F53** (graphics canonical media), **F12** (submit-graphics TEST drill),
+   **F201/F202/F203** (graphics mutation surface), **F40** (per-team workload authority), plus
+   everything in the audit's mechanical-minimum bucket (F50, F32, F36 residue, F07-at-flip).
+   All other drills move to the post-flip list.
+3. **Owner-question bucket (~15 items):** every shipped strictest default REMAINS in force
+   operationally; the owner chose an **individual review sitting** rather than blanket
+   ratification. That review is scheduled and explicitly does NOT block the flip — nothing ships
+   looser until it happens.
+4. **Parity lane armed EARLY, this week**, as a supervised owner window (FLIP_RUNBOOK §F4 forward
+   block): Phase 1 step 3 pulled ahead of Phase 0.75 enforcement by explicit owner decision,
+   because the same switch closes the mark-done regression's larger population across 24 clients.
+   Rollback is the §F4 one-CAS kill. This deliberately precedes the F56/F63 preflight machinery;
+   the deviation is recorded here rather than made silently.
+
+Boxes covered by decisions 1–3 stay unchecked but are governed by this block. Nothing in this
+block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
+
 ## Phase 0 — Preconditions (ALL boxes before first real-client enrollment)
 
 **Build/fix gates (Codex):**

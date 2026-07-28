@@ -1426,6 +1426,68 @@ async function poll(runtime, stage, label, code, fn, timeoutMs = 60_000, interva
   fail(stage, `${label} timed out`, { last }, code);
 }
 
+/* Read a batch's PARENT-ISSUE linkage out of linear_parent_ids.
+
+   Derived from mergeBatchParentIds (supabase/functions/linear-outbound/
+   mapping.mjs), which is the only writer of that column. It ends with:
+
+     parents[parentTeamKey(team)] = { uuid, identifier, url }
+
+   Three properties of that writer this reader mirrors:
+
+   1. The stored value is a TEAM-KEYED OBJECT, and the key is normalized by
+      parentTeamKey: gra/graphic/graphics -> 'graphics', everything else ->
+      'video'. Matching the raw team string would miss a 'GRA' or 'VID' key.
+   2. The issue id is under `uuid`. mergeBatchParentIds ACCEPTS id and
+      linear_issue_id on its array input, but the only key it ever EMITS for
+      the team it writes is `uuid`.
+   3. Its object branch copies teams it is not writing straight through with
+      `{ ...value }`, so an entry stored before that normalization can survive
+      carrying `id` or `linear_issue_id` and no `uuid`. That, and only that, is
+      why the two fallbacks below exist -- they are not speculative tolerance.
+
+   The array branch mirrors the array input mergeBatchParentIds itself accepts,
+   for rows written before it normalized them to an object.
+
+   This is deliberately NOT projectIdsForTeam. That reads
+   clients.linear_project_ids, a PROJECT-id map keyed id/project_id/
+   linear_project_id. linear_parent_ids is parent-ISSUE linkage with a
+   different schema and a different writer; the two are unrelated. */
+function parentTeamKey(value) {
+  const key = lower(value);
+  return key === 'gra' || key === 'graphic' || key === 'graphics'
+    ? 'graphics'
+    : 'video';
+}
+
+function parentIssueIdsForTeam(value, wantedTeam) {
+  let parsed = value;
+  if (typeof parsed === 'string') {
+    try { parsed = JSON.parse(parsed); } catch (_) { parsed = {}; }
+  }
+  const wanted = parentTeamKey(wantedTeam);
+  const found = new Set();
+  const idFrom = entry => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return '';
+    return clean(entry.uuid) || clean(entry.id) || clean(entry.linear_issue_id);
+  };
+  if (Array.isArray(parsed)) {
+    for (const entry of parsed) {
+      if (!entry || typeof entry !== 'object') continue;
+      if (parentTeamKey(entry.team || entry.team_key || entry.key) !== wanted) continue;
+      const id = idFrom(entry);
+      if (id) found.add(id);
+    }
+  } else if (parsed && typeof parsed === 'object') {
+    for (const [key, entry] of Object.entries(parsed)) {
+      if (parentTeamKey(key) !== wanted) continue;
+      const id = idFrom(entry);
+      if (id) found.add(id);
+    }
+  }
+  return [...found].sort();
+}
+
 function projectIdsForTeam(value, wantedTeam) {
   const wanted = lower(wantedTeam);
   const found = new Set();
@@ -2123,7 +2185,7 @@ async function createFixture(runtime, plan) {
   const linkedBatch = await poll(runtime, 'preflight', 'TEST batch fixture linkage',
     'fixture_batch_linkage_timeout', async () => {
     const row = await assertRunOwnedBatch(runtime, batch.row.id, 'preflight');
-    const ids = projectIdsForTeam(row.linear_parent_ids, MATRIX_TEAM);
+    const ids = parentIssueIdsForTeam(row.linear_parent_ids, MATRIX_TEAM);
     return ids.length === 1 ? { row, issueId: ids[0] } : null;
   });
   // Verify the project the write path ACTUALLY used, on the first TEST issue
@@ -4282,7 +4344,7 @@ async function providerIssueIdFor(runtime, kind, id, row) {
     [row.linear_issue_uuid, rawIssue.id].map(clean).filter(Boolean)
       .forEach(value => candidates.add(value));
   } else {
-    projectIdsForTeam(row.linear_parent_ids, MATRIX_TEAM)
+    parentIssueIdsForTeam(row.linear_parent_ids, MATRIX_TEAM)
       .forEach(value => candidates.add(value));
   }
   const creates = await restRead(runtime,
@@ -5190,6 +5252,8 @@ module.exports = {
   postgrestMemberReferenceIds,
   flatClientProjectIds,
   intakeProjectIssueUsable,
+  parentIssueIdsForTeam,
+  parentTeamKey,
   projectIdsForTeam,
   verifyGatewayIntakeProject,
   readCompleteRoster,

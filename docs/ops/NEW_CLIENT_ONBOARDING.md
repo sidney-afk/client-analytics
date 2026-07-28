@@ -1,6 +1,6 @@
 # New Client Onboarding Runbook (SyncView)
 
-**Purpose:** the complete, do-not-forget checklist for bringing a brand-new client online across every SyncView system — the dashboard code, the Google Sheets, n8n, Supabase, Linear, Slack, and Post For Me.
+**Purpose:** the complete, do-not-forget checklist for bringing a brand-new client online across every SyncView system — the dashboard code, the Google Sheets, n8n, Supabase, Linear, Slack, Roam, and Post For Me.
 
 **How to use it:** skim **§1 (Quick Checklist)** and tick the boxes. Each box links down to a detailed step. **§7** is a reference appendix (IDs, where the secrets live, the SMM roster).
 
@@ -16,10 +16,11 @@
 | **"SYNCVIEW" Google Sheet** (`10QQ…QqAU8`) | The real per-client config for **Clients Info**, **Social Media Managers**, Templates, CaptionPrompts (+ data tabs the robots fill). | ✅ **2-3 rows** |
 | **"SyncView Calendar" Google Sheet** (`1Gsn…A9Yps`) | `Calendar_<slug>` / `Samples_<slug>` / `TikTokUploads` tabs. **Now a legacy mirror** of Supabase. | ⚪ Optional |
 | **Supabase** (`uzltbbrjidmjwwfakwve`) | `filming_plans` (master filming Doc links), `calendar_posts`, and `content_samples`. | ✅ Filming plan link via app; calendar/samples auto |
-| **Google Drive** | The actual master filming Docs, inside the shared **Client Filming Plans** folder with one folder per client. | ✅ Create/move Doc |
+| **Google Drive** | The actual master filming Docs, inside **Client Filming Plans / <client display name>** with one folder per client — never inside the general **Clients / <client>** folder. | ✅ Create/move Doc |
 | **n8n** | All the scrapers/automations (metrics, top videos, competitor & market research, weekly Slack, caption gen, calendar/samples sync). | ⚪ Mostly auto |
 | **Linear** (`synchro-social`) | One **Project** per client across the **Video + Graphics** teams. | ✅ SMM does it |
 | **Slack** | One channel per client (weekly reports + tweak pings post there). | ✅ Create channel |
+| **Roam** | One automated **public** creative group per client; onboarding kickoff + full form answers post here after readiness checks pass. | ⚪ Queue after setup; worker creates it |
 | **Sandcastles** | Content-intelligence watchlist — channel recaps, top hooks/topics/formats, outlier alerts. | ✅ Add the client **+ their competitors** |
 | **Post For Me** (`postforme.dev`) | A connected **TikTok account** per client (TikTok auto‑upload). | ⚪ Not urgent |
 | **SyncView onboarding** | Standard/AI intake rows and the staff onboarding inbox. A captured row is not yet proof of provisioning (F110). | ▶️ Current entry point |
@@ -35,17 +36,18 @@
 - [ ] Scrape 5–10 of their Instagram **reels** and write the **keywords** + **content_description**. → [§3](#3-research-keywords--content_description)
 
 **SYNCVIEW Google Sheet** (`10QQ…QqAU8`)
-- [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, slack channel id, …). → [§4](#4-clients-info-row-the-big-one)
+- [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, Slack channel ID, Roam group ID, …). → [§4](#4-clients-info-row-the-big-one)
 - [ ] **Social Media Managers** → add a row (who's their SMM). → [§5](#5-social-media-managers-row)
-- [ ] **Monthly Checkup** → add a row (client_name + email) so the client gets the automated monthly check-in email. → [§6j](#6j-monthly-check-in-email)
+- [ ] *(owner/Kasper opt-in only)* **Monthly Checkup** → add a row only after approval. → [§6j](#6j-monthly-check-in-email)
 - [ ] *(optional, later)* **Templates** → reels/thumbnail font & color prefs. → [§6b](#6b-templates--caption-prompts-optional)
 
 **Filming plans source of truth**
-- [ ] Create/move the client's master filming Google Doc inside their folder in the shared **Client Filming Plans** Drive, and **share it "Anyone with the link → Editor"** — SyncView stores the URL, it does not grant access. → [§6a](#6a-filming-plan)
+- [ ] Create/move the client's master filming Google Doc inside **Client Filming Plans / <client display name>** — **not** their general **Clients / <client>** folder — and **share it "Anyone with the link → Editor"**. SyncView stores the URL; it does not grant access. → [§6a](#6a-filming-plan)
 - [ ] In SyncView, sign in with an **Admin** staff identity, then open the main **Filming Plans** tab and add/update the client Doc link. → [§6a](#6a-filming-plan)
 
-**Slack / Post For Me**
-- [ ] Create the client's **Slack channel**, grab its **channel ID** (→ Clients Info) and **member/SMM user ID** (→ SMM tab). → [§6c](#6c-slack-channel)
+**Slack, Roam / Post For Me**
+- [ ] Create the client's **Slack channel**, grab its **channel ID** (→ Clients Info) and **member/SMM user ID** (→ SMM tab). → [§6c](#6c-slack-channel--automated-roam-creative-group-both-required-for-now)
+- [ ] Confirm the **Clients Info** row, assigned SMM row, and linked filming plan are ready; the Roam finalizer then creates the one public creative group and writes `roam_channel_id`. → [§6c](#6c-slack-channel--automated-roam-creative-group-both-required-for-now)
 - [ ] *(not urgent)* Connect their **TikTok account in Post For Me**, put the account's `spc_…` id in `postforme_account_id`. → [§6d](#6d-post-for-me-account-not-urgent)
 
 - [ ] *(recommended)* Add the client to **Sandcastles** — their **own** IG/TikTok **and** their **competitor** handles to the watchlist. → [§6h](#6h-sandcastles-content-intelligence)
@@ -64,9 +66,9 @@
 - [ ] **Linear (SMM):** create a Project for the client on the **Video + Graphics** teams, set the SMM as lead, link the Slack channel. → [§6g](#6g-linear-project-smm)
 
 **Finish**
-- [ ] Verify on the live dashboard (calendar loads, samples strip, filming plan opens from the main tab/Templates/Kasper, weekly Slack target, metrics next morning). → [§6i](#6i-verify)
+- [ ] Verify on the live dashboard (calendar loads, samples strip, filming plan opens from the main tab/Templates/Kasper, Slack and Roam targets, metrics next morning). → [§6i](#6i-verify)
 
-> Rough sequence that mirrors how it's actually done: **Slack channel + Linear project → research/keywords → Sheets rows → client goes live in the dashboard → filming Doc in the Drive folder → Filming Plans tab link → (samples/calendar fill in as work starts).**
+> Rough sequence that mirrors how it's actually done: **research/keywords + Sheets rows + Slack channel + Linear project → filming Doc in Client Filming Plans / <client display name> → Filming Plans tab link → Roam finalizer creates/posts the public creative group → client goes live in the dashboard → (samples/calendar fill in as work starts).**
 
 ---
 
@@ -119,7 +121,8 @@ This is the part that's easy to forget the *method* for. You're producing three 
 **Where:** SYNCVIEW sheet (`10QQ…QqAU8`) → tab **`Clients Info`**.
 **Key:** `client_name` — must use the canonical display spelling **exactly** (see the slug rule below).
 
-**Columns (verified header), in order:**
+**Columns:** use the exact headers below; the provisioning workflow reads `roam_channel_id` by
+header name, **not** by a fixed column position.
 
 | Column | What to put | Notes / can be blank? |
 |---|---|---|
@@ -132,7 +135,8 @@ This is the part that's easy to forget the *method* for. You're producing three 
 | `instagram_handle` | IG handle, no `@` | e.g. `jane.doe.living`. |
 | `tiktok_handle` | TikTok handle | **Blank/`N/A` is fine** — scrapers skip it. |
 | `youtube_channel_id` | `UC…` channel ID | **Blank/`N/A` is fine.** |
-| `slack_channel_id` | `C…` channel ID for their Slack | Fill after you create the channel ([§6c](#6c-slack-channel)). Weekly report posts here. |
+| `slack_channel_id` | `C…` channel ID for their Slack | Fill after you create the channel ([§6c](#6c-slack-channel--automated-roam-creative-group-both-required-for-now)). **Retain it:** weekly reports, tweak pings, and alert DMs still use Slack. |
+| `roam_channel_id` | Bare Roam **Group Settings UUIDv4** | Written by the Roam finalizer after it verifies the new public group. Never use a `G-` identifier, group URL, or API credential. A manual-reconciliation case is the only exception. |
 | `postforme_account_id` | Post For Me account id (`spc_…`) | **Usually blank** — only the TikTok‑auto‑upload clients use it ([§6d](#6d-post-for-me-account-not-urgent)). |
 
 **Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` (Slack workspace id, for deep-links). **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
@@ -183,8 +187,8 @@ This is what makes the SMM's name/avatar and Slack DM appear on the Kasper revie
 ### 6a. Filming plan
 **Where:** SyncView dashboard → main **Filming Plans** tab. This writes the master Doc link to Supabase `filming_plans`, which is now the source of truth for filming-plan links.
 
-1. In the shared **Client Filming Plans** Drive folder, create or open the client's folder.
-2. Create the **master Google Doc** for the client's filming plan inside that client folder. If the Doc was created somewhere else, move it into the folder before linking it.
+1. In the shared **Client Filming Plans** Drive folder, create or open **Client Filming Plans / <client display name>**. This is a separate top-level location from the general **Clients / <client>** folder.
+2. Create the **master Google Doc** for the client's filming plan inside that Client Filming Plans folder. If the Doc was created anywhere else — including the general client folder — move the same Doc into this folder before linking it.
 3. **Share it "Anyone with the link → Editor" before you link it.** A newly created Doc is private to
    its creator, and SyncView only stores the URL — it does not grant access. Without this, the link
    opens for you and returns a permission wall for the client, the SMM, and every editor, and
@@ -202,12 +206,38 @@ The operational source-of-truth UI is the main **Filming Plans** tab. Kasper's *
 - **`Templates` tab** — per‑client styling the editors/designers use: `reels_subtitle_font`, `reels_subtitle_main_color`, `reels_subtitle_highlight_color`, `reels_reference_link`, `reels_preferences`, `thumbnails_title_font`, `thumbnails_title_color`, `thumbnails_highlight_color`, `thumbnails_photos_link`, etc. Filled progressively from the dashboard's Templates editor — **not needed on day one**.
 - **`CaptionPrompts` tab** — a per‑client caption‑gen prompt (keyed by **slug**). Managed from the UI; optional.
 
-### 6c. Slack channel
+### 6c. Slack channel + automated Roam creative group (both required for now)
+
+**Slack (still used by unmigrated automations)**
+
 1. Create the client's Slack channel (follow the existing naming pattern in Slack).
 2. Copy the **channel ID** (`C…`) → paste into `slack_channel_id` in **Clients Info**.
 3. Copy the SMM's **user ID** (`U…`) → into the SMM tab's `slack_profile_url` (and `slack_team_id` into Clients Info if you use deep‑links).
 
-This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5NSaCMtZMh6`) posts to every Monday, and where urgent tweak pings go.
+This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5NSaCMtZMh6`) posts to every Monday, and where urgent tweak pings go. A Roam UUID does **not** replace this Slack field or belong in Linear's Slack-channel field.
+
+**Roam creative group (automatic; this is the onboarding destination)**
+
+> **Required roster update — pending production activation:** Every future client creative group must include **Rocío** alongside the owner/Sidney, Kasper, the assigned SMM, and the Organization API Client. The currently published finalizer has not yet been changed to require Rocío's private identity mapping, so it still uses the four-member roster documented below. Do not treat Rocío's inclusion as automatic until that private mapping, the finalizer update, and a test-group roster verification are complete; until then, use manual reconciliation.
+
+The onboarding provisioning workflow preserves one immutable private brief snapshot after the Drive folder exists. The separate **Client — Roam Creative Group Finalizer** checks every 15 minutes for a snapshot whose setup is complete:
+
+1. Exactly one matching **Clients Info** row with the canonical display name and email.
+2. Exactly one assigned-SMM row.
+3. Exactly one linked filming plan in Supabase.
+4. Exact private Roam identity mappings for the owner/Sidney, Kasper, and the assigned SMM; the Organization API Client address is read from the Roam token at runtime.
+
+For a newly hired SMM, an administrator maintains that person's exact Roam identity once in the private n8n identity map before their first client is queued. The same private-map standard applies to Rocío when the approved roster update is made. Never put a Roam address, group ID, or API credential in the public repo or the anonymously readable **Clients Info** tab.
+
+Only then does it create **one public group** — never a second private companion group — using the name rule `<first>-<last>-creative`: lowercase, collapse each run of non-alphanumerics to one hyphen, trim hyphens, cap the **whole final name** at 64 characters, then trim again. This Roam-name rule is separate from the SyncView viewer slug.
+
+The creation request includes the owner/Sidney, Kasper, assigned SMM, and Organization API Client. The worker verifies the resulting roster, records the Alpha `G-…` identifier privately, verifies the stable bare Group Settings UUID, writes that UUID to `Clients Info.roam_channel_id`, and reads the Sheet back before posting. It posts the kickoff first and the complete form answers second through stable `POST /v1/chat.sendMessage`.
+
+The workflow posts normally to **Roam only**. It uses the explicit `syncview` / **SyncView** sender, Markdown enabled, `**bold**` section headings and labels, and blank lines between visible rows. Do not use Slack quote blocks, backtick-style placeholders, Block Kit, or the Alpha chat API in this production path.
+
+The client onboarding-form link included in the Resources block is useful to Admin staff, but an SMM-role identity cannot open it: the viewer is Admin-only and deliberately credential-stripped. The full posted brief retains **Account access** by owner decision.
+
+If setup is still incomplete, the worker leaves the private job pending and posts nothing. If a group already exists, a name/identity is ambiguous, a stable-ID readback fails, or any Roam write is uncertain, it marks the job **manual reconciliation** and sends the owner one private Slack fallback containing the preserved brief. It never automatically retries an uncertain group create or message send. Do not rerun the non-idempotent provisioning workflow. For historical clients, use a controlled queue record or manual reconciliation rather than rerunning intake.
 
 ### 6d. Post For Me account (not urgent)
 Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`spc_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)
@@ -286,6 +316,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 - Open the dashboard, switch to the new client: calendar and samples load (empty is fine).
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
+- Confirm the exact **public** Roam creative group exists with the required owner/Sidney, Kasper, assigned-SMM, and Organization-API-Client members; its exact bare UUID is in `roam_channel_id`; and the kickoff visibly precedes the full onboarding brief. After the approved roster update is live, this check must also confirm Rocío's membership.
 - Before any real-client #850 cohort enrollment, require a server-side onboarding receipt proving the exact team
   mapping, protected review token, and all required authenticated Track-A routing entries exist and
   read back. Prove the first Calendar/SXR/settings write reaches the authenticated EF and cannot
@@ -304,10 +335,12 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 ### 6j. Monthly check-in email
 **Where:** SYNCVIEW sheet → tab **`Monthly Checkup`** — columns `client_name | email`.
 
-The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on the **1st of every month at 8 AM** and emails **every row of this tab** a friendly check-in from the privately configured workspace sender with the iClosed booking link. Adding the row is the only wiring — the workflow reads the tab live on each run, no n8n change needed. Do not publish workspace account addresses (F64).
+The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on the **1st of every month at 8 AM** and emails **every opted-in row of this tab** a friendly check-in from the privately configured workspace sender with the iClosed booking link. Adding the row is the only wiring — the workflow reads the tab live on each run, no n8n change needed. Do not publish workspace account addresses (F64).
 
-1. Add a row: `client_name` (same spelling as Clients Info) + the client's `email` (watch for typos and trailing spaces — this goes straight into the To: field).
-2. **Default: every active client gets added.** If a client shouldn't receive these (special arrangement etc.), flag it with Kasper — but don't block onboarding on the question; removing a row later takes five seconds.
+This is never an automatic onboarding step. Add a row only after explicit approval from Sidney or Kasper; absence from this tab means no monthly check-in email.
+
+1. When approved, add a row: `client_name` (same spelling as Clients Info) + the client's `email` (watch for typos and trailing spaces — this goes straight into the To: field).
+2. Do not add a client by default. If the client should not receive the check-in, leave them off this tab.
 
 > ⚠️ **Format matters:** the workflow only reads the `client_name` and `email` **columns**, one client per **row**. Don't add clients as extra columns — as of 2026‑07 the tab had client data sitting in the header row, which the automation can't see, so those clients silently received no check-ins.
 
@@ -335,7 +368,7 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 2. **Clients Info controls roster visibility, not every write allowlist.** The three Track-A routing
    flags are separate static slug lists and must be atomically enrolled/read back until replaced
    (F69). Legacy Provision Missing Tabs arrays affect only the optional Sheet mirror.
-3. **Filming plan links are not just a URL.** The linked master Doc should live inside that client's folder in the shared **Client Filming Plans** Drive. If a correct-looking Doc lives elsewhere, move it into the client folder before treating the link as healthy.
+3. **Filming plan links are not just a URL.** The linked master Doc must live in **Client Filming Plans / <client display name>**, never in the general **Clients / <client>** folder. If a correct-looking Doc lives elsewhere, move the same Doc into the Client Filming Plans folder before treating the link as healthy.
 4. **Stale doc:** root `README.md` describes an old Instaloader pipeline that no longer exists — don't follow it. (The old `index.html` "provision the tab" comment was corrected in this PR.)
 5. **Duplicate Linear projects** are common (several clients already have 2–3). Search before creating; reuse the canonical one.
 6. **Secrets stay out of git and public Sheets:** Linear API keys, `client_review_token`s, and the Supabase service role belong only in their protected server-side stores. In particular, review tokens live in service-role-only `client_access`, never Clients Info, `clientMap`, or n8n payload logs.
@@ -365,7 +398,7 @@ The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on
 | TOP VIDEOS | `DyVPx0neUZ94R0hJ` | Daily top videos (reads handles) |
 | COMPETITOR RESEARCH / MARKET RESEARCH | `0KMfHmYqVdlr5EhG` / `FD2QUIOlobkdLOgs` | Reads competitors/keywords |
 | Weekly Slack – Top Reel | `BTxic5NSaCMtZMh6` | Posts to `slack_channel_id` |
-| Clients — Monthly Check-in | `alZ87zcRVKgcGVY7` | 1st of month 8 AM — emails every row of the **Monthly Checkup** tab |
+| Clients — Monthly Check-in | `alZ87zcRVKgcGVY7` | 1st of month 8 AM — emails every opted-in row of the **Monthly Checkup** tab |
 | Filming Plan Tabs | `5S4JyVVR2CpHEv9b` | Reads filming‑Doc month tabs |
 | Calendar / Samples Provision Missing Tabs | `gB17L9M5yYxxk6GT` / `7Pdp6qnkBzwXP3YG` | Legacy Sheet‑tab mirror |
 

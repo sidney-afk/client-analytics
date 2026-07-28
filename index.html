@@ -40410,9 +40410,10 @@
             titleDisplay = `${savedClient} · ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
         }
 
+        const receivedBanner = linearJustCreated === 'received';
         const successBanner = linearJustCreated ? `<div class="linear-success-banner" id="linearSuccessBanner">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Production work created!
+            ${receivedBanner ? 'Production work received. Our team will complete an internal setup step; no action is needed from you.' : 'Production work created!'}
         </div>` : '';
         linearJustCreated = false;
 
@@ -40896,6 +40897,18 @@
             && new Set(children).size === expectedChildren;
     }
 
+    function _linearConfirmedReceived(result, receipt) {
+        if (!result || result.ok !== true || String(result.status || '').toLowerCase() !== 'received') return false;
+        if (result.durable_capture !== true || result.triage_required !== true) return false;
+        if (String(result.team || '') !== receipt.team || String(result.payload_hash || '') !== receipt.payload_hash) return false;
+        if (String(result.receipt_key || '') !== receipt.receipt_key) return false;
+        if (String(result.idempotency_key || '') !== receipt.receipt_key) return false;
+        const ledgerStatus = String(result.ledger_status || '').toLowerCase();
+        if (!['pending', 'failed', 'partial'].includes(ledgerStatus)) return false;
+        const codes = Array.isArray(result.triage_reason_codes) ? result.triage_reason_codes : [];
+        return codes.length > 0 && codes.every(code => /^[a-z0-9_:-]{1,120}$/i.test(String(code || '')));
+    }
+
     function _linearSafeReceiptRef(receipt, result, status) {
         const rawId = String(result && (result.receipt_id || result.receipt_ref) || '');
         const receiptId = /^[A-Za-z0-9:_-]{1,200}$/.test(rawId) ? rawId : '';
@@ -40965,8 +40978,12 @@
             const currentLastLink = draftSnapshot.last_link_raw == null ? null : draftSnapshot.last_link_raw;
             const draftChanged = draftSnapshot.form_raw !== originalDraft.form_raw
                 || currentLastLink !== originalDraft.last_link_raw;
-            const allStrictCreated = existing.every(receipt => receipt.status === 'created' && _linearUuid(receipt.parent_id));
-            if (allStrictCreated && draftChanged) {
+            // A durably received submission is terminal for the client even
+            // when an internal prerequisite still needs staff triage. Do not
+            // let that receipt block a later, genuinely new draft.
+            const allTerminal = existing.every(receipt => (receipt.status === 'created' && _linearUuid(receipt.parent_id))
+                || receipt.status === 'received');
+            if (allTerminal && draftChanged) {
                 const currentPayload = payloadFactory();
                 const currentPayloadHash = await _linearPayloadHash(currentPayload);
                 // The old set is already terminal, but another tab may have
@@ -41047,13 +41064,16 @@
             }
             let result = null;
             try { result = await response.json(); } catch (error) {}
-            if (!response.ok || !_linearConfirmedCreate(result, receipt)) {
+            const created = _linearConfirmedCreate(result, receipt);
+            const received = !created && _linearConfirmedReceived(result, receipt);
+            if (!response.ok || (!created && !received)) {
                 throw _linearReceiptFailure(_linearCreateError(result, response, target.label), receipt, result, 'failed');
             }
             return {
+                kind: created ? 'created' : 'received',
                 result,
-                parent_id: _linearResponseParentId(result),
-                receipt_ref: _linearSafeReceiptRef(receipt, result, 'created')
+                parent_id: created ? _linearResponseParentId(result) : null,
+                receipt_ref: _linearSafeReceiptRef(receipt, result, created ? 'created' : 'received')
             };
         })();
         const timeout = new Promise((resolve, reject) => {
@@ -41076,10 +41096,13 @@
             }
             // A slower failure must never downgrade a terminal result written by
             // another tab using the same idempotent receipt.
-            if (receipt.status === 'created' && _linearUuid(receipt.parent_id) && !outcome.ok) return;
-            receipt.status = outcome.ok ? 'created' : outcome.status;
-            receipt.parent_id = outcome.ok ? outcome.parent_id : (receipt.parent_id || null);
-            receipt.last_error = outcome.ok ? null : outcome.error;
+            const terminal = outcome.kind === 'created' || outcome.kind === 'received';
+            if (receipt.status === 'created' && _linearUuid(receipt.parent_id) && outcome.kind !== 'created') return;
+            if (receipt.status === 'received' && outcome.kind === 'failed') return;
+            receipt.status = outcome.kind === 'created' ? 'created'
+                : (outcome.kind === 'received' ? 'received' : outcome.status);
+            receipt.parent_id = outcome.kind === 'created' ? outcome.parent_id : (receipt.parent_id || null);
+            receipt.last_error = terminal ? null : outcome.error;
             receipt.safe_ref = outcome.receipt_ref;
             receipt.updated_at = now;
         });
@@ -41206,8 +41229,17 @@
             const settled = await Promise.allSettled(receipts.map(receipt => {
                 if (receipt.status === 'created' && _linearUuid(receipt.parent_id)) {
                     return Promise.resolve({
+                        kind: 'created',
                         parent_id: receipt.parent_id,
                         receipt_ref: receipt.safe_ref || _linearSafeReceiptRef(receipt, { parent_id: receipt.parent_id }, 'created'),
+                        from_store: true
+                    });
+                }
+                if (receipt.status === 'received') {
+                    return Promise.resolve({
+                        kind: 'received',
+                        parent_id: null,
+                        receipt_ref: receipt.safe_ref || _linearSafeReceiptRef(receipt, null, 'received'),
                         from_store: true
                     });
                 }
@@ -41216,19 +41248,22 @@
             const outcomes = settled.map((entry, index) => {
                 const receipt = receipts[index];
                 if (entry.status === 'fulfilled') {
+                    const kind = entry.value.kind || 'created';
                     return {
-                        ok: true,
+                        ok: kind === 'created',
+                        kind,
                         team: receipt.team,
                         payload_hash: receipt.payload_hash,
                         receipt_key: receipt.receipt_key,
-                        parent_id: entry.value.parent_id,
-                        status: 'created',
+                        parent_id: kind === 'created' ? entry.value.parent_id : null,
+                        status: kind,
                         receipt_ref: entry.value.receipt_ref
                     };
                 }
                 const reason = entry.reason || {};
                 return {
                     ok: false,
+                    kind: 'failed',
                     team: receipt.team,
                     payload_hash: receipt.payload_hash,
                     receipt_key: receipt.receipt_key,
@@ -41242,7 +41277,7 @@
             let applied;
             try { applied = _linearApplyReceiptOutcomes(outcomes); }
             catch (error) {
-                const summary = outcomes.map(outcome => (_linearTargetForTeam(outcome.team).label + ': ' + (outcome.ok ? 'created' : outcome.error))).join('; ');
+                const summary = outcomes.map(outcome => (_linearTargetForTeam(outcome.team).label + ': ' + (outcome.kind === 'created' ? 'created' : outcome.kind === 'received' ? 'received for staff review' : outcome.error))).join('; ');
                 const recoveryIds = _linearRecoveryIdText(outcomes, true);
                 if (status) status.textContent = 'The server requests settled, but SyncView could not save their receipt results. ' + summary
                     + (recoveryIds ? '. ' + recoveryIds : '') + '. Confirm the work before retrying.';
@@ -41256,9 +41291,9 @@
                 };
             }
 
-            const failures = outcomes.filter(outcome => !outcome.ok);
+            const failures = outcomes.filter(outcome => outcome.kind === 'failed');
             if (failures.length) {
-                const summary = outcomes.map(outcome => (_linearTargetForTeam(outcome.team).label + ': ' + (outcome.ok ? 'created' : outcome.error))).join('; ');
+                const summary = outcomes.map(outcome => (_linearTargetForTeam(outcome.team).label + ': ' + (outcome.kind === 'created' ? 'created' : outcome.kind === 'received' ? 'received for staff review' : outcome.error))).join('; ');
                 const recoveryIds = _linearRecoveryIdText(outcomes, false);
                 if (status) status.textContent = 'Submission incomplete — ' + summary + (recoveryIds ? '. ' + recoveryIds : '')
                     + '. Your draft and receipt are still saved. Retry to continue the same submission.';
@@ -41266,36 +41301,39 @@
                 return {
                     ok: false,
                     error: summary + (recoveryIds ? '. ' + recoveryIds : ''),
-                    partial: outcomes.some(outcome => outcome.ok),
+                    partial: outcomes.some(outcome => outcome.kind === 'created' || outcome.kind === 'received'),
                     recovery_ids: failures.map(outcome => outcome.receipt_key),
                     outcomes
                 };
             }
 
+            const hasReceived = outcomes.some(outcome => outcome.kind === 'received');
             const completedMode = prepared.teams.includes('video') && prepared.teams.includes('graphics')
                 ? 'both' : (prepared.teams.includes('graphics') ? 'thumbnail' : 'video');
             const payload = prepared.payload;
             const videos = payload.videos;
             const title = payload.title;
             mode = completedMode;
-            const cardJob = _calCardJobCreate(client, videos, title, mode);
-            _writeLinearVideoCardsToCalendar(client, videos, title, { mode, job: cardJob }).catch(error => {
-                console.warn('[SyncView] Background calendar write failed:', error);
+            if (!hasReceived) {
+                const cardJob = _calCardJobCreate(client, videos, title, mode);
+                _writeLinearVideoCardsToCalendar(client, videos, title, { mode, job: cardJob }).catch(error => {
+                    console.warn('[SyncView] Background calendar write failed:', error);
                 showNotify('Calendar sync issue', 'The Linear issues were created, but adding the matching cards to the content calendar failed. SyncView will retry automatically next time the app is opened — or open the calendar and use "Import from Linear" with the parent link to backfill them now.');
-            });
+                });
+            }
 
             // Another tab (or edits made while the request was in flight) may
             // have saved newer work. Delete only the exact draft versions that
             // produced this receipt; never erase a newer form or pasted link.
             _linearCompareRemove(LINEAR_FORM_KEY, prepared.draftSnapshot.form_raw);
             _linearCompareRemove(LAST_LINK_KEY, prepared.draftSnapshot.last_link_raw);
-            const allStoredCreated = Object.values(applied.store.receipts).filter(Boolean)
-                .every(receipt => receipt.status === 'created' && _linearUuid(receipt.parent_id));
-            if (allStoredCreated) _linearCompareRemove(LINEAR_RECEIPTS_KEY, applied.raw);
+            const allStoredTerminal = Object.values(applied.store.receipts).filter(Boolean)
+                .every(receipt => (receipt.status === 'created' && _linearUuid(receipt.parent_id)) || receipt.status === 'received');
+            if (allStoredTerminal) _linearCompareRemove(LINEAR_RECEIPTS_KEY, applied.raw);
 
-            linearJustCreated = true;
+            linearJustCreated = hasReceived ? 'received' : true;
             navTo('linear');
-            return { ok: true, status: 'created', outcomes };
+            return { ok: true, status: hasReceived ? 'received' : 'created', outcomes };
         } catch (error) {
             const message = String((error && error.message) || 'Submission failed.');
             const recoveryItems = prepared ? prepared.teams.map(team => ({

@@ -276,34 +276,34 @@ function installGate(workflow, webhookName, gateName, expectedFirst, team, posit
 
 function durableFormsInstalled(workflow) {
   const f44 = require('./f44-linear-intake-transform');
-  const installed = f44.INSTALL_NODE_NAMES.filter(name => node(workflow, name));
+  const installed = (f44.CORE_INSTALL_NODE_NAMES || f44.INSTALL_NODE_NAMES).filter(name => node(workflow, name));
   if (!installed.length) return false;
-  if (installed.length !== f44.INSTALL_NODE_NAMES.length) {
+  if (installed.length !== (f44.CORE_INSTALL_NODE_NAMES || f44.INSTALL_NODE_NAMES).length) {
     throw new Error(`F44 partial install detected (${installed.length}/${f44.INSTALL_NODE_NAMES.length}); refusing to guess`);
   }
-  f44.verify(workflow);
+  if (f44.INSTALL_NODE_NAMES.every(name => node(workflow, name))) f44.verify(workflow);
   return true;
 }
 
 function verifyDurableFormAuthority(workflow) {
   if (!durableFormsInstalled(workflow)) throw new Error('F44 durable form flow is not installed');
-  for (const [webhookName, gateName, team, normalizeName] of [
-    ['Webhook', 'Authority Gate - Video Form', 'video', 'F44 Normalize Video'],
-    ['Webhook2', 'Authority Gate - Graphics Form', 'graphics', 'F44 Normalize Graphics'],
+  for (const [webhookName, gateName, team, normalizeName, lookupName, workerName] of [
+    ['Webhook', 'Authority Gate - Video Form', 'video', 'F44 Normalize Video', 'Fetch Filming Plans', 'F44 Worker Video'],
+    ['Webhook2', 'Authority Gate - Graphics Form', 'graphics', 'F44 Normalize Graphics', 'Fetch Filming Plans1', 'F44 Worker Graphics'],
   ]) {
     const names = formNodeNames(gateName);
     if (node(workflow, webhookName)?.parameters?.responseMode !== 'responseNode') throw new Error(`${webhookName} still responds before authority check`);
     if (workflow.connections?.[webhookName]?.main?.[0]?.length !== 1
-        || workflow.connections[webhookName].main[0][0].node !== names.gate) throw new Error(`${team} form gate not first`);
+        || workflow.connections[webhookName].main[0][0].node !== normalizeName) throw new Error(`${team} form receipt is not first`);
     if (nodeCode(workflow, names.gate) !== formGateCode(team)) throw new Error(`${team} form gate code drifted`);
     if (workflow.connections?.[names.gate]?.main?.[0]?.length !== 1
         || workflow.connections[names.gate].main[0][0].node !== names.route) throw new Error(`${team} form authority route missing`);
     if (workflow.connections?.[names.route]?.main?.[0]?.length !== 1
-        || workflow.connections[names.route].main[0][0].node !== normalizeName) throw new Error(`${team} form authority route is not receipt-first`);
+        || workflow.connections[names.route].main[0][0].node !== lookupName) throw new Error(`${team} form authority allow route is not post-receipt`);
     if (workflow.connections?.[names.route]?.main?.[1]?.length !== 1
-        || workflow.connections[names.route].main[1][0].node !== names.rejected) throw new Error(`${team} form rejected response missing`);
+        || workflow.connections[names.route].main[1][0].node !== workerName) throw new Error(`${team} form authority fallback does not retain the receipt`);
     if (node(workflow, names.accepted)) throw new Error(`${team} premature accepted response remains`);
-    if (node(workflow, names.rejected)?.parameters?.options?.responseCode !== '={{ $json._writeUiAuthority.http_status || 503 }}') throw new Error(`${team} form blocked status missing`);
+    if (node(workflow, names.rejected)) throw new Error(`${team} pre-receipt rejection remains`);
   }
   return workflow;
 }

@@ -231,6 +231,8 @@ const result = {
   const legacySubmit = extract('_submitLinearFormLegacy');
   const f44Submit = extract('_submitLinearFormOnce');
   const f44Transport = extract('_linearAwaitCreate');
+  const f44Received = extract('_linearConfirmedReceived');
+  const linearView = extract('renderLinearView');
   ok(submitEntry.includes('_submitLinearFormRoutedOnce(mode)')
     && /operation: 'intake_create'/.test(submit)
     && /surface: 'submission'/.test(submit)
@@ -253,6 +255,25 @@ const result = {
     && /_linearConfirmedCreate/.test(f44Transport)
     && !/fetch\((?:VIDEO_FORM_WEBHOOK|GRAPHIC_FORM_WEBHOOK), sendOptions\)/.test(source),
   'the non-enrolled Submit lane retains F44 receipts and never restores the pre-F44 direct fetch');
+  ok(f44Received.includes("String(result.status || '').toLowerCase() !== 'received'")
+    && f44Received.includes('result.durable_capture !== true')
+    && f44Received.includes('result.triage_required !== true')
+    && f44Received.includes("['pending', 'failed', 'partial'].includes(ledgerStatus)")
+    && f44Received.includes('String(result.idempotency_key || \'\') !== receipt.receipt_key')
+    && f44Received.includes('triage_reason_codes'),
+  'received acknowledgement is accepted only with durable capture, exact receipt identity, a valid ledger state, and safe triage codes');
+  ok(f44Transport.includes('const created = _linearConfirmedCreate(result, receipt)')
+    && f44Transport.includes('const received = !created && _linearConfirmedReceived(result, receipt)')
+    && f44Transport.includes("kind: created ? 'created' : 'received'")
+    && f44Submit.includes("const failures = outcomes.filter(outcome => outcome.kind === 'failed')")
+    && f44Submit.includes("const hasReceived = outcomes.some(outcome => outcome.kind === 'received')")
+    && /if\s*\(!hasReceived\)\s*\{[\s\S]{0,900}?_calCardJobCreate/.test(f44Submit)
+    && f44Submit.includes("linearJustCreated = hasReceived ? 'received' : true")
+    && f44Submit.includes("status: hasReceived ? 'received' : 'created'"),
+  'received is terminal client success but cannot be represented as a created issue or enqueue Calendar work');
+  ok(linearView.includes("const receivedBanner = linearJustCreated === 'received'")
+    && linearView.includes('Production work received. Our team will complete an internal setup step; no action is needed from you.'),
+  'the received terminal state renders a client-facing acknowledgement rather than a created-work claim');
   ok(!/test_override/.test(submit),
   'Submit never asks a browser credential to self-enter TEST scope');
   const runner = extract('_runNativeIntakeJob');

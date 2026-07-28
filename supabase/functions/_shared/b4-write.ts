@@ -243,7 +243,9 @@ async function teamAuthority(supabase: SupabaseClient, team: string): Promise<st
   const value = data && typeof data.value === "object" ? data.value as JsonMap : {};
   const key = lower(team) === "graphics" || lower(team) === "graphic" ? "graphics" : "video";
   const raw = lower(value[key]);
-  return raw === "syncview" || raw === "supabase" ? "syncview" : "linear";
+  if (raw === "syncview") return "syncview";
+  if (raw === "linear") return "linear";
+  throw new Error("authority_unavailable");
 }
 
 async function f27WriteAuthorizationGeneration(
@@ -390,8 +392,19 @@ export async function handleB4Write(
     }
 
     const team = clean(row.team);
-    if (!team || (!testOverride && await teamAuthority(supabase, team) !== "syncview")) {
+    if (!team) {
       return json({ ok: false, paused: true, error: "team_is_linear_authoritative" }, 409);
+    }
+    if (!testOverride) {
+      let authority: string;
+      try {
+        authority = await teamAuthority(supabase, team);
+      } catch (_e) {
+        return json({ ok: false, error: "authority_unavailable" }, 503);
+      }
+      if (authority !== "syncview") {
+        return json({ ok: false, paused: true, error: "team_is_linear_authoritative" }, 409);
+      }
     }
     const authorityGeneration = await f27WriteAuthorizationGeneration(supabase, team);
 

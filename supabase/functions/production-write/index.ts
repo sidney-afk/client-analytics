@@ -926,7 +926,7 @@ async function authorityFor(supabase: SupabaseClient, team: string): Promise<"li
   const value = parseJson((data as JsonMap).value);
   if (!(normalizedTeam in value)) throw new GatewayError(503, "authority_unavailable");
   const authority = lower(value[normalizedTeam]);
-  if (authority === "syncview" || authority === "supabase") return "syncview";
+  if (authority === "syncview") return "syncview";
   if (authority === "linear") return "linear";
   throw new GatewayError(503, "authority_unavailable");
 }

@@ -65,8 +65,11 @@ question and a drill and are counted where the *blocking* half lives.
 3. **Outbound mirror armable** (F2 + F131/F132 receipts) — Phase 2 step 3 requires
    `linear_outbound_enabled → live` with correlated terminal drainer receipts and an observer
    outside n8n. Today's B1 silent-partial failures are direct evidence F131 is real and open.
-4. **F55 authority vocabulary** — remove/migrate the backend `supabase` alias before any
-   `prod_authority` change. (The F27 SQL applied today still normalizes it — the alias is live.)
+4. **F55 authority vocabulary** — SOURCE COMPLETE 2026-07-28, one live re-apply owed: the backend
+   `supabase` alias was removed from every source consumer, including both F27 SQL copies, before
+   any `prod_authority` change. `2026-07-28-f27-write-authorization-only.sql` is the one copy that
+   WAS applied live (2026-07-28), so its `create or replace` block must be re-pasted before the
+   live function stops accepting the alias.
 5. **`linear_project_ids` shape conversion** — 7 bare-string rows resolve to zero ids and refuse
    the first native create the moment a team flips. One reviewed data window.
 6. **F56 preflight manifest + F63 paste-ready flag actions** — the machinery every flip step

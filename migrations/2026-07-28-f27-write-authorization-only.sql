@@ -35,6 +35,36 @@
 -- the checks that were always meant to judge them. It does NOT bypass any
 -- authority or parity gate: `assertLegacyParityEnabled` runs at index.ts:3482,
 -- one line EARLIER, and is unaffected by this file.
+--
+-- ============================================================================
+-- APPLIED STATUS — READ THIS BEFORE EDITING ANYTHING BELOW
+-- ============================================================================
+-- THIS FILE WAS APPLIED TO PRODUCTION ON 2026-07-28. Unlike every other
+-- unapplied delta in this folder, editing it does NOT change the database.
+--
+-- Verified read-only the same day, anon key, no service credential — the probe
+-- distinguishes "exists but you may not call it" from "does not exist":
+--   track_b_f27_write_authorization -> HTTP 401 `42501 permission denied for
+--                                      function`  (EXISTS; grants are correct)
+--   track_b_f27_hold_guard          -> HTTP 404 `PGRST202`  (absent, as designed)
+--   production_assert_authority     -> HTTP 404 `PGRST202`  (absent, as designed)
+--   <deliberately fake name>        -> HTTP 404 `PGRST202`  (control)
+--
+-- CONSEQUENCE: any change to the `create or replace function` body below is
+-- source-only until it is re-pasted into the Supabase SQL editor. Until then
+-- the repo and the live database silently disagree — the exact drift class
+-- this project has been bitten by before. The statement is idempotent and
+-- additive; with both teams at `linear` it changes no live decision.
+--
+-- The F55 edit below (dropping the legacy `supabase` alias) is such a change.
+-- It has NOT been re-applied as of this commit. Re-apply, read back, and
+-- record it in `EXECUTION_LOG.md`; only then may the F55 checklist box in
+-- `docs/independence/GO_LIVE_CHECKLIST.md` be ticked.
+--
+-- The parent `2026-07-20-f27-team-rollback.sql` remains fully unapplied and
+-- stays gated behind the two owner windows in `docs/ops/F27_INSTALL_RUNBOOK.md`;
+-- statements that "the F27 SQL is not live-applied" are true of that file and
+-- FALSE of this one.
 
 begin;
 
@@ -50,7 +80,9 @@ insert into public.track_b_f27_team_fences (team, generation, updated_by)
 values ('video', 0, 'f27-migration'), ('graphics', 0, 'f27-migration')
 on conflict (team) do nothing;
 
--- Verbatim from 2026-07-20-f27-team-rollback.sql lines 205-236.
+-- Verbatim from 2026-07-20-f27-team-rollback.sql lines 205-236. F55 removed the
+-- backend-only `supabase` alias from both copies in the same change so they
+-- stay byte-identical; the canonical vocabulary is exactly `linear`/`syncview`.
 create or replace function public.track_b_f27_write_authorization(p_team text)
 returns jsonb
 language plpgsql
@@ -71,15 +103,14 @@ begin
   select value into v_authority
   from public.syncview_runtime_flags where key = 'prod_authority';
   if v_generation is null or jsonb_typeof(v_authority) is distinct from 'object'
-     or lower(coalesce(v_authority->>v_team, '')) not in ('linear', 'syncview', 'supabase') then
+     or lower(coalesce(v_authority->>v_team, '')) not in ('linear', 'syncview') then
     raise exception 'f27_write_authorization_unavailable';
   end if;
   return jsonb_build_object(
     'ok', true,
     'type', 'f27_write_authorization',
     'team', v_team,
-    'authority', case when lower(v_authority->>v_team) = 'supabase' then 'syncview'
-                      else lower(v_authority->>v_team) end,
+    'authority', lower(v_authority->>v_team),
     'generation', v_generation
   );
 end;

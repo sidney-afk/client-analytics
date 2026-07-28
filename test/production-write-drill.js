@@ -42,10 +42,11 @@ ok(!descriptionReadbackMatches(
 ok(descriptionReadbackMatches(
   { graphics: 'syncview' }, 'graphics',
   { brief: expectedDescription }, { description: expectedDescription }, expectedDescription,
-) && descriptionReadbackMatches(
+), 'native-authoritative readback requires exact native and Linear bytes');
+ok(!descriptionReadbackMatches(
   { graphics: 'supabase' }, 'graphics',
   { brief: expectedDescription }, { description: expectedDescription }, expectedDescription,
-), 'native-authoritative readback requires exact native and Linear bytes');
+), 'F55: the retired supabase alias is no longer treated as a native-authoritative lane');
 ok(!descriptionReadbackMatches(
   { graphics: 'syncview' }, 'graphics',
   { brief: expectedDescription.trim() }, { description: expectedDescription }, expectedDescription,

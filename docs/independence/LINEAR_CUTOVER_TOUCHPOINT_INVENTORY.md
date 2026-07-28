@@ -61,9 +61,12 @@ STAGED-SOURCE-VERIFIED`. Anything the connected identity could not inspect is ex
   authority is not caller identity. Require an active, individually revocable staff principal or an
   owner-ratified, server-minted, short-lived exact-client intake capability; server-resolve the
   target scope and record immutable attribution. Do not defer this boundary to the write-UI epoch.
-- [ ] **Standardize authority vocabulary (F55):** every browser, EF, script, reconciler, and n8n
-  guard must accept only canonical `linear`/`syncview`. Remove/migrate the backend-only `supabase`
-  alias, reject malformed/partial values consistently, and pass one all-consumer contract drill.
+- [ ] **Standardize authority vocabulary (F55):** source complete 2026-07-28 — every browser, EF,
+  script, reconciler, and n8n guard now accepts only canonical `linear`/`syncview`. The
+  backend-only `supabase` alias was removed/migrated, malformed/partial/legacy values are rejected
+  consistently, and `test/f55-authority-vocabulary-contract.js` is the all-consumer contract test.
+  Owed: re-apply the `create or replace` block of `2026-07-28-f27-write-authorization-only.sql`,
+  which was applied live on 2026-07-28 and whose live function still accepts the alias.
 - [x] **Neutralize ungated inbound writers for SyncView-authoritative teams:** the calendar/sample
   branches of `MJbMZ789B5ExZz9x`, both legacy apply reconcilers, and the B1 incremental apply job.
 - [ ] **Resolve the separate MJb operating-topology gate (F46):** its saved graph is gated but

@@ -1369,9 +1369,10 @@ stale-verdict/session invalidation, readback, and fail-closed TEST proof before 
   F31 still blocks calling a shared-key/caller-selected roster name immutable human attribution.
   The active TEST client has a bounded service-only override. #850 merged the Calendar/SXR
   status+comment and Submit create callers behind D-32's TEST-default per-client allowlist; the
-  lane remains unsafe for real enrollment until every open gate closes. F55 is additionally open because the browser accepts
-  only canonical `syncview`, while several backend consumers still accept legacy `supabase` as an
-  alias. D-28 requires cohort soak before a Graphics-first flip; a D-29 data incident is contained
+  lane remains unsafe for real enrollment until every open gate closes. F55 (source complete
+  2026-07-28) removed the legacy `supabase` alias that several backend consumers used to accept;
+  every source consumer now accepts only canonical `linear`/`syncview`, and one live SQL re-apply
+  is owed before the deployed `track_b_f27_write_authorization` agrees. D-28 requires cohort soak before a Graphics-first flip; a D-29 data incident is contained
   per F27 and cannot use a blind authority reversal. The historical disposable two-team TEST drill
   completed 18 operations, observed zero unexpected echoes, reconciled `0/0/0`, cleaned up, and
   proved the pre-existing runtime flags unchanged; it did not exercise the now-required F27

@@ -618,7 +618,9 @@ async function isDetectOnlyTeam(supabase: SupabaseClient, team: string): Promise
   const authority = await prodAuthority(supabase);
   const key = lower(team) === "graphics" || lower(team) === "graphic" ? "graphics" : "video";
   const value = lower(authority[key]);
-  return value === "syncview" || value === "supabase";
+  if (value === "syncview") return true;
+  if (value === "linear") return false;
+  throw new Error("authority_unavailable");
 }
 
 function isClampedState(existing: ExistingRow, slug: string): boolean {

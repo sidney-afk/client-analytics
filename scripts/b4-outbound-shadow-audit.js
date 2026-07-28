@@ -330,7 +330,7 @@ function assertSafe(snapshot) {
     fail('linear_outbound_enabled must be off, shadow, or live');
   }
   for (const team of ['video', 'graphics']) {
-    if (!['linear', 'syncview', 'supabase'].includes(clean(flags.prod_authority && flags.prod_authority[team]).toLowerCase())) {
+    if (!['linear', 'syncview'].includes(clean(flags.prod_authority && flags.prod_authority[team]).toLowerCase())) {
       fail(`prod_authority is invalid for ${team}`);
     }
   }
@@ -394,7 +394,7 @@ async function main() {
     && before.outbox.written_real === after.outbox.written_real;
   const syncviewTrafficPossible = [before, after].some(snapshot => ['video', 'graphics'].some(team => {
     const value = clean(snapshot.flags && snapshot.flags.prod_authority && snapshot.flags.prod_authority[team]).toLowerCase();
-    return value === 'syncview' || value === 'supabase';
+    return value === 'syncview';
   }));
   // Once a team flips, ordinary user traffic is expected to enqueue/drain
   // while this read-only audit runs. Keep the strict queue freeze in the dark

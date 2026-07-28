@@ -23,7 +23,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 function normalizeSide(value) {
   const side = clean(value);
   if (side === 'linear') return 'linear';
-  if (side === 'syncview' || side === 'supabase') return 'syncview';
+  if (side === 'syncview') return 'syncview';
   throw new Error(`invalid production authority value: ${side || '(empty)'}`);
 }
 

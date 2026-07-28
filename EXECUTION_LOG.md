@@ -46,6 +46,28 @@ All times are UTC unless noted.
   it exposed protected plan URLs, and `9e5abc46-91f0-49f8-b815-fcc6baa93891`
   is pruned/non-retrievable.
 
+## 2026-07-28 — SLICE 5 COMPLETE: TEST drill run #18 green end to end
+
+- **Run #18** (`c0faa84887644f2b91791e25ff5c27a131171c20`, 21m 44s) passed **every stage including
+  cleanup and the read-path re-baseline**. This discharges all six items of
+  `docs/ops/SLICE5_APPLY_WINDOW.md` §3. Blockers **#8 (F37/F94/F136)** and **#9 (F95)** are proven,
+  not merely implemented.
+- **Cleanup is proven by the green result itself**, not by a separate check: `read_rebaseline`
+  executes only `if (!failure && report.cleanup_ok && report.flags_unchanged)`, so the fact that it
+  ran and passed establishes that cleanup recovered every fixture and no TEST issue is stranded in
+  Linear. Flags read back unchanged afterwards — `prod_authority` linear/linear,
+  `linear_outbound_enabled` off, `linear_legacy_parity_enabled` false.
+- **Duration is itself evidence:** 21m 44s against run #17's 54m 12s for the same work. The
+  difference is retries and timeouts not being burned, which is what a healthy run looks like.
+- **The two defects fixed between #17 and #18** were both in the harness, not the product: the
+  timing-probe parser required a digit immediately after `wall_med=` while the probe right-pads with
+  spaces (so the check could only pass if reads took over 10 seconds), and `until()` in
+  `linear-submit-durability` budgeted 50 event-loop turns rather than wall time — measured at 45 of
+  50 demanded on an idle container, and reproduced at 4 failures in 24 runs under six-way
+  contention versus 0 after the fix.
+- **Still owed before either team flips:** F27's outbound bridge, and the native comment
+  mark-done regression (separate entry) which is a live daily-work blocker.
+
 ## 2026-07-28 — MILESTONE: blockers #8 and #9 proven by Slice 5 TEST drill run #17
 
 - **Run #17** (`196afb803fb15de56227051fbb2be4bcfd0a50b5`, 54m 12s) passed **every drill stage**:

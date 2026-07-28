@@ -65,13 +65,16 @@ question and a drill and are counted where the *blocking* half lives.
 3. **Outbound mirror armable** (F2 + F131/F132 receipts) — Phase 2 step 3 requires
    `linear_outbound_enabled → live` with correlated terminal drainer receipts and an observer
    outside n8n. Today's B1 silent-partial failures are direct evidence F131 is real and open.
-4. **F55 authority vocabulary** — SOURCE COMPLETE 2026-07-28, one live re-apply owed: the backend
-   `supabase` alias was removed from every source consumer, including both F27 SQL copies, before
-   any `prod_authority` change. `2026-07-28-f27-write-authorization-only.sql` is the one copy that
-   WAS applied live (2026-07-28), so its `create or replace` block must be re-pasted before the
-   live function stops accepting the alias.
-5. **`linear_project_ids` shape conversion** — 7 bare-string rows resolve to zero ids and refuse
-   the first native create the moment a team flips. One reviewed data window.
+4. **F55 authority vocabulary** — CLOSED 2026-07-28 (source and live): the backend `supabase`
+   alias was removed from every consumer, including both F27 SQL copies, before any
+   `prod_authority` change. `2026-07-28-f27-write-authorization-only.sql` was the one copy already
+   applied live, so its `create or replace` block was re-pasted the same day; the repo edit alone
+   would not have changed the database.
+5. **`linear_project_ids` shape conversion** — CLOSED 2026-07-28. The "7 bare-string rows" figure
+   was a whole-table count; scoped to `active = true`/`kind = 'client'`/TEST-excluded it was ONE
+   row, holding two ids rather than one. Both ids were resolved against live Linear (one `VID`
+   project, one `GRA` project) and converted. Post-apply anon readback: all 32 active client rows
+   resolve a non-empty id for both teams; zero would refuse a native create.
 6. **F56 preflight manifest + F63 paste-ready flag actions** — the machinery every flip step
    consumes; prose checkmarks cannot authorize a flip.
 7. **Phase 0.75 auth enforcement** — F38 verifier deploy/readback, F89 exact-token roster proof

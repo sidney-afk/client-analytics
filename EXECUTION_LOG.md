@@ -2,6 +2,43 @@
 
 All times are UTC unless noted.
 
+## 2026-07-28 — EXECUTED: two owner SQL windows close F55 and the `linear_project_ids` shape gate
+
+Both run by the owner in the Supabase SQL editor, verified read-only afterwards with the anon key.
+No flag, authority value, Edge Function, or n8n workflow changed; `prod_authority` read back
+`{video: linear, graphics: linear}` before and after both.
+
+**1. F55 — re-applied `track_b_f27_write_authorization`.** The F55 source change (PR #985) edited
+`migrations/2026-07-28-f27-write-authorization-only.sql`, but that file had already been applied to
+production earlier the same day, so the repo edit alone left the **deployed** function still
+accepting the retired `supabase` alias. The owner re-pasted the file's `create or replace function`
+block; the editor reported success. Post-apply probe: the function still returns
+`401 42501 permission denied for function` to anon — it exists and `create or replace` preserved
+its service-role-only grant (a dropped grant would read `200`, a missing function `404 PGRST202`).
+The function body itself is not anon-readable, so the editor's success plus the existence/grant
+probe is the evidence of record. **Lesson worth keeping: for a migration that is already applied,
+merging a change to its file is not applying it.**
+
+**2. `linear_project_ids` shape gate — one row converted.** The long-standing "7 bare-string rows"
+figure was a whole-table count. Scoped the way the gate is scoped (`active = true`,
+`kind = 'client'`, TEST excluded) the live census was **31 team-keyed and exactly one bare** — the
+other six were 3 inactive clients, 2 inactive TEST rows, and the active TEST client. The single
+real row held **two** ids rather than one, so the migration's automatic single-element path
+correctly converted nothing and routed it to manual review; both ids were read back through Linear
+and proved to be two same-named projects, one owned by team `Video (VID)` and one by `Graphics
+(GRA)`, so the pairing needed no guess. Converted through the manual template of
+`migrations/2026-07-28-linear-project-ids-team-shape.sql` — audit row captured before the write,
+CAS'd on the captured value, rollback available, and the block refuses on a second run rather than
+double-applying (proved on a disposable PostgreSQL 16 instance before it was handed over).
+
+**Readback:** all **32** active `kind='client'` rows now resolve a non-empty id for **both**
+required teams — zero rows would raise `409 project_mapping_missing` on a first native create. The
+active TEST client deliberately still holds the bare shape and must keep it: `_shared/b4-write.ts`
+reads that field flat through `projectIds()`, and the drill's TEST override depends on it.
+
+Client slugs and Linear project UUIDs are deliberately absent from this entry — the repo is public
+(F64). Both checklist boxes are now ticked in `GO_LIVE_CHECKLIST.md`.
+
 ## 2026-07-28 — Cloud review: what is actually live for the F27 write-auth fence and `linear_project_ids`
 
 Read-only measurement taken while reviewing three builder branches. Nothing was applied, deployed,

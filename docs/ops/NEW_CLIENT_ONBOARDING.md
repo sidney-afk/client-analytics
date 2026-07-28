@@ -1,6 +1,6 @@
 # New Client Onboarding Runbook (SyncView)
 
-**Purpose:** the complete, do-not-forget checklist for bringing a brand-new client online across every SyncView system — the dashboard code, the Google Sheets, n8n, Supabase, Linear, Slack, and Post For Me.
+**Purpose:** the complete, do-not-forget checklist for bringing a brand-new client online across every SyncView system — the dashboard code, the Google Sheets, n8n, Supabase, Linear, Slack, Roam, and Post For Me.
 
 **How to use it:** skim **§1 (Quick Checklist)** and tick the boxes. Each box links down to a detailed step. **§7** is a reference appendix (IDs, where the secrets live, the SMM roster).
 
@@ -20,6 +20,7 @@
 | **n8n** | All the scrapers/automations (metrics, top videos, competitor & market research, weekly Slack, caption gen, calendar/samples sync). | ⚪ Mostly auto |
 | **Linear** (`synchro-social`) | One **Project** per client across the **Video + Graphics** teams. | ✅ SMM does it |
 | **Slack** | One channel per client (weekly reports + tweak pings post there). | ✅ Create channel |
+| **Roam** | One manually created **public** creative group per client; onboarding kickoff + full form answers post here. | ✅ Create group + record its UUID |
 | **Sandcastles** | Content-intelligence watchlist — channel recaps, top hooks/topics/formats, outlier alerts. | ✅ Add the client **+ their competitors** |
 | **Post For Me** (`postforme.dev`) | A connected **TikTok account** per client (TikTok auto‑upload). | ⚪ Not urgent |
 | **SyncView onboarding** | Standard/AI intake rows and the staff onboarding inbox. A captured row is not yet proof of provisioning (F110). | ▶️ Current entry point |
@@ -35,7 +36,7 @@
 - [ ] Scrape 5–10 of their Instagram **reels** and write the **keywords** + **content_description**. → [§3](#3-research-keywords--content_description)
 
 **SYNCVIEW Google Sheet** (`10QQ…QqAU8`)
-- [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, slack channel id, …). → [§4](#4-clients-info-row-the-big-one)
+- [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, Slack channel ID, Roam group ID, …). → [§4](#4-clients-info-row-the-big-one)
 - [ ] **Social Media Managers** → add a row (who's their SMM). → [§5](#5-social-media-managers-row)
 - [ ] **Monthly Checkup** → add a row (client_name + email) so the client gets the automated monthly check-in email. → [§6j](#6j-monthly-check-in-email)
 - [ ] *(optional, later)* **Templates** → reels/thumbnail font & color prefs. → [§6b](#6b-templates--caption-prompts-optional)
@@ -44,8 +45,9 @@
 - [ ] Create/move the client's master filming Google Doc inside their folder in the shared **Client Filming Plans** Drive.
 - [ ] In SyncView, sign in with an **Admin** staff identity, then open the main **Filming Plans** tab and add/update the client Doc link. → [§6a](#6a-filming-plan)
 
-**Slack / Post For Me**
-- [ ] Create the client's **Slack channel**, grab its **channel ID** (→ Clients Info) and **member/SMM user ID** (→ SMM tab). → [§6c](#6c-slack-channel)
+**Slack, Roam / Post For Me**
+- [ ] Create the client's **Slack channel**, grab its **channel ID** (→ Clients Info) and **member/SMM user ID** (→ SMM tab). → [§6c](#6c-slack-channel--roam-creative-group-both-required-for-now)
+- [ ] Create the client's one **public Roam creative group**, add its required members, and record its bare Group Settings UUID in `roam_channel_id`. → [§6c](#6c-slack-channel--roam-creative-group-both-required-for-now)
 - [ ] *(not urgent)* Connect their **TikTok account in Post For Me**, put the account's `spc_…` id in `postforme_account_id`. → [§6d](#6d-post-for-me-account-not-urgent)
 
 - [ ] *(recommended)* Add the client to **Sandcastles** — their **own** IG/TikTok **and** their **competitor** handles to the watchlist. → [§6h](#6h-sandcastles-content-intelligence)
@@ -64,9 +66,9 @@
 - [ ] **Linear (SMM):** create a Project for the client on the **Video + Graphics** teams, set the SMM as lead, link the Slack channel. → [§6g](#6g-linear-project-smm)
 
 **Finish**
-- [ ] Verify on the live dashboard (calendar loads, samples strip, filming plan opens from the main tab/Templates/Kasper, weekly Slack target, metrics next morning). → [§6i](#6i-verify)
+- [ ] Verify on the live dashboard (calendar loads, samples strip, filming plan opens from the main tab/Templates/Kasper, Slack and Roam targets, metrics next morning). → [§6i](#6i-verify)
 
-> Rough sequence that mirrors how it's actually done: **Slack channel + Linear project → research/keywords → Sheets rows → client goes live in the dashboard → filming Doc in the Drive folder → Filming Plans tab link → (samples/calendar fill in as work starts).**
+> Rough sequence that mirrors how it's actually done: **Slack channel + Roam creative group + Linear project → research/keywords → Sheets rows → client goes live in the dashboard → filming Doc in the Drive folder → Filming Plans tab link → (samples/calendar fill in as work starts).**
 
 ---
 
@@ -119,7 +121,8 @@ This is the part that's easy to forget the *method* for. You're producing three 
 **Where:** SYNCVIEW sheet (`10QQ…QqAU8`) → tab **`Clients Info`**.
 **Key:** `client_name` — must use the canonical display spelling **exactly** (see the slug rule below).
 
-**Columns (verified header), in order:**
+**Columns:** use the exact headers below; the provisioning workflow reads `roam_channel_id` by
+header name, **not** by a fixed column position.
 
 | Column | What to put | Notes / can be blank? |
 |---|---|---|
@@ -132,7 +135,8 @@ This is the part that's easy to forget the *method* for. You're producing three 
 | `instagram_handle` | IG handle, no `@` | e.g. `jane.doe.living`. |
 | `tiktok_handle` | TikTok handle | **Blank/`N/A` is fine** — scrapers skip it. |
 | `youtube_channel_id` | `UC…` channel ID | **Blank/`N/A` is fine.** |
-| `slack_channel_id` | `C…` channel ID for their Slack | Fill after you create the channel ([§6c](#6c-slack-channel)). Weekly report posts here. |
+| `slack_channel_id` | `C…` channel ID for their Slack | Fill after you create the channel ([§6c](#6c-slack-channel--roam-creative-group-both-required-for-now)). **Retain it:** weekly reports, tweak pings, and alert DMs still use Slack. |
+| `roam_channel_id` | Bare Roam **Group Settings UUIDv4** | Fill after the manual Roam setup ([§6c](#6c-slack-channel--roam-creative-group-both-required-for-now)). Never use a `G-` identifier, group URL, or API credential. |
 | `postforme_account_id` | Post For Me account id (`spc_…`) | **Usually blank** — only the TikTok‑auto‑upload clients use it ([§6d](#6d-post-for-me-account-not-urgent)). |
 
 **Also read by the app** (add if you have it; it lives in this same tab to the right): `slack_team_id` (Slack workspace id, for deep-links). **Never add `client_review_token` here.** Clients Info is anonymously readable; review tokens stay in service-role-only `client_access` and must be distributed through the authenticated link-builder required by audit F33.
@@ -197,12 +201,29 @@ The operational source-of-truth UI is the main **Filming Plans** tab. Kasper's *
 - **`Templates` tab** — per‑client styling the editors/designers use: `reels_subtitle_font`, `reels_subtitle_main_color`, `reels_subtitle_highlight_color`, `reels_reference_link`, `reels_preferences`, `thumbnails_title_font`, `thumbnails_title_color`, `thumbnails_highlight_color`, `thumbnails_photos_link`, etc. Filled progressively from the dashboard's Templates editor — **not needed on day one**.
 - **`CaptionPrompts` tab** — a per‑client caption‑gen prompt (keyed by **slug**). Managed from the UI; optional.
 
-### 6c. Slack channel
+### 6c. Slack channel + Roam creative group (both required for now)
+
+**Slack (still used by unmigrated automations)**
+
 1. Create the client's Slack channel (follow the existing naming pattern in Slack).
 2. Copy the **channel ID** (`C…`) → paste into `slack_channel_id` in **Clients Info**.
 3. Copy the SMM's **user ID** (`U…`) → into the SMM tab's `slack_profile_url` (and `slack_team_id` into Clients Info if you use deep‑links).
 
-This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5NSaCMtZMh6`) posts to every Monday, and where urgent tweak pings go.
+This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5NSaCMtZMh6`) posts to every Monday, and where urgent tweak pings go. A Roam UUID does **not** replace this Slack field or belong in Linear's Slack-channel field.
+
+**Roam creative group (manual; this is the onboarding destination)**
+
+1. Create **one public group** — do not create a second private companion group.
+2. Name it from `<first>-<last>-creative`: lowercase, collapse each run of non-alphanumerics to one hyphen, trim hyphens, cap the **whole final name** at 64 characters, then trim again. This Roam-name rule is separate from the SyncView viewer slug.
+3. Add the owner/Sidney, Kasper, the assigned SMM, and the **Organization API Client**. Add the API client in Roam; never paste an API key or try to invite it by email.
+4. In the group's **Settings**, copy its bare UUIDv4 into `Clients Info.roam_channel_id`. Do not save a `G-` Alpha identifier, a group URL, or an API credential.
+5. The onboarding provisioning workflow only looks up that group and posts there; it does **not** create groups or invite members. It sends the kickoff first and the complete form answers second through stable `POST /v1/chat.sendMessage`.
+
+The workflow posts normally to **Roam only**. It uses the explicit `syncview` / **SyncView** sender, Markdown enabled, `**bold**` section headings and labels, and blank lines between visible rows. Do not use Slack quote blocks, backtick-style placeholders, Block Kit, or the Alpha chat API in this production path.
+
+The client onboarding-form link included in the Resources block is useful to Admin staff, but an SMM-role identity cannot open it: the viewer is Admin-only and deliberately credential-stripped. The full posted brief retains **Account access** by owner decision.
+
+If `roam_channel_id` is blank/invalid or Roam posting fails, the workflow sends its existing failure brief to the owner in Slack. For clients already provisioned before this migration, never re-run the non-idempotent provisioning workflow just to add Roam: create the group manually, record the UUID, and separately post the approved historical brief.
 
 ### 6d. Post For Me account (not urgent)
 Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`spc_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)
@@ -267,6 +288,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 - Open the dashboard, switch to the new client: calendar and samples load (empty is fine).
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
+- Confirm the exact **public** Roam creative group exists with the required owner/Sidney, Kasper, assigned-SMM, and Organization-API-Client members; its exact bare UUID is in `roam_channel_id`; and the kickoff visibly precedes the full onboarding brief.
 - Before any real-client #850 cohort enrollment, require a server-side onboarding receipt proving the exact team
   mapping, protected review token, and all required authenticated Track-A routing entries exist and
   read back. Prove the first Calendar/SXR/settings write reaches the authenticated EF and cannot

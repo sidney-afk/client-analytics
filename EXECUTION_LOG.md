@@ -2,6 +2,43 @@
 
 All times are UTC unless noted.
 
+## 2026-07-28 — Cloud review: what is actually live for the F27 write-auth fence and `linear_project_ids`
+
+Read-only measurement taken while reviewing three builder branches. Nothing was applied, deployed,
+or flagged. Recorded because two in-flight branches reason from figures that do not match live.
+
+- **The F27 write-authorization subset IS live; the rest of F27 is not.** Anonymous RPC probe
+  (anon key, no service credential) discriminates existence from permission:
+  `track_b_f27_write_authorization` → **HTTP 401 `42501 permission denied for function`** (exists,
+  anon correctly cannot execute it); `track_b_f27_hold_guard` → **404 `PGRST202`**;
+  `production_assert_authority` → **404 `PGRST202`**; a deliberately nonexistent name → **404
+  `PGRST202`** (control, proves the probe discriminates). This matches
+  `migrations/2026-07-28-f27-write-authorization-only.sql` exactly: the table + one function
+  applied, the hold guard and the authority assert deliberately omitted and still gated behind the
+  two owner windows in `docs/ops/F27_INSTALL_RUNBOOK.md`.
+- **Consequence for any edit to that file.** The live function body is whatever was applied on
+  2026-07-28. Editing the file in the repo does not change the database. Any change to
+  `track_b_f27_write_authorization`'s body — including removing the legacy `supabase` alias — needs
+  its own `create or replace` re-apply, or the repo and the live database silently disagree. The
+  re-apply is additive and idempotent, and with both teams at `linear` it changes no live decision;
+  it is a step, not a risk. Statements elsewhere that "the F27 SQL is not live-applied" are true of
+  `2026-07-20-f27-team-rollback.sql` and **false** of the 2026-07-28 subset.
+- **Live `linear_project_ids` census (anon read, 2026-07-28).** 39 client rows; 33 active. Among
+  the 32 active `kind='client'` rows: **31 team-keyed and resolving a non-empty id for both teams,
+  and exactly 1** holding a bare array of two ids. The active TEST client holds a bare
+  single-element array and **must keep it** — `_shared/b4-write.ts` reads that field flat through
+  `projectIds()`, so converting it would break the drill's TEST override. Inactive and therefore
+  out of scope: 3 `client` and 2 `test` bare single-element arrays, 1 `internal` empty array.
+- **So the "7 bare-string rows" figure is a whole-table count, not the live gate.** Scoped the way
+  the gate is scoped (`active = true and kind = 'client'`, TEST excluded) the real number is **one
+  row**. A conversion routine that only handles single-element bare shapes converts **zero** rows
+  today and is a no-op plus a report; the one real row needs an explicit per-team pairing.
+- **That pairing is resolved.** Both ids on that row were read back through Linear read-only: they
+  are two distinct projects of the same name, one owned by team **Video (VID)** and one by team
+  **Graphics (GRA)**, so the correct value is unambiguous and needs no guess. The slug and the two
+  UUIDs are deliberately **not written here** — this repo is public (F64); they were handed to the
+  owner directly for a private, filled-in copy of the manual template.
+
 ## 2026-07-27 — F44 legacy intake: durable received fallback generalized and live-proven
 
 - **Scope and live version.** VIDEO PRODUCTION AUTOMATION

@@ -11827,6 +11827,13 @@
 
     // Show the exact subtitle clip the client chose. This is deliberately separate from
     // thumbnail_font/text_style: those fields describe the thumbnail, not subtitles.
+    // The compact viewer tile opens the same contained player used by the public onboarding
+    // form. It must not expose a native inline fullscreen control: that retains the tile's
+    // `object-fit: cover` rule and crops a portrait preview across a landscape screen.
+    function _obvOpenPreview(button){
+      const src = button && button.getAttribute('data-obv-preview');
+      if(src) _obZoom(src);
+    }
     function _obvSubtitle(a){
       const raw = _obvText(a, 'subtitle_style').trim();
       if (!raw) return '';
@@ -11837,9 +11844,9 @@
       // Legacy/unsupported choices remain truthful text instead of an unrelated preview.
       if (!media) return _obvEsc(label);
       const src = media[highlighted ? 1 : 0];
-      return '<div class="obv-sub-preview">'
-        + '<video src="'+_obvEsc(src)+'" controls muted loop playsinline preload="metadata" aria-label="Play '+_obvEsc(label)+' subtitle preview"></video>'
-        + '<span class="obv-thumb-cap">'+_obvEsc(label)+'</span></div>';
+      return '<button type="button" class="obv-sub-preview" data-obv-preview="'+_obvEsc(src)+'" onclick="_obvOpenPreview(this)" aria-label="Play '+_obvEsc(label)+' subtitle preview">'
+        + '<video src="'+_obvEsc(src)+'" muted loop playsinline preload="metadata" aria-hidden="true"></video>'
+        + '<span class="obv-thumb-cap">'+_obvEsc(label)+'</span></button>';
     }
 
     function _obvLegacyDetail(s, opts){
@@ -11989,11 +11996,20 @@
       .obv-row-v a{ color:var(--ig); text-decoration:none; word-break:break-all; }
       .obv-creator{ margin-bottom:3px; }
       .obv-thumb,.obv-sub-preview{ display:inline-block; text-decoration:none; }
+      .obv-sub-preview{ padding:0; border:0; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; }
       .obv-thumb img,.obv-sub-preview video{ display:block; width:150px; max-width:55%; aspect-ratio:9/16; object-fit:cover; border-radius:10px; border:1px solid var(--border); background:var(--bg); }
-      .obv-thumb:hover img,.obv-sub-preview video:hover{ border-color:var(--text-muted); }
+      .obv-sub-preview video{ pointer-events:none; }
+      .obv-thumb:hover img,.obv-sub-preview:hover video{ border-color:var(--text-muted); }
+      .obv-sub-preview:focus-visible{ outline:2px solid var(--ig); outline-offset:3px; border-radius:10px; }
       .obv-thumb-cap{ display:block; font-size:0.78rem; font-weight:600; color:var(--text-secondary); margin-top:6px; }
       .obv-muted{ color:var(--text-muted); }
       @media(max-width:560px){ .obv-row{ grid-template-columns:1fr; gap:2px; } }
+      /* The normal public onboarding form injects these rules with its own styles. The standalone
+         viewer does not, so include only the shared zoom-player rules it needs. */
+      .ob-zoom-ov{ position:fixed; inset:0; background:var(--sv-bg-rgba-0-0-0-0_82); display:none; align-items:center; justify-content:center; z-index:10000; cursor:zoom-out; padding:24px; }
+      .ob-zoom-ov.show{ display:flex; }
+      .ob-zoom-ov img,.ob-zoom-ov video{ max-width:92vw; max-height:88vh; border-radius:10px; box-shadow:0 10px 40px var(--sv-shadow-rgba-0-0-0-0_4); }
+      .ob-zoom-x{ position:fixed; top:18px; right:22px; color:var(--sv-fg-fff); font-size:1.4rem; opacity:0.8; }
       .obv-search{ display:flex; justify-content:center; margin-bottom:18px; }
       .obv-search .search-bar-pill{ width:100%; max-width:440px; }
       .obv-group-nomatch{ font-size:0.84rem; color:var(--text-muted); padding:8px 4px 2px; }

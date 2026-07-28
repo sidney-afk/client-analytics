@@ -44,8 +44,10 @@ vm.runInNewContext([
 const elegant = sandbox._obvSubtitle({ subtitle_style: 'elegant' });
 assert(elegant.includes('<video'), 'Elegant must render a video preview');
 assert(elegant.includes('onboarding-video/sub-elegant.mp4'), 'Elegant must use its standard clip');
-assert(elegant.includes('controls') && elegant.includes('muted') && elegant.includes('playsinline'),
-  'subtitle preview must be usable and safe for inline playback');
+assert(elegant.includes('<button') && elegant.includes('data-obv-preview') && elegant.includes('onclick="_obvOpenPreview(this)"'),
+  'subtitle preview must use the same click-to-zoom interaction as the onboarding form');
+assert(!elegant.includes('controls') && elegant.includes('muted') && elegant.includes('playsinline'),
+  'compact subtitle preview must not expose the native fullscreen player');
 
 const highlighted = sandbox._obvSubtitle({ subtitle_style: 'elegant', subtitle_highlight: true });
 assert(highlighted.includes('onboarding-video/sub-elegant-hl.mp4'),
@@ -58,6 +60,10 @@ assert(/_obvRow\('Subtitles', _obvSubtitle\(a\)\)/.test(INDEX),
   'the Style section must use the subtitle preview helper');
 assert(/\.obv-sub-preview video\{[^}]*aspect-ratio:9\/16/.test(INDEX),
   'subtitle video must retain the compact 9:16 onboarding-preview layout');
+assert(/function _obvOpenPreview\(button\)\{[\s\S]*?_obZoom\(src\);/.test(INDEX),
+  'viewer preview must open the shared contained zoom player');
+assert(/\.ob-zoom-ov video\{[^}]*max-height:88vh/.test(INDEX),
+  'standalone viewer must include the contained zoom-player styles');
 
 for (const asset of [
   'onboarding-video/sub-elegant.mp4',

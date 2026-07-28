@@ -294,10 +294,14 @@ block waives the mechanical-minimum path in `PHASE0_AUDIT_2026-07-28.md` §C.
       still tracks pinned direct imports, CLI/config manifests, and deliberate dependency updates. The
       six onboarding-family floating imports require a later deliberate release and are not part of
       the scoped F27 toolkit pin.
-- [ ] **Authority vocabulary is singular** (F55): every browser, EF, reconciler, n8n guard, flag
-      writer, and runbook accepts exactly `linear|syncview`. Remove/migrate the backend-only
-      `supabase` alias, reject missing/malformed/legacy values consistently, and pass one
-      all-consumer TEST contract/readback drill before changing `prod_authority`.
+- [x] **Authority vocabulary is singular** (F55, 2026-07-28): every browser, EF, reconciler, n8n
+      guard, flag writer, and runbook accepts exactly `linear|syncview`. The backend-only
+      `supabase` alias was removed/migrated everywhere it was accepted (`production-write`,
+      `linear-outbound`, `linear-inbound`, `_shared/b4-write.ts`, the reconcilers, the n8n guard,
+      and the pending F27 SQL — none of it live-applied), missing/malformed/legacy values are now
+      rejected consistently (including two silent-default-to-`linear` bugs found in the process),
+      and `test/f55-authority-vocabulary-contract.js` is the all-consumer contract test. No
+      `prod_authority` flag value changed.
 - [ ] **Intake migration applied** (`production_intake_append` RPC) and pilot-verified on the
       TEST client.
 - [ ] **Intake cannot acknowledge work it has not durably accepted** (F44): every legacy/native

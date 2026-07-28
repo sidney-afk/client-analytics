@@ -50,7 +50,9 @@ insert into public.track_b_f27_team_fences (team, generation, updated_by)
 values ('video', 0, 'f27-migration'), ('graphics', 0, 'f27-migration')
 on conflict (team) do nothing;
 
--- Verbatim from 2026-07-20-f27-team-rollback.sql lines 205-236.
+-- Verbatim from 2026-07-20-f27-team-rollback.sql lines 205-236. F55 removed the
+-- backend-only `supabase` alias from both copies in the same change so they
+-- stay byte-identical; the canonical vocabulary is exactly `linear`/`syncview`.
 create or replace function public.track_b_f27_write_authorization(p_team text)
 returns jsonb
 language plpgsql
@@ -71,15 +73,14 @@ begin
   select value into v_authority
   from public.syncview_runtime_flags where key = 'prod_authority';
   if v_generation is null or jsonb_typeof(v_authority) is distinct from 'object'
-     or lower(coalesce(v_authority->>v_team, '')) not in ('linear', 'syncview', 'supabase') then
+     or lower(coalesce(v_authority->>v_team, '')) not in ('linear', 'syncview') then
     raise exception 'f27_write_authorization_unavailable';
   end if;
   return jsonb_build_object(
     'ok', true,
     'type', 'f27_write_authorization',
     'team', v_team,
-    'authority', case when lower(v_authority->>v_team) = 'supabase' then 'syncview'
-                      else lower(v_authority->>v_team) end,
+    'authority', lower(v_authority->>v_team),
     'generation', v_generation
   );
 end;

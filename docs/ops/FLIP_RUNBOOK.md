@@ -64,8 +64,10 @@ fresh Video normal-lane zero before its F1.
 ## F1 — Team authority (who is the boss for a team)
 
 Row: `prod_authority`. Valid sides: `"linear"` or `"syncview"` per team. NEVER any other word.
-Some backends still accept legacy `"supabase"` while the browser rejects it (F55); that split-brain
-alias must be removed before any drill. Never use it as a compatibility shortcut.
+F55 removed the legacy `"supabase"` backend alias from every consumer (browser, edge functions,
+reconcilers, the n8n guard, and the pending F27 SQL) — every path now rejects it exactly like any
+other malformed/legacy value, and an all-consumer contract test pins this. Never reintroduce it as
+a compatibility shortcut.
 The first human authority flip is Graphics only. Do not run either forward statement while the
 block banner is present; Video's statement is a later, separately approved gate after Graphics.
 For Graphics, the readback and correlated-terminal-receipt prerequisites in “First Graphics handoff order”
@@ -419,7 +421,7 @@ hold automatic reconciliation during recovery. Without that hold, R3 is not exec
 ---
 
 *The runbook's canonical values were verified on 2026-07-13: auth enforcement uses `enforced`,
-outbound uses `off`/`shadow`/`live`, and authority uses `linear`/`syncview`. F55 remains open because
-some backends also accept legacy `supabase` while the browser rejects it; never use that alias. If a
-permitted flip does not take effect within ~30 s, hard-refresh; the mirror tab re-reads authority
-every 30 s.*
+outbound uses `off`/`shadow`/`live`, and authority uses `linear`/`syncview`. F55 (closed 2026-07-28)
+removed the legacy `supabase` backend alias from every consumer and shipped an all-consumer
+contract test; never reintroduce that alias. If a permitted flip does not take effect within ~30 s,
+hard-refresh; the mirror tab re-reads authority every 30 s.*

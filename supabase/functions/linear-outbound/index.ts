@@ -176,7 +176,7 @@ function authorityFor(team: unknown, value: unknown): string {
       : "";
   if (!key) return "";
   const raw = lower(flags[key]);
-  if (raw === "syncview" || raw === "supabase") return "syncview";
+  if (raw === "syncview") return "syncview";
   return raw === "linear" ? "linear" : "";
 }
 

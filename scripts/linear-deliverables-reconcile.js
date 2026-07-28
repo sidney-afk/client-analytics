@@ -257,8 +257,9 @@ function authorityFor(team, prodAuthority, clientSlug = '') {
   const key = clean(team).toLowerCase() === 'graphics' || clean(team).toLowerCase() === 'graphic'
     ? 'graphics'
     : 'video';
-  const value = clean(raw[key] || 'linear').toLowerCase();
-  return value === 'supabase' || value === 'syncview' ? 'syncview' : 'linear';
+  const value = clean(raw[key]).toLowerCase();
+  if (value === 'syncview') return 'syncview';
+  return value === 'linear' ? 'linear' : '';
 }
 
 function parseArray(value) {
@@ -1217,6 +1218,7 @@ if (require.main === module) {
 
 module.exports = {
   isRetryableSupabaseRead,
+  authorityFor,
   batchParentEntries,
   batchParentId,
   expectedParentIdForDeliverable,

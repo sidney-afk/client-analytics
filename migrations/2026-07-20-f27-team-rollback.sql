@@ -222,15 +222,14 @@ begin
   select value into v_authority
   from public.syncview_runtime_flags where key = 'prod_authority';
   if v_generation is null or jsonb_typeof(v_authority) is distinct from 'object'
-     or lower(coalesce(v_authority->>v_team, '')) not in ('linear', 'syncview', 'supabase') then
+     or lower(coalesce(v_authority->>v_team, '')) not in ('linear', 'syncview') then
     raise exception 'f27_write_authorization_unavailable';
   end if;
   return jsonb_build_object(
     'ok', true,
     'type', 'f27_write_authorization',
     'team', v_team,
-    'authority', case when lower(v_authority->>v_team) = 'supabase' then 'syncview'
-                      else lower(v_authority->>v_team) end,
+    'authority', lower(v_authority->>v_team),
     'generation', v_generation
   );
 end;
@@ -327,7 +326,7 @@ begin
          or v_parity is distinct from '{"enabled":true}'::jsonb then
         raise exception 'legacy_parity_gate_unavailable';
       end if;
-    elsif lower(coalesce(v_authority->>v_team, '')) not in ('syncview', 'supabase') then
+    elsif lower(coalesce(v_authority->>v_team, '')) <> 'syncview' then
       raise exception 'team_is_linear_authoritative';
     end if;
   end if;
@@ -394,7 +393,7 @@ begin
   v_authority := lower(nullif(v_value->>p_team, ''));
   if p_legacy_parity and v_authority is distinct from 'linear' then
     raise exception 'legacy_parity_not_allowed';
-  elsif not p_legacy_parity and v_authority not in ('syncview', 'supabase') then
+  elsif not p_legacy_parity and v_authority is distinct from 'syncview' then
     raise exception 'team_is_linear_authoritative';
   end if;
 end;

@@ -135,7 +135,7 @@ function assertFlipTolerantStance(snapshot) {
   const inbound = parseJson(snapshot.linear_inbound_enabled && snapshot.linear_inbound_enabled.value);
   const auth = parseJson(snapshot.auth_enforcement && snapshot.auth_enforcement.value);
   for (const team of ['video', 'graphics']) {
-    assert(['linear', 'syncview', 'supabase'].includes(clean(authority[team]).toLowerCase()),
+    assert(['linear', 'syncview'].includes(clean(authority[team]).toLowerCase()),
       `production authority is invalid for ${team}`);
   }
   assert(['off', 'shadow', 'live'].includes(clean(outbound.mode).toLowerCase()),
@@ -150,7 +150,7 @@ function descriptionReadbackMatches(authority, team, native, mirrored, expected)
   const lane = clean(authority && authority[team]).toLowerCase();
   if (!native || !mirrored || mirrored.description !== expected) return false;
   if (lane === 'linear') return true;
-  return ['syncview', 'supabase'].includes(lane) && native.brief === expected;
+  return lane === 'syncview' && native.brief === expected;
 }
 
 function descriptionReadbackScopes(teams, assets) {
@@ -301,7 +301,7 @@ async function verifyFixture(asset) {
     ) ? { native, mirrored } : null;
   });
   asset.descriptionReadbackScope =
-    ['syncview', 'supabase'].includes(clean(PROD_AUTHORITY[asset.team]).toLowerCase())
+    clean(PROD_AUTHORITY[asset.team]).toLowerCase() === 'syncview'
       ? 'native_and_linear'
       : 'linear_only_authority_linear';
   asset.row = descriptionResponse.row || asset.row;

@@ -73,7 +73,7 @@ const _prodNormalizeAuthority = (value) => {
   const side = (v) => {
     const s = String(v || '').trim().toLowerCase();
     if (s === 'linear') return 'linear';
-    if (s === 'syncview' || s === 'supabase') return 'syncview';
+    if (s === 'syncview') return 'syncview';
     throw new Error('prod_authority side malformed');
   };
   return { video: side(value.video), graphics: side(value.graphics) };

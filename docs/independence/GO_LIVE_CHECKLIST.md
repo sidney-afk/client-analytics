@@ -286,7 +286,10 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       row; absent legs are N/A rather than `In Progress`. Overall/client-ready status, Calendar,
       Samples, queues, bulk actions, comments/alerts, artifacts, and every persona pass all-mode TEST
       coverage before any real-client enrollment or either team becomes writable.
-- [ ] **`production-write` can actually complete an entity write** (found 2026-07-28). The deployed
+- [x] **`production-write` can actually complete an entity write** — RESOLVED 2026-07-28: the
+      owner applied `migrations/2026-07-28-f27-write-authorization-only.sql` (the two objects the
+      deployed gateway requires, verbatim from the F27 migration, PR #970) and TEST drill runs
+      #13–#18 completed entity writes end to end. Original finding retained below (found 2026-07-28). The deployed
       v26 calls `f27WriteAuthorizationGeneration` at `index.ts:3483` — inside `handleEntityOperation`,
       the handler for every non-create write — which invokes the Postgres function
       `track_b_f27_write_authorization`. **That function does not exist in the live database**
@@ -367,7 +370,9 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
 - [ ] **Native concurrency is fail-safe** (F36): every Calendar/Samples/Production mutation sends
       an expected canonical version; stale requests create neither state nor outbox intent, return
       409 with the current row, and the browser offers compare/reapply instead of silent overwrite.
-- [ ] **Production identity is real** (F37): “My issues,” “Assigned to me,” owner-ratified team/
+- [x] **Production identity is real** (F37) — CLOSED 2026-07-28 by TEST drill runs #17/#18
+      (`f37_identity` green end to end; per-creative queues, account switch, zero-row, signed-out
+      all proven against deployed v26). Original text retained: “My issues,” “Assigned to me,” owner-ratified team/
       assignment scope, comment scope, and actor attribution use the server-verified immutable member
       ID. The TEST matrix covers every active creative plus peer-assigned, unassigned, direct-link,
       account-switch and zero-row cases; unsigned/revoked sessions show no personal queue.
@@ -390,7 +395,10 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       same status, lead, and target on board card, project detail, and each picker. No loaded value
       may become In Progress/No lead/No target because the surface selected a slimmer adapter object.
       The owner separately chooses whether these properties stay read-only for the Graphics move.
-- [ ] **Foreground Production converges** (F95): an all-day-open creative tab receives bounded
+- [x] **Foreground Production converges** (F95) — CLOSED 2026-07-28 by TEST drill runs #17/#18
+      (`f95_convergence` green: two foreground contexts converged within one tick with scroll and
+      drafts preserved) plus the read-path re-baseline in run #18. The list-scroll containment fix
+      (#973) landed as part of this proof. Original text retained: an all-day-open creative tab receives bounded
       assignment/status/due/artifact/comment changes from another device without requiring blur,
       backgrounding, or reload. Realtime/poll fallback, last-success age, stale UX, manual refresh,
       backoff, and focus/scroll/draft preservation pass two-tab TEST drills.
@@ -589,6 +597,14 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       `complete: true`, both `matches_manifest: true`, and zero conflicts before owner approval. An
       existing-root TEST reply then survives canonical projection, reload, and retry with no
       card-local-only mutation.
+- [ ] **Marking a client comment done works on every card** (REGRESSION, found 2026-07-27,
+      OPEN): since `328440f` (#924, 2026-07-24), crosswalk-linked cards route mark-done/edit/delete
+      through `_writeUiCardCommentLifecycle` → the native gateway, which refuses under today's
+      flags; non-linked cards still use the legacy `_calResolveTweaksDone` path, which works. The
+      SMM cannot choose the path, ~273 cards / 24 clients are affected, and no workaround exists.
+      Diagnosis PR #980 (merged) makes the next failure name itself; the fix itself is under
+      investigation and MUST land before any team flips — a flipped team lives on exactly the
+      failing path.
 - [ ] **Comments have one truth across every persona** (F43): plain comment, tweak, reply, edit,
       resolve, reopen, delete, and Production-origin Client-visible paths use one canonical
       lifecycle. A real tokened TEST `sample-reviews` link must send its exact `sxr`
@@ -625,7 +641,11 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
       nonterminal workload for active eligible editors (or the explicitly chosen alternative),
       deterministic ties/leave rules, and concurrency-safe allocation; prove >50, >1,000, batch,
       simultaneous-intake, and live anonymized ranking parity.
-- [ ] **Manual assignment uses one server-authoritative eligible roster** (F94): picker and gateway
+- [x] **Manual assignment uses one server-authoritative eligible roster** (F94) — CLOSED
+      2026-07-28 by TEST drill runs #17/#18 (`f94_negative` + `f94_stale_picker` green: every
+      ineligible target refused with zero native/outbox writes; eligible assignment produced row,
+      event and outbox intent together; stale picker failed closed). The owner question on
+      admin/SMM ownership remains answered by the shipped strictest default. Original text retained: picker and gateway
       require active compatible creative role/team and, until retired mode, an active Linear mapping.
       Ineligible, unmapped, provider-inactive, cross-team, or stale-picker targets fail before native
       state/outbox writes. Owner explicitly decides whether admin/SMM may ever own creative work.
@@ -672,7 +692,11 @@ verified TEST-only; no real-client enrollment is authorized by the merge or depl
 - [ ] **Calendar and Samples reorder works without a mouse** (F135): touch and keyboard users have
       explicit accessible move/position controls through the same CAS reorder. Pass physical iOS/
       Android, keyboard/screen reader, scroll arbitration, filters, concurrency, offline and second device.
-- [ ] **Creative status transitions are server-authorized from current state** (F136): owner ratifies
+- [x] **Creative status transitions are server-authorized from current state** (F136) — CLOSED
+      2026-07-28 by TEST drill runs #17/#18: the full 13×13 matrix across owned/peer/unassigned and
+      list/direct routes matched `CREATIVE_STATUS_TRANSITIONS` exactly, with direction-split codes
+      (`f136_gateway_more_permissive`/`_more_restrictive`) proving no permission escape. The six
+      §4 defaults remain shipped at strictest pending owner ratification. Original text retained: owner ratifies
       one role/current/next/team/assignee matrix; the server and picker enforce it. Reviewer/terminal
       regression, cancel, duplicate and peer-work actions require only the explicitly approved role.
       Pass the full 13×13 TEST matrix across list/All/My/direct-link, stale CAS, retry and two devices.
